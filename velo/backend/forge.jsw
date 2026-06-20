@@ -60,18 +60,34 @@ export async function submitCreation(forgeKey, payload, ownerMemberId) {
   const owner = ownerMemberId || member._id;
   const rendered = renderOutput(payload, def, result);
 
+  const legality = {
+    tier: payload.tier,
+    form: payload.form,
+    mode: payload.mode || 'weapon',
+    cost: result.totals.cost,
+    budget: result.totals.budget,
+    inlays: result.totals.inlays,
+    afflictions: result.totals.afflictions,
+    valid: true
+  };
+
   const record = {
-    type: forgeKey,
     forgeKey: forgeKey,
     definitionVersion: def.version,
+    kind: payload.kind === 'foe' ? 'foe' : 'character',
     creationName: payload.title || (forgeKey + ' build'),
     creatorMemberId: member._id,
+    creatorName: displayName(member),
     ownerMemberId: owner,
     worldId: payload.worldId || null,
     payload: JSON.stringify(payload),
     shorthand: rendered.shorthand,
     fullText: rendered.full,
-    forgeStatus: 'submitted',
+    legality: JSON.stringify(legality),
+    creatorNote: payload.creatorNote || '',
+    fingerprint: fingerprintOf(forgeKey, payload),
+    basedOn: payload.basedOn || null,
+    canonStatus: 'submitted',
     voteCount: 0
   };
 
@@ -79,10 +95,33 @@ export async function submitCreation(forgeKey, payload, ownerMemberId) {
   return { ok: true, creationId: saved._id, warnings: result.warnings };
 }
 
+// Overlap check. The tool calls this before submit and warns when a near-identical
+// build already exists, so duplicates do not reach the vote or the LoreMaster.
+export async function findSimilar(forgeKey, payload) {
+  const fp = fingerprintOf(forgeKey, payload);
+  const hits = await wixData.query('Sigils')
+    .eq('forgeKey', forgeKey).eq('fingerprint', fp).limit(10).find({ suppressAuth: true });
+  return hits.items.map(function (s) {
+    return { creationId: s._id, creationName: s.creationName, canonStatus: s.canonStatus, creatorName: s.creatorName };
+  });
+}
+
 async function canUseForge(forgeKey, member) {
   if (LOREMASTER_FORGES.indexOf(forgeKey) === -1) return true;
   const roles = await currentMember.getRoles();
   return roles.some(function (r) { return LOREMASTER_ROLE_TITLES.indexOf(r.title) !== -1; });
+}
+
+function fingerprintOf(forgeKey, payload) {
+  const ids = (payload.selections || []).slice().sort();
+  return forgeKey + ':' + (payload.kind === 'foe' ? 'foe' : 'character') +
+    ':T' + (payload.tier || 1) + 'F' + (payload.form || 1) + ':' + ids.join('+');
+}
+
+function displayName(member) {
+  if (member.profile && member.profile.nickname) return member.profile.nickname;
+  if (member.contactDetails && member.contactDetails.firstName) return member.contactDetails.firstName;
+  return 'A Fell';
 }
 
 function renderOutput(payload, def, result) {

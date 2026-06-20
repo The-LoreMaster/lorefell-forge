@@ -2,24 +2,44 @@
 // rules.core.js
 // The single source of truth for the rule interpreter.
 // build.js wraps this for two runtimes:
-//   docs/rules.js        browser global window.LF.validate, loaded by the kernel
+//   docs/rules.js          browser global window.LF.validate, loaded by the kernel
 //   velo/backend/rules.js  ESM export, pasted into the Wix Velo backend
 // Never edit the generated copies. Edit here and run: node scripts/build.js
 //
 // validate(payload, def) -> { legal, errors, warnings, totals }
-//   payload = { tier:1..3, form:1..3, selections:["componentId", ...], title?, worldId? }
-//   def     = { rules:{budgets,gates,slots,exceptions,modifiers}, components:[...], componentGroups:[...] }
+//   payload = {
+//     tier:1..3, form:1..3, selections:["componentId", ...],
+//     mode?:"weapon"|"monster", spreadTarget?:"componentId", amplifyTarget?:"componentId",
+//     title?, worldId?
+//   }
+//   def = { rules:{...}, components:[...], componentGroups:[...] }
+//
+// rules supports the base vocabulary (budgets, exceptions, modifiers, slots, gates)
+// plus the SigilForge extensions: itemFloorByForm, monsterFloorByForm, mutualExclusion,
+// subCaps, requiresPresence, conditionalRequirements, namesTarget.
 
 function validate(payload, def) {
   var errors = [], warnings = [];
   var rules = def.rules || {};
   var tier = payload.tier || 1;
   var form = payload.form || 1;
+  var mode = payload.mode || "weapon";
 
   var byId = {};
   (def.components || []).forEach(function (c) { byId[c.componentId] = c; });
   var chosen = (payload.selections || []).map(function (id) { return byId[id]; }).filter(Boolean);
 
+  function hasCat(cat) {
+    return chosen.some(function (c) { return (c.categories || []).indexOf(cat) !== -1; });
+  }
+  function byCat(cat) {
+    return chosen.filter(function (c) { return (c.categories || []).indexOf(cat) !== -1; });
+  }
+  function inFrom(c, from) {
+    return Array.isArray(from) ? from.indexOf(c.groupId) !== -1 : c.groupId === from;
+  }
+
+  // Budget band, with the mythic exception override.
   var byTier = (rules.budgets && rules.budgets.byTier) || {};
   var band = byTier[String(tier)] || [0, 99];
   var min = band[0], max = band[1];
@@ -42,13 +62,16 @@ function validate(payload, def) {
   if (total > maxEff) errors.push("Over budget: " + total + " spent, " + maxEff + " allowed.");
   if (total < min) warnings.push("Under budget: " + total + " spent, " + min + " minimum.");
 
+  // Slot rules. from may be a single group or a list of groups (Inlays count Spread and Amplify too).
   (rules.slots || []).forEach(function (slot) {
-    var n = chosen.filter(function (c) { return c.groupId === slot.from; }).length;
-    if (slot.selection === "exactlyOne" && n !== 1) errors.push("Choose exactly one from " + slot.from + ".");
-    if (slot.selection === "atLeastOne" && n < 1) errors.push("Choose at least one from " + slot.from + ".");
-    if (slot.selection === "maxOf" && n > (slot.count || 0)) errors.push("At most " + (slot.count || 0) + " from " + slot.from + ".");
+    var n = chosen.filter(function (c) { return inFrom(c, slot.from); }).length;
+    var where = Array.isArray(slot.from) ? slot.from.join(" or ") : slot.from;
+    if (slot.selection === "exactlyOne" && n !== 1) errors.push("Choose exactly one " + where + ".");
+    if (slot.selection === "atLeastOne" && n < 1) errors.push("Choose at least one " + where + ".");
+    if (slot.selection === "maxOf" && n > (slot.count || 0)) errors.push("At most " + (slot.count || 0) + " " + where + ".");
   });
 
+  // Category gates by Tier and Form.
   chosen.forEach(function (c) {
     (c.categories || []).forEach(function (cat) {
       var gate = (rules.gates || []).filter(function (g) { return g.category === cat; })[0];
@@ -58,11 +81,80 @@ function validate(payload, def) {
     });
   });
 
+  // Form floor: a weapon forges abilities for its Form and above, so Tier must be at least Form.
+  var floorOn = (mode === "monster") ? rules.monsterFloorByForm : rules.itemFloorByForm;
+  if (floorOn && tier < form) {
+    errors.push("A " + ordinal(form) + " Form " + (mode === "monster" ? "foe" : "weapon") +
+      " forges Tier " + form + " and above.");
+  }
+
+  // Mutual exclusion by category.
+  (rules.mutualExclusion || []).forEach(function (pair) {
+    if (pair.length === 2 && hasCat(pair[0]) && hasCat(pair[1])) {
+      errors.push(pair[0] + " and " + pair[1] + " cannot appear in the same ability.");
+    }
+  });
+
+  // Sub caps within a slot group (at most one Affliction among the Inlays).
+  (rules.subCaps || []).forEach(function (cap) {
+    if (byCat(cap.category).length > cap.max) {
+      errors.push("At most " + cap.max + " " + cap.category + " per ability.");
+    }
+  });
+
+  // Required presence (Spread needs Secondary Targets).
+  (rules.requiresPresence || []).forEach(function (rule) {
+    if (hasCat(rule.ifCategory) && !rule.needsOneOf.some(hasCat)) {
+      errors.push(rule.ifCategory + " requires " + rule.needsOneOf.join(" or ") + ".");
+    }
+  });
+
+  // Conditional slot requirements (No Damage needs at least one Inlay to do anything).
+  (rules.conditionalRequirements || []).forEach(function (rule) {
+    var present = chosen.some(function (c) { return c.label === rule.ifComponentLabel; });
+    if (present) {
+      var inlayGroups = ["inlay", "modifier"];
+      var n = chosen.filter(function (c) { return inlayGroups.indexOf(c.groupId) !== -1; }).length;
+      if (n < (rule.minInlays || 0)) {
+        errors.push(rule.ifComponentLabel + " needs at least " + rule.minInlays + " Inlay.");
+      }
+    }
+  });
+
+  // Named target plus per-component ban (Spread and Amplify each name one eligible Inlay).
+  (rules.namesTarget || []).forEach(function (rule) {
+    if (!hasCat(rule.ifCategory)) return;
+    var targetId = payload[rule.payloadKey];
+    if (!targetId) {
+      errors.push("Choose which Inlay " + rule.ifCategory + " affects.");
+      return;
+    }
+    var t = byId[targetId];
+    var isChosen = (payload.selections || []).indexOf(targetId) !== -1;
+    if (!t || !isChosen) {
+      errors.push(rule.ifCategory + " must name an Inlay in this ability.");
+      return;
+    }
+    if (t.groupId !== "inlay") {
+      errors.push(rule.ifCategory + " must name an Inlay, not " + (t.label || targetId) + ".");
+      return;
+    }
+    if ((t.categories || []).indexOf(rule.banCategory) !== -1) {
+      errors.push((t.label || targetId) + " cannot be " + rule.ifCategory + ".");
+    }
+  });
+
   return {
     legal: errors.length === 0,
     errors: errors,
     warnings: warnings,
-    totals: { cost: total, budget: [min, maxEff], extraPoints: extra }
+    totals: {
+      cost: total,
+      budget: [min, maxEff],
+      extraPoints: extra,
+      inlays: chosen.filter(function (c) { return c.groupId === "inlay" || c.groupId === "modifier"; }).length,
+      afflictions: byCat("Affliction*").length
+    }
   };
 }
 
@@ -87,10 +179,14 @@ function describe(req) {
   if (req.anyOf) return req.anyOf.map(describe).join(" or ");
   if (req.allOf) return req.allOf.map(describe).join(" and ");
   return Object.keys(req).map(function (k) {
-    if (k === "tier") return "tier " + req.tier + " or higher";
-    if (k === "form") return "form " + req.form + " or higher";
+    if (k === "tier") return "Tier " + req.tier + " or higher";
+    if (k === "form") return ordinal(req.form) + " Form or higher";
     return k + " " + req[k];
   }).join(", ");
+}
+
+function ordinal(n) {
+  return n === 1 ? "1st" : n === 2 ? "2nd" : n === 3 ? "3rd" : (n + "th");
 }
 
 ;(function (root) {
