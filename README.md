@@ -13,7 +13,7 @@ repo. They are stored as encrypted Action secrets.
 - `schemas/` collection definitions, one JSON per collection. Source of truth for structure.
 - `schemas/seed/` seed rows. JSON fields are kept as real objects and stringified on upload.
 - `scripts/` CMS tooling. `rules.core.js` is the one rule source. `build.js` generates the runtime copies.
-- `velo/` code to paste into the Wix Velo backend (`backend/forge.jsw`, `backend/rules.js`) and the page wiring.
+- `velo/` code to paste into the Wix Velo backend (`backend/forge.web.js`, `backend/rules.js`) and the page wiring.
 - `.github/workflows/` `apply.yml` writes schemas and seed to Wix, `backup.yml` runs nightly.
 - `backups/` local snapshots, gitignored. CI stores backups as private Action artifacts.
 
