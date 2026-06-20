@@ -31,7 +31,7 @@ async function queryAll(col) {
   fs.mkdirSync(out, { recursive: true });
 
   let cols = await listNativeCollections();
-  if (!cols) { cols = ["ForgeConfig", "ForgeComponents", "Sigils"]; console.log("collection list unavailable, falling back to named set"); }
+  if (!cols) { cols = ["ForgeConfig", "ForgeComponents", "Creations", "CreationApprovals"]; console.log("collection list unavailable, falling back to named set"); }
 
   const manifest = [];
   let wrote = 0;

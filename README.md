@@ -32,7 +32,7 @@ Wix reserves the field ids `title`, `status`, and `_owner`. Collections here use
 
 1. In repo Settings, add Action secrets: `WIX_API_KEY`, `WIX_SITE_ID`, and optionally `WIX_ACCOUNT_ID`.
 2. Run the Apply CMS workflow from the Actions tab (Run workflow).
-3. It backs up first, creates `ForgeConfig`, `ForgeComponents`, and `Sigils`, then seeds SigilForge.
+3. It backs up first, creates `ForgeConfig`, `ForgeComponents`, `Creations`, and `CreationApprovals`, then seeds SigilForge.
 4. Confirm in the Wix CMS that `ForgeConfig` has one row and `ForgeComponents` has seven.
 
 ## Serving the tools
