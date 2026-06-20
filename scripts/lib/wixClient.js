@@ -21,15 +21,19 @@ function headers() {
 }
 
 async function req(method, path, body) {
-  const res = await fetch(API + path, {
-    method: method,
-    headers: headers(),
-    body: body ? JSON.stringify(body) : undefined
-  });
-  const text = await res.text();
-  let json;
-  try { json = text ? JSON.parse(text) : {}; } catch (e) { json = { raw: text }; }
-  return { ok: res.ok, status: res.status, json: json, text: text };
+  try {
+    const res = await fetch(API + path, {
+      method: method,
+      headers: headers(),
+      body: body ? JSON.stringify(body) : undefined
+    });
+    const text = await res.text();
+    let json;
+    try { json = text ? JSON.parse(text) : {}; } catch (e) { json = { raw: text }; }
+    return { ok: res.ok, status: res.status, json: json, text: text };
+  } catch (e) {
+    return { ok: false, status: 0, json: { error: String(e) }, text: String(e) };
+  }
 }
 
 module.exports = { req, env, API };
