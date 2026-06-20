@@ -14,6 +14,11 @@ function normalize(it) {
   return { id: it._id || it.id, data: it };
 }
 
+function keyOf(obj, keyField) {
+  const fields = Array.isArray(keyField) ? keyField : [keyField];
+  return fields.map(function (k) { return String(obj[k]); }).join("\u0001");
+}
+
 function prep(item, jsonFields) {
   const out = Object.assign({}, item);
   (jsonFields || []).forEach(function (k) {
@@ -37,8 +42,8 @@ function prep(item, jsonFields) {
 
     for (const raw of items) {
       const data = prep(raw, jsonFields);
-      const keyVal = raw[keyField];
-      const hit = existing.find(e => e.data && e.data[keyField] === keyVal);
+      const keyVal = Array.isArray(keyField) ? keyField.map(function (k) { return raw[k]; }).join("/") : raw[keyField];
+      const hit = existing.find(e => e.data && keyOf(e.data, keyField) === keyOf(raw, keyField));
 
       if (hit && hit.id) {
         const merged = Object.assign({}, hit.data, data);
