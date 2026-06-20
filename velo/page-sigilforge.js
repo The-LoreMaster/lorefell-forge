@@ -18,6 +18,11 @@ $w.onReady(() => {
 
     if (msg.type === 'LOREFELL_ABILITY_SUBMIT') {
       await handleSubmit(embed, msg.payload || {});
+    } else if (msg.type === 'LOREFELL_CHECK_OVERLAP') {
+      const cf = (msg.payload && msg.payload.forge) || {};
+      let matches = [];
+      try { matches = await findSimilar(FORGE_KEY, cf); } catch (e) { matches = []; }
+      embed.postMessage({ type: 'LOREFELL_OVERLAP_RESULT', matches: matches });
     } else if (msg.type === 'LOREFELL_FEEDBACK_SUBMIT') {
       // No feedback collection yet. Logged for now, wire a collection later if wanted.
       console.log('SigilForge feedback:', JSON.stringify(msg.payload || {}));
@@ -43,8 +48,10 @@ async function handleSubmit(embed, raw) {
     selections: f.selections || [],
     spreadTarget: f.spreadTarget || '',
     amplifyTarget: f.amplifyTarget || '',
+    basedOn: f.basedOn || '',
     title: raw.title || '',
-    creatorNote: raw.flavorText || '',
+    creatorNote: raw.creatorNote || '',
+    flavorText: raw.flavorText || '',
     shorthand: raw.shorthand || '',
     fullText: raw.fullExplanation || '',
     imageUrl: imageUrl
