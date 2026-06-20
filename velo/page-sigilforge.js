@@ -3,8 +3,9 @@
 // The tool is self-contained for its UI, so the page only relays submissions and
 // feedback. It re-validates nothing itself, the backend does that, this is just the wire.
 
-import { submitCreation, findSimilar } from 'backend/forge.web.js';
+import { submitCreation, findSimilar, getCreations } from 'backend/forge.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
+import { currentMember } from 'wix-members-frontend';
 
 const FORGE_KEY = 'sigilforge';
 const EMBED = '#html1';   // change to your Embed a Site element ID
@@ -23,6 +24,17 @@ $w.onReady(() => {
       let matches = [];
       try { matches = await findSimilar(FORGE_KEY, cf); } catch (e) { matches = []; }
       embed.postMessage({ type: 'LOREFELL_OVERLAP_RESULT', matches: matches });
+    } else if (msg.type === 'LOREFELL_LOAD_LEDGER') {
+      const scope = (msg.payload && msg.payload.scope) || 'all';
+      const opts = { limit: 60 };
+      if (scope === 'canon') opts.canonStatus = 'canon';
+      if (scope === 'mine') {
+        try { const me = await currentMember.getMember(); if (me) opts.creatorMemberId = me._id; }
+        catch (e) {}
+      }
+      let items = [];
+      try { items = await getCreations(FORGE_KEY, opts); } catch (e) { items = []; }
+      embed.postMessage({ type: 'LOREFELL_LEDGER_RESULT', scope: scope, items: items });
     } else if (msg.type === 'LOREFELL_FEEDBACK_SUBMIT') {
       // No feedback collection yet. Logged for now, wire a collection later if wanted.
       console.log('SigilForge feedback:', JSON.stringify(msg.payload || {}));
@@ -49,6 +61,7 @@ async function handleSubmit(embed, raw) {
     spreadTarget: f.spreadTarget || '',
     amplifyTarget: f.amplifyTarget || '',
     basedOn: f.basedOn || '',
+    meta: f.meta || {},
     title: raw.title || '',
     creatorNote: raw.creatorNote || '',
     flavorText: raw.flavorText || '',
