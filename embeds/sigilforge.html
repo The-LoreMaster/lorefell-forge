@@ -1,0 +1,2649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SigilForge | LoreFell</title>
+<!--
+  ============================================================
+  THE LOREFORGE  |  Skyvault Studios
+  SigilForge: rune-forged ability, spell, and monster creator. Rules per the
+  LoreFell Mechanics Reference v2 (Two Ladders, mythic budget).
+  ============================================================
+  WIX SETUP: paste this file into an Embed HTML element.
+  Recommended: full width, min height 1500px mobile.
+
+  CMS: collection LoreForgeAbilities with fields
+  title, tier, type, weaponOrSchool, focus, primaryDamage,
+  targeting, spread, amplify, components, shorthand,
+  fullExplanation, budgetBreakdown, weaponFacts, flavorText,
+  cost (number), status, createdDate (date/time).
+  Permissions: Anyone can add.
+
+  VELO PAGE CODE:
+
+  import wixData from 'wix-data';
+
+  $w.onReady(function () {
+    $w("#html1").onMessage((event) => {
+      const msg = event.data;
+      if (!msg || msg.type !== "LOREFELL_ABILITY_SUBMIT") return;
+      const p = msg.payload;
+      wixData.insert("LoreForgeAbilities", {
+        title: p.title,
+        tier: p.tier,
+        type: p.abilityType,
+        weaponOrSchool: p.weaponOrSchool,
+        focus: p.focus,
+        primaryDamage: p.primaryDamage,
+        targeting: p.targeting,
+        spread: p.spread,
+        amplify: p.amplify,
+        components: JSON.stringify(p.components),
+        shorthand: p.shorthand,
+        fullExplanation: p.fullExplanation,
+        budgetBreakdown: p.budgetBreakdown,
+        weaponFacts: p.weaponFacts,
+        flavorText: p.flavorText,
+        cost: p.cost,
+        status: "Submitted",
+        createdDate: new Date()
+      })
+      .catch((err) => console.error("LoreForge insert failed:", err));
+    });
+  });
+
+  Replace #html1 with your embed's ID. Use onMessage, never
+  window.addEventListener, in Velo. Test on the published site.
+  ============================================================
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Cinzel:wght@500;600&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy:#0a0e1a;
+    --navy-2:#10162a;
+    --navy-3:#161e36;
+    --silver:#dce8ef;
+    --silver-dim:#9fb0bd;
+    --gold:#c9a84c;
+    --ice:#b8ccd8;
+    --bane:#a14a57;
+    --line:rgba(184,204,216,.18);
+    --line-soft:rgba(184,204,216,.10);
+    --valid:#7fb89a;
+    --error:#c97a7a;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    background:var(--navy);color:var(--silver);
+    font-family:'Crimson Pro',serif;font-size:17px;line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:720px;margin:0 auto;padding:26px 16px 64px}
+
+  /* ============ header & pager chrome ============ */
+  .crest{text-align:center}
+  .crest-rule{width:120px;height:1px;margin:0 auto 14px;background:linear-gradient(90deg,transparent,var(--gold),transparent)}
+  h1.app-title{
+    font-family:'Cinzel Decorative',serif;
+    font-size:clamp(24px,6.5vw,36px);letter-spacing:.04em;line-height:1.15;
+  }
+  .app-sub{
+    font-family:'Cinzel',serif;font-size:12px;letter-spacing:.26em;
+    text-transform:uppercase;color:var(--ice);margin-top:4px;
+  }
+  .pagenav{
+    display:flex;align-items:center;justify-content:center;gap:6px;
+    margin:20px 0 4px;
+    position:sticky;top:0;z-index:20;
+    background:linear-gradient(var(--navy) 82%,transparent);
+    padding:10px 0 12px;
+  }
+  .pn-arrow{
+    background:none;border:1px solid var(--line);color:var(--ice);
+    font-size:15px;line-height:1;padding:8px 11px;cursor:pointer;
+  }
+  .pn-arrow:disabled{opacity:.25;cursor:default}
+  .pn-tabs{display:flex;gap:6px}
+  .pn-tab{
+    font-family:'Cinzel',serif;font-size:12px;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--silver-dim);
+    background:var(--navy-2);border:1px solid var(--line);
+    padding:8px 13px;cursor:pointer;
+  }
+  .pn-tab.on{color:var(--silver);border-color:var(--gold);box-shadow:inset 0 -2px 0 var(--gold)}
+  .page{display:none}
+  .page.on{display:block;animation:pageIn .22s ease}
+  @keyframes pageIn{from{opacity:0;transform:translateX(10px)}to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){.page.on{animation:none}}
+
+  /* ============ forge page ============ */
+  .rune-card{
+    background:radial-gradient(ellipse at 50% 44%, var(--navy-2) 0%, var(--navy) 74%);
+    border:1px solid var(--line);
+    padding:8px 6px 2px;margin-top:10px;position:relative;overflow:hidden;
+  }
+  #runeSvg{display:block;width:100%;max-width:390px;height:auto;margin:0 auto;transform-origin:center;animation:breathe 7s ease-in-out infinite;transition:filter .7s ease}
+  .rune-stage{position:relative}
+  .rune-card.stable #runeSvg{filter:drop-shadow(0 0 12px rgba(184,204,216,.2))}
+  @keyframes breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.013)}}
+  .mote{
+    position:absolute;left:50%;bottom:8%;width:3px;height:3px;border-radius:50%;
+    background:var(--ice);opacity:0;pointer-events:none;z-index:2;
+    animation:moteRise 11s linear infinite;
+  }
+  .mote.gold{background:var(--gold)}
+  @keyframes moteRise{
+    0%{transform:translate(0,0) scale(1);opacity:0}
+    10%{opacity:.5}
+    50%{transform:translate(7px,-150px) scale(.85)}
+    85%{opacity:.3}
+    100%{transform:translate(-5px,-300px) scale(.6);opacity:0}
+  }
+  .sheen{
+    position:absolute;inset:0;pointer-events:none;z-index:3;
+    background:linear-gradient(110deg,transparent 42%,rgba(220,232,239,.06) 50%,transparent 58%);
+    background-size:240% 100%;
+    animation:sheen 9s ease-in-out infinite;
+  }
+  @keyframes sheen{
+    0%,68%{background-position:135% 0}
+    94%,100%{background-position:-135% 0}
+  }
+  .ability-name-display{
+    font-family:'Cinzel Decorative',serif;text-align:center;
+    font-size:1.05rem;color:var(--silver);min-height:1.4em;
+    padding:0 8px 4px;letter-spacing:.04em;overflow-wrap:break-word;
+  }
+  .forged-badge{
+    display:none;text-align:center;font-family:'Cinzel',serif;
+    font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--gold);
+    padding-bottom:8px;
+  }
+  .rune-card.forged .forged-badge{display:block}
+  .rune-card.forged #runeSvg{filter:drop-shadow(0 0 14px rgba(201,168,76,.35))}
+  .rune-legend{
+    display:flex;flex-wrap:wrap;gap:6px 14px;justify-content:center;
+    padding:6px 6px 12px;font-size:.84rem;color:var(--silver-dim);
+  }
+  .rune-legend span{display:inline-flex;align-items:center;gap:6px}
+  .lg-dot{width:8px;height:8px;display:inline-block;border-radius:50%}
+  .lg-core{background:var(--silver)}
+  .lg-tgt{background:var(--ice)}
+  .lg-rider{background:var(--ice);border-radius:0}
+  .lg-bane{background:var(--bane);border-radius:0}
+  .lg-gold{background:var(--gold)}
+
+  /* white fire forging effect */
+  .forge-fx{position:absolute;inset:0;pointer-events:none;z-index:5}
+  .fx-burst{
+    position:absolute;left:50%;top:42%;width:340px;height:340px;
+    transform:translate(-50%,-50%) scale(.2);border-radius:50%;
+    background:radial-gradient(circle, rgba(255,255,255,.95) 0%, rgba(220,232,239,.55) 32%, rgba(201,168,76,.25) 55%, transparent 72%);
+    opacity:0;
+  }
+  .forging .fx-burst{animation:burst 1.5s ease-out forwards}
+  @keyframes burst{
+    0%{opacity:0;transform:translate(-50%,-50%) scale(.2)}
+    18%{opacity:1}
+    100%{opacity:0;transform:translate(-50%,-50%) scale(1.7)}
+  }
+  .forging #runeSvg{animation:whitehot 1.5s ease-out}
+  @keyframes whitehot{
+    0%{filter:none}
+    16%{filter:brightness(4) saturate(0) drop-shadow(0 0 24px rgba(255,255,255,.9))}
+    55%{filter:brightness(2) drop-shadow(0 0 16px rgba(255,255,255,.6))}
+    100%{filter:drop-shadow(0 0 14px rgba(201,168,76,.35))}
+  }
+  .ember{
+    position:absolute;width:4px;height:4px;border-radius:50%;
+    background:#fff;opacity:0;
+  }
+  .forging .ember{animation:ember 1.4s ease-out forwards}
+  @keyframes ember{
+    0%{opacity:0;transform:translate(0,0) scale(1)}
+    12%{opacity:1}
+    100%{opacity:0;transform:translate(var(--ex),var(--ey)) scale(.3)}
+  }
+  .feedback-card{margin:30px auto 10px;max-width:520px}
+  .fb-toggle{
+    display:block;width:100%;box-sizing:border-box;text-align:center;cursor:pointer;
+    background:transparent;border:1px solid rgba(184,204,216,.22);border-radius:8px;
+    color:var(--ice);font-family:'Cinzel',serif;font-size:.72rem;
+    letter-spacing:.18em;text-transform:uppercase;padding:9px 10px;opacity:.8;
+    transition:opacity .2s,border-color .2s;
+  }
+  .fb-toggle:hover{opacity:1;border-color:var(--gold)}
+  .fb-body{overflow:hidden;max-height:0;transition:max-height .3s ease}
+  .feedback-card.open .fb-body{max-height:340px}
+  .feedback-card.open .fb-toggle{border-bottom-left-radius:0;border-bottom-right-radius:0;opacity:1}
+  .fb-inner{
+    border:1px solid rgba(184,204,216,.22);border-top:none;
+    border-bottom-left-radius:8px;border-bottom-right-radius:8px;
+    padding:14px;background:var(--navy-2);
+  }
+  #feedbackInput{
+    width:100%;box-sizing:border-box;min-height:74px;resize:vertical;
+    background:var(--navy);border:1px solid rgba(184,204,216,.2);border-radius:6px;
+    color:var(--silver);font-family:'Crimson Pro',Georgia,serif;font-size:.95rem;padding:10px;
+  }
+  .fb-btn{
+    width:100%;margin-top:10px;background:var(--navy-3);
+    border:1px solid var(--gold);color:var(--silver);
+    font-family:'Cinzel',serif;font-size:.78rem;letter-spacing:.18em;
+    text-transform:uppercase;padding:11px 10px;cursor:pointer;transition:opacity .2s;
+  }
+  .fb-btn:disabled{opacity:.4;cursor:default}
+  .fb-msg{font-size:.8rem;color:var(--ice);opacity:.85;margin-top:8px;min-height:1em}
+  .submit-btn.submitting{animation:submitGlow 1.1s ease-in-out infinite}
+  @keyframes submitGlow{
+    0%,100%{box-shadow:0 0 6px rgba(201,168,76,.3)}
+    50%{box-shadow:0 0 24px rgba(201,168,76,.8)}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .forging .fx-burst,.forging #runeSvg,.forging .ember{animation:none}
+    .submit-btn.submitting{animation:none;box-shadow:0 0 14px rgba(201,168,76,.55)}
+    #runeSvg{animation:none}
+    .mote,.sheen{display:none}
+  }
+
+  /* budget bar */
+  .budget-bar{
+    display:flex;align-items:center;justify-content:space-between;
+    background:var(--navy-2);border:1px solid var(--line);
+    padding:10px 14px;margin:12px 0;
+    font-family:'Cinzel',serif;font-size:.85rem;letter-spacing:.08em;
+  }
+  .budget-bar .total{font-size:1.15rem}
+  .budget-bar.ok{border-color:rgba(127,184,154,.55)}
+  .budget-bar.ok .total{color:var(--valid)}
+  .budget-bar.over .total{color:var(--error)}
+  .budget-state{font-size:.7rem;text-transform:uppercase;letter-spacing:.2em;color:var(--silver-dim)}
+  .budget-bar.ok .budget-state{color:var(--valid)}
+  .mythic-flag{font-size:.66rem;letter-spacing:.18em;color:var(--gold)}
+
+  /* form controls */
+  fieldset{border:none;margin-bottom:6px}
+  label.fld{
+    display:block;font-family:'Cinzel',serif;font-size:.7rem;
+    letter-spacing:.18em;text-transform:uppercase;color:var(--ice);
+    margin:16px 0 5px;
+  }
+  label.fld .cost-tag{color:var(--silver-dim);letter-spacing:0;text-transform:none}
+  select,input[type=text],textarea{
+    width:100%;background:var(--navy-3);border:1px solid var(--line);
+    color:var(--silver);font-family:'Crimson Pro',serif;font-size:1rem;
+    padding:10px 12px;appearance:none;-webkit-appearance:none;border-radius:0;
+  }
+  select{
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23b8ccd8' fill='none' stroke-width='1.5'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 12px center;padding-right:34px;
+  }
+  select:focus,input:focus,textarea:focus{outline:none;border-color:var(--gold)}
+  textarea{min-height:74px;resize:vertical}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:430px){.row2{grid-template-columns:1fr}}
+  .seg{display:flex;border:1px solid var(--line)}
+  .seg button{
+    flex:1;background:var(--navy-3);border:none;color:var(--silver-dim);
+    font-family:'Cinzel',serif;font-size:.8rem;letter-spacing:.12em;
+    padding:10px 4px;cursor:pointer;text-transform:uppercase;
+  }
+  .seg button+button{border-left:1px solid var(--line)}
+  .seg button.active{background:var(--navy-2);color:var(--silver);box-shadow:inset 0 -2px 0 var(--gold)}
+
+  /* live component descriptions */
+  .desc{
+    font-size:.9rem;color:var(--silver-dim);margin-top:5px;line-height:1.45;
+  }
+  .desc b{color:var(--ice);font-weight:600}
+  .desc .lock{
+    font-family:'Cinzel',serif;font-size:10px;letter-spacing:.08em;color:var(--gold);
+    white-space:nowrap;
+  }
+  .desc .lock::before{content:'\1F511\FE0E ';font-size:10px}
+  .weapon-facts{
+    font-style:italic;font-size:.9rem;color:var(--ice);margin-top:6px;
+  }
+  .rand-btn{
+    width:100%;margin-top:18px;background:var(--navy-3);
+    border:1px solid var(--line);color:var(--ice);
+    font-family:'Cinzel',serif;font-size:.76rem;letter-spacing:.18em;
+    text-transform:uppercase;padding:11px 10px;cursor:pointer;
+  }
+  .rand-btn:active{border-color:var(--gold);color:var(--gold)}
+  .ai-card h3{margin:0 0 4px}
+  .ai-note{font-size:.85rem;color:var(--ice);opacity:.85;margin:0 0 8px}
+  .ai-card textarea{min-height:64px}
+  .ai-msg{
+    margin:10px 0 0;padding:10px 12px;font-size:.9rem;line-height:1.45;
+    color:var(--ice);background:rgba(184,204,216,.06);
+    border:1px solid rgba(184,204,216,.25);border-radius:6px;
+    white-space:pre-line;
+  }
+  .ai-btn{margin-top:10px}
+  .ai-btn:disabled{opacity:.55;cursor:wait}
+
+  /* validation */
+  .errors{margin:12px 0 0;list-style:none}
+  .errors li{color:var(--error);font-size:.92rem;padding:3px 0 3px 18px;position:relative}
+  .errors li::before{content:"\2715";position:absolute;left:0;font-size:.72rem;top:6px}
+  .errors li.all-clear{color:var(--valid)}
+  .errors li.all-clear::before{content:"\2713";font-size:.8rem;top:5px}
+  .errors li.warn{color:var(--ice);font-style:italic}
+  .errors li.warn::before{content:"!";font-size:.85rem;top:4px}
+
+  /* outputs */
+  .out-card{
+    background:var(--navy-2);border:1px solid var(--line);
+    padding:14px 14px 12px;margin-top:14px;position:relative;
+  }
+  .out-card h3{
+    font-family:'Cinzel',serif;font-size:.7rem;letter-spacing:.2em;
+    text-transform:uppercase;color:var(--ice);margin-bottom:8px;
+  }
+  .out-card pre{
+    font-family:'Crimson Pro',serif;font-size:1rem;color:var(--silver);
+    white-space:pre-wrap;word-wrap:break-word;line-height:1.55;
+  }
+  .copy-btn{
+    position:absolute;top:10px;right:10px;background:transparent;
+    border:1px solid var(--line);color:var(--ice);
+    font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.14em;
+    text-transform:uppercase;padding:5px 9px;cursor:pointer;
+  }
+  .copy-btn:active{border-color:var(--gold);color:var(--gold)}
+  .ast{color:var(--gold)}
+
+  .submit-btn{
+    width:100%;margin-top:20px;background:var(--navy-3);
+    border:1px solid var(--gold);color:var(--silver);
+    font-family:'Cinzel',serif;font-size:.92rem;letter-spacing:.2em;
+    text-transform:uppercase;padding:15px 10px;cursor:pointer;transition:opacity .2s;
+  }
+  .submit-btn:disabled{opacity:.35;cursor:not-allowed;border-color:var(--line)}
+  .submit-note{font-size:.85rem;color:var(--silver-dim);text-align:center;margin-top:8px}
+  .toast{
+    position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(90px);
+    background:var(--navy-3);border:1px solid var(--gold);color:var(--silver);
+    font-family:'Cinzel',serif;font-size:.8rem;letter-spacing:.1em;
+    padding:12px 22px;transition:transform .3s;z-index:60;max-width:90vw;text-align:center;
+  }
+  .toast.show{transform:translateX(-50%) translateY(0)}
+
+  /* ============ ledger page (adapted from forging_ledger) ============ */
+  .pg-lede{
+    text-align:center;color:var(--ice);font-size:clamp(16px,4.4vw,19px);
+    margin:12px auto 0;max-width:36ch;
+  }
+  .pg-lede strong{color:var(--silver);font-weight:600}
+  .pg-h1{
+    font-family:'Cinzel Decorative',serif;font-size:clamp(23px,6.4vw,34px);
+    letter-spacing:.04em;text-align:center;line-height:1.15;margin-top:6px;
+  }
+  .tiers{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:30px 0 8px}
+  .tier{
+    background:var(--navy-2);border:1px solid var(--line-soft);
+    border-top:2px solid var(--gold);padding:14px 8px 12px;text-align:center;
+  }
+  .tier h2{font-family:'Cinzel',serif;font-weight:600;font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--ice)}
+  .tier .spend{font-family:'Cinzel',serif;font-size:clamp(20px,5.5vw,26px);color:var(--silver);margin:6px 0 2px}
+  .tier .chg{font-size:14px;color:var(--silver-dim)}
+  .mythic-note{text-align:center;font-size:15px;color:var(--silver-dim);margin:10px 0 0}
+  .mythic-note b{color:var(--gold);font-weight:600}
+  .steps{margin:30px 0 24px;border:1px solid var(--line-soft);background:var(--navy-2);padding:18px 16px}
+  .steps p{font-size:16px}
+  .steps .tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+  .tag{font-family:'Cinzel',serif;font-size:12px;letter-spacing:.1em;padding:4px 10px;border:1px solid var(--line)}
+  .tag.t{color:var(--ice)} .tag.d{color:var(--silver)} .tag.r{color:var(--silver-dim)}
+  .tag .dot{display:inline-block;width:7px;height:7px;margin-right:7px;vertical-align:1px}
+  .dot.t{background:var(--ice)} .dot.d{background:var(--silver)} .dot.r{background:var(--silver-dim)}
+  .ledger{border:1px solid var(--line);border-bottom:none}
+  .band{display:grid;grid-template-columns:64px 1fr;border-bottom:1px solid var(--line);background:var(--navy-2)}
+  .band:nth-child(even){background:var(--navy-3)}
+  .price{
+    display:flex;align-items:center;justify-content:center;
+    border-right:1px solid var(--line-soft);
+    font-family:'Cinzel',serif;font-size:26px;font-weight:600;color:var(--silver);
+  }
+  .band.refund .price{color:var(--gold)}
+  .goods{padding:12px 12px 8px;display:flex;flex-wrap:wrap;gap:8px;align-content:flex-start}
+  .chip{border:1px solid var(--line);padding:6px 10px;font-size:15px;line-height:1.3;background:rgba(10,14,26,.45)}
+  .chip::before{content:'';display:inline-block;width:7px;height:7px;margin-right:8px;vertical-align:1px}
+  .chip.t::before{background:var(--ice)} .chip.d::before{background:var(--silver)} .chip.r::before{background:var(--silver-dim)}
+  .chip small{display:block;font-size:13px;color:var(--silver-dim);margin-top:1px}
+  .key{font-family:'Cinzel',serif;font-size:11px;letter-spacing:.08em;color:var(--gold);white-space:nowrap}
+  .key::before{content:'\1F511\FE0E ';font-size:11px}
+  .limits{margin:26px 0 0;border-left:2px solid var(--gold);padding:4px 0 4px 16px;color:var(--ice);font-size:16px}
+  .limits b{color:var(--silver);font-weight:600}
+  .examples{margin-top:40px}
+  .examples h3{
+    font-family:'Cinzel',serif;font-weight:600;font-size:15px;
+    letter-spacing:.16em;text-transform:uppercase;color:var(--ice);
+    text-align:center;margin-bottom:18px;
+  }
+  .ex{border:1px solid var(--line-soft);background:var(--navy-2);padding:14px 16px;margin-bottom:12px}
+  .ex .name{font-family:'Cinzel',serif;font-weight:600;font-size:16px;letter-spacing:.04em}
+  .ex .name span{color:var(--silver-dim);font-family:'Crimson Pro',serif;font-weight:400;font-size:15px;letter-spacing:0}
+  .ex .math{margin-top:6px;font-size:16px;color:var(--ice)}
+  .ex .math b{color:var(--gold);font-weight:600}
+  .ex .flavor{margin-top:4px;font-style:italic;color:var(--silver-dim);font-size:15px}
+  @media (min-width:560px){.goods{padding:14px 16px 10px}.price{font-size:30px}.band{grid-template-columns:84px 1fr}}
+
+  /* ============ codex page ============ */
+  .toolbar{
+    position:sticky;top:54px;z-index:10;
+    background:linear-gradient(var(--navy) 86%,transparent);
+    padding:14px 0 12px;margin-top:18px;
+  }
+  .search{
+    width:100%;background:var(--navy-2);border:1px solid var(--line);
+    color:var(--silver);font-family:'Crimson Pro',serif;font-size:17px;
+    padding:11px 14px;outline:none;border-radius:0;-webkit-appearance:none;
+  }
+  .search::placeholder{color:var(--silver-dim)}
+  .search:focus{border-color:var(--gold)}
+  .filters{display:flex;gap:8px;overflow-x:auto;margin-top:10px;padding-bottom:4px;scrollbar-width:none}
+  .filters::-webkit-scrollbar{display:none}
+  .fbtn{
+    flex:0 0 auto;font-family:'Cinzel',serif;font-size:12px;letter-spacing:.1em;
+    color:var(--ice);background:var(--navy-2);border:1px solid var(--line);
+    padding:7px 12px;cursor:pointer;
+  }
+  .fbtn.on{color:var(--navy);background:var(--ice);border-color:var(--ice)}
+  .count{font-size:14px;color:var(--silver-dim);margin-top:8px}
+  .section{margin-top:32px}
+  .section.hidden{display:none}
+  .shead{
+    display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+    border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:2px;
+  }
+  .shead h2{font-family:'Cinzel',serif;font-weight:600;font-size:16px;letter-spacing:.16em;text-transform:uppercase}
+  .skey,.rkey{font-family:'Cinzel',serif;font-size:11px;letter-spacing:.08em;color:var(--gold);white-space:nowrap}
+  .skey::before,.rkey::before{content:'\1F511\FE0E ';font-size:11px}
+  .snote{font-size:15px;color:var(--silver-dim);margin:8px 0 2px;font-style:italic}
+  .crow{display:grid;grid-template-columns:46px 1fr;gap:0 12px;border-bottom:1px solid var(--line-soft);padding:12px 0}
+  .crow.hidden{display:none}
+  .ccost{
+    font-family:'Cinzel',serif;font-weight:600;font-size:20px;
+    text-align:center;border:1px solid var(--line);align-self:start;padding:6px 0;
+  }
+  .ccost.refund{color:var(--gold)}
+  .rname{font-family:'Cinzel',serif;font-weight:600;font-size:16px;letter-spacing:.03em}
+  .rname .brk{font-family:'Crimson Pro',serif;font-weight:400;font-size:14px;letter-spacing:0;color:var(--ice);margin-left:8px}
+  .rkey{margin-left:8px}
+  .rtext{font-size:16px;color:var(--silver-dim);margin-top:3px}
+  .empty{text-align:center;color:var(--silver-dim);font-style:italic;padding:44px 0;display:none}
+  footer{margin-top:48px;text-align:center;color:var(--silver-dim);font-size:14px}
+  .crest-rule.end{margin-top:18px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="crest">
+    <div class="crest-rule"></div>
+    <h1 class="app-title">SigilForge</h1>
+  </header>
+
+  <nav class="pagenav" aria-label="Pages">
+    <button class="pn-arrow" id="pnPrev" aria-label="Previous page">&#8249;</button>
+    <div class="pn-tabs">
+      <button class="pn-tab on" data-page="0">Forge</button>
+      <button class="pn-tab" data-page="1">Ledger</button>
+      <button class="pn-tab" data-page="2">Codex</button>
+    </div>
+    <button class="pn-arrow" id="pnNext" aria-label="Next page">&#8250;</button>
+  </nav>
+
+  <!-- ==================== PAGE 1: FORGE ==================== -->
+  <main class="page on" id="page0">
+
+    <div class="rune-card" id="runeCard">
+      <div class="rune-stage" id="runeStage">
+        <svg id="runeSvg" viewBox="0 0 320 320" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Ability rune"></svg>
+        <div class="forge-fx" id="forgeFx"><div class="fx-burst"></div></div>
+        <div class="sheen"></div>
+      </div>
+      <div class="ability-name-display" id="nameDisplay"></div>
+      <div class="forged-badge">Forged</div>
+      <div class="rune-legend" id="runeLegend"></div>
+    </div>
+
+    <div class="budget-bar" id="budgetBar">
+      <span class="budget-state" id="budgetState">Choose components</span>
+      <span style="display:flex;align-items:center;gap:10px">
+        <span class="mythic-flag" id="mythicFlag" style="display:none">Mythic</span>
+        <span><span class="total" id="budgetTotal">0</span> <span style="color:var(--silver-dim)">/ <span id="budgetReq">1-2</span></span></span>
+      </span>
+    </div>
+
+    <fieldset class="ai-card" id="aiCard">
+      <h3>Forge From a Vision</h3>
+      <p class="ai-note">Describe the ability or spell you imagine. The forge will shape a legal build from your words, and ask questions if it needs to.</p>
+      <textarea id="aiDesc" maxlength="600" placeholder="A curse that spreads terror through every enemy on the field"></textarea>
+      <div class="ai-msg" id="aiMsg" style="display:none"></div>
+      <button type="button" class="rand-btn ai-btn" id="aiBtn">Forge From Description</button>
+    </fieldset>
+
+    <fieldset>
+      <label class="fld">Type</label>
+      <div class="seg" id="typeSeg">
+        <button type="button" data-val="Ability" class="active">Ability</button>
+        <button type="button" data-val="Spell">Spell</button>
+        <button type="button" data-val="Monster">Monster</button>
+      </div>
+
+      <div class="row2">
+        <div>
+          <label class="fld">Tier</label>
+          <select id="tierSel">
+            <option value="1">Tier 1 (budget 1-2)</option>
+            <option value="2">Tier 2 (budget 3-4)</option>
+            <option value="3">Tier 3 (budget 5-6)</option>
+          </select>
+        </div>
+        <div id="weaponField">
+          <label class="fld">Weapon</label>
+          <select id="weaponSel"></select>
+        </div>
+        <div id="focusField" style="display:none">
+          <label class="fld">Magic Item</label>
+          <select id="focusSel"></select>
+          <div class="desc" id="schoolReadout"></div>
+        </div>
+        <div id="monsterField" style="display:none">
+          <label class="fld">Attack Archetype</label>
+          <select id="archetypeSel">
+            <option value="Precision">Precision</option>
+            <option value="Power" selected>Power</option>
+            <option value="Magic">Magic</option>
+          </select>
+          <div id="monsterSchoolRow" style="display:none">
+            <label class="fld">School</label>
+            <select id="monsterSchoolSel"></select>
+          </div>
+          <label class="fld">Form</label>
+          <select id="monsterFormSel">
+            <option value="1">1st Form (Tier 1+)</option>
+            <option value="2">2nd Form (Tier 2+)</option>
+            <option value="3">3rd Form (Tier 3 only)</option>
+          </select>
+        </div>
+      </div>
+      <div class="weapon-facts" id="factsDisplay"></div>
+
+      <button type="button" class="rand-btn" id="randBtn">Randomize Build</button>
+
+      <label class="fld">Primary Damage Package</label>
+      <select id="damageSel"></select>
+      <div class="desc" id="damageDesc"></div>
+
+      <label class="fld">Targeting</label>
+      <select id="targetingSel"></select>
+      <div class="desc" id="targetingDesc"></div>
+
+      <label class="fld">Rider Slot 1</label>
+      <select id="slot1Sel"></select>
+      <div class="desc" id="slot1Desc"></div>
+
+      <label class="fld">Rider Slot 2</label>
+      <select id="slot2Sel"></select>
+      <div class="desc" id="slot2Desc"></div>
+
+      <label class="fld">Spread <span class="cost-tag">(+2)</span></label>
+      <select id="spreadSel"></select>
+      <div class="desc" id="spreadDesc"></div>
+
+      <label class="fld">Amplify <span class="cost-tag">(+2)</span></label>
+      <select id="amplifySel"></select>
+      <div class="desc" id="amplifyDesc"></div>
+    </fieldset>
+
+    <ul class="errors" id="errorList"></ul>
+
+    <div class="out-card">
+      <h3>Shorthand</h3>
+      <button class="copy-btn" data-copy="shorthandOut">Copy</button>
+      <pre id="shorthandOut"></pre>
+    </div>
+    <div class="out-card">
+      <h3>Full Explanation</h3>
+      <button class="copy-btn" data-copy="fullOut">Copy</button>
+      <pre id="fullOut"></pre>
+    </div>
+    <div class="out-card">
+      <h3>Budget Breakdown</h3>
+      <button class="copy-btn" data-copy="budgetOut">Copy</button>
+      <pre id="budgetOut"></pre>
+    </div>
+
+    <fieldset>
+      <label class="fld">Ability Name</label>
+      <input type="text" id="nameInput" maxlength="60" placeholder="Name your creation">
+      <label class="fld">Flavor Text</label>
+      <textarea id="flavorInput" maxlength="400" placeholder="Write the lore behind this ability"></textarea>
+    </fieldset>
+
+    <button class="submit-btn" id="submitBtn" disabled>Submit to LoreForge</button>
+    <div class="submit-note">Submitted creations enter LoreForge for review and canon voting.</div>
+
+    <div class="feedback-card" id="feedbackCard">
+      <button type="button" class="fb-toggle" id="feedbackToggle" aria-expanded="false">Send Feedback</button>
+      <div class="fb-body">
+        <div class="fb-inner">
+          <textarea id="feedbackInput" maxlength="1000" placeholder="Found a bug or have an idea for the forge? Tell us."></textarea>
+          <button class="fb-btn" id="feedbackBtn" disabled>Send</button>
+          <div class="fb-msg" id="feedbackMsg"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ==================== PAGE 2: LEDGER ==================== -->
+  <section class="page" id="page1">
+    <h2 class="pg-h1">The Forging Ledger</h2>
+    <p class="pg-lede">An ability is <strong>a target</strong>, <strong>a damage package</strong>, and up to <strong>two Inlays</strong>. Spend your tier's points and pay the locks.</p>
+
+    <section class="tiers" aria-label="Tier budgets">
+      <div class="tier"><h2>Tier 1</h2><div class="spend">1&ndash;2</div><div class="chg">1 Charge</div></div>
+      <div class="tier"><h2>Tier 2</h2><div class="spend">3&ndash;4</div><div class="chg">2 Charges</div></div>
+      <div class="tier"><h2>Tier 3</h2><div class="spend">5&ndash;6</div><div class="chg">3 Charges</div></div>
+    </section>
+    <p class="mythic-note">A 3rd Form item at Tier 3 may spend up to <b>7</b>.</p>
+
+    <section class="steps">
+      <p>Take one from each column color, add up to two Inlays, and total your points. A gold key marks what the component demands of you.</p>
+      <div class="tags">
+        <span class="tag t"><span class="dot t"></span>TARGET &middot; pick 1</span>
+        <span class="tag d"><span class="dot d"></span>DAMAGE &middot; pick 1</span>
+        <span class="tag r"><span class="dot r"></span>RIDER &middot; up to 2</span>
+      </div>
+    </section>
+
+    <section class="ledger" aria-label="Component costs">
+      <div class="band refund">
+        <div class="price">&minus;1</div>
+        <div class="goods">
+          <span class="chip d">Base Damage<small>A lean hit. Gain 1 point to spend elsewhere.</small></span>
+        </div>
+      </div>
+      <div class="band">
+        <div class="price">0</div>
+        <div class="goods">
+          <span class="chip t">One Target</span>
+          <span class="chip d">Standard Damage</span>
+          <span class="chip d">No Damage<small>For support and control. Needs at least one Inlay.</small></span>
+        </div>
+      </div>
+      <div class="band">
+        <div class="price">1</div>
+        <div class="goods">
+          <span class="chip t">Two Targets</span>
+          <span class="chip d">Double Base Damage</span>
+          <span class="chip r">Movement<small>Pushed, Pulled, Advanced, and 6 more</small></span>
+          <span class="chip r">Charge<small>Attuned, Drained, and 2 more</small></span>
+          <span class="chip r">Vitality<small>Mended, Siphoned</small></span>
+          <span class="chip r">Utility<small>Purged, Dispelled, Manifested</small></span>
+          <span class="chip r">Damage Effects<small>Cleaved, Crushed, Refracted</small></span>
+          <span class="chip r">+1d6 Bonus Damage</span>
+        </div>
+      </div>
+      <div class="band">
+        <div class="price">2</div>
+        <div class="goods">
+          <span class="chip t">Three Targets <small><span class="key">2nd Form</span></small></span>
+          <span class="chip d">Double Standard Damage</span>
+          <span class="chip r">Effects<small>Studied, Exposed, Warded, and 13 more</small></span>
+          <span class="chip r">Spread<small>One Inlay also hits your other targets &middot; <span class="key">2nd Form</span></small></span>
+          <span class="chip r">Amplify<small>One Inlay resolves twice &middot; <span class="key">Tier 2</span></small></span>
+        </div>
+      </div>
+      <div class="band">
+        <div class="price">3</div>
+        <div class="goods">
+          <span class="chip r">Afflictions*<small>Bleeding*, Staggered*, Frenzied*, and more &middot; <span class="key">Tier 2 + 2nd Form</span></small></span>
+        </div>
+      </div>
+      <div class="band">
+        <div class="price">4</div>
+        <div class="goods">
+          <span class="chip t">All Enemies<small><span class="key">Tier 3 + 3rd Form</span></small></span>
+          <span class="chip r">Major Afflictions*<small>Ensnared*, Frozen*, Agonized*, and more &middot; <span class="key">Tier 3 + 3rd Form</span></small></span>
+        </div>
+      </div>
+    </section>
+
+    <p class="limits">
+      Hard limits: <b>one</b> Affliction per ability. <b>One</b> Spread, <b>one</b> Amplify, never both. Riders reach only your Primary Target unless you buy Spread.
+    </p>
+
+    <section class="examples">
+      <h3>Three Forgings</h3>
+      <div class="ex">
+        <div class="name">DRIVING THRUST <span>&middot; Tier 1 Spear ability</span></div>
+        <div class="math">One Target 0 + Standard 0 + Pushed 1 + Advanced 1 = <b>2</b></div>
+        <div class="flavor">Attack. On a hit, drive them back 3 spaces and step into the gap.</div>
+      </div>
+      <div class="ex">
+        <div class="name">HOWLING VERSE <span>&middot; Tier 2 Scroll spell</span></div>
+        <div class="math">Two Targets 1 + Standard 0 + Frenzied* 3 = <b>4</b></div>
+        <div class="flavor">Cast a Spirit spell. On a success, the primary target hears nothing but you.</div>
+      </div>
+      <div class="ex">
+        <div class="name">THE LONG WINTER <span>&middot; Tier 3 Staff spell, mythic budget</span></div>
+        <div class="math">All Enemies 4 + Base &minus;1 + Frozen* 4 = <b>7</b></div>
+        <div class="flavor">Cast a Weaving spell. On a success, the cold reaches every enemy, and one of them stops.</div>
+      </div>
+    </section>
+  </section>
+
+  <!-- ==================== PAGE 3: CODEX ==================== -->
+  <section class="page" id="page2">
+    <h2 class="pg-h1">The Component Codex</h2>
+    <p class="pg-lede">Every component at its exact cost. Gold keys mark what a component demands. Breakout skills appear in blue.</p>
+
+    <div class="toolbar">
+      <input class="search" id="codexSearch" type="search" placeholder="Search components and rules" autocomplete="off">
+      <div class="filters" id="codexFilters"></div>
+      <div class="count" id="codexCount"></div>
+    </div>
+    <div id="codexBody"></div>
+    <div class="empty" id="codexEmpty">Nothing in the codex matches.</div>
+  </section>
+
+  <footer>
+    <div class="crest-rule end"></div>
+    LoreFell &middot; Skyvault Studios
+  </footer>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   SUBMIT ENDPOINT (optional)
+   Leave empty for Wix (postMessage to the parent page).
+   Set a relay URL for other hosts; submissions POST as JSON.
+   Never put an API token in this file.
+   ============================================================ */
+const SUBMIT_ENDPOINT = "";
+/* AI Forge: paste your deployed Cloudflare Worker URL here.
+   Leave empty to hide the feature entirely. The Anthropic API
+   key lives in the Worker, never in this file. */
+const AI_FORGE_ENDPOINT = "";
+
+/* ============================================================
+   COMPONENT DATA (Mechanics Reference v2)
+   ============================================================ */
+const COMPONENTS = [
+ {category:"Targeting",component:"One Target",cost:0,breakout:"",rule:"Choose 1 Primary Target."},
+ {category:"Targeting",component:"Two Targets",cost:1,breakout:"",rule:"Choose 1 Primary Target and 1 Secondary Target. Secondary Targets take damage only."},
+ {category:"Targeting",component:"Three Targets",cost:2,breakout:"",rule:"Choose 1 Primary Target and 2 Secondary Targets. Secondary Targets take damage only."},
+ {category:"Targeting",component:"All Enemies",cost:4,breakout:"",rule:"Choose 1 Primary Target. All other enemies are Secondary Targets. Secondary Targets take damage only."},
+ {category:"Spread",component:"Spread",cost:2,breakout:"",rule:"One chosen Inlay also applies to Secondary Targets."},
+ {category:"Amplify",component:"Amplify",cost:2,breakout:"",rule:"One chosen Inlay occurs one additional time."},
+ {category:"Damage",component:"No Damage",cost:0,breakout:"",rule:"Deal no damage. Choose an ally, enemy, or space as the Primary Target."},
+ {category:"Damage",component:"Standard Damage",cost:0,breakout:"",rule:"Deal Standard Damage."},
+ {category:"Damage",component:"Base Damage",cost:-1,breakout:"",rule:"Deal Base Damage instead of Standard Damage. Gain 1 extra point to spend."},
+ {category:"Damage",component:"Double Base Damage",cost:1,breakout:"",rule:"Deal Double Base Damage."},
+ {category:"Damage",component:"Double Standard Damage",cost:2,breakout:"",rule:"Deal Double Standard Damage."},
+ {category:"Damage",component:"Increased Bonus Damage",cost:1,breakout:"",rule:"Add 1d6 to your Bonus Damage."},
+ {category:"Charge",component:"Attuned",cost:1,breakout:"Weaving",rule:"Gain 1 Charge."},
+ {category:"Charge",component:"Restored",cost:1,breakout:"Spirit",rule:"A target gains 1 Charge."},
+ {category:"Charge",component:"Drained",cost:1,breakout:"Weaving",rule:"A target loses 1 Charge."},
+ {category:"Charge",component:"Transferred",cost:1,breakout:"Creation",rule:"Move 1 Charge between two targets."},
+ {category:"Movement",component:"Advanced",cost:1,breakout:"Movement",rule:"Move up to 3 spaces."},
+ {category:"Movement",component:"Pursued",cost:1,breakout:"Movement",rule:"Move adjacent to a target."},
+ {category:"Movement",component:"Repositioned",cost:1,breakout:"Presence",rule:"Move an ally up to 3 spaces."},
+ {category:"Movement",component:"Swapped",cost:1,breakout:"Trickery",rule:"Swap positions with a target."},
+ {category:"Movement",component:"Pushed",cost:1,breakout:"Presence",rule:"Move one target 3 spaces directly away from the attacker or source space."},
+ {category:"Movement",component:"Pulled",cost:1,breakout:"Presence",rule:"Move one target 3 spaces directly toward the attacker or source space."},
+ {category:"Movement",component:"Gathered",cost:1,breakout:"Presence",rule:"Choose an empty space within range. Move each affected target 3 spaces toward that space."},
+ {category:"Movement",component:"Scattered",cost:1,breakout:"Presence",rule:"Choose a space within range. Move each affected target 3 spaces away from that space."},
+ {category:"Movement",component:"Placed",cost:1,breakout:"Presence",rule:"Move one target to an empty space within 3 spaces of its current space."},
+ {category:"Vitality",component:"Mended",cost:1,breakout:"Renewal",rule:"Restore Vitality equal to your Spirit."},
+ {category:"Vitality",component:"Siphoned",cost:1,breakout:"Spirit",rule:"Deal Base Damage and restore that much Vitality."},
+ {category:"Utility",component:"Purged",cost:1,breakout:"Renewal",rule:"Remove an Affliction."},
+ {category:"Utility",component:"Dispelled",cost:1,breakout:"Logic",rule:"Remove one Effect."},
+ {category:"Utility",component:"Manifested",cost:1,breakout:"Creation",rule:"Create a temporary object, barrier, or terrain feature in an empty space."},
+ {category:"Damage Effect",component:"Cleaved",cost:1,breakout:"Might",rule:"Deal Base Damage to another target."},
+ {category:"Damage Effect",component:"Crushed",cost:1,breakout:"Bearing",rule:"Deal Base Damage again."},
+ {category:"Damage Effect",component:"Refracted",cost:1,breakout:"Weaving",rule:"Choose another target. They take half Bonus Damage."},
+ {category:"Effect",component:"Studied",cost:2,breakout:"Trickery",rule:"Your attacks against the target are Lucky Rolls until you deal damage to them."},
+ {category:"Effect",component:"Tracked",cost:2,breakout:"Elusion",rule:"You always know the target's location until you deal damage to them."},
+ {category:"Effect",component:"Exposed",cost:2,breakout:"Guard",rule:"Ignore the target's Durability until after you deal damage to them."},
+ {category:"Effect",component:"Pierced",cost:2,breakout:"Sanctum",rule:"Ignore the target's Resistance until after you deal damage to them."},
+ {category:"Effect",component:"Unraveled",cost:2,breakout:"Creation",rule:"Ignore one of the target's Infusions until after you deal damage to them."},
+ {category:"Effect",component:"Shattered",cost:2,breakout:"Creation",rule:"Ignore one of the target's Augmentations until after you deal damage to them."},
+ {category:"Effect",component:"Sabotaged",cost:2,breakout:"Anchor",rule:"Ignore the target's Armor Stance until after you deal damage to them."},
+ {category:"Effect",component:"Sealed",cost:2,breakout:"Lore",rule:"Ignore one Utility Item effect affecting the target until after you deal damage to them."},
+ {category:"Effect",component:"Echoed",cost:2,breakout:"Resonance",rule:"The next spell the target casts also targets themselves."},
+ {category:"Effect",component:"Broken",cost:2,breakout:"Weaving",rule:"The next Charge the target gains is lost."},
+ {category:"Effect",component:"Redirected",cost:2,breakout:"Trickery",rule:"Move one Effect from one target to another."},
+ {category:"Effect",component:"Guarded",cost:2,breakout:"Might",rule:"The next source of damage against the target is reduced by your Power."},
+ {category:"Effect",component:"Warded",cost:2,breakout:"Resolve",rule:"The next source of Magic damage against the target is reduced by your Magic."},
+ {category:"Effect",component:"Bound",cost:2,breakout:"Sanctum",rule:"Damage dealt to the target is dealt to you instead until either of you take damage."},
+ {category:"Effect",component:"Reinforced",cost:2,breakout:"Guard",rule:"Restore the target's Armor Stance. Until they take damage, its benefits are doubled."},
+ {category:"Effect",component:"Sheltered",cost:2,breakout:"Logic",rule:"Ignore the next Effect applied to the target."},
+ {category:"Affliction*",component:"Ensnared*",cost:4,breakout:"Might*",rule:"You may not utilize Acts."},
+ {category:"Affliction*",component:"Disoriented*",cost:3,breakout:"Logic*",rule:"Roll 1d6 before each attack. On an odd result, you must target an ally if able."},
+ {category:"Affliction*",component:"Fragmented*",cost:3,breakout:"Lore*",rule:"You may not use or activate Remnants."},
+ {category:"Affliction*",component:"Staggered*",cost:3,breakout:"Reflex*",rule:"You cannot utilize Reacts."},
+ {category:"Affliction*",component:"Terrorized*",cost:3,breakout:"Conviction*",rule:"You cannot voluntarily move closer to the source of this Affliction."},
+ {category:"Affliction*",component:"Frenzied*",cost:3,breakout:"Conviction*",rule:"You may only target the source of this Affliction."},
+ {category:"Affliction*",component:"Diminished*",cost:3,breakout:"Resolve*",rule:"Your Resistance becomes 0."},
+ {category:"Affliction*",component:"Hunted*",cost:3,breakout:"Elusion*",rule:"Fellmarks land against you on a 5 or 6."},
+ {category:"Affliction*",component:"Inept*",cost:3,breakout:"Logic*",rule:"You may not use Skill Rolls except to remove Afflictions or Effects."},
+ {category:"Affliction*",component:"Disrupted*",cost:4,breakout:"Weaving*",rule:"Your spells automatically fail unless a Fellmark is rolled."},
+ {category:"Affliction*",component:"Inert*",cost:3,breakout:"Lore*",rule:"You may not search for or use Skyvault Shards in battle."},
+ {category:"Affliction*",component:"Enfeebled*",cost:3,breakout:"Temper*",rule:"Lose half your current Vitality."},
+ {category:"Affliction*",component:"Frozen*",cost:4,breakout:"Bearing*",rule:"You may only utilize Skill Rolls."},
+ {category:"Affliction*",component:"Jinxed*",cost:3,breakout:"Resonance*",rule:"Your rolls of 1 or 2 count as Fellstrikes."},
+ {category:"Affliction*",component:"Ignited*",cost:3,breakout:"Endurance*",rule:"Whenever you utilize an Act, take 1d6 damage."},
+ {category:"Affliction*",component:"Masked*",cost:3,breakout:"Vigilance*",rule:"You may only see spaces and targets in your space or adjacent spaces."},
+ {category:"Affliction*",component:"Suppressed*",cost:3,breakout:"Resolve*",rule:"You cannot utilize Precision or Power weapon abilities."},
+ {category:"Affliction*",component:"Persecuted*",cost:4,breakout:"Trickery*",rule:"Enemies must target you if able."},
+ {category:"Affliction*",component:"Synchronized*",cost:4,breakout:"Trickery*",rule:"Each Affliction that afflicts an ally also afflicts you."},
+ {category:"Affliction*",component:"Agonized*",cost:4,breakout:"Bearing*",rule:"You cannot attack and your Evasion becomes 0."},
+ {category:"Affliction*",component:"Witless*",cost:3,breakout:"Logic*",rule:"You cannot utilize Utility Items."},
+ {category:"Affliction*",component:"Bleeding*",cost:3,breakout:"Renewal*",rule:"Whenever you take damage, take 1 additional Base Damage."},
+ {category:"Affliction*",component:"Accursed*",cost:4,breakout:"Sanctum*",rule:"You take damage equal to the damage you deal to others."},
+ {category:"Affliction*",component:"Anchored*",cost:3,breakout:"Movement*",rule:"You cannot swap tiered abilities in battle."},
+ {category:"Affliction*",component:"Disarmed*",cost:3,breakout:"Finesse*",rule:"You cannot utilize your weapon."},
+ {category:"Affliction*",component:"Benighted*",cost:3,breakout:"Resolve*",rule:"You are unable to imprint, slag, or use Paragon Points in battle."},
+ {category:"Affliction*",component:"Immobilized*",cost:3,breakout:"Movement*",rule:"You cannot move as part of an Act or React."},
+ {category:"Affliction*",component:"Conjoined*",cost:4,breakout:"Sanctum*",rule:"Choose a target ally. Any damage dealt to that ally is also dealt to you."},
+ {category:"Affliction*",component:"Impeded*",cost:3,breakout:"Movement*",rule:"Your Evasion becomes 0."},
+ {category:"Affliction*",component:"Constrained*",cost:4,breakout:"Creation*",rule:"You can only have one of the following summoned during battle: Weapon, Armor, or Lorebound."},
+ {category:"Affliction*",component:"Infected*",cost:3,breakout:"Endurance*",rule:"You take 1 additional Base Damage whenever you take damage."},
+ {category:"Affliction*",component:"Defanged*",cost:3,breakout:"Creation*",rule:"Your Lorebound loses its Aspects."},
+ {category:"Affliction*",component:"Mangled*",cost:3,breakout:"Renewal*",rule:"Whenever you deal damage, you take your own Base Damage."},
+ {category:"Affliction*",component:"Disenchanted*",cost:3,breakout:"Creation*",rule:"Your weapons lose their Infusions."},
+ {category:"Affliction*",component:"Vulnerable*",cost:3,breakout:"Guard*",rule:"Your Durability becomes 0."},
+ {category:"Affliction*",component:"Harvested*",cost:4,breakout:"Spirit*",rule:"Any source that would heal your Vitality deals Base Damage instead."},
+ {category:"Affliction*",component:"Plagued*",cost:4,breakout:"Sanctum*",rule:"Each Affliction that afflicts an enemy also afflicts you."},
+ {category:"Affliction*",component:"Reapt*",cost:3,breakout:"Weaving*",rule:"You no longer gain Charges."},
+ {category:"Affliction*",component:"Restricted*",cost:4,breakout:"Creation*",rule:"You lose the benefits of Talents."},
+ {category:"Affliction*",component:"Strung*",cost:4,breakout:"Resonance*",rule:"Each spell that targets an enemy also targets an ally."},
+ {category:"Affliction*",component:"Unclad*",cost:3,breakout:"Creation*",rule:"Your armor loses its Augmentations."},
+ {category:"Affliction*",component:"Nullified*",cost:4,breakout:"Creation*",rule:"You cannot gain the benefits of Effects."},
+ {category:"Affliction*",component:"Unlucky*",cost:3,breakout:"Resonance*",rule:"All your rolls become Unlucky."},
+ {category:"Affliction*",component:"Vitiated*",cost:3,breakout:"Resonance*",rule:"All Magic damage you deal is halved."},
+ {category:"Affliction*",component:"Withered*",cost:3,breakout:"Endurance*",rule:"Any source that would heal your Vitality does not heal your Vitality."},
+ {category:"Affliction*",component:"Bruised*",cost:3,breakout:"Bearing*",rule:"Bonus Damage dealt to you counts as Base Damage instead."},
+ {category:"Affliction*",component:"Worn*",cost:4,breakout:"Reflex*",rule:"You gain 1 rank of Fatigue."},
+ {category:"Affliction*",component:"Crippled*",cost:4,breakout:"Anchor*",rule:"All of your attributes become equal to your lowest attribute."},
+ {category:"Affliction*",component:"Dislocated*",cost:3,breakout:"Finesse*",rule:"All Physical damage you deal is halved."},
+ {category:"Affliction*",component:"Lacerated*",cost:4,breakout:"Poise*",rule:"You cannot utilize attacks."},
+ {category:"Affliction*",component:"Dazzled*",cost:3,breakout:"Vigilance*",rule:"Your Accuracy is halved."},
+ {category:"Affliction*",component:"Slashed*",cost:3,breakout:"Renewal*",rule:"Your maximum Vitality is halved."},
+ {category:"Affliction*",component:"Stymied*",cost:3,breakout:"Reflex*",rule:"You may only make a single Evasion roll each round."},
+ {category:"Affliction*",component:"Tainted*",cost:3,breakout:"Sanctum*",rule:"You cannot use potions or runes."}
+];
+
+/* ============================================================
+   ITEM ROSTER, FORMS, AND STATS
+   ============================================================ */
+const WEAPON_GROUPS = [
+  { group:"Bow",      items:["Shortbow","Longbow","Crossbow"] },
+  { group:"Blade",    items:["Dagger","Rapier","Scimitar"] },
+  { group:"Polearm",  items:["Javelin","Spear","Halberd"] },
+  { group:"Sword",    items:["Short Sword","Long Sword","Great Sword"] },
+  { group:"Axe",      items:["Hatchet","War Axe","Great Axe"] },
+  { group:"Bludgeon", items:["Mace","Morningstar","Flail"] }
+];
+const MAGIC_GROUPS = [
+  { group:"Focus",    school:"Weaving",  items:["Wand","Rod","Staff"] },
+  { group:"Artifact", school:"Creation", items:["Ring","Amulet","Orb"] },
+  { group:"Tome",     school:"Spirit",   items:["Cards","Scroll","Grimoire"] }
+];
+const WEAPON_LIST = WEAPON_GROUPS.flatMap(g => g.items);
+const FOCUS_LIST = MAGIC_GROUPS.flatMap(g => g.items);
+const SCHOOL_BY_ITEM = {};
+MAGIC_GROUPS.forEach(g => g.items.forEach(i => SCHOOL_BY_ITEM[i] = g.school));
+const FORM_BY_ITEM = {};
+WEAPON_GROUPS.forEach(g => g.items.forEach((it,i) => FORM_BY_ITEM[it] = i+1));
+MAGIC_GROUPS.forEach(g => g.items.forEach((it,i) => FORM_BY_ITEM[it] = i+1));
+const FORM_NAMES = ["","1st","2nd","3rd"];
+const formOf = item => FORM_BY_ITEM[item] || 3;
+
+const ITEM_STATS = {
+  "Shortbow":    { grip:2, range:10, affliction:"Hunted*" },
+  "Longbow":     { grip:2, range:20, affliction:"Vulnerable*" },
+  "Crossbow":    { grip:2, range:30, affliction:"Impeded*" },
+  "Dagger":      { grip:1, range:5,  affliction:"Slashed*" },
+  "Rapier":      { grip:1, range:1,  affliction:"Disarmed*" },
+  "Scimitar":    { grip:2, range:1,  affliction:"Lacerated*" },
+  "Javelin":     { grip:1, range:5,  affliction:"Immobilized*" },
+  "Spear":       { grip:1, range:10, affliction:"Staggered*" },
+  "Halberd":     { grip:2, range:2,  affliction:"Persecuted*" },
+  "Short Sword": { grip:1, range:1,  affliction:"Disoriented*" },
+  "Long Sword":  { grip:1, range:1,  affliction:"Enfeebled*" },
+  "Great Sword": { grip:2, range:1,  affliction:"Agonized*" },
+  "Hatchet":     { grip:1, range:5,  affliction:"Bleeding*" },
+  "War Axe":     { grip:2, range:1,  affliction:"Mangled*" },
+  "Great Axe":   { grip:2, range:1,  affliction:"Crippled*" },
+  "Mace":        { grip:1, range:1,  affliction:"Dazzled*" },
+  "Morningstar": { grip:1, range:1,  affliction:"Unclad*" },
+  "Flail":       { grip:2, range:1,  affliction:"Dislocated*" },
+  "Wand":        { grip:1, range:10, affliction:"Disrupted*" },
+  "Rod":         { grip:1, range:10, affliction:"Reapt*" },
+  "Staff":       { grip:2, range:20, affliction:"Vitiated*" },
+  "Ring":        { grip:1, range:10, affliction:"Restricted*" },
+  "Amulet":      { grip:1, range:15, affliction:"Disenchanted*" },
+  "Orb":         { grip:1, range:20, affliction:"Defanged*" },
+  "Cards":       { grip:1, range:10, affliction:"Terrorized*" },
+  "Scroll":      { grip:1, range:15, affliction:"Frenzied*" },
+  "Grimoire":    { grip:2, range:20, affliction:"Accursed*" }
+};
+/* Minimum Tier an item can forge at. Player items default to 1.
+   Monster items floor at their Form, so a 3rd Form monster part
+   only produces Tier 3 work. CMS-tunable per item. */
+const itemMinTier = item => (ITEM_STATS[item] && ITEM_STATS[item].minTier) || 1;
+
+/* ============================================================
+   RULES (Mechanics Reference v2)
+   Tier Ladder: T2 unlocks Afflictions and Amplify. T3 unlocks
+   Major Afflictions (cost 4) and All Enemies.
+   Form Ladder: 2nd Form unlocks Three Targets, Spread, and
+   Afflictions. 3rd Form unlocks Major Afflictions and All
+   Enemies. Mythic: Tier 3 on a 3rd Form item may spend to 7.
+   Spread and Amplify can never appear together.
+   ============================================================ */
+/* Every tunable rule number lives here. The CMS can override
+   any of these through ForgeConfig without touching code. */
+const CONFIG = {
+  tierBudgets: {1:[1,2], 2:[3,4], 3:[5,6]},
+  mythicMax: 7, mythicTier: 3, mythicForm: 3,
+  maxRiders: 2, maxAfflictions: 1,
+  afflictionMinTier: 2, afflictionMinForm: 2,
+  majorCost: 4, majorMinTier: 3, majorMinForm: 3,
+  allEnemiesMinTier: 3, allEnemiesMinForm: 3,
+  threeTargetsMinForm: 2, spreadMinForm: 2, amplifyMinTier: 2,
+  monsterFloorByForm: 1, itemFloorByForm: 1
+};
+const PRIMARY_DAMAGE = ["No Damage","Base Damage","Standard Damage","Double Base Damage","Double Standard Damage"];
+const TARGETING_LIST = ["One Target","Two Targets","Three Targets","All Enemies"];
+const MULTI_TARGETING = ["Two Targets","Three Targets","All Enemies"];
+const SPREAD_BANNED = ["Increased Bonus Damage","Cleaved","Crushed","Refracted","Siphoned",
+  "Swapped","Pursued","Repositioned","Placed","Transferred","Redirected"];
+const AMPLIFY_BANNED = ["Increased Bonus Damage","Cleaved","Crushed","Refracted","Siphoned"];
+const GAIN_COMPONENTS = ["Attuned","Increased Bonus Damage"];
+
+const byName = {};
+COMPONENTS.forEach(c => byName[c.component] = c);
+const isAffliction = c => c.category.endsWith("*") || c.component.endsWith("*");
+
+function effectiveBudget(tier, form){
+  const [minB, maxB] = CONFIG.tierBudgets[tier];
+  return [minB, (tier >= CONFIG.mythicTier && form >= CONFIG.mythicForm) ? CONFIG.mythicMax : maxB];
+}
+function lockText(c){
+  if(c.component === "Three Targets") return `${FORM_NAMES[CONFIG.threeTargetsMinForm]} Form`;
+  if(c.component === "All Enemies") return `Tier ${CONFIG.allEnemiesMinTier} + ${FORM_NAMES[CONFIG.allEnemiesMinForm]} Form`;
+  if(c.component === "Spread") return `${FORM_NAMES[CONFIG.spreadMinForm]} Form + Secondary Targets`;
+  if(c.component === "Amplify") return `Tier ${CONFIG.amplifyMinTier}`;
+  if(isAffliction(c)) return c.cost >= CONFIG.majorCost
+    ? `Tier ${CONFIG.majorMinTier} + ${FORM_NAMES[CONFIG.majorMinForm]} Form`
+    : `Tier ${CONFIG.afflictionMinTier} + ${FORM_NAMES[CONFIG.afflictionMinForm]} Form`;
+  return "";
+}
+
+/* ============================================================
+   STATE
+   ============================================================ */
+const state = {
+  type:"Ability", tier:1,
+  weapon:"Shortbow", school:"Weaving", focus:"Wand",
+  monsterArchetype:"Power", monsterSchool:"Weaving", monsterForm:1,
+  damage:"Standard Damage", targeting:"One Target",
+  spread:"", amplify:"", slot1:"", slot2:"",
+  name:"", flavor:""
+};
+
+function currentItem(){
+  if(state.type === "Spell") return state.focus;
+  if(state.type === "Monster"){
+    return state.monsterArchetype === "Magic"
+      ? `${state.monsterSchool} Magic` : state.monsterArchetype;
+  }
+  return state.weapon;
+}
+function isMonsterMagic(){
+  return state.type === "Monster" && state.monsterArchetype === "Magic";
+}
+/* In Monster mode the Form is chosen directly, not carried by an item. */
+function effectiveItemFloor(it){
+  const base = itemMinTier(it);
+  const f = CONFIG.itemFloorByForm ? (formOf(it) || 1) : 1;
+  return Math.max(base, f);
+}
+function currentMinTier(){
+  if(state.type === "Monster")
+    return CONFIG.monsterFloorByForm ? currentForm() : 1;
+  return effectiveItemFloor(currentItem());
+}
+function currentForm(){
+  if(state.type === "Monster") return [1,2,3].includes(state.monsterForm) ? state.monsterForm : 1;
+  return formOf(currentItem());
+}
+function currentAddons(){
+  return [state.slot1, state.slot2].filter(Boolean).map(n => byName[n]).filter(Boolean);
+}
+function totalCost(){
+  const dmg = byName[state.damage] ? byName[state.damage].cost : 0;
+  const tgt = byName[state.targeting] ? byName[state.targeting].cost : 0;
+  const spr = state.spread ? byName["Spread"].cost : 0;
+  const amp = state.amplify ? byName["Amplify"].cost : 0;
+  return currentAddons().reduce((s,c) => s + c.cost, dmg + tgt + spr + amp);
+}
+function currentFacts(){
+  if(state.type === "Monster"){
+    const f = currentForm();
+    const what = isMonsterMagic() ? `${state.monsterSchool} Magic` : state.monsterArchetype;
+    const floor = CONFIG.monsterFloorByForm ? ` Tier ${f}+ only.` : "";
+    return `${FORM_NAMES[f]} Form. ${what}.${floor}`;
+  }
+  const item = currentItem();
+  const s = ITEM_STATS[item];
+  if(!s) return "";
+  const form = formOf(item);
+  const trigger = form === 3 ? "on a 5 or 6" : "on a 6";
+  const floor = itemMinTier(item) > 1 ? ` Tier ${itemMinTier(item)}+ only.` : "";
+  return `${FORM_NAMES[form]} Form. ${s.grip === 2 ? "Two-Handed" : "One-Handed"}. Range ${s.range}. Fellmark Affliction (${trigger}): ${s.affliction}.${floor}`;
+}
+
+/* ============================================================
+   VALIDATION (v2 Two Ladders)
+   ============================================================ */
+function validate(){
+  const errors = [];
+  const addons = currentAddons();
+  const item = currentItem();
+  const form = formOf(item);
+  const [minB, maxB] = effectiveBudget(state.tier, form);
+  const total = totalCost();
+
+  const mt = currentMinTier();
+  if(state.tier < mt)
+    errors.push(state.type === "Monster"
+      ? `${FORM_NAMES[form]} Form Monster work cannot forge below Tier ${mt}.`
+      : `${item} cannot forge below Tier ${mt}.`);
+
+  if(!byName[state.damage] || !PRIMARY_DAMAGE.includes(state.damage))
+    errors.push("Select exactly one primary damage package.");
+  if(!TARGETING_LIST.includes(state.targeting))
+    errors.push("Select exactly one targeting component.");
+
+  // Targeting ladders
+  if(state.targeting === "Three Targets" && form < CONFIG.threeTargetsMinForm)
+    errors.push(`Three Targets requires a 2nd or 3rd Form item. ${item} is 1st Form.`);
+  if(state.targeting === "All Enemies"){
+    if(state.tier < CONFIG.allEnemiesMinTier) errors.push(`All Enemies requires Tier ${CONFIG.allEnemiesMinTier}.`);
+    if(form < CONFIG.allEnemiesMinForm) errors.push(`All Enemies requires a ${FORM_NAMES[CONFIG.allEnemiesMinForm]} Form item. ${item} is ${FORM_NAMES[form]} Form.`);
+  }
+
+  // Spread
+  if(state.spread){
+    if(!MULTI_TARGETING.includes(state.targeting))
+      errors.push("Spread requires Secondary Targets. Choose Two Targets, Three Targets, or All Enemies.");
+    if(form < CONFIG.spreadMinForm)
+      errors.push(`Spread requires a 2nd or 3rd Form item. ${item} is 1st Form.`);
+    const sc = byName[state.spread];
+    const selected = [state.slot1, state.slot2].includes(state.spread);
+    if(!sc || !selected)
+      errors.push("Spread must apply to one of your selected Inlays.");
+    else if(SPREAD_BANNED.includes(state.spread))
+      errors.push(`${state.spread} cannot be Spread. Damage components and components that choose additional targets or positions are excluded.`);
+  }
+
+  // Amplify
+  if(state.amplify){
+    if(state.tier < CONFIG.amplifyMinTier)
+      errors.push(`Amplify requires Tier ${CONFIG.amplifyMinTier} or higher.`);
+    const ac = byName[state.amplify];
+    const ampSelected = [state.slot1, state.slot2].includes(state.amplify);
+    if(!ac || !ampSelected)
+      errors.push("Amplify must apply to one of your selected Inlays.");
+    else if(AMPLIFY_BANNED.includes(state.amplify))
+      errors.push(`${state.amplify} cannot be Amplified. Damage components cannot occur an additional time.`);
+  }
+
+  // Never both
+  if(state.spread && state.amplify)
+    errors.push("Spread and Amplify can never appear in the same ability.");
+
+  // Rider slots
+  const riders = addons.length + (state.spread ? 1 : 0) + (state.amplify ? 1 : 0);
+  if(riders > CONFIG.maxRiders)
+    errors.push(`No more than ${CONFIG.maxRiders} Inlays. Spread and Amplify each count as one.`);
+  if(state.damage === "No Damage" && addons.length === 0)
+    errors.push("No Damage abilities must include at least one Inlay.");
+  if(state.slot1 && state.slot1 === state.slot2)
+    errors.push("The same component cannot fill both Inlay slots.");
+
+  // Afflictions and their ladders
+  const afflictions = addons.filter(isAffliction);
+  if(afflictions.length > CONFIG.maxAfflictions)
+    errors.push(`No more than ${CONFIG.maxAfflictions} Affliction${CONFIG.maxAfflictions === 1 ? "" : "s"} per ability.`);
+  afflictions.forEach(c => {
+    if(form < CONFIG.afflictionMinForm)
+      errors.push(`${c.component} cannot be applied. 1st Form items never apply Afflictions through abilities; their innate Affliction on a Fellmark is their only source.`);
+    if(state.tier < CONFIG.afflictionMinTier)
+      errors.push(`${c.component} requires Tier ${CONFIG.afflictionMinTier} or higher.`);
+    if(c.cost >= CONFIG.majorCost){
+      if(state.tier < CONFIG.majorMinTier) errors.push(`${c.component} is a Major Affliction and requires Tier ${CONFIG.majorMinTier}.`);
+      if(form < CONFIG.majorMinForm) errors.push(`${c.component} is a Major Affliction and requires a ${FORM_NAMES[CONFIG.majorMinForm]} Form item. ${item} is ${FORM_NAMES[form]} Form.`);
+    }
+  });
+
+  if(total < minB || total > maxB)
+    errors.push(`Total cost is ${total}. This build allows ${minB} to ${maxB}${maxB === 7 ? " (mythic budget)" : ""}.`);
+  [state.slot1, state.slot2].filter(Boolean).forEach(n => {
+    if(!byName[n]) errors.push(`Unknown component: ${n}`);
+  });
+  return errors;
+}
+function buildWarnings(){
+  const warnings = [];
+  const [minB, maxB] = effectiveBudget(state.tier, currentForm());
+  const total = totalCost();
+  if(total >= minB && total < maxB)
+    warnings.push(`This build spends ${total} of a possible ${maxB}${maxB === 7 ? " (mythic budget)" : ""}. It may be slightly weaker than this slot allows.`);
+  if(state.damage === "No Damage" && MULTI_TARGETING.includes(state.targeting) && !state.spread)
+    warnings.push("Targeting only multiplies damage. With No Damage and no Spread, Secondary Targets gain nothing.");
+  return warnings;
+}
+
+/* ============================================================
+   OUTPUT BUILDERS
+   ============================================================ */
+function esc(s){
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+function joinClauses(parts){
+  if(parts.length === 1) return parts[0];
+  if(parts.length === 2) return parts[0] + " and " + parts[1];
+  return parts.slice(0,-1).join(", ") + ", and " + parts[parts.length-1];
+}
+function lcFirst(s){ return s.charAt(0).toLowerCase() + s.slice(1); }
+function ucFirst(s){ return s.charAt(0).toUpperCase() + s.slice(1); }
+
+function buildShorthand(){
+  const addons = currentAddons();
+  const noDmg = state.damage === "No Damage";
+  const parts = noDmg ? [] : [`deal ${state.damage}`];
+  addons.forEach(c => {
+    const verb = GAIN_COMPONENTS.includes(c.component) ? "gain" : "apply";
+    parts.push(`${verb} ${c.component}`);
+  });
+  if(state.amplify) parts.push(`Amplify ${state.amplify}`);
+  if(state.spread) parts.push(`Spread ${state.spread}`);
+  const clause = parts.length ? joinClauses(parts) : "choose at least one Inlay";
+  const tgt = state.targeting !== "One Target" ? ` (${state.targeting})` : "";
+  if(state.type === "Spell" || isMonsterMagic()){
+    const sch = state.type === "Spell" ? state.school : state.monsterSchool;
+    const school = sch ? `${sch} ` : "";
+    return `Cast a ${school}spell${tgt}. On a success, ${clause}.`;
+  }
+  if(noDmg){
+    return `Choose an ally, enemy, or space${tgt}. ${ucFirst(clause)}.`;
+  }
+  return `Attack${tgt}. On a hit, ${clause}.`;
+}
+function buildFull(){
+  const addons = currentAddons();
+  const lines = [];
+  const facts = currentFacts();
+  if(facts) lines.push(`${currentItem()}: ${facts}`);
+  const multi = MULTI_TARGETING.includes(state.targeting);
+  if(state.targeting !== "One Target"){
+    let tline = `${state.targeting}: ${lcFirst(byName[state.targeting].rule)}`;
+    if(state.damage === "No Damage")
+      tline += " For supportive abilities, Secondary Targets are additional allies.";
+    lines.push(tline);
+  }
+  if(state.damage === "No Damage"){
+    lines.push("This ability deals no damage.");
+  } else {
+    lines.push(multi ? `All targets suffer ${state.damage}.` : `Target suffers ${state.damage}.`);
+  }
+  addons.forEach(c => {
+    const amped = state.amplify === c.component;
+    const cname = amped ? `${c.component} (Amplified)` : c.component;
+    if(isAffliction(c)){
+      const breakout = c.breakout.replace(/\*$/,"");
+      let line = `Target suffers ${cname}: ${lcFirst(c.rule)} They may spend an Act to attempt a ${breakout} breakout.`;
+      if(amped) line += ` ${c.component} is applied one additional time, if the Affliction allows repeated application.`;
+      lines.push(line);
+    } else if(c.category === "Effect"){
+      lines.push(`Target is ${cname}: ${lcFirst(c.rule)}${amped ? " This occurs one additional time." : ""}`);
+    } else if(GAIN_COMPONENTS.includes(c.component)){
+      lines.push(`You gain ${cname}: ${lcFirst(c.rule)}${amped ? " This occurs one additional time." : ""}`);
+    } else {
+      lines.push(`${cname}: ${lcFirst(c.rule)}${amped ? " This occurs one additional time." : ""}`);
+    }
+  });
+  if(state.spread){
+    lines.push(`Spread: ${state.spread} also applies to Secondary Targets.`);
+  }
+  return lines.join("\n\n");
+}
+function buildBudget(){
+  const dmg = byName[state.damage];
+  const tgt = byName[state.targeting];
+  const lines = [`${dmg.component} (${dmg.cost})`, `${tgt.component} (${tgt.cost})`];
+  currentAddons().forEach(c => lines.push(`${c.component} (${c.cost})`));
+  if(state.amplify) lines.push(`Amplify: ${state.amplify} (2)`);
+  if(state.spread) lines.push(`Spread: ${state.spread} (2)`);
+  lines.push("");
+  lines.push(`Total: ${totalCost()}`);
+  return lines.join("\n");
+}
+
+/* ============================================================
+   RUNE RENDERER
+   A radial stave sigil. Everything is centered and radially
+   symmetric; riders are not icons in one spot but stave marks
+   repeated around the circle, woven into the rune:
+   Core (damage) at the heart, always large.
+   Targeting becomes stave arms with crossbars and forked
+   heads, evenly distributed.
+   Tier rings grow outward from the core. The Form is an
+   inscribed gold polygon: triangle, square, hexagon.
+   Each rider is a stave mark repeated fourfold on its own
+   band, rotated to point outward. Amplify twins every mark
+   of its rider. Spread repeats its rider's mark eightfold
+   in gold on the outermost band.
+   A deterministic script ring of micro-staves encircles the
+   whole, seeded by the build itself. Bounded loops only.
+   ============================================================ */
+const CX = 160, CY = 160;
+function pt(cx, cy, r, deg){
+  const a = (deg - 90) * Math.PI / 180;
+  return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+}
+function poly(points){ return points.map(p => p.map(n => n.toFixed(1)).join(",")).join(" "); }
+function ringPoly(r, sides, rot){
+  const pts = [];
+  for(let i = 0; i < sides; i++) pts.push(pt(CX, CY, r, rot + i * 360 / sides));
+  return poly(pts);
+}
+
+/* Stave vocabulary: abstract stroke sigils, drawn pointing up,
+   rotated outward when placed. No filled icon shapes. */
+function staveFor(c, color){
+  if(c.glyph) return c.glyph;
+  // Default glyph colors. The color parameter still overrides, so
+  // Spread's gold echoes keep recoloring default staves.
+  const k = color || (isAffliction(c) ? "#d65a5a" : "#9fdfff");
+  const sw = w => `stroke="${k}" stroke-width="${w}" fill="none" stroke-linecap="round" stroke-linejoin="round"`;
+  if(isAffliction(c)){
+    return `<path d="M0,-8 L4,-3 L0,0 L6,5 L0,8 L-6,5 L0,0 L-4,-3 Z M0,0 L0,-8" ${sw(1.7)}/>`;
+  }
+  switch(c.category){
+    case "Movement":
+      return `<path d="M0,-8 L3,-1 L8,0 L3,1 L0,8 L-3,1 L-8,0 L-3,-1 Z M0,-4 L0,4" ${sw(1.5)}/>`;
+    case "Charge":
+      return `<path d="M0,-8 L0,4 M-4,-2 L0,2 L4,-2 M-6,5 L0,8 L6,5" ${sw(1.8)}/>`;
+    case "Vitality":
+      return `<path d="M0,8 L0,-6 M0,-2 C-4,-4 -5,-7 -3,-8 M0,-2 C4,-4 5,-7 3,-8 M-4,2 C-2,0 -1,0 0,1 M4,2 C2,0 1,0 0,1" ${sw(1.8)}/>`;
+    case "Utility":
+      return `<path d="M0,-8 L5,-3 L3,3 L0,8 L-3,3 L-5,-3 Z M-5,-3 L5,3 M5,-3 L-5,3" ${sw(1.7)}/>`;
+    case "Damage Effect":
+      return `<path d="M0,-8 L2,-2 L8,0 L2,2 L0,8 L-2,2 L-8,0 L-2,-2 Z M-5,5 L5,-5 M-5,-5 L5,5" ${sw(1.5)}/>`;
+    case "Damage":
+      return `<path d="M0,-8 L3,-2 L8,0 L3,2 L0,8 L-3,2 L-8,0 L-3,-2 Z M-4,-4 L4,4 M4,-4 L-4,4" stroke="var(--gold)" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
+    case "Effect":
+      return `<path d="M0,-8 L4,-4 L2,0 L6,4 L0,8 L-6,4 L-2,0 L-4,-4 Z M-4,-4 L4,4 M4,-4 L-4,4 M-2,0 L2,0" ${sw(1.55)}/>`;
+    default:
+      return `<circle cx="0" cy="0" r="6" ${sw(1.7)}/>`;
+  }
+}
+/* Place a stave at radius and angle, rotated to point outward */
+function staveAt(c, r, deg, scale, color, opacity){
+  const [x, y] = pt(CX, CY, r, deg);
+  return `<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${deg}) scale(${scale})" opacity="${opacity}">${staveFor(c, color)}</g>`;
+}
+
+/* Micro-stave alphabet for the script ring */
+const SCRIPT_STROKES = [
+  `<path d="M 0 -3 L 0 3" />`,
+  `<path d="M -2.5 2.5 L 0 -3 L 2.5 2.5" />`,
+  `<circle cx="0" cy="0" r="1.2" />`,
+  `<path d="M -2.5 -2.5 L 2.5 2.5" />`,
+  `<path d="M -2 -3 L -2 3 M 2 -1 L 2 3" />`,
+  `<path d="M 0 -3 L 0 1 M -2 3 L 2 3" />`
+];
+function buildSeed(){
+  const sig = state.type + state.damage + state.targeting + state.slot1 + state.slot2 + state.spread + state.amplify + state.school;
+  let h = 7;
+  for(let i = 0; i < sig.length; i++) h = ((h * 31) + sig.charCodeAt(i)) >>> 0;
+  return h;
+}
+
+function renderRune(){
+  const svg = document.getElementById("runeSvg");
+  const isSpell = state.type === "Spell";
+  const form = currentForm();
+  const addons = currentAddons();
+  let out = `<style>
+    .core-pulse{animation:corePulse 3.6s ease-in-out infinite}
+    .halo-spin{animation:haloSpin 40s linear infinite;transform-origin:160px 160px}
+    .halo-spin-rev{animation:haloSpinRev 64s linear infinite;transform-origin:160px 160px}
+    .script-spin{animation:haloSpinRev 130s linear infinite;transform-origin:160px 160px}
+    .bane-pulse{animation:banePulse 3.6s ease-in-out infinite}
+    .ignite{animation:igniteFlash .55s ease-out}
+    @keyframes corePulse{0%,100%{opacity:.95}50%{opacity:.6}}
+    @keyframes haloSpin{to{transform:rotate(360deg)}}
+    @keyframes haloSpinRev{to{transform:rotate(-360deg)}}
+    @keyframes banePulse{0%,100%{opacity:.12}50%{opacity:.42}}
+    @keyframes igniteFlash{0%{opacity:.1}45%{opacity:1}100%{opacity:1}}
+    @media (prefers-reduced-motion:reduce){.core-pulse,.halo-spin,.halo-spin-rev,.script-spin,.bane-pulse,.ignite{animation:none}}
+  </style>`;
+
+  // ---- Frame by type ----
+  out += `<g id="band-frame">`;
+  if(isSpell){
+    // The school lives in the frame itself, symmetric by construction.
+    // Weaving: two interleaved dashed rings, woven over and under.
+    // Spirit: a beaded outer ring of wisps over a solid inner ring.
+    // Creation: solid constructed rings studded with eight squares.
+    if(state.school === "Weaving"){
+      out += `<circle cx="${CX}" cy="${CY}" r="152" fill="none" stroke="var(--ice)" stroke-width="1.4" stroke-dasharray="12 7" opacity=".6"/>`;
+      out += `<circle cx="${CX}" cy="${CY}" r="146" fill="none" stroke="var(--ice)" stroke-width="1.1" stroke-dasharray="12 7" stroke-dashoffset="9.5" opacity=".45"/>`;
+    } else if(state.school === "Spirit"){
+      out += `<circle cx="${CX}" cy="${CY}" r="152" fill="none" stroke="var(--ice)" stroke-width="2.1" stroke-dasharray="2 7" stroke-linecap="round" opacity=".6"/>`;
+      out += `<circle cx="${CX}" cy="${CY}" r="146" fill="none" stroke="var(--ice)" stroke-width=".9" opacity=".4"/>`;
+    } else {
+      out += `<circle cx="${CX}" cy="${CY}" r="152" fill="none" stroke="var(--ice)" stroke-width="1.4" opacity=".6"/>`;
+      out += `<circle cx="${CX}" cy="${CY}" r="146" fill="none" stroke="var(--ice)" stroke-width=".9" opacity=".35"/>`;
+      for(let i = 0; i < 8; i++){
+        const [sx, sy] = pt(CX, CY, 152, i * 45);
+        out += `<rect x="${(sx-2.4).toFixed(1)}" y="${(sy-2.4).toFixed(1)}" width="4.8" height="4.8" transform="rotate(45 ${sx.toFixed(1)} ${sy.toFixed(1)})" fill="var(--ice)" opacity=".6"/>`;
+      }
+    }
+  } else {
+    out += `<polygon points="${ringPoly(152, 8, 0)}" fill="none" stroke="var(--ice)" stroke-width="1.4" opacity=".6"/>`;
+    out += `<circle cx="${CX}" cy="${CY}" r="146" fill="none" stroke="var(--ice)" stroke-width=".9" opacity=".3"/>`;
+    if(state.type === "Monster"){
+      for(let i = 0; i < 8; i++){
+        const [tx, ty] = pt(CX, CY, 159, i * 45);
+        const [lx, ly] = pt(CX, CY, 149, i * 45 - 4);
+        const [rx, ry] = pt(CX, CY, 149, i * 45 + 4);
+        out += `<polygon points="${poly([[tx,ty],[lx,ly],[rx,ry]])}" fill="var(--bane)" opacity=".75"/>`;
+      }
+    }
+  }
+  out += `</g>`;
+
+  // ---- Mythic aura: only Tier 3 on a 3rd Form item ----
+  if(state.tier === 3 && form === 3){
+    out += `<g class="halo-spin-rev"><circle cx="${CX}" cy="${CY}" r="157" fill="none" stroke="var(--gold)" stroke-width="1.3" stroke-dasharray="1 9" opacity=".5"/></g>`;
+  }
+
+  // ---- Script ring: deterministic micro-staves ----
+  const seed = buildSeed();
+  out += `<g id="band-script" class="script-spin">`;
+  for(let i = 0; i < 28; i++){
+    const deg = i * (360 / 28);
+    const idx = (seed + i * 11) % SCRIPT_STROKES.length;
+    const [sx, sy] = pt(CX, CY, 138, deg);
+    out += `<g transform="translate(${sx.toFixed(1)} ${sy.toFixed(1)}) rotate(${deg})" stroke="var(--ice)" stroke-width="1" fill="var(--ice)" opacity=".4">${SCRIPT_STROKES[idx]}</g>`;
+  }
+  out += `</g>`;
+
+  // ---- Tier rings: grow outward from the core ----
+  out += `<g id="band-tier">`;
+  for(let t = 1; t <= state.tier; t++){
+    const r = 50 + (t - 1) * 11;
+    out += `<circle cx="${CX}" cy="${CY}" r="${r}" fill="none" stroke="var(--silver)" stroke-width="1" opacity=".3"/>`;
+    for(let d = 0; d < 6; d++){
+      const [dx, dy] = pt(CX, CY, r, t * 30 + d * 60);
+      out += `<circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="1.5" fill="var(--silver)" opacity=".5"/>`;
+    }
+  }
+  out += `</g>`;
+
+  // ---- Form polygon: triangle, square, hexagon ----
+  out += `<g id="band-form">`;
+  const sides = form === 1 ? 3 : form === 2 ? 4 : 6;
+  const formRot = form === 2 ? 45 : 0;
+  out += `<g class="halo-spin"><polygon points="${ringPoly(90, sides, formRot)}" fill="none" stroke="var(--gold)" stroke-width="1.1" opacity=".38"/>`;
+  for(let v = 0; v < sides; v++){
+    const [vx, vy] = pt(CX, CY, 90, formRot + v * 360 / sides);
+    out += `<circle cx="${vx.toFixed(1)}" cy="${vy.toFixed(1)}" r="2.1" fill="var(--gold)" opacity=".8"/>`;
+  }
+  out += `</g></g>`;
+
+  // ---- Targeting: stave arms with crossbars and forked heads ----
+  out += `<g id="band-targeting">`;
+  const arm = (deg) => {
+    const [x1,y1] = pt(CX, CY, 44, deg);
+    const [x2,y2] = pt(CX, CY, 82, deg);
+    let s = `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="var(--ice)" stroke-width="1.8" opacity=".85"/>`;
+    // two crossbars
+    [56, 67].forEach(cr => {
+      const [bx, by] = pt(CX, CY, cr, deg);
+      const [c1x, c1y] = pt(bx, by, 6, deg + 90);
+      const [c2x, c2y] = pt(bx, by, 6, deg - 90);
+      s += `<line x1="${c1x.toFixed(1)}" y1="${c1y.toFixed(1)}" x2="${c2x.toFixed(1)}" y2="${c2y.toFixed(1)}" stroke="var(--ice)" stroke-width="1.6" opacity=".8"/>`;
+    });
+    // forked head
+    const [hx, hy] = pt(CX, CY, 82, deg);
+    const [f1x, f1y] = pt(CX, CY, 91, deg + 4.5);
+    const [f2x, f2y] = pt(CX, CY, 91, deg - 4.5);
+    s += `<path d="M ${f1x.toFixed(1)} ${f1y.toFixed(1)} L ${hx.toFixed(1)} ${hy.toFixed(1)} L ${f2x.toFixed(1)} ${f2y.toFixed(1)}" fill="none" stroke="var(--ice)" stroke-width="1.7" opacity=".85"/>`;
+    return s;
+  };
+  const tgt = state.targeting;
+  if(tgt === "One Target"){
+    out += arm(0);
+    // balancing foot staves at the base
+    [-8, 0, 8].forEach(off => {
+      const [b1x,b1y] = pt(CX, CY, 50, 180 + off);
+      const [b2x,b2y] = pt(CX, CY, 60, 180 + off);
+      out += `<line x1="${b1x.toFixed(1)}" y1="${b1y.toFixed(1)}" x2="${b2x.toFixed(1)}" y2="${b2y.toFixed(1)}" stroke="var(--ice)" stroke-width="1.4" opacity=".55"/>`;
+    });
+  }
+  else if(tgt === "Two Targets") out += arm(0) + arm(180);
+  else if(tgt === "Three Targets") out += arm(0) + arm(120) + arm(240);
+  else if(tgt === "All Enemies"){
+    out += `<circle cx="${CX}" cy="${CY}" r="83" fill="none" stroke="var(--ice)" stroke-width="1.3" stroke-dasharray="4 7" opacity=".75"/>`;
+    for(let i = 0; i < 8; i++) out += arm(i * 45);
+  }
+  out += `</g>`;
+
+  // ---- Core: the damage package ----
+  out += `<g id="band-core">`;
+  const star8 = (r) => `<polygon points="${ringPoly(r,4,0)}" fill="none" stroke="var(--silver)" stroke-width="2"/>
+    <polygon points="${ringPoly(r,4,45)}" fill="none" stroke="var(--silver)" stroke-width="2"/>`;
+  switch(state.damage){
+    case "No Damage":
+      out += `<g class="core-pulse">
+        <circle cx="${CX}" cy="${CY}" r="36" fill="rgba(13,18,34,.7)" stroke="var(--silver)" stroke-width="1.8"/>
+        <circle cx="${CX}" cy="${CY}" r="28" fill="none" stroke="var(--silver)" stroke-width=".9" stroke-dasharray="3 5" opacity=".7"/>`;
+      for(let p = 0; p < 6; p++){
+        const [px, py] = pt(CX, CY, 15, p * 60);
+        out += `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="3.1" fill="none" stroke="var(--ice)" stroke-width="1.2"/>`;
+      }
+      out += `<circle cx="${CX}" cy="${CY}" r="2.6" fill="var(--ice)"/></g>`;
+      break;
+    case "Base Damage":
+      out += `<g class="core-pulse">
+        <polygon points="${ringPoly(34,4,0)}" fill="rgba(13,18,34,.7)" stroke="var(--silver)" stroke-width="2"/>
+        <polygon points="${ringPoly(21,4,0)}" fill="none" stroke="var(--silver)" stroke-width=".9" opacity=".6"/>
+      </g>`;
+      break;
+    case "Standard Damage":
+      out += `<g class="core-pulse">
+        <polygon points="${ringPoly(40,4,0)}" fill="none" stroke="var(--silver)" stroke-width=".9" opacity=".5"/>
+        <polygon points="${ringPoly(32,4,0)}" fill="var(--silver)" opacity=".85"/>
+        <polygon points="${ringPoly(17,4,0)}" fill="var(--navy)" opacity=".55"/>
+      </g>`;
+      break;
+    case "Double Base Damage":
+      out += `<g class="core-pulse">${star8(34)}
+        <polygon points="${ringPoly(19,4,22.5)}" fill="none" stroke="var(--silver)" stroke-width="1" opacity=".7"/>
+      </g>`;
+      break;
+    case "Double Standard Damage":
+      out += `<g class="core-pulse">
+        <polygon points="${ringPoly(36,4,0)}" fill="var(--silver)" opacity=".9"/>
+        <polygon points="${ringPoly(36,4,45)}" fill="var(--silver)" opacity=".55"/>
+        <polygon points="${ringPoly(15,4,22.5)}" fill="var(--navy)" opacity=".6"/>`;
+      for(let d = 0; d < 8; d++){
+        const [x1,y1] = pt(CX,CY,42,d*45+22.5), [x2,y2] = pt(CX,CY,51,d*45+22.5);
+        out += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="var(--silver)" stroke-width="1.7" opacity=".85"/>`;
+      }
+      out += `</g>`;
+      break;
+  }
+  out += `</g>`;
+
+  // ---- Riders: stave marks repeated around the circle ----
+  out += `<g id="band-riders">`;
+  // Rider 1 marks at r 104 (offset 45), rider 2 at r 120
+  // (offset 0), interleaved so both bands stay symmetric.
+  const RIDER_BANDS = [{r:104, offset:45}, {r:120, offset:0}];
+  addons.forEach((c, i) => {
+    const band = RIDER_BANDS[i];
+    const amped = state.amplify === c.component;
+    const spreadOn = state.spread === c.component;
+    for(let m = 0; m < 4; m++){
+      const deg = band.offset + m * 90;
+      if(amped){
+        // twin marks at every position, joined by a gold tick
+        out += staveAt(c, band.r, deg - 5.5, 1.05, null, .95);
+        out += staveAt(c, band.r, deg + 5.5, 1.05, null, .95);
+        const [gx, gy] = pt(CX, CY, band.r + 13, deg);
+        out += `<circle cx="${gx.toFixed(1)}" cy="${gy.toFixed(1)}" r="1.6" fill="var(--gold)" opacity=".9"/>`;
+      } else {
+        out += staveAt(c, band.r, deg, 1.3, null, .95);
+      }
+    }
+    if(amped){
+      out += `<circle cx="${CX}" cy="${CY}" r="${band.r}" fill="none" stroke="var(--gold)" stroke-width=".9" stroke-dasharray="1 8" opacity=".55"/>`;
+    }
+    if(isAffliction(c)){
+      out += `<circle class="bane-pulse" cx="${CX}" cy="${CY}" r="${band.r}" fill="none" stroke="var(--bane)" stroke-width="1" stroke-dasharray="2 9" opacity=".3"/>`;
+    }
+    if(spreadOn){
+      // eightfold gold echo on the outermost band
+      for(let m = 0; m < 8; m++){
+        out += staveAt(c, 134, band.offset + 22.5 + m * 45, .85, "var(--gold)", .8);
+      }
+      out += `<circle cx="${CX}" cy="${CY}" r="128" fill="none" stroke="var(--gold)" stroke-width="1" stroke-dasharray="3 7" opacity=".6"/>`;
+    }
+  });
+  out += `</g>`;
+
+  svg.innerHTML = out;
+}
+
+function renderLegend(){
+  const addons = currentAddons();
+  const form = currentForm();
+  const shape = ["","triangle","square","hexagon"][form];
+  const lg = [];
+  lg.push(`<span><span class="lg-dot lg-tgt"></span>Frame: ${state.type === "Spell" ? esc(state.school) + " spell" : state.type === "Monster" ? "Monster, thorned" + (isMonsterMagic() ? ` (${esc(state.monsterSchool)})` : "") : "forged Ability"}</span>`);
+  lg.push(`<span><span class="lg-dot lg-core"></span>Core: ${esc(state.damage)}</span>`);
+  lg.push(`<span><span class="lg-dot lg-tgt"></span>Arms: ${esc(state.targeting)}</span>`);
+  lg.push(`<span><span class="lg-dot lg-gold"></span>Inner rings: Tier ${state.tier} &middot; Gold ${shape}: ${FORM_NAMES[form]} Form</span>`);
+  addons.forEach(c => {
+    const bane = isAffliction(c);
+    lg.push(`<span><span class="lg-dot ${bane ? "lg-bane" : "lg-rider"}"></span>Fourfold mark: ${esc(c.component)}</span>`);
+  });
+  if(state.amplify) lg.push(`<span><span class="lg-dot lg-gold"></span>Twinned marks: ${esc(state.amplify)} Amplified</span>`);
+  if(state.spread) lg.push(`<span><span class="lg-dot lg-gold"></span>Gold outer script: ${esc(state.spread)} Spread</span>`);
+  document.getElementById("runeLegend").innerHTML = lg.join("");
+  document.getElementById("nameDisplay").textContent = state.name;
+}
+
+/* ============================================================
+   LIVE COMPONENT DESCRIPTIONS
+   ============================================================ */
+function descFor(c){
+  if(!c) return "";
+  const lock = lockText(c);
+  const cost = `${c.cost >= 0 ? "+" : ""}${c.cost}`;
+  let s = `<b>${esc(c.component)}</b> (${cost})`;
+  if(c.breakout) s += ` &middot; Breakout: ${esc(c.breakout.replace(/\*$/,""))}`;
+  if(lock) s += ` <span class="lock">${esc(lock)}</span>`;
+  s += `<br>${esc(c.rule)}`;
+  return s.replace(/\*/g, `<span class="ast">*</span>`);
+}
+function setDesc(id, html){
+  const el = document.getElementById(id);
+  el.innerHTML = html;
+  el.style.display = html ? "" : "none";
+}
+function refreshDescriptions(){
+  setDesc("damageDesc", descFor(byName[state.damage]));
+  setDesc("targetingDesc", descFor(byName[state.targeting]));
+  setDesc("slot1Desc", state.slot1 ? descFor(byName[state.slot1]) : "");
+  setDesc("slot2Desc", state.slot2 ? descFor(byName[state.slot2]) : "");
+  setDesc("spreadDesc", state.spread
+    ? `<b>Spread</b> (+2): ${esc(state.spread)} also applies to your Secondary Targets.`.replace(/\*/g,`<span class="ast">*</span>`)
+    : `One chosen Inlay also applies to Secondary Targets. <span class="lock">2nd Form + Secondary Targets</span>`);
+  setDesc("amplifyDesc", state.amplify
+    ? `<b>Amplify</b> (+2): ${esc(state.amplify)} occurs one additional time.`.replace(/\*/g,`<span class="ast">*</span>`)
+    : `One chosen Inlay occurs one additional time. Never together with Spread. <span class="lock">Tier 2</span>`);
+  const facts = currentFacts();
+  const fd = document.getElementById("factsDisplay");
+  fd.innerHTML = esc(facts).replace(/\*/g, `<span class="ast">*</span>`);
+  fd.style.display = facts ? "" : "none";
+}
+
+/* ============================================================
+   UI WIRING
+   ============================================================ */
+function fillSelect(sel, options, includeNone, noneLabel){
+  sel.innerHTML = "";
+  if(includeNone){
+    const o = document.createElement("option");
+    o.value = ""; o.textContent = noneLabel || "None";
+    sel.appendChild(o);
+  }
+  options.forEach(opt => {
+    if(opt.group){
+      const g = document.createElement("optgroup");
+      g.label = opt.group;
+      opt.items.forEach(it => g.appendChild(makeOpt(it)));
+      sel.appendChild(g);
+    } else {
+      sel.appendChild(makeOpt(opt));
+    }
+  });
+}
+function makeOpt(it){
+  const o = document.createElement("option");
+  o.value = it.value; o.textContent = it.label;
+  return o;
+}
+
+function buildAddonGroups(){
+  const groups = {};
+  COMPONENTS.forEach(c => {
+    if(PRIMARY_DAMAGE.includes(c.component)) return;
+    if(["Targeting","Spread","Amplify"].includes(c.category)) return;
+    (groups[c.category] = groups[c.category] || []).push({
+      value:c.component,
+      label:`${c.component} (${c.cost >= 0 ? "+" : ""}${c.cost})`
+    });
+  });
+  const order = ["Damage","Damage Effect","Charge","Movement","Vitality","Utility","Effect","Affliction*"];
+  Object.keys(groups).forEach(k => { if(!order.includes(k)) order.push(k); });
+  return order.filter(k => groups[k]).map(k => ({
+    group:k, items:groups[k].sort((a,b) => a.value.localeCompare(b.value))
+  }));
+}
+let ADDON_GROUPS = buildAddonGroups();
+
+/* Fill every select from current data. Safe to call again after
+   the CMS bundle replaces the tables. */
+function refreshAllSelects(){
+  fillSelect(document.getElementById("damageSel"),
+    PRIMARY_DAMAGE.map(n => ({value:n, label:`${n} (${byName[n].cost >= 0 ? "+" : ""}${byName[n].cost})`}))
+  );
+  document.getElementById("damageSel").value = state.damage;
+
+  fillSelect(document.getElementById("targetingSel"),
+    TARGETING_LIST.map(n => ({value:n, label:`${n} (+${byName[n].cost})`}))
+  );
+  document.getElementById("targetingSel").value = state.targeting;
+
+  ADDON_GROUPS = buildAddonGroups();
+  fillSelect(document.getElementById("slot1Sel"), ADDON_GROUPS, true);
+  document.getElementById("slot1Sel").value = state.slot1;
+  fillSelect(document.getElementById("slot2Sel"), ADDON_GROUPS, true);
+  document.getElementById("slot2Sel").value = state.slot2;
+
+  fillSelect(document.getElementById("weaponSel"),
+    WEAPON_GROUPS.map(g => ({group:g.group, items:g.items.map(w => ({value:w,label:`${w} (${FORM_NAMES[formOf(w)]})`}))}))
+  );
+  document.getElementById("weaponSel").value = state.weapon;
+  fillSelect(document.getElementById("focusSel"),
+    MAGIC_GROUPS.map(g => ({group:g.group, items:g.items.map(f => ({value:f,label:`${f} (${FORM_NAMES[formOf(f)]})`}))}))
+  );
+  document.getElementById("focusSel").value = state.focus;
+  const schools = [...new Set(MAGIC_GROUPS.map(g => g.school).filter(Boolean))];
+  fillSelect(document.getElementById("monsterSchoolSel"),
+    schools.map(s => ({value:s, label:s}))
+  );
+  if(!schools.includes(state.monsterSchool)) state.monsterSchool = schools[0] || "";
+  document.getElementById("monsterSchoolSel").value = state.monsterSchool;
+  document.getElementById("monsterFormSel").value = String(state.monsterForm);
+  document.getElementById("archetypeSel").value = state.monsterArchetype;
+}
+refreshAllSelects();
+
+function syncSchool(){
+  state.school = SCHOOL_BY_ITEM[state.focus] || "Weaving";
+  document.getElementById("schoolReadout").textContent = `School: ${state.school}`;
+}
+syncSchool();
+
+document.getElementById("typeSeg").addEventListener("click", e => {
+  const btn = e.target.closest("button");
+  if(!btn) return;
+  state.type = btn.dataset.val;
+  document.querySelectorAll("#typeSeg button").forEach(b => b.classList.toggle("active", b === btn));
+  document.getElementById("weaponField").style.display = state.type === "Ability" ? "" : "none";
+  document.getElementById("focusField").style.display = state.type === "Spell" ? "" : "none";
+  document.getElementById("monsterField").style.display = state.type === "Monster" ? "" : "none";
+  update();
+});
+
+function spreadEligible(c){ return !SPREAD_BANNED.includes(c.component); }
+
+function refreshSpreadOptions(){
+  const sel = document.getElementById("spreadSel");
+  const eligible = currentAddons().filter(spreadEligible);
+  sel.innerHTML = "";
+  const none = document.createElement("option");
+  none.value = "";
+  none.textContent = eligible.length ? "None" : "Select a spreadable Inlay first";
+  sel.appendChild(none);
+  eligible.forEach(c => {
+    const o = document.createElement("option");
+    o.value = c.component; o.textContent = `${c.component} (+2)`;
+    sel.appendChild(o);
+  });
+  if(state.spread && eligible.some(c => c.component === state.spread)) sel.value = state.spread;
+  else { sel.value = ""; state.spread = ""; }
+  sel.disabled = eligible.length === 0;
+}
+function refreshAmplifyOptions(){
+  const sel = document.getElementById("amplifySel");
+  const eligible = currentAddons().filter(c => !AMPLIFY_BANNED.includes(c.component));
+  sel.innerHTML = "";
+  const none = document.createElement("option");
+  none.value = "";
+  none.textContent = eligible.length ? "None" : "Select an Inlay first";
+  sel.appendChild(none);
+  eligible.forEach(c => {
+    const o = document.createElement("option");
+    o.value = c.component; o.textContent = `${c.component} (+2)`;
+    sel.appendChild(o);
+  });
+  if(state.amplify && eligible.some(c => c.component === state.amplify)) sel.value = state.amplify;
+  else { sel.value = ""; state.amplify = ""; }
+  sel.disabled = eligible.length === 0;
+}
+
+[["tierSel", v => state.tier = +v],
+ ["weaponSel", v => state.weapon = v],
+ ["archetypeSel", v => {
+   state.monsterArchetype = v;
+   document.getElementById("monsterSchoolRow").style.display = v === "Magic" ? "" : "none";
+ }],
+ ["monsterSchoolSel", v => state.monsterSchool = v],
+ ["monsterFormSel", v => state.monsterForm = +v],
+ ["focusSel", v => { state.focus = v; syncSchool(); }],
+ ["damageSel", v => state.damage = v],
+ ["targetingSel", v => state.targeting = v],
+ ["spreadSel", v => state.spread = v],
+ ["amplifySel", v => state.amplify = v],
+ ["slot1Sel", v => state.slot1 = v],
+ ["slot2Sel", v => state.slot2 = v]
+].forEach(([id,fn]) => {
+  document.getElementById(id).addEventListener("change", e => { fn(e.target.value); update(); });
+});
+const FEEDBACK_SOURCE = "sigilforge";
+(function wireFeedback(){
+  const inp = document.getElementById("feedbackInput");
+  const btn = document.getElementById("feedbackBtn");
+  const tog = document.getElementById("feedbackToggle");
+  const card = document.getElementById("feedbackCard");
+  if(!inp || !btn) return;
+  if(tog && card) tog.addEventListener("click", () => {
+    const open = card.classList.toggle("open");
+    tog.setAttribute("aria-expanded", open ? "true" : "false");
+    if(open) inp.focus();
+  });
+  inp.addEventListener("input", () => { btn.disabled = inp.value.trim().length === 0; });
+  btn.addEventListener("click", () => {
+    const text = inp.value.trim();
+    if(!text) return;
+    const fb = { source: FEEDBACK_SOURCE, comment: text };
+    try{
+      if(SUBMIT_ENDPOINT){
+        fetch(SUBMIT_ENDPOINT, {
+          method:"POST", headers:{ "Content-Type":"text/plain" },
+          body: JSON.stringify({ type:"LOREFELL_FEEDBACK_SUBMIT", payload: fb })
+        }).then(r => { if(!r.ok) throw new Error(r.status); }).catch(() => {});
+      } else {
+        window.parent.postMessage({ type:"LOREFELL_FEEDBACK_SUBMIT", payload: fb }, "*");
+      }
+    }catch(e){}
+    inp.value = "";
+    btn.disabled = true;
+    document.getElementById("feedbackMsg").textContent = "Thank you. Your feedback was sent.";
+    setTimeout(() => { document.getElementById("feedbackMsg").textContent = ""; }, 4000);
+  });
+})();
+
+document.getElementById("nameInput").addEventListener("input", e => { state.name = e.target.value; renderLegend(); });
+document.getElementById("flavorInput").addEventListener("input", e => { state.flavor = e.target.value; });
+
+/* Copy with execCommand fallback for Wix iframes */
+function copyText(text){
+  const fallback = () => {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed"; ta.style.opacity = "0";
+    ta.setAttribute("readonly", "");
+    document.body.appendChild(ta);
+    ta.focus(); ta.select(); ta.setSelectionRange(0, text.length);
+    let ok = false;
+    try { ok = document.execCommand("copy"); } catch(e){ ok = false; }
+    ta.remove();
+    toast(ok ? "Copied" : "Copy blocked. Press and hold the text to copy it.");
+  };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(() => toast("Copied")).catch(fallback);
+  } else fallback();
+}
+document.querySelectorAll(".copy-btn").forEach(btn => {
+  btn.addEventListener("click", () => copyText(document.getElementById(btn.dataset.copy).textContent));
+});
+function resetForge(){
+  state.type = "Ability"; state.tier = 1;
+  state.weapon = WEAPON_LIST[0] || "Shortbow";
+  state.school = "Weaving"; state.focus = FOCUS_LIST[0] || "Wand";
+  state.monsterArchetype = "Power"; state.monsterSchool = "Weaving"; state.monsterForm = 1;
+  state.damage = "Standard Damage"; state.targeting = "One Target";
+  state.spread = ""; state.amplify = ""; state.slot1 = ""; state.slot2 = "";
+  state.name = ""; state.flavor = "";
+  document.querySelectorAll("#typeSeg button").forEach(b =>
+    b.classList.toggle("active", b.dataset.val === "Ability"));
+  document.getElementById("weaponField").style.display = "";
+  document.getElementById("focusField").style.display = "none";
+  document.getElementById("monsterField").style.display = "none";
+  const msr = document.getElementById("monsterSchoolRow");
+  if(msr) msr.style.display = "none";
+  const ni = document.getElementById("nameInput"); if(ni) ni.value = "";
+  const fi = document.getElementById("flavorInput"); if(fi) fi.value = "";
+  const ts = document.getElementById("tierSel"); if(ts) ts.value = "1";
+  refreshAllSelects();
+  update();
+}
+
+function toast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove("show"), 2200);
+}
+
+/* ============================================================
+   RANDOMIZE (v2-aware)
+   ============================================================ */
+function randomizeBuild(){
+  const mtR = currentMinTier();
+  if(state.tier < mtR){
+    state.tier = mtR;
+    const ts = document.getElementById("tierSel");
+    if(ts) ts.value = String(mtR);
+  }
+  const item = currentItem();
+  const form = formOf(item);
+  const [minB, maxB] = effectiveBudget(state.tier, form);
+  const fits = v => v >= minB && v <= maxB;
+  const afflictionOk = c => !isAffliction(c) ||
+    (state.tier >= 2 && form >= 2 && (c.cost < 4 || (state.tier >= 3 && form >= 3)));
+  const allowedTargeting = TARGETING_LIST.filter(t =>
+    !(t === "Three Targets" && form < 2) &&
+    !(t === "All Enemies" && (state.tier < 3 || form < 3)));
+  const pool = COMPONENTS.filter(c =>
+    !PRIMARY_DAMAGE.includes(c.component) &&
+    !["Targeting","Spread","Amplify"].includes(c.category) &&
+    afflictionOk(c)
+  );
+  const SPREAD_COST = byName["Spread"].cost;
+  const AMPLIFY_COST = byName["Amplify"].cost;
+  const spreadOk = form >= 2;
+  const amplifyOk = state.tier >= 2;
+  const combos = [];
+  for(const d of PRIMARY_DAMAGE){
+    for(const t of allowedTargeting){
+      const base = byName[d].cost + byName[t].cost;
+      const multi = MULTI_TARGETING.includes(t);
+      if(fits(base) && d !== "No Damage") combos.push([d, t, "", "", "", ""]);
+      for(let i = 0; i < pool.length; i++){
+        const a = pool[i];
+        if(fits(base + a.cost)) combos.push([d, t, a.component, "", "", ""]);
+        if(spreadOk && multi && spreadEligible(a) && fits(base + a.cost + SPREAD_COST))
+          combos.push([d, t, a.component, "", a.component, ""]);
+        if(amplifyOk && !AMPLIFY_BANNED.includes(a.component) && fits(base + a.cost + AMPLIFY_COST))
+          combos.push([d, t, a.component, "", "", a.component]);
+        for(let j = i + 1; j < pool.length; j++){
+          const b = pool[j];
+          if(isAffliction(a) && isAffliction(b)) continue;
+          if(fits(base + a.cost + b.cost)) combos.push([d, t, a.component, b.component, "", ""]);
+        }
+      }
+    }
+  }
+  if(!combos.length) return;
+  const [dmg, tgt, s1, s2, spr, amp] = combos[Math.floor(Math.random() * combos.length)];
+  state.damage = dmg; state.targeting = tgt;
+  state.slot1 = s1; state.slot2 = s2; state.spread = spr; state.amplify = amp;
+  document.getElementById("damageSel").value = dmg;
+  document.getElementById("targetingSel").value = tgt;
+  document.getElementById("slot1Sel").value = s1;
+  document.getElementById("slot2Sel").value = s2;
+  update();
+}
+document.getElementById("randBtn").addEventListener("click", randomizeBuild);
+
+/* ============================================================
+   SUBMIT + WHITE FIRE FORGING
+   ============================================================ */
+let forging = false;
+function playForgeFx(){
+  const card = document.getElementById("runeCard");
+  const fx = document.getElementById("forgeFx");
+  // ember sparks, deterministic spray
+  fx.querySelectorAll(".ember").forEach(e => e.remove());
+  for(let i = 0; i < 14; i++){
+    const e = document.createElement("span");
+    e.className = "ember";
+    const ang = (i / 14) * Math.PI * 2;
+    const dist = 90 + (i % 4) * 30;
+    e.style.left = "50%"; e.style.top = "42%";
+    e.style.setProperty("--ex", `${Math.cos(ang) * dist}px`);
+    e.style.setProperty("--ey", `${Math.sin(ang) * dist - 40}px`);
+    e.style.animationDelay = `${(i % 5) * 60}ms`;
+    if(i % 3 === 0) e.style.background = "var(--gold)";
+    fx.appendChild(e);
+  }
+  card.classList.remove("forged");
+  card.classList.add("forging");
+  forging = true;
+  setTimeout(() => {
+    card.classList.remove("forging");
+    card.classList.add("forged");
+    forging = false;
+  }, 1550);
+}
+
+/* ============================================================
+   RUNE SNAPSHOT
+   Serializes the live rune to standalone SVG (CSS variables
+   resolved, animations stripped, navy plate behind) and
+   rasterizes it to a PNG data URL for upload to the CMS.
+   ============================================================ */
+function runeSnapshotSvg(){
+  const el = document.getElementById("runeSvg");
+  let s = el.outerHTML;
+  s = s.replace(/<style>[\s\S]*?<\/style>/, "");
+  s = s.replace(/\sclass="[^"]*"/g, "");
+  const cs = getComputedStyle(document.documentElement);
+  const cv = n => (cs.getPropertyValue("--" + n) || "").trim();
+  ["ice","gold","silver","bane","navy"].forEach(v => {
+    s = s.split("var(--" + v + ")").join(cv(v) || "#dce8ef");
+  });
+  if(!/xmlns=/.test(s)) s = s.replace("<svg", `<svg xmlns="http://www.w3.org/2000/svg"`);
+  s = s.replace(/>/, `><rect x="0" y="0" width="320" height="320" fill="${cv("navy") || "#0a0e1a"}"/>`);
+  return s;
+}
+function runeSnapshotPng(cb){
+  let done = v => { cb(v); done = () => {}; };
+  try{
+    const svg = runeSnapshotSvg();
+    const img = new Image();
+    const t = setTimeout(() => done(""), 1500);
+    img.onload = () => {
+      try{
+        const c = document.createElement("canvas");
+        c.width = 640; c.height = 640;
+        c.getContext("2d").drawImage(img, 0, 0, 640, 640);
+        clearTimeout(t);
+        done(c.toDataURL("image/png"));
+      }catch(e){ clearTimeout(t); done(""); }
+    };
+    img.onerror = () => { clearTimeout(t); done(""); };
+    img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+  }catch(e){ done(""); }
+}
+
+document.getElementById("submitBtn").addEventListener("click", () => {
+  if(forging) return;
+  const errors = validate();
+  if(errors.length) return;
+  if(!state.name.trim()){
+    toast("Name your ability before submitting");
+    document.getElementById("nameInput").focus();
+    return;
+  }
+  const addons = currentAddons();
+  const payload = {
+    title: state.name.trim(),
+    tier: "T" + state.tier,
+    abilityType: state.type,
+    weaponOrSchool: state.type === "Spell" ? state.school
+      : state.type === "Monster"
+        ? (isMonsterMagic() ? state.monsterSchool : state.monsterArchetype)
+        : state.weapon,
+    focus: state.type === "Spell" ? state.focus : "",
+    primaryDamage: state.damage,
+    targeting: state.targeting,
+    spread: state.spread,
+    amplify: state.amplify,
+    components: addons.map(c => ({
+      category:c.category, component:c.component,
+      cost:c.cost, breakout:c.breakout, rule:c.rule
+    })),
+    shorthand: buildShorthand(),
+    fullExplanation: buildFull(),
+    budgetBreakdown: buildBudget(),
+    weaponFacts: currentFacts(),
+    flavorText: state.flavor.trim(),
+    cost: totalCost(),
+    status: "Submitted",
+    runeSvg: "",
+    runePng: ""
+  };
+  payload.forge = {
+    tier: state.tier,
+    form: currentForm(),
+    mode: state.type === "Monster" ? "monster" : "weapon",
+    kind: state.type === "Monster" ? "foe" : "character",
+    selections: [
+      state.damage, state.targeting, state.slot1, state.slot2,
+      state.spread ? "Spread" : "", state.amplify ? "Amplify" : ""
+    ].filter(Boolean),
+    spreadTarget: state.spread || "",
+    amplifyTarget: state.amplify || ""
+  };
+  try{ payload.runeSvg = runeSnapshotSvg(); }catch(e){}
+  const send = () => {
+    if(SUBMIT_ENDPOINT){
+      fetch(SUBMIT_ENDPOINT, {
+        method:"POST", headers:{ "Content-Type":"text/plain" },
+        body: JSON.stringify({ type:"LOREFELL_ABILITY_SUBMIT", payload })
+      })
+      .then(r => { if(!r.ok) throw new Error(r.status); toast("Forged and sent to the LoreForge"); resetForge(); })
+      .catch(() => toast("Submission failed. Check your connection and try again."));
+    } else {
+      window.parent.postMessage({ type:"LOREFELL_ABILITY_SUBMIT", payload }, "*");
+      // Outcome is confirmed by LOREFELL_SUBMIT_RESULT from the page bridge.
+    }
+  };
+  const sb = document.getElementById("submitBtn");
+  sb.classList.add("submitting");
+  sb.textContent = "Forging...";
+  setTimeout(() => {
+    sb.classList.remove("submitting");
+    sb.textContent = "Submit to LoreForge";
+  }, 2600);
+  const rc = document.getElementById("runeCard");
+  if(rc && typeof rc.scrollIntoView === "function")
+    rc.scrollIntoView({ behavior: "smooth", block: "start" });
+  if(typeof window.scrollTo === "function")
+    try{ window.scrollTo({ top: 0, behavior: "smooth" }); }catch(e){}
+  playForgeFx();
+  runeSnapshotPng(png => { payload.runePng = png; send(); });
+});
+
+/* The page bridge re-validates against the vault rules, writes the
+   record, then posts the outcome back. Success and overlap are reported
+   here so the tool never claims a save the vault refused. */
+window.onmessage = function(ev){
+  var m = ev && ev.data;
+  if(!m || m.type !== "LOREFELL_SUBMIT_RESULT") return;
+  if(m.ok){
+    toast(Array.isArray(m.similar) && m.similar.length
+      ? "Forged. A close match already waits in the LoreForge."
+      : "Forged and sent to the LoreForge");
+    resetForge();
+  } else {
+    toast((m.errors && m.errors[0]) || "The LoreForge refused this build.");
+  }
+};
+
+/* ============================================================
+   MASTER UPDATE
+   ============================================================ */
+function setOut(id, text){
+  document.getElementById(id).innerHTML = esc(text).replace(/\*/g, `<span class="ast">*</span>`);
+}
+function update(){
+  /* The item's Form sets the lowest legal Tier. Choosing a heavier
+     item raises the Tier with it instead of stranding the build. */
+  const floorT = currentMinTier();
+  if(state.tier < floorT){
+    state.tier = floorT;
+    const tsb = document.getElementById("tierSel");
+    if(tsb) tsb.value = String(floorT);
+  }
+  const tsEl = document.getElementById("tierSel");
+  if(tsEl && tsEl.querySelectorAll)
+    tsEl.querySelectorAll("option").forEach(o => { o.disabled = +o.value < floorT; });
+  refreshSpreadOptions();
+  refreshAmplifyOptions();
+  const errors = validate();
+  const warnings = buildWarnings();
+  const form = currentForm();
+  const [minB, maxB] = effectiveBudget(state.tier, form);
+  const total = totalCost();
+
+  document.getElementById("budgetTotal").textContent = total;
+  document.getElementById("budgetReq").textContent = `${minB}-${maxB}`;
+  document.getElementById("mythicFlag").style.display = (maxB === 7) ? "" : "none";
+  const bar = document.getElementById("budgetBar");
+  bar.classList.toggle("ok", errors.length === 0);
+  bar.classList.toggle("over", total > maxB);
+  document.getElementById("budgetState").textContent =
+    errors.length === 0 ? "Valid build" : (total > maxB ? "Over budget" : total < minB ? "Under budget" : "Check errors");
+
+  const list = document.getElementById("errorList");
+  if(errors.length === 0){
+    let rows = `<li class="all-clear">This build follows the LoreFell forging rules.</li>`;
+    warnings.forEach(w => rows += `<li class="warn">${esc(w)}</li>`);
+    list.innerHTML = rows;
+  } else {
+    list.innerHTML = errors.map(e => `<li>${esc(e)}</li>`).join("");
+  }
+
+  setOut("shorthandOut", buildShorthand());
+  setOut("fullOut", buildFull());
+  setOut("budgetOut", buildBudget());
+  document.getElementById("submitBtn").disabled = errors.length > 0;
+  document.getElementById("runeCard").classList.remove("forged");
+
+  refreshDescriptions();
+  renderRune();
+  renderLegend();
+  document.getElementById("runeCard").classList.toggle("stable", errors.length === 0);
+  igniteChangedBands();
+}
+
+/* ============================================================
+   PAGER: tabs, arrows, swipe
+   ============================================================ */
+let pageIdx = 0;
+const PAGES = [document.getElementById("page0"), document.getElementById("page1"), document.getElementById("page2")];
+function goPage(i){
+  pageIdx = Math.max(0, Math.min(2, i));
+  PAGES.forEach((p, n) => p.classList.toggle("on", n === pageIdx));
+  document.querySelectorAll(".pn-tab").forEach((t, n) => t.classList.toggle("on", n === pageIdx));
+  document.getElementById("pnPrev").disabled = pageIdx === 0;
+  document.getElementById("pnNext").disabled = pageIdx === 2;
+}
+document.querySelectorAll(".pn-tab").forEach(t =>
+  t.addEventListener("click", () => goPage(+t.dataset.page)));
+document.getElementById("pnPrev").addEventListener("click", () => goPage(pageIdx - 1));
+document.getElementById("pnNext").addEventListener("click", () => goPage(pageIdx + 1));
+
+let touchX = null, touchY = null;
+document.addEventListener("touchstart", e => {
+  if(e.touches.length !== 1) return;
+  touchX = e.touches[0].clientX; touchY = e.touches[0].clientY;
+}, {passive:true});
+document.addEventListener("touchend", e => {
+  if(touchX === null) return;
+  const dx = e.changedTouches[0].clientX - touchX;
+  const dy = e.changedTouches[0].clientY - touchY;
+  touchX = touchY = null;
+  // horizontal swipe only, and not on form controls
+  if(Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.6) return;
+  const tag = (e.target.tagName || "").toLowerCase();
+  if(["select","input","textarea"].includes(tag)) return;
+  goPage(pageIdx + (dx < 0 ? 1 : -1));
+}, {passive:true});
+
+/* ============================================================
+   CODEX: generated from COMPONENTS, searchable and filterable
+   ============================================================ */
+const CODEX_SECTIONS = [
+  { id:"targeting", title:"Targeting", cats:["Targeting"], note:"Every ability has exactly one targeting component." },
+  { id:"damage", title:"Damage Packages", cats:["Damage"],
+    note:"Exactly one primary damage package per ability. Increased Bonus Damage is an Inlay, not a package.",
+    only:PRIMARY_DAMAGE },
+  { id:"damage", title:"Damage Add-On", cats:["Damage"], only:["Increased Bonus Damage"],
+    note:"An Inlay. Counts toward the two Inlay slots." },
+  { id:"modifiers", title:"Modifiers", cats:["Spread","Amplify"],
+    note:"Each counts as an Inlay. One Spread, one Amplify, never both in the same ability." },
+  { id:"charge", title:"Charge", cats:["Charge"] },
+  { id:"movement", title:"Movement", cats:["Movement"] },
+  { id:"vitality", title:"Vitality", cats:["Vitality"] },
+  { id:"utility", title:"Utility", cats:["Utility"] },
+  { id:"dmgfx", title:"Damage Effects", cats:["Damage Effect"], note:"Cannot be Spread or Amplified." },
+  { id:"effects", title:"Effects", cats:["Effect"],
+    note:"Persist until their trigger condition is met. Count as Inlays." },
+  { id:"afflictions", title:"Afflictions", cats:["Affliction*"], maxCost:3, key:"Tier 2 + 2nd Form",
+    note:"Written with an asterisk. The target spends an Act and rolls the breakout skill to remove it. Maximum one Affliction per ability." },
+  { id:"majors", title:"Major Afflictions", cats:["Affliction*"], minCost:4, key:"Tier 3 + 3rd Form",
+    note:"The heaviest conditions in the game. Only a mature weapon and a full spend can carry one." }
+];
+const CODEX_FILTERS = [["all","All"],["targeting","Targets"],["damage","Damage"],["modifiers","Modifiers"],
+  ["charge","Charge"],["movement","Movement"],["vitality","Vitality"],["utility","Utility"],
+  ["dmgfx","Dmg Effects"],["effects","Effects"],["afflictions","Afflictions"],["majors","Majors"]];
+
+let codexFilter = "all";
+function buildCodex(){
+  const body = document.getElementById("codexBody");
+  body.innerHTML = "";
+  CODEX_SECTIONS.forEach(sec => {
+    const rows = COMPONENTS.filter(c =>
+      sec.cats.includes(c.category) &&
+      (!sec.only || sec.only.includes(c.component)) &&
+      (sec.only || !["No Damage","Standard Damage","Base Damage","Double Base Damage","Double Standard Damage","Increased Bonus Damage"].includes(c.component) || !sec.cats.includes("Damage")) &&
+      (sec.maxCost === undefined || c.cost <= sec.maxCost) &&
+      (sec.minCost === undefined || c.cost >= sec.minCost)
+    );
+    if(!rows.length) return;
+    const s = document.createElement("section");
+    s.className = "section"; s.dataset.id = sec.id;
+    let head = `<div class="shead"><h2>${esc(sec.title)}</h2>`;
+    if(sec.key) head += `<span class="skey">${esc(sec.key)}</span>`;
+    head += `</div>`;
+    if(sec.note) head += `<p class="snote">${esc(sec.note)}</p>`;
+    s.innerHTML = head;
+    rows.forEach(c => {
+      const div = document.createElement("div");
+      div.className = "crow";
+      div.dataset.text = (c.component + " " + c.rule + " " + c.breakout + " " + c.category).toLowerCase();
+      const lock = lockText(c);
+      div.innerHTML =
+        `<div class="ccost${c.cost < 0 ? " refund" : ""}">${c.cost}</div>
+         <div>
+           <div class="rname">${esc(c.component).replace(/\*/g,'<span class="ast">*</span>')}` +
+           (c.breakout ? `<span class="brk">${esc(c.breakout.replace(/\*$/,""))}</span>` : "") +
+           (lock && !sec.key ? `<span class="rkey">${esc(lock)}</span>` : "") +
+         `</div>
+           <div class="rtext">${esc(c.rule)}</div>
+         </div>`;
+      s.appendChild(div);
+    });
+    body.appendChild(s);
+  });
+  const bar = document.getElementById("codexFilters");
+  CODEX_FILTERS.forEach(([id, label], i) => {
+    const b = document.createElement("button");
+    b.className = "fbtn" + (i === 0 ? " on" : "");
+    b.textContent = label;
+    b.addEventListener("click", () => {
+      codexFilter = id;
+      document.querySelectorAll(".fbtn").forEach(x => x.classList.toggle("on", x === b));
+      filterCodex();
+    });
+    bar.appendChild(b);
+  });
+  document.getElementById("codexSearch").addEventListener("input", filterCodex);
+  filterCodex();
+}
+function filterCodex(){
+  const term = document.getElementById("codexSearch").value.trim().toLowerCase();
+  let visible = 0;
+  document.querySelectorAll("#codexBody .section").forEach(s => {
+    const inFilter = (codexFilter === "all" || s.dataset.id === codexFilter);
+    let any = false;
+    s.querySelectorAll(".crow").forEach(r => {
+      const hit = inFilter && (!term || r.dataset.text.includes(term));
+      r.classList.toggle("hidden", !hit);
+      if(hit){ any = true; visible++; }
+    });
+    s.classList.toggle("hidden", !any);
+  });
+  document.getElementById("codexCount").textContent = `${visible} component${visible === 1 ? "" : "s"}`;
+  document.getElementById("codexEmpty").style.display = visible ? "none" : "block";
+}
+
+/* ============================================================
+   LIVE RULES FROM THE CMS
+   On load, fetch the rules bundle from the site backend. If the
+   collections exist, every table and tunable rebuilds from
+   them. If anything is missing or malformed, the baked-in data
+   above keeps the forge running. Set the endpoint to "" to run
+   on baked-in data only.
+   ============================================================ */
+const FORGE_DATA_ENDPOINT = "https://www.lorefell.com/_functions/forgeData";
+
+function sanitizeGlyph(g){
+  if(!g) return "";
+  const s = String(g).trim();
+  if(s.length > 2000) return "";
+  if(/<\s*(script|foreignobject|iframe|image|use|animate)/i.test(s)) return "";
+  if(/on[a-z]+\s*=|javascript:|href|xlink/i.test(s)) return "";
+  return s;
+}
+
+function applyForgeData(b){
+  COMPONENTS.length = 0;
+  b.components.forEach(r => {
+    const cost = Number(r.cost);
+    if(!r.component || !Number.isFinite(cost)) return;
+    COMPONENTS.push({
+      category: String(r.category || ""), component: String(r.component),
+      cost, breakout: String(r.breakout || ""), rule: String(r.rule || ""),
+      glyph: sanitizeGlyph(r.glyph)
+    });
+  });
+  Object.keys(byName).forEach(k => delete byName[k]);
+  COMPONENTS.forEach(c => byName[c.component] = c);
+
+  const slotOf = {};
+  b.components.forEach(r => slotOf[r.component] = r.slot || "rider");
+  PRIMARY_DAMAGE.length = 0;
+  COMPONENTS.forEach(c => { if(slotOf[c.component] === "package") PRIMARY_DAMAGE.push(c.component); });
+  TARGETING_LIST.length = 0;
+  COMPONENTS.forEach(c => { if(slotOf[c.component] === "targeting") TARGETING_LIST.push(c.component); });
+  MULTI_TARGETING.length = 0;
+  b.components.forEach(r => { if(slotOf[r.component] === "targeting" && r.multi) MULTI_TARGETING.push(r.component); });
+  SPREAD_BANNED.length = 0;
+  b.components.forEach(r => { if(r.spreadBanned) SPREAD_BANNED.push(r.component); });
+  AMPLIFY_BANNED.length = 0;
+  b.components.forEach(r => { if(r.amplifyBanned) AMPLIFY_BANNED.push(r.component); });
+
+  if(Array.isArray(b.items) && b.items.length){
+    WEAPON_GROUPS.length = 0; MAGIC_GROUPS.length = 0;
+    const wg = {}, mg = {};
+    b.items.forEach(r => {
+      if(!r.name) return;
+      if(r.kind === "Magic"){
+        (mg[r.family] = mg[r.family] || {group:r.family, school:String(r.school || ""), items:[]}).items.push(r.name);
+      } else if(r.kind === "Monster"){
+        return; /* Monster mode is weaponless; legacy rows are ignored */
+      } else {
+        (wg[r.family] = wg[r.family] || {group:r.family, items:[]}).items.push(r.name);
+      }
+    });
+    Object.values(wg).forEach(g => WEAPON_GROUPS.push(g));
+    Object.values(mg).forEach(g => MAGIC_GROUPS.push(g));
+    WEAPON_LIST.length = 0; WEAPON_GROUPS.forEach(g => g.items.forEach(i => WEAPON_LIST.push(i)));
+    FOCUS_LIST.length = 0; MAGIC_GROUPS.forEach(g => g.items.forEach(i => FOCUS_LIST.push(i)));
+    Object.keys(SCHOOL_BY_ITEM).forEach(k => delete SCHOOL_BY_ITEM[k]);
+    MAGIC_GROUPS.forEach(g => g.items.forEach(i => SCHOOL_BY_ITEM[i] = g.school));
+    Object.keys(FORM_BY_ITEM).forEach(k => delete FORM_BY_ITEM[k]);
+    b.items.forEach(r => FORM_BY_ITEM[r.name] = [1,2,3].includes(+r.form) ? +r.form : 3);
+    Object.keys(ITEM_STATS).forEach(k => delete ITEM_STATS[k]);
+    b.items.forEach(r => ITEM_STATS[r.name] = {
+      grip: Number(r.grip) || 1, range: Number(r.range) || 1,
+      affliction: String(r.affliction || ""),
+      minTier: [1,2,3].includes(+r.minTier) ? +r.minTier : 1
+    });
+  }
+
+  if(b.config){
+    const num = v => (v === undefined || v === null || v === "" || isNaN(+v)) ? null : +v;
+    const pair = v => {
+      const p = String(v || "").split(",").map(x => +x.trim());
+      return p.length === 2 && p.every(n => Number.isFinite(n)) ? p : null;
+    };
+    const C = b.config;
+    [1,2,3].forEach(t => { const p = pair(C["tier" + t + "Budget"]); if(p) CONFIG.tierBudgets[t] = p; });
+    ["mythicMax","mythicTier","mythicForm","maxRiders","maxAfflictions",
+     "afflictionMinTier","afflictionMinForm","majorCost","majorMinTier","majorMinForm",
+     "allEnemiesMinTier","allEnemiesMinForm","threeTargetsMinForm","spreadMinForm","amplifyMinTier",
+     "monsterFloorByForm","itemFloorByForm"
+    ].forEach(k => { const n = num(C[k]); if(n !== null) CONFIG[k] = n; });
+  }
+
+  if(!byName[state.damage]) state.damage = PRIMARY_DAMAGE[0] || "";
+  if(!TARGETING_LIST.includes(state.targeting)) state.targeting = TARGETING_LIST[0] || "";
+  if(state.slot1 && !byName[state.slot1]) state.slot1 = "";
+  if(state.slot2 && !byName[state.slot2]) state.slot2 = "";
+  if(state.spread && state.spread !== state.slot1 && state.spread !== state.slot2) state.spread = "";
+  if(state.amplify && state.amplify !== state.slot1 && state.amplify !== state.slot2) state.amplify = "";
+  if(!WEAPON_LIST.includes(state.weapon)) state.weapon = WEAPON_LIST[0] || "";
+  if(!FOCUS_LIST.includes(state.focus)) state.focus = FOCUS_LIST[0] || "";
+  syncSchool();
+  refreshAllSelects();
+  buildCodex();
+  update();
+}
+
+async function loadForgeData(){
+  if(!FORGE_DATA_ENDPOINT) return;
+  try{
+    const res = await fetch(FORGE_DATA_ENDPOINT);
+    if(!res.ok) return;
+    const b = await res.json();
+    if(!b || !Array.isArray(b.components) || b.components.length < 10) return;
+    if(!b.components.some(r => r.component === "Spread") ||
+       !b.components.some(r => r.component === "Amplify")) return;
+    applyForgeData(b);
+  }catch(e){ /* baked-in rules remain */ }
+}
+
+/* Bands flash hot when their build choice changes, like fresh
+   metal struck on the anvil. */
+let prevSig = null;
+function igniteChangedBands(){
+  const sig = {
+    frame: state.type + "|" + state.school,
+    script: [state.type,state.damage,state.targeting,state.slot1,state.slot2,state.spread,state.amplify,state.school].join("|"),
+    tier: String(state.tier),
+    form: String(currentForm()),
+    targeting: state.targeting,
+    core: state.damage,
+    inlays: [state.slot1,state.slot2,state.spread,state.amplify].join("|")
+  };
+  if(prevSig){
+    Object.keys(sig).forEach(k => {
+      if(sig[k] === prevSig[k]) return;
+      const el = document.getElementById("band-" + k);
+      if(!el) return;
+      el.classList.add("ignite");
+      setTimeout(() => el.classList.remove("ignite"), 600);
+    });
+  }
+  prevSig = sig;
+}
+
+/* Ambient forge motes drifting up through the rune */
+(function spawnMotes(){
+  const stage = document.getElementById("runeStage");
+  for(let i = 0; i < 12; i++){
+    const m = document.createElement("span");
+    m.className = "mote" + (i % 4 === 0 ? " gold" : "");
+    m.style.left = (6 + (i * 7.9) % 88) + "%";
+    m.style.animationDuration = (9 + (i % 5) * 2.6) + "s";
+    m.style.animationDelay = (-(i * 1.9) % 13) + "s";
+    stage.appendChild(m);
+  }
+})();
+
+/* ============================================================
+   AI FORGE
+   The system prompt is generated at runtime from the same
+   COMPONENTS data the validator uses, so the agent's knowledge
+   can never drift from the rules engine. Claude proposes, the
+   validator disposes: illegal builds are sent back with their
+   errors for correction before a player ever sees them.
+   ============================================================ */
+function aiSystemPrompt(){
+  const comp = COMPONENTS.map(c =>
+    c.component + "|" + c.cost + "|" + c.category + "|" + c.rule
+  ).join("\n");
+  const items = WEAPON_LIST.map(w =>
+    w + "|Weapon|" + FORM_NAMES[formOf(w)] + " Form" + (effectiveItemFloor(w) > 1 ? "|Tier " + effectiveItemFloor(w) + "+ only" : "")
+  ).concat(FOCUS_LIST.map(f =>
+    f + "|Magic Item|" + FORM_NAMES[formOf(f)] + " Form|" + SCHOOL_BY_ITEM[f] + " school" + (effectiveItemFloor(f) > 1 ? "|Tier " + effectiveItemFloor(f) + "+ only" : "")
+  )).join("\n");
+  return [
+    "You are the SigilForge, converting a player's described fantasy into a legal build for the LoreFell tabletop RPG.",
+    "",
+    "COMPONENTS (Name|cost|category|rule):",
+    comp,
+    "",
+    "ITEMS (Name|kind|Form|school):",
+    items,
+    "",
+    "BUILD STRUCTURE:",
+    "- Exactly 1 damage package (the Damage Package category), exactly 1 targeting choice, and up to 2 Inlays.",
+    "- An Inlay is any non-package component. Spread and Amplify each occupy one of the 2 Inlay slots and must name one of the other chosen Inlays. Spread and Amplify can never both appear in the same build.",
+    "- Maximum 1 Affliction (components whose names end in *).",
+    "- Some items are marked Tier N+ only and can never forge below that Tier. An item's Form sets its minimum Tier: 2nd Form items forge Tier 2-3, 3rd Form items forge Tier 3 only.",
+    "- MONSTER MODE: when the player describes a monster, creature, or beast ability, use type Monster. Monster builds use NO item. Instead provide archetype (Precision, Power, or Magic), school (only when archetype is Magic), and form (1, 2, or 3, chosen freely). Monsters have no grip, range, or innate Affliction.",
+    `- Monster Tier floor: a Monster build's Tier must be at least its form. Form 1 forges Tier 1-3, form 2 forges Tier 2-3, form 3 forges Tier 3 only.`,
+    "- No Damage costs 0, targets an ally, enemy, or space, and requires at least 1 Inlay. Aimed at allies, Secondary Targets are allies and Spread carries the beneficial Inlay to them.",
+    "- Weapons make Abilities. Magic items make Spells in their school.",
+    "",
+    "BUDGETS (total component cost must land in range):",
+    `- Tier 1: ${CONFIG.tierBudgets[1].join("-")}. Tier 2: ${CONFIG.tierBudgets[2].join("-")}. Tier 3: ${CONFIG.tierBudgets[3].join("-")}.`,
+    `- Mythic exception: Tier ${CONFIG.mythicTier} on a ${FORM_NAMES[CONFIG.mythicForm]} Form item may spend up to ${CONFIG.mythicMax}.`,
+    "",
+    "THE TWO LADDERS (every requirement below is enforced; builds that break them are rejected):",
+    `- Tier Ladder: Afflictions require Tier ${CONFIG.afflictionMinTier}+ and Amplify requires Tier ${CONFIG.amplifyMinTier}+. Major Afflictions (cost ${CONFIG.majorCost}) require Tier ${CONFIG.majorMinTier} and All Enemies requires Tier ${CONFIG.allEnemiesMinTier}.`,
+    `- Form Ladder: Three Targets requires a ${FORM_NAMES[CONFIG.threeTargetsMinForm]} Form item and Spread requires a ${FORM_NAMES[CONFIG.spreadMinForm]} Form item. Major Afflictions require a ${FORM_NAMES[CONFIG.majorMinForm]} Form item and All Enemies requires a ${FORM_NAMES[CONFIG.allEnemiesMinForm]} Form item. Items below ${FORM_NAMES[CONFIG.afflictionMinForm]} Form can never apply Afflictions.`,
+    "- Spread requires a targeting choice with Secondary Targets (Two Targets or more).",
+    "- Amplify cannot name damage components: " + AMPLIFY_BANNED.join(", ") + ".",
+    "- Spread cannot name: " + SPREAD_BANNED.join(", ") + ".",
+    "",
+    "YOUR APPROACH:",
+    "- MAXIMIZE: spend the full budget available. At Tier 3 on a 3rd Form item, spend exactly 7 when the fantasy supports it. Never underspend unless the player asks for something deliberately modest.",
+    "- Infer tier and item from the description's scale: battlefield-wide effects imply Tier 3 and a 3rd Form item. Pick the item whose fantasy fits.",
+    "- If the description is genuinely ambiguous on a choice that splits the build (Tier, or weapon versus spell), ask up to 3 short questions ONCE using the questions schema. After the player answers, you MUST return a build.",
+    "- Match the described fantasy to components by their rule text. Fear suggests Frenzied or Terrified-style afflictions, frost suggests Frozen or Chilled, healing suggests Mended.",
+    "",
+    "NAME AND FLAVOR:",
+    "- name: 60 characters max, evocative, no generic fantasy compound names.",
+    "- flavor: 400 characters max, dark fantasy register, plain direct prose.",
+    "- Never use em dashes. Never use phrases like indistinguishable from, endure where others fade, or extraordinary amounts of. State facts directly without flourish.",
+    "",
+    "OUTPUT: strict JSON only, no markdown fences, no commentary, exactly one of:",
+    '{"questions":["...","..."]}',
+    '{"build":{"type":"Ability, Spell, or Monster","item":"exact item name, or empty string for Monster","archetype":"Monster only: Precision, Power, or Magic","school":"Monster Magic only: school name","form":"Monster only: 1, 2, or 3","tier":1,"damage":"exact package name","targeting":"exact targeting name","inlays":["exact component names, 0 to 2"],"spread":"inlay name or empty string","amplify":"inlay name or empty string","name":"...","flavor":"...","reasoning":"one sentence on why this build fits, addressed to the player"}}'
+  ].join("\n");
+}
+
+function parseAiJson(text){
+  const t = String(text).replace(/```json|```/g, "").trim();
+  const a = t.indexOf("{"), b = t.lastIndexOf("}");
+  if(a < 0 || b <= a) return null;
+  try{ return JSON.parse(t.slice(a, b + 1)); }catch(e){ return null; }
+}
+
+/* Apply a proposed build to the form. Returns validate() errors. */
+function applyAiBuild(b){
+  const item = String(b.item || "");
+  const isMonster = String(b.type || "") === "Monster";
+  const isSpell = !isMonster && FOCUS_LIST.includes(item);
+  if(!isMonster && !isSpell && !WEAPON_LIST.includes(item)) return ["Unknown item: " + item + "."];
+  state.type = isSpell ? "Spell" : isMonster ? "Monster" : "Ability";
+  document.querySelectorAll("#typeSeg button").forEach(btn =>
+    btn.classList.toggle("active", btn.dataset.val === state.type));
+  document.getElementById("weaponField").style.display = state.type === "Ability" ? "" : "none";
+  document.getElementById("focusField").style.display = state.type === "Spell" ? "" : "none";
+  document.getElementById("monsterField").style.display = state.type === "Monster" ? "" : "none";
+  if(isSpell){
+    state.focus = item;
+    document.getElementById("focusSel").value = item;
+    syncSchool();
+  } else if(isMonster){
+    const arch = ["Precision","Power","Magic"].includes(b.archetype) ? b.archetype : "Power";
+    state.monsterArchetype = arch;
+    document.getElementById("archetypeSel").value = arch;
+    document.getElementById("monsterSchoolRow").style.display = arch === "Magic" ? "" : "none";
+    const schools = [...new Set(MAGIC_GROUPS.map(g => g.school).filter(Boolean))];
+    if(arch === "Magic" && schools.includes(b.school)){
+      state.monsterSchool = b.school;
+      document.getElementById("monsterSchoolSel").value = b.school;
+    }
+    if([1,2,3].includes(+b.form)){
+      state.monsterForm = +b.form;
+      document.getElementById("monsterFormSel").value = String(state.monsterForm);
+    }
+  } else {
+    state.weapon = item;
+    document.getElementById("weaponSel").value = item;
+  }
+  if([1,2,3].includes(+b.tier)) state.tier = +b.tier;
+  document.getElementById("tierSel").value = String(state.tier);
+  if(PRIMARY_DAMAGE.includes(b.damage)) state.damage = b.damage;
+  document.getElementById("damageSel").value = state.damage;
+  if(TARGETING_LIST.includes(b.targeting)) state.targeting = b.targeting;
+  document.getElementById("targetingSel").value = state.targeting;
+  const inlays = (Array.isArray(b.inlays) ? b.inlays : [])
+    .filter(r => byName[r] && !PRIMARY_DAMAGE.includes(r) && !TARGETING_LIST.includes(r))
+    .slice(0, 2);
+  state.slot1 = inlays[0] || "";
+  state.slot2 = inlays[1] || "";
+  document.getElementById("slot1Sel").value = state.slot1;
+  document.getElementById("slot2Sel").value = state.slot2;
+  state.spread = (b.spread && inlays.includes(b.spread)) ? b.spread : "";
+  state.amplify = (b.amplify && inlays.includes(b.amplify)) ? b.amplify : "";
+  if(b.name){
+    state.name = String(b.name).slice(0, 60);
+    document.getElementById("nameInput").value = state.name;
+  }
+  if(b.flavor){
+    state.flavor = String(b.flavor).slice(0, 400);
+    document.getElementById("flavorInput").value = state.flavor;
+  }
+  update();
+  return validate();
+}
+
+function igniteAllBands(){
+  ["frame","script","tier","form","targeting","core","riders"].forEach(b => {
+    const el = document.getElementById("band-" + b);
+    if(el){
+      el.classList.add("ignite");
+      setTimeout(() => el.classList.remove("ignite"), 600);
+    }
+  });
+}
+
+function showAiMsg(t){
+  const el = document.getElementById("aiMsg");
+  el.textContent = t;
+  el.style.display = "";
+}
+
+async function aiCall(){
+  // text/plain keeps this a "simple" request: no CORS preflight,
+  // which Velo HTTP functions do not answer. Works for the
+  // Cloudflare Worker too.
+  const res = await fetch(AI_FORGE_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=UTF-8" },
+    body: JSON.stringify({ system: aiSystemPrompt(), messages: aiMsgs, max_tokens: 700 })
+  });
+  if(res.status === 429) throw { rate: true };
+  if(!res.ok) throw new Error("relay " + res.status);
+  const data = await res.json();
+  if(data.error) throw new Error("api error");
+  return (data.content || []).filter(x => x.type === "text").map(x => x.text).join("");
+}
+
+let aiMsgs = [];
+let aiBusy = false;
+async function aiForge(){
+  if(aiBusy) return;
+  const descEl = document.getElementById("aiDesc");
+  const text = descEl.value.trim();
+  if(!text){ toast("Describe your vision first"); descEl.focus(); return; }
+  aiBusy = true;
+  const btn = document.getElementById("aiBtn");
+  const oldLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "The forge listens...";
+  try{
+    aiMsgs.push({ role: "user", content: text });
+    let attempts = 0;
+    while(attempts < 4){
+      attempts++;
+      const reply = await aiCall();
+      aiMsgs.push({ role: "assistant", content: reply });
+      const parsed = parseAiJson(reply);
+      if(!parsed){
+        aiMsgs.push({ role: "user", content: "Respond with valid JSON only, using the exact schema." });
+        continue;
+      }
+      if(Array.isArray(parsed.questions) && parsed.questions.length){
+        showAiMsg("The forge asks:\n" +
+          parsed.questions.slice(0, 3).map((q, i) => (i + 1) + ". " + q).join("\n") +
+          "\n\nAnswer in the box above and strike again.");
+        descEl.value = "";
+        descEl.placeholder = "Answer the forge";
+        return;
+      }
+      if(parsed.build){
+        const errors = applyAiBuild(parsed.build);
+        if(errors.length === 0){
+          showAiMsg(parsed.build.reasoning ? "Forged. " + parsed.build.reasoning : "Forged.");
+          igniteAllBands();
+          toast("Forged from your vision");
+          aiMsgs = [];
+          descEl.value = "";
+          descEl.placeholder = "Describe the ability or spell you imagine";
+          return;
+        }
+        aiMsgs.push({ role: "user", content: "That build violates these rules: " + errors.join(" ") + " Return a corrected build as JSON only." });
+        continue;
+      }
+      aiMsgs.push({ role: "user", content: "Use the exact schema: questions or build, JSON only." });
+    }
+    showAiMsg("The forge could not settle on a legal build. The closest attempt is loaded above. Adjust it by hand.");
+    aiMsgs = [];
+  }catch(err){
+    if(err && err.rate) toast("The forge needs to cool. Try again soon.");
+    else toast("The forge could not be reached. Try again.");
+    aiMsgs = [];
+  }finally{
+    aiBusy = false;
+    btn.disabled = false;
+    btn.textContent = oldLabel;
+  }
+}
+document.getElementById("aiBtn").addEventListener("click", aiForge);
+if(!AI_FORGE_ENDPOINT) document.getElementById("aiCard").style.display = "none";
+
+buildCodex();
+goPage(0);
+update();
+loadForgeData();
+</script>
+</body>
+</html>

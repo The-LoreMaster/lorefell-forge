@@ -82,8 +82,8 @@ export const submitCreation = webMethod(Permissions.SiteMember, async (forgeKey,
     ownerMemberId: owner,
     worldId: payload.worldId || null,
     payload: JSON.stringify(payload),
-    shorthand: rendered.shorthand,
-    fullText: rendered.full,
+    shorthand: payload.shorthand || rendered.shorthand,
+    fullText: payload.fullText || rendered.full,
     legality: JSON.stringify(legality),
     creatorNote: payload.creatorNote || '',
     fingerprint: fingerprintOf(forgeKey, payload),
@@ -95,6 +95,25 @@ export const submitCreation = webMethod(Permissions.SiteMember, async (forgeKey,
 
   const saved = await wixData.insert(def.submitTarget, record, { suppressAuth: true });
   return { ok: true, creationId: saved._id, warnings: result.warnings };
+});
+
+// Browse and remix read. Powers the Ledger and the basedOn lineage.
+export const getCreations = webMethod(Permissions.Anyone, async (forgeKey, opts) => {
+  opts = opts || {};
+  let q = wixData.query('Creations').eq('forgeKey', forgeKey);
+  if (opts.canonStatus) q = q.eq('canonStatus', opts.canonStatus);
+  if (opts.creatorMemberId) q = q.eq('creatorMemberId', opts.creatorMemberId);
+  if (opts.kind) q = q.eq('kind', opts.kind);
+  q = q.descending('_createdDate').limit(Math.min(opts.limit || 50, 100));
+  const res = await q.find({ suppressAuth: true });
+  return res.items.map(function (s) {
+    return {
+      creationId: s._id, creationName: s.creationName, creatorName: s.creatorName,
+      canonStatus: s.canonStatus, voteCount: s.voteCount, kind: s.kind,
+      shorthand: s.shorthand, imageUrl: s.imageUrl, fingerprint: s.fingerprint,
+      payload: s.payload
+    };
+  });
 });
 
 // Overlap check. The tool calls this before submit and warns when a near-identical
