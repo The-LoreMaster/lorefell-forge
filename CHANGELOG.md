@@ -4,6 +4,13 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-21 — SigilForge: Inlay labels, remix + AI fixes, ledger voting
+
+- Renamed the two slot labels from Rider Slot to Inlay Slot (player-facing copy)
+- AI Forge now resolves near-miss component names (e.g. Ignited -> Ignited*) and surfaces truly unknown names to the validator loop, so the chosen Inlay no longer drops silently
+- Forge from this now loads pre-meta creations by defaulting the weapon/focus, so the build restores and the player re-picks the item
+- Added a Vote control to each ledger card (castVote backend, one vote per member via optional voters field, graceful tally-only fallback)
+
 ## 2026-06-21 — SigilForge: AI Forge live, Codex category arrows
 
 - Enabled Forge From a Vision (AI_FORGE_ENDPOINT -> apex /_functions/aiForge); card now shows

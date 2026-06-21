@@ -3,7 +3,7 @@
 // The tool is self-contained for its UI, so the page only relays submissions and
 // feedback. It re-validates nothing itself, the backend does that, this is just the wire.
 
-import { submitCreation, findSimilar, getCreations } from 'backend/forge.web.js';
+import { submitCreation, findSimilar, getCreations, castVote } from 'backend/forge.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
 import { currentMember } from 'wix-members-frontend';
 
@@ -35,6 +35,11 @@ $w.onReady(() => {
       let items = [];
       try { items = await getCreations(FORGE_KEY, opts); } catch (e) { items = []; }
       embed.postMessage({ type: 'LOREFELL_LEDGER_RESULT', scope: scope, items: items });
+    } else if (msg.type === 'LOREFELL_VOTE') {
+      const id = msg.payload && msg.payload.creationId;
+      let r = { ok: false };
+      try { r = await castVote(FORGE_KEY, id); } catch (e) { r = { ok: false, error: 'The vote could not reach the vault.' }; }
+      embed.postMessage({ type: 'LOREFELL_VOTE_RESULT', creationId: id, ok: !!r.ok, voteCount: r.voteCount, already: !!r.already, signin: !!r.signin, error: r.error || '' });
     } else if (msg.type === 'LOREFELL_FEEDBACK_SUBMIT') {
       // No feedback collection yet. Logged for now, wire a collection later if wanted.
       console.log('SigilForge feedback:', JSON.stringify(msg.payload || {}));

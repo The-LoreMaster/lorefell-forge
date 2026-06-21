@@ -591,11 +591,11 @@
       <select id="targetingSel"></select>
       <div class="desc" id="targetingDesc"></div>
 
-      <label class="fld">Rider Slot 1</label>
+      <label class="fld">Inlay Slot 1</label>
       <select id="slot1Sel"></select>
       <div class="desc" id="slot1Desc"></div>
 
-      <label class="fld">Rider Slot 2</label>
+      <label class="fld">Inlay Slot 2</label>
       <select id="slot2Sel"></select>
       <div class="desc" id="slot2Desc"></div>
 
@@ -670,6 +670,14 @@
 .lg-short{color:var(--ice);font-family:'Crimson Pro',serif;font-size:.95rem;margin:0 0 10px}
 .lg-remix{font-family:'Cinzel',serif;font-size:12px;letter-spacing:.06em;color:var(--gold);background:var(--navy);border:1px solid rgba(201,168,76,.5);border-radius:7px;padding:9px 14px;cursor:pointer}
 .lg-remix:hover{background:#11183047}
+  .lg-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .lg-vote{display:inline-flex;align-items:center;gap:7px;font-family:'Cinzel',serif;font-size:12px;letter-spacing:.06em;color:var(--ice);background:var(--navy);border:1px solid var(--line);border-radius:7px;padding:9px 13px;cursor:pointer}
+  .lg-vote:hover{background:#11183047}
+  .lg-vote .lg-varrow{font-size:10px;color:var(--silver-dim)}
+  .lg-vote .lg-vcount{color:var(--silver);font-variant-numeric:tabular-nums}
+  .lg-vote.voted{color:var(--gold);border-color:rgba(201,168,76,.5)}
+  .lg-vote.voted .lg-varrow{color:var(--gold)}
+  .lg-vote:disabled{cursor:default}
 </style>
   <section class="page" id="page1">
     <h2 class="pg-h1">The Forging Ledger</h2>
@@ -979,6 +987,17 @@ const GAIN_COMPONENTS = ["Attuned","Increased Bonus Damage"];
 
 const byName = {};
 COMPONENTS.forEach(c => byName[c.component] = c);
+function resolveComponent(name){
+  if(name == null) return "";
+  const sname = String(name).trim();
+  if(byName[sname]) return sname;
+  const norm = sname.replace(/\*+$/,"").trim().toLowerCase();
+  const keys = Object.keys(byName);
+  for(let i=0;i<keys.length;i++){
+    if(keys[i].replace(/\*+$/,"").trim().toLowerCase() === norm) return keys[i];
+  }
+  return "";
+}
 const isAffliction = c => c.category.endsWith("*") || c.component.endsWith("*");
 
 function effectiveBudget(tier, form){
@@ -2059,6 +2078,7 @@ window.onmessage = function(ev){
   if(!m || typeof m !== "object") return;
   if(m.type === "LOREFELL_OVERLAP_RESULT"){ renderOverlap(m.matches || []); return; }
   if(m.type === "LOREFELL_LEDGER_RESULT"){ renderLedger(m.items || []); return; }
+  if(m.type === "LOREFELL_VOTE_RESULT"){ applyVoteResult(m); return; }
   if(m.type !== "LOREFELL_SUBMIT_RESULT") return;
   if(m.ok){
     toast(Array.isArray(m.similar) && m.similar.length
@@ -2523,19 +2543,30 @@ function applyAiBuild(b){
   }
   if([1,2,3].includes(+b.tier)) state.tier = +b.tier;
   document.getElementById("tierSel").value = String(state.tier);
-  if(PRIMARY_DAMAGE.includes(b.damage)) state.damage = b.damage;
+  const dmg = resolveComponent(b.damage);
+  if(PRIMARY_DAMAGE.includes(dmg)) state.damage = dmg;
   document.getElementById("damageSel").value = state.damage;
-  if(TARGETING_LIST.includes(b.targeting)) state.targeting = b.targeting;
+  const tgt = resolveComponent(b.targeting);
+  if(TARGETING_LIST.includes(tgt)) state.targeting = tgt;
   document.getElementById("targetingSel").value = state.targeting;
-  const inlays = (Array.isArray(b.inlays) ? b.inlays : [])
-    .filter(r => byName[r] && !PRIMARY_DAMAGE.includes(r) && !TARGETING_LIST.includes(r))
-    .slice(0, 2);
+  const aiUnresolved = [];
+  const inlayList = [];
+  (Array.isArray(b.inlays) ? b.inlays : []).forEach(function(r){
+    if(r == null || String(r).trim() === "") return;
+    const c = resolveComponent(r);
+    if(!c){ aiUnresolved.push(String(r).trim()); return; }
+    if(PRIMARY_DAMAGE.includes(c) || TARGETING_LIST.includes(c) || c === "Spread" || c === "Amplify") return;
+    if(inlayList.indexOf(c) === -1) inlayList.push(c);
+  });
+  const inlays = inlayList.slice(0, 2);
   state.slot1 = inlays[0] || "";
   state.slot2 = inlays[1] || "";
   document.getElementById("slot1Sel").value = state.slot1;
   document.getElementById("slot2Sel").value = state.slot2;
-  state.spread = (b.spread && inlays.includes(b.spread)) ? b.spread : "";
-  state.amplify = (b.amplify && inlays.includes(b.amplify)) ? b.amplify : "";
+  const sprName = resolveComponent(b.spread);
+  const ampName = resolveComponent(b.amplify);
+  state.spread = (sprName && inlays.indexOf(sprName) !== -1) ? sprName : "";
+  state.amplify = (ampName && inlays.indexOf(ampName) !== -1) ? ampName : "";
   if(b.name){
     state.name = String(b.name).slice(0, 60);
     document.getElementById("nameInput").value = state.name;
@@ -2545,7 +2576,9 @@ function applyAiBuild(b){
     document.getElementById("flavorInput").value = state.flavor;
   }
   update();
-  return validate();
+  const aiErrs = validate();
+  if(aiUnresolved.length) aiErrs.push("These are not valid components: " + aiUnresolved.join(", ") + ". Use exact names from the component list. Afflictions end with an asterisk, for example Ignited*.");
+  return aiErrs;
 }
 
 function igniteAllBands(){
@@ -2753,6 +2786,7 @@ lmEl("lmSend").addEventListener("click", function(){
    THE FORGING LEDGER  (browse the LoreForge, remix into the Forge)
    ============================================================ */
 let lgScope = "all";
+let lgItems = [];
 function loadLedger(scope){
   lgScope = scope || "all";
   ledgerLoaded = true;
@@ -2775,6 +2809,7 @@ function renderLedger(items){
     return;
   }
   if(st) st.style.display = "none";
+  lgItems = items;
   const labels = { canon:"Canon", voting:"In Vote", submitted:"Submitted", declined:"Declined", draft:"Draft" };
   list.innerHTML = items.map(function(it, n){
     const canon = it.canonStatus === "canon";
@@ -2788,12 +2823,43 @@ function renderLedger(items){
       + '<div class="lg-badges">' + statusTag + kindTag + '</div>'
       + '<p class="lg-gate">' + gate + '</p>'
       + short
+      + '<div class="lg-actions">'
+      + '<button type="button" class="lg-vote" data-id="' + esc(it.creationId || "") + '">'
+      +   '<span class="lg-varrow">&#9650;</span> Vote <span class="lg-vcount">' + (it.voteCount || 0) + '</span>'
+      + '</button>'
       + '<button type="button" class="lg-remix" data-i="' + n + '">Forge from this</button>'
+      + '</div>'
       + '</div>';
   }).join("");
   list.querySelectorAll(".lg-remix").forEach(function(btn){
     btn.addEventListener("click", function(){ remixFrom(items[+btn.getAttribute("data-i")]); });
   });
+  list.querySelectorAll(".lg-vote").forEach(function(btn){
+    btn.addEventListener("click", function(){ castVote(btn); });
+  });
+}
+function castVote(btn){
+  if(!btn || btn.disabled) return;
+  const id = btn.getAttribute("data-id");
+  if(!id) return;
+  btn.disabled = true;
+  window.parent.postMessage({ type:"LOREFELL_VOTE", payload:{ creationId: id } }, "*");
+}
+function applyVoteResult(m){
+  if(!m || !m.creationId) return;
+  let btn = null;
+  document.querySelectorAll(".lg-vote").forEach(function(b){ if(b.getAttribute("data-id") === m.creationId) btn = b; });
+  if(m.ok){
+    if(btn){
+      if(m.voteCount != null){ const c = btn.querySelector(".lg-vcount"); if(c) c.textContent = m.voteCount; }
+      btn.classList.add("voted"); btn.disabled = true;
+    }
+    lgItems.forEach(function(it){ if(it.creationId === m.creationId && m.voteCount != null) it.voteCount = m.voteCount; });
+    toast(m.already ? "You already lent your voice to this." : "Your voice is counted.");
+  } else {
+    if(btn) btn.disabled = false;
+    toast(m.signin ? "Sign in to lend your voice." : (m.error || "The vote did not take. Try again."));
+  }
 }
 function remixFrom(it){
   if(!it) return;
@@ -2803,7 +2869,7 @@ function remixFrom(it){
   const type = meta.type || (p.kind === "foe" ? "Monster" : "Ability");
   const build = {
     type: type,
-    item: type === "Spell" ? (meta.focus || "") : type === "Ability" ? (meta.weapon || "") : "",
+    item: type === "Spell" ? (meta.focus || FOCUS_LIST[0] || "") : type === "Ability" ? (meta.weapon || WEAPON_LIST[0] || "") : "",
     archetype: meta.monsterArchetype || "Power",
     school: type === "Monster" ? (meta.monsterSchool || "") : (meta.school || ""),
     form: meta.monsterForm || p.form || 1,
@@ -2816,10 +2882,13 @@ function remixFrom(it){
     name: p.title || it.creationName || "",
     flavor: p.flavorText || ""
   };
+  const hadMeta = !!(meta.weapon || meta.focus || meta.type);
   const errs = applyAiBuild(build);
   remixOrigin = it.creationId || "";
   goPage(0);
-  toast(errs && errs.length ? "Loaded. Adjust it until it is legal." : "Loaded into the Forge. Adjust and send.");
+  toast(errs && errs.length ? "Loaded. Adjust it until it is legal."
+    : hadMeta ? "Loaded into the Forge. Adjust and send."
+    : "Loaded. Pick the weapon or focus, then send.");
 }
 document.querySelectorAll(".lg-f").forEach(function(b){
   b.addEventListener("click", function(){ loadLedger(b.dataset.scope); });

@@ -127,6 +127,38 @@ export const findSimilar = webMethod(Permissions.SiteMember, async (forgeKey, pa
   });
 });
 
+
+// One vote per member toward Gate 1 canonization. Increments voteCount and records the
+// voter so a member cannot vote twice. Degrades to a plain increment if the optional
+// voters field is not on the collection yet.
+export const castVote = webMethod(Permissions.SiteMember, async (forgeKey, creationId) => {
+  const member = await currentMember.getMember();
+  if (!member) return { ok: false, signin: true };
+  if (!creationId) return { ok: false, error: 'No creation given.' };
+
+  let rec;
+  try { rec = await wixData.get('Creations', creationId, { suppressAuth: true }); }
+  catch (e) { return { ok: false, error: 'That creation was not found.' }; }
+  if (!rec || rec.forgeKey !== forgeKey) return { ok: false, error: 'That creation was not found.' };
+
+  const voters = Array.isArray(rec.voters) ? rec.voters : [];
+  if (voters.indexOf(member._id) !== -1) {
+    return { ok: true, already: true, voteCount: rec.voteCount || 0 };
+  }
+
+  const next = (rec.voteCount || 0) + 1;
+  try {
+    await wixData.update('Creations',
+      { _id: creationId, voteCount: next, voters: voters.concat([member._id]) },
+      { suppressAuth: true });
+  } catch (e) {
+    // voters field may not exist; fall back to a bare tally so voting still works
+    try { await wixData.update('Creations', { _id: creationId, voteCount: next }, { suppressAuth: true }); }
+    catch (e2) { return { ok: false, error: 'The vote could not be saved.' }; }
+  }
+  return { ok: true, voteCount: next };
+});
+
 async function canUseForge(forgeKey, member) {
   if (LOREMASTER_FORGES.indexOf(forgeKey) === -1) return true;
   const roles = await currentMember.getRoles();
