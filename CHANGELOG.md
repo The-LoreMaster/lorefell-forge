@@ -4,6 +4,11 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-21 — SigilForge: AI Forge live, Codex category arrows
+
+- Enabled Forge From a Vision (AI_FORGE_ENDPOINT -> apex /_functions/aiForge); card now shows
+- Added left/right arrows to the Component Codex category filter row (desktop; touch-scroll on mobile)
+
 ## 2026-06-20 — C3: The Forging Ledger, browse and remix
 
 - The Ledger tab now browses the LoreForge through getCreations instead of repeating the component costs the Codex already carries. Filters for All, Canon, and Mine.
