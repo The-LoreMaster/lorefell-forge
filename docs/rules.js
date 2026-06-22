@@ -144,6 +144,16 @@ function validate(payload, def) {
     }
   });
 
+  // Foe-only components are afflictions a foe inflicts on a player. They never belong on
+  // a player-forged Ability or Spell, only on a Foe build.
+  if (mode !== "monster") {
+    chosen.forEach(function (c) {
+      if ((c.categories || []).indexOf("FoeOnly") !== -1) {
+        errors.push((c.label || c.componentId) + " can only be applied by a Foe.");
+      }
+    });
+  }
+
   return {
     legal: errors.length === 0,
     errors: errors,

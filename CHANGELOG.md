@@ -4,6 +4,15 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-22 — SigilForge balance pass
+
+- No Damage cost 0 to -2; Purged 1 to 2; Persecuted* 4 to 3 (no longer Major)
+- Enfeebled*, Suppressed*, Disarmed* 3 to 4 (now Major Afflictions, Tier 3 + 3rd Form)
+- Crushed may now be carried by Spread and named by Amplify (removed from both ban lists)
+- All Enemies renamed All Targets; rule now covers all enemies or all allies
+- Inert*, Anchored*, Benighted*, Defanged* marked Foe-only (FoeOnly), rejected on Ability and Spell builds in the tool and the validator
+- Monster tab relabeled Foe (internal value unchanged)
+
 ## 2026-06-21 — SigilForge: Inlay labels, remix + AI fixes, ledger voting
 
 - Renamed the two slot labels from Rider Slot to Inlay Slot (player-facing copy)
