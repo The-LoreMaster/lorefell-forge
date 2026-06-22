@@ -4,6 +4,11 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-22 — SigilForge: remove false innate trigger, clarify Base Damage
+
+- Innate weapon afflictions trigger on a 6 for every Form. Removed the incorrect 3rd Form 5-or-6 trigger from the tool and the FellGuide
+- Base Damage shows cost -1 directly. Dropped the confusing gain a point wording (no modifier was ever applied)
+
 ## 2026-06-22 — SigilForge balance pass
 
 - No Damage cost 0 to -2; Purged 1 to 2; Persecuted* 4 to 3 (no longer Major)
