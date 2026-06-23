@@ -4,6 +4,13 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-23 — Infusion gem icon; FellGuide as source for the collections
+
+- ShardForge infusions now show a faceted gem. Augmentations keep the shield
+- Added canonFromVault.js: reads hidden source docs in the vault (_Canon/collections) into the CMS seed, then apply pushes to Wix. One way, the vault is never written to
+- Portraits are never emitted, so manual Wix uploads survive every sync (upsertItems merges)
+- Added npm run canon and npm run sync. Source docs and a governance note live in the vault
+
 ## 2026-06-23 — BondForge cards: larger left-half portrait, click to zoom in place
 
 - Catalog and ledger portraits now fill the left half of the card and stretch to its height
