@@ -4,6 +4,12 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-23 — BondForge cards: larger left-half portrait, click to zoom in place
+
+- Catalog and ledger portraits now fill the left half of the card and stretch to its height
+- Clicking a portrait expands it in place inside the card and shows the full uncropped image. Clicking again collapses it
+- Removed the fixed centered lightbox, which anchored to the middle of the embed iframe and forced scrolling
+
 ## 2026-06-23 — Canon moves to editable CMS collections
 
 - Added three content collections you edit in the CMS: Lorebounds, Infusions, Augmentations. Real columns plus a native Image field, created and seeded by the apply pipeline
