@@ -4,6 +4,13 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-23 — BondForge catalog reads canon from the CMS
+
+- Catalog now loads canon lorebounds from the Creations collection (kind bond, canonStatus canon) through getCreations. The baked 18 remain only as an offline fallback
+- page-bondforge.js handles CATALOG_LOAD and returns canon rows normalized for the catalog
+- Added backend/canonBonds.js (the 18 canon bonds) and a guarded /_functions/seedBonds endpoint to load them once. Idempotent
+- Portrait convention still applies: a canon row with no imageUrl falls back to bonds/<slug> art, then the letter
+
 ## 2026-06-23 — BondForge: ledger, voting, submission to the LoreForge
 
 - Wired the BondForge lorebound generator to the shared backend (forgeKey bondforge, kind bond)

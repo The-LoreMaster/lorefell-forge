@@ -150,23 +150,33 @@ function optsHTML(a,b){if(a||b){let h="";if(a)h+='<div class="pv-opt">'+esc(a)+'
 
 function bondSlug(n){return (n||"").replace(/^The\s+/i,"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");}
 function bondTry(box,slug){const exts=["png","jpg","jpeg","webp"];let i=0;(function next(){if(i>=exts.length)return;const src="bonds/"+slug+"."+exts[i++];const im=new Image();im.onload=function(){box.classList.add("has");box.innerHTML='<img src="'+av(src)+'" alt="" onclick="openImg(this.src)">';};im.onerror=next;im.src=src;})();}
+let catLoaded=false, catItems=null;
+function loadCatalog(){const el=$("catlist");if(el)el.innerHTML='<div class="empty">Summoning the canon.</div>';post({type:"CATALOG_LOAD"});setTimeout(function(){if(catItems==null){catItems=DATA.catalog;if(S.tab==="catalog")renderCatCards(catItems);}},1500);}
+function catCardHTML(c){
+ const slug=bondSlug(c.name),hasImg=!!c.image,br=c.branches||[],cr=c.crowns||[];
+ const thumb=hasImg?'<img src="'+av(c.image)+'" alt="" onclick="openImg(this.src)">':esc((c.name||"").replace(/^The\s+/i,"").charAt(0));
+ let h='<div class="catitem"><div class="catimg'+(hasImg?' has':'')+'" data-bslug="'+av(slug)+'"'+(hasImg?' data-has="1"':'')+'>'+thumb+'</div><div class="catbody">';
+ h+='<div class="cn">'+esc(c.name)+' <span class="cw">'+esc(c.world||"")+'</span></div>';
+ if(c.role)h+='<div class="cr">'+esc(c.role)+'</div>';
+ if(c.aspectName)h+='<div class="pv-aspectname">Aspect \u00B7 '+esc(c.aspectName)+'</div>';
+ h+='<div class="pv-h">Initial <span class="pv-sub">always active</span></div><div class="pv-line">'+esc(c.initial||"")+'</div>';
+ h+='<div class="pv-h">Branching <span class="pv-sub">keep one</span></div>'+optsHTML(br[0],br[1]);
+ h+='<div class="pv-h">Crown <span class="pv-sub">keep one</span></div>'+optsHTML(cr[0],cr[1]);
+ h+='</div></div>';return h;
+}
+function renderCatCards(list){
+ const el=$("catlist");if(!el)return;list=list||[];
+ if(!list.length){el.innerHTML='<div class="empty">No canon lorebounds yet.</div>';fitTop();return;}
+ el.innerHTML=list.map(catCardHTML).join("");
+ el.querySelectorAll(".catimg[data-bslug]").forEach(function(box){if(box.getAttribute("data-has"))return;bondTry(box,box.getAttribute("data-bslug"));});
+ fitTop();
+}
 function renderCatalog(){
  S.tab="catalog";tabBtns();
- let h='<main><section class="panel"><div class="explain">The canon lorebounds. Each carries one named Aspect: an always-active Initial, two Branch options, and two Crown options. Whoever bonds the creature keeps one Branch at Companion and one Crown at Corsair, never both. Tap a portrait to enlarge it.</div>';
- DATA.catalog.forEach(c=>{
-  const slug=bondSlug(c.name);
-  const thumb=c.image?'<img src="'+av(c.image)+'" alt="" onclick="openImg(this.src)">':esc((c.name||"").replace(/^The\s+/i,"").charAt(0));
-  h+='<div class="catitem"><div class="catimg'+(c.image?' has':'')+'" data-bslug="'+av(slug)+'"'+(c.image?' data-has="1"':'')+'>'+thumb+'</div><div class="catbody">';
-  h+='<div class="cn">'+esc(c.name)+' <span class="cw">'+esc(c.world||"")+'</span></div>';
-  h+='<div class="cr">'+esc(c.role||"")+'</div>';
-  if(c.aspectName)h+='<div class="pv-aspectname">Aspect \u00B7 '+esc(c.aspectName)+'</div>';
-  h+='<div class="pv-h">Initial <span class="pv-sub">always active</span></div><div class="pv-line">'+esc(c.initial)+'</div>';
-  h+='<div class="pv-h">Branching <span class="pv-sub">keep one</span></div>'+optsHTML(c.branches[0],c.branches[1]);
-  h+='<div class="pv-h">Crown <span class="pv-sub">keep one</span></div>'+optsHTML(c.crowns[0],c.crowns[1]);
-  h+='</div></div>';
- });
- h+='</section></main>';$("view").innerHTML=h;
- document.querySelectorAll(".catimg[data-bslug]").forEach(function(box){if(box.getAttribute("data-has"))return;bondTry(box,box.getAttribute("data-bslug"));});
+ $("view").innerHTML='<main><section class="panel"><div class="explain">The canon lorebounds. Each carries one named Aspect: an always-active Initial, two Branch options, and two Crown options. Whoever bonds the creature keeps one Branch at Companion and one Crown at Corsair, never both. Tap a portrait to enlarge it.</div><div id="catlist"></div></section></main>';
+ if(catItems!=null)renderCatCards(catItems);
+ else if(!catLoaded){catLoaded=true;loadCatalog();}
+ else loadCatalog();
  fitTop();
 }
 
@@ -266,6 +276,7 @@ function reportHeight(){try{if(window.parent)window.parent.postMessage({type:"FO
 try{new ResizeObserver(reportHeight).observe(document.body);}catch(e){}
 window.onmessage=function(e){
  const m=e&&e.data;if(!m||typeof m!=="object")return;
+ if(m.type==="CATALOG_RESULT"){const items=Array.isArray(m.items)?m.items:[];catItems=items.length?items:DATA.catalog;if(S.tab==="catalog")renderCatCards(catItems);return;}
  if(m.type==="BOND_LEDGER_RESULT"){renderLgList(m.items||[]);return;}
  if(m.type==="BOND_VOTE_RESULT"){applyVoteResult(m);return;}
  if(m.type==="BOND_SUBMIT_RESULT"){
