@@ -4,6 +4,13 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-23 — BondForge: ledger, voting, submission to the LoreForge
+
+- Wired the BondForge lorebound generator to the shared backend (forgeKey bondforge, kind bond)
+- Added a Ledger tab to view, vote, and review submissions (All / Canon / Mine)
+- Submit now routes to the vault through page-bondforge.js and submitCreation. Portrait uploads reuse the rune uploader, set as the creation image
+- Added a bondforge ForgeConfig row with an empty ruleset. No backend change, kind already generalized
+
 ## 2026-06-23 — ShardForge: desktop reveals Canonize on click
 
 - Desktop now shows the catalog alone by default. The Canonize column appears on the right only when its tab is clicked, and the Ledger takes the full width when active
