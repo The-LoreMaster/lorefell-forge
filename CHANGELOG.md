@@ -4,6 +4,13 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-23 — ShardForge: one tool for infusions and augmentations
+
+- Folded augmentations into the ShardForge tool with an Infusions / Augmentations toggle up top
+- Each side carries its own catalog, categories, and copy. Augmentations keep the Core-first view and Core badge; infusions show the full set
+- One shared Ledger that follows the active side (kind infusion or augmentation), same All / Canon / Mine and voting
+- No backend change. page-shardforge.js already keys kind off the side
+
 ## 2026-06-23 — ShardForge: ledger, voting, submission to the LoreForge
 
 - Wired the ShardForge infusions tool to the shared backend (forgeKey shardforge, kind infusion)
