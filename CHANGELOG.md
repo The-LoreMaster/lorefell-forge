@@ -4,6 +4,14 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-23 — ShardForge: ledger, voting, submission to the LoreForge
+
+- Wired the ShardForge infusions tool to the shared backend (forgeKey shardforge, kind infusion)
+- Added a Ledger tab to view, vote, and review submissions (All / Canon / Mine), mirroring SigilForge
+- Submission now posts to the vault through page-shardforge.js and submitCreation instead of a mock
+- Generalized submitCreation kind to payload.kind so any forge sets its own (no SigilForge change)
+- Added a shardforge ForgeConfig row with an empty ruleset so freeform submissions validate cleanly
+
 ## 2026-06-22 — SigilForge: remove false innate trigger, clarify Base Damage
 
 - Innate weapon afflictions trigger on a 6 for every Form. Removed the incorrect 3rd Form 5-or-6 trigger from the tool and the FellGuide

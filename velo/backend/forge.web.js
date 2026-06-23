@@ -75,7 +75,7 @@ export const submitCreation = webMethod(Permissions.SiteMember, async (forgeKey,
   const record = {
     forgeKey: forgeKey,
     definitionVersion: def.version,
-    kind: payload.kind === 'foe' ? 'foe' : 'character',
+    kind: payload.kind || 'character',
     creationName: payload.title || (forgeKey + ' build'),
     creatorMemberId: member._id,
     creatorName: displayName(member),
