@@ -116,6 +116,28 @@ export const getCreations = webMethod(Permissions.Anyone, async (forgeKey, opts)
   });
 });
 
+// Generic catalog read. Any forge can pull a content collection (canon set) by id.
+// Sorts by displayOrder when present. Wix image fields are converted to URLs for the iframe.
+function wixImg(v) {
+  if (typeof v === 'string' && v.indexOf('wix:image://') === 0) {
+    const parts = v.slice(12).split('/');
+    return parts[1] ? ('https://static.wixstatic.com/media/' + parts[1]) : '';
+  }
+  return v;
+}
+export const getCatalog = webMethod(Permissions.Anyone, async (collectionId, opts) => {
+  opts = opts || {};
+  const lim = Math.min(opts.limit || 300, 1000);
+  let res;
+  try { res = await wixData.query(collectionId).ascending('displayOrder').limit(lim).find({ suppressAuth: true }); }
+  catch (e) { res = await wixData.query(collectionId).limit(lim).find({ suppressAuth: true }); }
+  return res.items.map(function (row) {
+    const out = {};
+    Object.keys(row).forEach(function (k) { out[k] = wixImg(row[k]); });
+    return out;
+  });
+});
+
 // Overlap check. The tool calls this before submit and warns when a near-identical
 // build already exists, so duplicates do not reach the vote or the LoreMaster.
 export const findSimilar = webMethod(Permissions.SiteMember, async (forgeKey, payload) => {

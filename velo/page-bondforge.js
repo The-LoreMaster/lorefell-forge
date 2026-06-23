@@ -2,7 +2,7 @@
 // Relays submission, ledger reads, and votes to the shared backend.
 // Set EMBED to your Embed a Site element ID (Wix default is often #html1).
 
-import { submitCreation, getCreations, castVote } from 'backend/forge.web.js';
+import { submitCreation, getCreations, getCatalog, castVote } from 'backend/forge.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
 import { currentMember } from 'wix-members-frontend';
 
@@ -29,19 +29,18 @@ $w.onReady(() => {
 
     if (msg.type === 'CATALOG_LOAD') {
       let rows = [];
-      try { rows = await getCreations(FORGE_KEY, { kind: 'bond', canonStatus: 'canon', limit: 100 }); } catch (e) { rows = []; }
+      try { rows = await getCatalog('Lorebounds', { limit: 300 }); } catch (e) { rows = []; }
       const items = rows.map(function (r) {
-        let m = {};
-        try { m = (JSON.parse(r.payload || '{}').meta) || {}; } catch (e) {}
         return {
-          name: r.creationName,
-          world: m.world || '',
-          role: m.role || '',
-          aspectName: m.aspectName || '',
-          initial: r.shorthand || m.initial || '',
-          branches: Array.isArray(m.branches) ? m.branches : [],
-          crowns: Array.isArray(m.crowns) ? m.crowns : [],
-          image: r.imageUrl || ''
+          name: r.name || '',
+          world: r.world || '',
+          role: r.role || '',
+          archetype: r.archetype || '',
+          aspectName: r.aspectName || '',
+          initial: r.initial || '',
+          branches: [r.branch1 || '', r.branch2 || ''],
+          crowns: [r.crown1 || '', r.crown2 || ''],
+          image: r.portrait || ''
         };
       });
       embed.postMessage({ type: 'CATALOG_RESULT', items: items });

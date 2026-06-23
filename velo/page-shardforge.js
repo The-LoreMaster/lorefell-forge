@@ -3,7 +3,7 @@
 // The tool is self-contained for its UI. The page only relays submission, ledger reads,
 // and votes to the shared backend. It validates nothing itself, the backend does that.
 
-import { submitCreation, getCreations, castVote } from 'backend/forge.web.js';
+import { submitCreation, getCreations, getCatalog, castVote } from 'backend/forge.web.js';
 import { currentMember } from 'wix-members-frontend';
 
 const FORGE_KEY = 'shardforge';
@@ -15,6 +15,24 @@ $w.onReady(() => {
   embed.onMessage(async (event) => {
     const msg = event.data;
     if (!msg || typeof msg !== 'object') return;
+
+    if (msg.type === 'CATALOG_LOAD') {
+      const side = (msg.payload && msg.payload.side) || 'infusion';
+      const coll = side === 'augmentation' ? 'Augmentations' : 'Infusions';
+      let rows = [];
+      try { rows = await getCatalog(coll, { limit: 500 }); } catch (e) { rows = []; }
+      const items = rows.map(function (r) {
+        return {
+          name: r.name || '',
+          cat: side === 'augmentation' ? (r.domain || '') : (r.attribute || ''),
+          desc: r.effect || '',
+          core: side === 'augmentation' ? !!r.core : false,
+          lore: r.lore || ''
+        };
+      });
+      embed.postMessage({ type: 'CATALOG_RESULT', side: side, items: items });
+      return;
+    }
 
     if (msg.type === 'SHARD_SUBMIT') {
       const p = msg.payload || {};
