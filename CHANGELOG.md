@@ -4,6 +4,10 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-23 — ShardForge: desktop reveals Canonize on click
+
+- Desktop now shows the catalog alone by default. The Canonize column appears on the right only when its tab is clicked, and the Ledger takes the full width when active
+
 ## 2026-06-23 — ShardForge: one tool for infusions and augmentations
 
 - Folded augmentations into the ShardForge tool with an Infusions / Augmentations toggle up top
