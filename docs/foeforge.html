@@ -36,6 +36,8 @@
     background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);
     background-position:calc(100% - 19px) 21px,calc(100% - 14px) 21px; background-size:5px 5px,5px 5px; background-repeat:no-repeat}
   .hint{color:var(--muted); font-size:14px; margin:8px 0 0}
+  .hint .subhint{display:block; color:var(--muted); opacity:.8; margin-top:5px}
+  #stanceHint,#sigHint{color:var(--ice); line-height:1.45}
   /* stack by default, two-up only on wider screens */
   .two{display:grid; grid-template-columns:1fr; gap:14px}
   @media(min-width:540px){.two{grid-template-columns:1fr 1fr}}
@@ -139,9 +141,10 @@
     <p class="hint" id="buildHint"></p>
     <label for="stance">Stance</label>
     <select id="stance"></select>
+    <p class="hint" id="stanceHint"></p>
     <label for="sig">Signature Affliction</label>
     <select id="sig"></select>
-    <p class="hint">Fires on a Fellmark. At Epic and Forsaken it doubles as the Discordant.</p>
+    <p class="hint" id="sigHint"></p>
   </section>
 
   <section>
@@ -1466,6 +1469,46 @@ const $=(id)=>document.getElementById(id);
 const esc=(s)=>(s||"").replace(/"/g,"&quot;");
 const escH=(s)=>(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 const provBadge=(st)=>st?'<span class="prov '+(st==="canon"?"canon":"sub")+'">'+(st==="canon"?"Canon":"Submitted")+'</span>':"";
+const AI_FORGE_ENDPOINT="https://lorefell.com/_functions/aiForge";
+function infTip(n){const d=INF[n];return d?(d.effect||""):"";}
+function augTip(n){const d=AUG[n];return d?(d.effect||""):"";}
+function actTip(n){const m=byName(LIBRARY),d=m[n];return d?(d.effect||""):"";}
+function pillsTip(items,host){host.innerHTML=items.length?items.map(it=>'<span class="pill" title="'+esc(it.tip||"")+'">'+escH(it.label)+'</span>').join(""):"";}
+function updateHints(){
+  const bh=$("buildHint");if(bh)bh.textContent=buildHint();
+  const st=STANCES[state.stance],sh=$("stanceHint");
+  if(sh)sh.innerHTML=(st&&st.tiers)?("Charge 1. "+escH(st.tiers.T1||"")+"<br>Charge 2. "+escH(st.tiers.T2||"")+"<br>Charge 3. "+escH(st.tiers.T3||"")):"";
+  const af=AFF[state.signatureAffliction],sg=$("sigHint");
+  if(sg)sg.innerHTML=af?(escH(af.rule||"")+'<span class="subhint">Fires on a Fellmark. At Epic and Forsaken it doubles as the Discordant.'+(af.major?" A Major Affliction.":"")+'</span>'):"Fires on a Fellmark. At Epic and Forsaken it doubles as the Discordant.";
+}
+function weaveName(theme){
+  const t=(theme||"").toLowerCase(),has=(...w)=>w.some(x=>t.includes(x));
+  let epithet="Hollow";
+  const E=[[["shadow","dark","night","umbra","black","gloom"],["Umbral","Nightfallen","Sable","Starless","Gloomborn"]],
+    [["fire","burn","ember","ash","cinder","flame"],["Ashen","Cinderbound","Emberworn","Scorchmarked"]],
+    [["rot","decay","plague","disease","fester","blight"],["Festering","Blighted","Wormeaten","Rotcrowned"]],
+    [["cold","frost","ice","freeze","winter"],["Frostbound","Rimeclad","Hoarfrost","Glasscold"]],
+    [["blood","gore","rend","claw","carn"],["Gorefed","Redmawed","Carnstruck","Bloodlet"]],
+    [["water","drown","deep","tide","sea","sunk","bell"],["Drowned","Tidemarked","Deepsunk","Brinebound"]],
+    [["mind","mad","fear","dread","whisper","voice","horror"],["Whispering","Maddened","Dreadcrowned","Unspoken"]],
+    [["holy","sacred","ward","glyph","seal","saint","demon","hell"],["Defiled","Unhallowed","Sundered","Profaned"]]];
+  for(const[keys,opts]of E){if(has(...keys)){epithet=pick(opts);break;}}
+  const N=["Maw","Choir","Husk","Verdict","Wake","Pilgrim","Warden","Throat","Lantern","Shroud","Penitent","Effigy","Gallows","Hymn","Tithe","Mire","Relic"];
+  const noun=pick(N),tail=pick(["Unmade","Unkept","Forsworn","Adrift","Below","Undrowned"]);
+  const forms=[()=>"The "+epithet+" "+noun,()=>"The "+noun+" "+tail,()=>epithet+noun.toLowerCase(),()=>"The "+epithet+" "+noun];
+  return pick(forms)();
+}
+async function aiFoeName(theme,foe){
+  if(!AI_FORGE_ENDPOINT||!(theme||"").trim())return "";
+  const sys="You name monsters for LoreFell, a dark weird-fantasy tabletop RPG. Return one original name for the described foe. Never use real-world, named-mythological, or copyrighted names. Dark, grounded, strange register. One to four words. It may start with The but not always. Avoid bland names like The Demon or The Beast. Reply with JSON only: {\"name\":\"...\"}.";
+  const ctx="Description: "+theme+"\nBuild "+foe.build+", stance "+foe.stance+", signature "+foe.signatureAffliction+".";
+  const res=await fetch(AI_FORGE_ENDPOINT,{method:"POST",headers:{"Content-Type":"text/plain;charset=UTF-8"},body:JSON.stringify({system:sys,messages:[{role:"user",content:ctx}],max_tokens:120})});
+  if(!res.ok)return "";
+  const data=await res.json();const text=(data.content||[]).filter(x=>x.type==="text").map(x=>x.text).join("");
+  try{const j=JSON.parse(text.replace(/```json|```/g,"").trim());if(j&&j.name)return String(j.name).slice(0,60);}catch(e){
+    const line=(text||"").trim().split(/\n/)[0].replace(/^["\u2019\u201c']+|["\u2019\u201d']+$/g,"");if(line&&line.length<=60)return line;}
+  return "";
+}
 function opt(v,l,sel){const o=document.createElement("option");o.value=v;o.textContent=l;if(v===sel)o.selected=true;return o;}
 function pills(names,host){host.innerHTML=names.length?names.map(n=>'<span class="pill">'+n+'</span>').join(""):"";}
 
@@ -1481,8 +1524,9 @@ function fillSig(){const s=$("sig");s.innerHTML="";
   PACK.afflictions.slice().sort((a,b)=>a.name.localeCompare(b.name)).forEach(a=>
     s.appendChild(opt(a.name,a.name,state.signatureAffliction)));}
 
-function crow(name,type,checked,disabled,onToggle,status){
+function crow(name,type,checked,disabled,onToggle,status,effect){
   const r=document.createElement("label");r.className="crow"+(disabled&&!checked?" off":"");
+  if(effect)r.title=effect;
   r.innerHTML='<input type="checkbox" '+(checked?"checked":"")+(disabled&&!checked?" disabled":"")+'>'+
     '<span class="nm">'+escH(name)+provBadge(status)+'</span><span class="ty">'+escH(type)+'</span>';
   r.querySelector("input").addEventListener("change",onToggle);return r;}
@@ -1496,18 +1540,18 @@ function fillInf(){
       const on=state.infusions.includes(i.name);
       list.appendChild(crow(i.name,i.type||"",on,state.infusions.length>=3,e=>{
         if(e.target.checked){if(state.infusions.length>=3){e.target.checked=false;return;}state.infusions.push(i.name);}
-        else state.infusions=state.infusions.filter(x=>x!==i.name);render();},i.status));});}
+        else state.infusions=state.infusions.filter(x=>x!==i.name);render();},i.status,i.effect));});}
   $("infCount").textContent=state.infusions.length;
-  pills(state.infusions,$("infSel"));}
+  pillsTip(state.infusions.map(n=>({label:n,tip:infTip(n)})),$("infSel"));}
 
 function fillAug(){
   const list=$("augList");list.innerHTML="";
   PACK.augmentations.forEach(a=>{const on=state.augmentations.includes(a.name);
     list.appendChild(crow(a.name,a.type,on,state.augmentations.length>=2,e=>{
       if(e.target.checked){if(state.augmentations.length>=2){e.target.checked=false;return;}state.augmentations.push(a.name);}
-      else state.augmentations=state.augmentations.filter(x=>x!==a.name);render();},a.status));});
+      else state.augmentations=state.augmentations.filter(x=>x!==a.name);render();},a.status,a.effect));});
   $("augCount").textContent=state.augmentations.length;
-  pills(state.augmentations,$("augSel"));}
+  pillsTip(state.augmentations.map(n=>({label:n,tip:augTip(n)})),$("augSel"));}
 
 function fillActs(){const list=$("actList");list.innerHTML="";
   const q=actFilter.trim().toLowerCase(),picked=new Set(state.acts.map(a=>a.name));
@@ -1521,7 +1565,7 @@ function fillActs(){const list=$("actList");list.innerHTML="";
       else state.acts=state.acts.filter(x=>x.name!==a.name);render();});
     list.appendChild(r);});
   $("actCount").textContent=state.acts.length;
-  pills(state.acts.slice().sort((x,y)=>x.tier-y.tier).map(a=>"T"+a.tier+" "+a.name),$("actSel"));}
+  pillsTip(state.acts.slice().sort((x,y)=>x.tier-y.tier).map(a=>({label:"T"+a.tier+" "+a.name,tip:actTip(a.name)})),$("actSel"));}
 function fillRating(){const s=$("rating");s.innerHTML="";PACK.tiers.forEach(t=>s.appendChild(opt(t.name,t.name,state.shatterRating)));}
 
 function foeRecord(){return{name:state.name,build:state.build,stance:state.stance,
@@ -1533,9 +1577,9 @@ function renderValid(){const r=V.validateFoe(foeRecord(),PACK),box=$("valid");bo
   r.errors.forEach(m=>{const p=document.createElement("p");p.className="vmsg";p.textContent=m;box.appendChild(p);});
   r.warnings.forEach(m=>{const p=document.createElement("p");p.className="vwarn";p.textContent=m;box.appendChild(p);});}
 function renderCard(){
-  const inf=state.infusions.map(n=>'<span class="pill">'+n+'</span>').join("")||'<span class="note">none</span>';
-  const aug=state.augmentations.map(n=>'<span class="pill">'+n+'</span>').join("")||'<span class="note">none</span>';
-  const acts=state.acts.length?state.acts.slice().sort((x,y)=>x.tier-y.tier).map(a=>'<span class="pill">T'+a.tier+" "+(a.name||"Act")+'</span>').join(""):'<span class="note">Standard Attack only</span>';
+  const inf=state.infusions.map(n=>'<span class="pill" title="'+esc(infTip(n))+'">'+escH(n)+'</span>').join("")||'<span class="note">none</span>';
+  const aug=state.augmentations.map(n=>'<span class="pill" title="'+esc(augTip(n))+'">'+escH(n)+'</span>').join("")||'<span class="note">none</span>';
+  const acts=state.acts.length?state.acts.slice().sort((x,y)=>x.tier-y.tier).map(a=>'<span class="pill" title="'+esc(actTip(a.name))+'">T'+a.tier+" "+escH(a.name||"Act")+'</span>').join(""):'<span class="note">Standard Attack only</span>';
   const port=state.image?'<img class="portrait" src="'+state.image+'" alt="">':'';
   $("card").className="card"+(state.image?" has-img":"");
   $("card").innerHTML=port+'<div class="name">'+(state.name||"Unnamed")+'</div><div class="meta">'+state.shatterRating+" "+state.build+'</div>'+
@@ -1554,9 +1598,9 @@ function renderScaled(){const s=scaleFoe(),t=s.tier,b=BUILDS[state.build];
   const acc=accLabel==="Magic"?s.attrs.Magic:s.attrs.Precision;
   const std='1d6 + '+acc+' '+accLabel+' to land, Base Damage '+(1+s.attrs.Power)+' (1 + Power)';
   const live=(c)=>c?"":' dim';
-  const infP=state.infusions.map((n,i)=>'<span class="pill'+live(i<t.infusions)+'">'+n+'</span>').join("")||'<span class="note">none</span>';
-  const augP=state.augmentations.map((n,i)=>'<span class="pill'+live(i<t.augmentations)+'">'+n+'</span>').join("")||'<span class="note">none</span>';
-  const actP=state.acts.slice().sort((x,y)=>x.tier-y.tier).map(a=>'<span class="pill'+live(a.tier<=t.actsCeiling)+'">T'+a.tier+" "+(a.name||"Act")+'</span>').join("")||'<span class="note">Standard only</span>';
+  const infP=state.infusions.map((n,i)=>'<span class="pill'+live(i<t.infusions)+'" title="'+esc(infTip(n))+'">'+escH(n)+'</span>').join("")||'<span class="note">none</span>';
+  const augP=state.augmentations.map((n,i)=>'<span class="pill'+live(i<t.augmentations)+'" title="'+esc(augTip(n))+'">'+escH(n)+'</span>').join("")||'<span class="note">none</span>';
+  const actP=state.acts.slice().sort((x,y)=>x.tier-y.tier).map(a=>'<span class="pill'+live(a.tier<=t.actsCeiling)+'" title="'+esc(actTip(a.name))+'">T'+a.tier+" "+escH(a.name||"Act")+'</span>').join("")||'<span class="note">Standard only</span>';
   const attrLine=(b?b.attributes:[]).map(a=>a+" "+s.val).join(", ")||"none";
   $("scaled").innerHTML=
     '<div class="stat"><span class="l">Attributes</span><span class="n">'+attrLine+'</span></div>'+
@@ -1592,8 +1636,7 @@ function generateFromTheme(theme){
   const augs=[pick(PACK.augmentations).name];
   const t1=LIBRARY.filter(a=>a.tier===1),t2=LIBRARY.filter(a=>a.tier===2),acts=[];
   if(t1.length)acts.push(Object.assign({},pick(t1))); if(t2.length)acts.push(Object.assign({},pick(t2)));
-  const last=(theme||"").trim().split(/\s+/).filter(Boolean).pop()||"Unnamed";
-  const name="the "+last.replace(/[^a-z]/gi,"").replace(/^./,c=>c.toUpperCase());
+  const name=weaveName(theme);
   return{name,build:b.name,stance,signatureAffliction:sig,infusions:infs,augmentations:augs,acts,shatterRating:state.shatterRating,image:state.image};
 }
 function post(m){try{if(window.parent)window.parent.postMessage(m,"*");}catch(e){}}
@@ -1619,7 +1662,7 @@ window.onmessage=function(e){const m=e&&e.data;if(!m||typeof m!=="object")return
     else{if(out){out.className="result bad";out.textContent=(m.errors&&m.errors[0])||"That did not reach the Pentifax. Try again.";}}
     return;}
 };
-function render(){fillInf();fillAug();fillActs();renderValid();renderCard();renderScaled();}
+function render(){updateHints();fillInf();fillAug();fillActs();renderValid();renderCard();renderScaled();}
 function init(){
   fillBuild();fillStance();fillSig();fillRating();$("buildHint").textContent=buildHint();
   document.querySelectorAll("[data-toggle]").forEach(btn=>btn.addEventListener("click",()=>$(btn.dataset.toggle).classList.toggle("open")));
@@ -1645,14 +1688,15 @@ function init(){
   $("submitBtn").addEventListener("click",()=>doSave("submitted"));
   $("img").addEventListener("change",e=>{const f=e.target.files&&e.target.files[0];if(!f)return;
     const r=new FileReader();r.onload=ev=>{state.image=ev.target.result;renderCard();};r.readAsDataURL(f);});
-  $("consultBtn").addEventListener("click",()=>{
+  $("consultBtn").addEventListener("click",async ()=>{
     const out=$("consultResult");out.className="result";out.textContent="The forge considers the shape you named.";
-    setTimeout(()=>{let p=generateFromTheme($("theme").value);let r=V.validateFoe(p,PACK);
-      if(!r.ok){p.infusions=p.infusions.filter(n=>{const d=INF[n];return d&&BUILDS[p.build].attackAttributes.includes(d.family);});}
-      Object.assign(state,p);
-      fillBuild();fillStance();fillSig();$("name").value=state.name;$("buildHint").textContent=buildHint();render();
-      out.textContent="The forge shapes "+state.name+", a "+state.shatterRating+" "+state.build+". Validated. Refine it below.";
-    },220);
+    const theme=$("theme").value;
+    let p=generateFromTheme(theme);let r=V.validateFoe(p,PACK);
+    if(!r.ok){p.infusions=p.infusions.filter(n=>{const d=INF[n];return d&&BUILDS[p.build].attackAttributes.includes(d.family);});}
+    try{const nm=await aiFoeName(theme,p);if(nm)p.name=nm;}catch(e){}
+    Object.assign(state,p);
+    fillBuild();fillStance();fillSig();$("name").value=state.name;render();
+    out.textContent="The forge shapes "+state.name+", a "+state.shatterRating+" "+state.build+". Validated. Refine it below.";
   });
   render();
   post({type:"FOE_LIBRARY_LOAD"});

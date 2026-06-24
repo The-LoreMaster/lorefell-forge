@@ -4,6 +4,12 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-24 — FoeForge: selection descriptions, hover tooltips, creative consult names
+
+- Stance and Signature Affliction now show the selected option's effect under the box. Build keeps its line
+- Infusions, augmentations, and acts show their effect on hover, on the picker rows, the selected pills, and the Foe card
+- Consult names a foe through the forge AI with a richer local fallback, so a shadow demon stops coming back as The Demon
+
 ## 2026-06-24 — FoeForge: blank start, live abilities only, provenance badges, full text
 
 - Removed the demo foe. The builder opens blank, no name and no preset infusions, augmentations, or acts
