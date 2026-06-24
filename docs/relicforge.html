@@ -82,7 +82,12 @@
   .rf-chip[aria-pressed="true"]{color:var(--navy); background:var(--ice); border-color:var(--ice)}
 
   /* Catalog list */
-  .rf-list{max-height:70vh; overflow:auto; padding-right:4px}
+  .rf-list{}
+  .rf-pager{display:flex;justify-content:center;align-items:center;gap:6px;flex-wrap:wrap;margin:16px 0 2px}
+  .rf-pg{min-width:34px;padding:7px 10px;border:1px solid var(--line);background:transparent;color:var(--ice);border-radius:6px;font-family:"Cinzel",serif;font-size:13px;cursor:pointer}
+  .rf-pg[aria-current="true"]{background:var(--ice);color:var(--navy);border-color:var(--ice)}
+  .rf-pg:disabled{opacity:.4;cursor:default}
+  .rf-pg.dots{border:0;cursor:default;color:var(--muted)}
   .rf-group-label{
     font-family:"Cinzel",serif; font-size:11px; letter-spacing:.18em; text-transform:uppercase;
     color:var(--gold); margin:14px 0 8px; padding-bottom:6px; border-bottom:1px solid var(--line);
@@ -313,6 +318,7 @@
   var esc = function(s){return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})};
 
   var state = {q:"", filter:"All", image:null};
+  var RF_PAGE_SIZE=8, rfPage=0;
   var LIBRARY = null;
   function source(){ return (LIBRARY && LIBRARY.length) ? LIBRARY : ITEMS; }
   function groupsInUse(){ var b=GROUPS.slice(); source().forEach(function(it){ if(b.indexOf(it.g)<0) b.push(it.g); }); return b; }
@@ -324,7 +330,7 @@
     b.className="rf-chip"; b.type="button"; b.textContent=g;
     b.setAttribute("aria-pressed", g==="All" ? "true":"false");
     b.addEventListener("click", function(){
-      state.filter=g;
+      state.filter=g; rfPage=0;
       Array.prototype.forEach.call(filterWrap.children,function(c){c.setAttribute("aria-pressed", c.textContent===g?"true":"false")});
       render();
     });
@@ -338,35 +344,43 @@
     return it.n.toLowerCase().indexOf(q)>-1 || it.d.toLowerCase().indexOf(q)>-1;
   }
 
+  function cardHTML(it){
+    var img = it.image ? '<img class="rf-card-img" src="'+esc(it.image)+'" alt="" loading="lazy">' : '';
+    var cost = it.c ? '<span class="rf-cost">'+esc(it.c)+'</span>' : '';
+    var meta = '<div class="rf-meta">';
+    if(it.u) meta += '<span class="badge">'+esc(it.u)+'</span>';
+    if(it.x) meta += '<span class="badge">'+esc(it.x)+'</span>';
+    if(it.id && !it.canon) meta += '<span class="badge">Submitted</span>';
+    if(it.by) meta += '<span class="badge rf-by">by '+esc(it.by)+'</span>';
+    meta += '</div>';
+    return img+'<div class="rf-card-body"><div class="rf-card-top"><span class="rf-name">'+esc(it.n)+'</span>'+cost+'</div>'+
+      meta+'<p class="rf-desc">'+esc(it.d)+'</p>'+
+      '<button class="rf-seed" type="button">Base a new relic on this</button></div>';
+  }
+  function pagerHTML(page,pages){
+    if(pages<=1) return "";
+    var h='<div class="rf-pager">';
+    h+='<button class="rf-pg" data-pg="'+(page-1)+'"'+(page<=0?" disabled":"")+'>Prev</button>';
+    var nums=[]; for(var i=0;i<pages;i++){ if(i===0||i===pages-1||Math.abs(i-page)<=1) nums.push(i); else if(nums[nums.length-1]!==-1) nums.push(-1); }
+    nums.forEach(function(i){ if(i===-1){ h+='<span class="rf-pg dots">…</span>'; } else { h+='<button class="rf-pg" data-pg="'+i+'" aria-current="'+(i===page?"true":"false")+'">'+(i+1)+'</button>'; } });
+    h+='<button class="rf-pg" data-pg="'+(page+1)+'"'+(page>=pages-1?" disabled":"")+'>Next</button>';
+    return h+'</div>';
+  }
   function render(){
     var list=$("rf-list"); list.innerHTML="";
-    var shown=source().filter(matches);
+    var shown=[];
+    groupsInUse().forEach(function(g){ source().filter(matches).filter(function(i){return i.g===g;}).forEach(function(it){ shown.push(it); }); });
     if(!shown.length){ list.innerHTML='<p class="rf-empty">Nothing in the vault matches that. Forge it instead.</p>'; postHeight(); return; }
-    groupsInUse().forEach(function(g){
-      var inGroup=shown.filter(function(i){return i.g===g});
-      if(!inGroup.length) return;
-      var lbl=document.createElement("div"); lbl.className="rf-group-label"; lbl.textContent=g; list.appendChild(lbl);
-      inGroup.forEach(function(it){
-        var card=document.createElement("div"); card.className="rf-card";
-        var img = it.image ? '<img class="rf-card-img" src="'+esc(it.image)+'" alt="" loading="lazy">' : '';
-        var cost = it.c ? '<span class="rf-cost">'+esc(it.c)+'</span>' : '';
-        var meta = '<div class="rf-meta">';
-        if(it.u) meta += '<span class="badge">'+esc(it.u)+'</span>';
-        if(it.x) meta += '<span class="badge">'+esc(it.x)+'</span>';
-        if(it.id && !it.canon) meta += '<span class="badge">Submitted</span>';
-        if(it.by) meta += '<span class="badge rf-by">by '+esc(it.by)+'</span>';
-        meta += '</div>';
-        card.innerHTML = img +
-          '<div class="rf-card-body">'+
-            '<div class="rf-card-top"><span class="rf-name">'+esc(it.n)+'</span>'+cost+'</div>'+
-            meta +
-            '<p class="rf-desc">'+esc(it.d)+'</p>'+
-            '<button class="rf-seed" type="button">Base a new relic on this</button>'+
-          '</div>';
-        card.querySelector(".rf-seed").addEventListener("click", function(){ seed(it); });
-        list.appendChild(card);
-      });
-    });
+    var pages=Math.max(1,Math.ceil(shown.length/RF_PAGE_SIZE));
+    if(rfPage>=pages) rfPage=pages-1; if(rfPage<0) rfPage=0;
+    var slice=shown.slice(rfPage*RF_PAGE_SIZE, rfPage*RF_PAGE_SIZE+RF_PAGE_SIZE);
+    var lastG=null, html="";
+    slice.forEach(function(it){ if(it.g!==lastG){ html+='<div class="rf-group-label">'+esc(it.g)+'</div>'; lastG=it.g; } html+='<div class="rf-card">'+cardHTML(it)+'</div>'; });
+    html+=pagerHTML(rfPage,pages);
+    list.innerHTML=html;
+    var seeds=list.querySelectorAll(".rf-seed");
+    slice.forEach(function(it,idx){ if(seeds[idx]) seeds[idx].addEventListener("click", function(){ seed(it); }); });
+    list.querySelectorAll(".rf-pg[data-pg]").forEach(function(b){ b.addEventListener("click", function(){ var n=+b.getAttribute("data-pg"); if(n!==rfPage){ rfPage=n; render(); var s=$("rf-search"); (list.scrollIntoView?list:s).scrollIntoView&&list.scrollIntoView({block:"start"}); } }); });
     postHeight();
   }
 
@@ -397,7 +411,7 @@
     $(id).addEventListener("keydown", function(e){ if(e.key==="Enter"||e.key===" "){e.preventDefault(); $(id).click();} });
   });
 
-  $("rf-search").addEventListener("input", function(e){ state.q=e.target.value; render(); });
+  $("rf-search").addEventListener("input", function(e){ state.q=e.target.value; rfPage=0; render(); });
 
   // Image upload (stored as a data URL, sent with the submission)
   $("f-img").addEventListener("change", function(e){

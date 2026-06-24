@@ -4,6 +4,11 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-24 — Catalog pagination (RelicForge, BrandForge)
+
+- Catalogs now show 8 items per page with numbered pages and Prev/Next, resetting to page 1 on search or filter
+- Removed RelicForge inner list scroll, so there is no scroll-within-a-scroll
+
 ## 2026-06-24 — BrandForge: lineage images above the text
 
 - Lineage catalog cards now show the image full width above the text on desktop and mobile, sized to fit the horizontal image instead of a cropped left thumbnail
