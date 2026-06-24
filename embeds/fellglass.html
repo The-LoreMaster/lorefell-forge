@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>LoreFell Character Sheet</title>
-<!-- build: fg2 -->
+<!-- build: fg-forge -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700&family=Cinzel:wght@400;500;600;700&family=Crimson+Pro:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
@@ -1061,6 +1061,38 @@ function ccOpen(){
   $("ccModal").classList.add("open");
 }
 function ccClose(){CC=null;$("ccModal").classList.remove("open");}
+/* Open creation pre-filled from a forged Fell. Lineage, origin, motivation, name,
+   and description carry over. The player still makes the choices the forge does not
+   decide: the starting weapon and infusion, or the lorebound type. If the live
+   libraries are not loaded and a name does not match, that step is left for them. */
+function ccOpenForge(seed){
+  seed=seed||{};
+  const id=seed.identity||{};
+  ccOpen();
+  CC.path="pregen";
+  CC.forge=seed;
+  CC.name=id.name||seed.name||"";
+  CC.desc=id.desc||seed.desc||"";
+  const linName=id.lineage||seed.lineage||"";
+  const lm=(typeof LINEAGE_DEFS!=="undefined"?LINEAGE_DEFS:[]).find(l=>l.name===linName);
+  if(lm){CC.lineage=lm.name;CC.linType=lm.bonus.type;CC.linPick=lm.bonus.name;}
+  const orName=id.origin||seed.origin||"";
+  const om=(typeof PREGEN_ORIGINS!=="undefined"?PREGEN_ORIGINS:[]).find(o=>o.name===orName);
+  if(om)CC.pgOrigin=om;
+  const motName=id.motivation||seed.motivation||"";
+  const mm=(typeof MOTIVATION_DEFS!=="undefined"?MOTIVATION_DEFS:[]).find(m=>m.name===motName);
+  if(mm)CC.motivation=mm.name;
+  if(!CC.lineage){CC.step="pg-lineage";}
+  else if(!CC.pgOrigin){CC.step="pg-origin";}
+  else{
+    const track=originTrack(CC.pgOrigin);
+    if(track==="weapon"&&!CC.weaponTree)CC.step="pg-weapon";
+    else if(track==="lorebound"&&!CC.lbType)CC.step="pg-lbtype";
+    else if(!CC.motivation)CC.step="pg-motivation";
+    else CC.step="identity";
+  }
+  ccRender();
+}
 function ccFoot(card,backStep,nextLabel,nextFn,nextDisabled){
   const foot=el("div","lu-foot");
   if(backStep){const back=el("button","btn small","Back");back.addEventListener("click",()=>{CC.step=backStep;ccRender();});foot.appendChild(back);}
@@ -1327,6 +1359,7 @@ function ccApply(){
     C.identity.origin=o.name;
     C.identity.motivation=CC.motivation||"";
   }
+  if(CC&&CC.forge)C.forge=CC.forge;
   C.identity.campaign=C.identity.campaign||"";
   C.identity.name=CC.name||"";
   C.identity.desc=CC.desc||"";
@@ -2317,7 +2350,7 @@ window.onmessage=ev=>{
   bridged=true;
   if(d.libraries)loadLibraries(d.libraries);
   if(d.type==="init"&&d.character){if(CC)ccClose();loadCharacter(d.character);}
-  else if(d.type==="new"){ccOpen();}
+  else if(d.type==="new"){ if(d.forge){ccOpenForge(d.forge);} else {ccOpen();} }
 };
 postToVelo({type:"ready"});
 document.addEventListener("input",scheduleSave);

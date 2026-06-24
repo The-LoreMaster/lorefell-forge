@@ -46,25 +46,37 @@ export const generateProfile = webMethod(Permissions.Anyone, async (character) =
 });
 
 export const saveFell = webMethod(Permissions.Anyone, async (record) => {
+  // Forging a Fell creates a Characters row, not a separate record. The forged
+  // identity goes in forgeSeed so FellGlass can open creation pre-filled. The sealed
+  // past rides along in its own field, which the player sheet never reads. The full
+  // sheet data is written later, by FellGlass autosave, once the character is built.
   const r = record || {};
   let memberId = '';
   try { const m = await currentMember.getMember(); if (m) memberId = m._id; } catch (e) {}
-  const row = {
-    fellName: r.name || 'Unnamed Fell',
-    sex: r.sex || '',
-    lineage: r.lineage || '',
-    origin: r.origin || '',
-    motivation: r.motivation || '',
+  const forgeSeed = {
+    identity: {
+      name: r.name || '',
+      sex: r.sex || '',
+      lineage: r.lineage || '',
+      origin: r.origin || '',
+      motivation: r.motivation || '',
+      desc: r.description || ''
+    },
     hooks: r.hooks || '',
     fragments: r.fragments || '',
-    description: r.description || '',
     firstImpression: r.firstImpression || '',
-    tips: r.tips || '',
-    sealCode: r.sealCode || '',
-    sealedPast: r.sealedPast || '',
-    creatorMemberId: memberId
+    tips: r.tips || ''
   };
-  const saved = await wixData.insert('Fells', row, { suppressAuth: true });
+  const row = {
+    charName: r.name || 'Unnamed Fell',
+    ownerMemberId: memberId,
+    campaign: '',
+    level: 1,
+    sealCode: r.sealCode || '',
+    forgeSeed: JSON.stringify(forgeSeed),
+    sealedPast: r.sealedPast || ''
+  };
+  const saved = await wixData.insert('Characters', row, { suppressAuth: true });
   return { ok: true, id: saved._id };
 });
 
