@@ -1,8 +1,8 @@
 // backend/libraries.web.js
 // Canon content libraries for FellGlass. The sheet ships placeholders and replaces
 // each list only when real rows arrive, so collections can come online one at a time.
-// Lineages is wired now. Origins and motivations already match the built-in vocabulary,
-// so they need no feed yet. Add a block here as each collection lands.
+// Lineages, infusions, and augmentations are wired from their collections. Origins and
+// motivations already match the built-in vocabulary, so they need no feed yet.
 
 import { Permissions, webMethod } from 'wix-web-module';
 import wixData from 'wix-data';
@@ -20,5 +20,23 @@ export const getLibraries = webMethod(Permissions.Anyone, async () => {
     })).filter((l) => l.name);
     if (lineages.length) out.lineages = lineages;
   } catch (e) {}
+
+  // Infusions and augmentations, sent as components so the sheet's existing loader maps
+  // them by kind. Infusion attribute is the weapon category it belongs to.
+  const components = [];
+  try {
+    const ri = await wixData.query('Infusions').ascending('displayOrder').limit(300).find({ suppressAuth: true });
+    ri.items.forEach((it) => {
+      if (it.name) components.push({ kind: 'infusion', name: it.name, description: it.effect || '', use: 'Passive', weaponCat: it.attribute || '', category: it.attribute || '' });
+    });
+  } catch (e) {}
+  try {
+    const ra = await wixData.query('Augmentations').ascending('displayOrder').limit(300).find({ suppressAuth: true });
+    ra.items.forEach((it) => {
+      if (it.name) components.push({ kind: 'augmentation', name: it.name, description: it.effect || '', use: 'Passive', category: it.domain || '' });
+    });
+  } catch (e) {}
+  if (components.length) out.components = components;
+
   return out;
 });
