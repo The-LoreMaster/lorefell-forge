@@ -120,12 +120,54 @@ export const getForgeLibrary = webMethod(Permissions.Anyone, async () => {
 
 // The loremaster's own asset library (monsters, npcs, items), owner scoped. The tool
 // sends rows already shaped by assetToRow and parses the JSON fields back itself.
-export const listAssets = webMethod(Permissions.Anyone, async () => {
-  const mid = await memberId(); if (!mid) return [];
+// Canon foes from the Pentifax, surfaced as read-only monster assets. FoeForge vitality
+// is party scaled (APL x party x tier weight), so there is no fixed number to store here;
+// the table value is left at zero for the loremaster to set for their party. Editing a
+// canon foe in the tool forks a personal copy, which then shadows the canon entry.
+async function getCanonFoes() {
+  let items = [];
   try {
-    const r = await wixData.query('Assets').eq('ownerMemberId', mid).limit(1000).find({ suppressAuth: true });
-    return r.items;
-  } catch (e) { return []; }
+    const r = await wixData.query('Creations')
+      .eq('forgeKey', 'foeforge').eq('canonStatus', 'canon')
+      .limit(200).find({ suppressAuth: true });
+    items = r.items;
+  } catch (e) { items = []; }
+  return items.map((it) => {
+    let pl = {};
+    try { pl = typeof it.payload === 'string' ? JSON.parse(it.payload) : (it.payload || {}); } catch (e) { pl = {}; }
+    const meta = (pl && pl.meta) || {};
+    const acts = Array.isArray(meta.acts) ? meta.acts : [];
+    return {
+      assetId: 'foe:' + (it._id || it.creationName || ''),
+      type: 'monster',
+      name: it.creationName || pl.title || '',
+      description: meta.description || it.fullText || '',
+      shatterRating: meta.shatterRating || '',
+      lp: 0, sp: 0, maxVit: 0,
+      role: 'Foe',
+      image: it.imageUrl || pl.imageUrl || '',
+      attrs: '{}',
+      inventory: '[]',
+      abilities: JSON.stringify(acts.map((a) => ({ name: a.name, tier: a.tier })))
+    };
+  }).filter((f) => f.name);
+}
+
+export const listAssets = webMethod(Permissions.Anyone, async () => {
+  const mid = await memberId();
+  let owned = [];
+  if (mid) {
+    try {
+      const r = await wixData.query('Assets').eq('ownerMemberId', mid).limit(1000).find({ suppressAuth: true });
+      owned = r.items;
+    } catch (e) { owned = []; }
+  }
+  const ownedIds = {};
+  owned.forEach((o) => { if (o.assetId) ownedIds[o.assetId] = true; });
+  let foes = [];
+  try { foes = await getCanonFoes(); } catch (e) { foes = []; }
+  foes = foes.filter((f) => !ownedIds[f.assetId]);
+  return owned.concat(foes);
 });
 
 export const saveAsset = webMethod(Permissions.Anyone, async (asset) => {

@@ -4,6 +4,11 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-24 — Canon foes in the FateWell asset library
+
+- listAssets now merges canon Pentifax foes in as read-only monster assets alongside the loremaster's own library
+- Foe vitality is party scaled, so the table number is left at zero for the loremaster to set; editing a canon foe forks a personal copy that shadows the canon entry
+
 ## 2026-06-24 — FateWell feeds wired
 
 - Forge feed now serves canon SigilForge creations as the loremaster's reference library, read only
