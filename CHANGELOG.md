@@ -4,6 +4,13 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-24 — FoeForge wired: submit to the Pentifax, builder reads live components
+
+- Submit routes a foe to the Pentifax, the foe canon hall (Creations, kind foe, meta hall pentifax). Save stays private and local
+- The builder reads abilities, infusions, and augmentations, official and submitted. Infusions and augmentations come from their collections plus ShardForge submissions, abilities from SigilForge creations
+- Live components feed the pickers and the client validator. The baked pack and sample acts remain as an offline fallback
+- Added a foeforge ForgeConfig row, loremaster access. Ability cost defaults to the tier minimum since SigilForge does not store a numeric cost yet
+
 ## 2026-06-24 — BondForge portraits no longer click to enlarge
 
 - Removed the in-place zoom from catalog, ledger, and preview portraits. They fill their panel and do nothing on tap
