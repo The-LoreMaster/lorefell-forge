@@ -4,6 +4,11 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-24 — Fix collection creation field types
+
+- createCollection now sends the collection _id rather than id, so the field schema registers on create and new collections get typed fields instead of undefined ones
+- Lineages seed no longer writes an empty image value, so the image field is not inferred as text
+
 ## 2026-06-24 — BrandForge catalog cleanup
 
 - Catalog now shows canon lineages only, so community and test submissions no longer duplicate entries without descriptions
