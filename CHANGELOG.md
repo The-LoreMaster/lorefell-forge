@@ -4,6 +4,12 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-24 — Live lineage library in FellGlass
+
+- Added backend/libraries.web.js (getLibraries) reading the Lineages collection, mapped to the shape the sheet expects
+- page-fellglass.js now sends the libraries with every init and new message, so the sheet replaces its lineage placeholders with canon
+- The forge pre-fill matches lineage, origin, and motivation by normalized name, so a forged Shadowkin resolves to the canon The Shadowkin and the player drops straight to the weapon step
+
 ## 2026-06-24 — FellForge to FellGlass handoff
 
 - FellForge now forges into the Characters collection. The forged identity goes in forgeSeed, the sealed past in its own field, no sheet data yet
