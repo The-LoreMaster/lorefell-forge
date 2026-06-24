@@ -3,7 +3,7 @@
 // The builder reads abilities, infusions, and augmentations, both official and submitted.
 // Set EMBED to your Embed a Site element ID.
 
-import { submitCreation, getCreations, getCatalog, castVote } from 'backend/forge.web.js';
+import { submitCreation, getCreations, getCatalog, castVote, buildLegalAct } from 'backend/forge.web.js';
 import { currentMember } from 'wix-members-frontend';
 import { uploadRune } from 'backend/loreforge.web.js';
 
@@ -86,14 +86,16 @@ $w.onReady(() => {
             effect: r.fullText || r.shorthand || a.effect, status: r.canonStatus });
           continue;
         }
-        const kind = a.type === 'spell' ? 'spell' : 'ability';
-        const payload = { kind: kind, authored: true, tier: a.tier, form: 1, cost: a.cost,
-          title: String(a.name || '').slice(0, 120),
-          shorthand: 'T' + a.tier + ' ' + kind, fullText: a.effect || '', selections: [],
-          meta: { tier: a.tier, cost: a.cost, type: kind, description: a.description || '', source: 'foeforge' } };
+        let built = null;
+        try { built = await buildLegalAct(a.tier, a.type, a.flavor); } catch (e) { built = null; }
+        if (!built || !built.ok) { results.push({ name: a.name, ok: false, existed: false, creationId: '', tier: a.tier, cost: a.tier, effect: '', status: '' }); continue; }
+        const payload = built.payload;
+        payload.title = String(a.name || '').slice(0, 120);
+        payload.creatorNote = String(a.description || '').slice(0, 400);
+        payload.meta = { tier: a.tier, cost: built.cost, type: payload.kind, description: a.description || '', source: 'foeforge' };
         let cid = '', ok = false;
         try { const res = await submitCreation('sigilforge', payload); ok = !!(res && res.ok); cid = (res && res.creationId) || ''; } catch (e) {}
-        results.push({ name: a.name, ok: ok, existed: false, creationId: cid, tier: a.tier, cost: a.cost, effect: a.effect, status: 'submitted' });
+        results.push({ name: a.name, ok: ok, existed: false, creationId: cid, tier: a.tier, cost: built.cost, effect: built.effect, status: 'submitted' });
       }
       embed.postMessage({ type: 'FOE_ABILITIES_RESULT', results: results });
       return;

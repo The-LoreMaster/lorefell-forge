@@ -97,6 +97,59 @@ export const submitCreation = webMethod(Permissions.SiteMember, async (forgeKey,
   return { ok: true, creationId: saved._id, warnings: result.warnings };
 });
 
+// Build a legal SigilForge act from real components. The caller (FoeForge) supplies
+// only tier, type (ability or spell), and a one word flavor. The mechanics, cost, and
+// effect come from the actual component catalog and the shared validator, never invented.
+export const buildLegalAct = webMethod(Permissions.SiteMember, async (tier, type, flavor) => {
+  tier = Math.max(1, Math.min(3, Number(tier) || 1));
+  const kind = type === 'spell' ? 'spell' : 'ability';
+  const def = await getForgeDefinition('sigilforge');
+  const has = function (id) { return def.components.some(function (c) { return c.componentId === id; }); };
+  const labelOf = function (id) { const c = def.components.filter(function (x) { return x.componentId === id; })[0]; return c ? c.label : id; };
+
+  let descById = {};
+  try {
+    const cr = await wixData.query('ForgeComponents').eq('forgeKey', 'sigilforge').eq('active', true).limit(1000).find();
+    cr.items.forEach(function (c) { descById[c.componentId] = c.description || ''; });
+  } catch (e) {}
+
+  const AFFL = { fire: 'Ignited*', fear: 'Terrorized*', bleed: 'Bleeding*', rot: 'Infected*', mind: 'Witless*',
+    curse: 'Jinxed*', bind: 'Immobilized*', frost: 'Immobilized*', weaken: 'Diminished*', raw: 'Staggered*' };
+  let af = AFFL[String(flavor || '').toLowerCase()];
+  if (!af || !has(af)) af = 'Staggered*';
+
+  const candidates = {
+    1: [['Standard Damage', 'One Target', 'Crushed'], ['Standard Damage', 'One Target', 'Increased Bonus Damage']],
+    2: [['Standard Damage', 'One Target', af], ['Standard Damage', 'One Target', 'Exposed', 'Crushed']],
+    3: [['Standard Damage', 'One Target', af, 'Exposed'], ['Double Standard Damage', 'One Target', 'Exposed', 'Pierced']]
+  }[tier];
+
+  const byTier = (def.rules.budgets && def.rules.budgets.byTier) || {};
+  const band = byTier[String(tier)] || [1, 2];
+
+  let sel = null, res = null;
+  for (let i = 0; i < candidates.length; i++) {
+    const ids = candidates[i].filter(has);
+    const payload = { tier: tier, form: tier, mode: 'weapon', kind: kind, selections: ids };
+    const r = validate(payload, def);
+    const c = r.totals.cost;
+    if (r.legal && c >= band[0] && c <= band[1]) { sel = ids; res = r; break; }
+  }
+  if (!sel) {
+    sel = ['Standard Damage', 'One Target'].filter(has);
+    res = validate({ tier: tier, form: tier, mode: 'weapon', kind: kind, selections: sel }, def);
+  }
+
+  const labels = sel.map(labelOf);
+  const descLines = sel.map(function (id) { const d = descById[id] || ''; return d ? (labelOf(id) + ': ' + d) : labelOf(id); });
+  const fullText = 'Tier ' + tier + ' ' + kind + '. ' + descLines.join(' ');
+  const shorthand = 'T' + tier + ' [' + labels.join(', ') + ']';
+
+  const payload = { tier: tier, form: tier, mode: 'weapon', kind: kind, selections: sel,
+    cost: res.totals.cost, shorthand: shorthand, fullText: fullText };
+  return { ok: !!res.legal, payload: payload, cost: res.totals.cost, effect: fullText, shorthand: shorthand, errors: res.errors || [] };
+});
+
 // Browse and remix read. Powers the Ledger and the basedOn lineage.
 export const getCreations = webMethod(Permissions.Anyone, async (forgeKey, opts) => {
   opts = opts || {};
