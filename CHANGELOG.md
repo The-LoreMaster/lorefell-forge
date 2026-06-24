@@ -4,6 +4,11 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-24 — FoeForge: Deploy-at defaults to Minion
+
+- render now re-syncs the Deploy-at select to state every pass, so Consult, Load, New Foe, and Random no longer leave it stale
+- Random Foe no longer randomizes the deploy tier; At the table always starts at Minion until you change it
+
 ## 2026-06-24 — FoeForge: clearer all-tier table
 
 - Split the cryptic R/D column into labeled React and Disc columns with a check mark, and added a one line legend explaining Attr, Vit, Acts, Inf, React, and Disc
