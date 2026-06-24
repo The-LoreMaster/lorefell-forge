@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>FateWell</title>
-<!-- build: fw-topbar2 -->
+<!-- build: invites -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Cinzel+Decorative:wght@700&family=Crimson+Pro:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
@@ -910,6 +910,12 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 .fw-well{ color:var(--gold); }
 .adv-cover{ width:100%; max-height:200px; overflow:hidden; border-radius:12px; border:1px solid var(--line); background:var(--navy3); margin-bottom:12px; }
 .adv-cover img{ width:100%; height:200px; object-fit:cover; display:block; }
+
+.ros-group{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:8px 10px; margin-bottom:8px; }
+.ros-head{ font-family:'Cinzel',serif; font-size:.84rem; letter-spacing:.04em; color:var(--silver); margin:2px 0 4px; }
+.ros-off{ font-family:inherit; font-size:.68rem; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); border:1px solid var(--line2); border-radius:5px; padding:1px 5px; margin-left:6px; }
+.invite-box{ margin:10px 0; }
+.invite-box .inp{ width:100%; font-size:.82rem; }
 </style>
 </head>
 <body>
@@ -1192,18 +1198,23 @@ function save(){
 
 function mergePool(c){
   S.wixPlayers.forEach(function(wp){
+    var mid = wp.memberId || wp.id;
     var found = null;
-    c.players.forEach(function(p){ if (p.wixId && p.wixId===wp.id) found = p; });
-    if (!found){
-      c.players.forEach(function(p){ if (!found && p.name.toLowerCase()===String(wp.name).toLowerCase()) found = p; });
+    c.players.forEach(function(p){
+      if (found || p.offline) return;
+      if (wp.charId){ if (p.charId===wp.charId) found = p; }
+      else if (!p.charId && (p.memberId===mid || (p.wixId && p.wixId===wp.id))) found = p;
+    });
+    if (!found && !wp.charId){
+      c.players.forEach(function(p){ if (!found && !p.charId && !p.offline && p.name.toLowerCase()===String(wp.name||'').toLowerCase()) found = p; });
     }
     if (found){
-      found.wixId = wp.id;
-      found.name = wp.name;
+      found.wixId = wp.id; found.memberId = mid; found.memberName = wp.memberName || wp.name;
+      found.charId = wp.charId || null;
+      if (wp.charId) found.name = wp.name;
       if (wp.level) found.level = wp.level;
-      if (wp.charId) found.charId = wp.charId;
     } else {
-      c.players.push({ id:uid(), wixId:wp.id, charId:wp.charId||null, name:wp.name, level:wp.level||1 });
+      c.players.push({ id:uid(), wixId:wp.id, memberId:mid, memberName:wp.memberName||wp.name, charId:wp.charId||null, name:wp.name, level:wp.level||1 });
     }
   });
 }
@@ -1288,6 +1299,20 @@ window.addEventListener('message', function(ev){
   if (m.type === 'lmtool-sealed'){
     WIX.connected = true;
     if (Array.isArray(m.sealed)){ S.sealed = m.sealed; saveLocal(); render(); }
+  }
+  if (m.type === 'lmtool-invite'){
+    WIX.connected = true;
+    var box = document.getElementById('inviteBox');
+    if (box){
+      if (m.url){
+        window._inviteUrl = m.url;
+        box.innerHTML = '<input class="inp" id="inviteUrl" readonly value="'+esc(m.url)+'">'
+          + '<div class="m-row"><button class="btn" onclick="copyInvite()">Copy link</button>'
+          + '<button class="btn ghost" onclick="revokeInvite()">Revoke</button></div>';
+      } else {
+        box.innerHTML = '<button class="btn" onclick="mintInvite()">Mint a new link</button>';
+      }
+    }
   }
 });
 
@@ -2133,9 +2158,43 @@ function notesBlock(ref, opts){
 
 /* ---------- players ---------- */
 
+function rosterAddMenu(){
+  modal('<h3 class="m-title">Add to roster</h3><div class="menu-list">'
+    + '<button class="menu-item" onclick="closeModal();inviteModal()">Invite a player</button>'
+    + '<button class="menu-item" onclick="closeModal();playerModal()">Add offline player</button>'
+    + '</div><div class="m-row"><button class="btn ghost" onclick="closeModal()">Cancel</button></div>');
+}
+function inviteModal(){
+  var c = curC(); if (!c) return;
+  if (!WIX.hosted){ advNote('Invites need the site', 'Invite links work when FateWell runs on lorefell.com. In local mode, add an offline player instead.'); return; }
+  modal('<h3 class="m-title">Invite a player</h3>'
+    + '<p class="muted">Share this link. A player opens it, signs in, and attaches their characters to this adventure.</p>'
+    + '<div class="invite-box" id="inviteBox"><span class="muted">Minting a link...</span></div>'
+    + '<div class="m-row"><button class="btn ghost" onclick="closeModal()">Close</button></div>');
+  mintInvite();
+}
+function mintInvite(){
+  var c = curC(); if (!c) return;
+  var box = document.getElementById('inviteBox'); if (box) box.innerHTML = '<span class="muted">Minting a link...</span>';
+  postToWix({ type:'lmtool-invite-create', campaignId: WIX.campaignId || c.id });
+}
+function copyInvite(){
+  var el = document.getElementById('inviteUrl'); if (!el) return;
+  el.focus(); el.select();
+  try { document.execCommand('copy'); } catch(e){}
+  if (window.getSelection) window.getSelection().removeAllRanges();
+  var b = event && event.target; if (b){ var t=b.textContent; b.textContent='Copied'; setTimeout(function(){ b.textContent=t; },1200); }
+}
+function revokeInvite(){
+  var c = curC(); if (!c) return;
+  postToWix({ type:'lmtool-invite-revoke', campaignId: WIX.campaignId || c.id });
+  var box = document.getElementById('inviteBox');
+  if (box) box.innerHTML = '<span class="muted">Link revoked.</span> <button class="btn small" onclick="mintInvite()">Mint a new link</button>';
+}
 function playerModal(p){
-  modal('<h3 class="m-title">'+(p?'Edit player':'Add player')+'</h3>'
-    + '<label class="lbl">Character name</label>'
+  modal('<h3 class="m-title">'+(p?'Edit offline player':'Add offline player')+'</h3>'
+    + '<p class="muted">For someone at the table who does not use the site.</p>'
+    + '<label class="lbl">Player name</label>'
     + '<input class="inp" id="pName" value="'+esc(p?p.name:'')+'">'
     + '<label class="lbl">Level</label>'
     + '<input class="inp" id="pLvl" type="number" min="1" value="'+esc(p?p.level:1)+'">'
@@ -2148,13 +2207,16 @@ function savePlayer(id){
   if (!name) return;
   var c = curC();
   if (id){ c.players.forEach(function(p){ if(p.id===id){ p.name=name; p.level=lvl; } }); }
-  else { c.players.push({ id:uid(), wixId:null, name:name, level:lvl }); }
+  else { c.players.push({ id:uid(), offline:true, wixId:null, charId:null, name:name, level:lvl }); }
   closeModal(); save(); render();
 }
 function editPlayer(id){ var c=curC(),p; c.players.forEach(function(x){ if(x.id===id) p=x; }); playerModal(p); }
 function deletePlayer(id){
-  askConfirm('Remove this player from the campaign?', function(){
-    var c=curC(); c.players = c.players.filter(function(p){ return p.id!==id; });
+  var c=curC(); var p=null; c.players.forEach(function(x){ if(x.id===id) p=x; }); if(!p) return;
+  var msg = p.charId ? 'Remove this character from the adventure? It is unlinked so it can join another.' : 'Remove this player from the roster?';
+  askConfirm(msg, function(){
+    if (p.charId) postToWix({ type:'lmtool-detach', charId:p.charId });
+    var cc=curC(); cc.players = cc.players.filter(function(x){ return x.id!==id; });
     save(); render();
   }, 'Remove');
 }
@@ -3520,26 +3582,36 @@ function setCTab(t){ V.cTab = t; if (t==='roster') requestSealed(); render(); }
 /* The campaign's player roster, shown in the Roster tab. */
 function playersBlock(){
   var c = curC(); if (!c) return '';
-  var h = '<div class="sec-h">Players</div>';
+  var h = '<div class="sec-h">Roster</div>';
   if (!c.players.length){
-    h += emptyState('Players joined to the campaign on lorefell.com appear here automatically. You can also add them by hand.', 'Add a player', 'playerModal()');
+    h += emptyState('Invite players to this adventure, or add an offline player by hand.', 'Add to roster', 'rosterAddMenu()');
   } else {
-    h += '<div class="card">';
+    var groups = []; var byMember = {};
     c.players.forEach(function(p){
-      var seal = sealedFor(p);
-      h += '<div class="p-row"><span class="p-name">'+esc(p.name)
-        + (p.wixId ? ' <span class="wix-dot" title="Linked to a character sheet"></span>' : '') + '</span>'
-        + '<span class="p-lvl">Lvl '+p.level+'</span>'
-        + (seal ? '<button class="icon-btn seal-ic" title="Quick reveal sealed past" onclick="toggleSeal(\''+p.id+'\')">&#9670;</button>'
-                + '<button class="icon-btn seal-ic" title="Open sealed past panel" onclick="sealPanel(\''+p.id+'\')">&#9776;</button>' : '')
-        + '<button class="icon-btn" onclick="editPlayer(\''+p.id+'\')">&#9998;</button>'
-        + '<button class="icon-btn danger" onclick="deletePlayer(\''+p.id+'\')">&times;</button></div>'
-        + (seal ? '<div class="seal-inline" id="seal-'+p.id+'" style="display:none">'+sealHtml(seal)+'</div>' : '');
+      if (p.offline){ groups.push({ key:'off:'+p.id, label:esc(p.name), offline:true, rows:[p] }); return; }
+      var k = p.memberId || p.wixId || ('n:'+String(p.name).toLowerCase());
+      if (!byMember[k]){ byMember[k] = { key:k, label:esc(p.memberName||p.name), offline:false, rows:[] }; groups.push(byMember[k]); }
+      byMember[k].rows.push(p);
     });
-    h += '</div><button class="btn wide ghost" onclick="playerModal()">Add a player</button>';
+    groups.forEach(function(g){
+      h += '<div class="ros-group"><div class="ros-head">'+g.label+(g.offline?' <span class="ros-off">offline</span>':'')+'</div>';
+      g.rows.forEach(function(p){
+        var seal = sealedFor(p);
+        var nameCell = p.charId ? esc(p.name) : (g.offline ? esc(p.name) : '<span class="muted">no character attached yet</span>');
+        h += '<div class="p-row"><span class="p-name">'+nameCell+'</span>'
+          + '<span class="p-lvl">Lvl '+p.level+'</span>'
+          + (seal ? '<button class="icon-btn seal-ic" title="Quick reveal sealed past" onclick="toggleSeal(\''+p.id+'\')">&#9670;</button>'
+                  + '<button class="icon-btn seal-ic" title="Open sealed past panel" onclick="sealPanel(\''+p.id+'\')">&#9776;</button>' : '')
+          + (g.offline ? '<button class="icon-btn" onclick="editPlayer(\''+p.id+'\')">&#9998;</button>' : '')
+          + '<button class="icon-btn danger" onclick="deletePlayer(\''+p.id+'\')">&times;</button></div>'
+          + (seal ? '<div class="seal-inline" id="seal-'+p.id+'" style="display:none">'+sealHtml(seal)+'</div>' : '');
+      });
+      h += '</div>';
+    });
+    h += '<button class="btn wide ghost" onclick="rosterAddMenu()">Add to roster</button>';
   }
   if (S.wixPlayers.length){
-    h += '<button class="btn wide ghost" onclick="syncPlayersNow()">Refresh players from character sheets</button>';
+    h += '<button class="btn wide ghost" onclick="syncPlayersNow()">Refresh players</button>';
   }
   return h;
 }

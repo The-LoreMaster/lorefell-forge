@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<!-- build: join-1 -->
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Join the Adventure</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Cinzel:wght@500;600&family=Crimson+Pro:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{ --navy:#0a0e1a; --panel:#10162a; --silver:#dce8ef; --ice:#b8ccd8; --gold:#c9a84c; --muted:#7e8a99; --line:#22304d; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:transparent; color:var(--silver); font-family:'Crimson Pro',Georgia,serif; }
+  .wrap{ max-width:540px; margin:0 auto; padding:18px 16px 28px; }
+  .mast{ font-family:'Cinzel Decorative',serif; text-align:center; font-size:1.2rem; letter-spacing:.07em; color:var(--silver); margin-bottom:4px; }
+  .mast .w{ color:var(--gold); }
+  h1{ font-family:'Cinzel',serif; font-weight:600; font-size:1.25rem; letter-spacing:.02em; text-align:center; margin:14px 0 4px; }
+  .sub{ color:var(--ice); text-align:center; margin:0 0 18px; }
+  .muted{ color:var(--muted); }
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:10px; display:flex; align-items:center; gap:10px; }
+  .card .nm{ font-family:'Cinzel',serif; font-size:1rem; flex:1; }
+  .card .lv{ color:var(--ice); font-size:.85rem; }
+  .tag{ font-size:.7rem; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); border:1px solid var(--line); border-radius:5px; padding:1px 6px; }
+  button{ font-family:'Cinzel',serif; cursor:pointer; border-radius:9px; padding:9px 14px; font-size:.9rem; letter-spacing:.03em; border:1px solid var(--line); background:#16203a; color:var(--silver); }
+  button.gold{ border-color:var(--gold); color:var(--gold); background:rgba(201,168,76,.08); }
+  button:disabled{ opacity:.5; cursor:default; }
+  button.small{ padding:6px 11px; font-size:.8rem; }
+  .wide{ width:100%; margin-top:8px; }
+  .note{ color:var(--muted); font-size:.85rem; text-align:center; margin-top:10px; }
+</style></head>
+<body>
+<div class="wrap">
+  <div class="mast">The Fate<span class="w">Well</span></div>
+  <div id="view"><p class="sub muted">Reading the invite.</p></div>
+</div>
+<script>
+  var STATE = { signedIn:false, campaignName:'', characters:[] };
+  function post(m){ try{ window.parent.postMessage(m,"*"); }catch(e){} }
+  function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function el(id){ return document.getElementById(id); }
+
+  function render(){
+    var v = el('view'); var s = STATE;
+    if (!s.signedIn){
+      v.innerHTML = '<h1>Join '+esc(s.campaignName||'the adventure')+'</h1>'
+        + '<p class="sub">Sign in to bring your characters to the table.</p>'
+        + '<button class="gold wide" onclick="post({type:\'JOIN_LOGIN\'})">Sign in</button>';
+      return;
+    }
+    var h = '<h1>'+esc(s.campaignName||'The Adventure')+'</h1><p class="sub">Attach the characters you want to play.</p>';
+    if (!s.characters.length){
+      h += '<p class="note">You have no characters yet.</p>';
+    } else {
+      s.characters.forEach(function(c){
+        h += '<div class="card"><span class="nm">'+esc(c.name)+'</span><span class="lv">Lvl '+esc(c.level)+'</span>';
+        if (c.here){ h += '<span class="tag">in play</span><button class="small" onclick="post({type:\'JOIN_DETACH\',charId:\''+esc(c.charId)+'\'})">Remove</button>'; }
+        else if (c.elsewhere){ h += '<button class="small gold" onclick="post({type:\'JOIN_ATTACH\',charId:\''+esc(c.charId)+'\'})">Move here</button>'; }
+        else { h += '<button class="small gold" onclick="post({type:\'JOIN_ATTACH\',charId:\''+esc(c.charId)+'\'})">Attach</button>'; }
+        h += '</div>';
+      });
+      if (s.characters.some(function(c){ return c.elsewhere; }))
+        h += '<p class="note">A character can be in one adventure at a time. Moving it here removes it from its other adventure.</p>';
+    }
+    h += '<button class="gold wide" onclick="post({type:\'JOIN_FORGE\'})">Forge a new character</button>';
+    v.innerHTML = h;
+  }
+
+  window.onmessage = function(e){
+    var m = e && e.data; if (!m || typeof m !== 'object') return;
+    if (m.type === 'JOIN_STATE'){
+      STATE.signedIn = !!m.signedIn;
+      STATE.campaignName = m.campaignName || '';
+      STATE.characters = Array.isArray(m.characters) ? m.characters : [];
+      render();
+    }
+  };
+  post({ type:'JOIN_READY' });
+</script>
+</body></html>

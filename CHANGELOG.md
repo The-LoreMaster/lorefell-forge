@@ -4,6 +4,13 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-24 — Adventure invites and a member roster
+
+- Add to roster replaces Add a player: invite a player with a reusable, revocable link, or add an offline player by hand
+- The roster groups by member, with each member's attached characters listed beneath, and a joined member with no character yet shown as such
+- A character holds one adventure at a time. The invite link lands on a join page where a player signs in and attaches characters, or forges a new one in FellForge with the adventure linked
+- New: CampaignInvites and AdventureMembers collections, invites.web.js, the join page and bridge. FellForge saves the campaign link from its query. Characters gain a campaignId field
+
 ## 2026-06-24 — Clear the top right
 
 - Removed the sync status badge and the gear from the top bar. Settings and backup now live as an entry in the bottom nav

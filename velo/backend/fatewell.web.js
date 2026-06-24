@@ -101,19 +101,60 @@ export const getSealed = webMethod(Permissions.Anyone, async (memberIds, names, 
 // Roster for a campaign, drawn from characters whose campaign field matches the name.
 // Carries charId so the tool can link a player to a character sheet precisely, which
 // is what the sealed past match keys on first. Names and levels only, no sealed content.
-export const getCampaignPlayers = webMethod(Permissions.Anyone, async (campaignName) => {
+export const getCampaignPlayers = webMethod(Permissions.Anyone, async (campaignId, campaignName) => {
+  const cid = String(campaignId || '').trim();
   const nm = String(campaignName || '').trim();
-  if (!nm) return [];
-  let items = [];
+  if (!cid && !nm) return [];
+
+  // members who joined (so a member with no character yet still shows), with their names
+  const nameOf = {}; let members = [];
   try {
-    const r = await wixData.query('Characters').eq('campaign', nm).limit(500).find({ suppressAuth: true });
-    items = r.items;
-  } catch (e) { items = []; }
-  return items.map((it) => {
+    if (cid) {
+      const rm = await wixData.query('AdventureMembers').eq('campaignId', cid).limit(500).find({ suppressAuth: true });
+      members = rm.items;
+      members.forEach((m) => { if (m.memberId) nameOf[m.memberId] = m.name || ''; });
+    }
+  } catch (e) { members = []; }
+
+  // characters linked to this adventure, by id with a legacy name fallback
+  let chars = [];
+  try {
+    if (cid) { const rc = await wixData.query('Characters').eq('campaignId', cid).limit(500).find({ suppressAuth: true }); chars = rc.items; }
+    if (nm) {
+      const rn = await wixData.query('Characters').eq('campaign', nm).limit(500).find({ suppressAuth: true });
+      rn.items.forEach((it) => { if (!chars.some((x) => x._id === it._id)) chars.push(it); });
+    }
+  } catch (e) {}
+
+  const out = [];
+  const withChar = {};
+  chars.forEach((it) => {
     let lvl = 1;
     try { const dat = typeof it.data === 'string' ? JSON.parse(it.data) : (it.data || {}); lvl = Number(dat.level || (dat.identity && dat.identity.level)) || 1; } catch (e) {}
-    return { id: it.ownerMemberId || '', charId: it._id, name: it.charName || '', level: lvl };
-  }).filter((p) => p.name);
+    const mid = it.ownerMemberId || '';
+    withChar[mid] = true;
+    out.push({ id: mid, memberId: mid, memberName: nameOf[mid] || '', charId: it._id, name: it.charName || '', level: lvl });
+  });
+  // joined members who have not attached a character yet
+  members.forEach((m) => {
+    if (m.memberId && !withChar[m.memberId]) {
+      out.push({ id: m.memberId, memberId: m.memberId, memberName: m.name || '', charId: null, name: m.name || 'Player', level: 1 });
+    }
+  });
+  return out.filter((p) => p.name || p.charId);
+});
+
+// Unlink a character from its adventure. Loremaster and lorekeeper only, since this is
+// the roster owner acting. A character holds one adventure at a time, so clearing the
+// link frees it to join another.
+export const detachCharacter = webMethod(Permissions.Anyone, async (charId) => {
+  if (!(await isKeeper())) return { ok: false };
+  if (!charId) return { ok: false };
+  try {
+    const row = await wixData.get('Characters', charId, { suppressAuth: true });
+    if (row) { row.campaignId = ''; await wixData.update('Characters', row, { suppressAuth: true }); }
+    return { ok: true };
+  } catch (e) { return { ok: false, error: String(e) }; }
 });
 
 // ---- Reference feeds for the FateWell library ----

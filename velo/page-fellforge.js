@@ -5,6 +5,7 @@
 // relays the Archive call and the forging.
 
 import { generateProfile, saveFell } from 'backend/fellforge.web.js';
+import wixLocation from 'wix-location';
 
 const EMBED = '#html1';   // change to your Embed a Site element ID
 
@@ -25,7 +26,8 @@ $w.onReady(() => {
       }
     } else if (msg.type === 'submit') {
       try {
-        await saveFell(msg.record || {});
+        const campaignId = (wixLocation.query && wixLocation.query.campaign) || '';
+        await saveFell(Object.assign({}, msg.record || {}, campaignId ? { campaignId: campaignId } : {}));
         embed.postMessage({ type: 'submitOk' });
       } catch (e) {
         embed.postMessage({ type: 'submitError', message: 'The forging failed. Try again.' });

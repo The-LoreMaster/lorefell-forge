@@ -4,7 +4,8 @@
 // campaignId. The tool requests forge, assets, and glossary on load; those are
 // answered from canon Creations, an owner-scoped Assets collection, and a Glossary collection.
 
-import { loadCampaign, saveCampaign, getSealed, getForgeLibrary, listAssets, saveAsset, deleteAsset, listGlossary, getCampaignPlayers } from 'backend/fatewell.web.js';
+import { loadCampaign, saveCampaign, getSealed, getForgeLibrary, listAssets, saveAsset, deleteAsset, listGlossary, getCampaignPlayers, detachCharacter } from 'backend/fatewell.web.js';
+import { createInvite, revokeInvite } from 'backend/invites.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
 import wixLocation from 'wix-location';
 
@@ -29,7 +30,7 @@ $w.onReady(() => {
         data: (blob && blob.data) ? { campaign: blob.data } : null
       });
       let players = [];
-      try { players = await getCampaignPlayers((blob && blob.title) || ''); } catch (e) { players = []; }
+      try { players = await getCampaignPlayers(campaignId, (blob && blob.title) || ''); } catch (e) { players = []; }
       if (players.length) embed.postMessage({ type: 'lmtool-players', campaignId: campaignId, players: players });
     } else if (m.type === 'lmtool-save') {
       try { await saveCampaign(m.campaignId || campaignId, m.data || {}, ''); } catch (e) {}
@@ -59,6 +60,14 @@ $w.onReady(() => {
       let sealed = [];
       try { sealed = await getSealed(m.memberIds || [], m.names || [], m.charIds || []); } catch (e) { sealed = []; }
       embed.postMessage({ type: 'lmtool-sealed', sealed: sealed });
+    } else if (m.type === 'lmtool-invite-create') {
+      let url = '';
+      try { const r = await createInvite(m.campaignId || campaignId); url = (r && r.url) || ''; } catch (e) { url = ''; }
+      embed.postMessage({ type: 'lmtool-invite', url: url });
+    } else if (m.type === 'lmtool-invite-revoke') {
+      try { await revokeInvite(m.campaignId || campaignId); } catch (e) {}
+    } else if (m.type === 'lmtool-detach') {
+      try { await detachCharacter(m.charId); } catch (e) {}
     } else if (m.type === 'LOREFELL_FEEDBACK_SUBMIT') {
       console.log('FateWell feedback:', JSON.stringify(m.payload || {}));
     }

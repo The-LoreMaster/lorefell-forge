@@ -71,6 +71,7 @@ export const saveFell = webMethod(Permissions.Anyone, async (record) => {
     charName: r.name || 'Unnamed Fell',
     ownerMemberId: memberId,
     campaign: '',
+    campaignId: r.campaignId || '',
     level: 1,
     sealCode: r.sealCode || '',
     forgeSeed: JSON.stringify(forgeSeed),
