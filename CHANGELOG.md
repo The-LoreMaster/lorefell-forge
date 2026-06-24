@@ -4,6 +4,10 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-24 — Clear the top right
+
+- Removed the sync status badge and the gear from the top bar. Settings and backup now live as an entry in the bottom nav
+
 ## 2026-06-24 — FateWell polish
 
 - Adventure type order is Tale, Story, Legacy, Chronicle. Each length reads as a recommendation, and Chronicle is Infinite, open table
