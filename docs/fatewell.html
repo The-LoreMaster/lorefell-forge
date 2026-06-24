@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>FateWell</title>
-<!-- build: fatewell-seal2 -->
+<!-- build: fatewell-vit-charid -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Cinzel+Decorative:wght@700&family=Crimson+Pro:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
@@ -977,7 +977,8 @@ function assetToRow(e){
     image: e.img || '',
     attrs: JSON.stringify(e.attrs || {}),
     inventory: JSON.stringify(e.inv || []),
-    abilities: JSON.stringify(e.abilities || [])
+    abilities: JSON.stringify(e.abilities || []),
+    foeWeight: e.foeWeight || 0
   };
 }
 /* Rebuild a library entity from a CMS row. Tolerates already-parsed or string JSON. */
@@ -1000,6 +1001,7 @@ function rowToAsset(r){
     e.lp = Number(pick('lp')) || (e.sr && SR_TABLE[e.sr] ? SR_TABLE[e.sr].lp : 0);
     e.sp = Number(pick('sp')) || (e.sr && SR_TABLE[e.sr] ? SR_TABLE[e.sr].sp : 0);
     e.maxVit = Number(pick('maxVit')) || 0;
+    e.foeWeight = Number(pick('foeWeight')) || 0;
     e.img = pick('image','img') || '';
     e.attrs = jp(pick('attrs'), blankAttrs());
     e.inv = jp(pick('inventory','inv'), []);
@@ -1179,8 +1181,9 @@ function mergePool(c){
       found.wixId = wp.id;
       found.name = wp.name;
       if (wp.level) found.level = wp.level;
+      if (wp.charId) found.charId = wp.charId;
     } else {
-      c.players.push({ id:uid(), wixId:wp.id, name:wp.name, level:wp.level||1 });
+      c.players.push({ id:uid(), wixId:wp.id, charId:wp.charId||null, name:wp.name, level:wp.level||1 });
     }
   });
 }
@@ -1274,19 +1277,39 @@ function requestWix(){ postToWix({ type:'lmtool-ready' }); postToWix({ type:'lmt
 function requestSealed(){
   var c = curC(); if (!c) return;
   var memberIds = c.players.map(function(p){ return p.wixId; }).filter(Boolean);
+  var charIds = c.players.map(function(p){ return p.charId; }).filter(Boolean);
   var names = c.players.map(function(p){ return p.name; }).filter(Boolean);
-  if (!memberIds.length && !names.length) return;
-  postToWix({ type:'lmtool-sealed-request', campaignId: WIX.campaignId || c.id, memberIds: memberIds, names: names });
+  if (!memberIds.length && !names.length && !charIds.length) return;
+  postToWix({ type:'lmtool-sealed-request', campaignId: WIX.campaignId || c.id, memberIds: memberIds, charIds: charIds, names: names });
+}
+// Foe vitality scales with the party (average party level x number of Fell x tier weight),
+// so a canon foe carries a weight instead of a fixed number. Use the set value when there
+// is one, otherwise derive it from the open campaign's roster.
+function effMaxVit(e){
+  if (!e) return 0;
+  if (e.maxVit && e.maxVit > 0) return e.maxVit;
+  if (e.foeWeight){
+    var c = curC();
+    var party = (c && c.players && c.players.length) ? c.players.length : 4;
+    var apl = 1;
+    if (c && c.players && c.players.length){
+      var sum = 0; c.players.forEach(function(p){ sum += (parseInt(p.level,10) || 1); });
+      apl = Math.max(1, Math.round(sum / c.players.length));
+    }
+    return apl * party * e.foeWeight;
+  }
+  return e.maxVit || 0;
 }
 function sealedFor(p){
   if (!S.sealed || !S.sealed.length || !p) return null;
   var norm = function(v){ return String(v||'').trim().replace(/^the\s+/i,'').toLowerCase(); };
-  var byId = null, byName = null;
+  var byChar = null, byId = null, byName = null;
   S.sealed.forEach(function(e){
+    if (p.charId && e.charId && e.charId===p.charId) byChar = e;
     if (p.wixId && e.ownerMemberId && e.ownerMemberId===p.wixId) byId = e;
     if (!byName && norm(e.name)===norm(p.name)) byName = e;
   });
-  return byId || byName || null;
+  return byChar || byId || byName || null;
 }
 function sealHtml(e){
   var h = '';
@@ -2319,7 +2342,7 @@ function attachChooser(){
   if (foes.length){
     h += '<div class="lbl">Monsters</div>';
     foes.forEach(function(e){
-      h += '<button class="pick-row" onclick="countModal(\''+e.id+'\')"><b>'+esc(e.name)+'</b><span class="muted">'+esc(e.sr)+' &middot; '+e.maxVit+' vit</span></button>';
+      h += '<button class="pick-row" onclick="countModal(\''+e.id+'\')"><b>'+esc(e.name)+'</b><span class="muted">'+esc(e.sr)+' &middot; '+effMaxVit(e)+' vit</span></button>';
     });
   }
   var npcs = S.library.filter(function(e){ return e.type==='npc'; });
@@ -2366,7 +2389,7 @@ function attachFoe(libId){
     sc.combatants.push({
       id: uid(), libId: libId, type: 'monster', side: 'monster',
       name: e.name + ((existing+n)>1 ? ' ' + (idx+1) : ''),
-      sr: e.sr, maxVit: e.maxVit, curVit: e.maxVit,
+      sr: e.sr, maxVit: effMaxVit(e), curVit: effMaxVit(e),
       attrs: JSON.parse(JSON.stringify(e.attrs || blankAttrs())),
       inv: (e.inv || []).slice(),
       abilities: JSON.parse(JSON.stringify(e.abilities || [])),
@@ -3032,7 +3055,7 @@ function chipInfo(id){
   var e = libGet(id); if (!e) return;
   modal('<h3 class="m-title">'+esc(e.name)+'</h3>'
     + '<p class="muted">'+TYPE_LABEL[e.type]
-    + (e.sr ? ' &middot; '+esc(e.sr)+' &middot; '+e.lp+' LP &middot; '+e.sp+' SP &middot; '+e.maxVit+' vit' : '')
+    + (e.sr ? ' &middot; '+esc(e.sr)+' &middot; '+e.lp+' LP &middot; '+e.sp+' SP &middot; '+effMaxVit(e)+' vit' : '')
     + (e.role ? ' &middot; '+esc(e.role) : '') + '</p>'
     + (e.type==='monster' ? '<div class="lbl">Attributes</div><p>'+attrLine(e.attrs)+'</p>'
       + '<div class="lbl">Inventory</div><p>'+(e.inv && e.inv.length ? esc(e.inv.join(', ')) : 'Empty handed.')+'</p>'
@@ -4117,7 +4140,7 @@ function scrLibrary(){
   } else {
     list.forEach(function(e){
       var sub = TYPE_LABEL[e.type];
-      if (e.sr) sub += ' &middot; '+esc(e.sr)+' &middot; '+e.lp+' LP &middot; '+e.sp+' SP &middot; '+e.maxVit+' vit';
+      if (e.sr) sub += ' &middot; '+esc(e.sr)+' &middot; '+e.lp+' LP &middot; '+e.sp+' SP &middot; '+effMaxVit(e)+' vit';
       else if (e.role) sub += ' &middot; '+esc(e.role);
       var canAttach = V.scId && curSc();
       if (!window._cardMenus) window._cardMenus = {};

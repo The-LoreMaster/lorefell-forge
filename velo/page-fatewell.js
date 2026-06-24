@@ -4,7 +4,8 @@
 // campaignId. The tool requests forge, assets, and glossary on load; those are
 // answered from canon Creations, an owner-scoped Assets collection, and a Glossary collection.
 
-import { loadCampaign, saveCampaign, getSealed, getForgeLibrary, listAssets, saveAsset, deleteAsset, listGlossary } from 'backend/fatewell.web.js';
+import { loadCampaign, saveCampaign, getSealed, getForgeLibrary, listAssets, saveAsset, deleteAsset, listGlossary, getCampaignPlayers } from 'backend/fatewell.web.js';
+import { uploadRune } from 'backend/loreforge.web.js';
 import wixLocation from 'wix-location';
 
 const EMBED = '#html1';   // change to your Embed a Site element ID
@@ -27,6 +28,9 @@ $w.onReady(() => {
         title: (blob && blob.title) || 'Campaign',
         data: (blob && blob.data) ? { campaign: blob.data } : null
       });
+      let players = [];
+      try { players = await getCampaignPlayers((blob && blob.title) || ''); } catch (e) { players = []; }
+      if (players.length) embed.postMessage({ type: 'lmtool-players', campaignId: campaignId, players: players });
     } else if (m.type === 'lmtool-save') {
       try { await saveCampaign(m.campaignId || campaignId, m.data || {}, ''); } catch (e) {}
     } else if (m.type === 'lmtool-campaign-title') {
@@ -40,7 +44,11 @@ $w.onReady(() => {
       try { assets = await listAssets(); } catch (e) { assets = []; }
       embed.postMessage({ type: 'lmtool-assets', assets: assets });
     } else if (m.type === 'lmtool-asset-save') {
-      try { await saveAsset(m.asset || {}); } catch (e) {}
+      const asset = m.asset || {};
+      if (asset.image && /^data:/.test(asset.image)) {
+        try { asset.image = await uploadRune(asset.image, asset.name || 'asset'); } catch (e) { asset.image = ''; }
+      }
+      try { await saveAsset(asset); } catch (e) {}
     } else if (m.type === 'lmtool-asset-delete') {
       try { await deleteAsset(m.assetId); } catch (e) {}
     } else if (m.type === 'lmtool-glossary-request') {
@@ -49,7 +57,7 @@ $w.onReady(() => {
       embed.postMessage({ type: 'lmtool-glossary', glossary: glossary });
     } else if (m.type === 'lmtool-sealed-request') {
       let sealed = [];
-      try { sealed = await getSealed(m.memberIds || [], m.names || []); } catch (e) { sealed = []; }
+      try { sealed = await getSealed(m.memberIds || [], m.names || [], m.charIds || []); } catch (e) { sealed = []; }
       embed.postMessage({ type: 'lmtool-sealed', sealed: sealed });
     } else if (m.type === 'LOREFELL_FEEDBACK_SUBMIT') {
       console.log('FateWell feedback:', JSON.stringify(m.payload || {}));

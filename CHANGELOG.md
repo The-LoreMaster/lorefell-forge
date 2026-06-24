@@ -4,6 +4,13 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-24 — Asset uploads, foe vitality, charId link, contract check
+
+- Asset portraits now upload through the shared media step in the bridge, so a pasted or uploaded image is stored as a real URL. Assets image field is TEXT to accept any value
+- Canon foes carry their tier weight; FateWell derives deploy Vitality from the campaign roster (average party level times number of Fell times weight) when no fixed number is set
+- Players carry a charId from a campaign roster feed, so the sealed past match keys on the character first, then member, then name
+- New contracts check (npm run contracts, and a CI workflow) scans every tool against its page bridge for unmatched postMessage types
+
 ## 2026-06-24 — Canon foes in the FateWell asset library
 
 - listAssets now merges canon Pentifax foes in as read-only monster assets alongside the loremaster's own library

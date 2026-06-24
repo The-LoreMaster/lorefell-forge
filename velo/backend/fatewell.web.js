@@ -63,21 +63,26 @@ async function isKeeper() {
 // Sealed pasts for a campaign roster. Returns nothing unless the caller holds a
 // loremaster or lorekeeper role, so the player view can never reach it. Matched to
 // the roster by member id first, then by character name.
-export const getSealed = webMethod(Permissions.Anyone, async (memberIds, names) => {
+export const getSealed = webMethod(Permissions.Anyone, async (memberIds, names, charIds) => {
   if (!(await isKeeper())) return [];
   const ids = Array.isArray(memberIds) ? memberIds.filter(Boolean) : [];
   const nm = Array.isArray(names) ? names.filter(Boolean) : [];
-  if (!ids.length && !nm.length) return [];
+  const cids = Array.isArray(charIds) ? charIds.filter(Boolean) : [];
+  if (!ids.length && !nm.length && !cids.length) return [];
   let items = [];
+  const seen = (it) => items.some((x) => x._id === it._id);
   try {
-    const r = await wixData.query('Characters')
-      .hasSome('ownerMemberId', ids.length ? ids : ['__none__']).limit(200)
-      .find({ suppressAuth: true });
-    items = r.items;
+    if (cids.length) {
+      const rc = await wixData.query('Characters').hasSome('_id', cids).limit(200).find({ suppressAuth: true });
+      rc.items.forEach((it) => { if (!seen(it)) items.push(it); });
+    }
+    if (ids.length) {
+      const r = await wixData.query('Characters').hasSome('ownerMemberId', ids).limit(200).find({ suppressAuth: true });
+      r.items.forEach((it) => { if (!seen(it)) items.push(it); });
+    }
     if (nm.length) {
-      const rn = await wixData.query('Characters')
-        .hasSome('charName', nm).limit(200).find({ suppressAuth: true });
-      rn.items.forEach((it) => { if (!items.some((x) => x._id === it._id)) items.push(it); });
+      const rn = await wixData.query('Characters').hasSome('charName', nm).limit(200).find({ suppressAuth: true });
+      rn.items.forEach((it) => { if (!seen(it)) items.push(it); });
     }
   } catch (e) { items = []; }
   return items.filter((it) => it.sealedPast).map((it) => {
@@ -91,6 +96,24 @@ export const getSealed = webMethod(Permissions.Anyone, async (memberIds, names) 
       fragments: Array.isArray(sp.fragments) ? sp.fragments : []
     };
   });
+});
+
+// Roster for a campaign, drawn from characters whose campaign field matches the name.
+// Carries charId so the tool can link a player to a character sheet precisely, which
+// is what the sealed past match keys on first. Names and levels only, no sealed content.
+export const getCampaignPlayers = webMethod(Permissions.Anyone, async (campaignName) => {
+  const nm = String(campaignName || '').trim();
+  if (!nm) return [];
+  let items = [];
+  try {
+    const r = await wixData.query('Characters').eq('campaign', nm).limit(500).find({ suppressAuth: true });
+    items = r.items;
+  } catch (e) { items = []; }
+  return items.map((it) => {
+    let lvl = 1;
+    try { const dat = typeof it.data === 'string' ? JSON.parse(it.data) : (it.data || {}); lvl = Number(dat.level || (dat.identity && dat.identity.level)) || 1; } catch (e) {}
+    return { id: it.ownerMemberId || '', charId: it._id, name: it.charName || '', level: lvl };
+  }).filter((p) => p.name);
 });
 
 // ---- Reference feeds for the FateWell library ----
@@ -124,6 +147,8 @@ export const getForgeLibrary = webMethod(Permissions.Anyone, async () => {
 // is party scaled (APL x party x tier weight), so there is no fixed number to store here;
 // the table value is left at zero for the loremaster to set for their party. Editing a
 // canon foe in the tool forks a personal copy, which then shadows the canon entry.
+const FOE_WEIGHT = { Minion: 1, Elite: 2, Champion: 3, Epic: 5, Forsaken: 8 };
+
 async function getCanonFoes() {
   let items = [];
   try {
@@ -148,7 +173,8 @@ async function getCanonFoes() {
       image: it.imageUrl || pl.imageUrl || '',
       attrs: '{}',
       inventory: '[]',
-      abilities: JSON.stringify(acts.map((a) => ({ name: a.name, tier: a.tier })))
+      abilities: JSON.stringify(acts.map((a) => ({ name: a.name, tier: a.tier }))),
+      foeWeight: FOE_WEIGHT[meta.shatterRating] || 0
     };
   }).filter((f) => f.name);
 }
