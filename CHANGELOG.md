@@ -4,6 +4,13 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-24 — FateWell polish
+
+- Adventure type order is Tale, Story, Legacy, Chronicle. Each length reads as a recommendation, and Chronicle is Infinite, open table
+- The FateWell wordmark sits at the top, Well in gold
+- Create and menu popups now open on the spot you clicked rather than the center of the embed, so the controls stay in view
+- An adventure's cover image shows above the title on its screen and on its list card
+
 ## 2026-06-24 — Adventures with four types
 
 - Campaigns are now Adventures. New Adventure opens a type chooser: Story, Legacy, Chronicle, Tale
