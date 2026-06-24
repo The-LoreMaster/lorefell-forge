@@ -1740,7 +1740,7 @@ function statText(){const s=scaleFoe(),b=BUILDS[state.build];
   if(state.infusions.length)L.push("Infusions: "+state.infusions.join(", "));
   if(state.augmentations.length)L.push("Augmentations: "+state.augmentations.join(", "));
   const acts=state.acts.slice().sort((x,y)=>x.tier-y.tier);
-  if(acts.length){L.push("Acts:");acts.forEach(a=>L.push("  T"+a.tier+" "+a.name+(a.effect?": "+a.effect:"")));}
+  if(acts.length){L.push("Acts:");acts.forEach(a=>{const ef=a.effect||actTip(a.name);L.push("  T"+a.tier+" "+a.name+(ef?": "+ef:""));});}
   L.push("");L.push("At the table (deploy "+state.shatterRating+", party level "+Math.max(1,+state.apl||1)+", "+Math.max(1,+state.party||1)+" Fell):");
   L.push("  Attributes: "+((b?b.attributes:[]).map(a=>a+" "+s.val).join(", ")||"none"));
   L.push("  Vitality "+s.vitality+", Lore "+s.lore+", Discord pool "+s.discord);
@@ -1767,6 +1767,25 @@ const FOE_THEMES=[
   "a lamplighter snuffing names instead of flames",
   "a tithe-collector that takes years off a life"
 ];
+function themeFlavor(theme){const t=(theme||"").toLowerCase();
+  const M=[["fire|burn|ember|ash|cinder|flame|scorch","fire"],["fear|dread|terror|horror","fear"],["bleed|blood|gore","bleed"],
+    ["rot|decay|plague|disease|fester|blight","rot"],["mind|confus|daze|bewilder","mind"],["mad|witless|stupef","madness"],
+    ["curse|hex|doom|jinx","curse"],["bind|root|snare|web|entangle|grasp","bind"],["cold|frost|ice|freeze|rime|winter","frost"],
+    ["poison|venom|toxic","poison"],["maim|mangle|rip|tear|shred","maim"],["light|blind|dazzle|glare","light"],
+    ["shadow|dark|veil|stealth","shadow"],["cut|slash|rend|sever|blade","cut"],["wither|age|husk|drain|leech","wither"],
+    ["strip|sunder|armor","strip"],["dispel|silence|unmake|null","dispel"],["mark|hunt|track|prey","mark"],
+    ["shatter|fragment|break|crack","shatter"]];
+  for(const e of M){if(new RegExp(e[0]).test(t))return e[1];}return "raw";}
+function weaveActName(theme){const fl=themeFlavor(theme);
+  const V={fire:["Cinder","Pyre","Scald","Ember"],fear:["Dread","Wail","Shudder","Hush"],bleed:["Rend","Gash","Crimson","Flense"],
+    rot:["Fester","Blight","Wither","Murrain"],mind:["Addle","Unmoor","Bewilder","Fracture"],madness:["Unhinge","Babble","Gibber","Unspool"],
+    curse:["Hex","Doom","Mar","Illwish"],bind:["Snare","Bind","Clutch","Entomb"],frost:["Rime","Still","Frost","Lock"],
+    poison:["Taint","Envenom","Spoil","Cloud"],maim:["Mangle","Cripple","Maul","Wrench"],light:["Sear","Dazzle","Glare","Bleach"],
+    shadow:["Veil","Smother","Eclipse","Drown"],cut:["Cleave","Sever","Lacerate","Open"],wither:["Wither","Leech","Sap","Hollow"],
+    strip:["Strip","Sunder","Unmake","Bare"],dispel:["Unbind","Silence","Null","Quell"],mark:["Mark","Hunt","Hound","Brand"],
+    shatter:["Shatter","Fracture","Splinter","Break"],raw:["Break","Crush","Strike","Fell"]};
+  const N=["Verdict","Toll","Rite","Wake","Hymn","Brand","Edict","Vow","Knell","Sentence","Mire","Tithe"];
+  return pick(V[fl]||V.raw)+" "+pick(N);}
 async function aiForge(theme){
   if(!AI_FORGE_ENDPOINT||!(theme||"").trim())return null;
   const builds=PACK.builds.map(b=>b.name+" ["+(b.attackAttributes||[]).concat(b.defenseAttributes||[]).join("/")+"]");
@@ -1991,21 +2010,29 @@ function init(){
     const r=new FileReader();r.onload=ev=>{state.image=ev.target.result;renderCard();};r.readAsDataURL(f);});
   $("desc").addEventListener("input",e=>{state.description=e.target.value;renderCard();sizeFlip();});
   $("consultBtn").addEventListener("click",()=>runConsult($("theme").value));
-  $("randomBtn").addEventListener("click",()=>{state.shatterRating=pick(PACK.tiers).name;const th=pick(FOE_THEMES);$("theme").value=th;runConsult(th);});
+  $("randomBtn").addEventListener("click",()=>{state.shatterRating=pick(PACK.tiers).name;const th=pick(FOE_THEMES);$("theme").value=th;runConsult(th,{ai:false});});
   $("saveAsBtn").addEventListener("click",()=>{state.foeId=null;doSave("private");});
   $("statBtn").addEventListener("click",()=>{const b=$("statCard");const show=b.style.display==="none";if(show){renderStatCard();b.style.display="";}else b.style.display="none";reportHeight();});
-  async function runConsult(theme){
+  async function runConsult(theme,opts){
+    opts=opts||{};
     const out=$("consultResult");out.className="result";out.textContent="The forge considers the shape you named.";
-    let ai=null;try{ai=await aiForge(theme);}catch(e){}
+    let ai=null;if(opts.ai!==false){try{ai=await aiForge(theme);}catch(e){}}
     let p=applyForged(theme,ai);
     const b=BUILDS[p.build];
     const isSpell=!!(b&&b.accuracy&&b.accuracy.indexOf("spell")!==-1&&b.accuracy.indexOf("weapon")===-1);
-    let made=[];
+    let made=[],want=[];
     if(ai&&Array.isArray(ai.customActs)&&ai.customActs.length){
-      const have=byName(LIBRARY);
-      const want=ai.customActs.map(c=>({name:String(c.name||"").slice(0,80),type:isSpell?"spell":"ability",
+      want=ai.customActs.map(c=>({name:String(c.name||"").slice(0,80),type:isSpell?"spell":"ability",
         tier:[1,2,3].indexOf(+c.tier)!==-1?+c.tier:1,flavor:String(c.flavor||"").slice(0,20),
         description:String(c.description||"").slice(0,600)})).filter(c=>c.name);
+    }else if(opts.ai===false){
+      const covered={};(p.acts||[]).forEach(a=>covered[a.tier]=true);
+      const fl=themeFlavor(theme),used={};
+      [1,2,3].forEach(t=>{if(!covered[t]){let nm=weaveActName(theme),g=0;while(used[nm]&&g<8){nm=weaveActName(theme);g++;}used[nm]=1;
+        want.push({name:nm,type:isSpell?"spell":"ability",tier:t,flavor:fl,description:""});}});
+    }
+    if(want.length){
+      const have=byName(LIBRARY);
       const toBuild=want.filter(c=>!have[c.name]);
       const reuse=want.filter(c=>have[c.name]).map(c=>have[c.name]);
       if(toBuild.length)out.textContent="The forge is shaping "+(isSpell?"spells":"abilities")+" from the system rules.";
@@ -2023,7 +2050,7 @@ function init(){
     const localCount=LIBRARY.filter(x=>x&&x.local&&!x.sent&&state.acts.some(a=>a.name===x.name)).length;
     let tail=r.ok?"Validated.":"Trimmed to stay legal.";
     if(localCount)tail+=" "+localCount+" act"+(localCount>1?"s":"")+" forged for this Foe and kept to the table. Offer "+(localCount>1?"them":"it")+" to LoreForge from Forged Acts.";
-    out.textContent=ai?("The forge shapes "+state.name+", a "+state.shatterRating+" "+state.build+", arsenal and all. "+tail+" Refine below."):("The forge shapes "+state.name+", a "+state.shatterRating+" "+state.build+". Offline shaping, no live arsenal pick. Refine below.");
+    out.textContent=ai?("The forge shapes "+state.name+", a "+state.shatterRating+" "+state.build+", arsenal and all. "+tail+" Refine below."):(opts.ai===false?("A random "+state.shatterRating+" "+state.build+", "+state.name+", forged from the system. "+tail+" Refine below."):("The forge shapes "+state.name+", a "+state.shatterRating+" "+state.build+". Offline shaping, no live arsenal pick. Refine below."));
   }
   document.addEventListener("click",function(e){
     const pill=e.target&&e.target.closest?e.target.closest(".pill"):null;

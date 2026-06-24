@@ -4,6 +4,11 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-24 — FoeForge: complete stat cards, offline Random
+
+- The stat card now falls back to an act's library effect when a manually picked act carries none, so the block is always complete
+- Random Foe no longer waits on the AI. It shapes the build and names locally and forges acts only for tiers the library cannot fill. With a full act library it is instant and needs no network
+
 ## 2026-06-24 — FoeForge: all-tier view, clone, stat card, random
 
 - Card back now shows an Every tier table: attribute value, vitality, acts live, and infusions live at each Shatter Rating, with the deployed tier highlighted
