@@ -4,6 +4,12 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-24 — Unified forge wordmark (gold Forge), drop taglines
+
+- FoeForge and SigilForge now render the name with Forge in gold to match BondForge
+- Removed the tagline lines under the title on FoeForge (build a Foe once...) and BondForge (Lorebound Aspects) to tighten the masthead
+- Convention for new forges: wordmark Name plus Forge in gold, no subtitle line
+
 ## 2026-06-24 — BondForge: lorebound image fits the card on mobile
 
 - On phones, a lorebound card with an image now sizes to the image, so a horizontal portrait fills the width with no empty space above and below. The fixed box stays only for the letter fallback when there is no image
