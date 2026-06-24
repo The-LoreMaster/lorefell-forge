@@ -123,7 +123,7 @@
   .penvote{display:inline-flex; align-items:center; gap:7px; font-family:"Cinzel",serif; font-size:12px; letter-spacing:.06em; color:var(--ice); background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:9px 13px; cursor:pointer; margin-top:10px}
   .penvote.voted{color:var(--gold); border-color:rgba(201,168,76,.5)}
   .penvote:disabled{cursor:default}
-  .pill{cursor:pointer}
+  .pill{cursor:pointer; touch-action:manipulation; -webkit-tap-highlight-color:rgba(201,168,76,.18)}
   .piptip{display:block; flex-basis:100%; width:100%; margin:7px 0 3px; padding:9px 11px; border:1px solid var(--line); border-left:2px solid var(--gold); border-radius:6px; background:var(--panel); color:var(--ice); font-size:13px; line-height:1.45}
   .card .name{font-family:"Cinzel Decorative",serif; font-size:22px; letter-spacing:.03em}
   .card .meta{color:var(--ice); font-family:"Cinzel",serif; font-size:12px; letter-spacing:.1em; text-transform:uppercase; margin:3px 0 14px}
@@ -1585,7 +1585,7 @@ function fillInf(){
 function fillAug(){
   const list=$("augList");list.innerHTML="";
   PACK.augmentations.forEach(a=>{const on=state.augmentations.includes(a.name);
-    list.appendChild(crow(a.name,a.type,on,state.augmentations.length>=2,e=>{
+    list.appendChild(crow(a.name,"",on,state.augmentations.length>=2,e=>{
       if(e.target.checked){if(state.augmentations.length>=2){e.target.checked=false;return;}state.augmentations.push(a.name);}
       else state.augmentations=state.augmentations.filter(x=>x!==a.name);render();},a.status,a.effect));});
   $("augCount").textContent=state.augmentations.length;
@@ -1657,6 +1657,44 @@ function renderScaled(){const s=scaleFoe(),t=s.tier,b=BUILDS[state.build];
   $("discordNote").textContent="Grayed parts are authored but not revealed at "+state.shatterRating+". Escalation with Discord Points ungrays the next rung. Campaign Discord pool at this party is "+s.discord+", shared across every Fell.";}
 
 function pick(a){return a[Math.floor(Math.random()*a.length)];}
+async function aiForge(theme){
+  if(!AI_FORGE_ENDPOINT||!(theme||"").trim())return null;
+  const builds=PACK.builds.map(b=>b.name+" ["+(b.attackAttributes||[]).concat(b.defenseAttributes||[]).join("/")+"]");
+  const stances=(PACK.stances||[]).map(x=>x.name);
+  const affs=(PACK.afflictions||[]).map(a=>a.name+(a.major?" (Major)":""));
+  const infs=(PACK.infusions||[]).map(i=>i.name+" {"+i.family+"} "+(i.effect||""));
+  const augs=(PACK.augmentations||[]).map(a=>a.name+" - "+(a.effect||""));
+  const acts=(LIBRARY||[]).map(a=>"T"+a.tier+" "+a.name+" - "+(a.effect||""));
+  const sys="You design monsters (Foes) for LoreFell, a dark weird-fantasy tabletop RPG. "+
+    "Choose a complete Foe using only the supplied catalogs. Rules: pick exactly one build, one stance, one affliction. "+
+    "Choose up to three infusions whose family in braces matches one of the chosen build's attributes. "+
+    "Choose up to two augmentations. Choose two to four acts. "+
+    "Invent one original name, dark and grounded, one to four words, never real-world or copyrighted, never bland like The Beast. "+
+    "Match the theme in feel. Reply with JSON only and no prose: "+
+    '{"name":"","build":"","stance":"","affliction":"","infusions":[],"augmentations":[],"acts":[]}. '+
+    "Use exact names from the catalogs. For acts use the name without the T number.";
+  const ctx="Theme: "+theme+"\n\nBUILDS:\n"+builds.join("\n")+"\n\nSTANCES: "+stances.join(", ")+
+    "\n\nAFFLICTIONS: "+affs.join(", ")+"\n\nINFUSIONS:\n"+infs.join("\n")+
+    "\n\nAUGMENTATIONS:\n"+augs.join("\n")+"\n\nACTS:\n"+acts.join("\n");
+  const res=await fetch(AI_FORGE_ENDPOINT,{method:"POST",headers:{"Content-Type":"text/plain;charset=UTF-8"},body:JSON.stringify({system:sys,messages:[{role:"user",content:ctx}],max_tokens:500})});
+  if(!res.ok)return null;
+  const data=await res.json();const text=(data.content||[]).filter(x=>x.type==="text").map(x=>x.text).join("");
+  try{return JSON.parse(text.replace(/```json|```/g,"").trim());}catch(e){return null;}
+}
+function applyForged(theme,ai){
+  const p=generateFromTheme(theme);
+  if(!ai)return p;
+  if(ai.build&&BUILDS[ai.build])p.build=ai.build;
+  const b=BUILDS[p.build];
+  if(ai.stance&&STANCES[ai.stance])p.stance=ai.stance;
+  if(ai.affliction&&AFF[ai.affliction])p.signatureAffliction=ai.affliction;
+  if(Array.isArray(ai.infusions)){const fam=b?b.attackAttributes:[];
+    const inf=ai.infusions.filter(n=>INF[n]&&fam.includes(INF[n].family));if(inf.length)p.infusions=inf.slice(0,3);}
+  if(Array.isArray(ai.augmentations)){const ag=ai.augmentations.filter(n=>AUG[n]);if(ag.length)p.augmentations=ag.slice(0,2);}
+  if(Array.isArray(ai.acts)){const m=byName(LIBRARY);const ac=ai.acts.map(n=>m[n]).filter(Boolean).map(a=>Object.assign({},a));if(ac.length)p.acts=ac.slice(0,4);}
+  if(ai.name)p.name=String(ai.name).slice(0,60);
+  return p;
+}
 function generateFromTheme(theme){
   const t=(theme||"").toLowerCase(),has=(...w)=>w.some(x=>t.includes(x));
   const atk=has("mage","spell","arcane","curse","witch","sorcer","hex","occult","rune")?"Magic"
@@ -1764,12 +1802,14 @@ function init(){
   $("consultBtn").addEventListener("click",async ()=>{
     const out=$("consultResult");out.className="result";out.textContent="The forge considers the shape you named.";
     const theme=$("theme").value;
-    let p=generateFromTheme(theme);let r=V.validateFoe(p,PACK);
-    if(!r.ok){p.infusions=p.infusions.filter(n=>{const d=INF[n];return d&&BUILDS[p.build].attackAttributes.includes(d.family);});}
-    try{const nm=await aiFoeName(theme,p);if(nm)p.name=nm;}catch(e){}
+    let ai=null;try{ai=await aiForge(theme);}catch(e){}
+    let p=applyForged(theme,ai);let r=V.validateFoe(p,PACK);
+    if(!r.ok){const b=BUILDS[p.build];
+      p.infusions=p.infusions.filter(n=>{const d=INF[n];return d&&b&&b.attackAttributes.includes(d.family);}).slice(0,3);
+      p.augmentations=p.augmentations.slice(0,2);r=V.validateFoe(p,PACK);}
     Object.assign(state,p);
     fillBuild();fillStance();fillSig();$("name").value=state.name;render();
-    out.textContent="The forge shapes "+state.name+", a "+state.shatterRating+" "+state.build+". Validated. Refine it below.";
+    out.textContent=ai?("The forge shapes "+state.name+", a "+state.shatterRating+" "+state.build+", arsenal and all. "+(r.ok?"Validated. Refine below.":"Trimmed to stay legal. Refine below.")):("The forge shapes "+state.name+", a "+state.shatterRating+" "+state.build+". Offline shaping, no live arsenal pick. Refine below.");
   });
   document.addEventListener("click",function(e){
     const pill=e.target&&e.target.closest?e.target.closest(".pill"):null;

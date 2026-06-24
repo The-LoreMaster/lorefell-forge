@@ -4,6 +4,12 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-24 — FoeForge: AI forges the whole arsenal
+
+- Consult from description now has the AI choose build, stance, affliction, infusions, augmentations, and acts from the live catalogs, not just the name. The pick is validated and trimmed if anything is illegal. Offline it falls back to the local shaping
+- Removed the Core and Non-Core label from augmentations. The validator never used it
+- Pills now use touch-action manipulation and a tap highlight so the tap-to-reveal fires cleanly on mobile
+
 ## 2026-06-24 — FoeForge: mobile-readable descriptions
 
 - Infusion and augmentation picker rows now show their effect inline, matching the Acts rows, so descriptions are visible on touch without a hover
