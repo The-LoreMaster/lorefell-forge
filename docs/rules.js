@@ -25,6 +25,21 @@ function validate(payload, def) {
   var form = payload.form || 1;
   var mode = payload.mode || "weapon";
 
+  // Authored creations (for example a Foe act written by the forge AI) skip the
+  // component slot and gate checks. They are validated only against the tier cost band.
+  if (payload.authored) {
+    var aBand = (rules.budgets && rules.budgets.byTier && rules.budgets.byTier[String(tier)]) || null;
+    var aCost = typeof payload.cost === "number" ? payload.cost : (aBand ? aBand[0] : 0);
+    if (aBand && (aCost < aBand[0] || aCost > aBand[1]))
+      errors.push("Authored cost " + aCost + " is outside the Tier " + tier + " budget of " + aBand[0] + " to " + aBand[1] + ".");
+    return {
+      legal: errors.length === 0,
+      errors: errors,
+      warnings: warnings,
+      totals: { cost: aCost, budget: aBand || [0, 0], extraPoints: 0, inlays: 0, afflictions: 0 }
+    };
+  }
+
   var byId = {};
   (def.components || []).forEach(function (c) { byId[c.componentId] = c; });
   var chosen = (payload.selections || []).map(function (id) { return byId[id]; }).filter(Boolean);

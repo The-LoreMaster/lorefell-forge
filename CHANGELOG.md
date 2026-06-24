@@ -4,6 +4,11 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-24 — Authored creations pass validation
+
+- The shared rule interpreter now accepts an authored creation. It skips the component slot and gate checks and validates only against the tier cost band. This lets the FoeForge AI write a legal ability or spell and submit it to LoreForge without filling SigilForge's Damage, Targeting, and Inlay slots
+- Regenerated docs/rules.js and velo/backend/rules.js from rules.core.js. FoeForge custom acts now post with authored true
+
 ## 2026-06-24 — FoeForge: flip card, AI invents and submits acts
 
 - Consult now invents legal acts when the catalog cannot fill a tier. Abilities for Power builds, spells for Magic builds, costs kept in the tier band. New ones auto-submit to LoreForge, and an existing one of the same name is reused instead of duplicated

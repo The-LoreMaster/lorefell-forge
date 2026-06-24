@@ -87,7 +87,8 @@ $w.onReady(() => {
           continue;
         }
         const kind = a.type === 'spell' ? 'spell' : 'ability';
-        const payload = { kind: kind, title: String(a.name || '').slice(0, 120), tier: a.tier, cost: a.cost,
+        const payload = { kind: kind, authored: true, tier: a.tier, form: 1, cost: a.cost,
+          title: String(a.name || '').slice(0, 120),
           shorthand: 'T' + a.tier + ' ' + kind, fullText: a.effect || '', selections: [],
           meta: { tier: a.tier, cost: a.cost, type: kind, description: a.description || '', source: 'foeforge' } };
         let cid = '', ok = false;
