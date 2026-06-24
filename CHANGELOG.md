@@ -4,6 +4,14 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-24 — RelicForge aligned, wired, and imaged
+
+- Gold Forge wordmark, subtitle and divider removed, body reset so there is no white space around the embed
+- Catalog and Forge are two tabs at every width; the desktop two-column split is gone, single column tuned for mobile
+- Catalog now reads the live Relics collection through a page bridge and falls back to the built-in set if the bridge is not wired; community submissions show with author and a Submitted badge
+- Added image upload on the Forge form and image display on catalog cards
+- New: schemas/Relics.json, schemas/seed/Relics.json (58 relics), relicforge ForgeConfig row, velo/page-relicforge.js
+
 ## 2026-06-24 — ShardForge masthead promoted to the gold wordmark
 
 - ShardForge is now the large Shard plus gold Forge title, with Infusions or Augmentations as a small label beneath it
