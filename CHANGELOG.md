@@ -4,6 +4,10 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-24 — BondForge portraits no longer click to enlarge
+
+- Removed the in-place zoom from catalog, ledger, and preview portraits. They fill their panel and do nothing on tap
+
 ## 2026-06-24 — Add SYNC_RUNBOOK for a two-token chat
 
 - Documented the full loop a chat with forge and vault tokens follows: edit vault canon, regenerate seed, push both, dispatch the Apply Action for Wix
