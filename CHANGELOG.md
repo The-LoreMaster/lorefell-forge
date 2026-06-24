@@ -4,6 +4,11 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-24 — Add SYNC_RUNBOOK for a two-token chat
+
+- Documented the full loop a chat with forge and vault tokens follows: edit vault canon, regenerate seed, push both, dispatch the Apply Action for Wix
+- Spelled out what is automatic (Pages, seed via Action) and what is manual (Velo paste)
+
 ## 2026-06-23 — Infusion gem icon; FellGuide as source for the collections
 
 - ShardForge infusions now show a faceted gem. Augmentations keep the shield
