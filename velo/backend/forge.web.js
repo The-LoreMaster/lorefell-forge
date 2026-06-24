@@ -113,15 +113,60 @@ export const buildLegalAct = webMethod(Permissions.SiteMember, async (tier, type
     cr.items.forEach(function (c) { descById[c.componentId] = c.description || ''; });
   } catch (e) {}
 
-  const AFFL = { fire: 'Ignited*', fear: 'Terrorized*', bleed: 'Bleeding*', rot: 'Infected*', mind: 'Witless*',
-    curse: 'Jinxed*', bind: 'Immobilized*', frost: 'Immobilized*', weaken: 'Diminished*', raw: 'Staggered*' };
-  let af = AFFL[String(flavor || '').toLowerCase()];
-  if (!af || !has(af)) af = 'Staggered*';
+  const FLAVORS = [
+    { keys: ['fire', 'burn', 'ember', 'ash', 'cinder', 'flame', 'scorch', 'pyre'], reg: 'Ignited*', t1: 'Crushed' },
+    { keys: ['fear', 'dread', 'terror', 'horror', 'panic'], reg: 'Terrorized*', t1: 'Crushed' },
+    { keys: ['bleed', 'blood', 'gore', 'hemorrhage'], reg: 'Bleeding*', major: 'Lacerated*', t1: 'Cleaved' },
+    { keys: ['rot', 'decay', 'disease', 'plague', 'sick', 'fester', 'blight', 'pox'], reg: 'Infected*', major: 'Plagued*', t1: 'Crushed' },
+    { keys: ['mind', 'confuse', 'daze', 'bewilder', 'scramble'], reg: 'Disoriented*', t1: 'Crushed' },
+    { keys: ['mad', 'stupefy', 'dumb', 'witless', 'addle'], reg: 'Witless*', t1: 'Crushed' },
+    { keys: ['curse', 'hex', 'doom', 'jinx'], reg: 'Jinxed*', major: 'Accursed*', t1: 'Crushed' },
+    { keys: ['luck', 'fortune', 'chance', 'fate'], reg: 'Unlucky*', t1: 'Crushed' },
+    { keys: ['bind', 'root', 'snare', 'web', 'entangle', 'grasp', 'hold'], reg: 'Immobilized*', major: 'Ensnared*', t1: 'Crushed' },
+    { keys: ['slow', 'hinder', 'mire', 'sluggish', 'tar'], reg: 'Impeded*', t1: 'Crushed' },
+    { keys: ['weak', 'sap', 'enfeeble', 'frail'], reg: 'Diminished*', major: 'Enfeebled*', t1: 'Crushed' },
+    { keys: ['frost', 'cold', 'ice', 'freeze', 'rime', 'winter', 'chill'], reg: 'Immobilized*', major: 'Frozen*', t1: 'Crushed' },
+    { keys: ['poison', 'venom', 'toxic', 'toxin'], reg: 'Tainted*', t1: 'Crushed' },
+    { keys: ['maim', 'mangle', 'rip', 'tear', 'shred'], reg: 'Mangled*', major: 'Crippled*', t1: 'Cleaved' },
+    { keys: ['light', 'blind', 'dazzle', 'flash', 'glare', 'radiant'], reg: 'Dazzled*', t1: 'Pierced' },
+    { keys: ['shadow', 'dark', 'veil', 'stealth', 'hidden', 'obscure'], reg: 'Masked*', t1: 'Crushed' },
+    { keys: ['cut', 'slash', 'rend', 'sever', 'blade'], reg: 'Slashed*', major: 'Lacerated*', t1: 'Cleaved' },
+    { keys: ['blunt', 'bruise', 'smash', 'crush', 'hammer'], reg: 'Bruised*', t1: 'Crushed' },
+    { keys: ['wither', 'age', 'husk', 'drain', 'leech'], reg: 'Withered*', t1: 'Crushed' },
+    { keys: ['vulnerable', 'expose', 'weakpoint', 'open'], reg: 'Vulnerable*', t1: 'Exposed' },
+    { keys: ['strip', 'sunder', 'armor', 'unclad', 'bare'], reg: 'Unclad*', major: 'Disarmed*', t1: 'Pierced' },
+    { keys: ['dispel', 'antimagic', 'silence', 'null', 'unmake'], reg: 'Disenchanted*', major: 'Nullified*', t1: 'Crushed' },
+    { keys: ['frenzy', 'rage', 'berserk', 'fury', 'wrath'], reg: 'Frenzied*', t1: 'Crushed' },
+    { keys: ['clumsy', 'fumble', 'inept', 'graceless'], reg: 'Inept*', t1: 'Crushed' },
+    { keys: ['mark', 'hunt', 'track', 'prey', 'quarry'], reg: 'Hunted*', t1: 'Crushed' },
+    { keys: ['joint', 'dislocate', 'disable', 'wrench'], reg: 'Dislocated*', t1: 'Crushed' },
+    { keys: ['stymie', 'block', 'foil', 'thwart', 'baffle'], reg: 'Stymied*', t1: 'Crushed' },
+    { keys: ['corrupt', 'defile', 'taint', 'profane'], reg: 'Tainted*', major: 'Harvested*', t1: 'Crushed' },
+    { keys: ['shatter', 'fragment', 'break', 'crack', 'splinter'], reg: 'Fragmented*', t1: 'Shattered' },
+    { keys: ['harry', 'persecute', 'torment', 'hound'], reg: 'Persecuted*', t1: 'Crushed' },
+    { keys: ['reap', 'harvest', 'soul', 'cull'], reg: 'Reapt*', major: 'Harvested*', t1: 'Crushed' },
+    { keys: ['spoil', 'vitiate', 'sour'], reg: 'Vitiated*', t1: 'Crushed' },
+    { keys: ['restrict', 'constrain', 'tighten', 'cinch'], reg: 'Impeded*', major: 'Constrained*', t1: 'Crushed' },
+    { keys: ['stagger', 'stun', 'reel', 'daze'], reg: 'Staggered*', t1: 'Crushed' }
+  ];
+  const flv = String(flavor || '').toLowerCase();
+  let g = null;
+  for (let i = 0; i < FLAVORS.length && !g; i++) {
+    for (let k = 0; k < FLAVORS[i].keys.length; k++) {
+      if (flv.indexOf(FLAVORS[i].keys[k]) !== -1) { g = FLAVORS[i]; break; }
+    }
+  }
+  if (!g) g = { reg: 'Staggered*', t1: 'Crushed' };
+  const reg = has(g.reg) ? g.reg : 'Staggered*';
+  const major = (g.major && has(g.major)) ? g.major : null;
+  const t1 = has(g.t1) ? g.t1 : 'Crushed';
 
   const candidates = {
-    1: [['Standard Damage', 'One Target', 'Crushed'], ['Standard Damage', 'One Target', 'Increased Bonus Damage']],
-    2: [['Standard Damage', 'One Target', af], ['Standard Damage', 'One Target', 'Exposed', 'Crushed']],
-    3: [['Standard Damage', 'One Target', af, 'Exposed'], ['Double Standard Damage', 'One Target', 'Exposed', 'Pierced']]
+    1: [['Standard Damage', 'One Target', t1], ['Standard Damage', 'One Target', 'Crushed']],
+    2: [['Standard Damage', 'One Target', reg], ['Standard Damage', 'One Target', 'Exposed', 'Crushed']],
+    3: major
+      ? [['Standard Damage', 'One Target', major, 'Exposed'], ['Standard Damage', 'One Target', reg, 'Exposed'], ['Double Standard Damage', 'One Target', 'Exposed', 'Pierced']]
+      : [['Standard Damage', 'One Target', reg, 'Exposed'], ['Double Standard Damage', 'One Target', 'Exposed', 'Pierced']]
   }[tier];
 
   const byTier = (def.rules.budgets && def.rules.budgets.byTier) || {};

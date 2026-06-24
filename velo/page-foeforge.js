@@ -70,7 +70,7 @@ $w.onReady(() => {
       return;
     }
 
-    if (msg.type === 'FOE_NEW_ABILITIES') {
+    if (msg.type === 'FOE_BUILD_ACTS') {
       const list = (msg.payload && msg.payload.abilities) || [];
       let existing = [];
       try { existing = await getCreations('sigilforge', { limit: 500 }); } catch (e) {}
@@ -81,23 +81,39 @@ $w.onReady(() => {
         const key = String(a.name || '').toLowerCase();
         if (byname[key]) {
           const r = byname[key]; const pl = payloadOf(r);
-          results.push({ name: r.creationName, ok: true, existed: true, creationId: r.creationId,
-            tier: Number(pl.tier) || a.tier, cost: (pl.cost != null ? Number(pl.cost) : a.cost),
-            effect: r.fullText || r.shorthand || a.effect, status: r.canonStatus });
+          results.push({ name: r.creationName, ok: true, inLoreForge: true, creationId: r.creationId,
+            tier: Number(pl.tier) || a.tier, cost: (pl.cost != null ? Number(pl.cost) : a.tier),
+            effect: r.fullText || r.shorthand || '', status: r.canonStatus });
           continue;
         }
         let built = null;
         try { built = await buildLegalAct(a.tier, a.type, a.flavor); } catch (e) { built = null; }
-        if (!built || !built.ok) { results.push({ name: a.name, ok: false, existed: false, creationId: '', tier: a.tier, cost: a.tier, effect: '', status: '' }); continue; }
+        if (!built || !built.ok) { results.push({ name: a.name, ok: false, inLoreForge: false, tier: a.tier, cost: a.tier, effect: '' }); continue; }
         const payload = built.payload;
         payload.title = String(a.name || '').slice(0, 120);
         payload.creatorNote = String(a.description || '').slice(0, 400);
         payload.meta = { tier: a.tier, cost: built.cost, type: payload.kind, description: a.description || '', source: 'foeforge' };
-        let cid = '', ok = false;
-        try { const res = await submitCreation('sigilforge', payload); ok = !!(res && res.ok); cid = (res && res.creationId) || ''; } catch (e) {}
-        results.push({ name: a.name, ok: ok, existed: false, creationId: cid, tier: a.tier, cost: built.cost, effect: built.effect, status: 'submitted' });
+        results.push({ name: a.name, ok: true, inLoreForge: false, tier: a.tier, cost: built.cost, effect: built.effect, status: 'local', payload: payload });
       }
-      embed.postMessage({ type: 'FOE_ABILITIES_RESULT', results: results });
+      embed.postMessage({ type: 'FOE_ACTS_BUILT', results: results });
+      return;
+    }
+
+    if (msg.type === 'FOE_SEND_ACT') {
+      const payload = (msg.payload && msg.payload.act) || null;
+      const name = (msg.payload && msg.payload.name) || (payload && payload.title) || '';
+      let ok = false, cid = '';
+      if (payload) {
+        try {
+          const ex = await getCreations('sigilforge', { limit: 500 });
+          const hit = ex.find(function (r) { return String(r.creationName || '').toLowerCase() === String(name).toLowerCase(); });
+          if (hit) { ok = true; cid = hit.creationId; }
+        } catch (e) {}
+        if (!cid) {
+          try { const res = await submitCreation('sigilforge', payload); ok = !!(res && res.ok); cid = (res && res.creationId) || ''; } catch (e) {}
+        }
+      }
+      embed.postMessage({ type: 'FOE_ACT_SENT', name: name, ok: ok, creationId: cid });
       return;
     }
 

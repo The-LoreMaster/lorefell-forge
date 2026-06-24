@@ -113,6 +113,12 @@
   .flip.flipped .flip-inner{transform:rotateY(180deg)}
   .flip-face{position:absolute; top:0; left:0; width:100%; -webkit-backface-visibility:hidden; backface-visibility:hidden}
   .flip-back{transform:rotateY(180deg)}
+  .forged{display:flex; align-items:center; gap:12px; border:1px solid var(--line); background:var(--navy); border-radius:9px; padding:12px 14px; margin-bottom:10px}
+  .forged .fg-main{flex:1; min-width:0}
+  .forged .fg-name{font-family:"Cinzel",serif; color:var(--silver); font-size:15px}
+  .forged .fg-eff{color:var(--muted); font-size:13px; line-height:1.4; margin-top:3px}
+  .fg-btn{font-family:"Cinzel",serif; text-transform:uppercase; letter-spacing:.07em; font-size:11px; color:var(--navy); background:var(--gold); border:1px solid var(--gold); border-radius:8px; padding:9px 12px; cursor:pointer; white-space:nowrap}
+  .fg-btn.sent,.fg-btn:disabled{background:var(--panel); color:var(--muted); border-color:var(--line); cursor:default}
   .tabs{display:flex; gap:8px; margin:0 0 18px}
   .tab{flex:1; padding:12px; border:1px solid var(--line); background:var(--panel); color:var(--muted); border-radius:8px; font-family:"Cinzel",serif; text-transform:uppercase; letter-spacing:.1em; font-size:13px; cursor:pointer}
   .tab.active{color:var(--silver); border-color:var(--gold)}
@@ -218,6 +224,12 @@
         <div id="actList"></div>
       </div>
     </div>
+  </section>
+
+  <section id="forgedSec" style="display:none">
+    <h2>Forged Acts</h2>
+    <p class="hint">Acts the forge built for this Foe. They stay with the Foe by default. Offer one to LoreForge if you want it shared and votable.</p>
+    <div id="forgedList"></div>
   </section>
 
   <div class="hair"></div>
@@ -1712,7 +1724,7 @@ async function aiForge(theme){
     "Invent one original name, dark and grounded, one to four words, never real-world or copyrighted, never bland like The Beast. "+
     "Match the theme in feel. Reply with JSON only and no prose: "+
     '{"name":"","description":"","build":"","stance":"","affliction":"","infusions":[],"augmentations":[],"acts":[],"customActs":[]}. '+
-    'Each custom act is {"name":"","tier":1,"flavor":"","description":""}. flavor is one word from: fire, fear, bleed, rot, mind, curse, bind, frost, weaken, raw. '+
+    'Each custom act is {"name":"","tier":1,"flavor":"","description":""}. flavor is one word that fits the act, for example fire, fear, bleed, rot, poison, mind, madness, curse, luck, bind, slow, weaken, frost, maim, light, shadow, cut, blunt, wither, expose, strip, dispel, frenzy, mark, shatter, corrupt, or raw. '+
     "Use exact names from the catalogs. For acts use the name without the T number.";
   const ctx="Theme: "+theme+"\n\nBUILDS:\n"+builds.join("\n")+"\n\nSTANCES: "+stances.join(", ")+
     "\n\nAFFLICTIONS: "+affs.join(", ")+"\n\nINFUSIONS:\n"+infs.join("\n")+
@@ -1739,10 +1751,27 @@ function applyForged(theme,ai){
 }
 function clampCost(c,t){const band=(PACK.abilityBudget||{T1:[1,2],T2:[3,4],T3:[5,6]})["T"+t]||[1,2];let n=Math.round(+c);if(!n||isNaN(n))n=band[0];return Math.min(band[1],Math.max(band[0],n));}
 let _abilResolve=null;
-function submitCustomActs(list){return new Promise(res=>{
+function buildCustomActs(list){return new Promise(res=>{
   if(!list||!list.length){res([]);return;}
-  _abilResolve=res;post({type:"FOE_NEW_ABILITIES",payload:{abilities:list}});
-  setTimeout(()=>{if(_abilResolve){const r=_abilResolve;_abilResolve=null;r([]);}},12000);});}
+  _abilResolve=res;post({type:"FOE_BUILD_ACTS",payload:{abilities:list}});
+  setTimeout(()=>{if(_abilResolve){const r=_abilResolve;_abilResolve=null;r([]);}},15000);});}
+function renderForged(){
+  const sec=$("forgedSec"),list=$("forgedList");if(!sec||!list)return;
+  const m=byName(LIBRARY);
+  const acts=state.acts.map(a=>m[a.name]).filter(x=>x&&x.local);
+  if(!acts.length){sec.style.display="none";list.innerHTML="";return;}
+  sec.style.display="";
+  list.innerHTML=acts.map(a=>{const sent=!!a.sent;
+    return '<div class="forged"><div class="fg-main"><div class="fg-name">T'+a.tier+' '+escH(a.name)+'</div><div class="fg-eff">'+escH(a.effect||"")+'</div></div>'+
+      '<button type="button" class="fg-btn'+(sent?" sent":"")+'" data-name="'+esc(a.name)+'"'+(sent?" disabled":"")+'>'+(sent?"In LoreForge":"Send to LoreForge")+'</button></div>';}).join("");
+  list.querySelectorAll(".fg-btn").forEach(b=>{if(!b.disabled)b.addEventListener("click",()=>sendForged(b.getAttribute("data-name"),b));});
+}
+function sendForged(name,btn){const m=byName(LIBRARY),a=m[name];if(!a||!a.payload)return;
+  if(btn){btn.disabled=true;btn.textContent="Sending";}
+  post({type:"FOE_SEND_ACT",payload:{name:name,act:a.payload}});}
+function applyActSent(msg){if(!msg||!msg.name)return;const m=byName(LIBRARY),a=m[msg.name];
+  if(a&&msg.ok){a.sent=true;a.status="submitted";if(msg.creationId)a._id=msg.creationId;}
+  renderForged();toast(msg.ok?(msg.name+" offered to LoreForge"):"Could not reach LoreForge","pentifax");}
 function assembleActs(ai,extra){
   const m=byName(LIBRARY),chosen={};
   (Array.isArray(ai&&ai.acts)?ai.acts:[]).forEach(n=>{const a=m[n];if(a&&!chosen[a.tier])chosen[a.tier]={name:a.name,tier:a.tier,cost:a.cost,effect:a.effect};});
@@ -1791,7 +1820,8 @@ function applyLibrary(lib){lib=lib||{};
 }
 window.onmessage=function(e){const m=e&&e.data;if(!m||typeof m!=="object")return;
   if(m.type==="FOE_LIBRARY"){applyLibrary(m.library||m);return;}
-  if(m.type==="FOE_ABILITIES_RESULT"){if(_abilResolve){const r=_abilResolve;_abilResolve=null;r(m.results||[]);}return;}
+  if(m.type==="FOE_ACTS_BUILT"){if(_abilResolve){const r=_abilResolve;_abilResolve=null;r(m.results||[]);}return;}
+  if(m.type==="FOE_ACT_SENT"){applyActSent(m);return;}
   if(m.type==="FOE_LEDGER_RESULT"){renderPenList(m.items||[]);return;}
   if(m.type==="FOE_VOTE_RESULT"){applyPenVote(m);return;}
   if(m.type==="FOE_SUBMIT_RESULT"){const b=$("submitBtn");if(b)b.disabled=false;const out=$("result");
@@ -1832,7 +1862,7 @@ function showView(v){$("forgeView").style.display=v==="forge"?"":"none";$("penti
 function sizeFlip(){const f=$("flip");if(!f){reportHeight();return;}
   const active=f.classList.contains("flipped")?$("cardBack"):$("card");
   if(active)f.style.height=active.scrollHeight+"px";reportHeight();}
-function render(){updateHints();fillInf();fillAug();fillActs();renderValid();renderCard();renderScaled();sizeFlip();}
+function render(){updateHints();fillInf();fillAug();fillActs();renderValid();renderCard();renderScaled();renderForged();sizeFlip();}
 function init(){
   fillBuild();fillStance();fillSig();fillRating();$("buildHint").textContent=buildHint();
   document.querySelectorAll("[data-toggle]").forEach(btn=>btn.addEventListener("click",()=>$(btn.dataset.toggle).classList.toggle("open")));
@@ -1872,12 +1902,12 @@ function init(){
       const want=ai.customActs.map(c=>({name:String(c.name||"").slice(0,80),type:isSpell?"spell":"ability",
         tier:[1,2,3].indexOf(+c.tier)!==-1?+c.tier:1,flavor:String(c.flavor||"").slice(0,20),
         description:String(c.description||"").slice(0,600)})).filter(c=>c.name);
-      const toCreate=want.filter(c=>!have[c.name]);
+      const toBuild=want.filter(c=>!have[c.name]);
       const reuse=want.filter(c=>have[c.name]).map(c=>have[c.name]);
-      if(toCreate.length)out.textContent="The forge is shaping new "+(isSpell?"spells":"abilities")+" and sending them to LoreForge.";
-      const created=await submitCustomActs(toCreate);
-      created.forEach(rr=>{if(rr&&rr.name&&!byName(LIBRARY)[rr.name])LIBRARY.push({name:rr.name,tier:rr.tier,cost:rr.cost,effect:rr.effect,status:rr.status||"submitted",_id:rr.creationId||""});});
-      made=created.concat(reuse.map(a=>({name:a.name,tier:a.tier,cost:a.cost,effect:a.effect,ok:true,existed:true})));
+      if(toBuild.length)out.textContent="The forge is shaping "+(isSpell?"spells":"abilities")+" from the system rules.";
+      const built=await buildCustomActs(toBuild);
+      built.forEach(rr=>{if(rr&&rr.ok&&rr.name&&!byName(LIBRARY)[rr.name])LIBRARY.push({name:rr.name,tier:rr.tier,cost:rr.cost,effect:rr.effect,status:(rr.inLoreForge?(rr.status||"submitted"):"local"),local:!rr.inLoreForge,sent:!!rr.inLoreForge,payload:rr.payload||null,_id:rr.creationId||""});});
+      made=built.filter(rr=>rr&&rr.ok).concat(reuse);
     }
     p.acts=assembleActs(ai,made);
     let r=V.validateFoe(p,PACK);
@@ -1886,9 +1916,9 @@ function init(){
       p.augmentations=p.augmentations.slice(0,2);r=V.validateFoe(p,PACK);}
     Object.assign(state,p);
     fillBuild();fillStance();fillSig();$("name").value=state.name;$("desc").value=state.description||"";render();
-    const newCount=made.filter(x=>x&&x.ok&&!x.existed).length;
+    const localCount=LIBRARY.filter(x=>x&&x.local&&!x.sent&&state.acts.some(a=>a.name===x.name)).length;
     let tail=r.ok?"Validated.":"Trimmed to stay legal.";
-    if(newCount)tail+=" "+newCount+" new "+(isSpell?(newCount>1?"spells":"spell"):(newCount>1?"abilities":"ability"))+" sent to LoreForge.";
+    if(localCount)tail+=" "+localCount+" act"+(localCount>1?"s":"")+" forged for this Foe and kept to the table. Offer "+(localCount>1?"them":"it")+" to LoreForge from Forged Acts.";
     out.textContent=ai?("The forge shapes "+state.name+", a "+state.shatterRating+" "+state.build+", arsenal and all. "+tail+" Refine below."):("The forge shapes "+state.name+", a "+state.shatterRating+" "+state.build+". Offline shaping, no live arsenal pick. Refine below.");
   });
   document.addEventListener("click",function(e){
