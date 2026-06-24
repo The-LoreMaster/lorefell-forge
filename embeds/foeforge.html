@@ -119,6 +119,13 @@
   .forged .fg-eff{color:var(--muted); font-size:13px; line-height:1.4; margin-top:3px}
   .fg-btn{font-family:"Cinzel",serif; text-transform:uppercase; letter-spacing:.07em; font-size:11px; color:var(--navy); background:var(--gold); border:1px solid var(--gold); border-radius:8px; padding:9px 12px; cursor:pointer; white-space:nowrap}
   .fg-btn.sent,.fg-btn:disabled{background:var(--panel); color:var(--muted); border-color:var(--line); cursor:default}
+  .mf{display:flex; align-items:center; gap:10px; border:1px solid var(--line); background:var(--navy); border-radius:9px; padding:11px 13px; margin-bottom:9px}
+  .mf-main{flex:1; min-width:0}
+  .mf-name{font-family:"Cinzel",serif; color:var(--silver); font-size:15px}
+  .mf-meta{color:var(--muted); font-size:12px; margin-top:2px}
+  .mf-load,.mf-del{font-family:"Cinzel",serif; text-transform:uppercase; letter-spacing:.06em; font-size:10px; border-radius:7px; padding:8px 11px; cursor:pointer; white-space:nowrap}
+  .mf-load{color:var(--navy); background:var(--gold); border:1px solid var(--gold)}
+  .mf-del{color:var(--muted); background:var(--panel); border:1px solid var(--line)}
   .tabs{display:flex; gap:8px; margin:0 0 18px}
   .tab{flex:1; padding:12px; border:1px solid var(--line); background:var(--panel); color:var(--muted); border-radius:8px; font-family:"Cinzel",serif; text-transform:uppercase; letter-spacing:.1em; font-size:13px; cursor:pointer}
   .tab.active{color:var(--silver); border-color:var(--gold)}
@@ -280,6 +287,8 @@
       <button class="btn submit" id="submitBtn">Submit to Pentifax</button>
     </div>
     <p class="result" id="result"></p>
+    <div class="actions" style="margin-top:4px"><button class="btn save" id="myFoesBtn" type="button">My saved Foes</button></div>
+    <div id="myFoes" style="display:none; margin-top:12px"></div>
   </section>
   </div>
   <div id="pentifaxView" style="display:none">
@@ -1547,7 +1556,7 @@ const BUILDS=byName(PACK.builds),STANCES=byName(PACK.stances),AFF=byName(PACK.af
 const state={name:"",build:(PACK.builds[0]||{}).name||"",stance:(PACK.stances[0]||{}).name||"",
   signatureAffliction:((PACK.afflictions.slice().sort((a,b)=>a.name.localeCompare(b.name))[0])||{}).name||"",
   infusions:[],augmentations:[],acts:[],
-  shatterRating:(PACK.tiers[0]||{}).name||"",apl:1,party:4,image:null,description:""};
+  shatterRating:(PACK.tiers[0]||{}).name||"",apl:1,party:4,image:null,description:"",foeId:null};
 let LIBRARY=[];
 let actFilter="";
 const $=(id)=>document.getElementById(id);
@@ -1656,7 +1665,8 @@ function fillRating(){const s=$("rating");s.innerHTML="";PACK.tiers.forEach(t=>s
 
 function foeRecord(){return{name:state.name,build:state.build,stance:state.stance,
   signatureAffliction:state.signatureAffliction,infusions:state.infusions,
-  augmentations:state.augmentations,acts:state.acts,shatterRating:state.shatterRating,description:state.description};}
+  augmentations:state.augmentations,acts:state.acts,shatterRating:state.shatterRating,description:state.description,
+  localActs:state.acts.map(a=>byName(LIBRARY)[a.name]).filter(x=>x&&x.local).map(x=>({name:x.name,tier:x.tier,cost:x.cost,effect:x.effect,payload:x.payload||null,sent:!!x.sent,_id:x._id||""}))};}
 function renderValid(){const r=V.validateFoe(foeRecord(),PACK),box=$("valid");box.innerHTML="";
   if(r.ok&&!r.warnings.length)box.innerHTML='<p class="vok"><b>Legal.</b> Ready to save.</p>';
   else if(r.ok)box.innerHTML='<p class="vok"><b>Legal, with notes.</b></p>';
@@ -1772,6 +1782,28 @@ function sendForged(name,btn){const m=byName(LIBRARY),a=m[name];if(!a||!a.payloa
 function applyActSent(msg){if(!msg||!msg.name)return;const m=byName(LIBRARY),a=m[msg.name];
   if(a&&msg.ok){a.sent=true;a.status="submitted";if(msg.creationId)a._id=msg.creationId;}
   renderForged();toast(msg.ok?(msg.name+" offered to LoreForge"):"Could not reach LoreForge","pentifax");}
+function loadMine(){const box=$("myFoes");if(box)box.innerHTML='<p class="drop-note" style="padding:4px 0">Reading your Foes.</p>';post({type:"FOE_LOAD_MINE"});}
+function renderMyFoes(items){const box=$("myFoes");if(!box)return;
+  if(!items.length){box.innerHTML='<p class="drop-note" style="padding:4px 0">No saved Foes yet.</p>';reportHeight();return;}
+  box._items=items;
+  box.innerHTML=items.map((it,i)=>'<div class="mf"><div class="mf-main"><div class="mf-name">'+escH(it.name||"Unnamed")+'</div><div class="mf-meta">'+escH(it.shorthand||"")+'</div></div><button type="button" class="mf-load" data-i="'+i+'">Load</button><button type="button" class="mf-del" data-id="'+esc(it.foeId)+'">Delete</button></div>').join("");
+  box.querySelectorAll(".mf-load").forEach(b=>b.addEventListener("click",()=>loadFoe(box._items[+b.getAttribute("data-i")])));
+  box.querySelectorAll(".mf-del").forEach(b=>b.addEventListener("click",()=>delFoe(b.getAttribute("data-id"))));
+  reportHeight();}
+function delFoe(id){if(id)post({type:"FOE_DELETE",payload:{foeId:id}});}
+function loadFoe(it){if(!it)return;let p={};try{p=JSON.parse(it.payload||"{}");}catch(e){}p.foeId=it.foeId;loadFoeState(p);
+  const o=$("result");if(o){o.className="result";o.textContent="Loaded "+(p.name||"Foe")+". Edit and Save to update it.";}
+  const b=$("myFoes");if(b)b.style.display="none";}
+function loadFoeState(p){
+  (p.localActs||[]).forEach(la=>{if(la&&la.name&&!byName(LIBRARY)[la.name])LIBRARY.push({name:la.name,tier:la.tier,cost:la.cost,effect:la.effect,status:la.sent?"submitted":"local",local:!la.sent,sent:!!la.sent,payload:la.payload||null,_id:la._id||""});});
+  state.name=p.name||"";state.build=BUILDS[p.build]?p.build:state.build;state.stance=STANCES[p.stance]?p.stance:state.stance;
+  state.signatureAffliction=p.signatureAffliction||state.signatureAffliction;
+  state.infusions=Array.isArray(p.infusions)?p.infusions.slice():[];
+  state.augmentations=Array.isArray(p.augmentations)?p.augmentations.slice():[];
+  state.acts=Array.isArray(p.acts)?p.acts.map(a=>Object.assign({},a)):[];
+  state.shatterRating=p.shatterRating||state.shatterRating;state.description=p.description||"";
+  state.image=p.image||null;state.foeId=p.foeId||null;
+  fillBuild();fillStance();fillSig();$("name").value=state.name;$("desc").value=state.description||"";render();}
 function assembleActs(ai,extra){
   const m=byName(LIBRARY),chosen={};
   (Array.isArray(ai&&ai.acts)?ai.acts:[]).forEach(n=>{const a=m[n];if(a&&!chosen[a.tier])chosen[a.tier]={name:a.name,tier:a.tier,cost:a.cost,effect:a.effect};});
@@ -1822,6 +1854,9 @@ window.onmessage=function(e){const m=e&&e.data;if(!m||typeof m!=="object")return
   if(m.type==="FOE_LIBRARY"){applyLibrary(m.library||m);return;}
   if(m.type==="FOE_ACTS_BUILT"){if(_abilResolve){const r=_abilResolve;_abilResolve=null;r(m.results||[]);}return;}
   if(m.type==="FOE_ACT_SENT"){applyActSent(m);return;}
+  if(m.type==="FOE_SAVED"){if(m.ok){state.foeId=m.foeId||state.foeId;const o=$("result");if(o){o.className="result";o.textContent=(state.name||"Foe")+" saved to your Foes.";}toast("Saved to your Foes","save");const b=$("myFoes");if(b&&b.style.display!=="none")loadMine();}else{const o=$("result");if(o){o.className="result bad";o.textContent="Could not save. "+((m.errors&&m.errors[0])||"Are you signed in?");}}return;}
+  if(m.type==="FOE_MINE"){renderMyFoes(m.items||[]);return;}
+  if(m.type==="FOE_DELETED"){if(m.ok)loadMine();return;}
   if(m.type==="FOE_LEDGER_RESULT"){renderPenList(m.items||[]);return;}
   if(m.type==="FOE_VOTE_RESULT"){applyPenVote(m);return;}
   if(m.type==="FOE_SUBMIT_RESULT"){const b=$("submitBtn");if(b)b.disabled=false;const out=$("result");
@@ -1875,12 +1910,14 @@ function init(){
   $("party").addEventListener("input",e=>{state.party=e.target.value;renderScaled();sizeFlip();});
   $("actSearch").addEventListener("input",e=>{actFilter=e.target.value;fillActs();});
   function doSave(mode){const r=V.validateFoe(foeRecord(),PACK),out=$("result");
-    if(!r.ok){out.className="result bad";out.textContent="Cannot save. Fix the errors in Validation first.";return;}
-    if(mode==="submitted"){out.className="result";out.textContent="Sending "+state.name+" to the Pentifax.";
+    if(mode==="submitted"){
+      if(!r.ok){out.className="result bad";out.textContent="Cannot submit. Fix the errors in Validation first.";return;}
+      out.className="result";out.textContent="Sending "+state.name+" to the Pentifax.";
       const rec=foeRecord();rec.image=state.image||"";post({type:"FOE_SUBMIT",payload:rec});
       const b=$("submitBtn");if(b)b.disabled=true;return;}
-    out.className="result";out.textContent=state.name+" saved. canonState private, ready at your table.";
-    showToast("Saved to your Foes","save");}
+    const rec=foeRecord();rec.image=state.image||"";rec.foeId=state.foeId||null;
+    out.className="result";out.textContent="Saving "+(state.name||"this Foe")+" to your Foes.";
+    post({type:"FOE_SAVE",payload:rec});}
   function showToast(msg,kind){const el=$("toast");$("toastMsg").textContent=msg;
     el.className="toast"+(kind==="pentifax"?" pentifax":"");void el.offsetWidth;el.classList.add("show");
     clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove("show"),2650);}
@@ -1932,6 +1969,7 @@ function init(){
   document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>showView(t.dataset.v)));
   document.querySelectorAll(".penf[data-scope]").forEach(b=>b.addEventListener("click",()=>{penScope=b.dataset.scope;document.querySelectorAll(".penf[data-scope]").forEach(x=>x.classList.toggle("active",x===b));loadLedger();}));
   $("penReload").addEventListener("click",loadLedger);
+  $("myFoesBtn").addEventListener("click",()=>{const b=$("myFoes");const show=b.style.display==="none";b.style.display=show?"":"none";if(show)loadMine();reportHeight();});
   $("flipBtn").addEventListener("click",()=>{const f=$("flip");f.classList.toggle("flipped");
     const back=f.classList.contains("flipped");$("flipBtn").innerHTML=back?"Arsenal \u21BB":"At the table \u21BB";sizeFlip();});
   render();

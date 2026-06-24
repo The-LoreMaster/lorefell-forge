@@ -3,7 +3,7 @@
 // The builder reads abilities, infusions, and augmentations, both official and submitted.
 // Set EMBED to your Embed a Site element ID.
 
-import { submitCreation, getCreations, getCatalog, castVote, buildLegalAct } from 'backend/forge.web.js';
+import { submitCreation, getCreations, getCatalog, castVote, buildLegalAct, saveFoe, myFoes, deleteFoe } from 'backend/forge.web.js';
 import { currentMember } from 'wix-members-frontend';
 import { uploadRune } from 'backend/loreforge.web.js';
 
@@ -114,6 +114,28 @@ $w.onReady(() => {
         }
       }
       embed.postMessage({ type: 'FOE_ACT_SENT', name: name, ok: ok, creationId: cid });
+      return;
+    }
+
+    if (msg.type === 'FOE_SAVE') {
+      let res = { ok: false };
+      try { res = await saveFoe(msg.payload || {}); } catch (e) { res = { ok: false }; }
+      embed.postMessage({ type: 'FOE_SAVED', ok: !!res.ok, foeId: res.foeId || '', errors: res.errors || [] });
+      return;
+    }
+
+    if (msg.type === 'FOE_LOAD_MINE') {
+      let items = [];
+      try { items = await myFoes(); } catch (e) { items = []; }
+      embed.postMessage({ type: 'FOE_MINE', items: items });
+      return;
+    }
+
+    if (msg.type === 'FOE_DELETE') {
+      const id = msg.payload && msg.payload.foeId;
+      let res = { ok: false };
+      try { res = await deleteFoe(id); } catch (e) { res = { ok: false }; }
+      embed.postMessage({ type: 'FOE_DELETED', ok: !!res.ok, foeId: id });
       return;
     }
 

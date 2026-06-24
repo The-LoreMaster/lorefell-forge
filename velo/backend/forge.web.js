@@ -195,6 +195,66 @@ export const buildLegalAct = webMethod(Permissions.SiteMember, async (tier, type
   return { ok: !!res.legal, payload: payload, cost: res.totals.cost, effect: fullText, shorthand: shorthand, errors: res.errors || [] };
 });
 
+// Private Foe saves. Stored in Creations under a separate forgeKey so they never
+// surface in the Pentifax ledger, which reads forgeKey 'foeforge'. The whole tool
+// state, including forged acts kept to the Foe, rides along in the payload.
+const PRIVATE_FOE_KEY = 'foeforge.private';
+
+export const saveFoe = webMethod(Permissions.SiteMember, async (payload) => {
+  const member = await currentMember.getMember();
+  if (!member) return { ok: false, errors: ['Sign in to save a Foe.'] };
+  payload = payload || {};
+  const rec = {
+    forgeKey: PRIVATE_FOE_KEY,
+    kind: 'foe',
+    creationName: String(payload.name || 'Unnamed Foe').slice(0, 120),
+    creatorMemberId: member._id,
+    creatorName: displayName(member),
+    ownerMemberId: member._id,
+    payload: JSON.stringify(payload),
+    shorthand: (payload.shatterRating || '') + ' ' + (payload.build || ''),
+    fullText: '',
+    canonStatus: 'private',
+    voteCount: 0
+  };
+  let saved = null;
+  if (payload.foeId) {
+    let existing = null;
+    try { existing = await wixData.get('Creations', payload.foeId); } catch (e) { existing = null; }
+    if (existing && existing.creatorMemberId === member._id && existing.forgeKey === PRIVATE_FOE_KEY) {
+      existing.creationName = rec.creationName;
+      existing.payload = rec.payload;
+      existing.shorthand = rec.shorthand;
+      saved = await wixData.update('Creations', existing, { suppressAuth: true });
+    }
+  }
+  if (!saved) saved = await wixData.insert('Creations', rec, { suppressAuth: true });
+  return { ok: true, foeId: saved._id };
+});
+
+export const myFoes = webMethod(Permissions.SiteMember, async () => {
+  const member = await currentMember.getMember();
+  if (!member) return [];
+  const res = await wixData.query('Creations')
+    .eq('forgeKey', PRIVATE_FOE_KEY).eq('creatorMemberId', member._id)
+    .descending('_updatedDate').limit(50).find({ suppressAuth: true });
+  return res.items.map(function (r) {
+    return { foeId: r._id, name: r.creationName, shorthand: r.shorthand, payload: r.payload, updated: r._updatedDate };
+  });
+});
+
+export const deleteFoe = webMethod(Permissions.SiteMember, async (foeId) => {
+  const member = await currentMember.getMember();
+  if (!member) return { ok: false };
+  let ex = null;
+  try { ex = await wixData.get('Creations', foeId); } catch (e) { ex = null; }
+  if (ex && ex.creatorMemberId === member._id && ex.forgeKey === PRIVATE_FOE_KEY) {
+    await wixData.remove('Creations', foeId, { suppressAuth: true });
+    return { ok: true };
+  }
+  return { ok: false };
+});
+
 // Browse and remix read. Powers the Ledger and the basedOn lineage.
 export const getCreations = webMethod(Permissions.Anyone, async (forgeKey, opts) => {
   opts = opts || {};
