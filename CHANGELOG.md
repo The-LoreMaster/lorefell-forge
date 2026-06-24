@@ -4,6 +4,14 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-24 — FellGlass wiring and a load-breaking fix
+
+- Fixed FellGlass: the character object was declared const, so loading a saved or forged character threw and silently failed. Now a let binding, init works
+- Title em dash removed
+- Added the Characters collection, backend/characters.web.js (listMyCharacters, loadCharacter, saveCharacter), and velo/page-fellglass.js
+- loadCharacter never returns the sealed past to the player sheet. A forged Fell not yet built returns its seed so the sheet opens creation pre-filled
+- FellGlass serves from docs/fellglass.html and embeds/fellglass.html
+
 ## 2026-06-24 — FellForge cleanup and site wiring
 
 - Masthead unified to the gold Forge wordmark, subtitle line removed
