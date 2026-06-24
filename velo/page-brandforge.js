@@ -81,25 +81,18 @@ $w.onReady(() => {
     if (!msg || typeof msg !== 'object') return;
 
     if (msg.type === 'BRAND_CATALOG_LOAD') {
+      // The catalog is the canon reference. Community submissions go to LoreForge for the vote, not here.
       let canon = [];
       try {
         const rows = await getCatalog('Lineages', { limit: 200 });
-        canon = (rows || []).map(function (r) {
-          return { name: r.name || '', bonus: r.bonus || '', homeWorld: r.homeWorld || '',
-            body: r.body || '', roleplay: r.roleplay || '', image: r.image || '', canon: true };
-        });
+        canon = (rows || [])
+          .filter(function (r) { return (r.name || '') !== 'The Unwritten'; })
+          .map(function (r) {
+            return { name: r.name || '', bonus: r.bonus || '', homeWorld: r.homeWorld || '',
+              body: r.body || '', roleplay: r.roleplay || '', image: r.image || '' };
+          });
       } catch (e) { canon = []; }
-      let community = [];
-      try {
-        const subs = await getCreations(FORGE_KEY, { kind: 'lineage', limit: 200 });
-        community = (subs || []).map(function (it) {
-          let m = {}; try { m = (JSON.parse(it.payload || '{}').meta) || {}; } catch (e) {}
-          return { name: it.creationName || '', bonus: m.bonus || it.shorthand || '', homeWorld: m.homeWorld || '',
-            body: m.body || it.fullText || '', roleplay: m.roleplay || '', image: it.imageUrl || '',
-            by: it.creatorName || m.creator || '', canon: it.canonStatus === 'canon', id: it.creationId || '' };
-        });
-      } catch (e) { community = []; }
-      embed.postMessage({ type: 'BRAND_CATALOG', lineages: canon.concat(community) });
+      embed.postMessage({ type: 'BRAND_CATALOG', lineages: canon });
       return;
     }
 

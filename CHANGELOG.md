@@ -4,6 +4,12 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-24 — BrandForge catalog cleanup
+
+- Catalog now shows canon lineages only, so community and test submissions no longer duplicate entries without descriptions
+- Removed the Base a lineage on this button from catalog cards; the catalog is a read reference
+- Removed The Unwritten from the catalog and seed; the Forge submission flow is the build-your-own path
+
 ## 2026-06-24 — BrandForge aligned, wired, with a Lineages catalog
 
 - Top-level Catalog and Forge tabs; the existing builder (Submit one / Stratum, Lineage / World / Brand) lives under Forge
