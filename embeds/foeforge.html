@@ -126,6 +126,12 @@
   .mf-load,.mf-del{font-family:"Cinzel",serif; text-transform:uppercase; letter-spacing:.06em; font-size:10px; border-radius:7px; padding:8px 11px; cursor:pointer; white-space:nowrap}
   .mf-load{color:var(--navy); background:var(--gold); border:1px solid var(--gold)}
   .mf-del{color:var(--muted); background:var(--panel); border:1px solid var(--line)}
+  .atier{width:100%; border-collapse:collapse; font-size:12px; margin-top:6px}
+  .atier th,.atier td{text-align:center; padding:6px 4px; border-bottom:1px solid var(--line); color:var(--ice)}
+  .atier th{color:var(--muted); font-family:"Cinzel",serif; font-size:10px; text-transform:uppercase; letter-spacing:.06em}
+  .atier td:first-child,.atier th:first-child{text-align:left; font-family:"Cinzel",serif}
+  .atier tr.here td{color:var(--gold)}
+  .statpre{white-space:pre-wrap; font-family:"Crimson Pro",Georgia,serif; font-size:14px; line-height:1.5; color:var(--ice); background:var(--navy); border:1px solid var(--line); border-left:2px solid var(--gold); border-radius:8px; padding:14px; margin:0 0 10px; overflow-x:auto}
   .tabs{display:flex; gap:8px; margin:0 0 18px}
   .tab{flex:1; padding:12px; border:1px solid var(--line); background:var(--panel); color:var(--muted); border-radius:8px; font-family:"Cinzel",serif; text-transform:uppercase; letter-spacing:.1em; font-size:13px; cursor:pointer}
   .tab.active{color:var(--silver); border-color:var(--gold)}
@@ -172,7 +178,7 @@
     <h2>Consult the FoeForge</h2>
     <p class="hint">Describe the Foe you imagine. The forge will shape a legal build from your words, and ask questions if it needs to.</p>
     <textarea id="theme" rows="3" placeholder="a drowned bell-ringer that drags the living into the deep"></textarea>
-    <div class="actions" style="margin-top:12px"><button class="btn submit" id="consultBtn">Forge from description</button></div>
+    <div class="actions" style="margin-top:12px"><button class="btn submit" id="consultBtn">Forge from description</button><button class="btn save" id="randomBtn" type="button">Random Foe</button></div>
     <p class="result" id="consultResult"></p>
   </section>
 
@@ -268,6 +274,8 @@
             <input id="party" type="number" min="1" value="4">
             <div id="scaled" style="margin-top:16px"></div>
             <p class="note" id="discordNote"></p>
+            <div class="field" style="margin-top:14px"><div class="k">Every tier</div></div>
+            <div id="allTier"></div>
           </div>
         </div>
       </div>
@@ -287,7 +295,8 @@
       <button class="btn submit" id="submitBtn">Submit to Pentifax</button>
     </div>
     <p class="result" id="result"></p>
-    <div class="actions" style="margin-top:4px"><button class="btn save" id="newFoeBtn" type="button">New Foe</button><button class="btn save" id="myFoesBtn" type="button">My saved Foes</button></div>
+    <div class="actions" style="margin-top:4px"><button class="btn save" id="newFoeBtn" type="button">New Foe</button><button class="btn save" id="saveAsBtn" type="button">Save as new</button><button class="btn save" id="myFoesBtn" type="button">My saved Foes</button><button class="btn save" id="statBtn" type="button">Stat card</button></div>
+    <div id="statCard" style="display:none; margin-top:12px"></div>
     <div id="myFoes" style="display:none; margin-top:12px"></div>
   </section>
   </div>
@@ -1714,8 +1723,50 @@ function renderScaled(){const s=scaleFoe(),t=s.tier,b=BUILDS[state.build];
     '<div class="field"><div class="k">Infusions live</div><div class="v">'+infP+'</div></div>'+
     '<div class="field"><div class="k">Augments live</div><div class="v">'+augP+'</div></div>';
   $("discordNote").textContent="Grayed parts are authored but not revealed at "+state.shatterRating+". Escalation with Discord Points ungrays the next rung. Campaign Discord pool at this party is "+s.discord+", shared across every Fell.";}
+function scaleAt(name){const t=TIERS[name];if(!t)return null;const apl=Math.max(1,+state.apl||1),party=Math.max(1,+state.party||1);
+  return{val:Math.max(0,apl+t.attributeOffset),vitality:apl*party*t.vitalityWeight,lore:t.lorePoints,discord:apl*party,tier:t};}
+function renderAllTier(){const el=$("allTier");if(!el)return;
+  const rows=PACK.tiers.map(tt=>{const s=scaleAt(tt.name),t=tt,here=tt.name===state.shatterRating;
+    const acts=state.acts.filter(a=>a.tier<=t.actsCeiling).length;
+    return '<tr'+(here?' class="here"':'')+'><td>'+escH(tt.name)+'</td><td>'+s.val+'</td><td>'+s.vitality+'</td><td>'+acts+'/'+state.acts.length+'</td><td>'+Math.min(state.infusions.length,t.infusions)+'/'+state.infusions.length+'</td><td>'+(t.react?'R':'')+(t.discordant?' D':'')+'</td></tr>';}).join("");
+  el.innerHTML='<table class="atier"><thead><tr><th>Tier</th><th>Attr</th><th>Vit</th><th>Acts</th><th>Inf</th><th>R/D</th></tr></thead><tbody>'+rows+'</tbody></table>';}
+function statText(){const s=scaleFoe(),b=BUILDS[state.build];
+  const accLabel=b&&b.accuracy.includes("spell")&&!b.accuracy.includes("weapon")?"Magic":"Precision";
+  const acc=accLabel==="Magic"?s.attrs.Magic:s.attrs.Precision;const dmgLabel=accLabel==="Magic"?"Magic":"Power";const dmgVal=s.attrs[dmgLabel]||0;
+  const L=[];L.push((state.name||"Unnamed Foe").toUpperCase());
+  L.push(state.shatterRating+" "+state.build+", "+state.stance+" stance");
+  if(state.description){L.push("");L.push(state.description);}
+  L.push("");L.push("Affliction: "+(state.signatureAffliction||"none"));
+  if(state.infusions.length)L.push("Infusions: "+state.infusions.join(", "));
+  if(state.augmentations.length)L.push("Augmentations: "+state.augmentations.join(", "));
+  const acts=state.acts.slice().sort((x,y)=>x.tier-y.tier);
+  if(acts.length){L.push("Acts:");acts.forEach(a=>L.push("  T"+a.tier+" "+a.name+(a.effect?": "+a.effect:"")));}
+  L.push("");L.push("At the table (deploy "+state.shatterRating+", party level "+Math.max(1,+state.apl||1)+", "+Math.max(1,+state.party||1)+" Fell):");
+  L.push("  Attributes: "+((b?b.attributes:[]).map(a=>a+" "+s.val).join(", ")||"none"));
+  L.push("  Vitality "+s.vitality+", Lore "+s.lore+", Discord pool "+s.discord);
+  L.push("  Standard Attack: 1d6 + "+acc+" "+accLabel+" to land. Base "+(1+dmgVal)+", Bonus "+dmgVal+" ("+dmgLabel+").");
+  L.push("  React "+(s.tier.react?"yes":"no")+", Discordant "+(s.tier.discordant?"yes":"no"));
+  return L.join("\n");}
+function renderStatCard(){const el=$("statCard");if(!el)return;const t=statText();
+  el.innerHTML='<pre class="statpre">'+escH(t)+'</pre><div class="actions"><button type="button" class="btn save" id="statCopy">Copy</button></div>';
+  const c=$("statCopy");if(c)c.addEventListener("click",()=>copyText(t));}
+function copyText(t){try{const ta=document.createElement("textarea");ta.value=t;ta.style.position="fixed";ta.style.opacity="0";document.body.appendChild(ta);ta.focus();ta.select();let ok=false;try{ok=document.execCommand("copy");}catch(e){}document.body.removeChild(ta);toast(ok?"Stat card copied":"Select the text to copy","save");}catch(e){toast("Select the text to copy","save");}}
 
 function pick(a){return a[Math.floor(Math.random()*a.length)];}
+const FOE_THEMES=[
+  "a drowned bell-ringer that drags the living into the deep",
+  "a choir of stitched mouths that sings wounds open",
+  "a tallow saint melting into the ones who pray to it",
+  "a surveyor of debts who unmakes what it measures",
+  "a pit-bred thing wearing its keeper\u2019s face",
+  "a frost-locked widow who hoards the warmth of others",
+  "a plague effigy stuffed with patient wasps",
+  "a gallows tree that walks on its own roots",
+  "a mirror-warden holding a reflection hostage",
+  "a famine that learned the shape of a body",
+  "a lamplighter snuffing names instead of flames",
+  "a tithe-collector that takes years off a life"
+];
 async function aiForge(theme){
   if(!AI_FORGE_ENDPOINT||!(theme||"").trim())return null;
   const builds=PACK.builds.map(b=>b.name+" ["+(b.attackAttributes||[]).concat(b.defenseAttributes||[]).join("/")+"]");
@@ -1910,7 +1961,7 @@ function showView(v){$("forgeView").style.display=v==="forge"?"":"none";$("penti
 function sizeFlip(){const f=$("flip");if(!f){reportHeight();return;}
   const active=f.classList.contains("flipped")?$("cardBack"):$("card");
   if(active)f.style.height=active.scrollHeight+"px";reportHeight();}
-function render(){updateHints();fillInf();fillAug();fillActs();renderValid();renderCard();renderScaled();renderForged();sizeFlip();}
+function render(){updateHints();fillInf();fillAug();fillActs();renderValid();renderCard();renderScaled();renderAllTier();renderForged();sizeFlip();}
 function init(){
   fillBuild();fillStance();fillSig();fillRating();$("buildHint").textContent=buildHint();
   document.querySelectorAll("[data-toggle]").forEach(btn=>btn.addEventListener("click",()=>$(btn.dataset.toggle).classList.toggle("open")));
@@ -1939,9 +1990,12 @@ function init(){
   $("img").addEventListener("change",e=>{const f=e.target.files&&e.target.files[0];if(!f)return;
     const r=new FileReader();r.onload=ev=>{state.image=ev.target.result;renderCard();};r.readAsDataURL(f);});
   $("desc").addEventListener("input",e=>{state.description=e.target.value;renderCard();sizeFlip();});
-  $("consultBtn").addEventListener("click",async ()=>{
+  $("consultBtn").addEventListener("click",()=>runConsult($("theme").value));
+  $("randomBtn").addEventListener("click",()=>{state.shatterRating=pick(PACK.tiers).name;const th=pick(FOE_THEMES);$("theme").value=th;runConsult(th);});
+  $("saveAsBtn").addEventListener("click",()=>{state.foeId=null;doSave("private");});
+  $("statBtn").addEventListener("click",()=>{const b=$("statCard");const show=b.style.display==="none";if(show){renderStatCard();b.style.display="";}else b.style.display="none";reportHeight();});
+  async function runConsult(theme){
     const out=$("consultResult");out.className="result";out.textContent="The forge considers the shape you named.";
-    const theme=$("theme").value;
     let ai=null;try{ai=await aiForge(theme);}catch(e){}
     let p=applyForged(theme,ai);
     const b=BUILDS[p.build];
@@ -1970,7 +2024,7 @@ function init(){
     let tail=r.ok?"Validated.":"Trimmed to stay legal.";
     if(localCount)tail+=" "+localCount+" act"+(localCount>1?"s":"")+" forged for this Foe and kept to the table. Offer "+(localCount>1?"them":"it")+" to LoreForge from Forged Acts.";
     out.textContent=ai?("The forge shapes "+state.name+", a "+state.shatterRating+" "+state.build+", arsenal and all. "+tail+" Refine below."):("The forge shapes "+state.name+", a "+state.shatterRating+" "+state.build+". Offline shaping, no live arsenal pick. Refine below.");
-  });
+  }
   document.addEventListener("click",function(e){
     const pill=e.target&&e.target.closest?e.target.closest(".pill"):null;
     const open=document.querySelector(".piptip");

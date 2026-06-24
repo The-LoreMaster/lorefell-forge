@@ -4,6 +4,13 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-24 — FoeForge: all-tier view, clone, stat card, random
+
+- Card back now shows an Every tier table: attribute value, vitality, acts live, and infusions live at each Shatter Rating, with the deployed tier highlighted
+- Save as new clones the current build into a fresh saved Foe without touching the one it came from
+- Stat card builds a clean read-aloud block of the whole Foe with a Copy button, ready for the table or an external HUD
+- Random Foe forges a complete legal Foe from a random theme and tier through the same pipeline as Consult
+
 ## 2026-06-24 — FoeForge: New Foe reset
 
 - Added a New Foe button that clears the builder back to blank, including name, arsenal, acts, description, image, and the loaded Foe link. The act library stays loaded. It arms on first tap and clears on the second so nothing is wiped by accident
