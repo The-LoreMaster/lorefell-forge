@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>FateWell</title>
-<!-- build: fatewell-vc2 -->
+<!-- build: adventures -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Cinzel+Decorative:wght@700&family=Crimson+Pro:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
@@ -894,6 +894,17 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 .seal-code{ font-size:.78rem; color:var(--muted); letter-spacing:.05em; margin-top:4px; }
 .seal-empty{ color:var(--muted); font-style:italic; }
 .seal-panel{ max-height:60vh; overflow-y:auto; }
+
+.adv-tag{ color:var(--muted); font-size:.85rem; letter-spacing:.04em; margin:-4px 0 14px; }
+.adv-change{ background:none; border:1px solid var(--line); color:var(--ice); border-radius:6px; padding:2px 8px; font-size:.72rem; margin-left:8px; cursor:pointer; }
+.adv-change:hover{ border-color:var(--gold); color:var(--silver); }
+.adv-grid{ display:flex; flex-direction:column; gap:8px; margin:12px 0; }
+.adv-opt{ text-align:left; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 14px; cursor:pointer; display:flex; flex-direction:column; gap:3px; font:inherit; }
+.adv-opt:hover{ border-color:var(--gold); }
+.adv-opt.sel{ border-color:var(--gold); box-shadow:inset 0 0 0 1px var(--gold); }
+.adv-name{ font-family:'Cinzel',serif; font-size:1rem; color:var(--silver); letter-spacing:.04em; }
+.adv-len{ font-size:.74rem; color:var(--gold); letter-spacing:.06em; text-transform:uppercase; }
+.adv-blurb{ font-size:.9rem; color:var(--ice); line-height:1.45; }
 </style>
 </head>
 <body>
@@ -1046,6 +1057,10 @@ function migrate(d){
   if (!d.die) d.die = 6;
   if (!d.glossary) d.glossary = [];
   if (d.glossaryOn===undefined) d.glossaryOn = false;
+  (d.campaigns||[]).forEach(function(c){
+    if (!c.type) c.type = 'legacy';
+    if (!Array.isArray(c.acts)) c.acts = [];
+  });
   (d.library||[]).forEach(function(e){
     if (e.type==='enemy') e.type='monster';
     if (e.type==='monster'){
@@ -1227,7 +1242,7 @@ window.addEventListener('message', function(ev){
       /* brand-new empty campaign created on the site */
       var exists = S.campaigns.some(function(c){ return c.id===WIX.campaignId; });
       if (!exists){
-        var fresh = { id:WIX.campaignId, name:m.title||'Campaign', notes:'', img:'', desc:'', entries:[], manualRefs:[], players:[], acts:[], ovOpen:{} };
+        var fresh = { id:WIX.campaignId, name:m.title||'Adventure',type:'legacy', notes:'', img:'', desc:'', entries:[], manualRefs:[], players:[], acts:[], ovOpen:{} };
         S.campaigns.push(fresh);
         if (S.wixPlayers.length) mergePool(fresh);
       }
@@ -1470,12 +1485,91 @@ function showDesc(kind, id){
     + '<button class="btn" onclick="closeModal();descModal(\''+kind+'\',\''+id+'\')">Edit</button></div>');
 }
 
-function addCampaign(){ createLevelModal('New campaign', function(n, d, img){
+// Adventure types. The four shapes are a scope ladder. The type decides how deep the
+// hierarchy goes: Tale and Story play straight in sessions under one hidden act, Legacy
+// and Chronicle carry visible Acts. Promotion moves an adventure up or across the ladder
+// and the structure adjusts to fit. Single owner for now; shared Chronicles are a later
+// dedicated build.
+var ADV_TYPES = {
+  story:     { label:'Story',     acts:false, length:'3 to 6 sessions',          blurb:'A short, focused arc for a chosen few Fell. It burns bright, then closes.' },
+  legacy:    { label:'Legacy',    acts:true,  length:'10 to 12 sessions',        blurb:'The backbone saga. Characters endure, grow, and the ending marks the canon.' },
+  chronicle: { label:'Chronicle', acts:true,  length:'up to 48 sessions, open table', blurb:'A living, open table world that many hands shape across the year.' },
+  tale:      { label:'Tale',      acts:false, oneSession:true, length:'one session', blurb:'A single sitting. One deed or rumor, complete on its own.' }
+};
+var ADV_ORDER = ['story','legacy','chronicle','tale'];
+function advType(c){ return ADV_TYPES[c && c.type] || ADV_TYPES.legacy; }
+function advSub(c){
+  var players = c.players.length + ' player' + (c.players.length===1?'':'s');
+  return advType(c).label + ' &middot; ' + players;
+}
+function implicitAct(c){
+  if (!c.acts.length){ c.acts.push({ id:uid(), name:'Main', implicit:true, notes:'', img:'', desc:'', entries:[], manualRefs:[], sessions:[] }); }
+  return c.acts[0];
+}
+function advNote(title, body){
+  modal('<h3 class="m-title">'+esc(title)+'</h3><p class="muted">'+esc(body)+'</p>'
+    + '<div class="m-row"><button class="btn" onclick="closeModal()">OK</button></div>');
+}
+function advGrid(onClick, cur){
+  var h = '<div class="adv-grid">';
+  ADV_ORDER.forEach(function(k){
+    var t = ADV_TYPES[k];
+    h += '<button class="adv-opt'+(k===cur?' sel':'')+'" onclick="'+onClick+'(\''+k+'\')">'
+      + '<span class="adv-name">'+t.label+'</span>'
+      + '<span class="adv-len">'+t.length+'</span>'
+      + '<span class="adv-blurb">'+t.blurb+'</span></button>';
+  });
+  return h + '</div>';
+}
+function advChooser(){
+  modal('<h3 class="m-title">New Adventure</h3><p class="muted">Choose the shape of the story.</p>'
+    + advGrid('advPick', null)
+    + '<div class="m-row"><button class="btn ghost" onclick="closeModal()">Cancel</button></div>');
+}
+function advPick(k){
+  closeModal();
+  var t = ADV_TYPES[k];
+  createLevelModal('New '+t.label, function(n, d, img){
+    var c = { id:uid(), type:k, name:n, notes:'', img:img||'', desc:d||'', manualRefs:[], entries:[], players:[], acts:[], ovOpen:{} };
+    if (!t.acts){
+      var a = { id:uid(), name:'Main', implicit:true, notes:'', img:'', desc:'', entries:[], manualRefs:[], sessions:[] };
+      if (t.oneSession) a.sessions.push({ id:uid(), name:'Session 1', notes:'', img:'', desc:'', entries:[], manualRefs:[], scenes:[] });
+      c.acts.push(a);
+    }
+    S.campaigns.push(c);
+    if (S.wixPlayers.length) mergePool(c);
+    save(); nav('campaign', c.id);
+  });
+}
+function advPromote(id){
+  var c=null; S.campaigns.forEach(function(x){ if(x.id===id) c=x; }); if(!c) return;
+  modal('<h3 class="m-title">Change type</h3><p class="muted">Promote or change this adventure. The structure adjusts to fit.</p>'
+    + advGrid("advSetType('"+id+"',", c.type)
+    + '<div class="m-row"><button class="btn ghost" onclick="closeModal()">Cancel</button></div>');
+}
+function advSetType(id, k){
+  var c=null; S.campaigns.forEach(function(x){ if(x.id===id) c=x; }); if(!c) return;
+  var t = ADV_TYPES[k];
+  if (!t.acts){
+    if (c.acts.length > 1){ advNote('Reduce to one act first', 'A '+t.label+' has no acts. Merge or remove the extra acts, then change the type.'); return; }
+    if (t.oneSession){
+      var a0 = c.acts[0]; var ss = a0 ? a0.sessions : [];
+      if (ss && ss.length > 1){ advNote('A Tale is one session', 'Remove the extra sessions, then change the type.'); return; }
+    }
+    if (c.acts.length === 1) c.acts[0].implicit = true;
+    else implicitAct(c);
+  } else {
+    if (c.acts.length === 1 && c.acts[0].implicit) c.acts[0].implicit = false;
+  }
+  c.type = k; closeModal(); save(); render();
+}
+function addCampaign(){ advChooser(); }
+function addCampaignLegacy(){ createLevelModal('New campaign', function(n, d, img){
   var c = {id:uid(),name:n,notes:'',img:img||'',desc:d||'',manualRefs:[],entries:[],players:[],acts:[],ovOpen:{}};
   S.campaigns.push(c);
   if (S.wixPlayers.length) mergePool(c);
 }); }
-function renameCampaign(id){ var c; S.campaigns.forEach(function(x){ if(x.id===id) c=x; }); nameModal('Rename campaign',c.name,function(n){ c.name=n; if (WIX.hosted && WIX.campaignId===id) postToWix({ type:'lmtool-campaign-title', campaignId:id, title:n }); }); }
+function renameCampaign(id){ var c; S.campaigns.forEach(function(x){ if(x.id===id) c=x; }); nameModal('Rename adventure',c.name,function(n){ c.name=n; if (WIX.hosted && WIX.campaignId===id) postToWix({ type:'lmtool-campaign-title', campaignId:id, title:n }); }); }
 function deleteCampaign(id){
   askConfirm('Delete this campaign and everything in it?', function(){
     S.campaigns = S.campaigns.filter(function(x){ return x.id!==id; });
@@ -1501,7 +1595,7 @@ function deleteAct(id){
     save(); render();
   }, 'Delete');
 }
-function addSession(){ var a=curA(); createLevelModal('New session', function(n,d,img){ a.sessions.push({id:uid(),name:n,notes:'',img:img||'',desc:d||'',entries:[],manualRefs:[],scenes:[]}); }); }
+function addSession(){ var a=curA()||implicitAct(curC()); createLevelModal('New session', function(n,d,img){ a.sessions.push({id:uid(),name:n,notes:'',img:img||'',desc:d||'',entries:[],manualRefs:[],scenes:[]}); }); }
 function renameSession(id){ var a=curA(),s; a.sessions.forEach(function(x){ if(x.id===id) s=x; }); nameModal('Rename session',s.name,function(n){ s.name=n; }); }
 function deleteSession(id){
   askConfirm('Delete this session and its scenes?', function(){
@@ -3175,7 +3269,7 @@ function crumb(){
   var c = curC(), a = curA(), s = curSe(), sc = curSc();
   var onTop = (V.screen==='campaigns');
   if (!onTop){
-    h += '<span class="cr-link" onclick="nav(\'campaigns\')">Campaigns</span>';
+    h += '<span class="cr-link" onclick="nav(\'campaigns\')">Adventures</span>';
     if (c && ['campaign','act','session','scene'].indexOf(V.screen)>=0){
       h += '<span class="cr-sep">&rsaquo;</span><span class="cr-link" onclick="nav(\'campaign\')">'+esc(c.name)+'</span>';
       if (a && ['act','session','scene'].indexOf(V.screen)>=0){
@@ -3212,7 +3306,7 @@ function campaignResumeScreen(){
 function bottomNav(){
   function cls(s){ return 'bn-btn' + ((V.screen===s || (s==='campaigns' && ['campaign','act','session','scene'].indexOf(V.screen)>=0)) ? ' on' : ''); }
   return '<nav class="bnav">'
-    + '<button class="'+cls('campaigns')+'" onclick="nav(WIX.hosted ? campaignResumeScreen() : campaignResumeScreen())"><span class="bn-g">&#9670;</span>'+(WIX.hosted?'Campaign':'Campaigns')+'</button>'
+    + '<button class="'+cls('campaigns')+'" onclick="nav(WIX.hosted ? campaignResumeScreen() : campaignResumeScreen())"><span class="bn-g">&#9670;</span>'+(WIX.hosted?'Adventure':'Adventures')+'</button>'
     + '<button class="'+cls('search')+'" onclick="nav(\'search\')"><span class="bn-g">&#9906;</span>Search</button>'
     + '<button class="'+cls('library')+'" onclick="nav(\'library\')"><span class="bn-g">&#10070;</span>Library</button>'
     + '</nav>';
@@ -3328,27 +3422,27 @@ function emptyState(text, btnLabel, btnFn){
 /* ---------- screens ---------- */
 
 function scrCampaigns(){
-  var h = '<h1 class="page-h">Campaigns</h1>';
+  var h = '<h1 class="page-h">Adventures</h1>';
   if (WIX.hosted){
     /* the site owns the campaign list, creation, and invites */
     var c = curC() || (WIX.campaignId ? null : null);
     if (c){
-      var sub = c.acts.length + ' act' + (c.acts.length===1?'':'s') + ' &middot; ' + c.players.length + ' player' + (c.players.length===1?'':'s');
+      var sub = advSub(c);
       h += cardItem({ img:c.img, desc:c.desc, title:c.name, sub:sub, openFn:'nav(\'campaign\',\''+c.id+'\')', coverFn:'setCover(\'c\',\''+c.id+'\')', descFn:'descModalC(\''+c.id+'\')', renameFn:'renameCampaign(\''+c.id+'\')' });
-      h += '<p class="muted small-note">New campaigns and player invites are managed on lorefell.com.</p>';
+      h += '<p class="muted small-note">New adventures and player invites are managed on lorefell.com.</p>';
     } else {
-      h += '<p class="muted">Loading this campaign...</p>';
+      h += '<p class="muted">Loading this adventure...</p>';
     }
     return h;
   }
   if (!S.campaigns.length){
-    h += emptyState('No campaigns yet. Every story starts with a name.', 'Create a campaign', 'addCampaign()');
+    h += emptyState('No adventures yet. Every story starts with a name.', 'Create an adventure', 'addCampaign()');
   } else {
     S.campaigns.forEach(function(c){
-      var sub = c.acts.length + ' act' + (c.acts.length===1?'':'s') + ' &middot; ' + c.players.length + ' player' + (c.players.length===1?'':'s');
+      var sub = advSub(c);
       h += cardItem({ img:c.img, desc:c.desc, title:c.name, sub:sub, openFn:'nav(\'campaign\',\''+c.id+'\')', coverFn:'setCover(\'c\',\''+c.id+'\')', descFn:'descModalC(\''+c.id+'\')', renameFn:'renameCampaign(\''+c.id+'\')', delFn:'deleteCampaign(\''+c.id+'\')' });
     });
-    h += '<button class="btn wide" onclick="addCampaign()">New campaign</button>';
+    h += '<button class="btn wide" onclick="addCampaign()">New Adventure</button>';
   }
   return h;
 }
@@ -3357,27 +3451,49 @@ function noop(){}
 function scrCampaign(){
   var c = curC(); if (!c){ V.screen='campaigns'; return scrCampaigns(); }
   var ref = 'c:'+c.id;
+  var t = advType(c);
   var h = '<h1 class="page-h">'+esc(c.name)+'</h1>';
+  h += '<p class="adv-tag">'+t.label+' &middot; '+t.length
+    + ' <button class="adv-change" onclick="advPromote(\''+c.id+'\')">Change type</button></p>';
   h += '<div class="tabs">'
     + '<button class="tab'+(V.cTab==='overview'?' on':'')+'" onclick="setCTab(\'overview\')">Overview</button>'
     + '<button class="tab'+(V.cTab==='roster'?' on':'')+'" onclick="setCTab(\'roster\')">Roster</button></div>';
   if (V.cTab==='roster'){ h += entityRosterTab(ref); return h; }
-  h += '<div class="sec-h">Acts</div>';
-  if (!c.acts.length){
-    h += emptyState('No acts yet. Acts are the broad chapters of the campaign.', 'Add an act', 'addAct()');
+  if (t.acts){
+    h += '<div class="sec-h">Acts</div>';
+    if (!c.acts.length){
+      h += emptyState('No acts yet. Acts are the chapters of this adventure.', 'Add an act', 'addAct()');
+    } else {
+      c.acts.forEach(function(a, i){
+        var sub = a.sessions.length + ' session' + (a.sessions.length===1?'':'s');
+        h += cardItem({ num:i+1, img:a.img, desc:a.desc, title:a.name, sub:sub,
+          openFn:'nav(\'act\',undefined,\''+a.id+'\')',
+          upFn:(i>0?'moveAct(\''+a.id+'\',-1)':''), downFn:(i<c.acts.length-1?'moveAct(\''+a.id+'\',1)':''),
+          descShowFn:'showDesc(\'a\',\''+a.id+'\')',
+          coverFn:'setCover(\'a\',\''+a.id+'\')', descFn:'descModal(\'a\',\''+a.id+'\')',
+          renameFn:'renameAct(\''+a.id+'\')', delFn:'deleteAct(\''+a.id+'\')' });
+      });
+      h += '<button class="btn wide" onclick="addAct()">Add an act</button>';
+    }
   } else {
-    c.acts.forEach(function(a, i){
-      var sub = a.sessions.length + ' session' + (a.sessions.length===1?'':'s');
-      h += cardItem({ num:i+1, img:a.img, desc:a.desc, title:a.name, sub:sub,
-        openFn:'nav(\'act\',undefined,\''+a.id+'\')',
-        upFn:(i>0?'moveAct(\''+a.id+'\',-1)':''), downFn:(i<c.acts.length-1?'moveAct(\''+a.id+'\',1)':''),
-        descShowFn:'showDesc(\'a\',\''+a.id+'\')',
-        coverFn:'setCover(\'a\',\''+a.id+'\')', descFn:'descModal(\'a\',\''+a.id+'\')',
-        renameFn:'renameAct(\''+a.id+'\')', delFn:'deleteAct(\''+a.id+'\')' });
-    });
-    h += '<button class="btn wide" onclick="addAct()">Add an act</button>';
+    var a = implicitAct(c); V.aId = a.id;
+    h += '<div class="sec-h">Sessions</div>';
+    if (!a.sessions.length){
+      h += emptyState('No sessions yet. A session is one night at the table.', 'Add a session', 'addSession()');
+    } else {
+      a.sessions.forEach(function(s, i){
+        var sub = s.scenes.length + ' scene' + (s.scenes.length===1?'':'s');
+        h += cardItem({ num:i+1, img:s.img, desc:s.desc, title:s.name, sub:sub,
+          openFn:'nav(\'session\',undefined,\''+a.id+'\',\''+s.id+'\')',
+          upFn:(i>0?'moveSession(\''+s.id+'\',-1)':''), downFn:(i<a.sessions.length-1?'moveSession(\''+s.id+'\',1)':''),
+          descShowFn:'showDesc(\'s\',\''+s.id+'\')',
+          coverFn:'setCover(\'s\',\''+s.id+'\')', descFn:'descModal(\'s\',\''+s.id+'\')',
+          renameFn:'renameSession(\''+s.id+'\')', delFn:'deleteSession(\''+s.id+'\')' });
+      });
+      if (!t.oneSession) h += '<button class="btn wide" onclick="addSession()">Add a session</button>';
+    }
   }
-  h += '<div class="sec-h">Campaign notes</div>' + notesBlock('c:'+c.id);
+  h += '<div class="sec-h">Adventure notes</div>' + notesBlock('c:'+c.id);
   return h;
 }
 function setCTab(t){ V.cTab = t; if (t==='roster') requestSealed(); render(); }
@@ -3777,7 +3893,7 @@ function scrScene(){
   h += '</div>';
   if (V.tab==='roster') h += tabRoster(sc);
   else h += tabNotes(sc);
-  h += '<button class="fab book" title="Campaign notes" onclick="openOv()">&#10070;</button>'
+  h += '<button class="fab book" title="Adventure notes" onclick="openOv()">&#10070;</button>'
     + '<button class="fab" title="Quick note" onclick="quickNote()">&#9999;</button>';
   return h;
 }

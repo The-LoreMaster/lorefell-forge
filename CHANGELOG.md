@@ -4,6 +4,13 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-24 — Adventures with four types
+
+- Campaigns are now Adventures. New Adventure opens a type chooser: Story, Legacy, Chronicle, Tale
+- Story and Tale play straight in sessions under one hidden act; Legacy and Chronicle carry visible Acts. A Tale auto-creates its single session and hides the add control
+- Each adventure shows its type and length, and a Change type control promotes or shifts it, with guards so a type without acts cannot strand extra acts or sessions
+- Internal keys, the Campaigns collection, and the message contract are unchanged; only the visible noun and structure depth differ
+
 ## 2026-06-24 — FellGlass infusions and augmentations from the collections
 
 - getLibraries now feeds the live Infusions and Augmentations collections to FellGlass as components, replacing the placeholder lists. Infusion attribute drives the weapon category it belongs to
