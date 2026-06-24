@@ -4,6 +4,11 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-24 — Navigation moved to a single top row
+
+- The four nav items sit on one line on mobile and desktop. The bar was three columns, so Settings wrapped to a second row. It is now four columns
+- The bar moved from a fixed strip at the bottom to a slim bar under The FateWell wordmark, above the breadcrumbs
+
 ## 2026-06-24 — Seed retries cover gateway timeouts
 
 - The CMS seeder now retries 504 and 408 alongside 429, 502, and 503. A single transient gateway timeout no longer hard-fails the Apply run and aborts the steps after it
