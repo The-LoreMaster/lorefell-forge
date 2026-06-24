@@ -25,6 +25,7 @@ function dedupeByName(arr) {
 
 function foeFullText(p) {
   const lines = [];
+  if (p.description) lines.push(p.description);
   lines.push((p.shatterRating || '') + ' ' + (p.build || '') + ', ' + (p.stance || '') + ' stance.');
   if (p.signatureAffliction) lines.push('Signature: ' + p.signatureAffliction + '.');
   if ((p.infusions || []).length) lines.push('Infusions: ' + p.infusions.join(', ') + '.');
@@ -104,7 +105,8 @@ $w.onReady(() => {
           build: p.build || '', stance: p.stance || '',
           signatureAffliction: p.signatureAffliction || '',
           infusions: p.infusions || [], augmentations: p.augmentations || [],
-          acts: p.acts || [], shatterRating: p.shatterRating || ''
+          acts: p.acts || [], shatterRating: p.shatterRating || '',
+          description: p.description || ''
         }
       };
       let res = { ok: false, errors: ['The forge could not reach the Pentifax.'] };

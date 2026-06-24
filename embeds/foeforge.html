@@ -124,6 +124,8 @@
   .penvote.voted{color:var(--gold); border-color:rgba(201,168,76,.5)}
   .penvote:disabled{cursor:default}
   .pill{cursor:pointer; touch-action:manipulation; -webkit-tap-highlight-color:rgba(201,168,76,.18)}
+  .card .cardlore{color:var(--ice); font-size:14px; line-height:1.5; margin:10px 0 4px; white-space:pre-wrap}
+  .penlore{color:var(--ice); font-size:13px; line-height:1.45; margin:0 0 8px; white-space:pre-wrap}
   .piptip{display:block; flex-basis:100%; width:100%; margin:7px 0 3px; padding:9px 11px; border:1px solid var(--line); border-left:2px solid var(--gold); border-radius:6px; background:var(--panel); color:var(--ice); font-size:13px; line-height:1.45}
   .card .name{font-family:"Cinzel Decorative",serif; font-size:22px; letter-spacing:.03em}
   .card .meta{color:var(--ice); font-family:"Cinzel",serif; font-size:12px; letter-spacing:.1em; text-transform:uppercase; margin:3px 0 14px}
@@ -219,6 +221,12 @@
   <section>
     <h2>Foe Card</h2>
     <div class="card" id="card"></div>
+  </section>
+
+  <section>
+    <h2>Description</h2>
+    <p class="hint">Flavor for the Foe. The forge fills this when you consult it. Edit it freely.</p>
+    <textarea id="desc" rows="4" placeholder="What it is, how it moves, what it wants."></textarea>
   </section>
 
   <section>
@@ -352,6 +360,8 @@
     var hasAttack = build && build.attackAttributes && build.attackAttributes.length;
     if (inf.length > MAX_INFUSIONS)
       err("A Foe carries at most " + MAX_INFUSIONS + " infusions. Found " + inf.length + ".");
+    else if (build && hasAttack && inf.length < MAX_INFUSIONS)
+      err("A Foe needs " + MAX_INFUSIONS + " infusions. Found " + inf.length + ".");
     dupes(inf).forEach(function (n) { err('Duplicate infusion "' + n + '".'); });
     if (build && !hasAttack && inf.length > 0)
       err('Build "' + build.name + '" has no attack attribute, so it carries no ' +
@@ -368,6 +378,8 @@
     var aug = foe.augmentations || [];
     if (aug.length > MAX_AUGMENTATIONS)
       err("A Foe carries at most " + MAX_AUGMENTATIONS + " augmentations. Found " + aug.length + ".");
+    else if (aug.length < MAX_AUGMENTATIONS)
+      err("A Foe needs " + MAX_AUGMENTATIONS + " augmentations. Found " + aug.length + ".");
     dupes(aug).forEach(function (n) { err('Duplicate augmentation "' + n + '".'); });
     aug.forEach(function (n) {
       if (!augments[n]) err('Unknown augmentation "' + n + '".');
@@ -394,6 +406,11 @@
             err("Act " + label + ": " + m);
           });
       }
+    });
+
+    [1, 2, 3].forEach(function (tr) {
+      if (!acts.some(function (a) { return a && a.tier === tr; }))
+        err("A Foe needs an Act at Tier " + tr + ".");
     });
 
     // ---- shatter rating (optional pointer) ----
@@ -1499,7 +1516,7 @@ const BUILDS=byName(PACK.builds),STANCES=byName(PACK.stances),AFF=byName(PACK.af
 const state={name:"",build:(PACK.builds[0]||{}).name||"",stance:(PACK.stances[0]||{}).name||"",
   signatureAffliction:((PACK.afflictions.slice().sort((a,b)=>a.name.localeCompare(b.name))[0])||{}).name||"",
   infusions:[],augmentations:[],acts:[],
-  shatterRating:(PACK.tiers[0]||{}).name||"",apl:4,party:4,image:null};
+  shatterRating:(PACK.tiers[0]||{}).name||"",apl:4,party:4,image:null,description:""};
 let LIBRARY=[];
 let actFilter="";
 const $=(id)=>document.getElementById(id);
@@ -1608,7 +1625,7 @@ function fillRating(){const s=$("rating");s.innerHTML="";PACK.tiers.forEach(t=>s
 
 function foeRecord(){return{name:state.name,build:state.build,stance:state.stance,
   signatureAffliction:state.signatureAffliction,infusions:state.infusions,
-  augmentations:state.augmentations,acts:state.acts,shatterRating:state.shatterRating};}
+  augmentations:state.augmentations,acts:state.acts,shatterRating:state.shatterRating,description:state.description};}
 function renderValid(){const r=V.validateFoe(foeRecord(),PACK),box=$("valid");box.innerHTML="";
   if(r.ok&&!r.warnings.length)box.innerHTML='<p class="vok"><b>Legal.</b> Ready to save.</p>';
   else if(r.ok)box.innerHTML='<p class="vok"><b>Legal, with notes.</b></p>';
@@ -1623,6 +1640,7 @@ function renderCard(){
   const port=state.image?'<img class="portrait" src="'+state.image+'" alt="">':'';
   $("card").className="card"+(state.image?" has-img":"");
   $("card").innerHTML=port+'<div class="name">'+(state.name||"Unnamed")+'</div><div class="meta">'+state.shatterRating+" "+state.build+'</div>'+
+    (state.description?'<div class="cardlore">'+escH(state.description)+'</div>':'')+
     '<div class="field"><div class="k">Stance</div><div class="v">'+stancePill+'</div></div>'+
     '<div class="field"><div class="k">Affliction</div><div class="v">'+affPill+'</div></div>'+
     '<div class="field"><div class="k">Infusions</div><div class="v">'+inf+'</div></div>'+
@@ -1667,11 +1685,12 @@ async function aiForge(theme){
   const acts=(LIBRARY||[]).map(a=>"T"+a.tier+" "+a.name+" - "+(a.effect||""));
   const sys="You design monsters (Foes) for LoreFell, a dark weird-fantasy tabletop RPG. "+
     "Choose a complete Foe using only the supplied catalogs. Rules: pick exactly one build, one stance, one affliction. "+
-    "Choose up to three infusions whose family in braces matches one of the chosen build's attributes. "+
-    "Choose up to two augmentations. Choose two to four acts. "+
+    "Choose exactly three infusions whose family in braces matches one of the chosen build's attributes. "+
+    "Choose exactly two augmentations. Choose three acts, one at Tier 1, one at Tier 2, one at Tier 3. "+
+    "Write a description of two to four sentences, dark and grounded, that gives the Foe flavor and presence. No semicolons, no dashes. "+
     "Invent one original name, dark and grounded, one to four words, never real-world or copyrighted, never bland like The Beast. "+
     "Match the theme in feel. Reply with JSON only and no prose: "+
-    '{"name":"","build":"","stance":"","affliction":"","infusions":[],"augmentations":[],"acts":[]}. '+
+    '{"name":"","description":"","build":"","stance":"","affliction":"","infusions":[],"augmentations":[],"acts":[]}. '+
     "Use exact names from the catalogs. For acts use the name without the T number.";
   const ctx="Theme: "+theme+"\n\nBUILDS:\n"+builds.join("\n")+"\n\nSTANCES: "+stances.join(", ")+
     "\n\nAFFLICTIONS: "+affs.join(", ")+"\n\nINFUSIONS:\n"+infs.join("\n")+
@@ -1693,6 +1712,7 @@ function applyForged(theme,ai){
   if(Array.isArray(ai.augmentations)){const ag=ai.augmentations.filter(n=>AUG[n]);if(ag.length)p.augmentations=ag.slice(0,2);}
   if(Array.isArray(ai.acts)){const m=byName(LIBRARY);const ac=ai.acts.map(n=>m[n]).filter(Boolean).map(a=>Object.assign({},a));if(ac.length)p.acts=ac.slice(0,4);}
   if(ai.name)p.name=String(ai.name).slice(0,60);
+  if(ai.description)p.description=String(ai.description).slice(0,800);
   return p;
 }
 function generateFromTheme(theme){
@@ -1712,10 +1732,9 @@ function generateFromTheme(theme){
     ["mind|mad|confus|whisper|voice","Disoriented"],["drown|deep|water|sink|tide","Slashed"]];
   let sig=null; for(const[re,n]of map){if(new RegExp(re).test(t)&&AFF[n]){sig=n;break;}} if(!sig)sig=pick(PACK.afflictions).name;
   const fam=b.attackAttributes, famInf=PACK.infusions.filter(i=>fam.includes(i.family));
-  const infs=fam.length?famInf.slice(0,2).map(i=>i.name):[];
-  const augs=[pick(PACK.augmentations).name];
-  const t1=LIBRARY.filter(a=>a.tier===1),t2=LIBRARY.filter(a=>a.tier===2),acts=[];
-  if(t1.length)acts.push(Object.assign({},pick(t1))); if(t2.length)acts.push(Object.assign({},pick(t2)));
+  const infs=fam.length?famInf.slice(0,3).map(i=>i.name):[];
+  const augs=PACK.augmentations.slice().sort(()=>Math.random()-0.5).slice(0,2).map(a=>a.name);
+  const acts=[];[1,2,3].forEach(tr=>{const pool=LIBRARY.filter(a=>a.tier===tr);if(pool.length)acts.push(Object.assign({},pick(pool)));});
   const name=weaveName(theme);
   return{name,build:b.name,stance,signatureAffliction:sig,infusions:infs,augmentations:augs,acts,shatterRating:state.shatterRating,image:state.image};
 }
@@ -1757,6 +1776,7 @@ function renderPenList(items){
     const acts=(m.acts||[]).slice().sort((a,b)=>(a.tier||0)-(b.tier||0));
     let h='<div class="pencard"><div class="pn">'+escH(it.creationName)+'</div><div class="pm">'+escH(it.shorthand||"")+'</div>';
     h+='<div class="penmeta"><span class="penbadge'+(canon?"":" plain")+'">'+penBadge(it.canonStatus)+'</span>'+(it.creatorName?'<span class="penby">by '+escH(it.creatorName)+'</span>':"")+'</div>';
+    if(m.description)h+='<div class="penlore">'+escH(m.description)+'</div>';
     if(m.stance)h+='<div class="penrow"><span class="pk">Stance</span><span><span class="pill" title="'+esc(stanceTip(m.stance))+'">'+escH(m.stance)+'</span></span></div>';
     if(m.signatureAffliction)h+='<div class="penrow"><span class="pk">Affliction</span><span><span class="pill" title="'+esc(affTip(m.signatureAffliction))+'">'+escH(m.signatureAffliction)+'</span></span></div>';
     h+=penPillRow("Infusions",m.infusions,infTip);
@@ -1799,6 +1819,7 @@ function init(){
   $("submitBtn").addEventListener("click",()=>doSave("submitted"));
   $("img").addEventListener("change",e=>{const f=e.target.files&&e.target.files[0];if(!f)return;
     const r=new FileReader();r.onload=ev=>{state.image=ev.target.result;renderCard();};r.readAsDataURL(f);});
+  $("desc").addEventListener("input",e=>{state.description=e.target.value;renderCard();});
   $("consultBtn").addEventListener("click",async ()=>{
     const out=$("consultResult");out.className="result";out.textContent="The forge considers the shape you named.";
     const theme=$("theme").value;
@@ -1808,7 +1829,7 @@ function init(){
       p.infusions=p.infusions.filter(n=>{const d=INF[n];return d&&b&&b.attackAttributes.includes(d.family);}).slice(0,3);
       p.augmentations=p.augmentations.slice(0,2);r=V.validateFoe(p,PACK);}
     Object.assign(state,p);
-    fillBuild();fillStance();fillSig();$("name").value=state.name;render();
+    fillBuild();fillStance();fillSig();$("name").value=state.name;$("desc").value=state.description||"";render();
     out.textContent=ai?("The forge shapes "+state.name+", a "+state.shatterRating+" "+state.build+", arsenal and all. "+(r.ok?"Validated. Refine below.":"Trimmed to stay legal. Refine below.")):("The forge shapes "+state.name+", a "+state.shatterRating+" "+state.build+". Offline shaping, no live arsenal pick. Refine below.");
   });
   document.addEventListener("click",function(e){
