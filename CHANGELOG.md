@@ -4,6 +4,12 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-24 — Sealed past in FateWell
+
+- The campaign roster now reveals a forged Fell's sealed past two ways: a quick inline toggle on the player row, and a dedicated panel the loremaster can open any time
+- Added getSealed to backend/fatewell.web.js, gated to loremaster and lorekeeper roles, matched to the roster by member id then by name
+- page-fatewell.js answers the tool's sealed request; the player view never receives any of it
+
 ## 2026-06-24 — FateWell stood up on the site
 
 - The loremaster and lorekeeper hub deploys as fatewell.html. Title corrected to FateWell

@@ -43,3 +43,52 @@ export const saveCampaign = webMethod(Permissions.Anyone, async (campaignId, blo
   const saved = await wixData.save(COLLECTION, row, { suppressAuth: true });
   return { ok: true, id: saved._id };
 });
+
+
+const KEEPER_ROLES = ['loremaster', 'lorekeeper'];
+
+async function isKeeper() {
+  try {
+    const roles = await currentMember.getRoles();
+    if (Array.isArray(roles)) {
+      return roles.some((r) => {
+        const t = String((r && (r.title || r.name)) || '').toLowerCase();
+        return KEEPER_ROLES.some((k) => t.indexOf(k) !== -1);
+      });
+    }
+  } catch (e) {}
+  return false;
+}
+
+// Sealed pasts for a campaign roster. Returns nothing unless the caller holds a
+// loremaster or lorekeeper role, so the player view can never reach it. Matched to
+// the roster by member id first, then by character name.
+export const getSealed = webMethod(Permissions.Anyone, async (memberIds, names) => {
+  if (!(await isKeeper())) return [];
+  const ids = Array.isArray(memberIds) ? memberIds.filter(Boolean) : [];
+  const nm = Array.isArray(names) ? names.filter(Boolean) : [];
+  if (!ids.length && !nm.length) return [];
+  let items = [];
+  try {
+    const r = await wixData.query('Characters')
+      .hasSome('ownerMemberId', ids.length ? ids : ['__none__']).limit(200)
+      .find({ suppressAuth: true });
+    items = r.items;
+    if (nm.length) {
+      const rn = await wixData.query('Characters')
+        .hasSome('charName', nm).limit(200).find({ suppressAuth: true });
+      rn.items.forEach((it) => { if (!items.some((x) => x._id === it._id)) items.push(it); });
+    }
+  } catch (e) { items = []; }
+  return items.filter((it) => it.sealedPast).map((it) => {
+    let sp = {}; try { sp = JSON.parse(it.sealedPast); } catch (e) { sp = {}; }
+    return {
+      charId: it._id,
+      name: it.charName || '',
+      ownerMemberId: it.ownerMemberId || '',
+      sealCode: it.sealCode || '',
+      reveals: Array.isArray(sp.reveals) ? sp.reveals : [],
+      fragments: Array.isArray(sp.fragments) ? sp.fragments : []
+    };
+  });
+});

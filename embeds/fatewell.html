@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>FateWell</title>
-<!-- build: fatewell2 -->
+<!-- build: fatewell-seal -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Cinzel+Decorative:wght@700&family=Crimson+Pro:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
@@ -885,6 +885,15 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 }
 .lf-fb-inner button:disabled{ opacity:.4; cursor:default; }
 .lf-fb-msg{ font-size:.8rem; color:var(--ice,#b8ccd8); opacity:.85; margin-top:8px; min-height:1em; }
+
+.seal-ic{ color:var(--gold); }
+.seal-inline{ border:1px solid rgba(201,168,76,.4); border-radius:8px; background:rgba(201,168,76,.06); padding:10px 12px; margin:6px 0 10px; }
+.seal-h{ font-family:'Cinzel',serif; font-size:.74rem; letter-spacing:.1em; text-transform:uppercase; color:var(--gold); margin:6px 0 3px; }
+.seal-list{ margin:0 0 6px; padding-left:18px; }
+.seal-list li{ font-size:.92rem; line-height:1.5; color:var(--silver); margin-bottom:3px; }
+.seal-code{ font-size:.78rem; color:var(--muted); letter-spacing:.05em; margin-top:4px; }
+.seal-empty{ color:var(--muted); font-style:italic; }
+.seal-panel{ max-height:60vh; overflow-y:auto; }
 </style>
 </head>
 <body>
@@ -1026,10 +1035,11 @@ function esc(s){
 
 /* ---------- state, migration, persistence ---------- */
 
-function seed(){ return { campaigns: [], library: [], wixPlayers: [], forge: [], glossary: [], glossaryOn: false, die: 6 }; }
+function seed(){ return { campaigns: [], library: [], wixPlayers: [], forge: [], glossary: [], glossaryOn: false, die: 6, sealed: [] }; }
 
 function migrate(d){
   if (!d.wixPlayers) d.wixPlayers = [];
+  if (!d.sealed) d.sealed = [];
   if (!d.forge) d.forge = [];
   if (!d.die) d.die = 6;
   if (!d.glossary) d.glossary = [];
@@ -1221,14 +1231,14 @@ window.addEventListener('message', function(ev){
     }
     V.cId = WIX.campaignId; V.aId=null; V.sId=null; V.scId=null;
     V.screen = 'campaign';
-    saveLocal(); render();
+    saveLocal(); render(); requestSealed();
   }
   if (m.type === 'lmtool-players'){
     WIX.connected = true;
     if (Array.isArray(m.players)){
       S.wixPlayers = m.players;
       autoMergePlayers(m.campaignId);
-      save(); render();
+      save(); render(); requestSealed();
     }
   }
   if (m.type === 'lmtool-forge'){
@@ -1252,9 +1262,56 @@ window.addEventListener('message', function(ev){
       saveLocal(); render();
     }
   }
+  if (m.type === 'lmtool-sealed'){
+    WIX.connected = true;
+    if (Array.isArray(m.sealed)){ S.sealed = m.sealed; saveLocal(); render(); }
+  }
 });
 
 function requestWix(){ postToWix({ type:'lmtool-ready' }); postToWix({ type:'lmtool-forge-request' }); postToWix({ type:'lmtool-assets-request' }); postToWix({ type:'lmtool-glossary-request' }); }
+/* The sealed past is loremaster-only. The tool asks the page for it by the current
+   campaign's roster, and the page answers only for loremaster and lorekeeper roles. */
+function requestSealed(){
+  var c = curC(); if (!c) return;
+  var memberIds = c.players.map(function(p){ return p.wixId; }).filter(Boolean);
+  var names = c.players.map(function(p){ return p.name; }).filter(Boolean);
+  if (!memberIds.length && !names.length) return;
+  postToWix({ type:'lmtool-sealed-request', campaignId: WIX.campaignId || c.id, memberIds: memberIds, names: names });
+}
+function sealedFor(p){
+  if (!S.sealed || !S.sealed.length || !p) return null;
+  var norm = function(v){ return String(v||'').trim().replace(/^the\s+/i,'').toLowerCase(); };
+  var byId = null, byName = null;
+  S.sealed.forEach(function(e){
+    if (p.wixId && e.ownerMemberId && e.ownerMemberId===p.wixId) byId = e;
+    if (!byName && norm(e.name)===norm(p.name)) byName = e;
+  });
+  return byId || byName || null;
+}
+function sealHtml(e){
+  var h = '';
+  if (e.reveals && e.reveals.length){
+    h += '<div class="seal-h">Reveals</div><ul class="seal-list">';
+    e.reveals.forEach(function(r){ h += '<li>'+esc(typeof r==='string'?r:(r.text||''))+'</li>'; });
+    h += '</ul>';
+  }
+  if (e.fragments && e.fragments.length){
+    h += '<div class="seal-h">Fragments</div><ul class="seal-list">';
+    e.fragments.forEach(function(f){ var t = typeof f==='string'?f:((f.type?f.type+': ':'')+(f.text||'')); h += '<li>'+esc(t)+'</li>'; });
+    h += '</ul>';
+  }
+  if (e.sealCode) h += '<div class="seal-code">Seal '+esc(e.sealCode)+'</div>';
+  if (!h) h = '<div class="seal-empty">No sealed past recorded.</div>';
+  return h;
+}
+function toggleSeal(id){ var el = document.getElementById('seal-'+id); if (el) el.style.display = (el.style.display==='none' ? 'block' : 'none'); }
+function sealPanel(id){
+  var c = curC(); if (!c) return;
+  var p = null; c.players.forEach(function(x){ if (x.id===id) p = x; });
+  if (!p) return; var e = sealedFor(p); if (!e) return;
+  modal('<h3 class="m-title">Sealed Past &#183; '+esc(p.name)+'</h3><div class="seal-panel">'+sealHtml(e)+'</div>'
+    + '<div class="m-row"><button class="btn" onclick="closeModal()">Close</button></div>');
+}
 
 /* ---------- lookups ---------- */
 
@@ -3300,7 +3357,7 @@ function scrCampaign(){
   h += '<div class="sec-h">Campaign notes</div>' + notesBlock('c:'+c.id);
   return h;
 }
-function setCTab(t){ V.cTab = t; render(); }
+function setCTab(t){ V.cTab = t; if (t==='roster') requestSealed(); render(); }
 
 /* The campaign's player roster, shown in the Roster tab. */
 function playersBlock(){
@@ -3311,11 +3368,15 @@ function playersBlock(){
   } else {
     h += '<div class="card">';
     c.players.forEach(function(p){
+      var seal = sealedFor(p);
       h += '<div class="p-row"><span class="p-name">'+esc(p.name)
         + (p.wixId ? ' <span class="wix-dot" title="Linked to a character sheet"></span>' : '') + '</span>'
         + '<span class="p-lvl">Lvl '+p.level+'</span>'
+        + (seal ? '<button class="icon-btn seal-ic" title="Quick reveal sealed past" onclick="toggleSeal(\''+p.id+'\')">&#9670;</button>'
+                + '<button class="icon-btn seal-ic" title="Open sealed past panel" onclick="sealPanel(\''+p.id+'\')">&#9776;</button>' : '')
         + '<button class="icon-btn" onclick="editPlayer(\''+p.id+'\')">&#9998;</button>'
-        + '<button class="icon-btn danger" onclick="deletePlayer(\''+p.id+'\')">&times;</button></div>';
+        + '<button class="icon-btn danger" onclick="deletePlayer(\''+p.id+'\')">&times;</button></div>'
+        + (seal ? '<div class="seal-inline" id="seal-'+p.id+'" style="display:none">'+sealHtml(seal)+'</div>' : '');
     });
     h += '</div><button class="btn wide ghost" onclick="playerModal()">Add a player</button>';
   }

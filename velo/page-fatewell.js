@@ -4,7 +4,7 @@
 // campaignId. The tool requests forge, assets, and glossary on load; those are
 // answered with empty sets until their collections are wired (see TODO below).
 
-import { loadCampaign, saveCampaign } from 'backend/fatewell.web.js';
+import { loadCampaign, saveCampaign, getSealed } from 'backend/fatewell.web.js';
 import wixLocation from 'wix-location';
 
 const EMBED = '#html1';   // change to your Embed a Site element ID
@@ -37,6 +37,10 @@ $w.onReady(() => {
       embed.postMessage({ type: 'lmtool-assets', assets: [] });     // TODO: feed an Assets collection
     } else if (m.type === 'lmtool-glossary-request') {
       embed.postMessage({ type: 'lmtool-glossary', glossary: [] }); // TODO: feed a Glossary collection
+    } else if (m.type === 'lmtool-sealed-request') {
+      let sealed = [];
+      try { sealed = await getSealed(m.memberIds || [], m.names || []); } catch (e) { sealed = []; }
+      embed.postMessage({ type: 'lmtool-sealed', sealed: sealed });
     } else if (m.type === 'LOREFELL_FEEDBACK_SUBMIT') {
       console.log('FateWell feedback:', JSON.stringify(m.payload || {}));
     }
