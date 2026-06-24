@@ -4,6 +4,10 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-24 — Seed retries cover gateway timeouts
+
+- The CMS seeder now retries 504 and 408 alongside 429, 502, and 503. A single transient gateway timeout no longer hard-fails the Apply run and aborts the steps after it
+
 ## 2026-06-24 — Adventure invites and a member roster
 
 - Add to roster replaces Add a player: invite a player with a reusable, revocable link, or add an offline player by hand

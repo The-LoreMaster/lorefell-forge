@@ -72,11 +72,11 @@ async function req(method, path, body) {
       return { ok: false, status: 0, json: { error: String(e) }, text: String(e) };
     }
 
-    if ((res.status === 429 || res.status === 503 || res.status === 502) && attempt < MAX_RETRIES) {
+    if ((res.status === 429 || res.status === 502 || res.status === 503 || res.status === 504 || res.status === 408) && attempt < MAX_RETRIES) {
       attempt++;
       const ra = res.headers && res.headers.get ? Number(res.headers.get("retry-after")) : NaN;
       const w = backoff(attempt, ra, res.status === 429);
-      console.error("rate limited (" + res.status + "), retry " + attempt + "/" + MAX_RETRIES + " in " + Math.round(w / 1000) + "s");
+      console.error((res.status === 429 ? "rate limited (" : "server busy (") + res.status + "), retry " + attempt + "/" + MAX_RETRIES + " in " + Math.round(w / 1000) + "s");
       await sleep(w);
       continue;
     }
