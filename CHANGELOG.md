@@ -4,6 +4,11 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-24 — ShardForge masthead promoted to the gold wordmark
+
+- ShardForge is now the large Shard plus gold Forge title, with Infusions or Augmentations as a small label beneath it
+- Removed the lede description lines on both the Infusions and Augmentations sides
+
 ## 2026-06-24 — Unified forge wordmark (gold Forge), drop taglines
 
 - FoeForge and SigilForge now render the name with Forge in gold to match BondForge
