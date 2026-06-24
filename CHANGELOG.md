@@ -4,6 +4,10 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-24 — BrandForge: lineage images above the text
+
+- Lineage catalog cards now show the image full width above the text on desktop and mobile, sized to fit the horizontal image instead of a cropped left thumbnail
+
 ## 2026-06-24 — Revert createCollection id change
 
 - The Wix v2 create API keys the collection on id, not _id. Reverted so collection creation succeeds again
