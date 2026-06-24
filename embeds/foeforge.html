@@ -1473,6 +1473,8 @@ const AI_FORGE_ENDPOINT="https://lorefell.com/_functions/aiForge";
 function infTip(n){const d=INF[n];return d?(d.effect||""):"";}
 function augTip(n){const d=AUG[n];return d?(d.effect||""):"";}
 function actTip(n){const m=byName(LIBRARY),d=m[n];return d?(d.effect||""):"";}
+function stanceTip(n){const d=STANCES[n];if(!d||!d.tiers)return"";return "Charge 1. "+(d.tiers.T1||"")+"  Charge 2. "+(d.tiers.T2||"")+"  Charge 3. "+(d.tiers.T3||"");}
+function affTip(n){const d=AFF[n];if(!d)return"";return (d.rule||"")+(d.major?" A Major Affliction.":"");}
 function pillsTip(items,host){host.innerHTML=items.length?items.map(it=>'<span class="pill" title="'+esc(it.tip||"")+'">'+escH(it.label)+'</span>').join(""):"";}
 function updateHints(){
   const bh=$("buildHint");if(bh)bh.textContent=buildHint();
@@ -1556,7 +1558,7 @@ function fillAug(){
 function fillActs(){const list=$("actList");list.innerHTML="";
   const q=actFilter.trim().toLowerCase(),picked=new Set(state.acts.map(a=>a.name));
   const rows=LIBRARY.filter(a=>!q||a.name.toLowerCase().includes(q)||(a.effect||"").toLowerCase().includes(q)).sort((x,y)=>x.tier-y.tier||x.name.localeCompare(y.name));
-  if(!rows.length){const d=document.createElement("p");d.className="drop-note";d.style.padding="4px 0 0";d.textContent=LIBRARY.length?"No ability matches that search.":"No abilities yet. Submitted and canonized abilities from SigilForge appear here.";list.appendChild(d);}
+  if(!rows.length){const d=document.createElement("p");d.className="drop-note";d.style.padding="4px 16px 14px";d.textContent=LIBRARY.length?"No ability matches that search.":"No abilities yet. Submitted and canonized abilities from SigilForge appear here.";list.appendChild(d);}
   rows.forEach(a=>{
     const on=picked.has(a.name);const r=document.createElement("label");r.className="crow";
     r.innerHTML='<input type="checkbox" '+(on?"checked":"")+'><span class="nm">'+escH(a.name)+provBadge(a.status)+'<small>'+escH(a.effect||"")+'</small></span><span class="tiertag">Tier '+a.tier+'</span>';
@@ -1580,11 +1582,13 @@ function renderCard(){
   const inf=state.infusions.map(n=>'<span class="pill" title="'+esc(infTip(n))+'">'+escH(n)+'</span>').join("")||'<span class="note">none</span>';
   const aug=state.augmentations.map(n=>'<span class="pill" title="'+esc(augTip(n))+'">'+escH(n)+'</span>').join("")||'<span class="note">none</span>';
   const acts=state.acts.length?state.acts.slice().sort((x,y)=>x.tier-y.tier).map(a=>'<span class="pill" title="'+esc(actTip(a.name))+'">T'+a.tier+" "+escH(a.name||"Act")+'</span>').join(""):'<span class="note">Standard Attack only</span>';
+  const stancePill='<span class="pill" title="'+esc(stanceTip(state.stance))+'">'+escH(state.stance)+'</span>';
+  const affPill=state.signatureAffliction?'<span class="pill" title="'+esc(affTip(state.signatureAffliction))+'">'+escH(state.signatureAffliction)+'</span>':'<span class="note">none</span>';
   const port=state.image?'<img class="portrait" src="'+state.image+'" alt="">':'';
   $("card").className="card"+(state.image?" has-img":"");
   $("card").innerHTML=port+'<div class="name">'+(state.name||"Unnamed")+'</div><div class="meta">'+state.shatterRating+" "+state.build+'</div>'+
-    '<div class="field"><div class="k">Stance</div><div class="v">'+state.stance+'</div></div>'+
-    '<div class="field"><div class="k">Signature</div><div class="v">'+state.signatureAffliction+'</div></div>'+
+    '<div class="field"><div class="k">Stance</div><div class="v">'+stancePill+'</div></div>'+
+    '<div class="field"><div class="k">Affliction</div><div class="v">'+affPill+'</div></div>'+
     '<div class="field"><div class="k">Infusions</div><div class="v">'+inf+'</div></div>'+
     '<div class="field"><div class="k">Augmentations</div><div class="v">'+aug+'</div></div>'+
     '<div class="field"><div class="k">Acts</div><div class="v">'+acts+'</div></div>';}
@@ -1596,7 +1600,9 @@ function scaleFoe(){const t=TIERS[state.shatterRating],b=BUILDS[state.build];
 function renderScaled(){const s=scaleFoe(),t=s.tier,b=BUILDS[state.build];
   const accLabel=b&&b.accuracy.includes("spell")&&!b.accuracy.includes("weapon")?"Magic":"Precision";
   const acc=accLabel==="Magic"?s.attrs.Magic:s.attrs.Precision;
-  const std='1d6 + '+acc+' '+accLabel+' to land, Base Damage '+(1+s.attrs.Power)+' (1 + Power)';
+  const dmgLabel=accLabel==="Magic"?"Magic":"Power";
+  const dmgVal=s.attrs[dmgLabel]||0;
+  const std='1d6 + '+acc+' '+accLabel+' to land. Base Damage '+(1+dmgVal)+' (1 + '+dmgLabel+'), Bonus Damage '+dmgVal+' ('+dmgLabel+').';
   const live=(c)=>c?"":' dim';
   const infP=state.infusions.map((n,i)=>'<span class="pill'+live(i<t.infusions)+'" title="'+esc(infTip(n))+'">'+escH(n)+'</span>').join("")||'<span class="note">none</span>';
   const augP=state.augmentations.map((n,i)=>'<span class="pill'+live(i<t.augmentations)+'" title="'+esc(augTip(n))+'">'+escH(n)+'</span>').join("")||'<span class="note">none</span>';

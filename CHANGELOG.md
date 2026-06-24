@@ -4,6 +4,12 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-24 — FoeForge card polish and standard attack bonus damage
+
+- Foe card relabels Signature to Affliction. Stance and Affliction now render as pills with hover tooltips, matching infusions and augmentations
+- Standard Attack now lists Bonus Damage alongside Base Damage, both drawn from Power or Magic depending on the build
+- Fixed the indent on the empty acts message
+
 ## 2026-06-24 — FoeForge: selection descriptions, hover tooltips, creative consult names
 
 - Stance and Signature Affliction now show the selected option's effect under the box. Build keeps its line
