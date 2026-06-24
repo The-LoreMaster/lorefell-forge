@@ -4,6 +4,13 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-24 — FateWell stood up on the site
+
+- The loremaster and lorekeeper hub deploys as fatewell.html. Title corrected to FateWell
+- Added the Campaigns collection, backend/fatewell.web.js (loadCampaign, saveCampaign, owner-checked), and velo/page-fatewell.js for the hosted open and save loop
+- Forge, assets, and glossary requests are answered empty for now, wired to their collections next
+- Sealed past reveal is the next step: it attaches to the campaign roster, role-gated to loremaster and lorekeeper
+
 ## 2026-06-24 — Live lineage library in FellGlass
 
 - Added backend/libraries.web.js (getLibraries) reading the Lineages collection, mapped to the shape the sheet expects
