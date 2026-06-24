@@ -4,6 +4,10 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-24 — RelicForge: catalog images resized
+
+- Catalog cards now place the image as a fixed thumbnail to the left of the text on desktop, and above the text on mobile, instead of one oversized full-width image
+
 ## 2026-06-24 — RelicForge aligned, wired, and imaged
 
 - Gold Forge wordmark, subtitle and divider removed, body reset so there is no white space around the embed
