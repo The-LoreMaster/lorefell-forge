@@ -4,6 +4,10 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-24 — Revert createCollection id change
+
+- The Wix v2 create API keys the collection on id, not _id. Reverted so collection creation succeeds again
+
 ## 2026-06-24 — Fix collection creation field types
 
 - createCollection now sends the collection _id rather than id, so the field schema registers on create and new collections get typed fields instead of undefined ones

@@ -49,7 +49,7 @@ async function listExistingIds() {
 
     if (exists) { console.log("exists, skip: " + id); continue; }
 
-    const r = await req("POST", "/wix-data/v2/collections", { collection: withId(col, "_id") });
+    const r = await req("POST", "/wix-data/v2/collections", { collection: withId(col, "id") });
     if (r.ok) console.log("created: " + id);
     else { console.error("CREATE FAILED " + id + " " + r.status + ": " + r.text.slice(0, 500)); failed = true; }
   }
