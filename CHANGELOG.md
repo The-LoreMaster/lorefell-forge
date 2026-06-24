@@ -4,6 +4,13 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-24 — FoeForge: blank start, live abilities only, provenance badges, full text
+
+- Removed the demo foe. The builder opens blank, no name and no preset infusions, augmentations, or acts
+- Dropped the sample act list. Acts now come only from SigilForge submissions, submitted and canonized, with an empty state when none exist
+- Each ability, infusion, and augmentation carries a Canon or Submitted badge
+- Abilities show their full description, not the shorthand. getCreations now returns fullText
+
 ## 2026-06-24 — FoeForge wired: submit to the Pentifax, builder reads live components
 
 - Submit routes a foe to the Pentifax, the foe canon hall (Creations, kind foe, meta hall pentifax). Save stays private and local

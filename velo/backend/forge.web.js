@@ -110,7 +110,7 @@ export const getCreations = webMethod(Permissions.Anyone, async (forgeKey, opts)
     return {
       creationId: s._id, creationName: s.creationName, creatorName: s.creatorName,
       canonStatus: s.canonStatus, voteCount: s.voteCount, kind: s.kind,
-      shorthand: s.shorthand, imageUrl: s.imageUrl, fingerprint: s.fingerprint,
+      shorthand: s.shorthand, fullText: s.fullText, imageUrl: s.imageUrl, fingerprint: s.fingerprint,
       payload: s.payload
     };
   });

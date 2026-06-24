@@ -48,19 +48,19 @@ $w.onReady(() => {
       try { abilRows = live(await getCreations('sigilforge', { limit: 500 })); } catch (e) {}
 
       const infusions = dedupeByName(
-        infOff.map(function (r) { return { name: r.name, family: r.attribute || '', type: '', effect: r.effect || '' }; })
-          .concat(infSub.map(function (r) { const m = meta(r); return { name: r.creationName, family: m.category || '', type: '', effect: r.shorthand || '' }; }))
+        infOff.map(function (r) { return { name: r.name, family: r.attribute || '', type: '', effect: r.effect || '', status: 'canon' }; })
+          .concat(infSub.map(function (r) { const m = meta(r); return { name: r.creationName, family: m.category || '', type: '', effect: r.shorthand || '', status: r.canonStatus }; }))
       );
       const augmentations = dedupeByName(
-        augOff.map(function (r) { return { name: r.name, type: r.core ? 'Core' : 'Non-Core', effect: r.effect || '' }; })
-          .concat(augSub.map(function (r) { return { name: r.creationName, type: 'Non-Core', effect: r.shorthand || '' }; }))
+        augOff.map(function (r) { return { name: r.name, type: r.core ? 'Core' : 'Non-Core', effect: r.effect || '', status: 'canon' }; })
+          .concat(augSub.map(function (r) { return { name: r.creationName, type: 'Non-Core', effect: r.shorthand || '', status: r.canonStatus }; }))
       );
       const abilities = dedupeByName(
         abilRows.map(function (r) {
           const pl = payloadOf(r);
           const tier = Number(pl.tier) || 1;
           const cost = (pl.cost != null ? Number(pl.cost) : (TIER_MIN[tier] || 1));
-          return { name: r.creationName, tier: tier, cost: cost, effect: r.shorthand || '' };
+          return { name: r.creationName, tier: tier, cost: cost, effect: r.fullText || r.shorthand || '', status: r.canonStatus };
         })
       );
 

@@ -63,6 +63,9 @@
 
   .crow .nm small{display:block; color:var(--muted); font-size:13px; margin-top:2px; line-height:1.35}
   .tiertag{flex:0 0 auto; color:var(--ice); font-family:"Cinzel",serif; font-size:11px; letter-spacing:.08em; align-self:flex-start; padding-top:2px}
+  .prov{display:inline-block; font-family:"Cinzel",serif; font-size:9px; letter-spacing:.1em; text-transform:uppercase; padding:1px 6px; border-radius:4px; margin-left:8px; vertical-align:middle; border:1px solid}
+  .prov.canon{color:var(--gold); border-color:rgba(201,168,76,.5)}
+  .prov.sub{color:var(--muted); border-color:var(--line)}
   /* stacked field used in the cards */
   .field{margin:14px 0}
   .field:first-child{margin-top:0}
@@ -127,7 +130,7 @@
   <section>
     <h2>The build</h2>
     <label for="name">Name</label>
-    <input id="name" type="text" placeholder="the Charnel" value="the Charnel">
+    <input id="name" type="text" placeholder="Name your Foe" value="">
     <label for="img">Portrait</label>
     <input id="img" type="file" accept="image/*">
     <p class="hint">Optional. The live tool stores it on the Foe. Here it previews on the card.</p>
@@ -173,7 +176,7 @@
       </button>
       <div class="drop-sel" id="actSel"></div>
       <div class="drop-b">
-        <p class="drop-note">Pulled from the SigilForge library. Picking one carries its tier. Sample entries shown for review.</p>
+        <p class="drop-note">Pulled from SigilForge, submitted and canonized. Picking one carries its tier and its full text.</p>
         <div style="padding:12px 16px 0"><input id="actSearch" type="text" placeholder="Search abilities"></div>
         <div id="actList"></div>
       </div>
@@ -1453,24 +1456,16 @@ const V = window.FoeRules;
 const byName=(a)=>{const m={};(a||[]).forEach(x=>m[x.name]=x);return m;};
 const BUILDS=byName(PACK.builds),STANCES=byName(PACK.stances),AFF=byName(PACK.afflictions),
       INF=byName(PACK.infusions),AUG=byName(PACK.augmentations),TIERS=byName(PACK.tiers);
-const state={name:"the Charnel",build:"Juggernaut",stance:"Stalwart",signatureAffliction:"Crippled",
-  infusions:["Powerful","Goring"],augmentations:["Emberhold"],
-  acts:[{name:"Gravemouth",tier:1,cost:1},{name:"The Weight of the Dead",tier:2,cost:3}],
-  shatterRating:"Champion",apl:4,party:4,image:null};
-const SAMPLE_LIBRARY=[
-  {name:"Gravemouth",tier:1,cost:1,effect:"Two Targets, Standard Damage"},
-  {name:"Lash of Cinders",tier:1,cost:2,effect:"One Target, Standard Damage, Ignited"},
-  {name:"Hollow Verdict",tier:2,cost:3,effect:"Three Targets, Standard Damage"},
-  {name:"The Weight of the Dead",tier:2,cost:3,effect:"Double Standard Damage, Increased Bonus Damage"},
-  {name:"Marrowdraw",tier:2,cost:4,effect:"One Target, Standard Damage, Withered"},
-  {name:"Sunder the Veil",tier:3,cost:5,effect:"All Enemies, Standard Damage"},
-  {name:"Doomtoll",tier:3,cost:5,effect:"Spread, Standard Damage, a Major Affliction"},
-  {name:"Worldsplit",tier:3,cost:6,effect:"All Enemies, Double Standard Damage"}
-];
-let LIBRARY=SAMPLE_LIBRARY.slice();
+const state={name:"",build:(PACK.builds[0]||{}).name||"",stance:(PACK.stances[0]||{}).name||"",
+  signatureAffliction:((PACK.afflictions.slice().sort((a,b)=>a.name.localeCompare(b.name))[0])||{}).name||"",
+  infusions:[],augmentations:[],acts:[],
+  shatterRating:(PACK.tiers[0]||{}).name||"",apl:4,party:4,image:null};
+let LIBRARY=[];
 let actFilter="";
 const $=(id)=>document.getElementById(id);
 const esc=(s)=>(s||"").replace(/"/g,"&quot;");
+const escH=(s)=>(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const provBadge=(st)=>st?'<span class="prov '+(st==="canon"?"canon":"sub")+'">'+(st==="canon"?"Canon":"Submitted")+'</span>':"";
 function opt(v,l,sel){const o=document.createElement("option");o.value=v;o.textContent=l;if(v===sel)o.selected=true;return o;}
 function pills(names,host){host.innerHTML=names.length?names.map(n=>'<span class="pill">'+n+'</span>').join(""):"";}
 
@@ -1486,10 +1481,10 @@ function fillSig(){const s=$("sig");s.innerHTML="";
   PACK.afflictions.slice().sort((a,b)=>a.name.localeCompare(b.name)).forEach(a=>
     s.appendChild(opt(a.name,a.name,state.signatureAffliction)));}
 
-function crow(name,type,checked,disabled,onToggle){
+function crow(name,type,checked,disabled,onToggle,status){
   const r=document.createElement("label");r.className="crow"+(disabled&&!checked?" off":"");
   r.innerHTML='<input type="checkbox" '+(checked?"checked":"")+(disabled&&!checked?" disabled":"")+'>'+
-    '<span class="nm">'+name+'</span><span class="ty">'+type+'</span>';
+    '<span class="nm">'+escH(name)+provBadge(status)+'</span><span class="ty">'+escH(type)+'</span>';
   r.querySelector("input").addEventListener("change",onToggle);return r;}
 
 function fillInf(){
@@ -1501,7 +1496,7 @@ function fillInf(){
       const on=state.infusions.includes(i.name);
       list.appendChild(crow(i.name,i.type||"",on,state.infusions.length>=3,e=>{
         if(e.target.checked){if(state.infusions.length>=3){e.target.checked=false;return;}state.infusions.push(i.name);}
-        else state.infusions=state.infusions.filter(x=>x!==i.name);render();}));});}
+        else state.infusions=state.infusions.filter(x=>x!==i.name);render();},i.status));});}
   $("infCount").textContent=state.infusions.length;
   pills(state.infusions,$("infSel"));}
 
@@ -1510,20 +1505,21 @@ function fillAug(){
   PACK.augmentations.forEach(a=>{const on=state.augmentations.includes(a.name);
     list.appendChild(crow(a.name,a.type,on,state.augmentations.length>=2,e=>{
       if(e.target.checked){if(state.augmentations.length>=2){e.target.checked=false;return;}state.augmentations.push(a.name);}
-      else state.augmentations=state.augmentations.filter(x=>x!==a.name);render();}));});
+      else state.augmentations=state.augmentations.filter(x=>x!==a.name);render();},a.status));});
   $("augCount").textContent=state.augmentations.length;
   pills(state.augmentations,$("augSel"));}
 
 function fillActs(){const list=$("actList");list.innerHTML="";
   const q=actFilter.trim().toLowerCase(),picked=new Set(state.acts.map(a=>a.name));
-  LIBRARY.filter(a=>!q||a.name.toLowerCase().includes(q)||(a.effect||"").toLowerCase().includes(q))
-    .sort((x,y)=>x.tier-y.tier||x.name.localeCompare(y.name)).forEach(a=>{
-      const on=picked.has(a.name);const r=document.createElement("label");r.className="crow";
-      r.innerHTML='<input type="checkbox" '+(on?"checked":"")+'><span class="nm">'+a.name+'<small>'+a.effect+'</small></span><span class="tiertag">Tier '+a.tier+'</span>';
-      r.querySelector("input").addEventListener("change",e=>{
-        if(e.target.checked)state.acts.push({name:a.name,tier:a.tier,cost:a.cost});
-        else state.acts=state.acts.filter(x=>x.name!==a.name);render();});
-      list.appendChild(r);});
+  const rows=LIBRARY.filter(a=>!q||a.name.toLowerCase().includes(q)||(a.effect||"").toLowerCase().includes(q)).sort((x,y)=>x.tier-y.tier||x.name.localeCompare(y.name));
+  if(!rows.length){const d=document.createElement("p");d.className="drop-note";d.style.padding="4px 0 0";d.textContent=LIBRARY.length?"No ability matches that search.":"No abilities yet. Submitted and canonized abilities from SigilForge appear here.";list.appendChild(d);}
+  rows.forEach(a=>{
+    const on=picked.has(a.name);const r=document.createElement("label");r.className="crow";
+    r.innerHTML='<input type="checkbox" '+(on?"checked":"")+'><span class="nm">'+escH(a.name)+provBadge(a.status)+'<small>'+escH(a.effect||"")+'</small></span><span class="tiertag">Tier '+a.tier+'</span>';
+    r.querySelector("input").addEventListener("change",e=>{
+      if(e.target.checked)state.acts.push({name:a.name,tier:a.tier,cost:a.cost});
+      else state.acts=state.acts.filter(x=>x.name!==a.name);render();});
+    list.appendChild(r);});
   $("actCount").textContent=state.acts.length;
   pills(state.acts.slice().sort((x,y)=>x.tier-y.tier).map(a=>"T"+a.tier+" "+a.name),$("actSel"));}
 function fillRating(){const s=$("rating");s.innerHTML="";PACK.tiers.forEach(t=>s.appendChild(opt(t.name,t.name,state.shatterRating)));}
