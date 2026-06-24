@@ -70,6 +70,34 @@ $w.onReady(() => {
       return;
     }
 
+    if (msg.type === 'FOE_NEW_ABILITIES') {
+      const list = (msg.payload && msg.payload.abilities) || [];
+      let existing = [];
+      try { existing = await getCreations('sigilforge', { limit: 500 }); } catch (e) {}
+      const byname = {};
+      existing.forEach(function (r) { byname[String(r.creationName || '').toLowerCase()] = r; });
+      const results = [];
+      for (const a of list) {
+        const key = String(a.name || '').toLowerCase();
+        if (byname[key]) {
+          const r = byname[key]; const pl = payloadOf(r);
+          results.push({ name: r.creationName, ok: true, existed: true, creationId: r.creationId,
+            tier: Number(pl.tier) || a.tier, cost: (pl.cost != null ? Number(pl.cost) : a.cost),
+            effect: r.fullText || r.shorthand || a.effect, status: r.canonStatus });
+          continue;
+        }
+        const kind = a.type === 'spell' ? 'spell' : 'ability';
+        const payload = { kind: kind, title: String(a.name || '').slice(0, 120), tier: a.tier, cost: a.cost,
+          shorthand: 'T' + a.tier + ' ' + kind, fullText: a.effect || '', selections: [],
+          meta: { tier: a.tier, cost: a.cost, type: kind, description: a.description || '', source: 'foeforge' } };
+        let cid = '', ok = false;
+        try { const res = await submitCreation('sigilforge', payload); ok = !!(res && res.ok); cid = (res && res.creationId) || ''; } catch (e) {}
+        results.push({ name: a.name, ok: ok, existed: false, creationId: cid, tier: a.tier, cost: a.cost, effect: a.effect, status: 'submitted' });
+      }
+      embed.postMessage({ type: 'FOE_ABILITIES_RESULT', results: results });
+      return;
+    }
+
     if (msg.type === 'FOE_LOAD_LEDGER') {
       const scope = (msg.payload && msg.payload.scope) || 'all';
       const opts = { kind: 'foe', limit: 60 };

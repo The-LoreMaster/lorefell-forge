@@ -104,6 +104,15 @@
   .vok{color:var(--ice)} .vok b{color:var(--silver)}
 
   .card{border:1px solid var(--line); border-top:2px solid var(--gold); border-radius:10px; padding:18px; background:var(--navy)}
+  .cardhead{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:2px}
+  .cardhead h2{margin:0}
+  .flipbtn{font-family:"Cinzel",serif; text-transform:uppercase; letter-spacing:.08em; font-size:11px; color:var(--ice); background:var(--panel); border:1px solid var(--gold); border-radius:8px; padding:9px 13px; cursor:pointer; white-space:nowrap}
+  .flipbtn:active{background:var(--navy)}
+  .flip{position:relative; perspective:1600px; min-height:90px; margin-top:6px; transition:height .42s ease}
+  .flip-inner{position:relative; width:100%; height:100%; transition:transform .6s; transform-style:preserve-3d; -webkit-transform-style:preserve-3d}
+  .flip.flipped .flip-inner{transform:rotateY(180deg)}
+  .flip-face{position:absolute; top:0; left:0; width:100%; -webkit-backface-visibility:hidden; backface-visibility:hidden}
+  .flip-back{transform:rotateY(180deg)}
   .tabs{display:flex; gap:8px; margin:0 0 18px}
   .tab{flex:1; padding:12px; border:1px solid var(--line); background:var(--panel); color:var(--muted); border-radius:8px; font-family:"Cinzel",serif; text-transform:uppercase; letter-spacing:.1em; font-size:13px; cursor:pointer}
   .tab.active{color:var(--silver); border-color:var(--gold)}
@@ -214,36 +223,46 @@
   <div class="hair"></div>
 
   <section>
-    <h2>Validation</h2>
-    <div id="valid"></div>
-  </section>
-
-  <section>
-    <h2>Foe Card</h2>
-    <div class="card" id="card"></div>
-  </section>
-
-  <section>
     <h2>Description</h2>
     <p class="hint">Flavor for the Foe. The forge fills this when you consult it. Edit it freely.</p>
     <textarea id="desc" rows="4" placeholder="What it is, how it moves, what it wants."></textarea>
   </section>
 
   <section>
-    <h2>At the table</h2>
-    <div class="two">
-      <div><label for="rating">Deploy at</label><select id="rating"></select></div>
-      <div><label for="apl">Party level</label><input id="apl" type="number" min="1" value="4"></div>
+    <div class="cardhead">
+      <h2>Foe Card</h2>
+      <button class="flipbtn" id="flipBtn" type="button">At the table &#8635;</button>
     </div>
-    <label for="party">Number of Fell</label>
-    <input id="party" type="number" min="1" value="4">
-    <div id="scaled" style="margin-top:16px"></div>
-    <p class="note" id="discordNote"></p>
+    <p class="hint" style="margin-top:0">Tap the button to flip between the arsenal and the table-side stats.</p>
+    <div class="flip" id="flip">
+      <div class="flip-inner">
+        <div class="flip-face flip-front">
+          <div class="card" id="card"></div>
+        </div>
+        <div class="flip-face flip-back">
+          <div class="card" id="cardBack">
+            <div class="two">
+              <div><label for="rating">Deploy at</label><select id="rating"></select></div>
+              <div><label for="apl">Party level</label><input id="apl" type="number" min="1" value="1"></div>
+            </div>
+            <label for="party">Number of Fell</label>
+            <input id="party" type="number" min="1" value="4">
+            <div id="scaled" style="margin-top:16px"></div>
+            <p class="note" id="discordNote"></p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Validation</h2>
+    <div id="valid"></div>
   </section>
 
   <section>
     <h2>Save</h2>
-    <p class="hint">A Foe saves private and is yours at the table at once. Submit sends it to Pentifax for the canon vote. In the live tool this writes to the Foes collection.</p>
+    <p class="hint">A Foe saves private and is yours at the table at once. Submit sends it to the Pentifax for the canon vote.</p>
     <div class="actions">
       <button class="btn save" id="saveBtn">Save to my Foes</button>
       <button class="btn submit" id="submitBtn">Submit to Pentifax</button>
@@ -1516,7 +1535,7 @@ const BUILDS=byName(PACK.builds),STANCES=byName(PACK.stances),AFF=byName(PACK.af
 const state={name:"",build:(PACK.builds[0]||{}).name||"",stance:(PACK.stances[0]||{}).name||"",
   signatureAffliction:((PACK.afflictions.slice().sort((a,b)=>a.name.localeCompare(b.name))[0])||{}).name||"",
   infusions:[],augmentations:[],acts:[],
-  shatterRating:(PACK.tiers[0]||{}).name||"",apl:4,party:4,image:null,description:""};
+  shatterRating:(PACK.tiers[0]||{}).name||"",apl:1,party:4,image:null,description:""};
 let LIBRARY=[];
 let actFilter="";
 const $=(id)=>document.getElementById(id);
@@ -1686,16 +1705,19 @@ async function aiForge(theme){
   const sys="You design monsters (Foes) for LoreFell, a dark weird-fantasy tabletop RPG. "+
     "Choose a complete Foe using only the supplied catalogs. Rules: pick exactly one build, one stance, one affliction. "+
     "Choose exactly three infusions whose family in braces matches one of the chosen build's attributes. "+
-    "Choose exactly two augmentations. Choose three acts, one at Tier 1, one at Tier 2, one at Tier 3. "+
+    "Choose exactly two augmentations. Cover all three tiers with acts, one at Tier 1, one at Tier 2, one at Tier 3. "+
+    "Prefer acts from the ACTS catalog by exact name in the acts array. When the catalog has no fitting act at a tier, invent one in customActs. "+
+    "A custom act is a spell when the chosen build attacks with Magic, otherwise an ability. Keep costs in band: Tier 1 is 1 to 2, Tier 2 is 3 to 4, Tier 3 is 5 to 6. Do not cover the same tier twice across acts and customActs. "+
     "Write a description of two to four sentences, dark and grounded, that gives the Foe flavor and presence. No semicolons, no dashes. "+
     "Invent one original name, dark and grounded, one to four words, never real-world or copyrighted, never bland like The Beast. "+
     "Match the theme in feel. Reply with JSON only and no prose: "+
-    '{"name":"","description":"","build":"","stance":"","affliction":"","infusions":[],"augmentations":[],"acts":[]}. '+
+    '{"name":"","description":"","build":"","stance":"","affliction":"","infusions":[],"augmentations":[],"acts":[],"customActs":[]}. '+
+    'Each custom act is {"name":"","tier":1,"cost":1,"effect":"","description":""}. '+
     "Use exact names from the catalogs. For acts use the name without the T number.";
   const ctx="Theme: "+theme+"\n\nBUILDS:\n"+builds.join("\n")+"\n\nSTANCES: "+stances.join(", ")+
     "\n\nAFFLICTIONS: "+affs.join(", ")+"\n\nINFUSIONS:\n"+infs.join("\n")+
     "\n\nAUGMENTATIONS:\n"+augs.join("\n")+"\n\nACTS:\n"+acts.join("\n");
-  const res=await fetch(AI_FORGE_ENDPOINT,{method:"POST",headers:{"Content-Type":"text/plain;charset=UTF-8"},body:JSON.stringify({system:sys,messages:[{role:"user",content:ctx}],max_tokens:500})});
+  const res=await fetch(AI_FORGE_ENDPOINT,{method:"POST",headers:{"Content-Type":"text/plain;charset=UTF-8"},body:JSON.stringify({system:sys,messages:[{role:"user",content:ctx}],max_tokens:750})});
   if(!res.ok)return null;
   const data=await res.json();const text=(data.content||[]).filter(x=>x.type==="text").map(x=>x.text).join("");
   try{return JSON.parse(text.replace(/```json|```/g,"").trim());}catch(e){return null;}
@@ -1714,6 +1736,19 @@ function applyForged(theme,ai){
   if(ai.name)p.name=String(ai.name).slice(0,60);
   if(ai.description)p.description=String(ai.description).slice(0,800);
   return p;
+}
+function clampCost(c,t){const band=(PACK.abilityBudget||{T1:[1,2],T2:[3,4],T3:[5,6]})["T"+t]||[1,2];let n=Math.round(+c);if(!n||isNaN(n))n=band[0];return Math.min(band[1],Math.max(band[0],n));}
+let _abilResolve=null;
+function submitCustomActs(list){return new Promise(res=>{
+  if(!list||!list.length){res([]);return;}
+  _abilResolve=res;post({type:"FOE_NEW_ABILITIES",payload:{abilities:list}});
+  setTimeout(()=>{if(_abilResolve){const r=_abilResolve;_abilResolve=null;r([]);}},12000);});}
+function assembleActs(ai,extra){
+  const m=byName(LIBRARY),chosen={};
+  (Array.isArray(ai&&ai.acts)?ai.acts:[]).forEach(n=>{const a=m[n];if(a&&!chosen[a.tier])chosen[a.tier]={name:a.name,tier:a.tier,cost:a.cost,effect:a.effect};});
+  (extra||[]).forEach(r=>{if(r&&r.name){const a=m[r.name]||r,t=a.tier;if(t&&!chosen[t])chosen[t]={name:a.name,tier:t,cost:a.cost,effect:a.effect};}});
+  [1,2,3].forEach(t=>{if(!chosen[t]){const pool=LIBRARY.filter(a=>a.tier===t);if(pool.length){const a=pick(pool);chosen[t]={name:a.name,tier:a.tier,cost:a.cost,effect:a.effect};}}});
+  return [1,2,3].map(t=>chosen[t]).filter(Boolean);
 }
 function generateFromTheme(theme){
   const t=(theme||"").toLowerCase(),has=(...w)=>w.some(x=>t.includes(x));
@@ -1756,6 +1791,7 @@ function applyLibrary(lib){lib=lib||{};
 }
 window.onmessage=function(e){const m=e&&e.data;if(!m||typeof m!=="object")return;
   if(m.type==="FOE_LIBRARY"){applyLibrary(m.library||m);return;}
+  if(m.type==="FOE_ABILITIES_RESULT"){if(_abilResolve){const r=_abilResolve;_abilResolve=null;r(m.results||[]);}return;}
   if(m.type==="FOE_LEDGER_RESULT"){renderPenList(m.items||[]);return;}
   if(m.type==="FOE_VOTE_RESULT"){applyPenVote(m);return;}
   if(m.type==="FOE_SUBMIT_RESULT"){const b=$("submitBtn");if(b)b.disabled=false;const out=$("result");
@@ -1793,17 +1829,20 @@ function applyPenVote(m){if(!m||!m.creationId)return;let btn=null;document.query
 function showView(v){$("forgeView").style.display=v==="forge"?"":"none";$("pentifaxView").style.display=v==="pentifax"?"":"none";
   document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.v===v));
   if(v==="pentifax"&&!penLoaded){penLoaded=true;loadLedger();}reportHeight();}
-function render(){updateHints();fillInf();fillAug();fillActs();renderValid();renderCard();renderScaled();}
+function sizeFlip(){const f=$("flip");if(!f){reportHeight();return;}
+  const active=f.classList.contains("flipped")?$("cardBack"):$("card");
+  if(active)f.style.height=active.scrollHeight+"px";reportHeight();}
+function render(){updateHints();fillInf();fillAug();fillActs();renderValid();renderCard();renderScaled();sizeFlip();}
 function init(){
   fillBuild();fillStance();fillSig();fillRating();$("buildHint").textContent=buildHint();
   document.querySelectorAll("[data-toggle]").forEach(btn=>btn.addEventListener("click",()=>$(btn.dataset.toggle).classList.toggle("open")));
-  $("name").addEventListener("input",e=>{state.name=e.target.value;renderCard();renderValid();});
+  $("name").addEventListener("input",e=>{state.name=e.target.value;renderCard();renderValid();sizeFlip();});
   $("build").addEventListener("change",e=>{state.build=e.target.value;state.infusions=[];$("buildHint").textContent=buildHint();render();});
   $("stance").addEventListener("change",e=>{state.stance=e.target.value;render();});
   $("sig").addEventListener("change",e=>{state.signatureAffliction=e.target.value;render();});
   $("rating").addEventListener("change",e=>{state.shatterRating=e.target.value;render();});
-  $("apl").addEventListener("input",e=>{state.apl=e.target.value;renderScaled();});
-  $("party").addEventListener("input",e=>{state.party=e.target.value;renderScaled();});
+  $("apl").addEventListener("input",e=>{state.apl=e.target.value;renderScaled();sizeFlip();});
+  $("party").addEventListener("input",e=>{state.party=e.target.value;renderScaled();sizeFlip();});
   $("actSearch").addEventListener("input",e=>{actFilter=e.target.value;fillActs();});
   function doSave(mode){const r=V.validateFoe(foeRecord(),PACK),out=$("result");
     if(!r.ok){out.className="result bad";out.textContent="Cannot save. Fix the errors in Validation first.";return;}
@@ -1819,30 +1858,52 @@ function init(){
   $("submitBtn").addEventListener("click",()=>doSave("submitted"));
   $("img").addEventListener("change",e=>{const f=e.target.files&&e.target.files[0];if(!f)return;
     const r=new FileReader();r.onload=ev=>{state.image=ev.target.result;renderCard();};r.readAsDataURL(f);});
-  $("desc").addEventListener("input",e=>{state.description=e.target.value;renderCard();});
+  $("desc").addEventListener("input",e=>{state.description=e.target.value;renderCard();sizeFlip();});
   $("consultBtn").addEventListener("click",async ()=>{
     const out=$("consultResult");out.className="result";out.textContent="The forge considers the shape you named.";
     const theme=$("theme").value;
     let ai=null;try{ai=await aiForge(theme);}catch(e){}
-    let p=applyForged(theme,ai);let r=V.validateFoe(p,PACK);
-    if(!r.ok){const b=BUILDS[p.build];
-      p.infusions=p.infusions.filter(n=>{const d=INF[n];return d&&b&&b.attackAttributes.includes(d.family);}).slice(0,3);
+    let p=applyForged(theme,ai);
+    const b=BUILDS[p.build];
+    const isSpell=!!(b&&b.accuracy&&b.accuracy.indexOf("spell")!==-1&&b.accuracy.indexOf("weapon")===-1);
+    let made=[];
+    if(ai&&Array.isArray(ai.customActs)&&ai.customActs.length){
+      const have=byName(LIBRARY);
+      const want=ai.customActs.map(c=>({name:String(c.name||"").slice(0,80),type:isSpell?"spell":"ability",
+        tier:[1,2,3].indexOf(+c.tier)!==-1?+c.tier:1,cost:clampCost(c.cost,+c.tier||1),
+        effect:String(c.effect||"").slice(0,600),description:String(c.description||"").slice(0,600)})).filter(c=>c.name);
+      const toCreate=want.filter(c=>!have[c.name]);
+      const reuse=want.filter(c=>have[c.name]).map(c=>have[c.name]);
+      if(toCreate.length)out.textContent="The forge is shaping new "+(isSpell?"spells":"abilities")+" and sending them to LoreForge.";
+      const created=await submitCustomActs(toCreate);
+      created.forEach(rr=>{if(rr&&rr.name&&!byName(LIBRARY)[rr.name])LIBRARY.push({name:rr.name,tier:rr.tier,cost:rr.cost,effect:rr.effect,status:rr.status||"submitted",_id:rr.creationId||""});});
+      made=created.concat(reuse.map(a=>({name:a.name,tier:a.tier,cost:a.cost,effect:a.effect,ok:true,existed:true})));
+    }
+    p.acts=assembleActs(ai,made);
+    let r=V.validateFoe(p,PACK);
+    if(!r.ok){const bb=BUILDS[p.build];
+      p.infusions=p.infusions.filter(n=>{const d=INF[n];return d&&bb&&bb.attackAttributes.includes(d.family);}).slice(0,3);
       p.augmentations=p.augmentations.slice(0,2);r=V.validateFoe(p,PACK);}
     Object.assign(state,p);
     fillBuild();fillStance();fillSig();$("name").value=state.name;$("desc").value=state.description||"";render();
-    out.textContent=ai?("The forge shapes "+state.name+", a "+state.shatterRating+" "+state.build+", arsenal and all. "+(r.ok?"Validated. Refine below.":"Trimmed to stay legal. Refine below.")):("The forge shapes "+state.name+", a "+state.shatterRating+" "+state.build+". Offline shaping, no live arsenal pick. Refine below.");
+    const newCount=made.filter(x=>x&&x.ok&&!x.existed).length;
+    let tail=r.ok?"Validated.":"Trimmed to stay legal.";
+    if(newCount)tail+=" "+newCount+" new "+(isSpell?(newCount>1?"spells":"spell"):(newCount>1?"abilities":"ability"))+" sent to LoreForge.";
+    out.textContent=ai?("The forge shapes "+state.name+", a "+state.shatterRating+" "+state.build+", arsenal and all. "+tail+" Refine below."):("The forge shapes "+state.name+", a "+state.shatterRating+" "+state.build+". Offline shaping, no live arsenal pick. Refine below.");
   });
   document.addEventListener("click",function(e){
     const pill=e.target&&e.target.closest?e.target.closest(".pill"):null;
     const open=document.querySelector(".piptip");
-    if(open){const owner=open.__owner;open.remove();reportHeight();if(pill&&pill===owner)return;}
+    if(open){const owner=open.__owner;open.remove();sizeFlip();if(pill&&pill===owner)return;}
     if(pill){const tip=(pill.getAttribute("title")||"").trim();if(!tip)return;
       const el=document.createElement("span");el.className="piptip";el.textContent=tip;el.__owner=pill;
-      (pill.parentNode||pill).appendChild(el);reportHeight();}
+      (pill.parentNode||pill).appendChild(el);sizeFlip();}
   });
   document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>showView(t.dataset.v)));
   document.querySelectorAll(".penf[data-scope]").forEach(b=>b.addEventListener("click",()=>{penScope=b.dataset.scope;document.querySelectorAll(".penf[data-scope]").forEach(x=>x.classList.toggle("active",x===b));loadLedger();}));
   $("penReload").addEventListener("click",loadLedger);
+  $("flipBtn").addEventListener("click",()=>{const f=$("flip");f.classList.toggle("flipped");
+    const back=f.classList.contains("flipped");$("flipBtn").innerHTML=back?"Arsenal \u21BB":"At the table \u21BB";sizeFlip();});
   render();
   post({type:"FOE_LIBRARY_LOAD"});
 }
