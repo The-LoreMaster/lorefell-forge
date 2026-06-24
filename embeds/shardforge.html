@@ -119,6 +119,11 @@
     .panes.show-canon .pane.catalog,.panes.show-canon .pane.canonize{display:block}
     .panes.show-canon .pane.canonize{position:sticky;top:14px}
   }
+  .sfpager{display:flex;justify-content:center;align-items:center;gap:6px;flex-wrap:wrap;margin:16px 0 2px}
+  .sfpg{min-width:34px;padding:7px 10px;border:1px solid var(--line);background:transparent;color:var(--ice);border-radius:6px;font-family:"Cinzel",serif;font-size:13px;cursor:pointer}
+  .sfpg[aria-current="true"]{background:var(--ice);color:var(--navy);border-color:var(--ice)}
+  .sfpg:disabled{opacity:.4;cursor:default}
+  .sfpg.dots{border:0;cursor:default;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -203,7 +208,7 @@ function sc(){return SIDES[SIDE];}
 /* ---------- catalog ---------- */
 function gem(){return `<svg class="sigil" viewBox="0 0 44 44" aria-hidden="true"><g fill="none" stroke="var(--gold)" stroke-width="1" stroke-opacity=".7"><path d="M14 8 H30 L38 18 L22 40 L6 18 Z" fill="var(--steel)" fill-opacity=".14"/><path d="M6 18 H38" stroke-opacity=".4"/><path d="M14 8 L18 18 M30 8 L26 18 M18 18 H26" stroke-opacity=".4"/><path d="M18 18 L22 40 M26 18 L22 40" stroke-opacity=".4"/></g><circle cx="22" cy="12" r="1.6" fill="var(--gold)" fill-opacity=".9"/></svg>`;}
 function sigil(){return `<svg class="sigil" viewBox="0 0 44 44" aria-hidden="true"><g fill="none" stroke="var(--gold)" stroke-width="1" stroke-opacity=".7"><path d="M22 3 L38 10 V24 C38 33 31 39 22 42 C13 39 6 33 6 24 V10 Z" fill="var(--steel)" fill-opacity=".14"/><path d="M22 3 V42" stroke-opacity=".4"/><path d="M6 18 H38" stroke-opacity=".4"/></g><circle cx="22" cy="18" r="2" fill="var(--gold)" fill-opacity=".9"/></svg>`;}
-const cstate={q:"",cat:"",core:"",expanded:false};
+const cstate={q:"",cat:"",core:"",expanded:false,page:0};
 const uniq=a=>[...new Set(a)].filter(Boolean);
 function buildFilters(){
   const S=sc();
@@ -221,6 +226,18 @@ function cmatch(d){
   return true;
 }
 function ccard(d){return `<article class="card">${sc().side==="infusion"?gem():sigil()}<div class="cbody"><div class="row1"><span class="cnm">${esc(d.name)}</span>${d.core?'<span class="badge core">Core</span>':''}</div><p class="crules">${esc(d.desc)}</p><div class="cmeta"><span>${esc(d.cat)}</span></div></div></article>`;}
+const SF_PAGE=12;
+function sfPagerHTML(page,pages){
+  if(pages<=1)return "";
+  let h='<div class="sfpager"><button class="sfpg" data-pg="'+(page-1)+'"'+(page<=0?' disabled':'')+'>Prev</button>';
+  const nums=[];for(let i=0;i<pages;i++){if(i===0||i===pages-1||Math.abs(i-page)<=1)nums.push(i);else if(nums[nums.length-1]!==-1)nums.push(-1);}
+  nums.forEach(i=>{h+= i===-1?'<span class="sfpg dots">\u2026</span>':'<button class="sfpg" data-pg="'+i+'" aria-current="'+(i===page?'true':'false')+'">'+(i+1)+'</button>';});
+  return h+'<button class="sfpg" data-pg="'+(page+1)+'"'+(page>=pages-1?' disabled':'')+'>Next</button></div>';
+}
+function sfWirePager(){
+  document.querySelectorAll("#list .sfpg[data-pg]").forEach(b=>b.addEventListener("click",()=>{const n=+b.getAttribute("data-pg");if(n!==cstate.page){cstate.page=n;renderCatalog();const l=document.getElementById("list");if(l&&l.scrollIntoView)l.scrollIntoView({block:"start"});}}));
+}
+function sfPaginate(arr){const pages=Math.max(1,Math.ceil(arr.length/SF_PAGE));if(cstate.page>=pages)cstate.page=pages-1;if(cstate.page<0)cstate.page=0;return {pages,slice:arr.slice(cstate.page*SF_PAGE,cstate.page*SF_PAGE+SF_PAGE)};}
 function renderCatalog(){
   const S=sc();
   const list=document.getElementById("list"),counter=document.getElementById("count");
@@ -228,9 +245,9 @@ function renderCatalog(){
   const all=S.data.filter(cmatch);
   if(!S.core){
     if(!all.length){list.innerHTML=`<div class="empty"><b>Nothing matches.</b><br>Loosen a filter or clear the search.</div>`;}
-    else{list.innerHTML=`<div class="secthead"><span class="nm">${flt?'Results':'The set'}</span></div>`+all.map(ccard).join("");}
+    else{const pg=sfPaginate(all);list.innerHTML=`<div class="secthead"><span class="nm">${flt?'Results':'The set'}</span></div>`+pg.slice.map(ccard).join("")+sfPagerHTML(cstate.page,pg.pages);}
     counter.textContent=flt?`${all.length} matching`:`${S.data.length} in the catalog`;
-    reportHeight();return;
+    sfWirePager();reportHeight();return;
   }
   const core=all.filter(d=>d.core);
   const open=flt||cstate.expanded;
@@ -240,17 +257,18 @@ function renderCatalog(){
   else{
     let toggle="";
     if(!flt&&all.length>core.length)toggle=`<button class="toggle" id="toggle" type="button">${open?'Show Core only':('Show all '+all.length)}</button>`;
-    html=`<div class="secthead"><span class="nm">${flt?'Results':'The set'}</span>${toggle}</div>`+visible.map(ccard).join("");
+    const pg=sfPaginate(visible);
+    html=`<div class="secthead"><span class="nm">${flt?'Results':'The set'}</span>${toggle}</div>`+pg.slice.map(ccard).join("")+sfPagerHTML(cstate.page,pg.pages);
   }
   list.innerHTML=html;
   counter.textContent=flt?`${visible.length} matching`:`Showing Core. ${S.data.length} in the full catalog.`;
-  const tg=document.getElementById("toggle");if(tg)tg.onclick=()=>{cstate.expanded=!cstate.expanded;renderCatalog();};
-  reportHeight();
+  const tg=document.getElementById("toggle");if(tg)tg.onclick=()=>{cstate.expanded=!cstate.expanded;cstate.page=0;renderCatalog();};
+  sfWirePager();reportHeight();
 }
-document.getElementById("q").addEventListener("input",e=>{cstate.q=e.target.value;renderCatalog();});
-document.getElementById("fCat").addEventListener("change",e=>{cstate.cat=e.target.value;renderCatalog();});
-document.getElementById("fCore").addEventListener("change",e=>{cstate.core=e.target.value;renderCatalog();});
-document.getElementById("clear").addEventListener("click",()=>{cstate.q="";cstate.cat="";cstate.core="";cstate.expanded=false;document.getElementById("q").value="";document.getElementById("fCat").value="";document.getElementById("fCore").value="";renderCatalog();});
+document.getElementById("q").addEventListener("input",e=>{cstate.q=e.target.value;cstate.page=0;renderCatalog();});
+document.getElementById("fCat").addEventListener("change",e=>{cstate.cat=e.target.value;cstate.page=0;renderCatalog();});
+document.getElementById("fCore").addEventListener("change",e=>{cstate.core=e.target.value;cstate.page=0;renderCatalog();});
+document.getElementById("clear").addEventListener("click",()=>{cstate.q="";cstate.cat="";cstate.core="";cstate.expanded=false;cstate.page=0;document.getElementById("q").value="";document.getElementById("fCat").value="";document.getElementById("fCore").value="";renderCatalog();});
 
 /* ---------- canonize ---------- */
 const C={name:"",effect:"",cat:"",lore:"",by:"",submitted:false};
@@ -374,7 +392,7 @@ document.getElementById("seg-canon").onclick=()=>setPane("canon");
 document.getElementById("seg-ledger").onclick=()=>setPane("ledger");
 
 function applySide(ns){
-  if(ns!==SIDE){SIDE=ns;C.name="";C.effect="";C.cat="";C.lore="";C.by="";C.submitted=false;cstate.q="";cstate.cat="";cstate.core="";cstate.expanded=false;}
+  if(ns!==SIDE){SIDE=ns;C.name="";C.effect="";C.cat="";C.lore="";C.by="";C.submitted=false;cstate.q="";cstate.cat="";cstate.core="";cstate.expanded=false;cstate.page=0;}
   const S=sc();
   document.getElementById("side-infusion").setAttribute("aria-selected",SIDE==="infusion");
   document.getElementById("side-augmentation").setAttribute("aria-selected",SIDE==="augmentation");

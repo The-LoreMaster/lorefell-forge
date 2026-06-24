@@ -117,6 +117,11 @@
  .lgvote.voted{color:var(--gold);border-color:rgba(201,168,76,.5)}
  .lgvote.voted .ar{color:var(--gold)}
  .lgvote:disabled{cursor:default}
+.bpager{display:flex;justify-content:center;align-items:center;gap:6px;flex-wrap:wrap;margin:14px 0 4px}
+.bpg{min-width:34px;padding:7px 10px;border:1px solid var(--line);background:transparent;color:var(--ice);border-radius:6px;font-family:"Cinzel",serif;font-size:13px;cursor:pointer}
+.bpg[aria-current="true"]{background:var(--gold);color:var(--navy);border-color:var(--gold)}
+.bpg:disabled{opacity:.4;cursor:default}
+.bpg.dots{border:0;cursor:default;color:var(--muted)}
 </style></head>
 <body>
 <div class="topbar" id="topbar"><div class="topinner">
@@ -146,6 +151,14 @@ function optsHTML(a,b){if(a||b){let h="";if(a)h+='<div class="pv-opt">'+esc(a)+'
 function bondSlug(n){return (n||"").replace(/^The\s+/i,"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");}
 function bondTry(box,slug){const exts=["png","jpg","jpeg","webp"];let i=0;(function next(){if(i>=exts.length)return;const src="bonds/"+slug+"."+exts[i++];const im=new Image();im.onload=function(){box.classList.add("has");box.innerHTML='<img src="'+av(src)+'" alt="">';};im.onerror=next;im.src=src;})();}
 let catLoaded=false, catItems=null;
+let bondCatPage=0, bondLgPage=0;
+function bPagerHTML(page,pages,cls){
+ if(pages<=1)return "";
+ let h='<div class="bpager"><button class="bpg" data-pg="'+(page-1)+'" data-pgr="'+cls+'"'+(page<=0?' disabled':'')+'>Prev</button>';
+ const nums=[];for(let i=0;i<pages;i++){if(i===0||i===pages-1||Math.abs(i-page)<=1)nums.push(i);else if(nums[nums.length-1]!==-1)nums.push(-1);}
+ nums.forEach(i=>{h+= i===-1?'<span class="bpg dots">\u2026</span>':'<button class="bpg" data-pg="'+i+'" data-pgr="'+cls+'" aria-current="'+(i===page?'true':'false')+'">'+(i+1)+'</button>';});
+ return h+'<button class="bpg" data-pg="'+(page+1)+'" data-pgr="'+cls+'"'+(page>=pages-1?' disabled':'')+'>Next</button></div>';
+}
 function loadCatalog(){const el=$("catlist");if(el)el.innerHTML='<div class="empty">Summoning the canon.</div>';post({type:"CATALOG_LOAD"});setTimeout(function(){if(catItems==null){catItems=DATA.catalog;if(S.tab==="catalog")renderCatCards(catItems);}},1500);}
 function catCardHTML(c){
  const slug=bondSlug(c.name),hasImg=!!c.image,br=c.branches||[],cr=c.crowns||[];
@@ -162,8 +175,11 @@ function catCardHTML(c){
 function renderCatCards(list){
  const el=$("catlist");if(!el)return;list=list||[];
  if(!list.length){el.innerHTML='<div class="empty">No canon lorebounds yet.</div>';fitTop();return;}
- el.innerHTML=list.map(catCardHTML).join("");
+ const SZ=8,pages=Math.max(1,Math.ceil(list.length/SZ));if(bondCatPage>=pages)bondCatPage=pages-1;if(bondCatPage<0)bondCatPage=0;
+ const slice=list.slice(bondCatPage*SZ,bondCatPage*SZ+SZ);
+ el.innerHTML=slice.map(catCardHTML).join("")+bPagerHTML(bondCatPage,pages,"cat");
  el.querySelectorAll(".catimg[data-bslug]").forEach(function(box){if(box.getAttribute("data-has"))return;bondTry(box,box.getAttribute("data-bslug"));});
+ el.querySelectorAll('.bpg[data-pg][data-pgr="cat"]').forEach(b=>b.addEventListener("click",()=>{const n=+b.getAttribute("data-pg");if(n!==bondCatPage){bondCatPage=n;renderCatCards(catItems);const c=$("catlist");if(c&&c.scrollIntoView)c.scrollIntoView({block:"start"});}}));
  fitTop();
 }
 function renderCatalog(){
@@ -233,15 +249,17 @@ function renderLedger(){
  let h='<main><section class="panel"><div class="explain">Every lorebound put forward. Read one, lend it your voice, or check on your own.</div>';
  h+='<div class="lgfilters"><button class="lgf'+(lgScope==="all"?" active":"")+'" data-scope="all">All</button><button class="lgf'+(lgScope==="canon"?" active":"")+'" data-scope="canon">Canon</button><button class="lgf'+(lgScope==="mine"?" active":"")+'" data-scope="mine">Mine</button><button class="lgf reload" id="lgReload">Reload</button></div>';
  h+='<div id="lglist"></div></section></main>';$("view").innerHTML=h;
- document.querySelectorAll(".lgf[data-scope]").forEach(b=>b.onclick=()=>{lgScope=b.dataset.scope;document.querySelectorAll(".lgf[data-scope]").forEach(x=>x.classList.toggle("active",x===b));loadLedger();});
- const r=$("lgReload");if(r)r.onclick=loadLedger;
+ document.querySelectorAll(".lgf[data-scope]").forEach(b=>b.onclick=()=>{lgScope=b.dataset.scope;bondLgPage=0;document.querySelectorAll(".lgf[data-scope]").forEach(x=>x.classList.toggle("active",x===b));loadLedger();});
+ const r=$("lgReload");if(r)r.onclick=()=>{bondLgPage=0;loadLedger();};
  if(!lgLoaded){lgLoaded=true;loadLedger();}else renderLgList(lgItems);
  fitTop();
 }
 function renderLgList(items){
  lgItems=items||[];const el=$("lglist");if(!el)return;
  if(!lgItems.length){el.innerHTML='<div class="empty">'+(lgScope==="mine"?"You have not put one forward.":"Be the first to put one forward.")+'</div>';fitTop();return;}
- el.innerHTML=lgItems.map(it=>{
+ const SZ=8,pages=Math.max(1,Math.ceil(lgItems.length/SZ));if(bondLgPage>=pages)bondLgPage=pages-1;if(bondLgPage<0)bondLgPage=0;
+ const lgSlice=lgItems.slice(bondLgPage*SZ,bondLgPage*SZ+SZ);
+ el.innerHTML=lgSlice.map(it=>{
   let m={};try{m=(JSON.parse(it.payload||"{}").meta)||{};}catch(e){}
   const b=badgeOf(it.canonStatus),canon=it.canonStatus==="canon";
   const br=m.branches||[],cr=m.crowns||[];const by=m.creator||it.creatorName||"";
@@ -256,8 +274,10 @@ function renderLgList(items){
    +'<div class="pv-h">Crown <span class="pv-sub">keep one</span></div>'+optsHTML(cr[0],cr[1])
    +'<div class="lgactions"><button type="button" class="lgvote" data-id="'+av(it.creationId)+'"><span class="ar">\u25B2</span> Vote <span class="vc">'+(it.voteCount||0)+'</span></button></div>'
    +'</div></div>';
- }).join("");
- el.querySelectorAll(".lgvote").forEach(bn=>bn.addEventListener("click",()=>castVote(bn)));fitTop();
+ }).join("")+bPagerHTML(bondLgPage,pages,"lg");
+ el.querySelectorAll(".lgvote").forEach(bn=>bn.addEventListener("click",()=>castVote(bn)));
+ el.querySelectorAll('.bpg[data-pg][data-pgr="lg"]').forEach(b=>b.addEventListener("click",()=>{const n=+b.getAttribute("data-pg");if(n!==bondLgPage){bondLgPage=n;renderLgList(lgItems);const c=$("lglist");if(c&&c.scrollIntoView)c.scrollIntoView({block:"start"});}}));
+ fitTop();
 }
 function castVote(btn){if(!btn||btn.disabled)return;const id=btn.getAttribute("data-id");if(!id)return;btn.disabled=true;post({type:"BOND_VOTE",payload:{creationId:id}});}
 function applyVoteResult(m){

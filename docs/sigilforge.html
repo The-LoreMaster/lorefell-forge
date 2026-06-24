@@ -655,6 +655,11 @@
 .lg-filters{display:flex;gap:6px}
 .lg-f{font-family:'Cinzel',serif;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--silver-dim);background:var(--navy-2);border:1px solid var(--line);padding:7px 12px;cursor:pointer}
 .lg-f.on{color:var(--silver);border-color:var(--gold);box-shadow:inset 0 -2px 0 var(--gold)}
+.lg-pager{display:flex;justify-content:center;align-items:center;gap:6px;flex-wrap:wrap;margin:16px 0 2px}
+.lg-pg{min-width:34px;padding:7px 11px;font-family:'Cinzel',serif;font-size:12px;letter-spacing:.06em;color:var(--ice);background:var(--navy);border:1px solid var(--line);border-radius:7px;cursor:pointer}
+.lg-pg[aria-current="true"]{color:var(--silver);border-color:var(--gold);box-shadow:inset 0 -2px 0 var(--gold)}
+.lg-pg:disabled{opacity:.4;cursor:default}
+.lg-pg.dots{border:0;background:transparent;cursor:default;color:var(--silver-dim)}
 .lg-refresh{font-family:'Cinzel',serif;font-size:12px;letter-spacing:.08em;color:var(--ice);background:transparent;border:1px solid var(--line);padding:7px 12px;cursor:pointer}
 .lg-refresh:hover{border-color:var(--gold)}
 .lg-state{color:var(--silver-dim);font-family:'Crimson Pro',serif;padding:14px 2px}
@@ -2801,8 +2806,10 @@ lmEl("lmSend").addEventListener("click", function(){
    ============================================================ */
 let lgScope = "all";
 let lgItems = [];
+let lgPage = 0;
 function loadLedger(scope){
   lgScope = scope || "all";
+  lgPage = 0;
   ledgerLoaded = true;
   document.querySelectorAll(".lg-f").forEach(function(b){ b.classList.toggle("on", b.dataset.scope === lgScope); });
   const st = document.getElementById("lgState");
@@ -2810,6 +2817,13 @@ function loadLedger(scope){
   if(list) list.innerHTML = "";
   if(st){ st.style.display = ""; st.textContent = "Searching the LoreForge..."; }
   window.parent.postMessage({ type:"LOREFELL_LOAD_LEDGER", payload:{ scope: lgScope } }, "*");
+}
+function lgPagerHTML(page,pages){
+  if(pages<=1) return "";
+  var h='<div class="lg-pager"><button class="lg-pg" data-pg="'+(page-1)+'"'+(page<=0?" disabled":"")+'>Prev</button>';
+  var nums=[]; for(var i=0;i<pages;i++){ if(i===0||i===pages-1||Math.abs(i-page)<=1) nums.push(i); else if(nums[nums.length-1]!==-1) nums.push(-1); }
+  nums.forEach(function(i){ h+= i===-1?'<span class="lg-pg dots">\u2026</span>':'<button class="lg-pg" data-pg="'+i+'" aria-current="'+(i===page?"true":"false")+'">'+(i+1)+'</button>'; });
+  return h+'<button class="lg-pg" data-pg="'+(page+1)+'"'+(page>=pages-1?" disabled":"")+'>Next</button></div>';
 }
 function renderLedger(items){
   const st = document.getElementById("lgState");
@@ -2824,8 +2838,10 @@ function renderLedger(items){
   }
   if(st) st.style.display = "none";
   lgItems = items;
+  const SZ=8, pages=Math.max(1,Math.ceil(items.length/SZ)); if(lgPage>=pages)lgPage=pages-1; if(lgPage<0)lgPage=0;
+  const lgSlice=items.slice(lgPage*SZ,lgPage*SZ+SZ);
   const labels = { canon:"Canon", voting:"In Vote", submitted:"Submitted", declined:"Declined", draft:"Draft" };
-  list.innerHTML = items.map(function(it, n){
+  list.innerHTML = lgSlice.map(function(it, n){
     const canon = it.canonStatus === "canon";
     const statusTag = '<span class="lg-tag ' + (canon ? "canon" : "") + '">' + (labels[it.canonStatus] || "Submitted") + '</span>';
     const kindTag = it.kind === "foe" ? '<span class="lg-tag foe">Foe</span>' : '<span class="lg-tag">Ability</span>';
@@ -2844,13 +2860,14 @@ function renderLedger(items){
       + '<button type="button" class="lg-remix" data-i="' + n + '">Forge from this</button>'
       + '</div>'
       + '</div>';
-  }).join("");
+  }).join("") + lgPagerHTML(lgPage,pages);
   list.querySelectorAll(".lg-remix").forEach(function(btn){
-    btn.addEventListener("click", function(){ remixFrom(items[+btn.getAttribute("data-i")]); });
+    btn.addEventListener("click", function(){ remixFrom(lgSlice[+btn.getAttribute("data-i")]); });
   });
   list.querySelectorAll(".lg-vote").forEach(function(btn){
     btn.addEventListener("click", function(){ castVote(btn); });
   });
+  list.querySelectorAll(".lg-pg[data-pg]").forEach(function(b){ b.addEventListener("click", function(){ var n=+b.getAttribute("data-pg"); if(n!==lgPage){ lgPage=n; renderLedger(lgItems); if(list.scrollIntoView) list.scrollIntoView({block:"start"}); } }); });
 }
 function castVote(btn){
   if(!btn || btn.disabled) return;

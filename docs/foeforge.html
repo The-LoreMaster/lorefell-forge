@@ -167,6 +167,11 @@
   .stat{display:flex; flex-wrap:wrap; justify-content:space-between; gap:4px 12px; border-bottom:1px solid var(--line); padding:11px 0; font-size:16px}
   .stat .l{color:var(--ice)} .stat .n{font-family:"Cinzel",serif; color:var(--silver); text-align:right}
   .note{color:var(--muted); font-size:14px; margin-top:12px}
+  .penpager{display:flex;justify-content:center;align-items:center;gap:6px;flex-wrap:wrap;margin:14px 0 2px}
+  .penpg{min-width:34px;padding:7px 10px;border:1px solid var(--line);background:transparent;color:var(--ice);border-radius:6px;font-family:"Cinzel",serif;font-size:13px;cursor:pointer}
+  .penpg[aria-current="true"]{background:var(--gold);color:var(--navy);border-color:var(--gold)}
+  .penpg:disabled{opacity:.4;cursor:default}
+  .penpg.dots{border:0;cursor:default;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -1949,14 +1954,23 @@ window.onmessage=function(e){const m=e&&e.data;if(!m||typeof m!=="object")return
     else{if(out){out.className="result bad";out.textContent=(m.errors&&m.errors[0])||"That did not reach the Pentifax. Try again.";}}
     return;}
 };
-let penScope="all", penLoaded=false, penItems=[];
+let penScope="all", penLoaded=false, penItems=[], penPage=0;
 function loadLedger(){const el=$("penList");if(el)el.innerHTML='<p class="drop-note" style="padding:4px 0">Reading the Pentifax.</p>';post({type:"FOE_LOAD_LEDGER",payload:{scope:penScope}});}
 function penBadge(st){return ({canon:"Canon",voting:"In Vote",submitted:"Submitted",declined:"Declined"})[st]||"Draft";}
 function penPillRow(label,names,tipFn){if(!names||!names.length)return "";return '<div class="penrow"><span class="pk">'+label+'</span><span>'+names.map(n=>'<span class="pill" title="'+esc(tipFn(n))+'">'+escH(n)+'</span>').join("")+'</span></div>';}
+function penPagerHTML(page,pages){
+  if(pages<=1)return "";
+  let h='<div class="penpager"><button class="penpg" data-pg="'+(page-1)+'"'+(page<=0?' disabled':'')+'>Prev</button>';
+  const nums=[];for(let i=0;i<pages;i++){if(i===0||i===pages-1||Math.abs(i-page)<=1)nums.push(i);else if(nums[nums.length-1]!==-1)nums.push(-1);}
+  nums.forEach(i=>{h+= i===-1?'<span class="penpg dots">\u2026</span>':'<button class="penpg" data-pg="'+i+'" aria-current="'+(i===page?'true':'false')+'">'+(i+1)+'</button>';});
+  return h+'<button class="penpg" data-pg="'+(page+1)+'"'+(page>=pages-1?' disabled':'')+'>Next</button></div>';
+}
 function renderPenList(items){
   penItems=items||[];const el=$("penList");if(!el)return;
   if(!penItems.length){el.innerHTML='<p class="drop-note" style="padding:4px 0">'+(penScope==="mine"?"You have not put one before the Pentifax.":"No Foe here yet.")+'</p>';reportHeight();return;}
-  el.innerHTML=penItems.map(it=>{
+  const SZ=8,pages=Math.max(1,Math.ceil(penItems.length/SZ));if(penPage>=pages)penPage=pages-1;if(penPage<0)penPage=0;
+  const penSlice=penItems.slice(penPage*SZ,penPage*SZ+SZ);
+  el.innerHTML=penSlice.map(it=>{
     let m={};try{m=(JSON.parse(it.payload||"{}").meta)||{};}catch(e){}
     const canon=it.canonStatus==="canon";
     const acts=(m.acts||[]).slice().sort((a,b)=>(a.tier||0)-(b.tier||0));
@@ -1970,8 +1984,10 @@ function renderPenList(items){
     if(acts.length)h+='<div class="penrow"><span class="pk">Acts</span><span>'+acts.map(a=>'<span class="pill" title="'+esc(actTip(a.name))+'">T'+(a.tier||1)+" "+escH(a.name||"Act")+'</span>').join("")+'</span></div>';
     h+='<button type="button" class="penvote" data-id="'+esc(it.creationId)+'"><span>\u25B2</span> Vote <span class="vc">'+(it.voteCount||0)+'</span></button>';
     return h+'</div>';
-  }).join("");
-  el.querySelectorAll(".penvote").forEach(b=>b.addEventListener("click",()=>penVote(b)));reportHeight();
+  }).join("")+penPagerHTML(penPage,pages);
+  el.querySelectorAll(".penvote").forEach(b=>b.addEventListener("click",()=>penVote(b)));
+  document.querySelectorAll("#penList .penpg[data-pg]").forEach(b=>b.addEventListener("click",()=>{const n=+b.getAttribute("data-pg");if(n!==penPage){penPage=n;renderPenList(penItems);const c=$("penList");if(c&&c.scrollIntoView)c.scrollIntoView({block:"start"});}}));
+  reportHeight();
 }
 function penVote(btn){if(!btn||btn.disabled)return;const id=btn.getAttribute("data-id");if(!id)return;btn.disabled=true;post({type:"FOE_VOTE",payload:{creationId:id}});}
 function applyPenVote(m){if(!m||!m.creationId)return;let btn=null;document.querySelectorAll(".penvote").forEach(b=>{if(b.getAttribute("data-id")===m.creationId)btn=b;});
@@ -2063,8 +2079,8 @@ function init(){
       (pill.parentNode||pill).appendChild(el);sizeFlip();}
   });
   document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>showView(t.dataset.v)));
-  document.querySelectorAll(".penf[data-scope]").forEach(b=>b.addEventListener("click",()=>{penScope=b.dataset.scope;document.querySelectorAll(".penf[data-scope]").forEach(x=>x.classList.toggle("active",x===b));loadLedger();}));
-  $("penReload").addEventListener("click",loadLedger);
+  document.querySelectorAll(".penf[data-scope]").forEach(b=>b.addEventListener("click",()=>{penScope=b.dataset.scope;penPage=0;document.querySelectorAll(".penf[data-scope]").forEach(x=>x.classList.toggle("active",x===b));loadLedger();}));
+  $("penReload").addEventListener("click",()=>{penPage=0;loadLedger();});
   let _newArm=false,_newT=null;
   $("newFoeBtn").addEventListener("click",()=>{const b=$("newFoeBtn");
     if(!_newArm){_newArm=true;b.textContent="Tap to confirm";clearTimeout(_newT);_newT=setTimeout(()=>{_newArm=false;b.textContent="New Foe";},3000);return;}

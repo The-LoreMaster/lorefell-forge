@@ -4,6 +4,12 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-24 — Catalog pagination (ShardForge, BondForge, FoeForge, SigilForge)
+
+- ShardForge catalog paginates at 12 per page across both the infusion list and the Core / Show-all augmentation view
+- BondForge lorebound catalog and ledger, FoeForge Pentifax, and SigilForge ledger paginate at 8 per page
+- All use numbered pages with Prev/Next, reset to page 1 on search, filter, scope change, or reload, and jump to the list top on page change
+
 ## 2026-06-24 — Catalog pagination (RelicForge, BrandForge)
 
 - Catalogs now show 8 items per page with numbered pages and Prev/Next, resetting to page 1 on search or filter
