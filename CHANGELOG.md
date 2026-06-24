@@ -4,6 +4,13 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-24 — FellForge cleanup and site wiring
+
+- Masthead unified to the gold Forge wordmark, subtitle line removed
+- Added the Claude backend backend/fellforge.web.js (generateProfile, saveFell) and the page bridge velo/page-fellforge.js
+- Added the Fells collection schema with the sealed past readable by admin only
+- FellForge now serves from the GitHub Pages pipeline at docs/fellforge.html and embeds/fellforge.html
+
 ## 2026-06-24 — Catalog pagination (ShardForge, BondForge, FoeForge, SigilForge)
 
 - ShardForge catalog paginates at 12 per page across both the infusion list and the Core / Show-all augmentation view
