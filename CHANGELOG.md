@@ -4,6 +4,10 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-24 — FoeForge: clearer all-tier table
+
+- Split the cryptic R/D column into labeled React and Disc columns with a check mark, and added a one line legend explaining Attr, Vit, Acts, Inf, React, and Disc
+
 ## 2026-06-24 — FoeForge: complete stat cards, offline Random
 
 - The stat card now falls back to an act's library effect when a manually picked act carries none, so the block is always complete
