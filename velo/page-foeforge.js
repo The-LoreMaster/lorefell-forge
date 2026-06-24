@@ -3,7 +3,8 @@
 // The builder reads abilities, infusions, and augmentations, both official and submitted.
 // Set EMBED to your Embed a Site element ID.
 
-import { submitCreation, getCreations, getCatalog } from 'backend/forge.web.js';
+import { submitCreation, getCreations, getCatalog, castVote } from 'backend/forge.web.js';
+import { currentMember } from 'wix-members-frontend';
 import { uploadRune } from 'backend/loreforge.web.js';
 
 const FORGE_KEY = 'foeforge';
@@ -65,6 +66,25 @@ $w.onReady(() => {
       );
 
       embed.postMessage({ type: 'FOE_LIBRARY', library: { infusions: infusions, augmentations: augmentations, abilities: abilities } });
+      return;
+    }
+
+    if (msg.type === 'FOE_LOAD_LEDGER') {
+      const scope = (msg.payload && msg.payload.scope) || 'all';
+      const opts = { kind: 'foe', limit: 60 };
+      if (scope === 'canon') opts.canonStatus = 'canon';
+      if (scope === 'mine') { try { const me = await currentMember.getMember(); if (me) opts.creatorMemberId = me._id; } catch (e) {} }
+      let items = [];
+      try { items = await getCreations(FORGE_KEY, opts); } catch (e) { items = []; }
+      embed.postMessage({ type: 'FOE_LEDGER_RESULT', scope: scope, items: items });
+      return;
+    }
+
+    if (msg.type === 'FOE_VOTE') {
+      const id = msg.payload && msg.payload.creationId;
+      let r = { ok: false };
+      try { r = await castVote(FORGE_KEY, id); } catch (e) { r = { ok: false }; }
+      embed.postMessage({ type: 'FOE_VOTE_RESULT', creationId: id, ok: !!r.ok, voteCount: r.voteCount, already: !!r.already, signin: !!r.signin });
       return;
     }
 
