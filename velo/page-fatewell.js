@@ -2,9 +2,9 @@
 // Point the Embed a Site element at the GitHub Pages copy of fatewell.html and set
 // EMBED to its element ID. The campaign to open is taken from the page URL query
 // campaignId. The tool requests forge, assets, and glossary on load; those are
-// answered with empty sets until their collections are wired (see TODO below).
+// answered from canon Creations, an owner-scoped Assets collection, and a Glossary collection.
 
-import { loadCampaign, saveCampaign, getSealed } from 'backend/fatewell.web.js';
+import { loadCampaign, saveCampaign, getSealed, getForgeLibrary, listAssets, saveAsset, deleteAsset, listGlossary } from 'backend/fatewell.web.js';
 import wixLocation from 'wix-location';
 
 const EMBED = '#html1';   // change to your Embed a Site element ID
@@ -32,11 +32,21 @@ $w.onReady(() => {
     } else if (m.type === 'lmtool-campaign-title') {
       try { await saveCampaign(m.campaignId || campaignId, null, m.title || ''); } catch (e) {}
     } else if (m.type === 'lmtool-forge-request') {
-      embed.postMessage({ type: 'lmtool-forge', abilities: [] });   // TODO: feed canon forged reference content
+      let abilities = [];
+      try { abilities = await getForgeLibrary(); } catch (e) { abilities = []; }
+      embed.postMessage({ type: 'lmtool-forge', abilities: abilities });
     } else if (m.type === 'lmtool-assets-request') {
-      embed.postMessage({ type: 'lmtool-assets', assets: [] });     // TODO: feed an Assets collection
+      let assets = [];
+      try { assets = await listAssets(); } catch (e) { assets = []; }
+      embed.postMessage({ type: 'lmtool-assets', assets: assets });
+    } else if (m.type === 'lmtool-asset-save') {
+      try { await saveAsset(m.asset || {}); } catch (e) {}
+    } else if (m.type === 'lmtool-asset-delete') {
+      try { await deleteAsset(m.assetId); } catch (e) {}
     } else if (m.type === 'lmtool-glossary-request') {
-      embed.postMessage({ type: 'lmtool-glossary', glossary: [] }); // TODO: feed a Glossary collection
+      let glossary = [];
+      try { glossary = await listGlossary(); } catch (e) { glossary = []; }
+      embed.postMessage({ type: 'lmtool-glossary', glossary: glossary });
     } else if (m.type === 'lmtool-sealed-request') {
       let sealed = [];
       try { sealed = await getSealed(m.memberIds || [], m.names || []); } catch (e) { sealed = []; }

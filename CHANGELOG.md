@@ -4,6 +4,13 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-24 — FateWell feeds wired
+
+- Forge feed now serves canon SigilForge creations as the loremaster's reference library, read only
+- Assets feed backed by a new owner-scoped Assets collection, with save and delete from the tool's monster, npc, and item library
+- Glossary feed backed by a new Glossary collection, read by anyone, empty until terms are added in the CMS
+- page-fatewell.js answers all three requests plus asset save and delete; no more empty stubs
+
 ## 2026-06-24 — Seeder survives Wix rate limits
 
 - scripts/lib/wixClient.js now paces requests and retries 429 and transient 5xx with backoff, honoring Retry-After. Fixes the WDE0014 quota failures during Apply CMS

@@ -92,3 +92,80 @@ export const getSealed = webMethod(Permissions.Anyone, async (memberIds, names) 
     };
   });
 });
+
+// ---- Reference feeds for the FateWell library ----
+
+// Forged reference content the loremaster can pull up at the table. Sourced from canon
+// SigilForge creations. Tier and use live in the creation payload; name and shorthand
+// are the surfaced columns. Read only.
+export const getForgeLibrary = webMethod(Permissions.Anyone, async () => {
+  let items = [];
+  try {
+    const r = await wixData.query('Creations')
+      .eq('forgeKey', 'sigilforge').eq('canonStatus', 'canon')
+      .limit(500).find({ suppressAuth: true });
+    items = r.items;
+  } catch (e) { items = []; }
+  return items.map((it) => {
+    let pl = {};
+    try { pl = typeof it.payload === 'string' ? JSON.parse(it.payload) : (it.payload || {}); } catch (e) { pl = {}; }
+    return {
+      title: it.creationName || pl.name || '',
+      tier: Number(pl.tier) || 1,
+      use: pl.use || 'Act',
+      shorthand: it.shorthand || pl.shorthand || ''
+    };
+  }).filter((a) => a.title);
+});
+
+// The loremaster's own asset library (monsters, npcs, items), owner scoped. The tool
+// sends rows already shaped by assetToRow and parses the JSON fields back itself.
+export const listAssets = webMethod(Permissions.Anyone, async () => {
+  const mid = await memberId(); if (!mid) return [];
+  try {
+    const r = await wixData.query('Assets').eq('ownerMemberId', mid).limit(1000).find({ suppressAuth: true });
+    return r.items;
+  } catch (e) { return []; }
+});
+
+export const saveAsset = webMethod(Permissions.Anyone, async (asset) => {
+  const mid = await memberId(); if (!mid || !asset || !asset.assetId) return { ok: false };
+  const row = Object.assign({}, asset, { ownerMemberId: mid });
+  try {
+    const ex = await wixData.query('Assets')
+      .eq('ownerMemberId', mid).eq('assetId', String(asset.assetId))
+      .limit(1).find({ suppressAuth: true });
+    if (ex.items.length) {
+      const merged = Object.assign({}, ex.items[0], row);
+      const u = await wixData.update('Assets', merged, { suppressAuth: true });
+      return { ok: true, id: u._id };
+    }
+    const ins = await wixData.insert('Assets', row, { suppressAuth: true });
+    return { ok: true, id: ins._id };
+  } catch (e) { return { ok: false, error: String(e) }; }
+});
+
+export const deleteAsset = webMethod(Permissions.Anyone, async (assetId) => {
+  const mid = await memberId(); if (!mid || !assetId) return { ok: false };
+  try {
+    const ex = await wixData.query('Assets')
+      .eq('ownerMemberId', mid).eq('assetId', String(assetId))
+      .limit(1).find({ suppressAuth: true });
+    if (ex.items.length) await wixData.remove('Assets', ex.items[0]._id, { suppressAuth: true });
+    return { ok: true };
+  } catch (e) { return { ok: false, error: String(e) }; }
+});
+
+// Canon glossary terms, read by anyone. Empty until rows are added in the CMS.
+export const listGlossary = webMethod(Permissions.Anyone, async () => {
+  try {
+    const r = await wixData.query('Glossary').ascending('displayOrder').limit(1000).find({ suppressAuth: true });
+    return r.items.map((it) => ({
+      id: it._id,
+      term: it.term || '',
+      type: it.type || '',
+      description: it.description || '',
+      aliases: it.aliases || ''
+    })).filter((g) => g.term);
+  } catch (e) { return []; }
+});
