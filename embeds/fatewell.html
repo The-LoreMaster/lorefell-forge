@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>FateWell</title>
-<!-- build: sticky-board2 -->
+<!-- build: flush-save -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Cinzel+Decorative:wght@700&family=Crimson+Pro:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
@@ -1189,16 +1189,23 @@ function campaignBlob(){
   return c ? { campaign: c, savedAt: Date.now() } : null;
 }
 
-function save(){
-  saveLocal();
-  clearTimeout(WIX.saveTimer);
-  WIX.saveTimer = setTimeout(function(){
-    if (!WIX.hosted) return;
-    var c = curC(); if (!c) return;
-    var cid = WIX.hub ? c.id : (WIX.campaignId || c.id);
-    postToWix({ type:'lmtool-save', campaignId: cid, data: { campaign:c, savedAt:Date.now() } });
-  }, 900);
+function flushSave(){
+  clearTimeout(WIX.saveTimer); WIX.saveTimer = null;
+  if (!WIX.hosted) return;
+  var c = curC(); if (!c) return;
+  var cid = WIX.hub ? c.id : (WIX.campaignId || c.id);
+  postToWix({ type:'lmtool-save', campaignId: cid, data: { campaign:c, savedAt:Date.now() } });
 }
+function save(){
+  saveLocal();                 /* the browser copy is written immediately, every change */
+  clearTimeout(WIX.saveTimer);
+  WIX.saveTimer = setTimeout(flushSave, 600);
+}
+/* If the tab is hidden or closing, push whatever is pending right then so nothing in the
+   debounce window is lost. The local copy is already current; this flushes the account push. */
+document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'hidden'){ saveLocal(); flushSave(); } });
+window.addEventListener('pagehide', function(){ saveLocal(); flushSave(); });
+window.addEventListener('beforeunload', function(){ saveLocal(); flushSave(); });
 
 function adoptHostedCampaigns(list){
   (list||[]).forEach(function(w){
