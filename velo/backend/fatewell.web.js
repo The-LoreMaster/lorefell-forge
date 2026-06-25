@@ -57,7 +57,7 @@ export const saveCampaign = webMethod(Permissions.Anyone, async (campaignId, blo
   if (title) row.name = title;
   row.ownerMemberId = row.ownerMemberId || id;
   const saved = await wixData.save(COLLECTION, row, { suppressAuth: true });
-  return { ok: true, id: saved._id };
+  return { ok: true, id: saved._id, owner: id };
 });
 
 

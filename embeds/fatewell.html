@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>FateWell</title>
-<!-- build: restore-sync -->
+<!-- build: sync-report -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Cinzel+Decorative:wght@700&family=Crimson+Pro:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
@@ -1208,14 +1208,14 @@ function adoptHostedCampaigns(list){
 }
 function syncAllToAccount(){
   if (!WIX.hosted){ advNote('Not connected', 'This saves to your account when FateWell is open on lorefell.com while you are signed in.'); return; }
+  window._syncRequested = true;
   persistLocalCampaigns();
-  advNote('Saved to your account', 'Every adventure here was sent to your account, owned by you. Give it a moment, then check the Campaigns collection.');
+  advNote('Saving', 'Sending your adventures to your account. The result will show in a moment.');
 }
 function persistLocalCampaigns(){
   if (!WIX.hosted) return;
-  S.campaigns.forEach(function(c){
-    postToWix({ type:'lmtool-save', campaignId:c.id, data:{ campaign:c, savedAt:Date.now() } });
-  });
+  var list = S.campaigns.map(function(c){ return { id:c.id, data:{ campaign:c, savedAt:Date.now() } }; });
+  postToWix({ type:'lmtool-sync', campaigns:list });
 }
 function mergePool(c){
   S.wixPlayers.forEach(function(wp){
@@ -1295,6 +1295,17 @@ window.addEventListener('message', function(ev){
     adoptHostedCampaigns(m.campaigns || []);
     persistLocalCampaigns();
     saveLocal(); render();
+  }
+  if (m.type === 'lmtool-sync-result'){
+    WIX.connected = true;
+    if (window._syncRequested){
+      window._syncRequested = false;
+      var saved = m.saved||0, failed = m.failed||0;
+      var body = 'Saved '+saved+' adventure'+(saved===1?'':'s')+' to your account.';
+      if (failed){ body += ' '+failed+' failed: '+esc((m.errors&&m.errors[0])||'unknown error')+'.'; }
+      body += ' The server saw your member id as: '+esc(m.memberId||'(none, you may not be signed in on this site)')+'.';
+      advNote(failed?'Sync finished with errors':'Saved to your account', body);
+    }
   }
   if (m.type === 'lmtool-players'){
     WIX.connected = true;

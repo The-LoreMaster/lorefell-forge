@@ -39,6 +39,18 @@ $w.onReady(() => {
       let players = [];
       try { players = await getCampaignPlayers(campaignId, (blob && blob.title) || ''); } catch (e) { players = []; }
       if (players.length) embed.postMessage({ type: 'lmtool-players', campaignId: campaignId, players: players });
+    } else if (m.type === 'lmtool-sync') {
+      const list = Array.isArray(m.campaigns) ? m.campaigns : [];
+      let saved = 0, owner = '';
+      const errors = [];
+      for (const it of list) {
+        try {
+          const r = await saveCampaign(it.id, it.data || {}, '');
+          if (r && r.ok) { saved++; owner = r.owner || owner; }
+          else errors.push((r && (r.error || (r.skipped ? 'skipped: no campaign data' : 'not saved'))) || 'not saved');
+        } catch (e) { errors.push(String(e)); }
+      }
+      embed.postMessage({ type: 'lmtool-sync-result', saved: saved, failed: list.length - saved, errors: errors.slice(0, 3), memberId: owner });
     } else if (m.type === 'lmtool-players-request') {
       const cid = m.campaignId || campaignId;
       if (!cid) return;
