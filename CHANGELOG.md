@@ -4,6 +4,11 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-25 — FateWell: modals center in the viewport
+
+- Popups, including the note editor, now center in the current window instead of anchoring to the click point. In the runner, where the page scroll is locked, the Save button is always reachable
+- The backdrop scrolls and the card caps at viewport height, so even a long editor stays usable
+
 ## 2026-06-25 — FateWell: campaign NPCs in the scene roster, bigger dialogue portrait
 
 - The scene Roster tab now lists NPCs added at the adventure, act, or session under Campaign roster, with their portrait and a one-tap Add to scene. No more re-attaching from the library per scene
