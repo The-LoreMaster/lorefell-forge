@@ -4,6 +4,14 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-25 — FateWell: card art scope, NPC popout portrait, note formatting, runner scroll
+
+- Adventure, act, session, and scene cards keep the cover image as a top banner. Only the Library cards use the left thumbnail
+- The NPC and item quick-review popout shows the portrait on the left
+- LM Description removed from the note type picker
+- Notes support inline bold with two asterisks and italic with one, plus B and I buttons that wrap the selected text
+- Run scene right column scrolls with the page again, so its full content is reachable
+
 ## 2026-06-25 — FateWell: Library cards use a left portrait
 
 - Library profile cards now show the portrait as a left thumbnail instead of a full-width banner, matching the scene roster cards
