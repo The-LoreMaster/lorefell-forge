@@ -259,8 +259,8 @@ function mapFoeRow(it, source) {
     inventory: '[]',
     abilities: JSON.stringify(acts.map((a) => ({
       name: a.name, tier: a.tier,
-      text: a.effect || a.text || a.fullText || '',
-      cost: (a.cost != null ? a.cost : '')
+      use: (a.cost != null && a.cost !== '' ? ('Cost ' + a.cost) : ''),
+      desc: a.effect || a.text || a.fullText || ''
     }))),
     foeWeight: FOE_WEIGHT[m.shatterRating] || 0
   };

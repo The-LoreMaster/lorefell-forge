@@ -544,6 +544,7 @@ body.runner-mode #savedTag{ top:10px; right:104px; }
 .run-cb.downed{ opacity:.55; }
 .run-cb-top{ display:flex; align-items:baseline; gap:4px; flex-wrap:wrap; }
 .run-cb-vit{ margin-left:auto; font-family:'Cinzel Decorative',serif; font-size:1.05rem; color:var(--silver); }
+.sig-name{ flex:1; align-self:center; color:var(--ice); font-family:'Crimson Pro',serif; }
 .run-vbar{ height:7px; background:var(--navy3); border-radius:4px; overflow:hidden; margin:7px 0; }
 .run-vbar span{ display:block; height:100%; background:linear-gradient(90deg, var(--gold), var(--ice)); transition:width .2s; }
 
@@ -1099,6 +1100,8 @@ function rowToAsset(r){
     e.attrs = jp(pick('attrs'), blankAttrs());
     e.inv = jp(pick('inventory','inv'), []);
     e.abilities = jp(pick('abilities'), []);
+    e.sig = pick('signatureAffliction','sig') || '';
+    e.source = pick('source') || '';
   } else {
     e.role = pick('role') || '';
     if (type==='npc'){
@@ -1875,8 +1878,12 @@ function duplicateScene(id){
   copy.refs = (src.refs||[]).slice();
   /* keep the monster/NPC lineup, fresh ids, full vitality, no afflictions or intents */
   copy.combatants = (src.combatants||[]).map(function(c){
-    return { id:uid(), libId:c.libId, name:c.name, side:c.side||'monster', sr:c.sr,
-      maxVit:c.maxVit, curVit:c.maxVit, act:'', target:'', done:false, affs:[], img:c.img||'' };
+    return { id:uid(), libId:c.libId, type:c.type||'monster', name:c.name, side:c.side||'monster', sr:c.sr,
+      maxVit:c.maxVit, curVit:c.maxVit, act:'', target:'', done:false, affs:[], img:c.img||'',
+      attrs: c.attrs ? JSON.parse(JSON.stringify(c.attrs)) : undefined,
+      inv: (c.inv||[]).slice(),
+      abilities: c.abilities ? JSON.parse(JSON.stringify(c.abilities)) : [],
+      sig: c.sig||'', source: c.source||'' };
   });
   s.scenes.splice(idx+1, 0, copy);
   save(); render();
@@ -2851,6 +2858,7 @@ function attachFoe(libId){
       attrs: JSON.parse(JSON.stringify(e.attrs || blankAttrs())),
       inv: (e.inv || []).slice(),
       abilities: JSON.parse(JSON.stringify(e.abilities || [])),
+      sig: e.sig || '', source: e.source || '',
       img: e.img || '',
       act:'', target:'', done:false, affs:[]
     });
@@ -3149,7 +3157,7 @@ function targetName(key){
 
 /* ---------- afflictions, spots, rounds ---------- */
 
-function affModal(srcKind, srcId){
+function affModal(srcKind, srcId, prefillName){
   var srcKey = srcKind + ':' + srcId;
   modal('<h3 class="m-title">Affliction or effect</h3>'
     + '<label class="lbl">Kind</label>'
@@ -3161,7 +3169,7 @@ function affModal(srcKind, srcId){
     + targetSelect(srcKey, srcKey, 'void(0)', false, 'afTgt')
     + '<div class="m-row"><button class="btn ghost" onclick="closeModal()">Cancel</button>'
     + '<button class="btn" onclick="addAff(\''+srcKey+'\')">Add</button></div>');
-  setTimeout(function(){ var t=document.getElementById('afTgt'); if(t) t.value=srcKey; }, 30);
+  setTimeout(function(){ var t=document.getElementById('afTgt'); if(t) t.value=srcKey; var nm=document.getElementById('afName'); if(nm && prefillName){ nm.value = prefillName; } }, 30);
 }
 function afSetKind(k){
   document.getElementById('afKind').value = k;
@@ -3525,14 +3533,35 @@ function abilityBlock(abs){
   });
   return h;
 }
+function applySignature(cid){
+  var cb=null; curSc().combatants.forEach(function(c){ if(c.id===cid) cb=c; });
+  if(!cb || !cb.sig) return;
+  affModal('m', cid, cb.sig);
+}
+function setFoeMaxVit(cid){
+  var inp = document.getElementById('foeVitSet'); if(!inp) return;
+  var n = parseInt(inp.value,10);
+  curSc().combatants.forEach(function(c){
+    if (c.id===cid){ c.maxVit = (n>0 ? n : 0); c.curVit = Math.min(c.curVit, c.maxVit); }
+  });
+  save(); render(); monInfo(cid);
+}
 function monInfo(cid){
   var cb = null;
   curSc().combatants.forEach(function(c){ if (c.id===cid) cb = c; });
   if (!cb) return;
   var lib = cb.libId ? libGet(cb.libId) : null;
-  modal('<h3 class="m-title">'+esc(cb.name)+'</h3>'
+  var srcTag = cb.source==='mine' ? ' <span class="npc-tag">yours</span>' : (cb.source==='canon' ? ' <span class="npc-tag">canon</span>' : '');
+  var sig = cb.sig || '';
+  modal('<h3 class="m-title">'+esc(cb.name)+srcTag+'</h3>'
     + (cb.img ? '<div class="token-prev big"><img src="'+esc(imgSrc(cb.img))+'" alt="token"></div>' : '')
     + '<p class="muted">'+(cb.sr?esc(cb.sr)+' &middot; ':'')+cb.curVit+' / '+cb.maxVit+' vit</p>'
+    + '<div class="lbl">Vitality</div>'
+    + '<div class="qd"><input class="qd-in" id="foeVitSet" type="number" inputmode="numeric" value="'+cb.maxVit+'" placeholder="max vit">'
+    + '<button class="qd-b" onclick="setFoeMaxVit(\''+cb.id+'\')">Set max</button></div>'
+    + (cb.maxVit>0 ? '' : '<p class="muted small">Party scaled. Set a number for this party.</p>')
+    + (sig ? '<div class="lbl">Signature affliction</div><div class="qd"><span class="sig-name">'+esc(sig)+'</span>'
+        + '<button class="qd-b" onclick="applySignature(\''+cb.id+'\')">Apply to target</button></div>' : '')
     + '<div class="lbl">Attributes</div><p>'+attrLine(cb.attrs)+'</p>'
     + '<div class="lbl">Inventory</div><p>'+(cb.inv && cb.inv.length ? esc(cb.inv.join(', ')) : 'Empty handed.')+'</p>'
     + abilityBlock(cb.abilities)
