@@ -234,6 +234,38 @@ export const getForgeLibrary = webMethod(Permissions.Anyone, async () => {
 // canon foe in the tool forks a personal copy, which then shadows the canon entry.
 const FOE_WEIGHT = { Minion: 1, Elite: 2, Champion: 3, Epic: 5, Forsaken: 8 };
 
+// Map a Creations foe row to a FateWell monster asset. Handles both shapes:
+// canon foes nest under payload.meta, private foes store the flat tool state.
+// Acts carry their full text in `effect`; the signature affliction rides along
+// so the foe card can quick-apply it. Source marks canon versus the loremaster's own.
+function mapFoeRow(it, source) {
+  let pl = {};
+  try { pl = typeof it.payload === 'string' ? JSON.parse(it.payload) : (it.payload || {}); } catch (e) { pl = {}; }
+  const m = (pl && pl.meta) || pl || {};
+  const acts = Array.isArray(m.acts) ? m.acts : [];
+  const prefix = source === 'mine' ? 'myfoe:' : 'foe:';
+  return {
+    assetId: prefix + (it._id || it.creationName || ''),
+    type: 'monster',
+    name: it.creationName || pl.title || pl.name || '',
+    description: m.description || it.fullText || '',
+    shatterRating: m.shatterRating || '',
+    signatureAffliction: m.signatureAffliction || '',
+    source: source,
+    lp: 0, sp: 0, maxVit: 0,
+    role: 'Foe',
+    image: it.imageUrl || pl.imageUrl || pl.image || '',
+    attrs: '{}',
+    inventory: '[]',
+    abilities: JSON.stringify(acts.map((a) => ({
+      name: a.name, tier: a.tier,
+      text: a.effect || a.text || a.fullText || '',
+      cost: (a.cost != null ? a.cost : '')
+    }))),
+    foeWeight: FOE_WEIGHT[m.shatterRating] || 0
+  };
+}
+
 async function getCanonFoes() {
   let items = [];
   try {
@@ -242,26 +274,21 @@ async function getCanonFoes() {
       .limit(200).find({ suppressAuth: true });
     items = r.items;
   } catch (e) { items = []; }
-  return items.map((it) => {
-    let pl = {};
-    try { pl = typeof it.payload === 'string' ? JSON.parse(it.payload) : (it.payload || {}); } catch (e) { pl = {}; }
-    const meta = (pl && pl.meta) || {};
-    const acts = Array.isArray(meta.acts) ? meta.acts : [];
-    return {
-      assetId: 'foe:' + (it._id || it.creationName || ''),
-      type: 'monster',
-      name: it.creationName || pl.title || '',
-      description: meta.description || it.fullText || '',
-      shatterRating: meta.shatterRating || '',
-      lp: 0, sp: 0, maxVit: 0,
-      role: 'Foe',
-      image: it.imageUrl || pl.imageUrl || '',
-      attrs: '{}',
-      inventory: '[]',
-      abilities: JSON.stringify(acts.map((a) => ({ name: a.name, tier: a.tier }))),
-      foeWeight: FOE_WEIGHT[meta.shatterRating] || 0
-    };
-  }).filter((f) => f.name);
+  return items.map((it) => mapFoeRow(it, 'canon')).filter((f) => f.name);
+}
+
+// The loremaster's own private foes (FoeForge saves under foeforge.private).
+// Visible only to their creator, surfaced alongside canon with a 'mine' source tag.
+async function getMyForgeFoes(mid) {
+  if (!mid) return [];
+  let items = [];
+  try {
+    const r = await wixData.query('Creations')
+      .eq('forgeKey', 'foeforge.private').eq('creatorMemberId', mid)
+      .limit(200).find({ suppressAuth: true });
+    items = r.items;
+  } catch (e) { items = []; }
+  return items.map((it) => mapFoeRow(it, 'mine')).filter((f) => f.name);
 }
 
 export const listAssets = webMethod(Permissions.Anyone, async () => {
@@ -275,9 +302,11 @@ export const listAssets = webMethod(Permissions.Anyone, async () => {
   }
   const ownedIds = {};
   owned.forEach((o) => { if (o.assetId) ownedIds[o.assetId] = true; });
-  let foes = [];
-  try { foes = await getCanonFoes(); } catch (e) { foes = []; }
-  foes = foes.filter((f) => !ownedIds[f.assetId]);
+  let canonFoes = [];
+  try { canonFoes = await getCanonFoes(); } catch (e) { canonFoes = []; }
+  let myFoes = [];
+  try { myFoes = await getMyForgeFoes(mid); } catch (e) { myFoes = []; }
+  const foes = canonFoes.concat(myFoes).filter((f) => !ownedIds[f.assetId]);
   return owned.concat(foes);
 });
 
