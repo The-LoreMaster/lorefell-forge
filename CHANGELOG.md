@@ -4,6 +4,12 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-25 — FateWell: runner uses two independent scroll panes
+
+- In roleplay run mode the narration and the board are each their own scroll pane bounded to the screen height. The board stays in view while you scroll the narration, and scrolls its own content
+- This replaces the sticky column, which could not pin when the embed is taller than the screen
+- Mobile keeps the single-column flow
+
 ## 2026-06-25 — FateWell: dialogue speaker assigned by dropdown
 
 - Dialogue notes assign a single speaker from a dropdown instead of a Name colon line in the body. One speaker per note, no accidental doubling
