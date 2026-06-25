@@ -16,6 +16,14 @@ function relicFullText(p) {
   return [head, line2, '', f.description || ''].join('\n');
 }
 
+
+// Every uploaded image gets a unique media name so two uploads can never collide
+// and overwrite each other (a same-name upload can replace the prior file).
+function uniqName(base) {
+  return String(base || 'img').replace(/[^A-Za-z0-9_-]+/g, '-').slice(0, 40)
+    + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
 $w.onReady(() => {
   const embed = $w(EMBED);
 
@@ -59,7 +67,7 @@ $w.onReady(() => {
       const p = msg.payload || {};
       let imageUrl = '';
       if (p.image) {
-        try { imageUrl = await uploadRune(p.image, p.title || 'relic'); }
+        try { imageUrl = await uploadRune(p.image, uniqName(p.title || 'relic')); }
         catch (e) { imageUrl = ''; }
       }
       let creator = '';

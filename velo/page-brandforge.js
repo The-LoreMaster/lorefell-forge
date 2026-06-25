@@ -49,7 +49,7 @@ function brandText(it) {
 async function submitItem(it, groupId, creator) {
   let imageUrl = '';
   const raw = imgData(it.image);
-  if (raw) { try { imageUrl = await uploadRune(raw, it.name || it.kind); } catch (e) { imageUrl = ''; } }
+  if (raw) { try { imageUrl = await uploadRune(raw, uniqName(it.name || it.kind)); } catch (e) { imageUrl = ''; } }
 
   let fullText = '', shorthand = '', meta = { kind: it.kind, creator: creator, groupId: groupId || '' };
   if (it.kind === 'lineage') {
@@ -71,6 +71,14 @@ async function submitItem(it, groupId, creator) {
     shorthand: shorthand, fullText: fullText, imageUrl: imageUrl, selections: [], meta: meta
   };
   return submitCreation(FORGE_KEY, payload);
+}
+
+
+// Every uploaded image gets a unique media name so two uploads can never collide
+// and overwrite each other (a same-name upload can replace the prior file).
+function uniqName(base) {
+  return String(base || 'img').replace(/[^A-Za-z0-9_-]+/g, '-').slice(0, 40)
+    + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
 $w.onReady(() => {

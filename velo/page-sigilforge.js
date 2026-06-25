@@ -10,6 +10,14 @@ import { currentMember } from 'wix-members-frontend';
 const FORGE_KEY = 'sigilforge';
 const EMBED = '#html1';   // change to your Embed a Site element ID
 
+
+// Every uploaded image gets a unique media name so two uploads can never collide
+// and overwrite each other (a same-name upload can replace the prior file).
+function uniqName(base) {
+  return String(base || 'img').replace(/[^A-Za-z0-9_-]+/g, '-').slice(0, 40)
+    + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
 $w.onReady(() => {
   const embed = $w(EMBED);
 
@@ -53,7 +61,7 @@ async function handleSubmit(embed, raw) {
   // Store the rune snapshot if present. A media hiccup never blocks the submission.
   let imageUrl = '';
   if (raw.runePng) {
-    try { imageUrl = await uploadRune(raw.runePng, raw.title || 'sigil'); }
+    try { imageUrl = await uploadRune(raw.runePng, uniqName(raw.title || 'sigil')); }
     catch (e) { imageUrl = ''; }
   }
 

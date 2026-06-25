@@ -34,6 +34,14 @@ function foeFullText(p) {
   return lines.join('\n');
 }
 
+
+// Every uploaded image gets a unique media name so two uploads can never collide
+// and overwrite each other (a same-name upload can replace the prior file).
+function uniqName(base) {
+  return String(base || 'img').replace(/[^A-Za-z0-9_-]+/g, '-').slice(0, 40)
+    + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
 $w.onReady(() => {
   const embed = $w(EMBED);
 
@@ -161,7 +169,7 @@ $w.onReady(() => {
     if (msg.type === 'FOE_SUBMIT') {
       const p = msg.payload || {};
       let imageUrl = '';
-      if (p.image) { try { imageUrl = await uploadRune(p.image, p.name || 'foe'); } catch (e) { imageUrl = ''; } }
+      if (p.image) { try { imageUrl = await uploadRune(p.image, uniqName(p.name || 'foe')); } catch (e) { imageUrl = ''; } }
       const payload = {
         kind: 'foe',
         title: String(p.name || '').slice(0, 120),

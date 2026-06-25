@@ -11,6 +11,14 @@ import wixLocation from 'wix-location';
 
 const EMBED = '#html1';   // change to your Embed a Site element ID
 
+
+// Every uploaded image gets a unique media name so two uploads can never collide
+// and overwrite each other (a same-name upload can replace the prior file).
+function uniqName(base) {
+  return String(base || 'img').replace(/[^A-Za-z0-9_-]+/g, '-').slice(0, 40)
+    + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
 // Cover images pasted as data URIs bloat the saved row past Wix's per-item size limit
 // (WDE0009). Walk the campaign, push each inline image to media, and keep only the URL.
 async function inlineCoverImages(node) {
@@ -23,7 +31,7 @@ async function inlineCoverImages(node) {
     return node;
   }
   if (typeof node === 'string' && node.indexOf('data:') === 0) {
-    try { const url = await uploadRune(node, 'fatewell-cover'); return url || ''; } catch (e) { return ''; }
+    try { const url = await uploadRune(node, uniqName('cover')); return url || ''; } catch (e) { return ''; }
   }
   return node;
 }
@@ -101,7 +109,7 @@ $w.onReady(() => {
     } else if (m.type === 'lmtool-asset-save') {
       const asset = m.asset || {};
       if (asset.image && /^data:/.test(asset.image)) {
-        try { asset.image = await uploadRune(asset.image, asset.name || 'asset'); } catch (e) { asset.image = ''; }
+        try { asset.image = await uploadRune(asset.image, uniqName(asset.name || 'asset')); } catch (e) { asset.image = ''; }
       }
       try { await saveAsset(asset); } catch (e) {}
     } else if (m.type === 'lmtool-asset-delete') {
