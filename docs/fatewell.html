@@ -545,6 +545,24 @@ body.runner-mode #savedTag{ top:10px; right:104px; }
 .run-cb-top{ display:flex; align-items:baseline; gap:4px; flex-wrap:wrap; }
 .run-cb-vit{ margin-left:auto; font-family:'Cinzel Decorative',serif; font-size:1.05rem; color:var(--silver); }
 .sig-name{ flex:1; align-self:center; color:var(--ice); font-family:'Crimson Pro',serif; }
+/* combat hooks */
+.hooks-strip{ background:var(--navy2); border:1px solid var(--line2); border-radius:10px; padding:9px 11px; margin-bottom:10px; }
+.hooks-h{ font-family:'Cinzel',serif; font-size:.74rem; letter-spacing:.1em; text-transform:uppercase; color:var(--silver-dim); margin-bottom:7px; }
+.hooks-chips{ display:flex; flex-wrap:wrap; gap:7px; }
+.hook-chip{ font-family:'Cinzel',serif; font-size:.82rem; color:var(--silver); background:var(--navy); border:1px solid var(--line2); border-radius:7px; padding:7px 11px; cursor:pointer; display:inline-flex; align-items:center; gap:7px; }
+.hook-chip.armed{ opacity:.45; }
+.hook-chip.ready{ border-color:rgba(184,204,216,.6); color:var(--ice); background:#11203022; }
+.hook-chip.fired{ opacity:.35; text-decoration:line-through; }
+.hook-chip .hk-dot{ width:7px; height:7px; border-radius:50%; background:var(--ice); box-shadow:0 0 6px var(--ice); }
+.hk-pager{ justify-content:center; align-items:center; gap:12px; }
+.hk-count{ color:var(--silver-dim); font-variant-numeric:tabular-nums; font-size:.85rem; }
+.hk-cond-row{ display:flex; gap:6px; align-items:center; margin-bottom:6px; flex-wrap:wrap; }
+.hk-cond-row .inp{ flex:0 0 auto; }
+.hk-note-pick{ display:flex; align-items:center; gap:8px; padding:5px 0; }
+.hk-and{ color:var(--silver-dim); font-size:.72rem; letter-spacing:.08em; text-transform:uppercase; text-align:center; margin:2px 0; }
+.hook-mrow{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:7px 0; border-bottom:1px solid var(--line); }
+.hook-mrow .hm-label{ flex:1; color:var(--silver); }
+.hook-mrow .hm-state{ font-size:.72rem; letter-spacing:.08em; text-transform:uppercase; color:var(--silver-dim); }
 .run-vbar{ height:7px; background:var(--navy3); border-radius:4px; overflow:hidden; margin:7px 0; }
 .run-vbar span{ display:block; height:100%; background:linear-gradient(90deg, var(--gold), var(--ice)); transition:width .2s; }
 
@@ -1199,6 +1217,7 @@ function migrate(d){
           if (!sc.mode) sc.mode = (sc.combatants && sc.combatants.length) ? 'combat' : 'roleplay';
           if (!sc.status) sc.status = 'active';
           if (!sc.beatDone) sc.beatDone = {};
+          if (!sc.hooks) sc.hooks = [];
           (sc.entries||[]).forEach(function(en){ if (en.img===undefined) en.img=''; });
           if (!sc.battle.spotMode) sc.battle.spotMode = 'auto';
           if (!sc.battle.order) sc.battle.order = [];
@@ -1591,7 +1610,7 @@ function libGet(id){ var r=null; S.library.forEach(function(e){ if(e.id===id) r=
 function newScene(name){
   return {
     id: uid(), name: name, prep:'', img:'', desc:'', mode:'roleplay', status:'active', beatDone:{}, entries: [], log: [],
-    att: {}, refs: [], combatants: [], ps: {},
+    att: {}, refs: [], combatants: [], ps: {}, hooks: [],
     battle: { round:1, phase:'commit', locked:false, pLocked:false, spots: [], spotMode:'auto', manual:{}, order:[] },
     dis: { spent: [], base: null },
     loot: { lucky:{}, shards:{}, rolls:{}, notes:{} }
@@ -1871,9 +1890,20 @@ function duplicateScene(id){
   copy.desc = src.desc || '';
   copy.img = src.img || '';
   copy.prep = src.prep || '';
-  /* deep-copy prep notes with fresh ids */
+  /* deep-copy prep notes with fresh ids, keeping an old->new map for hooks */
+  var _idMap = {};
   copy.entries = (src.entries||[]).map(function(e){
-    return { id:uid(), title:e.title, type:e.type, body:e.body, pinned:e.pinned, open:e.open, img:e.img||'' };
+    var nid = uid(); _idMap[e.id] = nid;
+    return { id:nid, title:e.title, type:e.type, body:e.body, pinned:e.pinned, open:e.open, img:e.img||'' };
+  });
+  /* carry hooks, remap their note ids to the copies, reset fired state */
+  copy.hooks = (src.hooks||[]).map(function(hk){
+    return {
+      id: uid(), label: hk.label || '',
+      conditions: (hk.conditions||[]).map(function(c){ return JSON.parse(JSON.stringify(c)); }),
+      noteIds: (hk.noteIds||[]).map(function(oid){ return _idMap[oid] || oid; }).filter(function(x){ return _idMap[x] || true; }),
+      fired: false
+    };
   });
   /* keep attached library refs */
   copy.refs = (src.refs||[]).slice();
@@ -4735,11 +4765,209 @@ function runnerTable(sc){
 }
 
 /* combat board: full spotlight combat + disruptions + loot */
+/* ===================== Combat hooks ===================== */
+/* A hook surfaces prepared notes on the combat board when its conditions are met.
+   The system watches, the loremaster fires. States: armed, ready, fired. Conditions
+   join by AND. A hook with no conditions is manual and always ready. */
+
+var HOOK_KINDS = [
+  { k:'enemyVit',         label:'Enemy below %',            needs:'pct' },
+  { k:'playerVit',        label:'A player below %',         needs:'pct' },
+  { k:'enemyDowned',      label:'An enemy is downed',       needs:'none' },
+  { k:'playerDowned',     label:'A player is downed',       needs:'none' },
+  { k:'playersAfflicted', label:'Players afflicted (count)',needs:'n' },
+  { k:'enemiesAfflicted', label:'Enemies afflicted (count)',needs:'n' },
+  { k:'namedAffliction',  label:'Affliction present (name)',needs:'name' }
+];
+function hookKindDef(k){ var d=null; HOOK_KINDS.forEach(function(x){ if(x.k===k) d=x; }); return d || HOOK_KINDS[0]; }
+
+/* Live entities the conditions read. Monsters and NPCs from combatants, players from
+   attendance with their derived scene vitality. */
+function hookMonsters(sc){ return (sc.combatants||[]).filter(function(c){ return (c.side||'monster')==='monster'; }); }
+function hookPlayers(sc){ return attendingPlayers().map(function(p){ var st=pState(p.id); return { name:p.name, curVit:st.curVit, maxVit:st.maxVit, affs:st.affs||[] }; }); }
+function hookAllAfflictable(sc){
+  var out = [];
+  (sc.combatants||[]).forEach(function(c){ out.push({ affs:c.affs||[] }); });
+  hookPlayers(sc).forEach(function(p){ out.push({ affs:p.affs||[] }); });
+  return out;
+}
+function pctAtOrBelow(e, pct){ return e.maxVit>0 && (e.curVit / e.maxVit) * 100 <= pct; }
+
+function evalCond(sc, cond){
+  var k = cond.k, pct = Number(cond.pct)||0, n = Number(cond.n)||1, name = String(cond.name||'').toLowerCase();
+  if (k==='enemyVit')  return hookMonsters(sc).some(function(c){ return pctAtOrBelow(c, pct); });
+  if (k==='playerVit') return hookPlayers(sc).some(function(p){ return pctAtOrBelow(p, pct); });
+  if (k==='enemyDowned')  return hookMonsters(sc).some(function(c){ return c.maxVit>0 && c.curVit<=0; });
+  if (k==='playerDowned') return hookPlayers(sc).some(function(p){ return p.maxVit>0 && p.curVit<=0; });
+  if (k==='playersAfflicted') return hookPlayers(sc).filter(function(p){ return (p.affs||[]).length>0; }).length >= n;
+  if (k==='enemiesAfflicted') return hookMonsters(sc).filter(function(c){ return (c.affs||[]).length>0; }).length >= n;
+  if (k==='namedAffliction') return hookAllAfflictable(sc).some(function(e){ return (e.affs||[]).some(function(a){ return String(a.name||'').toLowerCase().indexOf(name)>=0 && name; }); });
+  return false;
+}
+function hookState(sc, hook){
+  if (hook.fired) return 'fired';
+  var cs = hook.conditions || [];
+  if (!cs.length) return 'ready'; /* manual */
+  return cs.every(function(c){ return evalCond(sc, c); }) ? 'ready' : 'armed';
+}
+function condText(cond){
+  var d = hookKindDef(cond.k);
+  if (d.needs==='pct')  return d.label.replace('%', (Number(cond.pct)||0)+'%');
+  if (d.needs==='n')    return d.label.replace('(count)', '\u2265 '+(Number(cond.n)||1));
+  if (d.needs==='name') return 'Affliction "'+(cond.name||'')+'" present';
+  return d.label;
+}
+
+/* ---- Triggers strip on the combat board ---- */
+function hooksStrip(sc){
+  var hooks = sc.hooks || [];
+  if (!hooks.length) return '';
+  var ranked = hooks.map(function(h){ return { h:h, st:hookState(sc,h) }; });
+  var rank = { ready:0, armed:1, fired:2 };
+  ranked.sort(function(a,b){ return rank[a.st]-rank[b.st]; });
+  var h = '<div class="hooks-strip"><div class="hooks-h">Triggers</div><div class="hooks-chips">';
+  ranked.forEach(function(o){
+    h += '<button class="hook-chip '+o.st+'" onclick="revealHook(\''+o.h.id+'\')" title="'+esc((o.h.conditions||[]).map(condText).join(' and ')||'Manual')+'">'
+      + esc(o.h.label||'Hook') + (o.st==='ready' && (o.h.conditions||[]).length ? ' <span class="hk-dot"></span>' : '') + '</button>';
+  });
+  h += '</div></div>';
+  return h;
+}
+
+/* ---- Reveal: read the hook's notes in place, prev/next through the group ---- */
+function findHook(hid){ var sc=curSc(), hk=null; (sc.hooks||[]).forEach(function(h){ if(h.id===hid) hk=h; }); return hk; }
+function revealNoteHTML(sc, entry){
+  return '<div class="entry card-type t-'+entry.type+'">'
+    + (entry.img ? '<div class="entry-img"><img src="'+esc(imgSrc(entry.img))+'" alt=""></div>' : '')
+    + dialogueHead(dialogueSpeaker(entry))
+    + (entry.body ? '<div class="entry-text">'+renderNoteBody(entry.body, 'sc:'+sc.id)+'</div>' : '<div class="muted">Empty.</div>')
+    + '</div>';
+}
+function revealHook(hid){
+  var hook = findHook(hid); if (!hook) return;
+  if (!hook.fired){ hook.fired = true; save(); }
+  window._hookView = { hid:hid, idx:0 };
+  renderHookReveal();
+}
+function renderHookReveal(){
+  var v = window._hookView; if (!v) return;
+  var sc = curSc(); var hook = findHook(v.hid); if (!hook){ closeModal(); return; }
+  var ids = hook.noteIds || [];
+  if (v.idx<0) v.idx=0; if (v.idx>=ids.length) v.idx=Math.max(0, ids.length-1);
+  var entry = null; (sc.entries||[]).forEach(function(e){ if(e.id===ids[v.idx]) entry=e; });
+  var body = ids.length ? (entry ? revealNoteHTML(sc, entry) : '<p class="muted">This note was removed.</p>')
+                        : '<p class="muted">No notes attached to this hook yet.</p>';
+  var pager = ids.length>1
+    ? '<div class="m-row hk-pager"><button class="btn ghost small" '+(v.idx<=0?'disabled':'')+' onclick="hookStep(-1)">&#8592; Prev</button>'
+      + '<span class="hk-count">'+(v.idx+1)+' / '+ids.length+'</span>'
+      + '<button class="btn ghost small" '+(v.idx>=ids.length-1?'disabled':'')+' onclick="hookStep(1)">Next &#8594;</button></div>'
+    : '';
+  modal('<h3 class="m-title">'+esc(hook.label||'Hook')+'</h3>' + body + pager
+    + '<div class="m-row"><button class="btn" onclick="window._hookView=null;closeModal()">Dismiss</button></div>');
+}
+function hookStep(d){ var v=window._hookView; if(!v) return; v.idx+=d; renderHookReveal(); }
+
+/* ---- Manage hooks: list, rearm, edit, delete ---- */
+function hooksManager(sc){
+  var hooks = sc.hooks || [];
+  var h = '';
+  if (!hooks.length){ h += '<p class="muted pad">No hooks yet. A hook reveals prepared notes when its conditions are met.</p>'; }
+  hooks.forEach(function(hk){
+    var st = hookState(sc, hk);
+    h += '<div class="hook-mrow"><span class="hm-label">'+esc(hk.label||'Untitled hook')+'</span>'
+      + '<span class="hm-state">'+st+'</span>'
+      + (hk.fired ? '<button class="mini" onclick="rearmHook(\''+hk.id+'\')">Rearm</button>' : '')
+      + '<button class="mini ghost" onclick="hookEditor(\''+hk.id+'\')">Edit</button>'
+      + '<button class="mini danger" onclick="deleteHook(\''+hk.id+'\')">Delete</button></div>';
+  });
+  h += '<button class="btn wide ghost small" onclick="hookEditor(\'\')">+ Add hook</button>';
+  return h;
+}
+function rearmHook(hid){ var hk=findHook(hid); if(hk){ hk.fired=false; save(); render(); } }
+function deleteHook(hid){
+  askConfirm('Delete this hook? The notes it points to are not affected.', function(){
+    var sc=curSc(); sc.hooks=(sc.hooks||[]).filter(function(h){ return h.id!==hid; }); save(); render();
+  }, 'Delete');
+}
+
+/* ---- Hook editor: label, AND conditions, ordered notes ---- */
+function hookEditor(hid){
+  var existing = hid ? findHook(hid) : null;
+  window._hookDraft = existing
+    ? JSON.parse(JSON.stringify(existing))
+    : { id:uid(), label:'', conditions:[], noteIds:[], fired:false };
+  renderHookEditor(!existing);
+}
+function syncHookInputs(){
+  var d = window._hookDraft; if (!d) return;
+  var lab = document.getElementById('hkLabel'); if (lab) d.label = lab.value;
+  (d.conditions||[]).forEach(function(c, i){
+    var kind = document.getElementById('hkK'+i); if (kind) c.k = kind.value;
+    var pct = document.getElementById('hkP'+i); if (pct) c.pct = parseInt(pct.value,10)||0;
+    var nn  = document.getElementById('hkN'+i); if (nn)  c.n   = parseInt(nn.value,10)||1;
+    var nm  = document.getElementById('hkM'+i); if (nm)  c.name= nm.value;
+  });
+}
+function hkAddCond(){ syncHookInputs(); window._hookDraft.conditions.push({ k:'enemyVit', pct:50, n:2, name:'' }); renderHookEditor(false); }
+function hkDelCond(i){ syncHookInputs(); window._hookDraft.conditions.splice(i,1); renderHookEditor(false); }
+function hkCondKind(i, val){ syncHookInputs(); window._hookDraft.conditions[i].k = val; renderHookEditor(false); }
+function hkToggleNote(id){
+  syncHookInputs();
+  var d = window._hookDraft; var ix = d.noteIds.indexOf(id);
+  if (ix>=0) d.noteIds.splice(ix,1); else d.noteIds.push(id);
+  renderHookEditor(false);
+}
+function renderHookEditor(isNew){
+  var d = window._hookDraft; var sc = curSc();
+  var h = '<h3 class="m-title">'+(isNew?'New hook':'Edit hook')+'</h3>'
+    + '<label class="lbl">Label</label><input class="inp" id="hkLabel" value="'+esc(d.label||'')+'" placeholder="Vornak breaks">'
+    + '<label class="lbl">Fires when all of these are true</label>';
+  if (!d.conditions.length){ h += '<p class="muted small">No conditions. This hook is manual and always ready to fire.</p>'; }
+  d.conditions.forEach(function(c, i){
+    if (i>0) h += '<div class="hk-and">and</div>';
+    var def = hookKindDef(c.k);
+    h += '<div class="hk-cond-row"><select class="inp" id="hkK'+i+'" onchange="hkCondKind('+i+',this.value)">';
+    HOOK_KINDS.forEach(function(K){ h += '<option value="'+K.k+'"'+(K.k===c.k?' selected':'')+'>'+K.label+'</option>'; });
+    h += '</select>';
+    if (def.needs==='pct')  h += '<input class="inp" id="hkP'+i+'" type="number" min="1" max="100" value="'+(c.pct!=null?c.pct:50)+'" style="width:72px"> %';
+    if (def.needs==='n')    h += '<input class="inp" id="hkN'+i+'" type="number" min="1" value="'+(c.n!=null?c.n:2)+'" style="width:72px">';
+    if (def.needs==='name') h += '<input class="inp" id="hkM'+i+'" value="'+esc(c.name||'')+'" placeholder="affliction name" style="flex:1">';
+    h += '<button class="mini danger" onclick="hkDelCond('+i+')">&times;</button></div>';
+  });
+  h += '<button class="btn ghost small" onclick="hkAddCond()">+ Add condition</button>';
+  h += '<label class="lbl">Notes to reveal (in order)</label>';
+  var entries = sc.entries || [];
+  if (!entries.length){ h += '<p class="muted small">This scene has no notes yet. Add notes first, then attach them here.</p>'; }
+  entries.forEach(function(e){
+    var on = d.noteIds.indexOf(e.id)>=0;
+    var pos = d.noteIds.indexOf(e.id);
+    h += '<div class="hk-note-pick"><input type="checkbox" '+(on?'checked':'')+' onchange="hkToggleNote(\''+e.id+'\')">'
+      + '<span class="entry-type t-'+e.type+'">'+noteTypeLabel(e.type)+'</span> '+esc(e.title||'Untitled')
+      + (on ? ' <span class="hk-count">#'+(pos+1)+'</span>' : '') + '</div>';
+  });
+  h += '<div class="m-row"><button class="btn ghost" onclick="closeModal()">Cancel</button>'
+    + '<button class="btn" onclick="saveHook()">Save hook</button></div>';
+  modal(h);
+}
+function saveHook(){
+  syncHookInputs();
+  var d = window._hookDraft; if (!d) return;
+  if (!d.label){ d.label = 'Hook'; }
+  var sc = curSc(); sc.hooks = sc.hooks || [];
+  var found = false;
+  sc.hooks.forEach(function(h, i){ if (h.id===d.id){ sc.hooks[i] = d; found = true; } });
+  if (!found) sc.hooks.push(d);
+  window._hookDraft = null;
+  closeModal(); save(); render();
+}
+
 function runnerCombat(sc){
   var h = '<div class="run-combat">';
+  h += hooksStrip(sc);
   h += runnerTable(sc);
   h += '<details class="run-fold"><summary>Disruptions <span class="fold-meta">'+disBalance()+' / '+disBase()+' available</span></summary>'+tabDisruptions(sc)+'</details>';
   h += '<div class="run-h">Combat</div>' + tabCombat(sc);
+  h += '<details class="run-fold"><summary>Hooks</summary>'+hooksManager(sc)+'</details>';
   h += '<details class="run-fold"><summary>Loot and rewards</summary>'+tabLoot(sc)+'</details>';
   h += '</div>';
   return h;
