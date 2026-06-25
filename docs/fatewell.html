@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>FateWell</title>
-<!-- build: runner-lock -->
+<!-- build: img-persist -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Cinzel+Decorative:wght@700&family=Crimson+Pro:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
@@ -1403,6 +1403,13 @@ window.addEventListener('message', function(ev){
       saveLocal(); render();
     }
   }
+  if (m.type === 'lmtool-asset-saved'){
+    WIX.connected = true;
+    if (m.assetId && m.image){
+      var ae = libGet(m.assetId);
+      if (ae){ ae.img = m.image; saveLocal(); if (V.screen==='library') render(); }
+    }
+  }
   if (m.type === 'lmtool-glossary'){
     WIX.connected = true;
     if (Array.isArray(m.glossary)){
@@ -2549,16 +2556,38 @@ function tokenField(current){
 function readToken(input){
   var f = input.files && input.files[0];
   if (!f) return;
-  if (f.size > 1500000){ alert('That image is large. Please use one under about 1.5 MB so it syncs cleanly.'); return; }
+  if (f.size > 25000000){ alert('That image is very large. Please use one under about 25 MB.'); return; }
   var reader = new FileReader();
   reader.onload = function(ev){
-    var data = ev.target.result;
-    var hid = document.getElementById('wImg'); if (hid) hid.value = data;
-    var prev = document.getElementById('wImgPrev'); if (prev) prev.innerHTML = '<img src="'+data+'" alt="token">';
-    var clr = document.getElementById('wImgClear'); if (clr) clr.style.display = '';
+    downscaleImage(ev.target.result, 1024, function(data){
+      var hid = document.getElementById('wImg'); if (hid) hid.value = data;
+      var prev = document.getElementById('wImgPrev'); if (prev) prev.innerHTML = '<img src="'+data+'" alt="token">';
+      var clr = document.getElementById('wImgClear'); if (clr) clr.style.display = '';
+    });
   };
   reader.onerror = function(){ alert('Could not read that image. Try a different file.'); };
   reader.readAsDataURL(f);
+}
+/* Shrink a picked image so the stored value stays small. A full-size phone photo as a
+   base64 string is too big for a CMS row, so the save silently fails. Cap the long edge
+   and re-encode. Falls back to the original if the canvas path is unavailable. */
+function downscaleImage(dataUrl, maxDim, cb){
+  try {
+    var img = new Image();
+    img.onload = function(){
+      var w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+      if (!w || !h){ cb(dataUrl); return; }
+      var scale = Math.min(1, maxDim / Math.max(w, h));
+      var cw = Math.max(1, Math.round(w * scale)), ch = Math.max(1, Math.round(h * scale));
+      var cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
+      var ctx = cv.getContext('2d'); if (!ctx){ cb(dataUrl); return; }
+      ctx.drawImage(img, 0, 0, cw, ch);
+      var out; try { out = cv.toDataURL('image/jpeg', 0.82); } catch(_){ out = ''; }
+      cb(out && out.length < dataUrl.length ? out : dataUrl);
+    };
+    img.onerror = function(){ cb(dataUrl); };
+    img.src = dataUrl;
+  } catch(_){ cb(dataUrl); }
 }
 function clearToken(){
   var hid = document.getElementById('wImg'); if (hid) hid.value = '';

@@ -123,8 +123,12 @@ $w.onReady(() => {
       const asset = m.asset || {};
       if (asset.image && /^data:/.test(asset.image)) {
         try { asset.image = toStaticImageUrl(await uploadRune(asset.image, uniqName(asset.name || 'asset'))); } catch (e) { asset.image = ''; }
+      } else if (asset.image && asset.image.indexOf('wix:image://') === 0) {
+        asset.image = toStaticImageUrl(asset.image);
       }
-      try { await saveAsset(asset); } catch (e) {}
+      let ares = { ok: false };
+      try { ares = await saveAsset(asset); } catch (e) { ares = { ok: false }; }
+      embed.postMessage({ type: 'lmtool-asset-saved', assetId: asset.assetId, image: asset.image, ok: !!(ares && ares.ok) });
     } else if (m.type === 'lmtool-asset-delete') {
       try { await deleteAsset(m.assetId); } catch (e) {}
     } else if (m.type === 'lmtool-glossary-request') {

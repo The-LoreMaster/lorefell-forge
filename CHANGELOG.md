@@ -4,6 +4,12 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-25 — FateWell: NPC and monster images persist
+
+- Picked images are downscaled before saving, so a full-size photo no longer produces a row too large for the CMS to store, which was dropping the image on reload
+- The asset save now returns the stored image URL and the tool adopts it, replacing the heavy data URI in the local copy
+- Requires re-pasting the FateWell page bridge so the asset save returns the saved image
+
 ## 2026-06-25 — FateWell: single scroll in the runner
 
 - The runner locks the document to the viewport so only the runner pane scrolls. The extra in-embed scrollbar is gone, leaving the one runner scroll plus the host page's own bar
