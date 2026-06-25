@@ -4,6 +4,12 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-25 — FateWell: campaign NPCs in the scene roster, bigger dialogue portrait
+
+- The scene Roster tab now lists NPCs added at the adventure, act, or session under Campaign roster, with their portrait and a one-tap Add to scene. No more re-attaching from the library per scene
+- Once added, the card shows In scene and the combatant row shows the portrait, so it is clear it was added
+- Runner dialogue shows a full-size portrait to the left of the speaker name and line, in place of the tiny avatar
+
 ## 2026-06-25 — FateWell: NPC and monster images persist
 
 - Picked images are downscaled before saving, so a full-size photo no longer produces a row too large for the CMS to store, which was dropping the image on reload
