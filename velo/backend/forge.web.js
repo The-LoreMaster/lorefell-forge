@@ -86,6 +86,7 @@ export const submitCreation = webMethod(Permissions.SiteMember, async (forgeKey,
     fullText: payload.fullText || rendered.full,
     legality: JSON.stringify(legality),
     creatorNote: payload.creatorNote || '',
+    flavorText: payload.flavorText || '',
     fingerprint: fingerprintOf(forgeKey, payload),
     basedOn: payload.basedOn || null,
     imageUrl: payload.imageUrl || null,
@@ -269,6 +270,7 @@ export const getCreations = webMethod(Permissions.Anyone, async (forgeKey, opts)
       creationId: s._id, creationName: s.creationName, creatorName: s.creatorName,
       canonStatus: s.canonStatus, voteCount: s.voteCount, kind: s.kind,
       shorthand: s.shorthand, fullText: s.fullText, imageUrl: s.imageUrl, fingerprint: s.fingerprint,
+      flavorText: s.flavorText,
       payload: s.payload
     };
   });
