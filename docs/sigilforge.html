@@ -2626,9 +2626,12 @@ async function aiCall(){
     body: JSON.stringify({ system: aiSystemPrompt(), messages: aiMsgs, max_tokens: 700 })
   });
   if(res.status === 429) throw { rate: true };
-  if(!res.ok) throw new Error("relay " + res.status);
+  if(!res.ok){
+    var _b = ""; try { _b = (await res.text()).slice(0, 240); } catch(_){}
+    throw new Error("relay " + res.status + (_b ? (": " + _b) : ""));
+  }
   const data = await res.json();
-  if(data.error) throw new Error("api error");
+  if(data.error) throw new Error("api error: " + ((data.error && data.error.message) ? data.error.message : JSON.stringify(data.error)).slice(0, 240));
   return (data.content || []).filter(x => x.type === "text").map(x => x.text).join("");
 }
 
@@ -2683,8 +2686,14 @@ async function aiForge(){
     showAiMsg("The forge could not settle on a legal build. The closest attempt is loaded above. Adjust it by hand.");
     aiMsgs = [];
   }catch(err){
-    if(err && err.rate) toast("The forge needs to cool. Try again soon.");
-    else toast("The forge could not be reached. Try again.");
+    if(err && err.rate){
+      showAiMsg("The forge needs to cool. You have reached the AI limit for now. Try again later.");
+      toast("Rate limited");
+    } else {
+      var _m = (err && err.message) ? err.message : "Unknown error";
+      showAiMsg("The forge could not be reached.\n" + _m + "\n\nIf this keeps happening, the AI relay or its key is the likely cause, not your input.");
+      toast("Forge unreachable");
+    }
     aiMsgs = [];
   }finally{
     aiBusy = false;
