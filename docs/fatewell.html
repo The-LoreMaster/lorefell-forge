@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>FateWell</title>
-<!-- build: note-img-subtle-tag -->
+<!-- build: preserve-note-imgs -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Cinzel+Decorative:wght@700&family=Crimson+Pro:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
@@ -1249,6 +1249,25 @@ function saveLocal(){
   try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch(e){}
   renderSavedTag();
 }
+/* A round-trip to the account can return a campaign with images stripped, for example
+   when a media upload failed server-side. Keep the local image for any node (level cover
+   or note) whose incoming copy lost it, keyed by id. */
+function _collectImgs(node, map){
+  if (!node || typeof node !== 'object') return;
+  if (Array.isArray(node)){ for (var i=0;i<node.length;i++) _collectImgs(node[i], map); return; }
+  if (node.id && typeof node.img === 'string' && node.img) map[node.id] = node.img;
+  for (var k in node){ if (Object.prototype.hasOwnProperty.call(node,k)) _collectImgs(node[k], map); }
+}
+function _fillImgs(node, map){
+  if (!node || typeof node !== 'object') return;
+  if (Array.isArray(node)){ for (var i=0;i<node.length;i++) _fillImgs(node[i], map); return; }
+  if (node.id && (typeof node.img !== 'string' || !node.img) && map[node.id]) node.img = map[node.id];
+  for (var k in node){ if (Object.prototype.hasOwnProperty.call(node,k)) _fillImgs(node[k], map); }
+}
+function preserveImages(incoming, local){
+  try { if (incoming && local){ var map = {}; _collectImgs(local, map); _fillImgs(incoming, map); } } catch(_){}
+  return incoming;
+}
 function fmtClock(t){
   if (!t) return '';
   var d = new Date(t), hh = d.getHours(), mm = String(d.getMinutes()).padStart(2,'0');
@@ -1376,7 +1395,7 @@ window.addEventListener('message', function(ev){
       var wrapped = migrate({ campaigns:[incoming], library:S.library, forge:S.forge, wixPlayers:S.wixPlayers, die:S.die });
       var migrated = wrapped.campaigns[0];
       var found = false;
-      S.campaigns = S.campaigns.map(function(c){ if (c.id===migrated.id){ found=true; return migrated; } return c; });
+      S.campaigns = S.campaigns.map(function(c){ if (c.id===migrated.id){ found=true; preserveImages(migrated, c); return migrated; } return c; });
       if (!found) S.campaigns.push(migrated);
     } else if (WIX.campaignId){
       /* brand-new empty campaign created on the site */
@@ -1404,7 +1423,7 @@ window.addEventListener('message', function(ev){
     (m.campaigns||[]).forEach(function(sc){
       if (!sc || !sc.id || !sc.campaign) return;
       for (var i=0;i<S.campaigns.length;i++){
-        if (S.campaigns[i].id===sc.id){ sc.campaign.id = sc.id; S.campaigns[i] = sc.campaign; break; }
+        if (S.campaigns[i].id===sc.id){ sc.campaign.id = sc.id; preserveImages(sc.campaign, S.campaigns[i]); S.campaigns[i] = sc.campaign; break; }
       }
     });
     markSynced(); saveLocal(); render();
@@ -4915,5 +4934,3 @@ document.addEventListener('DOMContentLoaded', function(){
 </script>
 </body>
 </html>
-
-<!-- nudge 1782392866 -->

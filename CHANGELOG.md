@@ -4,6 +4,12 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-25 — FateWell: note images no longer vanish on the account round-trip
+
+- A note image added locally was being wiped about a second later when the autosave round-tripped through the account and the server copy came back without it. The tool now keeps the local image (note or cover) for any item whose returned copy lost it, so it survives regardless of the bridge
+- A real uploaded image from the server still wins when present
+- Tool only. The bridge image-keep fix from the prior step still helps cross-device once re-pasted
+
 ## 2026-06-25 — FateWell: note images show in the runner; image upload no longer blanks on failure; subtler save text
 
 - The runner now renders a note's own image. It was only shown in prep, so note images looked lost once you ran the scene
