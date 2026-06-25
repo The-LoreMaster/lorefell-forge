@@ -37,27 +37,39 @@ export const listMyCampaigns = webMethod(Permissions.Anyone, async () => {
 });
 
 export const saveCampaign = webMethod(Permissions.Anyone, async (campaignId, blob, title) => {
-  const id = await memberId();
-  // Never create an empty row. A save with no campaign id and no real campaign blob is a
-  // stray autosave from the tool running outside a chosen adventure. Ignore it.
-  const hasCampaign = !!(blob && blob.campaign);
-  if (!campaignId && !hasCampaign) return { ok: false, skipped: true };
-  let row;
-  if (campaignId) {
-    row = await wixData.get(COLLECTION, campaignId, { suppressAuth: true }).catch(() => null);
-    if (row && row.ownerMemberId && id && row.ownerMemberId !== id) return { ok: false };
-    if (!row) row = { _id: campaignId, ownerMemberId: id };
-  } else {
-    row = { ownerMemberId: id };
+  try {
+    const id = await memberId();
+    // Never create an empty row. A save with no campaign id and no real campaign blob is a
+    // stray autosave from the tool running outside a chosen adventure. Ignore it.
+    const hasCampaign = !!(blob && blob.campaign);
+    if (!campaignId && !hasCampaign) return { ok: false, skipped: true };
+
+    let existing = null;
+    if (campaignId) {
+      existing = await wixData.get(COLLECTION, campaignId, { suppressAuth: true }).catch(() => null);
+      if (existing && existing.ownerMemberId && id && existing.ownerMemberId !== id) {
+        return { ok: false, error: 'owned by another member' };
+      }
+    }
+
+    const row = existing || { ownerMemberId: id };
+    if (campaignId && !existing) row._id = campaignId;
+    if (hasCampaign) {
+      row.data = JSON.stringify(blob.campaign);
+      if (blob.campaign.name) row.name = blob.campaign.name;
+    }
+    if (title) row.name = title;
+    if (!row.name) row.name = 'Adventure';
+    if (!row.ownerMemberId) row.ownerMemberId = id;
+
+    const saved = existing
+      ? await wixData.update(COLLECTION, row, { suppressAuth: true })
+      : await wixData.insert(COLLECTION, row, { suppressAuth: true });
+    return { ok: true, id: saved._id, owner: id };
+  } catch (e) {
+    // Surface the real cause to the caller instead of Velo's generic wrapper.
+    return { ok: false, error: (e && e.message) ? e.message : String(e) };
   }
-  if (blob && blob.campaign) {
-    row.data = JSON.stringify(blob.campaign);
-    if (blob.campaign.name) row.name = blob.campaign.name;
-  }
-  if (title) row.name = title;
-  row.ownerMemberId = row.ownerMemberId || id;
-  const saved = await wixData.save(COLLECTION, row, { suppressAuth: true });
-  return { ok: true, id: saved._id, owner: id };
 });
 
 
