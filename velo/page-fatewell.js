@@ -19,8 +19,18 @@ function uniqName(base) {
     + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
+// uploadRune can hand back a wix:image:// descriptor, which a plain <img> cannot load.
+// Convert it to the static URL so covers render in the embed.
+function toStaticImageUrl(u) {
+  if (!u || typeof u !== 'string') return '';
+  const m = u.match(/^wix:image:\/\/v1\/([^/]+)/);
+  if (m) return 'https://static.wixstatic.com/media/' + m[1];
+  return u;
+}
+
 // Cover images pasted as data URIs bloat the saved row past Wix's per-item size limit
-// (WDE0009). Walk the campaign, push each inline image to media, and keep only the URL.
+// (WDE0009). Walk the campaign, push each inline image to media, and keep only a usable
+// URL. Also repair any descriptor already stored from before this fix.
 async function inlineCoverImages(node) {
   if (Array.isArray(node)) {
     for (let i = 0; i < node.length; i++) node[i] = await inlineCoverImages(node[i]);
@@ -31,7 +41,10 @@ async function inlineCoverImages(node) {
     return node;
   }
   if (typeof node === 'string' && node.indexOf('data:') === 0) {
-    try { const url = await uploadRune(node, uniqName('cover')); return url || ''; } catch (e) { return ''; }
+    try { const url = await uploadRune(node, uniqName('cover')); return toStaticImageUrl(url); } catch (e) { return ''; }
+  }
+  if (typeof node === 'string' && node.indexOf('wix:image://') === 0) {
+    return toStaticImageUrl(node);
   }
   return node;
 }
@@ -109,7 +122,7 @@ $w.onReady(() => {
     } else if (m.type === 'lmtool-asset-save') {
       const asset = m.asset || {};
       if (asset.image && /^data:/.test(asset.image)) {
-        try { asset.image = await uploadRune(asset.image, uniqName(asset.name || 'asset')); } catch (e) { asset.image = ''; }
+        try { asset.image = toStaticImageUrl(await uploadRune(asset.image, uniqName(asset.name || 'asset'))); } catch (e) { asset.image = ''; }
       }
       try { await saveAsset(asset); } catch (e) {}
     } else if (m.type === 'lmtool-asset-delete') {
