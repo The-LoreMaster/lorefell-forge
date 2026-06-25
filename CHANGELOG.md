@@ -4,6 +4,10 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-25 — FateWell: themed scrollbars
+
+- Scroll areas inside the tool use a slim LoreFell-styled scrollbar, dark track with an ice thumb. The host page scrollbar outside the embed is the browser's and cannot be themed from the tool
+
 ## 2026-06-25 — FateWell: runner bar order, table moved to combat
 
 - Log sits to the left of Roll d6 in the frozen bar
