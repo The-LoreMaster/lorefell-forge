@@ -4,6 +4,10 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-25 — FateWell: Library cards use a left portrait
+
+- Library profile cards now show the portrait as a left thumbnail instead of a full-width banner, matching the scene roster cards
+
 ## 2026-06-25 — FateWell: campaign NPCs everywhere, card art, in-scene marker
 
 - NPCs and items on the campaign roster now appear in every scene under a Campaign roster subsection, tagged Campaign, so they no longer need re-adding per scene
