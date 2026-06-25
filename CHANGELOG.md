@@ -4,6 +4,10 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-25 — FateWell: Previous and Next scene buttons on the scene screen
+
+- Added Previous scene and Next scene under Run this scene, so you can move through a session without going back to the list. They disable at the first and last scene and hide when a session has only one scene
+
 ## 2026-06-25 — FateWell: ref-card thumbnails are always square
 
 - The portrait on a roster or attached-NPC card stretched to the card height, so a long description made it tall and a short card kept it square. The thumbnail is now a fixed square that crops to fill, so every portrait reads 1x1 no matter the card height or source image
