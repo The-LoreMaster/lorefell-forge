@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>FateWell</title>
-<!-- build: flush-save2 -->
+<!-- build: ref-roster -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Cinzel+Decorative:wght@700&family=Crimson+Pro:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
@@ -261,6 +261,14 @@ body::before{
 /* refs & log */
 .ref-card, .log-card{ display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
 .ref-desc{ font-size:.92rem; color:var(--ice); margin-top:3px; }
+.ref-card{ gap:12px; }
+.ref-thumb{ flex:0 0 auto; width:54px; height:54px; border-radius:10px; overflow:hidden; background:var(--navy2); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; }
+.ref-thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+.ref-thumb.ph{ color:var(--muted); font-size:1.3rem; }
+.ref-body{ flex:1 1 auto; min-width:0; }
+.ref-acts{ margin-top:6px; display:flex; gap:8px; flex-wrap:wrap; }
+.ref-inscene{ display:inline-block; font-size:.66rem; letter-spacing:.08em; text-transform:uppercase; color:var(--navy); background:var(--gold); border-radius:6px; padding:2px 7px; margin:0 2px; vertical-align:middle; }
+.ref-camptag{ flex:0 0 auto; align-self:flex-start; font-size:.62rem; letter-spacing:.09em; text-transform:uppercase; color:var(--muted); border:1px solid var(--line); border-radius:6px; padding:3px 7px; white-space:nowrap; }
 .log-ts{ font-family:'Cinzel', serif; font-size:.66rem; letter-spacing:.1em; color:var(--gold); margin-bottom:2px; }
 
 /* library picker */
@@ -3768,17 +3776,61 @@ function affChips(kind, id, affs){
   return h;
 }
 
+function typeGlyph(t){ return t==='monster' ? '\u2620' : (t==='item' ? '\u25C6' : '\u25C9'); }
+function sceneInScene(sc, rid){ return (sc.combatants||[]).some(function(c){ return c.libId===rid; }); }
+function sceneAddRef(rid){
+  var e = libGet(rid); if(!e) return;
+  var sc = curSc();
+  var existing = sc.combatants.filter(function(c){ return c.libId===rid; }).length;
+  var isMon = e.type==='monster';
+  sc.combatants.push({
+    id: uid(), libId: rid, type: isMon?'monster':'npc', side: isMon?'monster':'npc',
+    name: e.name + (existing ? ' ' + (existing+1) : ''),
+    sr: isMon ? e.sr : '', maxVit: isMon ? effMaxVit(e) : (e.maxVit||0), curVit: isMon ? effMaxVit(e) : (e.maxVit||0),
+    attrs: JSON.parse(JSON.stringify(e.attrs || blankAttrs())),
+    inv: (e.inv || []).slice(),
+    abilities: JSON.parse(JSON.stringify(e.abilities || [])),
+    img: e.img || '', act:'', target:'', done:false, affs:[]
+  });
+  save(); render();
+}
+function refCard(rid, sc, removable){
+  var e = libGet(rid); if(!e) return '';
+  var inScene = sceneInScene(sc, rid);
+  var thumb = e.img
+    ? '<span class="ref-thumb"><img src="'+esc(imgSrc(e.img))+'" alt=""></span>'
+    : '<span class="ref-thumb ph">'+typeGlyph(e.type)+'</span>';
+  var meta = TYPE_LABEL[e.type]+(e.role?' &middot; '+esc(e.role):'');
+  var badge = inScene ? '<span class="ref-inscene">In scene</span>' : '';
+  var acts = '';
+  if (e.type!=='item'){
+    acts = inScene
+      ? '<button class="mini ghost" onclick="V.tab=\'roster\';render()">View in roster</button>'
+      : '<button class="mini" onclick="sceneAddRef(\''+rid+'\')">Add to scene</button>';
+  }
+  var trail = removable
+    ? '<button class="icon-btn danger" onclick="detachRef(\''+rid+'\')">&times;</button>'
+    : '<span class="ref-camptag">Campaign</span>';
+  return '<div class="card ref-card">'
+    + thumb
+    + '<div class="ref-body"><b>'+esc(e.name)+'</b> '+badge+' <span class="muted">'+meta+'</span>'
+    + (e.desc ? '<div class="ref-desc">'+esc(e.desc)+'</div>' : '')
+    + (acts ? '<div class="ref-acts">'+acts+'</div>' : '')
+    + '</div>'
+    + trail
+    + '</div>';
+}
 function tabNotes(sc){
   var h = '<div class="sec-h">Prep notes</div>' + notesBlock('sc:'+sc.id);
-  if (sc.refs.length){
+  var sceneRefs = sc.refs.filter(function(id){ return libGet(id); });
+  var campRefs = ((curC()&&curC().manualRefs)||[]).filter(function(id){ return libGet(id) && sc.refs.indexOf(id)<0; });
+  if (sceneRefs.length || campRefs.length){
     h += '<div class="sec-h">Attached NPCs and items</div>';
-    sc.refs.forEach(function(rid){
-      var e = libGet(rid);
-      if (!e) return;
-      h += '<div class="card ref-card"><div><b>'+esc(e.name)+'</b> <span class="muted">'+TYPE_LABEL[e.type]+(e.role?' &middot; '+esc(e.role):'')+'</span>'
-        + (e.desc ? '<div class="ref-desc">'+esc(e.desc)+'</div>' : '') + '</div>'
-        + '<button class="icon-btn danger" onclick="detachRef(\''+rid+'\')">&times;</button></div>';
-    });
+    sceneRefs.forEach(function(rid){ h += refCard(rid, sc, true); });
+    if (campRefs.length){
+      h += '<div class="sub-h">Campaign roster, available in every scene</div>';
+      campRefs.forEach(function(rid){ h += refCard(rid, sc, false); });
+    }
   }
   h += '<div class="sec-h">Play log</div>';
   if (!sc.log.length){

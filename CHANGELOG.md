@@ -4,6 +4,12 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-25 — FateWell: campaign NPCs everywhere, card art, in-scene marker
+
+- NPCs and items on the campaign roster now appear in every scene under a Campaign roster subsection, tagged Campaign, so they no longer need re-adding per scene
+- Attached NPC and item cards show the portrait on the left
+- Each card carries an In scene badge once that NPC is in the scene roster, with a one-tap Add to scene and a jump to the roster
+
 ## 2026-06-25 — FellGlass: faster saves and a flush on leaving
 
 - The character sheet autosave debounce dropped from 1200ms to 600ms, and a pending save flushes when the tab is hidden or closing. The sheet has no local fallback, so this closes the only window where a last edit could be lost on close
