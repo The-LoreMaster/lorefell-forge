@@ -73,6 +73,22 @@ export const saveCampaign = webMethod(Permissions.Anyone, async (campaignId, blo
 });
 
 
+export const deleteCampaign = webMethod(Permissions.Anyone, async (campaignId) => {
+  try {
+    if (!campaignId) return { ok: false, error: 'no id' };
+    const id = await memberId();
+    const existing = await wixData.get(COLLECTION, campaignId, { suppressAuth: true }).catch(() => null);
+    if (!existing) return { ok: true, id: campaignId, already: true };
+    if (existing.ownerMemberId && id && existing.ownerMemberId !== id) {
+      return { ok: false, error: 'owned by another member' };
+    }
+    await wixData.remove(COLLECTION, campaignId, { suppressAuth: true });
+    return { ok: true, id: campaignId };
+  } catch (e) {
+    return { ok: false, error: (e && e.message) ? e.message : String(e) };
+  }
+});
+
 const KEEPER_ROLES = ['loremaster', 'lorekeeper'];
 
 async function isKeeper() {

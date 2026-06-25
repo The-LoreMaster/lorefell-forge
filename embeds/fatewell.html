@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>FateWell</title>
-<!-- build: cascade-all -->
+<!-- build: del-sync-saved -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Cinzel+Decorative:wght@700&family=Crimson+Pro:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
@@ -480,6 +480,8 @@ body::before{
 .wrap-run{ max-width:1100px; padding:0 12px 0; }
 body.runner-mode{ padding-bottom:0; }
 html.runner, body.runner-mode{ height:100vh; height:100dvh; overflow:hidden; }
+#savedTag{ position:fixed; top:7px; right:12px; z-index:60; font-size:.66rem; letter-spacing:.05em; color:var(--muted); background:rgba(10,14,26,.72); padding:3px 9px; border:1px solid var(--line); border-radius:999px; pointer-events:none; display:none; }
+body.runner-mode #savedTag{ top:14px; right:104px; }
 .run-enter{ background:rgba(201,168,76,.12); border-color:var(--gold); color:var(--gold); margin-bottom:12px; }
 .run-bar{
   position:sticky; top:0; z-index:30; display:flex; align-items:center; gap:10px;
@@ -1003,6 +1005,7 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 })();
 </script>
 <div id="bnav-slot"></div>
+<div id="savedTag" aria-hidden="true"></div>
 <div id="modal"></div>
 <script>
 /* FateWell (loremaster and lorekeeper hub): campaign manager + battle tracker. Vanilla JS, localStorage + Wix postMessage sync. */
@@ -1236,6 +1239,17 @@ function postToWix(m){
 
 function saveLocal(){
   try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch(e){}
+  markSaved();
+}
+function markSaved(){
+  try {
+    var el = document.getElementById('savedTag'); if (!el) return;
+    var d = new Date();
+    var hh = d.getHours(), mm = String(d.getMinutes()).padStart(2,'0');
+    var ap = hh >= 12 ? 'PM' : 'AM', h12 = ((hh + 11) % 12) + 1;
+    el.textContent = 'Saved ' + h12 + ':' + mm + ' ' + ap;
+    el.style.display = '';
+  } catch(_){}
 }
 
 /* In hosted mode the campaign contents are one object; the library and forge
@@ -1409,6 +1423,10 @@ window.addEventListener('message', function(ev){
       S.library = m.assets.map(rowToAsset).filter(function(a){ return a.name; });
       saveLocal(); render();
     }
+  }
+  if (m.type === 'lmtool-campaign-deleted'){
+    WIX.connected = true;
+    return;
   }
   if (m.type === 'lmtool-asset-saved'){
     WIX.connected = true;
@@ -1750,6 +1768,7 @@ function renameCampaign(id){ var c; S.campaigns.forEach(function(x){ if(x.id===i
 function deleteCampaign(id){
   askConfirm('Delete this campaign and everything in it?', function(){
     S.campaigns = S.campaigns.filter(function(x){ return x.id!==id; });
+    if (WIX.hosted) postToWix({ type:'lmtool-campaign-delete', campaignId:id });
     save(); render();
   }, 'Delete');
 }

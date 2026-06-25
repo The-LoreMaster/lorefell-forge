@@ -4,7 +4,7 @@
 // campaignId. The tool requests forge, assets, and glossary on load; those are
 // answered from canon Creations, an owner-scoped Assets collection, and a Glossary collection.
 
-import { loadCampaign, saveCampaign, listMyCampaigns, getSealed, getForgeLibrary, listAssets, saveAsset, deleteAsset, listGlossary, getCampaignPlayers, detachCharacter } from 'backend/fatewell.web.js';
+import { loadCampaign, saveCampaign, deleteCampaign, listMyCampaigns, getSealed, getForgeLibrary, listAssets, saveAsset, deleteAsset, listGlossary, getCampaignPlayers, detachCharacter } from 'backend/fatewell.web.js';
 import { createInvite, revokeInvite } from 'backend/invites.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
 import wixLocation from 'wix-location';
@@ -109,6 +109,10 @@ $w.onReady(() => {
           embed.postMessage({ type: 'lmtool-campaigns-slimmed', campaigns: [{ id: cid, campaign: m.data.campaign }] });
         }
       } catch (e) {}
+    } else if (m.type === 'lmtool-campaign-delete') {
+      let dres = { ok: false };
+      try { dres = await deleteCampaign(m.campaignId); } catch (e) { dres = { ok: false, error: String(e) }; }
+      embed.postMessage({ type: 'lmtool-campaign-deleted', campaignId: m.campaignId, ok: !!(dres && dres.ok) });
     } else if (m.type === 'lmtool-campaign-title') {
       try { await saveCampaign(m.campaignId || campaignId, null, m.title || ''); } catch (e) {}
     } else if (m.type === 'lmtool-forge-request') {

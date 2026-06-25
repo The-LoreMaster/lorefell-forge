@@ -4,6 +4,12 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-25 — FateWell: deleting an adventure removes it from the account; last-saved indicator
+
+- Deleting an adventure now also deletes its row from your account, owner-checked, so it no longer comes back on reload
+- Added a Last saved time in the top-right corner, updated on every local save
+- Requires re-pasting the FateWell page bridge and re-uploading the FateWell backend
+
 ## 2026-06-25 — FateWell: full roster cascade, bigger dialogue portraits
 
 - NPCs added at the adventure now show on the act and session roster tabs too, under Carried down from above, not just in scenes
