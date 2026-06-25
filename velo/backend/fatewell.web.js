@@ -173,16 +173,20 @@ export const getCampaignPlayers = webMethod(Permissions.Anyone, async (campaignI
   const out = [];
   const withChar = {};
   chars.forEach((it) => {
-    let lvl = 1;
-    try { const dat = typeof it.data === 'string' ? JSON.parse(it.data) : (it.data || {}); lvl = Number(dat.level || (dat.identity && dat.identity.level)) || 1; } catch (e) {}
+    let lvl = 1, maxVit = 0;
+    try {
+      const dat = typeof it.data === 'string' ? JSON.parse(it.data) : (it.data || {});
+      lvl = Number(dat.level || (dat.lore && dat.lore.level) || (dat.identity && dat.identity.level)) || 1;
+      maxVit = Number(dat.vitality && dat.vitality.max) || 0;
+    } catch (e) {}
     const mid = it.ownerMemberId || '';
     withChar[mid] = true;
-    out.push({ id: mid, memberId: mid, memberName: nameOf[mid] || '', charId: it._id, name: it.charName || '', level: lvl });
+    out.push({ id: mid, memberId: mid, memberName: nameOf[mid] || '', charId: it._id, name: it.charName || '', level: lvl, maxVit: maxVit });
   });
   // joined members who have not attached a character yet
   members.forEach((m) => {
     if (m.memberId && !withChar[m.memberId]) {
-      out.push({ id: m.memberId, memberId: m.memberId, memberName: m.name || '', charId: null, name: m.name || 'Player', level: 1 });
+      out.push({ id: m.memberId, memberId: m.memberId, memberName: m.name || '', charId: null, name: m.name || 'Player', level: 1, maxVit: 0 });
     }
   });
   return out.filter((p) => p.name || p.charId);

@@ -1362,8 +1362,9 @@ function mergePool(c){
       found.charId = wp.charId || null;
       if (wp.charId) found.name = wp.name;
       if (wp.level) found.level = wp.level;
+      if (wp.maxVit) found.maxVit = wp.maxVit;
     } else {
-      c.players.push({ id:uid(), wixId:wp.id, memberId:mid, memberName:wp.memberName||wp.name, charId:wp.charId||null, name:wp.name, level:wp.level||1 });
+      c.players.push({ id:uid(), wixId:wp.id, memberId:mid, memberName:wp.memberName||wp.name, charId:wp.charId||null, name:wp.name, level:wp.level||1, maxVit:wp.maxVit||0 });
     }
   });
 }
@@ -2465,6 +2466,8 @@ function playerModal(p){
     + '<input class="inp" id="pName" value="'+esc(p?p.name:'')+'">'
     + '<label class="lbl">Level</label>'
     + '<input class="inp" id="pLvl" type="number" min="1" value="'+esc(p?p.level:1)+'">'
+    + '<label class="lbl">Max vitality (optional)</label>'
+    + '<input class="inp" id="pMaxVit" type="number" min="0" value="'+esc(p&&p.maxVit?p.maxVit:0)+'">'
     + '<div class="m-row"><button class="btn ghost" onclick="closeModal()">Cancel</button>'
     + '<button class="btn" onclick="savePlayer(\''+(p?p.id:'')+'\')">Save</button></div>');
 }
@@ -2473,8 +2476,9 @@ function savePlayer(id){
   var lvl = parseInt(document.getElementById('pLvl').value,10) || 1;
   if (!name) return;
   var c = curC();
-  if (id){ c.players.forEach(function(p){ if(p.id===id){ p.name=name; p.level=lvl; } }); }
-  else { c.players.push({ id:uid(), offline:true, wixId:null, charId:null, name:name, level:lvl }); }
+  var mv = parseInt((document.getElementById('pMaxVit')||{}).value,10) || 0;
+  if (id){ c.players.forEach(function(p){ if(p.id===id){ p.name=name; p.level=lvl; p.maxVit=mv; } }); }
+  else { c.players.push({ id:uid(), offline:true, wixId:null, charId:null, name:name, level:lvl, maxVit:mv }); }
   closeModal(); save(); render();
 }
 function editPlayer(id){ var c=curC(),p; c.players.forEach(function(x){ if(x.id===id) p=x; }); playerModal(p); }
@@ -2938,8 +2942,37 @@ function disBalance(){ return disBase() - disSpentTotal(); }
 function pState(pid){
   var sc = curSc();
   if (!sc.ps[pid]) sc.ps[pid] = { act:'', react:'', target:'', actDone:false, reactDone:false, affs:[] };
-  if (sc.ps[pid].target===undefined) sc.ps[pid].target='';
-  return sc.ps[pid];
+  var st = sc.ps[pid];
+  if (st.target===undefined) st.target='';
+  if (st.maxVit===undefined){
+    var pl=null, c=curC(); if(c) c.players.forEach(function(x){ if(x.id===pid) pl=x; });
+    st.maxVit = (pl && pl.maxVit) || 0;
+    st.curVit = st.maxVit;
+  }
+  if (st.curVit===undefined) st.curVit = st.maxVit || 0;
+  return st;
+}
+function adjPVit(pid, d){
+  var st = pState(pid);
+  st.curVit = Math.max(0, Math.min(st.maxVit, (st.curVit||0) + d));
+  save(); render();
+}
+function applyPDmg(pid, sign){
+  var el = document.getElementById('pdmg-'+pid); if(!el) return;
+  var n = parseInt(el.value,10);
+  if (!n || n<=0){ el.value=''; el.focus(); return; }
+  var st = pState(pid);
+  st.curVit = Math.max(0, Math.min(st.maxVit, (st.curVit||0) + (sign*n)));
+  el.value=''; save(); render();
+}
+function pdmgKey(ev, pid){ if (ev && (ev.key==='Enter'||ev.keyCode===13)){ applyPDmg(pid, -1); } }
+function setPMaxVit(pid){
+  var st = pState(pid);
+  var v = prompt('Max vitality for this player', st.maxVit || '');
+  if (v===null) return;
+  var n = parseInt(v,10) || 0;
+  st.maxVit = n; st.curVit = (n>0 ? n : 0);
+  save(); render();
 }
 
 function setPhase(p){ curSc().battle.phase = p; save(); render(); }
@@ -3011,7 +3044,7 @@ function battleNodes(){
   });
   attendingPlayers().forEach(function(p){
     var st = pState(p.id);
-    nodes.push({ key:'p:'+p.id, kind:'p', ref:p, st:st, name:p.name, act:st.act, target:st.target, done:st.actDone, alive:true });
+    nodes.push({ key:'p:'+p.id, kind:'p', ref:p, st:st, name:p.name, act:st.act, target:st.target, done:st.actDone, alive:!(st.maxVit>0 && st.curVit<=0) });
   });
   return nodes;
 }
@@ -4207,9 +4240,17 @@ function resCardMon(cb, tier){
 function resCardPlayer(p, tier){
   var st = pState(p.id);
   var tn = targetName(st.target);
-  return '<div class="res-card glow'+tier+'"><div class="res-top"><b>'+esc(p.name)+'</b>'
+  var downed = st.maxVit>0 && st.curVit<=0;
+  return '<div class="res-card glow'+tier+(downed?' downed':'')+'"><div class="res-top"><b>'+esc(p.name)+'</b>'
     + (curSc().battle.spotMode==='manual' ? '<button class="spot-tog'+(curSc().battle.manual['p:'+p.id]?' on':'')+'" onclick="toggleManual(\'p:'+p.id+'\')">&#9678;</button>' : '')
+    + (st.maxVit>0 ? '<div class="vit"><button class="vit-b" onclick="adjPVit(\''+p.id+'\',-1)">&minus;</button>'
+        + '<span class="vit-n">'+st.curVit+'<span class="vit-max">/'+st.maxVit+'</span></span>'
+        + '<button class="vit-b" onclick="adjPVit(\''+p.id+'\',1)">+</button></div>' : '')
     + '</div>'
+    + (downed ? '<div class="down-tag">Downed</div>' : '')
+    + (st.maxVit>0
+        ? '<div class="qd"><input class="qd-in" id="pdmg-'+p.id+'" type="number" inputmode="numeric" placeholder="dmg" onkeydown="pdmgKey(event,\''+p.id+'\')"><button class="qd-b dmg" onclick="applyPDmg(\''+p.id+'\',-1)" title="Apply damage">Hit</button><button class="qd-b heal" onclick="applyPDmg(\''+p.id+'\',1)" title="Heal">Heal</button></div>'
+        : '<button class="btn ghost small vit-track" onclick="setPMaxVit(\''+p.id+'\')">Track vitality</button>')
     + (st.act ? '<div class="res-row click" onclick="togglePDone(\''+p.id+'\',\'act\')"><span class="check'+(st.actDone?' on':'')+'"></span><span class="res-txt'+(st.actDone?' done':'')+'">Act: '+esc(st.act)
         + (tn ? ' <span class="tgt">&rarr; '+esc(tn)+'</span>' : '') + '</span></div>'
       : '<div class="muted small-pad">No Act declared</div>')
