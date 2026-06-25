@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>FateWell</title>
-<!-- build: run-color -->
+<!-- build: dlg-dropdown -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Cinzel+Decorative:wght@700&family=Crimson+Pro:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
@@ -272,6 +272,9 @@ body::before{
 .chip-hd-tx{ flex:1; min-width:0; }
 .chip-hd-tx .m-title{ margin:0; }
 .dlg-av{ width:22px; height:22px; border-radius:50%; object-fit:cover; vertical-align:middle; margin-right:7px; border:1px solid var(--line2); }
+.dlg-head{ display:flex; align-items:center; gap:7px; font-weight:600; margin-bottom:5px; }
+.dlg-head .dlg-av{ margin-right:0; }
+.spk-row{ margin-top:4px; }
 .fmt-btns{ display:inline-flex; gap:6px; }
 .fmt-btn{ width:26px; height:24px; border-radius:6px; border:1px solid var(--line2); background:var(--navy2); color:var(--silver); cursor:pointer; font-size:.85rem; line-height:1; padding:0; }
 .fmt-btn:active{ border-color:var(--gold); color:var(--gold); }
@@ -1834,22 +1837,49 @@ function editEntry(ref, id){
   var e = null; levelEntries(ref).forEach(function(x){ if(x.id===id) e=x; });
   entryModal(ref, e);
 }
+function dialogueSpeakerOptions(ref){
+  var ids = {}, lv = levelByRef(ref);
+  if (lv){
+    var acc = (ref.indexOf('sc:')===0) ? entitiesOfScene(lv)
+            : (ref.indexOf('s:')===0)  ? entitiesOfSession(lv)
+            : (ref.indexOf('a:')===0)  ? entitiesOfAct(lv) : { ids:{}, extra:[] };
+    Object.keys(acc.ids).forEach(function(id){ ids[id]=true; });
+  }
+  [curC(), curA(), curSe()].forEach(function(a){
+    if (a && a.manualRefs) a.manualRefs.forEach(function(id){ ids[id]=true; });
+  });
+  var out = [];
+  Object.keys(ids).forEach(function(id){ var en=libGet(id); if (en && (en.type==='npc'||en.type==='monster')) out.push(en); });
+  if (!out.length) out = S.library.filter(function(en){ return en.type==='npc'||en.type==='monster'; });
+  out.sort(function(a,b){ return a.name.localeCompare(b.name); });
+  return out;
+}
+function dialogueSpeaker(e){
+  if (!e || e.type!=='dialogue' || !e.speaker) return null;
+  var en = libGet(e.speaker); if (!en) return null;
+  return { name:en.name, color:speakerColor(en.name), img:en.img||'' };
+}
+function dialogueHead(sp){
+  if (!sp) return '';
+  var av = sp.img ? '<img class="dlg-av" src="'+esc(imgSrc(sp.img))+'" alt="">' : '';
+  return '<div class="dlg-head" style="color:'+sp.color+'">'+av+'<b>'+esc(sp.name)+'</b></div>';
+}
 function entryModal(ref, e){
   window._entryDraft = { ref: ref, entry: e || null };
   var curType = e ? e.type : 'readaloud';
   var typeChips = '<div class="type-pick" id="enTypeChips">' + NOTE_TYPES.map(function(t){
     return '<button class="type-pill t-'+t[0]+(t[0]===curType?' on':'')+'" data-type="'+t[0]+'" onclick="pickNoteType(\''+t[0]+'\')">'+t[1]+'</button>';
   }).join('') + '</div><input type="hidden" id="enType" value="'+curType+'">';
-  var speakers = speakersForRef(ref);
   var mentions = mentionsForRef(ref);
+  var _spk = (e && e.speaker) ? e.speaker : '';
+  var _spkOpts = dialogueSpeakerOptions(ref).map(function(en){
+    return '<option value="'+en.id+'"'+(en.id===_spk?' selected':'')+'>'+esc(en.name)+'</option>';
+  }).join('');
+  var speakerRow = '<div id="enSpeakerRow" class="spk-row"'+(curType==='dialogue'?'':' style="display:none"')+'>'
+    + '<label class="lbl">Speaker</label>'
+    + '<select class="inp" id="enSpeaker"><option value="">No speaker</option>'+_spkOpts+'</select>'
+    + '<p class="muted small-note">Pick who is talking. Their portrait and color attach to the note.</p></div>';
   var spRow = '';
-  if (speakers.length){
-    spRow += '<div class="sp-hint">Speaker line. Lines written as <b>Name:</b> get that color.</div><div class="sp-chips">';
-    speakers.forEach(function(s){
-      spRow += '<button class="sp-chip" style="border-color:'+s.color+';color:'+s.color+'" onclick="insertSpeaker(\''+s.name.replace(/'/g,"\\'")+'\')">'+esc(s.name)+'</button>';
-    });
-    spRow += '</div>';
-  }
   if (mentions.length){
     spRow += '<div class="sp-hint">Mention inline. Inserts <b>@Name</b>, tappable in the note.</div><div class="sp-chips">';
     mentions.forEach(function(s){
@@ -1859,7 +1889,7 @@ function entryModal(ref, e){
   }
   modal('<h3 class="m-title">'+(e?'Edit note':'New note')+'</h3>'
     + '<label class="lbl">Title</label><input class="inp" id="enTitle" value="'+esc(e?e.title:'')+'" placeholder="The bridge collapses">'
-    + '<label class="lbl labelrow">Type <button class="info-btn" onclick="noteTypeHelp()" title="What do these mean?">i</button></label>' + typeChips
+    + '<label class="lbl labelrow">Type <button class="info-btn" onclick="noteTypeHelp()" title="What do these mean?">i</button></label>' + typeChips + speakerRow
     + '<label class="lbl labelrow">Note <span class="fmt-btns"><button type="button" class="fmt-btn" title="Bold, **text**" onclick="wrapSelection(\'**\')"><b>B</b></button><button type="button" class="fmt-btn" title="Italic, *text*" onclick="wrapSelection(\'*\')"><i>I</i></button></span></label><textarea class="inp ta tall" id="enBody" placeholder="Details, read-aloud text, what happens...">'+esc(e?e.body:'')+'</textarea>'
     + '<label class="lbl">Image (optional)</label>' + tokenField(e ? (e.img||'') : '')
     + spRow
@@ -1871,11 +1901,12 @@ function noteTypeHelp(){
   /* snapshot whatever is in the editor so Back restores it */
   var t = document.getElementById('enTitle'), ty = document.getElementById('enType'), b = document.getElementById('enBody');
   if (t && window._entryDraft){
-    var im = document.getElementById('wImg');
+    var im = document.getElementById('wImg'), sp = document.getElementById('enSpeaker');
     window._entryDraft.entry = {
       id: window._entryDraft.entry ? window._entryDraft.entry.id : '',
       title: t.value, type: ty ? ty.value : 'readaloud', body: b ? b.value : '',
       img: im ? (im.value||'') : (window._entryDraft.entry ? (window._entryDraft.entry.img||'') : ''),
+      speaker: sp ? sp.value : (window._entryDraft.entry ? (window._entryDraft.entry.speaker||'') : ''),
       pinned: window._entryDraft.entry ? window._entryDraft.entry.pinned : false,
       open: true
     };
@@ -1888,7 +1919,7 @@ function noteTypeHelp(){
   h += '<div class="sec-h">Tagging and dialogue</div><div class="help-list">'
     + '<div class="help-row"><div class="help-name">Mention anyone</div><div class="help-desc">Type @ and a name to tag a monster, NPC, or player attached at this level. It becomes a colored chip you can tap to review them. Use the mention chips above the note for one-tap insert.</div></div>'
     + '<div class="help-row"><div class="help-name">Bold and italic</div><div class="help-desc">Wrap words in **two asterisks** for bold or *one asterisk* for italic. The B and I buttons above the note do it for whatever you have selected.</div></div>'
-    + '<div class="help-row"><div class="help-name">Speaker lines</div><div class="help-desc">Start a line with a name and a colon, like Provost Ael: their words. The whole line takes that speaker\'s color so dialogue reads like a script.</div></div>'
+    + '<div class="help-row"><div class="help-name">Dialogue speaker</div><div class="help-desc">Set the type to Dialogue and pick the speaker from the dropdown. Their portrait and color attach to the note, one speaker per note.</div></div>'
     + '</div>';
   h += '<div class="m-row"><button class="btn" onclick="reopenEntryFromHelp()">Back</button></div>';
   modal(h);
@@ -1900,6 +1931,7 @@ function reopenEntryFromHelp(){
 }
 function pickNoteType(t){
   var hid = document.getElementById('enType'); if (hid) hid.value = t;
+  var sr = document.getElementById('enSpeakerRow'); if (sr) sr.style.display = (t==='dialogue') ? '' : 'none';
   var box = document.getElementById('enTypeChips');
   if (box){
     var btns = box.querySelectorAll('.type-pill');
@@ -1912,12 +1944,14 @@ function saveEntry(ref, id){
   var body = document.getElementById('enBody').value;
   var imgEl = document.getElementById('wImg');
   var img = imgEl ? (imgEl.value||'') : '';
+  var spkEl = document.getElementById('enSpeaker');
+  var speaker = (type==='dialogue' && spkEl) ? (spkEl.value||'') : '';
   if (!title && !body && !img) return;
   var entries = levelEntries(ref);
   if (id){
-    entries.forEach(function(x){ if(x.id===id){ x.title=title||'Untitled'; x.type=type; x.body=body; x.img=img; } });
+    entries.forEach(function(x){ if(x.id===id){ x.title=title||'Untitled'; x.type=type; x.body=body; x.img=img; x.speaker=speaker; } });
   } else {
-    entries.push({ id:uid(), title:title||'Untitled', type:type, body:body, img:img, pinned:false, open:true });
+    entries.push({ id:uid(), title:title||'Untitled', type:type, body:body, img:img, speaker:speaker, pinned:false, open:true });
   }
   closeModal(); save(); render();
 }
@@ -2263,6 +2297,7 @@ function notesBlock(ref, opts){
       if (isOpen){
         h += '<div class="entry-body">'
           + (e.img ? '<div class="entry-img"><img src="'+esc(imgSrc(e.img))+'" alt=""></div>' : '')
+          + dialogueHead(dialogueSpeaker(e))
           + (e.body ? '<div class="entry-text">'+renderNoteBody(e.body, ref)+'</div>' : (e.img ? '' : '<div class="muted">Empty.</div>'))
           + '<div class="entry-acts">'
           + '<button class="mini'+(e.pinned?' on':'')+'" onclick="pinEntry(\''+ref+'\',\''+e.id+'\')">'+(e.pinned?'Unpin':'Pin')+'</button>'
@@ -4342,8 +4377,10 @@ function entriesByType(sc, type){ return (sc.entries||[]).filter(function(e){ re
 
 /* A runner note box tinted by its type accent (--tc), set via the t-<type> class. */
 function runNote(e, ref, type){
+  var head = (type==='dialogue') ? dialogueHead(dialogueSpeaker(e)) : '';
   return '<div class="run-note t-'+type+'">'
     + (e.title ? '<div class="run-note-t">'+esc(e.title)+'</div>' : '')
+    + head
     + '<div class="run-note-b">'+renderNoteBody(e.body||'', ref)+'</div></div>';
 }
 /* LEFT: narration rail */

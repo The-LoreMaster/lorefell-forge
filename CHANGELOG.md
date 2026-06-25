@@ -4,6 +4,13 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-25 — FateWell: dialogue speaker assigned by dropdown
+
+- Dialogue notes assign a single speaker from a dropdown instead of a Name colon line in the body. One speaker per note, no accidental doubling
+- The dropdown lists NPCs and monsters available at the level, including ones carried down from the adventure, act, and session
+- The assigned speaker's portrait and color show on the note in prep and in the runner
+- Old notes that used the Name colon style still render as before
+
 ## 2026-06-25 — FateWell: scene roster cascade, dialogue portraits, colored run notes
 
 - Drag-selecting note text from right to left no longer closes the editor. The backdrop only closes on a click that also started on the backdrop
