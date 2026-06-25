@@ -26,6 +26,10 @@ export const loadCampaign = webMethod(Permissions.Anyone, async (campaignId) => 
 
 export const saveCampaign = webMethod(Permissions.Anyone, async (campaignId, blob, title) => {
   const id = await memberId();
+  // Never create an empty row. A save with no campaign id and no real campaign blob is a
+  // stray autosave from the tool running outside a chosen adventure. Ignore it.
+  const hasCampaign = !!(blob && blob.campaign);
+  if (!campaignId && !hasCampaign) return { ok: false, skipped: true };
   let row;
   if (campaignId) {
     row = await wixData.get(COLLECTION, campaignId, { suppressAuth: true }).catch(() => null);

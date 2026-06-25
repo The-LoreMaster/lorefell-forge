@@ -33,7 +33,10 @@ $w.onReady(() => {
       try { players = await getCampaignPlayers(campaignId, (blob && blob.title) || ''); } catch (e) { players = []; }
       if (players.length) embed.postMessage({ type: 'lmtool-players', campaignId: campaignId, players: players });
     } else if (m.type === 'lmtool-save') {
-      try { await saveCampaign(m.campaignId || campaignId, m.data || {}, ''); } catch (e) {}
+      const cid = m.campaignId || campaignId;
+      const hasCampaign = !!(m.data && m.data.campaign);
+      if (!cid && !hasCampaign) return;  // local hub autosave with no chosen adventure: ignore
+      try { await saveCampaign(cid, m.data || {}, ''); } catch (e) {}
     } else if (m.type === 'lmtool-campaign-title') {
       try { await saveCampaign(m.campaignId || campaignId, null, m.title || ''); } catch (e) {}
     } else if (m.type === 'lmtool-forge-request') {
