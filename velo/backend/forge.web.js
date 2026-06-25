@@ -382,3 +382,21 @@ function parse(s, fallback) {
   if (s && typeof s === 'object') return s;
   try { return JSON.parse(s || ''); } catch (e) { return fallback; }
 }
+
+
+/* The canon foe vocabulary (builds, stances, afflictions) lives in the CanonFoePack
+   collection, seeded from the vault. FoeForge and FateWell both read it here so they
+   share one source and cannot drift. Empty arrays if the collection is missing, which
+   lets each tool fall back to its inline copy. */
+export const getFoePack = webMethod(Permissions.Anyone, async () => {
+  const out = { builds: [], stances: [], afflictions: [] };
+  try {
+    const r = await wixData.query('CanonFoePack').limit(50).find({ suppressAuth: true });
+    r.items.forEach((row) => {
+      let data = [];
+      try { data = JSON.parse(row.data || '[]'); } catch (e) { data = []; }
+      if (row.kind && Object.prototype.hasOwnProperty.call(out, row.kind)) out[row.kind] = data;
+    });
+  } catch (e) {}
+  return out;
+});

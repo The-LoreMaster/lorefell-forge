@@ -3,7 +3,7 @@
 // The builder reads abilities, infusions, and augmentations, both official and submitted.
 // Set EMBED to your Embed a Site element ID.
 
-import { submitCreation, getCreations, getCatalog, castVote, buildLegalAct, saveFoe, myFoes, deleteFoe } from 'backend/forge.web.js';
+import { submitCreation, getCreations, getCatalog, castVote, buildLegalAct, saveFoe, myFoes, deleteFoe, getFoePack } from 'backend/forge.web.js';
 import { currentMember } from 'wix-members-frontend';
 import { uploadRune } from 'backend/loreforge.web.js';
 
@@ -49,6 +49,12 @@ $w.onReady(() => {
     const msg = event.data;
     if (!msg || typeof msg !== 'object') return;
 
+    if (msg.type === 'FOE_PACK_REQUEST') {
+      let pack = null;
+      try { pack = await getFoePack(); } catch (e) { pack = null; }
+      embed.postMessage({ type: 'FOE_PACK', pack: pack });
+      return;
+    }
     if (msg.type === 'FOE_LIBRARY_LOAD') {
       let infOff = [], augOff = [], infSub = [], augSub = [], abilRows = [];
       try { infOff = await getCatalog('Infusions', { limit: 500 }); } catch (e) {}
