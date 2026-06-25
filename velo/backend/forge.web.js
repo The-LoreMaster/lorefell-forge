@@ -266,11 +266,17 @@ export const getCreations = webMethod(Permissions.Anyone, async (forgeKey, opts)
   q = q.descending('_createdDate').limit(Math.min(opts.limit || 50, 100));
   const res = await q.find({ suppressAuth: true });
   return res.items.map(function (s) {
+    // Older rows predate the flavorText column, but the flavor was still
+    // captured inside the stored payload JSON. Fall back to it so nothing is lost.
+    let pf = '';
+    if (!s.flavorText) {
+      try { pf = (JSON.parse(s.payload || '{}').flavorText) || ''; } catch (e) { pf = ''; }
+    }
     return {
       creationId: s._id, creationName: s.creationName, creatorName: s.creatorName,
       canonStatus: s.canonStatus, voteCount: s.voteCount, kind: s.kind,
       shorthand: s.shorthand, fullText: s.fullText, imageUrl: s.imageUrl, fingerprint: s.fingerprint,
-      flavorText: s.flavorText,
+      flavorText: s.flavorText || pf,
       payload: s.payload
     };
   });
