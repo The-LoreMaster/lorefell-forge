@@ -1333,9 +1333,11 @@ function flushSave(){
   var c = curC(); if (!c) return;
   var cid = WIX.hub ? c.id : (WIX.campaignId || c.id);
   postToWix({ type:'lmtool-save', campaignId: cid, data: { campaign:c, savedAt:Date.now() } });
+  WIX.dirty = false; WIX.lastSaveAt = Date.now();
 }
 function save(){
   saveLocal();                 /* the browser copy is written immediately, every change */
+  WIX.dirty = true;            /* there are local edits the server has not confirmed yet */
   clearTimeout(WIX.saveTimer);
   WIX.saveTimer = setTimeout(flushSave, 600);
 }
@@ -1426,6 +1428,17 @@ window.addEventListener('message', function(ev){
       /* migrate just this campaign through the shared migration via a wrapper */
       var wrapped = migrate({ campaigns:[incoming], library:S.library, forge:S.forge, wixPlayers:S.wixPlayers, die:S.die });
       var migrated = wrapped.campaigns[0];
+      /* A late or duplicate open can carry a copy from before the user's latest edit.
+         If we already hold this campaign and have edited it more recently than this
+         reply reflects, keep local and re-sync rather than letting it flip back. */
+      var localCopy = null;
+      S.campaigns.forEach(function(c){ if (c.id===migrated.id) localCopy = c; });
+      var recentlyEdited = WIX.dirty || (WIX.lastSaveAt && (Date.now() - WIX.lastSaveAt < 4000));
+      if (localCopy && recentlyEdited){
+        clearTimeout(WIX.saveTimer); flushSave();
+        saveLocal(); render(); requestSealed();
+        return;
+      }
       var found = false;
       S.campaigns = S.campaigns.map(function(c){ if (c.id===migrated.id){ found=true; preserveImages(migrated, c); return migrated; } return c; });
       if (!found) S.campaigns.push(migrated);
@@ -1452,13 +1465,18 @@ window.addEventListener('message', function(ev){
   }
   if (m.type === 'lmtool-campaigns-slimmed'){
     WIX.connected = true;
-    (m.campaigns||[]).forEach(function(sc){
-      if (!sc || !sc.id || !sc.campaign) return;
-      for (var i=0;i<S.campaigns.length;i++){
-        if (S.campaigns[i].id===sc.id){ sc.campaign.id = sc.id; preserveImages(sc.campaign, S.campaigns[i]); S.campaigns[i] = sc.campaign; break; }
-      }
-    });
-    markSynced(); saveLocal(); render();
+    /* This echoes the campaign as it was saved. Only fold it back in when there are no
+       newer local edits, so an edit made between the save and this echo is not reverted. */
+    if (!WIX.dirty){
+      (m.campaigns||[]).forEach(function(sc){
+        if (!sc || !sc.id || !sc.campaign) return;
+        for (var i=0;i<S.campaigns.length;i++){
+          if (S.campaigns[i].id===sc.id){ sc.campaign.id = sc.id; preserveImages(sc.campaign, S.campaigns[i]); S.campaigns[i] = sc.campaign; break; }
+        }
+      });
+      markSynced();
+    }
+    saveLocal(); render();
   }
   if (m.type === 'lmtool-sync-result'){
     WIX.connected = true;
