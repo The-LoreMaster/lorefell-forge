@@ -4,6 +4,12 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-25 — FateWell: runner frozen control bar, single scroll
+
+- Run scene now has one scrolling area with a frozen top bar. The scene bar plus Roll, Escalate or Return, and Mark complete stay put while the narration scrolls under them
+- Replaces the two-pane split, so there is a single scrollbar instead of three
+- For the frozen bar to sit at the top of the visible area, set the Wix HTML embed height to about one screen rather than taller
+
 ## 2026-06-25 — FateWell: runner uses two independent scroll panes
 
 - In roleplay run mode the narration and the board are each their own scroll pane bounded to the screen height. The board stays in view while you scroll the narration, and scrolls its own content

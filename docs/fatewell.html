@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>FateWell</title>
-<!-- build: run-panes -->
+<!-- build: run-frozen -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Cinzel+Decorative:wght@700&family=Crimson+Pro:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
@@ -481,6 +481,13 @@ body.runner-mode{ padding-bottom:0; }
 .run-col{ min-width:0; }
 .run-grid > .run-col{ overflow-y:auto; overscroll-behavior:contain; padding-right:6px; }
 .run-board{ min-width:0; }
+.run-shell{ display:flex; flex-direction:column; height:100vh; height:100dvh; }
+.run-head{ flex:0 0 auto; background:var(--navy); border-bottom:1px solid var(--line); padding-bottom:7px; }
+.run-scroll{ flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding-top:12px; }
+.run-actions-bar{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:7px 0 1px; }
+.run-actions-bar .btn{ width:auto; flex:0 1 auto; }
+.run-actions-bar .lm-roll{ margin:0; }
+.run-board-info{ margin-top:16px; }
 .run-h{
   font-family:'Cinzel',serif; font-size:.72rem; letter-spacing:.14em; text-transform:uppercase;
   color:var(--ice); opacity:.85; margin:16px 0 8px; display:flex; align-items:center; gap:10px;
@@ -4444,10 +4451,23 @@ function runnerNarration(sc){
   return h;
 }
 
-/* RIGHT: live board */
-/* roleplay board: players, loot, log, escalate */
+/* frozen control strip: the actions the loremaster reaches for constantly */
+function runnerActions(sc, mode){
+  var lr = window._lmRoll;
+  var lrOut = lr ? ('<span class="roll-n'+(lr.tag?' '+lr.tag.toLowerCase():'')+'">'+lr.n+'</span>'+(lr.tag?'<span class="roll-tag '+lr.tag.toLowerCase()+'">'+lr.tag+'</span>':'')) : '<span class="muted">tap to roll</span>';
+  var h = '<div class="run-actions-bar">';
+  h += '<span class="lm-roll"><button class="qd-b" onclick="lmRoll()">Roll d6</button><span class="lm-roll-out">'+lrOut+'</span></span>';
+  h += (mode==='combat')
+    ? '<button class="btn ghost" onclick="deEscalateScene()">Return to roleplay</button>'
+    : '<button class="btn escalate" onclick="escalateScene()">&#9876; Escalate to combat</button>';
+  h += runnerCompleteBtn(sc);
+  h += '</div>';
+  return h;
+}
+
+/* board info that flows under the narration: players, loot, log */
 function runnerRoleplay(sc){
-  var h = '<div class="run-col run-board">';
+  var h = '<div class="run-board-info">';
   var players = attendingPlayers();
   h += '<div class="run-h">At the table</div>';
   if (!players.length){
@@ -4457,23 +4477,8 @@ function runnerRoleplay(sc){
     players.forEach(function(p){ h += '<span class="chip t-player">'+esc(p.name)+' <span class="chip-lvl">Lvl '+p.level+'</span></span>'; });
     h += '</div>';
   }
-
-  h += runnerLogBlock(sc);
-
-  h += '<div class="run-h">Quick roll</div>';
-  var lr = window._lmRoll;
-  var lrOut = lr ? ('<span class="roll-n'+(lr.tag?' '+lr.tag.toLowerCase():'')+'">'+lr.n+'</span>'+(lr.tag?'<span class="roll-tag '+lr.tag.toLowerCase()+'">'+lr.tag+'</span>':'')) : '<span class="muted">tap to roll</span>';
-  h += '<div class="lm-roll">'
-    + '<button class="qd-b" onclick="lmRoll()">Roll d6</button>'
-    + '<span class="lm-roll-out">'+lrOut+'</span>'
-    + '</div>';
-
   h += '<details class="run-fold"><summary>Loot and rewards</summary>'+tabLoot(sc)+'</details>';
-
-  h += '<div class="run-actions">'
-    + '<button class="btn wide escalate" onclick="escalateScene()">&#9876; Escalate to combat</button>'
-    + runnerCompleteBtn(sc)
-    + '</div>';
+  h += runnerLogBlock(sc);
   h += '</div>';
   return h;
 }
@@ -4485,10 +4490,6 @@ function runnerCombat(sc){
   h += '<div class="run-h">Combat</div>' + tabCombat(sc);
   h += '<details class="run-fold"><summary>Loot and rewards</summary>'+tabLoot(sc)+'</details>';
   h += runnerLogBlock(sc);
-  h += '<div class="run-actions">'
-    + '<button class="btn wide ghost" onclick="deEscalateScene()">Return to roleplay</button>'
-    + runnerCompleteBtn(sc)
-    + '</div>';
   h += '</div>';
   return h;
 }
@@ -4521,7 +4522,7 @@ function scrRunner(){
   var sibs = runnerSiblings();
   var idx = sibs.map(function(x){ return x.id; }).indexOf(V.scId);
 
-  var h = '<div class="run-bar">'
+  var bar = '<div class="run-bar">'
     + '<button class="run-exit" onclick="exitRunner()">&larr; Prep</button>'
     + '<div class="run-bar-mid"><span class="run-scene">'+esc(sc.name)
     + ' <span class="mode-badge '+mode+'">'+(mode==='combat'?'Combat':'Roleplay')+'</span>'
@@ -4532,18 +4533,15 @@ function scrRunner(){
     + '<button class="run-step" onclick="runnerStep(1)"'+(idx>=sibs.length-1?' disabled':'')+'>&rarr;</button></div>'
     + '</div>';
 
+  var head = '<div class="run-head">' + bar + runnerActions(sc, mode) + '</div>';
+  var body;
   if (mode === 'combat'){
-    /* combat is the main stage; narration tucked into a fold so beats/clues stay reachable */
-    h += '<details class="run-narr-fold"><summary>Scene narration, beats and clues</summary>'
-      + runnerNarration(sc) + '</details>';
-    h += runnerCombat(sc);
+    body = '<details class="run-narr-fold"><summary>Scene narration, beats and clues</summary>'
+      + runnerNarration(sc) + '</details>' + runnerCombat(sc);
   } else {
-    h += '<div class="run-grid">';
-    h += runnerNarration(sc);
-    h += runnerRoleplay(sc);
-    h += '</div>';
+    body = runnerNarration(sc) + runnerRoleplay(sc);
   }
-  return h;
+  return '<div class="run-shell">' + head + '<div class="run-scroll">' + body + '</div></div>';
 }
 
 
