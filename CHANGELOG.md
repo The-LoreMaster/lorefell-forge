@@ -4,6 +4,11 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-25 — FateWell: runner bar order, table moved to combat
+
+- Log sits to the left of Roll d6 in the frozen bar
+- At the table moved out of roleplay; it shows in combat only
+
 ## 2026-06-25 — FateWell: runner loot scoped to combat, log moved to a popup
 
 - Loot and rewards only shows in the runner once a scene is in combat. Roleplay mode no longer carries it
