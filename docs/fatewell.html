@@ -1048,6 +1048,7 @@ var SR_TABLE = {
   'Forsaken': { lp:5, sp:19, vit:40 }
 };
 var SR_ORDER = ['Minion','Elite','Champion','Epic','Forsaken'];
+var FOE_WEIGHT = { Minion:1, Elite:2, Champion:3, Epic:5, Forsaken:8 };
 
 var DISRUPTIONS = [
   ['Change Action', 2], ['Escape Effect', 3], ['Add Equipped Utility', 3],
@@ -1055,7 +1056,7 @@ var DISRUPTIONS = [
   ['Charge All Enemies', 10], ['Magical Effect', 15]
 ];
 
-var TYPE_LABEL = { monster:'Monster', npc:'NPC', item:'Item' };
+var TYPE_LABEL = { monster:'Foe', npc:'NPC', item:'Item' };
 
 var ATTRS = [
   ['Offensive', ['Precision','Power','Magic']],
@@ -1089,7 +1090,8 @@ function assetToRow(e){
     attrs: JSON.stringify(e.attrs || {}),
     inventory: JSON.stringify(e.inv || []),
     abilities: JSON.stringify(e.abilities || []),
-    foeWeight: e.foeWeight || 0
+    foeWeight: e.foeWeight || 0,
+    foeMeta: JSON.stringify({ build:e.build||'', stance:e.stance||'', sig:e.sig||'', source:e.source||'' })
   };
 }
 /* Rebuild a library entity from a CMS row. Tolerates already-parsed or string JSON. */
@@ -1118,8 +1120,11 @@ function rowToAsset(r){
     e.attrs = jp(pick('attrs'), blankAttrs());
     e.inv = jp(pick('inventory','inv'), []);
     e.abilities = jp(pick('abilities'), []);
-    e.sig = pick('signatureAffliction','sig') || '';
-    e.source = pick('source') || '';
+    var fm = jp(pick('foeMeta'), {});
+    e.sig = pick('signatureAffliction','sig') || fm.sig || '';
+    e.source = pick('source') || fm.source || '';
+    e.build = fm.build || pick('build') || '';
+    e.stance = fm.stance || pick('stance') || '';
   } else {
     e.role = pick('role') || '';
     if (type==='npc'){
@@ -1914,7 +1919,7 @@ function duplicateScene(id){
       attrs: c.attrs ? JSON.parse(JSON.stringify(c.attrs)) : undefined,
       inv: (c.inv||[]).slice(),
       abilities: c.abilities ? JSON.parse(JSON.stringify(c.abilities)) : [],
-      sig: c.sig||'', source: c.source||'' };
+      sig: c.sig||'', source: c.source||'', build: c.build||'', stance: c.stance||'' };
   });
   s.scenes.splice(idx+1, 0, copy);
   save(); render();
@@ -2536,7 +2541,7 @@ function newProfile(){
 }
 function typeChooser(){
   modal('<h3 class="m-title">New profile</h3><div class="type-grid three">'
-    + '<button class="type-btn" onclick="wizard(\'monster\')">Monster</button>'
+    + '<button class="type-btn" onclick="wizard(\'monster\')">Foe</button>'
     + '<button class="type-btn" onclick="wizard(\'npc\')">NPC</button>'
     + '<button class="type-btn" onclick="wizard(\'item\')">Item</button>'
     + '</div><div class="m-row"><button class="btn ghost" onclick="closeModal()">Cancel</button></div>');
@@ -2718,43 +2723,24 @@ function wizard(type, entry){
     + '<label class="lbl">Name</label><input class="inp" id="wName" value="'+esc(entry?entry.name:'')+'">';
   if (type==='monster'){
     window._wizEntry = entry || null;
-    window._wiz = {
-      sp: (entry && entry.sr) ? SR_TABLE[entry.sr].sp : 0,
-      attrs: entry ? JSON.parse(JSON.stringify(entry.attrs || blankAttrs())) : blankAttrs(),
-      inv: entry ? (entry.inv || []).slice() : [],
-      abilities: entry ? JSON.parse(JSON.stringify(entry.abilities || [])) : []
-    };
+    window._wiz = { abilities: entry ? JSON.parse(JSON.stringify(entry.abilities || [])) : [] };
     h += '<label class="lbl">Shatter Rating</label>'
       + srTableHtml(entry?entry.sr:null)
       + '<input type="hidden" id="wSR" value="'+esc(entry?entry.sr:'')+'">'
-      + '<label class="lbl">Max Vitality</label>'
-      + '<input class="inp" id="wVit" type="number" min="1" value="'+esc(entry?entry.maxVit:'')+'">'
-      + '<label class="lbl">Attributes</label><div id="wSpLeft" class="sp-left"></div>'
-      + '<div class="attr-grid">';
-    ATTRS.forEach(function(cat){
-      h += '<div class="att-cat">'+cat[0]+'</div>';
-      cat[1].forEach(function(a){
-        h += '<div class="attr-row"><span class="attr-name">'+a+'</span>'
-          + '<button class="attr-b" onclick="wAttrDelta(\''+a+'\',-1)">&minus;</button>'
-          + '<span class="attr-v" id="wAttr-'+a+'">'+(window._wiz.attrs[a]||0)+'</span>'
-          + '<button class="attr-b" onclick="wAttrDelta(\''+a+'\',1)">+</button></div>';
-      });
-    });
-    h += '</div><label class="lbl">Abilities</label><div id="wAbList"></div>'
+      + '<label class="lbl">Max Vitality (optional)</label>'
+      + '<input class="inp" id="wVit" type="number" min="0" value="'+esc(entry && entry.maxVit ? entry.maxVit : '')+'" placeholder="Leave blank to scale to the party">'
+      + '<label class="lbl">Build</label>'
+      + '<input class="inp" id="wBuild" value="'+esc(entry && entry.build ? entry.build : '')+'" placeholder="Its kind or frame">'
+      + '<label class="lbl">Stance</label>'
+      + '<input class="inp" id="wStance" value="'+esc(entry && entry.stance ? entry.stance : '')+'" placeholder="How it fights">'
+      + '<label class="lbl">Signature Affliction</label>'
+      + '<input class="inp" id="wSig" value="'+esc(entry && entry.sig ? entry.sig : '')+'" placeholder="The affliction it is known for">'
+      + '<label class="lbl">Acts</label><div id="wAbList"></div>'
       + '<div class="inv-add"><select class="inp" id="wAbPick">'
       + forgeOptions() + '</select>'
       + '<button class="btn small" onclick="wAbAdd()">Add</button></div>'
-      + '<button class="btn wide ghost small" onclick="wAbCustom()">Write a custom ability</button>'
-      + '<label class="lbl">Inventory</label><div id="wInvList"></div>'
-      + '<div class="inv-add"><input class="inp" id="wInvNew" placeholder="Add an item">'
-      + '<button class="btn small" onclick="wInvAdd()">Add</button></div>';
-    var libItems = S.library.filter(function(e){ return e.type==='item'; });
-    if (libItems.length){
-      h += '<select class="inp" onchange="wInvAddLib(this)"><option value="">Add from item library...</option>';
-      libItems.forEach(function(it){ h += '<option value="'+esc(it.name)+'">'+esc(it.name)+'</option>'; });
-      h += '</select>';
-    }
-    h += '<label class="lbl">Token image (optional)</label>'
+      + '<button class="btn wide ghost small" onclick="wAbCustom()">Write a custom act</button>'
+      + '<label class="lbl">Token image (optional)</label>'
       + tokenField(entry ? entry.img : '');
   } else if (type==='npc'){
     h += '<label class="lbl">Role</label><input class="inp" id="wRole" value="'+esc(entry?entry.role:'')+'">'
@@ -2771,7 +2757,7 @@ function wizard(type, entry){
     + '<button class="btn" onclick="saveWizard(\''+type+'\',\''+(entry?entry.id:'')+'\')">Save</button></div>';
   modal(h);
   window._attachAfter = keepAttach;
-  if (type==='monster'){ updWizSp(); renderWInv(); renderWAb(); }
+  if (type==='monster'){ renderWAb(); }
 }
 
 function saveWizard(type, id){
@@ -2784,10 +2770,13 @@ function saveWizard(type, id){
     var sr = document.getElementById('wSR').value;
     if (!sr){ alert('Pick a Shatter Rating.'); return; }
     e.sr = sr; e.lp = SR_TABLE[sr].lp; e.sp = SR_TABLE[sr].sp;
-    e.maxVit = parseInt(document.getElementById('wVit').value,10) || SR_TABLE[sr].vit;
+    e.foeWeight = FOE_WEIGHT[sr] || 0;
+    e.maxVit = parseInt(document.getElementById('wVit').value,10) || 0;
+    e.build = document.getElementById('wBuild').value.trim();
+    e.stance = document.getElementById('wStance').value.trim();
+    e.sig = document.getElementById('wSig').value.trim();
+    e.source = e.source || 'mine';
     e.img = document.getElementById('wImg').value.trim();
-    e.attrs = JSON.parse(JSON.stringify(window._wiz.attrs));
-    e.inv = window._wiz.inv.slice();
     e.abilities = JSON.parse(JSON.stringify(window._wiz.abilities));
   } else {
     e.role = document.getElementById('wRole').value.trim();
@@ -2839,7 +2828,7 @@ function attachChooser(){
   var foes = S.library.filter(function(e){ return e.type==='monster'; });
   var h = '<h3 class="m-title">Attach from library</h3>';
   if (foes.length){
-    h += '<div class="lbl">Monsters</div>';
+    h += '<div class="lbl">Foes</div>';
     foes.forEach(function(e){
       h += '<button class="pick-row" onclick="countModal(\''+e.id+'\')"><b>'+esc(e.name)+'</b><span class="muted">'+esc(e.sr)+' &middot; '+effMaxVit(e)+' vit</span></button>';
     });
@@ -2892,7 +2881,7 @@ function attachFoe(libId){
       attrs: JSON.parse(JSON.stringify(e.attrs || blankAttrs())),
       inv: (e.inv || []).slice(),
       abilities: JSON.parse(JSON.stringify(e.abilities || [])),
-      sig: e.sig || '', source: e.source || '',
+      sig: e.sig || '', source: e.source || '', build: e.build || '', stance: e.stance || '',
       img: e.img || '',
       act:'', target:'', done:false, affs:[]
     });
@@ -3625,8 +3614,9 @@ function monInfo(cid){
     + (cb.maxVit>0 ? '' : '<p class="muted small">Party scaled. Set a number for this party.</p>')
     + (sig ? '<div class="lbl">Signature affliction</div><div class="qd"><span class="sig-name">'+esc(sig)+'</span>'
         + '<button class="qd-b" onclick="applySignature(\''+cb.id+'\')">Apply to target</button></div>' : '')
-    + '<div class="lbl">Attributes</div><p>'+attrLine(cb.attrs)+'</p>'
-    + '<div class="lbl">Inventory</div><p>'+(cb.inv && cb.inv.length ? esc(cb.inv.join(', ')) : 'Empty handed.')+'</p>'
+    + ((cb.build||cb.stance) ? '<div class="lbl">Build</div><p>'+esc([cb.build,cb.stance].filter(Boolean).join(' &middot; '))+'</p>' : '')
+    + ((cb.attrs && attrSpend(cb.attrs)>0) ? '<div class="lbl">Attributes</div><p>'+attrLine(cb.attrs)+'</p>' : '')
+    + ((cb.inv && cb.inv.length) ? '<div class="lbl">Inventory</div><p>'+esc(cb.inv.join(', '))+'</p>' : '')
     + abilityBlock(cb.abilities)
     + (lib && lib.desc ? '<div class="lbl">Description</div><p class="chip-desc">'+esc(lib.desc)+'</p>' : '')
     + '<div class="m-row"><button class="btn ghost" onclick="closeModal()">Close</button></div>');
@@ -4309,10 +4299,10 @@ function tabCombat(sc){
     + (b.locked ? '<button class="mini-unlock" onclick="unlockCommits()">Locked &middot; tap to unlock</button>' : '') + '</div>';
   if (b.phase==='commit'){
     if (!sc.combatants.length){
-      h += '<p class="muted pad">No combatants yet. Attach monsters from the Roster tab.</p>';
+      h += '<p class="muted pad">No combatants yet. Attach foes from the Roster tab.</p>';
     } else {
       var mons = sc.combatants.filter(function(c){ return (c.side||'monster')==='monster'; });
-      if (!mons.length){ h += '<p class="muted pad">No monsters committed. NPCs declare openly in Intents.</p>'; }
+      if (!mons.length){ h += '<p class="muted pad">No foes committed. NPCs declare openly in Intents.</p>'; }
       mons.forEach(function(cb){
         h += '<div class="cm-row">'+rowThumb(cb.img, cb.name)+'<div class="cm-name">'+esc(cb.name)+'<span class="muted"> &middot; '+esc(cb.sr)+'</span></div>'
           + intentInput('m:'+cb.id, cb, b.locked, true)
@@ -5032,7 +5022,7 @@ function scrLibrary(){
       + '<button class="btn small" onclick="nav(\'scene\')">Back to scene</button></div>';
   }
   h += '<div class="tabs">';
-  [['all','All'],['monster','Monsters'],['npc','NPCs'],['item','Items']].forEach(function(f){
+  [['all','All'],['monster','Foes'],['npc','NPCs'],['item','Items']].forEach(function(f){
     h += '<button class="tab'+(V.libFilter===f[0]?' on':'')+'" onclick="setLibFilter(\''+f[0]+'\')">'+f[1]+'</button>';
   });
   h += '</div>';
