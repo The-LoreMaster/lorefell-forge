@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>FateWell</title>
-<!-- build: preserve-note-imgs -->
+<!-- build: runner-order -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Cinzel+Decorative:wght@700&family=Crimson+Pro:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
@@ -4580,58 +4580,38 @@ function runNote(e, ref, type){
 function runnerNarration(sc){
   var ref = 'sc:'+sc.id;
   var h = '<div class="run-col run-narr">';
-
-  var reads = entriesByType(sc, 'readaloud');
-  var descs = entriesByType(sc, 'lmdesc');
-  var dia   = entriesByType(sc, 'dialogue');
-  var beats = entriesByType(sc, 'beat');
-  var lore  = entriesByType(sc, 'lorecheck');
-  var clues = entriesByType(sc, 'clue');
-  var secs  = entriesByType(sc, 'secret');
-
-  if (reads.length){
-    h += '<div class="run-h">Read aloud</div>';
-    reads.forEach(function(e){
-      h += '<div class="run-read t-readaloud">'+(e.title?'<div class="run-read-t">'+esc(e.title)+'</div>':'')
-        + '<div class="run-read-b">'+renderNoteBody(e.body||'', ref)+'</div></div>';
-    });
-  }
-  if (descs.length){
-    h += '<div class="run-h">Describe</div>';
-    descs.forEach(function(e){ h += runNote(e, ref, 'lmdesc'); });
-  }
-  if (dia.length){
-    h += '<div class="run-h">Voices</div>';
-    dia.forEach(function(e){ h += runNote(e, ref, 'dialogue'); });
-  }
-  if (beats.length){
-    h += '<div class="run-h">Beats</div>';
-    beats.forEach(function(e){
-      var done = sc.beatDone && sc.beatDone[e.id];
-      h += '<button class="run-beat t-beat'+(done?' done':'')+'" onclick="toggleBeat(\''+e.id+'\')">'
-        + '<span class="check'+(done?' on':'')+'"></span>'
-        + '<span class="run-beat-tx">'+(e.title?'<b>'+esc(e.title)+'</b> ':'')+esc(e.body||'')+'</span></button>';
-    });
-  }
-  if (lore.length){
-    h += '<div class="run-h">Lore checks</div>';
-    lore.forEach(function(e){ h += runNote(e, ref, 'lorecheck'); });
-  }
-  if (clues.length){
-    h += '<details class="run-fold"><summary>Clues ('+clues.length+')</summary>';
-    clues.forEach(function(e){ h += runNote(e, ref, 'clue'); });
-    h += '</details>';
-  }
-  if (secs.length){
-    h += '<details class="run-fold secret"><summary>Secrets ('+secs.length+') &middot; LM eyes only</summary>';
-    secs.forEach(function(e){ h += runNote(e, ref, 'secret'); });
-    h += '</details>';
-  }
-  if (!reads.length && !descs.length && !dia.length && !beats.length && !lore.length && !clues.length && !secs.length){
+  var list = sortedEntries(sc.entries||[]);
+  if (!list.length){
     h += '<p class="muted">No prep notes in this scene yet. Tap Edit scene to add read-aloud text, beats, and clues.</p>';
+  } else {
+    /* Render in the order set in the scene builder. The type still drives the look,
+       but the sequence is the author's, not a regroup by type. */
+    list.forEach(function(e){ h += runStreamNote(e, ref, sc); });
   }
   h += '</div>';
   return h;
+}
+/* One note, styled by type, in builder order. */
+function runStreamNote(e, ref, sc){
+  var t = e.type || 'general';
+  if (t==='readaloud'){
+    return '<div class="run-read t-readaloud">'
+      + (e.title ? '<div class="run-read-t">'+esc(e.title)+'</div>' : '')
+      + (e.img ? '<div class="run-note-img"><img src="'+esc(imgSrc(e.img))+'" alt=""></div>' : '')
+      + '<div class="run-read-b">'+renderNoteBody(e.body||'', ref)+'</div></div>';
+  }
+  if (t==='beat'){
+    var done = sc.beatDone && sc.beatDone[e.id];
+    return '<button class="run-beat t-beat'+(done?' done':'')+'" onclick="toggleBeat(\''+e.id+'\')">'
+      + '<span class="check'+(done?' on':'')+'"></span>'
+      + '<span class="run-beat-tx">'+(e.title?'<b>'+esc(e.title)+'</b> ':'')+esc(e.body||'')+'</span></button>';
+  }
+  if (t==='secret'){
+    /* kept folded in place so a glance at the screen does not spill it, but it holds its spot */
+    return '<details class="run-fold secret"><summary>'+(e.title?esc(e.title)+' &middot; ':'')+'Secret, LM eyes only</summary>'
+      + runNote(e, ref, 'secret') + '</details>';
+  }
+  return runNote(e, ref, t);
 }
 
 /* frozen control strip: the actions the loremaster reaches for constantly */

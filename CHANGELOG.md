@@ -4,6 +4,10 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-25 — FateWell: the runner holds scene-builder order
+
+- The runner was regrouping notes into type buckets (Read aloud, Voices, Beats, Lore checks), which scrambled the sequence you set. It now renders notes in the exact order from the scene builder, each still styled by type. Read-aloud stays a boxed block, beats stay interactive checkboxes, dialogue keeps its speaker portrait, and secrets stay folded in place
+
 ## 2026-06-25 — FateWell: note images no longer vanish on the account round-trip
 
 - A note image added locally was being wiped about a second later when the autosave round-tripped through the account and the server copy came back without it. The tool now keeps the local image (note or cover) for any item whose returned copy lost it, so it survives regardless of the bridge
