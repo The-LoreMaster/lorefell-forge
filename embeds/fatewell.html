@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>FateWell</title>
-<!-- build: modal-center -->
+<!-- build: cascade-all -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Cinzel+Decorative:wght@700&family=Crimson+Pro:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
@@ -279,7 +279,7 @@ body::before{
 .chip-portrait img{ width:100%; height:100%; object-fit:cover; display:block; }
 .chip-hd-tx{ flex:1; min-width:0; }
 .chip-hd-tx .m-title{ margin:0; }
-.dlg-av{ width:30px; height:30px; border-radius:50%; object-fit:cover; vertical-align:middle; margin-right:8px; border:1px solid var(--line2); }
+.dlg-av{ width:44px; height:44px; border-radius:50%; object-fit:cover; vertical-align:middle; margin-right:10px; border:1px solid var(--line2); }
 .dlg-head{ display:flex; align-items:center; gap:8px; font-weight:600; margin-bottom:5px; }
 .dlg-head .dlg-av{ margin-right:0; }
 .spk-row{ margin-top:4px; }
@@ -3372,6 +3372,26 @@ function removeManualRef(ref, libId){
 }
 
 /* Roster tab for an act or session: auto-collected (bottom-up) + manual additions. */
+function ancestorRefs(ref){
+  var c = curC(); if (!c) return [];
+  var parts = ref.split(':'), kind = parts[0], id = parts[1];
+  var src = [];
+  if (kind==='a'){ src = (c.manualRefs||[]).slice(); }
+  else if (kind==='s'){
+    src = (c.manualRefs||[]).slice();
+    c.acts.forEach(function(a){ if (a.sessions.some(function(x){ return x.id===id; })) src = src.concat(a.manualRefs||[]); });
+  } else if (kind==='sc'){
+    src = (c.manualRefs||[]).slice();
+    c.acts.forEach(function(a){
+      a.sessions.forEach(function(se){
+        if (se.scenes.some(function(x){ return x.id===id; })){ src = src.concat(a.manualRefs||[], se.manualRefs||[]); }
+      });
+    });
+  }
+  var seen = {}, out = [];
+  src.forEach(function(x){ if (!seen[x] && libGet(x)){ seen[x]=true; out.push(x); } });
+  return out;
+}
 function entityRosterTab(ref){
   var lv = levelByRef(ref);
   var kind = ref.indexOf('c:')===0 ? 'campaign' : (ref.indexOf('a:')===0 ? 'act' : 'session');
@@ -3392,6 +3412,16 @@ function entityRosterTab(ref){
   h += '<p class="muted small-note">Auto-populated from every scene in this '+kind+'.</p>';
   h += rosterList(acc, null);
 
+  if (kind!=='campaign'){
+    var carried = ancestorRefs(ref).filter(function(id){ return !autoIds[id] && (lv.manualRefs||[]).indexOf(id)<0; });
+    if (carried.length){
+      h += '<div class="sec-h">Carried down from above</div>';
+      h += '<p class="muted small-note">Added at the adventure'+(kind==='session'?' or act':'')+'. Available here automatically.</p>';
+      h += '<div class="chips">';
+      carried.forEach(function(id){ var ce = libGet(id); h += '<span class="chip t-'+ce.type+'" onclick="chipInfo(\''+id+'\')">'+esc(ce.name)+'</span>'; });
+      h += '</div>';
+    }
+  }
   h += '<div class="sec-h">Added directly</div>';
   if (!manual.length){
     h += '<p class="muted small-note">Nothing added by hand yet. Use this for assets relevant to the '+kind+' but not tied to a specific scene.</p>';

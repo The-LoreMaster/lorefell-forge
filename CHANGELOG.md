@@ -4,6 +4,11 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-25 — FateWell: full roster cascade, bigger dialogue portraits
+
+- NPCs added at the adventure now show on the act and session roster tabs too, under Carried down from above, not just in scenes
+- Inline dialogue portraits in the runner are larger
+
 ## 2026-06-25 — FateWell: modals center in the viewport
 
 - Popups, including the note editor, now center in the current window instead of anchoring to the click point. In the runner, where the page scroll is locked, the Save button is always reachable
