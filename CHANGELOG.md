@@ -4,6 +4,12 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-25 — FateWell: always-on save timestamp with a separate account-sync line
+
+- The top-right time is now always visible and persists across reloads, so it shows even while you are only browsing
+- Added a second brighter line, Synced to account <time>, stamped when Save All Adventures confirms (and on any account save)
+- Tool only, no bridge or backend change needed
+
 ## 2026-06-25 — FateWell: NPC/item images persist; adventure-of-origin tag
 
 - Root fix: the account loader only read the image for monsters, so NPC and item portraits were written but never read back and vanished on reload. It now reads the image for every type
