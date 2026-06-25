@@ -11,6 +11,23 @@ import wixLocation from 'wix-location';
 
 const EMBED = '#html1';   // change to your Embed a Site element ID
 
+// Cover images pasted as data URIs bloat the saved row past Wix's per-item size limit
+// (WDE0009). Walk the campaign, push each inline image to media, and keep only the URL.
+async function inlineCoverImages(node) {
+  if (Array.isArray(node)) {
+    for (let i = 0; i < node.length; i++) node[i] = await inlineCoverImages(node[i]);
+    return node;
+  }
+  if (node && typeof node === 'object') {
+    for (const k of Object.keys(node)) node[k] = await inlineCoverImages(node[k]);
+    return node;
+  }
+  if (typeof node === 'string' && node.indexOf('data:') === 0) {
+    try { const url = await uploadRune(node, 'fatewell-cover'); return url || ''; } catch (e) { return ''; }
+  }
+  return node;
+}
+
 $w.onReady(() => {
   const embed = $w(EMBED);
   const campaignId = (wixLocation.query && wixLocation.query.campaignId) || '';
@@ -43,14 +60,17 @@ $w.onReady(() => {
       const list = Array.isArray(m.campaigns) ? m.campaigns : [];
       let saved = 0, owner = '';
       const errors = [];
+      const slimmed = [];
       for (const it of list) {
         try {
+          if (it.data && it.data.campaign) it.data.campaign = await inlineCoverImages(it.data.campaign);
           const r = await saveCampaign(it.id, it.data || {}, '');
-          if (r && r.ok) { saved++; owner = r.owner || owner; }
+          if (r && r.ok) { saved++; owner = r.owner || owner; if (it.data && it.data.campaign) slimmed.push({ id: it.id, campaign: it.data.campaign }); }
           else errors.push((r && (r.error || (r.skipped ? 'skipped: no campaign data' : 'not saved'))) || 'not saved');
         } catch (e) { errors.push(String(e)); }
       }
       embed.postMessage({ type: 'lmtool-sync-result', saved: saved, failed: list.length - saved, errors: errors.slice(0, 3), memberId: owner });
+      if (slimmed.length) embed.postMessage({ type: 'lmtool-campaigns-slimmed', campaigns: slimmed });
     } else if (m.type === 'lmtool-players-request') {
       const cid = m.campaignId || campaignId;
       if (!cid) return;
@@ -61,7 +81,13 @@ $w.onReady(() => {
       const cid = m.campaignId || campaignId;
       const hasCampaign = !!(m.data && m.data.campaign);
       if (!cid && !hasCampaign) return;  // local hub autosave with no chosen adventure: ignore
-      try { await saveCampaign(cid, m.data || {}, ''); } catch (e) {}
+      try {
+        if (m.data && m.data.campaign) m.data.campaign = await inlineCoverImages(m.data.campaign);
+        const r = await saveCampaign(cid, m.data || {}, '');
+        if (r && r.ok && m.data && m.data.campaign) {
+          embed.postMessage({ type: 'lmtool-campaigns-slimmed', campaigns: [{ id: cid, campaign: m.data.campaign }] });
+        }
+      } catch (e) {}
     } else if (m.type === 'lmtool-campaign-title') {
       try { await saveCampaign(m.campaignId || campaignId, null, m.title || ''); } catch (e) {}
     } else if (m.type === 'lmtool-forge-request') {
