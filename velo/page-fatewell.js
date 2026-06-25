@@ -4,7 +4,7 @@
 // campaignId. The tool requests forge, assets, and glossary on load; those are
 // answered from canon Creations, an owner-scoped Assets collection, and a Glossary collection.
 
-import { loadCampaign, saveCampaign, getSealed, getForgeLibrary, listAssets, saveAsset, deleteAsset, listGlossary, getCampaignPlayers, detachCharacter } from 'backend/fatewell.web.js';
+import { loadCampaign, saveCampaign, listMyCampaigns, getSealed, getForgeLibrary, listAssets, saveAsset, deleteAsset, listGlossary, getCampaignPlayers, detachCharacter } from 'backend/fatewell.web.js';
 import { createInvite, revokeInvite } from 'backend/invites.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
 import wixLocation from 'wix-location';
@@ -20,7 +20,14 @@ $w.onReady(() => {
     if (!m || typeof m !== 'object' || !m.type) return;
 
     if (m.type === 'lmtool-ready') {
-      if (!campaignId) return;  // no campaign chosen: tool stays in its own list
+      if (!campaignId) {
+        // hub mode: hand the tool every adventure this member owns, so it can show,
+        // edit, and keep persisting them, each stamped with this member as loremaster.
+        let mine = [];
+        try { mine = await listMyCampaigns(); } catch (e) { mine = []; }
+        embed.postMessage({ type: 'lmtool-hosted', campaigns: mine });
+        return;
+      }
       let blob = null;
       try { blob = await loadCampaign(campaignId); } catch (e) { blob = null; }
       embed.postMessage({
@@ -32,6 +39,12 @@ $w.onReady(() => {
       let players = [];
       try { players = await getCampaignPlayers(campaignId, (blob && blob.title) || ''); } catch (e) { players = []; }
       if (players.length) embed.postMessage({ type: 'lmtool-players', campaignId: campaignId, players: players });
+    } else if (m.type === 'lmtool-players-request') {
+      const cid = m.campaignId || campaignId;
+      if (!cid) return;
+      let players = [];
+      try { players = await getCampaignPlayers(cid, ''); } catch (e) { players = []; }
+      embed.postMessage({ type: 'lmtool-players', campaignId: cid, players: players });
     } else if (m.type === 'lmtool-save') {
       const cid = m.campaignId || campaignId;
       const hasCampaign = !!(m.data && m.data.campaign);

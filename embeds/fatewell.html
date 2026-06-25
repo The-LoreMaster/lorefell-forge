@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>FateWell</title>
-<!-- build: topnav -->
+<!-- build: hub -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Cinzel+Decorative:wght@700&family=Crimson+Pro:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
@@ -1164,7 +1164,7 @@ var V = { screen:'campaigns', cId:null, aId:null, sId:null, scId:null, tab:'note
    - hosted: the Wix page sends a campaignId; the tool works on that one campaign
      and saves its contents back to that campaign's row (Option B).
    - standalone: no page; full multi-campaign localStorage behaviour for offline use. */
-var WIX = { connected:false, loaded:false, hosted:false, campaignId:null, saveTimer:null };
+var WIX = { connected:false, loaded:false, hosted:false, hub:false, campaignId:null, saveTimer:null };
 
 function postToWix(m){
   try { if (window.parent !== window) window.parent.postMessage(m, '*'); } catch(e){}
@@ -1185,17 +1185,33 @@ function save(){
   saveLocal();
   clearTimeout(WIX.saveTimer);
   WIX.saveTimer = setTimeout(function(){
-    if (WIX.hosted){
-      var blob = campaignBlob();
-      if (blob && WIX.campaignId){
-        postToWix({ type:'lmtool-save', campaignId: WIX.campaignId, data: blob });
-      }
-    } else {
-      postToWix({ type:'lmtool-save', data: S });
-    }
+    if (!WIX.hosted) return;
+    var c = curC(); if (!c) return;
+    var cid = WIX.hub ? c.id : (WIX.campaignId || c.id);
+    postToWix({ type:'lmtool-save', campaignId: cid, data: { campaign:c, savedAt:Date.now() } });
   }, 900);
 }
 
+function adoptHostedCampaigns(list){
+  (list||[]).forEach(function(w){
+    if (!w || !w.id) return;
+    if (S.campaigns.some(function(c){ return c.id===w.id; })) return; /* local copy wins while editing */
+    var camp = (w.data && typeof w.data==='object' && w.data.name!==undefined) ? w.data : null;
+    if (camp){
+      camp.id = w.id; if (w.name && !camp.name) camp.name = w.name;
+      var wrapped = migrate({ campaigns:[camp], library:S.library, forge:S.forge, wixPlayers:S.wixPlayers, die:S.die });
+      S.campaigns.push(wrapped.campaigns[0]);
+    } else {
+      S.campaigns.push({ id:w.id, name:w.name||'Adventure', type:'legacy', notes:'', img:'', desc:'', entries:[], manualRefs:[], players:[], acts:[], ovOpen:{} });
+    }
+  });
+}
+function persistLocalCampaigns(){
+  if (!WIX.hosted) return;
+  S.campaigns.forEach(function(c){
+    postToWix({ type:'lmtool-save', campaignId:c.id, data:{ campaign:c, savedAt:Date.now() } });
+  });
+}
 function mergePool(c){
   S.wixPlayers.forEach(function(wp){
     var mid = wp.memberId || wp.id;
@@ -1231,7 +1247,7 @@ function autoMergePlayers(campaignId){
   targets.forEach(mergePool);
 }
 
-function syncPlayersNow(){ mergePool(curC()); save(); render(); }
+function syncPlayersNow(){ var c=curC(); if (WIX.hub && c) postToWix({ type:'lmtool-players-request', campaignId:c.id }); mergePool(c); save(); render(); }
 
 window.addEventListener('message', function(ev){
   var m = ev.data || {};
@@ -1266,6 +1282,14 @@ window.addEventListener('message', function(ev){
     V.cId = WIX.campaignId; V.aId=null; V.sId=null; V.scId=null;
     V.screen = 'campaign';
     saveLocal(); render(); requestSealed();
+  }
+  if (m.type === 'lmtool-hosted'){
+    /* hosted as a hub: the tool owns the adventure list and persists each one to the
+       account, stamped with this member as its loremaster. */
+    WIX.connected = true; WIX.loaded = true; WIX.hosted = true; WIX.hub = true;
+    adoptHostedCampaigns(m.campaigns || []);
+    persistLocalCampaigns();
+    saveLocal(); render();
   }
   if (m.type === 'lmtool-players'){
     WIX.connected = true;
@@ -1408,6 +1432,10 @@ function nav(screen, cId, aId, sId, scId){
   if (sId !== undefined) V.sId = sId;
   if (scId !== undefined) V.scId = scId;
   if (screen==='campaign') V.cTab = 'overview';
+  if (screen==='campaign' && WIX.hub && V.cId){
+    window._playersReq = window._playersReq || {};
+    if (!window._playersReq[V.cId]){ window._playersReq[V.cId]=1; postToWix({ type:'lmtool-players-request', campaignId:V.cId }); }
+  }
   if (screen==='act') V.aTab = 'overview';
   if (screen==='session') V.sTab = 'overview';
   render();
@@ -1614,7 +1642,7 @@ function addCampaignLegacy(){ createLevelModal('New campaign', function(n, d, im
   S.campaigns.push(c);
   if (S.wixPlayers.length) mergePool(c);
 }); }
-function renameCampaign(id){ var c; S.campaigns.forEach(function(x){ if(x.id===id) c=x; }); nameModal('Rename adventure',c.name,function(n){ c.name=n; if (WIX.hosted && WIX.campaignId===id) postToWix({ type:'lmtool-campaign-title', campaignId:id, title:n }); }); }
+function renameCampaign(id){ var c; S.campaigns.forEach(function(x){ if(x.id===id) c=x; }); nameModal('Rename adventure',c.name,function(n){ c.name=n; if (WIX.hosted && (WIX.hub || WIX.campaignId===id)) postToWix({ type:'lmtool-campaign-title', campaignId:id, title:n }); save(); render(); }); }
 function deleteCampaign(id){
   askConfirm('Delete this campaign and everything in it?', function(){
     S.campaigns = S.campaigns.filter(function(x){ return x.id!==id; });
@@ -3385,7 +3413,7 @@ function campaignResumeScreen(){
 function bottomNav(){
   function cls(s){ return 'bn-btn' + ((V.screen===s || (s==='campaigns' && ['campaign','act','session','scene'].indexOf(V.screen)>=0)) ? ' on' : ''); }
   return '<nav class="bnav">'
-    + '<button class="'+cls('campaigns')+'" onclick="nav(WIX.hosted ? campaignResumeScreen() : campaignResumeScreen())"><span class="bn-g">&#9670;</span>'+(WIX.hosted?'Adventure':'Adventures')+'</button>'
+    + '<button class="'+cls('campaigns')+'" onclick="nav(WIX.hosted ? campaignResumeScreen() : campaignResumeScreen())"><span class="bn-g">&#9670;</span>'+((WIX.hosted && !WIX.hub)?'Adventure':'Adventures')+'</button>'
     + '<button class="'+cls('search')+'" onclick="nav(\'search\')"><span class="bn-g">&#9906;</span>Search</button>'
     + '<button class="'+cls('library')+'" onclick="nav(\'library\')"><span class="bn-g">&#10070;</span>Library</button>'
     + '<button class="'+cls('data')+'" onclick="nav(\'data\')"><span class="bn-g">&#9881;</span>Settings</button>'
@@ -3503,8 +3531,8 @@ function emptyState(text, btnLabel, btnFn){
 
 function scrCampaigns(){
   var h = '<h1 class="page-h">Adventures</h1>';
-  if (WIX.hosted){
-    /* the site owns the campaign list, creation, and invites */
+  if (WIX.hosted && !WIX.hub){
+    /* the site opened one specific adventure by id */
     var c = curC() || (WIX.campaignId ? null : null);
     if (c){
       var sub = advSub(c);

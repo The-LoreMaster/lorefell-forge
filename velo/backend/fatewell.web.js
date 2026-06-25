@@ -24,6 +24,18 @@ export const loadCampaign = webMethod(Permissions.Anyone, async (campaignId) => 
   return { title: r.name || 'Campaign', data: data };
 });
 
+export const listMyCampaigns = webMethod(Permissions.Anyone, async () => {
+  const id = await memberId();
+  if (!id) return [];
+  try {
+    const r = await wixData.query(COLLECTION).eq('ownerMemberId', id).limit(50).find({ suppressAuth: true });
+    return r.items.map((it) => {
+      let data = {}; try { data = it.data ? JSON.parse(it.data) : {}; } catch (e) { data = {}; }
+      return { id: it._id, name: it.name || 'Adventure', data: data };
+    });
+  } catch (e) { return []; }
+});
+
 export const saveCampaign = webMethod(Permissions.Anyone, async (campaignId, blob, title) => {
   const id = await memberId();
   // Never create an empty row. A save with no campaign id and no real campaign blob is a
