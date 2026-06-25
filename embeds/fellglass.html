@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>LoreFell Character Sheet</title>
-<!-- build: fg-libs2 -->
+<!-- build: fg-id -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700&family=Cinzel:wght@400;500;600;700&family=Crimson+Pro:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
@@ -817,6 +817,12 @@ const DIE_FACES=["⚀","⚁","⚂","⚃","⚄","⚅"];
 /* =====================================================================
    STATE
 ===================================================================== */
+function uid(){ return Math.random().toString(36).slice(2,10); }
+/* The Wix row id of the character on screen, and a session id for this sheet. The tool
+   echoes both on every save so the backend updates the right row and a brand-new sheet
+   (empty wix id) always inserts instead of overwriting the last one. */
+let CUR_WIX_ID="";
+let CUR_LOCAL_ID="";
 let C={
   identity:{name:"",desc:"",lineage:"",origin:"",motivation:"",motivationPurpose:"",lineageDesc:"",campaign:""},
   grants:{skills:{},attrs:{}},created:false,portrait:"",titles:[],
@@ -2193,7 +2199,7 @@ function doSave(){
   const t=new Date();
   const hh=String(t.getHours()).padStart(2,"0"),mm=String(t.getMinutes()).padStart(2,"0");
   $("saveState").textContent=`Autosaved \u00b7 ${hh}:${mm}`;
-  postToVelo({type:"save",character:C});
+  postToVelo({type:"save",charId:CUR_WIX_ID,localId:CUR_LOCAL_ID,character:C});
 }
 /* =====================================================================
    VELO BRIDGE
@@ -2344,14 +2350,15 @@ function loadCharacter(rec){
    (standalone preview). Opening before the init message races a saved
    character into the creation wizard. */
 let bridged=false;
-setTimeout(()=>{if(!bridged&&!C.created)ccOpen();},2500);
+setTimeout(()=>{if(!bridged&&!C.created){ccOpen();CUR_WIX_ID="";CUR_LOCAL_ID=uid();}},2500);
 window.onmessage=ev=>{
   const d=ev&&ev.data;
   if(!d||typeof d!=="object"||!d.type)return;
   bridged=true;
   if(d.libraries)loadLibraries(d.libraries);
-  if(d.type==="init"&&d.character){if(CC)ccClose();loadCharacter(d.character);}
-  else if(d.type==="new"){ if(d.forge){ccOpenForge(d.forge);} else {ccOpen();} }
+  if(d.type==="init"&&d.character){ CUR_WIX_ID=d.charId||""; CUR_LOCAL_ID=uid(); if(CC)ccClose(); loadCharacter(d.character); }
+  else if(d.type==="new"){ if(d.forge){ccOpenForge(d.forge);} else {ccOpen();} CUR_WIX_ID=d.charId||""; CUR_LOCAL_ID=uid(); }
+  else if(d.type==="saved"){ if(d.localId&&d.localId===CUR_LOCAL_ID&&d.charId) CUR_WIX_ID=d.charId; }
 };
 postToVelo({type:"ready"});
 document.addEventListener("input",scheduleSave);

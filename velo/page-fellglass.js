@@ -20,21 +20,27 @@ $w.onReady(() => {
     if (msg.type === 'ready') {
       let libraries = {};
       try { libraries = await getLibraries(); } catch (e) { libraries = {}; }
-      if (!charId) { embed.postMessage({ type: 'new', libraries: libraries }); return; }
+      if (!charId) { embed.postMessage({ type: 'new', libraries: libraries, charId: '' }); return; }
       let res = null;
       try { res = await loadCharacter(charId); } catch (e) { res = null; }
       if (res && res.forged) {
         // Forged Fell, not yet built. Open creation pre-filled with the forged identity.
-        embed.postMessage({ type: 'new', forge: res.seed || {}, libraries: libraries });
+        embed.postMessage({ type: 'new', forge: res.seed || {}, libraries: libraries, charId: charId });
       } else if (res && res.character && res.character.created) {
-        embed.postMessage({ type: 'init', character: res.character, libraries: libraries });
+        embed.postMessage({ type: 'init', character: res.character, libraries: libraries, charId: charId });
       } else {
-        embed.postMessage({ type: 'new', libraries: libraries });
+        embed.postMessage({ type: 'new', libraries: libraries, charId: charId });
       }
     } else if (msg.type === 'save') {
+      // The sheet tells us which row it is editing. An empty id means a brand-new sheet,
+      // so it inserts a new row rather than overwriting the last one. We tell the sheet
+      // the new id so its next save updates the same row.
+      const cid = msg.charId || '';
       try {
-        const r = await saveCharacter(charId, msg.character || {});
-        if (r && r.ok && r.id && !charId) charId = r.id;
+        const r = await saveCharacter(cid, msg.character || {});
+        if (r && r.ok && r.id && !cid) {
+          embed.postMessage({ type: 'saved', localId: msg.localId || '', charId: r.id });
+        }
       } catch (e) {}
     } else if (msg.type === 'LOREFELL_FEEDBACK_SUBMIT') {
       console.log('FellGlass feedback:', JSON.stringify(msg.payload || {}));
