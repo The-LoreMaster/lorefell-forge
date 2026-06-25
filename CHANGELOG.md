@@ -4,6 +4,10 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-25 — FateWell: single scroll in the runner
+
+- The runner locks the document to the viewport so only the runner pane scrolls. The extra in-embed scrollbar is gone, leaving the one runner scroll plus the host page's own bar
+
 ## 2026-06-25 — FateWell: themed scrollbars
 
 - Scroll areas inside the tool use a slim LoreFell-styled scrollbar, dark track with an ice thumb. The host page scrollbar outside the embed is the browser's and cannot be themed from the tool
