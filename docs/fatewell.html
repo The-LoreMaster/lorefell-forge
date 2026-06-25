@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>FateWell</title>
-<!-- build: run-frozen -->
+<!-- build: run-log-pop -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Cinzel+Decorative:wght@700&family=Crimson+Pro:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
@@ -4372,14 +4372,33 @@ function toggleBeat(eid){
 }
 
 /* inline log writer used inside the runner, no modal */
+function runnerLogModal(){
+  var sc = curSc(); if (!sc) return;
+  var list;
+  if (sc.log && sc.log.length){
+    list = '<div class="run-loglist">';
+    sc.log.slice(0,30).forEach(function(n){
+      list += '<div class="run-logrow"><span class="log-ts">'+esc(n.ts)+'</span> '+esc(n.text)+'</div>';
+    });
+    list += '</div>';
+  } else {
+    list = '<p class="muted">No log notes yet.</p>';
+  }
+  modal('<h3 class="m-title">Play log</h3>'
+    + '<div class="run-logbox"><input class="inp run-logi" id="runLog" placeholder="What just happened?" onkeydown="runnerLogKey(event)">'
+    + '<button class="btn" onclick="runnerLog()">Add</button></div>'
+    + list
+    + '<div class="m-row"><button class="btn ghost" onclick="closeModal()">Close</button></div>');
+  setTimeout(function(){ var el=document.getElementById('runLog'); if(el) el.focus(); }, 50);
+}
 function runnerLog(){
   var el = document.getElementById('runLog'); if (!el) return;
   var t = (el.value||'').trim(); if (!t) return;
   var d = new Date();
   var ts = d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
   curSc().log.unshift({ ts:ts, text:t });
-  el.value=''; save(); render();
-  var e2 = document.getElementById('runLog'); if (e2) e2.focus();
+  save();
+  runnerLogModal();
 }
 function runnerLogKey(ev){ if (ev && (ev.key==='Enter'||ev.keyCode===13) && !ev.shiftKey){ ev.preventDefault && ev.preventDefault(); runnerLog(); } }
 
@@ -4457,6 +4476,7 @@ function runnerActions(sc, mode){
   var lrOut = lr ? ('<span class="roll-n'+(lr.tag?' '+lr.tag.toLowerCase():'')+'">'+lr.n+'</span>'+(lr.tag?'<span class="roll-tag '+lr.tag.toLowerCase()+'">'+lr.tag+'</span>':'')) : '<span class="muted">tap to roll</span>';
   var h = '<div class="run-actions-bar">';
   h += '<span class="lm-roll"><button class="qd-b" onclick="lmRoll()">Roll d6</button><span class="lm-roll-out">'+lrOut+'</span></span>';
+  h += '<button class="btn ghost" onclick="runnerLogModal()">Log</button>';
   h += (mode==='combat')
     ? '<button class="btn ghost" onclick="deEscalateScene()">Return to roleplay</button>'
     : '<button class="btn escalate" onclick="escalateScene()">&#9876; Escalate to combat</button>';
@@ -4477,8 +4497,6 @@ function runnerRoleplay(sc){
     players.forEach(function(p){ h += '<span class="chip t-player">'+esc(p.name)+' <span class="chip-lvl">Lvl '+p.level+'</span></span>'; });
     h += '</div>';
   }
-  h += '<details class="run-fold"><summary>Loot and rewards</summary>'+tabLoot(sc)+'</details>';
-  h += runnerLogBlock(sc);
   h += '</div>';
   return h;
 }
@@ -4489,7 +4507,6 @@ function runnerCombat(sc){
   h += '<details class="run-fold"><summary>Disruptions <span class="fold-meta">'+disBalance()+' / '+disBase()+' available</span></summary>'+tabDisruptions(sc)+'</details>';
   h += '<div class="run-h">Combat</div>' + tabCombat(sc);
   h += '<details class="run-fold"><summary>Loot and rewards</summary>'+tabLoot(sc)+'</details>';
-  h += runnerLogBlock(sc);
   h += '</div>';
   return h;
 }

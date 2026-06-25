@@ -4,6 +4,11 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-25 — FateWell: runner loot scoped to combat, log moved to a popup
+
+- Loot and rewards only shows in the runner once a scene is in combat. Roleplay mode no longer carries it
+- The play log is now a Log button in the frozen top bar that opens a popup with a text box and the recent entries
+
 ## 2026-06-25 — FateWell: runner frozen control bar, single scroll
 
 - Run scene now has one scrolling area with a frozen top bar. The scene bar plus Roll, Escalate or Return, and Mark complete stay put while the narration scrolls under them
