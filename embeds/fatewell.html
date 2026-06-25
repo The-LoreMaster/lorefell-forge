@@ -714,6 +714,7 @@ body.runner-mode #savedTag{ top:10px; right:104px; }
 /* v7: note entries */
 .notes-block{ margin-bottom:6px; }
 .jump-bar{ display:flex; flex-wrap:wrap; gap:6px; margin:2px 0 10px; }
+.notes-tools{ display:flex; justify-content:flex-end; gap:6px; margin:0 0 8px; }
 .jump-bar.foot{ margin-top:12px; }
 .jump-chip{
   font-family:'Crimson Pro',serif; font-size:.82rem;
@@ -743,7 +744,13 @@ body.runner-mode #savedTag{ top:10px; right:104px; }
 .t-lmdesc{     --tc:#c9b06a; }
 .t-lorecheck{  --tc:#9aa8e0; }
 .t-clue{       --tc:#d4a86b; }
+.run-crucible{ border:1px solid var(--tc,#d98a6a); border-left-width:3px; border-radius:10px; padding:12px 14px; margin:0 0 12px; background:rgba(217,138,106,.06); }
+.run-crucible .run-read-t{ font-family:'Cinzel',serif; color:var(--silver); margin-bottom:6px; }
+.run-crucible .run-read-b{ color:var(--ice); font-family:'Crimson Pro',serif; margin-bottom:10px; }
+.run-crucible.spent{ opacity:.55; }
+.cru-state{ font-family:'Cinzel',serif; font-size:.8rem; letter-spacing:.08em; text-transform:uppercase; color:var(--silver-dim); }
 .t-readaloud{  --tc:#6fc7c0; }
+.t-crucible{   --tc:#d98a6a; }
 .t-secret{     --tc:#c9a84c; }
 .t-beat{       --tc:#b18fd0; }
 .t-reminder{   --tc:#d98a8a; }
@@ -1949,6 +1956,7 @@ function duplicateScene(id){
 var NOTE_TYPES = [
   ['readaloud','Read-aloud'],
   ['dialogue','Dialogue'],
+  ['crucible','Crucible'],
   ['lorecheck','Lore Check'],
   ['clue','Clue'],
   ['secret','Secret'],
@@ -1959,6 +1967,7 @@ var NOTE_TYPES = [
 var NOTE_TYPE_HELP = [
   ['Read-aloud','Verbatim text you read to the table, word for word. Box text, a letter, a prophecy.'],
   ['Dialogue','What an NPC or monster says. Write it as Name: their words to color-code it by speaker.'],
+  ['Crucible','The turn into combat. While running the scene, tap it to escalate the scene into a fight.'],
   ['Lore Check','Information revealed only on a successful check. Note what they recall and the bar to clear.'],
   ['Clue','A discoverable hint that points somewhere. The muddy footprint, the torn page, the overheard name.'],
   ['Secret','Hidden truth the players do not know yet and should not see. The traitor, the trap trigger.'],
@@ -2132,6 +2141,27 @@ function toggleEntry(ref, id){
 function pinEntry(ref, id){
   levelEntries(ref).forEach(function(x){ if(x.id===id){ x.pinned = !x.pinned; if(x.pinned) x.open=true; } });
   save(); render();
+}
+function expandAllEntries(ref){ levelEntries(ref).forEach(function(e){ e.open = true; }); save(); render(); }
+function collapseAllEntries(ref){ levelEntries(ref).forEach(function(e){ e.open = false; }); save(); render(); }
+function partyScale(weight){
+  var c = curC();
+  var party = (c && c.players && c.players.length) ? c.players.length : 4;
+  var apl = 1;
+  if (c && c.players && c.players.length){
+    var sum = 0; c.players.forEach(function(p){ sum += (parseInt(p.level,10) || 1); });
+    apl = Math.max(1, Math.round(sum / c.players.length));
+  }
+  return apl * party * (weight || 0);
+}
+function rescaleFoe(cid){
+  curSc().combatants.forEach(function(c){
+    if (c.id===cid){
+      var w = FOE_WEIGHT[c.sr] || 0;
+      if (w){ c.maxVit = partyScale(w); c.curVit = c.maxVit; }
+    }
+  });
+  save(); render(); monInfo(cid);
 }
 function moveEntry(ref, id, dir){
   var entries = levelEntries(ref);
@@ -2440,6 +2470,11 @@ function notesBlock(ref, opts){
   } else {
     var view = sortedEntries(entries);
     var manyOpen = entries.length >= 3;
+    if (entries.length >= 2){
+      h += '<div class="notes-tools">'
+        + '<button class="mini ghost" onclick="expandAllEntries(\''+ref+'\')">Expand all</button>'
+        + '<button class="mini ghost" onclick="collapseAllEntries(\''+ref+'\')">Collapse all</button></div>';
+    }
     view.forEach(function(e){
       /* collapse rule: 3+ entries default closed unless pinned or explicitly opened */
       var isOpen = e.pinned || (manyOpen ? (e.open===true) : (e.open!==false));
@@ -3621,8 +3656,10 @@ function monInfo(cid){
     + '<p class="muted">'+(cb.sr?esc(cb.sr)+' &middot; ':'')+cb.curVit+' / '+cb.maxVit+' vit</p>'
     + '<div class="lbl">Vitality</div>'
     + '<div class="qd"><input class="qd-in" id="foeVitSet" type="number" inputmode="numeric" value="'+cb.maxVit+'" placeholder="max vit">'
-    + '<button class="qd-b" onclick="setFoeMaxVit(\''+cb.id+'\')">Set max</button></div>'
-    + (cb.maxVit>0 ? '' : '<p class="muted small">Party scaled. Set a number for this party.</p>')
+    + '<button class="qd-b" onclick="setFoeMaxVit(\''+cb.id+'\')">Set max</button>'
+    + (cb.sr ? '<button class="qd-b" onclick="rescaleFoe(\''+cb.id+'\')" title="Recompute from the current party">Rescale to party</button>' : '')
+    + '</div>'
+    + (cb.maxVit>0 ? '' : '<p class="muted small">Party scaled. Set a number, or rescale to this party.</p>')
     + (sig ? '<div class="lbl">Signature affliction</div><div class="qd"><span class="sig-name">'+esc(sig)+'</span>'
         + '<button class="qd-b" onclick="applySignature(\''+cb.id+'\')">Apply to target</button></div>' : '')
     + ((cb.build||cb.stance) ? '<div class="lbl">Build</div><p>'+esc([cb.build,cb.stance].filter(Boolean).join(' &middot; '))+'</p>' : '')
@@ -4722,6 +4759,16 @@ function runStreamNote(e, ref, sc){
       + (e.title ? '<div class="run-read-t">'+esc(e.title)+'</div>' : '')
       + (e.img ? '<div class="run-note-img"><img src="'+esc(imgSrc(e.img))+'" alt=""></div>' : '')
       + '<div class="run-read-b">'+renderNoteBody(e.body||'', ref)+'</div></div>';
+  }
+  if (t==='crucible'){
+    var inCombat = sc.mode==='combat';
+    return '<div class="run-crucible t-crucible'+(inCombat?' spent':'')+'">'
+      + (e.title ? '<div class="run-read-t">'+esc(e.title)+'</div>' : '')
+      + (e.body ? '<div class="run-read-b">'+renderNoteBody(e.body||'', ref)+'</div>' : '')
+      + (inCombat
+          ? '<div class="cru-state">Combat underway</div>'
+          : '<button class="btn escalate cru-btn" onclick="escalateScene()">&#9876; Begin combat</button>')
+      + '</div>';
   }
   if (t==='beat'){
     var done = sc.beatDone && sc.beatDone[e.id];
