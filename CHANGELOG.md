@@ -4,6 +4,13 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-25 — FateWell: note images show in the runner; image upload no longer blanks on failure; subtler save text
+
+- The runner now renders a note's own image. It was only shown in prep, so note images looked lost once you ran the scene
+- The page bridge keeps the downscaled image if a cover or note upload fails, instead of blanking it. This matched the asset fix and covered the last silent image loss
+- The save timestamp is now plain light text, smaller, no card
+- Re-paste the FateWell page bridge for the image-keep behavior
+
 ## 2026-06-25 — FateWell: always-on save timestamp with a separate account-sync line
 
 - The top-right time is now always visible and persists across reloads, so it shows even while you are only browsing

@@ -41,7 +41,7 @@ async function inlineCoverImages(node) {
     return node;
   }
   if (typeof node === 'string' && node.indexOf('data:') === 0) {
-    try { const url = await uploadRune(node, uniqName('cover')); return toStaticImageUrl(url); } catch (e) { return ''; }
+    try { const url = await uploadRune(node, uniqName('cover')); return toStaticImageUrl(url); } catch (e) { return node; }
   }
   if (typeof node === 'string' && node.indexOf('wix:image://') === 0) {
     return toStaticImageUrl(node);
