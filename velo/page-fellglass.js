@@ -4,6 +4,7 @@
 // charId, which your character list page sets when a player taps a character.
 
 import { loadCharacter, saveCharacter } from 'backend/characters.web.js';
+import { getClueCards } from 'backend/fatewell.web.js';
 import { getLibraries } from 'backend/libraries.web.js';
 import wixLocation from 'wix-location';
 
@@ -31,6 +32,10 @@ $w.onReady(() => {
       } else {
         embed.postMessage({ type: 'new', libraries: libraries, charId: charId });
       }
+    } else if (msg.type === 'clues-request') {
+      let clues = [];
+      try { clues = await getClueCards(msg.charId || charId); } catch (e) { clues = []; }
+      embed.postMessage({ type: 'clues', clues: clues });
     } else if (msg.type === 'save') {
       // The sheet tells us which row it is editing. An empty id means a brand-new sheet,
       // so it inserts a new row rather than overwriting the last one. We tell the sheet

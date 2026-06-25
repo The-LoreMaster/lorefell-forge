@@ -4,7 +4,7 @@
 // campaignId. The tool requests forge, assets, and glossary on load; those are
 // answered from canon Creations, an owner-scoped Assets collection, and a Glossary collection.
 
-import { loadCampaign, saveCampaign, deleteCampaign, listMyCampaigns, getSealed, getForgeLibrary, listAssets, saveAsset, deleteAsset, listGlossary, getCampaignPlayers, detachCharacter } from 'backend/fatewell.web.js';
+import { loadCampaign, saveCampaign, deleteCampaign, listMyCampaigns, getSealed, getForgeLibrary, listAssets, saveAsset, deleteAsset, listGlossary, getCampaignPlayers, detachCharacter, assignClue } from 'backend/fatewell.web.js';
 import { createInvite, revokeInvite } from 'backend/invites.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
 import wixLocation from 'wix-location';
@@ -98,6 +98,10 @@ $w.onReady(() => {
       let players = [];
       try { players = await getCampaignPlayers(cid, ''); } catch (e) { players = []; }
       embed.postMessage({ type: 'lmtool-players', campaignId: cid, players: players });
+    } else if (m.type === 'lmtool-assign-clue') {
+      let res = null;
+      try { res = await assignClue(m.campaignId || campaignId, m.charIds || [], m.clue || {}); } catch (e) { res = null; }
+      embed.postMessage({ type: 'lmtool-clue-assigned', ok: !!(res && res.ok), count: (res && res.count) || 0, handle: (m.clue && m.clue.handle) || '' });
     } else if (m.type === 'lmtool-save') {
       const cid = m.campaignId || campaignId;
       const hasCampaign = !!(m.data && m.data.campaign);

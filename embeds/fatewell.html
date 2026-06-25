@@ -2059,9 +2059,13 @@ function entryModal(ref, e){
     });
     spRow += '</div>';
   }
+  var handleRow = '<div id="enHandleRow" class="spk-row"'+(curType==='clue'?'':' style="display:none"')+'>'
+    + '<label class="lbl">Clue handle</label>'
+    + '<input class="inp" id="enHandle" value="'+esc(e&&e.handle?e.handle:'')+'" placeholder="torn-page">'
+    + '<p class="muted small-note">A short tag. Reference it from a Lore Check note as #torn-page to reveal it on a successful check.</p></div>';
   modal('<h3 class="m-title">'+(e?'Edit note':'New note')+'</h3>'
     + '<label class="lbl">Title</label><input class="inp" id="enTitle" value="'+esc(e?e.title:'')+'" placeholder="The bridge collapses">'
-    + '<label class="lbl labelrow">Type <button class="info-btn" onclick="noteTypeHelp()" title="What do these mean?">i</button></label>' + typeChips + speakerRow
+    + '<label class="lbl labelrow">Type <button class="info-btn" onclick="noteTypeHelp()" title="What do these mean?">i</button></label>' + typeChips + speakerRow + handleRow
     + '<label class="lbl labelrow">Note <span class="fmt-btns"><button type="button" class="fmt-btn" title="Bold, **text**" onclick="wrapSelection(\'**\')"><b>B</b></button><button type="button" class="fmt-btn" title="Italic, *text*" onclick="wrapSelection(\'*\')"><i>I</i></button></span></label><textarea class="inp ta tall" id="enBody" placeholder="Details, read-aloud text, what happens...">'+esc(e?e.body:'')+'</textarea>'
     + '<label class="lbl">Image (optional)</label>' + tokenField(e ? (e.img||'') : '')
     + spRow
@@ -2104,6 +2108,7 @@ function reopenEntryFromHelp(){
 function pickNoteType(t){
   var hid = document.getElementById('enType'); if (hid) hid.value = t;
   var sr = document.getElementById('enSpeakerRow'); if (sr) sr.style.display = (t==='dialogue') ? '' : 'none';
+  var hr = document.getElementById('enHandleRow'); if (hr) hr.style.display = (t==='clue') ? '' : 'none';
   var box = document.getElementById('enTypeChips');
   if (box){
     var btns = box.querySelectorAll('.type-pill');
@@ -2118,12 +2123,14 @@ function saveEntry(ref, id){
   var img = imgEl ? (imgEl.value||'') : '';
   var spkEl = document.getElementById('enSpeaker');
   var speaker = (type==='dialogue' && spkEl) ? (spkEl.value||'') : '';
+  var hdlEl = document.getElementById('enHandle');
+  var handle = (type==='clue' && hdlEl) ? clueSlug(hdlEl.value) : '';
   if (!title && !body && !img) return;
   var entries = levelEntries(ref);
   if (id){
-    entries.forEach(function(x){ if(x.id===id){ x.title=title||'Untitled'; x.type=type; x.body=body; x.img=img; x.speaker=speaker; } });
+    entries.forEach(function(x){ if(x.id===id){ x.title=title||'Untitled'; x.type=type; x.body=body; x.img=img; x.speaker=speaker; x.handle=handle; } });
   } else {
-    entries.push({ id:uid(), title:title||'Untitled', type:type, body:body, img:img, speaker:speaker, pinned:false, open:true });
+    entries.push({ id:uid(), title:title||'Untitled', type:type, body:body, img:img, speaker:speaker, handle:handle, pinned:false, open:true });
   }
   closeModal(); save(); render();
 }
@@ -4752,6 +4759,63 @@ function runnerNarration(sc){
   return h;
 }
 /* One note, styled by type, in builder order. */
+function clueSlug(x){ return String(x||'').toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,''); }
+function clueHandlesIn(text){
+  var out=[], re=/#([a-z0-9][a-z0-9-]*)/gi, m;
+  while ((m=re.exec(String(text||'')))){ out.push(m[1].toLowerCase()); }
+  return out;
+}
+function clueEntryHandle(e){ return clueSlug(e.handle || e.title); }
+function revealLoreClue(entryId){
+  var sc = curSc(); if (!sc) return;
+  var lc=null; (sc.entries||[]).forEach(function(e){ if(e.id===entryId) lc=e; });
+  if (!lc) return;
+  var handles = clueHandlesIn(lc.body);
+  var clues=[];
+  handles.forEach(function(hd){
+    (sc.entries||[]).forEach(function(e){ if(e.type==='clue' && clueEntryHandle(e)===hd){ clues.push({ handle:hd, title:e.title||'', body:e.body||'' }); } });
+  });
+  if (!clues.length){ alert('No matching Clue note found for the #tags here. Add a Clue note whose handle matches.'); return; }
+  var picks={}; attendingPlayers().forEach(function(p){ if(p.charId) picks[p.charId]=true; });
+  window._clueReveal = { entryId:entryId, clues:clues, picks:picks };
+  renderClueReveal();
+}
+function toggleCluePick(cid){ var r=window._clueReveal; if(!r) return; r.picks[cid]=!r.picks[cid]; renderClueReveal(); }
+function renderClueReveal(){
+  var r=window._clueReveal; if(!r) return;
+  var sc=curSc();
+  var h='<h3 class="m-title">Reveal clue</h3>';
+  r.clues.forEach(function(cl){
+    h+='<div class="entry card-type t-clue"><div class="entry-body">'
+      +(cl.title?'<div class="run-note-t">'+esc(cl.title)+'</div>':'')
+      +'<div class="entry-text">'+renderNoteBody(cl.body, 'sc:'+(sc?sc.id:''))+'</div></div></div>';
+  });
+  h+='<label class="lbl">Card to</label>';
+  var any=false;
+  attendingPlayers().forEach(function(p){
+    if (p.charId){ any=true;
+      h+='<div class="hk-note-pick"><input type="checkbox" '+(r.picks[p.charId]?'checked':'')+' onchange="toggleCluePick(\''+p.charId+'\')"> '+esc(p.name)+'</div>';
+    } else {
+      h+='<div class="hk-note-pick"><input type="checkbox" disabled> <span class="muted">'+esc(p.name)+' (no sheet)</span></div>';
+    }
+  });
+  if (!any) h+='<p class="muted small">No present players have a linked sheet. Link a character to card clues.</p>';
+  h+='<div class="m-row"><button class="btn ghost" onclick="window._clueReveal=null;closeModal()">Cancel</button>'
+    +'<button class="btn" onclick="cardClue()">Card to players</button></div>';
+  modal(h);
+}
+function cardClue(){
+  var r=window._clueReveal; if(!r) return;
+  var c=curC(); var cid = WIX.hub ? c.id : (WIX.campaignId || c.id);
+  var scName=(curSc()&&curSc().name)||'';
+  var charIds=Object.keys(r.picks).filter(function(k){ return r.picks[k]; });
+  if (!charIds.length){ alert('Pick at least one player with a sheet.'); return; }
+  r.clues.forEach(function(cl){
+    postToWix({ type:'lmtool-assign-clue', campaignId:cid, charIds:charIds, clue:{ handle:cl.handle, title:cl.title, body:cl.body, scene:scName } });
+  });
+  window._clueReveal=null; closeModal();
+  modal('<h3 class="m-title">Clue carded</h3><p class="muted">Sent to '+charIds.length+' player'+(charIds.length===1?'':'s')+'. It will appear under Notes on their sheet.</p><div class="m-row"><button class="btn" onclick="closeModal()">Done</button></div>');
+}
 function runStreamNote(e, ref, sc){
   var t = e.type || 'general';
   if (t==='readaloud'){
@@ -4759,6 +4823,14 @@ function runStreamNote(e, ref, sc){
       + (e.title ? '<div class="run-read-t">'+esc(e.title)+'</div>' : '')
       + (e.img ? '<div class="run-note-img"><img src="'+esc(imgSrc(e.img))+'" alt=""></div>' : '')
       + '<div class="run-read-b">'+renderNoteBody(e.body||'', ref)+'</div></div>';
+  }
+  if (t==='lorecheck'){
+    var hasClue = clueHandlesIn(e.body||'').length > 0;
+    return '<div class="run-note t-lorecheck">'
+      + (e.title ? '<div class="run-note-t">'+esc(e.title)+'</div>' : '')
+      + '<div class="run-note-b">'+renderNoteBody(e.body||'', ref)+'</div>'
+      + (hasClue ? '<button class="btn ghost small" onclick="revealLoreClue(\''+e.id+'\')">Reveal clue</button>' : '')
+      + '</div>';
   }
   if (t==='crucible'){
     var inCombat = sc.mode==='combat';

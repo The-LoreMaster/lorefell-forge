@@ -355,3 +355,41 @@ export const listGlossary = webMethod(Permissions.Anyone, async () => {
     })).filter((g) => g.term);
   } catch (e) { return []; }
 });
+
+
+/* ===================== Clue cards =====================
+   Clues discovered through lore checks are carded to specific characters and
+   surfaced read-only on their FellGlass sheet, under Notes. Stored in the
+   ClueCards collection. 'title' is a reserved Wix field id, so we use clueTitle. */
+export async function assignClue(campaignId, charIds, clue) {
+  if (!Array.isArray(charIds) || !charIds.length) return { ok: false, count: 0 };
+  const handle = String((clue && clue.handle) || '').toLowerCase();
+  let n = 0;
+  for (const cid of charIds) {
+    if (!cid) continue;
+    try {
+      const ex = await wixData.query('ClueCards')
+        .eq('charId', cid).eq('handle', handle).eq('campaignId', campaignId || '')
+        .limit(1).find({ suppressAuth: true });
+      const row = {
+        campaignId: campaignId || '', charId: cid, handle: handle,
+        clueTitle: (clue && clue.title) || '', clueBody: (clue && clue.body) || '',
+        scene: (clue && clue.scene) || '', discoveredAt: Date.now()
+      };
+      if (ex.items.length) { row._id = ex.items[0]._id; await wixData.update('ClueCards', row, { suppressAuth: true }); }
+      else { await wixData.insert('ClueCards', row, { suppressAuth: true }); }
+      n++;
+    } catch (e) {}
+  }
+  return { ok: true, count: n };
+}
+export async function getClueCards(charId) {
+  if (!charId) return [];
+  let items = [];
+  try {
+    const r = await wixData.query('ClueCards').eq('charId', charId)
+      .descending('discoveredAt').limit(200).find({ suppressAuth: true });
+    items = r.items;
+  } catch (e) { items = []; }
+  return items.map((it) => ({ handle: it.handle, title: it.clueTitle, body: it.clueBody, scene: it.scene, at: it.discoveredAt }));
+}
