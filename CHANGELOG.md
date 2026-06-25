@@ -4,6 +4,15 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-25 — FateWell: scene roster cascade, dialogue portraits, colored run notes
+
+- Drag-selecting note text from right to left no longer closes the editor. The backdrop only closes on a click that also started on the backdrop
+- NPCs and items added at the adventure, act, or session roster now carry down into every scene under a Carried down subsection
+- Attached NPC and item cards show the portrait as a full-height strip on the left
+- Dialogue speaker lines show the speaker portrait next to the name, in prep and in the runner, matched by name to the library
+- Run scene right column is pinned and scrolls its own content again
+- Run scene notes appear in boxes tinted by note type, matching the prep colors
+
 ## 2026-06-25 — FateWell: card art scope, NPC popout portrait, note formatting, runner scroll
 
 - Adventure, act, session, and scene cards keep the cover image as a top banner. Only the Library cards use the left thumbnail
