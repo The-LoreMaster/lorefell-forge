@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>FateWell</title>
-<!-- build: del-sync-saved -->
+<!-- build: npc-img-read -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Cinzel+Decorative:wght@700&family=Crimson+Pro:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
@@ -582,6 +582,7 @@ body.runner-mode #savedTag{ top:14px; right:104px; }
   cursor:pointer; padding:0; display:flex; flex-direction:column;
 }
 .vcard-cover{ width:100%; height:128px; overflow:hidden; background:var(--navy3); }
+.vcard-origin{ font-size:.72rem; color:var(--muted); margin-top:3px; letter-spacing:.02em; }
 .vcard-cover img{ width:100%; height:100%; object-fit:cover; display:block; }
 .vcard-body{ padding:12px 13px; }
 /* only library cards put the portrait on the left; cardItem keeps the top banner */
@@ -1058,6 +1059,7 @@ function assetToRow(e){
     maxVit: e.maxVit || 0,
     role: e.role || '',
     image: e.img || '',
+    origin: e.origin || '',
     attrs: JSON.stringify(e.attrs || {}),
     inventory: JSON.stringify(e.inv || []),
     abilities: JSON.stringify(e.abilities || []),
@@ -1077,7 +1079,9 @@ function rowToAsset(r){
     id: pick('assetId','_id','id') || uid(),
     type: type,
     name: pick('name') || '',
-    desc: pick('description','desc') || ''
+    desc: pick('description','desc') || '',
+    origin: pick('origin') || '',
+    img: pick('image','img') || ''
   };
   if (type==='monster'){
     e.sr = pick('shatterRating','sr') || '';
@@ -1085,7 +1089,6 @@ function rowToAsset(r){
     e.sp = Number(pick('sp')) || (e.sr && SR_TABLE[e.sr] ? SR_TABLE[e.sr].sp : 0);
     e.maxVit = Number(pick('maxVit')) || 0;
     e.foeWeight = Number(pick('foeWeight')) || 0;
-    e.img = pick('image','img') || '';
     e.attrs = jp(pick('attrs'), blankAttrs());
     e.inv = jp(pick('inventory','inv'), []);
     e.abilities = jp(pick('abilities'), []);
@@ -1420,7 +1423,15 @@ window.addEventListener('message', function(ev){
   if (m.type === 'lmtool-assets'){
     WIX.connected = true;
     if (Array.isArray(m.assets)){
-      S.library = m.assets.map(rowToAsset).filter(function(a){ return a.name; });
+      var prevById = {}; S.library.forEach(function(a){ prevById[a.id] = a; });
+      S.library = m.assets.map(rowToAsset).filter(function(a){ return a.name; }).map(function(a){
+        var loc = prevById[a.id];
+        if (loc){
+          if (!a.img && loc.img) a.img = loc.img;
+          if (!a.origin && loc.origin) a.origin = loc.origin;
+        }
+        return a;
+      });
       saveLocal(); render();
     }
   }
@@ -2708,7 +2719,7 @@ function saveWizard(type, id){
       e.img = ni ? ni.value : '';
     }
   }
-  if (!id) S.library.push(e);
+  if (!id){ var _oc = curC(); if (_oc && !e.origin) e.origin = _oc.name || ''; S.library.push(e); }
   pushAsset(e);
   var attachAfter = window._attachAfter;
   closeModal(); save();
@@ -4711,7 +4722,9 @@ function scrLibrary(){
         + '<button class="vcard-main" onclick="editLib(\''+e.id+'\')">'
         + (hasImg ? '<div class="vcard-cover"><img src="'+esc(imgSrc(e.img))+'" alt=""></div>' : '')
         + '<div class="vcard-body"><div class="vcard-badge">'+TYPE_LABEL[e.type]+'</div>'
-        + '<div class="vcard-title">'+esc(e.name)+'</div><div class="vcard-sub">'+sub+'</div></div></button>'
+        + '<div class="vcard-title">'+esc(e.name)+'</div><div class="vcard-sub">'+sub+'</div>'
+        + (e.origin ? '<div class="vcard-origin">From '+esc(e.origin)+'</div>' : '')
+        + '</div></button>'
         + '<div class="vcard-corner inline">'+corner+'</div></div>';
     });
     h += '<button class="btn wide" onclick="newProfile()">New '+(V.libFilter==='all'?'profile':TYPE_LABEL[V.libFilter])+'</button>';

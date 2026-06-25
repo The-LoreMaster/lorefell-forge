@@ -4,6 +4,14 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-25 — FateWell: NPC/item images persist; adventure-of-origin tag
+
+- Root fix: the account loader only read the image for monsters, so NPC and item portraits were written but never read back and vanished on reload. It now reads the image for every type
+- The page bridge keeps the downscaled image if the media upload fails, instead of blanking it
+- The account reload preserves a local image when the stored row has none
+- Library profiles are stamped with the adventure they were created in, shown as From <adventure> on the card
+- Re-paste the FateWell page bridge for the upload-keep behavior
+
 ## 2026-06-25 — FateWell: deleting an adventure removes it from the account; last-saved indicator
 
 - Deleting an adventure now also deletes its row from your account, owner-checked, so it no longer comes back on reload

@@ -126,7 +126,7 @@ $w.onReady(() => {
     } else if (m.type === 'lmtool-asset-save') {
       const asset = m.asset || {};
       if (asset.image && /^data:/.test(asset.image)) {
-        try { asset.image = toStaticImageUrl(await uploadRune(asset.image, uniqName(asset.name || 'asset'))); } catch (e) { asset.image = ''; }
+        try { asset.image = toStaticImageUrl(await uploadRune(asset.image, uniqName(asset.name || 'asset'))); } catch (e) { /* upload failed; keep the downscaled data URI so the image still persists */ }
       } else if (asset.image && asset.image.indexOf('wix:image://') === 0) {
         asset.image = toStaticImageUrl(asset.image);
       }
