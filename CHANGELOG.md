@@ -4,6 +4,12 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-26 — FateWell: spine labels, empty tiers, and Next Session visibility
+
+- All four spine labels read clearly now, not just the lit one. The current tier still glows gold
+- Empty Session and Scene tiers show their label with a blank value instead of a faint dash, so the full descent always reads
+- Next Session shows on the last scene whenever a next session exists, and glows gold once every scene in the session is complete, instead of only appearing after completion
+
 ## 2026-06-26 — FateWell: drop the duplicated top breadcrumb on spine screens
 
 - On the adventure, act, session, and scene screens the descent spine already shows the path, so the long text breadcrumb is gone. A single Adventures link stays at the top as the route back to the full list, since the bottom tab resumes into the current adventure rather than listing them. Classic view keeps the full breadcrumb
