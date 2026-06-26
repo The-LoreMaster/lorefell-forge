@@ -94,7 +94,20 @@ export const submitCreation = webMethod(Permissions.SiteMember, async (forgeKey,
     voteCount: 0
   };
 
-  const saved = await wixData.insert(def.submitTarget, record, { suppressAuth: true });
+  let saved;
+  try {
+    saved = await wixData.insert(def.submitTarget, record, { suppressAuth: true });
+  } catch (e) {
+    // A target collection that has not added the optional flavorText field yet would
+    // reject the whole insert. Drop the optional field and retry so a submission never
+    // fails over a missing column.
+    try {
+      const trimmed = Object.assign({}, record); delete trimmed.flavorText;
+      saved = await wixData.insert(def.submitTarget, trimmed, { suppressAuth: true });
+    } catch (e2) {
+      return { ok: false, errors: ['The creation could not be saved. ' + ((e2 && e2.message) ? e2.message : String(e2))] };
+    }
+  }
   return { ok: true, creationId: saved._id, warnings: result.warnings };
 });
 
