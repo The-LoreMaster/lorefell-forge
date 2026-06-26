@@ -114,7 +114,12 @@ $w.onReady(() => {
       embed.postMessage({ type: 'lmtool-role', campaignId: cid, role: myRole });
     } else if (m.type === 'lmtool-publish') {
       let res = null;
-      try { res = await publishAdventure(m.title, m.blurb, m.pack, m.campaignId); } catch (e) { res = { ok: false, error: String(e) }; }
+      try {
+        // Inline embedded data-URI images (cover art, NPC portraits) to media URLs so the
+        // stored pack stays well under the per-document size limit.
+        if (m.pack) m.pack = await inlineCoverImages(m.pack);
+        res = await publishAdventure(m.title, m.blurb, m.pack, m.campaignId);
+      } catch (e) { res = { ok: false, error: String(e) }; }
       embed.postMessage({ type: 'lmtool-publish-result', ok: !!(res && res.ok), updated: !!(res && res.updated), error: (res && res.error) || '' });
     } else if (m.type === 'lmtool-published-request') {
       let items = [];
