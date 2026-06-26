@@ -3821,6 +3821,89 @@ function importJson(){
     alert('That does not look like a valid backup. Paste the full JSON exactly as exported.');
   }
 }
+function readPack(input){
+  var f = input.files && input.files[0];
+  input.value = '';                         /* allow re-picking the same file */
+  if (!f) return;
+  var msg = document.getElementById('packMsg');
+  if (msg) msg.textContent = 'Reading ' + f.name + ' ...';
+  var reader = new FileReader();
+  reader.onload = function(ev){
+    var pack;
+    try { pack = JSON.parse(ev.target.result); }
+    catch(e){ if (msg) msg.textContent = 'That file is not valid JSON.'; return; }
+    importPack(pack, msg);
+  };
+  reader.onerror = function(){ if (msg) msg.textContent = 'Could not read that file.'; };
+  reader.readAsText(f);
+}
+
+function importPack(pack, msg){
+  function fail(t){ if (msg){ msg.textContent = t; } else { alert(t); } }
+  if (!pack || !pack.campaign || !Array.isArray(pack.npcs)
+      || !pack.meta || pack.meta.format !== 'lorefell-adventure-pack-1'){
+    fail('That does not look like a LoreFell adventure pack.'); return;
+  }
+
+  /* fresh, collision-checked ids (uses the existing uid()) */
+  var usedIds = {};
+  (function collect(o){
+    if (o && typeof o === 'object'){
+      if (typeof o.id === 'string') usedIds[o.id] = 1;
+      for (var k in o){ if (Object.prototype.hasOwnProperty.call(o, k)) collect(o[k]); }
+    }
+  })(S);
+  function freshId(){ var id; do { id = uid(); } while (usedIds[id]); usedIds[id] = 1; return id; }
+
+  /* 1. add every pack NPC to the library as new, map old id -> new id */
+  var npcMap = {};
+  pack.npcs.forEach(function(n){
+    var copy = JSON.parse(JSON.stringify(n));
+    var nid = freshId();
+    npcMap[n.id] = nid;
+    copy.id = nid;
+    if (copy.type !== 'npc') copy.type = 'npc';
+    S.library.push(copy);
+  });
+
+  /* 2. clone the campaign, remint every id, remap dialogue speakers and refs */
+  function remapEntry(e){
+    e.id = freshId();
+    if (e.speaker) e.speaker = npcMap[e.speaker] || e.speaker;
+  }
+  var camp = JSON.parse(JSON.stringify(pack.campaign));
+  camp.id = freshId();
+  if (!camp.ovOpen) camp.ovOpen = {};
+  camp.manualRefs = (camp.manualRefs || []).map(function(r){ return npcMap[r] || r; });
+  (camp.entries || []).forEach(remapEntry);
+  (camp.acts || []).forEach(function(a){
+    a.id = freshId();
+    (a.entries || []).forEach(remapEntry);
+    (a.sessions || []).forEach(function(ss){
+      ss.id = freshId();
+      (ss.entries || []).forEach(remapEntry);
+      (ss.scenes || []).forEach(function(sc){
+        sc.id = freshId();
+        (sc.entries || []).forEach(remapEntry);
+      });
+    });
+  });
+
+  /* 3. normalize through migrate, exactly like adoptHostedCampaigns, then append */
+  var wrapped = migrate({
+    campaigns: [camp], library: S.library, forge: S.forge,
+    wixPlayers: S.wixPlayers, die: S.die
+  });
+  var newCamp = wrapped.campaigns[0];
+  S.campaigns.push(newCamp);
+
+  /* 4. persist and open it */
+  save();
+  if (WIX.hosted) persistLocalCampaigns();
+  if (msg) msg.textContent = 'Added "' + (newCamp.name || 'adventure') + '".';
+  nav('campaign', newCamp.id);
+}
+
 function wipeAll(){
   askConfirm('Delete everything? This cannot be undone unless you have a backup. This wipes all campaigns and the library.', function(){
     S = seed(); save();
@@ -5339,6 +5422,11 @@ function scrData(){
     + '<textarea class="inp ta tall mono" id="expTA" readonly>'+esc(exportJson())+'</textarea>'
     + '<button class="btn wide" id="copyBtn" onclick="copyExport()">Copy backup</button>'
     + (WIX.hosted ? '<button class="btn wide" onclick="syncAllToAccount()">Save all adventures to my account</button>' : '')
+    + '<div class="sec-h">Add an adventure</div>'
+    + '<p class="muted">Import an adventure pack as a new campaign. This only adds. It never changes or replaces your existing adventures or your library.</p>'
+    + '<input type="file" accept="application/json,.json" id="packFile" style="display:none" onchange="readPack(this)">'
+    + '<button class="btn wide" onclick="document.getElementById(\'packFile\').click()">Choose adventure pack</button>'
+    + '<div id="packMsg" class="muted small-note" style="margin-top:8px"></div>'
     + '<div class="sec-h">Restore</div>'
     + '<textarea class="inp ta mono" id="impTA" placeholder="Paste a backup here"></textarea>'
     + '<button class="btn wide ghost" onclick="importJson()">Load backup</button>'
