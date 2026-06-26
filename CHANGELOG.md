@@ -4,6 +4,11 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-26 — FateWell: brighter spine parents, spine in the scene, roleplay on arrival
+
+- The descent spine's parent tiers read in ice instead of dim grey, so Adventure and Act stay legible while you are deeper in. The spine and view toggle now show inside a scene too
+- Arriving at a scene always starts in roleplay. Stepping with the scene arrows, entering from prep, and auto-advancing on complete all reset the mode, so the top scene arrow no longer drops you into combat. Escalate when the fight starts. The battle board is kept either way
+
 ## 2026-06-26 — FateWell: gold order numbers on cards, collapsible note bodies
 
 - Every card carries a gold order number. Acts, sessions, and scenes number on the cover. Prep notes number in the header, following run order
