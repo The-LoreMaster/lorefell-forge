@@ -19,21 +19,39 @@ export const loadCampaign = webMethod(Permissions.Anyone, async (campaignId) => 
   const id = await memberId();
   const r = await wixData.get(COLLECTION, campaignId, { suppressAuth: true }).catch(() => null);
   if (!r) return null;
-  if (r.ownerMemberId && id && r.ownerMemberId !== id) return null;
+  let role = 'loremaster';
+  if (r.ownerMemberId && id && r.ownerMemberId !== id) {
+    role = await roleFor(id, campaignId, r.ownerMemberId);
+    if (role !== 'loremaster' && role !== 'lorekeeper') return null; // not a keeper of this adventure
+  }
   let data = {}; try { data = r.data ? JSON.parse(r.data) : {}; } catch (e) { data = {}; }
-  return { title: r.name || 'Campaign', data: data };
+  return { title: r.name || 'Campaign', data: data, role: role };
 });
 
 export const listMyCampaigns = webMethod(Permissions.Anyone, async () => {
   const id = await memberId();
   if (!id) return [];
+  const out = []; const seen = {};
   try {
     const r = await wixData.query(COLLECTION).eq('ownerMemberId', id).limit(50).find({ suppressAuth: true });
-    return r.items.map((it) => {
+    r.items.forEach((it) => {
+      seen[it._id] = 1;
       let data = {}; try { data = it.data ? JSON.parse(it.data) : {}; } catch (e) { data = {}; }
-      return { id: it._id, name: it.name || 'Adventure', data: data };
+      out.push({ id: it._id, name: it.name || 'Adventure', data: data, role: 'loremaster' });
     });
-  } catch (e) { return []; }
+  } catch (e) {}
+  try {
+    const km = await wixData.query('AdventureMembers').eq('memberId', id).hasSome('role', ['loremaster', 'lorekeeper']).limit(100).find({ suppressAuth: true });
+    for (const m of km.items) {
+      if (!m.campaignId || seen[m.campaignId]) continue;
+      const c = await wixData.get(COLLECTION, m.campaignId, { suppressAuth: true }).catch(() => null);
+      if (!c) continue;
+      seen[m.campaignId] = 1;
+      let data = {}; try { data = c.data ? JSON.parse(c.data) : {}; } catch (e) { data = {}; }
+      out.push({ id: c._id, name: c.name || 'Adventure', data: data, role: m.role || 'lorekeeper' });
+    }
+  } catch (e) {}
+  return out;
 });
 
 export const saveCampaign = webMethod(Permissions.Anyone, async (campaignId, blob, title) => {
@@ -48,7 +66,8 @@ export const saveCampaign = webMethod(Permissions.Anyone, async (campaignId, blo
     if (campaignId) {
       existing = await wixData.get(COLLECTION, campaignId, { suppressAuth: true }).catch(() => null);
       if (existing && existing.ownerMemberId && id && existing.ownerMemberId !== id) {
-        return { ok: false, error: 'owned by another member' };
+        const r2 = await roleFor(id, campaignId, existing.ownerMemberId);
+        if (r2 !== 'loremaster' && r2 !== 'lorekeeper') return { ok: false, error: 'owned by another member' };
       }
     }
 
@@ -122,6 +141,50 @@ async function keeperCampaignIds(id) {
   return Object.keys(set);
 }
 
+// One member's role in one adventure. Owner is always the loremaster.
+async function roleFor(id, campaignId, ownerId) {
+  if (ownerId && id && ownerId === id) return 'loremaster';
+  try {
+    const r = await wixData.query('AdventureMembers').eq('campaignId', campaignId).eq('memberId', id).limit(1).find({ suppressAuth: true });
+    if (r.items.length && r.items[0].role) return r.items[0].role;
+  } catch (e) {}
+  return 'player';
+}
+async function upsertMemberRole(campaignId, mid, role) {
+  try {
+    const r = await wixData.query('AdventureMembers').eq('campaignId', campaignId).eq('memberId', mid).limit(1).find({ suppressAuth: true });
+    if (r.items.length) { const row = r.items[0]; row.role = role; await wixData.update('AdventureMembers', row, { suppressAuth: true }); }
+    else { await wixData.insert('AdventureMembers', { campaignId: campaignId, memberId: mid, role: role, status: 'member', joinedAt: new Date().toISOString() }, { suppressAuth: true }); }
+  } catch (e) {}
+}
+export const myAdventureRole = webMethod(Permissions.Anyone, async (campaignId) => {
+  const id = await memberId();
+  if (!id || !campaignId) return '';
+  const camp = await wixData.get(COLLECTION, campaignId, { suppressAuth: true }).catch(() => null);
+  if (!camp) return '';
+  return await roleFor(id, campaignId, camp.ownerMemberId);
+});
+// Only the loremaster (owner) sets roles. Loremaster is a handoff: the target becomes
+// owner and the previous owner steps down to lorekeeper, so there is always exactly one.
+export const setMemberRole = webMethod(Permissions.Anyone, async (campaignId, targetMemberId, role) => {
+  const id = await memberId();
+  if (!id || !campaignId || !targetMemberId) return { ok: false };
+  const camp = await wixData.get(COLLECTION, campaignId, { suppressAuth: true }).catch(() => null);
+  if (!camp) return { ok: false };
+  if (camp.ownerMemberId !== id) return { ok: false, error: 'Only the loremaster can change roles.' };
+  role = (['player', 'lorekeeper', 'loremaster'].indexOf(role) !== -1) ? role : 'player';
+  if (role === 'loremaster') {
+    if (targetMemberId === id) return { ok: true };
+    camp.ownerMemberId = targetMemberId;
+    try { await wixData.update(COLLECTION, camp, { suppressAuth: true }); } catch (e) { return { ok: false, error: 'transfer failed' }; }
+    await upsertMemberRole(campaignId, targetMemberId, 'loremaster');
+    await upsertMemberRole(campaignId, id, 'lorekeeper');
+    return { ok: true, transferred: true };
+  }
+  await upsertMemberRole(campaignId, targetMemberId, role);
+  return { ok: true };
+});
+
 // Sealed pasts for a campaign roster. Returns nothing unless the caller holds a
 // loremaster or lorekeeper role, so the player view can never reach it. Matched to
 // the roster by member id first, then by character name.
@@ -170,15 +233,20 @@ export const getCampaignPlayers = webMethod(Permissions.Anyone, async (campaignI
   const nm = String(campaignName || '').trim();
   if (!cid && !nm) return [];
 
-  // members who joined (so a member with no character yet still shows), with their names
-  const nameOf = {}; let members = [];
+  // owner of this adventure is its loremaster
+  let ownerId = '';
+  try { if (cid) { const cc = await wixData.get(COLLECTION, cid, { suppressAuth: true }).catch(() => null); ownerId = (cc && cc.ownerMemberId) || ''; } } catch (e) {}
+
+  // members who joined (so a member with no character yet still shows), with names and roles
+  const nameOf = {}; const roleOf = {}; let members = [];
   try {
     if (cid) {
       const rm = await wixData.query('AdventureMembers').eq('campaignId', cid).limit(500).find({ suppressAuth: true });
       members = rm.items;
-      members.forEach((m) => { if (m.memberId) nameOf[m.memberId] = m.name || ''; });
+      members.forEach((m) => { if (m.memberId) { nameOf[m.memberId] = m.name || ''; if (m.role) roleOf[m.memberId] = m.role; } });
     }
   } catch (e) { members = []; }
+  const roleAt = (mid) => (mid && ownerId && mid === ownerId) ? 'loremaster' : (roleOf[mid] || 'player');
 
   // characters linked to this adventure, by id with a legacy name fallback
   let chars = [];
@@ -201,12 +269,12 @@ export const getCampaignPlayers = webMethod(Permissions.Anyone, async (campaignI
     } catch (e) {}
     const mid = it.ownerMemberId || '';
     withChar[mid] = true;
-    out.push({ id: mid, memberId: mid, memberName: nameOf[mid] || '', charId: it._id, name: it.charName || '', level: lvl, maxVit: maxVit });
+    out.push({ id: mid, memberId: mid, memberName: nameOf[mid] || '', charId: it._id, name: it.charName || '', level: lvl, maxVit: maxVit, role: roleAt(mid) });
   });
   // joined members who have not attached a character yet
   members.forEach((m) => {
     if (m.memberId && !withChar[m.memberId]) {
-      out.push({ id: m.memberId, memberId: m.memberId, memberName: m.name || '', charId: null, name: m.name || 'Player', level: 1, maxVit: 0 });
+      out.push({ id: m.memberId, memberId: m.memberId, memberName: m.name || '', charId: null, name: m.name || 'Player', level: 1, maxVit: 0, role: roleAt(m.memberId) });
     }
   });
   return out.filter((p) => p.name || p.charId);

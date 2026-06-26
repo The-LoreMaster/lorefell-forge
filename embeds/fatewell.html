@@ -715,6 +715,11 @@ body.runner-mode #savedTag{ top:10px; right:104px; }
 .notes-block{ margin-bottom:6px; }
 .jump-bar{ display:flex; flex-wrap:wrap; gap:6px; margin:2px 0 10px; }
 .notes-tools{ display:flex; justify-content:flex-end; gap:6px; margin:0 0 8px; }
+.ros-role{ font-family:'Cinzel',serif; font-size:.62rem; letter-spacing:.08em; text-transform:uppercase; padding:2px 7px; border-radius:6px; border:1px solid var(--line2); color:var(--muted); margin-left:6px; vertical-align:middle; }
+.ros-role.r-loremaster{ color:var(--ice); border-color:rgba(184,204,216,.55); }
+.ros-role.r-lorekeeper{ color:var(--silver); border-color:var(--line2); }
+.ros-roles{ display:flex; flex-wrap:wrap; gap:6px; margin:2px 0 8px; }
+.ros-roles .mini.on{ border-color:rgba(184,204,216,.6); color:var(--ice); }
 .jump-bar.foot{ margin-top:12px; }
 .jump-chip{
   font-family:'Crimson Pro',serif; font-size:.82rem;
@@ -1460,6 +1465,7 @@ window.addEventListener('message', function(ev){
     /* hosted: the page opens one campaign by id, optionally with its saved contents */
     WIX.connected = true; WIX.loaded = true; WIX.hosted = true;
     WIX.campaignId = m.campaignId || null;
+    if (m.role && m.campaignId){ window._viewerRole = window._viewerRole || {}; window._viewerRole[m.campaignId] = m.role; }
     var incoming = (m.data && m.data.campaign) ? m.data.campaign : null;
     if (incoming){
       incoming.id = WIX.campaignId || incoming.id;
@@ -1497,6 +1503,8 @@ window.addEventListener('message', function(ev){
     /* hosted as a hub: the tool owns the adventure list and persists each one to the
        account, stamped with this member as its loremaster. */
     WIX.connected = true; WIX.loaded = true; WIX.hosted = true; WIX.hub = true;
+    window._viewerRole = window._viewerRole || {};
+    (m.campaigns || []).forEach(function(w){ if (w && w.id) window._viewerRole[w.id] = w.role || 'loremaster'; });
     adoptHostedCampaigns(m.campaigns || []);
     persistLocalCampaigns();
     saveLocal(); render();
@@ -1532,9 +1540,20 @@ window.addEventListener('message', function(ev){
     WIX.connected = true;
     if (Array.isArray(m.players)){
       S.wixPlayers = m.players;
+      window._memberRoles = {};
+      m.players.forEach(function(p){ if (p.memberId) window._memberRoles[p.memberId] = p.role || 'player'; });
       autoMergePlayers(m.campaignId);
       save(); render(); requestSealed();
     }
+  }
+  if (m.type === 'lmtool-role'){
+    window._viewerRole = window._viewerRole || {};
+    if (m.campaignId) window._viewerRole[m.campaignId] = m.role || '';
+    render();
+  }
+  if (m.type === 'lmtool-role-set'){
+    if (!m.ok && m.error) alert(m.error);
+    render();
   }
   if (m.type === 'lmtool-forge'){
     WIX.connected = true;
@@ -2599,6 +2618,17 @@ function savePlayer(id){
   if (id){ c.players.forEach(function(p){ if(p.id===id){ p.name=name; p.level=lvl; p.maxVit=mv; } }); }
   else { c.players.push({ id:uid(), offline:true, wixId:null, charId:null, name:name, level:lvl, maxVit:mv }); }
   closeModal(); save(); render();
+}
+function roleLabel(r){ return r==='loremaster' ? 'Loremaster' : (r==='lorekeeper' ? 'Lorekeeper' : 'Player'); }
+function setRole(memberId, role){
+  var c = curC(); if (!c || !memberId) return;
+  if (!WIX.hosted){ advNote('Roles need the site', 'Per-adventure roles work when FateWell runs on lorefell.com.'); return; }
+  postToWix({ type:'lmtool-set-role', campaignId: WIX.campaignId || c.id, memberId: memberId, role: role });
+}
+function promoteLoremaster(memberId, label){
+  askConfirm('Make ' + (label||'this player') + ' the loremaster? You step down to lorekeeper. An adventure has one loremaster.', function(){
+    setRole(memberId, 'loremaster');
+  }, 'Make loremaster');
 }
 function editPlayer(id){ var c=curC(),p; c.players.forEach(function(x){ if(x.id===id) p=x; }); playerModal(p); }
 function deletePlayer(id){
@@ -4162,8 +4192,19 @@ function playersBlock(){
       if (!byMember[k]){ byMember[k] = { key:k, label:esc(p.memberName||p.name), offline:false, rows:[] }; groups.push(byMember[k]); }
       byMember[k].rows.push(p);
     });
+    var viewerRole = (window._viewerRole && window._viewerRole[c.id]) || (WIX.hub ? 'loremaster' : '');
     groups.forEach(function(g){
-      h += '<div class="ros-group"><div class="ros-head">'+g.label+(g.offline?' <span class="ros-off">offline</span>':'')+'</div>';
+      var gmid = (g.rows[0] || {}).memberId || '';
+      var grole = g.offline ? '' : ((window._memberRoles && window._memberRoles[gmid]) || 'player');
+      var roleTag = (!g.offline && grole) ? ' <span class="ros-role r-'+grole+'">'+roleLabel(grole)+'</span>' : '';
+      h += '<div class="ros-group"><div class="ros-head">'+g.label+(g.offline?' <span class="ros-off">offline</span>':'')+roleTag+'</div>';
+      if (viewerRole==='loremaster' && !g.offline && gmid && grole!=='loremaster'){
+        h += '<div class="ros-roles">'
+          + '<button class="mini ghost'+(grole==='player'?' on':'')+'" onclick="setRole(\''+gmid+'\',\'player\')">Player</button>'
+          + '<button class="mini ghost'+(grole==='lorekeeper'?' on':'')+'" onclick="setRole(\''+gmid+'\',\'lorekeeper\')">Lorekeeper</button>'
+          + '<button class="mini ghost" onclick="promoteLoremaster(\''+gmid+'\',\''+esc(g.label).replace(/'/g,"")+'\')">Make loremaster</button>'
+          + '</div>';
+      }
       g.rows.forEach(function(p){
         var seal = sealedFor(p);
         var nameCell = p.charId ? esc(p.name) : (g.offline ? esc(p.name) : '<span class="muted">no character attached yet</span>');

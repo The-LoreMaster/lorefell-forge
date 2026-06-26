@@ -4,7 +4,7 @@
 // campaignId. The tool requests forge, assets, and glossary on load; those are
 // answered from canon Creations, an owner-scoped Assets collection, and a Glossary collection.
 
-import { loadCampaign, saveCampaign, deleteCampaign, listMyCampaigns, getSealed, getForgeLibrary, listAssets, saveAsset, deleteAsset, listGlossary, getCampaignPlayers, detachCharacter, assignClue } from 'backend/fatewell.web.js';
+import { loadCampaign, saveCampaign, deleteCampaign, listMyCampaigns, getSealed, getForgeLibrary, listAssets, saveAsset, deleteAsset, listGlossary, getCampaignPlayers, detachCharacter, assignClue, setMemberRole, myAdventureRole } from 'backend/fatewell.web.js';
 import { getFoePack } from 'backend/forge.web.js';
 import { createInvite, revokeInvite } from 'backend/invites.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
@@ -73,7 +73,8 @@ $w.onReady(() => {
         type: 'lmtool-open',
         campaignId: campaignId,
         title: (blob && blob.title) || 'Campaign',
-        data: (blob && blob.data) ? { campaign: blob.data } : null
+        data: (blob && blob.data) ? { campaign: blob.data } : null,
+        role: (blob && blob.role) || ''
       });
       let players = [];
       try { players = await getCampaignPlayers(campaignId, (blob && blob.title) || ''); } catch (e) { players = []; }
@@ -99,6 +100,17 @@ $w.onReady(() => {
       let players = [];
       try { players = await getCampaignPlayers(cid, ''); } catch (e) { players = []; }
       embed.postMessage({ type: 'lmtool-players', campaignId: cid, players: players });
+    } else if (m.type === 'lmtool-set-role') {
+      const cid = m.campaignId || campaignId;
+      let res = null;
+      try { res = await setMemberRole(cid, m.memberId, m.role); } catch (e) { res = null; }
+      let players = [];
+      try { players = await getCampaignPlayers(cid, ''); } catch (e) { players = []; }
+      let myRole = '';
+      try { myRole = await myAdventureRole(cid); } catch (e) { myRole = ''; }
+      embed.postMessage({ type: 'lmtool-role-set', ok: !!(res && res.ok), transferred: !!(res && res.transferred), error: (res && res.error) || '', campaignId: cid });
+      embed.postMessage({ type: 'lmtool-players', campaignId: cid, players: players });
+      embed.postMessage({ type: 'lmtool-role', campaignId: cid, role: myRole });
     } else if (m.type === 'lmtool-foepack-request') {
       let pack = null;
       try { pack = await getFoePack(); } catch (e) { pack = null; }
