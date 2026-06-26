@@ -3,7 +3,7 @@
 // EMBED to its element ID. The character to show is taken from the page URL query
 // charId, which your character list page sets when a player taps a character.
 
-import { listMyCharacters, loadCharacter, saveCharacter } from 'backend/characters.web.js';
+import { listMyCharacters, myAdventures, loadCharacter, saveCharacter } from 'backend/characters.web.js';
 import { getClueCards } from 'backend/fatewell.web.js';
 import { getLibraries } from 'backend/libraries.web.js';
 import wixLocation from 'wix-location';
@@ -45,6 +45,9 @@ $w.onReady(() => {
       const list = await listChars();
       if (!charId && list.length) charId = list[0].id;
       embed.postMessage({ type: 'characters', list: list, currentId: charId || '' });
+      let adventures = [];
+      try { adventures = await myAdventures(); } catch (e) { adventures = []; }
+      embed.postMessage({ type: 'adventures', list: adventures });
       await openCharacter(charId, libraries);
     } else if (msg.type === 'select-character') {
       charId = msg.charId || '';

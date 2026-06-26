@@ -338,7 +338,7 @@ h3{font-family:var(--head);font-weight:500;font-size:12px;letter-spacing:.12em;t
 <body>
 
 <div class="char-switch" id="charSwitch" style="display:none">
-  <label class="cs-l" for="charSel">Fell</label>
+  <label class="cs-l" for="charSel">Choose Your Fell</label>
   <select id="charSel" class="cs-sel" aria-label="Choose a Fell"></select>
 </div>
 
@@ -401,7 +401,7 @@ h3{font-family:var(--head);font-weight:500;font-size:12px;letter-spacing:.12em;t
       <div><label class="fld">Origin</label><select id="f-origin"></select></div>
     </div>
     <div style="margin-top:10px"><label class="fld">Motivation</label><select id="f-motivation"></select></div>
-    <div style="margin-top:10px"><label class="fld">Campaign</label><input id="f-campaign" placeholder="Campaign name"></div>
+    <div style="margin-top:10px"><label class="fld">Campaign</label><select id="f-campaign"><option value="">No campaign</option></select></div>
     <p class="note" style="margin-top:6px" id="grantNote"></p>
     <div id="motivationCard" style="margin-top:12px"></div>
     <div style="margin-top:10px">
@@ -839,7 +839,7 @@ function uid(){ return Math.random().toString(36).slice(2,10); }
 let CUR_WIX_ID="";
 let CUR_LOCAL_ID="";
 let C={
-  identity:{name:"",desc:"",lineage:"",origin:"",motivation:"",motivationPurpose:"",lineageDesc:"",campaign:""},
+  identity:{name:"",desc:"",lineage:"",origin:"",motivation:"",motivationPurpose:"",lineageDesc:"",campaign:"",campaignId:""},
   grants:{skills:{},attrs:{}},created:false,portrait:"",titles:[],
   attrs:{},vitality:{temp:0,current:5,max:5},
   lore:{level:1,lorePoints:0,skyvaultShards:0,paragonPoints:0},
@@ -960,8 +960,7 @@ $("f-name").addEventListener("input",e=>{C.identity.name=e.target.value;$("headN
 $("f-desc").addEventListener("input",e=>{C.identity.desc=e.target.value;});
 function syncIdentityLock(){
   const locked=C.created&&!god;
-  [["f-name","A forged name holds. Changing it requires the LoreMaster."],
-   ["f-campaign","Campaign assignment is the LoreMaster's to change."]].forEach(([id,msg])=>{
+  [["f-name","A forged name holds. Changing it requires the LoreMaster."]].forEach(([id,msg])=>{
     const n=$(id);
     n.readOnly=locked;
     n.title=locked?msg:"";
@@ -984,8 +983,33 @@ function syncIdentityLock(){
   ms.style.opacity=motLocked?".7":"";
   /* forging happens once; the button leaves with it */
   $("ccBtn").style.display=C.created?"none":"";
+  renderCampaignOptions();
 }
-$("f-campaign").addEventListener("input",e=>{C.identity.campaign=e.target.value;$("headCampaign").textContent=e.target.value||"No campaign";});
+let ADVS=[];
+function renderCampaignOptions(){
+  var sel=$("f-campaign"); if(!sel) return;
+  var curId=C.identity.campaignId||"", curName=C.identity.campaign||"";
+  var html='<option value="">No campaign</option>', matched=false;
+  ADVS.forEach(function(a){
+    var on=(curId&&a.id===curId)||(!curId&&curName&&a.name===curName);
+    if(on)matched=true;
+    html+='<option value="'+csEsc(a.id)+'"'+(on?" selected":"")+'>'+csEsc(a.name)+'</option>';
+  });
+  if(curName&&!matched){ html+='<option value="__keep__" selected>'+csEsc(curName)+'</option>'; }
+  sel.innerHTML=html;
+  // a single joined adventure auto-fills when nothing is set yet
+  if(!curName&&!curId&&ADVS.length===1){ sel.value=ADVS[0].id; C.identity.campaign=ADVS[0].name; C.identity.campaignId=ADVS[0].id; }
+  // keep the id linked when only a legacy name was stored
+  if(!curId&&curName){ var m=ADVS.find(function(a){return a.name===curName;}); if(m)C.identity.campaignId=m.id; }
+  $("headCampaign").textContent=(C.identity.campaign||"No campaign");
+}
+$("f-campaign").addEventListener("change",function(e){
+  var v=e.target.value;
+  if(v==="__keep__")return;
+  if(!v){ C.identity.campaign=""; C.identity.campaignId=""; }
+  else { var a=ADVS.find(function(x){return x.id===v;}); if(a){ C.identity.campaign=a.name; C.identity.campaignId=a.id; } }
+  $("headCampaign").textContent=C.identity.campaign||"No campaign";
+});
 function ensureOption(sel,val){
   if(!val)return;
   if(![...sel.options].some(o=>o.value===val)){
@@ -1383,6 +1407,7 @@ function ccApply(){
   }
   if(CC&&CC.forge)C.forge=CC.forge;
   C.identity.campaign=C.identity.campaign||"";
+  C.identity.campaignId=C.identity.campaignId||"";
   C.identity.name=CC.name||"";
   C.identity.desc=CC.desc||"";
   if(CC.name){$("f-name").value=CC.name;$("headName").textContent=CC.name;}
@@ -2427,6 +2452,7 @@ window.onmessage=ev=>{
   else if(d.type==="new"){ if(d.forge){ccOpenForge(d.forge);} else {ccOpen();} CUR_WIX_ID=d.charId||""; CUR_LOCAL_ID=uid(); }
   else if(d.type==="saved"){ if(d.localId&&d.localId===CUR_LOCAL_ID&&d.charId) CUR_WIX_ID=d.charId; }
   else if(d.type==="characters"){ CHARS=Array.isArray(d.list)?d.list:[]; CUR_SEL=d.currentId||""; renderCharSwitch(); }
+  else if(d.type==="adventures"){ ADVS=Array.isArray(d.list)?d.list:[]; renderCampaignOptions(); }
 };
 postToVelo({type:"ready"});
 document.addEventListener("input",scheduleSave);

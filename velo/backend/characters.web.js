@@ -30,6 +30,29 @@ export const listMyCharacters = webMethod(Permissions.Anyone, async () => {
   }));
 });
 
+export const myAdventures = webMethod(Permissions.Anyone, async () => {
+  const id = await memberId();
+  if (!id) return [];
+  const ids = {};
+  try {
+    const mem = await wixData.query('AdventureMembers').eq('memberId', id).limit(200).find({ suppressAuth: true });
+    mem.items.forEach((r) => { if (r.campaignId) ids[r.campaignId] = true; });
+  } catch (e) {}
+  try {
+    const own = await wixData.query('Campaigns').eq('ownerMemberId', id).limit(200).find({ suppressAuth: true });
+    own.items.forEach((r) => { ids[r._id] = true; });
+  } catch (e) {}
+  const out = [];
+  for (const cid of Object.keys(ids)) {
+    try {
+      const c = await wixData.get('Campaigns', cid, { suppressAuth: true }).catch(() => null);
+      if (c) out.push({ id: cid, name: c.name || 'Adventure' });
+    } catch (e) {}
+  }
+  out.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  return out;
+});
+
 export const loadCharacter = webMethod(Permissions.Anyone, async (charId) => {
   const id = await memberId();
   const r = await wixData.get(COLLECTION, charId, { suppressAuth: true }).catch(() => null);
