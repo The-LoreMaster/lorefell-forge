@@ -660,6 +660,9 @@
 .lg-filters{display:flex;gap:6px}
 .lg-f{font-family:'Cinzel',serif;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--silver-dim);background:var(--navy-2);border:1px solid var(--line);padding:7px 12px;cursor:pointer}
 .lg-f.on{color:var(--silver);border-color:var(--gold);box-shadow:inset 0 -2px 0 var(--gold)}
+.lg-controls{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}
+.lg-sel{font-family:'Cinzel',serif;font-size:12px;letter-spacing:.05em;color:var(--silver);background:var(--navy-2);border:1px solid var(--line);border-radius:7px;padding:7px 10px;cursor:pointer}
+.lg-sel:focus{outline:none;border-color:var(--gold)}
 .lg-pager{display:flex;justify-content:center;align-items:center;gap:6px;flex-wrap:wrap;margin:16px 0 2px}
 .lg-pg{min-width:34px;padding:7px 11px;font-family:'Cinzel',serif;font-size:12px;letter-spacing:.06em;color:var(--ice);background:var(--navy);border:1px solid var(--line);border-radius:7px;cursor:pointer}
 .lg-pg[aria-current="true"]{color:var(--silver);border-color:var(--gold);box-shadow:inset 0 -2px 0 var(--gold)}
@@ -708,6 +711,32 @@
         <button type="button" class="lg-f" data-scope="mine">Mine</button>
       </div>
       <button type="button" class="lg-refresh" id="lgRefresh">Reload</button>
+    </div>
+    <div class="lg-controls">
+      <select id="lgKind" class="lg-sel" aria-label="Filter by type">
+        <option value="">All types</option>
+        <option value="ability">Ability</option>
+        <option value="spell">Spell</option>
+        <option value="foe">Foe</option>
+      </select>
+      <select id="lgTier" class="lg-sel" aria-label="Filter by tier">
+        <option value="">All tiers</option>
+        <option value="1">Tier 1</option>
+        <option value="2">Tier 2</option>
+        <option value="3">Tier 3</option>
+      </select>
+      <select id="lgStatus" class="lg-sel" aria-label="Filter by status">
+        <option value="">All statuses</option>
+        <option value="submitted">Submitted</option>
+        <option value="voting">In Vote</option>
+        <option value="canon">Canon</option>
+      </select>
+      <select id="lgSort" class="lg-sel" aria-label="Sort">
+        <option value="newest">Newest</option>
+        <option value="votes">Most votes</option>
+        <option value="tier">Tier, high to low</option>
+        <option value="name">Name, A to Z</option>
+      </select>
     </div>
     <div class="lg-state" id="lgState">Loading the LoreForge...</div>
     <div class="lg-list" id="lgList"></div>
@@ -2868,6 +2897,8 @@ lmEl("lmSend").addEventListener("click", function(){
 let lgScope = "all";
 let lgItems = [];
 let lgPage = 0;
+let lgRaw = [];
+let lgKind = "", lgTier = "", lgStatus = "", lgSort = "newest";
 function loadLedger(scope){
   lgScope = scope || "all";
   lgPage = 0;
@@ -2896,14 +2927,48 @@ function runeSrc(u){
   }
   return u;
 }
+function lgNorm(items){
+  return (items || []).map(function(it){
+    var t = 0, k = (it.kind === "foe") ? "foe" : "ability";
+    try {
+      var pj = JSON.parse(it.payload || "{}"); var mt = pj.meta || {};
+      t = pj.tier || 0;
+      if(it.kind !== "foe") k = (mt.type === "Spell") ? "spell" : "ability";
+    } catch(e){}
+    it._tier = t; it._kind = k;
+    return it;
+  });
+}
+function lgFilterSort(){
+  var v = lgRaw.slice();
+  if(lgKind) v = v.filter(function(it){ return it._kind === lgKind; });
+  if(lgTier) v = v.filter(function(it){ return String(it._tier) === lgTier; });
+  if(lgStatus) v = v.filter(function(it){ return (it.canonStatus || "submitted") === lgStatus; });
+  if(lgSort === "votes") v.sort(function(a,b){ return (b.voteCount||0) - (a.voteCount||0); });
+  else if(lgSort === "tier") v.sort(function(a,b){ return (b._tier||0) - (a._tier||0); });
+  else if(lgSort === "name") v.sort(function(a,b){ return String(a.creationName||"").localeCompare(String(b.creationName||"")); });
+  return v;
+}
+function applyLedger(){ renderLedgerView(lgFilterSort()); }
 function renderLedger(items){
+  lgRaw = lgNorm(items);
+  lgPage = 0;
+  var st = document.getElementById("lgState");
+  if(!Array.isArray(lgRaw) || !lgRaw.length){
+    if(st){ st.style.display = ""; st.textContent = lgScope === "mine"
+      ? "You have not forged anything yet."
+      : "Nothing in the LoreForge yet. Forge the first."; }
+    var list = document.getElementById("lgList"); if(list) list.innerHTML = "";
+    return;
+  }
+  applyLedger();
+}
+function renderLedgerView(items){
   const st = document.getElementById("lgState");
   const list = document.getElementById("lgList");
   if(!list) return;
   if(!Array.isArray(items) || !items.length){
-    if(st){ st.style.display = ""; st.textContent = lgScope === "mine"
-      ? "You have not forged anything yet."
-      : "Nothing in the LoreForge yet. Forge the first."; }
+    if(st){ st.style.display = ""; st.textContent = "No forgings match these filters."; }
     list.innerHTML = "";
     return;
   }
@@ -2952,7 +3017,7 @@ function renderLedger(items){
   list.querySelectorAll(".lg-vote").forEach(function(btn){
     btn.addEventListener("click", function(){ castVote(btn); });
   });
-  list.querySelectorAll(".lg-pg[data-pg]").forEach(function(b){ b.addEventListener("click", function(){ var n=+b.getAttribute("data-pg"); if(n!==lgPage){ lgPage=n; renderLedger(lgItems); if(list.scrollIntoView) list.scrollIntoView({block:"start"}); } }); });
+  list.querySelectorAll(".lg-pg[data-pg]").forEach(function(b){ b.addEventListener("click", function(){ var n=+b.getAttribute("data-pg"); if(n!==lgPage){ lgPage=n; applyLedger(); if(list.scrollIntoView) list.scrollIntoView({block:"start"}); } }); });
 }
 function castVote(btn){
   if(!btn || btn.disabled) return;
@@ -2971,6 +3036,7 @@ function applyVoteResult(m){
       btn.classList.add("voted"); btn.disabled = true;
     }
     lgItems.forEach(function(it){ if(it.creationId === m.creationId && m.voteCount != null) it.voteCount = m.voteCount; });
+    lgRaw.forEach(function(it){ if(it.creationId === m.creationId && m.voteCount != null) it.voteCount = m.voteCount; });
     toast(m.already ? "You already lent your voice to this." : "Your voice is counted.");
   } else {
     if(btn) btn.disabled = false;
@@ -3008,6 +3074,18 @@ function remixFrom(it){
 }
 document.querySelectorAll(".lg-f").forEach(function(b){
   b.addEventListener("click", function(){ loadLedger(b.dataset.scope); });
+});
+["lgKind","lgTier","lgStatus","lgSort"].forEach(function(id){
+  var el = document.getElementById(id);
+  if(!el) return;
+  el.addEventListener("change", function(){
+    lgKind = (document.getElementById("lgKind")||{}).value || "";
+    lgTier = (document.getElementById("lgTier")||{}).value || "";
+    lgStatus = (document.getElementById("lgStatus")||{}).value || "";
+    lgSort = (document.getElementById("lgSort")||{}).value || "newest";
+    lgPage = 0;
+    if(lgRaw.length) applyLedger();
+  });
 });
 (function(){ const r = document.getElementById("lgRefresh"); if(r) r.addEventListener("click", function(){ loadLedger(lgScope); }); })();
 </script>
