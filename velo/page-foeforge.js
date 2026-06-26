@@ -133,7 +133,19 @@ $w.onReady(() => {
 
     if (msg.type === 'FOE_SAVE') {
       let res = { ok: false };
-      try { res = await saveFoe(msg.payload || {}); } catch (e) { res = { ok: false }; }
+      const p = msg.payload || {};
+      try {
+        // The image rides inside the saved payload JSON. A base64 data URI would push the
+        // row past the per-document size limit, so upload it to a media URL first. This is
+        // the same step the submit path already takes.
+        if (p.image && String(p.image).indexOf('data:') === 0) {
+          try { p.image = await uploadRune(p.image, uniqName(p.name || 'foe')); }
+          catch (e) { p.image = ''; }
+        }
+        res = await saveFoe(p);
+      } catch (e) {
+        res = { ok: false, errors: [String((e && e.message) || e)] };
+      }
       embed.postMessage({ type: 'FOE_SAVED', ok: !!res.ok, foeId: res.foeId || '', errors: res.errors || [] });
       return;
     }
