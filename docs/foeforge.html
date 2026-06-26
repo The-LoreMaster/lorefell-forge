@@ -1916,14 +1916,22 @@ function assembleActs(ai,extra){
 }
 function generateFromTheme(theme){
   const t=(theme||"").toLowerCase(),has=(...w)=>w.some(x=>t.includes(x));
-  const atk=has("mage","spell","arcane","curse","witch","sorcer","hex","occult","rune")?"Magic"
-          :has("blade","arrow","hunt","precise","quick","duel","assassin","knife","archer","spear")?"Precision":"Power";
-  const dfn=has("shadow","fast","evasive","ghost","flicker","nimble","drown","deep")?"Evasion"
-          :has("ward","holy","resist","sacred","glyph","seal")?"Resistance":"Durability";
+  const atkSig=has("mage","spell","arcane","curse","witch","sorcer","hex","occult","rune")?"Magic"
+          :has("blade","arrow","hunt","precise","quick","duel","assassin","knife","archer","spear")?"Precision":null;
+  const dfnSig=has("shadow","fast","evasive","ghost","flicker","nimble","drown","deep")?"Evasion"
+          :has("ward","holy","resist","sacred","glyph","seal")?"Resistance":null;
+  const atk=atkSig||"Power", dfn=dfnSig||"Durability";
   const B=PACK.builds;
-  const b=B.find(x=>x.attackAttributes.includes(atk)&&x.defenseAttributes.includes(dfn))
-        ||B.find(x=>x.attackAttributes.includes(atk)&&x.category==="attack-wall")
-        ||B.find(x=>x.attackAttributes.includes(atk))||B[0];
+  // When the theme names an attack style, pick at random among the builds that fit it,
+  // narrowing to the defense style when that is named too. With no attack signal (most
+  // of the random themes), draw from the full roster so every roll can differ.
+  let cands;
+  if(atkSig){
+    cands=B.filter(x=>x.attackAttributes.includes(atk));
+    if(dfnSig){const wd=cands.filter(x=>x.defenseAttributes.includes(dfn));if(wd.length)cands=wd;}
+  } else { cands=B.slice(); }
+  if(!cands.length)cands=B.slice();
+  const b=pick(cands);
   const stance=b.defenseAttributes.includes("Evasion")?"Shrouded":b.defenseAttributes.includes("Resistance")?"Vestments":"Stalwart";
   const map=[["fire|burn|ember|ash|cinder|flame","Ignited"],["fear|terror|dread|horror","Terrorized"],
     ["rot|decay|plague|disease|sick|fester","Infected"],["cold|frost|ice|freeze","Frozen"],
@@ -1931,7 +1939,7 @@ function generateFromTheme(theme){
     ["mind|mad|confus|whisper|voice","Disoriented"],["drown|deep|water|sink|tide","Slashed"]];
   let sig=null; for(const[re,n]of map){if(new RegExp(re).test(t)&&AFF[n]){sig=n;break;}} if(!sig)sig=pick(PACK.afflictions).name;
   const fam=b.attackAttributes, famInf=PACK.infusions.filter(i=>fam.includes(i.family));
-  const infs=fam.length?famInf.slice(0,3).map(i=>i.name):[];
+  const infs=fam.length?famInf.slice().sort(()=>Math.random()-0.5).slice(0,3).map(i=>i.name):[];
   const augs=PACK.augmentations.slice().sort(()=>Math.random()-0.5).slice(0,2).map(a=>a.name);
   const acts=[];[1,2,3].forEach(tr=>{const pool=LIBRARY.filter(a=>a.tier===tr);if(pool.length)acts.push(Object.assign({},pick(pool)));});
   const name=weaveName(theme);
@@ -2042,7 +2050,7 @@ function init(){
     const r=new FileReader();r.onload=ev=>{state.image=ev.target.result;renderCard();};r.readAsDataURL(f);});
   $("desc").addEventListener("input",e=>{state.description=e.target.value;renderCard();sizeFlip();});
   $("consultBtn").addEventListener("click",()=>runConsult($("theme").value));
-  $("randomBtn").addEventListener("click",()=>{state.shatterRating=(PACK.tiers[0]||{}).name||state.shatterRating;const th=pick(FOE_THEMES);$("theme").value=th;runConsult(th,{ai:false});});
+  $("randomBtn").addEventListener("click",()=>{state.shatterRating=(pick(PACK.tiers)||{}).name||state.shatterRating;const th=pick(FOE_THEMES);$("theme").value=th;runConsult(th,{ai:false});});
   $("saveAsBtn").addEventListener("click",()=>{state.foeId=null;doSave("private");});
   $("statBtn").addEventListener("click",()=>{const b=$("statCard");const show=b.style.display==="none";if(show){renderStatCard();b.style.display="";}else b.style.display="none";reportHeight();});
   async function runConsult(theme,opts){
