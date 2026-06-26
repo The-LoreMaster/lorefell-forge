@@ -83,6 +83,15 @@ async function handleSubmit(embed, raw) {
     imageUrl: imageUrl
   };
 
+  // Foe abilities are authored foe content. The tool fully validates the build against the
+  // foe vocabulary it carries; the vault re-checks the per-tier cost band rather than trying
+  // to rebuild the foe from components it may not hold. Regular abilities keep full
+  // component validation, since the vault carries those.
+  if (f.mode === 'monster') {
+    payload.authored = true;
+    if (typeof raw.cost === 'number') payload.cost = raw.cost;
+  }
+
   let similar = [];
   try { similar = await findSimilar(FORGE_KEY, payload); } catch (e) { similar = []; }
 
