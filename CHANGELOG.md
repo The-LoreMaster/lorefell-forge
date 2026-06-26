@@ -4,6 +4,13 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-26 — FateWell: act, session, and scene card view with the descent spine
+
+- Acts, sessions, and scenes now render as a card grid with a cover, summary, child count, and an Open control. Each level carries a descent spine across the top, Adventure to Act to Session to Scene, with the live tier lit gold and the others tapped to jump
+- Reorder by dragging a card's grip, touch or mouse. The order saves to the underlying list, so play order and the runner follow it
+- A View toggle sits above each level, Cards or Classic. Classic keeps the old list with the up and down arrows. Cards is the default. Rename, cover, description, duplicate, and delete all work the same from the card menu
+- Roster and notes tabs, recap, and everything below the child list are untouched
+
 ## 2026-06-26 — FateWell: combat round is two steps, charging added
 
 - The combat round is now Commit then Resolve. The in-tool Player Intents step is gone, since players will declare on their own sheets once FellGlass combat is built. The LoreMaster commits every combatant's Act and focus in Commit, foes and NPCs alike, then resolves through Spotlights
