@@ -1451,6 +1451,11 @@ window.addEventListener('message', function(ev){
     window._foePackNames = { builds:names(pk.builds), stances:names(pk.stances), afflictions:names(pk.afflictions) };
     return;
   }
+  if (m.type === 'lmtool-publish-result'){
+    if (m.ok){ advNote('Published', (m.updated ? 'The directory copy was updated.' : 'It is now in the directory for others to import.')); }
+    else { advNote('Publish failed', m.error || 'It could not be published. Try again.'); }
+    return;
+  }
   if (m.type === 'lmtool-clue-assigned'){
     if (!m.ok){ alert('The clue could not be carded. Check the connection and try again.'); }
     return;
@@ -3868,6 +3873,45 @@ function readPack(input){
   reader.readAsText(f);
 }
 
+function buildAdventurePack(c){
+  var camp = JSON.parse(JSON.stringify(c));
+  /* a clean template: the recipient brings their own table */
+  camp.players = [];
+  var ids = {};
+  (camp.manualRefs || []).forEach(function(r){ ids[r] = 1; });
+  function scan(arr){ (arr || []).forEach(function(e){ if (e.speaker) ids[e.speaker] = 1; }); }
+  scan(camp.entries);
+  (camp.acts || []).forEach(function(a){
+    scan(a.entries);
+    (a.sessions || []).forEach(function(ss){
+      scan(ss.entries);
+      (ss.scenes || []).forEach(function(sc){ scan(sc.entries); if (sc.ps) sc.ps = {}; if (sc.att) sc.att = {}; sc.mode = 'roleplay'; (sc.hooks||[]).forEach(function(h){ h.fired = false; }); });
+    });
+  });
+  var npcs = [];
+  S.library.forEach(function(e){ if (e.type === 'npc' && ids[e.id]) npcs.push(JSON.parse(JSON.stringify(e))); });
+  return { meta: { format: 'lorefell-adventure-pack-1', builtAt: Date.now() }, campaign: camp, npcs: npcs };
+}
+function publishAdventure(id){
+  var c = null; S.campaigns.forEach(function(x){ if (x.id===id) c = x; });
+  if (!c) return;
+  if (!WIX.hosted){ advNote('Publishing needs the site', 'Publish to the directory when FateWell runs on lorefell.com.'); return; }
+  modal('<h3 class="m-title">Publish to the directory</h3>'
+    + '<p class="muted">This puts a copy of "'+esc(c.name)+'" in the directory. Anyone can import their own editable copy. It does not share your table, your players, or your live notes state.</p>'
+    + '<label class="lbl">Short blurb</label>'
+    + '<textarea class="inp" id="pubBlurb" rows="3" placeholder="A line or two so others know what it is."></textarea>'
+    + '<div class="m-row"><button class="btn ghost" onclick="closeModal()">Cancel</button>'
+    + '<button class="btn" onclick="doPublish(\''+id+'\')">Publish</button></div>');
+}
+function doPublish(id){
+  var c = null; S.campaigns.forEach(function(x){ if (x.id===id) c = x; });
+  if (!c) return;
+  var blurb = (document.getElementById('pubBlurb')||{}).value || '';
+  var pack = buildAdventurePack(c);
+  postToWix({ type:'lmtool-publish', campaignId:id, title:c.name||'Adventure', blurb:blurb, pack:pack });
+  closeModal();
+  modal('<h3 class="m-title">Publishing</h3><p class="muted">Sending "'+esc(c.name)+'" to the directory.</p><div class="m-row"><button class="btn" onclick="closeModal()">Done</button></div>');
+}
 function importPack(pack, msg){
   function fail(t){ if (msg){ msg.textContent = t; } else { alert(t); } }
   if (!pack || !pack.campaign || !Array.isArray(pack.npcs)
@@ -4007,7 +4051,7 @@ function cardItem(opts){
   var hasDesc = opts.desc && opts.desc.length;
   if (!window._cardMenus) window._cardMenus = {};
   var mid = 'm' + (window._cardMenuSeq = (window._cardMenuSeq||0) + 1);
-  window._cardMenus[mid] = { coverFn:opts.coverFn||'', renameFn:opts.renameFn||'', descFn:opts.descFn||'', dupFn:opts.dupFn||'', delFn:opts.delFn||'', title:opts.title };
+  window._cardMenus[mid] = { coverFn:opts.coverFn||'', renameFn:opts.renameFn||'', descFn:opts.descFn||'', dupFn:opts.dupFn||'', delFn:opts.delFn||'', pubFn:opts.pubFn||'', title:opts.title };
 
   var reorder = '';
   if (opts.upFn || opts.downFn){
@@ -4016,7 +4060,7 @@ function cardItem(opts){
       + '<button class="reorder-btn" title="Move down" onclick="event.stopPropagation();'+(opts.downFn||'')+'"'+(opts.downFn?'':' disabled')+'>&#8595;</button></span>';
   }
   var menuBtn = '';
-  if (opts.coverFn || opts.renameFn || opts.descFn || opts.delFn){
+  if (opts.coverFn || opts.renameFn || opts.descFn || opts.delFn || opts.pubFn){
     menuBtn = '<button class="card-menu-btn" title="Options" onclick="event.stopPropagation();cardMenu(\''+mid+'\')">&#8943;</button>';
   }
   /* plain card: arrows sit to the LEFT of the menu (one row).
@@ -4056,6 +4100,7 @@ function cardMenu(mid){
   if (m.descFn) h += '<button class="menu-item" onclick="closeModal();'+m.descFn+'">Description</button>';
   if (m.renameFn) h += '<button class="menu-item" onclick="closeModal();'+m.renameFn+'">Rename</button>';
   if (m.dupFn) h += '<button class="menu-item" onclick="closeModal();'+m.dupFn+'">Duplicate</button>';
+  if (m.pubFn) h += '<button class="menu-item" onclick="closeModal();'+m.pubFn+'">Publish to the directory</button>';
   if (m.delFn) h += '<button class="menu-item danger" onclick="closeModal();'+m.delFn+'">Delete</button>';
   h += '</div><div class="m-row"><button class="btn ghost" onclick="closeModal()">Cancel</button></div>';
   modal(h);
@@ -4119,7 +4164,7 @@ function scrCampaigns(){
   } else {
     S.campaigns.forEach(function(c){
       var sub = advSub(c);
-      h += cardItem({ img:c.img, desc:c.desc, title:c.name, sub:sub, openFn:'nav(\'campaign\',\''+c.id+'\')', coverFn:'setCover(\'c\',\''+c.id+'\')', descFn:'descModalC(\''+c.id+'\')', renameFn:'renameCampaign(\''+c.id+'\')', delFn:'deleteCampaign(\''+c.id+'\')' });
+      h += cardItem({ img:c.img, desc:c.desc, title:c.name, sub:sub, openFn:'nav(\'campaign\',\''+c.id+'\')', coverFn:'setCover(\'c\',\''+c.id+'\')', descFn:'descModalC(\''+c.id+'\')', renameFn:'renameCampaign(\''+c.id+'\')', delFn:'deleteCampaign(\''+c.id+'\')', pubFn:'publishAdventure(\''+c.id+'\')' });
     });
     h += '<button class="btn wide" onclick="addCampaign()">New Adventure</button>';
   }

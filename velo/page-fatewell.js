@@ -6,6 +6,7 @@
 
 import { loadCampaign, saveCampaign, deleteCampaign, listMyCampaigns, getSealed, getForgeLibrary, listAssets, saveAsset, deleteAsset, listGlossary, getCampaignPlayers, detachCharacter, assignClue, setMemberRole, myAdventureRole } from 'backend/fatewell.web.js';
 import { getFoePack } from 'backend/forge.web.js';
+import { publishAdventure } from 'backend/published.web.js';
 import { createInvite, revokeInvite } from 'backend/invites.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
 import wixLocation from 'wix-location';
@@ -111,6 +112,10 @@ $w.onReady(() => {
       embed.postMessage({ type: 'lmtool-role-set', ok: !!(res && res.ok), transferred: !!(res && res.transferred), error: (res && res.error) || '', campaignId: cid });
       embed.postMessage({ type: 'lmtool-players', campaignId: cid, players: players });
       embed.postMessage({ type: 'lmtool-role', campaignId: cid, role: myRole });
+    } else if (m.type === 'lmtool-publish') {
+      let res = null;
+      try { res = await publishAdventure(m.title, m.blurb, m.pack, m.campaignId); } catch (e) { res = { ok: false, error: String(e) }; }
+      embed.postMessage({ type: 'lmtool-publish-result', ok: !!(res && res.ok), updated: !!(res && res.updated), error: (res && res.error) || '' });
     } else if (m.type === 'lmtool-foepack-request') {
       let pack = null;
       try { pack = await getFoePack(); } catch (e) { pack = null; }
