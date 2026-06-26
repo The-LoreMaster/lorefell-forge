@@ -4,6 +4,13 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-26 — FateWell: combat round is two steps, charging added
+
+- The combat round is now Commit then Resolve. The in-tool Player Intents step is gone, since players will declare on their own sheets once FellGlass combat is built. The LoreMaster commits every combatant's Act and focus in Commit, foes and NPCs alike, then resolves through Spotlights
+- Foes and NPCs carry a Charge track on their resolve cards, three tiers, tapped to set or step down. Players have one too, ready to sync from their sheets later
+- The focus target formerly called Environment now reads Space. Auto and manual spotlights, the focus clusters, disruptions, loot, afflictions, and effects are all unchanged
+- Testing note: with no player declaration yet, a player only joins a spotlight when a foe focuses them. Untargeted players sit as Unengaged until FellGlass feeds their Acts in
+
 ## 2026-06-26 — FateWell: roleplay runner as a beat stepper
 
 - Running a roleplay scene now shows one beat at a time instead of a scroll. A dimmed preview of the previous beat sits above and the next below, both tappable, with a short flip on the move. A progress rail tracks the scene, and the beat image (or the speaking NPC's image on a dialogue beat with none attached) shows under the whole stack rather than inside the card

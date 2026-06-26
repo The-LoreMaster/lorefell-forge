@@ -1043,6 +1043,11 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 .rs-nav .rs-next{ margin-left:auto; }
 .rs-count{ font-size:11px; letter-spacing:.08em; color:var(--muted); }
 @media (prefers-reduced-motion:reduce){ .rs-card{ animation:none!important; } }
+.chg-row{ display:flex; align-items:center; gap:6px; margin-top:8px; }
+.chg-lbl{ font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); }
+.chg-pip{ width:26px; height:9px; border-radius:5px; border:1px solid var(--line); background:var(--navy-4,#1c2742); cursor:pointer; padding:0; }
+.chg-pip.on{ background:var(--gold); border-color:var(--gold); box-shadow:0 0 6px rgba(201,168,76,.4); }
+.chg-t{ font-size:9px; letter-spacing:.08em; color:var(--muted); margin-left:4px; }
 </style>
 </head>
 <body>
@@ -3168,9 +3173,22 @@ function setSpotMode(m){ curSc().battle.spotMode = m; save(); render(); }
 
 function setMonAct(cid, val){ curSc().combatants.forEach(function(c){ if(c.id===cid) c.act = val; }); save(); }
 function setMonTarget(cid, val){ curSc().combatants.forEach(function(c){ if(c.id===cid) c.target = val; }); save(); }
-function lockCommits(){ var b=curSc().battle; b.locked = true; b.phase='declare'; save(); render(); }
+function lockCommits(){ var b=curSc().battle; b.locked = true; b.phase='resolve'; save(); render(); }
 function unlockCommits(){
   curSc().battle.locked = false; save(); render();
+}
+/* charging: a basic attack lands to charge Tier 1, T1 to charge T2, T2 to charge T3,
+   then a T3 use resets. Tap a pip to set the tier, tap the lit top pip to step down. */
+function chargeRow(kind, id, lvl){
+  var pips='';
+  for (var t=1;t<=3;t++){ pips += '<button class="chg-pip'+(lvl>=t?' on':'')+'" title="Tier '+t+'" onclick="setCharge(\''+kind+'\',\''+id+'\','+t+')"></button>'; }
+  return '<div class="chg-row"><span class="chg-lbl">Charge</span>'+pips+'<span class="chg-t">'+(lvl?('T'+lvl+' ready'):'none')+'</span></div>';
+}
+function setCharge(kind, id, t){
+  var sc=curSc();
+  if (kind==='m'){ sc.combatants.forEach(function(c){ if(c.id===id){ c.charge = (c.charge===t? t-1 : t); } }); }
+  else { var st=pState(id); st.charge = (st.charge===t? t-1 : t); }
+  save(); render();
 }
 function setPAct(pid, val){ pState(pid).act = val; save(); }
 function setPReact(pid, val){ pState(pid).react = val; save(); }
@@ -3361,7 +3379,7 @@ function targetSelect(selfKey, selected, onchangeJs, disabled, id){
   var nodes = battleNodes();
   var h = '<select class="inp tsel" '+(id?'id="'+id+'" ':'')+(disabled?'disabled':'')+' onchange="'+onchangeJs+'">'
     + '<option value="">No target</option>'
-    + '<option value="env"'+(selected==='env'?' selected':'')+'>Environment / other</option>';
+    + '<option value="env"'+(selected==='env'?' selected':'')+'>Space</option>';
   nodes.forEach(function(n){
     if (n.key===selfKey) return;
     h += '<option value="'+n.key+'"'+(selected===n.key?' selected':'')+'>'+esc(n.name)+'</option>';
@@ -3371,7 +3389,7 @@ function targetSelect(selfKey, selected, onchangeJs, disabled, id){
 
 function targetName(key){
   if (!key) return '';
-  if (key==='env') return 'Environment';
+  if (key==='env') return 'Space';
   var n = nodeByKey(key);
   return n ? n.name : '';
 }
@@ -4572,6 +4590,7 @@ function resCardMon(cb, tier){
     + (cb.act ? '<div class="res-row click" onclick="toggleMonDone(\''+cb.id+'\')"><span class="check'+(cb.done?' on':'')+'"></span><span class="res-txt'+(cb.done?' done':'')+'">'+esc(cb.act)
         + (tn ? ' <span class="tgt">&rarr; '+esc(tn)+'</span>' : '') + '</span></div>'
       : '<div class="muted small-pad">No intent set</div>')
+    + chargeRow('m', cb.id, cb.charge||0)
     + affChips('m', cb.id, cb.affs)
     + '</div>';
 }
@@ -4594,6 +4613,7 @@ function resCardPlayer(p, tier){
         + (tn ? ' <span class="tgt">&rarr; '+esc(tn)+'</span>' : '') + '</span></div>'
       : '<div class="muted small-pad">No Act declared</div>')
     + (st.react ? '<div class="res-row click" onclick="togglePDone(\''+p.id+'\',\'react\')"><span class="check'+(st.reactDone?' on':'')+'"></span><span class="res-txt'+(st.reactDone?' done':'')+'">React: '+esc(st.react)+' <span class="tgt fluid">fluid</span></span></div>' : '')
+    + chargeRow('p', p.id, (pState(p.id).charge)||0)
     + affChips('p', p.id, st.affs)
     + '</div>';
 }
@@ -4605,9 +4625,10 @@ function tabCombat(sc){
     + '<button class="btn small" onclick="advanceRound()">Advance round &rarr;</button>'
     + '<button class="icon-btn" title="Reset battle" onclick="resetBattle()">&#8634;</button></div>';
 
+  if (b.phase==='declare') b.phase='resolve';
   h += '<div class="phases">';
-  var phaseLabels = { commit:'Enemy Intents', declare:'Player Intents', resolve:'Resolve' };
-  ['commit','declare','resolve'].forEach(function(p, i){
+  var phaseLabels = { commit:'Enemy Intents', resolve:'Resolve' };
+  ['commit','resolve'].forEach(function(p, i){
     h += '<button class="ph'+(b.phase===p?' on':'')+'" onclick="setPhase(\''+p+'\')">'+(i+1)+'. '+phaseLabels[p]+'</button>';
   });
   h += '</div>';
@@ -4620,43 +4641,14 @@ function tabCombat(sc){
     if (!sc.combatants.length){
       h += '<p class="muted pad">No combatants yet. Attach foes from the Roster tab.</p>';
     } else {
-      var mons = sc.combatants.filter(function(c){ return (c.side||'monster')==='monster'; });
-      if (!mons.length){ h += '<p class="muted pad">No foes committed. NPCs declare openly in Intents.</p>'; }
-      mons.forEach(function(cb){
-        h += '<div class="cm-row">'+rowThumb(cb.img, cb.name)+'<div class="cm-name">'+esc(cb.name)+'<span class="muted"> &middot; '+esc(cb.sr)+'</span></div>'
+      sc.combatants.forEach(function(cb){
+        var sub = (cb.side==='npc') ? '<span class="muted npc-tag"> NPC</span>' : '<span class="muted"> &middot; '+esc(cb.sr||'')+'</span>';
+        h += '<div class="cm-row">'+rowThumb(cb.img, cb.name)+'<div class="cm-name">'+esc(cb.name)+sub+'</div>'
           + intentInput('m:'+cb.id, cb, b.locked, true)
           + targetSelect('m:'+cb.id, cb.target, 'setMonTarget(\''+cb.id+'\',this.value)', b.locked)
           + '</div>';
       });
-      if (!b.locked) h += '<button class="btn wide" onclick="lockCommits()">Lock enemy intents and continue</button>';
-    }
-  }
-  h += '</section>';
-
-  /* declare */
-  var att = attendingPlayers();
-  h += '<section class="ph-sec'+(b.phase==='declare'?' lit':'')+'">'
-    + '<div class="ph-h"><span class="ph-label" onclick="setPhase(\'declare\')">Player Intents</span>'
-    + (b.pLocked ? '<button class="mini-unlock" onclick="unlockDecl()">Locked &middot; tap to unlock</button>' : '') + '</div>';
-  var npcs = sc.combatants.filter(function(c){ return c.side==='npc'; });
-  if (b.phase==='declare'){
-    if (!att.length && !npcs.length){
-      h += '<p class="muted pad">No attending players or NPCs. Mark attendance on the Roster tab, or add NPCs to combat.</p>';
-    } else {
-      att.forEach(function(p){
-        var st = pState(p.id);
-        h += '<div class="cm-row">'+rowThumb(p.img, p.name)+'<div class="cm-name">'+esc(p.name)+'</div>'
-          + intentInput('p:'+p.id, st, b.pLocked, false)
-          + targetSelect('p:'+p.id, st.target, 'setPTarget(\''+p.id+'\',this.value)', b.pLocked)
-          + '<input class="inp" value="'+esc(st.react)+'" '+(b.pLocked?'disabled':'')+' onchange="setPReact(\''+p.id+'\',this.value)" placeholder="React (optional, fluid)"></div>';
-      });
-      npcs.forEach(function(cb){
-        h += '<div class="cm-row">'+rowThumb(cb.img, cb.name)+'<div class="cm-name">'+esc(cb.name)+'<span class="muted npc-tag"> NPC</span></div>'
-          + intentInput('m:'+cb.id, cb, b.pLocked, true)
-          + targetSelect('m:'+cb.id, cb.target, 'setMonTarget(\''+cb.id+'\',this.value)', b.pLocked)
-          + '</div>';
-      });
-      if (!b.pLocked) h += '<button class="btn wide" onclick="lockDecl()">Lock player intents and resolve</button>';
+      if (!b.locked) h += '<button class="btn wide" onclick="lockCommits()">Lock intents and resolve</button>';
     }
   }
   h += '</section>';
