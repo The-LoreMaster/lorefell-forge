@@ -505,7 +505,10 @@ body.runner-mode #savedTag{ top:10px; right:104px; }
 .run-shell{ display:flex; flex-direction:column; height:100vh; height:100dvh; }
 .run-head{ flex:0 0 auto; background:var(--navy); border-bottom:1px solid var(--line); padding-bottom:7px; }
 .run-scroll{ flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding-top:12px; }
-.run-actions-bar{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:7px 0 1px; }
+.run-actions-bar{ display:flex; gap:10px; align-items:center; flex-wrap:nowrap; padding:7px 0 1px; }
+.run-actions-mid{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; flex:1 1 auto; }
+.beatnav-arrow{ flex:0 0 auto; background:var(--navy3); border:1px solid var(--line2); color:var(--silver); border-radius:8px; padding:9px 14px; cursor:pointer; font-size:1.15rem; line-height:1; }
+.beatnav-arrow:disabled{ opacity:.3; cursor:default; }
 .run-actions-bar .btn{ width:auto; flex:0 1 auto; }
 .run-actions-bar .lm-roll{ margin:0; }
 .run-board-info{ margin-top:16px; }
@@ -1105,6 +1108,11 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 .nc-body.clamp{ display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden; }
 .nc-more{ margin-top:6px; background:none; border:0; padding:0; cursor:pointer; font-family:var(--head,inherit); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--ice); }
 .nc-more:hover{ color:var(--gold); }
+.run-nav-lbl{ font-family:var(--head,inherit); font-size:9px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); align-self:center; margin-right:2px; }
+.run-step.gold-glow{ border-color:var(--gold); color:var(--gold); box-shadow:0 0 10px rgba(201,168,76,.45); animation:goldpulse 1.8s ease-in-out infinite; }
+.run-step.nextsess{ font-family:var(--head,inherit); font-size:11px; letter-spacing:.07em; text-transform:uppercase; padding:7px 12px; }
+@keyframes goldpulse{ 0%,100%{ box-shadow:0 0 6px rgba(201,168,76,.3);} 50%{ box-shadow:0 0 13px rgba(201,168,76,.6);} }
+@media (prefers-reduced-motion: reduce){ .run-step.gold-glow{ animation:none; } }
 </style>
 </head>
 <body>
@@ -5266,18 +5274,13 @@ function runnerStepper(sc){
   var rail = '';
   for (var k=0; k<list.length; k++){ rail += '<span class="rs-pip'+(k<i?' done':k===i?' now':'')+'"></span>'; }
   var h = '<div class="run-col run-narr run-stepper">';
-  h += '<div class="rs-top">'+runToggleHtml()+'<span class="rs-rail">'+rail+'</span></div>';
+  h += '<div class="rs-top">'+runToggleHtml()+'<span class="rs-rail">'+rail+'</span><span class="rs-count">Beat '+(i+1)+' of '+list.length+'</span></div>';
   h += '<div class="rs-stack">';
   if (i>0) h += stepPreview(list[i-1], 'prev', i-1);
   h += '<div class="rs-card t-'+(cur.type||'general')+enterCls+'">'+runStreamNote(cur, ref, sc, {noImg:true, plain:true})+'</div>';
   if (i<list.length-1) h += stepPreview(list[i+1], 'next', i+1);
   h += '</div>';
   h += stepImageHTML(cur);
-  h += '<div class="rs-nav">'
-    + '<button class="btn ghost rs-back" onclick="runBeatStep(-1)"'+(i<=0?' disabled':'')+'>&larr; Back</button>'
-    + '<span class="rs-count">Beat '+(i+1)+' of '+list.length+'</span>'
-    + '<button class="btn rs-next" onclick="runBeatStep(1)"'+(i>=list.length-1?' disabled':'')+'>Next &rarr;</button>'
-    + '</div>';
   h += '</div>';
   return h;
 }
@@ -5395,17 +5398,60 @@ function runStreamNote(e, ref, sc, opts){
 }
 
 /* frozen control strip: the actions the loremaster reaches for constantly */
+function nextSessionInfo(){
+  var c=curC(), s=curSe(); if(!c||!s) return null;
+  var acts = (c.acts && c.acts.length) ? c.acts : (curA()?[curA()]:[]);
+  var flat=[]; acts.forEach(function(ac){ (ac.sessions||[]).forEach(function(se){ flat.push({act:ac,ses:se}); }); });
+  var idx=-1; flat.forEach(function(x,i){ if(x.ses.id===s.id) idx=i; });
+  if (idx<0 || idx>=flat.length-1) return null;
+  return flat[idx+1];
+}
+function gotoNextSession(){
+  var nx=nextSessionInfo(); if(!nx) return;
+  V.aId=nx.act.id; V.sId=nx.ses.id;
+  var first=(nx.ses.scenes||[])[0];
+  if (first){ V.scId=first.id; if(!first.beatDone) first.beatDone={}; first.mode='roleplay'; first.runIdx=0; V.screen='runner'; }
+  else { V.scId=null; V.screen='session'; }
+  save(); render(); window.scrollTo(0,0);
+}
+/* Scene-level arrows. The forward arrow glows gold once you reach the last note of a
+   scene, then becomes Next Session once every scene in the session is complete. */
+function sceneNavControls(sc){
+  var mode = sc.mode||'roleplay';
+  var sibs = runnerSiblings();
+  var idx = sibs.map(function(x){return x.id;}).indexOf(V.scId);
+  var list = sortedEntries(sc.entries||[]);
+  var atEnd = (mode!=='combat') && list.length>0 && (sc.runIdx||0) >= list.length-1;
+  var lastScene = idx >= sibs.length-1;
+  var allDone = sibs.length>0 && sibs.every(function(x){ return x.status==='done'; });
+  var nx = nextSessionInfo();
+  var prev = '<button class="run-step" title="Previous scene" onclick="runnerStep(-1)"'+(idx<=0?' disabled':'')+'>&larr;</button>';
+  var next;
+  if (lastScene && allDone && nx){
+    next = '<button class="run-step gold-glow nextsess" onclick="gotoNextSession()">Next Session &rarr;</button>';
+  } else if (!lastScene){
+    next = '<button class="run-step'+(atEnd?' gold-glow':'')+'" title="Next scene" onclick="runnerStep(1)">&rarr;</button>';
+  } else {
+    next = '<button class="run-step" disabled>&rarr;</button>';
+  }
+  return '<div class="run-nav"><span class="run-nav-lbl">Scenes</span>'+prev+next+'</div>';
+}
 function runnerActions(sc, mode){
   var lr = window._lmRoll;
   var lrOut = lr ? ('<span class="roll-n'+(lr.tag?' '+lr.tag.toLowerCase():'')+'">'+lr.n+'</span>'+(lr.tag?'<span class="roll-tag '+lr.tag.toLowerCase()+'">'+lr.tag+'</span>':'')) : '<span class="muted">tap to roll</span>';
-  var h = '<div class="run-actions-bar">';
+  var stepper = (mode!=='combat' && !V.runList);
+  var _bl = sortedEntries(sc.entries||[]);
+  var _bi = (typeof sc.runIdx==='number'?sc.runIdx:0);
+  var _left = stepper ? '<button class="beatnav-arrow" title="Previous note" onclick="runBeatStep(-1)"'+(_bi<=0?' disabled':'')+'>&larr;</button>' : '';
+  var _right = stepper ? '<button class="beatnav-arrow" title="Next note" onclick="runBeatStep(1)"'+((_bi>=_bl.length-1||!_bl.length)?' disabled':'')+'>&rarr;</button>' : '';
+  var h = '<div class="run-actions-bar">'+_left+'<div class="run-actions-mid">';
   h += '<button class="btn ghost" onclick="runnerLogModal()">Log</button>';
   h += '<span class="lm-roll"><button class="qd-b" onclick="lmRoll()">Roll d6</button><span class="lm-roll-out">'+lrOut+'</span></span>';
   h += (mode==='combat')
     ? '<button class="btn ghost" onclick="deEscalateScene()">Return to roleplay</button>'
     : '<button class="btn escalate" onclick="escalateScene()">&#9876; Escalate to combat</button>';
   h += runnerCompleteBtn(sc);
-  h += '</div>';
+  h += '</div>'+_right+'</div>';
   return h;
 }
 
@@ -5668,9 +5714,7 @@ function scrRunner(){
     + ' <span class="mode-badge '+mode+'">'+(mode==='combat'?'Combat':'Roleplay')+'</span>'
     + (sc.status==='done'?' <span class="done-badge">Done</span>':'')+'</span>'
     + '<span class="run-pos">Scene '+(idx+1)+' of '+sibs.length+'</span></div>'
-    + '<div class="run-nav">'
-    + '<button class="run-step" onclick="runnerStep(-1)"'+(idx<=0?' disabled':'')+'>&larr;</button>'
-    + '<button class="run-step" onclick="runnerStep(1)"'+(idx>=sibs.length-1?' disabled':'')+'>&rarr;</button></div>'
+    + sceneNavControls(sc)
     + '</div>';
 
   var head = '<div class="run-head">' + bar + runnerActions(sc, mode) + '</div>';

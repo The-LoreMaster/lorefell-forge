@@ -4,6 +4,12 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-26 — FateWell: runner navigation, scene and note arrows separated
+
+- The top arrows are labeled Scenes. The note arrows moved off the bottom of the stack and now flank the action bar, fixed in place so they stop jumping as note length changes. The beat count sits in the top row
+- When you reach the last note of a scene, the note Next grays out and the Scenes forward arrow glows gold to cue the move
+- When every scene in the session is complete, the forward arrow turns into a glowing Next Session button that jumps to the first scene of the next session
+
 ## 2026-06-26 — FateWell: brighter spine parents, spine in the scene, roleplay on arrival
 
 - The descent spine's parent tiers read in ice instead of dim grey, so Adventure and Act stay legible while you are deeper in. The spine and view toggle now show inside a scene too
