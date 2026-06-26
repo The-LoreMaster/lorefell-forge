@@ -329,9 +329,18 @@ h3{font-family:var(--head);font-weight:500;font-size:12px;letter-spacing:.12em;t
 .clue-card .clue-title{font-family:'Cinzel',serif;color:var(--silver);margin-bottom:4px}
 .clue-card .clue-body{color:var(--ice);font-family:'Crimson Pro',serif;line-height:1.45;white-space:pre-wrap}
 .clue-card .clue-scene{color:var(--muted);font-size:11px;font-style:italic;margin-top:6px}
+.char-switch{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--navy-2);border-bottom:1px solid var(--line)}
+.char-switch .cs-l{font-family:'Cinzel',serif;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ice);flex:0 0 auto}
+.cs-sel{flex:1;min-width:0;font-family:'Crimson Pro',serif;font-size:15px;color:var(--silver);background:var(--navy-3);border:1px solid var(--line);border-radius:6px;padding:8px 10px}
+.cs-sel:focus{outline:none;border-color:var(--gold)}
 </style>
 </head>
 <body>
+
+<div class="char-switch" id="charSwitch" style="display:none">
+  <label class="cs-l" for="charSel">Fell</label>
+  <select id="charSel" class="cs-sel" aria-label="Choose a Fell"></select>
+</div>
 
 <header>
   <div class="hd-top">
@@ -2385,6 +2394,29 @@ function loadCharacter(rec){
    character into the creation wizard. */
 let bridged=false;
 setTimeout(()=>{if(!bridged&&!C.created){ccOpen();CUR_WIX_ID="";CUR_LOCAL_ID=uid();}},2500);
+let CHARS=[], CUR_SEL="";
+function csEsc(x){return String(x).replace(/[&<>"]/g,function(c){return ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c];});}
+function renderCharSwitch(){
+  var wrap=$("charSwitch"), sel=$("charSel"); if(!wrap||!sel) return;
+  var html="";
+  if(!CUR_SEL) html+='<option value="" selected>New Fell (unsaved)</option>';
+  CHARS.forEach(function(c){
+    var lbl=(c.name||"Unnamed Fell")+(c.level?(" \u00b7 Lv "+c.level):"");
+    html+='<option value="'+csEsc(c.id)+'"'+(c.id===CUR_SEL?" selected":"")+'>'+csEsc(lbl)+'</option>';
+  });
+  html+='<option value="__add__">+ New Fell</option>';
+  sel.innerHTML=html;
+  wrap.style.display="flex";
+}
+(function(){
+  var sel=$("charSel"); if(!sel) return;
+  sel.addEventListener("change",function(){
+    var v=sel.value;
+    if(v==="__add__"){ postToVelo({type:"add-character"}); }
+    else if(v && v!==CUR_SEL){ postToVelo({type:"select-character",charId:v}); }
+    else { renderCharSwitch(); }
+  });
+})();
 window.onmessage=ev=>{
   const d=ev&&ev.data;
   if(!d||typeof d!=="object"||!d.type)return;
@@ -2394,6 +2426,7 @@ window.onmessage=ev=>{
   else if(d.type==="clues"){ var sig=JSON.stringify(d.clues||[]); if(sig!==_clueSig){ _clueSig=sig; CLUES=d.clues||[]; renderClues(); } }
   else if(d.type==="new"){ if(d.forge){ccOpenForge(d.forge);} else {ccOpen();} CUR_WIX_ID=d.charId||""; CUR_LOCAL_ID=uid(); }
   else if(d.type==="saved"){ if(d.localId&&d.localId===CUR_LOCAL_ID&&d.charId) CUR_WIX_ID=d.charId; }
+  else if(d.type==="characters"){ CHARS=Array.isArray(d.list)?d.list:[]; CUR_SEL=d.currentId||""; renderCharSwitch(); }
 };
 postToVelo({type:"ready"});
 document.addEventListener("input",scheduleSave);

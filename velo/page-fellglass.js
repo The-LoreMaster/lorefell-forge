@@ -3,7 +3,7 @@
 // EMBED to its element ID. The character to show is taken from the page URL query
 // charId, which your character list page sets when a player taps a character.
 
-import { loadCharacter, saveCharacter } from 'backend/characters.web.js';
+import { listMyCharacters, loadCharacter, saveCharacter } from 'backend/characters.web.js';
 import { getClueCards } from 'backend/fatewell.web.js';
 import { getLibraries } from 'backend/libraries.web.js';
 import wixLocation from 'wix-location';
@@ -18,20 +18,44 @@ $w.onReady(() => {
     const msg = event.data;
     if (!msg || typeof msg !== 'object') return;
 
+    async function listChars() {
+      try { return await listMyCharacters(); } catch (e) { return []; }
+    }
+    async function sendCharacters(curId) {
+      const list = await listChars();
+      embed.postMessage({ type: 'characters', list: list, currentId: curId || '' });
+    }
+    async function openCharacter(id, libraries) {
+      if (libraries === undefined) { try { libraries = await getLibraries(); } catch (e) { libraries = {}; } }
+      if (!id) { embed.postMessage({ type: 'new', libraries: libraries, charId: '' }); return; }
+      let res = null;
+      try { res = await loadCharacter(id); } catch (e) { res = null; }
+      if (res && res.forged) {
+        embed.postMessage({ type: 'new', forge: res.seed || {}, libraries: libraries, charId: id });
+      } else if (res && res.character && res.character.created) {
+        embed.postMessage({ type: 'init', character: res.character, libraries: libraries, charId: id });
+      } else {
+        embed.postMessage({ type: 'new', libraries: libraries, charId: id });
+      }
+    }
+
     if (msg.type === 'ready') {
       let libraries = {};
       try { libraries = await getLibraries(); } catch (e) { libraries = {}; }
-      if (!charId) { embed.postMessage({ type: 'new', libraries: libraries, charId: '' }); return; }
-      let res = null;
-      try { res = await loadCharacter(charId); } catch (e) { res = null; }
-      if (res && res.forged) {
-        // Forged Fell, not yet built. Open creation pre-filled with the forged identity.
-        embed.postMessage({ type: 'new', forge: res.seed || {}, libraries: libraries, charId: charId });
-      } else if (res && res.character && res.character.created) {
-        embed.postMessage({ type: 'init', character: res.character, libraries: libraries, charId: charId });
-      } else {
-        embed.postMessage({ type: 'new', libraries: libraries, charId: charId });
-      }
+      const list = await listChars();
+      if (!charId && list.length) charId = list[0].id;
+      embed.postMessage({ type: 'characters', list: list, currentId: charId || '' });
+      await openCharacter(charId, libraries);
+    } else if (msg.type === 'select-character') {
+      charId = msg.charId || '';
+      await openCharacter(charId);
+      sendCharacters(charId);
+    } else if (msg.type === 'add-character') {
+      charId = '';
+      let libraries = {};
+      try { libraries = await getLibraries(); } catch (e) { libraries = {}; }
+      embed.postMessage({ type: 'new', libraries: libraries, charId: '' });
+      sendCharacters('');
     } else if (msg.type === 'clues-request') {
       let clues = [];
       try { clues = await getClueCards(msg.charId || charId); } catch (e) { clues = []; }
@@ -44,7 +68,9 @@ $w.onReady(() => {
       try {
         const r = await saveCharacter(cid, msg.character || {});
         if (r && r.ok && r.id && !cid) {
+          charId = r.id;
           embed.postMessage({ type: 'saved', localId: msg.localId || '', charId: r.id });
+          sendCharacters(r.id);
         }
       } catch (e) {}
     } else if (msg.type === 'LOREFELL_FEEDBACK_SUBMIT') {

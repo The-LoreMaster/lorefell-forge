@@ -6,7 +6,7 @@
 
 import { loadCampaign, saveCampaign, deleteCampaign, listMyCampaigns, getSealed, getForgeLibrary, listAssets, saveAsset, deleteAsset, listGlossary, getCampaignPlayers, detachCharacter, assignClue, setMemberRole, myAdventureRole } from 'backend/fatewell.web.js';
 import { getFoePack } from 'backend/forge.web.js';
-import { publishAdventure, myPublishedAdventures, unpublishAdventure } from 'backend/published.web.js';
+import { publishAdventure, myPublishedAdventures, unpublishAdventure, getPublishedPack } from 'backend/published.web.js';
 import { createInvite, revokeInvite } from 'backend/invites.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
 import wixLocation from 'wix-location';
@@ -60,6 +60,12 @@ $w.onReady(() => {
     if (!m || typeof m !== 'object' || !m.type) return;
 
     if (m.type === 'lmtool-ready') {
+      const importId = (wixLocation.query && wixLocation.query.import) || '';
+      if (importId) {
+        let pack = null;
+        try { pack = await getPublishedPack(importId); } catch (e) { pack = null; }
+        if (pack) embed.postMessage({ type: 'lmtool-import-pack', id: importId, pack: pack });
+      }
       if (!campaignId) {
         // hub mode: hand the tool every adventure this member owns, so it can show,
         // edit, and keep persisting them, each stamped with this member as loremaster.
