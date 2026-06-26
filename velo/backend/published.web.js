@@ -3,6 +3,7 @@
 // as an importable pack; anyone can browse the list and import their own editable copy.
 // 'title' is fine here as a custom field on this collection; the list never returns the
 // heavy pack, only metadata, so browsing stays light.
+import { Permissions, webMethod } from 'wix-web-module';
 import wixData from 'wix-data';
 import { currentMember } from 'wix-members-backend';
 
@@ -20,7 +21,7 @@ async function myName() {
 }
 
 // Publish, or update an existing publish of the same source adventure by the same author.
-export async function publishAdventure(title, blurb, pack, sourceCampaignId) {
+export const publishAdventure = webMethod(Permissions.SiteMember, async (title, blurb, pack, sourceCampaignId) => {
   const mid = await me();
   if (!mid) return { ok: false, error: 'You need to be signed in.' };
   if (!pack || !pack.campaign) return { ok: false, error: 'Nothing to publish.' };
@@ -45,9 +46,9 @@ export async function publishAdventure(title, blurb, pack, sourceCampaignId) {
     const saved = await wixData.insert('PublishedAdventures', row, { suppressAuth: true });
     return { ok: true, id: saved._id };
   } catch (e) { return { ok: false, error: String(e) }; }
-}
+});
 
-export async function unpublishAdventure(id) {
+export const unpublishAdventure = webMethod(Permissions.SiteMember, async (id) => {
   const mid = await me();
   if (!mid || !id) return { ok: false };
   try {
@@ -57,10 +58,10 @@ export async function unpublishAdventure(id) {
     await wixData.remove('PublishedAdventures', id, { suppressAuth: true });
     return { ok: true };
   } catch (e) { return { ok: false, error: String(e) }; }
-}
+});
 
 // Light list for the directory: metadata only, never the pack.
-export async function listPublishedAdventures() {
+export const listPublishedAdventures = webMethod(Permissions.Anyone, async () => {
   try {
     const r = await wixData.query('PublishedAdventures').descending('publishedAt').limit(200).find({ suppressAuth: true });
     return r.items.map((it) => ({
@@ -68,20 +69,20 @@ export async function listPublishedAdventures() {
       author: it.authorName || '', publishedAt: it.publishedAt || ''
     }));
   } catch (e) { return []; }
-}
+});
 
 // The author's own published adventures, so FateWell can show what is live and let them update or pull it.
-export async function myPublishedAdventures() {
+export const myPublishedAdventures = webMethod(Permissions.Anyone, async () => {
   const mid = await me();
   if (!mid) return [];
   try {
     const r = await wixData.query('PublishedAdventures').eq('authorMemberId', mid).limit(200).find({ suppressAuth: true });
     return r.items.map((it) => ({ id: it._id, title: it.title || 'Adventure', sourceCampaignId: it.sourceCampaignId || '', publishedAt: it.publishedAt || '' }));
   } catch (e) { return []; }
-}
+});
 
 // The full pack for one published adventure, used when a member imports their own copy.
-export async function getPublishedPack(id) {
+export const getPublishedPack = webMethod(Permissions.Anyone, async (id) => {
   if (!id) return null;
   try {
     const row = await wixData.get('PublishedAdventures', id, { suppressAuth: true }).catch(() => null);
@@ -89,4 +90,4 @@ export async function getPublishedPack(id) {
     let pack = null; try { pack = JSON.parse(row.pack); } catch (e) { pack = null; }
     return pack;
   } catch (e) { return null; }
-}
+});

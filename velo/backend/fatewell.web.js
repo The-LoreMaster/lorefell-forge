@@ -452,7 +452,7 @@ export const listGlossary = webMethod(Permissions.Anyone, async () => {
    Clues discovered through lore checks are carded to specific characters and
    surfaced read-only on their FellGlass sheet, under Notes. Stored in the
    ClueCards collection. 'title' is a reserved Wix field id, so we use clueTitle. */
-export async function assignClue(campaignId, charIds, clue) {
+export const assignClue = webMethod(Permissions.Anyone, async (campaignId, charIds, clue) => {
   if (!Array.isArray(charIds) || !charIds.length) return { ok: false, count: 0 };
   const handle = String((clue && clue.handle) || '').toLowerCase();
   let n = 0;
@@ -473,8 +473,8 @@ export async function assignClue(campaignId, charIds, clue) {
     } catch (e) {}
   }
   return { ok: true, count: n };
-}
-export async function getClueCards(charId) {
+});
+export const getClueCards = webMethod(Permissions.Anyone, async (charId) => {
   if (!charId) return [];
   let items = [];
   try {
@@ -483,4 +483,4 @@ export async function getClueCards(charId) {
     items = r.items;
   } catch (e) { items = []; }
   return items.map((it) => ({ handle: it.handle, title: it.clueTitle, body: it.clueBody, scene: it.scene, at: it.discoveredAt }));
-}
+});
