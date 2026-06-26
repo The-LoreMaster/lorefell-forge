@@ -4,6 +4,11 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-26 — FateWell: gold order numbers on cards, collapsible note bodies
+
+- Every card carries a gold order number. Acts, sessions, and scenes number on the cover. Prep notes number in the header, following run order
+- Long prep notes clamp to a few lines with a More toggle, so a wall of read-aloud text no longer stretches the card
+
 ## 2026-06-26 — FateWell: prep notes as cards, two runner fixes, smaller scene image
 
 - Prep notes render as cards in card view, at every level. Each card carries its type accent, title, body, and Pin, Edit, Delete. Drag the grip to reorder. Classic view keeps the foldable list

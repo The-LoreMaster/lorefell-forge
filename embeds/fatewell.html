@@ -1100,6 +1100,11 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 .nc-img img{ display:block; width:100%; height:auto; }
 .nc-body{ font-size:14.5px; color:var(--silver-dim); line-height:1.45; }
 .nc-acts{ display:flex; gap:6px; margin-top:10px; flex-wrap:wrap; }
+.gc-num{ position:absolute; left:8px; bottom:8px; min-width:20px; height:20px; padding:0 5px; display:flex; align-items:center; justify-content:center; font-family:var(--head,inherit); font-size:11px; font-weight:600; color:var(--gold); background:rgba(10,14,26,.72); border:1px solid var(--gold); border-radius:6px; z-index:2; }
+.nc-num{ font-family:var(--head,inherit); font-size:11px; font-weight:600; color:var(--gold); border:1px solid var(--gold); border-radius:6px; min-width:18px; height:18px; padding:0 4px; display:inline-flex; align-items:center; justify-content:center; }
+.nc-body.clamp{ display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden; }
+.nc-more{ margin-top:6px; background:none; border:0; padding:0; cursor:pointer; font-family:var(--head,inherit); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--ice); }
+.nc-more:hover{ color:var(--gold); }
 </style>
 </head>
 <body>
@@ -2631,15 +2636,26 @@ function wrapSelection(marker){
 }
 
 /* The reusable notes block: jump bar + collapsible entry cards. */
+function toggleNoteBody(btn){
+  var body = btn.previousElementSibling; if(!body) return;
+  var clamped = body.classList.toggle('clamp');
+  btn.textContent = clamped ? 'More' : 'Less';
+}
 /* one prep note as a card, used when card view is on */
-function noteCard(ref, e){
+function noteCard(ref, e, num){
   var t = e.type || 'general';
   var img = e.img ? '<div class="nc-img"><img src="'+esc(imgSrc(e.img))+'" alt=""></div>' : '';
-  var body = e.body ? '<div class="nc-body">'+renderNoteBody(e.body, ref)+'</div>' : (e.img ? '' : '<div class="nc-body muted">Empty.</div>');
+  var raw = e.body || '';
+  var longBody = raw.length > 220 || raw.split('\n').length > 3;
+  var body;
+  if (!raw){ body = e.img ? '' : '<div class="nc-body muted">Empty.</div>'; }
+  else if (longBody){ body = '<div class="nc-body clamp">'+renderNoteBody(raw, ref)+'</div><button type="button" class="nc-more" onclick="toggleNoteBody(this)">More</button>'; }
+  else { body = '<div class="nc-body">'+renderNoteBody(raw, ref)+'</div>'; }
+  var numBadge = num ? '<span class="nc-num">'+num+'</span>' : '';
   return '<div class="ncard dcard t-'+t+(e.pinned?' pinned':'')+'" data-id="'+e.id+'">'
     + '<button class="gc-grip" data-grip aria-label="Drag to reorder"><svg viewBox="0 0 11 16">'+GRIP_DOTS+'</svg></button>'
     + '<span class="nc-ember"></span>'
-    + '<div class="nc-hd"><span class="nc-type t-'+t+'">'+noteTypeLabel(t)+'</span>'
+    + '<div class="nc-hd">'+numBadge+'<span class="nc-type t-'+t+'">'+noteTypeLabel(t)+'</span>'
     + '<span class="nc-ttl">'+esc(e.title||'Untitled')+'</span>'
     + (e.pinned?'<span class="nc-pin" title="Pinned">&#9733;</span>':'')+'</div>'
     + img + dialogueHead(dialogueSpeaker(e)) + body
@@ -2658,7 +2674,7 @@ function notesBlock(ref, opts){
       hc += '<p class="muted pad">No notes yet. Break things into titled entries you can fold and jump to.</p>';
     } else {
       hc += '<div class="cardgrid notegrid" data-kind="note" data-ref="'+ref+'">';
-      sortedEntries(entries).forEach(function(e){ hc += noteCard(ref, e); });
+      sortedEntries(entries).forEach(function(e,i){ hc += noteCard(ref, e, i+1); });
       hc += '</div>';
     }
     hc += '<button class="btn wide ghost small add-note" onclick="addEntry(\''+ref+'\')">+ Add note</button>';
@@ -4335,9 +4351,11 @@ function gridCard(o){
   if(!window._cardMenus) window._cardMenus={};
   var mid='m'+(window._cardMenuSeq=(window._cardMenuSeq||0)+1);
   window._cardMenus[mid]={ coverFn:o.coverFn||'', renameFn:o.renameFn||'', descFn:o.descFn||'', dupFn:o.dupFn||'', delFn:o.delFn||'', pubFn:o.pubFn||'', unpubFn:o.unpubFn||'', title:o.title };
-  var cover = o.img
-    ? '<div class="gc-cover" style="background-image:url(\''+esc(imgSrc(o.img))+'\')"></div>'
-    : '<div class="gc-cover gc-grad"><span class="gc-glyph">&#10022;</span></div>';
+  var numBadge = o.num ? '<span class="gc-num">'+o.num+'</span>' : '';
+  var cover = (o.img
+    ? '<div class="gc-cover" style="background-image:url(\''+esc(imgSrc(o.img))+'\')">'
+    : '<div class="gc-cover gc-grad"><span class="gc-glyph">&#10022;</span>')
+    + numBadge + '</div>';
   var menuBtn = (o.coverFn||o.renameFn||o.descFn||o.delFn||o.dupFn) ? '<button class="gc-menu" onclick="event.stopPropagation();cardMenu(\''+mid+'\')">&#8943;</button>' : '';
   return '<div class="gcard dcard" data-id="'+o.id+'" style="--accent:'+(o.accent||'var(--gold)')+'">'
     + '<button class="gc-grip" data-grip aria-label="Drag to reorder"><svg viewBox="0 0 11 16">'+GRIP_DOTS+'</svg></button>'
@@ -4349,7 +4367,7 @@ function gridCard(o){
   + '</div>';
 }
 function childGrid(kind, items, build, addFn, addLabel){
-  var cards=items.map(function(it,i){ return gridCard(build(it,i)); }).join('');
+  var cards=items.map(function(it,i){ var o=build(it,i); if(o.num===undefined) o.num=i+1; return gridCard(o); }).join('');
   var add = addFn ? '<button class="gc-add" onclick="'+addFn+'">'+esc(addLabel)+'</button>' : '';
   return '<div class="cardgrid" data-kind="'+kind+'">'+cards+add+'</div>';
 }
