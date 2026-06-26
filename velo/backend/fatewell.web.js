@@ -104,11 +104,31 @@ async function isKeeper() {
   return false;
 }
 
+// The adventures this member runs: ones they own, plus ones where their AdventureMembers
+// role is loremaster or lorekeeper. Keeper powers are scoped to these, so a member can be
+// the loremaster of one adventure and a plain player in another. The role query degrades
+// to owner-only if the role field is not present yet.
+async function keeperCampaignIds(id) {
+  if (!id) return [];
+  const set = {};
+  try {
+    const owned = await wixData.query(COLLECTION).eq('ownerMemberId', id).limit(200).find({ suppressAuth: true });
+    owned.items.forEach((it) => { set[it._id] = 1; });
+  } catch (e) {}
+  try {
+    const kept = await wixData.query('AdventureMembers').eq('memberId', id).hasSome('role', ['loremaster', 'lorekeeper']).limit(200).find({ suppressAuth: true });
+    kept.items.forEach((m) => { if (m.campaignId) set[m.campaignId] = 1; });
+  } catch (e) {}
+  return Object.keys(set);
+}
+
 // Sealed pasts for a campaign roster. Returns nothing unless the caller holds a
 // loremaster or lorekeeper role, so the player view can never reach it. Matched to
 // the roster by member id first, then by character name.
 export const getSealed = webMethod(Permissions.Anyone, async (memberIds, names, charIds) => {
-  if (!(await isKeeper())) return [];
+  const sealedCallerId = await memberId();
+  const sealedKeeperCids = await keeperCampaignIds(sealedCallerId);
+  if (!sealedKeeperCids.length) return [];
   const ids = Array.isArray(memberIds) ? memberIds.filter(Boolean) : [];
   const nm = Array.isArray(names) ? names.filter(Boolean) : [];
   const cids = Array.isArray(charIds) ? charIds.filter(Boolean) : [];
@@ -129,7 +149,7 @@ export const getSealed = webMethod(Permissions.Anyone, async (memberIds, names, 
       rn.items.forEach((it) => { if (!seen(it)) items.push(it); });
     }
   } catch (e) { items = []; }
-  return items.filter((it) => it.sealedPast).map((it) => {
+  return items.filter((it) => it.sealedPast && sealedKeeperCids.indexOf(it.campaignId || '') !== -1).map((it) => {
     let sp = {}; try { sp = JSON.parse(it.sealedPast); } catch (e) { sp = {}; }
     return {
       charId: it._id,
@@ -196,11 +216,14 @@ export const getCampaignPlayers = webMethod(Permissions.Anyone, async (campaignI
 // the roster owner acting. A character holds one adventure at a time, so clearing the
 // link frees it to join another.
 export const detachCharacter = webMethod(Permissions.Anyone, async (charId) => {
-  if (!(await isKeeper())) return { ok: false };
   if (!charId) return { ok: false };
+  const id = await memberId();
+  const keeperCids = await keeperCampaignIds(id);
   try {
     const row = await wixData.get('Characters', charId, { suppressAuth: true });
-    if (row) { row.campaignId = ''; await wixData.update('Characters', row, { suppressAuth: true }); }
+    if (!row) return { ok: false };
+    if (keeperCids.indexOf(row.campaignId || '') === -1) return { ok: false, error: 'not your adventure' };
+    row.campaignId = ''; await wixData.update('Characters', row, { suppressAuth: true });
     return { ok: true };
   } catch (e) { return { ok: false, error: String(e) }; }
 });

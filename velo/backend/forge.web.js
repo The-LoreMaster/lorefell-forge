@@ -52,7 +52,7 @@ export const submitCreation = webMethod(Permissions.SiteMember, async (forgeKey,
   if (!member) return { ok: false, errors: ['You need to be signed in.'] };
 
   const allowed = await canUseForge(forgeKey, member);
-  if (!allowed) return { ok: false, errors: ['Your role cannot use this forge.'] };
+  if (!allowed) return { ok: false, errors: ['You need to run at least one adventure to submit to the Pentifax. Create an adventure in FateWell, or save this Foe privately.'] };
 
   const def = await getForgeDefinition(forgeKey);
   const result = validate(payload, def);
@@ -349,8 +349,20 @@ export const castVote = webMethod(Permissions.SiteMember, async (forgeKey, creat
 
 async function canUseForge(forgeKey, member) {
   if (LOREMASTER_FORGES.indexOf(forgeKey) === -1) return true;
-  const roles = await currentMember.getRoles();
-  return roles.some(function (r) { return LOREMASTER_ROLE_TITLES.indexOf(r.title) !== -1; });
+  // Loremaster forges (FoeForge, SagaForge) are open to anyone who runs at least one
+  // adventure: they own a campaign, or hold loremaster or lorekeeper on one. The
+  // Pentifax canon vote is the real filter on what becomes canon.
+  const id = member && member._id;
+  if (!id) return false;
+  try {
+    const owned = await wixData.query('Campaigns').eq('ownerMemberId', id).limit(1).find({ suppressAuth: true });
+    if (owned.items.length) return true;
+  } catch (e) {}
+  try {
+    const kept = await wixData.query('AdventureMembers').eq('memberId', id).hasSome('role', ['loremaster', 'lorekeeper']).limit(1).find({ suppressAuth: true });
+    if (kept.items.length) return true;
+  } catch (e) {}
+  return false;
 }
 
 function fingerprintOf(forgeKey, payload) {
