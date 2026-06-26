@@ -336,6 +336,10 @@
   .errors li.all-clear::before{content:"\2713";font-size:.8rem;top:5px}
   .errors li.warn{color:var(--ice);font-style:italic}
   .errors li.warn::before{content:"!";font-size:.85rem;top:4px}
+  .submit-fail{margin:10px 0 0;padding:10px 12px;border:1px solid var(--error);border-radius:8px;color:var(--error);font-size:.92rem;line-height:1.45}
+  .submit-fail b{display:block;margin-bottom:4px}
+  .submit-fail ul{margin:6px 0 0;padding-left:18px}
+  .submit-fail li{padding:2px 0}
 
   /* outputs */
   .out-card{
@@ -636,6 +640,7 @@
 
     <button class="submit-btn" id="submitBtn" disabled>Submit to LoreForge</button>
     <div class="submit-note">Submitted creations enter LoreForge for review and canon voting.</div>
+    <div class="submit-fail" id="submitMsg" style="display:none"></div>
 
     <div class="feedback-card" id="feedbackCard">
       <button type="button" class="fb-toggle" id="feedbackToggle" aria-expanded="false">Send Feedback</button>
@@ -2074,6 +2079,12 @@ function finalizeForge(note, basedOn){
       .then(r => { if(!r.ok) throw new Error(r.status); toast("Forged and sent to the LoreForge"); resetForge(); })
       .catch(() => toast("Submission failed. Check your connection and try again."));
     } else {
+      hideSubmitMsg();
+      if(window._submitTimer) clearTimeout(window._submitTimer);
+      window._submitTimer = setTimeout(function(){
+        window._submitTimer = null;
+        showSubmitMsg(["No response from the vault. The submission may not have gone through. Try again, and if it keeps failing send this message to the LoreMaster."]);
+      }, 9000);
       window.parent.postMessage({ type:"LOREFELL_ABILITY_SUBMIT", payload }, "*");
       // Outcome is confirmed by LOREFELL_SUBMIT_RESULT from the page bridge.
     }
@@ -2104,16 +2115,31 @@ window.onmessage = function(ev){
   if(m.type === "LOREFELL_LEDGER_RESULT"){ renderLedger(m.items || []); return; }
   if(m.type === "LOREFELL_VOTE_RESULT"){ applyVoteResult(m); return; }
   if(m.type !== "LOREFELL_SUBMIT_RESULT") return;
+  if(window._submitTimer){ clearTimeout(window._submitTimer); window._submitTimer = null; }
   if(m.ok){
+    hideSubmitMsg();
     toast(Array.isArray(m.similar) && m.similar.length
       ? "Forged. A close match already waits in the LoreForge."
       : "Forged and sent to the LoreForge");
     resetForge();
     remixOrigin = "";
   } else {
-    toast((m.errors && m.errors[0]) || "The LoreForge refused this build.");
+    const errs = (m.errors && m.errors.length) ? m.errors : ["The LoreForge refused this build."];
+    showSubmitMsg(errs);
+    toast(errs[0]);
   }
 };
+function showSubmitMsg(errs){
+  const el = document.getElementById("submitMsg");
+  if(!el) return;
+  el.innerHTML = "<b>The vault refused this build</b><ul>" + errs.map(e => `<li>${esc(e)}</li>`).join("") + "</ul>";
+  el.style.display = "";
+  if(el.scrollIntoView) el.scrollIntoView({ behavior:"smooth", block:"center" });
+}
+function hideSubmitMsg(){
+  const el = document.getElementById("submitMsg");
+  if(el){ el.style.display = "none"; el.innerHTML = ""; }
+}
 
 /* ============================================================
    MASTER UPDATE
@@ -2150,6 +2176,7 @@ function update(){
   document.getElementById("budgetState").textContent =
     errors.length === 0 ? "Valid build" : (total > maxB ? "Over budget" : total < minB ? "Under budget" : "Check errors");
 
+  hideSubmitMsg();
   const list = document.getElementById("errorList");
   if(errors.length === 0){
     let rows = `<li class="all-clear">This build follows the LoreFell forging rules.</li>`;
