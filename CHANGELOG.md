@@ -4,6 +4,10 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-26 — FateWell: drop the duplicated top breadcrumb on spine screens
+
+- On the adventure, act, session, and scene screens the descent spine already shows the path, so the long text breadcrumb is gone. A single Adventures link stays at the top as the route back to the full list, since the bottom tab resumes into the current adventure rather than listing them. Classic view keeps the full breadcrumb
+
 ## 2026-06-26 — FateWell: runner top bar no longer collides
 
 - The Roleplay or Combat pill sits beside the scene name instead of inside it, so a long scene name truncates with an ellipsis and the pill stays whole
