@@ -4,6 +4,11 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-26 — FateWell: runner top bar no longer collides
+
+- The Roleplay or Combat pill sits beside the scene name instead of inside it, so a long scene name truncates with an ellipsis and the pill stays whole
+- The saved and synced status moved into the bar as one compact line under the scene count, so it no longer overlaps the Scenes label. It still updates live
+
 ## 2026-06-26 — FateWell: runner navigation, scene and note arrows separated
 
 - The top arrows are labeled Scenes. The note arrows moved off the bottom of the stack and now flank the action bar, fixed in place so they stop jumping as note length changes. The beat count sits in the top row
