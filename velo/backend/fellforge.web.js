@@ -53,6 +53,15 @@ export const saveFell = webMethod(Permissions.Anyone, async (record) => {
   const r = record || {};
   let memberId = '';
   try { const m = await currentMember.getMember(); if (m) memberId = m._id; } catch (e) {}
+  // A forged Fell joins a campaign only if the member actually joined it through the
+  // invite. Otherwise it is forged unattached, even when a campaign id was passed in.
+  let campaignId = r.campaignId || '';
+  if (campaignId && memberId) {
+    try {
+      const mem = await wixData.query('AdventureMembers').eq('campaignId', campaignId).eq('memberId', memberId).limit(1).find({ suppressAuth: true });
+      if (!mem.items.length) campaignId = '';
+    } catch (e) { campaignId = ''; }
+  } else { campaignId = ''; }
   const forgeSeed = {
     identity: {
       name: r.name || '',
@@ -71,7 +80,7 @@ export const saveFell = webMethod(Permissions.Anyone, async (record) => {
     charName: r.name || 'Unnamed Fell',
     ownerMemberId: memberId,
     campaign: '',
-    campaignId: r.campaignId || '',
+    campaignId: campaignId,
     level: 1,
     sealCode: r.sealCode || '',
     forgeSeed: JSON.stringify(forgeSeed),

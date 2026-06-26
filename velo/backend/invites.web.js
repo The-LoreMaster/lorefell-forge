@@ -64,13 +64,18 @@ export const redeemInvite = webMethod(Permissions.Anyone, async (tok) => {
     const inv = await wixData.query('CampaignInvites').eq('token', tok).eq('active', true).limit(1).find({ suppressAuth: true });
     if (!inv.items.length) return { ok: false, invalid: true };
     const campaignId = inv.items[0].campaignId;
-    let name = 'this adventure';
-    try { const c = await wixData.get('Campaigns', campaignId, { suppressAuth: true }); if (c && c.name) name = c.name; } catch (e) {}
-    const ex = await wixData.query('AdventureMembers').eq('campaignId', campaignId).eq('memberId', mid).limit(1).find({ suppressAuth: true });
-    if (!ex.items.length) {
-      await wixData.insert('AdventureMembers', { campaignId: campaignId, memberId: mid, name: await memberName(), status: 'active', joinedAt: new Date().toISOString() }, { suppressAuth: true });
+    let name = 'this adventure', ownerMemberId = '';
+    try { const c = await wixData.get('Campaigns', campaignId, { suppressAuth: true }); if (c) { if (c.name) name = c.name; ownerMemberId = c.ownerMemberId || ''; } } catch (e) {}
+    const isOwner = !!ownerMemberId && ownerMemberId === mid;
+    // The loremaster runs the adventure and is not a player member. Only non-owners who
+    // redeem the link become members, and only members may attach a character.
+    if (!isOwner) {
+      const ex = await wixData.query('AdventureMembers').eq('campaignId', campaignId).eq('memberId', mid).limit(1).find({ suppressAuth: true });
+      if (!ex.items.length) {
+        await wixData.insert('AdventureMembers', { campaignId: campaignId, memberId: mid, name: await memberName(), status: 'active', joinedAt: new Date().toISOString() }, { suppressAuth: true });
+      }
     }
-    return { ok: true, campaignId: campaignId, campaignName: name };
+    return { ok: true, campaignId: campaignId, campaignName: name, isOwner: isOwner };
   } catch (e) { return { ok: false, error: String(e) }; }
 });
 
@@ -97,6 +102,10 @@ export const attachCharacter = webMethod(Permissions.Anyone, async (campaignId, 
   try {
     const row = await wixData.get('Characters', charId, { suppressAuth: true });
     if (!row || row.ownerMemberId !== mid) return { ok: false, denied: true };
+    // A character joins a campaign only through the invite. Membership is recorded on
+    // redeem, so without it there is no attaching, even to a campaign you own.
+    const mem = await wixData.query('AdventureMembers').eq('campaignId', campaignId).eq('memberId', mid).limit(1).find({ suppressAuth: true });
+    if (!mem.items.length) return { ok: false, denied: true, error: 'Join through the invite link first.' };
     row.campaignId = campaignId;
     await wixData.update('Characters', row, { suppressAuth: true });
     return { ok: true };

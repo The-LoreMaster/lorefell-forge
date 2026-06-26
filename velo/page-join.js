@@ -12,6 +12,9 @@ const EMBED = '#html1';   // change to your Embed a Site element ID
 
 let CAMPAIGN_ID = '';
 let CAMPAIGN_NAME = '';
+let IS_OWNER = false;
+// The page slug that hosts FellForge. Change to match your site if it differs.
+const FELLFORGE_PATH = '/fellforge';
 
 $w.onReady(() => {
   const embed = $w(EMBED);
@@ -27,7 +30,7 @@ $w.onReady(() => {
     if (!CAMPAIGN_ID) {
       let r = {};
       try { r = await redeemInvite(token); } catch (e) { r = {}; }
-      if (r && r.ok) { CAMPAIGN_ID = r.campaignId; CAMPAIGN_NAME = r.campaignName || ''; }
+      if (r && r.ok) { CAMPAIGN_ID = r.campaignId; CAMPAIGN_NAME = r.campaignName || ''; IS_OWNER = !!r.isOwner; }
     }
     let chars = [];
     try { chars = await listJoinCharacters(); } catch (e) { chars = []; }
@@ -36,7 +39,7 @@ $w.onReady(() => {
       here: c.campaignId === CAMPAIGN_ID,
       elsewhere: !!c.campaignId && c.campaignId !== CAMPAIGN_ID
     }));
-    embed.postMessage({ type: 'JOIN_STATE', signedIn: true, campaignName: CAMPAIGN_NAME, characters: list });
+    embed.postMessage({ type: 'JOIN_STATE', signedIn: true, campaignName: CAMPAIGN_NAME, isOwner: IS_OWNER, characters: list });
   }
 
   embed.onMessage(async (event) => {
@@ -55,7 +58,7 @@ $w.onReady(() => {
       try { await detachOwnCharacter(m.charId); } catch (e) {}
       await pushState();
     } else if (m.type === 'JOIN_FORGE') {
-      wixLocation.to('/fellforge?campaign=' + encodeURIComponent(CAMPAIGN_ID));
+      wixLocation.to(FELLFORGE_PATH + '?campaign=' + encodeURIComponent(CAMPAIGN_ID));
     }
   });
 });
