@@ -1037,7 +1037,7 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 .rs-card.enter-prev{ animation:rsDown .3s ease; }
 @keyframes rsUp{ from{opacity:0;transform:translateY(24px) rotateX(-7deg)} to{opacity:1;transform:none} }
 @keyframes rsDown{ from{opacity:0;transform:translateY(-24px) rotateX(7deg)} to{opacity:1;transform:none} }
-.rs-img{ margin-top:14px; border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+.rs-img{ margin:14px auto 0; max-width:300px; width:100%; border:1px solid var(--line); border-radius:12px; overflow:hidden; }
 .rs-img img{ display:block; width:100%; height:auto; }
 .rs-nav{ display:flex; align-items:center; gap:12px; margin-top:16px; }
 .rs-nav .rs-next{ margin-left:auto; }
@@ -1082,10 +1082,24 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 .gc-menu{position:absolute;top:7px;right:7px;width:25px;height:25px;border-radius:7px;display:flex;align-items:center;justify-content:center;color:var(--silver-dim);background:rgba(10,14,26,.55);border:1px solid transparent;z-index:3;font-size:15px;line-height:0;cursor:pointer}
 .gc-menu:hover{color:var(--silver);border-color:var(--line)}
 .gc-click{position:absolute;inset:0;z-index:1;border:0;background:transparent;cursor:pointer}
-.gcard.dragging{opacity:.55;border-color:var(--gold);box-shadow:0 10px 30px rgba(0,0,0,.45);transform:scale(.99)}
-.cardgrid.dropping .gcard:not(.dragging){transition:transform .12s}
+.dcard.dragging{opacity:.55;border-color:var(--gold);box-shadow:0 10px 30px rgba(0,0,0,.45);transform:scale(.99)}
+.cardgrid.dropping .dcard:not(.dragging){transition:transform .12s}
 .gc-add{display:flex;align-items:center;justify-content:center;min-height:140px;border:1px dashed #34425e;border-radius:12px;color:var(--silver-dim);background:transparent;font-family:var(--head,inherit);font-size:11px;letter-spacing:.12em;text-transform:uppercase;cursor:pointer}
 .gc-add:hover{border-color:var(--gold);color:var(--gold)}
+.notegrid{ grid-template-columns:1fr; gap:11px; }
+@media(min-width:760px){ .notegrid{ grid-template-columns:1fr 1fr; } }
+.ncard{ position:relative; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 14px 12px 40px; overflow:hidden; }
+.ncard.pinned{ border-color:rgba(201,168,76,.4); }
+.nc-ember{ position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--tc,var(--gold)); }
+.ncard .gc-grip{ left:8px; top:10px; }
+.nc-hd{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px; }
+.nc-type{ font-family:var(--head,inherit); font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:var(--tc,var(--muted)); }
+.nc-ttl{ font-family:var(--head,inherit); font-size:15px; color:var(--silver); }
+.nc-pin{ color:var(--gold); font-size:12px; }
+.nc-img{ margin:0 0 8px; border:1px solid var(--line); border-radius:8px; overflow:hidden; max-width:200px; }
+.nc-img img{ display:block; width:100%; height:auto; }
+.nc-body{ font-size:14.5px; color:var(--silver-dim); line-height:1.45; }
+.nc-acts{ display:flex; gap:6px; margin-top:10px; flex-wrap:wrap; }
 </style>
 </head>
 <body>
@@ -1323,7 +1337,7 @@ function migrate(d){
           seedEntries(sc, 'prep'); fixNoteTypes(sc);
           if (sc.img===undefined) sc.img='';
           if (sc.desc===undefined) sc.desc='';
-          if (!sc.mode) sc.mode = (sc.combatants && sc.combatants.length) ? 'combat' : 'roleplay';
+          if (!sc.mode) sc.mode = 'roleplay';
           if (!sc.status) sc.status = 'active';
           if (!sc.beatDone) sc.beatDone = {};
           if (!sc.hooks) sc.hooks = [];
@@ -1556,7 +1570,8 @@ window.addEventListener('message', function(ev){
   if (m.type === 'lmtool-data'){
     /* standalone: full multi-campaign state */
     WIX.connected = true; WIX.loaded = true;
-    if (m.data && m.data.campaigns){ S = migrate(m.data); saveLocal(); }
+    var recentEdit = WIX.dirty || (WIX.lastSaveAt && Date.now()-WIX.lastSaveAt < 4000);
+    if (m.data && m.data.campaigns && !(recentEdit && S.campaigns && S.campaigns.length)){ S = migrate(m.data); saveLocal(); }
     render();
   }
   if (m.type === 'lmtool-open'){
@@ -1611,7 +1626,7 @@ window.addEventListener('message', function(ev){
     WIX.connected = true;
     /* This echoes the campaign as it was saved. Only fold it back in when there are no
        newer local edits, so an edit made between the save and this echo is not reverted. */
-    if (!WIX.dirty){
+    if (!WIX.dirty && !(WIX.lastSaveAt && Date.now()-WIX.lastSaveAt < 4000)){
       (m.campaigns||[]).forEach(function(sc){
         if (!sc || !sc.id || !sc.campaign) return;
         for (var i=0;i<S.campaigns.length;i++){
@@ -2616,9 +2631,40 @@ function wrapSelection(marker){
 }
 
 /* The reusable notes block: jump bar + collapsible entry cards. */
+/* one prep note as a card, used when card view is on */
+function noteCard(ref, e){
+  var t = e.type || 'general';
+  var img = e.img ? '<div class="nc-img"><img src="'+esc(imgSrc(e.img))+'" alt=""></div>' : '';
+  var body = e.body ? '<div class="nc-body">'+renderNoteBody(e.body, ref)+'</div>' : (e.img ? '' : '<div class="nc-body muted">Empty.</div>');
+  return '<div class="ncard dcard t-'+t+(e.pinned?' pinned':'')+'" data-id="'+e.id+'">'
+    + '<button class="gc-grip" data-grip aria-label="Drag to reorder"><svg viewBox="0 0 11 16">'+GRIP_DOTS+'</svg></button>'
+    + '<span class="nc-ember"></span>'
+    + '<div class="nc-hd"><span class="nc-type t-'+t+'">'+noteTypeLabel(t)+'</span>'
+    + '<span class="nc-ttl">'+esc(e.title||'Untitled')+'</span>'
+    + (e.pinned?'<span class="nc-pin" title="Pinned">&#9733;</span>':'')+'</div>'
+    + img + dialogueHead(dialogueSpeaker(e)) + body
+    + '<div class="nc-acts">'
+    + '<button class="mini'+(e.pinned?' on':'')+'" onclick="pinEntry(\''+ref+'\',\''+e.id+'\')">'+(e.pinned?'Unpin':'Pin')+'</button>'
+    + '<button class="mini ghost" onclick="editEntry(\''+ref+'\',\''+e.id+'\')">Edit</button>'
+    + '<button class="mini danger" onclick="deleteEntry(\''+ref+'\',\''+e.id+'\')">Delete</button>'
+    + '</div></div>';
+}
 function notesBlock(ref, opts){
   opts = opts || {};
   var entries = levelEntries(ref);
+  if (V.cardView){
+    var hc = '<div class="notes-block">';
+    if (!entries.length){
+      hc += '<p class="muted pad">No notes yet. Break things into titled entries you can fold and jump to.</p>';
+    } else {
+      hc += '<div class="cardgrid notegrid" data-kind="note" data-ref="'+ref+'">';
+      sortedEntries(entries).forEach(function(e){ hc += noteCard(ref, e); });
+      hc += '</div>';
+    }
+    hc += '<button class="btn wide ghost small add-note" onclick="addEntry(\''+ref+'\')">+ Add note</button>';
+    hc += '</div>';
+    return hc;
+  }
   var h = '<div class="notes-block">';
   if (!entries.length){
     h += '<p class="muted pad">No notes yet. Break things into titled entries you can fold and jump to.</p>';
@@ -4293,7 +4339,7 @@ function gridCard(o){
     ? '<div class="gc-cover" style="background-image:url(\''+esc(imgSrc(o.img))+'\')"></div>'
     : '<div class="gc-cover gc-grad"><span class="gc-glyph">&#10022;</span></div>';
   var menuBtn = (o.coverFn||o.renameFn||o.descFn||o.delFn||o.dupFn) ? '<button class="gc-menu" onclick="event.stopPropagation();cardMenu(\''+mid+'\')">&#8943;</button>' : '';
-  return '<div class="gcard" data-id="'+o.id+'" style="--accent:'+(o.accent||'var(--gold)')+'">'
+  return '<div class="gcard dcard" data-id="'+o.id+'" style="--accent:'+(o.accent||'var(--gold)')+'">'
     + '<button class="gc-grip" data-grip aria-label="Drag to reorder"><svg viewBox="0 0 11 16">'+GRIP_DOTS+'</svg></button>'
     + menuBtn + '<span class="gc-ember"></span>' + cover
     + '<div class="gc-body"><div class="gc-ttl">'+esc(o.title)+'</div>'
@@ -4307,8 +4353,11 @@ function childGrid(kind, items, build, addFn, addLabel){
   var add = addFn ? '<button class="gc-add" onclick="'+addFn+'">'+esc(addLabel)+'</button>' : '';
   return '<div class="cardgrid" data-kind="'+kind+'">'+cards+add+'</div>';
 }
-function applyCardOrder(kind, ids){
-  var arr = kind==='act' ? (curC()&&curC().acts) : kind==='session' ? (curA()&&curA().sessions) : kind==='scene' ? (curSe()&&curSe().scenes) : null;
+function applyCardOrder(kind, ids, ref){
+  var arr = kind==='act' ? (curC()&&curC().acts)
+    : kind==='session' ? (curA()&&curA().sessions)
+    : kind==='scene' ? (curSe()&&curSe().scenes)
+    : kind==='note' ? (ref?levelEntries(ref):null) : null;
   if(!arr) return;
   arr.sort(function(a,b){ return ids.indexOf(a.id)-ids.indexOf(b.id); });
   save(); render();
@@ -4320,14 +4369,14 @@ function wireCardDrag(){
     grid.querySelectorAll('[data-grip]').forEach(function(grip){
       grip.addEventListener('pointerdown',function(e){
         e.preventDefault();
-        var item=grip.closest('.gcard'); if(!item) return;
+        var item=grip.closest('.dcard'); if(!item) return;
         item.classList.add('dragging'); grid.classList.add('dropping');
         try{grip.setPointerCapture(e.pointerId);}catch(_){}
         function move(ev){
           item.style.pointerEvents='none';
           var t=document.elementFromPoint(ev.clientX,ev.clientY);
           item.style.pointerEvents='';
-          var over=t&&t.closest('.gcard');
+          var over=t&&t.closest('.dcard');
           if(over&&over!==item&&over.parentNode===item.parentNode){
             var r=over.getBoundingClientRect();
             var before=(ev.clientY<r.top+r.height/2)||(Math.abs(ev.clientY-(r.top+r.height/2))<r.height/2&&ev.clientX<r.left+r.width/2);
@@ -4338,8 +4387,8 @@ function wireCardDrag(){
           try{grip.releasePointerCapture(e.pointerId);}catch(_){}
           grip.removeEventListener('pointermove',move); grip.removeEventListener('pointerup',up);
           item.classList.remove('dragging'); grid.classList.remove('dropping');
-          var ids=[].slice.call(grid.querySelectorAll('.gcard')).map(function(x){return x.getAttribute('data-id');});
-          applyCardOrder(kind, ids);
+          var ids=[].slice.call(grid.querySelectorAll('.dcard')).map(function(x){return x.getAttribute('data-id');});
+          applyCardOrder(kind, ids, grid.getAttribute('data-ref'));
         }
         grip.addEventListener('pointermove',move); grip.addEventListener('pointerup',up);
       });

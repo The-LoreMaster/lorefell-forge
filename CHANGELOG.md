@@ -4,6 +4,13 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-26 — FateWell: prep notes as cards, two runner fixes, smaller scene image
+
+- Prep notes render as cards in card view, at every level. Each card carries its type accent, title, body, and Pin, Edit, Delete. Drag the grip to reorder. Classic view keeps the foldable list
+- Fixed: a scene with foes attached no longer opens in combat. Scenes start in roleplay and escalate when you choose. Any scene still showing combat just needs one Return to roleplay and it stays
+- Fixed: Return to roleplay and Escalate no longer flicker back. A stale account echo arriving right after a save was reverting the switch, now it is ignored while a local edit is fresh
+- The scene image in the stepper is capped and centered instead of stretching full width
+
 ## 2026-06-26 — FateWell: act, session, and scene card view with the descent spine
 
 - Acts, sessions, and scenes now render as a card grid with a cover, summary, child count, and an Open control. Each level carries a descent spine across the top, Adventure to Act to Session to Scene, with the live tier lit gold and the others tapped to jump
