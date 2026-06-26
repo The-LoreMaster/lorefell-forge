@@ -1016,6 +1016,33 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 .ros-off{ font-family:inherit; font-size:.68rem; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); border:1px solid var(--line2); border-radius:5px; padding:1px 5px; margin-left:6px; }
 .invite-box{ margin:10px 0; }
 .invite-box .inp{ width:100%; font-size:.82rem; }
+/* roleplay run stepper (migrated from the FateWell prototype) */
+.run-stepper{ display:flex; flex-direction:column; }
+.rs-top{ display:flex; align-items:center; gap:12px; margin-bottom:10px; }
+.rs-seg{ display:inline-flex; border:1px solid var(--line); border-radius:9px; overflow:hidden; flex:none; }
+.rs-seg button{ font-family:inherit; font-size:10px; letter-spacing:.08em; text-transform:uppercase; background:transparent; color:var(--muted); border:0; padding:7px 12px; cursor:pointer; }
+.rs-seg button.on{ background:rgba(201,168,76,.12); color:var(--gold); }
+.rs-rail{ display:flex; gap:4px; flex:1; }
+.rs-pip{ flex:1; height:4px; border-radius:3px; background:var(--line); }
+.rs-pip.done{ background:var(--silver-dim,#9fb0bd); }
+.rs-pip.now{ background:var(--gold); box-shadow:0 0 8px rgba(201,168,76,.5); }
+.rs-stack{ display:flex; flex-direction:column; gap:10px; perspective:1400px; }
+.rs-prev{ display:flex; flex-direction:column; gap:2px; border:1px solid var(--line); border-left:3px solid var(--tc,var(--line)); border-radius:11px; background:var(--panel,#10162a); opacity:.5; transform:scale(.95); padding:9px 13px; cursor:pointer; transition:opacity .15s; }
+.rs-prev:hover{ opacity:.85; }
+.rs-arrow{ font-size:10px; color:var(--muted); letter-spacing:.08em; }
+.rs-pk{ font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:var(--tc,var(--muted)); }
+.rs-pt{ font-size:14px; color:var(--silver-dim,#9fb0bd); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.rs-card{ will-change:transform,opacity; }
+.rs-card.enter-next{ animation:rsUp .3s ease; }
+.rs-card.enter-prev{ animation:rsDown .3s ease; }
+@keyframes rsUp{ from{opacity:0;transform:translateY(24px) rotateX(-7deg)} to{opacity:1;transform:none} }
+@keyframes rsDown{ from{opacity:0;transform:translateY(-24px) rotateX(7deg)} to{opacity:1;transform:none} }
+.rs-img{ margin-top:14px; border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+.rs-img img{ display:block; width:100%; height:auto; }
+.rs-nav{ display:flex; align-items:center; gap:12px; margin-top:16px; }
+.rs-nav .rs-next{ margin-left:auto; }
+.rs-count{ font-size:11px; letter-spacing:.08em; color:var(--muted); }
+@media (prefers-reduced-motion:reduce){ .rs-card{ animation:none!important; } }
 </style>
 </head>
 <body>
@@ -1294,7 +1321,7 @@ function load(){
 }
 
 var S = load() || seed();
-var V = { screen:'campaigns', cId:null, aId:null, sId:null, scId:null, tab:'notes', cTab:'overview', aTab:'overview', sTab:'overview', libFilter:'all', ov:false };
+var V = { screen:'campaigns', cId:null, aId:null, sId:null, scId:null, tab:'notes', cTab:'overview', aTab:'overview', sTab:'overview', libFilter:'all', ov:false, runList:false };
 
 /* ---------- Wix bridge ---------- */
 
@@ -4955,8 +4982,9 @@ function runnerLogKey(ev){ if (ev && (ev.key==='Enter'||ev.keyCode===13) && !ev.
 function entriesByType(sc, type){ return (sc.entries||[]).filter(function(e){ return e.type===type; }); }
 
 /* A runner note box tinted by its type accent (--tc), set via the t-<type> class. */
-function runNote(e, ref, type){
-  if (type==='dialogue'){
+function runNote(e, ref, type, opts){
+  var noImg = opts && opts.noImg, plain = opts && opts.plain;
+  if (type==='dialogue' && !plain){
     var sp = dialogueSpeaker(e);
     if (sp){
       var port = sp.img
@@ -4967,14 +4995,14 @@ function runNote(e, ref, type){
         + '<div class="dlg-content">'
         + (e.title ? '<div class="run-note-t">'+esc(e.title)+'</div>' : '')
         + '<div class="dlg-name" style="color:'+sp.color+'">'+esc(sp.name)+'</div>'
-        + (e.img ? '<div class="run-note-img"><img src="'+esc(imgSrc(e.img))+'" alt=""></div>' : '')
+        + (!noImg && e.img ? '<div class="run-note-img"><img src="'+esc(imgSrc(e.img))+'" alt=""></div>' : '')
         + '<div class="run-note-b">'+renderNoteBody(e.body||'', ref)+'</div>'
         + '</div></div>';
     }
   }
   return '<div class="run-note t-'+type+'">'
     + (e.title ? '<div class="run-note-t">'+esc(e.title)+'</div>' : '')
-    + (e.img ? '<div class="run-note-img"><img src="'+esc(imgSrc(e.img))+'" alt=""></div>' : '')
+    + (!noImg && e.img ? '<div class="run-note-img"><img src="'+esc(imgSrc(e.img))+'" alt=""></div>' : '')
     + '<div class="run-note-b">'+renderNoteBody(e.body||'', ref)+'</div></div>';
 }
 /* LEFT: narration rail */
@@ -4992,6 +5020,69 @@ function runnerNarration(sc){
   h += '</div>';
   return h;
 }
+/* Roleplay run as a stepper: one beat at a time, previews above and below, the
+   beat image (or the speaking NPC's image for dialogue) under the whole stack.
+   Behind a Stepper / List toggle, so the classic scroll stays available. */
+function runToggleHtml(){
+  return '<span class="rs-seg"><button class="'+(!V.runList?'on':'')+'" onclick="setRunList(false)">Stepper</button>'
+       + '<button class="'+(V.runList?'on':'')+'" onclick="setRunList(true)">List</button></span>';
+}
+function stepPreview(e, where, i){
+  var label = where==='prev' ? '&#9650; previous' : '&#9660; next';
+  return '<div class="rs-prev t-'+(e.type||'general')+'" onclick="runBeatGo('+i+')">'
+    + '<span class="rs-arrow">'+label+'</span>'
+    + '<span class="rs-pk">'+esc(noteTypeLabel(e.type))+'</span>'
+    + '<span class="rs-pt">'+esc(e.title || (e.body||'').slice(0,60) || 'Untitled')+'</span></div>';
+}
+function stepImageHTML(e){
+  if (e.img) return '<div class="rs-img"><img src="'+esc(imgSrc(e.img))+'" alt=""></div>';
+  if ((e.type||'')==='dialogue'){ var sp=dialogueSpeaker(e); if (sp && sp.img) return '<div class="rs-img"><img src="'+esc(imgSrc(sp.img))+'" alt=""></div>'; }
+  return '';
+}
+function runnerStepper(sc){
+  var ref = 'sc:'+sc.id;
+  var list = sortedEntries(sc.entries||[]);
+  if (!list.length){
+    return '<div class="run-col run-narr run-stepper"><div class="rs-top">'+runToggleHtml()+'</div>'
+      + '<p class="muted">No prep notes in this scene yet. Tap Edit scene to add read-aloud text, beats, and clues.</p></div>';
+  }
+  if (typeof sc.runIdx !== 'number' || sc.runIdx < 0) sc.runIdx = 0;
+  if (sc.runIdx > list.length-1) sc.runIdx = list.length-1;
+  var i = sc.runIdx, cur = list[i];
+  var dir = window._runDir; window._runDir = null;
+  var enterCls = dir==='next' ? ' enter-next' : dir==='prev' ? ' enter-prev' : '';
+  var rail = '';
+  for (var k=0; k<list.length; k++){ rail += '<span class="rs-pip'+(k<i?' done':k===i?' now':'')+'"></span>'; }
+  var h = '<div class="run-col run-narr run-stepper">';
+  h += '<div class="rs-top">'+runToggleHtml()+'<span class="rs-rail">'+rail+'</span></div>';
+  h += '<div class="rs-stack">';
+  if (i>0) h += stepPreview(list[i-1], 'prev', i-1);
+  h += '<div class="rs-card t-'+(cur.type||'general')+enterCls+'">'+runStreamNote(cur, ref, sc, {noImg:true, plain:true})+'</div>';
+  if (i<list.length-1) h += stepPreview(list[i+1], 'next', i+1);
+  h += '</div>';
+  h += stepImageHTML(cur);
+  h += '<div class="rs-nav">'
+    + '<button class="btn ghost rs-back" onclick="runBeatStep(-1)"'+(i<=0?' disabled':'')+'>&larr; Back</button>'
+    + '<span class="rs-count">Beat '+(i+1)+' of '+list.length+'</span>'
+    + '<button class="btn rs-next" onclick="runBeatStep(1)"'+(i>=list.length-1?' disabled':'')+'>Next &rarr;</button>'
+    + '</div>';
+  h += '</div>';
+  return h;
+}
+function runBeatStep(d){
+  var sc = curSc(); if (!sc) return;
+  var list = sortedEntries(sc.entries||[]);
+  var n = (typeof sc.runIdx==='number'?sc.runIdx:0) + d;
+  if (n<0) n=0; if (n>list.length-1) n=list.length-1;
+  window._runDir = d>0 ? 'next' : 'prev';
+  sc.runIdx = n; save(); render();
+}
+function runBeatGo(i){
+  var sc = curSc(); if (!sc) return;
+  window._runDir = (i > (sc.runIdx||0)) ? 'next' : 'prev';
+  sc.runIdx = i; save(); render();
+}
+function setRunList(on){ V.runList = !!on; save(); render(); }
 /* One note, styled by type, in builder order. */
 function clueSlug(x){ return String(x||'').toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,''); }
 function clueHandlesIn(text){
@@ -5050,12 +5141,13 @@ function cardClue(){
   window._clueReveal=null; closeModal();
   modal('<h3 class="m-title">Clue carded</h3><p class="muted">Sent to '+charIds.length+' player'+(charIds.length===1?'':'s')+'. It will appear under Notes on their sheet.</p><div class="m-row"><button class="btn" onclick="closeModal()">Done</button></div>');
 }
-function runStreamNote(e, ref, sc){
+function runStreamNote(e, ref, sc, opts){
   var t = e.type || 'general';
+  var noImg = opts && opts.noImg;
   if (t==='readaloud'){
     return '<div class="run-read t-readaloud">'
       + (e.title ? '<div class="run-read-t">'+esc(e.title)+'</div>' : '')
-      + (e.img ? '<div class="run-note-img"><img src="'+esc(imgSrc(e.img))+'" alt=""></div>' : '')
+      + (!noImg && e.img ? '<div class="run-note-img"><img src="'+esc(imgSrc(e.img))+'" alt=""></div>' : '')
       + '<div class="run-read-b">'+renderNoteBody(e.body||'', ref)+'</div></div>';
   }
   if (t==='lorecheck'){
@@ -5087,7 +5179,7 @@ function runStreamNote(e, ref, sc){
     return '<details class="run-fold secret"><summary>'+(e.title?esc(e.title)+' &middot; ':'')+'Secret, LM eyes only</summary>'
       + runNote(e, ref, 'secret') + '</details>';
   }
-  return runNote(e, ref, t);
+  return runNote(e, ref, t, opts);
 }
 
 /* frozen control strip: the actions the loremaster reaches for constantly */
@@ -5375,7 +5467,7 @@ function scrRunner(){
     body = '<details class="run-narr-fold"><summary>Scene narration, beats and clues</summary>'
       + runnerNarration(sc) + '</details>' + runnerCombat(sc);
   } else {
-    body = runnerNarration(sc);
+    body = V.runList ? runnerNarration(sc) : runnerStepper(sc);
   }
   return '<div class="run-shell">' + head + '<div class="run-scroll">' + body + '</div></div>';
 }

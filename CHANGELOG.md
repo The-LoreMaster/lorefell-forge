@@ -4,6 +4,12 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-26 — FateWell: roleplay runner as a beat stepper
+
+- Running a roleplay scene now shows one beat at a time instead of a scroll. A dimmed preview of the previous beat sits above and the next below, both tappable, with a short flip on the move. A progress rail tracks the scene, and the beat image (or the speaking NPC's image on a dialogue beat with none attached) shows under the whole stack rather than inside the card
+- Every per-type behavior carries over: reveal clue on a Lore check, escalate on a Crucible beat, the beat checkbox, and folded secrets. A Stepper and List toggle keeps the classic scroll available, and combat is untouched
+- The position is saved per scene, so leaving and returning to a scene keeps your place
+
 ## 2026-06-25 — FateWell: Previous and Next scene buttons on the scene screen
 
 - Added Previous scene and Next scene under Run this scene, so you can move through a session without going back to the list. They disable at the first and last scene and hide when a session has only one scene
