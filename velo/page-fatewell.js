@@ -6,7 +6,7 @@
 
 import { loadCampaign, saveCampaign, deleteCampaign, listMyCampaigns, getSealed, getForgeLibrary, listAssets, saveAsset, deleteAsset, listGlossary, getCampaignPlayers, detachCharacter, assignClue, setMemberRole, myAdventureRole } from 'backend/fatewell.web.js';
 import { getFoePack } from 'backend/forge.web.js';
-import { publishAdventure } from 'backend/published.web.js';
+import { publishAdventure, myPublishedAdventures, unpublishAdventure } from 'backend/published.web.js';
 import { createInvite, revokeInvite } from 'backend/invites.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
 import wixLocation from 'wix-location';
@@ -116,6 +116,14 @@ $w.onReady(() => {
       let res = null;
       try { res = await publishAdventure(m.title, m.blurb, m.pack, m.campaignId); } catch (e) { res = { ok: false, error: String(e) }; }
       embed.postMessage({ type: 'lmtool-publish-result', ok: !!(res && res.ok), updated: !!(res && res.updated), error: (res && res.error) || '' });
+    } else if (m.type === 'lmtool-published-request') {
+      let items = [];
+      try { items = await myPublishedAdventures(); } catch (e) { items = []; }
+      embed.postMessage({ type: 'lmtool-published-list', items: items });
+    } else if (m.type === 'lmtool-unpublish') {
+      let res = null;
+      try { res = await unpublishAdventure(m.id); } catch (e) { res = { ok: false, error: String(e) }; }
+      embed.postMessage({ type: 'lmtool-unpublish-result', ok: !!(res && res.ok), error: (res && res.error) || '' });
     } else if (m.type === 'lmtool-foepack-request') {
       let pack = null;
       try { pack = await getFoePack(); } catch (e) { pack = null; }

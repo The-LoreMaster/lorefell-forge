@@ -1452,8 +1452,19 @@ window.addEventListener('message', function(ev){
     return;
   }
   if (m.type === 'lmtool-publish-result'){
-    if (m.ok){ advNote('Published', (m.updated ? 'The directory copy was updated.' : 'It is now in the directory for others to import.')); }
-    else { advNote('Publish failed', m.error || 'It could not be published. Try again.'); }
+    if (m.ok){ postToWix({ type:'lmtool-published-request' }); advNote('Published', (m.updated ? 'The directory copy was updated.' : 'It is now in the directory for others to import.')); }
+    else { advNote('Publish failed', m.error || 'It could not be published. Check that the directory is set up, then try again.'); }
+    return;
+  }
+  if (m.type === 'lmtool-published-list'){
+    window._published = {};
+    (m.items||[]).forEach(function(it){ if (it.sourceCampaignId) window._published[it.sourceCampaignId] = { id:it.id, title:it.title }; });
+    render();
+    return;
+  }
+  if (m.type === 'lmtool-unpublish-result'){
+    postToWix({ type:'lmtool-published-request' });
+    if (!m.ok) advNote('Could not remove', m.error || 'It could not be removed from the directory.');
     return;
   }
   if (m.type === 'lmtool-clue-assigned'){
@@ -1620,7 +1631,7 @@ window.addEventListener('message', function(ev){
   }
 });
 
-function requestWix(){ postToWix({ type:'lmtool-ready' }); postToWix({ type:'lmtool-forge-request' }); postToWix({ type:'lmtool-assets-request' }); postToWix({ type:'lmtool-glossary-request' }); postToWix({ type:'lmtool-foepack-request' }); }
+function requestWix(){ postToWix({ type:'lmtool-ready' }); postToWix({ type:'lmtool-forge-request' }); postToWix({ type:'lmtool-assets-request' }); postToWix({ type:'lmtool-glossary-request' }); postToWix({ type:'lmtool-foepack-request' }); postToWix({ type:'lmtool-published-request' }); }
 /* The sealed past is loremaster-only. The tool asks the page for it by the current
    campaign's roster, and the page answers only for loremaster and lorekeeper roles. */
 function requestSealed(){
@@ -3892,6 +3903,15 @@ function buildAdventurePack(c){
   S.library.forEach(function(e){ if (e.type === 'npc' && ids[e.id]) npcs.push(JSON.parse(JSON.stringify(e))); });
   return { meta: { format: 'lorefell-adventure-pack-1', builtAt: Date.now() }, campaign: camp, npcs: npcs };
 }
+function unpublishCampaign(id){
+  var pub = (window._published || {})[id];
+  if (!pub){ return; }
+  askConfirm('Remove this adventure from the directory? People who already imported a copy keep theirs.', function(){
+    postToWix({ type:'lmtool-unpublish', id: pub.id });
+    if (window._published) delete window._published[id];
+    render();
+  }, 'Remove');
+}
 function publishAdventure(id){
   var c = null; S.campaigns.forEach(function(x){ if (x.id===id) c = x; });
   if (!c) return;
@@ -3910,7 +3930,7 @@ function doPublish(id){
   var pack = buildAdventurePack(c);
   postToWix({ type:'lmtool-publish', campaignId:id, title:c.name||'Adventure', blurb:blurb, pack:pack });
   closeModal();
-  modal('<h3 class="m-title">Publishing</h3><p class="muted">Sending "'+esc(c.name)+'" to the directory.</p><div class="m-row"><button class="btn" onclick="closeModal()">Done</button></div>');
+  advNote('Publishing', 'No need to wait. This finishes on its own, and the card shows a Published tag once it lands.');
 }
 function importPack(pack, msg){
   function fail(t){ if (msg){ msg.textContent = t; } else { alert(t); } }
@@ -4051,7 +4071,7 @@ function cardItem(opts){
   var hasDesc = opts.desc && opts.desc.length;
   if (!window._cardMenus) window._cardMenus = {};
   var mid = 'm' + (window._cardMenuSeq = (window._cardMenuSeq||0) + 1);
-  window._cardMenus[mid] = { coverFn:opts.coverFn||'', renameFn:opts.renameFn||'', descFn:opts.descFn||'', dupFn:opts.dupFn||'', delFn:opts.delFn||'', pubFn:opts.pubFn||'', title:opts.title };
+  window._cardMenus[mid] = { coverFn:opts.coverFn||'', renameFn:opts.renameFn||'', descFn:opts.descFn||'', dupFn:opts.dupFn||'', delFn:opts.delFn||'', pubFn:opts.pubFn||'', unpubFn:opts.unpubFn||'', title:opts.title };
 
   var reorder = '';
   if (opts.upFn || opts.downFn){
@@ -4060,7 +4080,7 @@ function cardItem(opts){
       + '<button class="reorder-btn" title="Move down" onclick="event.stopPropagation();'+(opts.downFn||'')+'"'+(opts.downFn?'':' disabled')+'>&#8595;</button></span>';
   }
   var menuBtn = '';
-  if (opts.coverFn || opts.renameFn || opts.descFn || opts.delFn || opts.pubFn){
+  if (opts.coverFn || opts.renameFn || opts.descFn || opts.delFn || opts.pubFn || opts.unpubFn){
     menuBtn = '<button class="card-menu-btn" title="Options" onclick="event.stopPropagation();cardMenu(\''+mid+'\')">&#8943;</button>';
   }
   /* plain card: arrows sit to the LEFT of the menu (one row).
@@ -4100,7 +4120,8 @@ function cardMenu(mid){
   if (m.descFn) h += '<button class="menu-item" onclick="closeModal();'+m.descFn+'">Description</button>';
   if (m.renameFn) h += '<button class="menu-item" onclick="closeModal();'+m.renameFn+'">Rename</button>';
   if (m.dupFn) h += '<button class="menu-item" onclick="closeModal();'+m.dupFn+'">Duplicate</button>';
-  if (m.pubFn) h += '<button class="menu-item" onclick="closeModal();'+m.pubFn+'">Publish to the directory</button>';
+  if (m.pubFn) h += '<button class="menu-item" onclick="closeModal();'+m.pubFn+'">'+(m.unpubFn?'Update the published copy':'Publish to the directory')+'</button>';
+  if (m.unpubFn) h += '<button class="menu-item" onclick="closeModal();'+m.unpubFn+'">Remove from the directory</button>';
   if (m.delFn) h += '<button class="menu-item danger" onclick="closeModal();'+m.delFn+'">Delete</button>';
   h += '</div><div class="m-row"><button class="btn ghost" onclick="closeModal()">Cancel</button></div>';
   modal(h);
@@ -4164,7 +4185,8 @@ function scrCampaigns(){
   } else {
     S.campaigns.forEach(function(c){
       var sub = advSub(c);
-      h += cardItem({ img:c.img, desc:c.desc, title:c.name, sub:sub, openFn:'nav(\'campaign\',\''+c.id+'\')', coverFn:'setCover(\'c\',\''+c.id+'\')', descFn:'descModalC(\''+c.id+'\')', renameFn:'renameCampaign(\''+c.id+'\')', delFn:'deleteCampaign(\''+c.id+'\')', pubFn:'publishAdventure(\''+c.id+'\')' });
+      var isPub = !!(window._published && window._published[c.id]);
+      h += cardItem({ img:c.img, desc:c.desc, title:c.name, sub:sub, badge:(isPub?'Published':''), openFn:'nav(\'campaign\',\''+c.id+'\')', coverFn:'setCover(\'c\',\''+c.id+'\')', descFn:'descModalC(\''+c.id+'\')', renameFn:'renameCampaign(\''+c.id+'\')', delFn:'deleteCampaign(\''+c.id+'\')', pubFn:'publishAdventure(\''+c.id+'\')', unpubFn:(isPub?'unpublishCampaign(\''+c.id+'\')':'') });
     });
     h += '<button class="btn wide" onclick="addCampaign()">New Adventure</button>';
   }
