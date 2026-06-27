@@ -2,6 +2,12 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Combat — impairment secondary effects and a Corsair level fix
+- A landed impairment now applies its until-end-of-battle conditions, not only its name. Dismembered applies Disarmed and Bleeding, Maimed applies Bleeding and Immobilized, Concussed applies Agonized, Blinded applies Bleeding. Those route through the gates the tool already enforces, so the impairment bites instead of sitting as a label. Severed and Sundered carry permanent effects only, recorded for the sheet.
+- This works in both directions. On a foe the conditions stack onto its card. On a player they relay to the sheet and show in the panels alongside the impairment text.
+- Fixed a copy error in FellGlass. The Lorebounds note said Corsair form arrives at level 8. Canon and the rest of the tool use 7.
+- This batch is FellGlass and FateWell only. No backend paste. Refresh both tools.
+
 ## Combat — foe-dealt double Fellmark and the impairment panel
 - A foe can now land the double Fellmark too. The deal row on a player card gains a Mark Fellmark toggle. Set it and a bonus die appears, rolled by tap or by Auto, and it adds to the bonus before the player reduces it. A six doubles the hit and rolls the Impairment.
 - The impairment lands on the player and shows in their Impairments panel with its canon temporary and permanent effects. That panel was reading placeholder fields, so it now pulls the real text from the condition pack and lists all six impairments in the manual picker.

@@ -6585,12 +6585,23 @@ function cbAspectStage(nm, charge){ if(CANON_ASPECT_NAMES.indexOf(nm)<0) return 
 var IMP_TABLE=['Dismembered','Blinded','Maimed','Concussed','Severed','Sundered'];
 function cbAutoDice(){ if(typeof window._autoDice!=='boolean'){ try{ window._autoDice = localStorage.getItem('lf_autoDice')==='1'; }catch(e){ window._autoDice=false; } } return window._autoDice; }
 function cbSetAutoDice(v){ window._autoDice=!!v; try{ localStorage.setItem('lf_autoDice', v?'1':'0'); }catch(e){} render(); }
+function cbImpTemps(name){
+  var c=(typeof canonCondition==='function')?canonCondition(name):null;
+  if(!c || !c.rule) return [];
+  var idx=c.rule.indexOf('(until end of battle)');
+  if(idx<0) return [];
+  var head=c.rule.slice(0,idx).trim();
+  if(!head || /^none$/i.test(head)) return [];
+  return head.split(/\s+and\s+/).map(function(s){ return s.trim(); }).filter(Boolean);
+}
 function cbDoImpairment(foe){
   if(!foe) return;
   var roll=1+Math.floor(Math.random()*6), imp=IMP_TABLE[roll-1];
   if(!(foe.affs||[]).some(function(a){ return a.name===imp; })) (foe.affs=foe.affs||[]).push({ name:imp, kind:'impairment' });
+  var temps=cbImpTemps(imp);
+  temps.forEach(function(t){ if(!(foe.affs||[]).some(function(a){ return a.name===t; })) foe.affs.push({ name:t, kind:'affliction' }); });
   foe._pendImp=false; save(); render();
-  cbToast('Impairment 1d6 \u2192 '+roll+'. '+imp+' takes hold on '+esc(foe.name)+'.');
+  cbToast('Impairment 1d6 \u2192 '+roll+'. '+imp+' takes hold on '+esc(foe.name)+(temps.length?(', applying '+temps.join(' and ')):'')+'.');
 }
 function cbDoImpairmentFor(cid){ var foe=null; curSc().combatants.forEach(function(c){ if(c.id===cid) foe=c; }); if(foe) cbDoImpairment(foe); }
 function cbToggleDealFell(pid){ var st=pState(pid); st._dealFell=!st._dealFell; if(!st._dealFell) st._dealFB=null; save(); render(); }
@@ -6598,10 +6609,12 @@ function cbRollDealFB(pid){ var st=pState(pid); st._dealFB=1+Math.floor(Math.ran
 function cbDoImpairmentPlayer(pid){
   var roll=1+Math.floor(Math.random()*6), imp=IMP_TABLE[roll-1];
   cbApplyCondition('p:'+pid, { name:imp, kind:'impairment' });
+  var temps=cbImpTemps(imp);
+  temps.forEach(function(t){ cbApplyCondition('p:'+pid, { name:t, kind:'affliction' }); });
   var st=pState(pid); st._pendImpP=false;
   var p=null; (curC().players||[]).forEach(function(x){ if(x.id===pid) p=x; });
   save(); render();
-  cbToast('Impairment 1d6 \u2192 '+roll+'. '+imp+' takes hold on '+esc(p?p.name:'the player')+'.');
+  cbToast('Impairment 1d6 \u2192 '+roll+'. '+imp+' takes hold on '+esc(p?p.name:'the player')+(temps.length?(', applying '+temps.join(' and ')):'')+'.');
 }
 function cbImpRowP(n){
   if(n.kind!=='p') return '';
