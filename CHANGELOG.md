@@ -2,6 +2,10 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Combat — hide player declarations from the LoreMaster until resolution
+- During the commit phase the declare panel shows readiness only. Each player reads Locked in or Waiting, with a count of how many are in. What they chose stays hidden.
+- The choices reveal on the resolution board when you lock and resolve, the same place they always showed. Players can still declare while you commit, you just do not see their picks early.
+
 ## Combat — round-phase rhythm banner for players
 - The combat banner now shows the round as a four-step strip: Commit, Plan, Declare, Resolve. The active step lights up as the LoreMaster moves the round forward, so the table always knows where it stands.
 - A status line under the strip tells the player what to do at each point, from locking an Act and React while the round is open to a spotlight call when they are up.
