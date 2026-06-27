@@ -69,6 +69,12 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 - The Loremaster board marks each aspect React with the stage the player's charge supports, so the table resolves it at the right strength.
 - Aspect data still defers to the CMS once that collection carries staged effects.
 
+## Lorebounds — canon aspect model
+- A lorebound now carries the one Aspect tied to its kind, drawn from its type. The eighteen real types replace the placeholders, and the two-aspect pool is gone.
+- Branching and Crown are committed leveling picks, not React choices. The builder offers the two Branching options at Companion form and the two Crown options at Corsair form, and locks in your choice.
+- Forms follow canon levels, Familiar 1 to 3, Companion 4 to 6, Corsair 7 to 10, and the leveling guidance matches the FellGuide. Level 10 grants the Everpresent Bond.
+- In combat the aspect React shows your committed Branch and Crown for the stage your charge reaches, Initial at 1, Branch at 2, Crown at 3. The Everpresent Bond resolves the aspect in full at any charge.
+
 ---
 
 ## 2026-06-26 — Combat: player vitality, charge, and conditions sync live
