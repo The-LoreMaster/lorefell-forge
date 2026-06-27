@@ -2,6 +2,10 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Combat — round-start digest in the declare panel
+- The declare panel now opens with a short readout of what is true for you this round: your Fatigue level and its effect, your charge tier and what it unlocks, your active Afflictions, and any round-start effects that just applied.
+- Round-start effects already ran each round as a quick toast. They now also persist in the digest, so a Mendseam heal or a Slashed halving does not scroll past unseen.
+
 ## Reacts — full available list, grouped by source, with Assist
 - The declare dropdown now groups options by where they come from: Lorebound, Weapon, Items, Armor, then Standard. Acts group the same way. Picking a lorebound Aspect still shows its live stage and charge requirement.
 - Added Assist as a standard React, since assisting an ally costs your React. It carries the assist math and the rule that either Fellmark clears an Affliction when you assist a breakout.
