@@ -4,6 +4,12 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-26 — FateWell: an Act's condition lands only on a Fellmark
+
+- A foe Act's affliction or effect no longer lands on every resolve. It lands only when that foe carries a Fellmark for the round
+- Each foe card in Resolve has a Roll d6 that sets a Fellmark on a 6 and calls a Fellstrike on a 1, plus a Mark Fellmark toggle for when you roll physical dice. Resolving the spotlight lands the condition for foes marked Fellmark, and Undo strips it back off. The Fellmark clears when the round advances
+- Labels now read On Fellmark in the foe wizard and the commit step, so the trigger is clear where you set it
+
 ## 2026-06-26 — FateWell: foe Acts can declare what they inflict, so auto-apply lands it
 
 - Each foe Act can now carry an applied condition, an affliction or effect by name. Set it in the foe wizard so every combatant attached from that foe inherits it, or set it inline in the commit step on a foe already on the field

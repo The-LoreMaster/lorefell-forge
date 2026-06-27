@@ -1180,6 +1180,9 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 .cb-count{ font-size:.8rem; color:var(--muted); }
 .ab-applies{ font-size:.78rem; color:var(--muted); margin-top:4px; }
 .ap-hint{ font-size:.78rem; margin:6px 0 2px; }
+.cb-fmrow{ display:flex; align-items:center; gap:12px; margin-top:10px; }
+.cb-fm{ background:none; border:1px solid var(--line); color:var(--silver-dim); border-radius:7px; padding:4px 11px; font-size:.8rem; cursor:pointer; font-family:inherit; }
+.cb-fm.on{ border-color:var(--gold); color:var(--gold); background:rgba(201,168,76,.12); }
 .cb-toast{ position:fixed; left:50%; bottom:90px; transform:translateX(-50%) translateY(12px); background:var(--navy-4,#1c2742); border:1px solid var(--gold); color:var(--silver); padding:10px 16px; border-radius:10px; font-size:.86rem; box-shadow:0 8px 28px rgba(0,0,0,.5); opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; z-index:120; max-width:84vw; text-align:center; }
 .cb-toast.on{ opacity:1; transform:translateX(-50%) translateY(0); }
 </style>
@@ -2976,7 +2979,7 @@ function renderWAb(){
   window._wiz.abilities.forEach(function(a, i){
     h += '<div class="inv-row ab-row"><div><b>'+esc(a.name)+'</b> <span class="muted">T'+a.tier+' &middot; '+esc(a.use)+'</span>'
       + (a.desc ? '<div class="ref-desc">'+esc(a.desc)+'</div>' : '')
-      + '<div class="ab-applies">Inflicts: '+appliesLabel(a)+' <button class="cb-link" onclick="wAbApplies('+i+')">edit</button></div>'
+      + '<div class="ab-applies">On Fellmark: '+appliesLabel(a)+' <button class="cb-link" onclick="wAbApplies('+i+')">edit</button></div>'
       + '</div>'
       + '<button class="aff-x" onclick="wAbDel('+i+')">&times;</button></div>';
   });
@@ -3665,7 +3668,7 @@ function doAdvanceRound(){
   b.round++; b.phase = 'commit'; b.locked = false; b.pLocked = false; b.spots = []; b.manual = {}; b.order = [];
   b.spotBox = []; b.spotDone = {}; b.undoStack = []; b.activeSpot = 0;
   sc.combatants.forEach(function(c){
-    c.act = ''; c.target=''; c.done = false; c.intent = null; c.reactUsed = false;
+    c.act = ''; c.target=''; c.done = false; c.intent = null; c.reactUsed = false; c.fellmark = false;
     /* afflictions persist across rounds; removed manually via Fellmark */
   });
   Object.keys(sc.ps).forEach(function(pid){
@@ -5051,7 +5054,7 @@ function cbIntentPicker(cb){
   var infl='';
   if(it.type==='Attack' && it.ability){
     var abIdx=(cb.abilities||[]).map(function(a){ return a.name; }).indexOf(it.ability);
-    infl='<div class="cb-pickrow"><span class="cb-pk">Inflicts</span><div class="cb-pickers"><button class="cb-link" onclick="cbApplies(\''+cb.id+'\','+abIdx+')">'+appliesLabel((cb.abilities||[])[abIdx])+'</button></div></div>';
+    infl='<div class="cb-pickrow"><span class="cb-pk">On Fellmark</span><div class="cb-pickers"><button class="cb-link" onclick="cbApplies(\''+cb.id+'\','+abIdx+')">'+appliesLabel((cb.abilities||[])[abIdx])+'</button></div></div>';
   }
   return '<div class="cb-pickrow"><span class="cb-pk">Intent</span><div class="cb-pickers">'
     + '<select class="inp slim" onchange="cbSetIntent(\''+cb.id+'\',\'type\',this.value)">'+topts+'</select>'+sub+'</div></div>'
@@ -5127,7 +5130,7 @@ function cbCard(n, o){
   return '<div class="cb-fighter '+sideCls+(o.spot?' spot':'')+(down?' down':'')+'">'
     + '<div class="cb-top"><span class="cb-nm">'+esc(n.name)+'</span><span class="cb-sd">'+sideLbl+'</span></div>'
     + cbVitRow(n) + chargeRow(n.kind, n.ref.id, cbChargeOf(n)) + cbChips(n)
-    + cbActDisplay(n) + cbReact(n)
+    + cbActDisplay(n) + (n.kind==='m' ? cbFellmark(n) : '') + cbReact(n)
     + (o.addSpot?'<div class="cb-spotline"><button class="cb-link" onclick="cbAddSpot(\''+n.key+'\')">+ Spotlight</button></div>':'')
     + (o.removeSpot?'<div class="cb-spotline"><button class="cb-link" onclick="cbRmSpot(\''+n.key+'\')">Remove</button></div>':'')
   + '</div>';
@@ -5163,7 +5166,7 @@ function cbResolveSpot(){
   var snap={ box:b.spotBox.slice(), done:Object.assign({},b.spotDone), active:b.activeSpot, mode:b.spotMode, applied:[] };
   inBox.forEach(function(k){
     var n=nodeByKey(k);
-    if(n && n.kind==='m' && n.ref.intent && n.ref.intent.type==='Attack' && n.ref.target && n.ref.target!=='env'){
+    if(n && n.kind==='m' && n.ref.fellmark && n.ref.intent && n.ref.intent.type==='Attack' && n.ref.target && n.ref.target!=='env'){
       var ab=(n.ref.abilities||[]).filter(function(a){ return a.name===n.ref.intent.ability; })[0];
       if(ab && ab.applies && ab.applies.name){
         var tkey=n.ref.target;
@@ -5223,7 +5226,7 @@ function appliesModal(){
     + '<button class="seg-b'+(k==='effect'?' on':'')+'" id="apKindEff" onclick="apSetKind(\'effect\')">Effect</button></div>'
     + '<input type="hidden" id="apKind" value="'+k+'">'
     + '<label class="lbl">Name</label><input class="inp" id="apName" value="'+esc(ap.name||'')+'" placeholder="Burning, Slowed, Marked...">'
-    + '<p class="muted ap-hint">Leave the name empty to clear what this Act lands on its focus.</p>'
+    + '<p class="muted ap-hint">This lands on its focus only on a Fellmark. Leave the name empty to clear it.</p>'
     + '<div class="m-row"><button class="btn ghost" onclick="closeApplies()">Cancel</button>'
     + '<button class="btn" onclick="saveApplies()">Save</button></div>');
 }
@@ -5239,6 +5242,18 @@ function saveApplies(){
   if(ctx==='wiz'){ reopenWiz(); } else { closeModal(); save(); render(); }
 }
 function closeApplies(){ var ctx=window._applyCtx; window._applyAb=null; window._applyCtx=null; if(ctx==='wiz'){ reopenWiz(); } else { closeModal(); } }
+function cbFellmark(n){
+  var fm=!!n.ref.fellmark;
+  return '<div class="cb-fmrow"><button class="cb-link" onclick="cbRollFor(\''+n.ref.id+'\')">Roll d6</button>'
+    + '<button class="cb-fm'+(fm?' on':'')+'" onclick="cbToggleFell(\''+n.ref.id+'\')">'+(fm?'Fellmark set':'Mark Fellmark')+'</button></div>';
+}
+function cbRollFor(cid){
+  var r=1+Math.floor(Math.random()*6); var c=null; curSc().combatants.forEach(function(x){ if(x.id===cid) c=x; });
+  if(r===6){ if(c) c.fellmark=true; save(); render(); cbToast('d6 rolled 6, a Fellmark'); }
+  else if(r===1){ cbToast('d6 rolled 1, a Fellstrike'); }
+  else cbToast('d6 rolled '+r);
+}
+function cbToggleFell(cid){ curSc().combatants.forEach(function(c){ if(c.id===cid) c.fellmark=!c.fellmark; }); save(); render(); }
 
 function tabDisruptions(sc){
   var bal = disBalance();
