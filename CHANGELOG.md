@@ -2,6 +2,16 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Roster — character deletion from FellGlass with campaign cleanup
+- FellGlass now carries a Delete control on the character picker. It confirms, removes the character, and when none remain it offers to make a new one before the picker goes empty.
+- A new deleteCharacter backend method removes the row and, for a plain player with no other character in that campaign, drops their adventure membership so the LM roster clears. The campaign owner and lorekeepers are never removed.
+- FateWell prunes any server-backed player the roster reader no longer lists, so a deleted character drops on the next sync. Manually added and offline players are left in place.
+
+## Combat — unarmed strike, foe standard attack, and charge-gated foe abilities
+- A Fell with no weapon now has an unarmed basic attack that deals Power plus 1 base damage and charges Tier 1 on a hit.
+- Every foe now offers a standard attack in its intent picker, and the foe charge meter advances when its act resolves. A standard attack charges Tier 1, a Tier 1 act charges Tier 2, a Tier 2 act charges Tier 3, and a Tier 3 act resets to 0.
+- Foe tiered abilities stay locked until the foe holds the matching charge, the same rule the player side already follows.
+
 ## Combat — campaign link reconciled across both backends
 - The combat reader and the LM roster reader keyed off different fields. The save now writes the campaign id to campaignId and the campaign name to campaign, and the combat reader resolves by campaignId. The combat match and the roster character match both line up, and no schema change is needed since both fields already exist.
 - This supersedes the prior campaign fix. Re-paste velo/backend/characters.web.js and velo/backend/combat.web.js, publish, then open a character and pick its campaign once so both fields fill in.

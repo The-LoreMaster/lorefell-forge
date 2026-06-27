@@ -2745,6 +2745,17 @@ function mergePool(c){
   });
 }
 
+function prunePool(c){
+  c.players = c.players.filter(function(p){
+    if (p.offline || !p.wixId) return true;
+    return S.wixPlayers.some(function(wp){
+      var mid = wp.memberId || wp.id;
+      if (p.charId) return wp.charId === p.charId;
+      return (mid && mid === p.memberId) || (wp.id && wp.id === p.wixId);
+    });
+  });
+}
+
 function autoMergePlayers(campaignId){
   var targets = [];
   if (campaignId){
@@ -2755,6 +2766,7 @@ function autoMergePlayers(campaignId){
     S.campaigns.forEach(function(c){ if (!c.players.length && targets.indexOf(c)<0) targets.push(c); });
   }
   targets.forEach(mergePool);
+  targets.forEach(prunePool);
 }
 
 function syncPlayersNow(){ var c=curC(); if (WIX.hub && c) postToWix({ type:'lmtool-players-request', campaignId:c.id }); mergePool(c); save(); render(); }
@@ -6193,9 +6205,11 @@ function cbIntentPicker(cb){
   }
   var topts = CB_ACT_TYPES.map(function(a){ return '<option'+(it.type===a?' selected':'')+'>'+a+'</option>'; }).join('');
   var sub='';
-  if(it.type==='Attack' && (cb.abilities||[]).length){
-    sub = '<select class="inp slim" onchange="cbSetIntent(\''+cb.id+'\',\'ability\',this.value)"><option value="">Choose an Act</option>'
-      + cb.abilities.map(function(a){ return '<option value="'+esc(a.name)+'"'+(it.ability===a.name?' selected':'')+'>'+esc(a.name)+(a.tier?' (T'+a.tier+')':'')+'</option>'; }).join('')
+  if(it.type==='Attack'){
+    var fch=cb.charge||0;
+    sub = '<select class="inp slim" onchange="cbSetIntent(\''+cb.id+'\',\'ability\',this.value)">'
+      + '<option value="__std__"'+((!it.ability||it.ability==='__std__')?' selected':'')+'>Standard attack</option>'
+      + (cb.abilities||[]).map(function(a){ var lk=(a.tier>0 && a.tier>fch); return '<option value="'+esc(a.name)+'"'+(it.ability===a.name?' selected':'')+(lk?' disabled':'')+'>'+esc(a.name)+(a.tier?' (T'+a.tier+')':'')+(lk?' \u00b7 needs T'+a.tier+' charge':'')+'</option>'; }).join('')
       + '</select>';
   } else if(it.type==='Use an item' && (cb.items||[]).length){
     sub = '<select class="inp slim" onchange="cbSetIntent(\''+cb.id+'\',\'item\',this.value)"><option value="">Choose an item</option>'
@@ -6207,7 +6221,7 @@ function cbIntentPicker(cb){
   nd2.forEach(function(n){ if(n.key==='m:'+cb.id) return; focus+='<option value="'+n.key+'"'+(cb.target===n.key?' selected':'')+'>'+esc(n.name)+'</option>'; });
   focus+='<option value="env"'+(cb.target==='env'?' selected':'')+'>Space</option></select>';
   var infl='';
-  if(it.type==='Attack' && it.ability){
+  if(it.type==='Attack' && it.ability && it.ability!=='__std__'){
     var abIdx=(cb.abilities||[]).map(function(a){ return a.name; }).indexOf(it.ability);
     infl='<div class="cb-pickrow"><span class="cb-pk">On Fellmark</span><div class="cb-pickers"><button class="cb-link" onclick="cbApplies(\''+cb.id+'\','+abIdx+')">'+appliesLabel((cb.abilities||[])[abIdx])+'</button></div></div>';
   }
@@ -6227,7 +6241,7 @@ function cbSetIntent(cid, key, val){
 }
 function cbActLine(c){
   var it=c.intent||{}; var what=it.type||'Attack';
-  if(it.type==='Attack' && it.ability) what='Attack with '+it.ability;
+  if(it.type==='Attack'){ what = (!it.ability||it.ability==='__std__') ? 'Standard attack' : ('Attack with '+it.ability); }
   if(it.type==='Use an item' && it.item) what='Use '+it.item;
   return what;
 }
@@ -6397,6 +6411,11 @@ function cbResolveSpot(){
     if(n && n.kind==='m' && n.ref.intent && n.ref.intent.type && window.canonCondition){
       var ign=(n.ref.affs||[]).some(function(a){ return a.name==='Ignited'; });
       if(ign && n.ref._ignitedRound!==b.round){ n.ref._ignitedRound=b.round; var ir=1+Math.floor(Math.random()*6); n.ref.curVit=Math.max(0,(n.ref.curVit||0)-ir); snap.ignited=(snap.ignited||[]); snap.ignited.push({key:k,amt:ir}); }
+    }
+    if(n && n.kind==='m' && n.ref.intent && n.ref.intent.type==='Attack'){
+      var _it=n.ref.intent, _T=0;
+      if(_it.ability && _it.ability!=='__std__'){ var _ab=(n.ref.abilities||[]).filter(function(a){ return a.name===_it.ability; })[0]; if(_ab && typeof _ab.tier==='number') _T=_ab.tier; }
+      n.ref.charge=(_T===3?0:_T+1);
     }
     b.spotDone[k]=true;
   });

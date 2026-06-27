@@ -3,7 +3,7 @@
 // EMBED to its element ID. The character to show is taken from the page URL query
 // charId, which your character list page sets when a player taps a character.
 
-import { listMyCharacters, myAdventures, loadCharacter, saveCharacter } from 'backend/characters.web.js';
+import { listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter } from 'backend/characters.web.js';
 import { getClueCards } from 'backend/fatewell.web.js';
 import { getCombatForChar, saveCombatDeclare, syncCombatPlayer } from 'backend/combat.web.js';
 import { getLibraries } from 'backend/libraries.web.js';
@@ -90,6 +90,16 @@ $w.onReady(() => {
           sendCharacters(r.id);
         }
       } catch (e) {}
+    } else if (msg.type === 'delete-character') {
+      const cid = msg.charId || charId;
+      let res = { ok: false };
+      try { res = await deleteCharacter(cid); } catch (e) { res = { ok: false }; }
+      const list = await listChars();
+      const nextId = list.length ? list[0].id : '';
+      charId = nextId;
+      embed.postMessage({ type: 'char-deleted', ok: !!(res && res.ok), remaining: list.length, leftCampaign: !!(res && res.leftCampaign) });
+      embed.postMessage({ type: 'characters', list: list, currentId: nextId });
+      await openCharacter(nextId);
     } else if (msg.type === 'LOREFELL_FEEDBACK_SUBMIT') {
       console.log('FellGlass feedback:', JSON.stringify(msg.payload || {}));
     }

@@ -67,6 +67,39 @@ export const loadCharacter = webMethod(Permissions.Anyone, async (charId) => {
   return { forged: false, character: data };  // sealed past intentionally absent
 });
 
+export const deleteCharacter = webMethod(Permissions.Anyone, async (charId) => {
+  const id = await memberId();
+  if (!charId) return { ok: false, error: 'no id' };
+  const row = await wixData.get(COLLECTION, charId, { suppressAuth: true }).catch(() => null);
+  if (!row) return { ok: true, id: charId, already: true };
+  if (row.ownerMemberId && id && row.ownerMemberId !== id) return { ok: false, error: 'not yours' };
+  const campId = row.campaignId || '';
+  await wixData.remove(COLLECTION, charId, { suppressAuth: true });
+
+  // Drop campaign membership only for a plain player who has no other character left
+  // in that campaign. Never remove the campaign owner or a lorekeeper.
+  let leftCampaign = false;
+  if (id && campId) {
+    let isOwner = false;
+    try { const c = await wixData.get('Campaigns', campId, { suppressAuth: true }).catch(() => null); isOwner = !!(c && c.ownerMemberId === id); } catch (e) {}
+    if (!isOwner) {
+      let others = 0;
+      try { const r = await wixData.query(COLLECTION).eq('ownerMemberId', id).eq('campaignId', campId).limit(1).find({ suppressAuth: true }); others = r.items.length; } catch (e) {}
+      if (!others) {
+        try {
+          const m = await wixData.query('AdventureMembers').eq('campaignId', campId).eq('memberId', id).limit(20).find({ suppressAuth: true });
+          for (const mm of m.items) {
+            if (mm.role === 'loremaster' || mm.role === 'lorekeeper') continue;
+            await wixData.remove('AdventureMembers', mm._id, { suppressAuth: true });
+            leftCampaign = true;
+          }
+        } catch (e) {}
+      }
+    }
+  }
+  return { ok: true, id: charId, leftCampaign: leftCampaign };
+});
+
 export const saveCharacter = webMethod(Permissions.Anyone, async (charId, character) => {
   const id = await memberId();
   const c = character || {};

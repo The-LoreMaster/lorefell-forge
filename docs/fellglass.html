@@ -376,6 +376,8 @@ h3{font-family:var(--head);font-weight:500;font-size:12px;letter-spacing:.12em;t
 .char-switch .cs-l{font-family:'Cinzel',serif;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ice);flex:0 0 auto}
 .cs-sel{flex:1;min-width:0;font-family:'Crimson Pro',serif;font-size:15px;color:var(--silver);background:var(--navy-3);border:1px solid var(--line);border-radius:6px;padding:8px 10px}
 .cs-sel:focus{outline:none;border-color:var(--gold)}
+.cs-del{flex:0 0 auto;font-family:'Cinzel',serif;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);background:transparent;border:1px solid var(--line);border-radius:6px;padding:8px 10px;cursor:pointer}
+.cs-del:hover{color:var(--silver);border-color:var(--gold)}
 /* ===== combat mode ===== */
 body.in-combat::after{ content:""; position:fixed; inset:0; pointer-events:none; z-index:60; border:2px solid rgba(201,106,90,.55); box-shadow:inset 0 0 38px rgba(201,106,90,.32); animation:cbpulse 2.6s ease-in-out infinite; }
 @keyframes cbpulse{ 0%,100%{ box-shadow:inset 0 0 30px rgba(201,106,90,.22); } 50%{ box-shadow:inset 0 0 46px rgba(201,106,90,.40); } }
@@ -437,6 +439,7 @@ body.in-combat{ padding-top:var(--cbn-h,46px); }
 <div class="char-switch" id="charSwitch" style="display:none">
   <label class="cs-l" for="charSel">Choose Your Fell</label>
   <select id="charSel" class="cs-sel" aria-label="Choose a Fell"></select>
+  <button id="csDel" class="cs-del" type="button" aria-label="Delete this Fell" style="display:none">Delete</button>
 </div>
 
 <header>
@@ -3372,6 +3375,7 @@ function renderBattle(){
       if(f)put(f.use,src,n,f.desc,undefined,"weapon");
     });
   });
+  if(!C.weapons.some(function(w){return w.tree;})) put("Act","Unarmed","Basic attack","Tier 0 \u00b7 Power +1 base damage",0,"weapon");
   C.inventory.filter(it=>it.discovered).forEach(it=>{
     const lib=ITEMS_LIB.find(x=>x.id===it.itemId);
     if(lib)put(lib.use,"item",lib.name,lib.desc,undefined,"item");
@@ -3410,6 +3414,7 @@ function renderBattle(){
     var aff=((WEAPON_DB[w.tree]&&WEAPON_DB[w.tree].meta)||WEAPON_META).affliction||'';
     _wInfo[weaponName(w)]={dmg:d.base+d.bonus, base:d.base, dt:(cat==='magic'?'magic':'phys'), aff:aff};
   });
+  if(!C.weapons.some(function(w){return w.tree;})){ var _up=1+Math.max(0,attrTotal("power")); _wInfo["Unarmed"]={dmg:_up, base:_up, dt:"phys", aff:""}; }
   window.COMBAT_ACTS=arNames.Act.map(function(a){ var i=_wInfo[a.src]; return {src:a.src,nm:a.nm,dmg:i?i.dmg:0,base:i?i.base:0,dt:i?i.dt:null,aff:i?i.aff:'',tier:(typeof a.tier==='number'?a.tier:null),kind:a.kind}; });
   window.COMBAT_REACTS=arNames.React;
   let dmg="";
@@ -3711,6 +3716,7 @@ function renderCharSwitch(){
   });
   html+='<option value="__add__">+ New Fell</option>';
   sel.innerHTML=html;
+  var del=$("csDel"); if(del) del.style.display = CUR_SEL ? "inline-block" : "none";
   wrap.style.display="flex";
 }
 (function(){
@@ -3721,7 +3727,15 @@ function renderCharSwitch(){
     else if(v && v!==CUR_SEL){ postToVelo({type:"select-character",charId:v}); }
     else { renderCharSwitch(); }
   });
+  var del=$("csDel"); if(del) del.addEventListener("click",csDeleteCharacter);
 })();
+function csDeleteCharacter(){
+  if(!CUR_WIX_ID) return;
+  var c=CHARS.filter(function(x){return x.id===CUR_WIX_ID;})[0];
+  var nm=(c&&c.name)||"this character";
+  if(!confirm("Delete "+nm+"? This cannot be undone.")) return;
+  postToVelo({type:"delete-character",charId:CUR_WIX_ID});
+}
 /* ---------- combat mode (mirrors the LoreMaster's combat) ---------- */
 function cbEsc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
 let COMBAT=null, _combatPoll=null, _combatSig="";
@@ -4190,6 +4204,7 @@ window.onmessage=ev=>{
   else if(d.type==="saved"){ if(d.localId&&d.localId===CUR_LOCAL_ID&&d.charId) CUR_WIX_ID=d.charId; }
   else if(d.type==="characters"){ CHARS=Array.isArray(d.list)?d.list:[]; CUR_SEL=d.currentId||""; renderCharSwitch(); }
   else if(d.type==="adventures"){ ADVS=Array.isArray(d.list)?d.list:[]; renderCampaignOptions(); }
+  else if(d.type==="char-deleted"){ if(d.remaining===0){ if(confirm("You have no characters left. Create a new one?")) postToVelo({type:"add-character"}); } }
 };
 postToVelo({type:"ready"});
 document.addEventListener("input",scheduleSave);
