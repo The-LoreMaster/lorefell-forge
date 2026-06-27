@@ -81,7 +81,7 @@ export const saveCharacter = webMethod(Permissions.Anyone, async (charId, charac
   row.data = JSON.stringify(c);
   row.charName = (c.identity && c.identity.name) || row.charName || 'Unnamed Fell';
   row.level = (c.lore && c.lore.level) || 1;
-  row.campaign = (c.identity && c.identity.campaign) || row.campaign || '';
+  row.campaign = (c.identity && c.identity.campaignId) || row.campaign || '';
   const saved = await wixData.save(COLLECTION, row, { suppressAuth: true });
   return { ok: true, id: saved._id };
 });

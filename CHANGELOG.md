@@ -2,6 +2,10 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Combat — character to campaign link fixed so battle mode reaches the player
+- The player tool saved the campaign by name in the column the combat lookup reads by id. Escalating a scene published correctly, but the player match found nothing, so FellGlass stayed on the sheet. The save now stores the campaign id, which is what FateWell publishes under.
+- This changes one backend file. Paste velo/backend/characters.web.js into Wix and publish. Then open the character in FellGlass and pick the campaign again once so the stored value updates from the old name to the id. After that, escalate the scene and the player drops into combat.
+
 ## Combat — infusions phase four, on-hit and on-kill triggers
 - Welling, Reprieve, Emboldening, and Devouring appear as one-tap controls on the combat banner whenever you carry one. Welling adds a charge, Reprieve clears an Affliction, Emboldening grants temporary Vitality equal to your Power, Devouring restores Vitality equal to your Magic. The tool does the math and you tap it the moment you land the hit or drop the foe.
 - These fire on events that resolve on the LM board. Rather than build a new cross-tool signal for them, they sit on your banner where you can reach them. Swift stays a reminder, since an extra attack is just another declaration.
