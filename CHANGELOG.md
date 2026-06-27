@@ -2,6 +2,12 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Combat — round-phase rhythm banner for players
+- The combat banner now shows the round as a four-step strip: Commit, Plan, Declare, Resolve. The active step lights up as the LoreMaster moves the round forward, so the table always knows where it stands.
+- A status line under the strip tells the player what to do at each point, from locking an Act and React while the round is open to a spotlight call when they are up.
+- The Declare control is gated to the open phase. Once the LoreMaster locks and resolves, it reads Locked instead of inviting a new declaration.
+- The phase already synced from FateWell, so this is a FellGlass change with no backend or page-bridge paste.
+
 ## Combat — round-start digest in the declare panel
 - The declare panel now opens with a short readout of what is true for you this round: your Fatigue level and its effect, your charge tier and what it unlocks, your active Afflictions, and any round-start effects that just applied.
 - Round-start effects already ran each round as a quick toast. They now also persist in the digest, so a Mendseam heal or a Slashed halving does not scroll past unseen.

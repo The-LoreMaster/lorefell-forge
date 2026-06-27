@@ -372,7 +372,17 @@ h3{font-family:var(--head);font-weight:500;font-size:12px;letter-spacing:.12em;t
 body.in-combat::after{ content:""; position:fixed; inset:0; pointer-events:none; z-index:60; border:2px solid rgba(201,106,90,.55); box-shadow:inset 0 0 38px rgba(201,106,90,.32); animation:cbpulse 2.6s ease-in-out infinite; }
 @keyframes cbpulse{ 0%,100%{ box-shadow:inset 0 0 30px rgba(201,106,90,.22); } 50%{ box-shadow:inset 0 0 46px rgba(201,106,90,.40); } }
 @media (prefers-reduced-motion:reduce){ body.in-combat::after{ animation:none; } }
-.combat-banner{ position:fixed; left:0; right:0; top:0; z-index:70; display:none; align-items:center; justify-content:space-between; gap:10px; padding:9px 14px; background:linear-gradient(180deg,rgba(201,106,90,.22),rgba(10,14,26,.96)); border-bottom:1px solid rgba(201,106,90,.5); }
+.combat-banner{ position:fixed; left:0; right:0; top:0; z-index:70; display:none; flex-direction:column; align-items:stretch; gap:7px; padding:9px 14px 10px; background:linear-gradient(180deg,rgba(201,106,90,.22),rgba(10,14,26,.96)); border-bottom:1px solid rgba(201,106,90,.5); }
+.cbn-top{ display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%; }
+.cbn-steps{ display:flex; gap:5px; width:100%; }
+.cbn-step{ flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; font-family:'Cinzel',serif; font-size:.55rem; letter-spacing:.09em; text-transform:uppercase; color:var(--silver-dim); opacity:.55; }
+.cbn-step .bar{ width:100%; height:3px; border-radius:2px; background:var(--line); }
+.cbn-step.done{ opacity:.9; color:var(--ice); }
+.cbn-step.done .bar{ background:var(--ice); }
+.cbn-step.on{ opacity:1; color:var(--gold); }
+.cbn-step.on .bar{ background:var(--ice); box-shadow:0 0 8px rgba(201,168,76,.7); }
+.cbn-status{ width:100%; font-size:.82rem; color:var(--silver-dim); line-height:1.4; }
+.cbn-locked{ font-family:'Cinzel',serif; font-size:.78rem; letter-spacing:.08em; color:var(--silver-dim); opacity:.85; padding:6px 2px; white-space:nowrap; }
 .cbn-l{ display:flex; align-items:center; gap:9px; font-family:'Cinzel',serif; letter-spacing:.06em; color:var(--silver); font-size:.92rem; }
 .cbn-dot{ width:9px; height:9px; border-radius:50%; background:var(--danger); box-shadow:0 0 9px rgba(201,106,90,.9); animation:cbpulse 1.8s ease-in-out infinite; }
 .cbn-btn{ background:rgba(201,106,90,.16); border:1px solid var(--danger); color:var(--silver); border-radius:8px; padding:6px 13px; font-family:inherit; font-size:.84rem; cursor:pointer; }
@@ -396,7 +406,7 @@ body.in-combat::after{ content:""; position:fixed; inset:0; pointer-events:none;
 .cb-sel:disabled{ opacity:.45; }
 .cb-ping{ position:fixed; left:50%; bottom:24px; transform:translateX(-50%) translateY(12px); z-index:210; background:var(--navy-2); border:1px solid var(--danger); color:var(--silver); padding:10px 16px; border-radius:10px; font-size:.86rem; max-width:86vw; text-align:center; box-shadow:0 10px 30px rgba(0,0,0,.55); opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; }
 .cb-ping.on{ opacity:1; transform:translateX(-50%) translateY(0); }
-body.in-combat{ padding-top:46px; }
+body.in-combat{ padding-top:var(--cbn-h,46px); }
 .cb-ovl{ position:fixed; inset:0; z-index:200; background:rgba(6,9,16,.74); display:flex; align-items:center; justify-content:center; padding:18px; }
 .cb-card{ width:100%; max-width:420px; background:var(--navy-2); border:1px solid var(--line); border-top:3px solid var(--danger); border-radius:14px; padding:18px; box-shadow:0 18px 50px rgba(0,0,0,.6); }
 .cb-h{ font-family:'Cinzel Decorative','Cinzel',serif; font-size:1.15rem; color:var(--silver); }
@@ -3813,10 +3823,26 @@ function applyCombatMode(){
   bn.style.display="flex";
   var declared = window._declaredRound && COMBAT.round && window._declaredRound===COMBAT.round;
   var youUp = COMBAT.spotlightChars && CUR_WIX_ID && COMBAT.spotlightChars.indexOf(CUR_WIX_ID)>=0;
-  bn.classList.toggle("youup", !!youUp);
-  bn.innerHTML='<span class="cbn-l"><span class="cbn-dot"></span>'+(youUp?"You're up":"Combat")+(COMBAT.round?" \u00b7 Round "+COMBAT.round:"")+(COMBAT.sceneName?" \u00b7 "+cbEsc(COMBAT.sceneName):"")+'</span>'
-    +'<button class="cbn-btn'+(declared?' done':'')+'" id="cbnDeclare">'+(declared?"Declared":"Declare Act and React")+'</button>';
+  var resolving = (COMBAT.phase==="resolve");
+  bn.classList.toggle("youup", !!(youUp && resolving));
+  var steps=["Commit","Plan","Declare","Resolve"];
+  var activeIdx = resolving ? 3 : (declared ? -1 : 2);
+  var doneTo = resolving ? 3 : (declared ? 3 : 2);
+  var strip = steps.map(function(s,i){
+    var cls="cbn-step"+(i===activeIdx?" on":(i<doneTo?" done":""));
+    return '<span class="'+cls+'"><span class="bar"></span>'+s+'</span>';
+  }).join("");
+  var status = resolving
+      ? (youUp ? "You are in the spotlight. Your Act and React resolve now." : "The LoreMaster is resolving the round.")
+      : (declared ? "Locked in. Waiting on the table and the LoreMaster." : "Plan with your table, then lock your Act and React.");
+  var btn = resolving
+      ? '<span class="cbn-locked">Locked</span>'
+      : '<button class="cbn-btn'+(declared?' done':'')+'" id="cbnDeclare">'+(declared?"Edit declaration":"Declare Act and React")+'</button>';
+  bn.innerHTML='<div class="cbn-top"><span class="cbn-l"><span class="cbn-dot"></span>'+(youUp&&resolving?"You're up":"Combat")+(COMBAT.round?" \u00b7 Round "+COMBAT.round:"")+(COMBAT.sceneName?" \u00b7 "+cbEsc(COMBAT.sceneName):"")+'</span>'+btn+'</div>'
+    +'<div class="cbn-steps">'+strip+'</div>'
+    +'<div class="cbn-status">'+status+'</div>';
   var b=document.getElementById("cbnDeclare"); if(b) b.addEventListener("click",openDeclare);
+  try{ document.documentElement.style.setProperty("--cbn-h",(bn.offsetHeight+2)+"px"); }catch(e){}
 }
 function cbFocusOptions(sel){
   var h='<option value="">No focus</option><option value="space"'+(sel==="space"?" selected":"")+'>Space</option>';
