@@ -346,6 +346,8 @@ body.in-combat::after{ content:""; position:fixed; inset:0; pointer-events:none;
 .combat-banner.youup{ background:linear-gradient(180deg,rgba(201,168,76,.26),rgba(10,14,26,.96)); border-bottom-color:var(--gold); }
 .combat-banner.youup .cbn-dot{ background:var(--gold); box-shadow:0 0 10px rgba(201,168,76,.95); }
 .cb-dmghint{ font-size:.78rem; color:var(--gold); margin-top:5px; min-height:1em; }
+.cb-fellrow{ display:flex; align-items:center; gap:8px; margin-top:8px; font-size:.84rem; color:var(--ice); }
+.cb-fellhint{ font-size:.76rem; color:var(--gold); margin-top:3px; min-height:1em; }
 .cb-gate{ margin-top:8px; }
 .cb-gate-n{ font-size:.78rem; color:var(--danger,#c96a5a); padding:5px 8px; border:1px solid rgba(201,106,90,.4); border-radius:7px; margin-top:6px; background:rgba(201,106,90,.07); }
 .cb-affwrap{ margin-top:10px; }
@@ -3285,9 +3287,10 @@ function renderBattle(){
   var _wInfo={};
   C.weapons.filter(function(w){return w.tree;}).forEach(function(w){
     var cat=WEAPON_DB[w.tree].category, base=1+attrTotal(cat==='magic'?'magic':'power'), b=weaponBonus(w);
-    _wInfo[weaponName(w)]={dmg:base+b, base:base, dt:(cat==='magic'?'magic':'phys')};
+    var aff=((WEAPON_DB[w.tree]&&WEAPON_DB[w.tree].meta)||WEAPON_META).affliction||'';
+    _wInfo[weaponName(w)]={dmg:base+b, base:base, dt:(cat==='magic'?'magic':'phys'), aff:aff};
   });
-  window.COMBAT_ACTS=arNames.Act.map(function(a){ var i=_wInfo[a.src]; return {src:a.src,nm:a.nm,dmg:i?i.dmg:0,base:i?i.base:0,dt:i?i.dt:null}; });
+  window.COMBAT_ACTS=arNames.Act.map(function(a){ var i=_wInfo[a.src]; return {src:a.src,nm:a.nm,dmg:i?i.dmg:0,base:i?i.base:0,dt:i?i.dt:null,aff:i?i.aff:''}; });
   window.COMBAT_REACTS=arNames.React;
   let dmg="";
   C.weapons.filter(w=>w.tree).forEach(w=>{
@@ -3772,7 +3775,9 @@ function openDeclare(){
     +'<label class="cb-l">Act</label><select id="cbAct" class="cb-sel" onchange="cbDmgHint()">'+cbArOptions(window.COMBAT_ACTS,dec.act)+'</select>'
     +'<div class="cb-dmghint" id="cbDmgHint"></div>'
     +'<label class="cb-l">React</label><select id="cbReact" class="cb-sel">'+cbArOptions(window.COMBAT_REACTS,dec.react)+'</select>'
-    +'<label class="cb-l">Focus</label><select id="cbFocus" class="cb-sel">'+cbFocusOptions(dec.target)+'</select>'
+    +'<label class="cb-l">Focus</label><select id="cbFocus" class="cb-sel" onchange="cbDmgHint()">'+cbFocusOptions(dec.target)+'</select>'
+    +'<label class="cb-fellrow"><input type="checkbox" id="cbFell"> I rolled a Fellmark</label>'
+    +'<div class="cb-fellhint" id="cbFellHint"></div>'
     +'<div class="cb-gate" id="cbGate"></div>'
     +'<div class="cb-affwrap" id="cbAffWrap">'+cbBreakoutList()+'</div>'
     +'<div class="cb-meta">Vitality '+C.vitality.current+"/"+C.vitality.max+(C.vitality.temp?" +"+C.vitality.temp:"")+" \u00b7 Charge T"+(C.charge||0)+' sync with your sheet</div>'
@@ -3813,9 +3818,14 @@ function cbTryHeal(amount){
   try{renderVit();}catch(e){} scheduleSave(); try{edgeGlow("rgba(220,232,239,.75)");}catch(e){}
 }
 function cbDmgHint(){
-  var sel=document.getElementById("cbAct"), hint=document.getElementById("cbDmgHint"); if(!sel||!hint) return;
+  var sel=document.getElementById("cbAct"), hint=document.getElementById("cbDmgHint"); if(!sel) return;
   var e=cbActEntry(sel.value), d=cbOutDmg(e), raw=e?(e.dmg||0):0;
-  hint.textContent = d>0 ? ("This Act deals "+d+" to your focus."+(d<raw?" (halved)":"")) : "";
+  if(hint) hint.textContent = d>0 ? ("This Act deals "+d+" to your focus."+(d<raw?" (halved)":"")) : "";
+  var fh=document.getElementById("cbFellHint"), fc=document.getElementById("cbFocus");
+  if(fh){
+    var aff=e?(e.aff||""):"", focusKey=fc?fc.value:"", foeFocus=focusKey.indexOf("m:")===0;
+    fh.textContent = aff ? (foeFocus ? ("On a Fellmark this lands "+aff+" on your focus.") : "On a Fellmark your weapon lands "+aff+". Focus a foe to place it.") : "";
+  }
 }
 function sendDeclare(){
   if(!CUR_WIX_ID) return;
@@ -3826,8 +3836,11 @@ function sendDeclare(){
                      (C.effects||[]).map(function(e){return {name:e.name,kind:"effect"};}));
   var round=(COMBAT&&COMBAT.round)||1;
   var e=cbActEntry(act), dmg=cbActDmg(act);
+  var fell=!!(document.getElementById("cbFell") && document.getElementById("cbFell").checked);
+  var foeFocus = target && target.indexOf("m:")===0;
+  var applies = (fell && e && e.aff && foeFocus) ? e.aff : "";
   if(act && cbHasAff("Ignited") && window._ignitedRound!==round){ window._ignitedRound=round; var ir=1+Math.floor(Math.random()*6); cbSelfDamage(ir); cbPing("Ignited: your Act burns you for "+ir+"."); }
-  postToVelo({type:"combat-declare",charId:CUR_WIX_ID,act:act,react:react,target:target,round:round,dmg:dmg,base:(e?e.base:0),dt:(e?e.dt:""),
+  postToVelo({type:"combat-declare",charId:CUR_WIX_ID,act:act,react:react,target:target,round:round,dmg:dmg,base:(e?e.base:0),dt:(e?e.dt:""),fellmark:fell,applies:applies,
     charge:C.charge||0,curVit:C.vitality.current,maxVit:C.vitality.max,affs:affs});
   if(COMBAT) COMBAT.you={act:act,react:react,target:target};
   window._declaredRound=round;

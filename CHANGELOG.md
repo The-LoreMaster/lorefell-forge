@@ -39,6 +39,12 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 - This unlocks Bruised, Vulnerable, Diminished, Exposed, Pierced, and stance Tier 2 mitigation. Foe-side defense reduction (player attacks foe) is the next slice once foe stat blocks carry Durability and Resistance.
 - CombatPlayer gains pendBase, pendBonus, pendDt.
 
+## Combat — foe defenses and player afflictions onto foes
+- Foe cards carry editable Durability and Resistance. A player's hit on a foe now reduces bonus by the foe's matching defense, with Vulnerable, Diminished, Exposed, and Pierced on the foe behaving as they do on a player. This mirrors the player-as-defender model, so damage now resolves by canon in both directions.
+- Players can land afflictions on foes. The declare panel shows the weapon's affliction and a Fellmark check. On a declared Fellmark against a foe focus, the weapon's affliction rides the hit, shows on the foe's incoming line, and lands when the loremaster applies it.
+- CombatPlayer gains fellmark and applies.
+- Note: a weapon's affliction reads from its meta, which is canon once weapons are wired to the CMS and a placeholder until then.
+
 ---
 
 ## 2026-06-26 — Combat: player vitality, charge, and conditions sync live

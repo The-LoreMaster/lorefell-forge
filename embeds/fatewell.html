@@ -1190,6 +1190,10 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 .cb-none{ font-size:.8rem; color:var(--muted); font-style:italic; }
 .cb-chip.pend{ border-style:dashed; opacity:.85; }
 .cb-pendtag{ font-size:.62rem; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); margin-left:5px; }
+.cb-def{ display:flex; align-items:center; gap:6px; margin-top:8px; }
+.cb-def-l{ font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); }
+.cb-def-t{ font-size:.72rem; color:var(--silver-dim,#9fb0bd); }
+.cb-def-in{ width:48px; background:var(--navy-4,#1c2742); border:1px solid var(--line); color:var(--silver); border-radius:7px; padding:5px 6px; font-family:inherit; font-size:.82rem; }
 .cb-condnote{ margin-top:7px; display:flex; flex-direction:column; gap:3px; }
 .cb-condnote div{ font-size:.74rem; color:var(--silver-dim,#9fb0bd); padding:3px 7px; border-left:2px solid var(--gold); }
 .cb-incoming{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:9px; padding:7px 9px; border:1px solid rgba(201,168,76,.4); border-radius:8px; background:rgba(201,168,76,.06); }
@@ -4811,7 +4815,7 @@ function doAdvanceRound(){
   });
   Object.keys(sc.ps).forEach(function(pid){
     var st = sc.ps[pid];
-    st.act=''; st.react=''; st.target=''; st.actDone=false; st.reactDone=false; st.reactUsed=false; st.dmg=0; st.dmgDone=0;
+    st.act=''; st.react=''; st.target=''; st.actDone=false; st.reactDone=false; st.reactUsed=false; st.dmg=0; st.dmgDone=0; st.fellmark=false; st.applies='';
     /* afflictions persist; cleared manually */
   });
   cbTickFoes(sc);
@@ -6314,7 +6318,7 @@ function cbCard(n, o){
   var sideLbl = n.side==='monster'?'Foe':(n.side==='npc'?'NPC':'Fell');
   return '<div class="cb-fighter '+sideCls+(o.spot?' spot':'')+(down?' down':'')+'">'
     + '<div class="cb-top"><span class="cb-nm">'+esc(n.name)+'</span><span class="cb-sd">'+sideLbl+'</span></div>'
-    + cbVitRow(n) + (n.kind==='m' ? chargeRow(n.kind, n.ref.id, cbChargeOf(n)) : cbChargeView(n)) + cbChips(n) + (n.kind==='m' ? cbCondNote(n) : '')
+    + cbVitRow(n) + (n.kind==='m' ? chargeRow(n.kind, n.ref.id, cbChargeOf(n)) : cbChargeView(n)) + (n.kind==='m' ? cbDefRow(n) : '') + cbChips(n) + (n.kind==='m' ? cbCondNote(n) : '')
     + cbActDisplay(n) + (n.kind==='m' ? cbFellmark(n) : '') + (n.kind==='m' ? cbIncoming(n) : '') + cbReact(n)
     + (n.kind==='p' ? cbDealRow(n) : '')
     + (o.addSpot?'<div class="cb-spotline"><button class="cb-link" onclick="cbAddSpot(\''+n.key+'\')">+ Spotlight</button></div>':'')
@@ -6523,8 +6527,8 @@ function mergeDeclares(declares){
     var p=null; (c.players||[]).forEach(function(x){ if(x.charId===d.charId) p=x; });
     if(!p) return;
     var st=pState(p.id);
-    if(typeof d.round==='number' && d.round===curRound){ st.act=d.act||''; st.react=d.react||''; st.target=d.target||''; st.dmg=d.dmg||0; st.base=d.base||0; st.dt=d.dt||''; }
-    else { st.act=''; st.react=''; st.target=''; st.dmg=0; st.base=0; st.dt=''; }
+    if(typeof d.round==='number' && d.round===curRound){ st.act=d.act||''; st.react=d.react||''; st.target=d.target||''; st.dmg=d.dmg||0; st.base=d.base||0; st.dt=d.dt||''; st.fellmark=!!d.fellmark; st.applies=d.applies||''; }
+    else { st.act=''; st.react=''; st.target=''; st.dmg=0; st.base=0; st.dt=''; st.fellmark=false; st.applies=''; }
     if(typeof d.charge==='number') st.charge=d.charge;
     if(typeof d.curVit==='number') st.curVit=d.curVit;
     if(typeof d.maxVit==='number') st.maxVit=d.maxVit;
@@ -6540,20 +6544,35 @@ function cbIncoming(n){
   attendingPlayers().forEach(function(p){
     var st=pState(p.id);
     if(st.target===n.key && st.act && st.dmg>0 && st.dmgDone!==curRound){
-      rows+='<div class="cb-incoming"><span class="cb-inc-t">'+esc(p.name)+': '+esc(st.act)+' \u00b7 '+st.dmg+'</span>'
-        +'<button class="cb-link gold" onclick="cbApplyIncoming(\''+p.id+'\',\''+n.ref.id+'\')">Apply '+st.dmg+'</button></div>';
+      var rider=(st.fellmark && st.applies) ? (' + '+esc(st.applies)) : '';
+      rows+='<div class="cb-incoming"><span class="cb-inc-t">'+esc(p.name)+': '+esc(st.act)+' \u00b7 '+st.dmg+rider+'</span>'
+        +'<button class="cb-link gold" onclick="cbApplyIncoming(\''+p.id+'\',\''+n.ref.id+'\')">Apply '+st.dmg+rider+'</button></div>';
     }
   });
   return rows;
 }
+function cbFoeResolve(foe, base, bonus, dt){
+  base=Math.max(0,base|0); bonus=Math.max(0,bonus|0); dt=dt||'phys';
+  var names=(foe.affs||[]).map(function(a){return a.name;});
+  var has=function(n){ return names.indexOf(n)>=0; };
+  if(has('Bruised')){ base+=bonus; bonus=0; }
+  var ignore = dt==='magic' ? has('Pierced') : has('Exposed');
+  var zeroed = dt==='magic' ? has('Diminished') : has('Vulnerable');
+  var def = (ignore||zeroed) ? 0 : Math.max(0, dt==='magic' ? (foe.resistance||0) : (foe.durability||0));
+  bonus = Math.max(0, bonus - def);
+  var marks=[]; if(has('Bleeding')) marks.push('Bleeding'); if(has('Infected')) marks.push('Infected');
+  return { total: base + bonus + marks.length, marks: marks };
+}
 function cbApplyIncoming(pid, cid){
   var st=pState(pid); var dmg=st.dmg||0; if(dmg<=0) return;
   var foe=null; curSc().combatants.forEach(function(c){ if(c.id===cid) foe=c; });
-  var extra=0, marks=[];
-  if(foe){ (foe.affs||[]).forEach(function(a){ if(a.name==='Bleeding'){extra++;marks.push('Bleeding');} if(a.name==='Infected'){extra++;marks.push('Infected');} }); }
+  if(!foe) return;
+  var base=Math.min(st.base||0, dmg), bonus=Math.max(0, dmg-base);
+  var r=cbFoeResolve(foe, base, bonus, st.dt||'phys');
   st.dmgDone=(curSc().battle&&curSc().battle.round)||1;
-  adjVit(cid, -(dmg+extra));
-  if(extra) cbToast((foe?esc(foe.name):'Foe')+' takes +'+extra+' ('+marks.join(' + ')+').');
+  if(st.fellmark && st.applies){ var ex=(foe.affs||[]).some(function(a){ return a.name===st.applies; }); if(!ex){ (foe.affs=foe.affs||[]).push({ name:st.applies, kind:'affliction' }); cbToast(st.applies+' lands on '+esc(foe.name)+'.'); } }
+  adjVit(cid, -r.total);
+  cbToast(esc(foe.name)+' takes '+r.total+(r.marks.length?(' (+'+r.marks.length+' '+r.marks.join(' + ')+')'):'')+'.');
   var bounce=0, why=[];
   (st.affs||[]).forEach(function(a){
     if(a.name==='Accursed'){ bounce+=dmg; why.push('Accursed'); }
@@ -6562,6 +6581,14 @@ function cbApplyIncoming(pid, cid){
   if(bounce>0){ var p=null; curC().players.forEach(function(x){ if(x.id===pid) p=x; });
     if(p && p.charId){ postToWix({type:'lmtool-combat-damage',campaignId:combatCampaignId(),charId:p.charId,base:bounce,bonus:0,dt:'phys'}); cbToast(esc(p.name)+' takes '+bounce+' back ('+why.join(' + ')+').'); } }
 }
+function cbDefRow(n){
+  if(n.kind!=='m') return '';
+  var id=n.ref.id;
+  return '<div class="cb-def"><span class="cb-def-l">Def</span>'
+    + '<span class="cb-def-t">Dur</span><input class="cb-def-in" type="number" min="0" value="'+(n.ref.durability||0)+'" onchange="cbSetDef(\''+id+'\',\'durability\',this.value)">'
+    + '<span class="cb-def-t">Res</span><input class="cb-def-in" type="number" min="0" value="'+(n.ref.resistance||0)+'" onchange="cbSetDef(\''+id+'\',\'resistance\',this.value)"></div>';
+}
+function cbSetDef(id, k, v){ curSc().combatants.forEach(function(c){ if(c.id===id) c[k]=Math.max(0,parseInt(v,10)||0); }); save(); }
 function cbDealRow(n){
   var pid=n.ref.id;
   return '<div class="cb-deal"><span class="cb-deal-l">Deal</span>'
