@@ -2,6 +2,10 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Combat — campaign link reconciled across both backends
+- The combat reader and the LM roster reader keyed off different fields. The save now writes the campaign id to campaignId and the campaign name to campaign, and the combat reader resolves by campaignId. The combat match and the roster character match both line up, and no schema change is needed since both fields already exist.
+- This supersedes the prior campaign fix. Re-paste velo/backend/characters.web.js and velo/backend/combat.web.js, publish, then open a character and pick its campaign once so both fields fill in.
+
 ## Combat — character to campaign link fixed so battle mode reaches the player
 - The player tool saved the campaign by name in the column the combat lookup reads by id. Escalating a scene published correctly, but the player match found nothing, so FellGlass stayed on the sheet. The save now stores the campaign id, which is what FateWell publishes under.
 - This changes one backend file. Paste velo/backend/characters.web.js into Wix and publish. Then open the character in FellGlass and pick the campaign again once so the stored value updates from the old name to the id. After that, escalate the scene and the player drops into combat.

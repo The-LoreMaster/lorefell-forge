@@ -35,7 +35,7 @@ async function charCampaign(charId) {
   const c = await wixData.get('Characters', charId, { suppressAuth: true }).catch(() => null);
   // The sheet stores its adventure id in `campaign`. If your Characters collection keeps
   // the campaign id elsewhere, adjust this single line.
-  return c ? (c.campaign || '') : '';
+  return c ? (c.campaignId || c.campaign || '') : '';
 }
 
 // FateWell -> publish the battle the loremaster is running (or clear it).
