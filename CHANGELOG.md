@@ -4,6 +4,16 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-26 — Combat: declaration roster, resolve recap, live banner, conditions land on the sheet
+
+- The two open loops are closed. A Fellmark condition the loremaster lands on a player now merges into that player's own afflictions or effects on their sheet, deduped, with a ping. Declarations are stamped with their round, so a player's Act clears when the round advances instead of carrying forward
+- FateWell commit step shows a player declaration roster: each present player reads Declared with their Act, focus, and React, or Waiting. The loremaster can see who is locked in before advancing
+- When the loremaster resolves a spotlight that includes a player, that player gets a one-line recap on their sheet of what happened to them
+- The FellGlass banner tracks the round live and shows Declared once the player has sent for that round
+- Backend CombatPlayer gains round, recapMsg, and recapAt. apply carries an optional recap line
+
+---
+
 ## 2026-06-26 — FateWell: live combat sync with FellGlass (publish, declares, conditions back)
 
 - FateWell publishes the running battle for the campaign whenever combat is live: round, scene, and the fighters on the field with their sides. It clears when combat ends

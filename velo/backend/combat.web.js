@@ -9,9 +9,9 @@
 //   CombatPlayer  one row per campaign+character: a player's declaration plus any
 //                 conditions the loremaster has landed on them.
 //     campaignId (Text, indexed), charId (Text, indexed),
-//     act (Text), react (Text), target (Text), charge (Number),
+//     act (Text), react (Text), target (Text), round (Number), charge (Number),
 //     curVit (Number), maxVit (Number), affs (Text, JSON),
-//     appliedByLm (Text, JSON), updatedAt (Number)
+//     appliedByLm (Text, JSON), recapMsg (Text), recapAt (Number), updatedAt (Number)
 //
 // Writes are field-merged, never whole-row replaced, so the player declaration and the
 // loremaster's applied conditions do not clobber each other. Everything is additive.
@@ -57,11 +57,12 @@ export const publishCombatState = webMethod(Permissions.Anyone, async (campaignI
 });
 
 // FateWell -> push the conditions the loremaster has landed on one character.
-export const applyCombatToChar = webMethod(Permissions.Anyone, async (campaignId, charId, applied) => {
+export const applyCombatToChar = webMethod(Permissions.Anyone, async (campaignId, charId, applied, recap) => {
   if (!campaignId || !charId) return { ok: false };
   const existing = await playerRow(campaignId, charId);
   const row = existing || { campaignId: campaignId, charId: charId };
   row.appliedByLm = JSON.stringify(applied || []);
+  if (recap && recap.at) { row.recapMsg = recap.msg || ''; row.recapAt = recap.at; }
   row.updatedAt = Date.now();
   try {
     if (existing) await wixData.update('CombatPlayer', row, { suppressAuth: true });
@@ -77,6 +78,7 @@ export const getCombatDeclares = webMethod(Permissions.Anyone, async (campaignId
   return r.items.map((it) => ({
     charId: it.charId || '',
     act: it.act || '', react: it.react || '', target: it.target || '',
+    round: it.round || 0,
     charge: it.charge || 0, curVit: it.curVit || 0, maxVit: it.maxVit || 0,
     affs: jparse(it.affs, [])
   }));
@@ -96,7 +98,8 @@ export const getCombatForChar = webMethod(Permissions.Anyone, async (charId) => 
     sceneId: st.sceneId || '', sceneName: st.sceneName || '',
     fighters: jparse(st.fighters, []),
     you: pr ? { act: pr.act || '', react: pr.react || '', target: pr.target || '' } : {},
-    applied: pr ? jparse(pr.appliedByLm, []) : []
+    applied: pr ? jparse(pr.appliedByLm, []) : [],
+    recap: pr ? { msg: pr.recapMsg || '', at: pr.recapAt || 0 } : { msg: '', at: 0 }
   };
 });
 
@@ -111,6 +114,7 @@ export const saveCombatDeclare = webMethod(Permissions.Anyone, async (charId, de
   row.act = d.act || '';
   row.react = d.react || '';
   row.target = d.target || '';
+  row.round = typeof d.round === 'number' ? d.round : 0;
   row.charge = typeof d.charge === 'number' ? d.charge : 0;
   row.curVit = typeof d.curVit === 'number' ? d.curVit : 0;
   row.maxVit = typeof d.maxVit === 'number' ? d.maxVit : 0;

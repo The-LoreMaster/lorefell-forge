@@ -342,6 +342,9 @@ body.in-combat::after{ content:""; position:fixed; inset:0; pointer-events:none;
 .cbn-dot{ width:9px; height:9px; border-radius:50%; background:var(--danger); box-shadow:0 0 9px rgba(201,106,90,.9); animation:cbpulse 1.8s ease-in-out infinite; }
 .cbn-btn{ background:rgba(201,106,90,.16); border:1px solid var(--danger); color:var(--silver); border-radius:8px; padding:6px 13px; font-family:inherit; font-size:.84rem; cursor:pointer; }
 .cbn-btn:active{ background:rgba(201,106,90,.3); }
+.cbn-btn.done{ background:rgba(127,181,138,.16); border-color:var(--ok,#7fb58a); color:var(--ice); }
+.cb-ping{ position:fixed; left:50%; bottom:24px; transform:translateX(-50%) translateY(12px); z-index:210; background:var(--navy-2); border:1px solid var(--danger); color:var(--silver); padding:10px 16px; border-radius:10px; font-size:.86rem; max-width:86vw; text-align:center; box-shadow:0 10px 30px rgba(0,0,0,.55); opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; }
+.cb-ping.on{ opacity:1; transform:translateX(-50%) translateY(0); }
 body.in-combat{ padding-top:46px; }
 .cb-ovl{ position:fixed; inset:0; z-index:200; background:rgba(6,9,16,.74); display:flex; align-items:center; justify-content:center; padding:18px; }
 .cb-card{ width:100%; max-width:420px; background:var(--navy-2); border:1px solid var(--line); border-top:3px solid var(--danger); border-radius:14px; padding:18px; box-shadow:0 18px 50px rgba(0,0,0,.6); }
@@ -2468,10 +2471,39 @@ let COMBAT=null, _combatPoll=null, _combatSig="";
 function refreshCombat(){ if(CUR_WIX_ID) postToVelo({type:"combat-request",charId:CUR_WIX_ID}); }
 function startCombatPolling(){ clearInterval(_combatPoll); if(!CUR_WIX_ID) return; _combatPoll=setInterval(function(){ if(document.visibilityState!=="hidden") refreshCombat(); }, 15000); }
 document.addEventListener("visibilitychange",function(){ if(document.visibilityState==="visible") refreshCombat(); });
+function cbPing(msg){
+  var p=document.getElementById("cbPing");
+  if(!p){ p=el("div","cb-ping"); p.id="cbPing"; document.body.appendChild(p); }
+  p.textContent=msg; p.classList.add("on"); clearTimeout(p._t);
+  p._t=setTimeout(function(){ p.classList.remove("on"); }, 3200);
+}
+function applyIncomingConditions(applied){
+  if(!Array.isArray(applied) || !applied.length) return;
+  var added=[];
+  applied.forEach(function(a){
+    if(!a || !a.name) return;
+    if(a.kind==="effect"){
+      if(!(C.effects||[]).some(function(e){ return e.name===a.name; })){ C.effects=C.effects||[]; C.effects.push({name:a.name,target:"You"}); added.push(a.name); }
+    } else {
+      if(!(C.afflictions||[]).some(function(x){ return x.name===a.name; })){
+        var canon=(typeof AFFLICTIONS!=="undefined") ? AFFLICTIONS.find(function(x){ return x.name===a.name; }) : null;
+        C.afflictions=C.afflictions||[];
+        C.afflictions.push(canon || {name:a.name, skill:"", desc:"Marked in combat by the LoreMaster."});
+        added.push(a.name);
+      }
+    }
+  });
+  if(added.length){ try{renderStatus();}catch(e){} try{renderStrip();}catch(e){} scheduleSave(); try{edgeGlow("rgba(201,106,90,.85)");}catch(e){} cbPing("The LoreMaster marked you: "+added.join(", ")); }
+}
 function setCombatState(state){
   var sig=JSON.stringify(state||null); if(sig===_combatSig) return;
   var wasActive=!!(COMBAT&&COMBAT.active);
   _combatSig=sig; COMBAT=state||null; applyCombatMode();
+  if(COMBAT&&COMBAT.active){
+    applyIncomingConditions(COMBAT.applied||[]);
+    var rc=COMBAT.recap||{};
+    if(rc.at && rc.at!==window._lastRecapAt){ window._lastRecapAt=rc.at; if(rc.msg){ cbPing(rc.msg); try{edgeGlow("rgba(201,168,76,.7)");}catch(e){} } }
+  }
   if(COMBAT&&COMBAT.active&&!wasActive){ try{edgeGlow("rgba(201,106,90,.85)");}catch(e){} openDeclare(); }
 }
 function applyCombatMode(){
@@ -2481,8 +2513,9 @@ function applyCombatMode(){
   if(!bn){ bn=el("div","combat-banner"); bn.id="combatBanner"; document.body.appendChild(bn); }
   if(!on){ bn.style.display="none"; var ov=document.getElementById("cbOverlay"); if(ov) ov.remove(); return; }
   bn.style.display="flex";
+  var declared = window._declaredRound && COMBAT.round && window._declaredRound===COMBAT.round;
   bn.innerHTML='<span class="cbn-l"><span class="cbn-dot"></span>Combat'+(COMBAT.round?" \u00b7 Round "+COMBAT.round:"")+(COMBAT.sceneName?" \u00b7 "+cbEsc(COMBAT.sceneName):"")+'</span>'
-    +'<button class="cbn-btn" id="cbnDeclare">Declare Act and React</button>';
+    +'<button class="cbn-btn'+(declared?' done':'')+'" id="cbnDeclare">'+(declared?"Declared":"Declare Act and React")+'</button>';
   var b=document.getElementById("cbnDeclare"); if(b) b.addEventListener("click",openDeclare);
 }
 function cbFocusOptions(sel){
@@ -2521,10 +2554,13 @@ function sendDeclare(){
   var target=document.getElementById("cbFocus")?document.getElementById("cbFocus").value:"";
   var affs=[].concat((C.afflictions||[]).map(function(a){return {name:a.name,kind:"affliction"};}),
                      (C.effects||[]).map(function(e){return {name:e.name,kind:"effect"};}));
-  postToVelo({type:"combat-declare",charId:CUR_WIX_ID,act:act,react:react,target:target,
+  var round=(COMBAT&&COMBAT.round)||1;
+  postToVelo({type:"combat-declare",charId:CUR_WIX_ID,act:act,react:react,target:target,round:round,
     charge:C.charge||0,curVit:C.vitality.current,maxVit:C.vitality.max,affs:affs});
   if(COMBAT) COMBAT.you={act:act,react:react,target:target};
+  window._declaredRound=round;
   var ov=document.getElementById("cbOverlay"); if(ov) ov.remove();
+  applyCombatMode();
   try{edgeGlow("rgba(201,168,76,.85)");}catch(e){}
 }
 window.onmessage=ev=>{

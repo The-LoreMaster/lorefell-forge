@@ -1190,6 +1190,14 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 .cb-none{ font-size:.8rem; color:var(--muted); font-style:italic; }
 .cb-chip.pend{ border-style:dashed; opacity:.85; }
 .cb-pendtag{ font-size:.62rem; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); margin-left:5px; }
+.cb-decl{ margin-top:14px; border:1px solid var(--line); border-radius:10px; padding:10px 12px; background:rgba(255,255,255,.015); }
+.cb-decl-h{ font-family:var(--head,inherit); font-size:.72rem; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin-bottom:8px; }
+.cb-decl-row{ display:flex; align-items:center; gap:8px; padding:5px 0; }
+.cb-decl-dot{ width:8px; height:8px; border-radius:50%; background:var(--muted); flex:0 0 auto; }
+.cb-decl-row.in .cb-decl-dot{ background:var(--vit-full,#86c79b); box-shadow:0 0 7px rgba(134,199,155,.6); }
+.cb-decl-nm{ color:var(--silver); font-size:.9rem; }
+.cb-decl-act{ margin-left:auto; color:var(--ice); font-size:.82rem; text-align:right; }
+.cb-decl-wait{ margin-left:auto; color:var(--muted); font-style:italic; font-size:.82rem; }
 .cb-fmrow{ display:flex; align-items:center; gap:12px; margin-top:10px; }
 .cb-fm{ background:none; border:1px solid var(--line); color:var(--silver-dim); border-radius:7px; padding:4px 11px; font-size:.8rem; cursor:pointer; font-family:inherit; }
 .cb-fm.on{ border-color:var(--gold); color:var(--gold); background:rgba(201,168,76,.12); }
@@ -4968,6 +4976,7 @@ function tabCombat(sc){
           + cbIntentPicker(cb) + '</div></div>';
       });
     }
+    h += cbDeclareStatus();
   } else {
     h += '<p class="cb-guide">Move the round forward in Spotlights. The gold box is the current focus. Roll a d6, a 6 is a Fellmark and a 1 a Fellstrike.</p>';
     var SPOTS = combatSpots();
@@ -5230,6 +5239,14 @@ function cbResolveSpot(){
     b.spotDone[k]=true;
   });
   b.undoStack.push(snap);
+  /* recap for any players resolved this spotlight */
+  inBox.forEach(function(k){
+    if(k.indexOf('p:')!==0) return;
+    var pid=k.slice(2), st=pState(pid);
+    var landed=snap.applied.filter(function(a){ return a.key===k; }).map(function(a){ return a.name; });
+    st.recap = 'Your turn resolved.' + (landed.length ? ' Marked: '+landed.join(', ')+'.' : '');
+    st.recapAt = Date.now();
+  });
   if(b.spotMode==='auto'){
     b.activeSpot++; var SP=combatSpots();
     b.spotBox = SP[b.activeSpot] ? SP[b.activeSpot].ids.filter(function(k){ return !b.spotDone[k]; }) : [];
@@ -5332,10 +5349,11 @@ function publishCombat(){
     (c.players||[]).forEach(function(p){
       if(!p.charId) return;
       var st=(sc.ps&&sc.ps[p.id])||null; var applied=(st&&st.applied)||[];
-      var asig=JSON.stringify(applied)+'@'+p.charId;
+      var recap=(st&&st.recapAt)?{ msg:st.recap||'', at:st.recapAt }:null;
+      var asig=JSON.stringify(applied)+'|'+(recap?recap.at:0)+'@'+p.charId;
       if(window._combatApplySig[p.charId]===asig) return;
       window._combatApplySig[p.charId]=asig;
-      postToWix({ type:'lmtool-combat-apply', campaignId:cid, charId:p.charId, applied:applied });
+      postToWix({ type:'lmtool-combat-apply', campaignId:cid, charId:p.charId, applied:applied, recap:recap });
     });
   }
 }
@@ -5349,12 +5367,14 @@ function startDeclarePolling(){
 function requestDeclares(){ var cid=combatCampaignId(), sc=curSc(); if(!cid||!sc) return; postToWix({ type:'lmtool-combat-declares-request', campaignId:cid, sceneId:sc.id }); }
 function mergeDeclares(declares){
   var c=curC(), sc=curSc(); if(!c||!sc) return; var changed=false;
+  var curRound=(sc.battle&&sc.battle.round)||1;
   (declares||[]).forEach(function(d){
     if(!d || !d.charId) return;
     var p=null; (c.players||[]).forEach(function(x){ if(x.charId===d.charId) p=x; });
     if(!p) return;
     var st=pState(p.id);
-    st.act=d.act||''; st.react=d.react||''; st.target=d.target||'';
+    if(typeof d.round==='number' && d.round===curRound){ st.act=d.act||''; st.react=d.react||''; st.target=d.target||''; }
+    else { st.act=''; st.react=''; st.target=''; }
     if(typeof d.charge==='number') st.charge=d.charge;
     if(typeof d.curVit==='number') st.curVit=d.curVit;
     if(typeof d.maxVit==='number') st.maxVit=d.maxVit;
@@ -5363,6 +5383,18 @@ function mergeDeclares(declares){
     changed=true;
   });
   if(changed){ save(); if(V.screen==='runner') render(); }
+}
+function cbDeclareStatus(){
+  var players=attendingPlayers(); if(!players.length) return '';
+  var h='<div class="cb-decl"><div class="cb-decl-h">Player declarations</div>';
+  players.forEach(function(p){
+    var st=pState(p.id); var has=!!st.act;
+    h+='<div class="cb-decl-row'+(has?' in':'')+'"><span class="cb-decl-dot"></span><span class="cb-decl-nm">'+esc(p.name)+'</span>'
+      + (has ? '<span class="cb-decl-act">'+esc(st.act)+(st.target?' \u2192 '+esc(targetName(st.target)):'')+(st.react?' \u00b7 React '+esc(st.react):'')+'</span>'
+             : '<span class="cb-decl-wait">Waiting</span>')
+      + '</div>';
+  });
+  return h+'</div>';
 }
 function cbChargeView(n){
   var lvl=cbChargeOf(n), pips='';

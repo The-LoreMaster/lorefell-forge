@@ -147,7 +147,7 @@ $w.onReady(() => {
     } else if (m.type === 'lmtool-combat-publish') {
       try { await publishCombatState(m.campaignId || campaignId, m.state || {}); } catch (e) {}
     } else if (m.type === 'lmtool-combat-apply') {
-      try { await applyCombatToChar(m.campaignId || campaignId, m.charId || '', m.applied || []); } catch (e) {}
+      try { await applyCombatToChar(m.campaignId || campaignId, m.charId || '', m.applied || [], m.recap || null); } catch (e) {}
     } else if (m.type === 'lmtool-combat-declares-request') {
       let declares = [];
       try { declares = await getCombatDeclares(m.campaignId || campaignId); } catch (e) { declares = []; }
