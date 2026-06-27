@@ -4,6 +4,14 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-26 — FellGlass: combat mode and the declare panel (player side)
+
+- When the LoreMaster runs combat, the sheet enters combat mode: an ember frame around the screen, a Combat banner with the round, and a declare panel that opens on its own the first time
+- The panel lets the player pick an Act, a React, and a focus from the fighters on the field, then send it to the LoreMaster. It carries the player's vitality, charge, and conditions along with the declaration
+- The sheet polls for combat state every fifteen seconds and on returning to the tab, the same way it already polls for clue cards. Inert until the backend feeds combat-state and accepts combat-declare, wired next
+
+---
+
 ## 2026-06-26 — FateWell: an Act's condition lands only on a Fellmark
 
 - A foe Act's affliction or effect no longer lands on every resolve. It lands only when that foe carries a Fellmark for the round

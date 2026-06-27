@@ -333,6 +333,24 @@ h3{font-family:var(--head);font-weight:500;font-size:12px;letter-spacing:.12em;t
 .char-switch .cs-l{font-family:'Cinzel',serif;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ice);flex:0 0 auto}
 .cs-sel{flex:1;min-width:0;font-family:'Crimson Pro',serif;font-size:15px;color:var(--silver);background:var(--navy-3);border:1px solid var(--line);border-radius:6px;padding:8px 10px}
 .cs-sel:focus{outline:none;border-color:var(--gold)}
+/* ===== combat mode ===== */
+body.in-combat::after{ content:""; position:fixed; inset:0; pointer-events:none; z-index:60; border:2px solid rgba(201,106,90,.55); box-shadow:inset 0 0 38px rgba(201,106,90,.32); animation:cbpulse 2.6s ease-in-out infinite; }
+@keyframes cbpulse{ 0%,100%{ box-shadow:inset 0 0 30px rgba(201,106,90,.22); } 50%{ box-shadow:inset 0 0 46px rgba(201,106,90,.40); } }
+@media (prefers-reduced-motion:reduce){ body.in-combat::after{ animation:none; } }
+.combat-banner{ position:fixed; left:0; right:0; top:0; z-index:70; display:none; align-items:center; justify-content:space-between; gap:10px; padding:9px 14px; background:linear-gradient(180deg,rgba(201,106,90,.22),rgba(10,14,26,.96)); border-bottom:1px solid rgba(201,106,90,.5); }
+.cbn-l{ display:flex; align-items:center; gap:9px; font-family:'Cinzel',serif; letter-spacing:.06em; color:var(--silver); font-size:.92rem; }
+.cbn-dot{ width:9px; height:9px; border-radius:50%; background:var(--danger); box-shadow:0 0 9px rgba(201,106,90,.9); animation:cbpulse 1.8s ease-in-out infinite; }
+.cbn-btn{ background:rgba(201,106,90,.16); border:1px solid var(--danger); color:var(--silver); border-radius:8px; padding:6px 13px; font-family:inherit; font-size:.84rem; cursor:pointer; }
+.cbn-btn:active{ background:rgba(201,106,90,.3); }
+body.in-combat{ padding-top:46px; }
+.cb-ovl{ position:fixed; inset:0; z-index:200; background:rgba(6,9,16,.74); display:flex; align-items:center; justify-content:center; padding:18px; }
+.cb-card{ width:100%; max-width:420px; background:var(--navy-2); border:1px solid var(--line); border-top:3px solid var(--danger); border-radius:14px; padding:18px; box-shadow:0 18px 50px rgba(0,0,0,.6); }
+.cb-h{ font-family:'Cinzel Decorative','Cinzel',serif; font-size:1.15rem; color:var(--silver); }
+.cb-sub{ color:var(--ice); opacity:.8; font-size:.84rem; margin:4px 0 12px; }
+.cb-l{ display:block; font-size:.7rem; letter-spacing:.16em; text-transform:uppercase; color:#7e8a99; margin:11px 0 4px; }
+.cb-sel{ width:100%; background:var(--navy-3); border:1px solid var(--line); color:var(--silver); border-radius:8px; padding:9px 10px; font-family:inherit; font-size:.9rem; }
+.cb-meta{ margin-top:12px; font-size:.8rem; color:#7e8a99; }
+.cb-row{ display:flex; justify-content:space-between; gap:10px; margin-top:16px; }
 </style>
 </head>
 <body>
@@ -2095,7 +2113,8 @@ function arEntry(src,nm,d,dim){return `<div class="ar-entry"${dim?' style="opaci
 function renderBattle(){
   /* every component carries a use type (Act / React / Passive); buckets fill from that */
   const buckets={Act:"",React:"",Passive:""};
-  const put=(use,src,nm,d)=>{if(buckets[use]!==undefined)buckets[use]+=arEntry(src,nm,d);};
+  const arNames={Act:[],React:[],Passive:[]};
+  const put=(use,src,nm,d)=>{if(buckets[use]!==undefined){buckets[use]+=arEntry(src,nm,d);arNames[use].push({src:src,nm:nm});}};
   C.weapons.forEach(w=>{
     const src=weaponName(w)||"weapon";
     w.abilities.filter(Boolean).forEach(a=>{
@@ -2143,6 +2162,7 @@ function renderBattle(){
   $("actsList").innerHTML=acts||'<p class="note">Choose weapon abilities to populate your Acts.</p>';
   $("reactsList").innerHTML=reacts;
   $("passivesList").innerHTML=passives||'<p class="note">Augmentations and an adopted stance appear here.</p>';
+  window.COMBAT_ACTS=arNames.Act; window.COMBAT_REACTS=arNames.React;
   let dmg="";
   C.weapons.filter(w=>w.tree).forEach(w=>{
     const attr=WEAPON_DB[w.tree].category,base=1+attrTotal(attr),b=weaponBonus(w);
@@ -2442,13 +2462,79 @@ function renderCharSwitch(){
     else { renderCharSwitch(); }
   });
 })();
+/* ---------- combat mode (mirrors the LoreMaster's combat) ---------- */
+function cbEsc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+let COMBAT=null, _combatPoll=null, _combatSig="";
+function refreshCombat(){ if(CUR_WIX_ID) postToVelo({type:"combat-request",charId:CUR_WIX_ID}); }
+function startCombatPolling(){ clearInterval(_combatPoll); if(!CUR_WIX_ID) return; _combatPoll=setInterval(function(){ if(document.visibilityState!=="hidden") refreshCombat(); }, 15000); }
+document.addEventListener("visibilitychange",function(){ if(document.visibilityState==="visible") refreshCombat(); });
+function setCombatState(state){
+  var sig=JSON.stringify(state||null); if(sig===_combatSig) return;
+  var wasActive=!!(COMBAT&&COMBAT.active);
+  _combatSig=sig; COMBAT=state||null; applyCombatMode();
+  if(COMBAT&&COMBAT.active&&!wasActive){ try{edgeGlow("rgba(201,106,90,.85)");}catch(e){} openDeclare(); }
+}
+function applyCombatMode(){
+  var on=!!(COMBAT&&COMBAT.active);
+  document.body.classList.toggle("in-combat",on);
+  var bn=document.getElementById("combatBanner");
+  if(!bn){ bn=el("div","combat-banner"); bn.id="combatBanner"; document.body.appendChild(bn); }
+  if(!on){ bn.style.display="none"; var ov=document.getElementById("cbOverlay"); if(ov) ov.remove(); return; }
+  bn.style.display="flex";
+  bn.innerHTML='<span class="cbn-l"><span class="cbn-dot"></span>Combat'+(COMBAT.round?" \u00b7 Round "+COMBAT.round:"")+(COMBAT.sceneName?" \u00b7 "+cbEsc(COMBAT.sceneName):"")+'</span>'
+    +'<button class="cbn-btn" id="cbnDeclare">Declare Act and React</button>';
+  var b=document.getElementById("cbnDeclare"); if(b) b.addEventListener("click",openDeclare);
+}
+function cbFocusOptions(sel){
+  var h='<option value="">No focus</option><option value="space"'+(sel==="space"?" selected":"")+'>Space</option>';
+  ((COMBAT&&COMBAT.fighters)||[]).forEach(function(f){ var lbl=f.side==="monster"?"Foe":f.side==="npc"?"NPC":"Fell"; h+='<option value="'+cbEsc(f.key)+'"'+(sel===f.key?" selected":"")+'>'+cbEsc(f.name)+(f.side?" ("+lbl+")":"")+'</option>'; });
+  return h;
+}
+function cbArOptions(list,sel){
+  var h='<option value="">None</option>';
+  (list||[]).forEach(function(a){ h+='<option value="'+cbEsc(a.nm)+'"'+(sel===a.nm?" selected":"")+'>'+cbEsc(a.nm)+" \u00b7 "+cbEsc(a.src)+'</option>'; });
+  return h;
+}
+function openDeclare(){
+  if(!(COMBAT&&COMBAT.active)) return;
+  var ov=document.getElementById("cbOverlay"); if(ov) ov.remove();
+  var dec=COMBAT.you||{};
+  ov=el("div","cb-ovl"); ov.id="cbOverlay";
+  ov.innerHTML='<div class="cb-card">'
+    +'<div class="cb-h">Declare your turn</div>'
+    +'<p class="cb-sub">Round '+(COMBAT.round||1)+'. Lock what you intend. The LoreMaster resolves when ready.</p>'
+    +'<label class="cb-l">Act</label><select id="cbAct" class="cb-sel">'+cbArOptions(window.COMBAT_ACTS,dec.act)+'</select>'
+    +'<label class="cb-l">React</label><select id="cbReact" class="cb-sel">'+cbArOptions(window.COMBAT_REACTS,dec.react)+'</select>'
+    +'<label class="cb-l">Focus</label><select id="cbFocus" class="cb-sel">'+cbFocusOptions(dec.target)+'</select>'
+    +'<div class="cb-meta">Vitality '+C.vitality.current+"/"+C.vitality.max+(C.vitality.temp?" +"+C.vitality.temp:"")+" \u00b7 Charge T"+(C.charge||0)+' sync with your sheet</div>'
+    +'<div class="cb-row"><button class="btn small" id="cbCancel">Close</button><button class="btn small gold" id="cbSend">Send to LoreMaster</button></div>'
+    +'</div>';
+  document.body.appendChild(ov);
+  ov.addEventListener("click",function(e){ if(e.target===ov) ov.remove(); });
+  document.getElementById("cbCancel").addEventListener("click",function(){ ov.remove(); });
+  document.getElementById("cbSend").addEventListener("click",sendDeclare);
+}
+function sendDeclare(){
+  if(!CUR_WIX_ID) return;
+  var act=document.getElementById("cbAct")?document.getElementById("cbAct").value:"";
+  var react=document.getElementById("cbReact")?document.getElementById("cbReact").value:"";
+  var target=document.getElementById("cbFocus")?document.getElementById("cbFocus").value:"";
+  var affs=[].concat((C.afflictions||[]).map(function(a){return {name:a.name,kind:"affliction"};}),
+                     (C.effects||[]).map(function(e){return {name:e.name,kind:"effect"};}));
+  postToVelo({type:"combat-declare",charId:CUR_WIX_ID,act:act,react:react,target:target,
+    charge:C.charge||0,curVit:C.vitality.current,maxVit:C.vitality.max,affs:affs});
+  if(COMBAT) COMBAT.you={act:act,react:react,target:target};
+  var ov=document.getElementById("cbOverlay"); if(ov) ov.remove();
+  try{edgeGlow("rgba(201,168,76,.85)");}catch(e){}
+}
 window.onmessage=ev=>{
   const d=ev&&ev.data;
   if(!d||typeof d!=="object"||!d.type)return;
   bridged=true;
   if(d.libraries)loadLibraries(d.libraries);
-  if(d.type==="init"&&d.character){ CUR_WIX_ID=d.charId||""; CUR_LOCAL_ID=uid(); if(CC)ccClose(); loadCharacter(d.character); if(CUR_WIX_ID){ refreshClues(); startCluePolling(); } }
+  if(d.type==="init"&&d.character){ CUR_WIX_ID=d.charId||""; CUR_LOCAL_ID=uid(); if(CC)ccClose(); loadCharacter(d.character); if(CUR_WIX_ID){ refreshClues(); startCluePolling(); refreshCombat(); startCombatPolling(); } }
   else if(d.type==="clues"){ var sig=JSON.stringify(d.clues||[]); if(sig!==_clueSig){ _clueSig=sig; CLUES=d.clues||[]; renderClues(); } }
+  else if(d.type==="combat-state"){ setCombatState(d.state||null); }
   else if(d.type==="new"){ if(d.forge){ccOpenForge(d.forge);} else {ccOpen();} CUR_WIX_ID=d.charId||""; CUR_LOCAL_ID=uid(); }
   else if(d.type==="saved"){ if(d.localId&&d.localId===CUR_LOCAL_ID&&d.charId) CUR_WIX_ID=d.charId; }
   else if(d.type==="characters"){ CHARS=Array.isArray(d.list)?d.list:[]; CUR_SEL=d.currentId||""; renderCharSwitch(); }
