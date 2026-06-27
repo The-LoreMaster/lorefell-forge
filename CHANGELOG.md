@@ -63,6 +63,12 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 - Hexward turns aside the first Affliction marked on you each round.
 - Positioning and ally augmentations stay as passive reminders on your sheet.
 
+## Combat — Canon lorebound aspects, staged by charge
+- The eighteen canon aspects now live in the tool, replacing the placeholder pool. Each carries its Augury, Scour, Succor and the rest, with Initial, Branch, and Crown stages drawn from the FellGuide.
+- An aspect is a React gated by your shared charge. It needs at least Charge 1 to invoke. The declare panel shows the stage your charge reaches, Initial at 1, Branch at 2, Crown at 3, with the branch and crown options laid out to choose from.
+- The Loremaster board marks each aspect React with the stage the player's charge supports, so the table resolves it at the right strength.
+- Aspect data still defers to the CMS once that collection carries staged effects.
+
 ---
 
 ## 2026-06-26 — Combat: player vitality, charge, and conditions sync live
