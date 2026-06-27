@@ -10,7 +10,7 @@
 //   CombatPlayer  one row per campaign+character: a player's declaration plus any
 //                 conditions the loremaster has landed on them.
 //     campaignId (Text, indexed), charId (Text, indexed),
-//     act (Text), react (Text), target (Text), round (Number), dmg (Number), charge (Number),
+//     act (Text), react (Text), target (Text), round (Number), dmg (Number), base (Number), dt (Text), charge (Number),
 //     curVit (Number), maxVit (Number), affs (Text, JSON),
 //     appliedByLm (Text, JSON), recapMsg (Text), recapAt (Number),
 //     pendingHit (Number), pendingHitAt (Number), updatedAt (Number)
@@ -81,7 +81,7 @@ export const getCombatDeclares = webMethod(Permissions.Anyone, async (campaignId
   return r.items.map((it) => ({
     charId: it.charId || '',
     act: it.act || '', react: it.react || '', target: it.target || '',
-    round: it.round || 0, dmg: it.dmg || 0,
+    round: it.round || 0, dmg: it.dmg || 0, base: it.base || 0, dt: it.dt || '',
     charge: it.charge || 0, curVit: it.curVit || 0, maxVit: it.maxVit || 0,
     affs: jparse(it.affs, [])
   }));
@@ -157,6 +157,8 @@ export const saveCombatDeclare = webMethod(Permissions.Anyone, async (charId, de
   row.target = d.target || '';
   row.round = typeof d.round === 'number' ? d.round : 0;
   row.dmg = typeof d.dmg === 'number' ? d.dmg : 0;
+  row.base = typeof d.base === 'number' ? d.base : 0;
+  row.dt = d.dt || '';
   row.charge = typeof d.charge === 'number' ? d.charge : 0;
   row.curVit = typeof d.curVit === 'number' ? d.curVit : 0;
   row.maxVit = typeof d.maxVit === 'number' ? d.maxVit : 0;

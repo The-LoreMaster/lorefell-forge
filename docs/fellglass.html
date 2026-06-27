@@ -3282,7 +3282,13 @@ function renderBattle(){
   $("actsList").innerHTML=acts||'<p class="note">Choose weapon abilities to populate your Acts.</p>';
   $("reactsList").innerHTML=reacts;
   $("passivesList").innerHTML=passives||'<p class="note">Augmentations and an adopted stance appear here.</p>';
-  window.COMBAT_ACTS=arNames.Act; window.COMBAT_REACTS=arNames.React;
+  var _wInfo={};
+  C.weapons.filter(function(w){return w.tree;}).forEach(function(w){
+    var cat=WEAPON_DB[w.tree].category, base=1+attrTotal(cat), b=weaponBonus(w);
+    _wInfo[weaponName(w)]={dmg:base+b, base:base, dt:(cat==='magic'?'magic':'phys')};
+  });
+  window.COMBAT_ACTS=arNames.Act.map(function(a){ var i=_wInfo[a.src]; return {src:a.src,nm:a.nm,dmg:i?i.dmg:0,base:i?i.base:0,dt:i?i.dt:null}; });
+  window.COMBAT_REACTS=arNames.React;
   let dmg="";
   C.weapons.filter(w=>w.tree).forEach(w=>{
     const attr=WEAPON_DB[w.tree].category,base=1+attrTotal(attr),b=weaponBonus(w);
@@ -3625,6 +3631,8 @@ function applyIncomingConditions(applied){
 }
 function applyPendingHit(amount){
   amount=Math.max(0, amount|0); if(!amount) return;
+  var marks=[]; if(cbHasAff("Bleeding")) marks.push("Bleeding"); if(cbHasAff("Infected")) marks.push("Infected");
+  amount+=marks.length;
   var v=C.vitality;
   var fromTemp=Math.min(v.temp||0, amount);
   v.temp=(v.temp||0)-fromTemp;
@@ -3633,7 +3641,7 @@ function applyPendingHit(amount){
   try{renderVit();}catch(e){} try{renderStrip();}catch(e){}
   scheduleSave();
   try{edgeGlow("rgba(201,106,90,.9)");}catch(e){}
-  cbPing("Took "+amount+(fromTemp?(" ("+fromTemp+" from temporary)"):"")+".");
+  cbPing("Took "+amount+(marks.length?(" (+"+marks.length+" from "+marks.join(" + ")+")"):"")+(fromTemp?(" \u00b7 "+fromTemp+" off temporary"):"")+".");
 }
 function showPendingHit(amount, at){
   var ex=document.getElementById("cbHitOvl"); if(ex) ex.remove();
@@ -3762,11 +3770,25 @@ function openDeclare(){
     gate.innerHTML=g.notes.map(function(n){ return '<div class="cb-gate-n"><b>'+cbEsc(n.name)+'</b> '+cbEsc(n.rule)+'</div>'; }).join("");
   }
 }
-function cbActDmg(nm){ var e=(window.COMBAT_ACTS||[]).filter(function(a){return a.nm===nm;})[0]; return e?(e.dmg||0):0; }
+function cbActEntry(nm){ return (window.COMBAT_ACTS||[]).filter(function(a){return a.nm===nm;})[0]||null; }
+function cbHasAff(name){ return (C.afflictions||[]).some(function(a){return a.name===name;}); }
+function cbOutDmg(e){
+  if(!e) return 0; var d=e.dmg||0;
+  if(e.dt==="phys" && cbHasAff("Dislocated")) d=Math.floor(d/2);
+  if(e.dt==="magic" && cbHasAff("Vitiated")) d=Math.floor(d/2);
+  return d;
+}
+function cbActDmg(nm){ return cbOutDmg(cbActEntry(nm)); }
+function cbSelfDamage(amount){
+  amount=Math.max(0,amount|0); if(!amount) return;
+  var v=C.vitality, t=Math.min(v.temp||0,amount);
+  v.temp=(v.temp||0)-t; v.current=Math.max(0,(v.current||0)-(amount-t));
+  try{renderVit();}catch(e){} try{renderStrip();}catch(e){} scheduleSave();
+}
 function cbDmgHint(){
   var sel=document.getElementById("cbAct"), hint=document.getElementById("cbDmgHint"); if(!sel||!hint) return;
-  var d=cbActDmg(sel.value);
-  hint.textContent = d>0 ? ("This Act deals "+d+" to your focus.") : "";
+  var e=cbActEntry(sel.value), d=cbOutDmg(e), raw=e?(e.dmg||0):0;
+  hint.textContent = d>0 ? ("This Act deals "+d+" to your focus."+(d<raw?" (halved)":"")) : "";
 }
 function sendDeclare(){
   if(!CUR_WIX_ID) return;
@@ -3776,8 +3798,9 @@ function sendDeclare(){
   var affs=[].concat((C.afflictions||[]).map(function(a){return {name:a.name,kind:"affliction"};}),
                      (C.effects||[]).map(function(e){return {name:e.name,kind:"effect"};}));
   var round=(COMBAT&&COMBAT.round)||1;
-  var dmg=cbActDmg(act);
-  postToVelo({type:"combat-declare",charId:CUR_WIX_ID,act:act,react:react,target:target,round:round,dmg:dmg,
+  var e=cbActEntry(act), dmg=cbActDmg(act);
+  if(act && cbHasAff("Ignited") && window._ignitedRound!==round){ window._ignitedRound=round; var ir=1+Math.floor(Math.random()*6); cbSelfDamage(ir); cbPing("Ignited: your Act burns you for "+ir+"."); }
+  postToVelo({type:"combat-declare",charId:CUR_WIX_ID,act:act,react:react,target:target,round:round,dmg:dmg,base:(e?e.base:0),dt:(e?e.dt:""),
     charge:C.charge||0,curVit:C.vitality.current,maxVit:C.vitality.max,affs:affs});
   if(COMBAT) COMBAT.you={act:act,react:react,target:target};
   window._declaredRound=round;

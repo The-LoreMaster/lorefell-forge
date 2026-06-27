@@ -16,6 +16,15 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 - Players can roll a Breakout from the declare panel. A Fellmark clears the affliction and counts as that round's Act.
 - Foe cards show enforced and gated conditions inline so the loremaster sees what is live.
 
+## Conditions — damage and action modifiers (batch 2)
+- Fixed a gap where a player's declared Act carried no damage. Acts now send their computed damage, base, and damage type.
+- Bleeding and Infected add to every hit the afflicted takes, on players and on foes.
+- Dislocated halves a declarant's physical damage and Vitiated halves their magic damage, shown in the declare panel.
+- Mangled and Accursed bounce back when the afflicted deals damage. The dealer takes a confirmed hit, base for Mangled and the full amount for Accursed.
+- Ignited deals 1d6 when its bearer takes an Act, once per round, on players at declare and on foes at resolve. Undo reverts a foe's Ignited burn.
+- Bruised, Harvested, and Withered stay surfaced as rules for now, since they need durability and healing hooks the relay does not model yet.
+- CombatPlayer gains base and dt columns.
+
 ---
 
 ## 2026-06-26 — Combat: player vitality, charge, and conditions sync live

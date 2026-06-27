@@ -6377,6 +6377,10 @@ function cbResolveSpot(){
         }
       }
     }
+    if(n && n.kind==='m' && n.ref.intent && n.ref.intent.type && window.canonCondition){
+      var ign=(n.ref.affs||[]).some(function(a){ return a.name==='Ignited'; });
+      if(ign && n.ref._ignitedRound!==b.round){ n.ref._ignitedRound=b.round; var ir=1+Math.floor(Math.random()*6); n.ref.curVit=Math.max(0,(n.ref.curVit||0)-ir); snap.ignited=(snap.ignited||[]); snap.ignited.push({key:k,amt:ir}); }
+    }
     b.spotDone[k]=true;
   });
   b.undoStack.push(snap);
@@ -6398,6 +6402,7 @@ function cbResolveSpot(){
 function cbUndo(){
   var b=curSc().battle; var s=b.undoStack.pop(); if(!s) return false;
   s.applied.forEach(function(a){ cbRemoveFromKey(a.key, a.name); });
+  (s.ignited||[]).forEach(function(g){ var n=nodeByKey(g.key); if(n&&n.ref){ n.ref.curVit=Math.min(n.ref.maxVit||n.ref.curVit, (n.ref.curVit||0)+g.amt); n.ref._ignitedRound=null; } });
   b.spotBox=s.box.slice(); b.spotDone=Object.assign({},s.done); b.activeSpot=s.active; b.spotMode=s.mode;
   save(); render(); cbToast('Undid the last resolve.'); return true;
 }
@@ -6517,8 +6522,8 @@ function mergeDeclares(declares){
     var p=null; (c.players||[]).forEach(function(x){ if(x.charId===d.charId) p=x; });
     if(!p) return;
     var st=pState(p.id);
-    if(typeof d.round==='number' && d.round===curRound){ st.act=d.act||''; st.react=d.react||''; st.target=d.target||''; st.dmg=d.dmg||0; }
-    else { st.act=''; st.react=''; st.target=''; st.dmg=0; }
+    if(typeof d.round==='number' && d.round===curRound){ st.act=d.act||''; st.react=d.react||''; st.target=d.target||''; st.dmg=d.dmg||0; st.base=d.base||0; st.dt=d.dt||''; }
+    else { st.act=''; st.react=''; st.target=''; st.dmg=0; st.base=0; st.dt=''; }
     if(typeof d.charge==='number') st.charge=d.charge;
     if(typeof d.curVit==='number') st.curVit=d.curVit;
     if(typeof d.maxVit==='number') st.maxVit=d.maxVit;
@@ -6542,8 +6547,19 @@ function cbIncoming(n){
 }
 function cbApplyIncoming(pid, cid){
   var st=pState(pid); var dmg=st.dmg||0; if(dmg<=0) return;
+  var foe=null; curSc().combatants.forEach(function(c){ if(c.id===cid) foe=c; });
+  var extra=0, marks=[];
+  if(foe){ (foe.affs||[]).forEach(function(a){ if(a.name==='Bleeding'){extra++;marks.push('Bleeding');} if(a.name==='Infected'){extra++;marks.push('Infected');} }); }
   st.dmgDone=(curSc().battle&&curSc().battle.round)||1;
-  adjVit(cid, -dmg);
+  adjVit(cid, -(dmg+extra));
+  if(extra) cbToast((foe?esc(foe.name):'Foe')+' takes +'+extra+' ('+marks.join(' + ')+').');
+  var bounce=0, why=[];
+  (st.affs||[]).forEach(function(a){
+    if(a.name==='Accursed'){ bounce+=dmg; why.push('Accursed'); }
+    if(a.name==='Mangled'){ bounce+=(st.base||0); why.push('Mangled'); }
+  });
+  if(bounce>0){ var p=null; curC().players.forEach(function(x){ if(x.id===pid) p=x; });
+    if(p && p.charId){ postToWix({type:'lmtool-combat-damage',campaignId:combatCampaignId(),charId:p.charId,amount:bounce}); cbToast(esc(p.name)+' takes '+bounce+' back ('+why.join(' + ')+').'); } }
 }
 function cbDealRow(n){
   var pid=n.ref.id;
