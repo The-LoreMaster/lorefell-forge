@@ -1212,6 +1212,11 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 .cb-decl-wait{ margin-left:auto; color:var(--muted); font-style:italic; font-size:.82rem; }
 .cb-decl-lock{ margin-left:auto; color:var(--vit-full,#86c79b); font-size:.82rem; letter-spacing:.02em; }
 .cb-decl-sub{ font-size:.72rem; color:var(--muted); margin:-3px 0 9px; }
+.cb-diceset{ display:flex; align-items:center; gap:9px; flex-wrap:wrap; margin:9px 0 2px; }
+.cb-ds-l{ font-size:.72rem; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); }
+.cb-ds-h{ font-size:.74rem; color:var(--muted); flex:1 1 100%; }
+.cb-improw{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:8px; padding:7px 9px; border:1px solid rgba(201,168,76,.5); border-radius:8px; background:rgba(201,168,76,.08); }
+.cb-imp-t{ font-size:.74rem; letter-spacing:.1em; text-transform:uppercase; color:var(--gold); }
 .cb-fmrow{ display:flex; align-items:center; gap:12px; margin-top:10px; }
 .cb-fm{ background:none; border:1px solid var(--line); color:var(--silver-dim); border-radius:7px; padding:4px 11px; font-size:.8rem; cursor:pointer; font-family:inherit; }
 .cb-fm.on{ border-color:var(--gold); color:var(--gold); background:rgba(201,168,76,.12); }
@@ -4812,12 +4817,12 @@ function doAdvanceRound(){
   b.round++; b.phase = 'commit'; b.locked = false; b.pLocked = false; b.spots = []; b.manual = {}; b.order = [];
   b.spotBox = []; b.spotDone = {}; b.undoStack = []; b.activeSpot = 0;
   sc.combatants.forEach(function(c){
-    c.act = ''; c.target=''; c.done = false; c.intent = null; c.reactUsed = false; c.fellmark = false;
+    c.act = ''; c.target=''; c.done = false; c.intent = null; c.reactUsed = false; c.fellmark = false; c._pendImp = false;
     /* afflictions persist across rounds; removed manually via Fellmark */
   });
   Object.keys(sc.ps).forEach(function(pid){
     var st = sc.ps[pid];
-    st.act=''; st.react=''; st.target=''; st.actDone=false; st.reactDone=false; st.reactUsed=false; st.dmg=0; st.dmgDone=0; st.fellmark=false; st.applies='';
+    st.act=''; st.react=''; st.target=''; st.actDone=false; st.reactDone=false; st.reactUsed=false; st.dmg=0; st.dmgDone=0; st.fellmark=false; st.doubleFell=false; st.applies='';
     /* afflictions persist; cleared manually */
   });
   cbTickFoes(sc);
@@ -4828,7 +4833,7 @@ function resetBattle(){
   askConfirm('Reset the battle to round 1? Combatants stay, vitality refills, all commitments clear.', function(){
     var sc = curSc();
     sc.battle = { round:1, phase:'commit', locked:false, pLocked:false, spots:[], spotMode:sc.battle.spotMode, manual:{}, order:[] };
-    sc.combatants.forEach(function(c){ (c.affs||[]).forEach(function(a){ cbRevertFoe(c,a); }); c.act=''; c.target=''; c.done=false; c.affs=[]; c.curVit=c.maxVit; });
+    sc.combatants.forEach(function(c){ (c.affs||[]).forEach(function(a){ cbRevertFoe(c,a); }); c.act=''; c.target=''; c.done=false; c.affs=[]; c.curVit=c.maxVit; c._pendImp=false; });
     Object.keys(sc.ps).forEach(function(pid){ sc.ps[pid] = { act:'', react:'', target:'', actDone:false, reactDone:false, affs:[] }; });
     save(); render();
   }, 'Reset');
@@ -6086,6 +6091,10 @@ function tabCombat(sc){
     h += '<button class="ph'+(b.phase===p[0]?' on':'')+'" onclick="setPhase(\'' + p[0] + '\')">'+(i+1)+'. '+p[1]+'</button>';
   });
   h += '</div>';
+  h += '<div class="cb-diceset"><span class="cb-ds-l">Dice</span><span class="cb-seg">'
+    + '<button class="'+(cbAutoDice()?'':'on')+'" onclick="cbSetAutoDice(false)">Manual</button>'
+    + '<button class="'+(cbAutoDice()?'on':'')+'" onclick="cbSetAutoDice(true)">Auto</button></span>'
+    + '<span class="cb-ds-h">Auto rolls the Fellmark bonus and Impairment dice for you. The player always rolls their own attack die.</span></div>';
 
   if (b.phase==='commit'){
     h += '<p class="cb-guide">Record what each foe intends and where its focus lands. Players plan and lock their own Acts on their sheets. Foes commit first, in secret.</p>';
@@ -6321,7 +6330,7 @@ function cbCard(n, o){
   return '<div class="cb-fighter '+sideCls+(o.spot?' spot':'')+(down?' down':'')+'">'
     + '<div class="cb-top"><span class="cb-nm">'+esc(n.name)+'</span><span class="cb-sd">'+sideLbl+'</span></div>'
     + cbVitRow(n) + (n.kind==='m' ? chargeRow(n.kind, n.ref.id, cbChargeOf(n)) : cbChargeView(n)) + (n.kind==='m' ? cbDefRow(n) : '') + cbChips(n) + (n.kind==='m' ? cbCondNote(n) : '')
-    + cbActDisplay(n) + (n.kind==='m' ? cbFellmark(n) : '') + (n.kind==='m' ? cbIncoming(n) : '') + cbReact(n)
+    + cbActDisplay(n) + (n.kind==='m' ? cbFellmark(n) : '') + (n.kind==='m' ? cbIncoming(n) : '') + (n.kind==='m' ? cbImpRow(n) : '') + cbReact(n)
     + (n.kind==='p' ? cbDealRow(n) : '')
     + (o.addSpot?'<div class="cb-spotline"><button class="cb-link" onclick="cbAddSpot(\''+n.key+'\')">+ Spotlight</button></div>':'')
     + (o.removeSpot?'<div class="cb-spotline"><button class="cb-link" onclick="cbRmSpot(\''+n.key+'\')">Remove</button></div>':'')
@@ -6529,8 +6538,8 @@ function mergeDeclares(declares){
     var p=null; (c.players||[]).forEach(function(x){ if(x.charId===d.charId) p=x; });
     if(!p) return;
     var st=pState(p.id);
-    if(typeof d.round==='number' && d.round===curRound){ st.act=d.act||''; st.react=d.react||''; st.target=d.target||''; st.dmg=d.dmg||0; st.base=d.base||0; st.dt=d.dt||''; st.fellmark=!!d.fellmark; st.applies=d.applies||''; st.actTier=(typeof d.actTier==='number')?d.actTier:-1; }
-    else { st.act=''; st.react=''; st.target=''; st.dmg=0; st.base=0; st.dt=''; st.fellmark=false; st.applies=''; st.actTier=-1; }
+    if(typeof d.round==='number' && d.round===curRound){ st.act=d.act||''; st.react=d.react||''; st.target=d.target||''; st.dmg=d.dmg||0; st.base=d.base||0; st.dt=d.dt||''; st.fellmark=!!d.fellmark; st.doubleFell=!!d.doubleFell; st.applies=d.applies||''; st.actTier=(typeof d.actTier==='number')?d.actTier:-1; }
+    else { st.act=''; st.react=''; st.target=''; st.dmg=0; st.base=0; st.dt=''; st.fellmark=false; st.doubleFell=false; st.applies=''; st.actTier=-1; }
     if(typeof d.charge==='number') st.charge=d.charge;
     if(typeof d.curVit==='number') st.curVit=d.curVit;
     if(typeof d.maxVit==='number') st.maxVit=d.maxVit;
@@ -6539,6 +6548,11 @@ function mergeDeclares(declares){
     changed=true;
   });
   if(changed){ save(); if(V.screen==='runner') render(); }
+}
+function cbImpRow(n){
+  if(n.kind!=='m') return '';
+  var foe=n.ref; if(!foe || !foe._pendImp) return '';
+  return '<div class="cb-improw"><span class="cb-imp-t">Double Fellmark</span><button class="cb-link gold" onclick="cbDoImpairmentFor(\''+foe.id+'\')">Roll Impairment 1d6</button></div>';
 }
 function cbIncoming(n){
   if(n.kind!=='m') return '';
@@ -6567,16 +6581,29 @@ function cbFoeResolve(foe, base, bonus, dt){
 }
 var CANON_ASPECT_NAMES=["Augury","Distillation","Siphon","Succor","Scour","Boon","Aegis","Reprisal","Weave","Forfeit","Adamant","Unbind","Elude","Pyre","Snare","Veer","Reap","Umbra"];
 function cbAspectStage(nm, charge){ if(CANON_ASPECT_NAMES.indexOf(nm)<0) return ''; var c=charge||0; if(c<1) return ' (uncharged)'; return ' \u00b7 '+(c>=3?'Crown':(c>=2?'Branch':'Initial')); }
+var IMP_TABLE=['Dismembered','Blinded','Maimed','Concussed','Severed','Sundered'];
+function cbAutoDice(){ if(typeof window._autoDice!=='boolean'){ try{ window._autoDice = localStorage.getItem('lf_autoDice')==='1'; }catch(e){ window._autoDice=false; } } return window._autoDice; }
+function cbSetAutoDice(v){ window._autoDice=!!v; try{ localStorage.setItem('lf_autoDice', v?'1':'0'); }catch(e){} render(); }
+function cbDoImpairment(foe){
+  if(!foe) return;
+  var roll=1+Math.floor(Math.random()*6), imp=IMP_TABLE[roll-1];
+  if(!(foe.affs||[]).some(function(a){ return a.name===imp; })) (foe.affs=foe.affs||[]).push({ name:imp, kind:'impairment' });
+  foe._pendImp=false; save(); render();
+  cbToast('Impairment 1d6 \u2192 '+roll+'. '+imp+' takes hold on '+esc(foe.name)+'.');
+}
+function cbDoImpairmentFor(cid){ var foe=null; curSc().combatants.forEach(function(c){ if(c.id===cid) foe=c; }); if(foe) cbDoImpairment(foe); }
 function cbApplyIncoming(pid, cid){
   var st=pState(pid); var dmg=st.dmg||0; if(dmg<=0) return;
   var foe=null; curSc().combatants.forEach(function(c){ if(c.id===cid) foe=c; });
   if(!foe) return;
   var base=Math.min(st.base||0, dmg), bonus=Math.max(0, dmg-base);
   var r=cbFoeResolve(foe, base, bonus, st.dt||'phys');
+  var dbl=!!st.doubleFell, total=dbl?r.total*2:r.total;
   st.dmgDone=(curSc().battle&&curSc().battle.round)||1;
   if(st.fellmark && st.applies){ var ex=(foe.affs||[]).some(function(a){ return a.name===st.applies; }); if(!ex){ (foe.affs=foe.affs||[]).push({ name:st.applies, kind:'affliction' }); cbToast(st.applies+' lands on '+esc(foe.name)+'.'); } }
-  adjVit(cid, -r.total);
-  cbToast(esc(foe.name)+' takes '+r.total+(r.marks.length?(' (+'+r.marks.length+' '+r.marks.join(' + ')+')'):'')+'.');
+  adjVit(cid, -total);
+  cbToast(esc(foe.name)+' takes '+total+(dbl?' (double Fellmark)':'')+(r.marks.length?(' (+'+r.marks.length+' '+r.marks.join(' + ')+')'):'')+'.');
+  if(dbl){ if(cbAutoDice()){ cbDoImpairment(foe); } else { foe._pendImp=true; save(); render(); cbToast('Double Fellmark on '+esc(foe.name)+'. Roll the Impairment.'); } }
   // shared charge: landing the ability that matches your current charge climbs it one tier
   if(typeof st.actTier==='number' && st.actTier>=0 && st.actTier!==3 && st.actTier===(st.charge||0)){
     var _p=null; (curC().players||[]).forEach(function(x){ if(x.id===pid) _p=x; });

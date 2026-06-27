@@ -2,6 +2,13 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Combat — Fellmark bonus roll and double-Fellmark impairments
+- A Fellmark now rolls. When a player marks a Fellmark in the declare panel, a bonus die appears. They tap it, it rolls with the same cinematic d6, and the result folds into their Bonus Damage before the foe reduces it. A six on that die is a double Fellmark.
+- A double Fellmark doubles the total damage and triggers an Impairment. The board doubles the hit on apply, then rolls 1d6 on the canon ladder: one Dismembered, two Blinded, three Maimed, four Concussed, five Severed, six Sundered. The result lands on the foe as a recorded condition.
+- The LoreMaster chooses how dice roll. A Dice setting on the combat board reads Manual or Auto. Manual leaves the bonus and Impairment dice in your hand with a tap. Auto rolls them for you on apply. The player always rolls their own attack die either way. The choice is remembered between sessions.
+- This direction covers a player landing the double Fellmark on a foe. A foe landing one on a player is the next piece.
+- This batch changes backend and bridge files. Paste velo/backend/combat.web.js and velo/page-fellglass.js into Wix and publish. The CombatPlayer schema gains a doubleFell field, so let the apply workflow run after the push.
+
 ## Combat — hide player declarations from the LoreMaster until resolution
 - During the commit phase the declare panel shows readiness only. Each player reads Locked in or Waiting, with a count of how many are in. What they chose stays hidden.
 - The choices reveal on the resolution board when you lock and resolve, the same place they always showed. Players can still declare while you commit, you just do not see their picks early.
