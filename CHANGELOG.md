@@ -4,6 +4,13 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-26 — Combat: player vitality, charge, and conditions sync live
+
+- While in combat the sheet pushes a light snapshot of vitality, charge, and conditions whenever it changes, and once when combat starts. The loremaster board reflects a player's damage or charge within a poll, not only when they redeclare. The declaration and any applied conditions are left untouched
+- New backend method syncCombatPlayer and a combat-sync handler in the FellGlass bridge
+
+---
+
 ## 2026-06-26 — Combat: declaration roster, resolve recap, live banner, conditions land on the sheet
 
 - The two open loops are closed. A Fellmark condition the loremaster lands on a player now merges into that player's own afflictions or effects on their sheet, deduped, with a ping. Declarations are stamped with their round, so a player's Act clears when the round advances instead of carrying forward

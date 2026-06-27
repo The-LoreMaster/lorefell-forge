@@ -103,6 +103,27 @@ export const getCombatForChar = webMethod(Permissions.Anyone, async (charId) => 
   };
 });
 
+// FellGlass -> a player's live vitality, charge, and conditions changed mid-combat.
+// Merges only those fields, leaving the declaration and any applied conditions intact.
+export const syncCombatPlayer = webMethod(Permissions.Anyone, async (charId, snap) => {
+  if (!charId) return { ok: false };
+  const campaignId = await charCampaign(charId);
+  if (!campaignId) return { ok: false };
+  const s = snap || {};
+  const existing = await playerRow(campaignId, charId);
+  const row = existing || { campaignId: campaignId, charId: charId };
+  if (typeof s.curVit === 'number') row.curVit = s.curVit;
+  if (typeof s.maxVit === 'number') row.maxVit = s.maxVit;
+  if (typeof s.charge === 'number') row.charge = s.charge;
+  if (Array.isArray(s.affs)) row.affs = JSON.stringify(s.affs);
+  row.updatedAt = Date.now();
+  try {
+    if (existing) await wixData.update('CombatPlayer', row, { suppressAuth: true });
+    else await wixData.insert('CombatPlayer', row, { suppressAuth: true });
+    return { ok: true };
+  } catch (e) { return { ok: false }; }
+});
+
 // FellGlass -> a player declares their turn.
 export const saveCombatDeclare = webMethod(Permissions.Anyone, async (charId, decl) => {
   if (!charId) return { ok: false };

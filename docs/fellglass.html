@@ -2287,6 +2287,17 @@ function doSave(){
   const hh=String(t.getHours()).padStart(2,"0"),mm=String(t.getMinutes()).padStart(2,"0");
   $("saveState").textContent=`Autosaved \u00b7 ${hh}:${mm}`;
   postToVelo({type:"save",charId:CUR_WIX_ID,localId:CUR_LOCAL_ID,character:C});
+  combatSyncPush();
+}
+function combatSyncPush(){
+  if(!(COMBAT&&COMBAT.active&&CUR_WIX_ID)) return;
+  var affs=[].concat((C.afflictions||[]).map(function(a){return {name:a.name,kind:"affliction"};}),
+                     (C.effects||[]).map(function(e){return {name:e.name,kind:"effect"};}));
+  var snap={curVit:C.vitality.current,maxVit:C.vitality.max,charge:C.charge||0,affs:affs};
+  var sig=JSON.stringify(snap);
+  if(sig===window._combatSyncSig) return;
+  window._combatSyncSig=sig;
+  postToVelo({type:"combat-sync",charId:CUR_WIX_ID,curVit:snap.curVit,maxVit:snap.maxVit,charge:snap.charge,affs:snap.affs});
 }
 function flushSave(){ if(saveTimer || C.created){ doSave(); } }
 document.addEventListener("visibilitychange",function(){ if(document.visibilityState==="hidden") flushSave(); });
@@ -2504,7 +2515,7 @@ function setCombatState(state){
     var rc=COMBAT.recap||{};
     if(rc.at && rc.at!==window._lastRecapAt){ window._lastRecapAt=rc.at; if(rc.msg){ cbPing(rc.msg); try{edgeGlow("rgba(201,168,76,.7)");}catch(e){} } }
   }
-  if(COMBAT&&COMBAT.active&&!wasActive){ try{edgeGlow("rgba(201,106,90,.85)");}catch(e){} openDeclare(); }
+  if(COMBAT&&COMBAT.active&&!wasActive){ try{edgeGlow("rgba(201,106,90,.85)");}catch(e){} window._combatSyncSig=""; combatSyncPush(); openDeclare(); }
 }
 function applyCombatMode(){
   var on=!!(COMBAT&&COMBAT.active);

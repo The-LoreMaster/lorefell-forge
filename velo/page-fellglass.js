@@ -5,7 +5,7 @@
 
 import { listMyCharacters, myAdventures, loadCharacter, saveCharacter } from 'backend/characters.web.js';
 import { getClueCards } from 'backend/fatewell.web.js';
-import { getCombatForChar, saveCombatDeclare } from 'backend/combat.web.js';
+import { getCombatForChar, saveCombatDeclare, syncCombatPlayer } from 'backend/combat.web.js';
 import { getLibraries } from 'backend/libraries.web.js';
 import wixLocation from 'wix-location';
 
@@ -68,6 +68,8 @@ $w.onReady(() => {
       let state = null;
       try { state = await getCombatForChar(msg.charId || charId); } catch (e) { state = null; }
       embed.postMessage({ type: 'combat-state', state: state });
+    } else if (msg.type === 'combat-sync') {
+      try { await syncCombatPlayer(msg.charId || charId, { curVit: msg.curVit, maxVit: msg.maxVit, charge: msg.charge, affs: msg.affs }); } catch (e) {}
     } else if (msg.type === 'combat-declare') {
       try {
         await saveCombatDeclare(msg.charId || charId, {
