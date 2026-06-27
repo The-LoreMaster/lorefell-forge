@@ -2,6 +2,13 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Dice — tappable d6 with cinematic Fellmark and Fellstrike
+- The Roll button is gone. Every roll in FellGlass is now a real d6 you tap. It shows pip faces, gives a quick tumble, then settles on the result.
+- A Fellmark settles gold. The pips turn gold, a ring bursts from the die, and the screen edge pulses. A Fellstrike settles red with a sharp shake. The flare clears on its own and never blocks the declare or resolve flow.
+- Converted all three roll sites: the Mobility, Accuracy, and Evasion rolls in the Battle panel, the per-skill rolls, and the level-up Vitality roll.
+- Honors reduced motion. The die still flips and settles, and the flare is skipped.
+- Dropped the stale note that called the accuracy and evasion formulas placeholders. Canon is 1d6 plus Precision against 1d6 plus Evasion.
+
 ## Combat — two-way damage and spotlight awareness
 - Player Acts now carry their computed damage. The declare panel shows "This Act deals N to your focus," and on the loremaster board the focused foe shows an incoming line with a one-tap Apply.
 - The loremaster can send a hit to any linked player. The player gets an Incoming damage confirm on their own sheet and takes it off temporary vitality first, then current. Ownership stays with the sheet.
