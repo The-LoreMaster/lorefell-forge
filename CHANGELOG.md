@@ -4,6 +4,15 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-26 — FateWell: live combat sync with FellGlass (publish, declares, conditions back)
+
+- FateWell publishes the running battle for the campaign whenever combat is live: round, scene, and the fighters on the field with their sides. It clears when combat ends
+- It polls for player declarations and folds each one into that player's card, so their Act, React, focus, charge, vitality, and conditions appear on the board and they cluster into the spotbox by their declared focus
+- Player vitality and charge on the board are read-only, owned by the sheet. Player conditions show as a mirror of the sheet. A Fellmark an Act lands on a player is queued and pushed to their sheet rather than written over their own conditions
+- New backend module combat.web.js with two collections, CombatState per campaign and CombatPlayer per campaign and character, plus the FateWell and FellGlass page bridge handlers. Field-merged writes so declarations and applied conditions never clobber each other
+
+---
+
 ## 2026-06-26 — FellGlass: combat mode and the declare panel (player side)
 
 - When the LoreMaster runs combat, the sheet enters combat mode: an ember frame around the screen, a Combat banner with the round, and a declare panel that opens on its own the first time

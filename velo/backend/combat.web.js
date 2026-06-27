@@ -1,0 +1,124 @@
+// backend/combat.web.js
+// Live combat sync between FateWell (the loremaster board) and FellGlass (player sheets).
+// Two collections, both admin-read so the embeds never query directly:
+//
+//   CombatState   one row per campaign: the battle the loremaster is running.
+//     campaignId (Text, indexed), active (Boolean), round (Number), phase (Text),
+//     sceneId (Text), sceneName (Text), fighters (Text, JSON), updatedAt (Number)
+//
+//   CombatPlayer  one row per campaign+character: a player's declaration plus any
+//                 conditions the loremaster has landed on them.
+//     campaignId (Text, indexed), charId (Text, indexed),
+//     act (Text), react (Text), target (Text), charge (Number),
+//     curVit (Number), maxVit (Number), affs (Text, JSON),
+//     appliedByLm (Text, JSON), updatedAt (Number)
+//
+// Writes are field-merged, never whole-row replaced, so the player declaration and the
+// loremaster's applied conditions do not clobber each other. Everything is additive.
+
+import { Permissions, webMethod } from 'wix-web-module';
+import wixData from 'wix-data';
+
+function jparse(v, fb) { try { return v ? JSON.parse(v) : fb; } catch (e) { return fb; } }
+
+async function stateRow(campaignId) {
+  const r = await wixData.query('CombatState').eq('campaignId', campaignId).limit(1).find({ suppressAuth: true });
+  return r.items.length ? r.items[0] : null;
+}
+async function playerRow(campaignId, charId) {
+  const r = await wixData.query('CombatPlayer').eq('campaignId', campaignId).eq('charId', charId).limit(1).find({ suppressAuth: true });
+  return r.items.length ? r.items[0] : null;
+}
+async function charCampaign(charId) {
+  const c = await wixData.get('Characters', charId, { suppressAuth: true }).catch(() => null);
+  // The sheet stores its adventure id in `campaign`. If your Characters collection keeps
+  // the campaign id elsewhere, adjust this single line.
+  return c ? (c.campaign || '') : '';
+}
+
+// FateWell -> publish the battle the loremaster is running (or clear it).
+export const publishCombatState = webMethod(Permissions.Anyone, async (campaignId, state) => {
+  if (!campaignId) return { ok: false };
+  const s = state || {};
+  const existing = await stateRow(campaignId);
+  const row = existing || { campaignId: campaignId };
+  row.active = !!s.active;
+  row.round = s.round || 0;
+  row.phase = s.phase || '';
+  row.sceneId = s.sceneId || '';
+  row.sceneName = s.sceneName || '';
+  row.fighters = JSON.stringify(s.fighters || []);
+  row.updatedAt = Date.now();
+  try {
+    if (existing) await wixData.update('CombatState', row, { suppressAuth: true });
+    else await wixData.insert('CombatState', row, { suppressAuth: true });
+    return { ok: true };
+  } catch (e) { return { ok: false }; }
+});
+
+// FateWell -> push the conditions the loremaster has landed on one character.
+export const applyCombatToChar = webMethod(Permissions.Anyone, async (campaignId, charId, applied) => {
+  if (!campaignId || !charId) return { ok: false };
+  const existing = await playerRow(campaignId, charId);
+  const row = existing || { campaignId: campaignId, charId: charId };
+  row.appliedByLm = JSON.stringify(applied || []);
+  row.updatedAt = Date.now();
+  try {
+    if (existing) await wixData.update('CombatPlayer', row, { suppressAuth: true });
+    else await wixData.insert('CombatPlayer', row, { suppressAuth: true });
+    return { ok: true };
+  } catch (e) { return { ok: false }; }
+});
+
+// FateWell -> read every player's declaration for a campaign.
+export const getCombatDeclares = webMethod(Permissions.Anyone, async (campaignId) => {
+  if (!campaignId) return [];
+  const r = await wixData.query('CombatPlayer').eq('campaignId', campaignId).limit(50).find({ suppressAuth: true });
+  return r.items.map((it) => ({
+    charId: it.charId || '',
+    act: it.act || '', react: it.react || '', target: it.target || '',
+    charge: it.charge || 0, curVit: it.curVit || 0, maxVit: it.maxVit || 0,
+    affs: jparse(it.affs, [])
+  }));
+});
+
+// FellGlass -> the battle this character is in, plus any conditions landed on them.
+export const getCombatForChar = webMethod(Permissions.Anyone, async (charId) => {
+  if (!charId) return null;
+  const campaignId = await charCampaign(charId);
+  if (!campaignId) return null;
+  const st = await stateRow(campaignId);
+  if (!st || !st.active) return { active: false };
+  const pr = await playerRow(campaignId, charId);
+  return {
+    active: true,
+    round: st.round || 0, phase: st.phase || '',
+    sceneId: st.sceneId || '', sceneName: st.sceneName || '',
+    fighters: jparse(st.fighters, []),
+    you: pr ? { act: pr.act || '', react: pr.react || '', target: pr.target || '' } : {},
+    applied: pr ? jparse(pr.appliedByLm, []) : []
+  };
+});
+
+// FellGlass -> a player declares their turn.
+export const saveCombatDeclare = webMethod(Permissions.Anyone, async (charId, decl) => {
+  if (!charId) return { ok: false };
+  const campaignId = await charCampaign(charId);
+  if (!campaignId) return { ok: false };
+  const d = decl || {};
+  const existing = await playerRow(campaignId, charId);
+  const row = existing || { campaignId: campaignId, charId: charId };
+  row.act = d.act || '';
+  row.react = d.react || '';
+  row.target = d.target || '';
+  row.charge = typeof d.charge === 'number' ? d.charge : 0;
+  row.curVit = typeof d.curVit === 'number' ? d.curVit : 0;
+  row.maxVit = typeof d.maxVit === 'number' ? d.maxVit : 0;
+  row.affs = JSON.stringify(d.affs || []);
+  row.updatedAt = Date.now();
+  try {
+    if (existing) await wixData.update('CombatPlayer', row, { suppressAuth: true });
+    else await wixData.insert('CombatPlayer', row, { suppressAuth: true });
+    return { ok: true };
+  } catch (e) { return { ok: false }; }
+});

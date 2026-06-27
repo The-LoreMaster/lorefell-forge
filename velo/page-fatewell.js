@@ -6,6 +6,7 @@
 
 import { loadCampaign, saveCampaign, deleteCampaign, listMyCampaigns, getSealed, getForgeLibrary, listAssets, saveAsset, deleteAsset, listGlossary, getCampaignPlayers, detachCharacter, assignClue, setMemberRole, myAdventureRole } from 'backend/fatewell.web.js';
 import { getFoePack } from 'backend/forge.web.js';
+import { publishCombatState, applyCombatToChar, getCombatDeclares } from 'backend/combat.web.js';
 import { publishAdventure, myPublishedAdventures, unpublishAdventure, getPublishedPack } from 'backend/published.web.js';
 import { createInvite, revokeInvite } from 'backend/invites.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
@@ -143,6 +144,14 @@ $w.onReady(() => {
       let res = null;
       try { res = await assignClue(m.campaignId || campaignId, m.charIds || [], m.clue || {}); } catch (e) { res = null; }
       embed.postMessage({ type: 'lmtool-clue-assigned', ok: !!(res && res.ok), count: (res && res.count) || 0, handle: (m.clue && m.clue.handle) || '' });
+    } else if (m.type === 'lmtool-combat-publish') {
+      try { await publishCombatState(m.campaignId || campaignId, m.state || {}); } catch (e) {}
+    } else if (m.type === 'lmtool-combat-apply') {
+      try { await applyCombatToChar(m.campaignId || campaignId, m.charId || '', m.applied || []); } catch (e) {}
+    } else if (m.type === 'lmtool-combat-declares-request') {
+      let declares = [];
+      try { declares = await getCombatDeclares(m.campaignId || campaignId); } catch (e) { declares = []; }
+      embed.postMessage({ type: 'lmtool-combat-declares', declares: declares });
     } else if (m.type === 'lmtool-save') {
       const cid = m.campaignId || campaignId;
       const hasCampaign = !!(m.data && m.data.campaign);

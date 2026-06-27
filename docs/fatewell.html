@@ -1180,6 +1180,16 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 .cb-count{ font-size:.8rem; color:var(--muted); }
 .ab-applies{ font-size:.78rem; color:var(--muted); margin-top:4px; }
 .ap-hint{ font-size:.78rem; margin:6px 0 2px; }
+.cb-vit.ro{ gap:8px; }
+.cb-ronum{ font-size:.84rem; color:var(--silver-dim); white-space:nowrap; }
+.cb-cv{ display:flex; align-items:center; gap:6px; margin-top:8px; }
+.cb-cvl{ font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); }
+.cb-cvpip{ width:22px; height:8px; border-radius:4px; border:1px solid var(--line); background:var(--navy-4,#1c2742); }
+.cb-cvpip.on{ background:var(--gold); border-color:var(--gold); }
+.cb-cvt{ font-size:.78rem; color:var(--muted); }
+.cb-none{ font-size:.8rem; color:var(--muted); font-style:italic; }
+.cb-chip.pend{ border-style:dashed; opacity:.85; }
+.cb-pendtag{ font-size:.62rem; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); margin-left:5px; }
 .cb-fmrow{ display:flex; align-items:center; gap:12px; margin-top:10px; }
 .cb-fm{ background:none; border:1px solid var(--line); color:var(--silver-dim); border-radius:7px; padding:4px 11px; font-size:.8rem; cursor:pointer; font-family:inherit; }
 .cb-fm.on{ border-color:var(--gold); color:var(--gold); background:rgba(201,168,76,.12); }
@@ -1652,6 +1662,10 @@ window.addEventListener('message', function(ev){
   }
   if (m.type === 'lmtool-clue-assigned'){
     if (!m.ok){ alert('The clue could not be carded. Check the connection and try again.'); }
+    return;
+  }
+  if (m.type === 'lmtool-combat-declares'){
+    mergeDeclares(m.declares||[]);
     return;
   }
   if (m.type === 'lmtool-data'){
@@ -5079,11 +5093,16 @@ function cbActLine(c){
 
 function cbVitRow(n){
   var v=cbVitOf(n); var max=v.maxVit||0, cur=Math.max(0, v.curVit||0);
-  if(!max){
-    var setm = n.kind==='m' ? '' : 'setPMaxVit(\''+n.ref.id+'\')';
-    return '<div class="cb-vit none"><button class="cb-link" onclick="'+setm+'">Set vitality</button></div>';
+  if(n.kind==='p'){
+    var ppct = max?Math.max(0,Math.min(100,Math.round(cur/max*100))):0;
+    var pcol = (ppct>50?'var(--vit-full,#86c79b)':ppct>20?'var(--vit-mid,#d4a86b)':'var(--vit-low,#d98a6a)');
+    return '<div class="cb-vit ro"><div class="cb-bar"><div class="cb-fill" style="width:'+ppct+'%;background:'+pcol+'"></div></div>'
+      + '<span class="cb-ronum">'+(max?(cur+' / '+max):'vit on sheet')+'</span></div>';
   }
-  var adj = n.kind==='m' ? ('adjVit(\''+n.ref.id+'\',') : ('adjPVit(\''+n.ref.id+'\',');
+  if(!max){
+    return '<div class="cb-vit none"><span class="cb-ronum">no vitality set</span></div>';
+  }
+  var adj = 'adjVit(\''+n.ref.id+'\',';
   var pct = Math.max(0, Math.min(100, Math.round(cur/max*100)));
   var col = (pct>50?'var(--vit-full,#86c79b)':pct>20?'var(--vit-mid,#d4a86b)':'var(--vit-low,#d98a6a)');
   return '<div class="cb-vit">'
@@ -5103,6 +5122,19 @@ function cbEditVit(key){
 }
 function cbChips(n){
   var affs=cbAffsOf(n);
+  if(n.kind==='p'){
+    var applied=(cbVitOf(n).applied)||[];
+    function prow(label, kind){
+      var list = affs.filter(function(a){ return kind==='effect' ? a.kind==='effect' : (a.kind||'affliction')!=='effect'; });
+      var pend = applied.filter(function(a){ return kind==='effect' ? a.kind==='effect' : (a.kind||'affliction')!=='effect'; });
+      var hh='<div class="cb-chips"><span class="cb-rowlab">'+label+'</span>';
+      list.forEach(function(a){ hh+='<span class="cb-chip '+(kind==='effect'?'eff':'aff')+'">'+esc(a.name)+'</span>'; });
+      pend.forEach(function(a){ hh+='<span class="cb-chip '+(kind==='effect'?'eff':'aff')+' pend">'+esc(a.name)+'<span class="cb-pendtag">sent</span></span>'; });
+      if(!list.length && !pend.length) hh+='<span class="cb-none">none</span>';
+      return hh+'</div>';
+    }
+    return prow('Afflictions','affliction') + prow('Effects','effect');
+  }
   function row(label, kind){
     var list = affs.filter(function(a){ return kind==='effect' ? a.kind==='effect' : (a.kind||'affliction')!=='effect'; });
     var hh='<div class="cb-chips"><span class="cb-rowlab">'+label+'</span>';
@@ -5114,8 +5146,11 @@ function cbChips(n){
 }
 function cbActDisplay(n){
   var act=cbActOf(n), tgt=cbTargetOf(n);
-  if(!act) return '<div class="cb-actline"><span class="cb-hidden">No Act on record</span></div>';
-  return '<div class="cb-actline"><span class="cb-alab">Act</span><span class="cb-aset">'+esc(act)+(tgt?' <span class="cb-to">\u2192 '+esc(targetName(tgt))+'</span>':'')+'</span></div>';
+  var react = n.kind==='p' ? ((n.st||pState(n.ref.id)).react||'') : '';
+  if(!act && !react) return '<div class="cb-actline"><span class="cb-hidden">No Act on record</span></div>';
+  var h='<div class="cb-actline"><span class="cb-alab">Act</span><span class="cb-aset">'+(act?esc(act):'\u2014')+(tgt?' <span class="cb-to">\u2192 '+esc(targetName(tgt))+'</span>':'')+'</span></div>';
+  if(react) h+='<div class="cb-actline"><span class="cb-alab">React</span><span class="cb-aset">'+esc(react)+'</span></div>';
+  return h;
 }
 function cbReact(n){
   return '<label class="cb-react"><input type="checkbox" '+(cbReactUsed(n)?'checked':'')+' onchange="cbToggleReact(\''+n.key+'\')"> React used</label>';
@@ -5129,7 +5164,7 @@ function cbCard(n, o){
   var sideLbl = n.side==='monster'?'Foe':(n.side==='npc'?'NPC':'Fell');
   return '<div class="cb-fighter '+sideCls+(o.spot?' spot':'')+(down?' down':'')+'">'
     + '<div class="cb-top"><span class="cb-nm">'+esc(n.name)+'</span><span class="cb-sd">'+sideLbl+'</span></div>'
-    + cbVitRow(n) + chargeRow(n.kind, n.ref.id, cbChargeOf(n)) + cbChips(n)
+    + cbVitRow(n) + (n.kind==='m' ? chargeRow(n.kind, n.ref.id, cbChargeOf(n)) : cbChargeView(n)) + cbChips(n)
     + cbActDisplay(n) + (n.kind==='m' ? cbFellmark(n) : '') + cbReact(n)
     + (o.addSpot?'<div class="cb-spotline"><button class="cb-link" onclick="cbAddSpot(\''+n.key+'\')">+ Spotlight</button></div>':'')
     + (o.removeSpot?'<div class="cb-spotline"><button class="cb-link" onclick="cbRmSpot(\''+n.key+'\')">Remove</button></div>':'')
@@ -5156,8 +5191,21 @@ function cbApplyToKey(key, entry){
   if(key.indexOf('p:')===0){ var st=pState(key.slice(2)); (st.affs=st.affs||[]).push(entry); }
   else curSc().combatants.forEach(function(c){ if(c.id===key.slice(2)){ (c.affs=c.affs||[]).push(entry); } });
 }
+function cbApplyCondition(key, entry){
+  if(key.indexOf('p:')===0){
+    var st=pState(key.slice(2)); st.applied=st.applied||[];
+    var have = st.applied.some(function(x){return x.name===entry.name;}) || (st.affs||[]).some(function(x){return x.name===entry.name;});
+    if(!have) st.applied.push(entry);
+  } else { cbApplyToKey(key, entry); }
+}
 function cbRemoveFromKey(key, name){
-  var arr = key.indexOf('p:')===0 ? pState(key.slice(2)).affs : (function(){ var r=null; curSc().combatants.forEach(function(c){ if(c.id===key.slice(2)) r=c.affs; }); return r; })();
+  if(key.indexOf('p:')===0){
+    var st=pState(key.slice(2));
+    if(st.applied){ var ai=st.applied.map(function(x){return x.name;}).indexOf(name); if(ai>=0){ st.applied.splice(ai,1); return; } }
+    if(st.affs){ var fi=st.affs.map(function(x){return x.name;}).indexOf(name); if(fi>=0) st.affs.splice(fi,1); }
+    return;
+  }
+  var arr=(function(){ var r=null; curSc().combatants.forEach(function(c){ if(c.id===key.slice(2)) r=c.affs; }); return r; })();
   if(arr){ var i=arr.map(function(x){return x.name;}).indexOf(name); if(i>=0) arr.splice(i,1); }
 }
 function cbResolveSpot(){
@@ -5170,9 +5218,11 @@ function cbResolveSpot(){
       var ab=(n.ref.abilities||[]).filter(function(a){ return a.name===n.ref.intent.ability; })[0];
       if(ab && ab.applies && ab.applies.name){
         var tkey=n.ref.target;
-        var existing = tkey.indexOf('p:')===0 ? (pState(tkey.slice(2)).affs||[]) : (function(){ var r=[]; curSc().combatants.forEach(function(c){ if(c.id===tkey.slice(2)) r=c.affs||[]; }); return r; })();
+        var existing;
+        if(tkey.indexOf('p:')===0){ var pst=pState(tkey.slice(2)); existing=[].concat(pst.affs||[], pst.applied||[]); }
+        else { existing=(function(){ var r=[]; curSc().combatants.forEach(function(c){ if(c.id===tkey.slice(2)) r=c.affs||[]; }); return r; })(); }
         if(!existing.some(function(x){ return x.name===ab.applies.name; })){
-          cbApplyToKey(tkey, { name:ab.applies.name, kind:(ab.applies.kind==='effect'?'effect':'affliction') });
+          cbApplyCondition(tkey, { name:ab.applies.name, kind:(ab.applies.kind==='effect'?'effect':'affliction') });
           snap.applied.push({ key:tkey, name:ab.applies.name });
         }
       }
@@ -5254,6 +5304,71 @@ function cbRollFor(cid){
   else cbToast('d6 rolled '+r);
 }
 function cbToggleFell(cid){ curSc().combatants.forEach(function(c){ if(c.id===cid) c.fellmark=!c.fellmark; }); save(); render(); }
+
+/* ---------- combat sync with FellGlass ---------- */
+function combatCampaignId(){ var c=curC(); if(!c) return null; return WIX.hub ? c.id : (WIX.campaignId || c.id); }
+function combatFighters(sc){
+  var list=[];
+  (sc.combatants||[]).forEach(function(c){ list.push({ key:'m:'+c.id, name:c.name, side:c.side||'monster' }); });
+  attendingPlayers().forEach(function(p){ list.push({ key:'p:'+p.id, name:p.name, side:'fell' }); });
+  return list;
+}
+function publishCombat(){
+  var cid=combatCampaignId(); if(!cid) return;
+  var sc=curSc();
+  var active = !!(sc && V.screen==='runner' && sc.mode==='combat');
+  var state = active
+    ? { active:true, round:(sc.battle&&sc.battle.round)||1, phase:(sc.battle&&sc.battle.phase)||'commit', sceneId:sc.id, sceneName:sc.name||'', fighters:combatFighters(sc) }
+    : { active:false };
+  var sig=JSON.stringify(state)+'@'+cid;
+  if(sig!==window._combatPubSig){
+    window._combatPubSig=sig;
+    postToWix({ type:'lmtool-combat-publish', campaignId:cid, state:state });
+  }
+  if(active){
+    if(!window._declarePoll) startDeclarePolling();
+    var c=curC();
+    window._combatApplySig=window._combatApplySig||{};
+    (c.players||[]).forEach(function(p){
+      if(!p.charId) return;
+      var st=(sc.ps&&sc.ps[p.id])||null; var applied=(st&&st.applied)||[];
+      var asig=JSON.stringify(applied)+'@'+p.charId;
+      if(window._combatApplySig[p.charId]===asig) return;
+      window._combatApplySig[p.charId]=asig;
+      postToWix({ type:'lmtool-combat-apply', campaignId:cid, charId:p.charId, applied:applied });
+    });
+  }
+}
+function startDeclarePolling(){
+  clearInterval(window._declarePoll);
+  window._declarePoll=setInterval(function(){
+    var sc=curSc();
+    if(V.screen==='runner' && sc && sc.mode==='combat' && document.visibilityState!=='hidden') requestDeclares();
+  }, 12000);
+}
+function requestDeclares(){ var cid=combatCampaignId(), sc=curSc(); if(!cid||!sc) return; postToWix({ type:'lmtool-combat-declares-request', campaignId:cid, sceneId:sc.id }); }
+function mergeDeclares(declares){
+  var c=curC(), sc=curSc(); if(!c||!sc) return; var changed=false;
+  (declares||[]).forEach(function(d){
+    if(!d || !d.charId) return;
+    var p=null; (c.players||[]).forEach(function(x){ if(x.charId===d.charId) p=x; });
+    if(!p) return;
+    var st=pState(p.id);
+    st.act=d.act||''; st.react=d.react||''; st.target=d.target||'';
+    if(typeof d.charge==='number') st.charge=d.charge;
+    if(typeof d.curVit==='number') st.curVit=d.curVit;
+    if(typeof d.maxVit==='number') st.maxVit=d.maxVit;
+    st.affs=Array.isArray(d.affs)?d.affs.slice():(st.affs||[]);
+    if(st.applied && st.applied.length){ st.applied=st.applied.filter(function(a){ return !st.affs.some(function(x){ return x.name===a.name; }); }); }
+    changed=true;
+  });
+  if(changed){ save(); if(V.screen==='runner') render(); }
+}
+function cbChargeView(n){
+  var lvl=cbChargeOf(n), pips='';
+  for(var t=1;t<=3;t++){ pips+='<span class="cb-cvpip'+(lvl>=t?' on':'')+'"></span>'; }
+  return '<div class="cb-cv"><span class="cb-cvl">Charge</span>'+pips+'<span class="cb-cvt">'+(lvl?('T'+lvl):'on sheet')+'</span></div>';
+}
 
 function tabDisruptions(sc){
   var bal = disBalance();
@@ -6269,6 +6384,7 @@ function render(){
   if (V.ov) h += ovHtml();
   document.getElementById('app').innerHTML = h;
   try { wireCardDrag(); } catch(_){}
+  try { publishCombat(); } catch(_){}
   document.getElementById('bnav-slot').innerHTML = '';
 }
 
