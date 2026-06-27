@@ -81,6 +81,12 @@ header{position:sticky;top:0;z-index:50;background:rgba(10,14,26,.96);backdrop-f
 .cb-digest{background:var(--navy-3);border:1px solid var(--line);border-left:2px solid var(--gold);border-radius:6px;padding:8px 10px;margin:0 0 11px;font-size:12.5px;line-height:1.5;color:var(--silver-dim)}
 .cb-digest>div{margin:1px 0}
 .cb-digest b{color:var(--silver);font-family:var(--head);font-weight:600;font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;margin-right:6px}
+.cb-fellbonus{display:none;align-items:center;gap:10px;margin:2px 0 6px;flex-wrap:wrap}
+.cb-fellbonus.show{display:flex}
+.cb-fb-l{font-family:var(--head);font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:var(--gold)}
+.cb-fb-d6{font-size:38px}
+.cb-fellbonus .result{font-family:var(--head);font-size:18px;color:var(--gold);min-width:22px;text-align:center}
+.cb-fb-hint{font-size:.8rem;color:var(--silver-dim);flex:1 1 100%}
 body.god .god-only{display:initial}
 .god-only{display:none}
 .god-lock{pointer-events:none;opacity:.55}
@@ -3968,6 +3974,7 @@ function openDeclare(){
     +'<label class="cb-l">Focus</label><select id="cbFocus" class="cb-sel" onchange="cbDmgHint()">'+cbFocusOptions(dec.target)+'</select>'
     +'<label class="cb-fellrow"><input type="checkbox" id="cbFell"> I rolled a Fellmark</label>'
     +'<div class="cb-fellhint" id="cbFellHint"></div>'
+    +'<div class="cb-fellbonus" id="cbFellBonus"><span class="cb-fb-l">Fellmark bonus</span><span id="cbFellBonusDie"></span><span class="result" id="cbFellBonusRes">\u2014</span><span class="cb-fb-hint" id="cbFellBonusHint">Tap the die to roll.</span></div>'
     +'<div class="cb-gate" id="cbGate"></div>'
     +'<div class="cb-affwrap" id="cbAffWrap">'+cbBreakoutList()+'</div>'
     +'<div class="cb-meta">Vitality '+C.vitality.current+"/"+C.vitality.max+(C.vitality.temp?" +"+C.vitality.temp:"")+" \u00b7 Charge T"+(C.charge||0)+' sync with your sheet</div>'
@@ -3977,7 +3984,7 @@ function openDeclare(){
   ov.addEventListener("click",function(e){ if(e.target===ov) ov.remove(); });
   document.getElementById("cbCancel").addEventListener("click",function(){ ov.remove(); });
   document.getElementById("cbSend").addEventListener("click",sendDeclare);
-  cbDmgHint(); cbAspectHint();
+  cbDmgHint(); cbAspectHint(); cbInitFellBonus();
   var g=cbGates(), gate=document.getElementById("cbGate");
   if(g.noAct){ var sa=document.getElementById("cbAct"); if(sa){ sa.value=""; sa.disabled=true; } }
   if(g.noReact){ var sr=document.getElementById("cbReact"); if(sr){ sr.value=""; sr.disabled=true; } }
@@ -4031,6 +4038,27 @@ function cbTryHeal(amount){
   var v=C.vitality; v.current=Math.min(v.max,(v.current||0)+amount);
   try{renderVit();}catch(e){} scheduleSave(); try{edgeGlow("rgba(220,232,239,.75)");}catch(e){}
 }
+function cbInitFellBonus(){
+  window._fellBonus=null;
+  var holder=document.getElementById("cbFellBonusDie"), fc=document.getElementById("cbFell");
+  if(holder){ holder.innerHTML=""; var die=makeD6(); die.classList.add("cb-fb-d6"); die.setAttribute("aria-label","Roll Fellmark bonus"); holder.appendChild(die); die.addEventListener("click",cbRollFellBonus); }
+  if(fc){ fc.addEventListener("change",cbToggleFellBonus); }
+  cbToggleFellBonus();
+}
+function cbToggleFellBonus(){
+  var fc=document.getElementById("cbFell"), box=document.getElementById("cbFellBonus");
+  if(!box) return;
+  var on=!!(fc && fc.checked);
+  box.classList.toggle("show",on);
+  if(!on){ window._fellBonus=null; var r=document.getElementById("cbFellBonusRes"); if(r) r.textContent="\u2014"; var h=document.getElementById("cbFellBonusHint"); if(h) h.textContent="Tap the die to roll."; }
+}
+function cbRollFellBonus(){
+  var die=this, res=document.getElementById("cbFellBonusRes"), hint=document.getElementById("cbFellBonusHint");
+  var v=1+Math.floor(Math.random()*6);
+  window._fellBonus=v;
+  rollDieForced(die,res,null,0,v,null);
+  if(hint) hint.textContent = (v===6) ? "Double Fellmark. The LoreMaster rolls for an Impairment." : ("Adds "+v+" to your Bonus Damage.");
+}
 function cbDmgHint(){
   var sel=document.getElementById("cbAct"), hint=document.getElementById("cbDmgHint"); if(!sel) return;
   var e=cbActEntry(sel.value), d=cbOutDmg(e), raw=e?(e.dmg||0):0;
@@ -4053,10 +4081,15 @@ function sendDeclare(){
   var fell=!!(document.getElementById("cbFell") && document.getElementById("cbFell").checked);
   var foeFocus = target && target.indexOf("m:")===0;
   var applies = (fell && e && e.aff && foeFocus) ? e.aff : "";
+  var fb=(fell && typeof window._fellBonus==="number")?window._fellBonus:0;
+  var fbApplied=fb;
+  if(e){ if(e.dt==="phys" && cbHasAff("Dislocated")) fbApplied=Math.floor(fb/2); else if(e.dt==="magic" && cbHasAff("Vitiated")) fbApplied=Math.floor(fb/2); }
+  if(fbApplied) dmg=dmg+fbApplied;
+  var doubleFell=(fb===6);
   var actTier = (e && typeof e.tier==="number") ? e.tier : null;
   if(act && cbHasAff("Ignited") && window._ignitedRound!==round){ window._ignitedRound=round; var ir=1+Math.floor(Math.random()*6); cbSelfDamage(ir); cbPing("Ignited: your Act burns you for "+ir+"."); }
   if(actTier===3){ C.charge=0; try{renderCharges();}catch(e2){} cbPing("Tier 3 unleashed. Charge resets."); }
-  postToVelo({type:"combat-declare",charId:CUR_WIX_ID,act:act,react:react,target:target,round:round,dmg:dmg,base:(e?e.base:0),dt:(e?e.dt:""),fellmark:fell,applies:applies,actTier:actTier,
+  postToVelo({type:"combat-declare",charId:CUR_WIX_ID,act:act,react:react,target:target,round:round,dmg:dmg,base:(e?e.base:0),dt:(e?e.dt:""),fellmark:fell,applies:applies,actTier:actTier,doubleFell:doubleFell,fellBonus:fb,
     charge:C.charge||0,curVit:C.vitality.current,maxVit:C.vitality.max,affs:affs});
   if(COMBAT) COMBAT.you={act:act,react:react,target:target};
   window._declaredRound=round;
