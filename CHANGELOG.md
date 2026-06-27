@@ -2,6 +2,10 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Combat — infusions phase three, defense piercing
+- Powerful and Ethereal cut through armor. Powerful ignores the foe's Durability up to your Power. Ethereal ignores its Resistance up to your Magic. The pierce travels with your declaration and lowers the foe's defense before the bonus lands, so more of the hit gets through.
+- This batch changes backend and bridge files. Paste velo/backend/combat.web.js and velo/page-fellglass.js into Wix and publish. Those files now carry both the double Fellmark relay and the pierce relay, so one paste covers both. The CombatPlayer schema gains a pierce field, so let the apply workflow run after the push.
+
 ## Combat — infusions phase two, Fellmark and damage shaping
 - Rebounding lands its Base Damage a second time as an unreducible hit, so a Rebounding weapon deals double Base.
 - Merciless doubles your Fellmark effects. The Fellmark bonus die counts double while you wield it. The affliction and the impairment are on or off rather than numeric, so they fire as usual on top of the doubled bonus.

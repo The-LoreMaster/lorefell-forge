@@ -73,7 +73,7 @@ $w.onReady(() => {
     } else if (msg.type === 'combat-declare') {
       try {
         await saveCombatDeclare(msg.charId || charId, {
-          act: msg.act, react: msg.react, target: msg.target, round: msg.round, dmg: msg.dmg, base: msg.base, dt: msg.dt, fellmark: msg.fellmark, doubleFell: msg.doubleFell, applies: msg.applies, actTier: msg.actTier,
+          act: msg.act, react: msg.react, target: msg.target, round: msg.round, dmg: msg.dmg, base: msg.base, dt: msg.dt, fellmark: msg.fellmark, doubleFell: msg.doubleFell, pierce: msg.pierce, applies: msg.applies, actTier: msg.actTier,
           charge: msg.charge, curVit: msg.curVit, maxVit: msg.maxVit, affs: msg.affs
         });
       } catch (e) {}

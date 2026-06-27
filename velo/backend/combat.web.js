@@ -81,7 +81,7 @@ export const getCombatDeclares = webMethod(Permissions.Anyone, async (campaignId
   return r.items.map((it) => ({
     charId: it.charId || '',
     act: it.act || '', react: it.react || '', target: it.target || '',
-    round: it.round || 0, dmg: it.dmg || 0, base: it.base || 0, dt: it.dt || '', fellmark: !!it.fellmark, doubleFell: !!it.doubleFell, applies: it.applies || '', actTier: (typeof it.actTier === 'number') ? it.actTier : -1,
+    round: it.round || 0, dmg: it.dmg || 0, base: it.base || 0, dt: it.dt || '', fellmark: !!it.fellmark, doubleFell: !!it.doubleFell, pierce: it.pierce || 0, applies: it.applies || '', actTier: (typeof it.actTier === 'number') ? it.actTier : -1,
     charge: it.charge || 0, curVit: it.curVit || 0, maxVit: it.maxVit || 0,
     affs: jparse(it.affs, [])
   }));
@@ -181,6 +181,7 @@ export const saveCombatDeclare = webMethod(Permissions.Anyone, async (charId, de
   row.fellmark = !!d.fellmark;
   row.applies = d.applies || '';
   row.doubleFell = !!d.doubleFell;
+  row.pierce = typeof d.pierce === 'number' ? d.pierce : 0;
   row.actTier = (typeof d.actTier === 'number') ? d.actTier : -1;
   row.charge = typeof d.charge === 'number' ? d.charge : 0;
   row.curVit = typeof d.curVit === 'number' ? d.curVit : 0;
