@@ -8,6 +8,14 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 - Players in the active resolve spotlight see a gold "You're up" banner on FellGlass.
 - Backend: CombatPlayer gains dmg, pendingHit, pendingHitAt. CombatState gains spotlightChars. New dealDamageToChar method.
 
+## Conditions — canon pack, round-start tick, declare gates
+- Pulled the full condition system from the FellGuide vault: 54 afflictions, 39 combat effects, 6 impairments, each with its Breakout skill, canon rule, and an enforcement tag. Inlined as the shared source until the CanonConditions collection is wired.
+- FellGlass afflictions now come from canon instead of placeholders.
+- Round start applies enforced passives to each owner's own fighters. Slashed halves max Vitality and restores it on breakout. Enfeebled takes half current Vitality once.
+- The declare panel reads gates. Ensnared disables the Act, Staggered disables the React, and every active affliction shows its rule.
+- Players can roll a Breakout from the declare panel. A Fellmark clears the affliction and counts as that round's Act.
+- Foe cards show enforced and gated conditions inline so the loremaster sees what is live.
+
 ---
 
 ## 2026-06-26 — Combat: player vitality, charge, and conditions sync live
