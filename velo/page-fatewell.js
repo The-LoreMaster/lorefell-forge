@@ -153,7 +153,7 @@ $w.onReady(() => {
       try { declares = await getCombatDeclares(m.campaignId || campaignId); } catch (e) { declares = []; }
       embed.postMessage({ type: 'lmtool-combat-declares', declares: declares });
     } else if (m.type === 'lmtool-combat-damage') {
-      try { await dealDamageToChar(m.campaignId || campaignId, m.charId || '', m.amount || 0); } catch (e) {}
+      try { await dealDamageToChar(m.campaignId || campaignId, m.charId || '', m.base || 0, m.bonus || 0, m.dt || 'phys'); } catch (e) {}
     } else if (m.type === 'lmtool-save') {
       const cid = m.campaignId || campaignId;
       const hasCampaign = !!(m.data && m.data.campaign);

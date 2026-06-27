@@ -1197,6 +1197,7 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 .cb-deal{ display:flex; align-items:center; gap:8px; margin-top:10px; }
 .cb-deal-l{ font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); }
 .cb-deal-in{ width:64px; background:var(--navy-4,#1c2742); border:1px solid var(--line); color:var(--silver); border-radius:7px; padding:6px 8px; font-family:inherit; font-size:.85rem; }
+.cb-deal-dt{ background:var(--navy-4,#1c2742); border:1px solid var(--line); color:var(--silver); border-radius:7px; padding:6px 6px; font-family:inherit; font-size:.78rem; }
 .cb-decl{ margin-top:14px; border:1px solid var(--line); border-radius:10px; padding:10px 12px; background:rgba(255,255,255,.015); }
 .cb-decl-h{ font-family:var(--head,inherit); font-size:.72rem; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin-bottom:8px; }
 .cb-decl-row{ display:flex; align-items:center; gap:8px; padding:5px 0; }
@@ -6559,21 +6560,25 @@ function cbApplyIncoming(pid, cid){
     if(a.name==='Mangled'){ bounce+=(st.base||0); why.push('Mangled'); }
   });
   if(bounce>0){ var p=null; curC().players.forEach(function(x){ if(x.id===pid) p=x; });
-    if(p && p.charId){ postToWix({type:'lmtool-combat-damage',campaignId:combatCampaignId(),charId:p.charId,amount:bounce}); cbToast(esc(p.name)+' takes '+bounce+' back ('+why.join(' + ')+').'); } }
+    if(p && p.charId){ postToWix({type:'lmtool-combat-damage',campaignId:combatCampaignId(),charId:p.charId,base:bounce,bonus:0,dt:'phys'}); cbToast(esc(p.name)+' takes '+bounce+' back ('+why.join(' + ')+').'); } }
 }
 function cbDealRow(n){
   var pid=n.ref.id;
-  return '<div class="cb-deal"><span class="cb-deal-l">Deal damage</span>'
-    + '<input class="cb-deal-in" id="cbdmg-'+pid+'" type="number" min="1" placeholder="N">'
+  return '<div class="cb-deal"><span class="cb-deal-l">Deal</span>'
+    + '<input class="cb-deal-in" id="cbdb-'+pid+'" type="number" min="0" placeholder="base">'
+    + '<input class="cb-deal-in" id="cbdo-'+pid+'" type="number" min="0" placeholder="bonus">'
+    + '<select class="cb-deal-dt" id="cbdt-'+pid+'"><option value="phys">phys</option><option value="magic">magic</option></select>'
     + '<button class="cb-link" onclick="cbDealDamage(\''+pid+'\')">Send hit</button></div>';
 }
 function cbDealDamage(pid){
-  var el=document.getElementById('cbdmg-'+pid); var amt=el?parseInt(el.value,10):0; if(!amt||amt<=0) return;
+  var eb=document.getElementById('cbdb-'+pid), eo=document.getElementById('cbdo-'+pid), edt=document.getElementById('cbdt-'+pid);
+  var base=eb?(parseInt(eb.value,10)||0):0, bonus=eo?(parseInt(eo.value,10)||0):0, dt=edt?edt.value:'phys';
+  if(base<=0 && bonus<=0) return;
   var p=null; curC().players.forEach(function(x){ if(x.id===pid) p=x; });
   if(!p || !p.charId){ alert('Link a character to this player to send damage to their sheet.'); return; }
-  postToWix({ type:'lmtool-combat-damage', campaignId:combatCampaignId(), charId:p.charId, amount:amt });
-  if(el) el.value='';
-  cbToast('Sent '+amt+' to '+esc(p.name)+'. They confirm on their sheet.');
+  postToWix({ type:'lmtool-combat-damage', campaignId:combatCampaignId(), charId:p.charId, base:base, bonus:bonus, dt:dt });
+  if(eb) eb.value=''; if(eo) eo.value='';
+  cbToast('Sent base '+base+' + bonus '+bonus+' to '+esc(p.name)+'. They confirm on their sheet.');
 }
 function cbDeclareStatus(){
   var players=attendingPlayers(); if(!players.length) return '';

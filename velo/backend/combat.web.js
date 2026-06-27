@@ -13,7 +13,7 @@
 //     act (Text), react (Text), target (Text), round (Number), dmg (Number), base (Number), dt (Text), charge (Number),
 //     curVit (Number), maxVit (Number), affs (Text, JSON),
 //     appliedByLm (Text, JSON), recapMsg (Text), recapAt (Number),
-//     pendingHit (Number), pendingHitAt (Number), updatedAt (Number)
+//     pendBase (Number), pendBonus (Number), pendDt (Text), pendingHitAt (Number), updatedAt (Number)
 //
 // Writes are field-merged, never whole-row replaced, so the player declaration and the
 // loremaster's applied conditions do not clobber each other. Everything is additive.
@@ -88,11 +88,14 @@ export const getCombatDeclares = webMethod(Permissions.Anyone, async (campaignId
 });
 
 // FateWell -> queue damage for a player to confirm on their own sheet (ownership rule).
-export const dealDamageToChar = webMethod(Permissions.Anyone, async (campaignId, charId, amount) => {
+export const dealDamageToChar = webMethod(Permissions.Anyone, async (campaignId, charId, base, bonus, dt) => {
   if (!campaignId || !charId) return { ok: false };
   const existing = await playerRow(campaignId, charId);
   const row = existing || { campaignId: campaignId, charId: charId };
-  row.pendingHit = Math.max(0, Number(amount) || 0);
+  row.pendBase = Math.max(0, Number(base) || 0);
+  row.pendBonus = Math.max(0, Number(bonus) || 0);
+  row.pendDt = dt || 'phys';
+  row.pendingHit = row.pendBase + row.pendBonus;
   row.pendingHitAt = Date.now();
   row.updatedAt = Date.now();
   try {
@@ -119,7 +122,7 @@ export const getCombatForChar = webMethod(Permissions.Anyone, async (charId) => 
     you: pr ? { act: pr.act || '', react: pr.react || '', target: pr.target || '' } : {},
     applied: pr ? jparse(pr.appliedByLm, []) : [],
     recap: pr ? { msg: pr.recapMsg || '', at: pr.recapAt || 0 } : { msg: '', at: 0 },
-    pendingHit: pr ? { amount: pr.pendingHit || 0, at: pr.pendingHitAt || 0 } : { amount: 0, at: 0 }
+    pendingHit: pr ? { base: pr.pendBase || 0, bonus: pr.pendBonus || 0, dt: pr.pendDt || 'phys', at: pr.pendingHitAt || 0 } : { base: 0, bonus: 0, dt: 'phys', at: 0 }
   };
 });
 

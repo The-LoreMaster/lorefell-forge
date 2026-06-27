@@ -32,6 +32,13 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 - Healing on the sheet now respects the canon. In combat, Withered cancels any healing, and Harvested turns that healing into damage against you, off temporary vitality first.
 - Bruised still waits on the damage model, since it needs the base and bonus split.
 
+## Combat — damage model (player as defender)
+- Incoming hits now split into base and bonus with a physical or magic type. The loremaster's deal control takes both plus the type.
+- A hit resolves by canon on the player's sheet: Bruised turns bonus into base, Durability or Resistance reduces bonus, Vulnerable and Diminished zero those stats, Exposed and Pierced make the attacker ignore them, the active stance Tier 2 reduces the total base-first when live at charge, and Bleeding and Infected add their unreducible point. Temporary vitality takes the result first.
+- The incoming prompt shows the raw hit and the reduced total before the player confirms.
+- This unlocks Bruised, Vulnerable, Diminished, Exposed, Pierced, and stance Tier 2 mitigation. Foe-side defense reduction (player attacks foe) is the next slice once foe stat blocks carry Durability and Resistance.
+- CombatPlayer gains pendBase, pendBonus, pendDt.
+
 ---
 
 ## 2026-06-26 — Combat: player vitality, charge, and conditions sync live

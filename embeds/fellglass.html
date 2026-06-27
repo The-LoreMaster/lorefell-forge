@@ -3629,28 +3629,48 @@ function applyIncomingConditions(applied){
   });
   if(added.length){ try{renderStatus();}catch(e){} try{renderStrip();}catch(e){} scheduleSave(); try{edgeGlow("rgba(201,106,90,.85)");}catch(e){} cbPing("The LoreMaster marked you: "+added.join(", ")); }
 }
-function applyPendingHit(amount){
-  amount=Math.max(0, amount|0); if(!amount) return;
-  var marks=[]; if(cbHasAff("Bleeding")) marks.push("Bleeding"); if(cbHasAff("Infected")) marks.push("Infected");
-  amount+=marks.length;
-  var v=C.vitality;
-  var fromTemp=Math.min(v.temp||0, amount);
-  v.temp=(v.temp||0)-fromTemp;
-  var rem=amount-fromTemp;
-  v.current=Math.max(0, (v.current||0)-rem);
-  try{renderVit();}catch(e){} try{renderStrip();}catch(e){}
-  scheduleSave();
-  try{edgeGlow("rgba(201,106,90,.9)");}catch(e){}
-  cbPing("Took "+amount+(marks.length?(" (+"+marks.length+" from "+marks.join(" + ")+")"):"")+(fromTemp?(" \u00b7 "+fromTemp+" off temporary"):"")+".");
+function cbHasEff(name){ return (C.effects||[]).some(function(e){return e.name===name;}); }
+function cbStanceRed(){
+  var a=C.armor; if(!a||!a.active) return null;
+  var def=STANCE_DB[a.active]; if(!def) return null;
+  var t2unlocked=(a.level||0)>=STANCE_TIER_UNLOCK[1];
+  var live=(a.level||0)>=10 || (C.charge||0)>=2;
+  if(!t2unlocked || !live) return null;
+  return { attr:def.attr, value:Math.max(0, attrTotal(def.attr)) };
 }
-function showPendingHit(amount, at){
+function cbResolveIncoming(base, bonus, dt){
+  base=Math.max(0, base|0); bonus=Math.max(0, bonus|0); dt=dt||"phys";
+  if(cbHasAff("Bruised")){ base+=bonus; bonus=0; }
+  var defAttr = dt==="magic" ? "resistance" : "durability";
+  var ignore = dt==="magic" ? cbHasEff("Pierced") : cbHasEff("Exposed");
+  var zeroed = dt==="magic" ? cbHasAff("Diminished") : cbHasAff("Vulnerable");
+  var def = (ignore||zeroed) ? 0 : Math.max(0, attrTotal(defAttr));
+  bonus = Math.max(0, bonus - def);
+  var sr=cbStanceRed();
+  if(sr){ var red=sr.value, rb=Math.min(base,red); base-=rb; red-=rb; bonus=Math.max(0, bonus-red); }
+  var marks=[]; if(cbHasAff("Bleeding")) marks.push("Bleeding"); if(cbHasAff("Infected")) marks.push("Infected");
+  return { total: base+bonus+marks.length, marks: marks };
+}
+function applyPendingHit(hit){
+  var base=Math.max(0,(hit&&hit.base)|0), bonus=Math.max(0,(hit&&hit.bonus)|0), dt=(hit&&hit.dt)||"phys";
+  var r=cbResolveIncoming(base, bonus, dt);
+  if(r.total<=0){ cbPing("The hit is turned aside."); return; }
+  var v=C.vitality, t=Math.min(v.temp||0, r.total);
+  v.temp=(v.temp||0)-t; v.current=Math.max(0,(v.current||0)-(r.total-t));
+  try{renderVit();}catch(e){} try{renderStrip();}catch(e){}
+  scheduleSave(); try{edgeGlow("rgba(201,106,90,.9)");}catch(e){}
+  cbPing("Took "+r.total+(r.marks.length?(" (+"+r.marks.length+" "+r.marks.join(" + ")+")"):"")+(t?(" \u00b7 "+t+" off temporary"):"")+".");
+}
+function showPendingHit(hit, at){
   var ex=document.getElementById("cbHitOvl"); if(ex) ex.remove();
+  var base=Math.max(0,(hit&&hit.base)|0), bonus=Math.max(0,(hit&&hit.bonus)|0), dt=(hit&&hit.dt)||"phys";
+  var r=cbResolveIncoming(base, bonus, dt);
   var ov=el("div","cb-ovl"); ov.id="cbHitOvl";
   ov.innerHTML='<div class="cb-card hit"><div class="cb-h">Incoming damage</div>'
-    +'<p class="cb-sub">The LoreMaster lands '+amount+' on you. Temporary vitality takes it first.</p>'
-    +'<div class="cb-row"><button class="btn small" id="cbHitLater">Not yet</button><button class="btn small gold" id="cbHitApply">Take '+amount+'</button></div></div>';
+    +'<p class="cb-sub">A '+(dt==="magic"?"magic":"physical")+' hit, '+base+' base and '+bonus+' bonus. After your defenses it lands for '+r.total+'. Temporary vitality takes it first.</p>'
+    +'<div class="cb-row"><button class="btn small" id="cbHitLater">Not yet</button><button class="btn small gold" id="cbHitApply">Take '+r.total+'</button></div></div>';
   document.body.appendChild(ov);
-  document.getElementById("cbHitApply").addEventListener("click",function(){ window._lastHitAt=at; applyPendingHit(amount); ov.remove(); });
+  document.getElementById("cbHitApply").addEventListener("click",function(){ window._lastHitAt=at; applyPendingHit(hit); ov.remove(); });
   document.getElementById("cbHitLater").addEventListener("click",function(){ ov.remove(); });
 }
 function setCombatState(state){
@@ -3663,7 +3683,7 @@ function setCombatState(state){
     var rc=COMBAT.recap||{};
     if(rc.at && rc.at!==window._lastRecapAt){ window._lastRecapAt=rc.at; if(rc.msg){ cbPing(rc.msg); try{edgeGlow("rgba(201,168,76,.7)");}catch(e){} } }
     var ph=COMBAT.pendingHit||{};
-    if(ph.at && ph.at!==window._lastHitAt && ph.amount>0){ showPendingHit(ph.amount, ph.at); }
+    if(ph.at && ph.at!==window._lastHitAt && ((ph.base||0)+(ph.bonus||0))>0){ showPendingHit(ph, ph.at); }
   }
   if(COMBAT&&COMBAT.active&&!wasActive){ try{edgeGlow("rgba(201,106,90,.85)");}catch(e){} window._combatSyncSig=""; combatSyncPush(); openDeclare(); }
 }
