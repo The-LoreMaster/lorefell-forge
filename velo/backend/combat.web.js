@@ -10,7 +10,7 @@
 //   CombatPlayer  one row per campaign+character: a player's declaration plus any
 //                 conditions the loremaster has landed on them.
 //     campaignId (Text, indexed), charId (Text, indexed),
-//     act (Text), react (Text), target (Text), round (Number), dmg (Number), base (Number), dt (Text), fellmark (Boolean), applies (Text), charge (Number),
+//     act (Text), react (Text), target (Text), round (Number), dmg (Number), base (Number), dt (Text), fellmark (Boolean), applies (Text), actTier (Number), chargeSet (Number), chargeSetAt (Number), charge (Number),
 //     curVit (Number), maxVit (Number), affs (Text, JSON),
 //     appliedByLm (Text, JSON), recapMsg (Text), recapAt (Number),
 //     pendBase (Number), pendBonus (Number), pendDt (Text), pendingHitAt (Number), updatedAt (Number)
@@ -81,7 +81,7 @@ export const getCombatDeclares = webMethod(Permissions.Anyone, async (campaignId
   return r.items.map((it) => ({
     charId: it.charId || '',
     act: it.act || '', react: it.react || '', target: it.target || '',
-    round: it.round || 0, dmg: it.dmg || 0, base: it.base || 0, dt: it.dt || '', fellmark: !!it.fellmark, applies: it.applies || '',
+    round: it.round || 0, dmg: it.dmg || 0, base: it.base || 0, dt: it.dt || '', fellmark: !!it.fellmark, applies: it.applies || '', actTier: (typeof it.actTier === 'number') ? it.actTier : -1,
     charge: it.charge || 0, curVit: it.curVit || 0, maxVit: it.maxVit || 0,
     affs: jparse(it.affs, [])
   }));
@@ -100,6 +100,21 @@ export const dealDamageToChar = webMethod(Permissions.Anyone, async (campaignId,
   row.updatedAt = Date.now();
   try {
     if (existing) await wixData.update('CombatPlayer', row, { suppressAuth: true });
+
+// FateWell -> a player's attack landed, advance their shared charge (player sheet adopts it).
+export const setCombatCharge = webMethod(Permissions.Anyone, async (campaignId, charId, value) => {
+  if (!campaignId || !charId) return { ok: false };
+  const existing = await playerRow(campaignId, charId);
+  const row = existing || { campaignId: campaignId, charId: charId };
+  row.chargeSet = Math.max(0, Math.min(3, Number(value) || 0));
+  row.chargeSetAt = Date.now();
+  row.updatedAt = Date.now();
+  try {
+    if (existing) await wixData.update('CombatPlayer', row, { suppressAuth: true });
+    else await wixData.insert('CombatPlayer', row, { suppressAuth: true });
+    return { ok: true };
+  } catch (e) { return { ok: false }; }
+});
     else await wixData.insert('CombatPlayer', row, { suppressAuth: true });
     return { ok: true };
   } catch (e) { return { ok: false }; }
@@ -122,7 +137,8 @@ export const getCombatForChar = webMethod(Permissions.Anyone, async (charId) => 
     you: pr ? { act: pr.act || '', react: pr.react || '', target: pr.target || '' } : {},
     applied: pr ? jparse(pr.appliedByLm, []) : [],
     recap: pr ? { msg: pr.recapMsg || '', at: pr.recapAt || 0 } : { msg: '', at: 0 },
-    pendingHit: pr ? { base: pr.pendBase || 0, bonus: pr.pendBonus || 0, dt: pr.pendDt || 'phys', at: pr.pendingHitAt || 0 } : { base: 0, bonus: 0, dt: 'phys', at: 0 }
+    pendingHit: pr ? { base: pr.pendBase || 0, bonus: pr.pendBonus || 0, dt: pr.pendDt || 'phys', at: pr.pendingHitAt || 0 } : { base: 0, bonus: 0, dt: 'phys', at: 0 },
+    chargeSet: pr ? { value: pr.chargeSet || 0, at: pr.chargeSetAt || 0 } : { value: 0, at: 0 }
   };
 });
 
@@ -164,6 +180,7 @@ export const saveCombatDeclare = webMethod(Permissions.Anyone, async (charId, de
   row.dt = d.dt || '';
   row.fellmark = !!d.fellmark;
   row.applies = d.applies || '';
+  row.actTier = (typeof d.actTier === 'number') ? d.actTier : -1;
   row.charge = typeof d.charge === 'number' ? d.charge : 0;
   row.curVit = typeof d.curVit === 'number' ? d.curVit : 0;
   row.maxVit = typeof d.maxVit === 'number' ? d.maxVit : 0;

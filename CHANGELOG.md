@@ -50,6 +50,12 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 - The Worn affliction now raises Fatigue by one rank when it takes hold.
 - The Unbowed augmentation treats Fatigue as one rank lower for effects and gates.
 
+## Combat — Shared charge auto-progression
+- Every weapon now offers a Basic attack alongside its abilities, and ability choices in the declare panel are locked until the shared charge reaches their tier.
+- Landing the action that matches your current charge climbs the meter one tier. A basic strike at no charge takes you to Tier 1, a Tier 1 ability to Tier 2, a Tier 2 ability to Tier 3. The Loremaster applying your hit is what advances it, so your sheet updates on its own.
+- Unleashing a Tier 3 ability spends the meter and resets it to zero.
+- Charge still powers weapon tiers, armor stances, and lorebound aspect stages from the one meter, and the pips remain tappable for manual correction.
+
 ---
 
 ## 2026-06-26 — Combat: player vitality, charge, and conditions sync live
