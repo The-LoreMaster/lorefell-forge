@@ -56,6 +56,13 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 - Unleashing a Tier 3 ability spends the meter and resets it to zero.
 - Charge still powers weapon tiers, armor stances, and lorebound aspect stages from the one meter, and the pips remain tappable for manual correction.
 
+## Combat — Augmentation enforcement
+- Round start now runs your augmentations. Mendseam recovers Vitality equal to your Vigor when you took no damage the round before. Scarweave tops your Temporary Vitality up to your Vigor without stacking on itself.
+- Incoming hits respect your wards. Threshold caps any single hit at half your maximum Vitality. Emberhold holds you at 1 the first time a hit would drop you to zero in a fight. Lastlight makes the first attack each round miss while you are below half.
+- The incoming-damage panel offers a Negate button when Mistform or Nullward is ready, once each round, with Nullward reserved for spells.
+- Hexward turns aside the first Affliction marked on you each round.
+- Positioning and ally augmentations stay as passive reminders on your sheet.
+
 ---
 
 ## 2026-06-26 — Combat: player vitality, charge, and conditions sync live
