@@ -4,6 +4,14 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-26 — FateWell: port the prototype combat board (gold spotbox resolve)
+
+- Combat now runs the designed two-step round on live scene data. Commit is a structured Declare Intent per foe (Attack, Use a skill, Use an item, Assist an ally), with the foe's own Acts or items in a second dropdown and a Focus picker that includes Space
+- Resolve is the gold Spotlight box. Auto fills the most-engaged cluster first and steps through them; Manual lets you tap fighters into the box. Resolve these Acts drops them into a grayed Resolved list with a live React box, and Undo and Reset walk the round back, reverting any conditions an Act applied
+- Fighter cards carry the full controls: vitality with minus five, minus one, tap-to-type, plus one, plus five, a three-pip charge track, separate Affliction and Effect rows with add and remove, an Act line, and a React-used toggle
+- A foe Act that carries an applied condition lands it on its focus automatically when resolved, ready for when foe Acts start declaring what they inflict
+- Begin next round clears intents, React flags, and the spotlight state, and warns if anyone on the field is still unresolved
+
 ## 2026-06-26 — FateWell: spine labels, empty tiers, and Next Session visibility
 
 - All four spine labels read clearly now, not just the lit one. The current tier still glows gold
