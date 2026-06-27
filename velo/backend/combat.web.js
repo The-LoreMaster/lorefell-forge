@@ -100,6 +100,10 @@ export const dealDamageToChar = webMethod(Permissions.Anyone, async (campaignId,
   row.updatedAt = Date.now();
   try {
     if (existing) await wixData.update('CombatPlayer', row, { suppressAuth: true });
+    else await wixData.insert('CombatPlayer', row, { suppressAuth: true });
+    return { ok: true };
+  } catch (e) { return { ok: false }; }
+});
 
 // FateWell -> a player's attack landed, advance their shared charge (player sheet adopts it).
 export const setCombatCharge = webMethod(Permissions.Anyone, async (campaignId, charId, value) => {
@@ -111,10 +115,6 @@ export const setCombatCharge = webMethod(Permissions.Anyone, async (campaignId, 
   row.updatedAt = Date.now();
   try {
     if (existing) await wixData.update('CombatPlayer', row, { suppressAuth: true });
-    else await wixData.insert('CombatPlayer', row, { suppressAuth: true });
-    return { ok: true };
-  } catch (e) { return { ok: false }; }
-});
     else await wixData.insert('CombatPlayer', row, { suppressAuth: true });
     return { ok: true };
   } catch (e) { return { ok: false }; }
