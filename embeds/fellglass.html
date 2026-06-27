@@ -1949,7 +1949,8 @@ const lbFormIdx=lvl=>lvl>=8?2:lvl>=4?1:0; /* form derives from level */
 const ASPECT_UNLOCK={low:2,high:6,signature:10};
 let SIGNATURES={}; /* lorebound type -> signature aspect text, from CMS */
 const lbSignature=type=>type?(SIGNATURES[type]||`${type.replace(" (placeholder)","")} Signature Aspect (placeholder)`):"";
-const FATIGUE_FX=["","Rank 1 effect (placeholder)","Rank 2 effect (placeholder)","Rank 3 effect (placeholder)","Rank 4 effect (placeholder)","Rank 5 effect (placeholder)"];
+const FATIGUE_FX=["","-1 to Precision.","Mobility is halved for movement.","-2 to Evasion.","You lose your Act. You may only use your React.","You lose your Act and your React. You can only endure."];
+const FATIGUE_NAMES=["Fresh","Tired","Weary","Exhausted","Drained","Overwhelmed"];
 const AURUM=[["oro","Oro",1],["arca","Arca",10],["atla","Atla",50],["zurith","Zurith",100]];
 const ATTRS=[
   ["Offensive",[["precision","Used for accuracy"],["power","Targets enemy Durability"],["magic","Targets enemy Resistance"]]],
@@ -2868,7 +2869,8 @@ function renderFatigue(){
     p.addEventListener("click",()=>{C.fatigue=(C.fatigue===i)?i-1:i;renderFatigue();});
     w.appendChild(p);
   }
-  $("fatigueEffect").textContent=FATIGUE_FX[C.fatigue]||"";
+  var _ef=(typeof cbEffFatigue==="function")?cbEffFatigue():C.fatigue;
+  $("fatigueEffect").textContent=(FATIGUE_FX[_ef]||"")+((typeof cbHasAug==="function"&&cbHasAug("Unbowed")&&(C.fatigue||0)>0)?"  (Unbowed: one rank lower)":"");
   renderStrip();
 }
 document.querySelectorAll("[data-mob]").forEach(b=>b.addEventListener("click",()=>{
@@ -3719,7 +3721,9 @@ function cbCanon(nm){ return (typeof canonCondition==="function") ? canonConditi
 function cbTickSelf(){
   var affs=C.afflictions||[], notes=[];
   affs.forEach(function(a){
-    var c=cbCanon(a.name); if(!c || c.enforce.bucket!=="A" || a._on) return;
+    var c=cbCanon(a.name); if(!c) return;
+    if(a.name==="Worn"){ if(!a._on){ C.fatigue=Math.min(5,(C.fatigue||0)+1); a._on=true; notes.push("Worn: Fatigue rises"); try{renderFatigue();}catch(e){} } return; }
+    if(c.enforce.bucket!=="A" || a._on) return;
     if(c.enforce.op==="maxVitHalved"){ a._save=C.vitality.max; C.vitality.max=Math.max(1,Math.floor(C.vitality.max/2)); if(C.vitality.current>C.vitality.max) C.vitality.current=C.vitality.max; a._on=true; notes.push(c.name+": max Vitality halved"); }
     else if(c.enforce.op==="loseHalfCurrent"){ C.vitality.current=Math.floor(C.vitality.current/2); a._on=true; notes.push(c.name+": lost half Vitality"); }
     else { a._on=true; }
@@ -3738,6 +3742,10 @@ function cbGates(){
     if(c.enforce.op==="noReact") g.noReact=true;
     g.notes.push({name:c.name,rule:c.rule});
   });
+  var ef=cbEffFatigue();
+  if(ef>=4) g.noAct=true;
+  if(ef>=5) g.noReact=true;
+  if(ef>=1) g.notes.push({name:"Fatigue: "+FATIGUE_NAMES[ef], rule:FATIGUE_FX[ef]});
   return g;
 }
 function cbBreakoutList(){
@@ -3797,6 +3805,8 @@ function openDeclare(){
 }
 function cbActEntry(nm){ return (window.COMBAT_ACTS||[]).filter(function(a){return a.nm===nm;})[0]||null; }
 function cbHasAff(name){ return (C.afflictions||[]).some(function(a){return a.name===name;}); }
+function cbHasAug(name){ return ((C.armor&&C.armor.augs)||[]).indexOf(name)>=0; }
+function cbEffFatigue(){ return Math.max(0, (C.fatigue||0) - (cbHasAug("Unbowed")?1:0)); }
 function cbOutDmg(e){
   if(!e) return 0; var d=e.dmg||0;
   if(e.dt==="phys" && cbHasAff("Dislocated")) d=Math.floor(d/2);

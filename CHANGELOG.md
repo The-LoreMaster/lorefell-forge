@@ -45,6 +45,11 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 - CombatPlayer gains fellmark and applies.
 - Note: a weapon's affliction reads from its meta, which is canon once weapons are wired to the CMS and a placeholder until then.
 
+## Combat — Fatigue enforcement
+- The Fatigue ladder now carries its canon effects instead of placeholders. Tired, Weary, and Exhausted show as reminders in the declare panel, Drained disables the Act, and Overwhelmed disables both the Act and the React, the same gating afflictions use.
+- The Worn affliction now raises Fatigue by one rank when it takes hold.
+- The Unbowed augmentation treats Fatigue as one rank lower for effects and gates.
+
 ---
 
 ## 2026-06-26 — Combat: player vitality, charge, and conditions sync live
