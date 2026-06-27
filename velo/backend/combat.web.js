@@ -4,14 +4,16 @@
 //
 //   CombatState   one row per campaign: the battle the loremaster is running.
 //     campaignId (Text, indexed), active (Boolean), round (Number), phase (Text),
-//     sceneId (Text), sceneName (Text), fighters (Text, JSON), updatedAt (Number)
+//     sceneId (Text), sceneName (Text), fighters (Text, JSON), spotlightChars (Text, JSON),
+//     updatedAt (Number)
 //
 //   CombatPlayer  one row per campaign+character: a player's declaration plus any
 //                 conditions the loremaster has landed on them.
 //     campaignId (Text, indexed), charId (Text, indexed),
-//     act (Text), react (Text), target (Text), round (Number), charge (Number),
+//     act (Text), react (Text), target (Text), round (Number), dmg (Number), charge (Number),
 //     curVit (Number), maxVit (Number), affs (Text, JSON),
-//     appliedByLm (Text, JSON), recapMsg (Text), recapAt (Number), updatedAt (Number)
+//     appliedByLm (Text, JSON), recapMsg (Text), recapAt (Number),
+//     pendingHit (Number), pendingHitAt (Number), updatedAt (Number)
 //
 // Writes are field-merged, never whole-row replaced, so the player declaration and the
 // loremaster's applied conditions do not clobber each other. Everything is additive.
@@ -48,6 +50,7 @@ export const publishCombatState = webMethod(Permissions.Anyone, async (campaignI
   row.sceneId = s.sceneId || '';
   row.sceneName = s.sceneName || '';
   row.fighters = JSON.stringify(s.fighters || []);
+  row.spotlightChars = JSON.stringify(s.spotlightChars || []);
   row.updatedAt = Date.now();
   try {
     if (existing) await wixData.update('CombatState', row, { suppressAuth: true });
@@ -78,10 +81,25 @@ export const getCombatDeclares = webMethod(Permissions.Anyone, async (campaignId
   return r.items.map((it) => ({
     charId: it.charId || '',
     act: it.act || '', react: it.react || '', target: it.target || '',
-    round: it.round || 0,
+    round: it.round || 0, dmg: it.dmg || 0,
     charge: it.charge || 0, curVit: it.curVit || 0, maxVit: it.maxVit || 0,
     affs: jparse(it.affs, [])
   }));
+});
+
+// FateWell -> queue damage for a player to confirm on their own sheet (ownership rule).
+export const dealDamageToChar = webMethod(Permissions.Anyone, async (campaignId, charId, amount) => {
+  if (!campaignId || !charId) return { ok: false };
+  const existing = await playerRow(campaignId, charId);
+  const row = existing || { campaignId: campaignId, charId: charId };
+  row.pendingHit = Math.max(0, Number(amount) || 0);
+  row.pendingHitAt = Date.now();
+  row.updatedAt = Date.now();
+  try {
+    if (existing) await wixData.update('CombatPlayer', row, { suppressAuth: true });
+    else await wixData.insert('CombatPlayer', row, { suppressAuth: true });
+    return { ok: true };
+  } catch (e) { return { ok: false }; }
 });
 
 // FellGlass -> the battle this character is in, plus any conditions landed on them.
@@ -97,9 +115,11 @@ export const getCombatForChar = webMethod(Permissions.Anyone, async (charId) => 
     round: st.round || 0, phase: st.phase || '',
     sceneId: st.sceneId || '', sceneName: st.sceneName || '',
     fighters: jparse(st.fighters, []),
+    spotlightChars: jparse(st.spotlightChars, []),
     you: pr ? { act: pr.act || '', react: pr.react || '', target: pr.target || '' } : {},
     applied: pr ? jparse(pr.appliedByLm, []) : [],
-    recap: pr ? { msg: pr.recapMsg || '', at: pr.recapAt || 0 } : { msg: '', at: 0 }
+    recap: pr ? { msg: pr.recapMsg || '', at: pr.recapAt || 0 } : { msg: '', at: 0 },
+    pendingHit: pr ? { amount: pr.pendingHit || 0, at: pr.pendingHitAt || 0 } : { amount: 0, at: 0 }
   };
 });
 
@@ -136,6 +156,7 @@ export const saveCombatDeclare = webMethod(Permissions.Anyone, async (charId, de
   row.react = d.react || '';
   row.target = d.target || '';
   row.round = typeof d.round === 'number' ? d.round : 0;
+  row.dmg = typeof d.dmg === 'number' ? d.dmg : 0;
   row.charge = typeof d.charge === 'number' ? d.charge : 0;
   row.curVit = typeof d.curVit === 'number' ? d.curVit : 0;
   row.maxVit = typeof d.maxVit === 'number' ? d.maxVit : 0;

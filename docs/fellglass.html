@@ -343,6 +343,9 @@ body.in-combat::after{ content:""; position:fixed; inset:0; pointer-events:none;
 .cbn-btn{ background:rgba(201,106,90,.16); border:1px solid var(--danger); color:var(--silver); border-radius:8px; padding:6px 13px; font-family:inherit; font-size:.84rem; cursor:pointer; }
 .cbn-btn:active{ background:rgba(201,106,90,.3); }
 .cbn-btn.done{ background:rgba(127,181,138,.16); border-color:var(--ok,#7fb58a); color:var(--ice); }
+.combat-banner.youup{ background:linear-gradient(180deg,rgba(201,168,76,.26),rgba(10,14,26,.96)); border-bottom-color:var(--gold); }
+.combat-banner.youup .cbn-dot{ background:var(--gold); box-shadow:0 0 10px rgba(201,168,76,.95); }
+.cb-dmghint{ font-size:.78rem; color:var(--gold); margin-top:5px; min-height:1em; }
 .cb-ping{ position:fixed; left:50%; bottom:24px; transform:translateX(-50%) translateY(12px); z-index:210; background:var(--navy-2); border:1px solid var(--danger); color:var(--silver); padding:10px 16px; border-radius:10px; font-size:.86rem; max-width:86vw; text-align:center; box-shadow:0 10px 30px rgba(0,0,0,.55); opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; }
 .cb-ping.on{ opacity:1; transform:translateX(-50%) translateY(0); }
 body.in-combat{ padding-top:46px; }
@@ -2506,6 +2509,28 @@ function applyIncomingConditions(applied){
   });
   if(added.length){ try{renderStatus();}catch(e){} try{renderStrip();}catch(e){} scheduleSave(); try{edgeGlow("rgba(201,106,90,.85)");}catch(e){} cbPing("The LoreMaster marked you: "+added.join(", ")); }
 }
+function applyPendingHit(amount){
+  amount=Math.max(0, amount|0); if(!amount) return;
+  var v=C.vitality;
+  var fromTemp=Math.min(v.temp||0, amount);
+  v.temp=(v.temp||0)-fromTemp;
+  var rem=amount-fromTemp;
+  v.current=Math.max(0, (v.current||0)-rem);
+  try{renderVit();}catch(e){} try{renderStrip();}catch(e){}
+  scheduleSave();
+  try{edgeGlow("rgba(201,106,90,.9)");}catch(e){}
+  cbPing("Took "+amount+(fromTemp?(" ("+fromTemp+" from temporary)"):"")+".");
+}
+function showPendingHit(amount, at){
+  var ex=document.getElementById("cbHitOvl"); if(ex) ex.remove();
+  var ov=el("div","cb-ovl"); ov.id="cbHitOvl";
+  ov.innerHTML='<div class="cb-card hit"><div class="cb-h">Incoming damage</div>'
+    +'<p class="cb-sub">The LoreMaster lands '+amount+' on you. Temporary vitality takes it first.</p>'
+    +'<div class="cb-row"><button class="btn small" id="cbHitLater">Not yet</button><button class="btn small gold" id="cbHitApply">Take '+amount+'</button></div></div>';
+  document.body.appendChild(ov);
+  document.getElementById("cbHitApply").addEventListener("click",function(){ window._lastHitAt=at; applyPendingHit(amount); ov.remove(); });
+  document.getElementById("cbHitLater").addEventListener("click",function(){ ov.remove(); });
+}
 function setCombatState(state){
   var sig=JSON.stringify(state||null); if(sig===_combatSig) return;
   var wasActive=!!(COMBAT&&COMBAT.active);
@@ -2514,6 +2539,8 @@ function setCombatState(state){
     applyIncomingConditions(COMBAT.applied||[]);
     var rc=COMBAT.recap||{};
     if(rc.at && rc.at!==window._lastRecapAt){ window._lastRecapAt=rc.at; if(rc.msg){ cbPing(rc.msg); try{edgeGlow("rgba(201,168,76,.7)");}catch(e){} } }
+    var ph=COMBAT.pendingHit||{};
+    if(ph.at && ph.at!==window._lastHitAt && ph.amount>0){ showPendingHit(ph.amount, ph.at); }
   }
   if(COMBAT&&COMBAT.active&&!wasActive){ try{edgeGlow("rgba(201,106,90,.85)");}catch(e){} window._combatSyncSig=""; combatSyncPush(); openDeclare(); }
 }
@@ -2525,7 +2552,9 @@ function applyCombatMode(){
   if(!on){ bn.style.display="none"; var ov=document.getElementById("cbOverlay"); if(ov) ov.remove(); return; }
   bn.style.display="flex";
   var declared = window._declaredRound && COMBAT.round && window._declaredRound===COMBAT.round;
-  bn.innerHTML='<span class="cbn-l"><span class="cbn-dot"></span>Combat'+(COMBAT.round?" \u00b7 Round "+COMBAT.round:"")+(COMBAT.sceneName?" \u00b7 "+cbEsc(COMBAT.sceneName):"")+'</span>'
+  var youUp = COMBAT.spotlightChars && CUR_WIX_ID && COMBAT.spotlightChars.indexOf(CUR_WIX_ID)>=0;
+  bn.classList.toggle("youup", !!youUp);
+  bn.innerHTML='<span class="cbn-l"><span class="cbn-dot"></span>'+(youUp?"You're up":"Combat")+(COMBAT.round?" \u00b7 Round "+COMBAT.round:"")+(COMBAT.sceneName?" \u00b7 "+cbEsc(COMBAT.sceneName):"")+'</span>'
     +'<button class="cbn-btn'+(declared?' done':'')+'" id="cbnDeclare">'+(declared?"Declared":"Declare Act and React")+'</button>';
   var b=document.getElementById("cbnDeclare"); if(b) b.addEventListener("click",openDeclare);
 }
@@ -2547,7 +2576,8 @@ function openDeclare(){
   ov.innerHTML='<div class="cb-card">'
     +'<div class="cb-h">Declare your turn</div>'
     +'<p class="cb-sub">Round '+(COMBAT.round||1)+'. Lock what you intend. The LoreMaster resolves when ready.</p>'
-    +'<label class="cb-l">Act</label><select id="cbAct" class="cb-sel">'+cbArOptions(window.COMBAT_ACTS,dec.act)+'</select>'
+    +'<label class="cb-l">Act</label><select id="cbAct" class="cb-sel" onchange="cbDmgHint()">'+cbArOptions(window.COMBAT_ACTS,dec.act)+'</select>'
+    +'<div class="cb-dmghint" id="cbDmgHint"></div>'
     +'<label class="cb-l">React</label><select id="cbReact" class="cb-sel">'+cbArOptions(window.COMBAT_REACTS,dec.react)+'</select>'
     +'<label class="cb-l">Focus</label><select id="cbFocus" class="cb-sel">'+cbFocusOptions(dec.target)+'</select>'
     +'<div class="cb-meta">Vitality '+C.vitality.current+"/"+C.vitality.max+(C.vitality.temp?" +"+C.vitality.temp:"")+" \u00b7 Charge T"+(C.charge||0)+' sync with your sheet</div>'
@@ -2557,6 +2587,13 @@ function openDeclare(){
   ov.addEventListener("click",function(e){ if(e.target===ov) ov.remove(); });
   document.getElementById("cbCancel").addEventListener("click",function(){ ov.remove(); });
   document.getElementById("cbSend").addEventListener("click",sendDeclare);
+  cbDmgHint();
+}
+function cbActDmg(nm){ var e=(window.COMBAT_ACTS||[]).filter(function(a){return a.nm===nm;})[0]; return e?(e.dmg||0):0; }
+function cbDmgHint(){
+  var sel=document.getElementById("cbAct"), hint=document.getElementById("cbDmgHint"); if(!sel||!hint) return;
+  var d=cbActDmg(sel.value);
+  hint.textContent = d>0 ? ("This Act deals "+d+" to your focus.") : "";
 }
 function sendDeclare(){
   if(!CUR_WIX_ID) return;
@@ -2566,7 +2603,8 @@ function sendDeclare(){
   var affs=[].concat((C.afflictions||[]).map(function(a){return {name:a.name,kind:"affliction"};}),
                      (C.effects||[]).map(function(e){return {name:e.name,kind:"effect"};}));
   var round=(COMBAT&&COMBAT.round)||1;
-  postToVelo({type:"combat-declare",charId:CUR_WIX_ID,act:act,react:react,target:target,round:round,
+  var dmg=cbActDmg(act);
+  postToVelo({type:"combat-declare",charId:CUR_WIX_ID,act:act,react:react,target:target,round:round,dmg:dmg,
     charge:C.charge||0,curVit:C.vitality.current,maxVit:C.vitality.max,affs:affs});
   if(COMBAT) COMBAT.you={act:act,react:react,target:target};
   window._declaredRound=round;

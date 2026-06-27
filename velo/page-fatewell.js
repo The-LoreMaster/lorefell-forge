@@ -6,7 +6,7 @@
 
 import { loadCampaign, saveCampaign, deleteCampaign, listMyCampaigns, getSealed, getForgeLibrary, listAssets, saveAsset, deleteAsset, listGlossary, getCampaignPlayers, detachCharacter, assignClue, setMemberRole, myAdventureRole } from 'backend/fatewell.web.js';
 import { getFoePack } from 'backend/forge.web.js';
-import { publishCombatState, applyCombatToChar, getCombatDeclares } from 'backend/combat.web.js';
+import { publishCombatState, applyCombatToChar, getCombatDeclares, dealDamageToChar } from 'backend/combat.web.js';
 import { publishAdventure, myPublishedAdventures, unpublishAdventure, getPublishedPack } from 'backend/published.web.js';
 import { createInvite, revokeInvite } from 'backend/invites.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
@@ -152,6 +152,8 @@ $w.onReady(() => {
       let declares = [];
       try { declares = await getCombatDeclares(m.campaignId || campaignId); } catch (e) { declares = []; }
       embed.postMessage({ type: 'lmtool-combat-declares', declares: declares });
+    } else if (m.type === 'lmtool-combat-damage') {
+      try { await dealDamageToChar(m.campaignId || campaignId, m.charId || '', m.amount || 0); } catch (e) {}
     } else if (m.type === 'lmtool-save') {
       const cid = m.campaignId || campaignId;
       const hasCampaign = !!(m.data && m.data.campaign);

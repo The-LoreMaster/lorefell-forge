@@ -1190,6 +1190,11 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 .cb-none{ font-size:.8rem; color:var(--muted); font-style:italic; }
 .cb-chip.pend{ border-style:dashed; opacity:.85; }
 .cb-pendtag{ font-size:.62rem; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); margin-left:5px; }
+.cb-incoming{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:9px; padding:7px 9px; border:1px solid rgba(201,168,76,.4); border-radius:8px; background:rgba(201,168,76,.06); }
+.cb-inc-t{ font-size:.82rem; color:var(--silver); }
+.cb-deal{ display:flex; align-items:center; gap:8px; margin-top:10px; }
+.cb-deal-l{ font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); }
+.cb-deal-in{ width:64px; background:var(--navy-4,#1c2742); border:1px solid var(--line); color:var(--silver); border-radius:7px; padding:6px 8px; font-family:inherit; font-size:.85rem; }
 .cb-decl{ margin-top:14px; border:1px solid var(--line); border-radius:10px; padding:10px 12px; background:rgba(255,255,255,.015); }
 .cb-decl-h{ font-family:var(--head,inherit); font-size:.72rem; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin-bottom:8px; }
 .cb-decl-row{ display:flex; align-items:center; gap:8px; padding:5px 0; }
@@ -3695,7 +3700,7 @@ function doAdvanceRound(){
   });
   Object.keys(sc.ps).forEach(function(pid){
     var st = sc.ps[pid];
-    st.act=''; st.react=''; st.target=''; st.actDone=false; st.reactDone=false; st.reactUsed=false;
+    st.act=''; st.react=''; st.target=''; st.actDone=false; st.reactDone=false; st.reactUsed=false; st.dmg=0; st.dmgDone=0;
     /* afflictions persist; cleared manually */
   });
   save(); render();
@@ -5174,7 +5179,8 @@ function cbCard(n, o){
   return '<div class="cb-fighter '+sideCls+(o.spot?' spot':'')+(down?' down':'')+'">'
     + '<div class="cb-top"><span class="cb-nm">'+esc(n.name)+'</span><span class="cb-sd">'+sideLbl+'</span></div>'
     + cbVitRow(n) + (n.kind==='m' ? chargeRow(n.kind, n.ref.id, cbChargeOf(n)) : cbChargeView(n)) + cbChips(n)
-    + cbActDisplay(n) + (n.kind==='m' ? cbFellmark(n) : '') + cbReact(n)
+    + cbActDisplay(n) + (n.kind==='m' ? cbFellmark(n) : '') + (n.kind==='m' ? cbIncoming(n) : '') + cbReact(n)
+    + (n.kind==='p' ? cbDealRow(n) : '')
     + (o.addSpot?'<div class="cb-spotline"><button class="cb-link" onclick="cbAddSpot(\''+n.key+'\')">+ Spotlight</button></div>':'')
     + (o.removeSpot?'<div class="cb-spotline"><button class="cb-link" onclick="cbRmSpot(\''+n.key+'\')">Remove</button></div>':'')
   + '</div>';
@@ -5334,9 +5340,12 @@ function publishCombat(){
   var cid=combatCampaignId(); if(!cid) return;
   var sc=curSc();
   var active = !!(sc && V.screen==='runner' && sc.mode==='combat');
-  var state = active
-    ? { active:true, round:(sc.battle&&sc.battle.round)||1, phase:(sc.battle&&sc.battle.phase)||'commit', sceneId:sc.id, sceneName:sc.name||'', fighters:combatFighters(sc) }
-    : { active:false };
+  var state;
+  if(active){
+    var bb=sc.battle||{}; var cc=curC(); var spotChars=[];
+    (bb.spotBox||[]).forEach(function(k){ if(k.indexOf('p:')!==0) return; var pid=k.slice(2); (cc.players||[]).forEach(function(p){ if(p.id===pid && p.charId) spotChars.push(p.charId); }); });
+    state={ active:true, round:bb.round||1, phase:bb.phase||'commit', sceneId:sc.id, sceneName:sc.name||'', fighters:combatFighters(sc), spotlightChars:spotChars };
+  } else { state={ active:false }; }
   var sig=JSON.stringify(state)+'@'+cid;
   if(sig!==window._combatPubSig){
     window._combatPubSig=sig;
@@ -5373,8 +5382,8 @@ function mergeDeclares(declares){
     var p=null; (c.players||[]).forEach(function(x){ if(x.charId===d.charId) p=x; });
     if(!p) return;
     var st=pState(p.id);
-    if(typeof d.round==='number' && d.round===curRound){ st.act=d.act||''; st.react=d.react||''; st.target=d.target||''; }
-    else { st.act=''; st.react=''; st.target=''; }
+    if(typeof d.round==='number' && d.round===curRound){ st.act=d.act||''; st.react=d.react||''; st.target=d.target||''; st.dmg=d.dmg||0; }
+    else { st.act=''; st.react=''; st.target=''; st.dmg=0; }
     if(typeof d.charge==='number') st.charge=d.charge;
     if(typeof d.curVit==='number') st.curVit=d.curVit;
     if(typeof d.maxVit==='number') st.maxVit=d.maxVit;
@@ -5383,6 +5392,37 @@ function mergeDeclares(declares){
     changed=true;
   });
   if(changed){ save(); if(V.screen==='runner') render(); }
+}
+function cbIncoming(n){
+  if(n.kind!=='m') return '';
+  var curRound=(curSc().battle&&curSc().battle.round)||1, rows='';
+  attendingPlayers().forEach(function(p){
+    var st=pState(p.id);
+    if(st.target===n.key && st.act && st.dmg>0 && st.dmgDone!==curRound){
+      rows+='<div class="cb-incoming"><span class="cb-inc-t">'+esc(p.name)+': '+esc(st.act)+' \u00b7 '+st.dmg+'</span>'
+        +'<button class="cb-link gold" onclick="cbApplyIncoming(\''+p.id+'\',\''+n.ref.id+'\')">Apply '+st.dmg+'</button></div>';
+    }
+  });
+  return rows;
+}
+function cbApplyIncoming(pid, cid){
+  var st=pState(pid); var dmg=st.dmg||0; if(dmg<=0) return;
+  st.dmgDone=(curSc().battle&&curSc().battle.round)||1;
+  adjVit(cid, -dmg);
+}
+function cbDealRow(n){
+  var pid=n.ref.id;
+  return '<div class="cb-deal"><span class="cb-deal-l">Deal damage</span>'
+    + '<input class="cb-deal-in" id="cbdmg-'+pid+'" type="number" min="1" placeholder="N">'
+    + '<button class="cb-link" onclick="cbDealDamage(\''+pid+'\')">Send hit</button></div>';
+}
+function cbDealDamage(pid){
+  var el=document.getElementById('cbdmg-'+pid); var amt=el?parseInt(el.value,10):0; if(!amt||amt<=0) return;
+  var p=null; curC().players.forEach(function(x){ if(x.id===pid) p=x; });
+  if(!p || !p.charId){ alert('Link a character to this player to send damage to their sheet.'); return; }
+  postToWix({ type:'lmtool-combat-damage', campaignId:combatCampaignId(), charId:p.charId, amount:amt });
+  if(el) el.value='';
+  cbToast('Sent '+amt+' to '+esc(p.name)+'. They confirm on their sheet.');
 }
 function cbDeclareStatus(){
   var players=attendingPlayers(); if(!players.length) return '';
