@@ -2,6 +2,12 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Combat — foe-dealt double Fellmark and the impairment panel
+- A foe can now land the double Fellmark too. The deal row on a player card gains a Mark Fellmark toggle. Set it and a bonus die appears, rolled by tap or by Auto, and it adds to the bonus before the player reduces it. A six doubles the hit and rolls the Impairment.
+- The impairment lands on the player and shows in their Impairments panel with its canon temporary and permanent effects. That panel was reading placeholder fields, so it now pulls the real text from the condition pack and lists all six impairments in the manual picker.
+- The Dice setting governs these rolls the same way. Manual leaves the bonus and Impairment dice in your hand. Auto rolls them when you send the hit.
+- This batch is FellGlass and FateWell only. No backend paste. Refresh both tools.
+
 ## Combat — Fellmark bonus roll and double-Fellmark impairments
 - A Fellmark now rolls. When a player marks a Fellmark in the declare panel, a bonus die appears. They tap it, it rolls with the same cinematic d6, and the result folds into their Bonus Damage before the foe reduces it. A six on that die is a double Fellmark.
 - A double Fellmark doubles the total damage and triggers an Impairment. The board doubles the hit on apply, then rolls 1d6 on the canon ladder: one Dismembered, two Blinded, three Maimed, four Concussed, five Severed, six Sundered. The result lands on the foe as a recorded condition.

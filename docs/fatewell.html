@@ -1198,7 +1198,7 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 .cb-condnote div{ font-size:.74rem; color:var(--silver-dim,#9fb0bd); padding:3px 7px; border-left:2px solid var(--gold); }
 .cb-incoming{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:9px; padding:7px 9px; border:1px solid rgba(201,168,76,.4); border-radius:8px; background:rgba(201,168,76,.06); }
 .cb-inc-t{ font-size:.82rem; color:var(--silver); }
-.cb-deal{ display:flex; align-items:center; gap:8px; margin-top:10px; }
+.cb-deal{ display:flex; align-items:center; gap:8px; margin-top:10px; flex-wrap:wrap; }
 .cb-deal-l{ font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); }
 .cb-deal-in{ width:64px; background:var(--navy-4,#1c2742); border:1px solid var(--line); color:var(--silver); border-radius:7px; padding:6px 8px; font-family:inherit; font-size:.85rem; }
 .cb-deal-dt{ background:var(--navy-4,#1c2742); border:1px solid var(--line); color:var(--silver); border-radius:7px; padding:6px 6px; font-family:inherit; font-size:.78rem; }
@@ -4822,7 +4822,7 @@ function doAdvanceRound(){
   });
   Object.keys(sc.ps).forEach(function(pid){
     var st = sc.ps[pid];
-    st.act=''; st.react=''; st.target=''; st.actDone=false; st.reactDone=false; st.reactUsed=false; st.dmg=0; st.dmgDone=0; st.fellmark=false; st.doubleFell=false; st.applies='';
+    st.act=''; st.react=''; st.target=''; st.actDone=false; st.reactDone=false; st.reactUsed=false; st.dmg=0; st.dmgDone=0; st.fellmark=false; st.doubleFell=false; st.applies=''; st._dealFell=false; st._dealFB=null; st._pendImpP=false;
     /* afflictions persist; cleared manually */
   });
   cbTickFoes(sc);
@@ -6332,6 +6332,7 @@ function cbCard(n, o){
     + cbVitRow(n) + (n.kind==='m' ? chargeRow(n.kind, n.ref.id, cbChargeOf(n)) : cbChargeView(n)) + (n.kind==='m' ? cbDefRow(n) : '') + cbChips(n) + (n.kind==='m' ? cbCondNote(n) : '')
     + cbActDisplay(n) + (n.kind==='m' ? cbFellmark(n) : '') + (n.kind==='m' ? cbIncoming(n) : '') + (n.kind==='m' ? cbImpRow(n) : '') + cbReact(n)
     + (n.kind==='p' ? cbDealRow(n) : '')
+    + (n.kind==='p' ? cbImpRowP(n) : '')
     + (o.addSpot?'<div class="cb-spotline"><button class="cb-link" onclick="cbAddSpot(\''+n.key+'\')">+ Spotlight</button></div>':'')
     + (o.removeSpot?'<div class="cb-spotline"><button class="cb-link" onclick="cbRmSpot(\''+n.key+'\')">Remove</button></div>':'')
   + '</div>';
@@ -6592,6 +6593,21 @@ function cbDoImpairment(foe){
   cbToast('Impairment 1d6 \u2192 '+roll+'. '+imp+' takes hold on '+esc(foe.name)+'.');
 }
 function cbDoImpairmentFor(cid){ var foe=null; curSc().combatants.forEach(function(c){ if(c.id===cid) foe=c; }); if(foe) cbDoImpairment(foe); }
+function cbToggleDealFell(pid){ var st=pState(pid); st._dealFell=!st._dealFell; if(!st._dealFell) st._dealFB=null; save(); render(); }
+function cbRollDealFB(pid){ var st=pState(pid); st._dealFB=1+Math.floor(Math.random()*6); save(); render(); }
+function cbDoImpairmentPlayer(pid){
+  var roll=1+Math.floor(Math.random()*6), imp=IMP_TABLE[roll-1];
+  cbApplyCondition('p:'+pid, { name:imp, kind:'impairment' });
+  var st=pState(pid); st._pendImpP=false;
+  var p=null; (curC().players||[]).forEach(function(x){ if(x.id===pid) p=x; });
+  save(); render();
+  cbToast('Impairment 1d6 \u2192 '+roll+'. '+imp+' takes hold on '+esc(p?p.name:'the player')+'.');
+}
+function cbImpRowP(n){
+  if(n.kind!=='p') return '';
+  var st=pState(n.ref.id); if(!st || !st._pendImpP) return '';
+  return '<div class="cb-improw"><span class="cb-imp-t">Double Fellmark</span><button class="cb-link gold" onclick="cbDoImpairmentPlayer(\''+n.ref.id+'\')">Roll Impairment 1d6</button></div>';
+}
 function cbApplyIncoming(pid, cid){
   var st=pState(pid); var dmg=st.dmg||0; if(dmg<=0) return;
   var foe=null; curSc().combatants.forEach(function(c){ if(c.id===cid) foe=c; });
@@ -6626,22 +6642,41 @@ function cbDefRow(n){
 }
 function cbSetDef(id, k, v){ curSc().combatants.forEach(function(c){ if(c.id===id) c[k]=Math.max(0,parseInt(v,10)||0); }); save(); }
 function cbDealRow(n){
-  var pid=n.ref.id;
-  return '<div class="cb-deal"><span class="cb-deal-l">Deal</span>'
+  var pid=n.ref.id, st=pState(pid);
+  var fell=!!st._dealFell, fb=(typeof st._dealFB==='number')?st._dealFB:null;
+  var h='<div class="cb-deal"><span class="cb-deal-l">Deal</span>'
     + '<input class="cb-deal-in" id="cbdb-'+pid+'" type="number" min="0" placeholder="base">'
     + '<input class="cb-deal-in" id="cbdo-'+pid+'" type="number" min="0" placeholder="bonus">'
     + '<select class="cb-deal-dt" id="cbdt-'+pid+'"><option value="phys">phys</option><option value="magic">magic</option></select>'
+    + '<button class="cb-fm'+(fell?' on':'')+'" onclick="cbToggleDealFell(\''+pid+'\')">'+(fell?'Fellmark':'Mark Fellmark')+'</button>'
     + '<button class="cb-link" onclick="cbDealDamage(\''+pid+'\')">Send hit</button></div>';
+  if(fell){
+    h+='<div class="cb-improw"><span class="cb-imp-t">Fellmark bonus</span>';
+    h+= cbAutoDice() ? '<span class="cb-ds-h">Auto rolls the bonus and Impairment on send.</span>'
+      : '<button class="cb-link gold" onclick="cbRollDealFB(\''+pid+'\')">'+(fb!=null?('Rolled '+fb+(fb===6?' (double Fellmark)':'')):'Roll bonus 1d6')+'</button>';
+    h+='</div>';
+  }
+  return h;
 }
 function cbDealDamage(pid){
   var eb=document.getElementById('cbdb-'+pid), eo=document.getElementById('cbdo-'+pid), edt=document.getElementById('cbdt-'+pid);
   var base=eb?(parseInt(eb.value,10)||0):0, bonus=eo?(parseInt(eo.value,10)||0):0, dt=edt?edt.value:'phys';
+  var st=pState(pid), fell=!!st._dealFell, fb=0, dbl=false;
+  if(fell){
+    if(cbAutoDice() && typeof st._dealFB!=='number') st._dealFB=1+Math.floor(Math.random()*6);
+    fb=(typeof st._dealFB==='number')?st._dealFB:0;
+    bonus=bonus+fb; dbl=(fb===6);
+  }
   if(base<=0 && bonus<=0) return;
   var p=null; curC().players.forEach(function(x){ if(x.id===pid) p=x; });
   if(!p || !p.charId){ alert('Link a character to this player to send damage to their sheet.'); return; }
+  if(dbl){ base=base*2; bonus=bonus*2; }
   postToWix({ type:'lmtool-combat-damage', campaignId:combatCampaignId(), charId:p.charId, base:base, bonus:bonus, dt:dt });
+  st._dealFell=false; st._dealFB=null;
   if(eb) eb.value=''; if(eo) eo.value='';
-  cbToast('Sent base '+base+' + bonus '+bonus+' to '+esc(p.name)+'. They confirm on their sheet.');
+  cbToast('Sent base '+base+' + bonus '+bonus+(dbl?' (double Fellmark)':'')+' to '+esc(p.name)+'. They confirm on their sheet.');
+  if(dbl){ if(cbAutoDice()){ cbDoImpairmentPlayer(pid); } else { st._pendImpP=true; cbToast('Double Fellmark on '+esc(p.name)+'. Roll the Impairment.'); } }
+  save(); render();
 }
 function cbDeclareStatus(){
   var players=attendingPlayers(); if(!players.length) return '';

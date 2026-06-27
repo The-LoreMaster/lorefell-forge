@@ -3426,7 +3426,7 @@ function statusList(wrapId,arr,renderEntry){
 }
 function renderStatus(){
   statusList("afflWrap",C.afflictions,a=>`<div class="nm">${a.name}</div><div class="sub">${a.skill}</div><div class="d">${a.desc}</div>`);
-  statusList("impWrap",C.impairments,i=>`<div class="nm">${i.name}</div><div class="d"><b style="color:var(--ice)">Temporary:</b> ${i.temp}</div><div class="d"><b style="color:var(--danger)">Permanent:</b> ${i.perm}</div>`);
+  statusList("impWrap",C.impairments,i=>`<div class="nm">${i.name}</div><div class="d">${i.desc||i.rule||((i.temp||"")+(i.perm?(" Permanent: "+i.perm):""))}</div>`);
   statusList("fxWrap",C.effects,f=>`<div class="nm">${f.name} → ${f.target}</div>`);
   statusList("boonWrap",C.boons,b=>`<div class="d">${b}</div>`);
   statusList("baneWrap",C.banes,b=>`<div class="d">${b}</div>`);
@@ -3644,7 +3644,7 @@ function loadLibraries(lib){
     if(asp.length && asp.some(function(a){return a.initial||a.crown;}))ASPECTS=asp;
     if(aug.length)AUGMENTATIONS=aug;
     if(aff.length)AFFLICTIONS=aff.map(r=>({name:r.name,desc:r.desc}));
-    if(imp.length)IMPAIRMENTS=imp.map(r=>({name:r.name,desc:r.desc}));
+    if(typeof canonByType==='function'){ var _imps=canonByType('impairment'); if(_imps&&_imps.length) IMPAIRMENTS=_imps.map(function(r){ return {name:r.name, desc:r.rule||''}; }); }
   }
   if(has(lib.abilities)){
     const ab=lib.abilities
@@ -3733,6 +3733,12 @@ function applyIncomingConditions(applied){
     if(!a || !a.name) return;
     if(a.kind==="effect"){
       if(!(C.effects||[]).some(function(e){ return e.name===a.name; })){ C.effects=C.effects||[]; C.effects.push({name:a.name,target:"You"}); added.push(a.name); }
+    } else if(a.kind==="impairment"){
+      if(!(C.impairments||[]).some(function(x){ return x.name===a.name; })){
+        var _ci=(typeof canonCondition==="function")?canonCondition(a.name):null;
+        (C.impairments=C.impairments||[]).push({ name:a.name, desc:(_ci&&_ci.rule)||"" });
+        added.push(a.name);
+      }
     } else {
       if(cbHasAug("Hexward") && !window._augUsed.hexward){ window._augUsed.hexward=true; cbPing("Hexward wards off "+a.name+"."); return; }
       if(!(C.afflictions||[]).some(function(x){ return x.name===a.name; })){
