@@ -28,6 +28,10 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 ## Combat — base damage uses Power
 - Base Damage now reads 1 + Power for Power and Precision weapons and 1 + Magic for Magic weapons, matching canon. Precision weapons were reading 1 + Precision. Fixes the weapon damage panel and the damage a declared Act carries to a foe.
 
+## Conditions — Withered and Harvested
+- Healing on the sheet now respects the canon. In combat, Withered cancels any healing, and Harvested turns that healing into damage against you, off temporary vitality first.
+- Bruised still waits on the damage model, since it needs the base and bonus split.
+
 ---
 
 ## 2026-06-26 — Combat: player vitality, charge, and conditions sync live
