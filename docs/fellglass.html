@@ -3331,31 +3331,31 @@ function renderBattle(){
   /* every component carries a use type (Act / React / Passive); buckets fill from that */
   const buckets={Act:"",React:"",Passive:""};
   const arNames={Act:[],React:[],Passive:[]};
-  const put=(use,src,nm,d,tier)=>{if(buckets[use]!==undefined){buckets[use]+=arEntry(src,nm,d);arNames[use].push({src:src,nm:nm,tier:(tier===undefined?null:tier)});}};
+  const put=(use,src,nm,d,tier,kind)=>{if(buckets[use]!==undefined){buckets[use]+=arEntry(src,nm,d);arNames[use].push({src:src,nm:nm,tier:(tier===undefined?null:tier),kind:kind||"standard"});}};
   C.weapons.forEach(w=>{
     const src=weaponName(w)||"weapon";
-    if(w.tree) put("Act",src,"Basic attack","Tier 0 \u00b7 standard strike",0);
+    if(w.tree) put("Act",src,"Basic attack","Tier 0 \u00b7 standard strike",0,"weapon");
     w.abilities.filter(Boolean).forEach(a=>{
       const ab=ABILITIES.find(x=>x.name===a);
-      put(ab?ab.use:"Act",src,a,ab?`Tier ${ab.tier}`:"",ab?ab.tier:null);
+      put(ab?ab.use:"Act",src,a,ab?`Tier ${ab.tier}`:"",ab?ab.tier:null,"weapon");
     });
     w.infusions.filter(Boolean).forEach(n=>{
       const f=INFUSIONS.find(x=>x.name===n);
-      if(f)put(f.use,src,n,f.desc);
+      if(f)put(f.use,src,n,f.desc,undefined,"weapon");
     });
   });
   C.inventory.filter(it=>it.discovered).forEach(it=>{
     const lib=ITEMS_LIB.find(x=>x.id===it.itemId);
-    put(lib.use,"item",lib.name,lib.desc);
+    if(lib)put(lib.use,"item",lib.name,lib.desc,undefined,"item");
   });
   C.lorebounds.forEach((lb,i)=>{
     const src=lb.name||`lorebound ${i+1}`;
     const asp=aspectOf(lb.type);
-    if(asp) put("React",src,asp.name,asp.desc,(lb.level>=ASPECT_FORM.everpresent)?0:1);
+    if(asp) put("React",src,asp.name,asp.desc,(lb.level>=ASPECT_FORM.everpresent)?0:1,"lorebound");
   });
   C.armor.augs.filter(Boolean).forEach(a=>{
     const f=AUGMENTATIONS.find(x=>x.name===a);
-    if(f)put(f.use,"armor",a,f.desc);
+    if(f)put(f.use,"armor",a,f.desc,undefined,"armor");
   });
   if(C.armor.active){
     STANCE_DB[C.armor.active].tiers.forEach((txt,i)=>{
@@ -3367,10 +3367,11 @@ function renderBattle(){
       }
     });
   }
-  put("Act","armor","Change Armor Stance","Requires an Act during combat.");
-  put("Act","skills","Any skill","All 24 skills may be attempted as an Act.");
-  put("React","movement","Move","Movement occurs as part of an Act or React, once per round.");
-  put("React","skills","Any skill","All 24 skills may be attempted as a React.");
+  put("Act","armor","Change Armor Stance","Requires an Act during combat.",undefined,"standard");
+  put("Act","skills","Any skill","All 24 skills may be attempted as an Act.",undefined,"standard");
+  put("React","ally","Assist an ally","Add your competency or half your attribute to an adjacent ally's roll. To clear an Affliction, you both roll and either Fellmark removes it.",undefined,"standard");
+  put("React","movement","Move","Movement occurs as part of an Act or React, once per round.",undefined,"standard");
+  put("React","skills","Any skill","All 24 skills may be attempted as a React, such as a defensive move or countering a threat.",undefined,"standard");
   const acts=buckets.Act,reacts=buckets.React,passives=buckets.Passive;
   $("actsList").innerHTML=acts||'<p class="note">Choose weapon abilities to populate your Acts.</p>';
   $("reactsList").innerHTML=reacts;
@@ -3381,7 +3382,7 @@ function renderBattle(){
     var aff=((WEAPON_DB[w.tree]&&WEAPON_DB[w.tree].meta)||WEAPON_META).affliction||'';
     _wInfo[weaponName(w)]={dmg:base+b, base:base, dt:(cat==='magic'?'magic':'phys'), aff:aff};
   });
-  window.COMBAT_ACTS=arNames.Act.map(function(a){ var i=_wInfo[a.src]; return {src:a.src,nm:a.nm,dmg:i?i.dmg:0,base:i?i.base:0,dt:i?i.dt:null,aff:i?i.aff:'',tier:(typeof a.tier==='number'?a.tier:null)}; });
+  window.COMBAT_ACTS=arNames.Act.map(function(a){ var i=_wInfo[a.src]; return {src:a.src,nm:a.nm,dmg:i?i.dmg:0,base:i?i.base:0,dt:i?i.dt:null,aff:i?i.aff:'',tier:(typeof a.tier==='number'?a.tier:null),kind:a.kind}; });
   window.COMBAT_REACTS=arNames.React;
   let dmg="";
   C.weapons.filter(w=>w.tree).forEach(w=>{
@@ -3821,10 +3822,22 @@ function cbFocusOptions(sel){
 }
 function cbArOptions(list,sel){
   var h='<option value="">None</option>';
-  (list||[]).forEach(function(a){
-    var locked = (typeof a.tier==="number" && a.tier>0 && a.tier>(C.charge||0));
-    h+='<option value="'+cbEsc(a.nm)+'"'+(sel===a.nm?" selected":"")+(locked?" disabled":"")+'>'+cbEsc(a.nm)+" \u00b7 "+cbEsc(a.src)+(locked?" (needs T"+a.tier+" charge)":"")+'</option>';
+  list=list||[];
+  var order=[["lorebound","Lorebound"],["weapon","Weapon"],["item","Items"],["armor","Armor"],["standard","Standard"]];
+  var seen={};
+  function opt(a){
+    seen[a.nm]=1;
+    var locked=(typeof a.tier==="number" && a.tier>0 && a.tier>(C.charge||0));
+    return '<option value="'+cbEsc(a.nm)+'"'+(sel===a.nm?" selected":"")+(locked?" disabled":"")+'>'+cbEsc(a.nm)+" \u00b7 "+cbEsc(a.src)+(locked?" (needs T"+a.tier+" charge)":"")+'</option>';
+  }
+  order.forEach(function(g){
+    var items=list.filter(function(a){return (a.kind||"standard")===g[0];});
+    if(!items.length) return;
+    h+='<optgroup label="'+cbEsc(g[1])+'">';
+    items.forEach(function(a){ h+=opt(a); });
+    h+='</optgroup>';
   });
+  list.forEach(function(a){ if(!seen[a.nm]) h+=opt(a); });
   return h;
 }
 /* ===== Condition engine (reads the canon pack) ===== */

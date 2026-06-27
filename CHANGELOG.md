@@ -2,6 +2,12 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Reacts — full available list, grouped by source, with Assist
+- The declare dropdown now groups options by where they come from: Lorebound, Weapon, Items, Armor, then Standard. Acts group the same way. Picking a lorebound Aspect still shows its live stage and charge requirement.
+- Added Assist as a standard React, since assisting an ally costs your React. It carries the assist math and the rule that either Fellmark clears an Affliction when you assist a breakout.
+- The Reacts panel and the dropdown share one arsenal build, so a discovered utility item, an infusion, an armor augment, or a lorebound Aspect all surface as Reacts when they qualify.
+- Guarded the item lookup so an unknown inventory id no longer throws while the battle panel builds.
+
 ## Dice — tappable d6 with cinematic Fellmark and Fellstrike
 - The Roll button is gone. Every roll in FellGlass is now a real d6 you tap. It shows pip faces, gives a quick tumble, then settles on the result.
 - A Fellmark settles gold. The pips turn gold, a ring bursts from the die, and the screen edge pulses. A Fellstrike settles red with a sharp shake. The flare clears on its own and never blocks the declare or resolve flow.
