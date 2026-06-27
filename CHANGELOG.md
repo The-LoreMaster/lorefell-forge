@@ -2,6 +2,12 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Combat — infusions begin to bite, damage and Fatigue
+- Six infusions now change your numbers instead of reading as flavor. Sharp, Brutal, and Potent add your attribute to Base Damage. Wounding, Mauling, and Blighting add it to Bonus Damage. The boost flows into your declared hit and your damage readout, so the foe takes the larger number.
+- Unflagging treats your Fatigue one rank lower while you wield that weapon, and it stacks with Unbowed.
+- These resolve on your sheet, so there is no backend paste. Refresh FellGlass.
+- This is the first slice of infusion enforcement. On-hit triggers, defense piercing, reactive strikes, and the positional effects come in later phases.
+
 ## Combat — impairment secondary effects and a Corsair level fix
 - A landed impairment now applies its until-end-of-battle conditions, not only its name. Dismembered applies Disarmed and Bleeding, Maimed applies Bleeding and Immobilized, Concussed applies Agonized, Blinded applies Bleeding. Those route through the gates the tool already enforces, so the impairment bites instead of sitting as a label. Severed and Sundered carry permanent effects only, recorded for the sheet.
 - This works in both directions. On a foe the conditions stack onto its card. On a player they relay to the sheet and show in the panels alongside the impairment text.

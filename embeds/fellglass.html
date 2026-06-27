@@ -3397,16 +3397,16 @@ function renderBattle(){
   $("passivesList").innerHTML=passives||'<p class="note">Augmentations and an adopted stance appear here.</p>';
   var _wInfo={};
   C.weapons.filter(function(w){return w.tree;}).forEach(function(w){
-    var cat=WEAPON_DB[w.tree].category, base=1+attrTotal(cat==='magic'?'magic':'power'), b=weaponBonus(w);
+    var cat=WEAPON_DB[w.tree].category, d=cbWeaponDmg(w);
     var aff=((WEAPON_DB[w.tree]&&WEAPON_DB[w.tree].meta)||WEAPON_META).affliction||'';
-    _wInfo[weaponName(w)]={dmg:base+b, base:base, dt:(cat==='magic'?'magic':'phys'), aff:aff};
+    _wInfo[weaponName(w)]={dmg:d.base+d.bonus, base:d.base, dt:(cat==='magic'?'magic':'phys'), aff:aff};
   });
   window.COMBAT_ACTS=arNames.Act.map(function(a){ var i=_wInfo[a.src]; return {src:a.src,nm:a.nm,dmg:i?i.dmg:0,base:i?i.base:0,dt:i?i.dt:null,aff:i?i.aff:'',tier:(typeof a.tier==='number'?a.tier:null),kind:a.kind}; });
   window.COMBAT_REACTS=arNames.React;
   let dmg="";
   C.weapons.filter(w=>w.tree).forEach(w=>{
-    const attr=WEAPON_DB[w.tree].category,base=1+attrTotal(attr==='magic'?'magic':'power'),b=weaponBonus(w);
-    dmg+=`<div class="roll-row"><span class="nm">${weaponName(w)}</span><span class="formula">${base} + ${b} bonus (L${w.level})</span><span class="result">${base+b}</span></div>`;
+    const d=cbWeaponDmg(w);
+    dmg+=`<div class="roll-row"><span class="nm">${weaponName(w)}</span><span class="formula">${d.base} + ${d.bonus} bonus (L${w.level})</span><span class="result">${d.base+d.bonus}</span></div>`;
   });
   if(!C.weapons.some(w=>w.tree))dmg+=`<div class="roll-row"><span class="nm">Weapon</span><span class="formula">gain a weapon through leveling to see damage</span><span class="result">\u2014</span></div>`;
   dmg+=`<div class="roll-row"><span class="nm">Durability</span><span class="formula">Blocks Physical</span><span class="result">${attrTotal("durability")}</span></div>`;
@@ -4001,7 +4001,21 @@ function openDeclare(){
 function cbActEntry(nm){ return (window.COMBAT_ACTS||[]).filter(function(a){return a.nm===nm;})[0]||null; }
 function cbHasAff(name){ return (C.afflictions||[]).some(function(a){return a.name===name;}); }
 function cbHasAug(name){ return ((C.armor&&C.armor.augs)||[]).indexOf(name)>=0; }
-function cbEffFatigue(){ return Math.max(0, (C.fatigue||0) - (cbHasAug("Unbowed")?1:0)); }
+function cbHasInfusion(name){ return (C.weapons||[]).some(function(w){ return w.tree && (w.infusions||[]).indexOf(name)>=0; }); }
+function cbEffFatigue(){ var red=(cbHasAug("Unbowed")?1:0)+(cbHasInfusion("Unflagging")?1:0); return Math.max(0, (C.fatigue||0) - red); }
+function cbWeaponDmg(w){
+  var cat=WEAPON_DB[w.tree].category;
+  var base=1+attrTotal(cat==='magic'?'magic':'power'), bonus=weaponBonus(w);
+  var infs=(w.infusions||[]).filter(Boolean);
+  var a=function(s){ return Math.max(0, attrTotal(s)); };
+  if(infs.indexOf('Sharp')>=0) base+=a('precision');
+  if(infs.indexOf('Brutal')>=0) base+=a('power');
+  if(infs.indexOf('Potent')>=0) base+=a('magic');
+  if(infs.indexOf('Wounding')>=0) bonus+=a('precision');
+  if(infs.indexOf('Mauling')>=0) bonus+=a('power');
+  if(infs.indexOf('Blighting')>=0) bonus+=a('magic');
+  return {base:base, bonus:bonus};
+}
 function cbOutDmg(e){
   if(!e) return 0; var d=e.dmg||0;
   if(e.dt==="phys" && cbHasAff("Dislocated")) d=Math.floor(d/2);
