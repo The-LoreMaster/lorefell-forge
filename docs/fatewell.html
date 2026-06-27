@@ -1178,6 +1178,8 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 .cb-dtag{ font-size:.78rem; color:var(--muted); }
 .cb-foot{ display:flex; align-items:center; gap:12px; margin-top:14px; }
 .cb-count{ font-size:.8rem; color:var(--muted); }
+.ab-applies{ font-size:.78rem; color:var(--muted); margin-top:4px; }
+.ap-hint{ font-size:.78rem; margin:6px 0 2px; }
 .cb-toast{ position:fixed; left:50%; bottom:90px; transform:translateX(-50%) translateY(12px); background:var(--navy-4,#1c2742); border:1px solid var(--gold); color:var(--silver); padding:10px 16px; border-radius:10px; font-size:.86rem; box-shadow:0 8px 28px rgba(0,0,0,.5); opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; z-index:120; max-width:84vw; text-align:center; }
 .cb-toast.on{ opacity:1; transform:translateX(-50%) translateY(0); }
 </style>
@@ -2973,7 +2975,9 @@ function renderWAb(){
   var h = '';
   window._wiz.abilities.forEach(function(a, i){
     h += '<div class="inv-row ab-row"><div><b>'+esc(a.name)+'</b> <span class="muted">T'+a.tier+' &middot; '+esc(a.use)+'</span>'
-      + (a.desc ? '<div class="ref-desc">'+esc(a.desc)+'</div>' : '') + '</div>'
+      + (a.desc ? '<div class="ref-desc">'+esc(a.desc)+'</div>' : '')
+      + '<div class="ab-applies">Inflicts: '+appliesLabel(a)+' <button class="cb-link" onclick="wAbApplies('+i+')">edit</button></div>'
+      + '</div>'
       + '<button class="aff-x" onclick="wAbDel('+i+')">&times;</button></div>';
   });
   el.innerHTML = h || '<p class="muted">No abilities yet.</p>';
@@ -5044,8 +5048,14 @@ function cbIntentPicker(cb){
   var focus='<select class="inp slim" onchange="setMonTarget(\''+cb.id+'\',this.value)">';
   nd2.forEach(function(n){ if(n.key==='m:'+cb.id) return; focus+='<option value="'+n.key+'"'+(cb.target===n.key?' selected':'')+'>'+esc(n.name)+'</option>'; });
   focus+='<option value="env"'+(cb.target==='env'?' selected':'')+'>Space</option></select>';
+  var infl='';
+  if(it.type==='Attack' && it.ability){
+    var abIdx=(cb.abilities||[]).map(function(a){ return a.name; }).indexOf(it.ability);
+    infl='<div class="cb-pickrow"><span class="cb-pk">Inflicts</span><div class="cb-pickers"><button class="cb-link" onclick="cbApplies(\''+cb.id+'\','+abIdx+')">'+appliesLabel((cb.abilities||[])[abIdx])+'</button></div></div>';
+  }
   return '<div class="cb-pickrow"><span class="cb-pk">Intent</span><div class="cb-pickers">'
     + '<select class="inp slim" onchange="cbSetIntent(\''+cb.id+'\',\'type\',this.value)">'+topts+'</select>'+sub+'</div></div>'
+    + infl
     + '<div class="cb-pickrow"><span class="cb-pk">Focus</span><div class="cb-pickers">'+focus+'</div></div>';
 }
 function cbSetIntent(cid, key, val){
@@ -5156,9 +5166,12 @@ function cbResolveSpot(){
     if(n && n.kind==='m' && n.ref.intent && n.ref.intent.type==='Attack' && n.ref.target && n.ref.target!=='env'){
       var ab=(n.ref.abilities||[]).filter(function(a){ return a.name===n.ref.intent.ability; })[0];
       if(ab && ab.applies && ab.applies.name){
-        var entry={ name:ab.applies.name, kind:(ab.applies.kind==='effect'?'effect':'affliction') };
-        cbApplyToKey(n.ref.target, entry);
-        snap.applied.push({ key:n.ref.target, name:ab.applies.name });
+        var tkey=n.ref.target;
+        var existing = tkey.indexOf('p:')===0 ? (pState(tkey.slice(2)).affs||[]) : (function(){ var r=[]; curSc().combatants.forEach(function(c){ if(c.id===tkey.slice(2)) r=c.affs||[]; }); return r; })();
+        if(!existing.some(function(x){ return x.name===ab.applies.name; })){
+          cbApplyToKey(tkey, { name:ab.applies.name, kind:(ab.applies.kind==='effect'?'effect':'affliction') });
+          snap.applied.push({ key:tkey, name:ab.applies.name });
+        }
       }
     }
     b.spotDone[k]=true;
@@ -5191,6 +5204,41 @@ function cbNextRound(){
   doAdvanceRound();
 }
 function cbRoll(){ var r=1+Math.floor(Math.random()*6); var tag = r===6?', a Fellmark':(r===1?', a Fellstrike':''); cbToast('d6 rolled '+r+tag); }
+function appliesLabel(a){
+  if(a && a.applies && a.applies.name) return (a.applies.kind==='effect'?'Effect':'Affliction')+': '+esc(a.applies.name);
+  return 'nothing';
+}
+function cbApplies(cid, abIdx){
+  var c=null; curSc().combatants.forEach(function(x){ if(x.id===cid) c=x; }); if(!c) return;
+  var a=(c.abilities||[])[abIdx]; if(!a) return;
+  window._applyAb=a; window._applyCtx='combat'; appliesModal();
+}
+function wAbApplies(i){ window._applyAb = window._wiz.abilities[i]; window._applyCtx='wiz'; appliesModal(); }
+function appliesModal(){
+  var a=window._applyAb||{}, ap=a.applies||{};
+  var k = ap.kind==='effect' ? 'effect' : 'affliction';
+  modal('<h3 class="m-title">What this Act inflicts</h3>'
+    + '<label class="lbl">Kind</label>'
+    + '<div class="seg"><button class="seg-b'+(k==='affliction'?' on':'')+'" id="apKindAff" onclick="apSetKind(\'affliction\')">Affliction</button>'
+    + '<button class="seg-b'+(k==='effect'?' on':'')+'" id="apKindEff" onclick="apSetKind(\'effect\')">Effect</button></div>'
+    + '<input type="hidden" id="apKind" value="'+k+'">'
+    + '<label class="lbl">Name</label><input class="inp" id="apName" value="'+esc(ap.name||'')+'" placeholder="Burning, Slowed, Marked...">'
+    + '<p class="muted ap-hint">Leave the name empty to clear what this Act lands on its focus.</p>'
+    + '<div class="m-row"><button class="btn ghost" onclick="closeApplies()">Cancel</button>'
+    + '<button class="btn" onclick="saveApplies()">Save</button></div>');
+}
+function apSetKind(k){ document.getElementById('apKind').value=k; document.getElementById('apKindAff').classList.toggle('on',k==='affliction'); document.getElementById('apKindEff').classList.toggle('on',k==='effect'); }
+function saveApplies(){
+  var a=window._applyAb, ctx=window._applyCtx;
+  if(a){
+    var name=(document.getElementById('apName').value||'').trim();
+    var kind=document.getElementById('apKind').value==='effect'?'effect':'affliction';
+    if(name) a.applies={kind:kind, name:name}; else delete a.applies;
+  }
+  window._applyAb=null; window._applyCtx=null;
+  if(ctx==='wiz'){ reopenWiz(); } else { closeModal(); save(); render(); }
+}
+function closeApplies(){ var ctx=window._applyCtx; window._applyAb=null; window._applyCtx=null; if(ctx==='wiz'){ reopenWiz(); } else { closeModal(); } }
 
 function tabDisruptions(sc){
   var bal = disBalance();

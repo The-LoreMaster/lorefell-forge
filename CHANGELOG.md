@@ -4,6 +4,11 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 
 ---
 
+## 2026-06-26 — FateWell: foe Acts can declare what they inflict, so auto-apply lands it
+
+- Each foe Act can now carry an applied condition, an affliction or effect by name. Set it in the foe wizard so every combatant attached from that foe inherits it, or set it inline in the commit step on a foe already on the field
+- When a foe whose Act carries a condition resolves, that condition lands on its focus automatically. Resolving again will not stack the same one, and Undo strips it back off
+
 ## 2026-06-26 — FateWell: port the prototype combat board (gold spotbox resolve)
 
 - Combat now runs the designed two-step round on live scene data. Commit is a structured Declare Intent per foe (Attack, Use a skill, Use an item, Assist an ally), with the foe's own Acts or items in a second dropdown and a Focus picker that includes Space
