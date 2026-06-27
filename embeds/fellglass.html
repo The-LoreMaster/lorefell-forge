@@ -87,6 +87,8 @@ header{position:sticky;top:0;z-index:50;background:rgba(10,14,26,.96);backdrop-f
 .cb-fb-d6{font-size:38px}
 .cb-fellbonus .result{font-family:var(--head);font-size:18px;color:var(--gold);min-width:22px;text-align:center}
 .cb-fb-hint{font-size:.8rem;color:var(--silver-dim);flex:1 1 100%}
+.cb-afflicted{display:flex;align-items:center;gap:10px;margin:2px 0 6px}
+.cb-afflicted .cb-sel{flex:1 1 auto}
 body.god .god-only{display:initial}
 .god-only{display:none}
 .god-lock{pointer-events:none;opacity:.55}
@@ -3981,6 +3983,7 @@ function openDeclare(){
     +'<label class="cb-fellrow"><input type="checkbox" id="cbFell"> I rolled a Fellmark</label>'
     +'<div class="cb-fellhint" id="cbFellHint"></div>'
     +'<div class="cb-fellbonus" id="cbFellBonus"><span class="cb-fb-l">Fellmark bonus</span><span id="cbFellBonusDie"></span><span class="result" id="cbFellBonusRes">\u2014</span><span class="cb-fb-hint" id="cbFellBonusHint">Tap the die to roll.</span></div>'
+    +'<div class="cb-afflicted" id="cbAfflicted" style="display:none"><span class="cb-fb-l">Fellmark affliction</span><select id="cbAfflictedSel" class="cb-sel"></select></div>'
     +'<div class="cb-gate" id="cbGate"></div>'
     +'<div class="cb-affwrap" id="cbAffWrap">'+cbBreakoutList()+'</div>'
     +'<div class="cb-meta">Vitality '+C.vitality.current+"/"+C.vitality.max+(C.vitality.temp?" +"+C.vitality.temp:"")+" \u00b7 Charge T"+(C.charge||0)+' sync with your sheet</div>'
@@ -4002,6 +4005,7 @@ function cbActEntry(nm){ return (window.COMBAT_ACTS||[]).filter(function(a){retu
 function cbHasAff(name){ return (C.afflictions||[]).some(function(a){return a.name===name;}); }
 function cbHasAug(name){ return ((C.armor&&C.armor.augs)||[]).indexOf(name)>=0; }
 function cbHasInfusion(name){ return (C.weapons||[]).some(function(w){ return w.tree && (w.infusions||[]).indexOf(name)>=0; }); }
+function cbWeaponHasInf(wname, inf){ return (C.weapons||[]).some(function(w){ return w.tree && weaponName(w)===wname && (w.infusions||[]).indexOf(inf)>=0; }); }
 function cbEffFatigue(){ var red=(cbHasAug("Unbowed")?1:0)+(cbHasInfusion("Unflagging")?1:0); return Math.max(0, (C.fatigue||0) - red); }
 function cbWeaponDmg(w){
   var cat=WEAPON_DB[w.tree].category;
@@ -4014,6 +4018,7 @@ function cbWeaponDmg(w){
   if(infs.indexOf('Wounding')>=0) bonus+=a('precision');
   if(infs.indexOf('Mauling')>=0) bonus+=a('power');
   if(infs.indexOf('Blighting')>=0) bonus+=a('magic');
+  if(infs.indexOf('Rebounding')>=0) base+=base;
   return {base:base, bonus:bonus};
 }
 function cbOutDmg(e){
@@ -4079,6 +4084,19 @@ function cbRollFellBonus(){
   rollDieForced(die,res,null,0,v,null);
   if(hint) hint.textContent = (v===6) ? "Double Fellmark. The LoreMaster rolls for an Impairment." : ("Adds "+v+" to your Bonus Damage.");
 }
+function cbInitAfflicted(){
+  var box=document.getElementById("cbAfflicted"), sel=document.getElementById("cbAfflictedSel"), aSel=document.getElementById("cbAct");
+  if(!box||!sel) return;
+  var e=aSel?cbActEntry(aSel.value):null;
+  var on=!!(e && cbWeaponHasInf(e.src,"Afflicted"));
+  box.style.display = on ? "" : "none";
+  if(!on) return;
+  var list=(typeof AFFLICTIONS!=="undefined")?AFFLICTIONS:[];
+  var prev=sel.value;
+  sel.innerHTML=list.map(function(a){ return '<option value="'+cbEsc(a.name)+'">'+cbEsc(a.name)+'</option>'; }).join("");
+  var def=(e.aff && list.some(function(a){return a.name===e.aff;}))?e.aff:(prev||(list[0]&&list[0].name)||"");
+  if(def) sel.value=def;
+}
 function cbDmgHint(){
   var sel=document.getElementById("cbAct"), hint=document.getElementById("cbDmgHint"); if(!sel) return;
   var e=cbActEntry(sel.value), d=cbOutDmg(e), raw=e?(e.dmg||0):0;
@@ -4088,6 +4106,7 @@ function cbDmgHint(){
     var aff=e?(e.aff||""):"", focusKey=fc?fc.value:"", foeFocus=focusKey.indexOf("m:")===0;
     fh.textContent = aff ? (foeFocus ? ("On a Fellmark this lands "+aff+" on your focus.") : "On a Fellmark your weapon lands "+aff+". Focus a foe to place it.") : "";
   }
+  cbInitAfflicted();
 }
 function sendDeclare(){
   if(!CUR_WIX_ID) return;
@@ -4100,10 +4119,15 @@ function sendDeclare(){
   var e=cbActEntry(act), dmg=cbActDmg(act);
   var fell=!!(document.getElementById("cbFell") && document.getElementById("cbFell").checked);
   var foeFocus = target && target.indexOf("m:")===0;
-  var applies = (fell && e && e.aff && foeFocus) ? e.aff : "";
+  var afflicted = !!(e && cbWeaponHasInf(e.src,'Afflicted'));
+  var afSel = document.getElementById("cbAfflictedSel");
+  var chosenAff = (afflicted && afSel) ? afSel.value : "";
+  var applies = (fell && foeFocus && e) ? (afflicted ? chosenAff : (e.aff||"")) : "";
+  var merc = !!(e && cbWeaponHasInf(e.src,'Merciless'));
   var fb=(fell && typeof window._fellBonus==="number")?window._fellBonus:0;
   var fbApplied=fb;
-  if(e){ if(e.dt==="phys" && cbHasAff("Dislocated")) fbApplied=Math.floor(fb/2); else if(e.dt==="magic" && cbHasAff("Vitiated")) fbApplied=Math.floor(fb/2); }
+  if(merc) fbApplied=fbApplied*2;
+  if(e){ if(e.dt==="phys" && cbHasAff("Dislocated")) fbApplied=Math.floor(fbApplied/2); else if(e.dt==="magic" && cbHasAff("Vitiated")) fbApplied=Math.floor(fbApplied/2); }
   if(fbApplied) dmg=dmg+fbApplied;
   var doubleFell=(fb===6);
   var actTier = (e && typeof e.tier==="number") ? e.tier : null;

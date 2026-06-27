@@ -2,6 +2,12 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Combat — infusions phase two, Fellmark and damage shaping
+- Rebounding lands its Base Damage a second time as an unreducible hit, so a Rebounding weapon deals double Base.
+- Merciless doubles your Fellmark effects. The Fellmark bonus die counts double while you wield it. The affliction and the impairment are on or off rather than numeric, so they fire as usual on top of the doubled bonus.
+- Afflicted lets you choose which affliction you land on a Fellmark instead of the weapon's set one. A picker appears in the declare panel when you wield an Afflicted weapon, and your choice travels with the hit.
+- FellGlass only. Refresh the tool.
+
 ## Combat — infusions begin to bite, damage and Fatigue
 - Six infusions now change your numbers instead of reading as flavor. Sharp, Brutal, and Potent add your attribute to Base Damage. Wounding, Mauling, and Blighting add it to Bonus Damage. The boost flows into your declared hit and your damage readout, so the foe takes the larger number.
 - Unflagging treats your Fatigue one rank lower while you wield that weapon, and it stacks with Unbowed.
