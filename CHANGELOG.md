@@ -25,6 +25,9 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 - Bruised, Harvested, and Withered stay surfaced as rules for now, since they need durability and healing hooks the relay does not model yet.
 - CombatPlayer gains base and dt columns.
 
+## Combat — base damage uses Power
+- Base Damage now reads 1 + Power for Power and Precision weapons and 1 + Magic for Magic weapons, matching canon. Precision weapons were reading 1 + Precision. Fixes the weapon damage panel and the damage a declared Act carries to a foe.
+
 ---
 
 ## 2026-06-26 — Combat: player vitality, charge, and conditions sync live
