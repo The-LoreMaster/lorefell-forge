@@ -390,6 +390,10 @@ body.in-combat::after{ content:""; position:fixed; inset:0; pointer-events:none;
 .cbn-step.on{ opacity:1; color:var(--gold); }
 .cbn-step.on .bar{ background:var(--ice); box-shadow:0 0 8px rgba(201,168,76,.7); }
 .cbn-status{ width:100%; font-size:.82rem; color:var(--silver-dim); line-height:1.4; }
+.cbn-trigs{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-top:7px; width:100%; }
+.cbn-trigs-l{ font-size:.6rem; letter-spacing:.1em; text-transform:uppercase; color:var(--gold); flex:1 1 100%; }
+.cbn-trig{ background:rgba(201,168,76,.12); border:1px solid rgba(201,168,76,.4); color:var(--silver); border-radius:6px; padding:4px 9px; font-size:.75rem; font-family:inherit; cursor:pointer; }
+.cbn-trig:active{ background:rgba(201,168,76,.22); }
 .cbn-locked{ font-family:'Cinzel',serif; font-size:.78rem; letter-spacing:.08em; color:var(--silver-dim); opacity:.85; padding:6px 2px; white-space:nowrap; }
 .cbn-l{ display:flex; align-items:center; gap:9px; font-family:'Cinzel',serif; letter-spacing:.06em; color:var(--silver); font-size:.92rem; }
 .cbn-dot{ width:9px; height:9px; border-radius:50%; background:var(--danger); box-shadow:0 0 9px rgba(201,106,90,.9); animation:cbpulse 1.8s ease-in-out infinite; }
@@ -3828,6 +3832,20 @@ function setCombatState(state){
   }
   if(COMBAT&&COMBAT.active&&!wasActive){ try{edgeGlow("rgba(201,106,90,.85)");}catch(e){} window._combatSyncSig=""; combatSyncPush(); openDeclare(); }
 }
+function cbInfusionTriggers(){
+  if(!(COMBAT&&COMBAT.active)) return "";
+  var b=[];
+  if(cbHasInfusion("Welling")) b.push('<button class="cbn-trig" onclick="cbTrigWelling()">Welling, +1 Charge</button>');
+  if(cbHasInfusion("Reprieve")) b.push('<button class="cbn-trig" onclick="cbTrigReprieve()">Reprieve, clear an Affliction</button>');
+  if(cbHasInfusion("Emboldening")) b.push('<button class="cbn-trig" onclick="cbTrigEmbolden()">Emboldening, +'+Math.max(0,attrTotal("power"))+' Temp Vitality</button>');
+  if(cbHasInfusion("Devouring")) b.push('<button class="cbn-trig" onclick="cbTrigDevour()">Devouring, heal '+Math.max(0,attrTotal("magic"))+'</button>');
+  if(!b.length) return "";
+  return '<div class="cbn-trigs"><span class="cbn-trigs-l">When you land a hit or drop a foe</span>'+b.join("")+'</div>';
+}
+function cbTrigWelling(){ C.charge=Math.min(3,(C.charge||0)+1); try{renderCharges();}catch(e){} scheduleSave(); cbPing("Welling charges you to T"+C.charge+"."); }
+function cbTrigReprieve(){ if(!(C.afflictions||[]).length){ cbPing("No Affliction to clear."); return; } var a=C.afflictions.shift(); try{renderStatus();}catch(e){} try{renderStrip();}catch(e){} scheduleSave(); cbPing("Reprieve clears "+((a&&a.name)?a.name:"an Affliction")+"."); }
+function cbTrigEmbolden(){ var p=Math.max(0,attrTotal("power")); C.vitality.temp=(C.vitality.temp||0)+p; try{renderVit();}catch(e){} scheduleSave(); cbPing("Emboldening grants "+p+" temporary Vitality."); try{edgeGlow("rgba(220,232,239,.7)");}catch(e){} }
+function cbTrigDevour(){ var m=Math.max(0,attrTotal("magic")); cbTryHeal(m); cbPing("Devouring restores "+m+" Vitality."); }
 function applyCombatMode(){
   var on=!!(COMBAT&&COMBAT.active);
   document.body.classList.toggle("in-combat",on);
@@ -3854,7 +3872,7 @@ function applyCombatMode(){
       : '<button class="cbn-btn'+(declared?' done':'')+'" id="cbnDeclare">'+(declared?"Edit declaration":"Declare Act and React")+'</button>';
   bn.innerHTML='<div class="cbn-top"><span class="cbn-l"><span class="cbn-dot"></span>'+(youUp&&resolving?"You're up":"Combat")+(COMBAT.round?" \u00b7 Round "+COMBAT.round:"")+(COMBAT.sceneName?" \u00b7 "+cbEsc(COMBAT.sceneName):"")+'</span>'+btn+'</div>'
     +'<div class="cbn-steps">'+strip+'</div>'
-    +'<div class="cbn-status">'+status+'</div>';
+    +'<div class="cbn-status">'+status+'</div>'+cbInfusionTriggers();
   var b=document.getElementById("cbnDeclare"); if(b) b.addEventListener("click",openDeclare);
   try{ document.documentElement.style.setProperty("--cbn-h",(bn.offsetHeight+2)+"px"); }catch(e){}
 }

@@ -2,6 +2,11 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Combat — infusions phase four, on-hit and on-kill triggers
+- Welling, Reprieve, Emboldening, and Devouring appear as one-tap controls on the combat banner whenever you carry one. Welling adds a charge, Reprieve clears an Affliction, Emboldening grants temporary Vitality equal to your Power, Devouring restores Vitality equal to your Magic. The tool does the math and you tap it the moment you land the hit or drop the foe.
+- These fire on events that resolve on the LM board. Rather than build a new cross-tool signal for them, they sit on your banner where you can reach them. Swift stays a reminder, since an extra attack is just another declaration.
+- FellGlass only. Refresh the tool.
+
 ## Combat — infusions phase three, defense piercing
 - Powerful and Ethereal cut through armor. Powerful ignores the foe's Durability up to your Power. Ethereal ignores its Resistance up to your Magic. The pierce travels with your declaration and lowers the foe's defense before the bonus lands, so more of the hit gets through.
 - This batch changes backend and bridge files. Paste velo/backend/combat.web.js and velo/page-fellglass.js into Wix and publish. Those files now carry both the double Fellmark relay and the pierce relay, so one paste covers both. The CombatPlayer schema gains a pierce field, so let the apply workflow run after the push.
