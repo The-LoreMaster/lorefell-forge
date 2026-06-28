@@ -2,6 +2,11 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Combat — declare popup reworked: centered, roll input, react reminder
+- The Declare your turn popup now opens where you tap instead of the middle of the full sheet, so it lands in view no matter where you have scrolled.
+- The React dropdown is gone, since reacts happen in play. A react reminder sits on the combat banner and in the popup, shows used or available, and resets each round.
+- The Fellmark checkbox is replaced by a roll input. Pick Fellstrike, 2, 3, 4, 5, or Fellmark, or tap a die to roll one, and your Precision is added for the accuracy total. A Fellmark still opens the bonus die. The roll and accuracy ride along in the declaration for the resolution work to come.
+
 ## Roster — character deletion from FellGlass with campaign cleanup
 - FellGlass now carries a Delete control on the character picker. It confirms, removes the character, and when none remain it offers to make a new one before the picker goes empty.
 - A new deleteCharacter backend method removes the row and, for a plain player with no other character in that campaign, drops their adventure membership so the LM roster clears. The campaign owner and lorekeepers are never removed.

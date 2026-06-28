@@ -410,6 +410,21 @@ body.in-combat::after{ content:""; position:fixed; inset:0; pointer-events:none;
 .cb-dmghint{ font-size:.78rem; color:var(--gold); margin-top:5px; min-height:1em; }
 .cb-fellrow{ display:flex; align-items:center; gap:8px; margin-top:8px; font-size:.84rem; color:var(--ice); }
 .cb-fellhint{ font-size:.76rem; color:var(--gold); margin-top:3px; min-height:1em; }
+.cb-rollpick{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap}
+.cb-face{flex:1 1 0;min-width:46px;font-family:'Cinzel',serif;font-size:.72rem;letter-spacing:.03em;color:var(--silver-dim);background:var(--navy-3);border:1px solid var(--line);border-radius:6px;padding:9px 4px;cursor:pointer}
+.cb-face.on{color:var(--navy);background:var(--ice);border-color:var(--ice)}
+.cb-face.fell.on{background:var(--gold);border-color:var(--gold);color:var(--navy)}
+.cb-face.fellstrike.on{background:var(--danger);border-color:var(--danger);color:var(--silver)}
+.cb-rollroll{display:flex;align-items:center;gap:10px;margin-top:6px}
+.cb-rolldie{font-family:'Cinzel',serif;font-size:.74rem;letter-spacing:.06em;color:var(--ice);background:transparent;border:1px solid var(--line);border-radius:6px;padding:8px 12px;cursor:pointer}
+.cb-rolldie:hover{border-color:var(--gold)}
+.cb-rolltotal{font-size:.82rem;color:var(--silver)}
+.cb-reactrow{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px}
+.cb-reacttog{display:flex;align-items:center;gap:6px;font-size:.82rem;color:var(--ice);cursor:pointer}
+.cbn-react{display:flex;align-items:center;gap:7px;margin-top:6px;font-size:.78rem;color:var(--silver-dim)}
+.cbn-react .rdot{width:8px;height:8px;border-radius:50%;background:var(--ok)}
+.cbn-react.used .rdot{background:var(--silver-dim)}
+.cbn-react button{margin-left:auto;font-family:'Cinzel',serif;font-size:.7rem;letter-spacing:.05em;color:var(--ice);background:transparent;border:1px solid var(--line);border-radius:5px;padding:4px 9px;cursor:pointer}
 .cb-gate{ margin-top:8px; }
 .cb-gate-n{ font-size:.78rem; color:var(--danger,#c96a5a); padding:5px 8px; border:1px solid rgba(201,106,90,.4); border-radius:7px; margin-top:6px; background:rgba(201,106,90,.07); }
 .cb-affwrap{ margin-top:10px; }
@@ -3829,6 +3844,7 @@ function showPendingHit(hit, at){
     +'<p class="cb-sub">A '+(dt==="magic"?"magic":"physical")+' hit, '+base+' base and '+bonus+' bonus. After your defenses it lands for '+r.total+'. Temporary vitality takes it first.</p>'
     +'<div class="cb-row"><button class="btn small" id="cbHitLater">Not yet</button>'+negBtn+'<button class="btn small gold" id="cbHitApply">Take '+r.total+'</button></div></div>';
   document.body.appendChild(ov);
+  cbPlaceOverlay(ov);
   document.getElementById("cbHitApply").addEventListener("click",function(){ window._lastHitAt=at; applyPendingHit(hit); ov.remove(); });
   document.getElementById("cbHitLater").addEventListener("click",function(){ ov.remove(); });
   if(negKind){ document.getElementById("cbHitNeg").addEventListener("click",function(){ window._lastHitAt=at; window._augUsed[negKind==="Nullward"?"nullward":"mistform"]=true; cbPing(negKind+": the attack is negated."); ov.remove(); }); }
@@ -3838,7 +3854,7 @@ function setCombatState(state){
   var wasActive=!!(COMBAT&&COMBAT.active);
   _combatSig=sig; COMBAT=state||null; applyCombatMode();
   if(COMBAT&&COMBAT.active){
-    if(COMBAT.round!==window._lastTickRound){ window._lastTickRound=COMBAT.round; cbTickSelf(); }
+    if(COMBAT.round!==window._lastTickRound){ window._lastTickRound=COMBAT.round; window._reactUsed=false; window._cbRoll=null; cbTickSelf(); }
     applyIncomingConditions(COMBAT.applied||[]);
     var rc=COMBAT.recap||{};
     if(rc.at && rc.at!==window._lastRecapAt){ window._lastRecapAt=rc.at; if(rc.msg){ cbPing(rc.msg); try{edgeGlow("rgba(201,168,76,.7)");}catch(e){} } }
@@ -3877,6 +3893,11 @@ function cbAugReminders(){
   if(!have.length) return "";
   return '<div class="cbn-remind"><span class="cbn-remind-l">Augments</span><span class="cbn-remind-v">'+cbEsc(have.join(", "))+'</span></div>';
 }
+function cbReactStatus(){
+  if(!(COMBAT&&COMBAT.active)) return "";
+  var used=!!window._reactUsed;
+  return '<div class="cbn-react'+(used?' used':'')+'"><span class="rdot"></span><span>React '+(used?'spent this round':'available')+'</span><button id="cbnReact">'+(used?'Restore':'Mark used')+'</button></div>';
+}
 function applyCombatMode(){
   var on=!!(COMBAT&&COMBAT.active);
   document.body.classList.toggle("in-combat",on);
@@ -3903,8 +3924,9 @@ function applyCombatMode(){
       : '<button class="cbn-btn'+(declared?' done':'')+'" id="cbnDeclare">'+(declared?"Edit declaration":"Declare Act and React")+'</button>';
   bn.innerHTML='<div class="cbn-top"><span class="cbn-l"><span class="cbn-dot"></span>'+(youUp&&resolving?"You're up":"Combat")+(COMBAT.round?" \u00b7 Round "+COMBAT.round:"")+(COMBAT.sceneName?" \u00b7 "+cbEsc(COMBAT.sceneName):"")+'</span>'+btn+'</div>'
     +'<div class="cbn-steps">'+strip+'</div>'
-    +'<div class="cbn-status">'+status+'</div>'+cbInfusionTriggers()+cbInfusionReminders()+cbAugReminders();
+    +'<div class="cbn-status">'+status+'</div>'+cbReactStatus()+cbInfusionTriggers()+cbInfusionReminders()+cbAugReminders();
   var b=document.getElementById("cbnDeclare"); if(b) b.addEventListener("click",openDeclare);
+  var rb=document.getElementById("cbnReact"); if(rb) rb.addEventListener("click",function(){ window._reactUsed=!window._reactUsed; applyCombatMode(); });
   try{ document.documentElement.style.setProperty("--cbn-h",(bn.offsetHeight+2)+"px"); }catch(e){}
 }
 function cbFocusOptions(sel){
@@ -4026,10 +4048,19 @@ function openDeclare(){
     +cbRoundDigest()
     +'<label class="cb-l">Act</label><select id="cbAct" class="cb-sel" onchange="cbDmgHint()">'+cbArOptions(window.COMBAT_ACTS,dec.act)+'</select>'
     +'<div class="cb-dmghint" id="cbDmgHint"></div>'
-    +'<label class="cb-l">React</label><select id="cbReact" class="cb-sel" onchange="cbAspectHint()">'+cbArOptions(window.COMBAT_REACTS,dec.react)+'</select>'
-    +'<div class="cb-dmghint" id="cbAspectHint"></div>'
+    +'<div class="cb-reactrow"><span class="cb-l" style="margin:0">React</span><label class="cb-reacttog"><input type="checkbox" id="cbReactUsed"'+(window._reactUsed?' checked':'')+'> Used this round</label></div>'
+    +'<div class="cb-fellhint">Reacts happen in play. Mark it when you spend it.</div>'
     +'<label class="cb-l">Focus</label><select id="cbFocus" class="cb-sel" onchange="cbDmgHint()">'+cbFocusOptions(dec.target)+'</select>'
-    +'<label class="cb-fellrow"><input type="checkbox" id="cbFell"> I rolled a Fellmark</label>'
+    +'<label class="cb-l">Your roll</label>'
+    +'<div class="cb-rollpick" id="cbRollPick">'
+      +'<button type="button" class="cb-face fellstrike" data-face="1">Fellstrike</button>'
+      +'<button type="button" class="cb-face" data-face="2">2</button>'
+      +'<button type="button" class="cb-face" data-face="3">3</button>'
+      +'<button type="button" class="cb-face" data-face="4">4</button>'
+      +'<button type="button" class="cb-face" data-face="5">5</button>'
+      +'<button type="button" class="cb-face fell" data-face="6">Fellmark</button>'
+    +'</div>'
+    +'<div class="cb-rollroll"><button type="button" class="cb-rolldie" id="cbRollDie">Roll my d6</button><span class="cb-rolltotal" id="cbRollTotal">Pick or roll your d6</span></div>'
     +'<div class="cb-fellhint" id="cbFellHint"></div>'
     +'<div class="cb-fellbonus" id="cbFellBonus"><span class="cb-fb-l">Fellmark bonus</span><span id="cbFellBonusDie"></span><span class="result" id="cbFellBonusRes">\u2014</span><span class="cb-fb-hint" id="cbFellBonusHint">Tap the die to roll.</span></div>'
     +'<div class="cb-afflicted" id="cbAfflicted" style="display:none"><span class="cb-fb-l">Fellmark affliction</span><select id="cbAfflictedSel" class="cb-sel"></select></div>'
@@ -4039,10 +4070,13 @@ function openDeclare(){
     +'<div class="cb-row"><button class="btn small" id="cbCancel">Close</button><button class="btn small gold" id="cbSend">Send to LoreMaster</button></div>'
     +'</div>';
   document.body.appendChild(ov);
+  cbPlaceOverlay(ov);
   ov.addEventListener("click",function(e){ if(e.target===ov) ov.remove(); });
   document.getElementById("cbCancel").addEventListener("click",function(){ ov.remove(); });
   document.getElementById("cbSend").addEventListener("click",sendDeclare);
-  cbDmgHint(); cbAspectHint(); cbInitFellBonus();
+  var ru=document.getElementById("cbReactUsed");
+  if(ru) ru.addEventListener("change",function(){ window._reactUsed=ru.checked; applyCombatMode(); });
+  cbDmgHint(); cbInitFellBonus(); cbInitRollPick();
   var g=cbGates(), gate=document.getElementById("cbGate");
   if(g.noAct){ var sa=document.getElementById("cbAct"); if(sa){ sa.value=""; sa.disabled=true; } }
   if(g.noReact){ var sr=document.getElementById("cbReact"); if(sr){ sr.value=""; sr.disabled=true; } }
@@ -4114,15 +4148,40 @@ function cbTryHeal(amount){
 }
 function cbInitFellBonus(){
   window._fellBonus=null;
-  var holder=document.getElementById("cbFellBonusDie"), fc=document.getElementById("cbFell");
+  var holder=document.getElementById("cbFellBonusDie");
   if(holder){ holder.innerHTML=""; var die=makeD6(); die.classList.add("cb-fb-d6"); die.setAttribute("aria-label","Roll Fellmark bonus"); holder.appendChild(die); die.addEventListener("click",cbRollFellBonus); }
-  if(fc){ fc.addEventListener("change",cbToggleFellBonus); }
   cbToggleFellBonus();
 }
+function cbInitRollPick(){
+  var pick=document.getElementById("cbRollPick"); if(!pick) return;
+  pick.querySelectorAll(".cb-face").forEach(function(b){ b.addEventListener("click",function(){ cbSetRoll(parseInt(b.dataset.face,10)); }); });
+  var die=document.getElementById("cbRollDie");
+  if(die) die.addEventListener("click",function(){ cbSetRoll(1+Math.floor(Math.random()*6)); });
+  cbRenderRoll();
+}
+function cbSetRoll(face){ window._cbRoll=face; cbRenderRoll(); cbToggleFellBonus(); }
+function cbRenderRoll(){
+  var pick=document.getElementById("cbRollPick"); if(!pick) return;
+  var face=window._cbRoll||0;
+  pick.querySelectorAll(".cb-face").forEach(function(b){ b.classList.toggle("on", parseInt(b.dataset.face,10)===face); });
+  var tot=document.getElementById("cbRollTotal");
+  if(tot){
+    if(!face){ tot.textContent="Pick or roll your d6"; }
+    else { var pr=Math.max(0,attrTotal("precision")); var lbl=(face===1?"Fellstrike":(face===6?"Fellmark":String(face))); tot.textContent="Accuracy "+lbl+" + Precision "+pr+" = "+(face+pr); }
+  }
+}
+function cbPlaceOverlay(ov){
+  if(!ov) return;
+  var card=ov.querySelector(".cb-card");
+  var y=window._cbClickY||0;
+  if(!y){ y=(window.pageYOffset||document.documentElement.scrollTop||0)+80; }
+  ov.style.position="absolute"; ov.style.top="0"; ov.style.left="0"; ov.style.right="0"; ov.style.bottom="auto"; ov.style.minHeight="100%"; ov.style.alignItems="flex-start";
+  if(card){ card.style.marginTop=Math.max(8,y-70)+"px"; card.style.marginBottom="40px"; }
+}
 function cbToggleFellBonus(){
-  var fc=document.getElementById("cbFell"), box=document.getElementById("cbFellBonus");
+  var box=document.getElementById("cbFellBonus");
   if(!box) return;
-  var on=!!(fc && fc.checked);
+  var on=(window._cbRoll===6);
   box.classList.toggle("show",on);
   if(!on){ window._fellBonus=null; var r=document.getElementById("cbFellBonusRes"); if(r) r.textContent="\u2014"; var h=document.getElementById("cbFellBonusHint"); if(h) h.textContent="Tap the die to roll."; }
 }
@@ -4160,13 +4219,15 @@ function cbDmgHint(){
 function sendDeclare(){
   if(!CUR_WIX_ID) return;
   var act=document.getElementById("cbAct")?document.getElementById("cbAct").value:"";
-  var react=document.getElementById("cbReact")?document.getElementById("cbReact").value:"";
+  var react="";
   var target=document.getElementById("cbFocus")?document.getElementById("cbFocus").value:"";
   var affs=[].concat((C.afflictions||[]).map(function(a){return {name:a.name,kind:"affliction"};}),
                      (C.effects||[]).map(function(e){return {name:e.name,kind:"effect"};}));
   var round=(COMBAT&&COMBAT.round)||1;
   var e=cbActEntry(act), dmg=cbActDmg(act);
-  var fell=!!(document.getElementById("cbFell") && document.getElementById("cbFell").checked);
+  var roll=window._cbRoll||0;
+  var fell=(roll===6);
+  var acc=roll?(roll+Math.max(0,attrTotal("precision"))):0;
   var foeFocus = target && target.indexOf("m:")===0;
   var afflicted = !!(e && cbWeaponHasInf(e.src,'Afflicted'));
   var afSel = document.getElementById("cbAfflictedSel");
@@ -4184,7 +4245,7 @@ function sendDeclare(){
   var actTier = (e && typeof e.tier==="number") ? e.tier : null;
   if(act && cbHasAff("Ignited") && window._ignitedRound!==round){ window._ignitedRound=round; var ir=1+Math.floor(Math.random()*6); cbSelfDamage(ir); cbPing("Ignited: your Act burns you for "+ir+"."); }
   if(actTier===3){ C.charge=0; try{renderCharges();}catch(e2){} cbPing("Tier 3 unleashed. Charge resets."); }
-  postToVelo({type:"combat-declare",charId:CUR_WIX_ID,act:act,react:react,target:target,round:round,dmg:dmg,base:(e?e.base:0),dt:(e?e.dt:""),fellmark:fell,applies:applies,actTier:actTier,doubleFell:doubleFell,fellBonus:fb,pierce:pierce,
+  postToVelo({type:"combat-declare",charId:CUR_WIX_ID,act:act,react:react,target:target,round:round,dmg:dmg,base:(e?e.base:0),dt:(e?e.dt:""),fellmark:fell,applies:applies,actTier:actTier,doubleFell:doubleFell,fellBonus:fb,pierce:pierce,roll:roll,acc:acc,fellstrike:(roll===1),
     charge:C.charge||0,curVit:C.vitality.current,maxVit:C.vitality.max,affs:affs});
   if(COMBAT) COMBAT.you={act:act,react:react,target:target};
   window._declaredRound=round;
@@ -4207,6 +4268,7 @@ window.onmessage=ev=>{
   else if(d.type==="char-deleted"){ if(d.remaining===0){ if(confirm("You have no characters left. Create a new one?")) postToVelo({type:"add-character"}); } }
 };
 postToVelo({type:"ready"});
+document.addEventListener("click",function(e){ window._cbClickY=(e.clientY||0)+(window.pageYOffset||document.documentElement.scrollTop||0); },true);
 document.addEventListener("input",scheduleSave);
 document.addEventListener("change",scheduleSave);
 document.addEventListener("click",e=>{
