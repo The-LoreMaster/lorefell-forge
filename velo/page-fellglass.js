@@ -74,6 +74,7 @@ $w.onReady(() => {
       try {
         await saveCombatDeclare(msg.charId || charId, {
           act: msg.act, react: msg.react, target: msg.target, round: msg.round, dmg: msg.dmg, base: msg.base, dt: msg.dt, fellmark: msg.fellmark, doubleFell: msg.doubleFell, pierce: msg.pierce, applies: msg.applies, actTier: msg.actTier,
+          acc: msg.acc, roll: msg.roll, kind: msg.kind, fellstrike: msg.fellstrike,
           charge: msg.charge, curVit: msg.curVit, maxVit: msg.maxVit, affs: msg.affs
         });
       } catch (e) {}

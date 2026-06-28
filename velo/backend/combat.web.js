@@ -82,6 +82,7 @@ export const getCombatDeclares = webMethod(Permissions.Anyone, async (campaignId
     charId: it.charId || '',
     act: it.act || '', react: it.react || '', target: it.target || '',
     round: it.round || 0, dmg: it.dmg || 0, base: it.base || 0, dt: it.dt || '', fellmark: !!it.fellmark, doubleFell: !!it.doubleFell, pierce: it.pierce || 0, applies: it.applies || '', actTier: (typeof it.actTier === 'number') ? it.actTier : -1,
+    acc: it.acc || 0, roll: it.roll || 0, kind: it.kind || '', fellstrike: !!it.fellstrike,
     charge: it.charge || 0, curVit: it.curVit || 0, maxVit: it.maxVit || 0,
     affs: jparse(it.affs, [])
   }));
@@ -183,6 +184,10 @@ export const saveCombatDeclare = webMethod(Permissions.Anyone, async (charId, de
   row.doubleFell = !!d.doubleFell;
   row.pierce = typeof d.pierce === 'number' ? d.pierce : 0;
   row.actTier = (typeof d.actTier === 'number') ? d.actTier : -1;
+  row.acc = typeof d.acc === 'number' ? d.acc : 0;
+  row.roll = typeof d.roll === 'number' ? d.roll : 0;
+  row.kind = d.kind || '';
+  row.fellstrike = !!d.fellstrike;
   row.charge = typeof d.charge === 'number' ? d.charge : 0;
   row.curVit = typeof d.curVit === 'number' ? d.curVit : 0;
   row.maxVit = typeof d.maxVit === 'number' ? d.maxVit : 0;

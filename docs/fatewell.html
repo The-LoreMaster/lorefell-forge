@@ -1198,6 +1198,10 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 .cb-condnote div{ font-size:.74rem; color:var(--silver-dim,#9fb0bd); padding:3px 7px; border-left:2px solid var(--gold); }
 .cb-incoming{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:9px; padding:7px 9px; border:1px solid rgba(201,168,76,.4); border-radius:8px; background:rgba(201,168,76,.06); }
 .cb-inc-t{ font-size:.82rem; color:var(--silver); }
+.cb-inc-res{ flex:1; min-width:0; }
+.cb-inc-line{ font-size:.76rem; color:var(--silver-dim); margin-top:3px; }
+.cb-inc-btns{ display:flex; gap:8px; margin-top:5px; }
+.cb-hit{ color:#86c79b; } .cb-miss{ color:#d98a6a; }
 .cb-deal{ display:flex; align-items:center; gap:8px; margin-top:10px; flex-wrap:wrap; }
 .cb-deal-l{ font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); }
 .cb-deal-in{ width:64px; background:var(--navy-4,#1c2742); border:1px solid var(--line); color:var(--silver); border-radius:7px; padding:6px 8px; font-family:inherit; font-size:.85rem; }
@@ -6558,8 +6562,8 @@ function mergeDeclares(declares){
     var p=null; (c.players||[]).forEach(function(x){ if(x.charId===d.charId) p=x; });
     if(!p) return;
     var st=pState(p.id);
-    if(typeof d.round==='number' && d.round===curRound){ st.act=d.act||''; st.react=d.react||''; st.target=d.target||''; st.dmg=d.dmg||0; st.base=d.base||0; st.dt=d.dt||''; st.fellmark=!!d.fellmark; st.doubleFell=!!d.doubleFell; st.pierce=d.pierce||0; st.applies=d.applies||''; st.actTier=(typeof d.actTier==='number')?d.actTier:-1; }
-    else { st.act=''; st.react=''; st.target=''; st.dmg=0; st.base=0; st.dt=''; st.fellmark=false; st.doubleFell=false; st.pierce=0; st.applies=''; st.actTier=-1; }
+    if(typeof d.round==='number' && d.round===curRound){ st.act=d.act||''; st.react=d.react||''; st.target=d.target||''; st.dmg=d.dmg||0; st.base=d.base||0; st.dt=d.dt||''; st.fellmark=!!d.fellmark; st.doubleFell=!!d.doubleFell; st.pierce=d.pierce||0; st.applies=d.applies||''; st.actTier=(typeof d.actTier==='number')?d.actTier:-1; st.acc=d.acc||0; st.roll=d.roll||0; st.kind=d.kind||''; st.fellstrike=!!d.fellstrike; }
+    else { st.act=''; st.react=''; st.target=''; st.dmg=0; st.base=0; st.dt=''; st.fellmark=false; st.doubleFell=false; st.pierce=0; st.applies=''; st.actTier=-1; st.acc=0; st.roll=0; st.kind=''; st.fellstrike=false; st._eva=null; }
     if(typeof d.charge==='number') st.charge=d.charge;
     if(typeof d.curVit==='number') st.curVit=d.curVit;
     if(typeof d.maxVit==='number') st.maxVit=d.maxVit;
@@ -6579,13 +6583,42 @@ function cbIncoming(n){
   var curRound=(curSc().battle&&curSc().battle.round)||1, rows='';
   attendingPlayers().forEach(function(p){
     var st=pState(p.id);
-    if(st.target===n.key && st.act && st.dmg>0 && st.dmgDone!==curRound){
-      var rider=(st.fellmark && st.applies) ? (' + '+esc(st.applies)) : '';
-      rows+='<div class="cb-incoming"><span class="cb-inc-t">'+esc(p.name)+': '+esc(st.act)+' \u00b7 '+st.dmg+rider+'</span>'
-        +'<button class="cb-link gold" onclick="cbApplyIncoming(\''+p.id+'\',\''+n.ref.id+'\')">Apply '+st.dmg+rider+'</button></div>';
+    if(!(st.target===n.key && st.act && st.dmg>0 && st.dmgDone!==curRound)) return;
+    var rider=(st.fellmark && st.applies) ? (' + '+esc(st.applies)) : '';
+    var head='<span class="cb-inc-t">'+esc(p.name)+': '+esc(st.act)+' \u00b7 '+st.dmg+rider+'</span>';
+    if(!(st.roll>0)){
+      rows+='<div class="cb-incoming">'+head+'<button class="cb-link gold" onclick="cbApplyIncoming(\''+p.id+'\',\''+n.ref.id+'\')">Apply '+st.dmg+rider+'</button></div>';
+      return;
     }
+    var ev=st._eva;
+    if(!ev || ev.foe!==n.ref.id){
+      rows+='<div class="cb-incoming">'+head+'<button class="cb-link gold" onclick="cbRollFoeEva(\''+p.id+'\',\''+n.ref.id+'\')">Roll '+esc(n.name)+' Evasion</button></div>';
+      return;
+    }
+    var hit=(st.acc>=ev.total);
+    rows+='<div class="cb-incoming"><div class="cb-inc-res">'+head
+      +'<div class="cb-inc-line">Accuracy '+st.acc+' vs Evasion '+ev.total+' ('+ev.r+'+'+ev.bonus+') \u00b7 <b class="'+(hit?'cb-hit':'cb-miss')+'">'+(hit?'Hit':'Evaded')+'</b></div>'
+      +'<div class="cb-inc-btns"><button class="cb-link" onclick="cbRollFoeEva(\''+p.id+'\',\''+n.ref.id+'\')">Reroll</button>'
+      +(hit ? '<button class="cb-link gold" onclick="cbApplyIncoming(\''+p.id+'\',\''+n.ref.id+'\')">Apply '+st.dmg+rider+'</button>'
+            : '<button class="cb-link" onclick="cbMissIncoming(\''+p.id+'\')">Clear</button>')
+      +'</div></div></div>';
   });
   return rows;
+}
+function cbRollFoeEva(pid, foeId){
+  var foe=null; curSc().combatants.forEach(function(c){ if(c.id===foeId) foe=c; });
+  if(!foe) return;
+  var ev=Math.max(0,(foe.attrs&&foe.attrs.Evasion)||0);
+  var r=1+Math.floor(Math.random()*6);
+  pState(pid)._eva={ foe:foeId, r:r, bonus:ev, total:r+ev };
+  save(); render();
+}
+function cbMissIncoming(pid){
+  var st=pState(pid);
+  st.dmgDone=(curSc().battle&&curSc().battle.round)||1;
+  st._eva=null;
+  cbToast('The attack misses.');
+  save(); render();
 }
 function cbFoeResolve(foe, base, bonus, dt, pierce){
   base=Math.max(0,base|0); bonus=Math.max(0,bonus|0); dt=dt||'phys'; pierce=Math.max(0,pierce|0);
@@ -6653,10 +6686,16 @@ function cbApplyIncoming(pid, cid){
   adjVit(cid, -total);
   cbToast(esc(foe.name)+' takes '+total+(dbl?' (double Fellmark)':'')+(r.marks.length?(' (+'+r.marks.length+' '+r.marks.join(' + ')+')'):'')+'.');
   if(dbl){ if(cbAutoDice()){ cbDoImpairment(foe); } else { foe._pendImp=true; save(); render(); cbToast('Double Fellmark on '+esc(foe.name)+'. Roll the Impairment.'); } }
-  // shared charge: landing the ability that matches your current charge climbs it one tier
-  if(typeof st.actTier==='number' && st.actTier>=0 && st.actTier!==3 && st.actTier===(st.charge||0)){
-    var _p=null; (curC().players||[]).forEach(function(x){ if(x.id===pid) _p=x; });
-    if(_p && _p.charId){ postToWix({type:'lmtool-combat-charge', campaignId:combatCampaignId(), charId:_p.charId, value:Math.min(3,(st.charge||0)+1)}); }
+  // charge only on a landing weapon attack: standard climbs to T1, T1 to T2, T2 to T3, a landed T3 resets to 0
+  st._eva=null;
+  if((st.kind==='weapon'||st.kind==='unarmed') && typeof st.actTier==='number' && st.actTier>=0){
+    var _cur=st.charge||0, _nv=null, _T=st.actTier;
+    if(_T===3) _nv=0; else if(_T===_cur) _nv=Math.min(3,_T+1);
+    if(_nv!==null){
+      st.charge=_nv;
+      var _p=null; (curC().players||[]).forEach(function(x){ if(x.id===pid) _p=x; });
+      if(_p && _p.charId){ postToWix({type:'lmtool-combat-charge', campaignId:combatCampaignId(), charId:_p.charId, value:_nv}); }
+    }
   }
   var bounce=0, why=[];
   (st.affs||[]).forEach(function(a){

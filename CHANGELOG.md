@@ -2,6 +2,11 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Combat — player attacks contest Evasion, charge advances only on a landing
+- A player's accuracy roll now travels to the LM. When the LM resolves a player's hit on a foe, the foe rolls Evasion and the panel shows Hit or Evaded, ties going to the attacker. The LM can reroll, and only a Hit applies damage and any Fellmark affliction.
+- Weapon charge now climbs only on a landing weapon attack. A landed standard attack reaches T1, a landed T1 reaches T2, a landed T2 reaches T3, and a landed T3 clears to 0. A miss changes nothing, and skills, items, stances, and lorebound aspects no longer move the meter.
+- Paste velo/backend/combat.web.js and velo/page-fellglass.js, and push triggers the Apply CMS action to add the four CombatPlayer fields. Foe attacks against players keep the current flow until the next batch.
+
 ## Combat — declare popup reworked: centered, roll input, react reminder
 - The Declare your turn popup now opens where you tap instead of the middle of the full sheet, so it lands in view no matter where you have scrolled.
 - The React dropdown is gone, since reacts happen in play. A react reminder sits on the combat banner and in the popup, shows used or available, and resets each round.
