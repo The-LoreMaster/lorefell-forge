@@ -2,6 +2,11 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Combat — player events and foe effects reach the shared log
+- Player-side moments now post to the shared log: damage taken and confirmed, healing recovered, breakout rolls, round-start conditions and augmentations, Ignited self-burn, and a negated attack. They relay on the player combat sync and the LoreMaster folds them into the one log both tools show.
+- Foe-side automatic effects now log too: a condition halving max Vitality or cutting current Vitality, Ignited burning a foe, and an affliction landing from a foe attack. Player hits also show the damage marks they carried.
+- This carries a player log buffer on the combat sync. Re-paste velo/backend/combat.web.js and velo/page-fellglass.js. The new CombatPlayer field arrives from the Apply CMS action on push.
+
 ## Combat — foes roll to hit and players evade
 - A foe set to Attack a player now rolls accuracy on the LoreMaster board, one d6 plus its Precision, with a reroll. The targeted player gets an incoming-attack popup after they declare, with a row per foe that shows the foe accuracy and a button to roll Evasion. The contest reads as a hit when accuracy meets or beats evasion, and ties go to the attacker.
 - The player sends their evasion to the LoreMaster, who sees hit or evaded on the foe card. A foe advances its weapon charge only on a landing attack, by the same ladder a player uses.

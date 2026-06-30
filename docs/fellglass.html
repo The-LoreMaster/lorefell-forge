@@ -3576,15 +3576,23 @@ function doSave(){
   postToVelo({type:"save",charId:CUR_WIX_ID,localId:CUR_LOCAL_ID,character:C});
   combatSyncPush();
 }
+function meName(){ return (C&&C.identity&&C.identity.name)||"A Fell"; }
+function cbLogSelf(side, text){
+  if(!text) return;
+  window._plog=window._plog||[];
+  window._plog.unshift({ id:(Date.now().toString(36)+Math.random().toString(36).slice(2,7)), ts:Date.now(), side:side||"fell", text:String(text) });
+  if(window._plog.length>30) window._plog=window._plog.slice(0,30);
+  combatSyncPush();
+}
 function combatSyncPush(){
   if(!(COMBAT&&COMBAT.active&&CUR_WIX_ID)) return;
   var affs=[].concat((C.afflictions||[]).map(function(a){return {name:a.name,kind:"affliction"};}),
                      (C.effects||[]).map(function(e){return {name:e.name,kind:"effect"};}));
-  var snap={curVit:C.vitality.current,maxVit:C.vitality.max,charge:C.charge||0,affs:affs,defEva:(window._defEva||[])};
+  var snap={curVit:C.vitality.current,maxVit:C.vitality.max,charge:C.charge||0,affs:affs,defEva:(window._defEva||[]),plog:(window._plog||[])};
   var sig=JSON.stringify(snap);
   if(sig===window._combatSyncSig) return;
   window._combatSyncSig=sig;
-  postToVelo({type:"combat-sync",charId:CUR_WIX_ID,curVit:snap.curVit,maxVit:snap.maxVit,charge:snap.charge,affs:snap.affs,defEva:snap.defEva});
+  postToVelo({type:"combat-sync",charId:CUR_WIX_ID,curVit:snap.curVit,maxVit:snap.maxVit,charge:snap.charge,affs:snap.affs,defEva:snap.defEva,plog:snap.plog});
 }
 function cbCheckEvasion(){
   if(!(COMBAT&&COMBAT.active&&CUR_WIX_ID)) return;
@@ -3878,10 +3886,10 @@ function applyPendingHit(hit){
   var base=Math.max(0,(hit&&hit.base)|0), bonus=Math.max(0,(hit&&hit.bonus)|0), dt=(hit&&hit.dt)||"phys";
   window._augUsed = window._augUsed || {};
   if(cbHasAug("Lastlight") && !window._augUsed.lastlight && (C.vitality.current||0) < Math.floor((C.vitality.max||0)/2)){
-    window._augUsed.lastlight=true; cbPing("Lastlight: the first attack misses."); return;
+    window._augUsed.lastlight=true; cbPing("Lastlight: the first attack misses."); cbLogSelf("fell", meName()+": Lastlight turns the first attack aside."); return;
   }
   var r=cbResolveIncoming(base, bonus, dt);
-  if(r.total<=0){ cbPing("The hit is turned aside."); return; }
+  if(r.total<=0){ cbPing("The hit is turned aside."); cbLogSelf("fell", meName()+": the hit is turned aside."); return; }
   if(cbHasAug("Threshold")){ var cap=Math.floor((C.vitality.max||0)/2); if(cap>0 && r.total>cap){ r.total=cap; r.marks.push("Threshold cap"); } }
   var v=C.vitality, t=Math.min(v.temp||0, r.total);
   v.temp=(v.temp||0)-t;
@@ -3892,6 +3900,7 @@ function applyPendingHit(hit){
   try{renderVit();}catch(e){} try{renderStrip();}catch(e){}
   scheduleSave(); try{edgeGlow("rgba(201,106,90,.9)");}catch(e){}
   cbPing("Took "+r.total+(r.marks.length?(" (+"+r.marks.length+" "+r.marks.join(" + ")+")"):"")+(t?(" \u00b7 "+t+" off temporary"):"")+".");
+  cbLogSelf("foe", meName()+" takes "+r.total+(r.marks.length?(" (+"+r.marks.join(" + ")+")"):"")+".");
 }
 function showPendingHit(hit, at){
   var ex=document.getElementById("cbHitOvl"); if(ex) ex.remove();
@@ -3910,7 +3919,7 @@ function showPendingHit(hit, at){
   cbPlaceOverlay(ov);
   document.getElementById("cbHitApply").addEventListener("click",function(){ window._lastHitAt=at; applyPendingHit(hit); ov.remove(); });
   document.getElementById("cbHitLater").addEventListener("click",function(){ ov.remove(); });
-  if(negKind){ document.getElementById("cbHitNeg").addEventListener("click",function(){ window._lastHitAt=at; window._augUsed[negKind==="Nullward"?"nullward":"mistform"]=true; cbPing(negKind+": the attack is negated."); ov.remove(); }); }
+  if(negKind){ document.getElementById("cbHitNeg").addEventListener("click",function(){ window._lastHitAt=at; window._augUsed[negKind==="Nullward"?"nullward":"mistform"]=true; cbPing(negKind+": the attack is negated."); cbLogSelf("fell", meName()+": "+negKind+" negates the attack."); ov.remove(); }); }
 }
 function setCombatState(state){
   if(state && state.active){
@@ -3931,7 +3940,7 @@ function setCombatState(state){
     var cs=COMBAT.chargeSet||{};
     if(cs.at && cs.at!==window._lastChargeAt){ window._lastChargeAt=cs.at; C.charge=Math.max(0,Math.min(3,cs.value|0)); try{renderCharges();}catch(e){} scheduleSave(); cbPing("Your strike lands. Charge "+C.charge+"."); }
   }
-  if(COMBAT&&COMBAT.active&&!wasActive){ try{edgeGlow("rgba(201,106,90,.85)");}catch(e){} window._combatSyncSig=""; combatSyncPush(); openDeclare(); }
+  if(COMBAT&&COMBAT.active&&!wasActive){ try{edgeGlow("rgba(201,106,90,.85)");}catch(e){} window._plog=[]; window._combatSyncSig=""; combatSyncPush(); openDeclare(); }
 }
 function cbInfusionTriggers(){
   if(!(COMBAT&&COMBAT.active)) return "";
@@ -4080,7 +4089,7 @@ function cbTickSelf(){
   window._augUsed={mistform:false,nullward:false,lastlight:false,hexward:false};
   if((window._lastTickRound||0)<=1) window._emberUsed=false;
   window._roundStartNotes=notes.slice();
-  if(notes.length){ try{renderVit();}catch(e){} try{renderStrip();}catch(e){} scheduleSave(); cbPing("Round start \u00b7 "+notes.join(" \u00b7 ")); }
+  if(notes.length){ try{renderVit();}catch(e){} try{renderStrip();}catch(e){} scheduleSave(); cbPing("Round start \u00b7 "+notes.join(" \u00b7 ")); cbLogSelf("fell", meName()+" round start \u00b7 "+notes.join(" \u00b7 ")); }
 }
 function cbRevertCond(a){
   var c=cbCanon(a.name); if(!c) return;
@@ -4119,8 +4128,10 @@ function cbBreakout(name){
     for(var i=0;i<arr.length;i++){ if(arr[i].name===name){ cbRevertCond(arr[i]); arr.splice(i,1); break; } }
     try{renderStatus();}catch(e){} try{renderVit();}catch(e){} try{renderStrip();}catch(e){} scheduleSave();
     cbPing("Fellmark. "+name+" breaks. (Breaking out is your Act this round.)");
+    cbLogSelf("fell", meName()+" breaks "+name+" (Fellmark).");
   } else {
     cbPing("Rolled "+d+". "+name+" holds.");
+    cbLogSelf("fell", meName()+": "+name+" holds (rolled "+d+").");
   }
   var ov=document.getElementById("cbOverlay"); if(ov){ ov.remove(); openDeclare(); }
 }
@@ -4224,10 +4235,11 @@ function cbSelfDamage(amount){
 }
 function cbTryHeal(amount){
   amount=Math.max(0, amount|0); if(!amount) return;
-  if(COMBAT && COMBAT.active && cbHasAff("Withered")){ cbPing("Withered: the healing finds nothing to mend."); return; }
-  if(COMBAT && COMBAT.active && cbHasAff("Harvested")){ cbSelfDamage(amount); cbPing("Harvested: the mending turns on you for "+amount+"."); try{edgeGlow("rgba(201,106,90,.9)");}catch(e){} return; }
+  if(COMBAT && COMBAT.active && cbHasAff("Withered")){ cbPing("Withered: the healing finds nothing to mend."); cbLogSelf("fell", meName()+": Withered blocks the mending."); return; }
+  if(COMBAT && COMBAT.active && cbHasAff("Harvested")){ cbSelfDamage(amount); cbPing("Harvested: the mending turns on you for "+amount+"."); cbLogSelf("foe", meName()+": Harvested turns mending into "+amount+" damage."); try{edgeGlow("rgba(201,106,90,.9)");}catch(e){} return; }
   var v=C.vitality; v.current=Math.min(v.max,(v.current||0)+amount);
   try{renderVit();}catch(e){} scheduleSave(); try{edgeGlow("rgba(220,232,239,.75)");}catch(e){}
+  cbLogSelf("fell", meName()+" recovers "+amount+".");
 }
 function cbInitFellBonus(){
   window._fellBonus=null;
@@ -4326,7 +4338,7 @@ function sendDeclare(){
   var pierce=0;
   if(e){ if(e.dt==="phys" && cbWeaponHasInf(e.src,"Powerful")) pierce=Math.max(0,attrTotal("power")); else if(e.dt==="magic" && cbWeaponHasInf(e.src,"Ethereal")) pierce=Math.max(0,attrTotal("magic")); }
   var actTier = (e && typeof e.tier==="number") ? e.tier : null;
-  if(act && cbHasAff("Ignited") && window._ignitedRound!==round){ window._ignitedRound=round; var ir=1+Math.floor(Math.random()*6); cbSelfDamage(ir); cbPing("Ignited: your Act burns you for "+ir+"."); }
+  if(act && cbHasAff("Ignited") && window._ignitedRound!==round){ window._ignitedRound=round; var ir=1+Math.floor(Math.random()*6); cbSelfDamage(ir); cbPing("Ignited: your Act burns you for "+ir+"."); cbLogSelf("foe", meName()+": Ignited burns for "+ir+"."); }
   postToVelo({type:"combat-declare",charId:CUR_WIX_ID,act:act,react:react,target:target,round:round,dmg:dmg,base:(e?e.base:0),dt:(e?e.dt:""),fellmark:fell,applies:applies,actTier:actTier,doubleFell:doubleFell,fellBonus:fb,pierce:pierce,roll:roll,acc:acc,fellstrike:(roll===1),kind:(e?e.kind:""),
     charge:C.charge||0,curVit:C.vitality.current,maxVit:C.vitality.max,affs:affs});
   if(COMBAT) COMBAT.you={act:act,react:react,target:target};
