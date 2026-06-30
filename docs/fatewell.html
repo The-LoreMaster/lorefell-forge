@@ -1202,6 +1202,8 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 .cb-inc-line{ font-size:.76rem; color:var(--silver-dim); margin-top:3px; }
 .cb-inc-btns{ display:flex; gap:8px; margin-top:5px; }
 .cb-hit{ color:#86c79b; } .cb-miss{ color:#d98a6a; }
+.cb-foeacc{ font-size:.82rem; color:var(--silver-dim); margin:5px 0 2px; }
+.cb-wait{ color:var(--silver-dim); font-style:italic; }
 .cbl{ margin-top:12px; border-top:1px solid var(--line); padding-top:9px; }
 .cbl-h{ font-family:'Cinzel', serif; font-size:.72rem; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); margin-bottom:5px; }
 .cbl-body{ display:flex; flex-direction:column; gap:3px; max-height:240px; overflow-y:auto; }
@@ -4529,7 +4531,7 @@ function setPhase(p){ curSc().battle.phase = p; save(); render(); }
 function setSpotMode(m){ curSc().battle.spotMode = m; save(); render(); }
 
 function setMonAct(cid, val){ curSc().combatants.forEach(function(c){ if(c.id===cid) c.act = val; }); save(); }
-function setMonTarget(cid, val){ curSc().combatants.forEach(function(c){ if(c.id===cid) c.target = val; }); save(); }
+function setMonTarget(cid, val){ curSc().combatants.forEach(function(c){ if(c.id===cid){ c.target = val; if(c.intent && c.intent.type==='Attack' && val && val.indexOf('p:')===0) cbRollFoeAcc(cid,true); else c._acc=null; } }); save(); render(); }
 function lockCommits(){ var b=curSc().battle; b.locked = true; b.phase='resolve'; cbInitBattle(b); var SP=combatSpots(); b.activeSpot=0; b.spotBox = SP[0]?SP[0].ids.slice():[]; b.spotDone={}; b.undoStack=[]; save(); render(); }
 function unlockCommits(){
   curSc().battle.locked = false; save(); render();
@@ -4842,7 +4844,7 @@ function doAdvanceRound(){
   cbLog('system','Round '+b.round+' begins.');
   b.spotBox = []; b.spotDone = {}; b.undoStack = []; b.activeSpot = 0;
   sc.combatants.forEach(function(c){
-    c.act = ''; c.target=''; c.done = false; c.intent = null; c.reactUsed = false; c.fellmark = false; c._pendImp = false;
+    c.act = ''; c.target=''; c.done = false; c.intent = null; c.reactUsed = false; c.fellmark = false; c._pendImp = false; c._acc = null;
     /* afflictions persist across rounds; removed manually via Fellmark */
   });
   Object.keys(sc.ps).forEach(function(pid){
@@ -6256,7 +6258,7 @@ function cbIntentPicker(cb){
 function cbSetIntent(cid, key, val){
   var c=null; curSc().combatants.forEach(function(x){ if(x.id===cid) c=x; }); if(!c) return;
   c.intent = c.intent || {type:'Attack', ability:'', item:''};
-  if(key==='type'){ c.intent.type=val; c.intent.ability=''; c.intent.item=''; }
+  if(key==='type'){ c.intent.type=val; c.intent.ability=''; c.intent.item=''; if(val==='Attack' && c.target && c.target.indexOf('p:')===0){ cbRollFoeAcc(cid,true); } else { c._acc=null; } }
   else c.intent[key]=val;
   c.act = cbActLine(c);
   save();
@@ -6367,7 +6369,7 @@ function cbCard(n, o){
   return '<div class="cb-fighter '+sideCls+(o.spot?' spot':'')+(down?' down':'')+'">'
     + '<div class="cb-top"><span class="cb-nm">'+esc(n.name)+'</span><span class="cb-sd">'+sideLbl+'</span></div>'
     + cbVitRow(n) + (n.kind==='m' ? chargeRow(n.kind, n.ref.id, cbChargeOf(n)) : cbChargeView(n)) + (n.kind==='m' ? cbDefRow(n) : '') + cbChips(n) + (n.kind==='m' ? cbCondNote(n) : '')
-    + cbActDisplay(n) + (n.kind==='m' ? cbFellmark(n) : '') + (n.kind==='m' ? cbIncoming(n) : '') + (n.kind==='m' ? cbImpRow(n) : '') + cbReact(n)
+    + cbActDisplay(n) + (n.kind==='m' ? cbFoeAcc(n) : '') + (n.kind==='m' ? cbFellmark(n) : '') + (n.kind==='m' ? cbIncoming(n) : '') + (n.kind==='m' ? cbImpRow(n) : '') + cbReact(n)
     + (n.kind==='p' ? cbDealRow(n) : '')
     + (n.kind==='p' ? cbImpRowP(n) : '')
     + (o.addSpot?'<div class="cb-spotline"><button class="cb-link" onclick="cbAddSpot(\''+n.key+'\')">+ Spotlight</button></div>':'')
@@ -6438,7 +6440,13 @@ function cbResolveSpot(){
     if(n && n.kind==='m' && n.ref.intent && n.ref.intent.type==='Attack'){
       var _it=n.ref.intent, _T=0;
       if(_it.ability && _it.ability!=='__std__'){ var _ab=(n.ref.abilities||[]).filter(function(a){ return a.name===_it.ability; })[0]; if(_ab && typeof _ab.tier==='number') _T=_ab.tier; }
-      n.ref.charge=(_T===3?0:_T+1);
+      var _landed=true;
+      if(n.ref.target && n.ref.target.indexOf('p:')===0){
+        var _pst=pState(n.ref.target.slice(2)), _acc=(n.ref._acc&&n.ref._acc.total)||0, _eva=null;
+        (_pst.defEva||[]).forEach(function(e){ if(e.foe===('m:'+n.ref.id)) _eva=e.total; });
+        if(_eva!=null) _landed=(_acc>=_eva);
+      }
+      if(_landed){ var _fc=n.ref.charge||0, _fnv=(_T===3?0:(_T===_fc?Math.min(3,_T+1):_fc)); if(_fnv!==_fc){ n.ref.charge=_fnv; cbLog('system', n.ref.name+' charge now '+_fnv+'.'); } }
     }
     b.spotDone[k]=true;
   });
@@ -6530,9 +6538,17 @@ function cbToggleFell(cid){ curSc().combatants.forEach(function(c){ if(c.id===ci
 /* ---------- combat sync with FellGlass ---------- */
 function combatCampaignId(){ var c=curC(); if(!c) return null; return WIX.hub ? c.id : (WIX.campaignId || c.id); }
 function combatFighters(sc){
-  var list=[];
-  (sc.combatants||[]).forEach(function(c){ list.push({ key:'m:'+c.id, name:c.name, side:c.side||'monster' }); });
-  attendingPlayers().forEach(function(p){ list.push({ key:'p:'+p.id, name:p.name, side:'fell', charId:p.charId||'' }); });
+  var list=[], aps=attendingPlayers();
+  (sc.combatants||[]).forEach(function(c){
+    var e={ key:'m:'+c.id, name:c.name, side:c.side||'monster' };
+    if(c.intent && c.intent.type==='Attack' && c.target && c.target.indexOf('p:')===0 && c._acc){
+      var tpid=c.target.slice(2), tc='';
+      aps.forEach(function(p){ if(p.id===tpid) tc=p.charId||''; });
+      if(tc){ e.atkCharId=tc; e.acc=c._acc.total; }
+    }
+    list.push(e);
+  });
+  aps.forEach(function(p){ list.push({ key:'p:'+p.id, name:p.name, side:'fell', charId:p.charId||'' }); });
   return list;
 }
 function publishCombat(){
@@ -6587,6 +6603,9 @@ function mergeDeclares(declares){
     if(typeof d.curVit==='number') st.curVit=d.curVit;
     if(typeof d.maxVit==='number') st.maxVit=d.maxVit;
     st.affs=Array.isArray(d.affs)?d.affs.slice():(st.affs||[]);
+    st.defEva=Array.isArray(d.defEva)?d.defEva.slice():[];
+    if(!st.defEva.length){ st._loggedEva=''; }
+    else { var _evsig=JSON.stringify(st.defEva); if(st._loggedEva!==_evsig){ st._loggedEva=_evsig; st.defEva.forEach(function(ev){ var fo=null; (sc.combatants||[]).forEach(function(x){ if(('m:'+x.id)===ev.foe) fo=x; }); if(fo){ var fa=(fo._acc&&fo._acc.total)||0; cbLog('fell', p.name+': evasion '+ev.total+' vs '+fo.name+' accuracy '+fa+' \u00b7 '+(fa>=ev.total?'hit':'evaded')+'.'); } }); } }
     if(st.applied && st.applied.length){ st.applied=st.applied.filter(function(a){ return !st.affs.some(function(x){ return x.name===a.name; }); }); }
     changed=true;
   });
@@ -6631,6 +6650,23 @@ function cbRollFoeEva(pid, foeId){
   var r=1+Math.floor(Math.random()*6);
   pState(pid)._eva={ foe:foeId, r:r, bonus:ev, total:r+ev };
   save(); render();
+}
+function cbRollFoeAcc(cid, silent){
+  var c=null; curSc().combatants.forEach(function(x){ if(x.id===cid) c=x; });
+  if(!c) return;
+  var pr=Math.max(0,(c.attrs&&c.attrs.Precision)||0);
+  var r=1+Math.floor(Math.random()*6);
+  c._acc={ r:r, bonus:pr, total:r+pr }; c._accRound=(curSc().battle&&curSc().battle.round)||1;
+  if(!silent){ cbLog('foe', c.name+' rolls accuracy '+c._acc.total+' ('+r+'+'+pr+').'); save(); render(); }
+}
+function cbFoeAcc(n){
+  var c=n.ref;
+  if(!(c.intent && c.intent.type==='Attack' && c.target && c.target.indexOf('p:')===0)) return '';
+  if(!c._acc) return '<div class="cb-foeacc"><span class="cb-wait">Accuracy not rolled.</span> <button class="cb-link" onclick="cbRollFoeAcc(\''+c.id+'\')">Roll accuracy</button></div>';
+  var acc=c._acc.total, pid=c.target.slice(2), st=pState(pid), eva=null;
+  (st.defEva||[]).forEach(function(e){ if(e.foe===('m:'+c.id)) eva=e.total; });
+  var res = (eva!=null) ? (' \u00b7 vs Evasion '+eva+' \u00b7 <b class="'+(acc>=eva?'cb-hit':'cb-miss')+'">'+(acc>=eva?'Hit':'Evaded')+'</b>') : ' \u00b7 <span class="cb-wait">waiting for evasion</span>';
+  return '<div class="cb-foeacc">Accuracy '+acc+' ('+c._acc.r+'+'+c._acc.bonus+')'+res+' <button class="cb-link" onclick="cbRollFoeAcc(\''+c.id+'\')">Reroll</button></div>';
 }
 function cbMissIncoming(pid){
   var st=pState(pid);

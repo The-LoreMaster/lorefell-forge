@@ -2,6 +2,12 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Combat — foes roll to hit and players evade
+- A foe set to Attack a player now rolls accuracy on the LoreMaster board, one d6 plus its Precision, with a reroll. The targeted player gets an incoming-attack popup after they declare, with a row per foe that shows the foe accuracy and a button to roll Evasion. The contest reads as a hit when accuracy meets or beats evasion, and ties go to the attacker.
+- The player sends their evasion to the LoreMaster, who sees hit or evaded on the foe card. A foe advances its weapon charge only on a landing attack, by the same ladder a player uses.
+- The shared combat log records the foe accuracy roll, the player evasion with its result, and the foe charge change. A banner prompt on the player side reopens the evasion popup while foes are attacking.
+- This carries the evasion on the player combat sync. Re-paste velo/backend/combat.web.js and velo/page-fellglass.js. The new CombatPlayer field arrives from the Apply CMS action on push.
+
 ## Combat — shared combat log in both tools
 - A combat log now appears on the player banner and the LM board, showing the same stream. It lists who is in the fight, what was rolled, the hits and misses with their accuracy and evasion, damage going through, afflictions, weapon charge changes, and round markers.
 - The log is one stream the LM writes as it resolves, published to players in the combat state. It resets each battle and holds the most recent entries. The LM narration rail stays private and separate.

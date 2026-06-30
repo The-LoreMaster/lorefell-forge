@@ -83,7 +83,7 @@ export const getCombatDeclares = webMethod(Permissions.Anyone, async (campaignId
     charId: it.charId || '',
     act: it.act || '', react: it.react || '', target: it.target || '',
     round: it.round || 0, dmg: it.dmg || 0, base: it.base || 0, dt: it.dt || '', fellmark: !!it.fellmark, doubleFell: !!it.doubleFell, pierce: it.pierce || 0, applies: it.applies || '', actTier: (typeof it.actTier === 'number') ? it.actTier : -1,
-    acc: it.acc || 0, roll: it.roll || 0, kind: it.kind || '', fellstrike: !!it.fellstrike,
+    acc: it.acc || 0, roll: it.roll || 0, kind: it.kind || '', fellstrike: !!it.fellstrike, defEva: jparse(it.defEva, []),
     charge: it.charge || 0, curVit: it.curVit || 0, maxVit: it.maxVit || 0,
     affs: jparse(it.affs, [])
   }));
@@ -158,6 +158,7 @@ export const syncCombatPlayer = webMethod(Permissions.Anyone, async (charId, sna
   if (typeof s.maxVit === 'number') row.maxVit = s.maxVit;
   if (typeof s.charge === 'number') row.charge = s.charge;
   if (Array.isArray(s.affs)) row.affs = JSON.stringify(s.affs);
+  if (Array.isArray(s.defEva)) row.defEva = JSON.stringify(s.defEva);
   row.updatedAt = Date.now();
   try {
     if (existing) await wixData.update('CombatPlayer', row, { suppressAuth: true });
