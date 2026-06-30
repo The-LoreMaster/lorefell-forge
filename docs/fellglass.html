@@ -436,6 +436,13 @@ body.in-combat::after{ content:""; position:fixed; inset:0; pointer-events:none;
 .cb-wait{color:var(--silver-dim);font-style:italic}
 .cb-hit{color:#86c79b}
 .cb-miss{color:#d98a6a}
+.luck-banner{position:relative;overflow:hidden;text-align:center;font-family:'Cinzel',serif;font-size:.78rem;letter-spacing:.14em;text-transform:uppercase;padding:6px 8px;margin:8px 0 4px;border-radius:8px;border:1px solid;animation:luckPulse 1.7s ease-in-out infinite}
+.luck-banner > span{position:relative;z-index:1}
+.luck-banner::after{content:'';position:absolute;inset:0;background:linear-gradient(110deg,transparent 25%,rgba(255,255,255,.18) 50%,transparent 75%);background-size:220% 100%;animation:luckSweep 2.6s linear infinite;pointer-events:none}
+.luck-banner.lucky{color:#e6c965;border-color:rgba(201,168,76,.55);background:rgba(201,168,76,.10)}
+.luck-banner.unlucky{color:#e29a82;border-color:rgba(201,106,90,.55);background:rgba(201,106,90,.10)}
+@keyframes luckPulse{0%,100%{opacity:.9}50%{opacity:1}}
+@keyframes luckSweep{0%{background-position:-120% 0}100%{background-position:220% 0}}
 .cbn-react button{margin-left:auto;font-family:'Cinzel',serif;font-size:.7rem;letter-spacing:.05em;color:var(--ice);background:transparent;border:1px solid var(--line);border-radius:5px;padding:4px 9px;cursor:pointer}
 .cbl{margin-top:10px;border-top:1px solid var(--line);padding-top:8px}
 .cbl-h{font-family:'Cinzel',serif;font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);margin-bottom:4px}
@@ -3599,9 +3606,11 @@ function cbCheckEvasion(){
   var foes=((COMBAT.fighters)||[]).filter(function(f){ return f.atkCharId===CUR_WIX_ID; });
   if(foes.length) openEvasionPopup(foes);
 }
-function evaResHtml(acc,total,r,ev){
+function evaResHtml(acc,total,r,ev,dice,lk){
   var hit=(acc>=total);
-  return "Evasion "+total+" ("+r+"+"+ev+") \u00b7 <b class=\""+(hit?"cb-miss":"cb-hit")+"\">"+(hit?"Hit":"Evaded")+"</b>";
+  var diceStr=(dice&&dice.length>1)?(" ["+dice.join(", ")+" \u2192 "+r+"]"):"";
+  var lkStr=lk?(" \u00b7 "+(lk==='lucky'?"Lucky":"Unlucky")):"";
+  return "Evasion "+total+" ("+r+"+"+ev+")"+diceStr+lkStr+" \u00b7 <b class=\""+(hit?"cb-miss":"cb-hit")+"\">"+(hit?"Hit":"Evaded")+"</b>";
 }
 function openEvasionPopup(foes){
   var old=document.getElementById("cbEvaOvl"); if(old) old.remove();
@@ -3609,7 +3618,7 @@ function openEvasionPopup(foes){
   window._evaRolls=window._evaRolls||{};
   var rows=foes.map(function(f){
     var prev=window._evaRolls[f.key];
-    var res = prev ? evaResHtml(f.acc||0, prev.total, prev.r, ev) : ("1d6 + Evasion "+ev);
+    var res = prev ? evaResHtml(f.acc||0, prev.total, prev.r, ev, prev.dice, prev.lk) : ("1d6 + Evasion "+ev);
     return '<div class="cb-evrow"><div class="cb-evname">'+cbEsc(f.name)+' \u00b7 accuracy '+(f.acc||0)+'</div>'
       +'<div class="cb-evroll"><button type="button" class="cb-evbtn" data-foe="'+cbEsc(f.key)+'" data-acc="'+(f.acc||0)+'">Roll Evasion</button>'
       +'<span class="cb-evres" id="evres-'+cbEsc(f.key)+'">'+res+'</span></div></div>';
@@ -3625,10 +3634,14 @@ function openEvasionPopup(foes){
   document.getElementById("cbEvaSend").addEventListener("click",function(){ cbSendEva(); ov.remove(); });
 }
 function cbRollEva(foeKey, acc, ev){
-  var r=1+Math.floor(Math.random()*6), total=r+ev;
-  window._evaRolls=window._evaRolls||{}; window._evaRolls[foeKey]={r:r,total:total};
+  var lk=cbMyLuck(), dice, r;
+  if(lk==='lucky'){ var a=cbd6(),b=cbd6(); dice=[a,b]; r=Math.max(a,b); }
+  else if(lk==='unlucky'){ var a=cbd6(),b=cbd6(); dice=[a,b]; r=Math.min(a,b); }
+  else { r=cbd6(); dice=[r]; }
+  var total=r+ev;
+  window._evaRolls=window._evaRolls||{}; window._evaRolls[foeKey]={r:r,total:total,dice:dice,lk:lk};
   var node=document.getElementById("evres-"+foeKey);
-  if(node) node.innerHTML=evaResHtml(acc,total,r,ev);
+  if(node) node.innerHTML=evaResHtml(acc,total,r,ev,dice,lk);
 }
 function cbSendEva(){
   var arr=[], er=window._evaRolls||{};
@@ -4019,7 +4032,7 @@ function applyCombatMode(){
       : '<button class="cbn-btn'+(declared?' done':'')+'" id="cbnDeclare">'+(declared?"Edit declaration":"Declare Act and React")+'</button>';
   bn.innerHTML='<div class="cbn-top"><span class="cbn-l"><span class="cbn-dot"></span>'+(youUp&&resolving?"You're up":"Combat")+(COMBAT.round?" \u00b7 Round "+COMBAT.round:"")+(COMBAT.sceneName?" \u00b7 "+cbEsc(COMBAT.sceneName):"")+'</span>'+btn+'</div>'
     +'<div class="cbn-steps">'+strip+'</div>'
-    +'<div class="cbn-status">'+status+'</div>'+cbReactStatus()+cbEvasionPrompt()+cbInfusionTriggers()+cbInfusionReminders()+cbAugReminders()+cbCombatLog();
+    +'<div class="cbn-status">'+status+'</div>'+cbLuckBanner()+cbReactStatus()+cbEvasionPrompt()+cbInfusionTriggers()+cbInfusionReminders()+cbAugReminders()+cbCombatLog();
   var b=document.getElementById("cbnDeclare"); if(b) b.addEventListener("click",openDeclare);
   var rb=document.getElementById("cbnReact"); if(rb) rb.addEventListener("click",function(){ window._reactUsed=!window._reactUsed; applyCombatMode(); });
   var eb=document.getElementById("cbnEva"); if(eb) eb.addEventListener("click",function(){ cbCheckEvasion(); });
@@ -4247,11 +4260,30 @@ function cbInitFellBonus(){
   if(holder){ holder.innerHTML=""; var die=makeD6(); die.classList.add("cb-fb-d6"); die.setAttribute("aria-label","Roll Fellmark bonus"); holder.appendChild(die); die.addEventListener("click",cbRollFellBonus); }
   cbToggleFellBonus();
 }
+function cbd6(){ return 1+Math.floor(Math.random()*6); }
+function cbMyLuck(){
+  if(!(COMBAT&&COMBAT.active&&CUR_WIX_ID)) return "";
+  var mark=""; var f=((COMBAT.fighters)||[]).filter(function(x){return x.charId===CUR_WIX_ID;})[0]; if(f) mark=f.luck||"";
+  var n=0; if(mark==="lucky")n++; else if(mark==="unlucky")n--;
+  try{ if(cbHasAff("Lucky")||cbHasEff("Lucky"))n++; if(cbHasAff("Unlucky")||cbHasEff("Unlucky"))n--; }catch(e){}
+  return n>0?"lucky":(n<0?"unlucky":"");
+}
+function cbLuckRollD6(){
+  var lk=cbMyLuck();
+  if(lk==='lucky'){ var a=cbd6(),b=cbd6(); window._cbRollDice=[a,b]; return Math.max(a,b); }
+  if(lk==='unlucky'){ var a=cbd6(),b=cbd6(); window._cbRollDice=[a,b]; return Math.min(a,b); }
+  window._cbRollDice=null; return cbd6();
+}
+function cbLuckBanner(){
+  if(!(COMBAT&&COMBAT.active)) return "";
+  var lk=cbMyLuck(); if(!lk) return "";
+  return '<div class="luck-banner '+lk+'"><span>'+(lk==='lucky'?'\u2726 Lucky roll':'\u2727 Unlucky roll')+'</span></div>';
+}
 function cbInitRollPick(){
   var pick=document.getElementById("cbRollPick"); if(!pick) return;
-  pick.querySelectorAll(".cb-face").forEach(function(b){ b.addEventListener("click",function(){ cbSetRoll(parseInt(b.dataset.face,10)); }); });
+  pick.querySelectorAll(".cb-face").forEach(function(b){ b.addEventListener("click",function(){ window._cbRollDice=null; cbSetRoll(parseInt(b.dataset.face,10)); }); });
   var die=document.getElementById("cbRollDie");
-  if(die) die.addEventListener("click",function(){ cbSetRoll(1+Math.floor(Math.random()*6)); });
+  if(die) die.addEventListener("click",function(){ cbSetRoll(cbLuckRollD6()); });
   cbRenderRoll();
 }
 function cbSetRoll(face){ window._cbRoll=face; cbRenderRoll(); cbToggleFellBonus(); }
@@ -4261,8 +4293,11 @@ function cbRenderRoll(){
   pick.querySelectorAll(".cb-face").forEach(function(b){ b.classList.toggle("on", parseInt(b.dataset.face,10)===face); });
   var tot=document.getElementById("cbRollTotal");
   if(tot){
-    if(!face){ tot.textContent="Pick or roll your d6"; }
-    else { var pr=Math.max(0,attrTotal("precision")); var lbl=(face===1?"Fellstrike":(face===6?"Fellmark":String(face))); tot.textContent="Accuracy "+lbl+" + Precision "+pr+" = "+(face+pr); }
+    var lk=cbMyLuck(), lkStr=lk?(lk==='lucky'?"Lucky \u00b7 ":"Unlucky \u00b7 "):"";
+    if(!face){ tot.textContent=lk?((lk==='lucky'?"Lucky roll":"Unlucky roll")+" \u00b7 pick or roll your d6"):"Pick or roll your d6"; }
+    else { var pr=Math.max(0,attrTotal("precision")); var lbl=(face===1?"Fellstrike":(face===6?"Fellmark":String(face)));
+      var dice=window._cbRollDice, diceStr=(dice&&dice.length>1)?(" ["+dice.join(", ")+" \u2192 "+face+"]"):"";
+      tot.textContent=lkStr+"Accuracy "+lbl+diceStr+" + Precision "+pr+" = "+(face+pr); }
   }
 }
 function cbPlaceOverlay(ov){

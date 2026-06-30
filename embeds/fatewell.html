@@ -1205,6 +1205,18 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 .cb-foeacc{ font-size:.82rem; color:var(--silver-dim); margin:5px 0 2px; }
 .cb-stance{ font-size:.78rem; color:var(--silver-dim); margin:4px 0 2px; }
 .cb-stance-n{ color:var(--ice); font-family:'Cinzel', serif; letter-spacing:.03em; }
+.luck-banner{ position:relative; overflow:hidden; text-align:center; font-family:'Cinzel', serif; font-size:.74rem; letter-spacing:.14em; text-transform:uppercase; padding:5px 8px; margin:6px 0; border-radius:7px; border:1px solid; animation:luckPulse 1.7s ease-in-out infinite; }
+.luck-banner > span{ position:relative; z-index:1; }
+.luck-banner::after{ content:''; position:absolute; inset:0; background:linear-gradient(110deg, transparent 25%, rgba(255,255,255,.16) 50%, transparent 75%); background-size:220% 100%; animation:luckSweep 2.6s linear infinite; pointer-events:none; }
+.luck-banner.lucky{ color:#e6c965; border-color:rgba(201,168,76,.55); background:rgba(201,168,76,.10); }
+.luck-banner.unlucky{ color:#e29a82; border-color:rgba(201,106,90,.55); background:rgba(201,106,90,.10); }
+@keyframes luckPulse{ 0%,100%{ opacity:.9; } 50%{ opacity:1; } }
+@keyframes luckSweep{ 0%{ background-position:-120% 0; } 100%{ background-position:220% 0; } }
+.cb-luck{ display:flex; align-items:center; gap:7px; margin:4px 0 2px; font-size:.74rem; }
+.cb-luck-l{ color:var(--muted, #7e8a99); font-family:'Cinzel', serif; letter-spacing:.06em; }
+.cb-luck-b{ font-size:.72rem; color:var(--silver-dim); background:transparent; border:1px solid var(--line); border-radius:5px; padding:3px 9px; cursor:pointer; }
+.cb-luck-b.lucky.on{ color:#e6c965; border-color:rgba(201,168,76,.6); background:rgba(201,168,76,.12); }
+.cb-luck-b.unlucky.on{ color:#e29a82; border-color:rgba(201,106,90,.6); background:rgba(201,106,90,.12); }
 .cb-wait{ color:var(--silver-dim); font-style:italic; }
 .cbl{ margin-top:12px; border-top:1px solid var(--line); padding-top:9px; }
 .cbl-h{ font-family:'Cinzel', serif; font-size:.72rem; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); margin-bottom:5px; }
@@ -4846,12 +4858,12 @@ function doAdvanceRound(){
   cbLog('system','Round '+b.round+' begins.');
   b.spotBox = []; b.spotDone = {}; b.undoStack = []; b.activeSpot = 0;
   sc.combatants.forEach(function(c){
-    c.act = ''; c.target=''; c.done = false; c.intent = null; c.reactUsed = false; c.fellmark = false; c._pendImp = false; c._acc = null;
+    c.act = ''; c.target=''; c.done = false; c.intent = null; c.reactUsed = false; c.fellmark = false; c._pendImp = false; c._acc = null; c.luck = '';
     /* afflictions persist across rounds; removed manually via Fellmark */
   });
   Object.keys(sc.ps).forEach(function(pid){
     var st = sc.ps[pid];
-    st.act=''; st.react=''; st.target=''; st.actDone=false; st.reactDone=false; st.reactUsed=false; st.dmg=0; st.dmgDone=0; st.fellmark=false; st.doubleFell=false; st.pierce=0; st.applies=''; st._dealFell=false; st._dealFB=null; st._pendImpP=false;
+    st.act=''; st.react=''; st.target=''; st.actDone=false; st.reactDone=false; st.reactUsed=false; st.dmg=0; st.dmgDone=0; st.fellmark=false; st.doubleFell=false; st.pierce=0; st.applies=''; st._dealFell=false; st._dealFB=null; st._pendImpP=false; st.luck='';
     /* afflictions persist; cleared manually */
   });
   cbTickFoes(sc);
@@ -6370,7 +6382,7 @@ function cbCard(n, o){
   var sideLbl = n.side==='monster'?'Foe':(n.side==='npc'?'NPC':'Fell');
   return '<div class="cb-fighter '+sideCls+(o.spot?' spot':'')+(down?' down':'')+'">'
     + '<div class="cb-top"><span class="cb-nm">'+esc(n.name)+'</span><span class="cb-sd">'+sideLbl+'</span></div>'
-    + cbVitRow(n) + (n.kind==='m' ? chargeRow(n.kind, n.ref.id, cbChargeOf(n)) : cbChargeView(n)) + (n.kind==='m' ? cbDefRow(n) : '') + (n.kind==='m' ? cbFoeStance(n) : '') + cbChips(n) + (n.kind==='m' ? cbCondNote(n) : '')
+    + cbVitRow(n) + cbLuckRow(n) + (n.kind==='m' ? chargeRow(n.kind, n.ref.id, cbChargeOf(n)) : cbChargeView(n)) + (n.kind==='m' ? cbDefRow(n) : '') + (n.kind==='m' ? cbFoeStance(n) : '') + cbChips(n) + (n.kind==='m' ? cbCondNote(n) : '')
     + cbActDisplay(n) + (n.kind==='m' ? cbFoeAcc(n) : '') + (n.kind==='m' ? cbFellmark(n) : '') + (n.kind==='m' ? cbIncoming(n) : '') + (n.kind==='m' ? cbImpRow(n) : '') + cbReact(n)
     + (n.kind==='p' ? cbDealRow(n) : '')
     + (n.kind==='p' ? cbImpRowP(n) : '')
@@ -6551,7 +6563,7 @@ function combatFighters(sc){
     }
     list.push(e);
   });
-  aps.forEach(function(p){ list.push({ key:'p:'+p.id, name:p.name, side:'fell', charId:p.charId||'' }); });
+  aps.forEach(function(p){ var st=pState(p.id); list.push({ key:'p:'+p.id, name:p.name, side:'fell', charId:p.charId||'', luck:st.luck||'' }); });
   return list;
 }
 function publishCombat(){
@@ -6640,7 +6652,7 @@ function cbIncoming(n){
     }
     var hit=(st.acc>=ev.total);
     rows+='<div class="cb-incoming"><div class="cb-inc-res">'+head
-      +'<div class="cb-inc-line">Accuracy '+st.acc+' vs Evasion '+ev.total+' ('+ev.r+'+'+ev.bonus+') \u00b7 <b class="'+(hit?'cb-hit':'cb-miss')+'">'+(hit?'Hit':'Evaded')+'</b></div>'
+      +'<div class="cb-inc-line">Accuracy '+st.acc+' vs Evasion '+ev.total+' ('+ev.r+'+'+ev.bonus+')'+cbLuckDice(ev)+(ev.luck?(' \u00b7 '+ev.luck):'')+' \u00b7 <b class="'+(hit?'cb-hit':'cb-miss')+'">'+(hit?'Hit':'Evaded')+'</b></div>'
       +'<div class="cb-inc-btns"><button class="cb-link" onclick="cbRollFoeEva(\''+p.id+'\',\''+n.ref.id+'\')">Reroll</button>'
       +(hit ? '<button class="cb-link gold" onclick="cbApplyIncoming(\''+p.id+'\',\''+n.ref.id+'\')">Apply '+st.dmg+rider+'</button>'
             : '<button class="cb-link" onclick="cbMissIncoming(\''+p.id+'\')">Clear</button>')
@@ -6652,17 +6664,48 @@ function cbRollFoeEva(pid, foeId){
   var foe=null; curSc().combatants.forEach(function(c){ if(c.id===foeId) foe=c; });
   if(!foe) return;
   var ev=foeStanceVal(foe,'evasion');
-  var r=1+Math.floor(Math.random()*6);
-  pState(pid)._eva={ foe:foeId, r:r, bonus:ev, total:r+ev };
+  var lk=cbFoeLuck(foe), rr=cbRollLuck(lk);
+  pState(pid)._eva={ foe:foeId, r:rr.kept, bonus:ev, total:rr.kept+ev, dice:rr.dice, kept:rr.kept, luck:lk };
   save(); render();
+}
+function cbd6(){ return 1+Math.floor(Math.random()*6); }
+function cbRollLuck(lk){
+  if(lk==='lucky'){ var a=cbd6(),b=cbd6(); return {dice:[a,b], kept:Math.max(a,b)}; }
+  if(lk==='unlucky'){ var a=cbd6(),b=cbd6(); return {dice:[a,b], kept:Math.min(a,b)}; }
+  var d=cbd6(); return {dice:[d], kept:d};
+}
+function cbAffLuck(affs){
+  var l=(affs||[]).some(function(a){return a.name==='Lucky';}), u=(affs||[]).some(function(a){return a.name==='Unlucky';});
+  return (l&&!u)?'lucky':((u&&!l)?'unlucky':'');
+}
+function cbNetLuck(mark, affs){
+  var n=0; if(mark==='lucky')n++; else if(mark==='unlucky')n--;
+  var a=cbAffLuck(affs); if(a==='lucky')n++; else if(a==='unlucky')n--;
+  return n>0?'lucky':(n<0?'unlucky':'');
+}
+function cbFoeLuck(c){ return cbNetLuck(c.luck||'', c.affs); }
+function cbPlayerLuckLM(st){ return cbNetLuck(st.luck||'', st.affs); }
+function cbLuckDice(o){ return (o&&o.dice&&o.dice.length>1)?(' ['+o.dice.join(', ')+' \u2192 '+o.kept+']'):''; }
+function cbSetLuck(key, kind){
+  if(key.indexOf('m:')===0){ var id=key.slice(2); curSc().combatants.forEach(function(c){ if(c.id===id) c.luck=(c.luck===kind?'':kind); }); }
+  else { var st=pState(key.slice(2)); st.luck=(st.luck===kind?'':kind); }
+  save(); render();
+}
+function cbLuckRow(n){
+  var isM=n.kind==='m', ref=n.ref, st=isM?null:(n.st||pState(ref.id));
+  var mark=isM?(ref.luck||''):(st.luck||''), eff=isM?cbFoeLuck(ref):cbPlayerLuckLM(st);
+  var banner=eff?('<div class="luck-banner '+eff+'"><span>'+(eff==='lucky'?'\u2726 Lucky':'\u2727 Unlucky')+'</span></div>'):'';
+  return banner+'<div class="cb-luck"><span class="cb-luck-l">Luck</span>'
+    +'<button class="cb-luck-b lucky'+(mark==='lucky'?' on':'')+'" onclick="cbSetLuck(\''+n.key+'\',\'lucky\')">Lucky</button>'
+    +'<button class="cb-luck-b unlucky'+(mark==='unlucky'?' on':'')+'" onclick="cbSetLuck(\''+n.key+'\',\'unlucky\')">Unlucky</button></div>';
 }
 function cbRollFoeAcc(cid, silent){
   var c=null; curSc().combatants.forEach(function(x){ if(x.id===cid) c=x; });
   if(!c) return;
   var pr=Math.max(0,(c.attrs&&c.attrs.Precision)||0);
-  var r=1+Math.floor(Math.random()*6);
-  c._acc={ r:r, bonus:pr, total:r+pr }; c._accRound=(curSc().battle&&curSc().battle.round)||1;
-  if(!silent){ cbLog('foe', c.name+' rolls accuracy '+c._acc.total+' ('+r+'+'+pr+').'); save(); render(); }
+  var lk=cbFoeLuck(c), rr=cbRollLuck(lk);
+  c._acc={ r:rr.kept, bonus:pr, total:rr.kept+pr, dice:rr.dice, kept:rr.kept, luck:lk }; c._accRound=(curSc().battle&&curSc().battle.round)||1;
+  if(!silent){ cbLog('foe', c.name+' rolls accuracy '+c._acc.total+' ('+rr.kept+'+'+pr+')'+cbLuckDice(c._acc)+(lk?(' \u00b7 '+lk):'')+'.'); save(); render(); }
 }
 function cbFoeAcc(n){
   var c=n.ref;
@@ -6671,7 +6714,7 @@ function cbFoeAcc(n){
   var acc=c._acc.total, pid=c.target.slice(2), st=pState(pid), eva=null;
   (st.defEva||[]).forEach(function(e){ if(e.foe===('m:'+c.id)) eva=e.total; });
   var res = (eva!=null) ? (' \u00b7 vs Evasion '+eva+' \u00b7 <b class="'+(acc>=eva?'cb-hit':'cb-miss')+'">'+(acc>=eva?'Hit':'Evaded')+'</b>') : ' \u00b7 <span class="cb-wait">waiting for evasion</span>';
-  return '<div class="cb-foeacc">Accuracy '+acc+' ('+c._acc.r+'+'+c._acc.bonus+')'+res+' <button class="cb-link" onclick="cbRollFoeAcc(\''+c.id+'\')">Reroll</button></div>';
+  return '<div class="cb-foeacc">Accuracy '+acc+' ('+c._acc.r+'+'+c._acc.bonus+')'+cbLuckDice(c._acc)+(c._acc.luck?(' \u00b7 '+c._acc.luck):'')+res+' <button class="cb-link" onclick="cbRollFoeAcc(\''+c.id+'\')">Reroll</button></div>';
 }
 function cbMissIncoming(pid){
   var st=pState(pid);

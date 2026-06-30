@@ -2,6 +2,12 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Combat — Lucky and Unlucky rolls
+- Lucky and Unlucky rolls are now real. A Lucky roll throws two dice and keeps the higher, an Unlucky roll keeps the lower. This applies to player accuracy and evasion and to foe accuracy and evasion, and the kept die still decides a Fellmark or Fellstrike.
+- The LoreMaster can mark any combatant Lucky or Unlucky from its card, foe or player. The mark drives that side's rolls and clears at the start of the next round. The Lucky and Unlucky afflictions feed the same result, so a marked combatant who is also afflicted nets out.
+- An animated banner shows the state on the foe card, the player card, and the player's own combat banner. The roll readouts show both dice and which one was kept.
+- FateWell and FellGlass only. Refresh with the new head, nothing to paste.
+
 ## Combat — foe stances now defend
 - A foe's stance is now mechanical, driven by its charge the way a player's is. At charge 1 the stance grants plus 2 to its attribute, Shrouded to Evasion, Stalwart to Durability, Vestments to Resistance. At charge 2 the stance reduces incoming damage by that attribute, with base reduced before bonus. At charge 3 the foe card shows the immunity to apply, Fellstrike for Shrouded, Fellmark for Stalwart, spell-target for Vestments.
 - Foe Durability and Resistance now fall back to the foe's build attributes when the per-battle field is left at zero, so a built foe defends without setup. The Def inputs show that value and still override.
