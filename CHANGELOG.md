@@ -2,6 +2,11 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Combat — foe stances now defend
+- A foe's stance is now mechanical, driven by its charge the way a player's is. At charge 1 the stance grants plus 2 to its attribute, Shrouded to Evasion, Stalwart to Durability, Vestments to Resistance. At charge 2 the stance reduces incoming damage by that attribute, with base reduced before bonus. At charge 3 the foe card shows the immunity to apply, Fellstrike for Shrouded, Fellmark for Stalwart, spell-target for Vestments.
+- Foe Durability and Resistance now fall back to the foe's build attributes when the per-battle field is left at zero, so a built foe defends without setup. The Def inputs show that value and still override.
+- This is FateWell only. Refresh with the new head, nothing to paste.
+
 ## Combat — player events and foe effects reach the shared log
 - Player-side moments now post to the shared log: damage taken and confirmed, healing recovered, breakout rolls, round-start conditions and augmentations, Ignited self-burn, and a negated attack. They relay on the player combat sync and the LoreMaster folds them into the one log both tools show.
 - Foe-side automatic effects now log too: a condition halving max Vitality or cutting current Vitality, Ignited burning a foe, and an affliction landing from a foe attack. Player hits also show the damage marks they carried.

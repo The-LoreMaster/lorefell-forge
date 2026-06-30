@@ -1203,6 +1203,8 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 .cb-inc-btns{ display:flex; gap:8px; margin-top:5px; }
 .cb-hit{ color:#86c79b; } .cb-miss{ color:#d98a6a; }
 .cb-foeacc{ font-size:.82rem; color:var(--silver-dim); margin:5px 0 2px; }
+.cb-stance{ font-size:.78rem; color:var(--silver-dim); margin:4px 0 2px; }
+.cb-stance-n{ color:var(--ice); font-family:'Cinzel', serif; letter-spacing:.03em; }
 .cb-wait{ color:var(--silver-dim); font-style:italic; }
 .cbl{ margin-top:12px; border-top:1px solid var(--line); padding-top:9px; }
 .cbl-h{ font-family:'Cinzel', serif; font-size:.72rem; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); margin-bottom:5px; }
@@ -6368,7 +6370,7 @@ function cbCard(n, o){
   var sideLbl = n.side==='monster'?'Foe':(n.side==='npc'?'NPC':'Fell');
   return '<div class="cb-fighter '+sideCls+(o.spot?' spot':'')+(down?' down':'')+'">'
     + '<div class="cb-top"><span class="cb-nm">'+esc(n.name)+'</span><span class="cb-sd">'+sideLbl+'</span></div>'
-    + cbVitRow(n) + (n.kind==='m' ? chargeRow(n.kind, n.ref.id, cbChargeOf(n)) : cbChargeView(n)) + (n.kind==='m' ? cbDefRow(n) : '') + cbChips(n) + (n.kind==='m' ? cbCondNote(n) : '')
+    + cbVitRow(n) + (n.kind==='m' ? chargeRow(n.kind, n.ref.id, cbChargeOf(n)) : cbChargeView(n)) + (n.kind==='m' ? cbDefRow(n) : '') + (n.kind==='m' ? cbFoeStance(n) : '') + cbChips(n) + (n.kind==='m' ? cbCondNote(n) : '')
     + cbActDisplay(n) + (n.kind==='m' ? cbFoeAcc(n) : '') + (n.kind==='m' ? cbFellmark(n) : '') + (n.kind==='m' ? cbIncoming(n) : '') + (n.kind==='m' ? cbImpRow(n) : '') + cbReact(n)
     + (n.kind==='p' ? cbDealRow(n) : '')
     + (n.kind==='p' ? cbImpRowP(n) : '')
@@ -6649,7 +6651,7 @@ function cbIncoming(n){
 function cbRollFoeEva(pid, foeId){
   var foe=null; curSc().combatants.forEach(function(c){ if(c.id===foeId) foe=c; });
   if(!foe) return;
-  var ev=Math.max(0,(foe.attrs&&foe.attrs.Evasion)||0);
+  var ev=foeStanceVal(foe,'evasion');
   var r=1+Math.floor(Math.random()*6);
   pState(pid)._eva={ foe:foeId, r:r, bonus:ev, total:r+ev };
   save(); render();
@@ -6681,6 +6683,31 @@ function cbMissIncoming(pid){
   cbToast('The attack misses.');
   save(); render();
 }
+var STANCE_FOE_ATTR = { Shrouded:'evasion', Stalwart:'durability', Vestments:'resistance' };
+function foeCap(s){ return s ? s.charAt(0).toUpperCase()+s.slice(1) : s; }
+function foeDefBase(foe, attr){
+  if(attr==='durability') return Math.max(0, (foe.durability>0)?foe.durability:((foe.attrs&&foe.attrs.Durability)||0));
+  if(attr==='resistance') return Math.max(0, (foe.resistance>0)?foe.resistance:((foe.attrs&&foe.attrs.Resistance)||0));
+  return Math.max(0, (foe.attrs&&foe.attrs.Evasion)||0);
+}
+function foeStanceVal(foe, attr){
+  var v=foeDefBase(foe, attr), ch=foe.charge||0;
+  if(STANCE_FOE_ATTR[foe.stance]===attr && ch>=1) v+=2;
+  return v;
+}
+function foeStanceRed(foe){
+  var ch=foe.charge||0; if(ch<2) return null;
+  var attr=STANCE_FOE_ATTR[foe.stance]; if(!attr) return null;
+  return { attr:attr, value:foeStanceVal(foe, attr) };
+}
+function cbFoeStance(n){
+  var foe=n.ref, st=foe.stance; if(!st || !STANCE_FOE_ATTR[st]) return '';
+  var ch=foe.charge||0, attr=STANCE_FOE_ATTR[st], parts=[];
+  if(ch>=1) parts.push('T1 +2 '+foeCap(attr));
+  if(ch>=2) parts.push('T2 reduce incoming by '+foeCap(attr));
+  if(ch>=3){ var imm=(st==='Shrouded')?'Fellstrike immune':((st==='Stalwart')?'Fellmark immune':'spell-target immune'); parts.push('T3 '+imm); }
+  return '<div class="cb-stance"><span class="cb-stance-n">'+esc(st)+'</span>'+(parts.length?(' \u00b7 '+parts.join(' \u00b7 ')):' \u00b7 no charge')+'</div>';
+}
 function cbFoeResolve(foe, base, bonus, dt, pierce){
   base=Math.max(0,base|0); bonus=Math.max(0,bonus|0); dt=dt||'phys'; pierce=Math.max(0,pierce|0);
   var names=(foe.affs||[]).map(function(a){return a.name;});
@@ -6688,9 +6715,11 @@ function cbFoeResolve(foe, base, bonus, dt, pierce){
   if(has('Bruised')){ base+=bonus; bonus=0; }
   var ignore = dt==='magic' ? has('Pierced') : has('Exposed');
   var zeroed = dt==='magic' ? has('Diminished') : has('Vulnerable');
-  var def = (ignore||zeroed) ? 0 : Math.max(0, dt==='magic' ? (foe.resistance||0) : (foe.durability||0));
+  var def = (ignore||zeroed) ? 0 : foeStanceVal(foe, dt==='magic' ? 'resistance' : 'durability');
   def = Math.max(0, def - pierce);
   bonus = Math.max(0, bonus - def);
+  var sr=foeStanceRed(foe);
+  if(sr){ var red=sr.value, rb=Math.min(base,red); base-=rb; red-=rb; bonus=Math.max(0, bonus-red); }
   var marks=[]; if(has('Bleeding')) marks.push('Bleeding'); if(has('Infected')) marks.push('Infected');
   return { total: base + bonus + marks.length, marks: marks };
 }
@@ -6774,8 +6803,8 @@ function cbDefRow(n){
   if(n.kind!=='m') return '';
   var id=n.ref.id;
   return '<div class="cb-def"><span class="cb-def-l">Def</span>'
-    + '<span class="cb-def-t">Dur</span><input class="cb-def-in" type="number" min="0" value="'+(n.ref.durability||0)+'" onchange="cbSetDef(\''+id+'\',\'durability\',this.value)">'
-    + '<span class="cb-def-t">Res</span><input class="cb-def-in" type="number" min="0" value="'+(n.ref.resistance||0)+'" onchange="cbSetDef(\''+id+'\',\'resistance\',this.value)"></div>';
+    + '<span class="cb-def-t">Dur</span><input class="cb-def-in" type="number" min="0" value="'+foeDefBase(n.ref,'durability')+'" onchange="cbSetDef(\''+id+'\',\'durability\',this.value)">'
+    + '<span class="cb-def-t">Res</span><input class="cb-def-in" type="number" min="0" value="'+foeDefBase(n.ref,'resistance')+'" onchange="cbSetDef(\''+id+'\',\'resistance\',this.value)"></div>';
 }
 function cbSetDef(id, k, v){ curSc().combatants.forEach(function(c){ if(c.id===id) c[k]=Math.max(0,parseInt(v,10)||0); }); save(); }
 function cbDealRow(n){
