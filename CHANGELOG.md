@@ -2,6 +2,11 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Combat — shared combat log in both tools
+- A combat log now appears on the player banner and the LM board, showing the same stream. It lists who is in the fight, what was rolled, the hits and misses with their accuracy and evasion, damage going through, afflictions, weapon charge changes, and round markers.
+- The log is one stream the LM writes as it resolves, published to players in the combat state. It resets each battle and holds the most recent entries. The LM narration rail stays private and separate.
+- This adds a log field to CombatState, provisioned by the Apply CMS action on push. Re-paste velo/backend/combat.web.js so the log saves and reaches players. The FellGlass and FateWell panels render on a refresh.
+
 ## Combat — drop the declare react checkbox, gate combat to the scene roster
 - The react checkbox is gone from the declare popup. The react reminder on the combat banner stays as the way to track whether you have spent it.
 - A player now enters combat only when their character is on that scene's roster. Player fighters carry their character id, and FellGlass engages combat only when its character is in the published roster, so a character left out of the scene is no longer pulled in.

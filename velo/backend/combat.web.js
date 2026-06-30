@@ -51,6 +51,7 @@ export const publishCombatState = webMethod(Permissions.Anyone, async (campaignI
   row.sceneName = s.sceneName || '';
   row.fighters = JSON.stringify(s.fighters || []);
   row.spotlightChars = JSON.stringify(s.spotlightChars || []);
+  row.log = JSON.stringify(s.log || []);
   row.updatedAt = Date.now();
   try {
     if (existing) await wixData.update('CombatState', row, { suppressAuth: true });
@@ -135,6 +136,7 @@ export const getCombatForChar = webMethod(Permissions.Anyone, async (charId) => 
     sceneId: st.sceneId || '', sceneName: st.sceneName || '',
     fighters: jparse(st.fighters, []),
     spotlightChars: jparse(st.spotlightChars, []),
+    log: jparse(st.log, []),
     you: pr ? { act: pr.act || '', react: pr.react || '', target: pr.target || '' } : {},
     applied: pr ? jparse(pr.appliedByLm, []) : [],
     recap: pr ? { msg: pr.recapMsg || '', at: pr.recapAt || 0 } : { msg: '', at: 0 },
