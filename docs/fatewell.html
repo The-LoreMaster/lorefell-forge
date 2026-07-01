@@ -6431,17 +6431,20 @@ function cbResolveSpot(){
   var snap={ box:b.spotBox.slice(), done:Object.assign({},b.spotDone), active:b.activeSpot, mode:b.spotMode, applied:[] };
   inBox.forEach(function(k){
     var n=nodeByKey(k);
-    if(n && n.kind==='m' && n.ref.fellmark && n.ref.intent && n.ref.intent.type==='Attack' && n.ref.target && n.ref.target!=='env'){
+    var _isFell = (n && n.kind==='m' && ((n.ref._acc && n.ref._acc.kept===6) || n.ref.fellmark));
+    if(_isFell && n.ref.intent && n.ref.intent.type==='Attack' && n.ref.target && n.ref.target!=='env'){
       var ab=(n.ref.abilities||[]).filter(function(a){ return a.name===n.ref.intent.ability; })[0];
-      if(ab && ab.applies && ab.applies.name){
+      var _affN=(ab && ab.applies && ab.applies.name) ? ab.applies.name : (n.ref.sig||'');
+      var _affK=(ab && ab.applies && ab.applies.kind==='effect') ? 'effect' : 'affliction';
+      if(_affN){
         var tkey=n.ref.target;
         var existing;
         if(tkey.indexOf('p:')===0){ var pst=pState(tkey.slice(2)); existing=[].concat(pst.affs||[], pst.applied||[]); }
         else { existing=(function(){ var r=[]; curSc().combatants.forEach(function(c){ if(c.id===tkey.slice(2)) r=c.affs||[]; }); return r; })(); }
-        if(!existing.some(function(x){ return x.name===ab.applies.name; })){
-          cbApplyCondition(tkey, { name:ab.applies.name, kind:(ab.applies.kind==='effect'?'effect':'affliction') });
-          snap.applied.push({ key:tkey, name:ab.applies.name });
-          cbLog('foe', ab.applies.name+' lands on '+targetName(tkey)+'.');
+        if(!existing.some(function(x){ return x.name===_affN; })){
+          cbApplyCondition(tkey, { name:_affN, kind:_affK });
+          snap.applied.push({ key:tkey, name:_affN });
+          cbLog('foe', n.ref.name+' Fellmark \u00b7 '+_affN+' lands on '+targetName(tkey)+'.');
         }
       }
     }
@@ -6763,7 +6766,7 @@ function cbFoeResolve(foe, base, bonus, dt, pierce){
   var sr=foeStanceRed(foe);
   if(sr){ var red=sr.value, rb=Math.min(base,red); base-=rb; red-=rb; bonus=Math.max(0, bonus-red); }
   var marks=[]; if(has('Bleeding')) marks.push('Bleeding'); if(has('Infected')) marks.push('Infected');
-  return { total: base + bonus + marks.length, marks: marks };
+  return { base: base, bonus: bonus, marks: marks, total: base + bonus + marks.length };
 }
 var CANON_ASPECT_NAMES=["Augury","Distillation","Siphon","Succor","Scour","Boon","Aegis","Reprisal","Weave","Forfeit","Adamant","Unbind","Elude","Pyre","Snare","Veer","Reap","Umbra"];
 function cbAspectStage(nm, charge){ if(CANON_ASPECT_NAMES.indexOf(nm)<0) return ''; var c=charge||0; if(c<1) return ' (uncharged)'; return ' \u00b7 '+(c>=3?'Crown':(c>=2?'Branch':'Initial')); }
@@ -6818,8 +6821,8 @@ function cbApplyIncoming(pid, cid){
   if(st.fellmark && st.applies){ var ex=(foe.affs||[]).some(function(a){ return a.name===st.applies; }); if(!ex){ (foe.affs=foe.affs||[]).push({ name:st.applies, kind:'affliction' }); cbToast(st.applies+' lands on '+esc(foe.name)+'.'); } }
   adjVit(cid, -total);
   cbToast(esc(foe.name)+' takes '+total+(dbl?' (double Fellmark)':'')+(r.marks.length?(' (+'+r.marks.length+' '+r.marks.join(' + ')+')'):'')+'.');
-  var _ev=st._eva, _accStr=(st.acc>0 && _ev)?(' \u00b7 acc '+st.acc+' vs eva '+_ev.total):'', _affStr=(st.fellmark && st.applies)?(' + '+st.applies):'', _mkStr=(r.marks.length?(' (+'+r.marks.join(' + ')+')'):''), _fmStr=(st.fellmark?' \u00b7 Fellmark':'');
-  cbLog('fell', pname+': '+(st.act||'attack')+' hits '+foe.name+' for '+total+_mkStr+_affStr+_fmStr+_accStr+'.');
+  var _ev=st._eva, _accStr=(st.acc>0 && _ev)?(' \u00b7 acc '+st.acc+' vs eva '+_ev.total):'', _affStr=(st.fellmark && st.applies)?(' + '+st.applies):'', _fmStr=(st.fellmark?' \u00b7 Fellmark':'');
+  cbLog('fell', pname+': '+(st.act||'attack')+' hits '+foe.name+' for '+total+' ('+r.base+' base + '+r.bonus+' bonus'+(dbl?', doubled':'')+(r.marks.length?(' + '+r.marks.length+' from '+r.marks.join(' + ')):'')+')'+_affStr+_fmStr+_accStr+'.');
   if(dbl){ if(cbAutoDice()){ cbDoImpairment(foe); } else { foe._pendImp=true; save(); render(); cbToast('Double Fellmark on '+esc(foe.name)+'. Roll the Impairment.'); } }
   // charge only on a landing weapon attack: standard climbs to T1, T1 to T2, T2 to T3, a landed T3 resets to 0
   st._eva=null;

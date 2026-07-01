@@ -2,6 +2,12 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Combat — bonus damage in the log, afflictions land on their own
+- Every resolved hit shows its base and bonus split in the log, both directions. A player hit reads for TOTAL (N base + M bonus), and damage a player takes reads the same way, doubled and mark contributions noted.
+- Afflictions land automatically on a Fellmark. A player's weapon affliction lands on the struck foe, and a foe's affliction lands on its target. A foe's standard attack falls back to its signature affliction when the chosen ability carries none.
+- A foe Fellmark is now read straight from a natural six on its accuracy roll, not a manual toggle. The manual toggle still forces one.
+- FateWell and FellGlass only. Refresh with the new head, nothing to paste.
+
 ## Combat — runner scroll, roster gate, and log fixes
 - The LoreMaster runner no longer jumps to the top on every action. Scroll position is held across re-renders.
 - A player only enters combat when their character is on the scene roster. An unattended viewer stays on their own sheet, and an attending player no longer flaps back to the sheet on a transient poll. Only a real end of combat drops them.
