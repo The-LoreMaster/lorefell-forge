@@ -2,6 +2,13 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## FellGlass — the stage joins the page
+- The combat stage is no longer a screen-filling overlay. It is a block in the page that ends where its content ends, so the red border wraps the fight itself and Combat Logs sit right under the round track with nothing but page below.
+- One scroll. The inner scroll trap is gone. The page scrolls as a whole and keeps going past the stage, on phone and desktop alike.
+- Your name, Vitality, charge, and Fatigue ride a sticky strip that stays at the top while the card scrolls on small screens.
+- While the stage is up the sheet hides beneath it, and Your sheet still swaps back to the full sheet with the slim return bar.
+- FellGlass only. Refresh with the new head, nothing to paste.
+
 ## FellGlass — stage polish
 - The round track floats directly beneath the stage card now instead of pinning to the bottom of the screen, closing the desktop gap. Combat Logs stays at the bottom.
 - The whole column tightened: rail, dock, card, selects, die, faces, and drawers all trimmed so the top, middle, and bottom sections fit a phone screen together.

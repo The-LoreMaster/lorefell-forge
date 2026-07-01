@@ -444,7 +444,11 @@ body.in-combat::after{ content:""; position:fixed; inset:0; pointer-events:none;
 @keyframes luckPulse{0%,100%{opacity:.9}50%{opacity:1}}
 @keyframes luckSweep{0%{background-position:-120% 0}100%{background-position:220% 0}}
 /* ===== the combat stage ===== */
-.cb-stage{ position:fixed; inset:0; z-index:80; display:flex; flex-direction:column; background:radial-gradient(700px 480px at 50% -10%, #131b30 0%, var(--navy) 60%); }
+.cb-stage{ position:relative; z-index:1; display:flex; flex-direction:column; background:radial-gradient(700px 480px at 50% -10%, #131b30 0%, var(--navy) 60%); }
+.cbs-top{ position:sticky; top:0; z-index:12; background:linear-gradient(180deg,#131b30 0%, #0d1225 100%); }
+body.cbs-full > *:not(#combatBanner):not(#cbPing):not(#edgeGlow):not(.cb-ovl):not(script):not(style){ display:none !important; }
+body.cbs-full{ padding-top:0 !important; }
+body.cbs-full::after{ display:none; }
 .cbs-rail{ padding:11px 14px 9px; border-bottom:1px solid var(--line); background:rgba(10,14,26,.6); }
 .cbs-rail-top{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .cbs-mode{ display:inline-flex; align-items:center; gap:8px; font-family:'Cinzel',serif; font-size:.68rem; letter-spacing:.1em; text-transform:uppercase; color:var(--ice); min-width:0; }
@@ -459,8 +463,8 @@ body.in-combat::after{ content:""; position:fixed; inset:0; pointer-events:none;
 .cbs-step.on .mark{ border-color:var(--gold); background:var(--gold); box-shadow:0 0 10px rgba(201,168,76,.55); }
 .cbs-step span{ display:block; margin-top:4px; font-family:'Cinzel',serif; font-size:.48rem; letter-spacing:.1em; text-transform:uppercase; color:var(--muted,#7e8a99); }
 .cbs-step.on span{ color:#e8dcae; }
-.cbs-body{ flex:1 1 auto; overflow-y:auto; overscroll-behavior:contain; position:relative; }
-.cbs-body::before{ content:""; position:fixed; left:0; right:0; top:0; height:60%; pointer-events:none; background:radial-gradient(340px 260px at 50% 34%, rgba(201,168,76,.09), transparent 68%); }
+.cbs-body{ flex:none; overflow:visible; position:relative; }
+.cbs-body::before{ content:""; position:absolute; left:0; right:0; top:0; height:320px; pointer-events:none; background:radial-gradient(340px 260px at 50% 34%, rgba(201,168,76,.09), transparent 68%); }
 .cbs-inner{ position:relative; padding:12px 12px 16px; }
 .cbs-card{ width:auto; max-width:none; margin:0 0 10px; animation:cbsIn .45s cubic-bezier(.22,.61,.36,1); }
 @keyframes cbsIn{ from{ opacity:0; transform:translateY(12px) } to{ opacity:1; transform:none } }
@@ -4169,7 +4173,7 @@ function applyCombatMode(){
   var bn=document.getElementById("combatBanner");
   if(!bn){ bn=el("div",""); bn.id="combatBanner"; document.body.appendChild(bn); }
   ["cbOverlay","cbEvaOvl","cbHitOvl"].forEach(function(id){ var o=document.getElementById(id); if(o) o.remove(); });
-  if(!on){ bn.className=""; bn.style.display="none"; bn.innerHTML=""; document.documentElement.style.setProperty("--cbn-h","0px"); window._dockPct=null; return; }
+  if(!on){ bn.className=""; bn.style.display="none"; bn.innerHTML=""; document.documentElement.style.setProperty("--cbn-h","0px"); window._dockPct=null; document.body.classList.remove("cbs-full"); window._cbsFullPrev=false; return; }
   var declared = window._declaredRound && COMBAT.round && window._declaredRound===COMBAT.round;
   var resolving = (COMBAT.phase==="resolve");
   var youUp = COMBAT.spotlightChars && CUR_WIX_ID && COMBAT.spotlightChars.indexOf(CUR_WIX_ID)>=0;
@@ -4179,6 +4183,7 @@ function applyCombatMode(){
 
   /* sheet view: a slim return bar, every sheet feature stays live underneath */
   if(window._cbSheetView){
+    document.body.classList.remove("cbs-full"); window._cbsFullPrev=false;
     bn.className="cb-stage-min"; bn.style.display="flex";
     var warns=[];
     if(sh) warns.push("incoming damage");
@@ -4193,6 +4198,9 @@ function applyCombatMode(){
   }
 
   bn.className="cb-stage"; bn.style.display="flex";
+  document.body.classList.add("cbs-full");
+  if(!window._cbsFullPrev){ try{window.scrollTo(0,0);}catch(e){} }
+  window._cbsFullPrev=true;
   var activeIdx = resolving ? 3 : (declared ? -1 : 2);
   var doneTo = resolving ? 3 : (declared ? 3 : 2);
   var dec=COMBAT.you||{};
@@ -4224,11 +4232,11 @@ function applyCombatMode(){
   var optHtml = opt ? '<details class="cbs-opt"'+(window._cbOptOpen?' open':'')+'><summary>Your options <span>\u25be</span></summary><div class="cbs-opt-in">'+opt+'</div></details>' : '';
 
   bn.innerHTML=''
-    +'<div class="cbs-rail"><div class="cbs-rail-top">'
+    +'<div class="cbs-top"><div class="cbs-rail"><div class="cbs-rail-top">'
       +'<span class="cbs-mode"><span class="cbs-dot"></span><span>'+(youUp&&resolving?"The Spotlight finds you":"Combat")+' \u00b7 Round '+(COMBAT.round||1)+(COMBAT.sceneName?' \u00b7 '+cbEsc(COMBAT.sceneName):'')+'</span></span>'
       +'<button class="cbs-sheetbtn" id="cbsSheet">Your sheet</button>'
     +'</div></div>'
-    +cbDockHtml()
+    +cbDockHtml()+'</div>'
     +'<div class="cbs-body"><div class="cbs-inner">'+cbLuckBanner()+card+cbReactStatus()+optHtml+'<div class="cbs-ritebar">'+cbRiteHtml(activeIdx,doneTo,(declared&&!resolving)?3:-1)+'</div></div></div>'
     +'<details class="cbs-record"'+(window._cbRecOpen?' open':'')+'><summary>Combat Logs <span>\u25be</span></summary>'+cbCombatLog()+'</details>';
   document.documentElement.style.setProperty("--cbn-h","0px");
