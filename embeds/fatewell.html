@@ -467,7 +467,7 @@ body::before{
 .run-narr-fold{ background:var(--navy2); border:1px solid var(--line); border-radius:9px; padding:4px 14px; margin-bottom:14px; }
 .run-narr-fold summary{ cursor:pointer; font-family:'Cinzel',serif; font-size:.74rem; letter-spacing:.1em; text-transform:uppercase; color:var(--ice); padding:9px 0; }
 .run-narr-fold .run-col{ padding-bottom:8px; }
-.run-combat{ max-width:920px; margin:0 auto; }
+.run-combat{ max-width:920px; margin:0 auto; position:relative; }
 
 /* v30: recap */
 .recap-body{ max-height:300px; overflow-y:auto; margin:4px 0 10px; }
@@ -502,11 +502,11 @@ body.runner-mode #savedTag{ display:none; }
 
 .run-grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:stretch; height:calc(100vh - 64px); }
 .run-col{ min-width:0; }
-.run-grid > .run-col{ overflow-y:auto; overscroll-behavior:contain; padding-right:6px; }
+.run-grid > .run-col{ overflow-y:auto; padding-right:6px; }
 .run-board{ min-width:0; }
 .run-shell{ display:flex; flex-direction:column; height:100vh; height:100dvh; }
 .run-head{ flex:0 0 auto; background:var(--navy); border-bottom:1px solid var(--line); padding-bottom:7px; }
-.run-scroll{ flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding-top:12px; }
+.run-scroll{ flex:1 1 auto; min-height:0; overflow-y:auto; padding-top:12px; }
 .run-actions-bar{ display:flex; gap:10px; align-items:center; flex-wrap:nowrap; padding:7px 0 1px; }
 .run-actions-mid{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; flex:1 1 auto; }
 .beatnav-arrow{ flex:0 0 auto; background:var(--navy3); border:1px solid var(--line2); color:var(--silver); border-radius:8px; padding:9px 14px; cursor:pointer; font-size:1.15rem; line-height:1; }
@@ -1267,7 +1267,13 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 .fw-qd{ width:7px; height:7px; border-radius:50%; border:1px solid var(--line2); transition:all .4s; }
 .fw-qd.done{ background:#7e8a99; border-color:#7e8a99; }
 .fw-qd.now{ background:var(--gold); border-color:var(--gold); box-shadow:0 0 8px rgba(201,168,76,.7); }
-@media (prefers-reduced-motion:reduce){ .fw-tk .tv i,.fw-locks .ld{ transition:none } }
+.run-combat::after{ content:""; position:absolute; inset:0; pointer-events:none; z-index:10; border:2px solid rgba(201,106,90,.55); box-shadow:inset 0 0 38px rgba(201,106,90,.32); border-radius:12px; animation:cbpulse 2.6s ease-in-out infinite; }
+@keyframes cbpulse{ 0%,100%{ opacity:.75 } 50%{ opacity:1 } }
+html.runner.fw-flow, body.runner-mode.fw-flow{ height:auto; overflow:visible; }
+body.runner-mode.fw-flow{ overflow-x:hidden; }
+.fw-flow .run-shell{ height:auto; }
+.fw-flow .run-scroll{ flex:none; overflow:visible; min-height:0; }
+@media (prefers-reduced-motion:reduce){ .fw-tk .tv i,.fw-locks .ld{ transition:none } .run-combat::after{ animation:none } }
 .cb-deal{ display:flex; align-items:center; gap:8px; margin-top:10px; flex-wrap:wrap; }
 .cb-deal-l{ font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); }
 .cb-deal-in{ width:64px; background:var(--navy-4,#1c2742); border:1px solid var(--line); color:var(--silver); border-radius:7px; padding:6px 8px; font-family:inherit; font-size:.85rem; }
@@ -7757,14 +7763,6 @@ function saveHook(){
 }
 
 function fwAdjT(key,open){ window._fwAdj=window._fwAdj||{}; window._fwAdj[key]=!!open; }
-function fwRiteHtml(b){
-  var idx = (b.phase==='resolve') ? 1 : 0;
-  var doneTo = (b.phase==='resolve') ? 1 : 0;
-  var steps=['Declare','Resolve'];
-  return '<div class="fw-rite"><div class="track"></div>'
-    + steps.map(function(st,i){ return '<div class="fw-step'+(i===idx?' on':(i<doneTo?' done':''))+'"><div class="mark"></div><span>'+st+'</span></div>'; }).join('')
-    + '</div>';
-}
 function fwLockDots(b){
   if(b.phase!=='commit') return '';
   var players=attendingPlayers(); if(!players.length) return '';
@@ -7796,7 +7794,7 @@ function fwStageHead(sc){
   return '<div class="fw-stagehead"><div class="fw-sh-top">'
     +'<span class="fw-mode"><span class="fw-dot"></span><span>Combat \u00b7 Round '+(b.round||1)+(sc.name?(' \u00b7 '+esc(sc.name)):'')+'</span></span>'
     +fwLockDots(b)
-    +'</div>'+fwRiteHtml(b)+fwDockHtml()+'</div>';
+    +'</div>'+fwDockHtml()+'</div>';
 }
 function cbLogPanel(sc){
   if(!(sc && sc.mode==='combat')) return '';
@@ -8057,6 +8055,13 @@ function render(){
   renderSavedTag();
   var runner = (V.screen==='runner');
   try { document.body.classList.toggle('runner-mode', runner); document.documentElement.classList.toggle('runner', runner); } catch(_){}
+  try {
+    var _fsc=curSc(); var _fw=!!(runner && _fsc && _fsc.mode==='combat');
+    document.body.classList.toggle('fw-flow', _fw);
+    document.documentElement.classList.toggle('fw-flow', _fw);
+    if(_fw && !window._fwFlowPrev){ try{window.scrollTo(0,0);}catch(_){} }
+    window._fwFlowPrev=_fw;
+  } catch(_){}
   var h = runner ? '' : (mast() + bottomNav() + crumb());
   h += runner ? '<main class="wrap wrap-run">' : '<main class="wrap">';
   if (V.screen==='campaigns') h += scrCampaigns();

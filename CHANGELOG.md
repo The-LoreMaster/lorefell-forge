@@ -2,6 +2,13 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## FateWell — first pass syncing to the FellGlass structure
+- Combat mode flows with the page. While a scene runs in combat, the runner unlocks from the fixed viewport shell and scrolls as one surface, chaining past the end like FellGlass. Scene mode keeps the app shell untouched.
+- The round track is gone from the stage head, matching FellGlass. The head is the combat line, lock dots, and the table tokens, and Combat Logs rise directly beneath it.
+- The red combat ring wraps the combat block, riding above the sticky head so the glow runs the full frame around head, logs, cards, and tools.
+- The scroll traps are removed from the runner columns, so reaching the bottom keeps scrolling outward. Inputs and text areas keep their own containment, as they should.
+- FateWell only. Refresh with the new head, nothing to paste.
+
 ## FellGlass — Fellmark bonus gets the manual option
 - The Fellmark bonus follows the same mode as the accuracy roll. In die mode it tumbles as before. Switch to enter manually and the bonus die swaps for a 1 to 6 strip, the 6 flaring gold, so table dice cover both rolls with one toggle.
 - FellGlass only. Refresh with the new head, nothing to paste.
