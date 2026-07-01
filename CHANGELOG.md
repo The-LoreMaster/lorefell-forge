@@ -2,6 +2,16 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Combat stage — desktop centering, the die, and readout fixes
+- The stage centers itself on wide screens instead of hugging the left edge. The rail, card, dock, and Combat Logs share one column.
+- The red combat glow now lives on the stage itself, the same pulse the sheet carries.
+- The roll picker is six equal faces, 1 through 6, with a small legend naming 1 Fellstrike and 6 Fellmark. Roll my d6 is a real die: tap it and it tumbles, settles on the result, and flares gold on a Fellmark or red on a Fellstrike. Picking a face by hand sets the die to match. Lucky and Unlucky rolls still ride through it.
+- Tier 0 through Tier 3 are spelled out everywhere. No more bare T0 in either tool, including ability gates, charge readouts, and the Welling trigger.
+- The dock is the single home for Vitality, charge, Fatigue, and Afflictions. The declare card no longer repeats them, keeping only charge tier effects and round-start notes when they matter. Fatigue in the dock is now five notches that fill as the ladder climbs, next to its name.
+- The record is renamed Combat Logs in both tools.
+- FateWell picks up the same Tier wording across charge rows, ability lists, and intent gating.
+- FellGlass and FateWell only. Refresh with the new head, nothing to paste.
+
 ## FateWell — the combat stage
 - The combat runner now opens on a stage head that stays pinned while you scroll: the round, the four steps of the round with the moving ember, player lock dots during commit, and the whole table as small tokens with live Vitality bars, charge, and stance.
 - The combat log is The record, a pull-down under the stage head, collapsed until you want it. Combat sits directly under it, with the table, Disruptions, Hooks, and Loot following.
