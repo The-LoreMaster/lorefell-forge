@@ -2,6 +2,12 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## FellGlass — the ring, the die, the button
+- The red combat ring now rides above the sticky vitals strip, so the glow runs up and around the whole block on phone and desktop instead of starting below the dock.
+- Rolling the die is the default. The die wears a gold rim so it reads as the control, and a small Pick the number instead toggle swaps in the 1 to 6 scale with its legend for table dice. Roll the die instead brings it back. The roll readout follows whichever mode is up.
+- Send to LoreMaster is centered, and on a phone it stretches to the card padding.
+- FellGlass only. Refresh with the new head, nothing to paste.
+
 ## FellGlass — the stage joins the page
 - The combat stage is no longer a screen-filling overlay. It is a block in the page that ends where its content ends, so the red border wraps the fight itself and Combat Logs sit right under the round track with nothing but page below.
 - One scroll. The inner scroll trap is gone. The page scrolls as a whole and keeps going past the stage, on phone and desktop alike.
