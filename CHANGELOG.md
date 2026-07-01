@@ -2,6 +2,14 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## FateWell — the combat stage
+- The combat runner now opens on a stage head that stays pinned while you scroll: the round, the four steps of the round with the moving ember, player lock dots during commit, and the whole table as small tokens with live Vitality bars, charge, and stance.
+- The combat log is The record, a pull-down under the stage head, collapsed until you want it. Combat sits directly under it, with the table, Disruptions, Hooks, and Loot following.
+- Combatant cards are restructured. State stays on top (Vitality, luck, charge, stance, condition chips), the primary flow follows (the Act, foe accuracy, the incoming resolution, the React), and the rare controls fold into an Adjust drawer per card: Durability and Resistance, the Fellmark toggle, condition notes, and Impairments. Drawers remember whether you left them open.
+- The Spotlight box shows progress dots beside Spotlight N of M in auto mode.
+- Every control and sender is unchanged: commits, the Spotlight machinery, undo, manual mode, vitality taps, and all resolution flows work exactly as before.
+- FateWell only. Refresh with the new head, nothing to paste.
+
 ## FellGlass — the combat stage
 - Combat is now its own screen instead of a banner stacked on the sheet. The stage shows one thing at a time: the declare form, your locked Act, the Evasion roll when a foe attacks you, or the incoming hit. Each lands where you are already looking, no popups.
 - The four steps of the round (Commits, Plan, Declare, Resolve) run as a rail at the top with an ember that moves as the round moves.
