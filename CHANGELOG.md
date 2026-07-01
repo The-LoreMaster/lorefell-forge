@@ -2,6 +2,14 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## FellGlass — growth on the Fellmark, and nothing sticks until it stands
+- A Fellmark on a skill Act grows that skill by one rank, chosen or rolled. The growth commits when the round truly stands: when the LoreMaster begins the next round or the battle ends. Send can be edited and a Spotlight can be undone, so the round boundary is the only irreversible moment. At five filled circles the skill pings ready to master instead, since mastering is a chosen rite on the sheet, never automatic.
+- The stance edit loophole is closed. If a locked stance change is edited into a different Act and re-sent, the armor reverts to what it was before the declaration, with a ping and a log line.
+- The Skill picker sits above Target, and the picker rows now share identical spacing. Empty hint lines collapse instead of holding a gap.
+- The Fellmark bonus die is the same numeral die as the accuracy roll, small and gold-rimmed, tumbling to its number. No more pips beside numbers.
+- After sending an attack, the locked card shows the damage that rides it, base and bonus with its type, above Edit declaration.
+- FellGlass only. Refresh with the new head, nothing to paste.
+
 ## FellGlass — tracker out, stance sealed, skills roll true
 - The round track is removed from FellGlass. The buttons and prompts carry the two phases, and Combat Logs move up to sit right under the stage content. FateWell keeps its track for now.
 - The roll header drops the parentheses: Roll the Dice or enter manually, Enter Your Roll or roll the die, one line, all of it clickable.
