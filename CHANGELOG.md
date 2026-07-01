@@ -2,6 +2,11 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Combat — one-line roll toggle and a two-step round track
+- The roll section header is a single clickable line: Roll the Dice (or enter manually), flipping to Enter Your Roll (or roll the die). The whole line is the toggle and it holds one line on phones.
+- The round track is two steps everywhere: Declare and Resolve. Commits and Plan folded into Declare, since committing, planning, and declaring are one phase seen from two seats. FellGlass and FateWell show the same track, and FateWell drops its floating ember for the same gold-filled diamond.
+- FellGlass and FateWell only. Refresh with the new head, nothing to paste.
+
 ## FellGlass — roll label and Send orientation
 - The roll section reads Roll the Dice with (Click to input manually) sitting right beside it, swapping to Input Your Roll and (Click to roll the die) in manual mode. The label and toggle sit together instead of spreading across the row.
 - Send to LoreMaster sits left on desktop and still stretches to the card padding on phones.
