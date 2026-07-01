@@ -567,6 +567,10 @@ body.cbs-full::after{ display:none; }
 #cbTargetWrap,#cbStanceWrap,#cbSkillWrap{ margin:0; }
 .cb-stage .cb-dmghint:empty{ display:none; }
 .cb-rolldie.fb{ width:38px; height:38px; font-size:1.05rem; border-radius:9px; }
+.cb-fbpick{ display:inline-flex; gap:4px; }
+.cb-fbp{ width:30px; height:30px; display:grid; place-items:center; font-family:'Cinzel',serif; font-size:.8rem; color:var(--silver-dim); background:var(--navy-3); border:1px solid var(--line); border-radius:6px; cursor:pointer; padding:0; }
+.cb-fbp.on{ color:var(--navy); background:var(--ice); border-color:var(--ice); }
+.cb-fbp.fell.on{ background:var(--gold); border-color:var(--gold); color:var(--navy); }
 .cb-rolllbl{ display:block; background:none; border:0; padding:0; cursor:pointer; white-space:nowrap; text-align:left; font-size:.6rem; }
 .cb-rolllbl:hover{ color:#f2ecda; }
 .cb-l-row .cb-l{ margin-bottom:4px; }
@@ -4526,11 +4530,29 @@ function cbTryHeal(amount){
   try{renderVit();}catch(e){} scheduleSave(); try{edgeGlow("rgba(220,232,239,.75)");}catch(e){}
   cbLogSelf("fell", meName()+" recovers "+amount+".");
 }
+function cbSetFellBonus(v){
+  window._fellBonus=v;
+  var die=document.getElementById("cbFbDie");
+  if(die && !die.classList.contains("spin")){ die.textContent=String(v); die.classList.add("set"); die.classList.toggle("fell",v===6); die.classList.remove("strike"); }
+  var pw=document.getElementById("cbFbPick");
+  if(pw) pw.querySelectorAll(".cb-fbp").forEach(function(b){ b.classList.toggle("on", parseInt(b.getAttribute("data-v"),10)===v); });
+  var res=document.getElementById("cbFellBonusRes"); if(res) res.textContent=String(v);
+  var hint=document.getElementById("cbFellBonusHint");
+  if(hint) hint.textContent=(v===6)?"Double Fellmark. The LoreMaster rolls for an Impairment.":("Adds "+v+" to your Bonus Damage.");
+}
+function cbFbModeSync(){
+  var pk=!!window._cbPickMode;
+  var die=document.getElementById("cbFbDie"), pw=document.getElementById("cbFbPick");
+  if(die) die.style.display=pk?"none":"";
+  if(pw) pw.style.display=pk?"":"none";
+}
 function cbInitFellBonus(){
   window._fellBonus=null;
   var holder=document.getElementById("cbFellBonusDie");
   if(holder){
-    holder.innerHTML='<button type="button" class="cb-rolldie fb" id="cbFbDie" aria-label="Roll Fellmark bonus">?</button>';
+    var faces=""; for(var i=1;i<=6;i++) faces+='<button type="button" class="cb-fbp'+(i===6?' fell':'')+'" data-v="'+i+'">'+i+'</button>';
+    holder.innerHTML='<button type="button" class="cb-rolldie fb" id="cbFbDie" aria-label="Roll Fellmark bonus">?</button>'
+      +'<span class="cb-fbpick" id="cbFbPick" style="display:none">'+faces+'</span>';
     var die=document.getElementById("cbFbDie");
     die.addEventListener("click",function(){
       if(die.classList.contains("spin")) return;
@@ -4539,16 +4561,15 @@ function cbInitFellBonus(){
       var iv=setInterval(function(){ die.textContent=1+Math.floor(Math.random()*6); },70);
       setTimeout(function(){
         clearInterval(iv); die.classList.remove("spin");
-        var v=1+Math.floor(Math.random()*6);
-        window._fellBonus=v;
-        die.textContent=String(v); die.classList.add("set");
-        if(v===6) die.classList.add("fell");
-        var res=document.getElementById("cbFellBonusRes"); if(res) res.textContent=String(v);
-        var hint=document.getElementById("cbFellBonusHint");
-        if(hint) hint.textContent=(v===6)?"Double Fellmark. The LoreMaster rolls for an Impairment.":("Adds "+v+" to your Bonus Damage.");
+        cbSetFellBonus(1+Math.floor(Math.random()*6));
+        die.classList.add("set");
       },700);
     });
+    holder.querySelectorAll(".cb-fbp").forEach(function(b){
+      b.addEventListener("click",function(){ cbSetFellBonus(parseInt(b.getAttribute("data-v"),10)); });
+    });
   }
+  cbFbModeSync();
   cbToggleFellBonus();
 }
 function cbd6(){ return 1+Math.floor(Math.random()*6); }
@@ -4597,6 +4618,7 @@ function cbRollModeSync(){
   if(pw) pw.style.display=pk?"":"none";
   if(die) die.style.display=pk?"none":"";
   if(tg) tg.textContent=pk?"Enter Your Roll or roll the die":(isSk?"Roll the Skill or enter manually":"Roll the Dice or enter manually");
+  if(typeof cbFbModeSync==="function") cbFbModeSync();
   cbRenderRoll();
 }
 function cbSetRoll(face){ window._cbRoll=face; cbRenderRoll(); cbToggleFellBonus(); }
@@ -4632,7 +4654,7 @@ function cbToggleFellBonus(){
   if(!box) return;
   var on=(window._cbRoll===6);
   box.classList.toggle("show",on);
-  if(!on){ window._fellBonus=null; var r=document.getElementById("cbFellBonusRes"); if(r) r.textContent="\u2014"; var h=document.getElementById("cbFellBonusHint"); if(h) h.textContent="Tap the die to roll."; var fd=document.getElementById("cbFbDie"); if(fd){ fd.textContent="?"; fd.classList.remove("set","fell","strike"); } }
+  if(!on){ window._fellBonus=null; var r=document.getElementById("cbFellBonusRes"); if(r) r.textContent="\u2014"; var h=document.getElementById("cbFellBonusHint"); if(h) h.textContent="Tap the die to roll."; var fd=document.getElementById("cbFbDie"); if(fd){ fd.textContent="?"; fd.classList.remove("set","fell","strike"); } var fp=document.getElementById("cbFbPick"); if(fp) fp.querySelectorAll(".cb-fbp").forEach(function(b){ b.classList.remove("on"); }); }
 }
 function cbInitAfflicted(){
   var box=document.getElementById("cbAfflicted"), sel=document.getElementById("cbAfflictedSel"), aSel=document.getElementById("cbAct");

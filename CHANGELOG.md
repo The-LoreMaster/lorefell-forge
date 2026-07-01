@@ -2,6 +2,10 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## FellGlass — Fellmark bonus gets the manual option
+- The Fellmark bonus follows the same mode as the accuracy roll. In die mode it tumbles as before. Switch to enter manually and the bonus die swaps for a 1 to 6 strip, the 6 flaring gold, so table dice cover both rolls with one toggle.
+- FellGlass only. Refresh with the new head, nothing to paste.
+
 ## Combat — the round stands: staged outcomes cement at round end
 - Nothing permanent lands mid-round anymore. Damage to foes, damage to Fell, afflictions and effects crossing either direction, and charge earned by landing all stage as pending outcomes during the round and cement the moment the LoreMaster begins the next round or the battle ends. This matches the FellGuide line that conditions activate at the start of the next round, extended to Vitality by ruling.
 - Both seats see the stack. FateWell cards and table tokens carry a dashed Round end tag per combatant, with tokens previewing the arrow to the new Vitality. FellGlass shows the same dashed tag on the dock, staged damage, staged marks, and the charge waiting on the LoreMaster's ledger, with the arrow to where Vitality will land.
