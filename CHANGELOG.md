@@ -2,6 +2,11 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## FellGlass — roll label and Send orientation
+- The roll section reads Roll the Dice with (Click to input manually) sitting right beside it, swapping to Input Your Roll and (Click to roll the die) in manual mode. The label and toggle sit together instead of spreading across the row.
+- Send to LoreMaster sits left on desktop and still stretches to the card padding on phones.
+- FellGlass only. Refresh with the new head, nothing to paste.
+
 ## FellGlass — the ring, the die, the button
 - The red combat ring now rides above the sticky vitals strip, so the glow runs up and around the whole block on phone and desktop instead of starting below the dock.
 - Rolling the die is the default. The die wears a gold rim so it reads as the control, and a small Pick the number instead toggle swaps in the 1 to 6 scale with its legend for table dice. Roll the die instead brings it back. The roll readout follows whichever mode is up.
