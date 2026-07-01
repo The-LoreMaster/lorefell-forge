@@ -534,6 +534,8 @@ body.cbs-full::after{ display:none; }
 .cbs-vnum{ font-family:'Cinzel',serif; font-size:.8rem; color:var(--silver); letter-spacing:.03em; }
 .cbs-vnum .tmp{ color:var(--ice); font-size:.68rem; }
 .cbs-fat{ margin-left:auto; }
+.cbs-pend{ margin-top:7px; padding:5px 9px; border:1px dashed rgba(201,168,76,.5); border-radius:8px; font-size:.78rem; color:#e8dcae; max-width:680px; margin-left:auto; margin-right:auto; }
+.cbs-vnum .pn{ color:#e8dcae; font-size:.7rem; }
 .cb-stage .cbs-inner{ max-width:680px; width:100%; margin:0 auto; }
 .cb-stage .cbs-inner>*{ max-width:680px; width:100%; margin-left:auto; margin-right:auto; }
 .cb-stage .cbs-inner .cb-card{ max-width:680px; }
@@ -3987,6 +3989,24 @@ function cbPing(msg, gold){
 function applyIncomingConditions(applied){
   if(!Array.isArray(applied) || !applied.length) return;
   window._augUsed = window._augUsed || {};
+  window._staged=window._staged||{hits:[],affs:[]};
+  var added=[];
+  applied.forEach(function(a){
+    if(!a || !a.name) return;
+    var have = (C.afflictions||[]).some(function(x){return x.name===a.name;})
+      || (C.effects||[]).some(function(x){return x.name===a.name;})
+      || (C.impairments||[]).some(function(x){return x.name===a.name;})
+      || window._staged.affs.some(function(x){return x.name===a.name;});
+    if(have) return;
+    if(a.kind!=="effect" && a.kind!=="impairment" && cbHasAug("Hexward") && !window._augUsed.hexward){ window._augUsed.hexward=true; cbPing("Hexward wards off "+a.name+"."); return; }
+    window._staged.affs.push({name:a.name, kind:a.kind||"affliction"});
+    added.push(a.name);
+  });
+  if(added.length){ scheduleSave(); try{edgeGlow("rgba(201,106,90,.85)");}catch(e){} cbPing("The LoreMaster marked you: "+added.join(", ")+". Cements at round end."); try{applyCombatMode();}catch(e){} }
+}
+function applyIncomingConditionsNow(applied){
+  if(!Array.isArray(applied) || !applied.length) return;
+  window._augUsed = window._augUsed || {};
   var added=[];
   applied.forEach(function(a){
     if(!a || !a.name) return;
@@ -4041,17 +4061,32 @@ function applyPendingHit(hit){
   var r=cbResolveIncoming(base, bonus, dt);
   if(r.total<=0){ cbPing("The hit is turned aside."); cbLogSelf("fell", meName()+": the hit is turned aside."); return; }
   if(cbHasAug("Threshold")){ var cap=Math.floor((C.vitality.max||0)/2); if(cap>0 && r.total>cap){ r.total=cap; r.marks.push("Threshold cap"); } }
-  var v=C.vitality, t=Math.min(v.temp||0, r.total);
-  v.temp=(v.temp||0)-t;
-  var newCur=(v.current||0)-(r.total-t);
-  if(newCur<=0 && (v.current||0)>0 && cbHasAug("Emberhold") && !window._emberUsed){ newCur=1; window._emberUsed=true; cbPing("Emberhold holds you at 1."); }
-  v.current=Math.max(0,newCur);
+  window._staged=window._staged||{hits:[],affs:[]};
+  window._staged.hits.push({total:r.total, base:r.base, bonus:r.bonus, marks:r.marks||[]});
   window._dmgTakenRound=true;
-  try{renderVit();}catch(e){} try{renderStrip();}catch(e){}
-  scheduleSave(); try{edgeGlow("rgba(201,106,90,.9)");}catch(e){}
-  cbPing("Took "+r.total+(r.marks.length?(" (+"+r.marks.length+" "+r.marks.join(" + ")+")"):"")+(t?(" \u00b7 "+t+" off temporary"):"")+".");
-  cbLogSelf("foe", meName()+" takes "+r.total+" ("+r.base+" base + "+r.bonus+" bonus"+(r.marks.length?(" + "+r.marks.length+" from "+r.marks.join(" + ")):"")+").");
+  try{edgeGlow("rgba(201,106,90,.9)");}catch(e){}
+  cbPing("Taking "+r.total+(r.marks.length?(" (+"+r.marks.length+" "+r.marks.join(" + ")+")"):"")+" at round end.");
+  cbLogSelf("foe", meName()+" takes "+r.total+" ("+r.base+" base + "+r.bonus+" bonus"+(r.marks.length?(" + "+r.marks.length+" from "+r.marks.join(" + ")):"")+") \u00b7 cements at round end.");
   try{applyCombatMode();}catch(e){}
+}
+function cbCementStaged(){
+  var st=window._staged; window._staged=null;
+  if(!st) return;
+  var v=C.vitality, took=0;
+  (st.hits||[]).forEach(function(h){
+    var total=h.total|0; if(total<=0) return;
+    var t=Math.min(v.temp||0, total); if(t) v.temp=(v.temp||0)-t;
+    var newCur=(v.current||0)-(total-t);
+    if(newCur<=0 && (v.current||0)>0 && cbHasAug("Emberhold") && !window._emberUsed){ newCur=1; window._emberUsed=true; cbPing("Emberhold holds you at 1."); }
+    v.current=Math.max(0,newCur);
+    took+=total;
+  });
+  if((st.affs||[]).length) applyIncomingConditionsNow(st.affs);
+  if(took || (st.affs||[]).length){
+    try{renderVit();}catch(err){} try{renderStrip();}catch(err){} try{renderStatus();}catch(err){}
+    scheduleSave();
+    cbPing("The round stands."+(took?(" "+took+" Vitality lost."):""), true);
+  }
 }
 function cbHitCardHtml(sh){
   var hit=sh.hit;
@@ -4090,7 +4125,7 @@ function setCombatState(state){
   var wasActive=!!(COMBAT&&COMBAT.active);
   _combatSig=sig; COMBAT=state||null; applyCombatMode();
   if(COMBAT&&COMBAT.active){
-    if(COMBAT.round!==window._lastTickRound){ window._lastTickRound=COMBAT.round; window._reactUsed=false; window._cbRoll=null; window._defEva=[]; window._evaRolls={}; window._editDecl=false; window._hitSnooze=null; window._sentDmg=null; window._stanceRound=null; window._stanceApplied=false; cbApplySkillGrowth(); cbTickSelf(); }
+    if(COMBAT.round!==window._lastTickRound){ window._lastTickRound=COMBAT.round; window._reactUsed=false; window._cbRoll=null; window._defEva=[]; window._evaRolls={}; window._editDecl=false; window._hitSnooze=null; window._sentDmg=null; window._stanceRound=null; window._stanceApplied=false; cbCementStaged(); cbApplySkillGrowth(); cbTickSelf(); }
     applyIncomingConditions(COMBAT.applied||[]);
     var rc=COMBAT.recap||{};
     if(rc.at && rc.at!==window._lastRecapAt){ window._lastRecapAt=rc.at; if(rc.msg){ cbPing(rc.msg); try{edgeGlow("rgba(201,168,76,.7)");}catch(e){} } }
@@ -4165,10 +4200,22 @@ function cbDockHtml(){
   var fname=(typeof FATIGUE_NAMES!=="undefined"&&FATIGUE_NAMES[Math.max(0,Math.min(5,ef))])?FATIGUE_NAMES[Math.max(0,Math.min(5,ef))]:("Fatigue "+ef);
   var fnn=""; for(var fi=1;fi<=5;fi++) fnn+='<span class="fn'+(ef>=fi?' lit':'')+'"></span>';
   var fat='<span class="cbs-fat" title="Fatigue">'+fnn+'<span class="flbl">'+cbEsc(fname)+'</span></span>';
+  var stg=window._staged, bits=[];
+  var stD=((stg&&stg.hits)||[]).reduce(function(a,h){ return a+(h.total|0); },0);
+  if(stD) bits.push('\u2212'+stD+' Vitality');
+  ((stg&&stg.affs)||[]).forEach(function(a){ bits.push(a.name); });
+  var myPend=null;
+  if(COMBAT && COMBAT.pend && CUR_WIX_ID){
+    var mf=((COMBAT.fighters)||[]).filter(function(x){ return x.charId===CUR_WIX_ID; })[0];
+    if(mf && mf.key) myPend=COMBAT.pend[mf.key]||null;
+  }
+  if(myPend && myPend.charge!==null && myPend.charge!==undefined) bits.push('Charge \u2192 '+myPend.charge);
+  var pendHtml = bits.length ? '<div class="cbs-pend">Round end \u00b7 '+bits.map(cbEsc).join(' \u00b7 ')+'</div>' : '';
   return '<div class="cbs-dock">'
-    +'<div class="cbs-dock-top"><span class="cbs-dname">'+cbEsc(meName())+'</span><span class="cbs-vnum">'+cur+' / '+max+(temp?' <span class="tmp">+'+temp+'</span>':'')+'</span></div>'
+    +'<div class="cbs-dock-top"><span class="cbs-dname">'+cbEsc(meName())+'</span><span class="cbs-vnum">'+cur+' / '+max+(temp?' <span class="tmp">+'+temp+'</span>':'')+(stD?' <span class="pn">\u2192 '+Math.max(0,(cur+temp)-stD)+'</span>':'')+'</span></div>'
     +'<div class="cbs-vit'+(pct<=50?' low':'')+'"><span class="g" style="width:'+gpct+'%"></span><span class="c" style="width:'+prev+'%"></span></div>'
     +'<div class="cbs-meta"><span class="cbs-pips">'+pips+'<span class="plbl">Charge '+(C.charge||0)+'</span></span>'+fat+affHtml+'</div>'
+    +pendHtml
     +'</div>';
 }
 function cbDockAfter(){
@@ -4184,7 +4231,7 @@ function applyCombatMode(){
   var bn=document.getElementById("combatBanner");
   if(!bn){ bn=el("div",""); bn.id="combatBanner"; document.body.appendChild(bn); }
   ["cbOverlay","cbEvaOvl","cbHitOvl"].forEach(function(id){ var o=document.getElementById(id); if(o) o.remove(); });
-  if(!on){ bn.className=""; bn.style.display="none"; bn.innerHTML=""; document.documentElement.style.setProperty("--cbn-h","0px"); window._dockPct=null; document.body.classList.remove("cbs-full"); window._cbsFullPrev=false; try{cbApplySkillGrowth();}catch(err){} window._sentDmg=null; window._stanceRound=null; window._stanceApplied=false; return; }
+  if(!on){ bn.className=""; bn.style.display="none"; bn.innerHTML=""; document.documentElement.style.setProperty("--cbn-h","0px"); window._dockPct=null; document.body.classList.remove("cbs-full"); window._cbsFullPrev=false; try{cbCementStaged();}catch(err){} try{cbApplySkillGrowth();}catch(err){} window._sentDmg=null; window._stanceRound=null; window._stanceApplied=false; return; }
   var declared = window._declaredRound && COMBAT.round && window._declaredRound===COMBAT.round;
   var resolving = (COMBAT.phase==="resolve");
   var youUp = COMBAT.spotlightChars && CUR_WIX_ID && COMBAT.spotlightChars.indexOf(CUR_WIX_ID)>=0;

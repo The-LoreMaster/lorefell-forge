@@ -2,6 +2,14 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Combat — the round stands: staged outcomes cement at round end
+- Nothing permanent lands mid-round anymore. Damage to foes, damage to Fell, afflictions and effects crossing either direction, and charge earned by landing all stage as pending outcomes during the round and cement the moment the LoreMaster begins the next round or the battle ends. This matches the FellGuide line that conditions activate at the start of the next round, extended to Vitality by ruling.
+- Both seats see the stack. FateWell cards and table tokens carry a dashed Round end tag per combatant, with tokens previewing the arrow to the new Vitality. FellGlass shows the same dashed tag on the dock, staged damage, staged marks, and the charge waiting on the LoreMaster's ledger, with the arrow to where Vitality will land.
+- Per-hit defenses still resolve at confirm where they belong: Evasion, Lastlight, Threshold, Mistform, Nullward, and stance reduction shape each hit when it is taken. Only the ledger waits. Emberhold and temporary Vitality resolve at cement, where stacking is finally known.
+- The LoreMaster's manual Vitality taps, pip taps, and condition edits stay immediate as corrections, and a player's own sheet actions stay live. Undo still works, the ledger rides the battle state and snapshots with it.
+- The ledger publishes with combat state, so no backend change and nothing to paste.
+- FellGlass and FateWell. Refresh with the new head.
+
 ## FellGlass — growth on the Fellmark, and nothing sticks until it stands
 - A Fellmark on a skill Act grows that skill by one rank, chosen or rolled. The growth commits when the round truly stands: when the LoreMaster begins the next round or the battle ends. Send can be edited and a Spotlight can be undone, so the round boundary is the only irreversible moment. At five filled circles the skill pings ready to master instead, since mastering is a chosen rite on the sheet, never automatic.
 - The stance edit loophole is closed. If a locked stance change is edited into a different Act and re-sent, the armor reverts to what it was before the declaration, with a ping and a log line.

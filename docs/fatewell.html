@@ -1258,6 +1258,7 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 .fw-record > summary::-webkit-details-marker{ display:none; }
 .fw-record .cbl{ margin:0; border-top:none; padding:0 12px 10px; }
 .fw-record .cbl-h{ display:none; }
+.fw-pend{ margin-top:6px; padding:5px 9px; border:1px dashed rgba(201,168,76,.5); border-radius:8px; font-size:.78rem; color:#e8dcae; }
 .fw-adj{ border-top:1px solid var(--line); margin-top:8px; }
 .fw-adj > summary{ list-style:none; cursor:pointer; padding:7px 0 2px; display:flex; align-items:center; justify-content:space-between; font-family:'Cinzel',serif; font-size:.64rem; letter-spacing:.08em; color:var(--ice); }
 .fw-adj > summary::-webkit-details-marker{ display:none; }
@@ -4895,6 +4896,26 @@ function advanceRound(){
 function doAdvanceRound(){
   var sc = curSc();
   var b = sc.battle;
+  var pend=b.pend||{};
+  Object.keys(pend).forEach(function(k){
+    var p=pend[k]; if(!p) return;
+    if(k.indexOf('m:')===0){
+      var id=k.slice(2), foe=null; sc.combatants.forEach(function(c){ if(c.id===id) foe=c; });
+      if(foe){
+        if(p.dvit){ var mx=foe.maxVit||0, nv=(foe.curVit||0)+p.dvit; foe.curVit=Math.max(0, mx>0?Math.min(mx,nv):nv); }
+        (p.affs||[]).forEach(function(nm){ if(!(foe.affs||[]).some(function(a){ return a.name===nm; })) (foe.affs=foe.affs||[]).push({name:nm, kind:'affliction'}); });
+      }
+    } else if(k.indexOf('p:')===0){
+      var pid=k.slice(2), pst=pState(pid);
+      if(p.charge!==null && p.charge!==undefined){
+        pst.charge=p.charge;
+        var _pl=null; (curC().players||[]).forEach(function(x){ if(x.id===pid) _pl=x; });
+        if(_pl && _pl.charId){ postToWix({type:'lmtool-combat-charge', campaignId:combatCampaignId(), charId:_pl.charId, value:p.charge}); }
+      }
+    }
+  });
+  if(Object.keys(pend).length) cbLog('system','Round '+b.round+' stands. Staged outcomes cement.');
+  b.pend={};
   b.round++; b.phase = 'commit'; b.locked = false; b.pLocked = false; b.spots = []; b.manual = {}; b.order = [];
   cbLog('system','Round '+b.round+' begins.');
   b.spotBox = []; b.spotDone = {}; b.undoStack = []; b.activeSpot = 0;
@@ -6238,6 +6259,7 @@ function cbToast(t){
   n._t = setTimeout(function(){ n.classList.remove('on'); }, 2200);
 }
 function cbInitBattle(b){
+  if (!b.pend) b.pend = {};
   if (!b.spotBox) b.spotBox = [];
   if (!b.spotDone) b.spotDone = {};
   if (!b.undoStack) b.undoStack = [];
@@ -6438,7 +6460,7 @@ function cbCard(n, o){
   var sideLbl = n.side==='monster'?'Foe':(n.side==='npc'?'NPC':'Fell');
   return '<div class="cb-fighter '+sideCls+(o.spot?' spot':'')+(down?' down':'')+'">'
     + '<div class="cb-top"><span class="cb-nm">'+esc(n.name)+'</span><span class="cb-sd">'+sideLbl+'</span></div>'
-    + cbVitRow(n) + cbLuckRow(n) + (n.kind==='m' ? chargeRow(n.kind, n.ref.id, cbChargeOf(n)) : cbChargeView(n)) + (n.kind==='m' ? cbFoeStance(n) : '') + cbChips(n)
+    + cbVitRow(n) + cbLuckRow(n) + (n.kind==='m' ? chargeRow(n.kind, n.ref.id, cbChargeOf(n)) : cbChargeView(n)) + (n.kind==='m' ? cbFoeStance(n) : '') + cbChips(n) + fwPendTag(n.key)
     + cbActDisplay(n) + (n.kind==='m' ? cbFoeAcc(n) : '') + (n.kind==='m' ? cbIncoming(n) : '') + cbReact(n)
     + cbAdjustDrawer(n)
     + (o.addSpot?'<div class="cb-spotline"><button class="cb-link" onclick="cbAddSpot(\''+n.key+'\')">+ Spotlight</button></div>':'')
@@ -6632,7 +6654,7 @@ function publishCombat(){
   if(active){
     var bb=sc.battle||{}; var cc=curC(); var spotChars=[];
     (bb.spotBox||[]).forEach(function(k){ if(k.indexOf('p:')!==0) return; var pid=k.slice(2); (cc.players||[]).forEach(function(p){ if(p.id===pid && p.charId) spotChars.push(p.charId); }); });
-    state={ active:true, round:bb.round||1, phase:bb.phase||'commit', sceneId:sc.id, sceneName:sc.name||'', fighters:combatFighters(sc), spotlightChars:spotChars, log:(bb.clog||[]).slice(0,50) };
+    state={ active:true, round:bb.round||1, phase:bb.phase||'commit', sceneId:sc.id, sceneName:sc.name||'', fighters:combatFighters(sc), spotlightChars:spotChars, pend:bb.pend||{}, log:(bb.clog||[]).slice(0,50) };
   } else { state={ active:false }; }
   var sig=JSON.stringify(state)+'@'+cid;
   if(sig!==window._combatPubSig){
@@ -6867,6 +6889,19 @@ function cbImpRowP(n){
   var st=pState(n.ref.id); if(!st || !st._pendImpP) return '';
   return '<div class="cb-improw"><span class="cb-imp-t">Double Fellmark</span><button class="cb-link gold" onclick="cbDoImpairmentPlayer(\''+n.ref.id+'\')">Roll Impairment 1d6</button></div>';
 }
+function fwPend(k){
+  var b=curSc().battle; b.pend=b.pend||{};
+  return b.pend[k]=b.pend[k]||{dvit:0,affs:[],charge:null};
+}
+function fwPendTag(k){
+  var b=curSc().battle, p=(b.pend||{})[k]; if(!p) return '';
+  var bits=[];
+  if(p.dvit) bits.push((p.dvit>0?'+':'')+p.dvit+' Vitality');
+  (p.affs||[]).forEach(function(nm){ bits.push(nm); });
+  if(p.charge!==null && p.charge!==undefined) bits.push('Charge \u2192 '+p.charge);
+  if(!bits.length) return '';
+  return '<div class="fw-pend">Round end \u00b7 '+bits.map(esc).join(' \u00b7 ')+'</div>';
+}
 function cbApplyIncoming(pid, cid){
   var st=pState(pid); var dmg=st.dmg||0; if(dmg<=0) return;
   var foe=null; curSc().combatants.forEach(function(c){ if(c.id===cid) foe=c; });
@@ -6876,8 +6911,13 @@ function cbApplyIncoming(pid, cid){
   var r=cbFoeResolve(foe, base, bonus, st.dt||'phys', st.pierce||0);
   var dbl=!!st.doubleFell, total=dbl?r.total*2:r.total;
   st.dmgDone=(curSc().battle&&curSc().battle.round)||1;
-  if(st.fellmark && st.applies){ var ex=(foe.affs||[]).some(function(a){ return a.name===st.applies; }); if(!ex){ (foe.affs=foe.affs||[]).push({ name:st.applies, kind:'affliction' }); cbToast(st.applies+' lands on '+esc(foe.name)+'.'); } }
-  adjVit(cid, -total);
+  if(st.fellmark && st.applies){
+    var pdA=fwPend('m:'+cid);
+    var ex=(foe.affs||[]).some(function(a){ return a.name===st.applies; }) || pdA.affs.indexOf(st.applies)>=0;
+    if(!ex){ pdA.affs.push(st.applies); cbToast(st.applies+' lands on '+esc(foe.name)+'. Cements at round end.'); }
+  }
+  fwPend('m:'+cid).dvit -= total;
+  save(); render();
   cbToast(esc(foe.name)+' takes '+total+(dbl?' (double Fellmark)':'')+(r.marks.length?(' (+'+r.marks.length+' '+r.marks.join(' + ')+')'):'')+'.');
   var _ev=st._eva, _accStr=(st.acc>0 && _ev)?(' \u00b7 acc '+st.acc+' vs eva '+_ev.total):'', _affStr=(st.fellmark && st.applies)?(' + '+st.applies):'', _fmStr=(st.fellmark?' \u00b7 Fellmark':'');
   cbLog('fell', pname+': '+(st.act||'attack')+' hits '+foe.name+' for '+total+' ('+r.base+' base + '+r.bonus+' bonus'+(dbl?', doubled':'')+(r.marks.length?(' + '+r.marks.length+' from '+r.marks.join(' + ')):'')+')'+_affStr+_fmStr+_accStr+'.');
@@ -6888,10 +6928,8 @@ function cbApplyIncoming(pid, cid){
     var _cur=st.charge||0, _nv=null, _T=st.actTier;
     if(_T===3) _nv=0; else if(_T===_cur) _nv=Math.min(3,_T+1);
     if(_nv!==null){
-      st.charge=_nv;
-      cbLog('system', pname+' weapon charge now '+_nv+'.');
-      var _p=null; (curC().players||[]).forEach(function(x){ if(x.id===pid) _p=x; });
-      if(_p && _p.charId){ postToWix({type:'lmtool-combat-charge', campaignId:combatCampaignId(), charId:_p.charId, value:_nv}); }
+      fwPend('p:'+pid).charge=_nv;
+      cbLog('system', pname+' weapon charge \u2192 '+_nv+' at round end.');
     }
   }
   var bounce=0, why=[];
@@ -7743,6 +7781,8 @@ function fwDockHtml(){
     var down=(max>0 && cur<=0);
     var sub;
     if(n.kind==='m'){ sub='C'+cbChargeOf(n)+(n.ref.stance?(' \u00b7 '+esc(n.ref.stance)):''); }
+    var _pd=((curSc().battle||{}).pend||{})[n.key];
+    if(_pd && _pd.dvit){ sub=sub+' \u00b7 \u2192 '+Math.max(0, cur+_pd.dvit); }
     else { sub='C'+((n.st&&n.st.charge)||0); }
     h+='<div class="fw-tk'+(n.kind==='m'?' foe':'')+(down?' down':'')+'">'
       +'<div class="tn">'+esc(n.name)+'</div>'
