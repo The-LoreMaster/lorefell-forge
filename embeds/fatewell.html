@@ -1226,6 +1226,7 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 .cbl-foe{ border-left-color:#d98a6a; }
 .cbl-system{ border-left-color:var(--gold); color:var(--silver-dim); }
 .cbl-empty{ font-size:.78rem; color:var(--silver-dim); }
+.cbl-top{ margin-top:0; border-top:none; border:1px solid var(--line); border-radius:10px; background:var(--panel); padding:10px 12px; margin-bottom:12px; }
 .cb-deal{ display:flex; align-items:center; gap:8px; margin-top:10px; flex-wrap:wrap; }
 .cb-deal-l{ font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); }
 .cb-deal-in{ width:64px; background:var(--navy-4,#1c2742); border:1px solid var(--line); color:var(--silver); border-radius:7px; padding:6px 8px; font-family:inherit; font-size:.85rem; }
@@ -6185,10 +6186,6 @@ function tabCombat(sc){
     h += pending.length ? pending.map(function(n){ return cbCard(n,{addSpot:b.spotMode==='manual'}); }).join('') : '<div class="cb-empty mb">No one waiting.</div>';
     if (done.length){ h += '<div class="cb-rosterlab">Resolved</div>' + done.map(function(n){ return cbDoneRow(n); }).join(''); }
     h += '<div class="cb-foot"><button class="btn ghost small" onclick="cbRoll()">Quick d6 roll</button><span class="cb-count">'+done.length+' of '+nodes.length+' resolved</span></div>';
-    var _clog=b.clog||[];
-    h += '<div class="cbl"><div class="cbl-h">Combat log</div><div class="cbl-body">'
-      + (_clog.length ? _clog.slice(0,30).map(function(e){ return '<div class="cbl-row cbl-'+(e.side||'system')+'">'+esc(e.text||'')+'</div>'; }).join('') : '<div class="cbl-empty">Resolved hits, rolls, and effects appear here. Players see the same log.</div>')
-      + '</div></div>';
   }
   return h;
 }
@@ -6666,6 +6663,7 @@ function cbRollFoeEva(pid, foeId){
   var ev=foeStanceVal(foe,'evasion');
   var lk=cbFoeLuck(foe), rr=cbRollLuck(lk);
   pState(pid)._eva={ foe:foeId, r:rr.kept, bonus:ev, total:rr.kept+ev, dice:rr.dice, kept:rr.kept, luck:lk };
+  cbLog('foe', foe.name+' rolls evasion '+(rr.kept+ev)+' ('+rr.kept+'+'+ev+')'+cbLuckDice({dice:rr.dice,kept:rr.kept})+(lk?(' \u00b7 '+lk):'')+'.');
   save(); render();
 }
 function cbd6(){ return 1+Math.floor(Math.random()*6); }
@@ -6705,7 +6703,8 @@ function cbRollFoeAcc(cid, silent){
   var pr=Math.max(0,(c.attrs&&c.attrs.Precision)||0);
   var lk=cbFoeLuck(c), rr=cbRollLuck(lk);
   c._acc={ r:rr.kept, bonus:pr, total:rr.kept+pr, dice:rr.dice, kept:rr.kept, luck:lk }; c._accRound=(curSc().battle&&curSc().battle.round)||1;
-  if(!silent){ cbLog('foe', c.name+' rolls accuracy '+c._acc.total+' ('+rr.kept+'+'+pr+')'+cbLuckDice(c._acc)+(lk?(' \u00b7 '+lk):'')+'.'); save(); render(); }
+  cbLog('foe', c.name+' rolls accuracy '+c._acc.total+' ('+rr.kept+'+'+pr+')'+cbLuckDice(c._acc)+(lk?(' \u00b7 '+lk):'')+'.');
+  if(!silent){ save(); render(); }
 }
 function cbFoeAcc(n){
   var c=n.ref;
@@ -6819,8 +6818,8 @@ function cbApplyIncoming(pid, cid){
   if(st.fellmark && st.applies){ var ex=(foe.affs||[]).some(function(a){ return a.name===st.applies; }); if(!ex){ (foe.affs=foe.affs||[]).push({ name:st.applies, kind:'affliction' }); cbToast(st.applies+' lands on '+esc(foe.name)+'.'); } }
   adjVit(cid, -total);
   cbToast(esc(foe.name)+' takes '+total+(dbl?' (double Fellmark)':'')+(r.marks.length?(' (+'+r.marks.length+' '+r.marks.join(' + ')+')'):'')+'.');
-  var _ev=st._eva, _accStr=(st.acc>0 && _ev)?(' \u00b7 acc '+st.acc+' vs eva '+_ev.total):'', _affStr=(st.fellmark && st.applies)?(' + '+st.applies):'', _mkStr=(r.marks.length?(' (+'+r.marks.join(' + ')+')'):'');
-  cbLog('fell', pname+': '+(st.act||'attack')+' hits '+foe.name+' for '+total+_mkStr+_affStr+_accStr+'.');
+  var _ev=st._eva, _accStr=(st.acc>0 && _ev)?(' \u00b7 acc '+st.acc+' vs eva '+_ev.total):'', _affStr=(st.fellmark && st.applies)?(' + '+st.applies):'', _mkStr=(r.marks.length?(' (+'+r.marks.join(' + ')+')'):''), _fmStr=(st.fellmark?' \u00b7 Fellmark':'');
+  cbLog('fell', pname+': '+(st.act||'attack')+' hits '+foe.name+' for '+total+_mkStr+_affStr+_fmStr+_accStr+'.');
   if(dbl){ if(cbAutoDice()){ cbDoImpairment(foe); } else { foe._pendImp=true; save(); render(); cbToast('Double Fellmark on '+esc(foe.name)+'. Roll the Impairment.'); } }
   // charge only on a landing weapon attack: standard climbs to T1, T1 to T2, T2 to T3, a landed T3 resets to 0
   st._eva=null;
@@ -7658,8 +7657,16 @@ function saveHook(){
   closeModal(); save(); render();
 }
 
+function cbLogPanel(sc){
+  if(!(sc && sc.mode==='combat')) return '';
+  var clog=(sc.battle&&sc.battle.clog)||[];
+  return '<div class="cbl cbl-top"><div class="cbl-h">Combat log</div><div class="cbl-body">'
+    + (clog.length ? clog.slice(0,30).map(function(e){ return '<div class="cbl-row cbl-'+(e.side||'system')+'">'+esc(e.text||'')+'</div>'; }).join('') : '<div class="cbl-empty">Resolved hits, rolls, and effects appear here. Players see the same log.</div>')
+    + '</div></div>';
+}
 function runnerCombat(sc){
   var h = '<div class="run-combat">';
+  h += cbLogPanel(sc);
   h += hooksStrip(sc);
   h += runnerTable(sc);
   h += '<details class="run-fold"><summary>Disruptions <span class="fold-meta">'+disBalance()+' / '+disBase()+' available</span></summary>'+tabDisruptions(sc)+'</details>';
@@ -7919,7 +7926,9 @@ function render(){
   else h += scrData();
   h += '</main>';
   if (V.ov) h += ovHtml();
+  var _scR=[]; try{ document.querySelectorAll('.run-col,.run-scroll').forEach(function(el){ _scR.push(el.scrollTop); }); }catch(_){}
   document.getElementById('app').innerHTML = h;
+  try{ var _scE=document.querySelectorAll('.run-col,.run-scroll'); for(var _si=0;_si<_scE.length;_si++){ if(_scR[_si]!=null) _scE[_si].scrollTop=_scR[_si]; } }catch(_){}
   try { wireCardDrag(); } catch(_){}
   try { publishCombat(); } catch(_){}
   document.getElementById('bnav-slot').innerHTML = '';

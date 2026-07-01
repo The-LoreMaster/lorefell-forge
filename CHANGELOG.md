@@ -2,6 +2,13 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Combat — runner scroll, roster gate, and log fixes
+- The LoreMaster runner no longer jumps to the top on every action. Scroll position is held across re-renders.
+- A player only enters combat when their character is on the scene roster. An unattended viewer stays on their own sheet, and an attending player no longer flaps back to the sheet on a transient poll. Only a real end of combat drops them.
+- The combat log for the LoreMaster now sits at the top of the combat runner, above Disruptions, outside the commit and resolve panel.
+- Foe rolls are logged. A foe's accuracy logs when it commits and on reroll, and a foe's evasion logs when the LoreMaster rolls it. A player Fellmark is now marked in the log.
+- FateWell and FellGlass only. Refresh with the new head, nothing to paste.
+
 ## Combat — Lucky and Unlucky rolls
 - Lucky and Unlucky rolls are now real. A Lucky roll throws two dice and keeps the higher, an Unlucky roll keeps the lower. This applies to player accuracy and evasion and to foe accuracy and evasion, and the kept die still decides a Fellmark or Fellstrike.
 - The LoreMaster can mark any combatant Lucky or Unlucky from its card, foe or player. The mark drives that side's rolls and clears at the start of the next round. The Lucky and Unlucky afflictions feed the same result, so a marked combatant who is also afflicted nets out.
