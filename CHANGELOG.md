@@ -2,6 +2,13 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## FellGlass — stage polish
+- The round track floats directly beneath the stage card now instead of pinning to the bottom of the screen, closing the desktop gap. Combat Logs stays at the bottom.
+- The whole column tightened: rail, dock, card, selects, die, faces, and drawers all trimmed so the top, middle, and bottom sections fit a phone screen together.
+- Stance adopted pings show a gold border. The unowned-stance line is gone from the stance note.
+- Act dropdown sources read Armor and Skills with capitals.
+- FellGlass only. Refresh with the new head, nothing to paste.
+
 ## Combat — stance switching, target names, and the waiting glow
 - Change Armor Stance is a full flow on both sides. In FellGlass, choosing it swaps the Target dropdown for a stance picker with the stance description and its Tier 1 grant. Picking a stance applies to your sheet on the spot, logs the shift for the table, and hides the roll section since no roll is needed. Locking sends the LoreMaster the stance by name.
 - In FateWell, foe intents gain Change Stance. Picking a stance applies to the foe immediately, logs the shift, and the stance line and table tokens follow.
