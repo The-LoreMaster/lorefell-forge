@@ -2,6 +2,13 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## FellGlass — tracker out, stance sealed, skills roll true
+- The round track is removed from FellGlass. The buttons and prompts carry the two phases, and Combat Logs move up to sit right under the stage content. FateWell keeps its track for now.
+- The roll header drops the parentheses: Roll the Dice or enter manually, Enter Your Roll or roll the die, one line, all of it clickable.
+- Armor stances no longer apply on selection. Picking a stance in the declare form is a preview with its note, and the change lands only when Send to LoreMaster is pressed, closing the free-switch loophole. The gold ping and the log line now fire on Send.
+- Any skill is a real flow. Choosing it reveals a Skill dropdown listing all 24 skills with their bonus, the header reads Roll the Skill, the readout shows the skill name with its bonus added to the die, and the declare carries the skill by name with the skill total as its accuracy. A skill's bonus counts filled rank circles, identity grants included, plus mastery diamonds.
+- FellGlass only. Refresh with the new head, nothing to paste.
+
 ## Combat — one-line roll toggle and a two-step round track
 - The roll section header is a single clickable line: Roll the Dice (or enter manually), flipping to Enter Your Roll (or roll the die). The whole line is the toggle and it holds one line on phones.
 - The round track is two steps everywhere: Declare and Resolve. Commits and Plan folded into Declare, since committing, planning, and declaring are one phase seen from two seats. FellGlass and FateWell show the same track, and FateWell drops its floating ember for the same gold-filled diamond.

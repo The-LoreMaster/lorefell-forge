@@ -4175,12 +4175,6 @@ function cbDockAfter(){
   if(c){ requestAnimationFrame(function(){ c.style.width=pct+"%"; if(g) setTimeout(function(){ g.style.width=pct+"%"; },120); }); }
   window._dockPct=pct;
 }
-function cbRiteHtml(activeIdx, doneTo, nextIdx){
-  var steps=["Declare","Resolve"];
-  return '<div class="cbs-rite"><div class="track"></div>'
-    +steps.map(function(s,i){ var cls=(i===activeIdx)?' on':((i===nextIdx)?' next':(i<doneTo?' done':'')); return '<div class="cbs-step'+cls+'"><div class="mark"></div><span>'+s+'</span></div>'; }).join('')
-    +'</div>';
-}
 function applyCombatMode(){
   var on=!!(COMBAT&&COMBAT.active);
   document.body.classList.toggle("in-combat",on);
@@ -4215,8 +4209,6 @@ function applyCombatMode(){
   document.body.classList.add("cbs-full");
   if(!window._cbsFullPrev){ try{window.scrollTo(0,0);}catch(e){} }
   window._cbsFullPrev=true;
-  var activeIdx = resolving ? 1 : (declared ? -1 : 0);
-  var doneTo = resolving ? 1 : (declared ? 1 : 0);
   var dec=COMBAT.you||{};
 
   var snooze = (sh && window._hitSnooze===sh.at)
@@ -4251,7 +4243,7 @@ function applyCombatMode(){
       +'<button class="cbs-sheetbtn" id="cbsSheet">Your sheet</button>'
     +'</div></div>'
     +cbDockHtml()+'</div>'
-    +'<div class="cbs-body"><div class="cbs-inner">'+cbLuckBanner()+card+cbReactStatus()+optHtml+'<div class="cbs-ritebar">'+cbRiteHtml(activeIdx,doneTo,(declared&&!resolving)?1:-1)+'</div></div></div>'
+    +'<div class="cbs-body"><div class="cbs-inner">'+cbLuckBanner()+card+cbReactStatus()+optHtml+'</div></div>'
     +'<details class="cbs-record"'+(window._cbRecOpen?' open':'')+'><summary>Combat Logs <span>\u25be</span></summary>'+cbCombatLog()+'</details>';
   document.documentElement.style.setProperty("--cbn-h","0px");
 
@@ -4374,16 +4366,19 @@ function cbBreakout(name){
 }
 function cbDeclareFormHtml(){
   var dec=(COMBAT&&COMBAT.you)||{};
+  var decAct=dec.act?String(dec.act).split(" \u00b7 ")[0]:dec.act;
+  var decSub=(dec.act&&String(dec.act).indexOf(" \u00b7 ")>0)?String(dec.act).split(" \u00b7 ").slice(1).join(" \u00b7 "):"";
   var declared = window._declaredRound && COMBAT.round && window._declaredRound===COMBAT.round;
   return '<div class="cbs-eyebrow">Declare your Act</div>'
     +cbRoundDigest()
-    +'<label class="cb-l">Act</label><select id="cbAct" class="cb-sel" onchange="cbDmgHint()">'+cbArOptions(window.COMBAT_ACTS,dec.act)+'</select>'
+    +'<label class="cb-l">Act</label><select id="cbAct" class="cb-sel" onchange="cbDmgHint()">'+cbArOptions(window.COMBAT_ACTS,decAct)+'</select>'
     +'<div class="cb-dmghint" id="cbDmgHint"></div>'
     +'<div id="cbTargetWrap"><label class="cb-l">Target</label><select id="cbFocus" class="cb-sel" onchange="cbDmgHint()">'+cbFocusOptions(dec.target)+'</select></div>'
-    +'<div id="cbStanceWrap" style="display:none"><label class="cb-l">Armor stance</label><select id="cbStanceSel" class="cb-sel" onchange="cbApplyStancePick(this.value)">'
+    +'<div id="cbStanceWrap" style="display:none"><label class="cb-l">Armor stance</label><select id="cbStanceSel" class="cb-sel" onchange="cbStanceNote()">'
       +['Shrouded','Stalwart','Vestments'].map(function(sn){ return '<option value="'+sn+'"'+((C.armor&&C.armor.active)===sn?' selected':'')+'>'+sn+'</option>'; }).join('')
     +'</select><div class="cb-dmghint" id="cbStanceNote"></div></div>'
-    +'<div id="cbRollWrap"><button type="button" class="cb-l cb-rolllbl" id="cbRollTog">Roll the Dice (or enter manually)</button>'
+    +'<div id="cbSkillWrap" style="display:none"><label class="cb-l">Skill</label><select id="cbSkillSel" class="cb-sel" onchange="cbRenderRoll()">'+cbSkillOptions(decSub)+'</select></div>'
+    +'<div id="cbRollWrap"><button type="button" class="cb-l cb-rolllbl" id="cbRollTog">Roll the Dice or enter manually</button>'
     +'<div class="cb-rollroll"><button type="button" class="cb-rolldie" id="cbRollDie" aria-label="Roll your d6">?</button><span class="cb-rolltotal" id="cbRollTotal">Tap the die</span></div>'
     +'<div id="cbPickWrap" style="display:none"><div class="cb-rollpick" id="cbRollPick">'
       +'<button type="button" class="cb-face fellstrike" data-face="1">1</button>'
@@ -4528,9 +4523,10 @@ function cbInitRollPick(){
 function cbRollModeSync(){
   var pk=!!window._cbPickMode;
   var pw=document.getElementById("cbPickWrap"), die=document.getElementById("cbRollDie"), tg=document.getElementById("cbRollTog");
+  var selA=document.getElementById("cbAct"), eA=selA?cbActEntry(selA.value):null, isSk=!!(eA&&eA.src==="skills");
   if(pw) pw.style.display=pk?"":"none";
   if(die) die.style.display=pk?"none":"";
-  if(tg) tg.textContent=pk?"Enter Your Roll (or roll the die)":"Roll the Dice (or enter manually)";
+  if(tg) tg.textContent=pk?"Enter Your Roll or roll the die":(isSk?"Roll the Skill or enter manually":"Roll the Dice or enter manually");
   cbRenderRoll();
 }
 function cbSetRoll(face){ window._cbRoll=face; cbRenderRoll(); cbToggleFellBonus(); }
@@ -4543,10 +4539,14 @@ function cbRenderRoll(){
   var tot=document.getElementById("cbRollTotal");
   if(tot){
     var lk=cbMyLuck(), lkStr=lk?(lk==='lucky'?"Lucky \u00b7 ":"Unlucky \u00b7 "):"";
-    if(!face){ var _pm=window._cbPickMode?"pick your d6":"tap the die"; tot.textContent=lk?((lk==='lucky'?"Lucky roll":"Unlucky roll")+" \u00b7 "+_pm):("Roll your accuracy, "+_pm+"."); }
-    else { var pr=Math.max(0,attrTotal("precision")); var lbl=(face===1?"Fellstrike":(face===6?"Fellmark":String(face)));
+    var selA=document.getElementById("cbAct"), eA=selA?cbActEntry(selA.value):null, isSk=!!(eA&&eA.src==="skills");
+    if(!face){ var _pm=window._cbPickMode?"pick your d6":"tap the die"; tot.textContent=lk?((lk==='lucky'?"Lucky roll":"Unlucky roll")+" \u00b7 "+_pm):((isSk?"Roll the skill, ":"Roll your accuracy, ")+_pm+"."); }
+    else { var lbl=(face===1?"Fellstrike":(face===6?"Fellmark":String(face)));
       var dice=window._cbRollDice, diceStr=(dice&&dice.length>1)?(" ["+dice.join(", ")+" \u2192 "+face+"]"):"";
-      tot.textContent=lkStr+"Accuracy "+lbl+diceStr+" + Precision "+pr+" = "+(face+pr); }
+      if(isSk){ var ks=document.getElementById("cbSkillSel"), kn=ks?ks.value:""; var kb=cbSkillBonus(kn);
+        tot.textContent=lkStr+(kn||"Skill")+" "+lbl+diceStr+" + "+kb+" = "+(face+kb); }
+      else { var pr=Math.max(0,attrTotal("precision"));
+        tot.textContent=lkStr+"Accuracy "+lbl+diceStr+" + Precision "+pr+" = "+(face+pr); } }
   }
 }
 function cbPlaceOverlay(ov){
@@ -4603,10 +4603,13 @@ function cbDmgHint(){
 }
 function cbActUiSync(e){
   var st = !!(e && e.src==="armor");
-  var tw=document.getElementById("cbTargetWrap"), sw=document.getElementById("cbStanceWrap"), rw=document.getElementById("cbRollWrap");
+  var sk = !!(e && e.src==="skills");
+  var tw=document.getElementById("cbTargetWrap"), sw=document.getElementById("cbStanceWrap"), rw=document.getElementById("cbRollWrap"), kw=document.getElementById("cbSkillWrap");
   if(tw) tw.style.display = st?"none":"";
   if(rw) rw.style.display = st?"none":"";
   if(sw){ sw.style.display = st?"":"none"; if(st) cbStanceNote(); }
+  if(kw) kw.style.display = sk?"":"none";
+  if(typeof cbRollModeSync==="function") cbRollModeSync();
 }
 function cbStanceNote(){
   var n=document.getElementById("cbStanceNote"), sel=document.getElementById("cbStanceSel");
@@ -4621,6 +4624,16 @@ function cbApplyStancePick(v){
   cbStanceNote();
   cbPing("Stance adopted: "+v+".", true);
   cbLogSelf("fell", meName()+" shifts to "+v+".");
+}
+function cbSkillBonus(name){
+  var sk=(C.skills||{})[name]; if(!sk) return 0;
+  var g=(typeof skillGrant==="function")?(skillGrant(name)||0):0;
+  return Math.max(0,(sk.rank||0)+g+(sk.mastery||0));
+}
+function cbSkillOptions(sel){
+  return Object.keys(C.skills||{}).map(function(n){
+    return '<option value="'+cbEsc(n)+'"'+(sel===n?' selected':'')+'>'+cbEsc(n)+' \u00b7 +'+cbSkillBonus(n)+'</option>';
+  }).join('');
 }
 function cbTargetName(key){
   if(!key) return "";
@@ -4656,6 +4669,10 @@ function sendDeclare(){
   if(e){ if(e.dt==="phys" && cbWeaponHasInf(e.src,"Powerful")) pierce=Math.max(0,attrTotal("power")); else if(e.dt==="magic" && cbWeaponHasInf(e.src,"Ethereal")) pierce=Math.max(0,attrTotal("magic")); }
   var actTier = (e && typeof e.tier==="number") ? e.tier : null;
   if(act && cbHasAff("Ignited") && window._ignitedRound!==round){ window._ignitedRound=round; var ir=1+Math.floor(Math.random()*6); cbSelfDamage(ir); cbPing("Ignited: your Act burns you for "+ir+"."); cbLogSelf("foe", meName()+": Ignited burns for "+ir+"."); }
+  if(e && e.src==="skills"){
+    var _kSel=document.getElementById("cbSkillSel"); var _kn=_kSel?_kSel.value:"";
+    if(_kn){ act=act+" \u00b7 "+_kn; if(roll) acc=roll+cbSkillBonus(_kn); }
+  }
   if(e && e.src==="armor"){
     var _sSel=document.getElementById("cbStanceSel");
     var _sv=(_sSel&&_sSel.value)||(C.armor&&C.armor.active)||"";
