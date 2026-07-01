@@ -2,6 +2,14 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## FellGlass — stage layout swap and readability
+- The dock with your Vitality, charge, and Fatigue now sits at the top, right under the combat line. The four-step round track moved to the bottom above Combat Logs, which stays last.
+- Vitality numbers moved out of the bar. They sit beside your name in clear type, temporary vitality marked, and the bar below is clean. Charge holds the left of the status row and Fatigue rides the right.
+- The round track dropped the floating gold circle. The active step is a gold-filled diamond, resolved steps stay dim.
+- The declare card lost its filler line. The damage line now reads This Act deals X base and X bonus physical or magical damage to the target, with a halved note when a condition cuts it. Focus is renamed Target, including the Fellmark hint.
+- Desktop centering is enforced with stronger rules, beating the popup card cap that held it at 420 wide and left.
+- FellGlass only. Refresh with the new head, nothing to paste.
+
 ## Combat stage — desktop centering, the die, and readout fixes
 - The stage centers itself on wide screens instead of hugging the left edge. The rail, card, dock, and Combat Logs share one column.
 - The red combat glow now lives on the stage itself, the same pulse the sheet carries.
