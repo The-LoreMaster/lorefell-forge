@@ -2,6 +2,15 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## FellGlass — the combat stage
+- Combat is now its own screen instead of a banner stacked on the sheet. The stage shows one thing at a time: the declare form, your locked Act, the Evasion roll when a foe attacks you, or the incoming hit. Each lands where you are already looking, no popups.
+- The four steps of the round (Commits, Plan, Declare, Resolve) run as a rail at the top with an ember that moves as the round moves.
+- Your Fell rides a dock at the bottom at all times: Vitality with a damage trail, the charge meter, Fatigue, and Afflictions.
+- Infusion triggers, infusion reminders, and augment reminders fold into a Your options drawer. The combat log is The record, a pull-up at the bottom. The Lucky and Unlucky banner keeps its place above the stage card.
+- Your sheet is one tap away and combat becomes a slim return bar while you are there, so Breakout rolls, healing, stances, and items lose nothing.
+- Every sender is unchanged: declares, Evasion relays, hit confirms, and sync all flow exactly as before. Declare copy now reads Declare your Act.
+- FellGlass only. Refresh with the new head, nothing to paste.
+
 ## Weapons — real forms and innate afflictions
 - Every weapon tree now carries its canon forms and the innate affliction each form is known for, drawn from the FellGuide. Bow lands Hunted, then Vulnerable, then Impeded across its three forms. Axe lands Bleeding, Mangled, Crippled. All nine trees are filled the same way.
 - A player Fellmark lands the weapon's real affliction on the struck foe instead of the placeholder, and it ticks on the foe like any canon affliction. The innate shown on the weapon slot tracks the weapon's current form.
