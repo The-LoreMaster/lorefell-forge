@@ -2,6 +2,13 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Combat — stance switching, target names, and the waiting glow
+- Change Armor Stance is a full flow on both sides. In FellGlass, choosing it swaps the Target dropdown for a stance picker with the stance description and its Tier 1 grant. Picking a stance applies to your sheet on the spot, logs the shift for the table, and hides the roll section since no roll is needed. Locking sends the LoreMaster the stance by name.
+- In FateWell, foe intents gain Change Stance. Picking a stance applies to the foe immediately, logs the shift, and the stance line and table tokens follow.
+- The locked card names your target instead of showing its key, and drops the carved capitals for readable type. No focus is now No target.
+- After you lock your Act, the round track pulses a soft gold glow on Resolve, showing the round is waiting on the LoreMaster.
+- FellGlass and FateWell only. Refresh with the new head, nothing to paste.
+
 ## FellGlass — stage layout swap and readability
 - The dock with your Vitality, charge, and Fatigue now sits at the top, right under the combat line. The four-step round track moved to the bottom above Combat Logs, which stays last.
 - Vitality numbers moved out of the bar. They sit beside your name in clear type, temporary vitality marked, and the bar below is clean. Charge holds the left of the status row and Fatigue rides the right.

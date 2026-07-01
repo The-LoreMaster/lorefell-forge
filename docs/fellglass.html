@@ -532,7 +532,11 @@ body.in-combat::after{ content:""; position:fixed; inset:0; pointer-events:none;
 .cb-stage .cbs-inner{ max-width:680px; width:100%; margin:0 auto; }
 .cb-stage .cbs-inner>*{ max-width:680px; width:100%; margin-left:auto; margin-right:auto; }
 .cb-stage .cbs-inner .cb-card{ max-width:680px; }
-@media (prefers-reduced-motion:reduce){ .cbs-card,.cbs-alert,.cbs-pip.lit,.cb-stage::after,.cb-rolldie.spin,.cb-rolldie.set{ animation:none } .cbs-vit .g,.cbs-vit .c,.cbs-fat .fn{ transition:none } }
+.cbs-you{ font-family:'Crimson Pro',serif; font-weight:600; font-size:1.12rem; color:var(--silver); line-height:1.35; }
+.cbs-you.sub{ font-size:.98rem; color:var(--ice); margin-top:4px; }
+.cbs-step.next .mark{ border-color:rgba(201,168,76,.7); box-shadow:0 0 9px rgba(201,168,76,.35); animation:cbsNextPulse 2s ease-in-out infinite; }
+@keyframes cbsNextPulse{ 0%,100%{ box-shadow:0 0 5px rgba(201,168,76,.2) } 50%{ box-shadow:0 0 12px rgba(201,168,76,.55) } }
+@media (prefers-reduced-motion:reduce){ .cbs-card,.cbs-alert,.cbs-pip.lit,.cb-stage::after,.cb-rolldie.spin,.cb-rolldie.set,.cbs-step.next .mark{ animation:none } .cbs-vit .g,.cbs-vit .c,.cbs-fat .fn{ transition:none } }
 .cbn-react button{margin-left:auto;font-family:'Cinzel',serif;font-size:.7rem;letter-spacing:.05em;color:var(--ice);background:transparent;border:1px solid var(--line);border-radius:5px;padding:4px 9px;cursor:pointer}
 .cbl{margin-top:10px;border-top:1px solid var(--line);padding-top:8px}
 .cbl-h{font-family:'Cinzel',serif;font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);margin-bottom:4px}
@@ -4132,10 +4136,10 @@ function cbDockAfter(){
   if(c){ requestAnimationFrame(function(){ c.style.width=pct+"%"; if(g) setTimeout(function(){ g.style.width=pct+"%"; },120); }); }
   window._dockPct=pct;
 }
-function cbRiteHtml(activeIdx, doneTo){
+function cbRiteHtml(activeIdx, doneTo, nextIdx){
   var steps=["Commits","Plan","Declare","Resolve"];
   return '<div class="cbs-rite"><div class="track"></div>'
-    +steps.map(function(s,i){ return '<div class="cbs-step'+(i===activeIdx?' on':(i<doneTo?' done':''))+'"><div class="mark"></div><span>'+s+'</span></div>'; }).join('')
+    +steps.map(function(s,i){ var cls=(i===activeIdx)?' on':((i===nextIdx)?' next':(i<doneTo?' done':'')); return '<div class="cbs-step'+cls+'"><div class="mark"></div><span>'+s+'</span></div>'; }).join('')
     +'</div>';
 }
 function applyCombatMode(){
@@ -4182,14 +4186,14 @@ function applyCombatMode(){
     card=snooze+'<div class="cb-card cbs-card'+(youUp?' hit':'')+'">'
       +'<div class="cbs-eyebrow'+(youUp?' foe':'')+'">'+(youUp?'The Spotlight finds you':'Resolve')+'</div>'
       +'<div class="cb-h">'+(youUp?'Your Act and React resolve now':'The LoreMaster resolves the round')+'</div>'
-      +(dec.act?'<p class="cb-sub">'+cbEsc(dec.act)+(dec.target?' on '+cbEsc(dec.target):'')+'</p>':'')
+      +(dec.act?'<div class="cbs-you sub">'+cbEsc(dec.act)+(dec.target?' on '+cbEsc(cbTargetName(dec.target)):'')+'</div>':'')
       +'<p class="cb-sub">Hold your React for the moment it matters.</p>'
       +'</div>'; mode="resolve";
   }
   else {
     card=snooze+'<div class="cb-card cbs-card">'
       +'<div class="cbs-eyebrow">Locked</div>'
-      +'<div class="cb-h">'+cbEsc(dec.act||"Your Act")+(dec.target?' on '+cbEsc(dec.target):'')+'</div>'
+      +'<div class="cbs-you">'+cbEsc(dec.act||"Your Act")+(dec.target?' on '+cbEsc(cbTargetName(dec.target)):'')+'</div>'
       +'<p class="cb-sub">Waiting on the table and the LoreMaster. The round resolves in Spotlights.</p>'
       +'<div class="cb-row"><button class="btn small" id="cbEdit">Edit declaration</button></div>'
       +'</div>'; mode="locked";
@@ -4205,7 +4209,7 @@ function applyCombatMode(){
     +'</div></div>'
     +cbDockHtml()
     +'<div class="cbs-body"><div class="cbs-inner">'+cbLuckBanner()+card+cbReactStatus()+optHtml+'</div></div>'
-    +'<div class="cbs-ritebar">'+cbRiteHtml(activeIdx,doneTo)+'</div>'
+    +'<div class="cbs-ritebar">'+cbRiteHtml(activeIdx,doneTo,(declared&&!resolving)?3:-1)+'</div>'
     +'<details class="cbs-record"'+(window._cbRecOpen?' open':'')+'><summary>Combat Logs <span>\u25be</span></summary>'+cbCombatLog()+'</details>';
   document.documentElement.style.setProperty("--cbn-h","0px");
 
@@ -4221,7 +4225,7 @@ function applyCombatMode(){
   cbDockAfter();
 }
 function cbFocusOptions(sel){
-  var h='<option value="">No focus</option><option value="space"'+(sel==="space"?" selected":"")+'>Space</option>';
+  var h='<option value="">No target</option><option value="space"'+(sel==="space"?" selected":"")+'>Space</option>';
   ((COMBAT&&COMBAT.fighters)||[]).forEach(function(f){ var lbl=f.side==="monster"?"Foe":f.side==="npc"?"NPC":"Fell"; h+='<option value="'+cbEsc(f.key)+'"'+(sel===f.key?" selected":"")+'>'+cbEsc(f.name)+(f.side?" ("+lbl+")":"")+'</option>'; });
   return h;
 }
@@ -4332,8 +4336,11 @@ function cbDeclareFormHtml(){
     +cbRoundDigest()
     +'<label class="cb-l">Act</label><select id="cbAct" class="cb-sel" onchange="cbDmgHint()">'+cbArOptions(window.COMBAT_ACTS,dec.act)+'</select>'
     +'<div class="cb-dmghint" id="cbDmgHint"></div>'
-    +'<label class="cb-l">Target</label><select id="cbFocus" class="cb-sel" onchange="cbDmgHint()">'+cbFocusOptions(dec.target)+'</select>'
-    +'<label class="cb-l">Your roll</label>'
+    +'<div id="cbTargetWrap"><label class="cb-l">Target</label><select id="cbFocus" class="cb-sel" onchange="cbDmgHint()">'+cbFocusOptions(dec.target)+'</select></div>'
+    +'<div id="cbStanceWrap" style="display:none"><label class="cb-l">Armor stance</label><select id="cbStanceSel" class="cb-sel" onchange="cbApplyStancePick(this.value)">'
+      +['Shrouded','Stalwart','Vestments'].map(function(sn){ return '<option value="'+sn+'"'+((C.armor&&C.armor.active)===sn?' selected':'')+'>'+sn+'</option>'; }).join('')
+    +'</select><div class="cb-dmghint" id="cbStanceNote"></div></div>'
+    +'<div id="cbRollWrap"><label class="cb-l">Your roll</label>'
     +'<div class="cb-rollpick" id="cbRollPick">'
       +'<button type="button" class="cb-face fellstrike" data-face="1">1</button>'
       +'<button type="button" class="cb-face" data-face="2">2</button>'
@@ -4346,7 +4353,7 @@ function cbDeclareFormHtml(){
     +'<div class="cb-rollroll"><button type="button" class="cb-rolldie" id="cbRollDie" aria-label="Roll your d6">?</button><span class="cb-rolltotal" id="cbRollTotal">Pick or tap the die</span></div>'
     +'<div class="cb-fellhint" id="cbFellHint"></div>'
     +'<div class="cb-fellbonus" id="cbFellBonus"><span class="cb-fb-l">Fellmark bonus</span><span id="cbFellBonusDie"></span><span class="result" id="cbFellBonusRes">\u2014</span><span class="cb-fb-hint" id="cbFellBonusHint">Tap the die to roll.</span></div>'
-    +'<div class="cb-afflicted" id="cbAfflicted" style="display:none"><span class="cb-fb-l">Fellmark affliction</span><select id="cbAfflictedSel" class="cb-sel"></select></div>'
+    +'<div class="cb-afflicted" id="cbAfflicted" style="display:none"><span class="cb-fb-l">Fellmark affliction</span><select id="cbAfflictedSel" class="cb-sel"></select></div></div>'
     +'<div class="cb-gate" id="cbGate"></div>'
     +'<div class="cb-affwrap" id="cbAffWrap">'+cbBreakoutList()+'</div>'
     +'<div class="cb-row">'+(declared?'<button class="btn small" id="cbCancelEdit">Keep current</button>':'')+'<button class="btn small gold" id="cbSend">Send to LoreMaster</button></div>';
@@ -4538,7 +4545,36 @@ function cbDmgHint(){
     var aff=e?(e.aff||""):"", focusKey=fc?fc.value:"", foeFocus=focusKey.indexOf("m:")===0;
     fh.textContent = aff ? (foeFocus ? ("On a Fellmark this lands "+aff+" on your target.") : "On a Fellmark your weapon lands "+aff+". Target a foe to place it.") : "";
   }
+  cbActUiSync(e);
   cbInitAfflicted();
+}
+function cbActUiSync(e){
+  var st = !!(e && e.src==="armor");
+  var tw=document.getElementById("cbTargetWrap"), sw=document.getElementById("cbStanceWrap"), rw=document.getElementById("cbRollWrap");
+  if(tw) tw.style.display = st?"none":"";
+  if(rw) rw.style.display = st?"none":"";
+  if(sw){ sw.style.display = st?"":"none"; if(st) cbStanceNote(); }
+}
+function cbStanceNote(){
+  var n=document.getElementById("cbStanceNote"), sel=document.getElementById("cbStanceSel");
+  if(!n||!sel) return;
+  var d=(typeof STANCE_DB!=="undefined")?STANCE_DB[sel.value]:null;
+  var own=(C.armor&&C.armor.level>0);
+  n.textContent = d ? (d.desc+" Tier 1 grants "+d.tiers[0]+"."+(own?"":" Unowned stances behave as an empty slot.")) : "";
+}
+function cbApplyStancePick(v){
+  C.armor.active=v||null;
+  try{renderArmor();}catch(e){} try{renderDials();}catch(e){} try{renderWeapons();}catch(e){} try{renderBattle();}catch(e){}
+  scheduleSave();
+  cbStanceNote();
+  cbPing("Stance adopted: "+v+".");
+  cbLogSelf("fell", meName()+" shifts to "+v+".");
+}
+function cbTargetName(key){
+  if(!key) return "";
+  if(key==="space") return "Space";
+  var f=((COMBAT&&COMBAT.fighters)||[]).filter(function(x){ return x.key===key; })[0];
+  return f?f.name:key;
 }
 function sendDeclare(){
   if(!CUR_WIX_ID) return;
@@ -4568,6 +4604,13 @@ function sendDeclare(){
   if(e){ if(e.dt==="phys" && cbWeaponHasInf(e.src,"Powerful")) pierce=Math.max(0,attrTotal("power")); else if(e.dt==="magic" && cbWeaponHasInf(e.src,"Ethereal")) pierce=Math.max(0,attrTotal("magic")); }
   var actTier = (e && typeof e.tier==="number") ? e.tier : null;
   if(act && cbHasAff("Ignited") && window._ignitedRound!==round){ window._ignitedRound=round; var ir=1+Math.floor(Math.random()*6); cbSelfDamage(ir); cbPing("Ignited: your Act burns you for "+ir+"."); cbLogSelf("foe", meName()+": Ignited burns for "+ir+"."); }
+  if(e && e.src==="armor"){
+    var _sSel=document.getElementById("cbStanceSel");
+    var _sv=(_sSel&&_sSel.value)||(C.armor&&C.armor.active)||"";
+    if(_sv && C.armor.active!==_sv) cbApplyStancePick(_sv);
+    if(_sv) act=act+" \u00b7 "+_sv;
+    target="";
+  }
   postToVelo({type:"combat-declare",charId:CUR_WIX_ID,act:act,react:react,target:target,round:round,dmg:dmg,base:(e?e.base:0),dt:(e?e.dt:""),fellmark:fell,applies:applies,actTier:actTier,doubleFell:doubleFell,fellBonus:fb,pierce:pierce,roll:roll,acc:acc,fellstrike:(roll===1),kind:(e?e.kind:""),
     charge:C.charge||0,curVit:C.vitality.current,maxVit:C.vitality.max,affs:affs});
   if(COMBAT) COMBAT.you={act:act,react:react,target:target};
