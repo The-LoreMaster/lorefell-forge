@@ -2,6 +2,11 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Weapons — real forms and innate afflictions
+- Every weapon tree now carries its canon forms and the innate affliction each form is known for, drawn from the FellGuide. Bow lands Hunted, then Vulnerable, then Impeded across its three forms. Axe lands Bleeding, Mangled, Crippled. All nine trees are filled the same way.
+- A player Fellmark lands the weapon's real affliction on the struck foe instead of the placeholder, and it ticks on the foe like any canon affliction. The innate shown on the weapon slot tracks the weapon's current form.
+- FellGlass only. Refresh with the new head, nothing to paste.
+
 ## Combat — bonus damage in the log, afflictions land on their own
 - Every resolved hit shows its base and bonus split in the log, both directions. A player hit reads for TOTAL (N base + M bonus), and damage a player takes reads the same way, doubled and mark contributions noted.
 - Afflictions land automatically on a Fellmark. A player's weapon affliction lands on the struck foe, and a foe's affliction lands on its target. A foe's standard attack falls back to its signature affliction when the chosen ability carries none.
