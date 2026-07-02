@@ -69,7 +69,7 @@ $w.onReady(() => {
       try { state = await getCombatForChar(msg.charId || charId); } catch (e) { state = null; }
       embed.postMessage({ type: 'combat-state', state: state });
     } else if (msg.type === 'combat-sync') {
-      try { await syncCombatPlayer(msg.charId || charId, { curVit: msg.curVit, maxVit: msg.maxVit, charge: msg.charge, affs: msg.affs, defEva: msg.defEva, plog: msg.plog }); } catch (e) {}
+      try { await syncCombatPlayer(msg.charId || charId, { curVit: msg.curVit, maxVit: msg.maxVit, charge: msg.charge, affs: msg.affs, defEva: msg.defEva, plog: msg.plog, gear: msg.gear }); } catch (e) {}
     } else if (msg.type === 'combat-declare') {
       try {
         await saveCombatDeclare(msg.charId || charId, {

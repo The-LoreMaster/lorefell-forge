@@ -2,6 +2,12 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Token popups — attribute pairing, no costs, player gear
+- Foe attributes pair offense against defense: Precision, Power, Magic, and Vigor down the left, Evasion, Durability, Resistance, and Wit down the right.
+- Abilities carry no cost anywhere in FateWell. They gate on charge Tier alone, and the popup shows name, Tier, use, and what a Fellmark lands.
+- Player popups drop the roll line and show loadout instead: weapons with tree and level, armor level with the active stance, and lorebounds with their form. FellGlass syncs the loadout with combat state through a new gear field.
+- Requires a paste of velo/backend/combat.web.js and velo/page-fellglass.js. The CombatPlayer schema gains a gear column and the Apply CMS Action runs on this push.
+
 ## Combat — steady dropdowns and full stat-side popups
 - Root cause of dropdowns closing: the declare poll marked state as changed on every pass and re-rendered every 12 seconds, destroying any open control. Identical payloads now skip entirely, and when real changes do arrive while a dropdown, input, or text field is focused, the render waits until focus leaves.
 - FellGlass gets the same discipline. State updates defer while the declare form is in use, and unsent picks (Act, Target, Skill, Item, Stance) survive any rebuild through a draft layer. Sending, a new round, or combat ending clears the draft.
