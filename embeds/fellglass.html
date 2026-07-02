@@ -567,6 +567,9 @@ body.cbs-full::after{ display:none; }
 #cbTargetWrap,#cbStanceWrap,#cbSkillWrap{ margin:0; }
 .cb-stage .cb-dmghint:empty{ display:none; }
 .cb-rolldie.fb{ width:38px; height:38px; font-size:1.05rem; border-radius:9px; }
+.cbs-quick{ width:30px; height:30px; font-size:.85rem; margin-right:7px; }
+.cb-asphint{ font-size:.8rem; color:var(--ice); line-height:1.45; margin:4px 0 2px; }
+.cb-asphint b{ color:var(--gold); font-weight:600; }
 .cb-fbpick{ display:inline-flex; gap:4px; }
 .cb-fbp{ width:30px; height:30px; display:grid; place-items:center; font-family:'Cinzel',serif; font-size:.8rem; color:var(--silver-dim); background:var(--navy-3); border:1px solid var(--line); border-radius:6px; cursor:pointer; padding:0; }
 .cb-fbp.on{ color:var(--navy); background:var(--ice); border-color:var(--ice); }
@@ -4135,8 +4138,21 @@ function setCombatState(state){
   var sig=JSON.stringify(state||null); if(sig===_combatSig) return;
   var wasActive=!!(COMBAT&&COMBAT.active);
   _combatSig=sig; COMBAT=state||null;
+  var _forceOrd=false;
+  try{
+    var _mf=((COMBAT&&COMBAT.fighters)||[]).filter(function(x){ return x.charId===CUR_WIX_ID; })[0];
+    var _ord=(_mf && COMBAT && COMBAT.orders) ? COMBAT.orders[_mf.key] : null;
+    if(_ord && _ord.reroll && _ord.reroll!==window._lastRerollTs){
+      window._lastRerollTs=_ord.reroll;
+      window._cbRoll=null; window._declaredRound=null; window._editDecl=true;
+      cbPing("The LoreMaster calls for a new roll.", true);
+      cbLogSelf("fell", meName()+" takes up the die again at the LoreMaster's word.");
+      _forceOrd=true;
+    }
+  }catch(err){}
   var _ae=document.activeElement, _bn=document.getElementById("combatBanner");
-  if(_ae && _bn && _bn.contains(_ae) && /^(SELECT|INPUT|TEXTAREA)$/.test(_ae.tagName)){
+  if(_forceOrd){ window._cbDirty=false; applyCombatMode(); }
+  else if(_ae && _bn && _bn.contains(_ae) && /^(SELECT|INPUT|TEXTAREA)$/.test(_ae.tagName)){
     window._cbDirty=true;
     if(!window._cbFlushBound){
       window._cbFlushBound=true;
@@ -4316,6 +4332,7 @@ function applyCombatMode(){
   bn.innerHTML=''
     +'<div class="cbs-top"><div class="cbs-rail"><div class="cbs-rail-top">'
       +'<span class="cbs-mode"><span class="cbs-dot"></span><span>'+(youUp&&resolving?"The Spotlight finds you":"Combat")+' \u00b7 Round '+(COMBAT.round||1)+(COMBAT.sceneName?' \u00b7 '+cbEsc(COMBAT.sceneName):'')+'</span></span>'
+      +'<button class="cb-rolldie fb cbs-quick" id="cbsQuick" aria-label="Roll a d6">?</button>'
       +'<button class="cbs-sheetbtn" id="cbsSheet">Your sheet</button>'
     +'</div></div>'
     +cbDockHtml()+'</div>'
@@ -4324,6 +4341,21 @@ function applyCombatMode(){
   document.documentElement.style.setProperty("--cbn-h","0px");
 
   var shbtn=document.getElementById("cbsSheet"); if(shbtn) shbtn.addEventListener("click",function(){ window._cbSheetView=true; applyCombatMode(); });
+  var qd=document.getElementById("cbsQuick");
+  if(qd) qd.addEventListener("click", function(){
+    if(qd.classList.contains("spin")) return;
+    qd.classList.add("spin"); qd.classList.remove("fell","strike");
+    var iv=setInterval(function(){ qd.textContent=1+Math.floor(Math.random()*6); },70);
+    setTimeout(function(){
+      clearInterval(iv); qd.classList.remove("spin");
+      var v=1+Math.floor(Math.random()*6);
+      qd.textContent=String(v);
+      if(v===6) qd.classList.add("fell"); if(v===1) qd.classList.add("strike");
+      cbPing("d6 \u2192 "+v+".", v===6);
+      cbLogSelf("fell", meName()+" rolls a d6 \u2192 "+(v===6?"Fellmark":(v===1?"Fellstrike":v))+".");
+    },560);
+  });
+  try{ cbAspectHint(); }catch(e){}
   var rb=document.getElementById("cbnReact"); if(rb) rb.addEventListener("click",function(){ window._reactUsed=!window._reactUsed; applyCombatMode(); });
   var ed=document.getElementById("cbEdit"); if(ed) ed.addEventListener("click",function(){ window._editDecl=true; applyCombatMode(); });
   var wake=document.getElementById("cbsHitWake"); if(wake) wake.addEventListener("click",function(){ window._hitSnooze=null; applyCombatMode(); });
@@ -4450,7 +4482,8 @@ function cbCaptureDraft(){
     focus:(document.getElementById("cbFocus")||{}).value,
     skill:(document.getElementById("cbSkillSel")||{}).value,
     item:(document.getElementById("cbItemSel")||{}).value,
-    stance:(document.getElementById("cbStanceSel")||{}).value
+    stance:(document.getElementById("cbStanceSel")||{}).value,
+    react:(document.getElementById("cbReact")||{}).value
   };
 }
 function cbDraft(k, fb){
@@ -4469,6 +4502,8 @@ function cbDeclareFormHtml(){
     +'<div class="cb-dmghint" id="cbDmgHint"></div>'
     +'<div id="cbSkillWrap" style="display:none"><label class="cb-l">Skill</label><select id="cbSkillSel" class="cb-sel" onchange="cbRenderRoll()">'+cbSkillOptions(cbDraft("skill", decSub))+'</select></div>'
     +'<div id="cbItemWrap" style="display:none"><label class="cb-l">Item</label><select id="cbItemSel" class="cb-sel">'+cbItemOptions(cbDraft("item", decSub))+'</select></div>'
+    +'<label class="cb-l">React</label><select id="cbReact" class="cb-sel" onchange="cbAspectHint()">'+cbReactOptions(cbDraft("react", dec.react))+'</select>'
+    +'<div id="cbAspectHint" class="cb-asphint"></div>'
     +'<div id="cbTargetWrap"><label class="cb-l">Target</label><select id="cbFocus" class="cb-sel" onchange="cbDmgHint()">'+cbFocusOptions(cbDraft("focus", dec.target))+'</select></div>'
     +'<div id="cbStanceWrap" style="display:none"><label class="cb-l">Armor stance</label><select id="cbStanceSel" class="cb-sel" onchange="cbStanceNote()">'
       +['Shrouded','Stalwart','Vestments'].map(function(sn){ return '<option value="'+sn+'"'+(cbDraft("stance",(C.armor&&C.armor.active))===sn?' selected':'')+'>'+sn+'</option>'; }).join('')
@@ -4773,6 +4808,14 @@ function cbSkillBonus(name){
   var g=(typeof skillGrant==="function")?(skillGrant(name)||0):0;
   return Math.max(0,(sk.rank||0)+g+(sk.mastery||0));
 }
+function cbReactOptions(sel){
+  var h='<option value="">Hold your React</option>';
+  ((window.COMBAT_REACTS)||[]).forEach(function(r){
+    var lbl=r.nm+(r.kind==="lorebound"?" \u00b7 Lorebound":"");
+    h+='<option value="'+cbEsc(r.nm)+'"'+(sel===r.nm?' selected':'')+'>'+cbEsc(lbl)+'</option>';
+  });
+  return h;
+}
 function cbItemOptions(sel){
   return (C.inventory||[]).map(function(x){
     var nm=(x&&x.name)?x.name:String(x||"");
@@ -4795,13 +4838,14 @@ function cbTargetName(key){
 function sendDeclare(){
   if(!CUR_WIX_ID) return;
   var act=document.getElementById("cbAct")?document.getElementById("cbAct").value:"";
-  var react="";
+  var react=document.getElementById("cbReact")?document.getElementById("cbReact").value:"";
   var target=document.getElementById("cbFocus")?document.getElementById("cbFocus").value:"";
   var affs=[].concat((C.afflictions||[]).map(function(a){return {name:a.name,kind:"affliction"};}),
                      (C.effects||[]).map(function(e){return {name:e.name,kind:"effect"};}));
   var round=(COMBAT&&COMBAT.round)||1;
   var e=cbActEntry(act), dmg=cbActDmg(act);
   var roll=window._cbRoll||0;
+  if(dmg>0 && !roll){ cbPing("Roll your accuracy before you send."); return; }
   var fell=(roll===6);
   var acc=roll?(roll+Math.max(0,attrTotal("precision"))):0;
   var foeFocus = target && target.indexOf("m:")===0;

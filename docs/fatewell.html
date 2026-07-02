@@ -1293,6 +1293,18 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 .fw-pop-row b{ color:var(--silver); font-weight:600; }
 .fw-pop-pend{ margin-top:8px; padding:6px 9px; border:1px dashed rgba(201,168,76,.5); border-radius:8px; font-size:.78rem; color:#e8dcae; }
 .fw-pop-x{ display:flex; justify-content:flex-end; margin-top:10px; }
+.fw-pop-ctl{ display:flex; align-items:center; justify-content:space-between; gap:9px; padding:6px 0; border-bottom:1px solid var(--line); font-size:.86rem; color:var(--ice); }
+.fw-pop-ctl .cb-vb{ margin-left:5px; }
+.fw-pop-cond select{ flex:1; min-width:0; }
+.fw-pop-rm{ flex-wrap:wrap; justify-content:flex-start; }
+.fw-rmchip{ font-size:.74rem; padding:3px 9px; border:1px solid rgba(192,100,90,.5); border-radius:999px; color:#e6b3ab; background:transparent; cursor:pointer; }
+.fw-cardtop{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin:2px 0 6px; }
+.fw-vro{ font-family:'Cinzel',serif; font-size:.82rem; color:var(--silver); }
+.fw-ropts{ font-size:.78rem; color:#9fb0bf; margin:5px 0 2px; }
+.cb-commit .cb-pickrow{ display:block; }
+.cb-commit .cb-pk{ display:block; font-family:'Cinzel',serif; font-size:.58rem; letter-spacing:.12em; text-transform:uppercase; color:var(--ice); margin:8px 0 4px; }
+.cb-commit .cb-pickers{ display:block; }
+.cb-commit .cb-pickers select{ width:100%; padding:9px 11px; font-size:.95rem; margin-bottom:4px; }
 .fw-record{ border:1px solid var(--line); border-radius:10px; background:var(--panel); margin-bottom:12px; }
 .fw-record > summary{ list-style:none; cursor:pointer; padding:9px 12px; display:flex; align-items:center; justify-content:space-between; font-family:'Cinzel',serif; font-size:.62rem; letter-spacing:.12em; text-transform:uppercase; color:#7e8a99; }
 .fw-record > summary::-webkit-details-marker{ display:none; }
@@ -4631,12 +4643,12 @@ function setPMaxVit(pid){
   save(); render();
 }
 
-function setPhase(p){ curSc().battle.phase = p; save(); render(); }
+function setPhase(p){ curSc().battle.phase = p; window._lastDeclSig=null; save(); render(); }
 function setSpotMode(m){ curSc().battle.spotMode = m; save(); render(); }
 
 function setMonAct(cid, val){ curSc().combatants.forEach(function(c){ if(c.id===cid) c.act = val; }); save(); }
 function setMonTarget(cid, val){ curSc().combatants.forEach(function(c){ if(c.id===cid){ c.target = val; if(c.intent && c.intent.type==='Attack' && val && val.indexOf('p:')===0) cbRollFoeAcc(cid,true); else c._acc=null; } }); save(); render(); }
-function lockCommits(){ var b=curSc().battle; b.locked = true; b.phase='resolve'; cbInitBattle(b); var SP=combatSpots(); b.activeSpot=0; b.spotBox = SP[0]?SP[0].ids.slice():[]; b.spotDone={}; b.undoStack=[]; save(); render(); }
+function lockCommits(){ var b=curSc().battle; b.locked = true; b.phase='resolve'; window._lastDeclSig=null; cbInitBattle(b); var SP=combatSpots(); b.activeSpot=0; b.spotBox = SP[0]?SP[0].ids.slice():[]; b.spotDone={}; b.undoStack=[]; save(); render(); }
 function unlockCommits(){
   curSc().battle.locked = false; save(); render();
 }
@@ -4964,7 +4976,7 @@ function doAdvanceRound(){
   });
   if(Object.keys(pend).length) cbLog('system','Round '+b.round+' stands. Staged outcomes cement.');
   b.pend={};
-  b.round++; b.phase = 'commit'; b.locked = false; b.pLocked = false; b.spots = []; b.manual = {}; b.order = [];
+  b.round++; b.phase = 'commit'; b.locked = false; b.pLocked = false; b.spots = []; b.manual = {}; b.order = []; window._lastDeclSig=null;
   cbLog('system','Round '+b.round+' begins.');
   b.spotBox = []; b.spotDone = {}; b.undoStack = []; b.activeSpot = 0;
   sc.combatants.forEach(function(c){
@@ -6316,7 +6328,19 @@ function cbAffsOf(n){ var o = cbVitOf(n); if(!o.affs) o.affs=[]; return o.affs; 
 function cbChargeOf(n){ return (cbVitOf(n).charge)||0; }
 function cbReactUsed(n){ return !!cbVitOf(n).reactUsed; }
 function cbTargetOf(n){ return n.kind==='m' ? (n.ref.target||'') : ((n.st||pState(n.ref.id)).target||''); }
-function cbActOf(n){ return n.kind==='m' ? (n.ref.act||'') : ((n.st||pState(n.ref.id)).act||''); }
+function cbActOf(n){
+  if(n.kind!=='m') return ((n.st||pState(n.ref.id)).act||'');
+  var c=n.ref, it=c.intent;
+  if(it && it.type){
+    var lbl=it.type;
+    if(it.ability && it.ability!=='__std__') lbl+=' \u00b7 '+it.ability;
+    if(it.item) lbl+=' \u00b7 '+it.item;
+    if(it.skill) lbl+=' \u00b7 '+it.skill;
+    if(it.stance) lbl+=' \u00b7 '+it.stance;
+    return lbl;
+  }
+  return c.act||'';
+}
 
 function combatSpots(){
   var nodes = battleNodes(), byKey={};
@@ -6380,7 +6404,7 @@ function cbIntentPicker(cb){
     var abIdx=(cb.abilities||[]).map(function(a){ return a.name; }).indexOf(it.ability);
     infl='<div class="cb-pickrow"><span class="cb-pk">On Fellmark</span><div class="cb-pickers"><button class="cb-link" onclick="cbApplies(\''+cb.id+'\','+abIdx+')">'+appliesLabel((cb.abilities||[])[abIdx])+'</button></div></div>';
   }
-  return '<div class="cb-pickrow"><span class="cb-pk">Intent</span><div class="cb-pickers">'
+  return '<div class="cb-pickrow"><span class="cb-pk">Act</span><div class="cb-pickers">'
     + '<select class="inp slim" onchange="cbSetIntent(\''+cb.id+'\',\'type\',this.value)">'+topts+'</select>'+sub+'</div></div>'
     + infl
     + '<div class="cb-pickrow"><span class="cb-pk">Target</span><div class="cb-pickers">'+focus+'</div></div>';
@@ -6507,9 +6531,9 @@ function cbCard(n, o){
   var sideLbl = n.side==='monster'?'Foe':(n.side==='npc'?'NPC':'Fell');
   return '<div class="cb-fighter '+sideCls+(o.spot?' spot':'')+(down?' down':'')+'">'
     + '<div class="cb-top"><span class="cb-nm">'+esc(n.name)+'</span><span class="cb-sd">'+sideLbl+'</span></div>'
-    + cbVitRow(n) + cbLuckRow(n) + (n.kind==='m' ? chargeRow(n.kind, n.ref.id, cbChargeOf(n)) : cbChargeView(n)) + (n.kind==='m' ? cbFoeStance(n) : '') + cbChips(n) + fwPendTag(n.key)
-    + cbActDisplay(n) + (n.kind==='m' ? cbFoeAcc(n) : '') + (n.kind==='m' ? cbIncoming(n) : '') + (n.kind==='m' ? cbImpRow(n) : cbImpRowP(n)) + cbReact(n)
-    + cbAdjustDrawer(n)
+    + '<div class="fw-cardtop">'+fwVitRO(n)+fwPipsRO(n)+'</div>'
+    + (n.kind==='m' ? cbFoeStance(n) : '') + cbChips(n) + fwPendTag(n.key)
+    + cbActDisplay(n) + (n.kind==='m' ? cbFoeAcc(n) : '') + (n.kind==='m' ? cbIncoming(n) : '') + (n.kind==='m' ? cbImpRow(n) : cbImpRowP(n)) + fwReactOpts(n) + cbReact(n)
     + (o.addSpot?'<div class="cb-spotline"><button class="cb-link" onclick="cbAddSpot(\''+n.key+'\')">+ Spotlight</button></div>':'')
     + (o.removeSpot?'<div class="cb-spotline"><button class="cb-link" onclick="cbRmSpot(\''+n.key+'\')">Remove</button></div>':'')
   + '</div>';
@@ -6701,7 +6725,7 @@ function publishCombat(){
   if(active){
     var bb=sc.battle||{}; var cc=curC(); var spotChars=[];
     (bb.spotBox||[]).forEach(function(k){ if(k.indexOf('p:')!==0) return; var pid=k.slice(2); (cc.players||[]).forEach(function(p){ if(p.id===pid && p.charId) spotChars.push(p.charId); }); });
-    state={ active:true, round:bb.round||1, phase:bb.phase||'commit', sceneId:sc.id, sceneName:sc.name||'', fighters:combatFighters(sc), spotlightChars:spotChars, pend:bb.pend||{}, log:(bb.clog||[]).slice(0,50) };
+    state={ active:true, round:bb.round||1, phase:bb.phase||'commit', sceneId:sc.id, sceneName:sc.name||'', fighters:combatFighters(sc), spotlightChars:spotChars, pend:bb.pend||{}, orders:bb.orders||{}, log:(bb.clog||[]).slice(0,50) };
   } else { state={ active:false }; }
   var sig=JSON.stringify(state)+'@'+cid;
   if(sig!==window._combatPubSig){
@@ -7030,6 +7054,19 @@ function fwTokenPopup(key){
     rows+='<div class="fw-pop-pend">Round end \u00b7 '+bits.map(esc).join(' \u00b7 ')+'</div>';
   }
   var nodes=battleNodes(), idx=0; nodes.forEach(function(x,ix){ if(x.key===key) idx=ix; });
+  var ctl='<div class="fw-pop-sec">LoreMaster</div>'
+    +'<div class="fw-pop-ctl"><span>Vitality</span><span><button class="cb-vb" onclick="fwPopVit(\''+key+'\',-1)">\u2212</button><button class="cb-vb" onclick="fwPopVit(\''+key+'\',1)">+</button></span></div>'
+    +'<div class="fw-pop-ctl"><span>Luck</span><span>'
+      +'<button class="cb-luck-b lucky'+((n.kind==='m'?(n.ref.luck||''):((n.st&&n.st.luck)||''))==='lucky'?' on':'')+'" onclick="cbSetLuck(\''+key+'\',\'lucky\')">Lucky</button>'
+      +'<button class="cb-luck-b unlucky'+((n.kind==='m'?(n.ref.luck||''):((n.st&&n.st.luck)||''))==='unlucky'?' on':'')+'" onclick="cbSetLuck(\''+key+'\',\'unlucky\')">Unlucky</button>'
+    +'</span></div>'
+    +'<div class="fw-pop-ctl"><span>Reroll</span><span><button class="cb-link gold" onclick="fwForceReroll(\''+key+'\')">'+(n.kind==='m'?'Clear accuracy':'Call for a reroll')+'</button></span></div>'
+    +'<div class="fw-pop-ctl fw-pop-cond"><select id="fwCondSel" class="inp slim">'+fwCondOptions()+'</select><button class="cb-link" onclick="fwAddCond(\''+key+'\')">Mark</button></div>'
+    +(n.kind==='m'
+      ? ((n.ref.affs||[]).length?('<div class="fw-pop-ctl fw-pop-rm">'+(n.ref.affs||[]).map(function(a){ return '<button class="fw-rmchip" onclick="fwRmCond(\''+key+'\',\''+esc(a.name)+'\')" title="Clear">'+esc(a.name)+' \u00d7</button>'; }).join('')+'</div>'):'')
+        + cbDefRow(n) + cbFellmark(n) + cbCondNote(n)
+      : cbDealRow(n));
+  rows+=ctl;
   var ov=document.createElement('div'); ov.className='fw-pop-ovl'; ov.id='fwTkOvl';
   ov.innerHTML='<div class="fw-pop">'
     +'<div class="fw-pop-nav"><button class="fw-pop-arr" onclick="fwTokenNav(-1)" aria-label="Previous combatant">\u2039</button>'
@@ -7067,6 +7104,77 @@ function cbSetFoeAcc(cid, face){
 function fwNumberExisting(sc, libId, base){
   var same=(sc.combatants||[]).filter(function(c){ return c.libId===libId; });
   if(same.length===1 && same[0].name===base){ same[0].name=base+' 1'; }
+}
+function fwVitRO(n){
+  var v=cbVitOf(n), max=v.maxVit||0, cur=Math.max(0,v.curVit||0);
+  return '<div class="fw-vro">'+(max?(cur+' / '+max):'Vitality on sheet')+'</div>';
+}
+function fwPipsRO(n){
+  var ch=(n.kind==='m')?cbChargeOf(n):((n.st&&n.st.charge)||0);
+  var pips=''; for(var i=0;i<3;i++) pips+='<span class="tk-pip'+(i<ch?' lit':'')+'"></span>';
+  return '<span class="tk-pips" title="Charge Tier '+ch+'">'+pips+'</span>';
+}
+function fwReactOpts(n){
+  var opts=[];
+  if(n.kind==='m'){
+    ((n.ref.abilities)||[]).forEach(function(a){ if(a && a.use && /react/i.test(String(a.use))) opts.push(a.name); });
+    opts.push('Movement');
+  } else {
+    var g=(n.st&&n.st.gear)||null;
+    if(g && (g.lorebounds||[]).length) g.lorebounds.forEach(function(b){ opts.push(String(b).split(' \u00b7 ')[0]); });
+    opts.push('Movement','Assist an ally','Any skill');
+  }
+  if(!opts.length) return '';
+  return '<div class="fw-ropts">Reacts on hand \u00b7 '+opts.map(esc).join(' \u00b7 ')+'</div>';
+}
+function fwQuickDie(btn){
+  var v=1+Math.floor(Math.random()*6);
+  if(btn){ btn.textContent=v; btn.classList.toggle('fell', v===6); }
+  cbLog('system','LoreMaster d6 \u2192 '+(v===6?'Fellmark':(v===1?'Fellstrike':v))+'.');
+  cbToast('d6 \u2192 '+v+'.');
+  save();
+}
+function fwPopVit(key, d){
+  if(key.indexOf('m:')===0) adjVit(key.slice(2), d);
+  else adjPVit(key.slice(2), d);
+}
+function fwForceReroll(key){
+  var b=curSc().battle;
+  if(key.indexOf('m:')===0){
+    var id=key.slice(2); curSc().combatants.forEach(function(c){ if(c.id===id){ c._acc=null; cbLog('system', c.name+' rerolls accuracy at the LoreMaster\u2019s word.'); } });
+  } else {
+    b.orders=b.orders||{}; b.orders[key]={ reroll:Date.now() };
+    var pid=key.slice(2), pl=null; (curC().players||[]).forEach(function(x){ if(x.id===pid) pl=x; });
+    cbLog('system',(pl?pl.name:'A Fell')+' is called to reroll.');
+  }
+  save(); render();
+}
+function fwAddCond(key){
+  var sel=document.getElementById('fwCondSel'); if(!sel || !sel.value) return;
+  var opt=sel.options[sel.selectedIndex], kind=opt.getAttribute('data-kind')||'affliction', name=sel.value;
+  if(key.indexOf('m:')===0){
+    var id=key.slice(2); curSc().combatants.forEach(function(c){ if(c.id===id && !(c.affs||[]).some(function(a){return a.name===name;})){ (c.affs=c.affs||[]).push({name:name, kind:kind}); cbLog('system', name+' marked on '+c.name+'.'); } });
+  } else {
+    cbApplyCondition(key, { name:name, kind:kind });
+    var pid=key.slice(2), pl=null; (curC().players||[]).forEach(function(x){ if(x.id===pid) pl=x; });
+    cbLog('system', name+' marked on '+(pl?pl.name:'a Fell')+'.');
+  }
+  save(); render();
+}
+function fwRmCond(key, name){
+  if(key.indexOf('m:')!==0) return;
+  var id=key.slice(2);
+  curSc().combatants.forEach(function(c){ if(c.id===id){ (c.affs||[]).forEach(function(a){ if(a.name===name){ try{cbRevertFoe(c,a);}catch(e){} } }); c.affs=(c.affs||[]).filter(function(a){ return a.name!==name; }); cbLog('system', name+' cleared from '+c.name+'.'); } });
+  save(); render();
+}
+function fwCondOptions(){
+  var h='<option value="">Mark a condition</option>';
+  ['affliction','effect'].forEach(function(t){
+    var list=[]; try{ list=canonByType(t)||[]; }catch(e){}
+    if(list.length){ h+='<optgroup label="'+(t==='affliction'?'Afflictions':'Effects')+'">'
+      + list.map(function(x){ var nm=(x&&x.name)?x.name:String(x); return '<option value="'+esc(nm)+'" data-kind="'+t+'">'+esc(nm)+'</option>'; }).join('') +'</optgroup>'; }
+  });
+  return h;
 }
 function fwPend(k){
   var b=curSc().battle; b.pend=b.pend||{};
@@ -7963,6 +8071,7 @@ function fwStageHead(sc){
   var b=sc.battle;
   return '<div class="fw-stagehead"><div class="fw-sh-top">'
     +'<span class="fw-mode"><span class="fw-dot"></span><span>Combat \u00b7 Round '+(b.round||1)+(sc.name?(' \u00b7 '+esc(sc.name)):'')+'</span></span>'
+    +'<button class="fw-die" onclick="fwQuickDie(this)" aria-label="Roll a d6">?</button>'
     +'</div>'+fwDockHtml()+'</div>';
 }
 function cbLogPanel(sc){
@@ -8247,6 +8356,7 @@ function render(){
   try{ var _scE=document.querySelectorAll('.run-col,.run-scroll'); for(var _si=0;_si<_scE.length;_si++){ if(_scR[_si]!=null) _scE[_si].scrollTop=_scR[_si]; } }catch(_){}
   try { wireCardDrag(); } catch(_){}
   try { publishCombat(); } catch(_){}
+  try { if(window._fwPopKey && document.getElementById('fwTkOvl')) fwTokenPopup(window._fwPopKey); } catch(_){}
   document.getElementById('bnav-slot').innerHTML = '';
 }
 

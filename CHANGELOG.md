@@ -2,6 +2,16 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Combat — the LoreMaster's hands move to the cards, foes carry their Acts
+- Fixed: foe Acts vanished in resolve. The resolve card read the legacy act field while the commit picker writes intent, so every foe said No Act on record. Acts now compose from the committed intent, and declares re-ingest after any phase or round shift.
+- FateWell commit rows read like FellGlass: the Intent label is Act, labels stack above full-width selects.
+- All manual LoreMaster work lives in the token popup, reachable any phase, so Lucky and Unlucky land before dice are thrown: Vitality plus and minus, luck marks, forced rerolls (foes clear accuracy, Fell get a call that clears their roll and reopens their declare with a gold ping), marking any canon Affliction or Effect from a grouped picker, clearing foe conditions, foe Durability, Resistance, and Fellmark controls, and the deal-damage row for players. The popup refreshes live after every action.
+- Resolve cards slim to resolution: read-only Vitality and charge pips up top, stance, chips, staged outcomes, the Act on record, foe accuracy, incoming hits, Impairment prompts, and React. The Adjust drawer is gone.
+- Both tools list Reacts on hand. Foe cards read React-use abilities plus Movement. Fell cards read lorebounds from gear plus Movement, Assist an ally, and Any skill. FellGlass gains a real React picker in the declare form, drawn from the arsenal with lorebound Aspects tagged, and picking an Aspect wakes the staged hint: Initial, Branch, or Crown by charge, Everpresent at ten.
+- FellGlass refuses to send a damaging Act without an accuracy roll.
+- Generic d6 in both tools: a die in the FellGlass rail that pings and writes to the shared log, and one in the FateWell stage head that logs LoreMaster d6 results.
+- FellGlass and FateWell. Refresh with the new head, nothing to paste.
+
 ## FateWell — dice the FellGuide way, popups in view, guides folded
 - The combatant popup anchors to the top of the screen you are looking at. It was centering inside the full-height iframe, which in flow mode is the whole page, so center meant far off screen on phones.
 - The Manual and Auto dice toggle is gone. It only decided whether the tool rolled two dice silently, the Fellmark bonus on hits you deal and the Impairment on a double Fellmark. Both are now visible controls in the FellGuide way: a small die to tap or a 1 to 6 strip for table dice. Sending a hit with the bonus unrolled rolls it loudly, toasted and logged. A double Fellmark always raises the Impairment prompt on the card, die or strip, and it applies the chosen face.
