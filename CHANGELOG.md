@@ -2,6 +2,11 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## FateWell — the spine holds its colors, cards drop the empty frame
+- The Adventure, Act, Session, and Scene labels stay one color everywhere: silver on every tier, gold on the one you stand in, unchanged by tapping. Root cause: the labels pointed at a silver-dim variable FateWell never defined, so the color fell through to browser button defaults, black on filled tiers and grey on empty ones. The variable now exists and the spine pins its colors explicitly, including active and focus states.
+- Grid cards without an image no longer draw the placeholder frame and glyph. The scene number moves inline beside the title and the card starts at its text. Set a cover through the card menu as before.
+- FateWell only. Refresh with the new head, nothing to paste.
+
 ## Combat — orders that show their work
 - Call for a reroll now defines itself on both boards. It keeps the player's Act but wipes their roll: the order clears the roll on their FellGlass with a gold ping and reopens their form to reroll and resend, and the LoreMaster board wipes the mirrored roll and accuracy at the same moment so the effect is visible where the button was pressed.
 - Reset their Act joins the player popup. It blanks the whole declaration. The player's FellGlass posts a cleared declare so every board agrees, then opens on an empty form with a gold ping asking them to choose again. The LoreMaster board blanks the mirror instantly.
