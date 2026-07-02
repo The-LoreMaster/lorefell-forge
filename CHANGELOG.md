@@ -2,6 +2,12 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## FateWell — evasion in the box, staging says so
+- The manual roll label no longer stacks one word per line. Commit labels sized themselves at the old 46 pixel column width.
+- Each attacking player already gets their own gold box against the foe, and now each box carries its own dice at the right: the foe's Evasion die that tumbles on tap, or the 1 to 6 strip when the dice mode is set to manual entry, with a fresh setter for table faces.
+- Apply is gone as a word. The hit state shows Will land N plus rider when the round ends, the button reads Stage, the toast says staged and cements at round end, and once staged the box stays visible with a dashed Staged, lands at round end tag instead of vanishing.
+- FateWell only. Refresh with the new head, nothing to paste.
+
 ## Combat — one Act menu, one dice ritual, React waits for Resolution
 - FateWell foes commit through a single grouped Act select in the FellGlass style: None, then Attack holding the standard attack and every ability with Tier gating, then Standard holding Change Stance, Use a skill, and Use an item when carried. Stance and item pickers appear beneath as their own labeled rows.
 - The accuracy row wears the FellGlass ritual. The label reads Roll the Dice or enter manually and tapping it flips between the tumbling die and the 1 to 6 strip.

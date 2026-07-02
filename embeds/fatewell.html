@@ -1290,6 +1290,11 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 .fw-reactrow{ margin-top:8px; }
 .fw-reactrow .cb-rowlab{ flex:none; }
 .fw-reactrow select{ flex:1; min-width:0; }
+.cb-inc-dice{ display:inline-flex; align-items:center; gap:8px; margin-left:auto; flex:none; }
+.cb-inc-elbl{ font-size:.72rem; color:var(--gold); font-family:'Cinzel',serif; letter-spacing:.06em; }
+.cb-inc-land{ font-size:.8rem; color:#e8dcae; margin:4px 0 2px; }
+.cb-incoming.staged{ opacity:.85; }
+.cb-inc-staged{ margin-left:auto; flex:none; font-size:.76rem; color:#e8dcae; border:1px dashed rgba(201,168,76,.5); border-radius:999px; padding:3px 10px; }
 @media (max-width:760px){ .run-combat{ padding:10px 8px 20px; } .cb-spotbox{ padding:10px; } }
 .fw-facepick{ display:inline-flex; gap:3px; vertical-align:middle; margin-left:6px; }
 .fw-fp{ width:24px; height:24px; display:grid; place-items:center; font-family:'Cinzel',serif; font-size:.7rem; color:var(--silver-dim,#8fa3b3); background:var(--navy3,#161e33); border:1px solid var(--line); border-radius:5px; cursor:pointer; padding:0; }
@@ -1323,7 +1328,7 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 .fw-vro{ font-family:'Cinzel',serif; font-size:.82rem; color:var(--silver); }
 .fw-ropts{ font-size:.78rem; color:#9fb0bf; margin:5px 0 2px; }
 .cb-commit .cb-pickrow{ display:block; }
-.cb-commit .cb-pk{ display:block; font-family:'Cinzel',serif; font-size:.58rem; letter-spacing:.12em; text-transform:uppercase; color:var(--ice); margin:8px 0 4px; }
+.cb-commit .cb-pk{ display:block; width:auto; font-family:'Cinzel',serif; font-size:.58rem; letter-spacing:.12em; text-transform:uppercase; color:var(--ice); margin:8px 0 4px; }
 .cb-commit .cb-pickers{ display:block; }
 .cb-commit .cb-pickers select{ width:100%; padding:9px 11px; font-size:.95rem; margin-bottom:4px; }
 .fw-record{ border:1px solid var(--line); border-radius:10px; background:var(--panel); margin-bottom:12px; }
@@ -6843,26 +6848,33 @@ function cbImpRow(n){
 }
 function cbIncoming(n){
   if(n.kind!=='m') return '';
-  var curRound=(curSc().battle&&curSc().battle.round)||1, rows='';
+  var curRound=(curSc().battle&&curSc().battle.round)||1, rows='', pk=!!window._fwPick;
   attendingPlayers().forEach(function(p){
     var st=pState(p.id);
-    if(!(st.target===n.key && st.act && st.dmg>0 && st.dmgDone!==curRound)) return;
+    if(!(st.target===n.key && st.act && st.dmg>0)) return;
     var rider=(st.fellmark && st.applies) ? (' + '+esc(st.applies)) : '';
     var head='<span class="cb-inc-t">'+esc(p.name)+': '+esc(st.act)+' \u00b7 '+st.dmg+rider+'</span>';
+    if(st.dmgDone===curRound){
+      rows+='<div class="cb-incoming staged">'+head+'<span class="cb-inc-staged">Staged \u00b7 lands at round end</span></div>';
+      return;
+    }
     if(!(st.roll>0)){
-      rows+='<div class="cb-incoming">'+head+'<button class="cb-link gold" onclick="cbApplyIncoming(\''+p.id+'\',\''+n.ref.id+'\')">Apply '+st.dmg+rider+'</button></div>';
+      rows+='<div class="cb-incoming">'+head+'<button class="cb-link gold" onclick="cbApplyIncoming(\''+p.id+'\',\''+n.ref.id+'\')">Stage '+st.dmg+rider+'</button></div>';
       return;
     }
     var ev=st._eva;
     if(!ev || ev.foe!==n.ref.id){
-      rows+='<div class="cb-incoming">'+head+'<button class="cb-link gold" onclick="cbRollFoeEva(\''+p.id+'\',\''+n.ref.id+'\')">Roll '+esc(n.name)+' Evasion</button></div>';
+      var strip='<span class="fw-facepick">'; for(var fi=1; fi<=6; fi++) strip+='<button class="fw-fp'+(fi===6?' fell':'')+'" onclick="cbSetFoeEva(\''+p.id+'\',\''+n.ref.id+'\','+fi+')">'+fi+'</button>'; strip+='</span>';
+      var die='<button class="fw-die big" onclick="fwSpinDie(this,function(){cbRollFoeEva(\''+p.id+'\',\''+n.ref.id+'\')})" aria-label="Roll evasion">?</button>';
+      rows+='<div class="cb-incoming">'+head+'<span class="cb-inc-dice"><span class="cb-inc-elbl">'+esc(n.name)+' Evasion</span>'+(pk?strip:die)+'</span></div>';
       return;
     }
     var hit=(st.acc>=ev.total);
     rows+='<div class="cb-incoming"><div class="cb-inc-res">'+head
       +'<div class="cb-inc-line">Accuracy '+st.acc+' vs Evasion '+ev.total+' ('+ev.r+'+'+ev.bonus+')'+cbLuckDice(ev)+(ev.luck?(' \u00b7 '+ev.luck):'')+' \u00b7 <b class="'+(hit?'cb-hit':'cb-miss')+'">'+(hit?'Hit':'Evaded')+'</b></div>'
+      +(hit?'<div class="cb-inc-land">Will land '+st.dmg+rider+' when the round ends.</div>':'')
       +'<div class="cb-inc-btns"><button class="cb-link" onclick="cbRollFoeEva(\''+p.id+'\',\''+n.ref.id+'\')">Reroll</button>'
-      +(hit ? '<button class="cb-link gold" onclick="cbApplyIncoming(\''+p.id+'\',\''+n.ref.id+'\')">Apply '+st.dmg+rider+'</button>'
+      +(hit ? '<button class="cb-link gold" onclick="cbApplyIncoming(\''+p.id+'\',\''+n.ref.id+'\')">Stage '+st.dmg+rider+'</button>'
             : '<button class="cb-link" onclick="cbMissIncoming(\''+p.id+'\')">Clear</button>')
       +'</div></div></div>';
   });
@@ -6875,6 +6887,14 @@ function cbRollFoeEva(pid, foeId){
   var lk=cbFoeLuck(foe), rr=cbRollLuck(lk);
   pState(pid)._eva={ foe:foeId, r:rr.kept, bonus:ev, total:rr.kept+ev, dice:rr.dice, kept:rr.kept, luck:lk };
   cbLog('foe', foe.name+' rolls evasion '+(rr.kept+ev)+' ('+rr.kept+'+'+ev+')'+cbLuckDice({dice:rr.dice,kept:rr.kept})+(lk?(' \u00b7 '+lk):'')+'.');
+  save(); render();
+}
+function cbSetFoeEva(pid, foeId, face){
+  var foe=null; curSc().combatants.forEach(function(c){ if(c.id===foeId) foe=c; });
+  if(!foe) return;
+  var ev=foeStanceVal(foe,'evasion');
+  pState(pid)._eva={ foe:foeId, r:face, bonus:ev, total:face+ev, dice:[face], kept:face, luck:null };
+  cbLog('foe', foe.name+' evasion set to '+(face+ev)+' ('+face+'+'+ev+').');
   save(); render();
 }
 function cbd6(){ return 1+Math.floor(Math.random()*6); }
@@ -7305,7 +7325,7 @@ function cbApplyIncoming(pid, cid){
   }
   fwPend('m:'+cid).dvit -= total;
   save(); render();
-  cbToast(esc(foe.name)+' takes '+total+(dbl?' (double Fellmark)':'')+(r.marks.length?(' (+'+r.marks.length+' '+r.marks.join(' + ')+')'):'')+'.');
+  cbToast(esc(foe.name)+' staged for '+total+(dbl?' (double Fellmark)':'')+(r.marks.length?(' (+'+r.marks.length+' '+r.marks.join(' + ')+')'):'')+' \u00b7 cements at round end.');
   var _ev=st._eva, _accStr=(st.acc>0 && _ev)?(' \u00b7 acc '+st.acc+' vs eva '+_ev.total):'', _affStr=(st.fellmark && st.applies)?(' + '+st.applies):'', _fmStr=(st.fellmark?' \u00b7 Fellmark':'');
   cbLog('fell', pname+': '+(st.act||'attack')+' hits '+foe.name+' for '+total+' ('+r.base+' base + '+r.bonus+' bonus'+(dbl?', doubled':'')+(r.marks.length?(' + '+r.marks.length+' from '+r.marks.join(' + ')):'')+')'+_affStr+_fmStr+_accStr+'.');
   if(dbl){ foe._pendImp=true; save(); render(); cbToast('Double Fellmark on '+esc(foe.name)+'. Roll the Impairment.'); }
