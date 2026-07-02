@@ -2,6 +2,12 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## FateWell — clean stat popups that flip
+- Durability in play and Resistance in play are gone from the foe popup. The attribute grid already carries both.
+- Ability costs are gone for good. The forge data was writing cost text into the use field, and every combat render showed it. The popup, the intent picker labels, and the spotlight ability rows now show name, Tier, and what a Fellmark lands, nothing else.
+- The popup flips through the whole table. Swipe left or right on a phone, press the left or right arrow on desktop, or tap the chevrons beside the name. The header counts N of M and Escape closes.
+- FateWell only. Refresh with the new head, nothing to paste.
+
 ## Token popups — attribute pairing, no costs, player gear
 - Foe attributes pair offense against defense: Precision, Power, Magic, and Vigor down the left, Evasion, Durability, Resistance, and Wit down the right.
 - Abilities carry no cost anywhere in FateWell. They gate on charge Tier alone, and the popup shows name, Tier, use, and what a Fellmark lands.
