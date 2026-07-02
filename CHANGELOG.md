@@ -2,6 +2,14 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## FateWell — the Spotlight breathes
+- Accuracy rolls at Commit, always. Attacking foes carry an Accuracy row in their commit card: a FellGlass-style die that tumbles on tap, a 1 to 6 strip for table dice, and a readout with the total, the luck dice, and Fellmark or Fellstrike calls. Targeting a player still pre-rolls it. Evasion stays a Resolve matter, rolled by the player and settled on the card.
+- Resolve declutters to the FellGlass shape. The Spotlight controls fold into the gold box head as a small Auto and Manual toggle beside Undo, Reset, and Resolve these Acts. The On the field pile of full cards is gone. Waiting combatants are one slim row each, name plus Act and target, tap for the full popup, with an Add link in manual mode. Resolved rows and the count remain. The footer quick roll leaves, the stage head die covers it.
+- The portrait thumb on commit rows is gone. That floating letter was the image fallback showing the first letter of the foe's name.
+- If accuracy is missing at Resolve, the card offers the same big die and strip with Roll the accuracy, tap the die. Rolled accuracy reads as a line with the evasion outcome and a Reroll link.
+- Foe stance shows as a chip beside the charge pips on the card. The tier effects text moved to the popup under Stance.
+- FateWell only. Refresh with the new head, nothing to paste.
+
 ## Combat — the LoreMaster's hands move to the cards, foes carry their Acts
 - Fixed: foe Acts vanished in resolve. The resolve card read the legacy act field while the commit picker writes intent, so every foe said No Act on record. Acts now compose from the committed intent, and declares re-ingest after any phase or round shift.
 - FateWell commit rows read like FellGlass: the Intent label is Act, labels stack above full-width selects.
