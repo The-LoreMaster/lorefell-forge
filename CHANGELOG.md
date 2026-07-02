@@ -2,6 +2,17 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## FateWell — combat mode strips to the fight
+- Combat mode drops scene narration, beats and clues, the At the table panel, and the Player Declarations list. The combat block gains real padding and Combat Logs sit at the bottom, matching FellGlass.
+- Table tokens carry three charge diamonds that light with the meter, the foe's stance, and the round end arrow. Players wear a lock circle top right, yellow until their declaration arrives, green once locked. Tap any token for a popup of its stats: Vitality, charge, stance, attributes, conditions, intent or declared Act, and anything staged for round end.
+- Duplicate foes number themselves fully. Adding a second copy renames the bare first to Name 1.
+- Foe accuracy can be rolled or entered. A 1 to 6 strip sits beside Roll accuracy and Reroll, the 6 gold, matching the player's manual option.
+- The dice mode explanation sits beside the Manual and Auto toggle instead of under it.
+- Intents lose Assist an ally, Use an item appears only when the foe carries items, Focus is Target, and foes can target themselves.
+- Loot and rewards leave combat entirely and appear on the scene runner once a battle has happened there.
+- FellGlass: targets include Yourself, and a Use an item Act appears when the Fell carries inventory, with an item picker that rides the declaration by name.
+- FellGlass and FateWell. Refresh with the new head, nothing to paste.
+
 ## FateWell — first pass syncing to the FellGlass structure
 - Combat mode flows with the page. While a scene runs in combat, the runner unlocks from the fixed viewport shell and scrolls as one surface, chaining past the end like FellGlass. Scene mode keeps the app shell untouched.
 - The round track is gone from the stage head, matching FellGlass. The head is the combat line, lock dots, and the table tokens, and Combat Logs rise directly beneath it.

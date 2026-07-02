@@ -3587,6 +3587,7 @@ function renderBattle(){
   }
   put("Act","armor","Change Armor Stance","Requires an Act during combat.",undefined,"standard");
   put("Act","skills","Any skill","All 24 skills may be attempted as an Act.",undefined,"standard");
+  if((C.inventory||[]).length) put("Act","items","Use an item","Spend your Act to use a carried item.",undefined,"standard");
   put("React","ally","Assist an ally","Add your competency or half your attribute to an adjacent ally's roll. To clear an Affliction, you both roll and either Fellmark removes it.",undefined,"standard");
   put("React","movement","Move","Movement occurs as part of an Act or React, once per round.",undefined,"standard");
   put("React","skills","Any skill","All 24 skills may be attempted as a React, such as a defensive move or countering a threat.",undefined,"standard");
@@ -4314,8 +4315,11 @@ function applyCombatMode(){
   cbDockAfter();
 }
 function cbFocusOptions(sel){
-  var h='<option value="">No target</option><option value="space"'+(sel==="space"?" selected":"")+'>Space</option>';
-  ((COMBAT&&COMBAT.fighters)||[]).forEach(function(f){ var lbl=f.side==="monster"?"Foe":f.side==="npc"?"NPC":"Fell"; h+='<option value="'+cbEsc(f.key)+'"'+(sel===f.key?" selected":"")+'>'+cbEsc(f.name)+(f.side?" ("+lbl+")":"")+'</option>'; });
+  var me=null; ((COMBAT&&COMBAT.fighters)||[]).forEach(function(f){ if(f.charId===CUR_WIX_ID) me=f; });
+  var h='<option value="">No target</option>';
+  if(me) h+='<option value="'+cbEsc(me.key)+'"'+(sel===me.key?" selected":"")+'>Yourself</option>';
+  h+='<option value="space"'+(sel==="space"?" selected":"")+'>Space</option>';
+  ((COMBAT&&COMBAT.fighters)||[]).forEach(function(f){ if(me && f.key===me.key) return; var lbl=f.side==="monster"?"Foe":f.side==="npc"?"NPC":"Fell"; h+='<option value="'+cbEsc(f.key)+'"'+(sel===f.key?" selected":"")+'>'+cbEsc(f.name)+(f.side?" ("+lbl+")":"")+'</option>'; });
   return h;
 }
 function cbRoundDigest(){
@@ -4429,6 +4433,7 @@ function cbDeclareFormHtml(){
     +'<label class="cb-l">Act</label><select id="cbAct" class="cb-sel" onchange="cbDmgHint()">'+cbArOptions(window.COMBAT_ACTS,decAct)+'</select>'
     +'<div class="cb-dmghint" id="cbDmgHint"></div>'
     +'<div id="cbSkillWrap" style="display:none"><label class="cb-l">Skill</label><select id="cbSkillSel" class="cb-sel" onchange="cbRenderRoll()">'+cbSkillOptions(decSub)+'</select></div>'
+    +'<div id="cbItemWrap" style="display:none"><label class="cb-l">Item</label><select id="cbItemSel" class="cb-sel">'+cbItemOptions(decSub)+'</select></div>'
     +'<div id="cbTargetWrap"><label class="cb-l">Target</label><select id="cbFocus" class="cb-sel" onchange="cbDmgHint()">'+cbFocusOptions(dec.target)+'</select></div>'
     +'<div id="cbStanceWrap" style="display:none"><label class="cb-l">Armor stance</label><select id="cbStanceSel" class="cb-sel" onchange="cbStanceNote()">'
       +['Shrouded','Stalwart','Vestments'].map(function(sn){ return '<option value="'+sn+'"'+((C.armor&&C.armor.active)===sn?' selected':'')+'>'+sn+'</option>'; }).join('')
@@ -4689,11 +4694,13 @@ function cbDmgHint(){
 function cbActUiSync(e){
   var st = !!(e && e.src==="armor");
   var sk = !!(e && e.src==="skills");
-  var tw=document.getElementById("cbTargetWrap"), sw=document.getElementById("cbStanceWrap"), rw=document.getElementById("cbRollWrap"), kw=document.getElementById("cbSkillWrap");
+  var im = !!(e && e.src==="items");
+  var tw=document.getElementById("cbTargetWrap"), sw=document.getElementById("cbStanceWrap"), rw=document.getElementById("cbRollWrap"), kw=document.getElementById("cbSkillWrap"), iw=document.getElementById("cbItemWrap");
   if(tw) tw.style.display = st?"none":"";
   if(rw) rw.style.display = st?"none":"";
   if(sw){ sw.style.display = st?"":"none"; if(st) cbStanceNote(); }
   if(kw) kw.style.display = sk?"":"none";
+  if(iw) iw.style.display = im?"":"none";
   if(typeof cbRollModeSync==="function") cbRollModeSync();
 }
 function cbStanceNote(){
@@ -4730,6 +4737,14 @@ function cbSkillBonus(name){
   var sk=(C.skills||{})[name]; if(!sk) return 0;
   var g=(typeof skillGrant==="function")?(skillGrant(name)||0):0;
   return Math.max(0,(sk.rank||0)+g+(sk.mastery||0));
+}
+function cbItemOptions(sel){
+  return (C.inventory||[]).map(function(x){
+    var nm=(x&&x.name)?x.name:String(x||"");
+    if(!nm) return "";
+    var q=(x&&x.qty&&x.qty>1)?(' \u00d7'+x.qty):"";
+    return '<option value="'+cbEsc(nm)+'"'+(sel===nm?' selected':'')+'>'+cbEsc(nm)+q+'</option>';
+  }).join('');
 }
 function cbSkillOptions(sel){
   return Object.keys(C.skills||{}).map(function(n){
@@ -4772,6 +4787,10 @@ function sendDeclare(){
   if(act && cbHasAff("Ignited") && window._ignitedRound!==round){ window._ignitedRound=round; var ir=1+Math.floor(Math.random()*6); cbSelfDamage(ir); cbPing("Ignited: your Act burns you for "+ir+"."); cbLogSelf("foe", meName()+": Ignited burns for "+ir+"."); }
   if(window._stanceRound!==round){ window._stanceRound=round; window._stanceBase=(C.armor&&C.armor.active)||null; window._stanceApplied=false; }
   window._skillFell=null;
+  if(e && e.src==="items"){
+    var _iSel=document.getElementById("cbItemSel"); var _in=_iSel?_iSel.value:"";
+    if(_in) act=act+" \u00b7 "+_in;
+  }
   if(e && e.src==="skills"){
     var _kSel=document.getElementById("cbSkillSel"); var _kn=_kSel?_kSel.value:"";
     if(_kn){ act=act+" \u00b7 "+_kn; if(roll) acc=roll+cbSkillBonus(_kn); if(roll===6) window._skillFell={round:round, skill:_kn}; }
