@@ -1266,7 +1266,13 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 .fw-fp.on{ color:var(--navy); background:var(--ice); border-color:var(--ice); }
 .fw-fp.fell.on{ background:var(--gold); border-color:var(--gold); color:var(--navy); }
 .fw-pop-ovl{ position:fixed; inset:0; z-index:120; background:rgba(6,9,18,.72); display:flex; align-items:center; justify-content:center; padding:18px; }
-.fw-pop{ width:min(380px, 94vw); max-height:82vh; overflow-y:auto; background:var(--panel,#10162a); border:1px solid var(--line2); border-radius:13px; padding:14px 15px; }
+.fw-pop{ width:min(440px, 94vw); max-height:84vh; overflow-y:auto; background:var(--panel,#10162a); border:1px solid var(--line2); border-radius:13px; padding:14px 15px; }
+.fw-pop-sec{ font-family:'Cinzel',serif; font-size:.6rem; letter-spacing:.14em; text-transform:uppercase; color:var(--gold); margin:10px 0 4px; }
+.fw-pop-attrs{ display:grid; grid-template-columns:1fr 1fr; gap:3px 14px; }
+.fw-pop-att{ display:flex; align-items:baseline; justify-content:space-between; font-size:.84rem; color:var(--ice); padding:3px 0; border-bottom:1px solid var(--line); }
+.fw-pop-att b{ color:var(--silver); }
+.fw-pop-ab{ font-size:.84rem; color:var(--ice); padding:4px 0; border-bottom:1px solid var(--line); }
+.fw-pop-ab b{ color:var(--silver); }
 .fw-pop-h{ font-family:'Cinzel',serif; font-size:1rem; color:var(--silver); display:flex; align-items:baseline; justify-content:space-between; margin-bottom:8px; }
 .fw-pop-kind{ font-size:.58rem; letter-spacing:.12em; text-transform:uppercase; color:#7e8a99; }
 .fw-pop-row{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; padding:5px 0; border-bottom:1px solid var(--line); font-size:.86rem; color:var(--ice); }
@@ -6335,7 +6341,8 @@ function cbIntentPicker(cb){
     var any = nd.filter(function(n){ return n.key!=='m:'+cb.id; })[0];
     var t = pl||any; if(t) cb.target=t.key;
   }
-  var _types = CB_ACT_TYPES.filter(function(a){ return a!=='Use an item' || (cb.items||[]).length; });
+  var _inv = (cb.items&&cb.items.length)?cb.items:(cb.inv||[]);
+  var _types = CB_ACT_TYPES.filter(function(a){ return a!=='Use an item' || _inv.length; });
   var topts = _types.map(function(a){ return '<option'+(it.type===a?' selected':'')+'>'+a+'</option>'; }).join('');
   var sub='';
   if(it.type==='Attack'){
@@ -6348,9 +6355,9 @@ function cbIntentPicker(cb){
     sub = '<select class="inp slim" onchange="cbSetFoeStance(\''+cb.id+'\',this.value)"><option value=""'+(!cb.stance?' selected':'')+'>No stance</option>'
       + ['Shrouded','Stalwart','Vestments'].map(function(sn){ return '<option value="'+sn+'"'+(cb.stance===sn?' selected':'')+'>'+sn+'</option>'; }).join('')
       + '</select>';
-  } else if(it.type==='Use an item' && (cb.items||[]).length){
+  } else if(it.type==='Use an item' && _inv.length){
     sub = '<select class="inp slim" onchange="cbSetIntent(\''+cb.id+'\',\'item\',this.value)"><option value="">Choose an item</option>'
-      + cb.items.map(function(x){ return '<option value="'+esc(x.name)+'"'+(it.item===x.name?' selected':'')+'>'+esc(x.name)+'</option>'; }).join('')
+      + _inv.map(function(x){ var nm=(x&&x.name)?x.name:String(x||''); return '<option value="'+esc(nm)+'"'+(it.item===nm?' selected':'')+'>'+esc(nm)+'</option>'; }).join('')
       + '</select>';
   }
   var nd2=battleNodes();
@@ -6714,9 +6721,25 @@ function startDeclarePolling(){
   }, 12000);
 }
 function requestDeclares(){ var cid=combatCampaignId(), sc=curSc(); if(!cid||!sc) return; postToWix({ type:'lmtool-combat-declares-request', campaignId:cid, sceneId:sc.id }); }
+function fwFormFocused(){
+  var a=document.activeElement;
+  return !!(a && /^(SELECT|INPUT|TEXTAREA)$/.test(a.tagName));
+}
+function fwBindFlush(){
+  if(window._fwFlushBound) return; window._fwFlushBound=true;
+  document.addEventListener('focusout', function(){
+    setTimeout(function(){
+      if(window._fwDirty && !fwFormFocused()){ window._fwDirty=false; if(V.screen==='runner') render(); }
+    }, 60);
+  }, true);
+}
 function mergeDeclares(declares){
   var c=curC(), sc=curSc(); if(!c||!sc) return; var changed=false;
   var curRound=(sc.battle&&sc.battle.round)||1;
+  var isig=curRound+'|'+JSON.stringify(declares||[]);
+  if(window._lastDeclSig===isig) return;
+  window._lastDeclSig=isig;
+  fwBindFlush();
   (declares||[]).forEach(function(d){
     if(!d || !d.charId) return;
     var p=null; (c.players||[]).forEach(function(x){ if(x.charId===d.charId) p=x; });
@@ -6736,7 +6759,13 @@ function mergeDeclares(declares){
     if(sc.battle && Array.isArray(sc.battle.clog) && sc.battle.clog.length>50) sc.battle.clog=sc.battle.clog.slice(0,50);
     changed=true;
   });
-  if(changed){ save(); if(V.screen==='runner') render(); }
+  if(changed){
+    save();
+    if(V.screen==='runner'){
+      if(fwFormFocused()){ window._fwDirty=true; }
+      else render();
+    }
+  }
 }
 function cbImpRow(n){
   if(n.kind!=='m') return '';
@@ -6925,19 +6954,39 @@ function fwTokenPopup(key){
   var old=document.getElementById('fwTkOvl'); if(old) old.remove();
   var v=cbVitOf(n), b=curSc().battle, pd=(b&&b.pend||{})[key];
   function row(l,val){ return '<div class="fw-pop-row"><span>'+l+'</span><b>'+val+'</b></div>'; }
+  var ch=(n.kind==='m')?cbChargeOf(n):((n.st&&n.st.charge)||0);
+  var pips=''; for(var pi=0;pi<3;pi++) pips+='<span class="tk-pip'+(pi<ch?' lit':'')+'"></span>';
   var rows='';
   rows+=row('Vitality', v.maxVit?(Math.max(0,v.curVit||0)+' / '+v.maxVit):'on sheet');
-  rows+=row('Charge','Tier '+((n.kind==='m')?cbChargeOf(n):((n.st&&n.st.charge)||0)));
+  rows+='<div class="fw-pop-row"><span>Charge</span><b><span class="tk-pips">'+pips+'</span></b></div>';
   if(n.kind==='m'){
     var c=n.ref;
-    if(c.stance) rows+=row('Stance', esc(c.stance));
-    Object.keys(c.attrs||{}).forEach(function(k2){ var av=c.attrs[k2]; if(av) rows+=row(esc(k2), av); });
+    if(c.sr) rows+=row('Shatter Rating', esc(String(c.sr)));
+    rows+=row('Stance', c.stance?esc(c.stance):'None');
+    rows+='<div class="fw-pop-sec">Attributes</div><div class="fw-pop-attrs">'
+      + ATTR_LIST.map(function(a){ return '<div class="fw-pop-att"><span>'+a+'</span><b>'+(((c.attrs||{})[a])||0)+'</b></div>'; }).join('')
+      +'</div>';
+    rows+=row('Durability in play', foeDefBase(c,'durability'));
+    rows+=row('Resistance in play', foeDefBase(c,'resistance'));
+    var abs=(c.abilities||[]);
+    if(abs.length){
+      rows+='<div class="fw-pop-sec">Abilities</div>'
+        + abs.map(function(a){ return '<div class="fw-pop-ab"><b>'+esc(a.name)+'</b>'+(a.tier?(' \u00b7 Tier '+a.tier):'')+(a.use?(' \u00b7 '+esc(a.use)):'')+(a.applies?(' \u00b7 lands '+esc(a.applies)):'')+'</div>'; }).join('');
+    }
+    var inv=(c.items&&c.items.length)?c.items:(c.inv||[]);
+    if(inv.length){
+      rows+='<div class="fw-pop-sec">Items</div>'
+        + inv.map(function(x){ var nm=(x&&x.name)?x.name:String(x||''); return '<div class="fw-pop-ab">'+esc(nm)+'</div>'; }).join('');
+    }
     var an=(c.affs||[]).map(function(a){ return a.name; });
     if(an.length) rows+=row('Conditions', an.map(esc).join(', '));
     if(c.intent && c.intent.type) rows+=row('Intent', esc(c.intent.type)+(c.intent.ability&&c.intent.ability!=='__std__'?(' \u00b7 '+esc(c.intent.ability)):'')+(c.intent.item?(' \u00b7 '+esc(c.intent.item)):'')+(c.target?(' on '+esc(targetName(c.target))):''));
   } else {
-    var st=n.st||{};
+    var st=n.st||{}, pid=key.slice(2), pl=null;
+    ((curC()||{}).players||[]).forEach(function(x){ if(x.id===pid) pl=x; });
+    if(pl && pl.level) rows+=row('Level', pl.level);
     if(st.act) rows+=row('Act', esc(st.act)+(st.target?(' on '+esc(targetName(st.target))):''));
+    if(st.roll) rows+=row('Roll', (st.roll===6?'Fellmark':(st.roll===1?'Fellstrike':st.roll))+' \u00b7 accuracy '+(st.acc||0));
     if(st.react) rows+=row('React', esc(st.react));
     var pa=(st.affs||[]).map(function(a){ return a.name||a; });
     if(pa.length) rows+=row('Conditions', pa.map(esc).join(', '));

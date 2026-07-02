@@ -2,6 +2,13 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Combat — steady dropdowns and full stat-side popups
+- Root cause of dropdowns closing: the declare poll marked state as changed on every pass and re-rendered every 12 seconds, destroying any open control. Identical payloads now skip entirely, and when real changes do arrive while a dropdown, input, or text field is focused, the render waits until focus leaves.
+- FellGlass gets the same discipline. State updates defer while the declare form is in use, and unsent picks (Act, Target, Skill, Item, Stance) survive any rebuild through a draft layer. Sending, a new round, or combat ending clears the draft.
+- The token popup is the full stat side. Foes show Shatter Rating, Vitality, charge, stance, all eight attributes in canon order, Durability and Resistance in play, abilities with tier and use and what they land, items, conditions, intent, and staged outcomes. Fell show level, Vitality, charge, the declared Act with its roll and accuracy, React, conditions, and staged outcomes.
+- Fixed on the way: foe items are stored under inv but the intent picker checked items, so Use an item could never appear. Both fields are honored now, in the picker and the popup.
+- FellGlass and FateWell. Refresh with the new head, nothing to paste.
+
 ## FateWell — combat mode strips to the fight
 - Combat mode drops scene narration, beats and clues, the At the table panel, and the Player Declarations list. The combat block gains real padding and Combat Logs sit at the bottom, matching FellGlass.
 - Table tokens carry three charge diamonds that light with the meter, the foe's stance, and the round end arrow. Players wear a lock circle top right, yellow until their declaration arrives, green once locked. Tap any token for a popup of its stats: Vitality, charge, stance, attributes, conditions, intent or declared Act, and anything staged for round end.
