@@ -4165,7 +4165,7 @@ function setCombatState(state){
     }
   } else { applyCombatMode(); }
   if(COMBAT&&COMBAT.active){
-    if(COMBAT.round!==window._lastTickRound){ window._lastTickRound=COMBAT.round; window._reactUsed=false; window._cbRoll=null; window._defEva=[]; window._evaRolls={}; window._editDecl=false; window._hitSnooze=null; window._sentDmg=null; window._stanceRound=null; window._stanceApplied=false; window._draft=null; cbCementStaged(); cbApplySkillGrowth(); cbTickSelf(); }
+    if(COMBAT.round!==window._lastTickRound){ window._lastTickRound=COMBAT.round; window._reactUsed=false; window._cbRoll=null; window._defEva=[]; window._evaRolls={}; window._editDecl=false; window._hitSnooze=null; window._sentDmg=null; window._stanceRound=null; window._stanceApplied=false; window._draft=null; window._reactSent=null; window._declPayload=null; cbCementStaged(); cbApplySkillGrowth(); cbTickSelf(); }
     applyIncomingConditions(COMBAT.applied||[]);
     var rc=COMBAT.recap||{};
     if(rc.at && rc.at!==window._lastRecapAt){ window._lastRecapAt=rc.at; if(rc.msg){ cbPing(rc.msg); try{edgeGlow("rgba(201,168,76,.7)");}catch(e){} } }
@@ -4271,7 +4271,7 @@ function applyCombatMode(){
   var bn=document.getElementById("combatBanner");
   if(!bn){ bn=el("div",""); bn.id="combatBanner"; document.body.appendChild(bn); }
   ["cbOverlay","cbEvaOvl","cbHitOvl"].forEach(function(id){ var o=document.getElementById(id); if(o) o.remove(); });
-  if(!on){ bn.className=""; bn.style.display="none"; bn.innerHTML=""; document.documentElement.style.setProperty("--cbn-h","0px"); window._dockPct=null; document.body.classList.remove("cbs-full"); window._cbsFullPrev=false; try{cbCementStaged();}catch(err){} try{cbApplySkillGrowth();}catch(err){} window._sentDmg=null; window._draft=null; window._stanceRound=null; window._stanceApplied=false; return; }
+  if(!on){ bn.className=""; bn.style.display="none"; bn.innerHTML=""; document.documentElement.style.setProperty("--cbn-h","0px"); window._dockPct=null; document.body.classList.remove("cbs-full"); window._cbsFullPrev=false; try{cbCementStaged();}catch(err){} try{cbApplySkillGrowth();}catch(err){} window._sentDmg=null; window._draft=null; window._reactSent=null; window._declPayload=null; window._stanceRound=null; window._stanceApplied=false; return; }
   var declared = window._declaredRound && COMBAT.round && window._declaredRound===COMBAT.round;
   var resolving = (COMBAT.phase==="resolve");
   var youUp = COMBAT.spotlightChars && CUR_WIX_ID && COMBAT.spotlightChars.indexOf(CUR_WIX_ID)>=0;
@@ -4313,7 +4313,11 @@ function applyCombatMode(){
       +'<div class="cbs-eyebrow'+(youUp?' foe':'')+'">'+(youUp?'The Spotlight finds you':'Resolve')+'</div>'
       +'<div class="cb-h">'+(youUp?'Your Act and React resolve now':'The LoreMaster resolves the round')+'</div>'
       +(dec.act?'<div class="cbs-you sub">'+cbEsc(dec.act)+(dec.target?' on '+cbEsc(cbTargetName(dec.target)):'')+'</div>':'')
-      +'<p class="cb-sub">Hold your React for the moment it matters.</p>'
+      +(window._reactSent
+        ? '<div class="cbs-you sub">React \u00b7 '+cbEsc(window._reactSent)+'</div>'
+        : '<label class="cb-l">React</label><select id="cbReact" class="cb-sel" onchange="cbAspectHint()">'+cbReactOptions("")+'</select>'
+          +'<div id="cbAspectHint" class="cb-asphint"></div>'
+          +'<div class="cb-row"><button class="btn small" id="cbSendReact">Declare your React</button></div>')
       +'</div>'; mode="resolve";
   }
   else {
@@ -4358,6 +4362,7 @@ function applyCombatMode(){
   try{ cbAspectHint(); }catch(e){}
   var rb=document.getElementById("cbnReact"); if(rb) rb.addEventListener("click",function(){ window._reactUsed=!window._reactUsed; applyCombatMode(); });
   var ed=document.getElementById("cbEdit"); if(ed) ed.addEventListener("click",function(){ window._editDecl=true; applyCombatMode(); });
+  var srb=document.getElementById("cbSendReact"); if(srb) srb.addEventListener("click", sendReact);
   var wake=document.getElementById("cbsHitWake"); if(wake) wake.addEventListener("click",function(){ window._hitSnooze=null; applyCombatMode(); });
   var od=bn.querySelector(".cbs-opt"); if(od) od.addEventListener("toggle",function(){ window._cbOptOpen=od.open; });
   var rd=bn.querySelector(".cbs-record"); if(rd) rd.addEventListener("toggle",function(){ window._cbRecOpen=rd.open; });
@@ -4482,8 +4487,7 @@ function cbCaptureDraft(){
     focus:(document.getElementById("cbFocus")||{}).value,
     skill:(document.getElementById("cbSkillSel")||{}).value,
     item:(document.getElementById("cbItemSel")||{}).value,
-    stance:(document.getElementById("cbStanceSel")||{}).value,
-    react:(document.getElementById("cbReact")||{}).value
+    stance:(document.getElementById("cbStanceSel")||{}).value
   };
 }
 function cbDraft(k, fb){
@@ -4502,8 +4506,6 @@ function cbDeclareFormHtml(){
     +'<div class="cb-dmghint" id="cbDmgHint"></div>'
     +'<div id="cbSkillWrap" style="display:none"><label class="cb-l">Skill</label><select id="cbSkillSel" class="cb-sel" onchange="cbRenderRoll()">'+cbSkillOptions(cbDraft("skill", decSub))+'</select></div>'
     +'<div id="cbItemWrap" style="display:none"><label class="cb-l">Item</label><select id="cbItemSel" class="cb-sel">'+cbItemOptions(cbDraft("item", decSub))+'</select></div>'
-    +'<label class="cb-l">React</label><select id="cbReact" class="cb-sel" onchange="cbAspectHint()">'+cbReactOptions(cbDraft("react", dec.react))+'</select>'
-    +'<div id="cbAspectHint" class="cb-asphint"></div>'
     +'<div id="cbTargetWrap"><label class="cb-l">Target</label><select id="cbFocus" class="cb-sel" onchange="cbDmgHint()">'+cbFocusOptions(cbDraft("focus", dec.target))+'</select></div>'
     +'<div id="cbStanceWrap" style="display:none"><label class="cb-l">Armor stance</label><select id="cbStanceSel" class="cb-sel" onchange="cbStanceNote()">'
       +['Shrouded','Stalwart','Vestments'].map(function(sn){ return '<option value="'+sn+'"'+(cbDraft("stance",(C.armor&&C.armor.active))===sn?' selected':'')+'>'+sn+'</option>'; }).join('')
@@ -4835,10 +4837,23 @@ function cbTargetName(key){
   var f=((COMBAT&&COMBAT.fighters)||[]).filter(function(x){ return x.key===key; })[0];
   return f?f.name:key;
 }
+function sendReact(){
+  var p=window._declPayload;
+  var sel=document.getElementById("cbReact"), val=sel?sel.value:"";
+  if(!val){ cbPing("Choose a React first."); return; }
+  if(!p){ cbPing("Declare your Act before the React."); return; }
+  p.react=val;
+  postToVelo(p);
+  if(COMBAT && COMBAT.you) COMBAT.you.react=val;
+  window._reactSent=val; window._reactUsed=true;
+  cbLogSelf("fell", meName()+" Reacts \u00b7 "+val+".");
+  cbPing("React declared \u00b7 "+val+".", true);
+  applyCombatMode();
+}
 function sendDeclare(){
   if(!CUR_WIX_ID) return;
   var act=document.getElementById("cbAct")?document.getElementById("cbAct").value:"";
-  var react=document.getElementById("cbReact")?document.getElementById("cbReact").value:"";
+  var react="";
   var target=document.getElementById("cbFocus")?document.getElementById("cbFocus").value:"";
   var affs=[].concat((C.afflictions||[]).map(function(a){return {name:a.name,kind:"affliction"};}),
                      (C.effects||[]).map(function(e){return {name:e.name,kind:"effect"};}));
@@ -4891,8 +4906,10 @@ function sendDeclare(){
     }
   }
   window._sentDmg=(e && dmg>0)?{base:(e.base||0), bonus:Math.max(0,dmg-(e.base||0)), dt:(e.dt||"phys")}:null;
-  postToVelo({type:"combat-declare",charId:CUR_WIX_ID,act:act,react:react,target:target,round:round,dmg:dmg,base:(e?e.base:0),dt:(e?e.dt:""),fellmark:fell,applies:applies,actTier:actTier,doubleFell:doubleFell,fellBonus:fb,pierce:pierce,roll:roll,acc:acc,fellstrike:(roll===1),kind:(e?e.kind:""),
-    charge:C.charge||0,curVit:C.vitality.current,maxVit:C.vitality.max,affs:affs});
+  var _pl={type:"combat-declare",charId:CUR_WIX_ID,act:act,react:react,target:target,round:round,dmg:dmg,base:(e?e.base:0),dt:(e?e.dt:""),fellmark:fell,applies:applies,actTier:actTier,doubleFell:doubleFell,fellBonus:fb,pierce:pierce,roll:roll,acc:acc,fellstrike:(roll===1),kind:(e?e.kind:""),
+    charge:C.charge||0,curVit:C.vitality.current,maxVit:C.vitality.max,affs:affs};
+  window._declPayload=_pl;
+  postToVelo(_pl);
   if(COMBAT) COMBAT.you={act:act,react:react,target:target};
   window._declaredRound=round;
   window._editDecl=false;

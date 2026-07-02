@@ -2,6 +2,15 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Combat — one Act menu, one dice ritual, React waits for Resolution
+- FateWell foes commit through a single grouped Act select in the FellGlass style: None, then Attack holding the standard attack and every ability with Tier gating, then Standard holding Change Stance, Use a skill, and Use an item when carried. Stance and item pickers appear beneath as their own labeled rows.
+- The accuracy row wears the FellGlass ritual. The label reads Roll the Dice or enter manually and tapping it flips between the tumbling die and the 1 to 6 strip.
+- React belongs to Resolution now, both tools. FellGlass drops the React picker from the declare form. Once the round resolves, the card offers the React select with the lorebound stage hint and a Declare your React button that rides the kept declaration to the LoreMaster, logs, and marks the React spent. FateWell foes get the same shape: a React select of their React abilities plus Movement with a Use React button, logged and toasted, with Restore on the spent state.
+- The Spotlight sheds attack rolls. Foe cards show an Evasion line only: the player's relayed roll against the committed accuracy, Hit or Evaded, waiting text until the roll arrives, and an Open Commit link if accuracy was never set. Condition chips on cards are read-only tags now, appearing only when something is marked. Adding and clearing lives in the token popup.
+- Popup fixes: the foe popup shows its Accuracy so Clear accuracy visibly empties it, with a toast confirming. Intent is gone. The Durability and Resistance editor is gone. Mark and the reroll controls are real buttons, and marking toasts and shows player-bound conditions as sent until the sheet confirms.
+- The quick d6 moved beside Mark scene complete with a Quick d6 label, out of the combat head.
+- FellGlass and FateWell. Refresh with the new head, nothing to paste.
+
 ## FateWell — the Spotlight breathes
 - Accuracy rolls at Commit, always. Attacking foes carry an Accuracy row in their commit card: a FellGlass-style die that tumbles on tap, a 1 to 6 strip for table dice, and a readout with the total, the luck dice, and Fellmark or Fellstrike calls. Targeting a player still pre-rolls it. Evasion stays a Resolve matter, rolled by the player and settled on the card.
 - Resolve declutters to the FellGlass shape. The Spotlight controls fold into the gold box head as a small Auto and Manual toggle beside Undo, Reset, and Resolve these Acts. The On the field pile of full cards is gone. Waiting combatants are one slim row each, name plus Act and target, tap for the full popup, with an Add link in manual mode. Resolved rows and the count remain. The footer quick roll leaves, the stage head die covers it.

@@ -1281,6 +1281,15 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 .fw-qn{ font-family:'Cinzel',serif; font-size:.82rem; color:var(--silver); flex:none; max-width:38%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .fw-qa{ flex:1; min-width:0; font-size:.82rem; color:#9fb0bf; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .fw-qa i{ color:#7e8a99; }
+.fw-pkclick{ cursor:pointer; }
+.fw-pkclick:hover{ color:var(--gold); }
+.fw-headrow{ display:flex; align-items:center; gap:10px; }
+.fw-headrow .btn.wide{ flex:1; }
+.fw-die-wrap{ display:inline-flex; align-items:center; gap:6px; flex:none; }
+.fw-die-l{ font-family:'Cinzel',serif; font-size:.6rem; letter-spacing:.12em; text-transform:uppercase; color:#7e8a99; }
+.fw-reactrow{ margin-top:8px; }
+.fw-reactrow .cb-rowlab{ flex:none; }
+.fw-reactrow select{ flex:1; min-width:0; }
 @media (max-width:760px){ .run-combat{ padding:10px 8px 20px; } .cb-spotbox{ padding:10px; } }
 .fw-facepick{ display:inline-flex; gap:3px; vertical-align:middle; margin-left:6px; }
 .fw-fp{ width:24px; height:24px; display:grid; place-items:center; font-family:'Cinzel',serif; font-size:.7rem; color:var(--silver-dim,#8fa3b3); background:var(--navy3,#161e33); border:1px solid var(--line); border-radius:5px; cursor:pointer; padding:0; }
@@ -6386,24 +6395,25 @@ function cbIntentPicker(cb){
     var t = pl||any; if(t) cb.target=t.key;
   }
   var _inv = (cb.items&&cb.items.length)?cb.items:(cb.inv||[]);
-  var _types = CB_ACT_TYPES.filter(function(a){ return a!=='Use an item' || _inv.length; });
-  var topts = _types.map(function(a){ return '<option'+(it.type===a?' selected':'')+'>'+a+'</option>'; }).join('');
-  var sub='';
-  if(it.type==='Attack'){
-    var fch=cb.charge||0;
-    sub = '<select class="inp slim" onchange="cbSetIntent(\''+cb.id+'\',\'ability\',this.value)">'
-      + '<option value="__std__"'+((!it.ability||it.ability==='__std__')?' selected':'')+'>Standard attack</option>'
-      + (cb.abilities||[]).map(function(a){ var lk=(a.tier>0 && a.tier>fch); return '<option value="'+esc(a.name)+'"'+(it.ability===a.name?' selected':'')+(lk?' disabled':'')+'>'+esc(a.name)+(a.tier?' (Tier '+a.tier+')':'')+(lk?' \u00b7 needs Tier '+a.tier+' charge':'')+'</option>'; }).join('')
-      + '</select>';
-  } else if(it.type==='Change Stance'){
-    sub = '<select class="inp slim" onchange="cbSetFoeStance(\''+cb.id+'\',this.value)"><option value=""'+(!cb.stance?' selected':'')+'>No stance</option>'
+  var fch=cb.charge||0;
+  var curVal = (!it.type)?'' : (it.type==='Attack'?('atk:'+(it.ability||'__std__')) : (it.type==='Change Stance'?'stance' : (it.type==='Use a skill'?'skill':'item')));
+  var actSel = '<select class="inp slim" onchange="fwSetAct(\''+cb.id+'\',this.value)">'
+    + '<option value=""'+(curVal===''?' selected':'')+'>None</option>'
+    + '<optgroup label="Attack"><option value="atk:__std__"'+(curVal==='atk:__std__'?' selected':'')+'>Standard attack</option>'
+    + (cb.abilities||[]).map(function(a){ var lk=(a.tier>0 && a.tier>fch); return '<option value="atk:'+esc(a.name)+'"'+(curVal===('atk:'+a.name)?' selected':'')+(lk?' disabled':'')+'>'+esc(a.name)+(a.tier?' \u00b7 Tier '+a.tier:'')+(lk?' \u00b7 needs charge':'')+'</option>'; }).join('')
+    + '</optgroup><optgroup label="Standard">'
+    + '<option value="stance"'+(curVal==='stance'?' selected':'')+'>Change Stance</option>'
+    + '<option value="skill"'+(curVal==='skill'?' selected':'')+'>Use a skill</option>'
+    + (_inv.length?('<option value="item"'+(curVal==='item'?' selected':'')+'>Use an item</option>'):'')
+    + '</optgroup></select>';
+  var stanceRow = (it.type==='Change Stance')
+    ? '<div class="cb-pickrow"><span class="cb-pk">Stance</span><div class="cb-pickers"><select class="inp slim" onchange="cbSetFoeStance(\''+cb.id+'\',this.value)"><option value=""'+(!cb.stance?' selected':'')+'>No stance</option>'
       + ['Shrouded','Stalwart','Vestments'].map(function(sn){ return '<option value="'+sn+'"'+(cb.stance===sn?' selected':'')+'>'+sn+'</option>'; }).join('')
-      + '</select>';
-  } else if(it.type==='Use an item' && _inv.length){
-    sub = '<select class="inp slim" onchange="cbSetIntent(\''+cb.id+'\',\'item\',this.value)"><option value="">Choose an item</option>'
+      + '</select></div></div>' : '';
+  var itemRow = (it.type==='Use an item' && _inv.length)
+    ? '<div class="cb-pickrow"><span class="cb-pk">Item</span><div class="cb-pickers"><select class="inp slim" onchange="cbSetIntent(\''+cb.id+'\',\'item\',this.value)"><option value="">Choose an item</option>'
       + _inv.map(function(x){ var nm=(x&&x.name)?x.name:String(x||''); return '<option value="'+esc(nm)+'"'+(it.item===nm?' selected':'')+'>'+esc(nm)+'</option>'; }).join('')
-      + '</select>';
-  }
+      + '</select></div></div>' : '';
   var nd2=battleNodes();
   var focus='<select class="inp slim" onchange="setMonTarget(\''+cb.id+'\',this.value)">';
   nd2.forEach(function(n){ if(n.key==='m:'+cb.id) return; focus+='<option value="'+n.key+'"'+(cb.target===n.key?' selected':'')+'>'+esc(n.name)+'</option>'; });
@@ -6415,11 +6425,22 @@ function cbIntentPicker(cb){
     var abIdx=(cb.abilities||[]).map(function(a){ return a.name; }).indexOf(it.ability);
     infl='<div class="cb-pickrow"><span class="cb-pk">On Fellmark</span><div class="cb-pickers"><button class="cb-link" onclick="cbApplies(\''+cb.id+'\','+abIdx+')">'+appliesLabel((cb.abilities||[])[abIdx])+'</button></div></div>';
   }
-  return '<div class="cb-pickrow"><span class="cb-pk">Act</span><div class="cb-pickers">'
-    + '<select class="inp slim" onchange="cbSetIntent(\''+cb.id+'\',\'type\',this.value)">'+topts+'</select>'+sub+'</div></div>'
-    + infl
+  return '<div class="cb-pickrow"><span class="cb-pk">Act</span><div class="cb-pickers">'+actSel+'</div></div>'
+    + stanceRow + itemRow + infl
     + '<div class="cb-pickrow"><span class="cb-pk">Target</span><div class="cb-pickers">'+focus+'</div></div>'
     + accRow;
+}
+function fwSetAct(cid, v){
+  var c=null; curSc().combatants.forEach(function(x){ if(x.id===cid) c=x; }); if(!c) return;
+  c.intent = c.intent || {type:'', ability:'', item:''};
+  if(v===''){ c.intent.type=''; c.intent.ability=''; c.intent.item=''; c._acc=null; }
+  else if(v.indexOf('atk:')===0){ var ab=v.slice(4); c.intent.type='Attack'; c.intent.ability=(ab==='__std__'?'':ab); c.intent.item=''; }
+  else if(v==='stance'){ c.intent.type='Change Stance'; c.intent.ability=''; c.intent.item=''; c._acc=null; }
+  else if(v==='skill'){ c.intent.type='Use a skill'; c.intent.ability=''; c.intent.item=''; c._acc=null; }
+  else if(v==='item'){ c.intent.type='Use an item'; c.intent.ability=''; c._acc=null; }
+  c.act = cbActLine(c);
+  if(c.intent.type==='Attack' && c.target && c.target.indexOf('p:')===0){ cbRollFoeAcc(cid,true); return; }
+  save(); render();
 }
 function cbSetIntent(cid, key, val){
   var c=null; curSc().combatants.forEach(function(x){ if(x.id===cid) c=x; }); if(!c) return;
@@ -6483,10 +6504,10 @@ function cbChips(n){
   }
   function row(label, kind){
     var list = affs.filter(function(a){ return kind==='effect' ? a.kind==='effect' : (a.kind||'affliction')!=='effect'; });
+    if(!list.length) return '';
     var hh='<div class="cb-chips"><span class="cb-rowlab">'+label+'</span>';
-    list.forEach(function(a){ var gi=affs.indexOf(a); hh+='<span class="cb-chip '+(kind==='effect'?'eff':'aff')+'">'+esc(a.name)+'<button class="cb-cx" onclick="removeAffKey(\''+n.key+'\','+gi+')">\u00d7</button></span>'; });
-    hh+='<button class="cb-add" onclick="affModal(\''+n.kind+'\',\''+n.ref.id+'\',\'\',\''+(kind==='effect'?'effect':'affliction')+'\')">+ '+(kind==='effect'?'Effect':'Affliction')+'</button></div>';
-    return hh;
+    list.forEach(function(a){ hh+='<span class="cb-chip '+(kind==='effect'?'eff':'aff')+'">'+esc(a.name)+'</span>'; });
+    return hh+'</div>';
   }
   return row('Afflictions','affliction') + row('Effects','effect');
 }
@@ -6545,7 +6566,7 @@ function cbCard(n, o){
     + '<div class="cb-top"><span class="cb-nm">'+esc(n.name)+'</span><span class="cb-sd">'+sideLbl+'</span></div>'
     + '<div class="fw-cardtop">'+fwVitRO(n)+'<span class="fw-ct-r">'+fwPipsRO(n)+((n.kind==='m'&&n.ref.stance)?'<span class="tk-st">'+esc(n.ref.stance)+'</span>':'')+'</span></div>'
     + cbChips(n) + fwPendTag(n.key)
-    + cbActDisplay(n) + (n.kind==='m' ? cbFoeAcc(n) : '') + (n.kind==='m' ? cbIncoming(n) : '') + (n.kind==='m' ? cbImpRow(n) : cbImpRowP(n)) + fwReactOpts(n) + cbReact(n)
+    + cbActDisplay(n) + (n.kind==='m' ? fwEvaRow(n) : '') + (n.kind==='m' ? cbIncoming(n) : '') + (n.kind==='m' ? cbImpRow(n) : cbImpRowP(n)) + (n.kind==='m' ? fwFoeReact(n) : (fwReactOpts(n) + cbReact(n)))
     + (o.addSpot?'<div class="cb-spotline"><button class="cb-link" onclick="cbAddSpot(\''+n.key+'\')">+ Spotlight</button></div>':'')
     + (o.removeSpot?'<div class="cb-spotline"><button class="cb-link" onclick="cbRmSpot(\''+n.key+'\')">Remove</button></div>':'')
   + '</div>';
@@ -7029,6 +7050,7 @@ function fwTokenPopup(key){
     if(c.sr) rows+=row('Shatter Rating', esc(String(c.sr)));
     rows+=row('Stance', c.stance?esc(c.stance):'None');
     if(c.stance){ var _sp=fwStanceParts(c); if(_sp.length) rows+='<div class="fw-pop-ab">'+_sp.map(esc).join(' \u00b7 ')+'</div>'; }
+    if(c.intent && c.intent.type==='Attack' && c.target && c.target.indexOf('p:')===0){ rows+=row('Accuracy', c._acc?(c._acc.total+' ('+c._acc.r+'+'+c._acc.bonus+')'):'Not rolled'); }
     rows+='<div class="fw-pop-sec">Attributes</div><div class="fw-pop-attrs">'
       + ['Precision','Evasion','Power','Durability','Magic','Resistance','Vigor','Wit'].map(function(a){ return '<div class="fw-pop-att"><span>'+a+'</span><b>'+(((c.attrs||{})[a])||0)+'</b></div>'; }).join('')
       +'</div>';
@@ -7044,7 +7066,6 @@ function fwTokenPopup(key){
     }
     var an=(c.affs||[]).map(function(a){ return a.name; });
     if(an.length) rows+=row('Conditions', an.map(esc).join(', '));
-    if(c.intent && c.intent.type) rows+=row('Intent', esc(c.intent.type)+(c.intent.ability&&c.intent.ability!=='__std__'?(' \u00b7 '+esc(c.intent.ability)):'')+(c.intent.item?(' \u00b7 '+esc(c.intent.item)):'')+(c.target?(' on '+esc(targetName(c.target))):''));
   } else {
     var st=n.st||{}, pid=key.slice(2), pl=null;
     ((curC()||{}).players||[]).forEach(function(x){ if(x.id===pid) pl=x; });
@@ -7058,6 +7079,7 @@ function fwTokenPopup(key){
       if((g.lorebounds||[]).length) rows+='<div class="fw-pop-sec">Lorebounds</div>'+g.lorebounds.map(function(w){ return '<div class="fw-pop-ab">'+esc(w)+'</div>'; }).join('');
     }
     var pa=(st.affs||[]).map(function(a){ return a.name||a; });
+    ((st.applied)||[]).forEach(function(a){ pa.push((a.name||a)+' (sent)'); });
     if(pa.length) rows+=row('Conditions', pa.map(esc).join(', '));
   }
   if(pd && (pd.dvit || (pd.affs||[]).length || (pd.charge!==null&&pd.charge!==undefined))){
@@ -7073,11 +7095,11 @@ function fwTokenPopup(key){
       +'<button class="cb-luck-b lucky'+((n.kind==='m'?(n.ref.luck||''):((n.st&&n.st.luck)||''))==='lucky'?' on':'')+'" onclick="cbSetLuck(\''+key+'\',\'lucky\')">Lucky</button>'
       +'<button class="cb-luck-b unlucky'+((n.kind==='m'?(n.ref.luck||''):((n.st&&n.st.luck)||''))==='unlucky'?' on':'')+'" onclick="cbSetLuck(\''+key+'\',\'unlucky\')">Unlucky</button>'
     +'</span></div>'
-    +'<div class="fw-pop-ctl"><span>Reroll</span><span><button class="cb-link gold" onclick="fwForceReroll(\''+key+'\')">'+(n.kind==='m'?'Clear accuracy':'Call for a reroll')+'</button></span></div>'
-    +'<div class="fw-pop-ctl fw-pop-cond"><select id="fwCondSel" class="inp slim">'+fwCondOptions()+'</select><button class="cb-link" onclick="fwAddCond(\''+key+'\')">Mark</button></div>'
+    +'<div class="fw-pop-ctl"><span>Reroll</span><span><button class="btn small" onclick="fwForceReroll(\''+key+'\')">'+(n.kind==='m'?'Clear accuracy':'Call for a reroll')+'</button></span></div>'
+    +'<div class="fw-pop-ctl fw-pop-cond"><select id="fwCondSel" class="inp slim">'+fwCondOptions()+'</select><button class="btn small" onclick="fwAddCond(\''+key+'\')">Mark</button></div>'
     +(n.kind==='m'
       ? ((n.ref.affs||[]).length?('<div class="fw-pop-ctl fw-pop-rm">'+(n.ref.affs||[]).map(function(a){ return '<button class="fw-rmchip" onclick="fwRmCond(\''+key+'\',\''+esc(a.name)+'\')" title="Clear">'+esc(a.name)+' \u00d7</button>'; }).join('')+'</div>'):'')
-        + cbDefRow(n) + cbFellmark(n) + cbCondNote(n)
+        + cbFellmark(n) + cbCondNote(n)
       : cbDealRow(n));
   rows+=ctl;
   var ov=document.createElement('div'); ov.className='fw-pop-ovl'; ov.id='fwTkOvl';
@@ -7124,14 +7146,15 @@ function fwSpinDie(btn, done){
   var iv=setInterval(function(){ btn.textContent=1+Math.floor(Math.random()*6); },70);
   setTimeout(function(){ clearInterval(iv); btn.classList.remove('spin'); done(); },560);
 }
+function fwPickTog(){ window._fwPick=!window._fwPick; render(); }
 function fwAccRow(cb){
   if(!(cb.intent && cb.intent.type==='Attack' && cb.target && cb.target.indexOf('p:')===0)) return '';
-  var a=cb._acc, kept=a?a.kept:null;
+  var a=cb._acc, kept=a?a.kept:null, pk=!!window._fwPick;
   var strip='<span class="fw-facepick">'; for(var fi=1; fi<=6; fi++) strip+='<button class="fw-fp'+(fi===6?' fell':'')+((a&&kept===fi&&(a.dice||[]).length<2)?' on':'')+'" onclick="cbSetFoeAcc(\''+cb.id+'\','+fi+')">'+fi+'</button>'; strip+='</span>';
   var die='<button class="fw-die big'+(a&&kept===6?' fell':'')+'" onclick="fwSpinDie(this,function(){cbRollFoeAcc(\''+cb.id+'\')})" aria-label="Roll accuracy">'+(a?kept:'?')+'</button>';
   var read=a?('<span class="fw-dielbl">Accuracy '+a.total+' ('+a.r+'+'+a.bonus+')'+cbLuckDice(a)+(a.luck?(' \u00b7 '+a.luck):'')+(kept===6?' \u00b7 Fellmark':(kept===1?' \u00b7 Fellstrike':''))+'</span>')
-             :'<span class="fw-dielbl">Roll the accuracy, tap the die.</span>';
-  return '<div class="cb-pickrow"><span class="cb-pk">Accuracy</span><div class="fw-accrow">'+die+strip+read+'</div></div>';
+             :'<span class="fw-dielbl">'+(pk?'Tap the face your die shows.':'Roll the accuracy, tap the die.')+'</span>';
+  return '<div class="cb-pickrow"><span class="cb-pk fw-pkclick" onclick="fwPickTog()">'+(pk?'Enter Your Roll or roll the die':'Roll the Dice or enter manually')+'</span><div class="fw-accrow">'+(pk?strip:die)+read+'</div></div>';
 }
 function fwStanceParts(foe){
   var st=foe.stance; if(!st || !STANCE_FOE_ATTR[st]) return [];
@@ -7140,6 +7163,38 @@ function fwStanceParts(foe){
   if(ch>=2) parts.push('T2 reduce incoming by '+foeCap(attr));
   if(ch>=3){ var imm=(st==='Shrouded')?'Fellstrike immune':((st==='Stalwart')?'Fellmark immune':'spell-target immune'); parts.push('T3 '+imm); }
   return parts;
+}
+function fwEvaRow(n){
+  var c=n.ref;
+  if(!(c.intent && c.intent.type==='Attack' && c.target && c.target.indexOf('p:')===0)) return '';
+  var pid=c.target.slice(2), st=pState(pid), eva=null;
+  (st.defEva||[]).forEach(function(e){ if(e.foe===('m:'+c.id)) eva=e.total; });
+  var pl=null; (curC().players||[]).forEach(function(x){ if(x.id===pid) pl=x; });
+  var pn=pl?pl.name:'the target';
+  if(!c._acc) return '<div class="cb-foeacc"><span class="cb-wait">Accuracy not set.</span> <button class="cb-link" onclick="setPhase(\'commit\')">Open Commit</button></div>';
+  var acc=c._acc.total;
+  if(eva===null) return '<div class="cb-foeacc">Evasion \u00b7 <span class="cb-wait">waiting for '+esc(pn)+' (accuracy '+acc+')</span></div>';
+  return '<div class="cb-foeacc">Evasion '+eva+' vs accuracy '+acc+' \u00b7 <b class="'+(acc>=eva?'cb-hit':'cb-miss')+'">'+(acc>=eva?'Hit':'Evaded')+'</b></div>';
+}
+function fwFoeReact(n){
+  var c=n.ref;
+  if(c.reactUsed) return '<div class="cb-foeacc">React spent \u00b7 <button class="cb-link" onclick="fwFoeReactReset(\''+c.id+'\')">Restore</button></div>';
+  var opts=[]; (c.abilities||[]).forEach(function(a){ if(a && a.use && /react/i.test(String(a.use))) opts.push(a.name); }); opts.push('Movement');
+  return '<div class="fw-accrow fw-reactrow"><span class="cb-rowlab">React</span><select id="fwR-'+c.id+'" class="inp slim">'
+    + opts.map(function(o){ return '<option>'+esc(o)+'</option>'; }).join('')
+    + '</select><button class="btn small" onclick="fwUseFoeReact(\''+c.id+'\')">Use React</button></div>';
+}
+function fwUseFoeReact(cid){
+  var c=null; curSc().combatants.forEach(function(x){ if(x.id===cid) c=x; }); if(!c) return;
+  var sel=document.getElementById('fwR-'+cid), val=sel?sel.value:'React';
+  c.reactUsed=true;
+  cbLog('foe', c.name+' Reacts \u00b7 '+val+'.');
+  cbToast(c.name+' Reacts \u00b7 '+val+'.');
+  save(); render();
+}
+function fwFoeReactReset(cid){
+  var c=null; curSc().combatants.forEach(function(x){ if(x.id===cid) c=x; }); if(!c) return;
+  c.reactUsed=false; save(); render();
 }
 function cbQueueRow(n, manual){
   var act=cbActOf(n), tgt=cbTargetOf(n);
@@ -7184,11 +7239,12 @@ function fwPopVit(key, d){
 function fwForceReroll(key){
   var b=curSc().battle;
   if(key.indexOf('m:')===0){
-    var id=key.slice(2); curSc().combatants.forEach(function(c){ if(c.id===id){ c._acc=null; cbLog('system', c.name+' rerolls accuracy at the LoreMaster\u2019s word.'); } });
+    var id=key.slice(2); curSc().combatants.forEach(function(c){ if(c.id===id){ c._acc=null; cbLog('system', c.name+' rerolls accuracy at the LoreMaster\u2019s word.'); cbToast('Accuracy cleared for '+c.name+'.'); } });
   } else {
     b.orders=b.orders||{}; b.orders[key]={ reroll:Date.now() };
     var pid=key.slice(2), pl=null; (curC().players||[]).forEach(function(x){ if(x.id===pid) pl=x; });
     cbLog('system',(pl?pl.name:'A Fell')+' is called to reroll.');
+    cbToast('Reroll called for '+(pl?pl.name:'the Fell')+'.');
   }
   save(); render();
 }
@@ -7196,11 +7252,12 @@ function fwAddCond(key){
   var sel=document.getElementById('fwCondSel'); if(!sel || !sel.value) return;
   var opt=sel.options[sel.selectedIndex], kind=opt.getAttribute('data-kind')||'affliction', name=sel.value;
   if(key.indexOf('m:')===0){
-    var id=key.slice(2); curSc().combatants.forEach(function(c){ if(c.id===id && !(c.affs||[]).some(function(a){return a.name===name;})){ (c.affs=c.affs||[]).push({name:name, kind:kind}); cbLog('system', name+' marked on '+c.name+'.'); } });
+    var id=key.slice(2); curSc().combatants.forEach(function(c){ if(c.id===id && !(c.affs||[]).some(function(a){return a.name===name;})){ (c.affs=c.affs||[]).push({name:name, kind:kind}); cbLog('system', name+' marked on '+c.name+'.'); cbToast(name+' marked on '+c.name+'.'); } });
   } else {
     cbApplyCondition(key, { name:name, kind:kind });
     var pid=key.slice(2), pl=null; (curC().players||[]).forEach(function(x){ if(x.id===pid) pl=x; });
     cbLog('system', name+' marked on '+(pl?pl.name:'a Fell')+'.');
+    cbToast(name+' marked, sending to their sheet.');
   }
   save(); render();
 }
@@ -8114,7 +8171,6 @@ function fwStageHead(sc){
   var b=sc.battle;
   return '<div class="fw-stagehead"><div class="fw-sh-top">'
     +'<span class="fw-mode"><span class="fw-dot"></span><span>Combat \u00b7 Round '+(b.round||1)+(sc.name?(' \u00b7 '+esc(sc.name)):'')+'</span></span>'
-    +'<button class="fw-die" onclick="fwQuickDie(this)" aria-label="Roll a d6">?</button>'
     +'</div>'+fwDockHtml()+'</div>';
 }
 function cbLogPanel(sc){
@@ -8142,7 +8198,7 @@ function runnerCompleteBtn(sc){
   if (sc.status === 'done'){
     return '<button class="btn wide reopen" onclick="reopenScene()">Reopen scene</button>';
   }
-  return '<button class="btn wide complete" onclick="completeScene()">&#10003; Mark scene complete</button>';
+  return '<div class="fw-headrow"><span class="fw-die-wrap"><span class="fw-die-l">Quick d6</span><button class="fw-die" onclick="fwQuickDie(this)" aria-label="Roll a d6">?</button></span><button class="btn wide complete" onclick="completeScene()">&#10003; Mark scene complete</button></div>';
 }
 
 function runnerLogBlock(sc){
