@@ -567,7 +567,11 @@ body.cbs-full::after{ display:none; }
 #cbTargetWrap,#cbStanceWrap,#cbSkillWrap{ margin:0; }
 .cb-stage .cb-dmghint:empty{ display:none; }
 .cb-rolldie.fb{ width:38px; height:38px; font-size:1.05rem; border-radius:9px; }
-.cbs-quick{ width:30px; height:30px; font-size:.85rem; margin-right:7px; }
+.cbs-quick{ width:34px; height:34px; font-size:.92rem; touch-action:manipulation; }
+.cbs-rt-right{ display:flex; align-items:center; gap:8px; flex:none; }
+.cbs-qlbl{ font-family:'Cinzel',serif; font-size:.56rem; letter-spacing:.12em; text-transform:uppercase; color:#7e8a99; white-space:nowrap; }
+.cbs-mode{ min-width:0; flex:1; }
+.cbs-mode span:last-child{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .cb-asphint{ font-size:.8rem; color:var(--ice); line-height:1.45; margin:4px 0 2px; }
 .cb-asphint b{ color:var(--gold); font-weight:600; }
 .cb-fbpick{ display:inline-flex; gap:4px; }
@@ -4142,7 +4146,12 @@ function setCombatState(state){
   try{
     var _mf=((COMBAT&&COMBAT.fighters)||[]).filter(function(x){ return x.charId===CUR_WIX_ID; })[0];
     var _ord=(_mf && COMBAT && COMBAT.orders) ? COMBAT.orders[_mf.key] : null;
-    if(_ord && _ord.reroll && _ord.reroll!==window._lastRerollTs){
+    if(_ord && _ord.reset && _ord.reset!==window._lastResetTs){
+      window._lastResetTs=_ord.reset;
+      if(_ord.reroll) window._lastRerollTs=_ord.reroll;
+      cbResetSelf();
+      _forceOrd=true;
+    } else if(_ord && _ord.reroll && _ord.reroll!==window._lastRerollTs){
       window._lastRerollTs=_ord.reroll;
       window._cbRoll=null; window._declaredRound=null; window._editDecl=true;
       cbPing("The LoreMaster calls for a new roll.", true);
@@ -4336,8 +4345,9 @@ function applyCombatMode(){
   bn.innerHTML=''
     +'<div class="cbs-top"><div class="cbs-rail"><div class="cbs-rail-top">'
       +'<span class="cbs-mode"><span class="cbs-dot"></span><span>'+(youUp&&resolving?"The Spotlight finds you":"Combat")+' \u00b7 Round '+(COMBAT.round||1)+(COMBAT.sceneName?' \u00b7 '+cbEsc(COMBAT.sceneName):'')+'</span></span>'
-      +'<button class="cb-rolldie fb cbs-quick" id="cbsQuick" aria-label="Roll a d6">?</button>'
-      +'<button class="cbs-sheetbtn" id="cbsSheet">Your sheet</button>'
+      +'<span class="cbs-rt-right"><span class="cbs-qlbl">Generic Roll</span>'
+      +'<button class="cb-rolldie fb cbs-quick" id="cbsQuick" aria-label="Generic roll, tap for a d6">?</button>'
+      +'<button class="cbs-sheetbtn" id="cbsSheet">Your sheet</button></span>'
     +'</div></div>'
     +cbDockHtml()+'</div>'
     +'<div class="cbs-body"><div class="cbs-inner">'+cbLuckBanner()+card+cbReactStatus()+optHtml+'</div></div>'
@@ -4836,6 +4846,18 @@ function cbTargetName(key){
   if(key==="space") return "Space";
   var f=((COMBAT&&COMBAT.fighters)||[]).filter(function(x){ return x.key===key; })[0];
   return f?f.name:key;
+}
+function cbResetSelf(){
+  try{
+    var affs=[].concat((C.afflictions||[]).map(function(a){return {name:a.name,kind:"affliction"};}),
+                       (C.effects||[]).map(function(e){return {name:e.name,kind:"effect"};}));
+    postToVelo({type:"combat-declare",charId:CUR_WIX_ID,act:"",react:"",target:"",round:(COMBAT&&COMBAT.round)||1,dmg:0,base:0,dt:"",fellmark:false,applies:"",actTier:-1,doubleFell:false,fellBonus:null,pierce:0,roll:0,acc:0,fellstrike:false,kind:"",charge:C.charge||0,curVit:C.vitality.current,maxVit:C.vitality.max,affs:affs});
+  }catch(e){}
+  window._cbRoll=null; window._declaredRound=null; window._editDecl=false;
+  window._draft=null; window._reactSent=null; window._declPayload=null; window._fellBonus=null;
+  try{ if(COMBAT) COMBAT.you={}; }catch(e){}
+  cbPing("The LoreMaster asks you to choose your Act again.", true);
+  cbLogSelf("fell", meName()+" resets their Act at the LoreMaster's word.");
 }
 function sendReact(){
   var p=window._declPayload;

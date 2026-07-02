@@ -2,6 +2,14 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Combat — orders that show their work
+- Call for a reroll now defines itself on both boards. It keeps the player's Act but wipes their roll: the order clears the roll on their FellGlass with a gold ping and reopens their form to reroll and resend, and the LoreMaster board wipes the mirrored roll and accuracy at the same moment so the effect is visible where the button was pressed.
+- Reset their Act joins the player popup. It blanks the whole declaration. The player's FellGlass posts a cleared declare so every board agrees, then opens on an empty form with a gold ping asking them to choose again. The LoreMaster board blanks the mirror instantly.
+- Lucky and Unlucky wear the same face, Cinzel uppercase with matched spacing, differing only by color when lit.
+- The runner action strip spans the top. The idle tap to roll caption is gone, rolled results still show, the redundant Quick d6 is removed since Roll d6 lives in the same strip, and Mark scene complete stretches to fill the right.
+- The FellGlass rail die sits beside Your sheet in a right cluster labeled Generic Roll, sized up for thumbs with touch handling for mobile.
+- FellGlass and FateWell. Refresh with the new head, nothing to paste.
+
 ## Combat — the round ends on a blank slate
 - Begin next round clears every choice on both boards. Foe Act selects return to None instead of forcing Attack, the target select returns to Choose a target instead of auto-filling the first player, and the full player mirror wipes: act, react, target, rolls, accuracy, damage, kind, tier, foe evasion snapshots, and luck marks.
 - FellGlass opens the new round truly empty. The kept declaration clears with the tick, so the declare form no longer preselects last round's Act and target, and the Fellmark bonus die resets with the rest.

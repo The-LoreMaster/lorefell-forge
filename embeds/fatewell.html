@@ -450,6 +450,9 @@ body::before{
 .row-thumb.mono{ font-family:'Cinzel',serif; font-size:.95rem; color:var(--ice); }
 .fold-meta{ font-family:'Crimson Pro',serif; font-size:.82rem; letter-spacing:0; text-transform:none; color:var(--gold); margin-left:6px; }
 .lm-roll{ display:flex; align-items:center; gap:12px; margin:2px 0 6px; }
+.run-actions-bar{ display:flex; width:100%; align-items:center; gap:8px; }
+.run-actions-mid{ display:flex; flex:1; min-width:0; align-items:center; gap:8px; flex-wrap:wrap; }
+.run-actions-mid .btn.wide.complete{ flex:1; min-width:200px; margin-left:auto; }
 .lm-roll-out{ font-family:'Cinzel Decorative',serif; font-size:1.3rem; color:var(--gold); }
 
 /* v32: scene modes + runner restructure */
@@ -1214,7 +1217,7 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 @keyframes luckSweep{ 0%{ background-position:-120% 0; } 100%{ background-position:220% 0; } }
 .cb-luck{ display:flex; align-items:center; gap:7px; margin:4px 0 2px; font-size:.74rem; }
 .cb-luck-l{ color:var(--muted, #7e8a99); font-family:'Cinzel', serif; letter-spacing:.06em; }
-.cb-luck-b{ font-size:.72rem; color:var(--silver-dim); background:transparent; border:1px solid var(--line); border-radius:5px; padding:3px 9px; cursor:pointer; }
+.cb-luck-b{ font-family:'Cinzel',serif; text-transform:uppercase; letter-spacing:.08em; font-size:.66rem; color:var(--silver-dim); background:transparent; border:1px solid var(--line); border-radius:5px; padding:4px 10px; cursor:pointer; }
 .cb-luck-b.lucky.on{ color:#e6c965; border-color:rgba(201,168,76,.6); background:rgba(201,168,76,.12); }
 .cb-luck-b.unlucky.on{ color:#e29a82; border-color:rgba(201,106,90,.6); background:rgba(201,106,90,.12); }
 .cb-wait{ color:var(--silver-dim); font-style:italic; }
@@ -7110,6 +7113,7 @@ function fwTokenPopup(key){
       +'<button class="cb-luck-b unlucky'+((n.kind==='m'?(n.ref.luck||''):((n.st&&n.st.luck)||''))==='unlucky'?' on':'')+'" onclick="cbSetLuck(\''+key+'\',\'unlucky\')">Unlucky</button>'
     +'</span></div>'
     +'<div class="fw-pop-ctl"><span>Reroll</span><span><button class="btn small" onclick="fwForceReroll(\''+key+'\')">'+(n.kind==='m'?'Clear accuracy':'Call for a reroll')+'</button></span></div>'
+    +(n.kind==='p'?('<div class="fw-pop-ctl"><span>Act</span><span><button class="btn small" onclick="fwResetAct(\''+key+'\')">Reset their Act</button></span></div>'):'')
     +'<div class="fw-pop-ctl fw-pop-cond"><select id="fwCondSel" class="inp slim">'+fwCondOptions()+'</select><button class="btn small" onclick="fwAddCond(\''+key+'\')">Mark</button></div>'
     +(n.kind==='m'
       ? ((n.ref.affs||[]).length?('<div class="fw-pop-ctl fw-pop-rm">'+(n.ref.affs||[]).map(function(a){ return '<button class="fw-rmchip" onclick="fwRmCond(\''+key+'\',\''+esc(a.name)+'\')" title="Clear">'+esc(a.name)+' \u00d7</button>'; }).join('')+'</div>'):'')
@@ -7255,11 +7259,26 @@ function fwForceReroll(key){
   if(key.indexOf('m:')===0){
     var id=key.slice(2); curSc().combatants.forEach(function(c){ if(c.id===id){ c._acc=null; cbLog('system', c.name+' rerolls accuracy at the LoreMaster\u2019s word.'); cbToast('Accuracy cleared for '+c.name+'.'); } });
   } else {
-    b.orders=b.orders||{}; b.orders[key]={ reroll:Date.now() };
-    var pid=key.slice(2), pl=null; (curC().players||[]).forEach(function(x){ if(x.id===pid) pl=x; });
+    b.orders=b.orders||{}; b.orders[key]=Object.assign({}, b.orders[key]||{}, { reroll:Date.now() });
+    var pid=key.slice(2), st=pState(pid);
+    st.roll=0; st.acc=0; st._eva=null;
+    var pl=null; (curC().players||[]).forEach(function(x){ if(x.id===pid) pl=x; });
     cbLog('system',(pl?pl.name:'A Fell')+' is called to reroll.');
-    cbToast('Reroll called for '+(pl?pl.name:'the Fell')+'.');
+    cbToast('Reroll called for '+(pl?pl.name:'the Fell')+'. Their roll is wiped until they send again.');
   }
+  save(); render();
+}
+function fwResetAct(key){
+  if(key.indexOf('p:')!==0) return;
+  var b=curSc().battle;
+  b.orders=b.orders||{}; b.orders[key]=Object.assign({}, b.orders[key]||{}, { reset:Date.now() });
+  var pid=key.slice(2), st=pState(pid);
+  st.act=''; st.react=''; st.target=''; st.dmg=0; st.base=0; st.dt=''; st.actTier=-1;
+  st.acc=0; st.roll=0; st.kind=''; st.fellstrike=false; st.applies=''; st.fellmark=false;
+  st.doubleFell=false; st.pierce=0; st._eva=null;
+  var pl=null; (curC().players||[]).forEach(function(x){ if(x.id===pid) pl=x; });
+  cbLog('system',(pl?pl.name:'A Fell')+' is asked to choose their Act again.');
+  cbToast('Act reset for '+(pl?pl.name:'the Fell')+'. Their board reopens.');
   save(); render();
 }
 function fwAddCond(key){
@@ -7929,7 +7948,7 @@ function sceneNavControls(sc){
 }
 function runnerActions(sc, mode){
   var lr = window._lmRoll;
-  var lrOut = lr ? ('<span class="roll-n'+(lr.tag?' '+lr.tag.toLowerCase():'')+'">'+lr.n+'</span>'+(lr.tag?'<span class="roll-tag '+lr.tag.toLowerCase()+'">'+lr.tag+'</span>':'')) : '<span class="muted">tap to roll</span>';
+  var lrOut = lr ? ('<span class="roll-n'+(lr.tag?' '+lr.tag.toLowerCase():'')+'">'+lr.n+'</span>'+(lr.tag?'<span class="roll-tag '+lr.tag.toLowerCase()+'">'+lr.tag+'</span>':'')) : '';
   var stepper = (mode!=='combat' && !V.runList);
   var _bl = sortedEntries(sc.entries||[]);
   var _bi = (typeof sc.runIdx==='number'?sc.runIdx:0);
@@ -8212,7 +8231,7 @@ function runnerCompleteBtn(sc){
   if (sc.status === 'done'){
     return '<button class="btn wide reopen" onclick="reopenScene()">Reopen scene</button>';
   }
-  return '<div class="fw-headrow"><span class="fw-die-wrap"><span class="fw-die-l">Quick d6</span><button class="fw-die" onclick="fwQuickDie(this)" aria-label="Roll a d6">?</button></span><button class="btn wide complete" onclick="completeScene()">&#10003; Mark scene complete</button></div>';
+  return '<button class="btn wide complete" onclick="completeScene()">&#10003; Mark scene complete</button>';
 }
 
 function runnerLogBlock(sc){
