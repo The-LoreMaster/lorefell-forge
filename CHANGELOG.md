@@ -2,6 +2,11 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Combat — the round ends on a blank slate
+- Begin next round clears every choice on both boards. Foe Act selects return to None instead of forcing Attack, the target select returns to Choose a target instead of auto-filling the first player, and the full player mirror wipes: act, react, target, rolls, accuracy, damage, kind, tier, foe evasion snapshots, and luck marks.
+- FellGlass opens the new round truly empty. The kept declaration clears with the tick, so the declare form no longer preselects last round's Act and target, and the Fellmark bonus die resets with the rest.
+- FellGlass and FateWell. Refresh with the new head, nothing to paste.
+
 ## FateWell — evasion in the box, staging says so
 - The manual roll label no longer stacks one word per line. Commit labels sized themselves at the old 46 pixel column width.
 - Each attacking player already gets their own gold box against the foe, and now each box carries its own dice at the right: the foe's Evasion die that tumbles on tap, or the 1 to 6 strip when the dice mode is set to manual entry, with a fresh setter for table faces.
