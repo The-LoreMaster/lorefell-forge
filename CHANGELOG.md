@@ -2,6 +2,15 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## FateWell — the table reads itself
+- Loot and rewards leave the scene runner entirely. Rewards join combat in a later build.
+- Scene cards wear readiness chips: Empty in ember, the foe count in ice, Ran in gold once a battle has history. A session’s prep state reads in one sweep.
+- The runner head carries attendance chips. Tap a player’s name to mark them at the table or away, mid-session, without the Roster dive. Combat fighters follow the toggle.
+- The glossary wakes by default with twenty seeded canon terms, Fellmark to Lorebound, gold and clickable wherever prose renders: note bodies, beats, card descriptions, and the recap. Common words like Act, Round, and Charge match case sensitively so plain speech stays plain. Rows in the Glossary collection override the seed, and the settings toggle still turns it all off.
+- The recap modal gains Copy for Discord: session name bold, scenes underlined, beats as list lines, ready to paste.
+- Adventure-wide search was already live in the bottom navigation, covering acts, sessions, scenes, notes, play logs, the library, and the glossary.
+- FateWell only. Refresh with the new head, nothing to paste.
+
 ## FateWell — the spine holds its colors, cards drop the empty frame
 - The Adventure, Act, Session, and Scene labels stay one color everywhere: silver on every tier, gold on the one you stand in, unchanged by tapping. Root cause: the labels pointed at a silver-dim variable FateWell never defined, so the color fell through to browser button defaults, black on filled tiers and grey on empty ones. The variable now exists and the spine pins its colors explicitly, including active and focus states.
 - Grid cards without an image no longer draw the placeholder frame and glyph. The scene number moves inline beside the title and the card starts at its text. Set a cover through the card menu as before.
