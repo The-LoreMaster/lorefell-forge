@@ -2,6 +2,13 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## FateWell — dice the FellGuide way, popups in view, guides folded
+- The combatant popup anchors to the top of the screen you are looking at. It was centering inside the full-height iframe, which in flow mode is the whole page, so center meant far off screen on phones.
+- The Manual and Auto dice toggle is gone. It only decided whether the tool rolled two dice silently, the Fellmark bonus on hits you deal and the Impairment on a double Fellmark. Both are now visible controls in the FellGuide way: a small die to tap or a 1 to 6 strip for table dice. Sending a hit with the bonus unrolled rolls it loudly, toasted and logged. A double Fellmark always raises the Impairment prompt on the card, die or strip, and it applies the chosen face.
+- The Commit and Spotlight explanations fold into gold info circles. Tap to read, tap to close.
+- The Impairment prompt moved from the Adjust drawer into the card's primary flow so it cannot hide while pending. Mobile combat padding tightened.
+- FateWell only. Refresh with the new head, nothing to paste.
+
 ## FateWell — clean stat popups that flip
 - Durability in play and Resistance in play are gone from the foe popup. The attribute grid already carries both.
 - Ability costs are gone for good. The forge data was writing cost text into the use field, and every combat render showed it. The popup, the intent picker labels, and the spotlight ability rows now show name, Tier, and what a Fellmark lands, nothing else.
