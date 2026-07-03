@@ -2,6 +2,12 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## FateWell — mobile spine and runner strip, second pass
+- The bowing spine collapsed on real phones, tiers overlapping into each other. Replaced with a clean stacked layout: on phones the Adventure, Act, Session, and Scene tiers each take a full-width row, kicker left, name beside it, the live one lit gold. No crush, every name readable, every tier still one tap.
+- The runner strip targeted the wrong DOM last time. Rebuilt against the real structure: Log, Roll d6, Escalate or Return, and Mark scene complete stack as a single column, the beat arrows sit as a row beneath. No more scatter at the top of a combat scene.
+- Mast stays left aligned on phones.
+- FateWell only, styles only.
+
 ## FateWell — nested images persist to the account
 - Root cause of images not surviving across browsers: the live page code was saving nested record images as base64 straight into the campaign row. A few phone photos pushed the row past the Wix item size cap and the whole save threw server-side, so nothing reached the account. Local editing masked it because localStorage has no cap. The current page code already recurses the campaign and uploads every data URL to Wix media, storing a small static URL, so acts, sessions, scenes, and NPC entries persist.
 - The save is no longer silent on failure. The backend reports a save result and the tool warns when a save does not reach the account, naming a too-large image as the likely cause instead of failing invisibly.
