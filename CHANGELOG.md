@@ -2,6 +2,11 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## FateWell — the spine bows to the tier you stand in
+- On phones the mast aligns left, clear of the save badge.
+- The Adventure to Scene spine drops the sideways scroll for a bowing layout: the tier you stand in stretches to show its full name, and the other record types wait as slim labeled stubs on either side, each still one tap away.
+- FateWell only, styles only. Refresh with the new head, nothing to paste.
+
 ## FateWell — mobile stops elbowing itself
 - The save stamp becomes a small navy badge at the top right instead of loose text floating over the mast and headings, one line on phones, with the mast and page headings nudged clear.
 - Adventures, Search, Library, and Settings fit their nav cells. The labels sized down until nothing clips.
