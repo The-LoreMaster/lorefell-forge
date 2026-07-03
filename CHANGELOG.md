@@ -2,6 +2,12 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Prototype two — the hand deals only what the choice calls for
+- proto-arsenal-glass.html mocks the dealt hand inside the FellGlass declare flow. The hand stays folded until an Act is chosen: Attack deals the weapon and spell cards, Change Stance deals the three stance cards, and during Resolution the Aspect card deals only when the lorebound React is called. Skills and items stay lists, and Movement is a plain line.
+- Picking a card declares it: gold rim, a Declared footer, a target select, a dashed summary, and a Send to the LoreMaster button, mirroring the real flow.
+- Art plates render only when the collection row carries an image. Basic Attack, Last Cairn, Emberlash, and all three stances open straight at their names with no placeholder, while Riven Edge, Skysplitter Arc, and the Aerostrix wear their plates with source tags.
+- Cards deal in with a short staggered lift, stilled under reduced motion. Prototype only, nothing wired.
+
 ## Prototype — the arsenal dealt as cards
 - A standalone prototype at proto-arsenal.html, not wired to FateWell. One Fell’s combat arsenal as a hand of cards: weapon abilities and a spell with Tier rails, the lorebound Aspect as a staged React card built from the real Aerostrix Augury data, and the three armor stances with cumulative tier rows and a Switch that names its Act cost.
 - The charge fixture at the top drives the whole hand. Tap the pips and locked abilities lift their veil, aspect stages light Initial to Crown, and stance tiers kindle in order. Tier pips on every card speak the same glyph language as the meter.
