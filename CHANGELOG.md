@@ -2,6 +2,12 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Prototype — the arsenal dealt as cards
+- A standalone prototype at proto-arsenal.html, not wired to FateWell. One Fell’s combat arsenal as a hand of cards: weapon abilities and a spell with Tier rails, the lorebound Aspect as a staged React card built from the real Aerostrix Augury data, and the three armor stances with cumulative tier rows and a Switch that names its Act cost.
+- The charge fixture at the top drives the whole hand. Tap the pips and locked abilities lift their veil, aspect stages light Initial to Crown, and stance tiers kindle in order. Tier pips on every card speak the same glyph language as the meter.
+- Each art plate carries a corner tag naming the Wix collection and image field that feeds it in a real build: Creations img for forged abilities, the CanonAspects art for lorebounds, site art for stances. Tapping a card raises it with the full source mapping.
+- Prototype only. FateWell untouched.
+
 ## FateWell — the table reads itself
 - Loot and rewards leave the scene runner entirely. Rewards join combat in a later build.
 - Scene cards wear readiness chips: Empty in ember, the foe count in ice, Ran in gold once a battle has history. A session’s prep state reads in one sweep.
