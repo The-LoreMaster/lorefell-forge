@@ -2,6 +2,12 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## FateWell — the combat runner reads clean on a phone
+- The runner header stacks into three rows on phones: Prep and the scene arrows share the top line, the scene name takes a full line of its own with the mode badge beside it, and the position and save state sit together beneath in one muted line. No more vertical wrapping in a crushed middle column.
+- The action strip is a tight grid: Log beside Roll d6 on one row, Escalate to combat or Return to roleplay full width, Mark scene complete full width, and the beat arrows as a paired row beneath in roleplay. Combat mode has no arrows and ends at the complete button.
+- Desktop untouched. Everything lives inside the phone media block, which now wins by source order.
+- FateWell only, styles only.
+
 ## FateWell — mobile overrides actually win now
 - The mobile block sat above the base rules in the stylesheet, so every base rule that came later quietly overrode it, which is why the mast kept centering and the spine and runner tweaks needed heavier hands. Moved the whole max-width 600px block to the end of the stylesheet so it wins by source order. The mast now aligns left on phones as intended, and the stacked spine and runner strip hold.
 - Note: the large crescent logo and title at the very top of the phone view are the Wix site header wrapping the embed, not the tool. That one is aligned in the Wix Editor, outside FateWell.
