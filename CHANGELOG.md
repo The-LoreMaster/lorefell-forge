@@ -2,6 +2,12 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## The Hearth rebuilt, a smithy at night
+- The spinning hub is gone. The new Hearth reads as walking into a blacksmith’s shop: a banked fire at the top where FellGlass and FateWell wait as the crown tools, then two racks below, the bench for players and the wall for LoreMasters, every forge hung as a tool with its maker’s touchmark stamped beside its name and a one line purpose.
+- Motion stays banked. The fire glow breathes on a slow seven second cycle, three ember motes drift up and gutter, sections settle in once on entry, and striking a tool flares its border ember before the page turns. All of it stills under reduced motion.
+- One column on phones, the crown pairs at 560 and the racks pair at 640. The HEARTH_NAV contract and routes are unchanged, so the page code needs no repaste.
+- Nothing to paste. The embed refreshes on its own.
+
 ## The LoreForge splits its halls, the Pentifax burns red
 - The Pentifax is its own hall now. A toggle at the top swaps between the LoreForge, every forge except foes, and the Pentifax, foes only, canon and submitted. The Pentifax view turns the accents red throughout: mast, chips, badges, vote buttons. The forge filter hides there since the hall is one forge.
 - Copy corrected: the community votes, the dev team decides what enters canon. The Pentifax hall reads as the foe hall voted by the table.
