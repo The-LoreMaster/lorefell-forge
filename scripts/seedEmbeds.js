@@ -19,22 +19,38 @@ const TITLES = { sigilforge: "The SigilForge" };
   const existing = (q.json.dataItems || q.json.items || []);
   let failed = false;
 
-  for (const file of files) {
-    const slug = file.replace(/\.html$/, "");
-    const html = fs.readFileSync(path.join(dir, file), "utf8");
-    const data = { slug: slug, html: html };
-    if (TITLES[slug]) data.title = TITLES[slug];
-    const hit = existing.find(e => e.data && e.data.slug === slug);
+  // Wix caps a data item near 512KB. Large tools split across part rows:
+  // the head row carries chunk 1 and a parts count, extras live at slug#2, slug#3...
+  const CHUNK = 360000;
 
+  async function upsert(slugKey, data){
+    const hit = existing.find(e => e.data && e.data.slug === slugKey);
     if (hit && hit.id) {
       const merged = Object.assign({}, hit.data, data);
       const u = await req("PUT", "/wix-data/v2/items/" + encodeURIComponent(hit.id), { dataCollectionId: COL, dataItem: { id: hit.id, data: merged } });
-      if (!u.ok) { console.error("update " + slug + " failed " + u.status + ": " + u.text.slice(0, 300)); failed = true; }
-      else console.log("updated embed " + slug + " (" + html.length + " bytes)");
-    } else {
-      const i = await req("POST", "/wix-data/v2/items", { dataCollectionId: COL, dataItem: { data: data } });
-      if (!i.ok) { console.error("insert " + slug + " failed " + i.status + ": " + i.text.slice(0, 300)); failed = true; }
-      else console.log("inserted embed " + slug + " (" + html.length + " bytes)");
+      if (!u.ok) { console.error("update " + slugKey + " failed " + u.status + ": " + u.text.slice(0, 300)); return false; }
+      console.log("updated embed " + slugKey + " (" + (data.html || "").length + " bytes)");
+      return true;
+    }
+    const i = await req("POST", "/wix-data/v2/items", { dataCollectionId: COL, dataItem: { data: data } });
+    if (!i.ok) { console.error("insert " + slugKey + " failed " + i.status + ": " + i.text.slice(0, 300)); return false; }
+    console.log("inserted embed " + slugKey + " (" + (data.html || "").length + " bytes)");
+    return true;
+  }
+
+  for (const file of files) {
+    const slug = file.replace(/\.html$/, "");
+    const html = fs.readFileSync(path.join(dir, file), "utf8");
+    const chunks = [];
+    for (let i = 0; i < html.length; i += CHUNK) chunks.push(html.slice(i, i + CHUNK));
+    if (!chunks.length) chunks.push("");
+
+    const head = { slug: slug, html: chunks[0], parts: chunks.length };
+    if (TITLES[slug]) head.title = TITLES[slug];
+    if (!(await upsert(slug, head))) failed = true;
+
+    for (let n = 2; n <= chunks.length; n++) {
+      if (!(await upsert(slug + "#" + n, { slug: slug + "#" + n, html: chunks[n - 1], parts: 0 }))) failed = true;
     }
   }
   if (failed) process.exit(1);

@@ -17,7 +17,23 @@ export function get_embed(request) {
       if (!item || !item.html) {
         return notFound({ headers: htmlHeaders(), body: '<!doctype html><meta charset="utf-8"><p>No embed for ' + slug + '.</p>' });
       }
-      return ok({ headers: htmlHeaders(), body: item.html });
+      const parts = item.parts | 0;
+      if (parts <= 1) return ok({ headers: htmlHeaders(), body: item.html });
+      // Large tools split across part rows at slug#2, slug#3... Reassemble in order.
+      return wixData.query('SiteEmbeds')
+        .startsWith('slug', slug + '#')
+        .limit(50)
+        .find({ suppressAuth: true })
+        .then((pr) => {
+          const byN = {};
+          pr.items.forEach((it) => {
+            const n = parseInt(String(it.slug).split('#')[1], 10);
+            if (n >= 2) byN[n] = it.html || '';
+          });
+          let body = item.html;
+          for (let n = 2; n <= parts; n++) body += (byN[n] || '');
+          return ok({ headers: htmlHeaders(), body: body });
+        });
     })
     .catch((err) => serverError({ headers: htmlHeaders(), body: '<!doctype html><meta charset="utf-8"><p>' + String(err) + '</p>' }));
 }

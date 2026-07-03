@@ -2,6 +2,11 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Infrastructure — FateWell and FellGlass move to CMS serving
+- Both combat tools join the SiteEmbeds slug pattern. seedEmbeds already carries every file in embeds, so the rows fill on the next Action run, and a new lightweight Seed Embeds workflow refreshes the rows on every push that touches embeds. Tool updates reach lorefell.com with no Wix edits and no dependence on GitHub Pages deploys.
+- Large tools now split across part rows. A data item caps near 512KB and FateWell sits at 436KB and growing, so the seeder chunks big files with a parts count on the head row, and get_embed reassembles them in order. Small tools keep a single row unchanged.
+- One paste: velo/backend/http-functions.js gains the reassembly. Then repoint the FateWell and FellGlass embeds to the slug URLs and publish once, the last Wix edit these tools need.
+
 ## FateWell — the spine bows to the tier you stand in
 - On phones the mast aligns left, clear of the save badge.
 - The Adventure to Scene spine drops the sideways scroll for a bowing layout: the tier you stand in stretches to show its full name, and the other record types wait as slim labeled stubs on either side, each still one tap away.
