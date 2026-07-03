@@ -316,7 +316,7 @@ export const getGallery = webMethod(Permissions.Anyone, async (opts) => {
       creationId: s._id, creationName: s.creationName, creatorName: s.creatorName,
       canonStatus: s.canonStatus, voteCount: s.voteCount || 0, kind: s.kind,
       forgeKey: s.forgeKey, shorthand: s.shorthand, fullText: s.fullText,
-      imageUrl: s.imageUrl, flavorText: s.flavorText || pf
+      imageUrl: wixImg(s.imageUrl || ''), flavorText: s.flavorText || pf
     };
   });
 });

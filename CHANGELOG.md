@@ -2,6 +2,12 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## LoreForge shows its runes, the hall crossing smooths, the Hearth trims
+- SigilForge rune images render in the gallery now. Submissions store the media manager wix image URL raw, and getGallery passed it through unconverted, a scheme browsers cannot load. The gallery read now converts through the same wixImg helper the catalog uses.
+- Crossing between the LoreForge and the Pentifax no longer snaps red then swaps. The themed elements ease across a third of a second and the grid fades out on the crossing, returning with the new hall’s rows.
+- EchoForge and SagaForge leave the Hearth. The wall holds FoeForge and RelicForge until SagaForge earns its place back.
+- One paste: forge.web.js.
+
 ## Infrastructure — the deploy stops tripping on itself
 - Two failures, two fixes. Re-running a failed single job deploy re-uploaded the Pages artifact, and two artifacts with one name hard-fail the deploy action. The workflow now splits into a build job that uploads once and a deploy job that consumes it, so re-runs reuse the artifact. And the deploy retries itself once after a ninety second cooldown, since GitHub’s Pages backend intermittently reports failure and trying again later is the actual remedy.
 - The Pages source is confirmed on GitHub Actions, so this workflow owns deploys now. The site was stale from the failed runs; this push redeploys everything through the Hearth rebuild.
