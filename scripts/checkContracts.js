@@ -11,7 +11,7 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
-const TOOLS = ['fatewell', 'foeforge', 'sigilforge', 'bondforge', 'relicforge', 'brandforge', 'shardforge', 'fellforge', 'fellglass', 'join'];
+const TOOLS = ['fatewell', 'foeforge', 'sigilforge', 'bondforge', 'relicforge', 'brandforge', 'shardforge', 'fellforge', 'fellglass', 'join', 'loreforge', 'the_hearth'];
 
 // genuine one-way messages handled outside the paired bridge
 const ALLOW = {

@@ -295,6 +295,31 @@ export const getCreations = webMethod(Permissions.Anyone, async (forgeKey, opts)
   });
 });
 
+// The LoreForge hall: every community creation across every forge in one read.
+// submitted and canon rows only; private work never leaves its owner.
+export const getGallery = webMethod(Permissions.Anyone, async (opts) => {
+  opts = opts || {};
+  let q = wixData.query('Creations');
+  if (opts.forgeKey) q = q.eq('forgeKey', opts.forgeKey);
+  if (opts.canonStatus) q = q.eq('canonStatus', opts.canonStatus);
+  else q = q.hasSome('canonStatus', ['submitted', 'canon']);
+  q = (opts.sort === 'new') ? q.descending('_createdDate') : q.descending('voteCount');
+  q = q.limit(Math.min(opts.limit || 60, 100));
+  const res = await q.find({ suppressAuth: true });
+  return res.items.map(function (s) {
+    let pf = '';
+    if (!s.flavorText) {
+      try { pf = (JSON.parse(s.payload || '{}').flavorText) || ''; } catch (e) { pf = ''; }
+    }
+    return {
+      creationId: s._id, creationName: s.creationName, creatorName: s.creatorName,
+      canonStatus: s.canonStatus, voteCount: s.voteCount || 0, kind: s.kind,
+      forgeKey: s.forgeKey, shorthand: s.shorthand, fullText: s.fullText,
+      imageUrl: s.imageUrl, flavorText: s.flavorText || pf
+    };
+  });
+});
+
 // Generic catalog read. Any forge can pull a content collection (canon set) by id.
 // Sorts by displayOrder when present. Wix image fields are converted to URLs for the iframe.
 function wixImg(v) {

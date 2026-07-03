@@ -2,6 +2,12 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## The LoreForge opens, the Hearth completes
+- The LoreForge is the hall of every forge: all community creations across all types in one gallery at loreforge.html. Forge filter chips build themselves from what exists, show narrows to In the vote or Canon, order flips between most voted and newest. Cards carry the forge and kind, creator, flavor line, a full record modal, canon badges, and the Pentifax vote with live counts, sign in handling, and already voted states. Art plates render only when a creation carries an image. New backend getGallery reads every forge in one query, submitted and canon only, private work never leaves its owner. Votes go through the existing castVote with each row’s own forge key.
+- The Hearth had its tiles and its HEARTH_NAV signal but nothing listening. page-the_hearth.js catches the signal and routes the parent page. A LoreForge tile joins the player grid at Vote the canon.
+- Contracts now cover loreforge and the_hearth pairs.
+- Three pastes: forge.web.js, page-loreforge.js on a new loreforge page, page-the_hearth.js on the Hearth page. Both tools embed from github.io like the rest.
+
 ## FateWell — the combat runner reads clean on a phone
 - The runner header stacks into three rows on phones: Prep and the scene arrows share the top line, the scene name takes a full line of its own with the mode badge beside it, and the position and save state sit together beneath in one muted line. No more vertical wrapping in a crushed middle column.
 - The action strip is a tight grid: Log beside Roll d6 on one row, Escalate to combat or Return to roleplay full width, Mark scene complete full width, and the beat arrows as a paired row beneath in roleplay. Combat mode has no arrows and ends at the complete button.
