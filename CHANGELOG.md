@@ -2,6 +2,11 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## FellGlass — the hand holds still, the React list fills itself
+- Picking a card no longer throws the rail back to the left. The hand keeps its scroll position across every re-render, so the chosen card stays under your thumb.
+- The React select now stands on its own instead of leaning on the arsenal builder. Movement is always offered, and every lorebound on the sheet contributes its Aspect, tagged Lorebound, whether or not the arsenal tab has rendered this session. Choosing the lorebound raises the full staged Aspect card as built.
+- FellGlass only. Refresh with the new head, nothing to paste.
+
 ## FellGlass — the arsenal deals as cards
 - The declare form’s Act select gives way to the dealt hand. Pill choices for Attack, Change Stance, Use a skill, and Use an item, and the hand deals only what the choice calls for. Attack deals weapon and lorebound cards, and only those the charge can pay for: nothing past the earned Tier renders at all. Stance deals the three armor cards with tiers lit by charge, worn marked, and the pick noting it adopts on Send and spends the Act. Items deal as cards from the pack. Skills stay a list.
 - Nothing beneath changed. The native selects remain in the document as the state the cards drive, so the dice ritual, Fellmark bonus die, target select, damage and affliction hints, draft safety, Send, the locked view, staging, and the LoreMaster mirror all run the same code they ran yesterday.
