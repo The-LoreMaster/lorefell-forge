@@ -2,6 +2,13 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## FateWell — mobile stops elbowing itself
+- The save stamp becomes a small navy badge at the top right instead of loose text floating over the mast and headings, one line on phones, with the mast and page headings nudged clear.
+- Adventures, Search, Library, and Settings fit their nav cells. The labels sized down until nothing clips.
+- The Adventure to Scene spine scrolls sideways on phones. Each tier keeps a readable width instead of four tiles crushing each other into truncation.
+- The scene runner strip lays out as an ordered grid on phones: Log beside Roll d6, Escalate or Return full width, Mark scene complete full width, and the beat arrows as a paired row beneath. No more centered scatter.
+- FateWell only, styles only. Refresh with the new head, nothing to paste.
+
 ## FellGlass — the hand holds still, the React list fills itself
 - Picking a card no longer throws the rail back to the left. The hand keeps its scroll position across every re-render, so the chosen card stays under your thumb.
 - The React select now stands on its own instead of leaning on the arsenal builder. Movement is always offered, and every lorebound on the sheet contributes its Aspect, tagged Lorebound, whether or not the arsenal tab has rendered this session. Choosing the lorebound raises the full staged Aspect card as built.
