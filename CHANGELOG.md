@@ -2,6 +2,11 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## FateWell — mobile overrides actually win now
+- The mobile block sat above the base rules in the stylesheet, so every base rule that came later quietly overrode it, which is why the mast kept centering and the spine and runner tweaks needed heavier hands. Moved the whole max-width 600px block to the end of the stylesheet so it wins by source order. The mast now aligns left on phones as intended, and the stacked spine and runner strip hold.
+- Note: the large crescent logo and title at the very top of the phone view are the Wix site header wrapping the embed, not the tool. That one is aligned in the Wix Editor, outside FateWell.
+- FateWell only, styles only.
+
 ## FateWell — mobile spine and runner strip, second pass
 - The bowing spine collapsed on real phones, tiers overlapping into each other. Replaced with a clean stacked layout: on phones the Adventure, Act, Session, and Scene tiers each take a full-width row, kicker left, name beside it, the live one lit gold. No crush, every name readable, every tier still one tap.
 - The runner strip targeted the wrong DOM last time. Rebuilt against the real structure: Log, Roll d6, Escalate or Return, and Mark scene complete stack as a single column, the beat arrows sit as a row beneath. No more scatter at the top of a combat scene.
