@@ -2,6 +2,13 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## FellGlass — the arsenal deals as cards
+- The declare form’s Act select gives way to the dealt hand. Pill choices for Attack, Change Stance, Use a skill, and Use an item, and the hand deals only what the choice calls for. Attack deals weapon and lorebound cards, and only those the charge can pay for: nothing past the earned Tier renders at all. Stance deals the three armor cards with tiers lit by charge, worn marked, and the pick noting it adopts on Send and spends the Act. Items deal as cards from the pack. Skills stay a list.
+- Nothing beneath changed. The native selects remain in the document as the state the cards drive, so the dice ritual, Fellmark bonus die, target select, damage and affliction hints, draft safety, Send, the locked view, staging, and the LoreMaster mirror all run the same code they ran yesterday.
+- At Resolution the lorebound React’s small text hint grows into the full Aspect card, Initial to Crown staged by charge with committed picks shown, and the card renders an art plate only when the row carries an image.
+- The hand folds at round end with everything else.
+- FellGlass only. Refresh with the new head, nothing to paste.
+
 ## Prototype two — the hand deals only what the choice calls for
 - proto-arsenal-glass.html mocks the dealt hand inside the FellGlass declare flow. The hand stays folded until an Act is chosen: Attack deals the weapon and spell cards, Change Stance deals the three stance cards, and during Resolution the Aspect card deals only when the lorebound React is called. Skills and items stay lists, and Movement is a plain line.
 - Picking a card declares it: gold rim, a Declared footer, a target select, a dashed summary, and a Send to the LoreMaster button, mirroring the real flow.
