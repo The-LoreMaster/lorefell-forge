@@ -301,6 +301,7 @@ export const getGallery = webMethod(Permissions.Anyone, async (opts) => {
   opts = opts || {};
   let q = wixData.query('Creations');
   if (opts.forgeKey) q = q.eq('forgeKey', opts.forgeKey);
+  if (opts.excludeForgeKey) q = q.ne('forgeKey', opts.excludeForgeKey);
   if (opts.canonStatus) q = q.eq('canonStatus', opts.canonStatus);
   else q = q.hasSome('canonStatus', ['submitted', 'canon']);
   q = (opts.sort === 'new') ? q.descending('_createdDate') : q.descending('voteCount');

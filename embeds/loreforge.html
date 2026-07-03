@@ -18,6 +18,11 @@ html,body{ background:var(--navy); color:var(--silver); font-family:'Crimson Pro
 button{ font:inherit; color:inherit; background:none; border:none; cursor:pointer; }
 
 .wrap{ max-width:980px; margin:0 auto; padding:14px 14px 40px; }
+body.pen{ --gold:#c96a5a; --goldline:rgba(201,106,90,.5); }
+.hall-seg{ display:flex; gap:6px; margin:0 0 12px; }
+.hall-seg button{ flex:1; font-family:'Cinzel',serif; font-size:.66rem; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); border:1px solid var(--line); border-radius:9px; padding:10px 0; }
+.hall-seg button.on{ color:var(--gold); border-color:var(--goldline); background:rgba(201,168,76,.07); }
+body.pen .hall-seg button.on{ background:rgba(201,106,90,.08); }
 .mast{ font-family:'Cinzel Decorative',serif; font-size:1.45rem; letter-spacing:.05em; }
 .mast .lf{ color:var(--gold); }
 .sub{ color:var(--ice); font-size:.95rem; margin:2px 0 14px; }
@@ -35,6 +40,11 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
   background:linear-gradient(180deg, var(--panel), var(--panel2));
   border:1px solid var(--line); border-radius:12px; }
 .card .plate{ height:130px; background-size:cover; background-position:center; border-bottom:1px solid var(--goldline); }
+.c-main{ display:flex; flex-direction:column; flex:1; min-width:0; }
+@media (min-width:700px){
+  .card{ flex-direction:row; }
+  .card .plate{ width:150px; height:auto; min-height:100%; flex:none; border-bottom:none; border-right:1px solid var(--goldline); }
+}
 .c-body{ padding:11px 13px 12px; flex:1; display:flex; flex-direction:column; }
 .c-kick{ font-family:'Cinzel',serif; font-size:.55rem; letter-spacing:.15em; text-transform:uppercase; color:var(--gold); }
 .c-name{ font-family:'Cinzel',serif; font-weight:600; font-size:1.05rem; margin:2px 0 1px; }
@@ -58,9 +68,10 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
   border-radius:9px; padding:9px 16px; font-size:.9rem; display:none; z-index:50; max-width:90vw; text-align:center; }
 .ping.show{ display:block; }
 
-.modal{ position:fixed; inset:0; background:rgba(6,9,17,.88); display:none; place-items:center; padding:18px; z-index:40; }
-.modal.open{ display:grid; }
-.m-card{ width:100%; max-width:560px; max-height:86vh; overflow:auto; background:linear-gradient(180deg,var(--panel),var(--panel2));
+.modal{ position:absolute; inset:0; min-height:100%; background:rgba(6,9,17,.88); display:none; z-index:40; }
+.modal.open{ display:block; }
+.m-card{ position:absolute; left:50%; transform:translateX(-50%); width:calc(100% - 32px); max-width:560px; max-height:82vh; overflow:auto;
+  background:linear-gradient(180deg,var(--panel),var(--panel2));
   border:1px solid var(--goldline); border-radius:13px; padding:16px 16px 14px; }
 .m-full{ white-space:pre-wrap; color:var(--ice); font-size:.94rem; line-height:1.5; margin-top:10px; }
 .m-close{ display:block; margin:14px auto 0; font-family:'Cinzel',serif; font-size:.62rem; letter-spacing:.14em; text-transform:uppercase;
@@ -69,8 +80,12 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 </head>
 <body>
 <div class="wrap">
-  <div class="mast">The <span class="lf">LoreForge</span></div>
-  <div class="sub">Every forge, one hall. The community votes, the Pentifax decides what enters canon.</div>
+  <div class="mast" id="mast">The <span class="lf">LoreForge</span></div>
+  <div class="sub" id="sub">Every forge, one hall. The community votes, the dev team decides what enters canon.</div>
+  <div class="hall-seg">
+    <button id="hallLore" class="on" onclick="setHall('lore')">The LoreForge</button>
+    <button id="hallPen" onclick="setHall('pentifax')">The Pentifax</button>
+  </div>
   <div class="ctl" id="forgeChips"></div>
   <div class="ctl">
     <span class="ctl-l">Show</span>
@@ -89,7 +104,7 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 
 <script>
 var ROWS = [];
-var F = { forgeKey:"", status:"", sort:"votes" };
+var F = { hall:"lore", forgeKey:"", status:"", sort:"votes" };
 var VOTED = {};
 
 var FORGE_NAMES = {
@@ -110,7 +125,21 @@ function ping(t){
 }
 
 function request(){
-  post({ type:"LOREFORGE_GALLERY", payload:{ forgeKey:F.forgeKey, canonStatus:F.status, sort:F.sort } });
+  var pay = { canonStatus:F.status, sort:F.sort };
+  if(F.hall === "pentifax"){ pay.forgeKey = "foeforge"; }
+  else { pay.forgeKey = F.forgeKey; pay.excludeForgeKey = "foeforge"; }
+  post({ type:"LOREFORGE_GALLERY", payload:pay });
+}
+function setHall(h){
+  F.hall = h; F.forgeKey = "";
+  document.body.classList.toggle("pen", h === "pentifax");
+  document.getElementById("hallLore").classList.toggle("on", h === "lore");
+  document.getElementById("hallPen").classList.toggle("on", h === "pentifax");
+  document.getElementById("mast").innerHTML = (h === "pentifax") ? 'The <span class="lf">Pentifax</span>' : 'The <span class="lf">LoreForge</span>';
+  document.getElementById("sub").textContent = (h === "pentifax")
+    ? "The foe hall. Canon and submitted adversaries, voted by the table."
+    : "Every forge, one hall. The community votes, the dev team decides what enters canon.";
+  request();
 }
 
 function card(r){
@@ -119,18 +148,18 @@ function card(r){
   var line = r.flavorText || r.shorthand || "";
   return '<div class="card">'
     + (r.imageUrl ? '<div class="plate" style="background-image:url(\''+esc(r.imageUrl)+'\')"></div>' : '')
-    + '<div class="c-body">'
+    + '<div class="c-main"><div class="c-body">'
     + '<span class="c-kick">'+esc(forgeName(r.forgeKey))+(r.kind?(' \u00b7 '+esc(r.kind)):'')+'</span>'
     + '<span class="c-name">'+esc(r.creationName||"Unnamed")+'</span>'
     + (r.creatorName?('<span class="c-by">by '+esc(r.creatorName)+'</span>'):'')
     + (line?('<div class="c-flavor">'+esc(line)+'</div>'):'')
-    + (r.fullText?('<button class="open-btn" onclick="openModal(\''+r.creationId+'\')">Read the full record</button>'):'')
+    + (r.fullText?('<button class="open-btn" onclick="openModal(event,\''+r.creationId+'\')">Read the full record</button>'):'')
     + '</div>'
     + '<div class="c-foot">'
     + '<span class="badge '+(canon?'canon':'vote')+'">'+(canon?'Canon':'In the vote')+'</span>'
     + '<span class="v-count" id="vc-'+r.creationId+'">'+(r.voteCount||0)+' vote'+((r.voteCount||0)===1?'':'s')+'</span>'
     + (canon ? '' : '<button class="v-btn'+(voted?' done':'')+'" id="vb-'+r.creationId+'" '+(voted?'disabled':'')+' onclick="vote(\''+esc(r.forgeKey)+'\',\''+r.creationId+'\')">'+(voted?'Voted':'Vote')+'</button>')
-    + '</div></div>';
+    + '</div></div></div>';
 }
 
 function render(){
@@ -143,8 +172,9 @@ function render(){
 }
 
 function renderForgeChips(){
-  var keys={}; ROWS.forEach(function(r){ if(r.forgeKey) keys[r.forgeKey]=1; });
   var host=document.getElementById("forgeChips");
+  if(F.hall === "pentifax"){ host.innerHTML=""; return; }
+  var keys={}; ROWS.forEach(function(r){ if(r.forgeKey) keys[r.forgeKey]=1; });
   var h='<span class="ctl-l">Forge</span>'
     + '<button class="chip'+(F.forgeKey===""?" on":"")+'" onclick="setForge(\'\')">All</button>';
   Object.keys(keys).sort().forEach(function(k){
@@ -160,10 +190,12 @@ function vote(forgeKey, id){
   post({ type:"LOREFORGE_VOTE", payload:{ forgeKey:forgeKey, creationId:id } });
 }
 
-function openModal(id){
+function openModal(ev, id){
   var r=null; ROWS.forEach(function(x){ if(x.creationId===id) r=x; }); if(!r) return;
   var m=document.getElementById("modal");
-  m.innerHTML='<div class="m-card" onclick="event.stopPropagation()">'
+  var y=(ev && (ev.pageY || ev.clientY)) || 120;
+  var top=Math.max(16, y - 90);
+  m.innerHTML='<div class="m-card" style="top:'+top+'px" onclick="event.stopPropagation()">'
     + '<span class="c-kick">'+esc(forgeName(r.forgeKey))+(r.kind?(' \u00b7 '+esc(r.kind)):'')+'</span>'
     + '<div class="c-name" style="font-size:1.2rem">'+esc(r.creationName||"Unnamed")+'</div>'
     + (r.creatorName?('<span class="c-by">by '+esc(r.creatorName)+'</span>'):'')

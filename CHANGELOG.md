@@ -2,6 +2,14 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## The LoreForge splits its halls, the Pentifax burns red
+- The Pentifax is its own hall now. A toggle at the top swaps between the LoreForge, every forge except foes, and the Pentifax, foes only, canon and submitted. The Pentifax view turns the accents red throughout: mast, chips, badges, vote buttons. The forge filter hides there since the hall is one forge.
+- Copy corrected: the community votes, the dev team decides what enters canon. The Pentifax hall reads as the foe hall voted by the table.
+- Card plates sit to the left of the text on desktop and above on mobile.
+- Read the full record opens where you are looking. The modal was centering on the iframe rather than the visible viewport, so it landed midway down the page. It now anchors to the click point, clamped to the top.
+- The Hearth routes carry the real page slugs, the-fellforge through the-loreforge.
+- Two pastes refresh: forge.web.js and page-loreforge.js.
+
 ## The LoreForge opens, the Hearth completes
 - The LoreForge is the hall of every forge: all community creations across all types in one gallery at loreforge.html. Forge filter chips build themselves from what exists, show narrows to In the vote or Canon, order flips between most voted and newest. Cards carry the forge and kind, creator, flavor line, a full record modal, canon badges, and the Pentifax vote with live counts, sign in handling, and already voted states. Art plates render only when a creation carries an image. New backend getGallery reads every forge in one query, submitted and canon only, private work never leaves its owner. Votes go through the existing castVote with each row’s own forge key.
 - The Hearth had its tiles and its HEARTH_NAV signal but nothing listening. page-the_hearth.js catches the signal and routes the parent page. A LoreForge tile joins the player grid at Vote the canon.

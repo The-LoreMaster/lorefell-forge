@@ -19,6 +19,7 @@ $w.onReady(() => {
       try {
         const rows = await getGallery({
           forgeKey: p.forgeKey || '',
+          excludeForgeKey: p.excludeForgeKey || '',
           canonStatus: p.canonStatus || '',
           sort: p.sort || 'votes',
           limit: 80
