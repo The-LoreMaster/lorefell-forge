@@ -1,8 +1,11 @@
 name: Deploy Pages
 
-# Replaces the built-in Pages deploy so the deploy step can retry. GitHub's
-# automatic pages-build-deployment fails intermittently on its own infrastructure
-# with "Deployment failed, try again later"; a retry clears it without a manual rerun.
+# Two jobs on purpose. Build uploads the artifact once; deploy consumes it.
+# Re-running a failed deploy job then reuses the single artifact instead of
+# uploading a duplicate, which hard-fails deploy-pages with an artifact count
+# error. The deploy step also retries itself once after a cooldown, since
+# GitHub's Pages backend intermittently reports "Deployment failed, try again
+# later" and simply trying again later works.
 on:
   push:
     branches: [main]
@@ -21,21 +24,30 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: docs
-      - name: Deploy with retry
-        id: deployment
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.first.outputs.page_url || steps.second.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: first
+        continue-on-error: true
         uses: actions/deploy-pages@v4
-        with:
-          timeout: 600000
-          error_count: 15
-          reporting_interval: 5000
+      - name: Cool down before the second strike
+        if: steps.first.outcome == 'failure'
+        run: sleep 90
+      - name: Deploy again
+        id: second
+        if: steps.first.outcome == 'failure'
+        uses: actions/deploy-pages@v4

@@ -2,6 +2,10 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Infrastructure — the deploy stops tripping on itself
+- Two failures, two fixes. Re-running a failed single job deploy re-uploaded the Pages artifact, and two artifacts with one name hard-fail the deploy action. The workflow now splits into a build job that uploads once and a deploy job that consumes it, so re-runs reuse the artifact. And the deploy retries itself once after a ninety second cooldown, since GitHub’s Pages backend intermittently reports failure and trying again later is the actual remedy.
+- The Pages source is confirmed on GitHub Actions, so this workflow owns deploys now. The site was stale from the failed runs; this push redeploys everything through the Hearth rebuild.
+
 ## The Hearth rebuilt, a smithy at night
 - The spinning hub is gone. The new Hearth reads as walking into a blacksmith’s shop: a banked fire at the top where FellGlass and FateWell wait as the crown tools, then two racks below, the bench for players and the wall for LoreMasters, every forge hung as a tool with its maker’s touchmark stamped beside its name and a one line purpose.
 - Motion stays banked. The fire glow breathes on a slow seven second cycle, three ember motes drift up and gutter, sections settle in once on entry, and striking a tool flares its border ember before the page turns. All of it stills under reduced motion.
