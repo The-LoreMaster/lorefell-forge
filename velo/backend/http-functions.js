@@ -18,7 +18,13 @@ export function get_embed(request) {
         return notFound({ headers: htmlHeaders(), body: '<!doctype html><meta charset="utf-8"><p>No embed for ' + slug + '.</p>' });
       }
       // Large tools split across part rows at slug#2, slug#3... Always look for
-      // parts and reassemble in numeric order. No dependence on a parts field.
+      // parts and reassemble in numeric order. Rows may be base64 encoded (enc b64)
+      // so Wix TEXT field whitespace trimming cannot corrupt chunk joins.
+      const dec = (row) => {
+        const raw = row.html || '';
+        if (row.enc === 'b64') { try { return decodeURIComponent(escape(atob(raw))); } catch (e) { return raw; } }
+        return raw;
+      };
       return wixData.query('SiteEmbeds')
         .startsWith('slug', slug + '#')
         .limit(100)
@@ -27,17 +33,18 @@ export function get_embed(request) {
           const parts = [];
           pr.items.forEach((it) => {
             const n = parseInt(String(it.slug).split('#')[1], 10);
-            if (n >= 2) parts.push({ n: n, html: it.html || '' });
+            if (n >= 2) parts.push({ n: n, html: dec(it) });
           });
           parts.sort((a, b) => a.n - b.n);
+          const headHtml = dec(item);
           if (request.query && request.query.info) {
-            let rep = 'slug ' + slug + '\nhead ' + (item.html || '').length + ' chars\n';
+            let rep = 'slug ' + slug + '\nenc ' + (item.enc || 'plain') + '\nhead ' + headHtml.length + ' chars\n';
             parts.forEach((x) => { rep += 'part ' + x.n + ' ' + x.html.length + ' chars\n'; });
-            let tot = (item.html || '').length; parts.forEach((x) => { tot += x.html.length; });
+            let tot = headHtml.length; parts.forEach((x) => { tot += x.html.length; });
             rep += 'total ' + tot + ' chars\n';
             return ok({ headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-cache' }, body: rep });
           }
-          let body = item.html;
+          let body = headHtml;
           parts.forEach((x) => { body += x.html; });
           return ok({ headers: htmlHeaders(), body: body });
         });

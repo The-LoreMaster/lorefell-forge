@@ -45,12 +45,16 @@ const TITLES = { sigilforge: "The SigilForge" };
     for (let i = 0; i < html.length; i += CHUNK) chunks.push(html.slice(i, i + CHUNK));
     if (!chunks.length) chunks.push("");
 
-    const head = { slug: slug, html: chunks[0], parts: chunks.length };
+    // Wix TEXT fields trim leading and trailing whitespace, which silently corrupts
+    // chunk joins. Store each chunk base64 encoded so the bytes survive verbatim.
+    const b64 = chunks.map((c) => Buffer.from(c, "utf8").toString("base64"));
+
+    const head = { slug: slug, html: b64[0], parts: chunks.length, enc: "b64" };
     if (TITLES[slug]) head.title = TITLES[slug];
     if (!(await upsert(slug, head))) failed = true;
 
-    for (let n = 2; n <= chunks.length; n++) {
-      if (!(await upsert(slug + "#" + n, { slug: slug + "#" + n, html: chunks[n - 1], parts: 0 }))) failed = true;
+    for (let n = 2; n <= b64.length; n++) {
+      if (!(await upsert(slug + "#" + n, { slug: slug + "#" + n, html: b64[n - 1], parts: 0, enc: "b64" }))) failed = true;
     }
 
     // remove stale part rows beyond the current count

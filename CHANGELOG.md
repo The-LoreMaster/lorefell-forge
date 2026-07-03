@@ -2,6 +2,11 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Infrastructure — the real break, Wix trims whitespace
+- Root cause found. Wix TEXT fields strip leading and trailing whitespace on write. Several 90KB chunks began or ended on a space or newline, so the stored parts lost those characters and the reassembled document fused tokens across the joins, throwing a script error at parse. The app never rendered and only the static feedback widget showed. FellGlass’s info total read 149 characters short, which was the trimmed whitespace.
+- Fix: the seeder base64 encodes every chunk so Wix cannot alter the bytes, tagged enc b64 on each row, and get_embed decodes UTF-8 safe on reassembly while still reading legacy plain rows. The info diagnostic now reports the encoding and the decoded sizes, which will match the file exactly.
+- One paste: http-functions.js. The Apply run reseeds the rows base64 encoded.
+
 ## Infrastructure — embed serving hardened after the break
 - Root cause of the broken pages: the SiteEmbeds collection had no parts column, Wix silently dropped the field, and get_embed served FateWell’s first chunk alone, a dead app showing only its static feedback widget. FellGlass’s single large row points at a storage cap or sanitizer above the sizes the pattern had proven.
 - get_embed no longer depends on any field. It always looks for part rows and reassembles in numeric order, and a diagnostic mode at ?slug=name&info=1 reports stored head and part sizes as plain text.
