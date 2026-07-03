@@ -2,6 +2,11 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Infrastructure — back to github.io, deploy hardened
+- The CMS serving path hit a wall. Wix wraps every _functions response in a strict Content Security Policy that blocks inline scripts and inline styles without a nonce, and the combat tools are one large inline script and style each. Stored documents cannot carry a nonce, so the app was blocked while only the static feedback widget survived. The base64 storage fix was sound, but the origin itself will not run these tools.
+- FateWell and FellGlass return to github.io serving. The standing fix for the original pain, manual version edits, is to drop the pinned version string from the two embeds so pushes go live on the short Pages cache with no Wix edits.
+- The intermittent deploy failures were GitHub’s built-in Pages deploy giving up on the first try. A new Deploy Pages workflow replaces it with a deploy step tuned to tolerate transient failures, many status checks over a long window instead of one shot. It takes effect once the Pages source is set to GitHub Actions in repo settings.
+
 ## Infrastructure — the real break, Wix trims whitespace
 - Root cause found. Wix TEXT fields strip leading and trailing whitespace on write. Several 90KB chunks began or ended on a space or newline, so the stored parts lost those characters and the reassembled document fused tokens across the joins, throwing a script error at parse. The app never rendered and only the static feedback widget showed. FellGlass’s info total read 149 characters short, which was the trimmed whitespace.
 - Fix: the seeder base64 encodes every chunk so Wix cannot alter the bytes, tagged enc b64 on each row, and get_embed decodes UTF-8 safe on reassembly while still reading legacy plain rows. The info diagnostic now reports the encoding and the decoded sizes, which will match the file exactly.
