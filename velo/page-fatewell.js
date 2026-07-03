@@ -165,8 +165,13 @@ $w.onReady(() => {
         const r = await saveCampaign(cid, m.data || {}, '');
         if (r && r.ok && m.data && m.data.campaign) {
           embed.postMessage({ type: 'lmtool-campaigns-slimmed', campaigns: [{ id: cid, campaign: m.data.campaign }] });
+          embed.postMessage({ type: 'lmtool-save-result', ok: true, campaignId: cid });
+        } else {
+          embed.postMessage({ type: 'lmtool-save-result', ok: false, campaignId: cid, error: (r && r.error) || 'save rejected' });
         }
-      } catch (e) {}
+      } catch (e) {
+        embed.postMessage({ type: 'lmtool-save-result', ok: false, campaignId: cid, error: (e && e.message) ? e.message : String(e) });
+      }
     } else if (m.type === 'lmtool-campaign-delete') {
       let dres = { ok: false };
       try { dres = await deleteCampaign(m.campaignId); } catch (e) { dres = { ok: false, error: String(e) }; }

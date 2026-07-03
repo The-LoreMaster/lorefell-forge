@@ -2,6 +2,11 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## FateWell — nested images persist to the account
+- Root cause of images not surviving across browsers: the live page code was saving nested record images as base64 straight into the campaign row. A few phone photos pushed the row past the Wix item size cap and the whole save threw server-side, so nothing reached the account. Local editing masked it because localStorage has no cap. The current page code already recurses the campaign and uploads every data URL to Wix media, storing a small static URL, so acts, sessions, scenes, and NPC entries persist.
+- The save is no longer silent on failure. The backend reports a save result and the tool warns when a save does not reach the account, naming a too-large image as the likely cause instead of failing invisibly.
+- Paste both files: velo/page-fatewell.js and the FateWell embed source, then publish. The page paste is the actual fix.
+
 ## Infrastructure — back to github.io, deploy hardened
 - The CMS serving path hit a wall. Wix wraps every _functions response in a strict Content Security Policy that blocks inline scripts and inline styles without a nonce, and the combat tools are one large inline script and style each. Stored documents cannot carry a nonce, so the app was blocked while only the static feedback widget survived. The base64 storage fix was sound, but the origin itself will not run these tools.
 - FateWell and FellGlass return to github.io serving. The standing fix for the original pain, manual version edits, is to drop the pinned version string from the two embeds so pushes go live on the short Pages cache with no Wix edits.
