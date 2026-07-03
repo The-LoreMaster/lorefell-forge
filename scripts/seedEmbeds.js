@@ -21,7 +21,7 @@ const TITLES = { sigilforge: "The SigilForge" };
 
   // Wix caps a data item near 512KB. Large tools split across part rows:
   // the head row carries chunk 1 and a parts count, extras live at slug#2, slug#3...
-  const CHUNK = 360000;
+  const CHUNK = 90000;
 
   async function upsert(slugKey, data){
     const hit = existing.find(e => e.data && e.data.slug === slugKey);
@@ -51,6 +51,19 @@ const TITLES = { sigilforge: "The SigilForge" };
 
     for (let n = 2; n <= chunks.length; n++) {
       if (!(await upsert(slug + "#" + n, { slug: slug + "#" + n, html: chunks[n - 1], parts: 0 }))) failed = true;
+    }
+
+    // remove stale part rows beyond the current count
+    const stale = existing.filter(e => {
+      const sv = e.data && e.data.slug;
+      if (!sv || sv.indexOf(slug + "#") !== 0) return false;
+      const n = parseInt(sv.split("#")[1], 10);
+      return n > chunks.length;
+    });
+    for (const row of stale) {
+      const d = await req("DELETE", "/wix-data/v2/items/" + encodeURIComponent(row.id) + "?dataCollectionId=" + encodeURIComponent(COL), null);
+      if (d.ok) console.log("removed stale part " + row.data.slug);
+      else console.error("remove " + row.data.slug + " failed " + d.status);
     }
   }
   if (failed) process.exit(1);

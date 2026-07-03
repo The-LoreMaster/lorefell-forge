@@ -2,6 +2,12 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Infrastructure — embed serving hardened after the break
+- Root cause of the broken pages: the SiteEmbeds collection had no parts column, Wix silently dropped the field, and get_embed served FateWell’s first chunk alone, a dead app showing only its static feedback widget. FellGlass’s single large row points at a storage cap or sanitizer above the sizes the pattern had proven.
+- get_embed no longer depends on any field. It always looks for part rows and reassembles in numeric order, and a diagnostic mode at ?slug=name&info=1 reports stored head and part sizes as plain text.
+- The seeder chunks at 90KB, safely under any plausible field cap, and removes stale part rows when a tool shrinks. A formal SiteEmbeds schema defines slug, title, html, and parts so the count persists.
+- One paste: http-functions.js again. Then the info URLs verify what Wix actually stored.
+
 ## Infrastructure — FateWell and FellGlass move to CMS serving
 - Both combat tools join the SiteEmbeds slug pattern. seedEmbeds already carries every file in embeds, so the rows fill on the next Action run, and a new lightweight Seed Embeds workflow refreshes the rows on every push that touches embeds. Tool updates reach lorefell.com with no Wix edits and no dependence on GitHub Pages deploys.
 - Large tools now split across part rows. A data item caps near 512KB and FateWell sits at 436KB and growing, so the seeder chunks big files with a parts count on the head row, and get_embed reassembles them in order. Small tools keep a single row unchanged.

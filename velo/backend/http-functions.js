@@ -17,21 +17,28 @@ export function get_embed(request) {
       if (!item || !item.html) {
         return notFound({ headers: htmlHeaders(), body: '<!doctype html><meta charset="utf-8"><p>No embed for ' + slug + '.</p>' });
       }
-      const parts = item.parts | 0;
-      if (parts <= 1) return ok({ headers: htmlHeaders(), body: item.html });
-      // Large tools split across part rows at slug#2, slug#3... Reassemble in order.
+      // Large tools split across part rows at slug#2, slug#3... Always look for
+      // parts and reassemble in numeric order. No dependence on a parts field.
       return wixData.query('SiteEmbeds')
         .startsWith('slug', slug + '#')
-        .limit(50)
+        .limit(100)
         .find({ suppressAuth: true })
         .then((pr) => {
-          const byN = {};
+          const parts = [];
           pr.items.forEach((it) => {
             const n = parseInt(String(it.slug).split('#')[1], 10);
-            if (n >= 2) byN[n] = it.html || '';
+            if (n >= 2) parts.push({ n: n, html: it.html || '' });
           });
+          parts.sort((a, b) => a.n - b.n);
+          if (request.query && request.query.info) {
+            let rep = 'slug ' + slug + '\nhead ' + (item.html || '').length + ' chars\n';
+            parts.forEach((x) => { rep += 'part ' + x.n + ' ' + x.html.length + ' chars\n'; });
+            let tot = (item.html || '').length; parts.forEach((x) => { tot += x.html.length; });
+            rep += 'total ' + tot + ' chars\n';
+            return ok({ headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-cache' }, body: rep });
+          }
           let body = item.html;
-          for (let n = 2; n <= parts; n++) body += (byN[n] || '');
+          parts.forEach((x) => { body += x.html; });
           return ok({ headers: htmlHeaders(), body: body });
         });
     })
