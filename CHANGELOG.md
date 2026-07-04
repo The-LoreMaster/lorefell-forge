@@ -2,6 +2,11 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Lorebound Aspects, attribute sweep and capture tiers
+- Every Aspect that scaled a heal, prevention, or bonus off a specific attribute now uses the higher of the owner's Vigor or Wit. This pass caught Aerostrix, Mordel, and Slipfang alongside the earlier set. Zeroing effects like Evasion becomes 0 stay, they are not attribute scaling. Vixel, Solmera, and Runesteed left untouched for a later redesign.
+- Alkagoo and Thistlewing capture wording clarified. The branch captures one Tier higher up to Tier 2, the crown captures one Tier higher again up to Tier 3, so skipping the branch caps the crown at Tier 2 on its own.
+- Seed is the source. Reseed CanonAspects so the tools carry it.
+
 ## Lorebound Aspects reworked
 - Nine Aspects revised and two global rules applied across all eighteen, in the Lorebounds seed data. Aquafin gives the prevented Charge to another Fell in range, owner on the second branch. Boreal prevents by the higher of Vigor or Wit. Alkagoo copies into the targeted Fell rather than the owner. Drakelith's second crown gives a single target the Unlucky Affliction. Felionis prevents Base damage on the branch and hits all enemies in range on the crown. Grimgrit deals Base and Bonus by the higher of Vigor or Wit. Thistlewing now matches Alkagoo. Vixel's crowns choose their effects rather than rolling at random. Worgar manifests into the Fell's inventory, heals and reflects by the higher of Vigor or Wit.
 - Global: every heal or prevention keyed off Vigor or Renewal now uses the higher of the owner's Vigor or Wit. Every Combat Effect or Affliction that was applied at random is now chosen.
