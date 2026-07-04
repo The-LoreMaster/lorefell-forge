@@ -2,6 +2,11 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Info circles across the forges
+- The header definition circles ported from SigilForge to every builder. Each meaningful field carries a small gold circle that opens a plain definition, hover on desktop and tap on touch.
+- FellForge: Sex, Lineage, Origin, Motivation. FoeForge: Build, Stance, Signature Affliction, Deploy at, Party level, Number of Fell. RelicForge: Group, Cost, Uses, Rarity. ShardForge: What it does, and the category field.
+- Shared pattern, one CSS block and one tap handler per tool. All refresh on their own.
+
 ## SigilForge — headers carry their meaning
 - Every builder header gains a small gold info circle: Primary Damage Package, Targeting, Inlay Slot 1 and 2, Spread, and Amplify. Each opens a short plain definition of what that piece is and what it does. Hover on desktop, tap on touch, one open at a time.
 - SigilForge only, refreshes on its own.
