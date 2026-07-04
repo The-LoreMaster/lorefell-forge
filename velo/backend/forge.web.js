@@ -305,9 +305,10 @@ export const getGallery = webMethod(Permissions.Anyone, async (opts) => {
   if (opts.canonStatus) q = q.eq('canonStatus', opts.canonStatus);
   else q = q.hasSome('canonStatus', ['submitted', 'canon']);
   q = (opts.sort === 'new') ? q.descending('_createdDate') : q.descending('voteCount');
-  q = q.limit(Math.min(opts.limit || 60, 100));
+  q = q.limit(Math.min(opts.limit || 12, 50));
+  if (opts.skip) q = q.skip(Math.max(0, opts.skip | 0));
   const res = await q.find({ suppressAuth: true });
-  return res.items.map(function (s) {
+  const rows = res.items.map(function (s) {
     let pf = '';
     if (!s.flavorText) {
       try { pf = (JSON.parse(s.payload || '{}').flavorText) || ''; } catch (e) { pf = ''; }
@@ -319,6 +320,7 @@ export const getGallery = webMethod(Permissions.Anyone, async (opts) => {
       imageUrl: wixImg(s.imageUrl || ''), flavorText: s.flavorText || pf
     };
   });
+  return { rows: rows, total: res.totalCount || rows.length };
 });
 
 // Generic catalog read. Any forge can pull a content collection (canon set) by id.
@@ -368,21 +370,33 @@ export const castVote = webMethod(Permissions.SiteMember, async (forgeKey, creat
   catch (e) { return { ok: false, error: 'That creation was not found.' }; }
   if (!rec || rec.forgeKey !== forgeKey) return { ok: false, error: 'That creation was not found.' };
 
-  const voters = Array.isArray(rec.voters) ? rec.voters : [];
-  if (voters.indexOf(member._id) !== -1) {
+  // One vote per member per creation, held in its own ledger so the rule binds
+  // every surface alike, the forge pages and the LoreForge. The old voters array
+  // on the row never persisted because the column does not exist and Wix drops
+  // unknown fields on write.
+  const prior = await wixData.query('CreationVotes')
+    .eq('creationId', creationId)
+    .eq('memberId', member._id)
+    .limit(1)
+    .find({ suppressAuth: true });
+  if (prior.items.length) {
     return { ok: true, already: true, voteCount: rec.voteCount || 0 };
   }
 
-  const next = (rec.voteCount || 0) + 1;
   try {
-    await wixData.update('Creations',
-      { _id: creationId, voteCount: next, voters: voters.concat([member._id]) },
+    await wixData.insert('CreationVotes',
+      { creationId: creationId, memberId: member._id, forgeKey: forgeKey },
       { suppressAuth: true });
   } catch (e) {
-    // voters field may not exist; fall back to a bare tally so voting still works
-    try { await wixData.update('Creations', { _id: creationId, voteCount: next }, { suppressAuth: true }); }
-    catch (e2) { return { ok: false, error: 'The vote could not be saved.' }; }
+    return { ok: false, error: 'The vote could not be saved.' };
   }
+
+  // Full object on update. A partial object would replace the row and erase
+  // every field not included.
+  const next = (rec.voteCount || 0) + 1;
+  const merged = Object.assign({}, rec, { voteCount: next });
+  try { await wixData.update('Creations', merged, { suppressAuth: true }); }
+  catch (e) { return { ok: false, error: 'The vote could not be saved.' }; }
   return { ok: true, voteCount: next };
 });
 

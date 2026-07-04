@@ -17,16 +17,17 @@ $w.onReady(() => {
     if (m.type === 'LOREFORGE_GALLERY') {
       const p = m.payload || {};
       try {
-        const rows = await getGallery({
+        const r = await getGallery({
           forgeKey: p.forgeKey || '',
           excludeForgeKey: p.excludeForgeKey || '',
           canonStatus: p.canonStatus || '',
           sort: p.sort || 'votes',
-          limit: 80
+          limit: p.limit || 12,
+          skip: p.skip || 0
         });
-        embed.postMessage({ type: 'LOREFORGE_ROWS', rows: rows || [] });
+        embed.postMessage({ type: 'LOREFORGE_ROWS', rows: (r && r.rows) || [], total: (r && r.total) || 0, skip: p.skip || 0 });
       } catch (e) {
-        embed.postMessage({ type: 'LOREFORGE_ROWS', rows: [] });
+        embed.postMessage({ type: 'LOREFORGE_ROWS', rows: [], total: 0, skip: 0 });
       }
       return;
     }

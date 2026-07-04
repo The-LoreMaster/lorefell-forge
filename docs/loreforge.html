@@ -66,6 +66,11 @@ body.pen .hall-seg button.on{ background:rgba(201,106,90,.08); }
 .open-btn{ font-size:.8rem; color:var(--muted); }
 
 .empty{ color:var(--muted); font-style:italic; padding:26px 4px; text-align:center; }
+.pager{ display:flex; align-items:center; justify-content:center; gap:14px; margin-top:16px; }
+.pager button{ font-family:'Cinzel',serif; font-size:.6rem; letter-spacing:.12em; text-transform:uppercase;
+  color:var(--silver); border:1px solid var(--line); border-radius:8px; padding:8px 16px; }
+.pager button:disabled{ opacity:.35; cursor:default; }
+.pager .pg{ font-size:.86rem; color:var(--ice); }
 .ping{ position:fixed; left:50%; bottom:18px; transform:translateX(-50%);
   background:rgba(10,14,26,.95); border:1px solid var(--goldline); color:var(--silver);
   border-radius:9px; padding:9px 16px; font-size:.9rem; display:none; z-index:50; max-width:90vw; text-align:center; }
@@ -101,13 +106,20 @@ body.pen .hall-seg button.on{ background:rgba(201,106,90,.08); }
   </div>
   <div class="grid" id="grid"></div>
   <div class="empty" id="empty" style="display:none">Nothing forged here yet. The halls wait.</div>
+  <div class="pager" id="pager" style="display:none">
+    <button id="pgPrev" onclick="turnPage(-1)">Back</button>
+    <span class="pg" id="pgLabel"></span>
+    <button id="pgNext" onclick="turnPage(1)">Forward</button>
+  </div>
 </div>
 <div class="modal" id="modal" onclick="closeModal()"></div>
 <div class="ping" id="ping"></div>
 
 <script>
 var ROWS = [];
-var F = { hall:"lore", forgeKey:"", status:"", sort:"votes" };
+var TOTAL = 0;
+var PAGE_SIZE = 12;
+var F = { hall:"lore", forgeKey:"", status:"", sort:"votes", page:0 };
 var VOTED = {};
 
 var FORGE_NAMES = {
@@ -129,13 +141,29 @@ function ping(t){
 }
 
 function request(){
-  var pay = { canonStatus:F.status, sort:F.sort };
+  var pay = { canonStatus:F.status, sort:F.sort, limit:PAGE_SIZE, skip:F.page*PAGE_SIZE };
   if(F.hall === "pentifax"){ pay.forgeKey = "foeforge"; }
   else { pay.forgeKey = F.forgeKey; pay.excludeForgeKey = "foeforge"; }
   post({ type:"LOREFORGE_GALLERY", payload:pay });
 }
+function turnPage(d){
+  var last = Math.max(0, Math.ceil(TOTAL/PAGE_SIZE)-1);
+  var n = Math.min(last, Math.max(0, F.page+d));
+  if(n === F.page) return;
+  F.page = n; request();
+  window.scrollTo(0,0);
+}
+function renderPager(){
+  var host=document.getElementById("pager");
+  var pages = Math.ceil(TOTAL/PAGE_SIZE);
+  if(pages <= 1){ host.style.display="none"; return; }
+  host.style.display="";
+  document.getElementById("pgLabel").textContent = "Page "+(F.page+1)+" of "+pages;
+  document.getElementById("pgPrev").disabled = F.page <= 0;
+  document.getElementById("pgNext").disabled = F.page >= pages-1;
+}
 function setHall(h){
-  F.hall = h; F.forgeKey = "";
+  F.hall = h; F.forgeKey = ""; F.page = 0;
   document.body.classList.add("hall-x");
   document.body.classList.toggle("pen", h === "pentifax");
   document.getElementById("hallLore").classList.toggle("on", h === "lore");
@@ -189,7 +217,7 @@ function renderForgeChips(){
   host.innerHTML=h;
 }
 
-function setForge(k){ F.forgeKey=k; request(); }
+function setForge(k){ F.forgeKey=k; F.page=0; request(); }
 function vote(forgeKey, id){
   var b=document.getElementById("vb-"+id); if(b) b.disabled=true;
   post({ type:"LOREFORGE_VOTE", payload:{ forgeKey:forgeKey, creationId:id } });
@@ -214,13 +242,13 @@ function closeModal(){ var m=document.getElementById("modal"); m.classList.remov
 document.querySelectorAll("[data-status]").forEach(function(b){
   b.addEventListener("click", function(){
     document.querySelectorAll("[data-status]").forEach(function(x){ x.classList.remove("on"); });
-    b.classList.add("on"); F.status=b.getAttribute("data-status"); request();
+    b.classList.add("on"); F.status=b.getAttribute("data-status"); F.page=0; request();
   });
 });
 document.querySelectorAll("[data-sort]").forEach(function(b){
   b.addEventListener("click", function(){
     document.querySelectorAll("[data-sort]").forEach(function(x){ x.classList.remove("on"); });
-    b.classList.add("on"); F.sort=b.getAttribute("data-sort"); request();
+    b.classList.add("on"); F.sort=b.getAttribute("data-sort"); F.page=0; request();
   });
 });
 
@@ -228,7 +256,9 @@ window.onmessage = function(ev){
   var m = ev && ev.data; if(!m || !m.type) return;
   if(m.type === "LOREFORGE_ROWS"){
     ROWS = m.rows || [];
+    TOTAL = m.total || ROWS.length;
     render();
+    renderPager();
     requestAnimationFrame(function(){ document.body.classList.remove("hall-x"); });
     return;
   }

@@ -2,6 +2,12 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Votes bind everywhere, the LoreForge turns pages
+- One vote per member per creation, enforced at the single castVote method every surface calls, so voting from SigilForge and voting from the LoreForge count as the same vote. The check moves to a new CreationVotes ledger collection because the old voters array on the row never persisted, the column does not exist and Wix drops unknown fields on write, meaning the dedupe silently never worked.
+- Fixed a live data loss bug in the same pass. The vote update wrote a partial object, and a partial update replaces the whole row in Wix, which would have erased a creation down to its id and tally on the first vote. Updates now carry the full record.
+- The gallery pages at twelve creations, Back and Forward with a page count beneath the grid, page resetting on any filter, sort, or hall change. The backend read takes skip and returns the total.
+- One paste, forge.web.js, one page code paste, page-loreforge.js. The Apply run creates the CreationVotes collection.
+
 ## The Hearth — the touchmarks are struck
 - The letter stamps give way to punched silhouettes, solid metal with the detail cut out in navy: the cracked pane, the well rings, the anvil, the rune disc, the infusion gem, the interlocked rings with a true over and under weave, the brand under its heat, the open tome, the horned skull, the set relic. The marks ride the stamp color, so the crown pair burns ember at the fire and the racks hold gold.
 - Nothing to paste. The embed refreshes on its own.
