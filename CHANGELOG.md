@@ -2,6 +2,10 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## LoreForge — the stray Character kicker goes
+- Older SigilForge submissions carried the backend’s fallback kind of character from before their kind wiring existed, so cards read SigilForge Character. The gallery now suppresses character as a kind label everywhere, since the forge name already says it where it is true. Live submissions carry spell or ability correctly and still show.
+- Nothing to paste.
+
 ## LoreForge shows its runes, the hall crossing smooths, the Hearth trims
 - SigilForge rune images render in the gallery now. Submissions store the media manager wix image URL raw, and getGallery passed it through unconverted, a scheme browsers cannot load. The gallery read now converts through the same wixImg helper the catalog uses.
 - Crossing between the LoreForge and the Pentifax no longer snaps red then swaps. The themed elements ease across a third of a second and the grid fades out on the crossing, returning with the new hall’s rows.
