@@ -2,6 +2,11 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Canon — Movement is React only and takes the whole Act
+- Movement was already React side in both tools. Now choosing it also spends the Act. It is not split across Act and React, it is a React that costs the entire Act, so a Fell or Foe that moves does nothing else that round.
+- FellGlass: declaring Movement as the React clears the declared Act and logs React and Act spent. FateWell: a foe taking the Movement React clears its intent the same way.
+- Both refresh on their own.
+
 ## Forges drop the name field, credit comes from the member record
 - The enter your name inputs are gone from ShardForge, BondForge, and BrandForge. The backend already stamps the creator from the signed in member on every submission, so the field was redundant and could mislead by letting someone type a name that the record ignored. Credit now always comes from the account.
 - The dependent listeners and reads were made safe or removed so nothing throws with the fields gone.
