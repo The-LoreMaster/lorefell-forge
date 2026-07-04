@@ -2,6 +2,11 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Lorebound Aspects reworked
+- Nine Aspects revised and two global rules applied across all eighteen, in the Lorebounds seed data. Aquafin gives the prevented Charge to another Fell in range, owner on the second branch. Boreal prevents by the higher of Vigor or Wit. Alkagoo copies into the targeted Fell rather than the owner. Drakelith's second crown gives a single target the Unlucky Affliction. Felionis prevents Base damage on the branch and hits all enemies in range on the crown. Grimgrit deals Base and Bonus by the higher of Vigor or Wit. Thistlewing now matches Alkagoo. Vixel's crowns choose their effects rather than rolling at random. Worgar manifests into the Fell's inventory, heals and reflects by the higher of Vigor or Wit.
+- Global: every heal or prevention keyed off Vigor or Renewal now uses the higher of the owner's Vigor or Wit. Every Combat Effect or Affliction that was applied at random is now chosen.
+- Source of truth is the seed. Reseed the CanonAspects collection so the live tools carry the new text.
+
 ## Runeguard reworded
 - Runeguard now reduces Base Damage specifically, matching the guardian intent. Seed and both baked copies.
 
