@@ -911,7 +911,7 @@
     "name": "Obscured",
     "type": "effect",
     "breakout": "",
-    "rule": "Enemies cannot see or target you until you deal damage or the end of your next round.",
+    "rule": "Enemies cannot see or target you until you deal damage or are dealt damage.",
     "enforce": {
       "bucket": "C",
       "kind": "effect",

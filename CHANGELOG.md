@@ -2,6 +2,10 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Obscured reworded
+- Obscured now ends when you deal damage or are dealt damage. The end of next round clause is gone, so the effect lasts until either of you lands a hit. Updated in the condition data, the seed, the Lumitoad grant that describes it, and the baked copies in FateWell and FellGlass.
+- Reseed CanonConditions if it serves from the CMS.
+
 ## Lorebound Aspects, attribute sweep and capture tiers
 - Every Aspect that scaled a heal, prevention, or bonus off a specific attribute now uses the higher of the owner's Vigor or Wit. This pass caught Aerostrix, Mordel, and Slipfang alongside the earlier set. Zeroing effects like Evasion becomes 0 stay, they are not attribute scaling. Vixel, Solmera, and Runesteed left untouched for a later redesign.
 - Alkagoo and Thistlewing capture wording clarified. The branch captures one Tier higher up to Tier 2, the crown captures one Tier higher again up to Tier 3, so skipping the branch caps the crown at Tier 2 on its own.
