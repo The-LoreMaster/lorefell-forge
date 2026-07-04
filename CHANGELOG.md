@@ -2,6 +2,10 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## SigilForge — headers carry their meaning
+- Every builder header gains a small gold info circle: Primary Damage Package, Targeting, Inlay Slot 1 and 2, Spread, and Amplify. Each opens a short plain definition of what that piece is and what it does. Hover on desktop, tap on touch, one open at a time.
+- SigilForge only, refreshes on its own.
+
 ## Canon — stance change is a React, and it takes the whole React
 - Reverses the earlier ruling that stance change cost an Act. Switching an Armor Stance is now a React and consumes your entire React, so you cannot shift stance and hold another React in the same round.
 - FellGlass: Change Stance leaves the Act hand entirely. It appears in the React list as Change Stance to each stance you own but do not currently hold, tagged Stance. Choosing it on Resolution adopts the stance, spends the React, and logs the shift. All benefits swap at once.
