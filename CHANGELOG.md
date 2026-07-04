@@ -2,6 +2,10 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## The Hearth — the touchmarks are struck
+- The letter stamps give way to punched silhouettes, solid metal with the detail cut out in navy: the cracked pane, the well rings, the anvil, the rune disc, the infusion gem, the interlocked rings with a true over and under weave, the brand under its heat, the open tome, the horned skull, the set relic. The marks ride the stamp color, so the crown pair burns ember at the fire and the racks hold gold.
+- Nothing to paste. The embed refreshes on its own.
+
 ## LoreForge — the stray Character kicker goes
 - Older SigilForge submissions carried the backend’s fallback kind of character from before their kind wiring existed, so cards read SigilForge Character. The gallery now suppresses character as a kind label everywhere, since the forge name already says it where it is true. Live submissions carry spell or ability correctly and still show.
 - Nothing to paste.
