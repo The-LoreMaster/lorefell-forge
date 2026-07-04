@@ -2,6 +2,10 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## ShardForge — Agile infusion reworded
+- Agile now reads: While wielding this weapon, you may use a free movement during your Act. This does not remove your ability to move during your React. Updated in the Infusions seed data and the tool's baked copy.
+- ShardForge refreshes on its own. If the Infusions collection is served from the CMS, reseed it so the live text matches.
+
 ## Canon — Movement is React only and takes the whole Act
 - Movement was already React side in both tools. Now choosing it also spends the Act. It is not split across Act and React, it is a React that costs the entire Act, so a Fell or Foe that moves does nothing else that round.
 - FellGlass: declaring Movement as the React clears the declared Act and logs React and Act spent. FateWell: a foe taking the Movement React clears its intent the same way.
