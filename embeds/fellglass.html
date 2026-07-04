@@ -865,7 +865,7 @@ body.in-combat{ padding-top:var(--cbn-h,46px); }
 <div class="panel" id="panel-armor">
   <section class="card">
     <h2><span class="orn">⛨</span> Armor</h2>
-    <p class="note" style="margin-bottom:10px">Armor is organized into three stances, each a complete defensive philosophy. Outside combat, stances change freely. In combat, changing requires an Act, and all benefits swap immediately.</p>
+    <p class="note" style="margin-bottom:10px">Armor is organized into three stances, each a complete defensive philosophy. Outside combat, stances change freely. In combat, changing stance is a React and takes your whole React, and all benefits swap at once.</p>
     <p class="note" id="armorEmpty" style="display:none">No armor yet. Invest a defensive attribute during a rest to gain it.</p>
     <div id="armorBody">
     <label class="fld">Armor Level</label>
@@ -4635,11 +4635,10 @@ function cbHandHtml(){
   var cur=sel?sel.value:"";
   var kind=window._handKind||cbKindOf(cur);
   function pill(k,l){ return '<button type="button" class="'+(kind===k?'on':'')+'" onclick="cbHandSeg(\''+k+'\')">'+l+'</button>'; }
-  var seg='<div class="cbc-seg">'+pill('attack','Attack')+pill('stance','Change Stance')+pill('skill','Use a skill')
+  var seg='<div class="cbc-seg">'+pill('attack','Attack')+pill('skill','Use a skill')
     +((C.inventory&&C.inventory.length)?pill('item','Use an item'):'')+'</div>';
   var body='';
   if(kind==='attack') body=cbDealAttacks(cur);
-  else if(kind==='stance') body=cbDealStances();
   else if(kind==='item') body=cbDealItems();
   else if(kind==='skill') body='';
   else body='<div class="cbc-plain">Choose your Act. The hand stays folded until you do.</div>';
@@ -5014,13 +5013,22 @@ function cbReactOptions(sel){
   var list=((window.COMBAT_REACTS)||[]).slice();
   var have={}; list.forEach(function(r){ if(r&&r.nm) have[r.nm]=1; });
   if(!have['Movement']) list.unshift({ nm:'Movement', kind:'standard' });
+  if(C.armor){
+    Object.keys(STANCE_DB).forEach(function(sn){
+      if(C.armor.owned && C.armor.owned[sn]===false) return;
+      if(sn===C.armor.active) return;
+      if(have['Change Stance: '+sn]) return;
+      have['Change Stance: '+sn]=1;
+      list.push({ nm:'Change Stance: '+sn, kind:'stance', stance:sn });
+    });
+  }
   (C.lorebounds||[]).forEach(function(l){
     var a=(typeof aspectOf==="function")?aspectOf(l.type):null;
     if(a && a.name && !have[a.name]){ have[a.name]=1; list.push({ nm:a.name, kind:'lorebound' }); }
   });
   var h='<option value="">Hold your React</option>';
   list.forEach(function(r){
-    var lbl=r.nm+(r.kind==="lorebound"?" \u00b7 Lorebound":"");
+    var lbl=r.nm+(r.kind==="lorebound"?" \u00b7 Lorebound":(r.kind==="stance"?" \u00b7 Stance":""));
     h+='<option value="'+cbEsc(r.nm)+'"'+(sel===r.nm?' selected':'')+'>'+cbEsc(lbl)+'</option>';
   });
   return h;
@@ -5062,11 +5070,17 @@ function sendReact(){
   if(!val){ cbPing("Choose a React first."); return; }
   if(!p){ cbPing("Declare your Act before the React."); return; }
   p.react=val;
+  var stancePick=(val.indexOf("Change Stance: ")===0)?val.slice(15):null;
+  if(stancePick && STANCE_DB[stancePick]){
+    C.armor.active=stancePick;
+    scheduleSave();
+    renderArmor(); renderDials(); renderWeapons(); renderBattle();
+  }
   postToVelo(p);
   if(COMBAT && COMBAT.you) COMBAT.you.react=val;
   window._reactSent=val; window._reactUsed=true;
-  cbLogSelf("fell", meName()+" Reacts \u00b7 "+val+".");
-  cbPing("React declared \u00b7 "+val+".", true);
+  cbLogSelf("fell", meName()+(stancePick?(" shifts to "+stancePick+" \u00b7 React spent."):(" Reacts \u00b7 "+val+".")));
+  cbPing(stancePick?("Stance shifted to "+stancePick+"."):("React declared \u00b7 "+val+"."), true);
   applyCombatMode();
 }
 function sendDeclare(){

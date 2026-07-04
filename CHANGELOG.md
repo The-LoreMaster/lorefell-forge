@@ -2,6 +2,14 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Canon — stance change is a React, and it takes the whole React
+- Reverses the earlier ruling that stance change cost an Act. Switching an Armor Stance is now a React and consumes your entire React, so you cannot shift stance and hold another React in the same round.
+- FellGlass: Change Stance leaves the Act hand entirely. It appears in the React list as Change Stance to each stance you own but do not currently hold, tagged Stance. Choosing it on Resolution adopts the stance, spends the React, and logs the shift. All benefits swap at once.
+- FateWell: the foe Change Stance leaves the Act dropdown and becomes its own Stance React control on the foe, always available, so a LoreMaster spends a foe React to shift it rather than an Act.
+- Help text corrected in FellGlass to read as a React that takes the whole React.
+- Both tools refresh on their own.
+- Vault still says an Act in three places, listed below for the FellGuide edit.
+
 ## Votes bind everywhere, the LoreForge turns pages
 - One vote per member per creation, enforced at the single castVote method every surface calls, so voting from SigilForge and voting from the LoreForge count as the same vote. The check moves to a new CreationVotes ledger collection because the old voters array on the row never persisted, the column does not exist and Wix drops unknown fields on write, meaning the dedupe silently never worked.
 - Fixed a live data loss bug in the same pass. The vote update wrote a partial object, and a partial update replaces the whole row in Wix, which would have erased a creation down to its id and tally on the first vote. Updates now carry the full record.
