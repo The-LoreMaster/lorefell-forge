@@ -2,6 +2,12 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## SigilForge — Unlocked builds for adventure use
+- A new Unlocked build toggle by the budget bar lets you forge past the tier ceiling. Every other forging rule still holds, only the over budget block lifts. Under budget and all the tier, form, and affliction rules stay enforced.
+- When an unlocked build runs over budget a red warning states it plainly: adventure only, requires LoreMaster approval, not eligible for canon in the LoreForge.
+- The submission carries the flags, and the backend files an unlocked build under an adventure status rather than submitted. The LoreForge gallery only shows submitted and canon, so an unlocked build never reaches the vote or canon.
+- One paste, forge.web.js. SigilForge itself refreshes on its own.
+
 ## Info circles across the forges
 - The header definition circles ported from SigilForge to every builder. Each meaningful field carries a small gold circle that opens a plain definition, hover on desktop and tap on touch.
 - FellForge: Sex, Lineage, Origin, Motivation. FoeForge: Build, Stance, Signature Affliction, Deploy at, Party level, Number of Fell. RelicForge: Group, Cost, Uses, Rarity. ShardForge: What it does, and the category field.

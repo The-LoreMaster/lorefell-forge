@@ -264,6 +264,10 @@
   .budget-bar.over .total{color:var(--error)}
   .budget-state{font-size:.7rem;text-transform:uppercase;letter-spacing:.2em;color:var(--silver-dim)}
   .budget-bar.ok .budget-state{color:var(--valid)}
+  .unlock-row{display:flex;align-items:center;gap:9px;margin:10px 0 0;cursor:pointer;font-family:'Cinzel',serif;font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--ice)}
+  .unlock-row input{width:16px;height:16px;accent-color:var(--error,#c96a5a)}
+  .unlock-lbl{display:inline-flex;align-items:center}
+  .unlock-warn{margin-top:10px;padding:10px 12px;border:1px solid var(--error,#c96a5a);border-radius:8px;background:rgba(201,106,90,.1);color:var(--error,#c96a5a);font-family:'Crimson Pro',serif;font-size:.9rem;line-height:1.4}
   .mythic-flag{font-size:.66rem;letter-spacing:.18em;color:var(--gold)}
 
   /* form controls */
@@ -544,6 +548,8 @@
         <span><span class="total" id="budgetTotal">0</span> <span style="color:var(--silver-dim)">/ <span id="budgetReq">1-2</span></span></span>
       </span>
     </div>
+    <label class="unlock-row"><input type="checkbox" id="unlockChk"><span class="unlock-lbl">Unlocked build<span class="finfo" tabindex="0" role="button" aria-label="What is this">i<span class="tip">Lifts the budget ceiling so you can forge past the tier limit. Every other forging rule still holds. Unlocked builds are adventure only, need a LoreMaster to approve them, and cannot enter canon.</span></span></span></label>
+    <div class="unlock-warn" id="unlockWarn" style="display:none">This build is over budget. It is adventure only, requires your LoreMaster&#8217;s approval, and is not eligible for canon in the LoreForge.</div>
 
     <fieldset class="ai-card" id="aiCard">
       <h3 id="aiVisionTitle">Forge From a Vision</h3>
@@ -1089,7 +1095,7 @@ const state = {
   monsterArchetype:"Power", monsterSchool:"Weaving", monsterForm:1,
   damage:"Standard Damage", targeting:"One Target",
   spread:"", amplify:"", slot1:"", slot2:"",
-  name:"", flavor:""
+  name:"", flavor:"", unlocked:false
 };
 
 function currentItem(){
@@ -1231,8 +1237,10 @@ function validate(){
     }
   });
 
-  if(total < minB || total > maxB)
+  if(total < minB)
     errors.push(`Total cost is ${total}. This build allows ${minB} to ${maxB}${maxB === 7 ? " (mythic budget)" : ""}.`);
+  else if(total > maxB && !state.unlocked)
+    errors.push(`Total cost is ${total}. This build allows ${minB} to ${maxB}${maxB === 7 ? " (mythic budget)" : ""}. Turn on Unlocked build to forge past the ceiling for adventure use.`);
   [state.slot1, state.slot2].filter(Boolean).forEach(n => {
     if(!byName[n]) errors.push(`Unknown component: ${n}`);
   });
@@ -2072,6 +2080,10 @@ function runeSnapshotPng(cb){
   }catch(e){ done(""); }
 }
 
+(function(){
+  const uc=document.getElementById("unlockChk");
+  if(uc) uc.addEventListener("change", () => { state.unlocked=uc.checked; render(); });
+})();
 document.getElementById("submitBtn").addEventListener("click", () => {
   if(forging) return;
   const errors = validate();
@@ -2110,6 +2122,10 @@ function finalizeForge(note, basedOn){
     flavorText: state.flavor.trim(),
     cost: totalCost(),
     status: "Submitted",
+    unlocked: !!state.unlocked,
+    overBudget: totalCost() > effectiveBudget(state.tier, currentForm())[1],
+    canonEligible: !state.unlocked,
+    adventureOnly: !!state.unlocked,
     runeSvg: "",
     runePng: ""
   };
@@ -2221,8 +2237,10 @@ function update(){
   const bar = document.getElementById("budgetBar");
   bar.classList.toggle("ok", errors.length === 0);
   bar.classList.toggle("over", total > maxB);
+  const overUnlocked = total > maxB && state.unlocked;
   document.getElementById("budgetState").textContent =
-    errors.length === 0 ? "Valid build" : (total > maxB ? "Over budget" : total < minB ? "Under budget" : "Check errors");
+    overUnlocked ? "Unlocked, over budget" : errors.length === 0 ? "Valid build" : (total > maxB ? "Over budget" : total < minB ? "Under budget" : "Check errors");
+  document.getElementById("unlockWarn").style.display = overUnlocked ? "" : "none";
 
   hideSubmitMsg();
   const list = document.getElementById("errorList");

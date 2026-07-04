@@ -90,7 +90,8 @@ export const submitCreation = webMethod(Permissions.SiteMember, async (forgeKey,
     fingerprint: fingerprintOf(forgeKey, payload),
     basedOn: payload.basedOn || null,
     imageUrl: payload.imageUrl || null,
-    canonStatus: 'submitted',
+    adventureOnly: !!(payload.adventureOnly || payload.unlocked),
+    canonStatus: (payload.adventureOnly || payload.unlocked) ? 'adventure' : 'submitted',
     voteCount: 0
   };
 
