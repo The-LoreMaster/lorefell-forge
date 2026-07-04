@@ -2743,23 +2743,32 @@ function showAiMsg(t){
   el.style.display = "";
 }
 
-async function aiCall(){
-  // text/plain keeps this a "simple" request: no CORS preflight,
-  // which Velo HTTP functions do not answer. Works for the
-  // Cloudflare Worker too.
-  const res = await fetch(AI_FORGE_ENDPOINT, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain;charset=UTF-8" },
-    body: JSON.stringify({ system: aiSystemPrompt(), messages: aiMsgs, max_tokens: 700, devKey: (function(){ try { return localStorage.getItem("lf_forge_key") || ""; } catch(e){ return ""; } })() })
+// The relay runs on the Wix page over postMessage, the same bridge FellForge
+// uses. No cross-origin fetch from this embed, so no CORS wall.
+let _aiReq = 0;
+const _aiPending = {};
+window.addEventListener("message", function(ev){
+  const m = ev && ev.data;
+  if(!m || m.type !== "LOREFELL_AI_FORGE_RESULT") return;
+  const p = _aiPending[m.reqId];
+  if(!p) return;
+  delete _aiPending[m.reqId];
+  if(m.status === 429){ p.reject({ rate: true }); return; }
+  if(!m.ok){ p.reject(new Error("relay " + (m.status || "") + (m.error ? (": " + m.error) : ""))); return; }
+  p.resolve(m.text || "");
+});
+function aiCall(){
+  return new Promise(function(resolve, reject){
+    if(!(window.parent && window.parent !== window)){
+      reject(new Error("The forge answers on the live site.")); return;
+    }
+    const reqId = ++_aiReq;
+    _aiPending[reqId] = { resolve: resolve, reject: reject };
+    window.parent.postMessage({ type: "LOREFELL_AI_FORGE", reqId: reqId, payload: { system: aiSystemPrompt(), messages: aiMsgs, max_tokens: 700 } }, "*");
+    setTimeout(function(){
+      if(_aiPending[reqId]){ delete _aiPending[reqId]; reject(new Error("The forge did not answer in time.")); }
+    }, 45000);
   });
-  if(res.status === 429) throw { rate: true };
-  if(!res.ok){
-    var _b = ""; try { _b = (await res.text()).slice(0, 240); } catch(_){}
-    throw new Error("relay " + res.status + (_b ? (": " + _b) : ""));
-  }
-  const data = await res.json();
-  if(data.error) throw new Error("api error: " + ((data.error && data.error.message) ? data.error.message : JSON.stringify(data.error)).slice(0, 240));
-  return (data.content || []).filter(x => x.type === "text").map(x => x.text).join("");
 }
 
 let aiMsgs = [];

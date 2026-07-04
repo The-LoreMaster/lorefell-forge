@@ -3,7 +3,7 @@
 // The tool is self-contained for its UI, so the page only relays submissions and
 // feedback. It re-validates nothing itself, the backend does that, this is just the wire.
 
-import { submitCreation, findSimilar, getCreations, castVote } from 'backend/forge.web.js';
+import { submitCreation, findSimilar, getCreations, castVote, aiForge } from 'backend/forge.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
 import { currentMember } from 'wix-members-frontend';
 
@@ -25,6 +25,16 @@ $w.onReady(() => {
     const msg = event.data;
     if (!msg || typeof msg !== 'object') return;
 
+    if (msg.type === 'LOREFELL_AI_FORGE') {
+      const reqId = msg.reqId;
+      try {
+        const r = await aiForge(msg.payload || {});
+        embed.postMessage({ type: 'LOREFELL_AI_FORGE_RESULT', reqId: reqId, ok: !!(r && r.ok), text: (r && r.text) || '', status: (r && r.status) || 0, error: (r && r.error) || '' });
+      } catch (e) {
+        embed.postMessage({ type: 'LOREFELL_AI_FORGE_RESULT', reqId: reqId, ok: false, error: 'relay unreachable' });
+      }
+      return;
+    }
     if (msg.type === 'LOREFELL_ABILITY_SUBMIT') {
       await handleSubmit(embed, msg.payload || {});
     } else if (msg.type === 'LOREFELL_CHECK_OVERLAP') {

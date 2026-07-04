@@ -2,6 +2,11 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## SigilForge — Forge From a Description works again
+- Root cause of the failed fetch: the tool called the AI relay by a direct cross-origin fetch from the github.io embed to lorefell.com, which the browser blocks without CORS headers the endpoint did not send. FellForge never hit this because it calls the AI over the postMessage bridge, server side.
+- SigilForge now uses that same bridge. The tool posts its system prompt and messages to the Wix page, a new aiForge backend method calls Anthropic with the shared key, and the reply comes back over postMessage. No cross-origin fetch, no CORS wall, and it uses the same key FellForge already proves works.
+- Two pastes: forge.web.js and page-sigilforge.js. SigilForge itself refreshes on its own.
+
 ## SigilForge — Unlocked toggle syncs, Vision hides while unlocked
 - The toggle drove state but the view did not always follow it, so flipping it felt dead on a set build and would not return cleanly. Render is now the single source of truth: the checkbox, the third inlay slot, and the budget readout all follow the unlocked state on every render, in both directions.
 - Forge From a Vision hides while Unlocked is on and returns when it is off. A vision describes a legal build, so it belongs to normal ruling.

@@ -9,6 +9,7 @@
 import { Permissions, webMethod } from 'wix-web-module';
 import wixData from 'wix-data';
 import { currentMember } from 'wix-members-backend';
+import { getSecret } from 'wix-secrets-backend';
 import { validate } from 'backend/rules.js';
 
 const LOREMASTER_FORGES = ['foeforge', 'sagaforge'];
@@ -298,6 +299,35 @@ export const getCreations = webMethod(Permissions.Anyone, async (forgeKey, opts)
 
 // The LoreForge hall: every community creation across every forge in one read.
 // submitted and canon rows only; private work never leaves its owner.
+// The AI relay for forge tools that shape a build from a description. The tool
+// sends its own system prompt and running messages; this calls Anthropic server
+// side with the shared key, so no cross-origin fetch from the embed is needed.
+export const aiForge = webMethod(Permissions.Anyone, async (opts) => {
+  opts = opts || {};
+  const key = await getSecret('ANTHROPIC_API_KEY');
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'post',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01'
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: Math.min(opts.max_tokens || 700, 1500),
+      system: opts.system || '',
+      messages: Array.isArray(opts.messages) ? opts.messages : []
+    })
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    return { ok: false, status: res.status, error: body.slice(0, 240) };
+  }
+  const data = await res.json();
+  const text = (data.content || []).filter(function (x) { return x.type === 'text'; }).map(function (x) { return x.text; }).join('');
+  return { ok: true, text: text };
+});
+
 export const getGallery = webMethod(Permissions.Anyone, async (opts) => {
   opts = opts || {};
   let q = wixData.query('Creations');
