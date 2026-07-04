@@ -2,6 +2,9 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## SigilForge — locked rules enforce again
+- The hard and soft split captured the errors array before any rule ran, so with Unlocked off nothing blocked. Errors are now built after every rule check. Locked mode enforces the full ruleset again, Unlocked still waives to warnings.
+
 ## SigilForge — Unlocked means anything goes
 - Unlocked now waives every structural rule, not just the budget ceiling. Over budget, Spread and Amplify together, the tier and form ladders on targeting, spread, amplify and afflictions, the affliction cap, and the inlay limit all stop blocking submit. They surface as red warnings instead, each one a thing the LoreMaster is agreeing to when they approve the build.
 - A third Inlay slot opens while Unlocked, for builds that need more than the standard two. It carries into the submission and clears when you switch Unlocked back off.
