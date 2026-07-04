@@ -2,6 +2,12 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## SigilForge — Unlocked toggle syncs, Vision hides while unlocked
+- The toggle drove state but the view did not always follow it, so flipping it felt dead on a set build and would not return cleanly. Render is now the single source of truth: the checkbox, the third inlay slot, and the budget readout all follow the unlocked state on every render, in both directions.
+- Forge From a Vision hides while Unlocked is on and returns when it is off. A vision describes a legal build, so it belongs to normal ruling.
+- Reset clears the unlocked state with everything else. The tip copy now describes the full waiver, not just the budget.
+- SigilForge refreshes on its own.
+
 ## SigilForge — locked rules enforce again
 - The hard and soft split captured the errors array before any rule ran, so with Unlocked off nothing blocked. Errors are now built after every rule check. Locked mode enforces the full ruleset again, Unlocked still waives to warnings.
 
