@@ -624,6 +624,12 @@
       <select id="slot2Sel"></select>
       <div class="desc" id="slot2Desc"></div>
 
+      <div id="slot3Wrap" style="display:none">
+        <label class="fld">Inlay Slot 3<span class="finfo" tabindex="0" role="button" aria-label="What is this">i<span class="tip">A third inlay opened by Unlocked build. Past the standard two, so adventure only and not eligible for canon.</span></span></label>
+        <select id="slot3Sel"></select>
+        <div class="desc" id="slot3Desc"></div>
+      </div>
+
       <label class="fld">Spread <span class="cost-tag">(+2)</span><span class="finfo" tabindex="0" role="button" aria-label="What is this">i<span class="tip">Carries the rune’s effect to your Secondary Targets as well as the primary. Costs two points.</span></span></label>
       <select id="spreadSel"></select>
       <div class="desc" id="spreadDesc"></div>
@@ -1094,7 +1100,7 @@ const state = {
   weapon:"Shortbow", school:"Weaving", focus:"Wand",
   monsterArchetype:"Power", monsterSchool:"Weaving", monsterForm:1,
   damage:"Standard Damage", targeting:"One Target",
-  spread:"", amplify:"", slot1:"", slot2:"",
+  spread:"", amplify:"", slot1:"", slot2:"", slot3:"",
   name:"", flavor:"", unlocked:false
 };
 
@@ -1124,8 +1130,11 @@ function currentForm(){
   if(state.type === "Monster") return [1,2,3].includes(state.monsterForm) ? state.monsterForm : 1;
   return formOf(currentItem());
 }
+function inlaySlots(){
+  return [state.slot1, state.slot2, state.slot3].filter(Boolean);
+}
 function currentAddons(){
-  return [state.slot1, state.slot2].filter(Boolean).map(n => byName[n]).filter(Boolean);
+  return inlaySlots().map(n => byName[n]).filter(Boolean);
 }
 function totalCost(){
   const dmg = byName[state.damage] ? byName[state.damage].cost : 0;
@@ -1154,7 +1163,9 @@ function currentFacts(){
    VALIDATION (v2 Two Ladders)
    ============================================================ */
 function validate(){
-  const errors = [];
+  const hard = [];   // always blocks submit
+  const soft = [];   // blocks only when locked; becomes a warning when unlocked
+  const errors = state.unlocked ? hard : hard.concat(soft);
   const addons = currentAddons();
   const item = currentItem();
   const form = formOf(item);
@@ -1163,93 +1174,97 @@ function validate(){
 
   const mt = currentMinTier();
   if(state.tier < mt)
-    errors.push(state.type === "Monster"
+    soft.push(state.type === "Monster"
       ? `${FORM_NAMES[form]} Form Monster work cannot forge below Tier ${mt}.`
       : `${item} cannot forge below Tier ${mt}.`);
 
   if(!byName[state.damage] || !PRIMARY_DAMAGE.includes(state.damage))
-    errors.push("Select exactly one primary damage package.");
+    hard.push("Select exactly one primary damage package.");
   if(!TARGETING_LIST.includes(state.targeting))
-    errors.push("Select exactly one targeting component.");
+    hard.push("Select exactly one targeting component.");
 
   // Targeting ladders
   if(state.targeting === "Three Targets" && form < CONFIG.threeTargetsMinForm)
-    errors.push(`Three Targets requires a 2nd or 3rd Form item. ${item} is 1st Form.`);
+    soft.push(`Three Targets requires a 2nd or 3rd Form item. ${item} is 1st Form.`);
   if(state.targeting === "All Targets"){
-    if(state.tier < CONFIG.allEnemiesMinTier) errors.push(`All Targets requires Tier ${CONFIG.allEnemiesMinTier}.`);
-    if(form < CONFIG.allEnemiesMinForm) errors.push(`All Targets requires a ${FORM_NAMES[CONFIG.allEnemiesMinForm]} Form item. ${item} is ${FORM_NAMES[form]} Form.`);
+    if(state.tier < CONFIG.allEnemiesMinTier) soft.push(`All Targets requires Tier ${CONFIG.allEnemiesMinTier}.`);
+    if(form < CONFIG.allEnemiesMinForm) soft.push(`All Targets requires a ${FORM_NAMES[CONFIG.allEnemiesMinForm]} Form item. ${item} is ${FORM_NAMES[form]} Form.`);
   }
 
   // Spread
   if(state.spread){
     if(!MULTI_TARGETING.includes(state.targeting))
-      errors.push("Spread requires Secondary Targets. Choose Two Targets, Three Targets, or All Targets.");
+      soft.push("Spread requires Secondary Targets. Choose Two Targets, Three Targets, or All Targets.");
     if(form < CONFIG.spreadMinForm)
-      errors.push(`Spread requires a 2nd or 3rd Form item. ${item} is 1st Form.`);
+      soft.push(`Spread requires a 2nd or 3rd Form item. ${item} is 1st Form.`);
     const sc = byName[state.spread];
-    const selected = [state.slot1, state.slot2].includes(state.spread);
+    const selected = inlaySlots().includes(state.spread);
     if(!sc || !selected)
-      errors.push("Spread must apply to one of your selected Inlays.");
+      soft.push("Spread must apply to one of your selected Inlays.");
     else if(SPREAD_BANNED.includes(state.spread))
-      errors.push(`${state.spread} cannot be Spread. Damage components and components that choose additional targets or positions are excluded.`);
+      soft.push(`${state.spread} cannot be Spread. Damage components and components that choose additional targets or positions are excluded.`);
   }
 
   // Amplify
   if(state.amplify){
     if(state.tier < CONFIG.amplifyMinTier)
-      errors.push(`Amplify requires Tier ${CONFIG.amplifyMinTier} or higher.`);
+      soft.push(`Amplify requires Tier ${CONFIG.amplifyMinTier} or higher.`);
     const ac = byName[state.amplify];
-    const ampSelected = [state.slot1, state.slot2].includes(state.amplify);
+    const ampSelected = inlaySlots().includes(state.amplify);
     if(!ac || !ampSelected)
-      errors.push("Amplify must apply to one of your selected Inlays.");
+      soft.push("Amplify must apply to one of your selected Inlays.");
     else if(AMPLIFY_BANNED.includes(state.amplify))
-      errors.push(`${state.amplify} cannot be Amplified. Damage components cannot occur an additional time.`);
+      soft.push(`${state.amplify} cannot be Amplified. Damage components cannot occur an additional time.`);
   }
 
-  // Never both
   if(state.spread && state.amplify)
-    errors.push("Spread and Amplify can never appear in the same ability.");
+    soft.push("Spread and Amplify can never appear in the same ability.");
 
-  // Rider slots
   const riders = addons.length + (state.spread ? 1 : 0) + (state.amplify ? 1 : 0);
   if(riders > CONFIG.maxRiders)
-    errors.push(`No more than ${CONFIG.maxRiders} Inlays. Spread and Amplify each count as one.`);
+    soft.push(`No more than ${CONFIG.maxRiders} Inlays. Spread and Amplify each count as one.`);
   if(state.damage === "No Damage" && addons.length === 0)
-    errors.push("No Damage abilities must include at least one Inlay.");
-  if(state.slot1 && state.slot1 === state.slot2)
-    errors.push("The same component cannot fill both Inlay slots.");
+    soft.push("No Damage abilities must include at least one Inlay.");
+  const slotVals = inlaySlots();
+  if(slotVals.length !== new Set(slotVals).size)
+    soft.push("The same component cannot fill more than one Inlay slot.");
 
   // Afflictions and their ladders
   if(state.type !== "Monster"){
-    addons.forEach(c => { if(c.foe) errors.push(`${c.component} can only be applied by a Foe.`); });
+    addons.forEach(c => { if(c.foe) soft.push(`${c.component} can only be applied by a Foe.`); });
   }
   const afflictions = addons.filter(isAffliction);
   if(afflictions.length > CONFIG.maxAfflictions)
-    errors.push(`No more than ${CONFIG.maxAfflictions} Affliction${CONFIG.maxAfflictions === 1 ? "" : "s"} per ability.`);
+    soft.push(`No more than ${CONFIG.maxAfflictions} Affliction${CONFIG.maxAfflictions === 1 ? "" : "s"} per ability.`);
   afflictions.forEach(c => {
     if(form < CONFIG.afflictionMinForm)
-      errors.push(`${c.component} cannot be applied. 1st Form items never apply Afflictions through abilities; their innate Affliction on a Fellmark is their only source.`);
+      soft.push(`${c.component} cannot be applied. 1st Form items never apply Afflictions through abilities; their innate Affliction on a Fellmark is their only source.`);
     if(state.tier < CONFIG.afflictionMinTier)
-      errors.push(`${c.component} requires Tier ${CONFIG.afflictionMinTier} or higher.`);
+      soft.push(`${c.component} requires Tier ${CONFIG.afflictionMinTier} or higher.`);
     if(c.cost >= CONFIG.majorCost){
-      if(state.tier < CONFIG.majorMinTier) errors.push(`${c.component} is a Major Affliction and requires Tier ${CONFIG.majorMinTier}.`);
-      if(form < CONFIG.majorMinForm) errors.push(`${c.component} is a Major Affliction and requires a ${FORM_NAMES[CONFIG.majorMinForm]} Form item. ${item} is ${FORM_NAMES[form]} Form.`);
+      if(state.tier < CONFIG.majorMinTier) soft.push(`${c.component} is a Major Affliction and requires Tier ${CONFIG.majorMinTier}.`);
+      if(form < CONFIG.majorMinForm) soft.push(`${c.component} is a Major Affliction and requires a ${FORM_NAMES[CONFIG.majorMinForm]} Form item. ${item} is ${FORM_NAMES[form]} Form.`);
     }
   });
 
   if(total < minB)
-    errors.push(`Total cost is ${total}. This build allows ${minB} to ${maxB}${maxB === 7 ? " (mythic budget)" : ""}.`);
-  else if(total > maxB && !state.unlocked)
-    errors.push(`Total cost is ${total}. This build allows ${minB} to ${maxB}${maxB === 7 ? " (mythic budget)" : ""}. Turn on Unlocked build to forge past the ceiling for adventure use.`);
-  [state.slot1, state.slot2].filter(Boolean).forEach(n => {
-    if(!byName[n]) errors.push(`Unknown component: ${n}`);
+    soft.push(`Total cost is ${total}. This build allows ${minB} to ${maxB}${maxB === 7 ? " (mythic budget)" : ""}.`);
+  else if(total > maxB)
+    soft.push(`Total cost is ${total}. This build allows ${minB} to ${maxB}${maxB === 7 ? " (mythic budget)" : ""}. Unlocked forges past the ceiling for adventure use.`);
+  inlaySlots().forEach(n => {
+    if(!byName[n]) hard.push(`Unknown component: ${n}`);
   });
+  window._softCount = soft.length;
+  window._softList = soft.slice();
   return errors;
 }
 function buildWarnings(){
   const warnings = [];
   const [minB, maxB] = effectiveBudget(state.tier, currentForm());
   const total = totalCost();
+  if(state.unlocked && window._softList && window._softList.length){
+    window._softList.forEach(w => warnings.push(w));
+  }
   if(total >= minB && total < maxB)
     warnings.push(`This build spends ${total} of a possible ${maxB}${maxB === 7 ? " (mythic budget)" : ""}. It may be slightly weaker than this slot allows.`);
   if(state.damage === "No Damage" && MULTI_TARGETING.includes(state.targeting) && !state.spread)
@@ -1685,6 +1700,7 @@ function refreshDescriptions(){
   setDesc("targetingDesc", descFor(byName[state.targeting]));
   setDesc("slot1Desc", state.slot1 ? descFor(byName[state.slot1]) : "");
   setDesc("slot2Desc", state.slot2 ? descFor(byName[state.slot2]) : "");
+  setDesc("slot3Desc", state.slot3 ? descFor(byName[state.slot3]) : "");
   setDesc("spreadDesc", state.spread
     ? `<b>Spread</b> (+2): ${esc(state.spread)} also applies to your Secondary Targets.`.replace(/\*/g,`<span class="ast">*</span>`)
     : `One chosen Inlay also applies to Secondary Targets. <span class="lock">2nd Form + Secondary Targets</span>`);
@@ -1761,6 +1777,8 @@ function refreshAllSelects(){
   document.getElementById("slot1Sel").value = state.slot1;
   fillSelect(document.getElementById("slot2Sel"), ADDON_GROUPS, true);
   document.getElementById("slot2Sel").value = state.slot2;
+  fillSelect(document.getElementById("slot3Sel"), ADDON_GROUPS, true);
+  document.getElementById("slot3Sel").value = state.slot3;
 
   fillSelect(document.getElementById("weaponSel"),
     WEAPON_GROUPS.map(g => ({group:g.group, items:g.items.map(w => ({value:w,label:`${w} (${FORM_NAMES[formOf(w)]})`}))}))
@@ -1798,6 +1816,7 @@ document.getElementById("typeSeg").addEventListener("click", e => {
   if(state.type !== "Monster"){
     if(isFoeOnly(state.slot1)) state.slot1 = "";
     if(isFoeOnly(state.slot2)) state.slot2 = "";
+    if(isFoeOnly(state.slot3)) state.slot3 = "";
     if(isFoeOnly(state.spread)) state.spread = "";
     if(isFoeOnly(state.amplify)) state.amplify = "";
   }
@@ -1856,7 +1875,8 @@ function refreshAmplifyOptions(){
  ["spreadSel", v => state.spread = v],
  ["amplifySel", v => state.amplify = v],
  ["slot1Sel", v => state.slot1 = v],
- ["slot2Sel", v => state.slot2 = v]
+ ["slot2Sel", v => state.slot2 = v],
+ ["slot3Sel", v => state.slot3 = v]
 ].forEach(([id,fn]) => {
   document.getElementById(id).addEventListener("change", e => { fn(e.target.value); update(); });
 });
@@ -1924,7 +1944,7 @@ function resetForge(){
   state.school = "Weaving"; state.focus = FOCUS_LIST[0] || "Wand";
   state.monsterArchetype = "Power"; state.monsterSchool = "Weaving"; state.monsterForm = 1;
   state.damage = "Standard Damage"; state.targeting = "One Target";
-  state.spread = ""; state.amplify = ""; state.slot1 = ""; state.slot2 = "";
+  state.spread = ""; state.amplify = ""; state.slot1 = ""; state.slot2 = ""; state.slot3 = "";
   state.name = ""; state.flavor = "";
   document.querySelectorAll("#typeSeg button").forEach(b =>
     b.classList.toggle("active", b.dataset.val === "Ability"));
@@ -2082,7 +2102,12 @@ function runeSnapshotPng(cb){
 
 (function(){
   const uc=document.getElementById("unlockChk");
-  if(uc) uc.addEventListener("change", () => { state.unlocked=uc.checked; render(); });
+  if(uc) uc.addEventListener("change", () => {
+    state.unlocked=uc.checked;
+    const w=document.getElementById("slot3Wrap"); if(w) w.style.display=uc.checked?"":"none";
+    if(!uc.checked) state.slot3="";
+    render();
+  });
 })();
 document.getElementById("submitBtn").addEventListener("click", () => {
   if(forging) return;
@@ -2237,10 +2262,10 @@ function update(){
   const bar = document.getElementById("budgetBar");
   bar.classList.toggle("ok", errors.length === 0);
   bar.classList.toggle("over", total > maxB);
-  const overUnlocked = total > maxB && state.unlocked;
+  const waived = state.unlocked && (window._softCount || 0) > 0;
   document.getElementById("budgetState").textContent =
-    overUnlocked ? "Unlocked, over budget" : errors.length === 0 ? "Valid build" : (total > maxB ? "Over budget" : total < minB ? "Under budget" : "Check errors");
-  document.getElementById("unlockWarn").style.display = overUnlocked ? "" : "none";
+    waived ? "Unlocked build" : errors.length === 0 ? "Valid build" : (total > maxB ? "Over budget" : total < minB ? "Under budget" : "Check errors");
+  document.getElementById("unlockWarn").style.display = waived ? "" : "none";
 
   hideSubmitMsg();
   const list = document.getElementById("errorList");
@@ -2492,6 +2517,7 @@ function applyForgeData(b){
   if(!TARGETING_LIST.includes(state.targeting)) state.targeting = TARGETING_LIST[0] || "";
   if(state.slot1 && !byName[state.slot1]) state.slot1 = "";
   if(state.slot2 && !byName[state.slot2]) state.slot2 = "";
+  if(state.slot3 && !byName[state.slot3]) state.slot3 = "";
   if(state.spread && state.spread !== state.slot1 && state.spread !== state.slot2) state.spread = "";
   if(state.amplify && state.amplify !== state.slot1 && state.amplify !== state.slot2) state.amplify = "";
   if(!WEAPON_LIST.includes(state.weapon)) state.weapon = WEAPON_LIST[0] || "";
@@ -2526,7 +2552,7 @@ function igniteChangedBands(){
     form: String(currentForm()),
     targeting: state.targeting,
     core: state.damage,
-    inlays: [state.slot1,state.slot2,state.spread,state.amplify].join("|")
+    inlays: [state.slot1,state.slot2,state.slot3,state.spread,state.amplify].filter(Boolean).join("|")
   };
   if(prevSig){
     Object.keys(sig).forEach(k => {

@@ -2,6 +2,13 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## SigilForge — Unlocked means anything goes
+- Unlocked now waives every structural rule, not just the budget ceiling. Over budget, Spread and Amplify together, the tier and form ladders on targeting, spread, amplify and afflictions, the affliction cap, and the inlay limit all stop blocking submit. They surface as red warnings instead, each one a thing the LoreMaster is agreeing to when they approve the build.
+- A third Inlay slot opens while Unlocked, for builds that need more than the standard two. It carries into the submission and clears when you switch Unlocked back off.
+- Only genuine nonsense still blocks: no damage package chosen, no targeting chosen, an unknown component. Everything a LoreMaster could reasonably allow goes through.
+- Unlocked builds still file under the adventure status, so none of this reaches canon in the LoreForge.
+- SigilForge refreshes on its own. The forge.web.js paste from the last change still stands if not yet pasted.
+
 ## SigilForge — Unlocked builds for adventure use
 - A new Unlocked build toggle by the budget bar lets you forge past the tier ceiling. Every other forging rule still holds, only the over budget block lifts. Under budget and all the tier, form, and affliction rules stay enforced.
 - When an unlocked build runs over budget a red warning states it plainly: adventure only, requires LoreMaster approval, not eligible for canon in the LoreForge.
