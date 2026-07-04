@@ -1,11 +1,5 @@
 name: Deploy Pages
 
-# Two jobs on purpose. Build uploads the artifact once; deploy consumes it.
-# Re-running a failed deploy job then reuses the single artifact instead of
-# uploading a duplicate, which hard-fails deploy-pages with an artifact count
-# error. The deploy step also retries itself once after a cooldown, since
-# GitHub's Pages backend intermittently reports "Deployment failed, try again
-# later" and simply trying again later works.
 on:
   push:
     branches: [main]
@@ -38,16 +32,33 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.first.outputs.page_url || steps.second.outputs.page_url }}
+      url: ${{ steps.a.outputs.page_url || steps.b.outputs.page_url || steps.c.outputs.page_url }}
     steps:
-      - name: Deploy
-        id: first
+      - name: Deploy attempt 1
+        id: a
         continue-on-error: true
         uses: actions/deploy-pages@v4
-      - name: Cool down before the second strike
-        if: steps.first.outcome == 'failure'
-        run: sleep 90
-      - name: Deploy again
-        id: second
-        if: steps.first.outcome == 'failure'
+        with:
+          timeout: 600000
+          error_count: 20
+      - name: Wait
+        if: steps.a.outcome == 'failure'
+        run: sleep 120
+      - name: Deploy attempt 2
+        id: b
+        continue-on-error: true
+        if: steps.a.outcome == 'failure'
         uses: actions/deploy-pages@v4
+        with:
+          timeout: 600000
+          error_count: 20
+      - name: Wait again
+        if: steps.a.outcome == 'failure' && steps.b.outcome == 'failure'
+        run: sleep 180
+      - name: Deploy attempt 3
+        id: c
+        if: steps.a.outcome == 'failure' && steps.b.outcome == 'failure'
+        uses: actions/deploy-pages@v4
+        with:
+          timeout: 600000
+          error_count: 20
