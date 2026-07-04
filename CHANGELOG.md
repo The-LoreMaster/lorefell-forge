@@ -2,6 +2,11 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Forges drop the name field, credit comes from the member record
+- The enter your name inputs are gone from ShardForge, BondForge, and BrandForge. The backend already stamps the creator from the signed in member on every submission, so the field was redundant and could mislead by letting someone type a name that the record ignored. Credit now always comes from the account.
+- The dependent listeners and reads were made safe or removed so nothing throws with the fields gone.
+- All three refresh on their own. No paste, the backend already credits from the member.
+
 ## SigilForge — Forge From a Description works again
 - Root cause of the failed fetch: the tool called the AI relay by a direct cross-origin fetch from the github.io embed to lorefell.com, which the browser blocks without CORS headers the endpoint did not send. FellForge never hit this because it calls the AI over the postMessage bridge, server side.
 - SigilForge now uses that same bridge. The tool posts its system prompt and messages to the Wix page, a new aiForge backend method calls Anthropic with the shared key, and the reply comes back over postMessage. No cross-origin fetch, no CORS wall, and it uses the same key FellForge already proves works.
