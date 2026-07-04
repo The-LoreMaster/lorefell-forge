@@ -2,6 +2,9 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Runeguard reworded
+- Runeguard now reduces Base Damage specifically, matching the guardian intent. Seed and both baked copies.
+
 ## Augmentations reworked
 - Ten augmentations updated in the seed data and the baked copies in FoeForge and ShardForge. Threshold now caps against current Vitality. Mendseam loses its condition and heals from the highest defensive attribute. Shadowmeld grants Obscured, replacing the retired Shrouded, and triggers at end of round if you dealt no damage. Afterimage loses its movement condition. Deathsong reflects Base damage equal to your highest defensive attribute. Emberhold saves you every time now, at an even chance of death each time. Scarweave wards from the highest defensive attribute with no stacking clause. Bulwark reaches anyone in Mobility range. Unbowed caps Fatigue at rank 3. Lastlight triggers below 25 Vitality.
 - Runeguard held for a clarification, its current text already reduces by the highest defensive attribute.
