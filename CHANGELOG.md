@@ -2,6 +2,12 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Movement corrected to a React
+- Movement spends your whole React, not your Act. My earlier build had it backwards. The Act stays free, so you can move on your React and still attack, use an ability, cast, or use a skill on your Act the same round. Both tools log it as React spent, Act still free.
+- The once per round movement limit is already enforced, since Movement is a React and the React is spent once per round.
+- Agile is the exception and still grants a free movement during your Act, in addition to React movement.
+- Both tools refresh on their own.
+
 ## Thistlewing initial reworded
 - Thistlewing now creates a rune or trap in the lorebound owner's inventory, distinct from Alkagoo's potion or tablet into the targeted Fell. Branches and crowns still mirror.
 
