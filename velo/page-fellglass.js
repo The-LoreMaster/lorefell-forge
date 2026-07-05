@@ -73,15 +73,19 @@ $w.onReady(() => {
       try { state = await getCombatForChar(msg.charId || charId); } catch (e) { state = null; }
       embed.postMessage({ type: 'combat-state', state: state });
     } else if (msg.type === 'combat-sync') {
-      try { await syncCombatPlayer(msg.charId || charId, { curVit: msg.curVit, maxVit: msg.maxVit, charge: msg.charge, affs: msg.affs, defEva: msg.defEva, plog: msg.plog, gear: msg.gear }); } catch (e) {}
+      let syncOk = true;
+      try { await syncCombatPlayer(msg.charId || charId, { curVit: msg.curVit, maxVit: msg.maxVit, charge: msg.charge, affs: msg.affs, defEva: msg.defEva, plog: msg.plog, gear: msg.gear }); } catch (e) { syncOk = false; }
+      embed.postMessage({ type: 'combat-sync-ack', ok: syncOk });
     } else if (msg.type === 'combat-declare') {
+      let declOk = true;
       try {
         await saveCombatDeclare(msg.charId || charId, {
           act: msg.act, react: msg.react, target: msg.target, round: msg.round, dmg: msg.dmg, base: msg.base, dt: msg.dt, fellmark: msg.fellmark, doubleFell: msg.doubleFell, pierce: msg.pierce, applies: msg.applies, actTier: msg.actTier,
           acc: msg.acc, roll: msg.roll, kind: msg.kind, fellstrike: msg.fellstrike,
           charge: msg.charge, curVit: msg.curVit, maxVit: msg.maxVit, affs: msg.affs
         });
-      } catch (e) {}
+      } catch (e) { declOk = false; }
+      embed.postMessage({ type: 'combat-declare-ack', ok: declOk, reqId: msg.reqId || 0 });
     } else if (msg.type === 'save') {
       // The sheet tells us which row it is editing. An empty id means a brand-new sheet,
       // so it inserts a new row rather than overwriting the last one. We tell the sheet

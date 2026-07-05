@@ -4073,6 +4073,22 @@ function csDeleteCharacter(){
 /* ---------- combat mode (mirrors the LoreMaster's combat) ---------- */
 function cbEsc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
 let COMBAT=null, _combatPoll=null, _combatSig="";
+/* Declares must reach the LoreMaster. Each carries a reqId; if no ack lands in
+   seven seconds it resends once, and if that also goes unanswered it warns. */
+let _declReq=0; const _declPend={};
+function sendDeclare(pl){
+  pl.reqId=++_declReq;
+  _declPend[pl.reqId]={ pl:pl, tries:1 };
+  postToVelo(pl);
+  armDeclTimer(pl.reqId);
+}
+function armDeclTimer(id){
+  setTimeout(function(){
+    var p=_declPend[id]; if(!p) return;
+    if(p.tries<2){ p.tries++; postToVelo(p.pl); armDeclTimer(id); }
+    else { delete _declPend[id]; cbPing("Your declare may not have reached the LoreMaster. Declare again if the board does not show it.", true); }
+  }, 7000);
+}
 function refreshCombat(){ if(CUR_WIX_ID) postToVelo({type:"combat-request",charId:CUR_WIX_ID}); }
 function startCombatPolling(){ clearInterval(_combatPoll); if(!CUR_WIX_ID) return; _combatPoll=setInterval(function(){ if(document.visibilityState!=="hidden") refreshCombat(); }, 15000); }
 document.addEventListener("visibilitychange",function(){ if(document.visibilityState==="visible") refreshCombat(); });
@@ -5095,7 +5111,7 @@ function cbResetSelf(){
   try{
     var affs=[].concat((C.afflictions||[]).map(function(a){return {name:a.name,kind:"affliction"};}),
                        (C.effects||[]).map(function(e){return {name:e.name,kind:"effect"};}));
-    postToVelo({type:"combat-declare",charId:CUR_WIX_ID,act:"",react:"",target:"",round:(COMBAT&&COMBAT.round)||1,dmg:0,base:0,dt:"",fellmark:false,applies:"",actTier:-1,doubleFell:false,fellBonus:null,pierce:0,roll:0,acc:0,fellstrike:false,kind:"",charge:C.charge||0,curVit:C.vitality.current,maxVit:C.vitality.max,affs:affs});
+    sendDeclare({type:"combat-declare",charId:CUR_WIX_ID,act:"",react:"",target:"",round:(COMBAT&&COMBAT.round)||1,dmg:0,base:0,dt:"",fellmark:false,applies:"",actTier:-1,doubleFell:false,fellBonus:null,pierce:0,roll:0,acc:0,fellstrike:false,kind:"",charge:C.charge||0,curVit:C.vitality.current,maxVit:C.vitality.max,affs:affs});
   }catch(e){}
   window._cbRoll=null; window._declaredRound=null; window._editDecl=false;
   window._draft=null; window._reactSent=null; window._declPayload=null; window._fellBonus=null;
@@ -5186,7 +5202,7 @@ function sendDeclare(){
   var _pl={type:"combat-declare",charId:CUR_WIX_ID,act:act,react:react,target:target,round:round,dmg:dmg,base:(e?e.base:0),dt:(e?e.dt:""),fellmark:fell,applies:applies,actTier:actTier,doubleFell:doubleFell,fellBonus:fb,pierce:pierce,roll:roll,acc:acc,fellstrike:(roll===1),kind:(e?e.kind:""),
     charge:C.charge||0,curVit:C.vitality.current,maxVit:C.vitality.max,affs:affs};
   window._declPayload=_pl;
-  postToVelo(_pl);
+  sendDeclare(_pl);
   if(COMBAT) COMBAT.you={act:act,react:react,target:target};
   window._declaredRound=round;
   window._editDecl=false;
@@ -5212,6 +5228,15 @@ window.onmessage=ev=>{
   }
   else if(d.type==="clues"){ var sig=JSON.stringify(d.clues||[]); if(sig!==_clueSig){ _clueSig=sig; CLUES=d.clues||[]; renderClues(); } }
   else if(d.type==="quests"){ var qsig=JSON.stringify(d.quests||[]); if(qsig!==_questSig){ _questSig=qsig; QUESTS=d.quests||[]; renderQuests(); } }
+  else if(d.type==="combat-declare-ack"){
+    if(d.reqId && _declPend[d.reqId]){
+      delete _declPend[d.reqId];
+      if(!d.ok) cbPing("The LoreMaster's board rejected your declare. Declare again.", true);
+    }
+  }
+  else if(d.type==="combat-sync-ack"){
+    if(!d.ok) cbPing("Your combat state did not save. It will retry on the next change.", true);
+  }
   else if(d.type==="combat-state"){ if(d.state===null||d.state===undefined){ if(!(COMBAT&&COMBAT.active)) setCombatState(null); } else setCombatState(d.state); }
   else if(d.type==="new"){ if(d.forge){ccOpenForge(d.forge);} else {ccOpen();} CUR_WIX_ID=d.charId||""; CUR_LOCAL_ID=uid(); }
   else if(d.type==="saved"){ if(d.localId&&d.localId===CUR_LOCAL_ID&&d.charId) CUR_WIX_ID=d.charId; }

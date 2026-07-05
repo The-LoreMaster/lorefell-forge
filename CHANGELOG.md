@@ -2,6 +2,11 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Combat declares stop failing silently
+- Every declare now carries a request id and expects an ack from the page. If no ack lands in seven seconds it resends once on its own, and if that also goes unanswered the player gets a plain warning to declare again. An explicit rejection from the backend warns immediately.
+- Combat state syncs ack too. A failed sync warns once and heals on the next change, since syncs fire on every edit.
+- One paste, page-fellglass.js. FellGlass refreshes on its own.
+
 ## Weapons carry their real canon
 - New seed, data/Weapons.canon.json, extracted straight from the vault's Weapon Trees: nine trees, twenty seven forms, each with its Fellmark Affliction, grip, and range. The generator now rebuilds FellGlass's WEAPON_DB from it, so the weapon data joins the single source pipeline.
 - The afflictions in the tool already matched the vault exactly, the stale note in the backlog was wrong about that. What was placeholder was grip and range, which now render per form: One-hand or Two-hand, and the true range number.
