@@ -2,6 +2,9 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Thistlewing initial reworded
+- Thistlewing now creates a rune or trap in the lorebound owner's inventory, distinct from Alkagoo's potion or tablet into the targeted Fell. Branches and crowns still mirror.
+
 ## Obscured reworded
 - Obscured now ends when you deal damage or are dealt damage. The end of next round clause is gone, so the effect lasts until either of you lands a hit. Updated in the condition data, the seed, the Lumitoad grant that describes it, and the baked copies in FateWell and FellGlass.
 - Reseed CanonConditions if it serves from the CMS.
