@@ -2,6 +2,11 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Aspect targeting enforced
+- The lorebound Aspect React now carries a target. The card lists every ally in the fight, and Yourself appears only once that bond reaches Corsair form, so the no self benefit rule enforces itself at declare time. The chosen target folds into the React line the LoreMaster sees, Scour then an arrow then the ally's name, with no bridge or backend change.
+- With no ally in the fight and the bond below Corsair, the card says plainly that the Aspect has no valid target.
+- FellGlass refreshes on its own. No paste.
+
 ## Combat declares stop failing silently
 - Every declare now carries a request id and expects an ack from the page. If no ack lands in seven seconds it resends once on its own, and if that also goes unanswered the player gets a plain warning to declare again. An explicit rejection from the backend warns immediately.
 - Combat state syncs ack too. A failed sync warns once and heals on the next change, since syncs fire on every edit.

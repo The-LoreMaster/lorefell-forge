@@ -4844,7 +4844,21 @@ function cbAspectHint(){
     +cbcStage('Crown',cr,ever||ch>=3)
     +'</span>'
     +'<span class="cbc-foot">Resolves at your charge. Allies first, no self benefit before Corsair form.</span>'
+    +cbAspectTargetRow(lb)
     +'</span></div></div>';
+}
+function cbAspectAllies(){
+  return ((COMBAT&&COMBAT.fighters)||[]).filter(function(f){ return f.charId && f.charId!==CUR_WIX_ID && f.name; });
+}
+function cbAspectTargetRow(lb){
+  var allies=cbAspectAllies();
+  var corsair=(lb.level||0)>=ASPECT_FORM.crown;
+  var opts='';
+  allies.forEach(function(a){ opts+='<option value="'+cbEsc(a.name)+'">'+cbEsc(a.name)+'</option>'; });
+  if(corsair) opts+='<option value="__self__">Yourself (Corsair)</option>';
+  if(!opts) return '<span class="cbc-foot">No ally in the fight'+(corsair?'':' and your bond is not yet Corsair, so the Aspect cannot target you')+'.</span>';
+  return '<span class="cbc-foot" style="display:flex;align-items:center;gap:8px">Target'
+    +'<select id="cbAspTarget" class="cb-sel" style="flex:1">'+opts+'</select></span>';
 }
 function cbSelfDamage(amount){
   amount=Math.max(0,amount|0); if(!amount) return;
@@ -5124,6 +5138,18 @@ function sendReact(){
   var sel=document.getElementById("cbReact"), val=sel?sel.value:"";
   if(!val){ cbPing("Choose a React first."); return; }
   if(!p){ cbPing("Declare your Act before the React."); return; }
+  var aspSel=document.getElementById("cbAspTarget");
+  if(aspSel){
+    var tgt=aspSel.value;
+    var aspName=val.split(" \u2192 ")[0];
+    var myLb=(C.lorebounds||[]).filter(function(b){ var a=aspectOf(b.type||b.name); return a&&a.name===aspName; })[0]||(C.lorebounds||[])[0]||{};
+    if(tgt==="__self__"){
+      if((myLb.level||0)<ASPECT_FORM.crown){ cbPing("Your Aspect cannot target you before Corsair form.", true); return; }
+      val=val+" \u2192 "+(meName()||"yourself");
+    } else if(tgt){
+      val=val+" \u2192 "+tgt;
+    }
+  }
   p.react=val;
   var stancePick=(val.indexOf("Change Stance: ")===0)?val.slice(15):null;
   if(stancePick && STANCE_DB[stancePick]){
