@@ -474,6 +474,39 @@ export const assignClue = webMethod(Permissions.Anyone, async (campaignId, charI
   }
   return { ok: true, count: n };
 });
+/* Quest board. The LoreMaster posts quest notes from FateWell, players read the
+   campaign board in FellGlass. Upserts key on campaignId + entryId, updates carry
+   the full record since a partial update replaces the row. */
+export const upsertQuest = webMethod(Permissions.Anyone, async (campaignId, quest) => {
+  if (!campaignId || !quest || !quest.entryId) return { ok: false };
+  const ex = await wixData.query('QuestBoard')
+    .eq('campaignId', campaignId).eq('entryId', quest.entryId)
+    .limit(1).find({ suppressAuth: true });
+  const row = {
+    campaignId: campaignId, entryId: quest.entryId,
+    questTitle: quest.title || '', questBody: quest.body || '',
+    questStatus: quest.status || 'open',
+    postedAt: (ex.items[0] && ex.items[0].postedAt) || Date.now()
+  };
+  try {
+    if (ex.items.length) { await wixData.update('QuestBoard', Object.assign({}, ex.items[0], row), { suppressAuth: true }); }
+    else { await wixData.insert('QuestBoard', row, { suppressAuth: true }); }
+  } catch (e) { return { ok: false }; }
+  return { ok: true };
+});
+
+export const listQuests = webMethod(Permissions.Anyone, async (campaignId) => {
+  if (!campaignId) return [];
+  try {
+    const r = await wixData.query('QuestBoard').eq('campaignId', campaignId)
+      .ne('questStatus', 'removed').ascending('postedAt').limit(50)
+      .find({ suppressAuth: true });
+    return r.items.map(function (q) {
+      return { entryId: q.entryId, title: q.questTitle || '', body: q.questBody || '', status: q.questStatus || 'open' };
+    });
+  } catch (e) { return []; }
+});
+
 export const getClueCards = webMethod(Permissions.Anyone, async (charId) => {
   if (!charId) return [];
   let items = [];

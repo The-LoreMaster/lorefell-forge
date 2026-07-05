@@ -4,7 +4,7 @@
 // campaignId. The tool requests forge, assets, and glossary on load; those are
 // answered from canon Creations, an owner-scoped Assets collection, and a Glossary collection.
 
-import { loadCampaign, saveCampaign, deleteCampaign, listMyCampaigns, getSealed, getForgeLibrary, listAssets, saveAsset, deleteAsset, listGlossary, getCampaignPlayers, detachCharacter, assignClue, setMemberRole, myAdventureRole } from 'backend/fatewell.web.js';
+import { loadCampaign, saveCampaign, deleteCampaign, listMyCampaigns, getSealed, getForgeLibrary, listAssets, saveAsset, deleteAsset, listGlossary, getCampaignPlayers, detachCharacter, assignClue, upsertQuest, setMemberRole, myAdventureRole } from 'backend/fatewell.web.js';
 import { getFoePack } from 'backend/forge.web.js';
 import { publishCombatState, applyCombatToChar, getCombatDeclares, dealDamageToChar, setCombatCharge } from 'backend/combat.web.js';
 import { publishAdventure, myPublishedAdventures, unpublishAdventure, getPublishedPack } from 'backend/published.web.js';
@@ -144,6 +144,10 @@ $w.onReady(() => {
       let res = null;
       try { res = await assignClue(m.campaignId || campaignId, m.charIds || [], m.clue || {}); } catch (e) { res = null; }
       embed.postMessage({ type: 'lmtool-clue-assigned', ok: !!(res && res.ok), count: (res && res.count) || 0, handle: (m.clue && m.clue.handle) || '' });
+    } else if (m.type === 'lmtool-quest') {
+      let qr = null;
+      try { qr = await upsertQuest(m.campaignId || campaignId, m.quest || {}); } catch (e) { qr = null; }
+      embed.postMessage({ type: 'lmtool-quest-result', ok: !!(qr && qr.ok), entryId: (m.quest && m.quest.entryId) || '', status: (m.quest && m.quest.status) || 'open' });
     } else if (m.type === 'lmtool-combat-publish') {
       try { await publishCombatState(m.campaignId || campaignId, m.state || {}); } catch (e) {}
     } else if (m.type === 'lmtool-combat-apply') {

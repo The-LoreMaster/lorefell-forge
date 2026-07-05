@@ -368,6 +368,8 @@ h3{font-family:var(--head);font-weight:500;font-size:12px;letter-spacing:.12em;t
 }
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 .clue-hd{font-family:'Cinzel',serif;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--gold);margin:2px 0 8px}
+.quest-done{ opacity:.55; }
+.quest-done .clue-title{ text-decoration:line-through; }
 .clue-card{border:1px solid rgba(212,168,107,.4);border-left-width:3px;border-radius:8px;padding:10px 12px;margin:0 0 8px;background:rgba(212,168,107,.05)}
 .clue-card .clue-title{font-family:'Cinzel',serif;color:var(--silver);margin-bottom:4px}
 .clue-card .clue-body{color:var(--ice);font-family:'Crimson Pro',serif;line-height:1.45;white-space:pre-wrap}
@@ -931,6 +933,7 @@ body.in-combat{ padding-top:var(--cbn-h,46px); }
   </section>
   <section class="card">
     <h2><span class="orn">❖</span> Notes</h2>
+    <div id="quest-board"></div>
     <div id="clue-cards"></div>
     <div id="rec-notes"></div>
     <div class="addline"><input id="add-notes" placeholder="Record a note"><button class="btn small" id="btn-notes">Add</button></div>
@@ -3695,6 +3698,19 @@ $("boonAdd").addEventListener("click",()=>{const b=$("boonText").value.trim();if
 $("baneAdd").addEventListener("click",()=>{const b=$("baneText").value.trim();if(!b)return;C.banes.push(b);$("baneText").value="";renderStatus();});
 
 /* ---------- records: quests / characters / notes ---------- */
+let QUESTS=[]; let _questSig="";
+function renderQuests(){
+  const w=$("quest-board"); if(!w) return; w.innerHTML="";
+  if(!QUESTS.length) return;
+  w.appendChild(el("div","clue-hd","Quest board"));
+  QUESTS.forEach(q=>{
+    const card=el("div","clue-card"+(q.status==="complete"?" quest-done":""));
+    if(q.title) card.appendChild(el("div","clue-title",q.title));
+    if(q.body) card.appendChild(el("div","clue-body",q.body));
+    if(q.status==="complete") card.appendChild(el("div","clue-scene","Complete"));
+    w.appendChild(card);
+  });
+}
 let CLUES=[];
 function renderClues(){
   const w=$("clue-cards"); if(!w) return; w.innerHTML="";
@@ -3710,7 +3726,12 @@ function renderClues(){
 }
 let _clueSig="";
 let _cluePoll=null;
-function refreshClues(){ if(CUR_WIX_ID) postToVelo({type:"clues-request",charId:CUR_WIX_ID}); }
+function refreshClues(){
+  if(!CUR_WIX_ID) return;
+  postToVelo({type:"clues-request",charId:CUR_WIX_ID});
+  var cid=(C.identity&&C.identity.campaignId)||"";
+  if(cid) postToVelo({type:"quests-request",campaignId:cid});
+}
 function startCluePolling(){
   clearInterval(_cluePoll);
   if(!CUR_WIX_ID) return;
@@ -5179,6 +5200,7 @@ window.onmessage=ev=>{
     if(CUR_WIX_ID){ refreshClues(); startCluePolling(); refreshCombat(); startCombatPolling(); }
   }
   else if(d.type==="clues"){ var sig=JSON.stringify(d.clues||[]); if(sig!==_clueSig){ _clueSig=sig; CLUES=d.clues||[]; renderClues(); } }
+  else if(d.type==="quests"){ var qsig=JSON.stringify(d.quests||[]); if(qsig!==_questSig){ _questSig=qsig; QUESTS=d.quests||[]; renderQuests(); } }
   else if(d.type==="combat-state"){ if(d.state===null||d.state===undefined){ if(!(COMBAT&&COMBAT.active)) setCombatState(null); } else setCombatState(d.state); }
   else if(d.type==="new"){ if(d.forge){ccOpenForge(d.forge);} else {ccOpen();} CUR_WIX_ID=d.charId||""; CUR_LOCAL_ID=uid(); }
   else if(d.type==="saved"){ if(d.localId&&d.localId===CUR_LOCAL_ID&&d.charId) CUR_WIX_ID=d.charId; }

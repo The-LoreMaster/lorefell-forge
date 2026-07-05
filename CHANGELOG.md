@@ -2,6 +2,12 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Quests flow from the LoreMaster's table to the players' sheets
+- A new Quest note type in FateWell. Write the task as a note, then post it to the quest board from the run view. The note carries its board state: post, mark complete, retract, or post again after a retraction.
+- FellGlass grows a quest board above the discovered clues. Every character linked to the campaign sees the same board, open quests plain, completed quests struck through. It polls with the clues, so a posted quest reaches the table within the same beat.
+- The board lives in a new QuestBoard collection keyed by campaign and note, upserts carry the full record. The Apply run creates the collection.
+- Three pastes: fatewell.web.js, page-fatewell.js, page-fellglass.js. Both tools refresh on their own.
+
 ## FellGlass — characters stop bleeding into each other
 - Two races fixed. Switching characters could fire a queued autosave from the previous character against the one just loaded, writing its lineage, origin, motivation, and name onto the wrong record. A load guard now blocks autosave while a character loads in, and any pending save is dropped the moment you switch, so edits can never cross records.
 - Combat leaked across the switch too. The previous character's combat state, staged declares, evasion, and marks stayed live until the new fetch returned. Switching now clears the combat state and its flags first, so each character shows only its own fight.

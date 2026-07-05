@@ -757,6 +757,7 @@ body.runner-mode #savedTag{ display:none; }
 .t-dialogue{   --tc:#86c79b; }
 .t-lmdesc{     --tc:#c9b06a; }
 .t-lorecheck{  --tc:#9aa8e0; }
+.t-quest{ --tc:#c9a84c; }
 .t-clue{       --tc:#d4a86b; }
 .run-crucible{ border:1px solid var(--tc,#d98a6a); border-left-width:3px; border-radius:10px; padding:12px 14px; margin:0 0 12px; background:rgba(217,138,106,.06); }
 .run-crucible .run-read-t{ font-family:'Cinzel',serif; color:var(--silver); margin-bottom:6px; }
@@ -3027,6 +3028,17 @@ window.addEventListener('message', function(ev){
     if (!m.ok) advNote('Could not remove', m.error || 'It could not be removed from the directory.');
     return;
   }
+  if (m.type === 'lmtool-quest-result'){
+    if (m.ok && m.entryId){
+      S.campaigns.forEach(function(c){
+        function markIn(lvl){ (lvl.entries||[]).forEach(function(x){ if(x.id===m.entryId) x.qStatus = (m.status==='removed' ? '' : m.status); }); (lvl.acts||lvl.sessions||lvl.scenes||[]).forEach(markIn); }
+        markIn(c);
+      });
+      save(); render();
+      cbToast(m.status==='open' ? 'Quest posted' : m.status==='complete' ? 'Quest complete' : 'Quest retracted');
+    } else if (!m.ok) { cbToast('The board did not answer. Try again.'); }
+    return;
+  }
   if (m.type === 'lmtool-clue-assigned'){
     if (!m.ok){ alert('The clue could not be carded. Check the connection and try again.'); }
     return;
@@ -3600,6 +3612,7 @@ var NOTE_TYPES = [
   ['crucible','Crucible'],
   ['lorecheck','Lore Check'],
   ['clue','Clue'],
+  ['quest','Quest'],
   ['secret','Secret'],
   ['beat','Beat'],
   ['reminder','Reminder'],
@@ -3611,6 +3624,7 @@ var NOTE_TYPE_HELP = [
   ['Crucible','The turn into combat. While running the scene, tap it to escalate the scene into a fight.'],
   ['Lore Check','Information revealed only on a successful check. Note what they recall and the bar to clear.'],
   ['Clue','A discoverable hint that points somewhere. The muddy footprint, the torn page, the overheard name.'],
+  ['Quest','A task for the party. Post it to the quest board and every linked sheet in the campaign sees it.'],
   ['Secret','Hidden truth the players do not know yet and should not see. The traitor, the trap trigger.'],
   ['Beat','A planned story moment or turn. When they open the vault, the alarm sounds. Pacing markers.'],
   ['Reminder','A note to yourself as LoreMaster. Vey owes the Provost a favor.'],
@@ -7938,6 +7952,17 @@ function clueHandlesIn(text){
   return out;
 }
 function clueEntryHandle(e){ return clueSlug(e.handle || e.title); }
+function postQuest(entryId, status){
+  var sc=curSc(); if(!sc) return;
+  var e=null; (sc.entries||[]).forEach(function(x){ if(x.id===entryId) e=x; });
+  if(!e){ /* the quest note may live on the session or act */
+    var a=curA(), ss=curS();
+    [ss,a,curC()].forEach(function(lvl){ if(!e && lvl) (lvl.entries||[]).forEach(function(x){ if(x.id===entryId) e=x; }); });
+  }
+  if(!e) return;
+  post({ type:'lmtool-quest', campaignId:curC().id, quest:{ entryId:e.id, title:e.title||'', body:e.body||'', status:status } });
+  cbToast(status==='open' ? 'Posting to the quest board' : status==='complete' ? 'Marking complete' : 'Retracting');
+}
 function revealLoreClue(entryId){
   var sc = curSc(); if (!sc) return;
   var lc=null; (sc.entries||[]).forEach(function(e){ if(e.id===entryId) lc=e; });
@@ -8016,6 +8041,23 @@ function runStreamNote(e, ref, sc, opts){
       + (e.title ? '<div class="run-note-t">'+esc(e.title)+'</div>' : '')
       + '<div class="run-note-b">'+renderNoteBody(e.body||'', ref)+'</div>'
       + (hasClue ? '<button class="btn ghost small" onclick="revealLoreClue(\''+e.id+'\')">Reveal clue</button>' : '')
+      + '</div>';
+  }
+  if (t==='quest'){
+    var qs = e.qStatus || '';
+    return '<div class="run-note t-quest">'
+      + (e.title ? '<div class="run-note-t">'+esc(e.title)+'</div>' : '')
+      + '<div class="run-note-b">'+renderNoteBody(e.body||'', ref)+'</div>'
+      + (qs===''
+          ? '<button class="btn ghost small" onclick="postQuest(\''+e.id+'\',\'open\')">Post to quest board</button>'
+          : qs==='open'
+            ? '<div class="cru-state">On the board</div>'
+              + '<button class="btn ghost small" onclick="postQuest(\''+e.id+'\',\'complete\')">Mark complete</button>'
+              + '<button class="btn ghost small" onclick="postQuest(\''+e.id+'\',\'removed\')">Retract</button>'
+            : qs==='complete'
+              ? '<div class="cru-state">Complete on the board</div>'
+                + '<button class="btn ghost small" onclick="postQuest(\''+e.id+'\',\'removed\')">Retract</button>'
+              : '<button class="btn ghost small" onclick="postQuest(\''+e.id+'\',\'open\')">Post again</button>')
       + '</div>';
   }
   if (t==='crucible'){

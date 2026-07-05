@@ -4,7 +4,7 @@
 // charId, which your character list page sets when a player taps a character.
 
 import { listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter } from 'backend/characters.web.js';
-import { getClueCards } from 'backend/fatewell.web.js';
+import { getClueCards, listQuests } from 'backend/fatewell.web.js';
 import { getCombatForChar, saveCombatDeclare, syncCombatPlayer } from 'backend/combat.web.js';
 import { getLibraries } from 'backend/libraries.web.js';
 import wixLocation from 'wix-location';
@@ -64,6 +64,10 @@ $w.onReady(() => {
       let clues = [];
       try { clues = await getClueCards(msg.charId || charId); } catch (e) { clues = []; }
       embed.postMessage({ type: 'clues', clues: clues });
+    } else if (msg.type === 'quests-request') {
+      let quests = [];
+      try { quests = await listQuests(msg.campaignId || ''); } catch (e) { quests = []; }
+      embed.postMessage({ type: 'quests', quests: quests });
     } else if (msg.type === 'combat-request') {
       let state = null;
       try { state = await getCombatForChar(msg.charId || charId); } catch (e) { state = null; }
