@@ -65,9 +65,9 @@ $w.onReady(() => {
       try { clues = await getClueCards(msg.charId || charId); } catch (e) { clues = []; }
       embed.postMessage({ type: 'clues', clues: clues });
     } else if (msg.type === 'quests-request') {
-      let quests = [];
-      try { quests = await listQuests(msg.campaignId || ''); } catch (e) { quests = []; }
-      embed.postMessage({ type: 'quests', quests: quests });
+      let qr = null;
+      try { qr = await listQuests(msg.campaignId || ''); } catch (e) { qr = null; }
+      embed.postMessage({ type: 'quests', ok: !(qr && qr.ok === false), quests: (qr && qr.quests) || [] });
     } else if (msg.type === 'combat-request') {
       let state = null;
       try { state = await getCombatForChar(msg.charId || charId); } catch (e) { state = null; }

@@ -496,15 +496,16 @@ export const upsertQuest = webMethod(Permissions.Anyone, async (campaignId, ques
 });
 
 export const listQuests = webMethod(Permissions.Anyone, async (campaignId) => {
-  if (!campaignId) return [];
+  if (!campaignId) return { ok: true, quests: [] };
   try {
     const r = await wixData.query('QuestBoard').eq('campaignId', campaignId)
       .ne('questStatus', 'removed').ascending('postedAt').limit(50)
       .find({ suppressAuth: true });
-    return r.items.map(function (q) {
+    const quests = r.items.map(function (q) {
       return { entryId: q.entryId, title: q.questTitle || '', body: q.questBody || '', status: q.questStatus || 'open' };
     });
-  } catch (e) { return []; }
+    return { ok: true, quests: quests };
+  } catch (e) { return { ok: false, quests: [], error: 'The board could not be reached.' }; }
 });
 
 export const getClueCards = webMethod(Permissions.Anyone, async (charId) => {

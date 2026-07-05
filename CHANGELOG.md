@@ -2,6 +2,12 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Blank boards tell the truth
+- The gallery and quest reads now report whether they actually reached the data. Before, a network failure returned an empty list, indistinguishable from a hall or board that is genuinely empty, so a player saw nothing and assumed nothing was there.
+- The LoreForge now shows The hall could not be reached on a failed read, separate from the Nothing forged here yet empty state. The FellGlass quest board warns and keeps the last known board rather than blanking it.
+- Clue cards were left as they are, their shape is consumed directly and they were not the source of the confusion.
+- Pastes: forge.web.js, fatewell.web.js, page-loreforge.js, page-fellglass.js. Tools refresh on their own.
+
 ## Runeguard and Bulwark enforce at the table
 - The player sheet now reports its equipped augmentations and its highest defensive attribute with every combat sync. No paste needed, the sheet sends more and the board reads it.
 - When the LoreMaster deals damage to a Fell, the deal panel shows every eligible guardian. Runeguard reduces the Base Damage in the input by the guardian's highest defensive attribute. Bulwark redirects the whole hit to the guardian, who confirms it on their own sheet under the ownership rule. Each spends once a round and resets at round start.

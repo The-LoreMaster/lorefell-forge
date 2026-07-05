@@ -25,9 +25,9 @@ $w.onReady(() => {
           limit: p.limit || 12,
           skip: p.skip || 0
         });
-        embed.postMessage({ type: 'LOREFORGE_ROWS', rows: (r && r.rows) || [], total: (r && r.total) || 0, skip: p.skip || 0 });
+        embed.postMessage({ type: 'LOREFORGE_ROWS', ok: !(r && r.ok === false), rows: (r && r.rows) || [], total: (r && r.total) || 0, skip: p.skip || 0 });
       } catch (e) {
-        embed.postMessage({ type: 'LOREFORGE_ROWS', rows: [], total: 0, skip: 0 });
+        embed.postMessage({ type: 'LOREFORGE_ROWS', ok: false, rows: [], total: 0, skip: 0 });
       }
       return;
     }

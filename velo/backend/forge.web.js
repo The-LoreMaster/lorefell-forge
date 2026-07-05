@@ -338,20 +338,24 @@ export const getGallery = webMethod(Permissions.Anyone, async (opts) => {
   q = (opts.sort === 'new') ? q.descending('_createdDate') : q.descending('voteCount');
   q = q.limit(Math.min(opts.limit || 12, 50));
   if (opts.skip) q = q.skip(Math.max(0, opts.skip | 0));
-  const res = await q.find({ suppressAuth: true });
-  const rows = res.items.map(function (s) {
-    let pf = '';
-    if (!s.flavorText) {
-      try { pf = (JSON.parse(s.payload || '{}').flavorText) || ''; } catch (e) { pf = ''; }
-    }
-    return {
-      creationId: s._id, creationName: s.creationName, creatorName: s.creatorName,
-      canonStatus: s.canonStatus, voteCount: s.voteCount || 0, kind: s.kind,
-      forgeKey: s.forgeKey, shorthand: s.shorthand, fullText: s.fullText,
-      imageUrl: wixImg(s.imageUrl || ''), flavorText: s.flavorText || pf
-    };
-  });
-  return { rows: rows, total: res.totalCount || rows.length };
+  try {
+    const res = await q.find({ suppressAuth: true });
+    const rows = res.items.map(function (s) {
+      let pf = '';
+      if (!s.flavorText) {
+        try { pf = (JSON.parse(s.payload || '{}').flavorText) || ''; } catch (e) { pf = ''; }
+      }
+      return {
+        creationId: s._id, creationName: s.creationName, creatorName: s.creatorName,
+        canonStatus: s.canonStatus, voteCount: s.voteCount || 0, kind: s.kind,
+        forgeKey: s.forgeKey, shorthand: s.shorthand, fullText: s.fullText,
+        imageUrl: wixImg(s.imageUrl || ''), flavorText: s.flavorText || pf
+      };
+    });
+    return { ok: true, rows: rows, total: res.totalCount || rows.length };
+  } catch (e) {
+    return { ok: false, rows: [], total: 0, error: 'The hall could not be reached.' };
+  }
 });
 
 // Generic catalog read. Any forge can pull a content collection (canon set) by id.
