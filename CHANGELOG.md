@@ -2,6 +2,11 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Canon becomes single source
+- New generator, scripts/genCanon.js. It rewrites every baked canon dataset in the tools from the seed files: the ShardForge infusion and augment catalogs, the FoeForge augmentation list, the conditions pack in FateWell and FellGlass, and the FellGlass Aspect fallback. A canon edit now touches one seed file, then one command regenerates everything. The run is idempotent.
+- The first run already caught a real drift: FoeForge still carried the old Shadowmeld wording under a variant the hand edits missed. It also brought the FellGlass Aspect fallback up to the reworked canon, Vigor or Wit scaling, chosen effects, the capture tiers, so standalone previews no longer show stale rules.
+- Ritual addition: after any seed edit, run node scripts/genCanon.js, then the usual validate and copy steps.
+
 ## Quests flow from the LoreMaster's table to the players' sheets
 - A new Quest note type in FateWell. Write the task as a note, then post it to the quest board from the run view. The note carries its board state: post, mark complete, retract, or post again after a retraction.
 - FellGlass grows a quest board above the discovered clues. Every character linked to the campaign sees the same board, open quests plain, completed quests struck through. It polls with the clues, so a posted quest reaches the table within the same beat.
