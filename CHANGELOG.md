@@ -2,6 +2,11 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## FellGlass — characters stop bleeding into each other
+- Two races fixed. Switching characters could fire a queued autosave from the previous character against the one just loaded, writing its lineage, origin, motivation, and name onto the wrong record. A load guard now blocks autosave while a character loads in, and any pending save is dropped the moment you switch, so edits can never cross records.
+- Combat leaked across the switch too. The previous character's combat state, staged declares, evasion, and marks stayed live until the new fetch returned. Switching now clears the combat state and its flags first, so each character shows only its own fight.
+- FellGlass refreshes on its own.
+
 ## FellForge — bring your own name
 - A name field sits under the rolled suggestions. Type your own and it claims the sheet, or tap a suggestion as before. Typing clears the chip highlight, tapping a chip clears the field, and a reroll clears both. The note no longer promises a bring-your-own step that did not exist.
 - FellForge refreshes on its own.

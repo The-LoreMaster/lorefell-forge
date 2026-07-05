@@ -3760,13 +3760,16 @@ function renderRecords(cat){
    window.parent.postMessage, and $w("#html1").onMessage writes it to the
    Characters collection, replying with a confirmation message. */
 let saveTimer=null;
+let LOADING=false;
 function scheduleSave(){
+  if(LOADING) return;            // never save while a character is loading in
   clearTimeout(saveTimer);
   $("saveState").textContent="Saving\u2026";
   saveTimer=setTimeout(doSave,600);
 }
 function doSave(){
   clearTimeout(saveTimer); saveTimer=null;
+  if(LOADING) return;            // a load is mid-flight, do not write
   const t=new Date();
   const hh=String(t.getHours()).padStart(2,"0"),mm=String(t.getMinutes()).padStart(2,"0");
   $("saveState").textContent=`Autosaved \u00b7 ${hh}:${mm}`;
@@ -3984,6 +3987,8 @@ function loadLibraries(lib){
 }
 function loadCharacter(rec){
   if(!rec||typeof rec!=="object")return;
+  LOADING=true;
+  clearTimeout(saveTimer); saveTimer=null;   // drop any save queued for the previous character
   C=rec;
   C.grants=C.grants||{skills:{},attrs:{}};
   C.created=!!C.created;
@@ -3992,6 +3997,8 @@ function loadCharacter(rec){
   $("headName").textContent=(C.identity&&C.identity.name)||"Unnamed Wanderer";
   if(C.portrait)showPortrait(C.portrait);
   renderAll();
+  // release the guard after this tick, once all programmatic field writes have settled
+  setTimeout(function(){ LOADING=false; },0);
 }
 /* A new character opens the forging immediately, but only once we know it
    IS new: either Velo says so, or no bridge message arrives at all
@@ -4019,7 +4026,7 @@ function renderCharSwitch(){
   sel.addEventListener("change",function(){
     var v=sel.value;
     if(v==="__add__"){ postToVelo({type:"add-character"}); }
-    else if(v && v!==CUR_SEL){ postToVelo({type:"select-character",charId:v}); }
+    else if(v && v!==CUR_SEL){ LOADING=true; clearTimeout(saveTimer); saveTimer=null; postToVelo({type:"select-character",charId:v}); }
     else { renderCharSwitch(); }
   });
   var del=$("csDel"); if(del) del.addEventListener("click",csDeleteCharacter);
@@ -5161,7 +5168,16 @@ window.onmessage=ev=>{
   if(!d||typeof d!=="object"||!d.type)return;
   bridged=true;
   if(d.libraries)loadLibraries(d.libraries);
-  if(d.type==="init"&&d.character){ CUR_WIX_ID=d.charId||""; CUR_LOCAL_ID=uid(); if(CC)ccClose(); loadCharacter(d.character); if(CUR_WIX_ID){ refreshClues(); startCluePolling(); refreshCombat(); startCombatPolling(); } }
+  if(d.type==="init"&&d.character){
+    LOADING=true; clearTimeout(saveTimer); saveTimer=null;
+    // wipe the previous character's combat so nothing bleeds across the switch
+    clearInterval(_combatPoll); _combatPoll=null; _combatSig=""; COMBAT=null;
+    window._reactUsed=false; window._reactSent=null; window._declPayload=null; window._cbRoll=null;
+    window._defEva=[]; window._evaRolls={}; window._sentDmg=null; window._fellBonus=null;
+    window._handKind=null; window._stanceRound=null; window._stanceApplied=false; window._draft=null;
+    CUR_WIX_ID=d.charId||""; CUR_LOCAL_ID=uid(); if(CC)ccClose(); loadCharacter(d.character);
+    if(CUR_WIX_ID){ refreshClues(); startCluePolling(); refreshCombat(); startCombatPolling(); }
+  }
   else if(d.type==="clues"){ var sig=JSON.stringify(d.clues||[]); if(sig!==_clueSig){ _clueSig=sig; CLUES=d.clues||[]; renderClues(); } }
   else if(d.type==="combat-state"){ if(d.state===null||d.state===undefined){ if(!(COMBAT&&COMBAT.active)) setCombatState(null); } else setCombatState(d.state); }
   else if(d.type==="new"){ if(d.forge){ccOpenForge(d.forge);} else {ccOpen();} CUR_WIX_ID=d.charId||""; CUR_LOCAL_ID=uid(); }
