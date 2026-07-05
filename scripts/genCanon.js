@@ -95,5 +95,24 @@ const ord = (a, b) => (a.displayOrder || 0) - (b.displayOrder || 0);
   write(file, s);
 })();
 
+/* ---- fellglass: WEAPON_DB from data/Weapons.canon.json (vault-extracted) ---- */
+(function weapons() {
+  const file = 'docs/fellglass.html';
+  let s = read(file);
+  const d = JSON.parse(read('data/Weapons.canon.json'));
+  const lines = d.items.map(t => {
+    const forms = t.forms.map(f => JSON.stringify(f.name)).join(',');
+    const affs  = t.forms.map(f => JSON.stringify(f.affliction)).join(',');
+    const grips = t.forms.map(f => f.grip).join(',');
+    const rngs  = t.forms.map(f => f.range).join(',');
+    return '  ' + t.tree + ':{category:' + JSON.stringify(t.category)
+      + ',forms:[' + forms + '],afflictions:[' + affs + ']'
+      + ',grips:[' + grips + '],ranges:[' + rngs + ']}';
+  });
+  s = replaceOnce(file, s, /let WEAPON_DB=\{[\s\S]*?\n\};/,
+    'let WEAPON_DB={\n' + lines.join(',\n') + '\n};', 'WEAPON_DB');
+  write(file, s);
+})();
+
 if (failures) { console.error(failures + ' target(s) missed'); process.exit(1); }
 console.log('genCanon: all baked datasets regenerated from seeds');

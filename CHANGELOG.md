@@ -2,6 +2,12 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Weapons carry their real canon
+- New seed, data/Weapons.canon.json, extracted straight from the vault's Weapon Trees: nine trees, twenty seven forms, each with its Fellmark Affliction, grip, and range. The generator now rebuilds FellGlass's WEAPON_DB from it, so the weapon data joins the single source pipeline.
+- The afflictions in the tool already matched the vault exactly, the stale note in the backlog was wrong about that. What was placeholder was grip and range, which now render per form: One-hand or Two-hand, and the true range number.
+- weaponAff and the affliction landing plumbing were already correct, they now simply run on verified data.
+- FellGlass refreshes on its own.
+
 ## Branch and Crown picks lock on commit
 - Choosing a Branch or Crown now asks for confirmation and then locks. The sheet shows the committed pick as a plain fact, no re-pick. Level gates were already in place, Branch at Companion form and Crown at Corsair.
 - The pick also saves immediately on commit instead of waiting for the next edit.
