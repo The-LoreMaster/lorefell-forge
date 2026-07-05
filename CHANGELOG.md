@@ -2,6 +2,10 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## FellForge — bring your own name
+- A name field sits under the rolled suggestions. Type your own and it claims the sheet, or tap a suggestion as before. Typing clears the chip highlight, tapping a chip clears the field, and a reroll clears both. The note no longer promises a bring-your-own step that did not exist.
+- FellForge refreshes on its own.
+
 ## Movement corrected to a React
 - Movement spends your whole React, not your Act. My earlier build had it backwards. The Act stays free, so you can move on your React and still attack, use an ability, cast, or use a skill on your Act the same round. Both tools log it as React spent, Act still free.
 - The once per round movement limit is already enforced, since Movement is a React and the React is spent once per round.
