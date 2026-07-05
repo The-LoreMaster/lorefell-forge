@@ -2,6 +2,12 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Runeguard and Bulwark enforce at the table
+- The player sheet now reports its equipped augmentations and its highest defensive attribute with every combat sync. No paste needed, the sheet sends more and the board reads it.
+- When the LoreMaster deals damage to a Fell, the deal panel shows every eligible guardian. Runeguard reduces the Base Damage in the input by the guardian's highest defensive attribute. Bulwark redirects the whole hit to the guardian, who confirms it on their own sheet under the ownership rule. Each spends once a round and resets at round start.
+- Mobility range stays table judged, the buttons say if in range, since the tools do not model positions.
+- Both tools refresh on their own.
+
 ## Aspect targeting enforced
 - The lorebound Aspect React now carries a target. The card lists every ally in the fight, and Yourself appears only once that bond reaches Corsair form, so the no self benefit rule enforces itself at declare time. The chosen target folds into the React line the LoreMaster sees, Scour then an arrow then the ally's name, with no bridge or backend change.
 - With no ally in the fight and the bond below Corsair, the card says plainly that the Aspect has no valid target.

@@ -1203,6 +1203,7 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 .cb-def-in{ width:48px; background:var(--navy-4,#1c2742); border:1px solid var(--line); color:var(--silver); border-radius:7px; padding:5px 6px; font-family:inherit; font-size:.82rem; }
 .cb-condnote{ margin-top:7px; display:flex; flex-direction:column; gap:3px; }
 .cb-condnote div{ font-size:.74rem; color:var(--silver-dim,#9fb0bd); padding:3px 7px; border-left:2px solid var(--gold); }
+.cb-guard{ display:flex; flex-wrap:wrap; gap:6px; margin-top:7px; }
 .cb-incoming{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:9px; padding:7px 9px; border:1px solid rgba(201,168,76,.4); border-radius:8px; background:rgba(201,168,76,.06); }
 .cb-inc-t{ font-size:.82rem; color:var(--silver); }
 .cb-inc-res{ flex:1; min-width:0; }
@@ -5127,7 +5128,7 @@ function doAdvanceRound(){
   });
   Object.keys(sc.ps).forEach(function(pid){
     var st = sc.ps[pid];
-    st.act=''; st.react=''; st.target=''; st.actDone=false; st.reactDone=false; st.reactUsed=false; st.dmg=0; st.dmgDone=0; st.fellmark=false; st.doubleFell=false; st.pierce=0; st.applies=''; st._dealFell=false; st._dealFB=null; st._pendImpP=false; st.luck=''; st.base=0; st.dt=''; st.actTier=-1; st.acc=0; st.roll=0; st.kind=''; st.fellstrike=false; st._eva=null; st._loggedEva='';
+    st.act=''; st.react=''; st.target=''; st.actDone=false; st.reactDone=false; st.reactUsed=false; st.dmg=0; st.dmgDone=0; st.fellmark=false; st.doubleFell=false; st.pierce=0; st.applies=''; st._dealFell=false; st._dealFB=null; st._pendImpP=false; st._rgUsed=false; st._bwUsed=false; st.luck=''; st.base=0; st.dt=''; st.actTier=-1; st.acc=0; st.roll=0; st.kind=''; st.fellstrike=false; st._eva=null; st._loggedEva='';
     /* afflictions persist; cleared manually */
   });
   cbTickFoes(sc);
@@ -7483,6 +7484,51 @@ function cbDefRow(n){
     + '<span class="cb-def-t">Res</span><input class="cb-def-in" type="number" min="0" value="'+foeDefBase(n.ref,'resistance')+'" onchange="cbSetDef(\''+id+'\',\'resistance\',this.value)"></div>';
 }
 function cbSetDef(id, k, v){ curSc().combatants.forEach(function(c){ if(c.id===id) c[k]=Math.max(0,parseInt(v,10)||0); }); save(); }
+function cbGuardians(pid, augName){
+  var out=[];
+  attendingPlayers().forEach(function(g){
+    if(g.id===pid || !g.charId) return;
+    var gst=pState(g.id), gear=gst.gear||{};
+    if(((gear.augs)||[]).indexOf(augName)<0) return;
+    if(augName==='Runeguard' && gst._rgUsed) return;
+    if(augName==='Bulwark' && gst._bwUsed) return;
+    out.push({ id:g.id, name:g.name, def:(typeof gear.def==='number'?gear.def:0) });
+  });
+  return out;
+}
+function cbRuneguard(pid, gid){
+  var g=null; attendingPlayers().forEach(function(x){ if(x.id===gid) g=x; }); if(!g) return;
+  var gst=pState(gid), defv=(gst.gear&&typeof gst.gear.def==='number')?gst.gear.def:0;
+  var eb=document.getElementById('cbdb-'+pid); if(!eb) return;
+  var cur=parseInt(eb.value,10)||0;
+  eb.value=Math.max(0, cur-defv);
+  gst._rgUsed=true;
+  cbLog('fell', g.name+' spends Runeguard, reducing the Base Damage by '+defv+'.');
+  cbToast('Runeguard \u00b7 '+esc(g.name)+' reduces the base by '+defv+'.');
+  save(); render();
+}
+function cbBulwark(pid, gid){
+  var g=null, tgt=null; attendingPlayers().forEach(function(x){ if(x.id===gid) g=x; if(x.id===pid) tgt=x; });
+  if(!g || !g.charId) return;
+  var eb=document.getElementById('cbdb-'+pid), eo=document.getElementById('cbdo-'+pid), edt=document.getElementById('cbdt-'+pid);
+  var base=eb?(parseInt(eb.value,10)||0):0, bonus=eo?(parseInt(eo.value,10)||0):0, dt=edt?edt.value:'phys';
+  if(base<=0 && bonus<=0){ cbToast('Set the damage first, then Bulwark intercepts it.'); return; }
+  var gst=pState(gid); gst._bwUsed=true;
+  postToWix({ type:'lmtool-combat-damage', campaignId:combatCampaignId(), charId:g.charId, base:base, bonus:bonus, dt:dt });
+  cbLog('fell', g.name+' spends Bulwark and takes the hit meant for '+(tgt?tgt.name:'an ally')+' \u00b7 '+base+' base + '+bonus+' bonus.');
+  cbToast('Bulwark \u00b7 '+esc(g.name)+' takes the hit. They confirm on their sheet.');
+  if(eb) eb.value=''; if(eo) eo.value='';
+  save(); render();
+}
+function cbGuardRow(pid){
+  var rg=cbGuardians(pid,'Runeguard'), bw=cbGuardians(pid,'Bulwark');
+  if(!rg.length && !bw.length) return '';
+  var h='<div class="cb-guard">';
+  rg.forEach(function(g){ h+='<button class="btn ghost small" onclick="cbRuneguard(\''+pid+'\',\''+g.id+'\')">Runeguard \u00b7 '+esc(g.name)+' \u2212'+g.def+' base (if in range)</button>'; });
+  bw.forEach(function(g){ h+='<button class="btn ghost small" onclick="cbBulwark(\''+pid+'\',\''+g.id+'\')">Bulwark \u00b7 '+esc(g.name)+' takes the hit (if in range)</button>'; });
+  h+='</div>';
+  return h;
+}
 function cbDealRow(n){
   var pid=n.ref.id, st=pState(pid);
   var fell=!!st._dealFell, fb=(typeof st._dealFB==='number')?st._dealFB:null;
@@ -7491,7 +7537,8 @@ function cbDealRow(n){
     + '<input class="cb-deal-in" id="cbdo-'+pid+'" type="number" min="0" placeholder="bonus">'
     + '<select class="cb-deal-dt" id="cbdt-'+pid+'"><option value="phys">phys</option><option value="magic">magic</option></select>'
     + '<button class="cb-fm'+(fell?' on':'')+'" onclick="cbToggleDealFell(\''+pid+'\')">'+(fell?'Fellmark':'Mark Fellmark')+'</button>'
-    + '<button class="cb-link" onclick="cbDealDamage(\''+pid+'\')">Send hit</button></div>';
+    + '<button class="cb-link" onclick="cbDealDamage(\''+pid+'\')">Send hit</button></div>'
+    + cbGuardRow(pid);
   if(fell){
     var fstrip='<span class="fw-facepick">'; for(var ffi=1; ffi<=6; ffi++) fstrip+='<button class="fw-fp'+(ffi===6?' fell':'')+((fb===ffi)?' on':'')+'" onclick="cbSetDealFB(\''+pid+'\','+ffi+')">'+ffi+'</button>'; fstrip+='</span>';
     h+='<div class="cb-improw"><span class="cb-imp-t">Fellmark bonus</span>'
