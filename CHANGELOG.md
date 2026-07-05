@@ -2,6 +2,10 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## FateWell modals land where you clicked
+- Confirm and name dialogs, including delete and publish an adventure, were pinned to the top of the embed by a fixed backdrop. In a tall Wix iframe that top sits far from where the loremaster is looking, so the popup opened off screen. The dialog now anchors near the click, the same pattern the combat overlays already use, and stays reachable at any scroll.
+- FateWell refreshes on its own.
+
 ## Blank boards tell the truth
 - The gallery and quest reads now report whether they actually reached the data. Before, a network failure returned an empty list, indistinguishable from a hall or board that is genuinely empty, so a player saw nothing and assumed nothing was there.
 - The LoreForge now shows The hall could not be reached on a failed read, separate from the Nothing forged here yet empty state. The FellGlass quest board warns and keeps the last known board rather than blanking it.
