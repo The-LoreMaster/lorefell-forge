@@ -2,6 +2,11 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## Branch and Crown picks lock on commit
+- Choosing a Branch or Crown now asks for confirmation and then locks. The sheet shows the committed pick as a plain fact, no re-pick. Level gates were already in place, Branch at Companion form and Crown at Corsair.
+- The pick also saves immediately on commit instead of waiting for the next edit.
+- Paragon Point changes are out of scope until that system is designed.
+
 ## Canon becomes single source
 - New generator, scripts/genCanon.js. It rewrites every baked canon dataset in the tools from the seed files: the ShardForge infusion and augment catalogs, the FoeForge augmentation list, the conditions pack in FateWell and FellGlass, and the FellGlass Aspect fallback. A canon edit now touches one seed file, then one command regenerates everything. The run is idempotent.
 - The first run already caught a real drift: FoeForge still carried the old Shadowmeld wording under a variant the hand edits missed. It also brought the FellGlass Aspect fallback up to the reworked canon, Vigor or Wit scaling, chosen effects, the capture tiers, so standalone previews no longer show stale rules.
