@@ -1,6 +1,7 @@
 import { ok, notFound, serverError, badRequest } from 'wix-http-functions';
 import wixData from 'wix-data';
 import { getSecret } from 'wix-secrets-backend';
+import { fetch } from 'wix-fetch';
 
 // GET /_functions/embed?slug=sigilforge
 // Returns the stored SiteEmbeds.html verbatim as a full HTML document.
@@ -62,7 +63,7 @@ export function post_aiforge(request) {
     .then((opts) => {
       opts = opts || {};
       return getSecret('ANTHROPIC_API_KEY').then((key) => {
-        return fetch('https://api.anthropic.com/v1/messages', {
+        const call = fetch('https://api.anthropic.com/v1/messages', {
           method: 'post',
           headers: {
             'content-type': 'application/json',
@@ -75,7 +76,9 @@ export function post_aiforge(request) {
             system: opts.system || '',
             messages: Array.isArray(opts.messages) ? opts.messages : []
           })
-        }).then((res) => {
+        });
+        const guard = new Promise((_, rej) => setTimeout(() => rej(new Error('anthropic call exceeded 25s')), 25000));
+        return Promise.race([call, guard]).then((res) => {
           if (!res.ok) {
             return res.text().then((b) => ok({ headers: jsonHeaders(), body: { ok: false, status: res.status, error: (b || '').slice(0, 240) } }));
           }
