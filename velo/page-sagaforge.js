@@ -1,12 +1,11 @@
 // Page code for the SagaForge page. Relays the AI call to the shared backend
 // and sizes the embed to its content. Paste into the SagaForge page in Wix.
-import { fetch } from 'wix-fetch';
 import wixWindow from 'wix-window-frontend';
 import { aiForge } from 'backend/forge.web.js';
 
 // The page runs on the live site, so it can call the long-timeout http-function
 // same origin. If that ever fails it falls back to the web method.
-const AI_URL = 'https://lorefell.com/_functions/aiforge';
+const AI_URL = '/_functions/aiforge';
 
 const EMBED = '#html1';
 
