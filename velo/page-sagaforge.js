@@ -29,7 +29,9 @@ $w.onReady(function () {
         const r = await aiForge(msg.payload || {});
         embed.postMessage({ type: 'LOREFELL_AI_FORGE_RESULT', reqId: reqId, ok: !!(r && r.ok), text: (r && r.text) || '', status: (r && r.status) || 0, error: (r && r.error) || '' });
       } catch (e) {
-        embed.postMessage({ type: 'LOREFELL_AI_FORGE_RESULT', reqId: reqId, ok: false, error: 'relay unreachable' });
+        // surface the real failure so setup issues are diagnosable
+        const detail = (e && (e.message || e.toString())) || 'unknown';
+        embed.postMessage({ type: 'LOREFELL_AI_FORGE_RESULT', reqId: reqId, ok: false, error: 'relay: ' + detail });
       }
       return;
     }
