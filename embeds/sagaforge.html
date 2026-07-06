@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SagaForge</title>
+<style>
+:root{
+  --navy:#0a0e1a; --panel:#10162a; --panel2:#0d1322;
+  --silver:#dce8ef; --silver-dim:#93a3b1; --ice:#b8ccd8; --gold:#c9a84c;
+  --muted:#7e8a99; --line:rgba(184,204,216,.16); --goldline:rgba(201,168,76,.4);
+  --error:#c96a5a; --valid:#7fb58a;
+}
+*{ box-sizing:border-box; margin:0; padding:0; }
+html,body{ background:var(--navy); color:var(--silver); font-family:'Crimson Pro',serif; }
+body{ padding:14px 12px 60px; max-width:760px; margin:0 auto; }
+h1,h2,h3{ font-family:'Cinzel',serif; font-weight:600; }
+.crest{ text-align:center; margin:8px 0 18px; }
+.crest h1{ font-family:'Cinzel Decorative',serif; font-size:1.5rem; letter-spacing:.08em; }
+.crest .sub{ color:var(--muted); font-size:.92rem; margin-top:4px; }
+.crest-rule{ width:120px; height:1px; margin:10px auto 0; background:linear-gradient(90deg,transparent,var(--gold),transparent); }
+.card{ background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px; margin:0 0 14px; }
+.fld{ display:block; font-family:'Cinzel',serif; font-size:.68rem; letter-spacing:.16em; text-transform:uppercase; color:var(--ice); margin:12px 0 5px; }
+textarea,input[type=text]{ width:100%; background:var(--panel2); border:1px solid var(--line); border-radius:8px; padding:9px 11px; color:var(--silver); font-family:'Crimson Pro',serif; font-size:.98rem; }
+textarea{ min-height:84px; resize:vertical; }
+textarea:focus,input:focus{ outline:none; border-color:var(--goldline); }
+.btn{ font-family:'Cinzel',serif; font-size:.66rem; letter-spacing:.12em; text-transform:uppercase; color:var(--silver); background:var(--panel2); border:1px solid var(--line); border-radius:8px; padding:9px 16px; cursor:pointer; }
+.btn.gold{ border-color:var(--goldline); color:var(--gold); }
+.btn.ghost{ background:none; }
+.btn:disabled{ opacity:.4; cursor:default; }
+.btnrow{ display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+.steps{ display:flex; gap:6px; justify-content:center; margin:0 0 16px; flex-wrap:wrap; }
+.step{ font-family:'Cinzel',serif; font-size:.6rem; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); padding:5px 10px; border:1px solid var(--line); border-radius:99px; }
+.step.on{ color:var(--gold); border-color:var(--goldline); }
+.step.done{ color:var(--ice); }
+.tcard{ border:1px solid var(--line); border-radius:10px; padding:12px; margin:8px 0; cursor:pointer; background:var(--panel2); }
+.tcard:hover{ border-color:var(--goldline); }
+.tcard.on{ border-color:var(--gold); }
+.tcard h3{ font-size:.95rem; letter-spacing:.06em; }
+.tcard .len{ font-family:'Cinzel',serif; font-size:.58rem; letter-spacing:.14em; text-transform:uppercase; color:var(--gold); margin:3px 0 5px; }
+.tcard p{ color:var(--silver-dim); font-size:.92rem; line-height:1.4; }
+.hint{ color:var(--muted); font-size:.88rem; line-height:1.4; margin-top:6px; }
+.err{ color:var(--error); font-size:.92rem; margin-top:8px; }
+.spin{ display:inline-block; width:14px; height:14px; border:2px solid var(--goldline); border-top-color:var(--gold); border-radius:50%; animation:sp 1s linear infinite; vertical-align:middle; margin-right:8px; }
+@keyframes sp{ to{ transform:rotate(360deg); } }
+.wait{ color:var(--ice); font-size:.94rem; padding:10px 0; }
+
+/* skeleton outline */
+.sk-act{ border-left:2px solid var(--goldline); padding-left:10px; margin:12px 0; }
+.sk-act>.sk-name{ font-family:'Cinzel',serif; font-size:.92rem; color:var(--gold); }
+.sk-sess{ margin:10px 0 10px 8px; border-left:1px solid var(--line); padding-left:10px; }
+.sk-sess>.sk-name{ font-family:'Cinzel',serif; font-size:.86rem; color:var(--ice); }
+.sk-scene{ margin:6px 0 6px 8px; }
+.sk-scene>.sk-name{ font-size:.92rem; color:var(--silver); }
+.sk-purpose{ color:var(--silver-dim); font-size:.88rem; line-height:1.35; }
+.sk-name[contenteditable],.sk-purpose[contenteditable]{ border-bottom:1px dashed var(--line); outline:none; }
+.sk-name[contenteditable]:focus,.sk-purpose[contenteditable]:focus{ border-bottom-color:var(--goldline); }
+
+/* draft blocks */
+.blk{ border:1px solid var(--line); border-radius:9px; margin:8px 0; overflow:hidden; }
+.blk-h{ display:flex; align-items:center; gap:8px; padding:7px 10px; background:var(--panel2); }
+.blk-t{ font-family:'Cinzel',serif; font-size:.58rem; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); white-space:nowrap; }
+.blk-title{ font-family:'Cinzel',serif; font-size:.82rem; color:var(--silver); }
+.blk-b{ padding:9px 11px; font-size:.95rem; line-height:1.45; color:var(--silver); white-space:pre-wrap; }
+.blk-sp{ color:var(--ice); font-style:italic; }
+.scene-h{ font-family:'Cinzel',serif; font-size:.9rem; color:var(--ice); margin:16px 0 4px; }
+.sess-nav{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
+.sess-nav .where{ font-family:'Cinzel',serif; font-size:.8rem; color:var(--gold); }
+.flag{ border:1px solid var(--error); border-radius:8px; background:rgba(201,106,90,.1); color:var(--error); padding:8px 10px; font-size:.9rem; margin:8px 0; }
+.oklist{ color:var(--valid); font-size:.9rem; margin:8px 0; }
+
+/* export */
+.exp-note{ color:var(--silver-dim); font-size:.92rem; line-height:1.45; }
+@media print{
+  body{ background:#fff; color:#1a2540; max-width:none; padding:0; }
+  .noprint,.steps,.btnrow,.sess-nav{ display:none !important; }
+  .card{ border:none; padding:0; }
+  .blk{ border:1px solid #c9a84c55; page-break-inside:avoid; }
+  .blk-h{ background:#f4f1e8; }
+  .blk-t{ color:#8a7222; }
+  .blk-b,.blk-title,.sk-purpose{ color:#1a2540; }
+  .scene-h,.sk-name{ color:#1a2540; }
+  h1,h2,h3{ color:#1a2540; }
+}
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Cinzel:wght@400;600&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<div class="crest noprint">
+  <h1>SagaForge</h1>
+  <div class="sub">Forge an adventure, one approval at a time. It exports straight into FateWell.</div>
+  <div class="crest-rule"></div>
+</div>
+
+<div class="steps noprint" id="steps"></div>
+<div id="stage"></div>
+
+<script>
+"use strict";
+/* ============ state ============ */
+var STEPS=["pitch","scope","skeleton","draft","export"];
+var STEP_LABELS={pitch:"Pitch",scope:"Scope",skeleton:"Skeleton",draft:"Sessions",export:"Export"};
+var ADV_TYPES={
+  tale:{label:"Tale",len:"recommended one session",blurb:"A single sitting. One deed or rumor, complete on its own.",acts:false,oneSession:true},
+  story:{label:"Story",len:"recommended 3 to 6 sessions",blurb:"A short, focused arc for a chosen few Fell. It burns bright, then closes.",acts:false},
+  legacy:{label:"Legacy",len:"recommended 10 to 12 sessions",blurb:"The backbone saga. Characters endure, grow, and the ending marks the canon.",acts:true},
+  chronicle:{label:"Chronicle",len:"recommended infinite sessions, open table",blurb:"A living, open table world that many hands shape across the year.",acts:true}
+};
+var BLOCK_TYPES=["readaloud","dialogue","crucible","lorecheck","clue","quest","secret","beat","reminder","general"];
+var BLOCK_LABELS={readaloud:"Read-aloud",dialogue:"Dialogue",crucible:"Crucible",lorecheck:"Lore Check",clue:"Clue",quest:"Quest",secret:"Secret",beat:"Beat",reminder:"Reminder",general:"Note"};
+
+var S=load()||{
+  step:"pitch",
+  pitch:"",
+  type:"", world:"", tone:"", hook:"", canon:"", levels:"", sessTarget:"",
+  skeleton:null,          /* {name, acts:[{name,purpose,sessions:[{name,purpose,scenes:[{name,purpose}]}]}]} */
+  drafts:{},              /* "a-s" -> {scenes:[{name, entries:[{type,title,body,speaker}]}], npcs:[{name,desc}]} */
+  approved:{},            /* "a-s" -> true */
+  cursor:{a:0,s:0},
+  npcs:{}                 /* name -> desc, gathered across sessions */
+};
+
+function save(){ try{ localStorage.setItem("SAGA_DRAFT", JSON.stringify(S)); }catch(e){} }
+function load(){ try{ var s=localStorage.getItem("SAGA_DRAFT"); return s?JSON.parse(s):null; }catch(e){ return null; } }
+function uid(){ return "sf"+Math.random().toString(36).slice(2,10); }
+function esc(t){ return String(t==null?"":t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function $(id){ return document.getElementById(id); }
+
+/* ============ AI bridge (postMessage relay, same rails as SigilForge) ============ */
+var _aiReq=0, _aiPending={};
+window.addEventListener("message",function(ev){
+  var m=ev&&ev.data;
+  if(!m||m.type!=="LOREFELL_AI_FORGE_RESULT")return;
+  var p=_aiPending[m.reqId]; if(!p)return;
+  delete _aiPending[m.reqId];
+  if(m.status===429){ p.reject({rate:true}); return; }
+  if(!m.ok){ p.reject(new Error("relay "+(m.status||"")+(m.error?(": "+m.error):""))); return; }
+  p.resolve(m.text||"");
+});
+function aiCall(system,messages,maxTokens){
+  return new Promise(function(resolve,reject){
+    if(!(window.parent&&window.parent!==window)){ reject(new Error("The forge answers on the live site.")); return; }
+    var reqId=++_aiReq;
+    _aiPending[reqId]={resolve:resolve,reject:reject};
+    window.parent.postMessage({type:"LOREFELL_AI_FORGE",reqId:reqId,payload:{system:system,messages:messages,max_tokens:maxTokens||1400}},"*");
+    setTimeout(function(){ if(_aiPending[reqId]){ delete _aiPending[reqId]; reject(new Error("The forge did not answer in time.")); } },60000);
+  });
+}
+function parseAiJson(text){
+  var t=text.replace(/```json/gi,"").replace(/```/g,"").trim();
+  var a=t.indexOf("{"), b=t.lastIndexOf("}");
+  if(a<0||b<0) throw new Error("The forge answered without a shape.");
+  return JSON.parse(t.slice(a,b+1));
+}
+
+/* ============ voice guard ============ */
+var BANNED=[["\u2014","an em dash"],["\u2013","an en dash"],["\u2026","an ellipsis"],["...","an ellipsis"],[";","a semicolon"],["--","a double hyphen"]];
+function scrubHits(text){
+  var hits=[];
+  BANNED.forEach(function(b){ if(text.indexOf(b[0])!==-1) hits.push(b[1]); });
+  return hits;
+}
+function scrubDraft(d){
+  var hits={};
+  (d.scenes||[]).forEach(function(sc){
+    (sc.entries||[]).forEach(function(e){
+      scrubHits((e.title||"")+" "+(e.body||"")).forEach(function(h){ hits[h]=1; });
+    });
+  });
+  return Object.keys(hits);
+}
+
+/* ============ prompts ============ */
+function voiceRules(){
+  return "Write in the LoreFell house voice. Short declarative sentences, dark grounded register. "
+    +"Never use em dashes, en dashes, ellipses, semicolons, comma splices, rhetorical triples, or the construction 'not X but Y'. "
+    +"Never use D&D or Pathfinder terms. Combat is simultaneous and cinematic, never turn based. Use Act and React, never the bare word action. "
+    +"Never invent hard canon facts about the world of LoreFell. Where a canon detail is uncertain, keep the text general.";
+}
+function skeletonSystem(){
+  var t=ADV_TYPES[S.type];
+  return "You outline adventures for LoreFell, a dark and weird fantasy TTRPG. "+voiceRules()
+    +" Respond with STRICT JSON only, no prose outside the JSON. Shape: "
+    +'{"name":"adventure name","acts":[{"name":"act name","purpose":"one line","sessions":[{"name":"session name","purpose":"one line","scenes":[{"name":"scene name","purpose":"one line"}]}]}]}. '
+    +(t.acts?"Use 2 or 3 acts.":"Use exactly one act named Main.")
+    +(t.oneSession?" Use exactly one session with 2 to 4 scenes.":" Respect the size guidance: "+t.len+".")
+    +" Scene purposes are for the LoreMaster's eye, one sentence each. Avoid generic fantasy compound names.";
+}
+function skeletonUserMsg(){
+  var lines=["Pitch: "+S.pitch];
+  if(S.world) lines.push("World or Stratum: "+S.world);
+  if(S.tone) lines.push("Tone: "+S.tone);
+  if(S.hook) lines.push("The hook: "+S.hook);
+  if(S.canon) lines.push("Canon ties: "+S.canon);
+  if(S.levels) lines.push("Level range: "+S.levels);
+  if(S.sessTarget) lines.push("Session count target: "+S.sessTarget);
+  lines.push("Size: "+ADV_TYPES[S.type].label+" ("+ADV_TYPES[S.type].len+")");
+  return lines.join("\n");
+}
+function draftSystem(){
+  return "You draft LoreFell adventure sessions as typed blocks for the FateWell table runner. "+voiceRules()
+    +" Respond with STRICT JSON only. Shape: "
+    +'{"scenes":[{"name":"scene name","entries":[{"type":"one of readaloud|dialogue|crucible|lorecheck|clue|quest|secret|beat|reminder|general","title":"short descriptive title","body":"the text","speaker":"NPC name, dialogue only"}]}],"npcs":[{"name":"NPC name","desc":"one line for the LoreMaster"}]}. '
+    +"Rules for blocks: every block carries a descriptive title, never a bare speaker name. One speaker per dialogue block, split exchanges into separate blocks, and name the speaker in the speaker field. "
+    +"Read-aloud is verbatim box text. Crucible marks a fight or hard trial. Lore Check names what a successful check reveals. Clue is a discoverable pointer. Quest is a task the party can take. Secret is for the LoreMaster only. Beat is a structural turn. Reminder is a table nudge. Note is anything else. "
+    +"Player characters never appear in the module, it runs cold for any LoreMaster. Never place questions, options, or notes to the author inside any block.";
+}
+function draftUserMsg(a,si,redline){
+  var act=S.skeleton.acts[a], sess=act.sessions[si];
+  var lines=["Adventure: "+S.skeleton.name,"Pitch: "+S.pitch,"Size: "+ADV_TYPES[S.type].label];
+  if(S.world) lines.push("World or Stratum: "+S.world);
+  if(S.tone) lines.push("Tone: "+S.tone);
+  lines.push("Act: "+act.name+" ("+act.purpose+")");
+  lines.push("Draft this session: "+sess.name+" ("+sess.purpose+")");
+  lines.push("Its scenes, in order:");
+  sess.scenes.forEach(function(sc,i){ lines.push((i+1)+". "+sc.name+": "+sc.purpose); });
+  var prior=[];
+  S.skeleton.acts.forEach(function(pa,pi){ pa.sessions.forEach(function(ps,psi){
+    if(S.approved[pi+"-"+psi]) prior.push(ps.name+" ("+ps.purpose+")");
+  }); });
+  if(prior.length) lines.push("Already approved sessions, keep continuity with them: "+prior.join(" / "));
+  var known=Object.keys(S.npcs);
+  if(known.length) lines.push("Known NPCs so far, reuse them where natural: "+known.join(", "));
+  if(redline) lines.push("The LoreMaster's redline on the previous draft, honor it fully: "+redline);
+  lines.push("Give every scene 3 to 6 blocks. Open the session with a readaloud.");
+  return lines.join("\n");
+}
+
+/* ============ flow rendering ============ */
+function renderSteps(){
+  var idx=STEPS.indexOf(S.step), h="";
+  STEPS.forEach(function(st,i){
+    h+='<span class="step'+(i===idx?" on":i<idx?" done":"")+'">'+STEP_LABELS[st]+"</span>";
+  });
+  $("steps").innerHTML=h;
+}
+function go(step){ S.step=step; save(); render(); window.scrollTo(0,0); }
+function render(){
+  renderSteps();
+  var st=$("stage");
+  if(S.step==="pitch") st.innerHTML=vPitch();
+  else if(S.step==="scope") st.innerHTML=vScope();
+  else if(S.step==="skeleton") st.innerHTML=vSkeleton();
+  else if(S.step==="draft") st.innerHTML=vDraft();
+  else st.innerHTML=vExport();
+}
+
+/* ---- pitch ---- */
+function vPitch(){
+  return '<div class="card">'
+    +'<label class="fld">The pitch</label>'
+    +'<textarea id="pitch" placeholder="The idea in a sentence or a paragraph. A rumor, a wound in the world, a door that should have stayed shut.">'+esc(S.pitch)+'</textarea>'
+    +'<div class="hint">One idea is enough. The forge asks for the rest.</div>'
+    +'<div class="btnrow"><button class="btn gold" onclick="fromPitch()">Continue</button>'
+    +(S.skeleton?'<button class="btn ghost" onclick="go(\'skeleton\')">Back to the skeleton</button>':'')
+    +'<button class="btn ghost" onclick="resetAll()">Start over</button></div>'
+    +'</div>';
+}
+function fromPitch(){
+  var v=$("pitch").value.trim();
+  if(!v){ alert("Give the forge one idea to work with."); return; }
+  S.pitch=v; go("scope");
+}
+function resetAll(){
+  if(!confirm("Clear this adventure and start over?")) return;
+  try{ localStorage.removeItem("SAGA_DRAFT"); }catch(e){}
+  location.reload();
+}
+
+/* ---- scope ---- */
+function vScope(){
+  var h='<div class="card"><label class="fld">Size</label>';
+  Object.keys(ADV_TYPES).forEach(function(k){
+    var t=ADV_TYPES[k];
+    h+='<div class="tcard'+(S.type===k?" on":"")+'" onclick="pickType(\''+k+'\')">'
+      +'<h3>'+t.label+'</h3><div class="len">'+esc(t.len)+'</div><p>'+esc(t.blurb)+'</p></div>';
+  });
+  h+='</div>';
+  if(S.type){
+    var t=ADV_TYPES[S.type];
+    h+='<div class="card">'
+      +'<label class="fld">World or Stratum</label><input type="text" id="q-world" value="'+esc(S.world)+'" placeholder="Where it happens">'
+      +'<label class="fld">Tone</label><input type="text" id="q-tone" value="'+esc(S.tone)+'" placeholder="Dread, wonder, rot, grief, a cold hunt">'
+      +'<label class="fld">The hook</label><input type="text" id="q-hook" value="'+esc(S.hook)+'" placeholder="What pulls the Fell in">'
+      +(S.type!=="tale"
+        ?'<label class="fld">Level range</label><input type="text" id="q-levels" value="'+esc(S.levels)+'" placeholder="For example 3 to 5">'
+        :"")
+      +(t.acts
+        ?'<label class="fld">Canon ties (optional)</label><input type="text" id="q-canon" value="'+esc(S.canon)+'" placeholder="Named places, factions, or events it touches">'
+         +'<label class="fld">Session count target (optional)</label><input type="text" id="q-sess" value="'+esc(S.sessTarget)+'" placeholder="Leave open for the recommendation">'
+        :"")
+      +'<div class="btnrow"><button class="btn gold" onclick="fromScope()">Forge the skeleton</button>'
+      +'<button class="btn ghost" onclick="go(\'pitch\')">Back</button></div>'
+      +'</div>';
+  }
+  return h;
+}
+function pickType(k){ S.type=k; save(); render(); }
+function fromScope(){
+  S.world=($("q-world")||{}).value||""; S.tone=($("q-tone")||{}).value||""; S.hook=($("q-hook")||{}).value||"";
+  S.levels=($("q-levels")||{}).value||""; S.canon=($("q-canon")||{}).value||""; S.sessTarget=($("q-sess")||{}).value||"";
+  S.world=S.world.trim(); S.tone=S.tone.trim(); S.hook=S.hook.trim(); S.levels=S.levels.trim(); S.canon=S.canon.trim(); S.sessTarget=S.sessTarget.trim();
+  save();
+  forgeSkeleton();
+}
+
+/* ---- skeleton ---- */
+function forgeSkeleton(){
+  $("stage").innerHTML='<div class="card wait"><span class="spin"></span>Forging the skeleton. Structure first, prose later.</div>';
+  aiCall(skeletonSystem(),[{role:"user",content:skeletonUserMsg()}],1200)
+  .then(function(text){
+    var sk=parseAiJson(text);
+    if(!sk||!Array.isArray(sk.acts)||!sk.acts.length) throw new Error("The skeleton came back hollow.");
+    S.skeleton=sk; S.drafts={}; S.approved={}; S.npcs={}; S.cursor={a:0,s:0};
+    go("skeleton");
+  })
+  .catch(function(e){
+    $("stage").innerHTML='<div class="card"><div class="err">'+esc(e&&e.rate?"The forge is catching its breath. Try again in a minute.":(e&&e.message)||"The forge could not be reached.")+'</div>'
+      +'<div class="btnrow"><button class="btn gold" onclick="forgeSkeleton()">Try again</button>'
+      +'<button class="btn ghost" onclick="go(\'scope\')">Back</button></div></div>';
+  });
+}
+function vSkeleton(){
+  var sk=S.skeleton;
+  if(!sk) return '<div class="card"><div class="err">No skeleton yet.</div><div class="btnrow"><button class="btn gold" onclick="go(\'scope\')">Back to scope</button></div></div>';
+  var h='<div class="card">'
+    +'<label class="fld">Adventure name</label>'
+    +'<div class="sk-name" style="font-size:1.05rem" contenteditable data-path="name">'+esc(sk.name||"")+'</div>'
+    +'<div class="hint">Tap any name or purpose to edit it. Nothing is drafted until this is approved.</div>';
+  sk.acts.forEach(function(a,ai){
+    h+='<div class="sk-act">'
+      +'<div class="sk-name" contenteditable data-path="a'+ai+'n">'+esc(a.name)+'</div>'
+      +'<div class="sk-purpose" contenteditable data-path="a'+ai+'p">'+esc(a.purpose||"")+'</div>';
+    (a.sessions||[]).forEach(function(ss,si){
+      h+='<div class="sk-sess">'
+        +'<div class="sk-name" contenteditable data-path="a'+ai+'s'+si+'n">'+esc(ss.name)+'</div>'
+        +'<div class="sk-purpose" contenteditable data-path="a'+ai+'s'+si+'p">'+esc(ss.purpose||"")+'</div>';
+      (ss.scenes||[]).forEach(function(sc,ci){
+        h+='<div class="sk-scene">'
+          +'<div class="sk-name" contenteditable data-path="a'+ai+'s'+si+'c'+ci+'n">'+esc(sc.name)+'</div>'
+          +'<div class="sk-purpose" contenteditable data-path="a'+ai+'s'+si+'c'+ci+'p">'+esc(sc.purpose||"")+'</div></div>';
+      });
+      h+='</div>';
+    });
+    h+='</div>';
+  });
+  h+='<div class="btnrow">'
+    +'<button class="btn gold" onclick="approveSkeleton()">Approve, start drafting</button>'
+    +'<button class="btn ghost" onclick="forgeSkeleton()">Forge it again</button>'
+    +'<button class="btn ghost" onclick="go(\'scope\')">Back to scope</button></div>'
+    +'</div>';
+  return h;
+}
+function harvestSkeletonEdits(){
+  document.querySelectorAll("[contenteditable][data-path]").forEach(function(el){
+    var p=el.getAttribute("data-path"), v=el.textContent.trim();
+    if(p==="name"){ S.skeleton.name=v; return; }
+    var m=p.match(/^a(\d+)(?:s(\d+))?(?:c(\d+))?([np])$/); if(!m) return;
+    var a=S.skeleton.acts[+m[1]]; if(!a) return;
+    var node=a;
+    if(m[2]!==undefined&&m[2]!==null&&m[2]!==""){ node=a.sessions[+m[2]]; if(!node) return; }
+    if(m[3]!==undefined&&m[3]!==null&&m[3]!==""){ node=node.scenes[+m[3]]; if(!node) return; }
+    if(m[4]==="n") node.name=v; else node.purpose=v;
+  });
+}
+function approveSkeleton(){
+  harvestSkeletonEdits();
+  S.cursor={a:0,s:0};
+  save();
+  go("draft");
+  draftCurrent();
+}
+
+/* ---- drafting ---- */
+function curKey(){ return S.cursor.a+"-"+S.cursor.s; }
+function totalSessions(){ var n=0; S.skeleton.acts.forEach(function(a){ n+=(a.sessions||[]).length; }); return n; }
+function doneSessions(){ return Object.keys(S.approved).length; }
+function nextUnapproved(){
+  for(var a=0;a<S.skeleton.acts.length;a++){
+    var ss=S.skeleton.acts[a].sessions||[];
+    for(var s=0;s<ss.length;s++){ if(!S.approved[a+"-"+s]) return {a:a,s:s}; }
+  }
+  return null;
+}
+function draftCurrent(redline){
+  var a=S.cursor.a, si=S.cursor.s;
+  $("stage").innerHTML='<div class="card wait"><span class="spin"></span>Drafting '+esc(S.skeleton.acts[a].sessions[si].name)+'. One session at a time.</div>';
+  aiCall(draftSystem(),[{role:"user",content:draftUserMsg(a,si,redline)}],3500)
+  .then(function(text){
+    var d=parseAiJson(text);
+    if(!d||!Array.isArray(d.scenes)) throw new Error("The draft came back hollow.");
+    var hits=scrubDraft(d);
+    if(hits.length&&!redline){
+      /* one silent re-ask on a voice violation */
+      return draftCurrent("Remove every "+hits.join(", ")+" from the text. The house voice bans them.");
+    }
+    S.drafts[curKey()]={scenes:d.scenes,npcs:d.npcs||[],flags:hits};
+    (d.npcs||[]).forEach(function(n){ if(n&&n.name&&!S.npcs[n.name]) S.npcs[n.name]=n.desc||""; });
+    save(); render();
+  })
+  .catch(function(e){
+    $("stage").innerHTML='<div class="card"><div class="err">'+esc(e&&e.rate?"The forge is catching its breath. Try again in a minute.":(e&&e.message)||"The forge could not be reached.")+'</div>'
+      +'<div class="btnrow"><button class="btn gold" onclick="draftCurrent()">Try again</button>'
+      +'<button class="btn ghost" onclick="go(\'skeleton\')">Back to the skeleton</button></div></div>';
+  });
+}
+function vDraft(){
+  var a=S.cursor.a, si=S.cursor.s;
+  var sess=S.skeleton.acts[a].sessions[si];
+  var d=S.drafts[curKey()];
+  var h='<div class="card">'
+    +'<div class="sess-nav"><span class="where">'+esc(S.skeleton.acts[a].name)+' \u00b7 '+esc(sess.name)+'</span>'
+    +'<span class="hint">'+doneSessions()+' of '+totalSessions()+' approved</span></div>';
+  if(!d){
+    h+='<div class="btnrow"><button class="btn gold" onclick="draftCurrent()">Draft this session</button>'
+      +'<button class="btn ghost" onclick="go(\'skeleton\')">Back to the skeleton</button></div></div>';
+    return h;
+  }
+  if(d.flags&&d.flags.length){
+    h+='<div class="flag">The draft still carries '+esc(d.flags.join(", "))+' after one correction pass. Redline it or approve with care.</div>';
+  }
+  d.scenes.forEach(function(sc){
+    h+='<div class="scene-h">'+esc(sc.name)+'</div>';
+    (sc.entries||[]).forEach(function(e){
+      h+='<div class="blk"><div class="blk-h"><span class="blk-t">'+esc(BLOCK_LABELS[e.type]||"Note")+'</span>'
+        +'<span class="blk-title">'+esc(e.title||"")+'</span></div>'
+        +'<div class="blk-b">'+(e.speaker?'<span class="blk-sp">'+esc(e.speaker)+':</span> ':"")+esc(e.body||"")+'</div></div>';
+    });
+  });
+  h+='<label class="fld">Redline (optional)</label>'
+    +'<textarea id="redline" placeholder="What to change. The forge redrafts this session with your notes honored."></textarea>'
+    +'<div class="btnrow">'
+    +'<button class="btn gold" onclick="approveSession()">Approve this session</button>'
+    +'<button class="btn" onclick="redraft()">Redraft with the redline</button>'
+    +'<button class="btn ghost" onclick="go(\'skeleton\')">Back to the skeleton</button></div>'
+    +'</div>';
+  return h;
+}
+function redraft(){
+  var r=($("redline")||{}).value||"";
+  if(!r.trim()){ alert("Write the redline first."); return; }
+  draftCurrent(r.trim());
+}
+function approveSession(){
+  S.approved[curKey()]=true;
+  var nxt=nextUnapproved();
+  save();
+  if(nxt){ S.cursor=nxt; save(); render(); draftCurrent(); }
+  else go("export");
+}
+
+/* ---- export ---- */
+function vExport(){
+  return '<div class="card">'
+    +'<h2 style="font-size:1.05rem">'+esc(S.skeleton?S.skeleton.name:"The adventure")+'</h2>'
+    +'<p class="exp-note" style="margin-top:8px">Every session is approved. Take it in the shape you need. The FateWell pack imports through Adventures, Import, and lands as your own editable copy.</p>'
+    +'<div class="btnrow">'
+    +'<button class="btn gold" onclick="downloadPack()">FateWell pack</button>'
+    +'<button class="btn" onclick="downloadMarkdown()">Markdown</button>'
+    +'<button class="btn" onclick="printModule()">Print or PDF</button>'
+    +'<button class="btn ghost" onclick="go(\'draft\')">Back to the sessions</button>'
+    +'<button class="btn ghost" onclick="resetAll()">Start a new adventure</button>'
+    +'</div>'
+    +'<div id="printBody"></div>'
+    +'</div>';
+}
+function buildPack(){
+  var npcRows=Object.keys(S.npcs).map(function(n){
+    return { id:uid(), type:"npc", name:n, desc:S.npcs[n]||"", notes:"", img:"" };
+  });
+  var npcByName={}; npcRows.forEach(function(r){ npcByName[r.name]=r.id; });
+  function entryRow(e){
+    var row={ id:uid(), title:e.title||"", type:(BLOCK_TYPES.indexOf(e.type)>=0?e.type:"general"), body:e.body||"", pinned:false, open:false };
+    if(e.type==="dialogue"&&e.speaker&&npcByName[e.speaker]) row.speaker=npcByName[e.speaker];
+    else if(e.speaker) row.body=e.speaker+": "+row.body;
+    return row;
+  }
+  var acts=S.skeleton.acts.map(function(a,ai){
+    return {
+      id:uid(), name:a.name, notes:"", img:"", desc:a.purpose||"",
+      implicit:!ADV_TYPES[S.type].acts,
+      entries:[], manualRefs:[],
+      sessions:(a.sessions||[]).map(function(ss,si){
+        var d=S.drafts[ai+"-"+si]||{scenes:[]};
+        return {
+          id:uid(), name:ss.name, notes:"", img:"", desc:ss.purpose||"", entries:[], manualRefs:[],
+          scenes:(ss.scenes||[]).map(function(sc,ci){
+            var ds=(d.scenes||[])[ci]||{entries:[]};
+            return { id:uid(), name:sc.name, notes:"", img:"", desc:sc.purpose||"",
+              entries:(ds.entries||[]).map(entryRow), manualRefs:[] };
+          })
+        };
+      })
+    };
+  });
+  return {
+    meta:{ format:"lorefell-adventure-pack-1", forge:"sagaforge" },
+    npcs:npcRows,
+    campaign:{
+      id:uid(), name:S.skeleton.name||"Forged adventure", type:S.type||"story",
+      notes:"", img:"", desc:S.pitch||"", entries:[], manualRefs:[], acts:acts
+    }
+  };
+}
+function downloadFile(name, text, mime){
+  var b=new Blob([text],{type:mime||"application/json"});
+  var a=document.createElement("a");
+  a.href=URL.createObjectURL(b); a.download=name;
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },500);
+}
+function slug(t){ return String(t||"adventure").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,""); }
+function downloadPack(){
+  downloadFile(slug(S.skeleton.name)+".lorefell-pack.json", JSON.stringify(buildPack(),null,1), "application/json");
+}
+function downloadMarkdown(){
+  var L=[];
+  L.push("# "+(S.skeleton.name||"Forged adventure"));
+  L.push("");
+  L.push("Size: "+ADV_TYPES[S.type].label+(S.world?(". World: "+S.world):"")+(S.levels?(". Levels "+S.levels):""));
+  L.push("");
+  S.skeleton.acts.forEach(function(a,ai){
+    if(ADV_TYPES[S.type].acts){ L.push("## "+a.name); if(a.purpose) L.push("_"+a.purpose+"_"); L.push(""); }
+    (a.sessions||[]).forEach(function(ss,si){
+      L.push("### "+ss.name); if(ss.purpose) L.push("_"+ss.purpose+"_"); L.push("");
+      var d=S.drafts[ai+"-"+si]||{scenes:[]};
+      (ss.scenes||[]).forEach(function(sc,ci){
+        L.push("#### "+sc.name); L.push("");
+        var ds=(d.scenes||[])[ci]||{entries:[]};
+        (ds.entries||[]).forEach(function(e){
+          L.push("**["+(BLOCK_LABELS[e.type]||"Note")+"] "+(e.title||"")+"**");
+          L.push("");
+          L.push((e.speaker?e.speaker+": ":"")+(e.body||""));
+          L.push("");
+        });
+      });
+    });
+  });
+  if(Object.keys(S.npcs).length){
+    L.push("## The cast"); L.push("");
+    Object.keys(S.npcs).forEach(function(n){ L.push("**"+n+"**. "+(S.npcs[n]||"")); L.push(""); });
+  }
+  downloadFile(slug(S.skeleton.name)+".md", L.join("\n"), "text/markdown");
+}
+function printModule(){
+  var host=$("printBody"); if(!host) return;
+  var h='<h1 style="font-family:\'Cinzel Decorative\',serif">'+esc(S.skeleton.name||"Forged adventure")+'</h1>';
+  S.skeleton.acts.forEach(function(a,ai){
+    if(ADV_TYPES[S.type].acts) h+='<h2>'+esc(a.name)+'</h2><div class="sk-purpose">'+esc(a.purpose||"")+'</div>';
+    (a.sessions||[]).forEach(function(ss,si){
+      h+='<h3>'+esc(ss.name)+'</h3><div class="sk-purpose">'+esc(ss.purpose||"")+'</div>';
+      var d=S.drafts[ai+"-"+si]||{scenes:[]};
+      (ss.scenes||[]).forEach(function(sc,ci){
+        h+='<div class="scene-h">'+esc(sc.name)+'</div>';
+        var ds=(d.scenes||[])[ci]||{entries:[]};
+        (ds.entries||[]).forEach(function(e){
+          h+='<div class="blk"><div class="blk-h"><span class="blk-t">'+esc(BLOCK_LABELS[e.type]||"Note")+'</span>'
+            +'<span class="blk-title">'+esc(e.title||"")+'</span></div>'
+            +'<div class="blk-b">'+(e.speaker?'<span class="blk-sp">'+esc(e.speaker)+':</span> ':"")+esc(e.body||"")+'</div></div>';
+        });
+      });
+    });
+  });
+  host.innerHTML=h;
+  window.print();
+  setTimeout(function(){ host.innerHTML=""; },800);
+}
+
+/* ============ height bridge ============ */
+function reportHeight(){
+  if(window.parent&&window.parent!==window){
+    window.parent.postMessage({type:"SAGA_HEIGHT",height:document.body.scrollHeight+40},"*");
+  }
+}
+new MutationObserver(function(){ reportHeight(); }).observe(document.body,{childList:true,subtree:true});
+
+render();
+reportHeight();
+</script>
+</body>
+</html>

@@ -2,6 +2,16 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## SagaForge — forge an adventure, one approval at a time
+- A new forge for LoreMasters. A guided flow runs the whole build: the pitch in a sentence, a scope interview keyed to the adventure size, a skeleton of acts, sessions, and scenes approved before any prose, then one session drafted at a time in FateWell typed blocks with approve or redline gates. Nothing is written until the structure is agreed, nothing advances until the draft is accepted.
+- Sizes are the four FateWell already knows: Tale, Story, Legacy, Chronicle, with the same recommendations and the same structure rules. Tale and Story ride an implicit act, Legacy and Chronicle carry visible acts.
+- The house voice is enforced twice, in the drafting prompt and by a scrub on every returned draft. A violation triggers one silent correction pass, and anything that survives is flagged in red for the redline.
+- NPCs are first class. The forge gathers the cast as it drafts, keeps them consistent across sessions, and exports them as library rows so dialogue color codes by speaker on import.
+- Three exports: a FateWell pack that drops straight into the existing Import as your own editable copy, a markdown module, and a print stylesheet in the navy and gold for PDF.
+- The AI runs on the shared aiForge relay over the same postMessage rails as SigilForge. Drafts persist locally, so a half built adventure survives a closed tab.
+- The Hearth's LoreMaster wall carries the SagaForge banner touchmark and routes to /the-sagaforge.
+- One paste, page-sagaforge.js, and one Wix page to create at /the-sagaforge with the embed pointed at the Pages URL.
+
 ## FateWell modals land where you clicked
 - Confirm and name dialogs, including delete and publish an adventure, were pinned to the top of the embed by a fixed backdrop. In a tall Wix iframe that top sits far from where the loremaster is looking, so the popup opened off screen. The dialog now anchors near the click, the same pattern the combat overlays already use, and stays reachable at any scroll.
 - FateWell refreshes on its own.
