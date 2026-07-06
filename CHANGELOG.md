@@ -2,6 +2,10 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## SagaForge moves off the web method to end the 504
+- The 504 is the Wix web method timeout, about 14 seconds, which a cold model call can exceed at any size. The AI call now runs through a new http function, post_aiforge, which carries a longer timeout. SagaForge fetches it directly and falls back to the old relay only if the direct call is blocked.
+- Two pastes: http-functions.js for the new endpoint, and the page code is unchanged. Confirm ANTHROPIC_API_KEY is in Secrets.
+
 ## SagaForge skeleton no longer cuts off
 - A full Legacy or Chronicle outline was hitting the token ceiling and stopping mid word, leaving the last scene half written. The skeleton budget rises to 3500 and the backend ceiling to 4000, enough for a complete outline. A guard detects a cut off tail, re asks once for the whole outline, and prunes any trailing scene fragment so it never lands as a real scene.
 - Re paste forge.web.js for the raised ceiling.

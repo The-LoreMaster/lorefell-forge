@@ -1,5 +1,6 @@
 import { ok, notFound, serverError, badRequest } from 'wix-http-functions';
 import wixData from 'wix-data';
+import { getSecret } from 'wix-secrets-backend';
 
 // GET /_functions/embed?slug=sigilforge
 // Returns the stored SiteEmbeds.html verbatim as a full HTML document.
@@ -50,6 +51,50 @@ export function get_embed(request) {
         });
     })
     .catch((err) => serverError({ headers: htmlHeaders(), body: '<!doctype html><meta charset="utf-8"><p>' + String(err) + '</p>' }));
+}
+
+// POST /_functions/aiforge
+// Body: { system, messages, max_tokens, model }
+// HTTP functions carry a longer timeout than web methods, so this path avoids
+// the gateway 504 that a slow model call triggers through a webMethod.
+export function post_aiforge(request) {
+  return request.body.json()
+    .then((opts) => {
+      opts = opts || {};
+      return getSecret('ANTHROPIC_API_KEY').then((key) => {
+        return fetch('https://api.anthropic.com/v1/messages', {
+          method: 'post',
+          headers: {
+            'content-type': 'application/json',
+            'x-api-key': key,
+            'anthropic-version': '2023-06-01'
+          },
+          body: JSON.stringify({
+            model: opts.model === 'fast' ? 'claude-haiku-4-5-20251001' : 'claude-sonnet-4-6',
+            max_tokens: Math.min(opts.max_tokens || 700, 4000),
+            system: opts.system || '',
+            messages: Array.isArray(opts.messages) ? opts.messages : []
+          })
+        }).then((res) => {
+          if (!res.ok) {
+            return res.text().then((b) => ok({ headers: jsonHeaders(), body: { ok: false, status: res.status, error: (b || '').slice(0, 240) } }));
+          }
+          return res.json().then((data) => {
+            const text = (data.content || []).filter((x) => x.type === 'text').map((x) => x.text).join('');
+            return ok({ headers: jsonHeaders(), body: { ok: true, text: text } });
+          });
+        });
+      });
+    })
+    .catch((err) => serverError({ headers: jsonHeaders(), body: { ok: false, error: String(err) } }));
+}
+
+function jsonHeaders() {
+  return {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Cache-Control': 'no-cache'
+  };
 }
 
 function htmlHeaders() {

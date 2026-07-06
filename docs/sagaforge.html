@@ -140,13 +140,34 @@ window.addEventListener("message",function(ev){
   if(!m.ok){ p.reject(new Error("relay "+(m.status||"")+(m.error?(": "+m.error):""))); return; }
   p.resolve(m.text||"");
 });
+var AI_ENDPOINT="https://www.lorefell.com/_functions/aiforge";
 function aiCall(system,messages,maxTokens){
+  /* Call the http-function directly. HTTP functions carry a longer timeout than
+     web methods, which removes the gateway 504 the postMessage relay hit. Falls
+     back to the relay only if the direct call cannot be made. */
+  var payload={system:system,messages:messages,max_tokens:maxTokens||1400,model:"fast"};
+  return fetch(AI_ENDPOINT,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)})
+    .then(function(res){
+      if(res.status===429) throw {rate:true};
+      return res.json().catch(function(){ throw new Error("The forge returned nothing readable."); });
+    })
+    .then(function(d){
+      if(!d||d.ok===false) throw new Error("relay: "+((d&&d.error)||(d&&d.status)||"unknown"));
+      return d.text||"";
+    })
+    .catch(function(e){
+      if(e&&e.rate) throw e;
+      /* fall back to the parent relay if the direct fetch was blocked */
+      return aiCallRelay(system,messages,maxTokens);
+    });
+}
+function aiCallRelay(system,messages,maxTokens){
   return new Promise(function(resolve,reject){
-    if(!(window.parent&&window.parent!==window)){ reject(new Error("The forge answers on the live site.")); return; }
+    if(!(window.parent&&window.parent!==window)){ reject(new Error("The forge could not be reached.")); return; }
     var reqId=++_aiReq;
     _aiPending[reqId]={resolve:resolve,reject:reject};
     window.parent.postMessage({type:"LOREFELL_AI_FORGE",reqId:reqId,payload:{system:system,messages:messages,max_tokens:maxTokens||1400,model:"fast"}},"*");
-    setTimeout(function(){ if(_aiPending[reqId]){ delete _aiPending[reqId]; reject(new Error("The forge did not answer in time.")); } },60000);
+    setTimeout(function(){ if(_aiPending[reqId]){ delete _aiPending[reqId]; reject(new Error("The forge did not answer in time.")); } },90000);
   });
 }
 function parseAiJson(text){
