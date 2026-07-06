@@ -17,6 +17,12 @@ $w.onReady(function () {
       return;
     }
 
+    if (msg.type === 'SAGA_SCROLLTOP') {
+      // Bring the page back to the embed's top when the flow advances.
+      try { $w(EMBED).scrollTo(); } catch (e) {}
+      return;
+    }
+
     if (msg.type === 'LOREFELL_AI_FORGE') {
       const reqId = msg.reqId;
       try {

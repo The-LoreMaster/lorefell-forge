@@ -2,6 +2,10 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## SagaForge scrolls to the top on each step
+- Advancing the flow now returns the page to the top of the embed, reaching the parent page rather than only the iframe. Covers the step buttons and the two AI transitions, drafting a session and moving to the next.
+- The relay unreachable message is a setup signal, not a tool bug: the page code is not yet relaying. Confirm page-sagaforge.js is pasted and published, the embed element id matches EMBED in the paste, and ANTHROPIC_API_KEY is in this site's Secrets.
+
 ## SagaForge — forge an adventure, one approval at a time
 - A new forge for LoreMasters. A guided flow runs the whole build: the pitch in a sentence, a scope interview keyed to the adventure size, a skeleton of acts, sessions, and scenes approved before any prose, then one session drafted at a time in FateWell typed blocks with approve or redline gates. Nothing is written until the structure is agreed, nothing advances until the draft is accepted.
 - Sizes are the four FateWell already knows: Tale, Story, Legacy, Chronicle, with the same recommendations and the same structure rules. Tale and Story ride an implicit act, Legacy and Chronicle carry visible acts.
