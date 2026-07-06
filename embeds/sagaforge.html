@@ -100,8 +100,8 @@ textarea:focus,input:focus{ outline:none; border-color:var(--goldline); }
 <script>
 "use strict";
 /* ============ state ============ */
-var STEPS=["pitch","scope","skeleton","draft","export"];
-var STEP_LABELS={pitch:"Pitch",scope:"Scope",skeleton:"Skeleton",draft:"Sessions",export:"Export"};
+var STEPS=["pitch","scope","premise","skeleton","draft","export"];
+var STEP_LABELS={pitch:"Pitch",scope:"Scope",premise:"Premise",skeleton:"Skeleton",draft:"Sessions",export:"Export"};
 var ADV_TYPES={
   tale:{label:"Tale",len:"recommended one session",blurb:"A single sitting. One deed or rumor, complete on its own.",acts:false,oneSession:true},
   story:{label:"Story",len:"recommended 3 to 6 sessions",blurb:"A short, focused arc for a chosen few Fell. It burns bright, then closes.",acts:false},
@@ -115,6 +115,7 @@ var S=load()||{
   step:"pitch",
   pitch:"",
   type:"", world:"", tone:"", hook:"", canon:"", levels:"", sessTarget:"",
+  premise:null,           /* {situation, intrusion, opposition, clock, cost} */
   skeleton:null,          /* {name, acts:[{name,purpose,sessions:[{name,purpose,scenes:[{name,purpose}]}]}]} */
   drafts:{},              /* "a-s" -> {scenes:[{name, entries:[{type,title,body,speaker}]}], npcs:[{name,desc}]} */
   approved:{},            /* "a-s" -> true */
@@ -237,6 +238,14 @@ function parseSkeleton(text){
 }
 function skeletonUserMsg(){
   var lines=["Pitch: "+S.pitch];
+  if(S.premise){
+    lines.push("Build the whole adventure from this premise, honor every line:");
+    if(S.premise.situation) lines.push("Situation: "+S.premise.situation);
+    if(S.premise.intrusion) lines.push("Intrusion: "+S.premise.intrusion);
+    if(S.premise.opposition) lines.push("Opposition, use this for the act threats and the antagonist: "+S.premise.opposition);
+    if(S.premise.clock) lines.push("Clock, this is what worsens while they delay: "+S.premise.clock);
+    if(S.premise.cost) lines.push("Cost, the ending must demand this: "+S.premise.cost);
+  }
   if(S.world) lines.push("World or Stratum: "+S.world);
   if(S.tone) lines.push("Tone: "+S.tone);
   if(S.hook) lines.push("The hook: "+S.hook);
@@ -334,6 +343,7 @@ function render(){
   var st=$("stage");
   if(S.step==="pitch") st.innerHTML=vPitch();
   else if(S.step==="scope") st.innerHTML=vScope();
+  else if(S.step==="premise") st.innerHTML=vPremise();
   else if(S.step==="skeleton") st.innerHTML=vSkeleton();
   else if(S.step==="draft") st.innerHTML=vDraft();
   else st.innerHTML=vExport();
@@ -395,6 +405,80 @@ function fromScope(){
   S.levels=($("q-levels")||{}).value||""; S.canon=($("q-canon")||{}).value||""; S.sessTarget=($("q-sess")||{}).value||"";
   S.world=S.world.trim(); S.tone=S.tone.trim(); S.hook=S.hook.trim(); S.levels=S.levels.trim(); S.canon=S.canon.trim(); S.sessTarget=S.sessTarget.trim();
   save();
+  forgePremise();
+}
+
+/* ---- premise: five lines that define the storyline before any structure ---- */
+function premiseSystem(){
+  return "You sharpen a LoreFell adventure premise into five lines. LoreFell is a dark and weird fantasy TTRPG. Conflict and story come first. "+voiceRules()
+    +" Output plain text only, no JSON, no code fences, exactly these five lines:\n"
+    +"SITUATION: <the world before the Fell arrive, one sentence, present tense, already wrong>\n"
+    +"INTRUSION: <the specific event that pulls the Fell in, not the general problem>\n"
+    +"OPPOSITION: <who wants the situation to continue and why they are right from where they stand>\n"
+    +"CLOCK: <what visibly worsens while the Fell hesitate>\n"
+    +"COST: <what winning will demand of the Fell>\n"
+    +"Make the opposition defensible, never generic evil. Make the cost real, victory is never free. Be concrete and specific, name things.";
+}
+function premiseUserMsg(){
+  var lines=["Pitch: "+S.pitch,"Size: "+ADV_TYPES[S.type].label];
+  if(S.world) lines.push("World or Stratum: "+S.world);
+  if(S.tone) lines.push("Tone: "+S.tone);
+  if(S.hook) lines.push("The hook they gave: "+S.hook);
+  if(S.canon) lines.push("Canon ties: "+S.canon);
+  return lines.join("\n");
+}
+function parsePremise(text){
+  var pr={situation:"",intrusion:"",opposition:"",clock:"",cost:""};
+  text.split(/\r?\n/).forEach(function(ln){
+    var m=ln.match(/^\s*(SITUATION|INTRUSION|OPPOSITION|CLOCK|COST)\s*:\s*(.*)$/i);
+    if(m) pr[m[1].toLowerCase()]=m[2].trim();
+  });
+  return pr;
+}
+function forgePremise(){
+  $("stage").innerHTML='<div class="card wait"><span class="spin"></span>Sharpening the premise. The storyline before the structure.</div>';
+  var retried=false;
+  function ask(extra){ return aiCall(premiseSystem(),[{role:"user",content:premiseUserMsg()+(extra||"")}],700); }
+  function handle(text){
+    var pr=parsePremise(text);
+    var filled=pr.situation&&pr.opposition&&pr.cost;
+    if(!filled){
+      if(!retried){ retried=true; return ask("\nUse the exact SITUATION, INTRUSION, OPPOSITION, CLOCK, COST line format, all five present.").then(handle,fail); }
+      throw new Error("The premise came back thin.");
+    }
+    S.premise=pr; save(); go("premise");
+  }
+  function fail(e){
+    $("stage").innerHTML='<div class="card"><div class="err">'+esc((e&&e.message)||"The forge could not be reached.")+'</div>'
+      +'<div class="btnrow"><button class="btn gold" onclick="forgePremise()">Try again</button>'
+      +'<button class="btn ghost" onclick="go(\'scope\')">Back</button></div></div>';
+  }
+  ask("").then(handle,fail);
+}
+function vPremise(){
+  var pr=S.premise||{situation:"",intrusion:"",opposition:"",clock:"",cost:""};
+  function row(key,label,help){
+    return '<label class="fld">'+label+'</label>'
+      +'<textarea data-prem="'+key+'" style="min-height:56px">'+esc(pr[key]||"")+'</textarea>'
+      +'<div class="hint">'+help+'</div>';
+  }
+  return '<div class="card">'
+    +'<div class="hint" style="margin-bottom:10px">Five lines that decide whether the storyline holds. Edit any of them. The skeleton is built from these.</div>'
+    +row("situation","Situation","The world before the Fell arrive, already wrong.")
+    +row("intrusion","Intrusion","The specific event that pulls them in.")
+    +row("opposition","Opposition","Who wants it to continue, and why they are right from where they stand.")
+    +row("clock","Clock","What worsens while the Fell hesitate.")
+    +row("cost","Cost","What winning will demand.")
+    +'<div class="btnrow">'
+    +'<button class="btn gold" onclick="fromPremise()">Forge the skeleton</button>'
+    +'<button class="btn ghost" onclick="forgePremise()">Sharpen it again</button>'
+    +'<button class="btn ghost" onclick="go(\'scope\')">Back</button></div>'
+    +'</div>';
+}
+function fromPremise(){
+  var pr={};
+  document.querySelectorAll("[data-prem]").forEach(function(el){ pr[el.getAttribute("data-prem")]=el.value.trim(); });
+  S.premise=pr; save();
   forgeSkeleton();
 }
 
