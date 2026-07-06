@@ -32,6 +32,7 @@ $w.onReady(function () {
 
     if (msg.type === 'LOREFELL_AI_FORGE') {
       const reqId = msg.reqId;
+      let httpErr = '';
       try {
         // primary: the http-function, which carries the long timeout
         const res = await fetch(AI_URL, {
@@ -39,17 +40,22 @@ $w.onReady(function () {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(msg.payload || {})
         });
-        const r = await res.json();
-        embed.postMessage({ type: 'LOREFELL_AI_FORGE_RESULT', reqId: reqId, ok: !!(r && r.ok), text: (r && r.text) || '', status: (r && r.status) || 0, error: (r && r.error) || '' });
-      } catch (e1) {
-        // fallback: the web method, in case the http-function is not published yet
-        try {
-          const r = await aiForge(msg.payload || {});
+        if (!res.ok) { httpErr = 'http-fn status ' + res.status; }
+        else {
+          const r = await res.json();
           embed.postMessage({ type: 'LOREFELL_AI_FORGE_RESULT', reqId: reqId, ok: !!(r && r.ok), text: (r && r.text) || '', status: (r && r.status) || 0, error: (r && r.error) || '' });
-        } catch (e2) {
-          const detail = (e2 && (e2.message || e2.toString())) || 'unknown';
-          embed.postMessage({ type: 'LOREFELL_AI_FORGE_RESULT', reqId: reqId, ok: false, error: 'relay: ' + detail });
+          return;
         }
+      } catch (e1) {
+        httpErr = (e1 && (e1.message || e1.toString())) || 'fetch threw';
+      }
+      // fallback: the web method
+      try {
+        const r = await aiForge(msg.payload || {});
+        embed.postMessage({ type: 'LOREFELL_AI_FORGE_RESULT', reqId: reqId, ok: !!(r && r.ok), text: (r && r.text) || '', status: (r && r.status) || 0, error: (r && r.error) || '' });
+      } catch (e2) {
+        const detail = (e2 && (e2.message || e2.toString())) || 'unknown';
+        embed.postMessage({ type: 'LOREFELL_AI_FORGE_RESULT', reqId: reqId, ok: false, error: 'relay: ' + detail + ' | http-fn: ' + httpErr });
       }
       return;
     }
