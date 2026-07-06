@@ -2,6 +2,11 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## SagaForge drafts scene by scene to beat the 504
+- The session draft was one large AI call, which ran past the Wix web module timeout and returned a 504 gateway error. Drafting now runs one scene at a time in small sequential calls, each well under the limit, accumulated into the session before the approve gate. The approve and redline flow is unchanged.
+- A scene that fails can be retried on its own, resuming rather than restarting the session.
+- SigilForge worked because its single call caps at 700 tokens; SagaForge sessions were far larger.
+
 ## SagaForge scrolls to the top on each step
 - Advancing the flow now returns the page to the top of the embed, reaching the parent page rather than only the iframe. Covers the step buttons and the two AI transitions, drafting a session and moving to the next.
 - The relay unreachable message is a setup signal, not a tool bug: the page code is not yet relaying. Confirm page-sagaforge.js is pasted and published, the embed element id matches EMBED in the paste, and ANTHROPIC_API_KEY is in this site's Secrets.

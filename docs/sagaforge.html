@@ -199,31 +199,27 @@ function skeletonUserMsg(){
   return lines.join("\n");
 }
 function draftSystem(){
-  return "You draft LoreFell adventure sessions as typed blocks for the FateWell table runner. "+voiceRules()
-    +" Respond with STRICT JSON only. Shape: "
-    +'{"scenes":[{"name":"scene name","entries":[{"type":"one of readaloud|dialogue|crucible|lorecheck|clue|quest|secret|beat|reminder|general","title":"short descriptive title","body":"the text","speaker":"NPC name, dialogue only"}]}],"npcs":[{"name":"NPC name","desc":"one line for the LoreMaster"}]}. '
+  return "You draft one scene of a LoreFell adventure as typed blocks for the FateWell table runner. "+voiceRules()
+    +" Respond with STRICT JSON only, a single scene. Shape: "
+    +'{"entries":[{"type":"one of readaloud|dialogue|crucible|lorecheck|clue|quest|secret|beat|reminder|general","title":"short descriptive title","body":"the text","speaker":"NPC name, dialogue only"}],"npcs":[{"name":"NPC name","desc":"one line for the LoreMaster"}]}. '
     +"Rules for blocks: every block carries a descriptive title, never a bare speaker name. One speaker per dialogue block, split exchanges into separate blocks, and name the speaker in the speaker field. "
     +"Read-aloud is verbatim box text. Crucible marks a fight or hard trial. Lore Check names what a successful check reveals. Clue is a discoverable pointer. Quest is a task the party can take. Secret is for the LoreMaster only. Beat is a structural turn. Reminder is a table nudge. Note is anything else. "
     +"Player characters never appear in the module, it runs cold for any LoreMaster. Never place questions, options, or notes to the author inside any block.";
 }
-function draftUserMsg(a,si,redline){
-  var act=S.skeleton.acts[a], sess=act.sessions[si];
+function sceneUserMsg(a,si,ci,redline){
+  var act=S.skeleton.acts[a], sess=act.sessions[si], scene=sess.scenes[ci];
   var lines=["Adventure: "+S.skeleton.name,"Pitch: "+S.pitch,"Size: "+ADV_TYPES[S.type].label];
   if(S.world) lines.push("World or Stratum: "+S.world);
   if(S.tone) lines.push("Tone: "+S.tone);
   lines.push("Act: "+act.name+" ("+act.purpose+")");
-  lines.push("Draft this session: "+sess.name+" ("+sess.purpose+")");
-  lines.push("Its scenes, in order:");
-  sess.scenes.forEach(function(sc,i){ lines.push((i+1)+". "+sc.name+": "+sc.purpose); });
-  var prior=[];
-  S.skeleton.acts.forEach(function(pa,pi){ pa.sessions.forEach(function(ps,psi){
-    if(S.approved[pi+"-"+psi]) prior.push(ps.name+" ("+ps.purpose+")");
-  }); });
-  if(prior.length) lines.push("Already approved sessions, keep continuity with them: "+prior.join(" / "));
+  lines.push("Session: "+sess.name+" ("+sess.purpose+")");
+  lines.push("Where this scene sits: scene "+(ci+1)+" of "+sess.scenes.length+".");
+  lines.push("Draft only this scene: "+scene.name+" ("+scene.purpose+")");
   var known=Object.keys(S.npcs);
   if(known.length) lines.push("Known NPCs so far, reuse them where natural: "+known.join(", "));
-  if(redline) lines.push("The LoreMaster's redline on the previous draft, honor it fully: "+redline);
-  lines.push("Give every scene 3 to 6 blocks. Open the session with a readaloud.");
+  if(ci===0) lines.push("This opens the session, lead with a readaloud.");
+  if(redline) lines.push("The LoreMaster's redline on the session, honor it fully: "+redline);
+  lines.push("Give this scene 3 to 6 blocks.");
   return lines.join("\n");
 }
 
@@ -390,26 +386,47 @@ function nextUnapproved(){
   return null;
 }
 function draftCurrent(redline){
+  /* Draft the session one scene at a time. Small sequential calls stay well under
+     the Wix web module timeout, which a single large session call was blowing (504). */
   var a=S.cursor.a, si=S.cursor.s;
-  $("stage").innerHTML='<div class="card wait"><span class="spin"></span>Drafting '+esc(S.skeleton.acts[a].sessions[si].name)+'. One session at a time.</div>';
-  aiCall(draftSystem(),[{role:"user",content:draftUserMsg(a,si,redline)}],3500)
-  .then(function(text){
-    var d=parseAiJson(text);
-    if(!d||!Array.isArray(d.scenes)) throw new Error("The draft came back hollow.");
-    var hits=scrubDraft(d);
-    if(hits.length&&!redline){
-      /* one silent re-ask on a voice violation */
-      return draftCurrent("Remove every "+hits.join(", ")+" from the text. The house voice bans them.");
+  var sess=S.skeleton.acts[a].sessions[si];
+  var built={scenes:[], flags:[]};
+  var total=sess.scenes.length;
+  function drawScene(ci){
+    if(ci>=total){
+      S.drafts[curKey()]={scenes:built.scenes,flags:built.flags};
+      save(); render(); scrollTop();
+      return;
     }
-    S.drafts[curKey()]={scenes:d.scenes,npcs:d.npcs||[],flags:hits};
-    (d.npcs||[]).forEach(function(n){ if(n&&n.name&&!S.npcs[n.name]) S.npcs[n.name]=n.desc||""; });
-    save(); render(); scrollTop();
-  })
-  .catch(function(e){
-    $("stage").innerHTML='<div class="card"><div class="err">'+esc(e&&e.rate?"The forge is catching its breath. Try again in a minute.":(e&&e.message)||"The forge could not be reached.")+'</div>'
-      +'<div class="btnrow"><button class="btn gold" onclick="draftCurrent()">Try again</button>'
-      +'<button class="btn ghost" onclick="go(\'skeleton\')">Back to the skeleton</button></div></div>';
-  });
+    $("stage").innerHTML='<div class="card wait"><span class="spin"></span>Drafting '+esc(sess.name)+', scene '+(ci+1)+' of '+total+'. '+esc(sess.scenes[ci].name)+'.</div>';
+    aiCall(draftSystem(),[{role:"user",content:sceneUserMsg(a,si,ci,redline)}],1100)
+    .then(function(text){
+      var d=parseAiJson(text);
+      var entries=Array.isArray(d.entries)?d.entries:(d.scenes&&d.scenes[0]&&d.scenes[0].entries)||[];
+      var scene={name:sess.scenes[ci].name, entries:entries};
+      var hits=[];
+      entries.forEach(function(e){ scrubHits((e.title||"")+" "+(e.body||"")).forEach(function(h){ if(hits.indexOf(h)<0) hits.push(h); }); });
+      scene.entries=entries;
+      built.scenes.push(scene);
+      hits.forEach(function(h){ if(built.flags.indexOf(h)<0) built.flags.push(h); });
+      (d.npcs||[]).forEach(function(n){ if(n&&n.name&&!S.npcs[n.name]) S.npcs[n.name]=n.desc||""; });
+      save();
+      drawScene(ci+1);
+    })
+    .catch(function(e){
+      var msg=e&&e.rate?"The forge is catching its breath. Try again in a minute.":(e&&e.message)||"The forge could not be reached.";
+      $("stage").innerHTML='<div class="card"><div class="err">Scene '+(ci+1)+' of '+total+': '+esc(msg)+'</div>'
+        +'<div class="btnrow"><button class="btn gold" onclick="resumeDraft('+ci+')">Try this scene again</button>'
+        +'<button class="btn ghost" onclick="go(\'skeleton\')">Back to the skeleton</button></div></div>';
+      /* stash partial so a retry resumes rather than restarts */
+      window._resume={a:a,si:si,built:built,redline:redline,drawScene:drawScene};
+    });
+  }
+  drawScene(0);
+}
+function resumeDraft(ci){
+  var r=window._resume; if(!r){ draftCurrent(); return; }
+  r.drawScene(ci);
 }
 function vDraft(){
   var a=S.cursor.a, si=S.cursor.s;
@@ -424,7 +441,7 @@ function vDraft(){
     return h;
   }
   if(d.flags&&d.flags.length){
-    h+='<div class="flag">The draft still carries '+esc(d.flags.join(", "))+' after one correction pass. Redline it or approve with care.</div>';
+    h+='<div class="flag">This draft carries '+esc(d.flags.join(", "))+'. Redline to clear it, or approve with care.</div>';
   }
   d.scenes.forEach(function(sc){
     h+='<div class="scene-h">'+esc(sc.name)+'</div>';
