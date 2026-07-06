@@ -2,6 +2,10 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## SagaForge uses the fast model to beat the Wix timeout
+- The 504 is the Wix web method execution wall, not token count. A cold Sonnet call to generate prose can run past it. SagaForge now requests the faster model through a new model flag on aiForge, which returns inside the window. The stronger model stays the default for every other forge.
+- Scroll to top still requires the updated page-sagaforge.js from the prior change to be pasted, the tool side drives all scrollers but the parent page jump depends on that handler.
+
 ## SagaForge survives a malformed draft, and scrolls up reliably
 - A scene sometimes came back as JSON with a raw newline or a trailing comma inside it, which killed the whole parse. The parser now repairs the errors models actually make, unescaped newlines and tabs inside strings, trailing commas, smart quotes, before parsing. If it still cannot read the shape, the scene is asked once more for valid JSON before surfacing an error.
 - The scroll to top now drives every possible scroller, the iframe window, the document root, the body, and a top anchor it scrolls into view, alongside the parent page message. It no longer depends on the parent handler alone.
