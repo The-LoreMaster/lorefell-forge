@@ -225,12 +225,44 @@ function skeletonUserMsg(){
   return lines.join("\n");
 }
 function draftSystem(){
+  /* Delimited text, never JSON. Prose is full of quotes, apostrophes, and
+     newlines that break JSON string values no matter how it is escaped, so the
+     model emits marked blocks and the tool parses text. Nothing to escape. */
   return "You draft one scene of a LoreFell adventure as typed blocks for the FateWell table runner. "+voiceRules()
-    +" Respond with STRICT JSON only, a single scene. Shape: "
-    +'{"entries":[{"type":"one of readaloud|dialogue|crucible|lorecheck|clue|quest|secret|beat|reminder|general","title":"short descriptive title","body":"the text","speaker":"NPC name, dialogue only"}],"npcs":[{"name":"NPC name","desc":"one line for the LoreMaster"}]}. '
-    +"Rules for blocks: every block carries a descriptive title, never a bare speaker name. One speaker per dialogue block, split exchanges into separate blocks, and name the speaker in the speaker field. "
+    +" Output plain text in this exact block format, nothing else, no JSON, no code fences:\n"
+    +"@@BLOCK\ntype: <one of readaloud|dialogue|crucible|lorecheck|clue|quest|secret|beat|reminder|general>\ntitle: <short descriptive title>\nspeaker: <NPC name, dialogue blocks only, otherwise leave blank>\nbody:\n<the block text, may run several lines>\n@@END\n"
+    +"Repeat that block 3 to 6 times for the scene. After the last block, if any new NPC appeared, add lines in the form:\n@@NPC\nname: <NPC name>\ndesc: <one line for the LoreMaster>\n@@END\n"
+    +"Rules: every block carries a descriptive title, never a bare speaker name. One speaker per dialogue block, split exchanges into separate blocks. "
     +"Read-aloud is verbatim box text. Crucible marks a fight or hard trial. Lore Check names what a successful check reveals. Clue is a discoverable pointer. Quest is a task the party can take. Secret is for the LoreMaster only. Beat is a structural turn. Reminder is a table nudge. Note is anything else. "
     +"Player characters never appear in the module, it runs cold for any LoreMaster. Never place questions, options, or notes to the author inside any block.";
+}
+/* parse the delimited block format into {entries, npcs} */
+function parseBlocks(text){
+  var entries=[], npcs=[];
+  var chunks=text.split(/@@BLOCK|@@NPC/);
+  var markers=text.match(/@@BLOCK|@@NPC/g)||[];
+  for(var i=1;i<chunks.length;i++){
+    var isNpc=(markers[i-1]==="@@NPC");
+    var body=chunks[i].split("@@END")[0];
+    var lines=body.split(/\r?\n/);
+    var rec={}, key=null, bodyLines=[], inBody=false;
+    for(var j=0;j<lines.length;j++){
+      var ln=lines[j];
+      if(inBody){ bodyLines.push(ln); continue; }
+      var m=ln.match(/^(type|title|speaker|name|desc|body)\s*:\s*(.*)$/i);
+      if(m){
+        key=m[1].toLowerCase();
+        if(key==="body"){ inBody=true; if(m[2]) bodyLines.push(m[2]); }
+        else rec[key]=m[2].trim();
+      }
+    }
+    rec.body=bodyLines.join("\n").trim();
+    if(isNpc){ if(rec.name) npcs.push({name:rec.name,desc:rec.desc||""}); }
+    else if(rec.type||rec.body){
+      entries.push({ type:(rec.type||"general").toLowerCase(), title:rec.title||"", body:rec.body||"", speaker:rec.speaker||"" });
+    }
+  }
+  return { entries:entries, npcs:npcs };
 }
 function sceneUserMsg(a,si,ci,redline){
   var act=S.skeleton.acts[a], sess=act.sessions[si], scene=sess.scenes[ci];
@@ -440,13 +472,12 @@ function draftCurrent(redline){
       return aiCall(draftSystem(),[{role:"user",content:msg}],1100);
     }
     function handle(text){
-      var d;
-      try{ d=parseAiJson(text); }
-      catch(pe){
-        if(!jsonRetried){ jsonRetried=true; return ask("\nReturn valid JSON only. Escape every quote and newline inside string values. No trailing commas.").then(handle,failScene); }
-        throw new Error("The forge returned a shape that could not be read.");
+      var d=parseBlocks(text);
+      if(!d.entries.length){
+        if(!jsonRetried){ jsonRetried=true; return ask("\nUse the exact @@BLOCK format. Each block starts with @@BLOCK and ends with @@END.").then(handle,failScene); }
+        throw new Error("The forge returned nothing readable for this scene.");
       }
-      var entries=Array.isArray(d.entries)?d.entries:(d.scenes&&d.scenes[0]&&d.scenes[0].entries)||[];
+      var entries=d.entries;
       var scene={name:sess.scenes[ci].name, entries:entries};
       var hits=[];
       entries.forEach(function(e){ scrubHits((e.title||"")+" "+(e.body||"")).forEach(function(h){ if(hits.indexOf(h)<0) hits.push(h); }); });

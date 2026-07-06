@@ -2,6 +2,10 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## SagaForge stops fighting JSON, drafts in delimited blocks
+- The recurring parse error was structural. Asking the model to pack multi paragraph prose into JSON string values means every quote, apostrophe, and newline is a chance to break the shape, and no repair pass wins that reliably. Scenes now come back as marked text blocks, @@BLOCK to @@END, which the tool parses as text. Prose can contain anything, there is nothing to escape.
+- Verified against prose with embedded quotes, apostrophes, colons, and line breaks. The skeleton still uses JSON since it is short and structural.
+
 ## SagaForge uses the fast model to beat the Wix timeout
 - The 504 is the Wix web method execution wall, not token count. A cold Sonnet call to generate prose can run past it. SagaForge now requests the faster model through a new model flag on aiForge, which returns inside the window. The stronger model stays the default for every other forge.
 - Scroll to top still requires the updated page-sagaforge.js from the prior change to be pasted, the tool side drives all scrollers but the parent page jump depends on that handler.
