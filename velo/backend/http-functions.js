@@ -58,6 +58,10 @@ export function get_embed(request) {
 // Body: { system, messages, max_tokens, model }
 // HTTP functions carry a longer timeout than web methods, so this path avoids
 // the gateway 504 that a slow model call triggers through a webMethod.
+export function get_aiforge(request) {
+  // GET returns a version stamp so you can confirm the deployed build in a browser
+  return ok({ headers: jsonHeaders(), body: { ok: true, version: 'aiforge-v2-wixfetch-guard', hint: 'POST here with {system,messages,max_tokens,model} to generate' } });
+}
 export function post_aiforge(request) {
   return request.body.json()
     .then((opts) => {
