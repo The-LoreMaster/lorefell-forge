@@ -87,6 +87,7 @@ textarea:focus,input:focus{ outline:none; border-color:var(--goldline); }
 </head>
 <body>
 
+<div id="topAnchor"></div>
 <div class="crest noprint">
   <h1>SagaForge</h1>
   <div class="sub">Forge an adventure, one approval at a time. It exports straight into FateWell.</div>
@@ -151,7 +152,32 @@ function parseAiJson(text){
   var t=text.replace(/```json/gi,"").replace(/```/g,"").trim();
   var a=t.indexOf("{"), b=t.lastIndexOf("}");
   if(a<0||b<0) throw new Error("The forge answered without a shape.");
-  return JSON.parse(t.slice(a,b+1));
+  var raw=t.slice(a,b+1);
+  try{ return JSON.parse(raw); }catch(e1){}
+  /* repair the errors models actually make: smart quotes, trailing commas,
+     and raw newlines or tabs sitting inside string values */
+  var fixed=raw
+    .replace(/[\u201c\u201d]/g,'\\"').replace(/[\u2018\u2019]/g,"'")
+    .replace(/,\s*([}\]])/g,"$1");
+  fixed=repairNewlinesInStrings(fixed);
+  return JSON.parse(fixed);
+}
+/* walk the JSON and escape any literal control chars that fall inside a string */
+function repairNewlinesInStrings(s){
+  var out="", inStr=false, esc=false;
+  for(var i=0;i<s.length;i++){
+    var c=s[i];
+    if(esc){ out+=c; esc=false; continue; }
+    if(c==="\\"){ out+=c; esc=true; continue; }
+    if(c==='"'){ inStr=!inStr; out+=c; continue; }
+    if(inStr){
+      if(c==="\n"){ out+="\\n"; continue; }
+      if(c==="\r"){ out+="\\r"; continue; }
+      if(c==="\t"){ out+="\\t"; continue; }
+    }
+    out+=c;
+  }
+  return out;
 }
 
 /* ============ voice guard ============ */
@@ -232,7 +258,16 @@ function renderSteps(){
   $("steps").innerHTML=h;
 }
 function scrollTop(){
+  /* scroll every surface that might be the scroller: the iframe window, its
+     document root, the body, and the parent page via the bridge. Also drop an
+     anchor at the top of the stage and focus it so the browser jumps there even
+     when the embed height is fixed by Wix. */
   try{ window.scrollTo(0,0); }catch(e){}
+  try{ document.documentElement.scrollTop=0; document.body.scrollTop=0; }catch(e){}
+  try{
+    var top=document.getElementById("topAnchor");
+    if(top&&top.scrollIntoView) top.scrollIntoView({block:"start"});
+  }catch(e){}
   if(window.parent&&window.parent!==window){
     window.parent.postMessage({type:"SAGA_SCROLLTOP"},"*");
   }
@@ -399,9 +434,18 @@ function draftCurrent(redline){
       return;
     }
     $("stage").innerHTML='<div class="card wait"><span class="spin"></span>Drafting '+esc(sess.name)+', scene '+(ci+1)+' of '+total+'. '+esc(sess.scenes[ci].name)+'.</div>';
-    aiCall(draftSystem(),[{role:"user",content:sceneUserMsg(a,si,ci,redline)}],1100)
-    .then(function(text){
-      var d=parseAiJson(text);
+    var jsonRetried=false;
+    function ask(extra){
+      var msg=sceneUserMsg(a,si,ci,redline)+(extra||"");
+      return aiCall(draftSystem(),[{role:"user",content:msg}],1100);
+    }
+    function handle(text){
+      var d;
+      try{ d=parseAiJson(text); }
+      catch(pe){
+        if(!jsonRetried){ jsonRetried=true; return ask("\nReturn valid JSON only. Escape every quote and newline inside string values. No trailing commas.").then(handle,failScene); }
+        throw new Error("The forge returned a shape that could not be read.");
+      }
       var entries=Array.isArray(d.entries)?d.entries:(d.scenes&&d.scenes[0]&&d.scenes[0].entries)||[];
       var scene={name:sess.scenes[ci].name, entries:entries};
       var hits=[];
@@ -412,15 +456,15 @@ function draftCurrent(redline){
       (d.npcs||[]).forEach(function(n){ if(n&&n.name&&!S.npcs[n.name]) S.npcs[n.name]=n.desc||""; });
       save();
       drawScene(ci+1);
-    })
-    .catch(function(e){
+    }
+    function failScene(e){
       var msg=e&&e.rate?"The forge is catching its breath. Try again in a minute.":(e&&e.message)||"The forge could not be reached.";
       $("stage").innerHTML='<div class="card"><div class="err">Scene '+(ci+1)+' of '+total+': '+esc(msg)+'</div>'
         +'<div class="btnrow"><button class="btn gold" onclick="resumeDraft('+ci+')">Try this scene again</button>'
         +'<button class="btn ghost" onclick="go(\'skeleton\')">Back to the skeleton</button></div></div>';
-      /* stash partial so a retry resumes rather than restarts */
       window._resume={a:a,si:si,built:built,redline:redline,drawScene:drawScene};
-    });
+    }
+    ask("").then(handle,failScene);
   }
   drawScene(0);
 }

@@ -2,6 +2,10 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## SagaForge survives a malformed draft, and scrolls up reliably
+- A scene sometimes came back as JSON with a raw newline or a trailing comma inside it, which killed the whole parse. The parser now repairs the errors models actually make, unescaped newlines and tabs inside strings, trailing commas, smart quotes, before parsing. If it still cannot read the shape, the scene is asked once more for valid JSON before surfacing an error.
+- The scroll to top now drives every possible scroller, the iframe window, the document root, the body, and a top anchor it scrolls into view, alongside the parent page message. It no longer depends on the parent handler alone.
+
 ## SagaForge drafts scene by scene to beat the 504
 - The session draft was one large AI call, which ran past the Wix web module timeout and returned a 504 gateway error. Drafting now runs one scene at a time in small sequential calls, each well under the limit, accumulated into the session before the approve gate. The approve and redline flow is unchanged.
 - A scene that fails can be retried on its own, resuming rather than restarting the session.
