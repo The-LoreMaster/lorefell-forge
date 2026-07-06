@@ -207,27 +207,29 @@ function voiceRules(){
 function skeletonSystem(){
   var t=ADV_TYPES[S.type];
   /* delimited lines, not JSON. Names and purposes are prose and break JSON. */
-  return "You outline adventures for LoreFell, a dark and weird fantasy TTRPG. "+voiceRules()
+  return "You outline adventures for LoreFell, a dark and weird fantasy TTRPG. Conflict and story come first: an adventure is a struggle the Fell can lose, never a tour of discoveries. "+voiceRules()
     +" Output plain text only, no JSON, no code fences. Use this exact line format:\n"
     +"TITLE: <adventure name>\n"
     +"ACT: <act name> | <one line purpose>\n"
+    +"THREAT: <who or what actively opposes the Fell in this act> | <what the Fell stand to lose here>\n"
     +"SESSION: <session name> | <one line purpose>\n"
     +"SCENE: <scene name> | <one line purpose>\n"
-    +"List each act, then its sessions under it, then each session's scenes under it, in order. Use the pipe character only to separate a name from its purpose. "
+    +"Every ACT line is followed by its THREAT line. List each act, then its sessions under it, then each session's scenes under it, in order. Use the pipe character only to separate the two halves of a line. "
     +(t.acts?"Use 2 or 3 acts.":"Use exactly one act named Main.")
     +(t.oneSession?" Use exactly one session with 2 to 4 scenes.":" Respect the size guidance: "+t.len+".")
-    +" Scene purposes are for the LoreMaster's eye, one sentence each. Avoid generic fantasy compound names.";
+    +" Craft rules. Scene purposes take active verbs, the Fell decide, confront, sacrifice, defy, race, or break something, never merely witness, observe, or learn. At least one scene per session forces a choice that costs the party something and cannot be undone. The opposition acts on its own clock, name a pressure that visibly worsens while the Fell delay, and let scenes show that cost. Give the central antagonist a specific, defensible belief, stated plainly in the final act's purpose, never generic evil. The last scene of the adventure poses a hard choice with a real price, not a clean victory. Avoid generic fantasy compound names.";
 }
 /* parse the TITLE/ACT/SESSION/SCENE line format into the skeleton shape */
 function parseSkeleton(text){
   var lines=text.split(/\r?\n/), sk={name:"",acts:[]}, act=null, sess=null;
   function split(rest){ var i=rest.indexOf("|"); return i<0?[rest.trim(),""]:[rest.slice(0,i).trim(),rest.slice(i+1).trim()]; }
   lines.forEach(function(ln){
-    var m=ln.match(/^\s*(TITLE|ACT|SESSION|SCENE)\s*:\s*(.*)$/i);
+    var m=ln.match(/^\s*(TITLE|ACT|THREAT|SESSION|SCENE)\s*:\s*(.*)$/i);
     if(!m) return;
     var tag=m[1].toUpperCase(), rest=m[2];
     if(tag==="TITLE"){ sk.name=rest.trim(); }
-    else if(tag==="ACT"){ var a=split(rest); act={name:a[0],purpose:a[1],sessions:[]}; sk.acts.push(act); sess=null; }
+    else if(tag==="ACT"){ var a=split(rest); act={name:a[0],purpose:a[1],threat:"",cost:"",sessions:[]}; sk.acts.push(act); sess=null; }
+    else if(tag==="THREAT"){ if(act){ var th=split(rest); act.threat=th[0]; act.cost=th[1]; } }
     else if(tag==="SESSION"){ if(!act){ act={name:"Main",purpose:"",sessions:[]}; sk.acts.push(act); } var ss=split(rest); sess={name:ss[0],purpose:ss[1],scenes:[]}; act.sessions.push(sess); }
     else if(tag==="SCENE"){ if(!sess){ if(!act){ act={name:"Main",purpose:"",sessions:[]}; sk.acts.push(act); } sess={name:"Session 1",purpose:"",scenes:[]}; act.sessions.push(sess); } var sc=split(rest); sess.scenes.push({name:sc[0],purpose:sc[1]}); }
   });
@@ -254,6 +256,7 @@ function draftSystem(){
     +"Repeat that block 3 to 6 times for the scene. After the last block, if any new NPC appeared, add lines in the form:\n@@NPC\nname: <NPC name>\ndesc: <one line for the LoreMaster>\n@@END\n"
     +"Rules: every block carries a descriptive title, never a bare speaker name. One speaker per dialogue block, split exchanges into separate blocks. "
     +"Read-aloud is verbatim box text. Crucible marks a fight or hard trial. Lore Check names what a successful check reveals. Clue is a discoverable pointer. Quest is a task the party can take. Secret is for the LoreMaster only. Beat is a structural turn. Reminder is a table nudge. Note is anything else. "
+    +"Craft rules for the table. Every scene contains either a decision the players make or an opposing force pushing on them, information alone is never a scene. Read-alouds run three sentences or fewer, concrete and sensory, ending on motion or wrongness, never describing what the party feels. NPCs in dialogue want something from the Fell and fear something, let both show in their words. A clue costs something to obtain, name the cost in the block. A crucible states what is lost by fleeing or gained past the fight itself. A secret tells the LoreMaster the plain truth in one or two lines. The final block of the scene lands on a hook, a threat advancing, or a choice left open, never a tidy close. "
     +"Player characters never appear in the module, it runs cold for any LoreMaster. Never place questions, options, or notes to the author inside any block.";
 }
 /* parse the delimited block format into {entries, npcs} */
@@ -290,6 +293,7 @@ function sceneUserMsg(a,si,ci,redline){
   if(S.world) lines.push("World or Stratum: "+S.world);
   if(S.tone) lines.push("Tone: "+S.tone);
   lines.push("Act: "+act.name+" ("+act.purpose+")");
+  if(act.threat) lines.push("The opposition in this act: "+act.threat+(act.cost?(". At stake: "+act.cost):"")+". Keep it pressing on the Fell.");
   lines.push("Session: "+sess.name+" ("+sess.purpose+")");
   lines.push("Where this scene sits: scene "+(ci+1)+" of "+sess.scenes.length+".");
   lines.push("Draft only this scene: "+scene.name+" ("+scene.purpose+")");
@@ -426,7 +430,9 @@ function vSkeleton(){
   sk.acts.forEach(function(a,ai){
     h+='<div class="sk-act">'
       +'<div class="sk-name" contenteditable data-path="a'+ai+'n">'+esc(a.name)+'</div>'
-      +'<div class="sk-purpose" contenteditable data-path="a'+ai+'p">'+esc(a.purpose||"")+'</div>';
+      +'<div class="sk-purpose" contenteditable data-path="a'+ai+'p">'+esc(a.purpose||"")+'</div>'
+      +'<div class="sk-purpose"><span style="color:var(--gold)">Threat</span> <span contenteditable data-path="a'+ai+'t">'+esc(a.threat||"")+'</span></div>'
+      +'<div class="sk-purpose"><span style="color:var(--gold)">At stake</span> <span contenteditable data-path="a'+ai+'c">'+esc(a.cost||"")+'</span></div>';
     (a.sessions||[]).forEach(function(ss,si){
       h+='<div class="sk-sess">'
         +'<div class="sk-name" contenteditable data-path="a'+ai+'s'+si+'n">'+esc(ss.name)+'</div>'
@@ -451,12 +457,15 @@ function harvestSkeletonEdits(){
   document.querySelectorAll("[contenteditable][data-path]").forEach(function(el){
     var p=el.getAttribute("data-path"), v=el.textContent.trim();
     if(p==="name"){ S.skeleton.name=v; return; }
-    var m=p.match(/^a(\d+)(?:s(\d+))?(?:c(\d+))?([np])$/); if(!m) return;
+    var m=p.match(/^a(\d+)(?:s(\d+))?(?:c(\d+))?([nptc])$/); if(!m) return;
     var a=S.skeleton.acts[+m[1]]; if(!a) return;
     var node=a;
     if(m[2]!==undefined&&m[2]!==null&&m[2]!==""){ node=a.sessions[+m[2]]; if(!node) return; }
     if(m[3]!==undefined&&m[3]!==null&&m[3]!==""){ node=node.scenes[+m[3]]; if(!node) return; }
-    if(m[4]==="n") node.name=v; else node.purpose=v;
+    if(m[4]==="n") node.name=v;
+    else if(m[4]==="t") node.threat=v;
+    else if(m[4]==="c") node.cost=v;
+    else node.purpose=v;
   });
 }
 function approveSkeleton(){

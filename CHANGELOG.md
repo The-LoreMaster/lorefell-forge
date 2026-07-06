@@ -2,6 +2,11 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## SagaForge builds conflict first
+- The skeleton was producing well organized tours, scene after scene of the Fell witnessing and learning. The outline prompt now demands a struggle the party can lose. Every act carries a THREAT line naming who opposes the Fell and what is at stake, both shown and editable in the skeleton view and fed into every scene draft in that act. Scene purposes take active verbs, at least one scene per session forces an irreversible costly choice, the opposition worsens on its own visible clock, the antagonist holds a specific defensible belief stated plainly, and the ending poses a hard choice with a price rather than a clean victory.
+- The scene drafting gains craft rules for the table. Every scene contains a decision or an opposing push, never information alone. Read alouds run short and sensory and end on motion or wrongness. NPCs want something from the Fell and fear something. Clues cost something to obtain. Crucibles state what is lost by fleeing. Scenes end on a hook or an advancing threat, never a tidy close.
+- SagaForge refreshes on its own.
+
 ## SagaForge skeleton drops JSON too
 - The last JSON parse error was the skeleton, not the scenes. Act, session, and scene names and purposes are prose, and an apostrophe or colon in a purpose broke the JSON the same way scene bodies did. The skeleton now comes back as TITLE, ACT, SESSION, SCENE lines and parses as text. Both the outline and the drafting are now JSON free where prose lives.
 - Verified against names and purposes carrying apostrophes and colons across nested acts.
