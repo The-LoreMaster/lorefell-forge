@@ -140,39 +140,16 @@ window.addEventListener("message",function(ev){
   if(!m.ok){ p.reject(new Error("relay "+(m.status||"")+(m.error?(": "+m.error):""))); return; }
   p.resolve(m.text||"");
 });
-var AI_ENDPOINT="https://lorefell.com/_functions/aiforge";
 function aiCall(system,messages,maxTokens){
-  /* Call the http-function directly. HTTP functions carry a longer timeout than
-     web methods, which removes the gateway 504 the postMessage relay hit. Falls
-     back to the relay only if the direct call cannot be made. */
-  var payload={system:system,messages:messages,max_tokens:maxTokens||1400,model:"fast"};
-  return fetch(AI_ENDPOINT,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)})
-    .then(function(res){
-      if(res.status===429) throw {rate:true};
-      if(!res.ok) throw new Error("http "+res.status+" from the endpoint");
-      return res.json().catch(function(){ throw new Error("the endpoint returned nothing readable"); });
-    })
-    .then(function(d){
-      if(!d||d.ok===false) throw new Error("endpoint: "+((d&&d.error)||(d&&d.status)||"unknown"));
-      return d.text||"";
-    })
-    .catch(function(e){
-      if(e&&e.rate) throw e;
-      /* the direct call failed. Record why, then try the parent relay. */
-      window._directErr=(e&&e.message)||String(e);
-      return aiCallRelay(system,messages,maxTokens);
-    });
-}
-function aiCallRelay(system,messages,maxTokens){
+  /* The tool is hosted cross-origin from the Wix site, so a direct fetch is
+     blocked by the browser. Everything goes through the page bridge, which runs
+     on the site and calls the long-timeout http-function server side. */
   return new Promise(function(resolve,reject){
-    if(!(window.parent&&window.parent!==window)){ reject(new Error("The forge could not be reached.")); return; }
+    if(!(window.parent&&window.parent!==window)){ reject(new Error("The forge answers on the live site.")); return; }
     var reqId=++_aiReq;
     _aiPending[reqId]={resolve:resolve,reject:reject};
     window.parent.postMessage({type:"LOREFELL_AI_FORGE",reqId:reqId,payload:{system:system,messages:messages,max_tokens:maxTokens||1400,model:"fast"}},"*");
-    setTimeout(function(){ if(_aiPending[reqId]){ delete _aiPending[reqId]; reject(new Error("The forge did not answer in time.")); } },90000);
-  }).catch(function(e){
-    var direct=window._directErr?(" direct fetch said: "+window._directErr+"."):"";
-    throw new Error(((e&&e.message)||String(e))+"."+direct);
+    setTimeout(function(){ if(_aiPending[reqId]){ delete _aiPending[reqId]; reject(new Error("The forge did not answer in time.")); } },120000);
   });
 }
 function parseAiJson(text){
