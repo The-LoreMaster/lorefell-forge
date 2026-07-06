@@ -2,6 +2,10 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## SagaForge skeleton no longer cuts off
+- A full Legacy or Chronicle outline was hitting the token ceiling and stopping mid word, leaving the last scene half written. The skeleton budget rises to 3500 and the backend ceiling to 4000, enough for a complete outline. A guard detects a cut off tail, re asks once for the whole outline, and prunes any trailing scene fragment so it never lands as a real scene.
+- Re paste forge.web.js for the raised ceiling.
+
 ## SagaForge sharpens a premise before the skeleton
 - A new Premise step sits between Scope and Skeleton. The forge drafts five lines from the pitch, Situation, Intrusion, Opposition, Clock, and Cost, and shows them for edit and approval before any structure is built. Each answers a question a storyline cannot hold without: the world already wrong, the specific event that pulls the Fell in, who wants it to continue and why they are right from where they stand, what worsens while the party delays, and what winning will demand.
 - The approved premise drives the skeleton. Opposition seeds the act threats and the antagonist, Clock becomes the visible pressure, Cost becomes the ending's price. A LoreMaster who cannot fill the Opposition line learns the idea is not ready, which is the point of the gate.

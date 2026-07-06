@@ -486,7 +486,7 @@ function fromPremise(){
 function forgeSkeleton(){
   $("stage").innerHTML='<div class="card wait"><span class="spin"></span>Forging the skeleton. Structure first, prose later.</div>';
   var skRetried=false;
-  function skAsk(extra){ return aiCall(skeletonSystem(),[{role:"user",content:skeletonUserMsg()+(extra||"")}],1200); }
+  function skAsk(extra){ return aiCall(skeletonSystem(),[{role:"user",content:skeletonUserMsg()+(extra||"")}],3500); }
   function skHandle(text){
     var sk=parseSkeleton(text);
     var hasScenes=sk.acts.some(function(a){ return a.sessions.some(function(s){ return s.scenes.length; }); });
@@ -494,6 +494,18 @@ function forgeSkeleton(){
       if(!skRetried){ skRetried=true; return skAsk("\nUse the exact TITLE, ACT, SESSION, SCENE line format. Every session needs at least one SCENE line.").then(skHandle,skFail); }
       throw new Error("The skeleton came back hollow.");
     }
+    // if generation stopped mid line, the final scene purpose is cut off. Detect it,
+    // drop the fragment, and retry once for a complete outline.
+    var truncated=/@@|[a-z,]$/.test(text.trim()) && !/[.!?)\]"]$/.test(text.trim());
+    if(truncated && !skRetried){
+      skRetried=true;
+      return skAsk("\nThe previous outline was cut off. Return the complete outline, every scene line finished.").then(skHandle,skFail);
+    }
+    // as a floor, prune a trailing scene whose purpose has no end punctuation
+    sk.acts.forEach(function(a){ a.sessions.forEach(function(ss){
+      var last=ss.scenes[ss.scenes.length-1];
+      if(last && last.purpose && !/[.!?)\]"]$/.test(last.purpose.trim()) && ss.scenes.length>1){ ss.scenes.pop(); }
+    }); });
     S.skeleton=sk; S.drafts={}; S.approved={}; S.npcs={}; S.cursor={a:0,s:0};
     go("skeleton");
   }

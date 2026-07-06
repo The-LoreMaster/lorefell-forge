@@ -316,7 +316,7 @@ export const aiForge = webMethod(Permissions.Anyone, async (opts) => {
       // callers may request a faster model to stay inside the Wix web-method
       // execution limit; default stays on the stronger model
       model: opts.model === 'fast' ? 'claude-haiku-4-5-20251001' : 'claude-sonnet-4-6',
-      max_tokens: Math.min(opts.max_tokens || 700, 1500),
+      max_tokens: Math.min(opts.max_tokens || 700, 4000),
       system: opts.system || '',
       messages: Array.isArray(opts.messages) ? opts.messages : []
     })
