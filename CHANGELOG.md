@@ -2,6 +2,10 @@
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
 
+## SagaForge skeleton drops JSON too
+- The last JSON parse error was the skeleton, not the scenes. Act, session, and scene names and purposes are prose, and an apostrophe or colon in a purpose broke the JSON the same way scene bodies did. The skeleton now comes back as TITLE, ACT, SESSION, SCENE lines and parses as text. Both the outline and the drafting are now JSON free where prose lives.
+- Verified against names and purposes carrying apostrophes and colons across nested acts.
+
 ## SagaForge stops fighting JSON, drafts in delimited blocks
 - The recurring parse error was structural. Asking the model to pack multi paragraph prose into JSON string values means every quote, apostrophe, and newline is a chance to break the shape, and no repair pass wins that reliably. Scenes now come back as marked text blocks, @@BLOCK to @@END, which the tool parses as text. Prose can contain anything, there is nothing to escape.
 - Verified against prose with embedded quotes, apostrophes, colons, and line breaks. The skeleton still uses JSON since it is short and structural.

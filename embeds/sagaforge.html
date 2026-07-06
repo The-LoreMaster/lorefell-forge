@@ -206,12 +206,32 @@ function voiceRules(){
 }
 function skeletonSystem(){
   var t=ADV_TYPES[S.type];
+  /* delimited lines, not JSON. Names and purposes are prose and break JSON. */
   return "You outline adventures for LoreFell, a dark and weird fantasy TTRPG. "+voiceRules()
-    +" Respond with STRICT JSON only, no prose outside the JSON. Shape: "
-    +'{"name":"adventure name","acts":[{"name":"act name","purpose":"one line","sessions":[{"name":"session name","purpose":"one line","scenes":[{"name":"scene name","purpose":"one line"}]}]}]}. '
+    +" Output plain text only, no JSON, no code fences. Use this exact line format:\n"
+    +"TITLE: <adventure name>\n"
+    +"ACT: <act name> | <one line purpose>\n"
+    +"SESSION: <session name> | <one line purpose>\n"
+    +"SCENE: <scene name> | <one line purpose>\n"
+    +"List each act, then its sessions under it, then each session's scenes under it, in order. Use the pipe character only to separate a name from its purpose. "
     +(t.acts?"Use 2 or 3 acts.":"Use exactly one act named Main.")
     +(t.oneSession?" Use exactly one session with 2 to 4 scenes.":" Respect the size guidance: "+t.len+".")
     +" Scene purposes are for the LoreMaster's eye, one sentence each. Avoid generic fantasy compound names.";
+}
+/* parse the TITLE/ACT/SESSION/SCENE line format into the skeleton shape */
+function parseSkeleton(text){
+  var lines=text.split(/\r?\n/), sk={name:"",acts:[]}, act=null, sess=null;
+  function split(rest){ var i=rest.indexOf("|"); return i<0?[rest.trim(),""]:[rest.slice(0,i).trim(),rest.slice(i+1).trim()]; }
+  lines.forEach(function(ln){
+    var m=ln.match(/^\s*(TITLE|ACT|SESSION|SCENE)\s*:\s*(.*)$/i);
+    if(!m) return;
+    var tag=m[1].toUpperCase(), rest=m[2];
+    if(tag==="TITLE"){ sk.name=rest.trim(); }
+    else if(tag==="ACT"){ var a=split(rest); act={name:a[0],purpose:a[1],sessions:[]}; sk.acts.push(act); sess=null; }
+    else if(tag==="SESSION"){ if(!act){ act={name:"Main",purpose:"",sessions:[]}; sk.acts.push(act); } var ss=split(rest); sess={name:ss[0],purpose:ss[1],scenes:[]}; act.sessions.push(sess); }
+    else if(tag==="SCENE"){ if(!sess){ if(!act){ act={name:"Main",purpose:"",sessions:[]}; sk.acts.push(act); } sess={name:"Session 1",purpose:"",scenes:[]}; act.sessions.push(sess); } var sc=split(rest); sess.scenes.push({name:sc[0],purpose:sc[1]}); }
+  });
+  return sk;
 }
 function skeletonUserMsg(){
   var lines=["Pitch: "+S.pitch];
@@ -377,18 +397,24 @@ function fromScope(){
 /* ---- skeleton ---- */
 function forgeSkeleton(){
   $("stage").innerHTML='<div class="card wait"><span class="spin"></span>Forging the skeleton. Structure first, prose later.</div>';
-  aiCall(skeletonSystem(),[{role:"user",content:skeletonUserMsg()}],1200)
-  .then(function(text){
-    var sk=parseAiJson(text);
-    if(!sk||!Array.isArray(sk.acts)||!sk.acts.length) throw new Error("The skeleton came back hollow.");
+  var skRetried=false;
+  function skAsk(extra){ return aiCall(skeletonSystem(),[{role:"user",content:skeletonUserMsg()+(extra||"")}],1200); }
+  function skHandle(text){
+    var sk=parseSkeleton(text);
+    var hasScenes=sk.acts.some(function(a){ return a.sessions.some(function(s){ return s.scenes.length; }); });
+    if(!sk.acts.length||!hasScenes){
+      if(!skRetried){ skRetried=true; return skAsk("\nUse the exact TITLE, ACT, SESSION, SCENE line format. Every session needs at least one SCENE line.").then(skHandle,skFail); }
+      throw new Error("The skeleton came back hollow.");
+    }
     S.skeleton=sk; S.drafts={}; S.approved={}; S.npcs={}; S.cursor={a:0,s:0};
     go("skeleton");
-  })
-  .catch(function(e){
+  }
+  function skFail(e){
     $("stage").innerHTML='<div class="card"><div class="err">'+esc(e&&e.rate?"The forge is catching its breath. Try again in a minute.":(e&&e.message)||"The forge could not be reached.")+'</div>'
       +'<div class="btnrow"><button class="btn gold" onclick="forgeSkeleton()">Try again</button>'
       +'<button class="btn ghost" onclick="go(\'scope\')">Back</button></div></div>';
-  });
+  }
+  skAsk("").then(skHandle,skFail);
 }
 function vSkeleton(){
   var sk=S.skeleton;
