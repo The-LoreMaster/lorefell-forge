@@ -1314,6 +1314,9 @@ window.THREADSPIRE_GRAPH={
 
   var qs = new URLSearchParams(location.search);
   var wantNode = qs.get('node') || '';
+  var wantWorld = qs.get('world') || '';  // a player deep-linked from their campaign
+  if (wantWorld && !wantNode) wantNode = wantWorld;
+  var campaignId = qs.get('campaign') || '';
   var seedOn = qs.get('seed') === '1' || wantNode.indexOf(':seed') >= 0;
 
   /* ---------- seed fixture, only with ?seed or a :seed node target ---------- */
@@ -1352,6 +1355,22 @@ window.THREADSPIRE_GRAPH={
     });
     if(changed) ThreadSpireStorage.save(state);
   })();
+
+  // Per-campaign discovery: the parent page answers with the LM-revealed node set.
+  // These lift campaign material out of fog on top of the always-public worlds.
+  function mergeDiscovered(ids){
+    if(!Array.isArray(ids)||!ids.length) return;
+    var changed=false;
+    ids.forEach(function(id){ if(state.discovered.indexOf(id)<0){ state.discovered.push(id); changed=true; } });
+    if(changed){ ThreadSpireStorage.save(state); recomputeRevealed(); render(); }
+  }
+  if(campaignId && window.parent && window.parent!==window){
+    window.onmessage=function(ev){
+      var m=ev&&ev.data; if(!m||!m.type) return;
+      if(m.type==='threadspire-discovered'){ mergeDiscovered(m.nodes||[]); }
+    };
+    window.parent.postMessage({ type:'THREADSPIRE_READY', campaignId:campaignId }, '*');
+  }
   if (seedOn) {
     ['world:seed', 'map:seed', 'location:seed', 'scenario:seed', 'character:seed'].forEach(function (id) {
       if (state.discovered.indexOf(id) < 0) state.discovered.push(id);

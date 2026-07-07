@@ -508,6 +508,43 @@ export const listQuests = webMethod(Permissions.Anyone, async (campaignId) => {
   } catch (e) { return { ok: false, quests: [], error: 'The board could not be reached.' }; }
 });
 
+// ThreadSpire discovery. The LoreMaster reveals nodes to a campaign. Cascade is
+// upward only: revealing a node reveals its ancestors, never its children, so a
+// location never spoils its own scenarios. Ancestor ids are passed by the client
+// which holds the graph; this method just writes the set it is given.
+export const revealNodes = webMethod(Permissions.Anyone, async (campaignId, nodeIds) => {
+  if (!campaignId || !Array.isArray(nodeIds) || !nodeIds.length) return { ok: false };
+  try {
+    const existing = await wixData.query('ThreadSpireDiscovery')
+      .eq('campaignId', campaignId).limit(1000).find({ suppressAuth: true });
+    const have = {};
+    existing.items.forEach((r) => { have[r.nodeId] = true; });
+    const inserts = [];
+    nodeIds.forEach((nid) => { if (nid && !have[nid]) inserts.push({ campaignId: campaignId, nodeId: nid, revealedAt: Date.now() }); });
+    for (const row of inserts) { await wixData.insert('ThreadSpireDiscovery', row, { suppressAuth: true }); }
+    return { ok: true, added: inserts.length };
+  } catch (e) { return { ok: false, error: 'The reveal could not be saved.' }; }
+});
+
+export const hideNode = webMethod(Permissions.Anyone, async (campaignId, nodeId) => {
+  if (!campaignId || !nodeId) return { ok: false };
+  try {
+    const ex = await wixData.query('ThreadSpireDiscovery')
+      .eq('campaignId', campaignId).eq('nodeId', nodeId).limit(1).find({ suppressAuth: true });
+    if (ex.items.length) await wixData.remove('ThreadSpireDiscovery', ex.items[0]._id, { suppressAuth: true });
+    return { ok: true };
+  } catch (e) { return { ok: false }; }
+});
+
+export const listDiscovered = webMethod(Permissions.Anyone, async (campaignId) => {
+  if (!campaignId) return { ok: true, nodes: [] };
+  try {
+    const r = await wixData.query('ThreadSpireDiscovery').eq('campaignId', campaignId)
+      .limit(1000).find({ suppressAuth: true });
+    return { ok: true, nodes: r.items.map((x) => x.nodeId) };
+  } catch (e) { return { ok: false, nodes: [], error: 'The Sphere could not be reached.' }; }
+});
+
 export const getClueCards = webMethod(Permissions.Anyone, async (charId) => {
   if (!charId) return [];
   let items = [];

@@ -21,6 +21,13 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 - The approved premise drives the skeleton. Opposition seeds the act threats and the antagonist, Clock becomes the visible pressure, Cost becomes the ending's price. A LoreMaster who cannot fill the Opposition line learns the idea is not ready, which is the point of the gate.
 - SagaForge refreshes on its own.
 
+## ThreadSpire Stage B, discovery earned at the table
+- Fog is now per campaign. The LoreMaster reveals a node from FateWell and its path to the Sphere reveals with it, worlds and maps above a location, never the scenarios below, so a place never spoils its own secrets. The reveal cascades upward only.
+- New ThreadSpireDiscovery collection, keyed by campaign and node, written by the LoreMaster, read by players in that campaign. Backend methods revealNodes, hideNode, listDiscovered mirror the quest board pattern.
+- ThreadSpire, given a campaign, asks the page for that campaign's revealed set and lifts exactly those out of fog on top of the always public worlds. FellGlass carries the campaign through its Sphere link so a player lands on their world with their party's discoveries showing.
+- myAdventures now returns each campaign's worldId, completing the Stage A auto link.
+- Pastes: characters.web.js, fatewell.web.js, page-fatewell.js, the new page-threadspire.js. Push the ThreadSpireDiscovery schema so the Apply CMS action provisions it.
+
 ## ThreadSpire, and campaigns get a world
 - ThreadSpire is live, the Sphere explorer, with a Hearth tile between FellGlass and FateWell. Public worlds are open, campaign material stays veiled.
 - FateWell campaigns can now be anchored to a world. The adventure header shows the world with a Set world or Change world control, sourced from the canon world list baked from the ThreadSpire graph. The choice saves on the campaign and survives publish and import.

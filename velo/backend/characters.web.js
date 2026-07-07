@@ -46,7 +46,11 @@ export const myAdventures = webMethod(Permissions.Anyone, async () => {
   for (const cid of Object.keys(ids)) {
     try {
       const c = await wixData.get('Campaigns', cid, { suppressAuth: true }).catch(() => null);
-      if (c) out.push({ id: cid, name: c.name || 'Adventure' });
+      if (c) {
+        let worldId = c.worldId || '';
+        if (!worldId && c.data) { try { worldId = (JSON.parse(c.data).campaign || {}).worldId || ''; } catch (e) {} }
+        out.push({ id: cid, name: c.name || 'Adventure', worldId: worldId });
+      }
     } catch (e) {}
   }
   out.sort((a, b) => String(a.name).localeCompare(String(b.name)));
