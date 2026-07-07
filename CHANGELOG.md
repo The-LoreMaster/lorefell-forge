@@ -16,6 +16,9 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 ## SagaForge skeleton builds in small phased calls
 - The 504 was latency margin, confirmed by a tiny test call that returned instantly while the full 3500-token skeleton call ran past the Wix web-method wall. The skeleton now builds in phases: a small call for the act spine and threats, then one small call per act for its sessions and scenes, assembled in the tool. Premise trimmed to 450 tokens. Every call now sits well under the limit that SigilForge clears.
 
+## Faster import
+- Importing an adventure was syncing every campaign in your account to the server at once, one slow write per campaign, stacked on top of the normal save. Import now persists only the adventure it just added. The full sync stays where it belongs, on the Sync button and on first connect.
+
 ## Recast, not redline
 - Renamed the outline and scene revision controls from Redline to Recast, a forge word that fits LoreFell. The action is unchanged, tell the forge what to change and it reshapes what it made.
 
