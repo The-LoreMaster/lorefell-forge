@@ -108,6 +108,7 @@ var ADV_TYPES={
   legacy:{label:"Legacy",len:"recommended 10 to 12 sessions",blurb:"The backbone saga. Characters endure, grow, and the ending marks the canon.",acts:true},
   chronicle:{label:"Chronicle",len:"recommended infinite sessions, open table",blurb:"A living, open table world that many hands shape across the year.",acts:true}
 };
+var FOE_PACK={"builds": [{"name": "Reaver", "attributes": ["Precision", "Power"], "accuracy": ["weapon"], "attackAttributes": ["Precision", "Power"]}, {"name": "Adept", "attributes": ["Precision", "Magic"], "accuracy": ["weapon", "spell"], "attackAttributes": ["Precision", "Magic"]}, {"name": "Scourge", "attributes": ["Power", "Magic"], "accuracy": ["spell"], "attackAttributes": ["Power", "Magic"]}, {"name": "Stalker", "attributes": ["Precision", "Evasion"], "accuracy": ["weapon"], "attackAttributes": ["Precision"]}, {"name": "Duelist", "attributes": ["Precision", "Durability"], "accuracy": ["weapon"], "attackAttributes": ["Precision"]}, {"name": "Inquisitor", "attributes": ["Precision", "Resistance"], "accuracy": ["weapon"], "attackAttributes": ["Precision"]}, {"name": "Berserker", "attributes": ["Power", "Evasion"], "accuracy": [], "attackAttributes": ["Power"]}, {"name": "Juggernaut", "attributes": ["Power", "Durability"], "accuracy": [], "attackAttributes": ["Power"]}, {"name": "Golem", "attributes": ["Power", "Resistance"], "accuracy": [], "attackAttributes": ["Power"]}, {"name": "Wisp", "attributes": ["Magic", "Evasion"], "accuracy": ["spell"], "attackAttributes": ["Magic"]}, {"name": "Idol", "attributes": ["Magic", "Durability"], "accuracy": ["spell"], "attackAttributes": ["Magic"]}, {"name": "Maleficar", "attributes": ["Magic", "Resistance"], "accuracy": ["spell"], "attackAttributes": ["Magic"]}, {"name": "Shade", "attributes": ["Evasion", "Durability"], "accuracy": [], "attackAttributes": []}, {"name": "Mirage", "attributes": ["Evasion", "Resistance"], "accuracy": [], "attackAttributes": []}, {"name": "Bulwark", "attributes": ["Durability", "Resistance"], "accuracy": [], "attackAttributes": []}], "tiers": [{"name": "Minion", "attributeOffset": -2, "vitalityWeight": 1, "lorePoints": 1, "infusions": 0}, {"name": "Elite", "attributeOffset": 0, "vitalityWeight": 2, "lorePoints": 2, "infusions": 1}, {"name": "Champion", "attributeOffset": 1, "vitalityWeight": 3, "lorePoints": 3, "infusions": 2}, {"name": "Epic", "attributeOffset": 2, "vitalityWeight": 5, "lorePoints": 4, "infusions": 3}, {"name": "Forsaken", "attributeOffset": 3, "vitalityWeight": 8, "lorePoints": 5, "infusions": 3}], "stances": ["Shrouded", "Stalwart", "Vestments"], "afflictions": ["Ensnared", "Disoriented", "Fragmented", "Staggered", "Terrorized", "Frenzied", "Diminished", "Hunted", "Inept", "Disrupted", "Inert", "Enfeebled", "Frozen", "Jinxed", "Ignited", "Masked", "Suppressed", "Persecuted", "Synchronized", "Agonized", "Witless", "Bleeding", "Accursed", "Anchored", "Disarmed", "Benighted", "Immobilized", "Conjoined", "Impeded", "Constrained", "Infected", "Defanged", "Mangled", "Disenchanted", "Vulnerable", "Harvested", "Plagued", "Reapt", "Restricted", "Strung", "Unclad", "Nullified", "Unlucky", "Vitiated", "Withered", "Bruised", "Worn", "Crippled", "Dislocated", "Lacerated", "Dazzled", "Slashed", "Stymied", "Tainted"]};
 var BLOCK_TYPES=["readaloud","dialogue","crucible","lorecheck","clue","quest","secret","beat","reminder","general"];
 var BLOCK_LABELS={readaloud:"Read-aloud",dialogue:"Dialogue",crucible:"Crucible",lorecheck:"Lore Check",clue:"Clue",quest:"Quest",secret:"Secret",beat:"Beat",reminder:"Reminder",general:"Note"};
 
@@ -120,7 +121,8 @@ var S=load()||{
   drafts:{},              /* "a-s" -> {scenes:[{name, entries:[{type,title,body,speaker}]}], npcs:[{name,desc}]} */
   approved:{},            /* "a-s" -> true */
   cursor:{a:0,s:0},
-  npcs:{}                 /* name -> desc, gathered across sessions */
+  npcs:{},                /* name -> desc, gathered across sessions */
+  foes:{}                 /* sceneKey -> [{name, build, tier, stance, sig, aplNote}] */
 };
 
 function save(){ try{ localStorage.setItem("SAGA_DRAFT", JSON.stringify(S)); }catch(e){} }
@@ -748,10 +750,54 @@ function approveSession(){
 }
 
 /* ---- export ---- */
+function crucibleScenes(){
+  var out=[];
+  (S.skeleton?S.skeleton.acts:[]).forEach(function(a,ai){
+    (a.sessions||[]).forEach(function(ss,si){
+      var d=S.drafts[ai+"-"+si]||{scenes:[]};
+      (ss.scenes||[]).forEach(function(sc,ci){
+        var ds=(d.scenes||[])[ci]; if(!ds) return;
+        var hasFight=(ds.entries||[]).some(function(e){ return e.type==="crucible"; });
+        if(hasFight) out.push({ key:ai+"-"+si+"-"+ci, scene:sc, act:a });
+      });
+    });
+  });
+  return out;
+}
+function foeCount(){ var n=0; Object.keys(S.foes||{}).forEach(function(k){ n+=(S.foes[k]||[]).length; }); return n; }
+function foeExportLine(){
+  var cru=crucibleScenes().length, have=foeCount();
+  if(!cru) return '<p class="exp-note" style="color:var(--muted)">No crucibles in this adventure, so no foes to forge.</p>';
+  if(have) return '<p class="exp-note">Forged '+have+' canon '+(have===1?"foe":"foes")+' for '+cru+' '+(cru===1?"crucible":"crucibles")+'. They ride in the pack, ready to drop into their scenes. <button class="btn ghost" onclick="forgeFoes()">Forge again</button></p>';
+  return '<p class="exp-note">This adventure has '+cru+' '+(cru===1?"crucible":"crucibles")+'. Forge canon foes so each fight lands ready to run. <button class="btn gold" onclick="forgeFoes()">Forge the foes</button></p>';
+}
+function forgeFoes(){
+  var list=crucibleScenes(); if(!list.length) return;
+  S.foes={}; save();
+  var i=0;
+  function next(){
+    if(i>=list.length){ save(); render(); scrollTop(); return; }
+    var item=list[i];
+    $("stage").innerHTML='<div class="card wait"><span class="spin"></span>Forging a foe for '+esc(item.scene.name)+', '+(i+1)+' of '+list.length+'.</div>';
+    aiCall(foeSystem(),[{role:"user",content:foeUserMsg(item.scene,item.act)}],250)
+    .then(function(text){
+      var f=parseFoe(text);
+      (S.foes[item.key]=S.foes[item.key]||[]).push(f);
+      save(); i++; next();
+    })
+    .catch(function(e){
+      $("stage").innerHTML='<div class="card"><div class="err">A foe would not forge: '+esc((e&&e.message)||"unreachable")+'</div>'
+        +'<div class="btnrow"><button class="btn gold" onclick="forgeFoes()">Try again</button>'
+        +'<button class="btn ghost" onclick="go(\'export\')">Skip foes</button></div></div>';
+    });
+  }
+  next();
+}
 function vExport(){
   return '<div class="card">'
     +'<h2 style="font-size:1.05rem">'+esc(S.skeleton?S.skeleton.name:"The adventure")+'</h2>'
     +'<p class="exp-note" style="margin-top:8px">Every session is approved. Take it in the shape you need. The FateWell pack imports through Adventures, Import, and lands as your own editable copy.</p>'
+    +foeExportLine()
     +'<div class="btnrow">'
     +'<button class="btn gold" onclick="downloadPack()">FateWell pack</button>'
     +'<button class="btn" onclick="downloadMarkdown()">Markdown</button>'
@@ -762,11 +808,80 @@ function vExport(){
     +'<div id="printBody"></div>'
     +'</div>';
 }
+function foeBuild(name){ for(var i=0;i<FOE_PACK.builds.length;i++){ if(FOE_PACK.builds[i].name===name) return FOE_PACK.builds[i]; } return null; }
+function foeTier(name){ for(var i=0;i<FOE_PACK.tiers.length;i++){ if(FOE_PACK.tiers[i].name===name) return FOE_PACK.tiers[i]; } return null; }
+function scaleForePack(buildName, tierName, apl, party){
+  var b=foeBuild(buildName), t=foeTier(tierName); if(!b||!t) return null;
+  apl=Math.max(1,apl||1); party=Math.max(1,party||4);
+  var val=Math.max(0,apl+t.attributeOffset);
+  var attrs={Precision:0,Power:0,Magic:0,Evasion:0,Durability:0,Resistance:0};
+  (b.attributes||[]).forEach(function(a){ attrs[a]=val; });
+  return { attrs:attrs, maxVit:apl*party*t.vitalityWeight, build:buildName, stance:"", accLabel:(b.accuracy&&b.accuracy.indexOf("spell")>=0&&b.accuracy.indexOf("weapon")<0)?"Magic":"Precision" };
+}
+/* default party size from the level range text, else 4 */
+function foePartySize(){ return 4; }
+function foeAplGuess(){
+  var m=String(S.levels||"").match(/\d+/g); if(!m||!m.length) return 3;
+  var nums=m.map(Number); return Math.max(1,Math.round(nums.reduce(function(a,b){return a+b;},0)/nums.length));
+}
+function foeSystem(){
+  return "You stat a single canon foe for a LoreFell crucible. Pick only from the provided lists, nothing invented. "
+    +"Output plain text only, this exact format, no JSON:\n"
+    +"NAME: <evocative foe name, not generic>\n"
+    +"BUILD: <one build name from the list>\n"
+    +"TIER: <one tier name from the list>\n"
+    +"STANCE: <one stance name from the list>\n"
+    +"AFFLICTION: <one affliction name from the list, or none>\n"
+    +"Match the tier to the stakes: Minion for fodder, Elite or Champion for a real threat, Epic or Forsaken for a climax. One foe only.";
+}
+function foeUserMsg(scene, act){
+  var builds=FOE_PACK.builds.map(function(b){ return b.name; }).join(", ");
+  var tiers=FOE_PACK.tiers.map(function(t){ return t.name; }).join(", ");
+  var lines=["Adventure: "+S.skeleton.name, "Act: "+act.name+" ("+act.purpose+")"];
+  if(act.threat) lines.push("The opposition: "+act.threat);
+  lines.push("The crucible scene: "+scene.name+" ("+scene.purpose+")");
+  lines.push("Party level about "+foeAplGuess()+".");
+  lines.push("Builds: "+builds);
+  lines.push("Tiers: "+tiers);
+  lines.push("Stances: "+FOE_PACK.stances.join(", "));
+  lines.push("Afflictions: "+FOE_PACK.afflictions.slice(0,40).join(", ")+", or none.");
+  return lines.join("\n");
+}
+function parseFoe(text){
+  var f={name:"",build:"",tier:"",stance:"",sig:""};
+  text.split(/\r?\n/).forEach(function(ln){
+    var m=ln.match(/^\s*(NAME|BUILD|TIER|STANCE|AFFLICTION)\s*:\s*(.*)$/i);
+    if(!m) return; var v=m[2].trim();
+    var k=m[1].toUpperCase();
+    if(k==="NAME")f.name=v; else if(k==="BUILD")f.build=v; else if(k==="TIER")f.tier=v;
+    else if(k==="STANCE")f.stance=v; else if(k==="AFFLICTION")f.sig=(/^none$/i.test(v)?"":v);
+  });
+  // snap to legal values, forgiving case and near-misses
+  function snap(val,list){ if(!val)return""; for(var i=0;i<list.length;i++){ if(list[i].toLowerCase()===val.toLowerCase())return list[i]; } for(var j=0;j<list.length;j++){ if(list[j].toLowerCase().indexOf(val.toLowerCase())>=0||val.toLowerCase().indexOf(list[j].toLowerCase())>=0)return list[j]; } return""; }
+  f.build=snap(f.build,FOE_PACK.builds.map(function(b){return b.name;}))||FOE_PACK.builds[0].name;
+  f.tier=snap(f.tier,FOE_PACK.tiers.map(function(t){return t.name;}))||"Elite";
+  f.stance=snap(f.stance,FOE_PACK.stances)||FOE_PACK.stances[0];
+  f.sig=snap(f.sig,FOE_PACK.afflictions);
+  return f;
+}
 function buildPack(){
   var npcRows=Object.keys(S.npcs).map(function(n){
     return { id:uid(), type:"npc", name:n, desc:S.npcs[n]||"", notes:"", img:"" };
   });
   var npcByName={}; npcRows.forEach(function(r){ npcByName[r.name]=r.id; });
+  // forged canon foes become monster library rows, referenced by their scene
+  var foeRows=[]; var foeBySceneKey={};
+  Object.keys(S.foes||{}).forEach(function(key){
+    (S.foes[key]||[]).forEach(function(f){
+      var sc=scaleForePack(f.build,f.tier,foeAplGuess(),foePartySize());
+      if(!sc) return;
+      var row={ id:uid(), type:"monster", name:f.name||"Foe", source:"sagaforge",
+        build:f.build, stance:f.stance||"", sig:f.sig||"", sr:f.tier,
+        attrs:sc.attrs, maxVit:sc.maxVit, inv:[], abilities:[], notes:"", img:"" };
+      foeRows.push(row);
+      (foeBySceneKey[key]=foeBySceneKey[key]||[]).push(row.id);
+    });
+  });
   function entryRow(e){
     var row={ id:uid(), title:e.title||"", type:(BLOCK_TYPES.indexOf(e.type)>=0?e.type:"general"), body:e.body||"", pinned:false, open:false };
     if(e.type==="dialogue"&&e.speaker&&npcByName[e.speaker]) row.speaker=npcByName[e.speaker];
@@ -784,8 +899,9 @@ function buildPack(){
           id:uid(), name:ss.name, notes:"", img:"", desc:ss.purpose||"", entries:[], manualRefs:[],
           scenes:(ss.scenes||[]).map(function(sc,ci){
             var ds=(d.scenes||[])[ci]||{entries:[]};
+            var sceneKey=ai+"-"+si+"-"+ci;
             return { id:uid(), name:sc.name, notes:"", img:"", desc:sc.purpose||"",
-              entries:(ds.entries||[]).map(entryRow), manualRefs:[] };
+              entries:(ds.entries||[]).map(entryRow), manualRefs:(foeBySceneKey[sceneKey]||[]).slice() };
           })
         };
       })
@@ -794,6 +910,7 @@ function buildPack(){
   return {
     meta:{ format:"lorefell-adventure-pack-1", forge:"sagaforge" },
     npcs:npcRows,
+    foes:foeRows,
     campaign:{
       id:uid(), name:S.skeleton.name||"Forged adventure", type:S.type||"story",
       worldHint:S.world||"", notes:"", img:"", desc:S.pitch||"", entries:[], manualRefs:[], acts:acts

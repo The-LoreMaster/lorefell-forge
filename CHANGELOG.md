@@ -16,6 +16,12 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 ## SagaForge skeleton builds in small phased calls
 - The 504 was latency margin, confirmed by a tiny test call that returned instantly while the full 3500-token skeleton call ran past the Wix web-method wall. The skeleton now builds in phases: a small call for the act spine and threats, then one small call per act for its sessions and scenes, assembled in the tool. Premise trimmed to 450 tokens. Every call now sits well under the limit that SigilForge clears.
 
+## SagaForge forges canon foes for its crucibles
+- Stage 1 of the foe pipeline. When an adventure has crucible scenes, the export step offers Forge the foes. SagaForge picks a legal canon build, tier, stance, and signature affliction for each fight, scaled to the party level with the same math FoeForge uses, and emits each as a ready monster in the pack, referenced by its scene.
+- On import, FateWell adds the forged foes to the library and wires each crucible scene to its foe, so the fight lands ready to drop onto the board. Older packs without foes import unchanged.
+- Foe choices are canon only, legal by construction. Custom on the spot abilities through the SigilForge validator are the next stage.
+- The foe canon pack is now a shared data file so SagaForge and FoeForge draw from one source.
+
 ## SagaForge sharpens a premise before the skeleton
 - A new Premise step sits between Scope and Skeleton. The forge drafts five lines from the pitch, Situation, Intrusion, Opposition, Clock, and Cost, and shows them for edit and approval before any structure is built. Each answers a question a storyline cannot hold without: the world already wrong, the specific event that pulls the Fell in, who wants it to continue and why they are right from where they stand, what worsens while the party delays, and what winning will demand.
 - The approved premise drives the skeleton. Opposition seeds the act threats and the antagonist, Clock becomes the visible pressure, Cost becomes the ending's price. A LoreMaster who cannot fill the Opposition line learns the idea is not ready, which is the point of the gate.

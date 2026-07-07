@@ -5735,6 +5735,18 @@ function importPack(pack, msg){
     S.library.push(copy);
   });
 
+  /* 1b. add every forged foe to the library as a monster, map old id -> new id */
+  var foeMap = {};
+  (pack.foes || []).forEach(function(f){
+    var copy = JSON.parse(JSON.stringify(f));
+    var fid = freshId();
+    foeMap[f.id] = fid;
+    copy.id = fid;
+    copy.type = 'monster';
+    S.library.push(copy);
+  });
+  function mapRef(r){ return npcMap[r] || foeMap[r] || r; }
+
   /* 2. clone the campaign, remint every id, remap dialogue speakers and refs */
   function remapEntry(e){
     e.id = freshId();
@@ -5749,7 +5761,7 @@ function importPack(pack, msg){
     for (var wi=0; wi<WORLD_LIST.length; wi++){ if (hint.indexOf(WORLD_LIST[wi].name.toLowerCase())>=0){ camp.worldId = WORLD_LIST[wi].id; break; } }
   }
   delete camp.worldHint;
-  camp.manualRefs = (camp.manualRefs || []).map(function(r){ return npcMap[r] || r; });
+  camp.manualRefs = (camp.manualRefs || []).map(mapRef);
   (camp.entries || []).forEach(remapEntry);
   (camp.acts || []).forEach(function(a){
     a.id = freshId();
@@ -5760,6 +5772,7 @@ function importPack(pack, msg){
       (ss.scenes || []).forEach(function(sc){
         sc.id = freshId();
         (sc.entries || []).forEach(remapEntry);
+        sc.manualRefs = (sc.manualRefs || []).map(mapRef);
       });
     });
   });
