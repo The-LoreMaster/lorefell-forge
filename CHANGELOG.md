@@ -16,6 +16,10 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 ## SagaForge skeleton builds in small phased calls
 - The 504 was latency margin, confirmed by a tiny test call that returned instantly while the full 3500-token skeleton call ran past the Wix web-method wall. The skeleton now builds in phases: a small call for the act spine and threats, then one small call per act for its sessions and scenes, assembled in the tool. Premise trimmed to 450 tokens. Every call now sits well under the limit that SigilForge clears.
 
+## Worlds carry the conflict an adventure brings them
+- FateWell campaigns with a world set can now name what that world faces. Each conflict is a single sentence, up to 120 characters, and a campaign can hold several. They are campaign scoped, so two parties in the same canon world show their own conflicts. ThreadSpire will surface these on the world layer.
+- SagaForge asks the same question at the premise step, What the world faces, drafts a sharp sentence from the pitch, and carries it through the pack. FateWell imports it as the campaign's first world issue, ready to edit or extend.
+
 ## Summon foes straight into a crucible in FateWell
 - A Summon foes button on any scene forges a legal canon lineup and drops it onto the board as ready combatants, no trip to FoeForge and no import. Pick a difficulty, skirmish, standard, boss and lackeys, or climax, and the forge composes the encounter to it, scaled to the party level and size.
 - Foes are canon only, legal by construction, using the same pack and scaling math as FoeForge and SagaForge. This does not rebuild FoeForge inside FateWell, hand built foes still belong there.

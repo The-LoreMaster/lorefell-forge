@@ -337,6 +337,10 @@ body::before{
   .m-back{ align-items:center; }
   .m-card{ border-radius:14px; padding-bottom:18px; }
 }
+.world-issues{ margin:4px 0 0 0; padding-left:18px; color:var(--ice); font-size:.85rem; line-height:1.5; }
+.world-issues .muted{ color:var(--muted); list-style:none; margin-left:-18px; }
+.wi-row{ display:flex; gap:6px; margin:6px 0; }
+.wi-row input{ flex:1; }
 .world-grid{ display:flex; flex-direction:column; gap:6px; max-height:60vh; overflow-y:auto; margin-top:10px; }
 .world-grid .tcard{ text-align:left; }
 .m-title{ font-family:'Cinzel', serif; font-weight:600; font-size:1.1rem; letter-spacing:.04em; margin-bottom:8px; }
@@ -3551,6 +3555,26 @@ function advPick(k){
     save(); nav('campaign', c.id);
   });
 }
+var WORLD_ISSUE_MAX=120;
+function editWorldIssues(id){
+  var c=null; S.campaigns.forEach(function(x){ if(x.id===id) c=x; }); if(!c) return;
+  if(!c.worldIssues) c.worldIssues=[];
+  function rows(){
+    return c.worldIssues.map(function(x,i){
+      return '<div class="wi-row"><input type="text" maxlength="'+WORLD_ISSUE_MAX+'" value="'+esc(x)+'" oninput="wiSet(\''+id+'\','+i+',this.value)">'
+        +'<button class="icon-btn danger" title="Remove" onclick="wiDel(\''+id+'\','+i+')">&times;</button></div>';
+    }).join('');
+  }
+  modal('<h3 class="m-title">What conflict is your adventure bringing to this world?</h3>'
+    +'<p class="muted">One sentence each. These show players what the world faces right now. Keep them sharp, up to '+WORLD_ISSUE_MAX+' characters.</p>'
+    +'<div id="wiList">'+rows()+'</div>'
+    +'<div class="btnrow"><button class="btn ghost" onclick="wiAdd(\''+id+'\')">Add a conflict</button>'
+    +'<button class="btn gold" onclick="closeModal()">Done</button></div>');
+}
+function _wiCampaign(id){ var c=null; S.campaigns.forEach(function(x){ if(x.id===id) c=x; }); return c; }
+function wiSet(id,i,v){ var c=_wiCampaign(id); if(!c||!c.worldIssues) return; c.worldIssues[i]=String(v).slice(0,WORLD_ISSUE_MAX); save(); }
+function wiDel(id,i){ var c=_wiCampaign(id); if(!c) return; c.worldIssues.splice(i,1); save(); editWorldIssues(id); }
+function wiAdd(id){ var c=_wiCampaign(id); if(!c) return; if(!c.worldIssues) c.worldIssues=[]; if(c.worldIssues.length>=6){ return; } c.worldIssues.push(''); save(); editWorldIssues(id); }
 function advSetWorld(id){
   var c=null; S.campaigns.forEach(function(x){ if(x.id===id) c=x; }); if(!c) return;
   var opts=WORLD_LIST.map(function(w){
@@ -5930,6 +5954,7 @@ function importPack(pack, msg){
     for (var wi=0; wi<WORLD_LIST.length; wi++){ if (hint.indexOf(WORLD_LIST[wi].name.toLowerCase())>=0){ camp.worldId = WORLD_LIST[wi].id; break; } }
   }
   delete camp.worldHint;
+  if (!Array.isArray(camp.worldIssues)) camp.worldIssues = [];
   camp.manualRefs = (camp.manualRefs || []).map(mapRef);
   (camp.entries || []).forEach(remapEntry);
   (camp.acts || []).forEach(function(a){
@@ -6264,6 +6289,12 @@ function scrCampaign(){
     + ' <button class="adv-change" onclick="advSetWorld(\''+c.id+'\')">'+(wn?'Change world':'Set world')+'</button>'
     + (c.worldId?' <button class="adv-change" onclick="revealInSphere(\''+c.worldId+'\')">Reveal world</button>'
        + ' <button class="adv-change" onclick="revealPlacePicker(\''+c.id+'\')">Reveal a place</button>':'')+'</p>';
+  if(c.worldId){
+    var iss=(c.worldIssues||[]);
+    var isl = iss.length ? iss.map(function(x){ return '<li>'+esc(x)+'</li>'; }).join('') : '<li class="muted">none set</li>';
+    h += '<p class="adv-tag">What this world faces <button class="adv-change" onclick="editWorldIssues(\''+c.id+'\')">Edit</button></p>'
+      + '<ul class="world-issues">'+isl+'</ul>';
+  }
   h += '<div class="tabs">'
     + '<button class="tab'+(V.cTab==='overview'?' on':'')+'" onclick="setCTab(\'overview\')">Overview</button>'
     + '<button class="tab'+(V.cTab==='roster'?' on':'')+'" onclick="setCTab(\'roster\')">Roster</button></div>';
