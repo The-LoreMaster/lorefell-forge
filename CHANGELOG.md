@@ -16,6 +16,12 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 ## SagaForge skeleton builds in small phased calls
 - The 504 was latency margin, confirmed by a tiny test call that returned instantly while the full 3500-token skeleton call ran past the Wix web-method wall. The skeleton now builds in phases: a small call for the act spine and threats, then one small call per act for its sessions and scenes, assembled in the tool. Premise trimmed to 450 tokens. Every call now sits well under the limit that SigilForge clears.
 
+## ThreadSpire rebuilt, character first
+- ThreadSpire is no longer a lore atlas on the Hearth. It lives on the character sheet, reached from the Sections hub, and opens on that character's token. Tap the token for a reference card: image, name, player name, lineage, origin, motivation, arsenal, talents, and the character's blurb. The owner gets a button through to the full sheet.
+- Zoom outward through the journey: token to location to territory. The world stays veiled until the LoreMaster unlocks it. The location shows the party's goals from the quest board, checked or not. The world will show what it faces. Other Fell standing at a location open a read only card.
+- Maps are placeholder art for now, wired through a SphereArt seam so real art and clickable nodes drop in world by world with the dev map tool to come.
+- Pastes: characters.web.js (a safe public character view with the player's display name), and the rebuilt page-threadspire.js. The old atlas version is replaced.
+
 ## Worlds carry the conflict an adventure brings them
 - FateWell campaigns with a world set can now name what that world faces. Each conflict is a single sentence, up to 120 characters, and a campaign can hold several. They are campaign scoped, so two parties in the same canon world show their own conflicts. ThreadSpire will surface these on the world layer.
 - SagaForge asks the same question at the premise step, What the world faces, drafts a sharp sentence from the pitch, and carries it through the pack. FateWell imports it as the campaign's first world issue, ready to edit or extend.

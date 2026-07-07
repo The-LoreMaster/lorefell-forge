@@ -71,6 +71,43 @@ export const loadCharacter = webMethod(Permissions.Anyone, async (charId) => {
   return { forged: false, character: data };  // sealed past intentionally absent
 });
 
+// A public, safe view of any character for ThreadSpire: card fields only, no sealed
+// past, no private mechanics. Includes the owner's display name and whether the
+// caller owns it. Used for party lore pages and the player's own card.
+export const threadspirePublicChar = webMethod(Permissions.Anyone, async (charId) => {
+  const me = await memberId();
+  const r = await wixData.get(COLLECTION, charId, { suppressAuth: true }).catch(() => null);
+  if (!r) return null;
+  let data = {}; try { data = r.data ? JSON.parse(r.data) : {}; } catch (e) { data = {}; }
+  const idn = data.identity || {};
+  const arsenal = {
+    weapons: (data.weapons || []).map((w) => w && (w.name || w.form || '')).filter(Boolean),
+    lorebounds: (data.lorebounds || []).map((l) => l && (l.name || l.type || '')).filter(Boolean),
+    armor: data.armor && (data.armor.active || data.armor.name) ? [data.armor.active || data.armor.name] : []
+  };
+  const talents = (data.talents || []).map((t) => (typeof t === 'string' ? t : (t && t.name))).filter(Boolean);
+  let playerName = '';
+  const ownerId = r.ownerMemberId || r._owner;
+  if (ownerId) {
+    try { const mem = await members.getMember(ownerId, { fieldsets: ['FULL'] }); playerName = (mem && (mem.profile && mem.profile.nickname)) || (mem && mem.contactDetails && mem.contactDetails.firstName) || ''; } catch (e) {}
+  }
+  return {
+    id: charId,
+    name: idn.name || 'Unnamed',
+    playerName: playerName,
+    image: data.portrait || idn.image || '',
+    lineage: idn.lineage || '',
+    origin: idn.origin || '',
+    motivation: idn.motivation || '',
+    blurb: idn.desc || '',
+    arsenal: arsenal,
+    talents: talents,
+    locationId: idn.locationId || '',
+    worldId: idn.worldId || '',
+    isOwner: !!(me && ownerId && me === ownerId)
+  };
+});
+
 export const deleteCharacter = webMethod(Permissions.Anyone, async (charId) => {
   const id = await memberId();
   if (!charId) return { ok: false, error: 'no id' };

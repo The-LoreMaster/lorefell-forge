@@ -1,145 +1,84 @@
-// tests/zoom.spec.js
 const { test, expect } = require('@playwright/test');
+const APP = '/dist/threadspire.html?demo=1';
 
-const APP = '/dist/threadspire.html';
-const seed = (n) => APP + '?seed=1&node=' + encodeURIComponent(n);
-
-test.describe('pipeline', () => {
-  test('graph.json exists, has every layer, and every chain reaches the sphere', async ({ request }) => {
-    const res = await request.get('/dist/graph.json');
-    expect(res.ok()).toBeTruthy();
-    const g = await res.json();
-    const types = new Set(g.nodes.map((n) => n.type));
-    for (const t of ['sphere', 'world', 'map', 'location', 'scenario']) expect(types.has(t)).toBeTruthy();
-    const byId = Object.fromEntries(g.nodes.map((n) => [n.id, n]));
-    for (const n of g.nodes) {
-      let cur = n, hops = 0;
-      while (cur.parent) { cur = byId[cur.parent]; expect(cur, n.id + ' chain broke').toBeTruthy(); expect(++hops).toBeLessThan(12); }
-      expect(cur.type).toBe('sphere');
-    }
-  });
-
-  test('worlds carry lineage and brand from the At-a-Glance', async ({ request }) => {
+test.describe('graph pipeline still builds', () => {
+  test('graph.json has every canon layer', async ({ request }) => {
     const g = await (await request.get('/dist/graph.json')).json();
-    const akk = g.nodes.find((n) => n.id === 'world:akkoroka');
-    expect(akk).toBeTruthy();
-    expect(akk.lineage.toLowerCase()).toContain('flayed');
-    expect(akk.brand.toLowerCase()).toContain('saporset');
-    expect(akk.summary.length).toBeGreaterThan(40);
+    const types = new Set(g.nodes.map(n => n.type));
+    for (const t of ['sphere','world','map','location','scenario']) expect(types.has(t)).toBeTruthy();
   });
 });
 
-test.describe('zoom chain', () => {
-  test('zooms out from character to sphere in order', async ({ page }) => {
-    await page.goto(seed('character:seed'));
-    const order = ['character', 'scenario', 'location', 'map', 'world', 'sphere'];
-    for (let i = 0; i < order.length; i++) {
-      await expect(page.locator('body')).toHaveAttribute('data-focus-type', order[i]);
-      if (i < order.length - 1) await page.getByTestId('zoom-out').click();
-    }
-    await expect(page.getByTestId('focus-title')).toHaveText('The Sphere');
-  });
-
-  test('zooms back in by tapping children', async ({ page }) => {
-    await page.goto(seed('sphere:the-sphere'));
-    for (const t of ['Seedfall', 'The Seeded Reach', 'First Marker', 'The Waking Step', 'Marrow the Tested']) {
-      await page.locator('.kid', { hasText: t }).first().click();
-      await expect(page.getByTestId('focus-title')).toHaveText(t);
-    }
-    await expect(page.locator('body')).toHaveAttribute('data-focus-type', 'character');
-  });
-
-  test('breadcrumb jumps straight to a mid ancestor', async ({ page }) => {
-    await page.goto(seed('character:seed'));
-    await page.locator('.crumb', { hasText: 'Seedfall' }).click();
-    await expect(page.locator('body')).toHaveAttribute('data-focus-type', 'world');
-    await expect(page.getByTestId('focus-title')).toHaveText('Seedfall');
-  });
-});
-
-test.describe('fog and spoilers', () => {
-  test('an undiscovered sibling renders as a placeholder with no title', async ({ page }) => {
-    await page.goto(seed('sphere:the-sphere'));
-    const fog = page.locator('[data-node="world:seed-fog"]');
-    await expect(fog).toHaveClass(/fog/);
-    await expect(fog).toHaveAttribute('data-title-hidden', 'true');
-    await expect(fog).not.toContainText('Veilmark');
-    await expect(fog).toContainText('Undiscovered');
-  });
-
-  test('a spoiler sibling stays veiled too and carries the spoiler mark', async ({ page }) => {
-    await page.goto(seed('sphere:the-sphere'));
-    const sp = page.locator('[data-node="world:seed-spoiler"]');
-    await expect(sp).toHaveAttribute('data-spoiler', 'true');
-    await expect(sp).not.toContainText('Hushfall');
-  });
-
-  test('discovery lifts the fog', async ({ page }) => {
-    await page.goto(seed('sphere:the-sphere'));
-    await page.getByTestId('discover-demo').click();
-    await expect(page.locator('[data-node="world:seed-fog"]')).toContainText('Veilmark');
-  });
-
-  test('a fogged placeholder is not clickable into focus', async ({ page }) => {
-    await page.goto(seed('sphere:the-sphere'));
-    await page.locator('[data-node="world:seed-spoiler"]').click({ force: true });
-    await expect(page.locator('body')).toHaveAttribute('data-focus-type', 'sphere');
-  });
-});
-
-test.describe('memorials', () => {
-  test('memorials render at their pinned location and open an epitaph', async ({ page }) => {
-    await page.goto(seed('location:seed'));
-    const mems = page.getByTestId('memorial');
-    await expect(mems).toHaveCount(2);
-    await mems.first().click();
-    await expect(page.getByTestId('epitaph')).toBeVisible();
-    await expect(page.getByTestId('epitaph')).not.toHaveText('');
-  });
-
-  test('the world shows an aggregate count of its fallen', async ({ page }) => {
-    await page.goto(seed('world:seed'));
-    await expect(page.getByTestId('memorial-count')).toHaveText('2');
-  });
-
-  test('retiring the active character raises a memorial at the nearest location', async ({ page }) => {
-    await page.goto(seed('character:seed'));
-    await page.getByTestId('retire').click();
-    await page.getByTestId('epitaph-input').fill('Walked in asking, walked out answered.');
-    await page.getByTestId('retire-confirm').click();
-    await expect(page.locator('body')).toHaveAttribute('data-focus-type', 'location');
-    await expect(page.getByTestId('memorial')).toHaveCount(3);
-    await page.goto(seed('world:seed'));
-    await expect(page.getByTestId('memorial-count')).toHaveText('3');
-  });
-});
-
-test.describe('pins', () => {
-  test('a pinned note persists across a reload', async ({ page }) => {
-    await page.goto(seed('location:seed'));
-    await page.getByTestId('pin-input').fill('The door here answers to the old name.');
-    await page.getByTestId('pin-save').click();
-    await expect(page.getByTestId('pin')).toContainText('old name');
-    await page.reload();
-    await expect(page.getByTestId('pin')).toContainText('old name');
-  });
-});
-
-test.describe('real graph in the app', () => {
-  test('the sphere renders from real data without the seed', async ({ page }) => {
+test.describe('character-first entry', () => {
+  test('opens on the character token, not a map', async ({ page }) => {
     await page.goto(APP);
-    await expect(page.getByTestId('focus-title')).toHaveText('The Sphere');
-    await expect(page.locator('body')).toHaveAttribute('data-focus-type', 'sphere');
+    await expect(page.locator('body')).toHaveAttribute('data-focus-type', 'character');
+    await expect(page.getByTestId('char-token')).toBeVisible();
   });
 
-  test('deep link to a real world focuses it', async ({ page }) => {
-    await page.goto(APP + '?node=world:akkoroka&seed=1');
-    await expect(page.getByTestId('focus-title')).toHaveText('Akkoroka');
+  test('tapping the token opens the reference card with the required fields', async ({ page }) => {
+    await page.goto(APP);
+    await page.getByTestId('char-token').click();
+    const pop = page.locator('.char-card');
+    await expect(pop).toBeVisible();
+    await expect(pop).toContainText('Marrow the Tested');
+    await expect(pop).toContainText('played by Nate');
+    await expect(pop).toContainText('The Flayed');      // lineage
+    await expect(pop).toContainText('Gravewright');      // origin
+    await expect(pop).toContainText('Vengeance');        // motivation
+    await expect(pop).toContainText('Rendfang');         // weapon
+    await expect(pop).toContainText('The Cawmarch');     // lorebound
+    await expect(pop).toContainText('Ironjaw');          // talent
+    await expect(pop).toContainText('burned reliquary'); // blurb
   });
 
-  test('a ?world= deep link (a player joining a campaign) opens that world', async ({ page }) => {
-    await page.goto(APP + '?world=world:akkoroka');
-    await expect(page.getByTestId('focus-title')).toHaveText('Akkoroka');
-    await expect(page.locator('body')).toHaveAttribute('data-focus-type', 'world');
+  test('the owner sees a full-sheet button', async ({ page }) => {
+    await page.goto(APP);
+    await page.getByTestId('char-token').click();
+    await expect(page.getByTestId('open-sheet')).toBeVisible();
+  });
+});
+
+test.describe('gated zoom', () => {
+  test('zoom out from the token reaches the location', async ({ page }) => {
+    await page.goto(APP);
+    await page.getByTestId('zoom-out').click();
+    await expect(page.locator('body')).toHaveAttribute('data-focus-type', 'location');
+    await expect(page.locator('.layer-title')).toContainText('Stellum District');
+  });
+
+  test('the location shows the party goals, checked and unchecked', async ({ page }) => {
+    await page.goto(APP);
+    await page.getByTestId('zoom-out').click();
+    const goals = page.locator('.goal');
+    await expect(goals).toHaveCount(2);
+    await expect(page.locator('.goal.done')).toHaveCount(1);
+  });
+
+  test('zoom out again reaches the territory', async ({ page }) => {
+    await page.goto(APP);
+    await page.getByTestId('zoom-out').click(); // location
+    await page.getByTestId('zoom-out').click(); // territory
+    await expect(page.locator('body')).toHaveAttribute('data-focus-type', 'map');
+    await expect(page.locator('.layer-title')).toContainText('The Drowned Coast');
+  });
+
+  test('the world stays gated until the LM unlocks it', async ({ page }) => {
+    await page.goto(APP);
+    await page.getByTestId('zoom-out').click();
+    await page.getByTestId('zoom-out').click();
+    await expect(page.getByTestId('world-gate')).toBeVisible();
+    await expect(page.getByTestId('zoom-out')).toBeDisabled();
+  });
+});
+
+test.describe('party members', () => {
+  test('another Fell at the location opens their card, read-only', async ({ page }) => {
+    await page.goto(APP);
+    await page.getByTestId('zoom-out').click();
+    await expect(page.getByTestId('party-token')).toBeVisible();
+    // clicking requests lore from the bridge; with no bridge in demo it shows the loader
+    await page.getByTestId('party-token').click();
+    await expect(page.locator('.pop')).toBeVisible();
   });
 });
