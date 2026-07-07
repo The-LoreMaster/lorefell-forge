@@ -16,6 +16,10 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 ## SagaForge skeleton builds in small phased calls
 - The 504 was latency margin, confirmed by a tiny test call that returned instantly while the full 3500-token skeleton call ran past the Wix web-method wall. The skeleton now builds in phases: a small call for the act spine and threats, then one small call per act for its sessions and scenes, assembled in the tool. Premise trimmed to 450 tokens. Every call now sits well under the limit that SigilForge clears.
 
+## SagaForge writes cleaner and stops scolding
+- The house voice baked into every SagaForge prompt now carries the real rules from the voice guide: show through observable detail, cut structural negations, cut interpretation in place of the thing, no told mood, no AI stock phrases, a specific over a vague detail. Drafts come out sounding like a person, not a model.
+- The banned glyph warning is gone. SagaForge now auto cleans the mechanical marks it used to flag, em and en dashes, ellipses, semicolons, double hyphens, so the draft arrives clean. Your redline field stays for your own edits.
+
 ## The world opens when the LoreMaster says so, and maps travel inward
 - FateWell gains a world veil toggle beside the reveal controls. World veiled keeps ThreadSpire's world layer closed to players. World open to players lifts it. The choice saves on the campaign and ThreadSpire reads it, so the gate is finally the LoreMaster's to open.
 - ThreadSpire now shows what the world faces on the world layer, pulled from the conflicts authored in FateWell.

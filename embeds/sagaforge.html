@@ -66,7 +66,7 @@ textarea:focus,input:focus{ outline:none; border-color:var(--goldline); }
 .scene-h{ font-family:'Cinzel',serif; font-size:.9rem; color:var(--ice); margin:16px 0 4px; }
 .sess-nav{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
 .sess-nav .where{ font-family:'Cinzel',serif; font-size:.8rem; color:var(--gold); }
-.flag{ border:1px solid var(--error); border-radius:8px; background:rgba(201,106,90,.1); color:var(--error); padding:8px 10px; font-size:.9rem; margin:8px 0; }
+
 .oklist{ color:var(--valid); font-size:.9rem; margin:8px 0; }
 
 /* export */
@@ -198,6 +198,25 @@ function scrubHits(text){
   BANNED.forEach(function(b){ if(text.indexOf(b[0])!==-1) hits.push(b[1]); });
   return hits;
 }
+/* Auto-clean the mechanical glyphs the voice bans, so drafts arrive clean instead
+   of scolding the writer. Em and en dashes become sentence breaks or commas by
+   context, ellipses and double hyphens collapse, semicolons become periods. */
+function autoScrub(text){
+  if(!text) return text;
+  var t=String(text);
+  t=t.replace(/\s*\.\.\.\s*/g,". ");            // ellipsis -> stop
+  t=t.replace(/\s*\u2026\s*/g,". ");              // unicode ellipsis
+  t=t.replace(/\s*;\s*/g,". ");                     // semicolon -> stop
+  t=t.replace(/\s*[\u2014\u2013]\s*/g,", ");      // em/en dash -> comma
+  t=t.replace(/\s*--\s*/g,", ");                    // double hyphen -> comma
+  t=t.replace(/,\s*,/g,",");                          // collapse doubled commas
+  t=t.replace(/\.\s*\.(\s)/g,".$1");               // collapse doubled stops
+  t=t.replace(/,\s*\./g,".");                        // comma then stop
+  t=t.replace(/\s{2,}/g," ").trim();
+  // capitalize after a stop we introduced
+  t=t.replace(/([.!?]\s+)([a-z])/g,function(m,a,b){ return a+b.toUpperCase(); });
+  return t;
+}
 function scrubDraft(d){
   var hits={};
   (d.scenes||[]).forEach(function(sc){
@@ -210,10 +229,17 @@ function scrubDraft(d){
 
 /* ============ prompts ============ */
 function voiceRules(){
-  return "Write in the LoreFell house voice. Short declarative sentences, dark grounded register. "
-    +"Never use em dashes, en dashes, ellipses, semicolons, comma splices, rhetorical triples, or the construction 'not X but Y'. "
+  return "Write in the LoreFell house voice: a human game master describing a place, creature, or event out loud at the table. Carry dark and weird tone through observable detail and physical action, not through adjectives or mood words. "
+    +"Short declarative sentences. State facts directly. "
+    +"Never use em dashes, en dashes, ellipses, semicolons, or double hyphens. "
+    +"Never describe what something is not. Cut every 'not X but Y', 'it wasn't X', 'no mere X', 'it isn't just X, it's Y'. State the positive directly. "
+    +"Never narrate a character's interpretation of a thing instead of the thing. Cut 'reminded her of', 'as if', 'the kind of X that', 'not a sound so much as'. Put the concrete detail in its place. "
+    +"Never tell mood or importance. Do not write 'the silence was heavy', 'an air of menace', 'it felt ancient', 'a place of great power'. Write what a person there sees, hears, touches, or does. "
+    +"No more than two adjectives on a noun. No rhetorical triples. No rhetorical questions. No closing line that reaches for grandeur. "
+    +"Banned phrases and their families: tapestry of, testament to, a symphony of, whispers of, veil of shadow, dance of shadows, the very air, something ancient stirred, could not shake the feeling, etched into, forge your legend, steeped in mystery, palpable, loomed, sent shivers, little did they know, in that moment, a chill ran down. "
+    +"Prefer a specific over a vague detail: rows of fingernail gouges over strange markings, wet copper over an odd smell. "
     +"Never use D&D or Pathfinder terms. Combat is simultaneous and cinematic, never turn based. Use Act and React, never the bare word action. "
-    +"Never invent hard canon facts about the world of LoreFell. Where a canon detail is uncertain, keep the text general.";
+    +"Never invent hard canon facts about LoreFell. Where a canon detail is uncertain, keep the text general.";
 }
 function skeletonSystem(){
   var t=ADV_TYPES[S.type];
@@ -660,11 +686,11 @@ function draftCurrent(redline){
      the Wix web module timeout, which a single large session call was blowing (504). */
   var a=S.cursor.a, si=S.cursor.s;
   var sess=S.skeleton.acts[a].sessions[si];
-  var built={scenes:[], flags:[]};
+  var built={scenes:[]};
   var total=sess.scenes.length;
   function drawScene(ci){
     if(ci>=total){
-      S.drafts[curKey()]={scenes:built.scenes,flags:built.flags};
+      S.drafts[curKey()]={scenes:built.scenes};
       save(); render(); scrollTop();
       return;
     }
@@ -681,12 +707,9 @@ function draftCurrent(redline){
         throw new Error("The forge returned nothing readable for this scene.");
       }
       var entries=d.entries;
+      entries.forEach(function(e){ e.title=autoScrub(e.title||""); e.body=autoScrub(e.body||""); });
       var scene={name:sess.scenes[ci].name, entries:entries};
-      var hits=[];
-      entries.forEach(function(e){ scrubHits((e.title||"")+" "+(e.body||"")).forEach(function(h){ if(hits.indexOf(h)<0) hits.push(h); }); });
-      scene.entries=entries;
       built.scenes.push(scene);
-      hits.forEach(function(h){ if(built.flags.indexOf(h)<0) built.flags.push(h); });
       (d.npcs||[]).forEach(function(n){ if(n&&n.name&&!S.npcs[n.name]) S.npcs[n.name]=n.desc||""; });
       save();
       drawScene(ci+1);
@@ -718,9 +741,7 @@ function vDraft(){
       +'<button class="btn ghost" onclick="go(\'skeleton\')">Back to the skeleton</button></div></div>';
     return h;
   }
-  if(d.flags&&d.flags.length){
-    h+='<div class="flag">This draft carries '+esc(d.flags.join(", "))+'. Redline to clear it, or approve with care.</div>';
-  }
+
   d.scenes.forEach(function(sc){
     h+='<div class="scene-h">'+esc(sc.name)+'</div>';
     (sc.entries||[]).forEach(function(e){
