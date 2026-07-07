@@ -54,6 +54,10 @@ $w.onReady(() => {
       charId = msg.charId || '';
       await openCharacter(charId);
       sendCharacters(charId);
+    } else if (msg.type === 'threadspire-open') {
+      const c = encodeURIComponent(msg.charId || '');
+      const cp = msg.campaignId ? '&campaign=' + encodeURIComponent(msg.campaignId) : '';
+      try { wixLocation.to('/the-threadspire?character=' + c + cp); } catch (e) {}
     } else if (msg.type === 'add-character') {
       charId = '';
       let libraries = {};
