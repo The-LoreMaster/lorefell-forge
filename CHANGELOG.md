@@ -16,6 +16,10 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 ## SagaForge skeleton builds in small phased calls
 - The 504 was latency margin, confirmed by a tiny test call that returned instantly while the full 3500-token skeleton call ran past the Wix web-method wall. The skeleton now builds in phases: a small call for the act spine and threats, then one small call per act for its sessions and scenes, assembled in the tool. Premise trimmed to 450 tokens. Every call now sits well under the limit that SigilForge clears.
 
+## Re-forge a foe to a new rating
+- A foe can be bumped or dropped to a different Shatter Rating and it re-derives to match. Attributes and vitality rescale to the tier, infusions and augmentations fill or trim to the tier budget, and Acts trim to the tier ceiling. Existing picks are kept when the tier allows, so a hand tuned foe is not wiped.
+- Available in prep from the Library, on a foe's options menu, and in the crucible from a combatant's panel for a mid fight escalation. Infusions and augmentations fill from canon, family matched to the build. New Act slots are yours to fill in the ability panel.
+
 ## Forged foes are built out like FoeForge
 - SagaForge now gives each foe its full arsenal by tier, the way FoeForge builds one. Infusions are family matched to the foe's build and counted by tier, augmentations are counted by tier, and Acts come from canon. A Minion carries none, an Elite one infusion and one Act, a Champion two infusions, one augmentation, two Acts, an Epic three infusions, one augmentation, three Acts, a Forsaken three infusions, two augmentations, three Acts. A build with no attack attribute carries no infusions.
 - Infusions and augmentations ride through the pack onto the imported foe, survive the account library, and spawn onto the scene. The scene ability panel shows a foe's infusions and augmentations alongside its Acts.
