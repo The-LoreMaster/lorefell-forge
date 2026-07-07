@@ -337,6 +337,8 @@ body::before{
   .m-back{ align-items:center; }
   .m-card{ border-radius:14px; padding-bottom:18px; }
 }
+.world-grid{ display:flex; flex-direction:column; gap:6px; max-height:60vh; overflow-y:auto; margin-top:10px; }
+.world-grid .tcard{ text-align:left; }
 .m-title{ font-family:'Cinzel', serif; font-weight:600; font-size:1.1rem; letter-spacing:.04em; margin-bottom:8px; }
 .m-row{ display:flex; gap:8px; justify-content:flex-end; margin-top:16px; }
 
@@ -3448,6 +3450,9 @@ function showDesc(kind, id){
 // and Chronicle carry visible Acts. Promotion moves an adventure up or across the ladder
 // and the structure adjusts to fit. Single owner for now; shared Chronicles are a later
 // dedicated build.
+/* THREADSPIRE_WORLDS start */
+var WORLD_LIST=[{"id": "world:akkoroka", "name": "Akkoroka"}, {"id": "world:amaranthia", "name": "Amaranthia"}, {"id": "world:avemriol", "name": "Avemriol"}, {"id": "world:brimsever", "name": "Brimsever"}, {"id": "world:burhallow", "name": "Burhallow"}, {"id": "world:crixalis", "name": "Crixalis"}, {"id": "world:eldarwyn", "name": "Eldarwyn"}, {"id": "world:elysara", "name": "Elysara"}, {"id": "world:felidae", "name": "Felidae"}, {"id": "world:garyx", "name": "Garyx"}, {"id": "world:karn", "name": "Karn"}, {"id": "world:kwuhara", "name": "Kwuhara"}, {"id": "world:mireleor", "name": "Mireleor"}, {"id": "world:mireth", "name": "Mireth"}, {"id": "world:mortavia", "name": "Mortavia"}, {"id": "world:natbakka", "name": "Natbakka"}, {"id": "world:neriad", "name": "Neriad"}, {"id": "world:oroniel", "name": "Oroniel"}, {"id": "world:pandemonium", "name": "Pandemonium"}, {"id": "world:sable", "name": "Sable"}, {"id": "world:scitnix", "name": "Scitnix"}, {"id": "world:sellenia", "name": "Sellenia"}, {"id": "world:shadakar", "name": "Shadakar"}, {"id": "world:shervinaw", "name": "Shervinaw"}, {"id": "world:sporion", "name": "Sporion"}, {"id": "world:sylvanoth", "name": "Sylvanoth"}, {"id": "world:thaloryn", "name": "Thaloryn"}, {"id": "world:the-scere", "name": "The Scere"}, {"id": "world:therion", "name": "Therion"}, {"id": "world:ursathar", "name": "Ursathar"}, {"id": "world:valoria", "name": "Valoria"}, {"id": "world:verdantia", "name": "Verdantia"}, {"id": "world:vulkaris", "name": "Vulkaris"}, {"id": "world:vyrathis", "name": "Vyrathis"}, {"id": "world:wildermire", "name": "Wildermire"}, {"id": "world:wylv", "name": "Wylv"}];
+/* THREADSPIRE_WORLDS end */
 var ADV_TYPES = {
   story:     { label:'Story',     acts:false, length:'recommended 3 to 6 sessions',   blurb:'A short, focused arc for a chosen few Fell. It burns bright, then closes.' },
   legacy:    { label:'Legacy',    acts:true,  length:'recommended 10 to 12 sessions', blurb:'The backbone saga. Characters endure, grow, and the ending marks the canon.' },
@@ -3456,6 +3461,7 @@ var ADV_TYPES = {
 };
 var ADV_ORDER = ['tale','story','legacy','chronicle'];
 function advType(c){ return ADV_TYPES[c && c.type] || ADV_TYPES.legacy; }
+function worldName(id){ for(var i=0;i<WORLD_LIST.length;i++){ if(WORLD_LIST[i].id===id) return WORLD_LIST[i].name; } return ''; }
 function advSub(c){
   var players = c.players.length + ' player' + (c.players.length===1?'':'s');
   return advType(c).label + ' &middot; ' + players;
@@ -3498,6 +3504,18 @@ function advPick(k){
     if (S.wixPlayers.length) mergePool(c);
     save(); nav('campaign', c.id);
   });
+}
+function advSetWorld(id){
+  var c=null; S.campaigns.forEach(function(x){ if(x.id===id) c=x; }); if(!c) return;
+  var opts=WORLD_LIST.map(function(w){
+    return '<button class="tcard'+(c.worldId===w.id?' on':'')+'" onclick="advWorldPick(\''+id+'\',\''+w.id+'\')">'+esc(w.name)+'</button>';
+  }).join('');
+  modal('<h3 class="m-title">Set world</h3><p class="muted">Where in the Sphere this adventure sits. Players who join start here in ThreadSpire.</p>'
+    +'<div class="world-grid">'+opts+'</div>');
+}
+function advWorldPick(id, worldId){
+  var c=null; S.campaigns.forEach(function(x){ if(x.id===id) c=x; }); if(!c) return;
+  c.worldId=worldId; save(); closeModal(); render();
 }
 function advPromote(id){
   var c=null; S.campaigns.forEach(function(x){ if(x.id===id) c=x; }); if(!c) return;
@@ -5679,6 +5697,12 @@ function importPack(pack, msg){
   var camp = JSON.parse(JSON.stringify(pack.campaign));
   camp.id = freshId();
   if (!camp.ovOpen) camp.ovOpen = {};
+  // match a free-text world hint from a forged pack to a real world, if it names one
+  if (!camp.worldId && camp.worldHint){
+    var hint = String(camp.worldHint).toLowerCase();
+    for (var wi=0; wi<WORLD_LIST.length; wi++){ if (hint.indexOf(WORLD_LIST[wi].name.toLowerCase())>=0){ camp.worldId = WORLD_LIST[wi].id; break; } }
+  }
+  delete camp.worldHint;
   camp.manualRefs = (camp.manualRefs || []).map(function(r){ return npcMap[r] || r; });
   (camp.entries || []).forEach(remapEntry);
   (camp.acts || []).forEach(function(a){
@@ -6007,6 +6031,9 @@ function scrCampaign(){
   h += '<h1 class="page-h">'+esc(c.name)+'</h1>';
   h += '<p class="adv-tag">'+t.label+' &middot; '+t.length
     + ' <button class="adv-change" onclick="advPromote(\''+c.id+'\')">Change type</button></p>';
+  var wn = worldName(c.worldId);
+  h += '<p class="adv-tag">World &middot; '+(wn?esc(wn):'not set')
+    + ' <button class="adv-change" onclick="advSetWorld(\''+c.id+'\')">'+(wn?'Change world':'Set world')+'</button></p>';
   h += '<div class="tabs">'
     + '<button class="tab'+(V.cTab==='overview'?' on':'')+'" onclick="setCTab(\'overview\')">Overview</button>'
     + '<button class="tab'+(V.cTab==='roster'?' on':'')+'" onclick="setCTab(\'roster\')">Roster</button></div>';

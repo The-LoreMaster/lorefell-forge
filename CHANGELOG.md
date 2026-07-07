@@ -21,6 +21,12 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 - The approved premise drives the skeleton. Opposition seeds the act threats and the antagonist, Clock becomes the visible pressure, Cost becomes the ending's price. A LoreMaster who cannot fill the Opposition line learns the idea is not ready, which is the point of the gate.
 - SagaForge refreshes on its own.
 
+## ThreadSpire, and campaigns get a world
+- ThreadSpire is live, the Sphere explorer, with a Hearth tile between FellGlass and FateWell. Public worlds are open, campaign material stays veiled.
+- FateWell campaigns can now be anchored to a world. The adventure header shows the world with a Set world or Change world control, sourced from the canon world list baked from the ThreadSpire graph. The choice saves on the campaign and survives publish and import.
+- SagaForge carries its world through the export pack as a hint, and FateWell matches that hint to a real world on import so a forged adventure lands anchored.
+- FellGlass shows See this saga in the Sphere on a character whose campaign has a world, opening ThreadSpire focused there. This needs the adventures list to carry worldId, one backend addition noted for the paste.
+
 ## SagaForge builds conflict first
 - The skeleton was producing well organized tours, scene after scene of the Fell witnessing and learning. The outline prompt now demands a struggle the party can lose. Every act carries a THREAT line naming who opposes the Fell and what is at stake, both shown and editable in the skeleton view and fed into every scene draft in that act. Scene purposes take active verbs, at least one scene per session forces an irreversible costly choice, the opposition worsens on its own visible clock, the antagonist holds a specific defensible belief stated plainly, and the ending poses a hard choice with a price rather than a clean victory.
 - The scene drafting gains craft rules for the table. Every scene contains a decision or an opposing push, never information alone. Read alouds run short and sensory and end on motion or wrongness. NPCs want something from the Fell and fear something. Clues cost something to obtain. Crucibles state what is lost by fleeing. Scenes end on a hook or an advancing threat, never a tidy close.
