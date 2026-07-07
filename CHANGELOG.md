@@ -16,6 +16,10 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 ## SagaForge skeleton builds in small phased calls
 - The 504 was latency margin, confirmed by a tiny test call that returned instantly while the full 3500-token skeleton call ran past the Wix web-method wall. The skeleton now builds in phases: a small call for the act spine and threats, then one small call per act for its sessions and scenes, assembled in the tool. Premise trimmed to 450 tokens. Every call now sits well under the limit that SigilForge clears.
 
+## Summon foes straight into a crucible in FateWell
+- A Summon foes button on any scene forges a legal canon lineup and drops it onto the board as ready combatants, no trip to FoeForge and no import. Pick a difficulty, skirmish, standard, boss and lackeys, or climax, and the forge composes the encounter to it, scaled to the party level and size.
+- Foes are canon only, legal by construction, using the same pack and scaling math as FoeForge and SagaForge. This does not rebuild FoeForge inside FateWell, hand built foes still belong there.
+
 ## Multi-foe crucibles, and drafting inside FateWell
 - SagaForge now forges a lineup per crucible, not a single foe. A block per foe with a count, so a Champion with three Minions or a warband of Elites all land as numbered ready combatants attached to the scene. The forge composes the encounter to the stakes.
 - FateWell can draft a scene in place. A Forge with AI button on any scene calls the worker and appends typed blocks in house voice, reusing known NPCs and foes and continuing from blocks already there. No leaving for SagaForge and reimporting to flesh out one scene.

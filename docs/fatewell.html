@@ -4326,6 +4326,7 @@ function notesBlock(ref, opts){
     }
     hc += '<button class="btn wide ghost small add-note" onclick="addEntry(\''+ref+'\')">+ Add note</button>';
     if(ref.indexOf('sc:')===0) hc += '<button class="btn wide ghost small" onclick="forgeScene(\''+ref+'\')">Forge the scene</button>';
+    if(ref.indexOf('sc:')===0) hc += '<button class="btn wide ghost small" onclick="summonFoes(\''+ref+'\')">Summon foes</button>';
     hc += '</div>';
     return hc;
   }
@@ -4367,6 +4368,7 @@ function notesBlock(ref, opts){
   }
   h += '<button class="btn wide ghost small add-note" onclick="addEntry(\''+ref+'\')">+ Add note</button>';
   if(ref.indexOf('sc:')===0) h += '<button class="btn wide ghost small" onclick="forgeScene(\''+ref+'\')">Forge the scene</button>';
+  if(ref.indexOf('sc:')===0) h += '<button class="btn wide ghost small" onclick="summonFoes(\''+ref+'\')">Summon foes</button>';
   h += '</div>';
   return h;
 }
@@ -4792,6 +4794,108 @@ function countModal(libId){
     + '<button class="btn" onclick="attachFoe(\''+libId+'\')">Add to scene</button></div>');
 }
 
+var FW_FOE_PACK={"builds": [{"name": "Reaver", "attributes": ["Precision", "Power"], "accuracy": ["weapon"], "attackAttributes": ["Precision", "Power"]}, {"name": "Adept", "attributes": ["Precision", "Magic"], "accuracy": ["weapon", "spell"], "attackAttributes": ["Precision", "Magic"]}, {"name": "Scourge", "attributes": ["Power", "Magic"], "accuracy": ["spell"], "attackAttributes": ["Power", "Magic"]}, {"name": "Stalker", "attributes": ["Precision", "Evasion"], "accuracy": ["weapon"], "attackAttributes": ["Precision"]}, {"name": "Duelist", "attributes": ["Precision", "Durability"], "accuracy": ["weapon"], "attackAttributes": ["Precision"]}, {"name": "Inquisitor", "attributes": ["Precision", "Resistance"], "accuracy": ["weapon"], "attackAttributes": ["Precision"]}, {"name": "Berserker", "attributes": ["Power", "Evasion"], "accuracy": [], "attackAttributes": ["Power"]}, {"name": "Juggernaut", "attributes": ["Power", "Durability"], "accuracy": [], "attackAttributes": ["Power"]}, {"name": "Golem", "attributes": ["Power", "Resistance"], "accuracy": [], "attackAttributes": ["Power"]}, {"name": "Wisp", "attributes": ["Magic", "Evasion"], "accuracy": ["spell"], "attackAttributes": ["Magic"]}, {"name": "Idol", "attributes": ["Magic", "Durability"], "accuracy": ["spell"], "attackAttributes": ["Magic"]}, {"name": "Maleficar", "attributes": ["Magic", "Resistance"], "accuracy": ["spell"], "attackAttributes": ["Magic"]}, {"name": "Shade", "attributes": ["Evasion", "Durability"], "accuracy": [], "attackAttributes": []}, {"name": "Mirage", "attributes": ["Evasion", "Resistance"], "accuracy": [], "attackAttributes": []}, {"name": "Bulwark", "attributes": ["Durability", "Resistance"], "accuracy": [], "attackAttributes": []}], "tiers": [{"name": "Minion", "attributeOffset": -2, "vitalityWeight": 1, "lorePoints": 1, "infusions": 0}, {"name": "Elite", "attributeOffset": 0, "vitalityWeight": 2, "lorePoints": 2, "infusions": 1}, {"name": "Champion", "attributeOffset": 1, "vitalityWeight": 3, "lorePoints": 3, "infusions": 2}, {"name": "Epic", "attributeOffset": 2, "vitalityWeight": 5, "lorePoints": 4, "infusions": 3}, {"name": "Forsaken", "attributeOffset": 3, "vitalityWeight": 8, "lorePoints": 5, "infusions": 3}], "stances": ["Shrouded", "Stalwart", "Vestments"], "afflictions": ["Ensnared", "Disoriented", "Fragmented", "Staggered", "Terrorized", "Frenzied", "Diminished", "Hunted", "Inept", "Disrupted", "Inert", "Enfeebled", "Frozen", "Jinxed", "Ignited", "Masked", "Suppressed", "Persecuted", "Synchronized", "Agonized", "Witless", "Bleeding", "Accursed", "Anchored", "Disarmed", "Benighted", "Immobilized", "Conjoined", "Impeded", "Constrained", "Infected", "Defanged", "Mangled", "Disenchanted", "Vulnerable", "Harvested", "Plagued", "Reapt", "Restricted", "Strung", "Unclad", "Nullified", "Unlucky", "Vitiated", "Withered", "Bruised", "Worn", "Crippled", "Dislocated", "Lacerated", "Dazzled", "Slashed", "Stymied", "Tainted"]};
+function fwFoeBuild(name){ for(var i=0;i<FW_FOE_PACK.builds.length;i++){ if(FW_FOE_PACK.builds[i].name===name) return FW_FOE_PACK.builds[i]; } return null; }
+function fwFoeTier(name){ for(var i=0;i<FW_FOE_PACK.tiers.length;i++){ if(FW_FOE_PACK.tiers[i].name===name) return FW_FOE_PACK.tiers[i]; } return null; }
+function fwScaleFoe(buildName, tierName, apl, party){
+  var b=fwFoeBuild(buildName), t=fwFoeTier(tierName); if(!b||!t) return null;
+  apl=Math.max(1,apl||1); party=Math.max(1,party||4);
+  var val=Math.max(0,apl+t.attributeOffset);
+  var attrs=blankAttrs(); (b.attributes||[]).forEach(function(a){ attrs[a]=val; });
+  return { attrs:attrs, maxVit:apl*party*t.vitalityWeight };
+}
+function fwPartyLevel(){
+  var c=curC(); if(c&&c.partyLevel) return Math.max(1,+c.partyLevel||1);
+  // guess from player levels if present, else 3
+  var lv=[]; (S.wixPlayers||[]).forEach(function(p){ if(p&&p.level) lv.push(+p.level); });
+  if(lv.length) return Math.max(1,Math.round(lv.reduce(function(a,b){return a+b;},0)/lv.length));
+  return 3;
+}
+function fwPartySize(){ var n=(S.wixPlayers||[]).length; return n>0?n:4; }
+
+function summonFoes(ref){
+  window._summonRef = ref;
+  var sc = (ref && levelByRef(ref)) || curSc();
+  modal('<h3 class="m-title">Summon foes</h3>'
+    +'<p class="muted">A legal canon lineup, scaled to a party of '+fwPartySize()+' at level '+fwPartyLevel()+'. It drops straight onto this scene.</p>'
+    +'<div class="world-grid">'
+    +'<button class="tcard" onclick="doSummon(\'skirmish\')"><b>Skirmish</b><br><span class="muted">A few minions, a quick fight</span></button>'
+    +'<button class="tcard" onclick="doSummon(\'standard\')"><b>Standard</b><br><span class="muted">A real threat, a couple of elites</span></button>'
+    +'<button class="tcard" onclick="doSummon(\'boss\')"><b>Boss and lackeys</b><br><span class="muted">A champion with minions</span></button>'
+    +'<button class="tcard" onclick="doSummon(\'climax\')"><b>Climax</b><br><span class="muted">An epic or forsaken menace</span></button>'
+    +'</div>');
+}
+function summonSystem(){
+  return "You stat the foes for one LoreFell crucible. Pick only from the provided lists, nothing invented. "
+    +"Output plain text only, no JSON. One block per foe in this shape:\n"
+    +"@@FOE\nname: <evocative foe name, not generic>\ncount: <1 to 6>\nbuild: <one build name>\ntier: <one tier name>\nstance: <one stance name>\naffliction: <one affliction name, or none>\n@@END\n"
+    +"Compose the encounter to the requested difficulty, two to four blocks. Match tiers to the shape asked for.";
+}
+function doSummon(diff){
+  var ref = window._summonRef;
+  var sc = (ref && levelByRef(ref)) || curSc(); if(!sc){ closeModal(); return; }
+  var shapes={ skirmish:"a skirmish, three to five Minions or two Elites",
+    standard:"a standard fight, two or three Elites or one Champion",
+    boss:"a boss and its lackeys, one Champion with three or four Minions",
+    climax:"a climax, one Epic or Forsaken, optionally with a couple of Elites" };
+  var builds=FW_FOE_PACK.builds.map(function(b){return b.name;}).join(", ");
+  var tiers=FW_FOE_PACK.tiers.map(function(t){return t.name;}).join(", ");
+  var lines=["Scene: "+(sc.name||"a crucible")+(sc.desc?" ("+sc.desc+")":"")];
+  if(curA()&&curA().name) lines.push("Act: "+curA().name);
+  lines.push("Difficulty: "+shapes[diff]);
+  lines.push("Party level about "+fwPartyLevel()+".");
+  lines.push("Builds: "+builds); lines.push("Tiers: "+tiers);
+  lines.push("Stances: "+FW_FOE_PACK.stances.join(", "));
+  lines.push("Afflictions: "+FW_FOE_PACK.afflictions.slice(0,40).join(", ")+", or none.");
+  closeModal();
+  var mid=document.getElementById('summonNotice');
+  if(!mid){ mid=document.createElement('div'); mid.id='summonNotice';
+    mid.style.cssText='position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:40;background:#10162a;border:1px solid rgba(201,168,76,.45);color:#dce8ef;padding:10px 16px;border-radius:10px;font-size:.9rem'; document.body.appendChild(mid); }
+  mid.textContent='Summoning foes...'; mid.style.opacity='1';
+  fwAiCall(summonSystem(), lines.join("\n"), 500).then(function(text){
+    var lineup=fwParseFoeLineup(text);
+    if(!lineup.length){ mid.textContent='No foes came through. Try again.'; setTimeout(function(){mid.style.opacity='0';},2600); return; }
+    var apl=fwPartyLevel(), party=fwPartySize(), added=0;
+    lineup.forEach(function(f){
+      var scd=fwScaleFoe(f.build,f.tier,apl,party); if(!scd) return;
+      var cnt=Math.max(1,f.count||1);
+      var existing=sc.combatants.filter(function(c){ return c.summonName===f.name; }).length;
+      for(var k=0;k<cnt;k++){
+        added++;
+        sc.combatants.push({ id:uid(), libId:null, type:'monster', side:'monster', summonName:f.name,
+          name:f.name+(cnt>1?' '+(k+1):''), sr:f.tier, maxVit:scd.maxVit, curVit:scd.maxVit,
+          attrs:JSON.parse(JSON.stringify(scd.attrs)), inv:[], abilities:[],
+          sig:f.sig||'', source:'summon', build:f.build, stance:f.stance||'', img:'',
+          act:'', target:'', done:false, affs:[] });
+      }
+    });
+    save(); render();
+    mid.textContent='Summoned '+added+' foes into '+(sc.name||'the scene')+'.'; setTimeout(function(){mid.style.opacity='0';},2600);
+  }).catch(function(e){
+    mid.textContent = e&&e.rate ? 'The forge is busy. Try again in a minute.' : ('Could not summon: '+((e&&e.message)||'error'));
+    setTimeout(function(){mid.style.opacity='0';},3200);
+  });
+}
+function fwParseFoeLineup(text){
+  var out=[]; var chunks=text.split(/@@FOE/).slice(1);
+  function snap(val,list){ if(!val)return""; for(var i=0;i<list.length;i++){ if(list[i].toLowerCase()===val.toLowerCase())return list[i]; } for(var j=0;j<list.length;j++){ if(list[j].toLowerCase().indexOf(val.toLowerCase())>=0||val.toLowerCase().indexOf(list[j].toLowerCase())>=0)return list[j]; } return""; }
+  chunks.forEach(function(ch){
+    var body=ch.split("@@END")[0]; var f={name:"",count:1,build:"",tier:"",stance:"",sig:""};
+    body.split(/\r?\n/).forEach(function(ln){
+      var m=ln.match(/^\s*(name|count|build|tier|stance|affliction)\s*:\s*(.*)$/i); if(!m) return;
+      var v=m[2].trim(), k=m[1].toLowerCase();
+      if(k==="name")f.name=v; else if(k==="count")f.count=Math.max(1,Math.min(6,parseInt(v,10)||1));
+      else if(k==="build")f.build=v; else if(k==="tier")f.tier=v; else if(k==="stance")f.stance=v;
+      else if(k==="affliction")f.sig=(/^none$/i.test(v)?"":v);
+    });
+    f.build=snap(f.build,FW_FOE_PACK.builds.map(function(b){return b.name;}))||FW_FOE_PACK.builds[0].name;
+    f.tier=snap(f.tier,FW_FOE_PACK.tiers.map(function(t){return t.name;}))||"Elite";
+    f.stance=snap(f.stance,FW_FOE_PACK.stances)||FW_FOE_PACK.stances[0];
+    f.sig=snap(f.sig,FW_FOE_PACK.afflictions);
+    if(f.name) out.push(f);
+  });
+  return out;
+}
 function attachFoe(libId){
   var e = libGet(libId);
   var n = parseInt(document.getElementById('mCount').value,10) || 1;
