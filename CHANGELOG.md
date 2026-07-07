@@ -16,6 +16,11 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 ## SagaForge skeleton builds in small phased calls
 - The 504 was latency margin, confirmed by a tiny test call that returned instantly while the full 3500-token skeleton call ran past the Wix web-method wall. The skeleton now builds in phases: a small call for the act spine and threats, then one small call per act for its sessions and scenes, assembled in the tool. Premise trimmed to 450 tokens. Every call now sits well under the limit that SigilForge clears.
 
+## SagaForge builds the outline act by act
+- Scope gains a structure choice. Let the forge decide as before, or set it yourself with the number of acts, sessions per act, and scenes per session. Acts and sessions are held exactly, scenes are a target the forge can vary by one or two.
+- After Scope the outline is built one act at a time. Each act is forged on its own, and you recast just that act with a note or edit its sessions and scenes by hand, then lock it. Only then is the next act forged, and it follows on from the acts already locked. The forge never drafts the whole structure in one shot, so it cannot railroad the shape.
+- You can step back to a locked act, add or remove sessions and scenes by hand, and the whole-outline recast still waits at the end for a final pass.
+
 ## Re-forge a foe to a new rating
 - A foe can be bumped or dropped to a different Shatter Rating and it re-derives to match. Attributes and vitality rescale to the tier, infusions and augmentations fill or trim to the tier budget, and Acts trim to the tier ceiling. Existing picks are kept when the tier allows, so a hand tuned foe is not wiped.
 - Available in prep from the Library, on a foe's options menu, and in the crucible from a combatant's panel for a mid fight escalation. Infusions and augmentations fill from canon, family matched to the build. New Act slots are yours to fill in the ability panel.

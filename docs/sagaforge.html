@@ -33,6 +33,19 @@ textarea:focus,input:focus{ outline:none; border-color:var(--goldline); }
 .step{ font-family:'Cinzel',serif; font-size:.6rem; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); padding:5px 10px; border:1px solid var(--line); border-radius:99px; }
 .step.on{ color:var(--gold); border-color:var(--goldline); }
 .step.done{ color:var(--ice); }
+.seg{ display:flex; gap:6px; margin:6px 0; }
+.seg-b{ flex:1; padding:9px 8px; border:1px solid var(--line); border-radius:8px; background:var(--panel2); color:var(--ice); font-family:'Cinzel',serif; font-size:.74rem; letter-spacing:.04em; cursor:pointer; }
+.seg-b.on{ background:rgba(140,190,220,.14); box-shadow:inset 0 0 0 1px var(--gold); color:var(--silver); }
+.struct-grid{ display:flex; flex-direction:column; gap:8px; margin:8px 0; }
+.stp{ display:flex; align-items:center; justify-content:space-between; padding:6px 2px; }
+.stp-l{ color:var(--ice); font-size:.92rem; }
+.stp-c{ display:flex; align-items:center; gap:12px; }
+.stp-b{ width:34px; height:34px; border:1px solid var(--line); border-radius:8px; background:var(--panel2); color:var(--silver); font-size:1.1rem; cursor:pointer; }
+.stp-v{ min-width:20px; text-align:center; color:var(--silver); font-size:1rem; }
+.actstep{ border:1px solid var(--line); border-radius:9px; padding:4px 10px; margin:6px 0; display:flex; align-items:center; gap:8px; }
+.actstep.done{ box-shadow:inset 3px 0 0 var(--gold); }
+.actstep.cur{ box-shadow:inset 3px 0 0 var(--ice); background:rgba(140,190,220,.08); }
+.actstep .n{ font-family:'Cinzel',serif; color:var(--muted); font-size:.72rem; letter-spacing:.1em; }
 .tcard{ border:1px solid var(--line); border-radius:10px; padding:12px; margin:8px 0; cursor:pointer; background:var(--panel2); }
 .tcard:hover{ border-color:var(--goldline); }
 .tcard.on{ border-color:var(--gold); }
@@ -118,6 +131,8 @@ var S=load()||{
   type:"", world:"", tone:"", hook:"", canon:"", levels:"", sessTarget:"",
   premise:null,           /* {situation, intrusion, opposition, clock, cost} */
   skelNote:"",             /* the skeleton redline, folded into a reforge */
+  structure:{ mode:"auto", acts:2, sessions:2, scenes:3 }, /* auto = forge decides, manual = these counts */
+  actWalk:{ active:false, i:0, locked:[] }, /* sequential act builder: which act, which are locked */
   skeleton:null,          /* {name, acts:[{name,purpose,sessions:[{name,purpose,scenes:[{name,purpose}]}]}]} */
   drafts:{},              /* "a-s" -> {scenes:[{name, entries:[{type,title,body,speaker}]}], npcs:[{name,desc}]} */
   approved:{},            /* "a-s" -> true */
@@ -445,15 +460,48 @@ function vScope(){
         :"")
       +(t.acts
         ?'<label class="fld">Canon ties (optional)</label><input type="text" id="q-canon" value="'+esc(S.canon)+'" placeholder="Named places, factions, or events it touches">'
-         +'<label class="fld">Session count target (optional)</label><input type="text" id="q-sess" value="'+esc(S.sessTarget)+'" placeholder="Leave open for the recommendation">'
+         +(( S.structure && S.structure.mode==="manual")?"":'<label class="fld">Session count target (optional)</label><input type="text" id="q-sess" value="'+esc(S.sessTarget)+'" placeholder="Leave open for the recommendation">')
         :"")
-      +'<div class="btnrow"><button class="btn gold" onclick="fromScope()">Forge the skeleton</button>'
+      +structureControl(t)
+      +'<div class="btnrow"><button class="btn gold" onclick="fromScope()">Build the outline</button>'
       +'<button class="btn ghost" onclick="go(\'pitch\')">Back</button></div>'
       +'</div>';
   }
   return h;
 }
-function pickType(k){ S.type=k; save(); render(); }
+function structureControl(t){
+  var st=S.structure||{mode:"auto"};
+  var h='<label class="fld" style="margin-top:6px">Structure</label>'
+    +'<div class="seg">'
+    +'<button class="seg-b'+(st.mode==="auto"?" on":"")+'" onclick="setStructMode(\'auto\')">Let the forge decide</button>'
+    +'<button class="seg-b'+(st.mode==="manual"?" on":"")+'" onclick="setStructMode(\'manual\')">Set it myself</button>'
+    +'</div>';
+  if(st.mode==="manual"){
+    h+='<div class="struct-grid">';
+    if(t.acts) h+=stepper("Acts","acts",st.acts,1,6);
+    h+=stepper(t.oneSession?"Session":"Sessions per act","sessions",st.sessions,1,6);
+    h+=stepper("Scenes per session","scenes",st.scenes,1,8);
+    h+='</div><p class="hint">Acts and sessions are held exactly. Scenes are a target the forge can vary by one or two if the story wants.</p>';
+    if(t.oneSession) h+='<p class="hint">A Tale runs one session, so its session count is fixed at one.</p>';
+  } else {
+    h+='<p class="hint">The forge picks the number of acts, sessions, and scenes to fit the size.</p>';
+  }
+  return h;
+}
+function stepper(label,key,val,min,max){
+  return '<div class="stp"><span class="stp-l">'+label+'</span>'
+    +'<div class="stp-c"><button class="stp-b" onclick="bumpStruct(\''+key+'\',-1,'+min+','+max+')">&#8722;</button>'
+    +'<span class="stp-v" id="stp-'+key+'">'+val+'</span>'
+    +'<button class="stp-b" onclick="bumpStruct(\''+key+'\',1,'+min+','+max+')">+</button></div></div>';
+}
+function setStructMode(m){ S.structure=S.structure||{mode:"auto",acts:2,sessions:2,scenes:3}; S.structure.mode=m; save(); render(); }
+function bumpStruct(key,d,min,max){
+  S.structure=S.structure||{mode:"manual",acts:2,sessions:2,scenes:3};
+  var v=(S.structure[key]||min)+d; v=Math.max(min,Math.min(max,v));
+  S.structure[key]=v; save();
+  var el=$("stp-"+key); if(el) el.textContent=v;
+}
+function pickType(k){ S.type=k; if(k==="tale"&&S.structure) S.structure.sessions=1; save(); render(); }
 function fromScope(){
   S.world=($("q-world")||{}).value||""; S.tone=($("q-tone")||{}).value||""; S.hook=($("q-hook")||{}).value||"";
   S.levels=($("q-levels")||{}).value||""; S.canon=($("q-canon")||{}).value||""; S.sessTarget=($("q-sess")||{}).value||"";
@@ -558,7 +606,12 @@ function forgeSkeleton(){
       +"ACT: <act name> | <one line purpose>\n"
       +"THREAT: <who or what opposes the Fell this act> | <what they stand to lose>\n"
       +"Every ACT is followed by its THREAT. "
-      +(t.acts?"Use 2 or 3 acts.":"Use exactly one act named Main.")
+      +(function(){
+        var st=S.structure||{mode:"auto"};
+        if(!t.acts) return "Use exactly one act named Main.";
+        if(st.mode==="manual") return "Use exactly "+st.acts+" act"+(st.acts===1?"":"s")+", no more, no fewer.";
+        return "Use 2 or 3 acts.";
+       })()
       +" The antagonist holds a specific defensible belief, stated plainly in the final act. Avoid generic fantasy compound names. Do not write sessions or scenes yet.";
   }
   function actSystem(){
@@ -567,7 +620,14 @@ function forgeSkeleton(){
       +"SESSION: <session name> | <one line purpose>\n"
       +"SCENE: <scene name> | <one line purpose>\n"
       +"List each session, then its scenes under it. "
-      +(t.oneSession?"Use exactly one session with 2 to 4 scenes.":"Give this act 2 to 4 sessions, each with 2 to 4 scenes.")
+      +(function(){
+        var st=S.structure||{mode:"auto"};
+        if(st.mode==="manual"){
+          var nS=t.oneSession?1:st.sessions, nC=st.scenes;
+          return "Use exactly "+nS+" session"+(nS===1?"":"s")+", no more, no fewer. Give each session about "+nC+" scene"+(nC===1?"":"s")+", you may vary by one or two if the story truly needs it.";
+        }
+        return t.oneSession?"Use exactly one session with 2 to 4 scenes.":"Give this act 2 to 4 sessions, each with 2 to 4 scenes.";
+       })()
       +" Scene purposes take active verbs, the Fell decide, confront, sacrifice, defy, race, or break something, never merely witness or learn. At least one scene per session forces an irreversible choice that costs the party. Show the act threat pressing on the Fell. Avoid generic fantasy compound names.";
   }
   function actUserMsg(a){
@@ -593,33 +653,10 @@ function forgeSkeleton(){
       throw new Error("The spine came back hollow.");
     }
     S.skeleton=sk; S.drafts={}; S.approved={}; S.npcs={}; S.cursor={a:0,s:0};
-    fleshAct(0);
-  }
-  function fleshAct(i){
-    if(i>=S.skeleton.acts.length){
-      // prune any trailing scene fragment with no end punctuation
-      S.skeleton.acts.forEach(function(a){ a.sessions.forEach(function(ss){
-        var last=ss.scenes[ss.scenes.length-1];
-        if(last && last.purpose && !/[.!?)\]"]$/.test(last.purpose.trim()) && ss.scenes.length>1){ ss.scenes.pop(); }
-      }); });
-      save(); go("skeleton"); return;
-    }
-    var a=S.skeleton.acts[i];
-    $("stage").innerHTML='<div class="card wait"><span class="spin"></span>Building '+esc(a.name)+', act '+(i+1)+' of '+S.skeleton.acts.length+'.</div>';
-    var actRetried=false;
-    function actAsk(extra){ return aiCall(actSystem(),[{role:"user",content:actUserMsg(a)+(extra||"")}],1200); }
-    function actHandle(text){
-      var parsed=parseSkeleton("ACT: "+a.name+" | "+a.purpose+"\n"+text);
-      var built=parsed.acts[0];
-      if(!built || !built.sessions.length){
-        if(!actRetried){ actRetried=true; return actAsk("\nUse the exact SESSION and SCENE format, at least one SESSION with SCENEs.").then(actHandle,skFail); }
-        throw new Error("An act came back without sessions.");
-      }
-      a.sessions=built.sessions;
-      save();
-      fleshAct(i+1);
-    }
-    actAsk("").then(actHandle,skFail);
+    // enter the sequential act walk instead of fleshing every act at once
+    S.actWalk={ active:true, i:0, locked:[] };
+    save();
+    buildActInWalk(0);
   }
   function skFail(e){
     $("stage").innerHTML='<div class="card"><div class="err">'+esc(e&&e.rate?"The forge is catching its breath. Try again in a minute.":(e&&e.message)||"The forge could not be reached.")+'</div>'
@@ -628,9 +665,144 @@ function forgeSkeleton(){
   }
   spineAsk("").then(spineHandle,skFail);
 }
+/* ============ sequential act walk ============ */
+function walkActSystem(){
+  var t=ADV_TYPES[S.type];
+  return "You flesh out one act of a LoreFell adventure into sessions and scenes. Conflict first. "+voiceRules()
+    +" Output plain text only, this exact format:\n"
+    +"SESSION: <session name> | <one line purpose>\n"
+    +"SCENE: <scene name> | <one line purpose>\n"
+    +"List each session, then its scenes under it. "
+    +(function(){
+      var st=S.structure||{mode:"auto"};
+      if(st.mode==="manual"){
+        var nS=t.oneSession?1:st.sessions, nC=st.scenes;
+        return "Use exactly "+nS+" session"+(nS===1?"":"s")+", no more, no fewer. Give each session about "+nC+" scene"+(nC===1?"":"s")+", you may vary by one or two if the story truly needs it.";
+      }
+      return t.oneSession?"Use exactly one session with 2 to 4 scenes.":"Give this act 2 to 4 sessions, each with 2 to 4 scenes.";
+     })()
+    +" Scene purposes take active verbs, the Fell decide, confront, sacrifice, defy, race, or break something, never merely witness or learn. At least one scene per session forces an irreversible choice that costs the party. Show the act threat pressing on the Fell. Avoid generic fantasy compound names.";
+}
+function walkActUserMsg(a, idx, note){
+  var lines=[];
+  if(S.premise){
+    if(S.premise.situation) lines.push("Situation: "+S.premise.situation);
+    if(S.premise.clock) lines.push("Clock: "+S.premise.clock);
+    if(S.premise.cost) lines.push("Cost the ending must demand: "+S.premise.cost);
+  }
+  lines.push("Adventure: "+S.skeleton.name);
+  // give the model the acts already locked before this one, so it follows on
+  var prior=[];
+  for(var i=0;i<idx;i++){ var pa=S.skeleton.acts[i]; if(pa) prior.push((i+1)+". "+pa.name+" ("+pa.purpose+")"); }
+  if(prior.length) lines.push("Acts already set before this one, continue from them, do not repeat their beats:\n"+prior.join("\n"));
+  lines.push("This act: "+a.name+" ("+a.purpose+")");
+  if(a.threat) lines.push("Its threat: "+a.threat+(a.cost?(". At stake: "+a.cost):""));
+  lines.push("The Fell are newcomers, strangers walking in, never natives returning.");
+  if(note) lines.push("Recast this act with this instruction, it overrides the guidance above: "+note);
+  lines.push("Write only this act's sessions and scenes.");
+  return lines.join("\n");
+}
+function buildActInWalk(i, note){
+  S.actWalk=S.actWalk||{active:true,i:0,locked:[]};
+  S.actWalk.i=i; S.actWalk.active=true; save();
+  var a=S.skeleton.acts[i];
+  if(!a){ finishWalk(); return; }
+  go("skeleton");
+  $("stage").innerHTML='<div class="card wait"><span class="spin"></span>Forging '+esc(a.name)+', act '+(i+1)+' of '+S.skeleton.acts.length+'.</div>';
+  var retried=false;
+  function ask(extra){ return aiCall(walkActSystem(),[{role:"user",content:walkActUserMsg(a,i,note)+(extra||"")}],1200); }
+  function handle(text){
+    var parsed=parseSkeleton("ACT: "+a.name+" | "+a.purpose+"\n"+text);
+    var built=parsed.acts[0];
+    if(!built || !built.sessions.length){
+      if(!retried){ retried=true; return ask("\nUse the exact SESSION and SCENE format, at least one SESSION with SCENEs.").then(handle,walkFail); }
+      throw new Error("The act came back without sessions.");
+    }
+    // trim a trailing fragment scene
+    built.sessions.forEach(function(ss){
+      var last=ss.scenes[ss.scenes.length-1];
+      if(last && last.purpose && !/[.!?)\]"]$/.test(last.purpose.trim()) && ss.scenes.length>1) ss.scenes.pop();
+    });
+    a.sessions=built.sessions;
+    save(); render();
+  }
+  ask("").then(handle,walkFail);
+}
+function walkFail(e){
+  go("skeleton");
+  $("stage").innerHTML='<div class="card"><div class="err">'+esc(e&&e.rate?"The forge is catching its breath. Try again in a minute.":(e&&e.message)||"The forge could not be reached.")+'</div>'
+    +'<div class="btnrow"><button class="btn gold" onclick="buildActInWalk('+(S.actWalk?S.actWalk.i:0)+')">Try again</button></div></div>';
+}
+function recastAct(){
+  harvestSkeletonEdits();
+  var el=$("actRecast"); var note=el?el.value.trim():"";
+  buildActInWalk(S.actWalk.i, note);
+}
+function lockAct(){
+  harvestSkeletonEdits();
+  var i=S.actWalk.i;
+  if(S.actWalk.locked.indexOf(i)<0) S.actWalk.locked.push(i);
+  save();
+  if(i+1<S.skeleton.acts.length) buildActInWalk(i+1);
+  else finishWalk();
+}
+function backToAct(i){ if(i>=0 && i<S.skeleton.acts.length){ harvestSkeletonEdits(); S.actWalk.i=i; save(); render(); } }
+function finishWalk(){ S.actWalk.active=false; save(); go("skeleton"); }
+
+function vActWalk(){
+  var sk=S.skeleton, w=S.actWalk, i=w.i, a=sk.acts[i];
+  var h='<div class="card">'
+    +'<div class="hint">Building the outline act by act. Lock each act before the next is forged. Tap any name or purpose to edit it yourself.</div>';
+  // progress rail
+  h+='<div style="margin:8px 0">';
+  sk.acts.forEach(function(ac,ai){
+    var cls=ai===i?"actstep cur":(w.locked.indexOf(ai)>=0?"actstep done":"actstep");
+    h+='<div class="'+cls+'" onclick="'+(ai<=Math.max.apply(null,w.locked.concat([-1]))+1||w.locked.indexOf(ai)>=0?"backToAct("+ai+")":"")+'">'
+      +'<span class="n">ACT '+(ai+1)+'</span> '+esc(ac.name)+(w.locked.indexOf(ai)>=0?' &#10003;':'')+'</div>';
+  });
+  h+='</div>';
+  if(!a) return h+'</div>';
+  // the current act, editable
+  h+='<div class="sk-act">'
+    +'<div class="sk-name" contenteditable data-path="a'+i+'n">'+esc(a.name)+'</div>'
+    +'<div class="sk-purpose" contenteditable data-path="a'+i+'p">'+esc(a.purpose||"")+'</div>'
+    +'<div class="sk-purpose"><span style="color:var(--gold)">Threat</span> <span contenteditable data-path="a'+i+'t">'+esc(a.threat||"")+'</span></div>'
+    +'<div class="sk-purpose"><span style="color:var(--gold)">At stake</span> <span contenteditable data-path="a'+i+'c">'+esc(a.cost||"")+'</span></div>';
+  (a.sessions||[]).forEach(function(ss,si){
+    h+='<div class="sk-sess">'
+      +'<div class="sk-name" contenteditable data-path="a'+i+'s'+si+'n">'+esc(ss.name)+'</div>'
+      +'<div class="sk-purpose" contenteditable data-path="a'+i+'s'+si+'p">'+esc(ss.purpose||"")+'</div>';
+    (ss.scenes||[]).forEach(function(sc,ci){
+      h+='<div class="sk-scene">'
+        +'<div class="sk-name" contenteditable data-path="a'+i+'s'+si+'c'+ci+'n">'+esc(sc.name)+'</div>'
+        +'<div class="sk-purpose" contenteditable data-path="a'+i+'s'+si+'c'+ci+'p">'+esc(sc.purpose||"")+'</div>'
+        +'<div class="btnrow"><button class="btn ghost small" onclick="walkDelScene('+i+','+si+','+ci+')">Remove scene</button></div></div>';
+    });
+    h+='<div class="btnrow"><button class="btn ghost small" onclick="walkAddScene('+i+','+si+')">Add a scene</button></div>';
+    h+='</div>';
+  });
+  h+='<div class="btnrow"><button class="btn ghost small" onclick="walkAddSession('+i+')">Add a session</button></div>';
+  h+='</div>';
+  // recast + lock
+  h+='<div class="card">'
+    +'<label class="fld">Recast this act</label>'
+    +'<textarea id="actRecast" placeholder="Tell the forge what to change about this act, then recast. Your hand edits above are kept only if you lock instead." style="min-height:52px"></textarea>'
+    +'<div class="hint">Recast reforges only this act with your note. Or edit the fields by hand and lock.</div>'
+    +'<div class="btnrow">'
+    +'<button class="btn gold" onclick="lockAct()">Lock act '+(i+1)+(i+1<sk.acts.length?", forge next":", finish")+'</button>'
+    +'<button class="btn" onclick="recastAct()">Recast this act</button>'
+    +(i>0?'<button class="btn ghost" onclick="backToAct('+(i-1)+')">Previous act</button>':'')
+    +'</div></div>';
+  return h;
+}
+function walkAddScene(ai,si){ var ss=S.skeleton.acts[ai].sessions[si]; ss.scenes.push({name:"New scene",purpose:""}); save(); render(); }
+function walkDelScene(ai,si,ci){ var ss=S.skeleton.acts[ai].sessions[si]; if(ss.scenes.length>1) ss.scenes.splice(ci,1); save(); render(); }
+function walkAddSession(ai){ var a=S.skeleton.acts[ai]; a.sessions.push({name:"New session",purpose:"",scenes:[{name:"New scene",purpose:""}]}); save(); render(); }
+
 function vSkeleton(){
   var sk=S.skeleton;
   if(!sk) return '<div class="card"><div class="err">No skeleton yet.</div><div class="btnrow"><button class="btn gold" onclick="go(\'scope\')">Back to scope</button></div></div>';
+  if(S.actWalk && S.actWalk.active) return vActWalk();
   var h='<div class="card">'
     +'<label class="fld">Adventure name</label>'
     +'<div class="sk-name" style="font-size:1.05rem" contenteditable data-path="name">'+esc(sk.name||"")+'</div>'
