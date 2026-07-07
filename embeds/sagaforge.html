@@ -140,17 +140,22 @@ window.addEventListener("message",function(ev){
   if(!m.ok){ p.reject(new Error("relay "+(m.status||"")+(m.error?(": "+m.error):""))); return; }
   p.resolve(m.text||"");
 });
+var AI_WORKER="https://lorefell-ai.nate8-johnson.workers.dev/";
 function aiCall(system,messages,maxTokens){
-  /* The tool is hosted cross-origin from the Wix site, so a direct fetch is
-     blocked by the browser. Everything goes through the page bridge, which runs
-     on the site and calls the long-timeout http-function server side. */
-  return new Promise(function(resolve,reject){
-    if(!(window.parent&&window.parent!==window)){ reject(new Error("The forge answers on the live site.")); return; }
-    var reqId=++_aiReq;
-    _aiPending[reqId]={resolve:resolve,reject:reject};
-    window.parent.postMessage({type:"LOREFELL_AI_FORGE",reqId:reqId,payload:{system:system,messages:messages,max_tokens:Math.min(maxTokens||700,1400),model:"fast"}},"*");
-    setTimeout(function(){ if(_aiPending[reqId]){ delete _aiPending[reqId]; reject(new Error("The forge did not answer in time.")); } },120000);
-  });
+  /* Calls the Cloudflare Worker directly. It holds the key and calls Anthropic
+     with no Wix web-method timeout, which is what caused the 504s. The worker
+     allows this origin by CORS, so no page bridge is involved. */
+  var payload={system:system,messages:messages,max_tokens:maxTokens||700,model:"fast"};
+  return fetch(AI_WORKER,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)})
+    .then(function(res){
+      if(res.status===429) throw {rate:true};
+      if(!res.ok) throw new Error("worker http "+res.status);
+      return res.json();
+    })
+    .then(function(d){
+      if(!d||d.ok===false) throw new Error((d&&d.error)?String(d.error).slice(0,120):"the worker returned no text");
+      return d.text||"";
+    });
 }
 function parseAiJson(text){
   var t=text.replace(/```json/gi,"").replace(/```/g,"").trim();
