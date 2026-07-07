@@ -10,6 +10,9 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 - A full Legacy or Chronicle outline was hitting the token ceiling and stopping mid word, leaving the last scene half written. The skeleton budget rises to 3500 and the backend ceiling to 4000, enough for a complete outline. A guard detects a cut off tail, re asks once for the whole outline, and prunes any trailing scene fragment so it never lands as a real scene.
 - Re paste forge.web.js for the raised ceiling.
 
+## SagaForge scrolls to the top on every step
+- Advancing any step now brings the top of the tool into view reliably. It uses scrollIntoView on the top anchor, run after paint and repeated as the iframe height settles, which propagates up through the embed so the page follows even without page code. The page bridge also scrolls the Wix page when present.
+
 ## SagaForge skeleton builds in small phased calls
 - The 504 was latency margin, confirmed by a tiny test call that returned instantly while the full 3500-token skeleton call ran past the Wix web-method wall. The skeleton now builds in phases: a small call for the act spine and threats, then one small call per act for its sessions and scenes, assembled in the tool. Premise trimmed to 450 tokens. Every call now sits well under the limit that SigilForge clears.
 
