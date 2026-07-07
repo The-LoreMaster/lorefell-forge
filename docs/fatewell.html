@@ -3727,6 +3727,69 @@ function levelEntries(ref){
   return lv.entries;
 }
 
+var FW_AI_WORKER="https://lorefell-ai.nate8-johnson.workers.dev/";
+function fwAiCall(system, user, maxTokens){
+  var payload={ system:system, messages:[{role:"user",content:user}], max_tokens:maxTokens||900, model:"fast" };
+  return fetch(FW_AI_WORKER,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)})
+    .then(function(res){ if(res.status===429) throw {rate:true}; if(!res.ok) throw new Error("worker http "+res.status); return res.json(); })
+    .then(function(d){ if(!d||d.ok===false) throw new Error((d&&d.error)?String(d.error).slice(0,120):"no text"); return d.text||""; });
+}
+function fwVoiceRules(){
+  return "Voice: dark grounded fantasy. Short declarative sentences. No em dashes, no semicolons, no ellipses, no rhetorical triples, no not-X-but-Y, no single-word italics, no hype or AI filler. Never borrow Dungeons and Dragons or Pathfinder terms. Never use the bare word action, the defined terms are Act and React. ";
+}
+function fwDraftSystem(){
+  return "You draft one scene of a LoreFell adventure as typed blocks for the FateWell table runner. "+fwVoiceRules()
+    +"Output plain text only, no JSON. One block per beat in this exact shape:\n"
+    +"@@BLOCK\ntype: <one of readaloud|dialogue|crucible|lorecheck|clue|quest|secret|beat|reminder|general>\ntitle: <short descriptive title>\nspeaker: <NPC name, dialogue blocks only, else blank>\nbody:\n<the block text>\n@@END\n"
+    +"Give the scene 3 to 6 blocks. Open with a readaloud of three sentences or fewer, concrete and sensory, ending on motion or wrongness, never telling the party what they feel. Every scene contains a decision the players make or a force pushing on them, never information alone. A crucible marks a fight and states what fleeing costs. Player characters never appear. Never write notes to the author inside a block.";
+}
+function fwParseBlocks(text){
+  var entries=[]; var chunks=text.split(/@@BLOCK/).slice(1);
+  chunks.forEach(function(ch){
+    var body=ch.split("@@END")[0]; var rec={type:"general",title:"",speaker:"",body:""};
+    var lines=body.split(/\r?\n/), inBody=false, bodyLines=[];
+    lines.forEach(function(ln){
+      if(inBody){ bodyLines.push(ln); return; }
+      var m=ln.match(/^(type|title|speaker|body)\s*:\s*(.*)$/i);
+      if(m){ var k=m[1].toLowerCase(); if(k==="body"){ inBody=true; if(m[2])bodyLines.push(m[2]); } else rec[k]=m[2].trim(); }
+    });
+    rec.body=bodyLines.join("\n").trim();
+    if(rec.type||rec.body) entries.push(rec);
+  });
+  return entries;
+}
+function forgeScene(ref){
+  var lv=levelByRef(ref); if(!lv){ return; }
+  var ctx=[]; 
+  ctx.push("Adventure: "+(curC()?curC().name:""));
+  if(curA()&&curA().name) ctx.push("Act: "+curA().name+(curA().desc?" ("+curA().desc+")":""));
+  if(curSe()&&curSe().name) ctx.push("Session: "+curSe().name+(curSe().desc?" ("+curSe().desc+")":""));
+  ctx.push("Scene: "+(lv.name||"this scene")+(lv.desc?" ("+lv.desc+")":""));
+  var known=S.library.filter(function(e){return e.type==='npc'||e.type==='monster';}).map(function(e){return e.name;});
+  if(known.length) ctx.push("Known NPCs and foes, reuse where natural: "+known.slice(0,20).join(", "));
+  var existing=(lv.entries||[]).map(function(e){return e.title;}).filter(Boolean);
+  if(existing.length) ctx.push("Blocks already here, do not repeat them, continue from them: "+existing.join(", "));
+  var mid=document.getElementById('sceneNotice');
+  if(!mid){ mid=document.createElement('div'); mid.id='sceneNotice';
+    mid.style.cssText='position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:40;background:#10162a;border:1px solid rgba(201,168,76,.45);color:#dce8ef;padding:10px 16px;border-radius:10px;font-size:.9rem'; document.body.appendChild(mid); }
+  mid.textContent='Forging scene blocks...'; mid.style.opacity='1';
+  fwAiCall(fwDraftSystem(), ctx.join("\n"), 1100).then(function(text){
+    var blocks=fwParseBlocks(text);
+    if(!blocks.length){ mid.textContent='The forge returned nothing usable.'; setTimeout(function(){mid.style.opacity='0';},2600); return; }
+    var arr=levelEntries(ref);
+    blocks.forEach(function(b){
+      var ty=BLOCK_OK(b.type)?b.type:'general';
+      var speaker=''; if(ty==='dialogue'&&b.speaker){ var en=S.library.filter(function(e){return (e.type==='npc'||e.type==='monster')&&e.name.toLowerCase()===b.speaker.toLowerCase();})[0]; if(en) speaker=en.id; else b.body=b.speaker+': '+b.body; }
+      arr.push({ id:uid(), title:b.title||'Untitled', type:ty, body:b.body||'', speaker:speaker, pinned:false, open:false });
+    });
+    save(); render();
+    mid.textContent='Forged '+blocks.length+' blocks into '+(lv.name||'the scene')+'.'; setTimeout(function(){mid.style.opacity='0';},2600);
+  }).catch(function(e){
+    mid.textContent = e&&e.rate ? 'The forge is busy. Try again in a minute.' : ('The forge could not be reached: '+((e&&e.message)||'error'));
+    setTimeout(function(){mid.style.opacity='0';},3200);
+  });
+}
+function BLOCK_OK(t){ return ['readaloud','dialogue','crucible','lorecheck','clue','quest','secret','beat','reminder','general'].indexOf(t)>=0; }
 function addEntry(ref){
   window._entryRef = ref;
   entryModal(ref, null);
@@ -4262,6 +4325,7 @@ function notesBlock(ref, opts){
       hc += '</div>';
     }
     hc += '<button class="btn wide ghost small add-note" onclick="addEntry(\''+ref+'\')">+ Add note</button>';
+    if(ref.indexOf('sc:')===0) hc += '<button class="btn wide ghost small" onclick="forgeScene(\''+ref+'\')">Forge with AI</button>';
     hc += '</div>';
     return hc;
   }
@@ -4302,6 +4366,7 @@ function notesBlock(ref, opts){
     });
   }
   h += '<button class="btn wide ghost small add-note" onclick="addEntry(\''+ref+'\')">+ Add note</button>';
+  if(ref.indexOf('sc:')===0) h += '<button class="btn wide ghost small" onclick="forgeScene(\''+ref+'\')">Forge with AI</button>';
   h += '</div>';
   return h;
 }
