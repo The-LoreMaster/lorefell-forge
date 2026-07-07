@@ -337,6 +337,10 @@ body::before{
   .m-back{ align-items:center; }
   .m-card{ border-radius:14px; padding-bottom:18px; }
 }
+.ab-list{ margin-top:8px; }
+.ab-row{ display:grid; grid-template-columns:1fr 90px auto; gap:6px; align-items:start; margin:8px 0; }
+.ab-row .ab-effect{ grid-column:1 / 3; min-height:44px; }
+.ab-row .icon-btn{ align-self:center; }
 .world-issues{ margin:4px 0 0 0; padding-left:18px; color:var(--ice); font-size:.85rem; line-height:1.5; }
 .world-issues .muted{ color:var(--muted); list-style:none; margin-left:-18px; }
 .wi-row{ display:flex; gap:6px; margin:6px 0; }
@@ -4940,6 +4944,58 @@ function fwParseFoeLineup(text){
   });
   return out;
 }
+/* Spawn one library monster onto a scene as a combatant. Shared by manual attach
+   and by import auto-spawn, so the combatant shape stays identical everywhere. */
+function spawnFoeOnScene(sc, libId, copies){
+  var e = libGet(libId); if (!e || e.type!=='monster') return 0;
+  copies = Math.max(1, copies||1);
+  var existing = sc.combatants.filter(function(c){ return c.libId===libId; }).length;
+  if (existing) fwNumberExisting(sc, libId, e.name);
+  for (var i=0;i<copies;i++){
+    var idx = existing + i;
+    sc.combatants.push({
+      id: uid(), libId: libId, type: 'monster', side: 'monster',
+      name: e.name + ((existing+copies)>1 ? ' ' + (idx+1) : ''),
+      sr: e.sr, maxVit: effMaxVit(e), curVit: effMaxVit(e),
+      attrs: JSON.parse(JSON.stringify(e.attrs || blankAttrs())),
+      inv: (e.inv || []).slice(),
+      abilities: JSON.parse(JSON.stringify(e.abilities || [])),
+      sig: e.sig || '', source: e.source || '', build: e.build || '', stance: e.stance || '',
+      img: e.img || '',
+      act:'', target:'', done:false, affs:[]
+    });
+  }
+  return copies;
+}
+function _findCombatant(cid){ var sc=curSc(); if(!sc) return null; var r=null; sc.combatants.forEach(function(c){ if(c.id===cid) r=c; }); return r; }
+function editCombatantAbilities(cid){
+  var cb=_findCombatant(cid); if(!cb) return;
+  if(!Array.isArray(cb.abilities)) cb.abilities=[];
+  window._abTarget=cid;
+  renderAbilityEditor();
+}
+function renderAbilityEditor(){
+  var cb=_findCombatant(window._abTarget); if(!cb) return;
+  var rows=cb.abilities.map(function(ab,i){
+    var tierOpts=[1,2,3].map(function(t){ return '<option value="'+t+'"'+((ab.tier||1)===t?' selected':'')+'>Tier '+t+'</option>'; }).join('');
+    return '<div class="ab-row">'
+      +'<input type="text" class="ab-name" value="'+esc(ab.name||'')+'" placeholder="Ability name" oninput="abSet('+i+',\'name\',this.value)">'
+      +'<select class="ab-tier" onchange="abSet('+i+',\'tier\',parseInt(this.value,10))">'+tierOpts+'</select>'
+      +'<textarea class="ab-effect" placeholder="What it does" oninput="abSet('+i+',\'effect\',this.value)">'+esc(ab.effect||'')+'</textarea>'
+      +'<button class="icon-btn danger" onclick="abDel('+i+')">&times;</button>'
+      +'</div>';
+  }).join('');
+  var sig = cb.sig ? '<p class="muted small-note">Signature affliction: '+esc(cb.sig)+'</p>' : '';
+  modal('<h3 class="m-title">'+esc(cb.name)+' &middot; abilities</h3>'
+    +'<p class="muted">'+(cb.sr?esc(cb.sr)+' ':'')+esc(cb.build||'')+(cb.stance?' &middot; '+esc(cb.stance)+' stance':'')+'</p>'+sig
+    +'<div class="ab-list">'+(rows||'<p class="muted">No abilities yet. A forged foe fights with its base attack and stance. Add abilities to give it more.</p>')+'</div>'
+    +'<div class="btnrow"><button class="btn" onclick="abAdd()">Add an ability</button>'
+    +'<button class="btn gold" onclick="abSave()">Done</button></div>');
+}
+function abSet(i,k,v){ var cb=_findCombatant(window._abTarget); if(!cb||!cb.abilities[i]) return; cb.abilities[i][k]=v; }
+function abAdd(){ var cb=_findCombatant(window._abTarget); if(!cb) return; cb.abilities.push({name:'',tier:1,effect:''}); renderAbilityEditor(); }
+function abDel(i){ var cb=_findCombatant(window._abTarget); if(!cb) return; cb.abilities.splice(i,1); renderAbilityEditor(); }
+function abSave(){ var cb=_findCombatant(window._abTarget); if(cb){ cb.abilities=cb.abilities.filter(function(a){ return (a.name||'').trim(); }); } save(); closeModal(); render(); }
 function attachFoe(libId){
   var e = libGet(libId);
   var n = parseInt(document.getElementById('mCount').value,10) || 1;
@@ -6006,6 +6062,23 @@ function importPack(pack, msg){
   var newCamp = wrapped.campaigns[0];
   S.campaigns.push(newCamp);
 
+  /* 3b. auto-spawn each scene's forged foes onto its board, so crucible scenes
+     arrive populated instead of empty. A monster ref becomes a combatant and
+     leaves the pending-reference list. NPC and item refs stay as references. */
+  (newCamp.acts || []).forEach(function(a){
+    (a.sessions || []).forEach(function(ss){
+      (ss.scenes || []).forEach(function(sc){
+        var keep = [];
+        (sc.manualRefs || []).forEach(function(rid){
+          var e = libGet(rid);
+          if (e && e.type === 'monster') spawnFoeOnScene(sc, rid, 1);
+          else keep.push(rid);
+        });
+        sc.manualRefs = keep;
+      });
+    });
+  });
+
   /* 4. open it first so the current campaign is set, then persist just this one.
      Syncing the whole library here caused a slow multi-campaign write on import. */
   saveLocal();
@@ -6629,9 +6702,11 @@ function tabRoster(sc){
     h += emptyState('No monsters attached. Pull them from the library or create one.', 'Attach from library', 'attachChooser()');
   } else {
     sc.combatants.forEach(function(cb){
+      var abN=(cb.abilities||[]).length;
       h += '<div class="card row-card">'+rowThumb(cb.img, cb.name)+'<div class="rc-main static"><div class="rc-title">'+esc(cb.name)+'</div>'
-        + '<div class="rc-sub">'+(cb.sr?esc(cb.sr)+' &middot; ':'')+cb.curVit+' / '+cb.maxVit+' vit</div></div>'
-        + '<div class="rc-acts"><button class="icon-btn danger" onclick="removeCombatant(\''+cb.id+'\')">&times;</button></div></div>';
+        + '<div class="rc-sub">'+(cb.sr?esc(cb.sr)+' &middot; ':'')+cb.curVit+' / '+cb.maxVit+' vit'+(cb.stance?' &middot; '+esc(cb.stance):'')+(abN?' &middot; '+abN+' ability'+(abN===1?'':'s'):'')+'</div></div>'
+        + '<div class="rc-acts"><button class="icon-btn" title="Abilities and spells" onclick="editCombatantAbilities(\''+cb.id+'\')">&#9670;</button>'
+        + '<button class="icon-btn danger" onclick="removeCombatant(\''+cb.id+'\')">&times;</button></div></div>';
     });
     h += '<button class="btn wide ghost" onclick="attachChooser()">Attach more</button>';
   }

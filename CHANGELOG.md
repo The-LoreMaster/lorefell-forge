@@ -16,6 +16,10 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 ## SagaForge skeleton builds in small phased calls
 - The 504 was latency margin, confirmed by a tiny test call that returned instantly while the full 3500-token skeleton call ran past the Wix web-method wall. The skeleton now builds in phases: a small call for the act spine and threats, then one small call per act for its sessions and scenes, assembled in the tool. Premise trimmed to 450 tokens. Every call now sits well under the limit that SigilForge clears.
 
+## Crucibles arrive with their foes, and you can edit their kit
+- Importing an adventure now spawns each crucible scene's forged foes straight onto its board. A scene that expected a Champion and three Minions opens with them present, numbered and statted, instead of empty. NPC and item references stay as references.
+- Every combatant on a scene has an abilities panel, reachable before you run the fight. View and edit each foe's abilities and spells, name, tier, and effect, so a LoreMaster can shape the kit ahead of the crucible. Forged foes start with their base attack and stance, and you add the rest here. Auto generated abilities remain the later stage.
+
 ## Imported scenes open all the way
 - The scene roster read fields an imported scene never had, so opening a scene crashed the same way sessions did. Migrate now brings every scene up to the full scene contract, the attendance map, play log, discord pool, and loot table included, so imported and older scenes open through roster, notes, and the runner without a missing field taking down the view.
 
