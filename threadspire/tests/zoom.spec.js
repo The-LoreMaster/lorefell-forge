@@ -136,4 +136,10 @@ test.describe('real graph in the app', () => {
     await page.goto(APP + '?node=world:akkoroka&seed=1');
     await expect(page.getByTestId('focus-title')).toHaveText('Akkoroka');
   });
+
+  test('a ?world= deep link (a player joining a campaign) opens that world', async ({ page }) => {
+    await page.goto(APP + '?world=world:akkoroka');
+    await expect(page.getByTestId('focus-title')).toHaveText('Akkoroka');
+    await expect(page.locator('body')).toHaveAttribute('data-focus-type', 'world');
+  });
 });

@@ -8,6 +8,8 @@
 
   var qs = new URLSearchParams(location.search);
   var wantNode = qs.get('node') || '';
+  var wantWorld = qs.get('world') || '';  // a player deep-linked from their campaign
+  if (wantWorld && !wantNode) wantNode = wantWorld;
   var seedOn = qs.get('seed') === '1' || wantNode.indexOf(':seed') >= 0;
 
   /* ---------- seed fixture, only with ?seed or a :seed node target ---------- */
