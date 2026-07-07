@@ -59,7 +59,7 @@ export const saveCampaign = webMethod(Permissions.Anyone, async (campaignId, blo
     const id = await memberId();
     // Never create an empty row. A save with no campaign id and no real campaign blob is a
     // stray autosave from the tool running outside a chosen adventure. Ignore it.
-    const hasCampaign = !!(blob && blob.campaign);
+    const hasCampaign = !!(blob && (blob.campaign || blob.campaignGz));
     if (!campaignId && !hasCampaign) return { ok: false, skipped: true };
 
     let existing = null;
@@ -73,7 +73,11 @@ export const saveCampaign = webMethod(Permissions.Anyone, async (campaignId, blo
 
     const row = existing || { ownerMemberId: id };
     if (campaignId && !existing) row._id = campaignId;
-    if (hasCampaign) {
+    if (blob && typeof blob.campaignGz === 'string') {
+      // compressed payload from the tool: store the gzip wrapper as-is
+      row.data = JSON.stringify({ campaignGz: blob.campaignGz });
+      if (blob.name) row.name = blob.name;
+    } else if (hasCampaign) {
       row.data = JSON.stringify(blob.campaign);
       if (blob.campaign.name) row.name = blob.campaign.name;
     }

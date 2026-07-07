@@ -2980,6 +2980,31 @@ function rehydrateCombatants(camp){
   }); }); });
   return camp;
 }
+/* Gzip a string to a base64 payload, and back. The account stores the campaign in one
+   text field capped near 512 KB. A prose heavy chronicle exceeds that raw but compresses
+   several times over, so we store it compressed and expand it on load. Uses the browser's
+   native CompressionStream, with a plain fallback when it is unavailable. */
+async function gzipString(str){
+  try{
+    if(typeof CompressionStream==='undefined') return null;
+    var cs=new CompressionStream('gzip');
+    var writer=cs.writable.getWriter();
+    writer.write(new TextEncoder().encode(str)); writer.close();
+    var buf=await new Response(cs.readable).arrayBuffer();
+    var bytes=new Uint8Array(buf), bin='';
+    for(var i=0;i<bytes.length;i++) bin+=String.fromCharCode(bytes[i]);
+    return btoa(bin);
+  }catch(e){ return null; }
+}
+async function gunzipToString(b64){
+  var bin=atob(b64), bytes=new Uint8Array(bin.length);
+  for(var i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+  var ds=new DecompressionStream('gzip');
+  var writer=ds.writable.getWriter();
+  writer.write(bytes); writer.close();
+  var buf=await new Response(ds.readable).arrayBuffer();
+  return new TextDecoder().decode(buf);
+}
 function campaignBlob(){
   var c = curC();
   return c ? { campaign: c, savedAt: Date.now() } : null;
@@ -3014,8 +3039,18 @@ function flushSave(){
   // slim a deep copy for the wire: foes rebuild from the library on load, so the stored
   // campaign stays small even for a large chronicle. The live board keeps full stats.
   var wire = slimCombatantsForSave(JSON.parse(JSON.stringify(c)));
-  postToWix({ type:'lmtool-save', campaignId: cid, data: { campaign:wire, savedAt:Date.now() } });
   WIX.dirty = false; WIX.lastSaveAt = Date.now();
+  // compress the campaign so a prose heavy chronicle fits the account field, then send.
+  var json = JSON.stringify(wire);
+  gzipString(json).then(function(gz){
+    if (gz && gz.length < json.length){
+      postToWix({ type:'lmtool-save', campaignId: cid, data: { campaignGz: gz, name: wire.name || '', savedAt: Date.now() } });
+    } else {
+      postToWix({ type:'lmtool-save', campaignId: cid, data: { campaign: wire, savedAt: Date.now() } });
+    }
+  }, function(){
+    postToWix({ type:'lmtool-save', campaignId: cid, data: { campaign: wire, savedAt: Date.now() } });
+  });
 }
 function save(){
   saveLocal();                 /* the browser copy is written immediately, every change */
@@ -3029,11 +3064,11 @@ document.addEventListener('visibilitychange', function(){ if (document.visibilit
 window.addEventListener('pagehide', function(){ saveLocal(); flushSave(); });
 window.addEventListener('beforeunload', function(){ saveLocal(); flushSave(); });
 
-function adoptHostedCampaigns(list){
-  (list||[]).forEach(function(w){
-    if (!w || !w.id) return;
-    if (S.campaigns.some(function(c){ return c.id===w.id; })) return; /* local copy wins while editing */
-    var camp = (w.data && typeof w.data==='object' && w.data.name!==undefined) ? w.data : null;
+function adoptOneCampaign(w){
+  if (!w || !w.id) return Promise.resolve();
+  if (S.campaigns.some(function(c){ return c.id===w.id; })) return Promise.resolve();
+  // the stored data may be a plain campaign object, or a compressed { campaignGz } payload
+  function place(camp){
     if (camp){
       camp.id = w.id; if (w.name && !camp.name) camp.name = w.name;
       var wrapped = migrate({ campaigns:[camp], library:S.library, forge:S.forge, wixPlayers:S.wixPlayers, die:S.die });
@@ -3042,7 +3077,23 @@ function adoptHostedCampaigns(list){
     } else {
       S.campaigns.push({ id:w.id, name:w.name||'Adventure', type:'legacy', notes:'', img:'', desc:'', entries:[], manualRefs:[], players:[], acts:[], ovOpen:{} });
     }
-  });
+  }
+  var d = w.data;
+  if (d && typeof d==='object' && typeof d.campaignGz==='string'){
+    return gunzipToString(d.campaignGz).then(function(json){
+      var camp=null; try{ camp=JSON.parse(json); }catch(e){ camp=null; }
+      place(camp);
+    }, function(){ place(null); });
+  }
+  place((d && typeof d==='object' && d.name!==undefined) ? d : null);
+  return Promise.resolve();
+}
+function adoptHostedCampaigns(list){
+  // kept synchronous for callers that do not await; compressed rows resolve shortly after
+  // and trigger a render. Plain rows resolve immediately.
+  var chain = Promise.resolve();
+  (list||[]).forEach(function(w){ chain = chain.then(function(){ return adoptOneCampaign(w); }); });
+  chain.then(function(){ try{ saveLocal(); render(); }catch(e){} });
 }
 function syncAllToAccount(){
   if (!WIX.hosted){ advNote('Not connected', 'This saves to your account when FateWell is open on lorefell.com while you are signed in.'); return; }

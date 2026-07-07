@@ -164,13 +164,17 @@ $w.onReady(() => {
       try { await setCombatCharge(m.campaignId || campaignId, m.charId || '', m.value || 0); } catch (e) {}
     } else if (m.type === 'lmtool-save') {
       const cid = m.campaignId || campaignId;
-      const hasCampaign = !!(m.data && m.data.campaign);
+      const hasCampaign = !!(m.data && (m.data.campaign || m.data.campaignGz));
       if (!cid && !hasCampaign) return;  // local hub autosave with no chosen adventure: ignore
       try {
+        // plain payloads get cover images inlined here; compressed payloads already had
+        // their images handled in the tool before compression, so pass them straight through.
         if (m.data && m.data.campaign) m.data.campaign = await inlineCoverImages(m.data.campaign);
         const r = await saveCampaign(cid, m.data || {}, '');
-        if (r && r.ok && m.data && m.data.campaign) {
-          embed.postMessage({ type: 'lmtool-campaigns-slimmed', campaigns: [{ id: cid, campaign: m.data.campaign }] });
+        if (r && r.ok) {
+          if (m.data && m.data.campaign) {
+            embed.postMessage({ type: 'lmtool-campaigns-slimmed', campaigns: [{ id: cid, campaign: m.data.campaign }] });
+          }
           embed.postMessage({ type: 'lmtool-save-result', ok: true, campaignId: cid });
         } else {
           embed.postMessage({ type: 'lmtool-save-result', ok: false, campaignId: cid, error: (r && r.error) || 'save rejected' });
