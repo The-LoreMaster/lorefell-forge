@@ -4,6 +4,7 @@
 // location, revealed nodes, quest-board goals, world issues, and map art.
 import { threadspirePublicChar } from 'backend/characters.web.js';
 import { listQuests, listDiscovered } from 'backend/fatewell.web.js';
+import { listSphereArt } from 'backend/sphereart.web.js';
 import wixLocation from 'wix-location';
 
 const EMBED = '#html1';
@@ -54,6 +55,12 @@ async function buildContext(characterId, campaignId) {
     // worldUnlocked and worldIssues come from the campaign record; a small backend
     // read supplies them in the next pass. Gated-and-empty is the safe default.
   }
+
+  // map art for every layer, keyed by node id, from The Cartographer
+  try {
+    const art = await listSphereArt(campaignId || '');
+    ((art && art.art) || []).forEach((a) => { out.art[a.nodeId] = { image: a.image, title: a.title, lore: a.lore, nodeLayout: a.nodes }; });
+  } catch (e) {}
 
   return out;
 }

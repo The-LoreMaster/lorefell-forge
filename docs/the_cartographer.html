@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Cartographer</title>
+<style>
+:root{ --navy:#0a0e1a; --panel:#10162a; --panel2:#0d1322; --silver:#dce8ef; --dim:#93a3b1; --ice:#b8ccd8; --gold:#c9a84c; --muted:#7e8a99; --line:rgba(184,204,216,.16); --goldline:rgba(201,168,76,.45); --danger:#c0525a; }
+*{ box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+body{ background:var(--navy); color:var(--silver); font-family:Georgia,serif; padding:12px; max-width:820px; margin:0 auto; }
+h1{ font-family:'Cinzel',serif; font-size:1.3rem; color:var(--gold); font-weight:600; letter-spacing:.03em; }
+.sub{ color:var(--muted); font-size:.85rem; margin:4px 0 14px; }
+label{ display:block; font-size:.7rem; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin:10px 0 4px; }
+select,input,textarea{ width:100%; background:var(--panel2); border:1px solid var(--line); color:var(--silver); border-radius:8px; padding:9px; font:inherit; font-size:.9rem; }
+textarea{ min-height:60px; }
+.row{ display:flex; gap:8px; }
+.row>*{ flex:1; }
+button{ font:inherit; cursor:pointer; }
+.btn{ background:var(--panel2); border:1px solid var(--line); color:var(--silver); border-radius:8px; padding:10px 14px; font-size:.8rem; letter-spacing:.06em; }
+.btn.gold{ border-color:var(--goldline); color:var(--gold); }
+.btn.danger{ border-color:rgba(192,82,90,.5); color:var(--danger); }
+.canvas-wrap{ position:relative; margin-top:12px; border:1px solid var(--line); border-radius:10px; overflow:hidden; background:repeating-linear-gradient(45deg,var(--panel2),var(--panel2) 14px,#0b1120 14px,#0b1120 28px); }
+.canvas-wrap img{ display:block; width:100%; }
+.canvas-empty{ display:flex; align-items:center; justify-content:center; aspect-ratio:16/10; color:var(--muted); font-size:.85rem; }
+.hotspot{ position:absolute; width:26px; height:26px; margin:-13px 0 0 -13px; border-radius:50%; background:rgba(201,168,76,.25); border:2px solid var(--gold); color:var(--gold); font-size:.7rem; display:flex; align-items:center; justify-content:center; cursor:grab; }
+.hotspot.sel{ background:var(--gold); color:var(--navy); }
+.placing{ cursor:crosshair !important; }
+.node-list{ margin-top:10px; }
+.node-item{ display:flex; gap:8px; align-items:center; padding:8px; border:1px solid var(--line); border-radius:8px; margin:6px 0; font-size:.85rem; }
+.node-item select{ flex:2; }
+.node-item .lbl{ flex:1; }
+.status{ margin-top:10px; font-size:.85rem; color:var(--ice); min-height:20px; }
+.hint{ color:var(--muted); font-size:.78rem; margin-top:4px; }
+</style>
+</head>
+<body>
+<h1>The Cartographer</h1>
+<p class="sub">Dev only. Give a world, territory, or location its map and place the nodes players click to travel inward. Positions are stored as percentages, so any art size holds.</p>
+
+<label>Node</label>
+<select id="nodeSel"></select>
+<p class="hint" id="nodePath"></p>
+
+<label>Map image URL</label>
+<input id="imgUrl" type="text" placeholder="https://... the map art for this node">
+
+<label>Title shown on the layer</label>
+<input id="artTitle" type="text" placeholder="Defaults to the node name">
+
+<label>Lore</label>
+<textarea id="lore" placeholder="What players read at this layer"></textarea>
+
+<div class="row" style="margin-top:12px">
+  <button class="btn gold" id="placeBtn">Place a node</button>
+  <button class="btn" id="loadBtn">Reload from CMS</button>
+  <button class="btn gold" id="saveBtn">Save to CMS</button>
+</div>
+
+<div class="canvas-wrap" id="canvasWrap"><div class="canvas-empty">Paste a map image URL above to begin</div></div>
+
+<div class="node-list" id="nodeList"></div>
+<div class="status" id="status"></div>
+
+<script>
+var GRAPH_NODES = [{"id":"world:akkoroka","type":"world","title":"Akkoroka","parent":"sphere:the-sphere"},{"id":"world:amaranthia","type":"world","title":"Amaranthia","parent":"sphere:the-sphere"},{"id":"world:avemriol","type":"world","title":"Avemriol","parent":"sphere:the-sphere"},{"id":"world:brimsever","type":"world","title":"Brimsever","parent":"sphere:the-sphere"},{"id":"world:burhallow","type":"world","title":"Burhallow","parent":"sphere:the-sphere"},{"id":"world:crixalis","type":"world","title":"Crixalis","parent":"sphere:the-sphere"},{"id":"world:eldarwyn","type":"world","title":"Eldarwyn","parent":"sphere:the-sphere"},{"id":"world:elysara","type":"world","title":"Elysara","parent":"sphere:the-sphere"},{"id":"world:felidae","type":"world","title":"Felidae","parent":"sphere:the-sphere"},{"id":"world:garyx","type":"world","title":"Garyx","parent":"sphere:the-sphere"},{"id":"world:karn","type":"world","title":"Karn","parent":"sphere:the-sphere"},{"id":"world:kwuhara","type":"world","title":"Kwuhara","parent":"sphere:the-sphere"},{"id":"world:mireleor","type":"world","title":"Mireleor","parent":"sphere:the-sphere"},{"id":"world:mireth","type":"world","title":"Mireth","parent":"sphere:the-sphere"},{"id":"world:mortavia","type":"world","title":"Mortavia","parent":"sphere:the-sphere"},{"id":"world:natbakka","type":"world","title":"Natbakka","parent":"sphere:the-sphere"},{"id":"world:neriad","type":"world","title":"Neriad","parent":"sphere:the-sphere"},{"id":"world:oroniel","type":"world","title":"Oroniel","parent":"sphere:the-sphere"},{"id":"world:pandemonium","type":"world","title":"Pandemonium","parent":"sphere:the-sphere"},{"id":"world:sable","type":"world","title":"Sable","parent":"sphere:the-sphere"},{"id":"world:scitnix","type":"world","title":"Scitnix","parent":"sphere:the-sphere"},{"id":"world:sellenia","type":"world","title":"Sellenia","parent":"sphere:the-sphere"},{"id":"world:shadakar","type":"world","title":"Shadakar","parent":"sphere:the-sphere"},{"id":"world:shervinaw","type":"world","title":"Shervinaw","parent":"sphere:the-sphere"},{"id":"world:sporion","type":"world","title":"Sporion","parent":"sphere:the-sphere"},{"id":"world:sylvanoth","type":"world","title":"Sylvanoth","parent":"sphere:the-sphere"},{"id":"world:thaloryn","type":"world","title":"Thaloryn","parent":"sphere:the-sphere"},{"id":"world:the-scere","type":"world","title":"The Scere","parent":"sphere:the-sphere"},{"id":"world:therion","type":"world","title":"Therion","parent":"sphere:the-sphere"},{"id":"world:ursathar","type":"world","title":"Ursathar","parent":"sphere:the-sphere"},{"id":"world:valoria","type":"world","title":"Valoria","parent":"sphere:the-sphere"},{"id":"world:verdantia","type":"world","title":"Verdantia","parent":"sphere:the-sphere"},{"id":"world:vulkaris","type":"world","title":"Vulkaris","parent":"sphere:the-sphere"},{"id":"world:vyrathis","type":"world","title":"Vyrathis","parent":"sphere:the-sphere"},{"id":"world:wildermire","type":"world","title":"Wildermire","parent":"sphere:the-sphere"},{"id":"world:wylv","type":"world","title":"Wylv","parent":"sphere:the-sphere"},{"id":"map:a-court-of-ashes","type":"map","title":"A Court of Ashes","parent":"world:vyrathis"},{"id":"location:aegros","type":"location","title":"Aegros","parent":"map:a-court-of-ashes"},{"id":"location:cael-morren","type":"location","title":"Cael'Morren","parent":"map:a-court-of-ashes"},{"id":"location:the-hanging-garden","type":"location","title":"The Hanging Garden","parent":"map:a-court-of-ashes"},{"id":"location:the-veinspire-pools","type":"location","title":"The Veinspire Pools","parent":"map:a-court-of-ashes"},{"id":"map:echoes-below-burhallow","type":"map","title":"Echoes Below Burhallow","parent":"world:burhallow"},{"id":"location:bunny-bay","type":"location","title":"Bunny Bay","parent":"map:echoes-below-burhallow"},{"id":"location:the-fellwatch-tower","type":"location","title":"The Fellwatch Tower","parent":"map:echoes-below-burhallow"},{"id":"location:the-forest-glade","type":"location","title":"The Forest Glade","parent":"map:echoes-below-burhallow"},{"id":"location:the-forgotten-burrowmouth","type":"location","title":"The Forgotten Burrowmouth","parent":"map:echoes-below-burhallow"},{"id":"location:thimblehill","type":"location","title":"Thimblehill","parent":"map:echoes-below-burhallow"},{"id":"world:lore-pending","type":"world","title":"Lore Pending","parent":"sphere:the-sphere"},{"id":"map:of-withering-thorns","type":"map","title":"Of Withering Thorns","parent":"world:lore-pending"},{"id":"location:the-croaking-cauldron","type":"location","title":"The Croaking Cauldron","parent":"map:of-withering-thorns"},{"id":"location:the-rib-xotal-archives","type":"location","title":"The Rib'Xotal Archives","parent":"map:of-withering-thorns"},{"id":"location:the-rootheart","type":"location","title":"The Rootheart","parent":"map:of-withering-thorns"},{"id":"location:xul-tec","type":"location","title":"Xul'Tec","parent":"map:of-withering-thorns"},{"id":"map:shaper-of-the-nexus","type":"map","title":"Shaper of the Nexus","parent":"world:lore-pending"},{"id":"location:ashenrest","type":"location","title":"Ashenrest","parent":"map:shaper-of-the-nexus"},{"id":"location:ashveil-hollow","type":"location","title":"Ashveil Hollow","parent":"map:shaper-of-the-nexus"},{"id":"location:emberstone","type":"location","title":"Emberstone","parent":"map:shaper-of-the-nexus"},{"id":"location:the-arcane-spire","type":"location","title":"The Arcane Spire","parent":"map:shaper-of-the-nexus"},{"id":"location:the-astral-garden","type":"location","title":"The Astral Garden","parent":"map:shaper-of-the-nexus"},{"id":"location:varyndell","type":"location","title":"Varyndell","parent":"map:shaper-of-the-nexus"},{"id":"map:the-crimson-heir","type":"map","title":"The Crimson Heir","parent":"world:vyrathis"},{"id":"location:the-temple-of-the-still-flame","type":"location","title":"The Temple of the Still Flame","parent":"map:the-crimson-heir"},{"id":"map:the-drums-of-fellwinter","type":"map","title":"The Drums of Fellwinter","parent":"world:valoria"},{"id":"location:shroomy-s-phantom-delights","type":"location","title":"Shroomy's Phantom Delights","parent":"map:the-drums-of-fellwinter"},{"id":"map:the-shattering-of-valoria","type":"map","title":"The Shattering of Valoria","parent":"world:valoria"},{"id":"location:castle-valoria","type":"location","title":"Castle Valoria","parent":"map:the-shattering-of-valoria"},{"id":"location:eldervale","type":"location","title":"Eldervale","parent":"map:the-shattering-of-valoria"},{"id":"location:king-arandon-s-castle","type":"location","title":"King Arandon's Castle","parent":"map:the-shattering-of-valoria"},{"id":"location:sanctuary-arvonis","type":"location","title":"Sanctuary Arvonis","parent":"map:the-shattering-of-valoria"},{"id":"location:the-altar-of-the-first-kings","type":"location","title":"The Altar of the First Kings","parent":"map:the-shattering-of-valoria"},{"id":"location:the-broken-spire","type":"location","title":"The Broken Spire","parent":"map:the-shattering-of-valoria"},{"id":"location:the-cradle-of-embers","type":"location","title":"The Cradle of Embers","parent":"map:the-shattering-of-valoria"},{"id":"location:the-silver-veil-highlands","type":"location","title":"The Silver Veil Highlands","parent":"map:the-shattering-of-valoria"},{"id":"location:the-sunken-cathedral","type":"location","title":"The Sunken Cathedral","parent":"map:the-shattering-of-valoria"},{"id":"location:the-veiled-queen-s-forest","type":"location","title":"The Veiled Queen's Forest","parent":"map:the-shattering-of-valoria"},{"id":"location:the-veiled-swamp","type":"location","title":"The Veiled Swamp","parent":"map:the-shattering-of-valoria"},{"id":"location:the-verdant-hills","type":"location","title":"The Verdant Hills","parent":"map:the-shattering-of-valoria"},{"id":"location:the-whispering-woods","type":"location","title":"The Whispering Woods","parent":"map:the-shattering-of-valoria"}];
+var byId = {}; GRAPH_NODES.forEach(function(n){ byId[n.id]=n; });
+var TYPE_ORDER = { world:0, map:1, location:2 };
+GRAPH_NODES.sort(function(a,b){ return (TYPE_ORDER[a.type]-TYPE_ORDER[b.type]) || a.title.localeCompare(b.title); });
+
+var state = { current:null, art:{}, placing:false, selIdx:null };
+var $ = function(id){ return document.getElementById(id); };
+function esc(t){ return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+/* populate the node picker, grouped by type */
+(function fillSel(){
+  var sel=$("nodeSel"); var labels={world:"World",map:"Territory",location:"Location"};
+  var html='';
+  GRAPH_NODES.forEach(function(n){ html+='<option value="'+esc(n.id)+'">'+labels[n.type]+': '+esc(n.title)+'</option>'; });
+  sel.innerHTML=html;
+})();
+
+function nodePathText(id){
+  var parts=[], cur=byId[id];
+  while(cur){ parts.unshift(cur.title); cur=cur.parent?byId[cur.parent]:null; }
+  return parts.join("  \u203a  ");
+}
+
+/* children of the current node are the valid targets a hotspot can reveal into */
+function childTargets(id){
+  return GRAPH_NODES.filter(function(n){ return n.parent===id; });
+}
+
+function loadNode(id){
+  state.current=id; state.selIdx=null; state.placing=false;
+  $("nodePath").textContent = nodePathText(id);
+  var a = state.art[id] || { nodeId:id, kind:byId[id].type, image:"", title:"", lore:"", nodes:[] };
+  state.art[id]=a;
+  $("imgUrl").value=a.image||"";
+  $("artTitle").value=a.title||"";
+  $("lore").value=a.lore||"";
+  renderCanvas(); renderNodeList();
+}
+
+function renderCanvas(){
+  var a=state.art[state.current]; var wrap=$("canvasWrap");
+  if(!a.image){ wrap.innerHTML='<div class="canvas-empty">Paste a map image URL above to begin</div>'; return; }
+  wrap.className='canvas-wrap'+(state.placing?' placing':'');
+  var h='<img id="mapImg" src="'+esc(a.image)+'" alt="">';
+  a.nodes.forEach(function(nd,i){
+    h+='<div class="hotspot'+(i===state.selIdx?' sel':'')+'" style="left:'+nd.x+'%;top:'+nd.y+'%" data-i="'+i+'">'+(i+1)+'</div>';
+  });
+  wrap.innerHTML=h;
+}
+
+function renderNodeList(){
+  var a=state.art[state.current]; var targets=childTargets(state.current);
+  if(!a.nodes.length){ $("nodeList").innerHTML='<p class="hint">No nodes yet. Tap Place a node, then tap the map where players should travel inward.</p>'; return; }
+  var h='';
+  a.nodes.forEach(function(nd,i){
+    var opts='<option value="">(no target)</option>'+targets.map(function(t){
+      return '<option value="'+esc(t.id)+'"'+(nd.target===t.id?' selected':'')+'>'+esc(t.title)+'</option>';
+    }).join('');
+    h+='<div class="node-item"><b>'+(i+1)+'</b>'
+      +'<input class="lbl" type="text" value="'+esc(nd.label||"")+'" placeholder="Label" oninput="setLabel('+i+',this.value)">'
+      +'<select onchange="setTarget('+i+',this.value)">'+opts+'</select>'
+      +'<button class="btn danger" onclick="delNode('+i+')">Remove</button></div>';
+  });
+  $("nodeList").innerHTML=h;
+}
+window.setLabel=function(i,v){ state.art[state.current].nodes[i].label=v; };
+window.setTarget=function(i,v){ state.art[state.current].nodes[i].target=v; };
+window.delNode=function(i){ state.art[state.current].nodes.splice(i,1); state.selIdx=null; renderCanvas(); renderNodeList(); };
+
+/* place-on-tap */
+$("canvasWrap").addEventListener("click", function(ev){
+  if(!state.placing) return;
+  var img=$("mapImg"); if(!img) return;
+  var r=img.getBoundingClientRect();
+  var x=((ev.clientX-r.left)/r.width)*100, y=((ev.clientY-r.top)/r.height)*100;
+  if(x<0||x>100||y<0||y>100) return;
+  state.art[state.current].nodes.push({ x:Math.round(x*10)/10, y:Math.round(y*10)/10, target:"", label:"" });
+  state.placing=false; state.selIdx=state.art[state.current].nodes.length-1;
+  renderCanvas(); renderNodeList();
+});
+
+$("placeBtn").addEventListener("click", function(){ state.placing=!state.placing; renderCanvas(); setStatus(state.placing?"Tap the map to drop a node.":""); });
+$("nodeSel").addEventListener("change", function(e){ loadNode(e.target.value); });
+$("imgUrl").addEventListener("input", function(e){ state.art[state.current].image=e.target.value.trim(); renderCanvas(); });
+$("artTitle").addEventListener("input", function(e){ state.art[state.current].title=e.target.value; });
+$("lore").addEventListener("input", function(e){ state.art[state.current].lore=e.target.value; });
+
+function setStatus(t){ $("status").textContent=t; }
+
+/* CMS bridge */
+var _req=0, _pending={};
+function call(method, arg){
+  return new Promise(function(res,rej){
+    if(!(window.parent&&window.parent!==window)){ rej(new Error("The Cartographer saves on the live site.")); return; }
+    var id=++_req; _pending[id]={res:res,rej:rej};
+    window.parent.postMessage({ type:"CARTOGRAPHER_CALL", reqId:id, method:method, arg:arg }, "*");
+    setTimeout(function(){ if(_pending[id]){ delete _pending[id]; rej(new Error("No answer from the site.")); } }, 20000);
+  });
+}
+window.addEventListener("message", function(ev){
+  var m=ev.data; if(!m||m.type!=="CARTOGRAPHER_RESULT") return;
+  var p=_pending[m.reqId]; if(!p) return; delete _pending[m.reqId];
+  if(m.ok) p.res(m.data); else p.rej(new Error(m.error||"failed"));
+});
+
+$("loadBtn").addEventListener("click", function(){
+  setStatus("Loading...");
+  call("listSphereArt","").then(function(d){
+    (d.art||[]).forEach(function(r){ state.art[r.nodeId]={ nodeId:r.nodeId, kind:r.kind, image:r.image, title:r.title, lore:r.lore, nodes:r.nodes||[] }; });
+    loadNode(state.current); setStatus("Loaded "+((d.art||[]).length)+" pieces from the CMS.");
+  }).catch(function(e){ setStatus(e.message); });
+});
+$("saveBtn").addEventListener("click", function(){
+  var a=state.art[state.current]; if(!a){ return; }
+  setStatus("Saving...");
+  call("saveSphereArt", { nodeId:a.nodeId, kind:byId[a.nodeId].type, image:a.image||"", title:a.title||"", lore:a.lore||"", nodes:a.nodes||[], campaignId:"" })
+    .then(function(){ setStatus("Saved "+byId[a.nodeId].title+"."); })
+    .catch(function(e){ setStatus(e.message); });
+});
+
+loadNode(GRAPH_NODES[0].id);
+</script>
+</body>
+</html>

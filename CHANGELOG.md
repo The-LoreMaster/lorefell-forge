@@ -16,6 +16,11 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 ## SagaForge skeleton builds in small phased calls
 - The 504 was latency margin, confirmed by a tiny test call that returned instantly while the full 3500-token skeleton call ran past the Wix web-method wall. The skeleton now builds in phases: a small call for the act spine and threats, then one small call per act for its sessions and scenes, assembled in the tool. Premise trimmed to 450 tokens. Every call now sits well under the limit that SigilForge clears.
 
+## The Cartographer, and ThreadSpire loads real maps
+- A dev only tool for placing map art and travel nodes. Pick a world, territory, or location, give it a map image and lore, then tap the map to drop the nodes players click to travel inward, each pointing at a child node. Positions are stored as percentages so any art size holds. Saves to the new SphereArt collection through an admin only backend.
+- ThreadSpire now paints each layer from SphereArt. A node with placed art shows its map, the placeholder stripes only remain where art is not set yet.
+- New: schemas/SphereArt.json, backend/sphereart.web.js, docs/the_cartographer.html, page-cartographer.js. ThreadSpire bridge extended to load art. The Cartographer is a dev route, not on the Hearth.
+
 ## ThreadSpire rebuilt, character first
 - ThreadSpire is no longer a lore atlas on the Hearth. It lives on the character sheet, reached from the Sections hub, and opens on that character's token. Tap the token for a reference card: image, name, player name, lineage, origin, motivation, arsenal, talents, and the character's blurb. The owner gets a button through to the full sheet.
 - Zoom outward through the journey: token to location to territory. The world stays veiled until the LoreMaster unlocks it. The location shows the party's goals from the quest board, checked or not. The world will show what it faces. Other Fell standing at a location open a read only card.
