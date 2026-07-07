@@ -16,6 +16,9 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 ## SagaForge skeleton builds in small phased calls
 - The 504 was latency margin, confirmed by a tiny test call that returned instantly while the full 3500-token skeleton call ran past the Wix web-method wall. The skeleton now builds in phases: a small call for the act spine and threats, then one small call per act for its sessions and scenes, assembled in the tool. Premise trimmed to 450 tokens. Every call now sits well under the limit that SigilForge clears.
 
+## FateWell survives a campaign that predates the players field
+- Older or imported campaigns without a players array crashed the whole screen the moment it tried to render their summary. Navigation looked broken across the tool because render itself threw. FateWell now backfills a missing players array and world issues array on load, so any campaign renders, and it guards the summary line directly.
+
 ## Import no longer stalls on a forged adventure
 - A SagaForge scene has no combat state until you run one, but the importer assumed every scene already had a battle object and threw the moment it read one that did not. The import died silently and the screen sat on Reading. Scenes now get a battle object if they lack one, and the importer surfaces any real error instead of hanging.
 
