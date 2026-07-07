@@ -16,6 +16,9 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 ## SagaForge skeleton builds in small phased calls
 - The 504 was latency margin, confirmed by a tiny test call that returned instantly while the full 3500-token skeleton call ran past the Wix web-method wall. The skeleton now builds in phases: a small call for the act spine and threats, then one small call per act for its sessions and scenes, assembled in the tool. Premise trimmed to 450 tokens. Every call now sits well under the limit that SigilForge clears.
 
+## Recast, not redline
+- Renamed the outline and scene revision controls from Redline to Recast, a forge word that fits LoreFell. The action is unchanged, tell the forge what to change and it reshapes what it made.
+
 ## SagaForge lets you redline the skeleton
 - The outline step gains a redline field. Tell the forge what to change and reforge, and your instruction folds into the rebuild and overrides the defaults. The field edits you make by hand still hold, and Forge fresh stays for a clean rebuild.
 - Baked a canon default into the outline prompt: the Fell are newcomers to the place, strangers walking in, never natives returning. Stops the forge inventing a shared past the Fell never had.
