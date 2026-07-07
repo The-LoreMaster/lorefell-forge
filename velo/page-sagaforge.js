@@ -29,7 +29,7 @@ $w.onReady(function () {
         const r = await aiForge(msg.payload || {});
         embed.postMessage({ type: 'LOREFELL_AI_FORGE_RESULT', reqId: reqId, ok: !!(r && r.ok), text: (r && r.text) || '', status: (r && r.status) || 0, error: (r && r.error) || '' });
       } catch (e) {
-        embed.postMessage({ type: 'LOREFELL_AI_FORGE_RESULT', reqId: reqId, ok: false, error: 'relay: ' + ((e && (e.message || e.toString())) || 'unreachable') });
+        embed.postMessage({ type: 'LOREFELL_AI_FORGE_RESULT', reqId: reqId, ok: false, error: 'relay[bridge-v3-webmethod-only]: ' + ((e && (e.message || e.toString())) || 'unreachable') });
       }
       return;
     }
