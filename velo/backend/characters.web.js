@@ -6,7 +6,7 @@
 
 import { Permissions, webMethod } from 'wix-web-module';
 import wixData from 'wix-data';
-import { currentMember } from 'wix-members-backend';
+import { currentMember, members } from 'wix-members-backend';
 
 const COLLECTION = 'Characters';
 
