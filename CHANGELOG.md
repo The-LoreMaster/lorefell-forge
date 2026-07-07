@@ -16,6 +16,9 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 ## SagaForge skeleton builds in small phased calls
 - The 504 was latency margin, confirmed by a tiny test call that returned instantly while the full 3500-token skeleton call ran past the Wix web-method wall. The skeleton now builds in phases: a small call for the act spine and threats, then one small call per act for its sessions and scenes, assembled in the tool. Premise trimmed to 450 tokens. Every call now sits well under the limit that SigilForge clears.
 
+## Imported foes and NPCs stay put
+- On a hosted account the library syncs separately from campaigns, and the account copy overwrites the local one on every load. Import added foes and NPCs to the local library but never saved them to the account, so the next sync wiped them. Import now writes each imported foe and NPC to the account, and their full stats round-trip through the Assets store.
+
 ## Imported sessions open again
 - Opening a session on an imported adventure crashed because its scenes had no combatants array, and the session view read the foe count without a guard. Migrate now backfills combatants, refs, and manualRefs on every scene, and the session view guards the read. Imported adventures open all the way down to their scenes.
 
