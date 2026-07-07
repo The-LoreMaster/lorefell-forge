@@ -144,6 +144,17 @@ window.addEventListener("message",function(ev){
   p.resolve(m.text||"");
 });
 var AI_WORKER="https://lorefell-ai.nate8-johnson.workers.dev/";
+var CANON_ACTS=[]; /* {title, tier, use, shorthand} from the Creations collection, canon only */
+(function requestCanonActs(){
+  try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:"SAGA_CANON_ACTS_REQUEST"},"*"); }catch(e){}
+})();
+window.addEventListener("message",function(ev){
+  var m=ev&&ev.data; if(!m||m.type!=="SAGA_CANON_ACTS") return;
+  if(Array.isArray(m.acts)) CANON_ACTS=m.acts.filter(function(a){ return a&&a.title; });
+});
+function canonActsUpToTier(maxTier){
+  return CANON_ACTS.filter(function(a){ return (Number(a.tier)||1)<=maxTier; });
+}
 function aiCall(system,messages,maxTokens){
   /* Calls the Cloudflare Worker directly. It holds the key and calls Anthropic
      with no Wix web-method timeout, which is what caused the 504s. The worker
@@ -860,11 +871,18 @@ function foeAplGuess(){
   var m=String(S.levels||"").match(/\d+/g); if(!m||!m.length) return 3;
   var nums=m.map(Number); return Math.max(1,Math.round(nums.reduce(function(a,b){return a+b;},0)/nums.length));
 }
+function foeActBudget(tierName){
+  var t=null; FOE_PACK.tiers.forEach(function(x){ if(x.name===tierName) t=x; });
+  if(!t) return 0;
+  // Minion 0, Elite 1, Champion 2, Epic 3, Forsaken 3, matching the pack infusion budget
+  return Math.max(0, Number(t.infusions)||0);
+}
 function foeSystem(){
   return "You stat the foes for one LoreFell crucible. Pick only from the provided lists, nothing invented. "
     +"Output plain text only, no JSON. One block per foe in this exact shape:\n"
-    +"@@FOE\nname: <evocative foe name, not generic>\ncount: <how many identical copies, 1 to 6>\nbuild: <one build name from the list>\ntier: <one tier name from the list>\nstance: <one stance name from the list>\naffliction: <one affliction name from the list, or none>\n@@END\n"
-    +"Compose the encounter with intent. A lone Champion or Epic is a duel. A Champion with a few Minions is a boss and its lackeys. Two or three Elites is a warband. Use fewer, higher blocks for a climax and more, lower blocks for a swarm. Two to four blocks is usual. Match the whole encounter to the stakes of the scene, not each foe in isolation.";
+    +"@@FOE\nname: <evocative foe name, not generic>\ncount: <how many identical copies, 1 to 6>\nbuild: <one build name from the list>\ntier: <one tier name from the list>\nstance: <one stance name from the list>\naffliction: <one affliction name from the list, or none>\nacts: <comma separated Act names chosen only from the provided Acts list, or none>\n@@END\n"
+    +"Compose the encounter with intent. A lone Champion or Epic is a duel. A Champion with a few Minions is a boss and its lackeys. Two or three Elites is a warband. Use fewer, higher blocks for a climax and more, lower blocks for a swarm. Two to four blocks is usual. Match the whole encounter to the stakes of the scene, not each foe in isolation. "
+    +"For each foe pick Acts that fit its build and tier from the Acts list only, never invent an Act. A Minion carries none, an Elite one, a Champion two, an Epic or Forsaken up to three. Give a foe Acts that suit its name and role.";
 }
 function foeUserMsg(scene, act){
   var builds=FOE_PACK.builds.map(function(b){ return b.name; }).join(", ");
@@ -877,6 +895,12 @@ function foeUserMsg(scene, act){
   lines.push("Tiers: "+tiers);
   lines.push("Stances: "+FOE_PACK.stances.join(", "));
   lines.push("Afflictions: "+FOE_PACK.afflictions.slice(0,40).join(", ")+", or none.");
+  if(CANON_ACTS.length){
+    var actList=CANON_ACTS.slice(0,80).map(function(a){ return a.title+" (T"+(Number(a.tier)||1)+", "+(a.use||"Act")+")"; }).join("; ");
+    lines.push("Acts, choose only from these by name: "+actList);
+  } else {
+    lines.push("No Act list is available, leave every acts line as none.");
+  }
   return lines.join("\n");
 }
 function parseFoeLineup(text){
@@ -884,13 +908,14 @@ function parseFoeLineup(text){
   var chunks=text.split(/@@FOE/).slice(1);
   chunks.forEach(function(ch){
     var body=ch.split("@@END")[0];
-    var f={name:"",count:1,build:"",tier:"",stance:"",sig:""};
+    var f={name:"",count:1,build:"",tier:"",stance:"",sig:"",actsRaw:""};
     body.split(/\r?\n/).forEach(function(ln){
-      var m=ln.match(/^\s*(name|count|build|tier|stance|affliction)\s*:\s*(.*)$/i);
+      var m=ln.match(/^\s*(name|count|build|tier|stance|affliction|acts)\s*:\s*(.*)$/i);
       if(!m) return; var v=m[2].trim(), k=m[1].toLowerCase();
       if(k==="name")f.name=v; else if(k==="count")f.count=Math.max(1,Math.min(6,parseInt(v,10)||1));
       else if(k==="build")f.build=v; else if(k==="tier")f.tier=v;
       else if(k==="stance")f.stance=v; else if(k==="affliction")f.sig=(/^none$/i.test(v)?"":v);
+      else if(k==="acts")f.actsRaw=v;
     });
     out.push(snapFoe(f));
   });
@@ -903,7 +928,29 @@ function snapFoe(f){
   f.stance=snap(f.stance,FOE_PACK.stances)||FOE_PACK.stances[0];
   f.sig=snap(f.sig,FOE_PACK.afflictions);
   f.count=f.count||1;
+  f.acts=resolveFoeActs(f.actsRaw, f.tier);
+  delete f.actsRaw;
   return f;
+}
+/* Match the model's chosen Act names to real canon Acts, keep only those, cap by the
+   foe's tier budget. Anything not in the canon pool is dropped, never invented. */
+function resolveFoeActs(raw, tierName){
+  if(!raw || !CANON_ACTS.length) return [];
+  var budget=foeActBudget(tierName); if(budget<=0) return [];
+  var wanted=String(raw).split(/[,;]/).map(function(x){ return x.trim(); }).filter(Boolean);
+  var out=[], used={};
+  wanted.forEach(function(name){
+    if(out.length>=budget) return;
+    var lc=name.toLowerCase();
+    var hit=null;
+    CANON_ACTS.forEach(function(a){ if(hit) return; if(a.title.toLowerCase()===lc) hit=a; });
+    if(!hit) CANON_ACTS.forEach(function(a){ if(hit) return; if(a.title.toLowerCase().indexOf(lc)>=0||lc.indexOf(a.title.toLowerCase())>=0) hit=a; });
+    if(hit && !used[hit.title] && (Number(hit.tier)||1)<=budget){
+      used[hit.title]=1;
+      out.push({ name:hit.title, tier:Number(hit.tier)||1, use:hit.use||"Act", shorthand:hit.shorthand||"" });
+    }
+  });
+  return out;
 }
 function parseFoe(text){
   var f={name:"",build:"",tier:"",stance:"",sig:""};
@@ -938,7 +985,8 @@ function buildPack(){
         var nm=(f.name||"Foe")+(n>1?" "+(k+1):"");
         var row={ id:uid(), type:"monster", name:nm, source:"sagaforge",
           build:f.build, stance:f.stance||"", sig:f.sig||"", sr:f.tier,
-          attrs:JSON.parse(JSON.stringify(sc.attrs)), maxVit:sc.maxVit, inv:[], abilities:[], notes:"", img:"" };
+          attrs:JSON.parse(JSON.stringify(sc.attrs)), maxVit:sc.maxVit, inv:[],
+          abilities:JSON.parse(JSON.stringify(f.acts||[])), notes:"", img:"" };
         foeRows.push(row);
         (foeBySceneKey[key]=foeBySceneKey[key]||[]).push(row.id);
       }

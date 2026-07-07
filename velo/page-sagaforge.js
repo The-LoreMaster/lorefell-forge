@@ -1,7 +1,7 @@
 // Page code for the SagaForge page. Identical AI path to SigilForge, which works.
 // Paste into the SagaForge page in Wix. Set the embed element ID to match EMBED.
 import wixWindow from 'wix-window-frontend';
-import { aiForge } from 'backend/forge.web.js';
+import { aiForge, getForgeLibrary } from 'backend/forge.web.js';
 
 const EMBED = '#html1';
 
@@ -20,6 +20,14 @@ $w.onReady(function () {
     if (msg.type === 'SAGA_SCROLLTOP') {
       try { $w(EMBED).scrollTo(); } catch (e) {}
       try { if (wixWindow && wixWindow.scrollTo) wixWindow.scrollTo(0, 0); } catch (e) {}
+      return;
+    }
+
+    // SagaForge asks for the canon Act pool so forged foes can carry real Acts.
+    if (msg.type === 'SAGA_CANON_ACTS_REQUEST') {
+      let acts = [];
+      try { acts = await getForgeLibrary(); } catch (e) { acts = []; }
+      embed.postMessage({ type: 'SAGA_CANON_ACTS', acts: acts });
       return;
     }
 
