@@ -16,6 +16,9 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 ## SagaForge skeleton builds in small phased calls
 - The 504 was latency margin, confirmed by a tiny test call that returned instantly while the full 3500-token skeleton call ran past the Wix web-method wall. The skeleton now builds in phases: a small call for the act spine and threats, then one small call per act for its sessions and scenes, assembled in the tool. Premise trimmed to 450 tokens. Every call now sits well under the limit that SigilForge clears.
 
+## Large chronicles save again
+- A spawned foe copied its whole stat block onto the scene, and a full chronicle with hundreds of foes pushed the stored adventure past the account field limit, so the save failed and blamed an image. The saved copy now stores each spawned foe as a light reference and rebuilds its stats from the library on load. A six act chronicle drops well under the limit, and the live board keeps full stats throughout.
+
 ## Reimporting an adventure no longer clones its foes
 - Import minted a fresh library entry for every foe and NPC each time, so reimporting the same adventure stacked duplicate after duplicate until the library grew large enough to break the account save. The save then blamed an image, wrongly. Import now reuses an existing library entry with the same name and type instead of adding another, so reimports are clean.
 - The too-large-image message was firing for a bloated library, not an image. The underlying cause is fixed.

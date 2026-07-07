@@ -2918,6 +2918,44 @@ function markSaved(){ renderSavedTag(); }
 
 /* In hosted mode the campaign contents are one object; the library and forge
    are account-global and sync separately, so they are excluded from the blob. */
+/* A spawned foe copies its whole stat block from the library into the scene. Across a
+   large chronicle that duplication can push the campaign past the account field limit.
+   Before saving, drop the fields that can be rebuilt from the library (keyed by libId),
+   keeping only per-combat state. rehydrateCombatants puts them back on load. */
+var COMBATANT_STATIC = ['attrs','inv','augments','abilities','sig','source','build','stance','img'];
+function slimCombatantsForSave(camp){
+  (camp.acts||[]).forEach(function(a){ (a.sessions||[]).forEach(function(ss){ (ss.scenes||[]).forEach(function(sc){
+    (sc.combatants||[]).forEach(function(cb){
+      if(cb.libId && libGet(cb.libId)){
+        COMBATANT_STATIC.forEach(function(k){ delete cb[k]; });
+        cb._slim = 1;
+      }
+    });
+  }); }); });
+  return camp;
+}
+function rehydrateCombatants(camp){
+  (camp.acts||[]).forEach(function(a){ (a.sessions||[]).forEach(function(ss){ (ss.scenes||[]).forEach(function(sc){
+    (sc.combatants||[]).forEach(function(cb){
+      if(cb._slim && cb.libId){
+        var e=libGet(cb.libId);
+        if(e){
+          if(cb.attrs===undefined) cb.attrs=JSON.parse(JSON.stringify(e.attrs||blankAttrs()));
+          if(cb.inv===undefined) cb.inv=(e.inv||[]).slice();
+          if(cb.augments===undefined) cb.augments=(e.augments||[]).slice();
+          if(cb.abilities===undefined) cb.abilities=JSON.parse(JSON.stringify(e.abilities||[]));
+          if(cb.sig===undefined) cb.sig=e.sig||'';
+          if(cb.source===undefined) cb.source=e.source||'';
+          if(cb.build===undefined) cb.build=e.build||'';
+          if(cb.stance===undefined) cb.stance=e.stance||'';
+          if(cb.img===undefined) cb.img=e.img||'';
+        }
+        delete cb._slim;
+      }
+    });
+  }); }); });
+  return camp;
+}
 function campaignBlob(){
   var c = curC();
   return c ? { campaign: c, savedAt: Date.now() } : null;
@@ -2943,13 +2981,16 @@ function flushSave(){
   if (!WIX.hosted) return;
   var c = curC(); if (!c) return;
   var cid = WIX.hub ? c.id : (WIX.campaignId || c.id);
-  // clean the live campaign first so the strip persists locally too, then send it
+  // clean the live campaign of any oversized image first (persists locally too)
   var removed = stripHeavyImages(c, 700000);
   if (removed){
     saveLocal();
     advNote('Removed a heavy image', 'An image on this adventure was too large to store and has been cleared so the save could go through. Add a smaller one if you want cover art.');
   }
-  postToWix({ type:'lmtool-save', campaignId: cid, data: { campaign:c, savedAt:Date.now() } });
+  // slim a deep copy for the wire: foes rebuild from the library on load, so the stored
+  // campaign stays small even for a large chronicle. The live board keeps full stats.
+  var wire = slimCombatantsForSave(JSON.parse(JSON.stringify(c)));
+  postToWix({ type:'lmtool-save', campaignId: cid, data: { campaign:wire, savedAt:Date.now() } });
   WIX.dirty = false; WIX.lastSaveAt = Date.now();
 }
 function save(){
@@ -2972,6 +3013,7 @@ function adoptHostedCampaigns(list){
     if (camp){
       camp.id = w.id; if (w.name && !camp.name) camp.name = w.name;
       var wrapped = migrate({ campaigns:[camp], library:S.library, forge:S.forge, wixPlayers:S.wixPlayers, die:S.die });
+      rehydrateCombatants(wrapped.campaigns[0]);
       S.campaigns.push(wrapped.campaigns[0]);
     } else {
       S.campaigns.push({ id:w.id, name:w.name||'Adventure', type:'legacy', notes:'', img:'', desc:'', entries:[], manualRefs:[], players:[], acts:[], ovOpen:{} });
@@ -3167,7 +3209,7 @@ window.addEventListener('message', function(ev){
       (m.campaigns||[]).forEach(function(sc){
         if (!sc || !sc.id || !sc.campaign) return;
         for (var i=0;i<S.campaigns.length;i++){
-          if (S.campaigns[i].id===sc.id){ sc.campaign.id = sc.id; preserveImages(sc.campaign, S.campaigns[i]); S.campaigns[i] = sc.campaign; break; }
+          if (S.campaigns[i].id===sc.id){ sc.campaign.id = sc.id; rehydrateCombatants(sc.campaign); preserveImages(sc.campaign, S.campaigns[i]); S.campaigns[i] = sc.campaign; break; }
         }
       });
       markSynced();
