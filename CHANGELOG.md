@@ -16,6 +16,10 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 ## SagaForge skeleton builds in small phased calls
 - The 504 was latency margin, confirmed by a tiny test call that returned instantly while the full 3500-token skeleton call ran past the Wix web-method wall. The skeleton now builds in phases: a small call for the act spine and threats, then one small call per act for its sessions and scenes, assembled in the tool. Premise trimmed to 450 tokens. Every call now sits well under the limit that SigilForge clears.
 
+## Heavy images no longer block the account save
+- A large image stored on an adventure could exceed the account field limit and fail every save, even after the image was removed in the interface, because the data still sat in the record. The save now clears any oversized image before sending and tells you once, so the save goes through.
+- Uploaded images are shrunk to a byte budget, stepping down quality then size, so a full size photo cannot produce a value too big to store.
+
 ## Outline fields stay plain text, and the wordmark matches
 - Pasting into an act, session, or scene field could carry heading or other markup into the outline. Every editable field now forces plain text on paste and flattens any markup that slips in, so no more bumping to a heading or pasting as plain text by hand.
 - The SagaForge wordmark now colors Forge in gold like the other forges, on a silver base.

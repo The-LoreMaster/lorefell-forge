@@ -2923,11 +2923,32 @@ function campaignBlob(){
   return c ? { campaign: c, savedAt: Date.now() } : null;
 }
 
+/* Blank any oversized image on a deep copy before it goes to the account, so a heavy
+   image (often legacy data from before the downscale existed) cannot silently break the
+   save. Returns the count stripped so we can warn once and also clean the live copy. */
+function stripHeavyImages(node, budget){
+  var n = 0;
+  (function walk(o){
+    if (!o || typeof o !== 'object') return;
+    for (var k in o){ if (!Object.prototype.hasOwnProperty.call(o,k)) continue;
+      var v = o[k];
+      if (k === 'img' && typeof v === 'string' && (v.indexOf('data:') === 0 && v.length > budget)){ o[k] = ''; n++; }
+      else if (v && typeof v === 'object') walk(v);
+    }
+  })(node);
+  return n;
+}
 function flushSave(){
   clearTimeout(WIX.saveTimer); WIX.saveTimer = null;
   if (!WIX.hosted) return;
   var c = curC(); if (!c) return;
   var cid = WIX.hub ? c.id : (WIX.campaignId || c.id);
+  // clean the live campaign first so the strip persists locally too, then send it
+  var removed = stripHeavyImages(c, 700000);
+  if (removed){
+    saveLocal();
+    advNote('Removed a heavy image', 'An image on this adventure was too large to store and has been cleared so the save could go through. Add a smaller one if you want cover art.');
+  }
   postToWix({ type:'lmtool-save', campaignId: cid, data: { campaign:c, savedAt:Date.now() } });
   WIX.dirty = false; WIX.lastSaveAt = Date.now();
 }
@@ -4687,7 +4708,19 @@ function downscaleImage(dataUrl, maxDim, cb){
       var cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
       var ctx = cv.getContext('2d'); if (!ctx){ cb(dataUrl); return; }
       ctx.drawImage(img, 0, 0, cw, ch);
-      var out; try { out = cv.toDataURL('image/jpeg', 0.82); } catch(_){ out = ''; }
+      var BUDGET = 700000; // keep the stored string comfortably under the CMS field cap
+      var q = 0.82, out = '';
+      try { out = cv.toDataURL('image/jpeg', q); } catch(_){ out = ''; }
+      // if still heavy, drop quality then dimensions until under budget
+      var guardDim = cw;
+      while (out && out.length > BUDGET && q > 0.4){
+        q -= 0.12;
+        try { out = cv.toDataURL('image/jpeg', q); } catch(_){ break; }
+      }
+      if (out && out.length > BUDGET && Math.max(cw,ch) > 512){
+        return downscaleImage(dataUrl, 512, cb); // one more pass at a smaller edge
+      }
+      if (out && out.length > BUDGET){ cb(''); return; } // give up rather than store a blob that breaks save
       cb(out && out.length < dataUrl.length ? out : dataUrl);
     };
     img.onerror = function(){ cb(dataUrl); };
