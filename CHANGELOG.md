@@ -16,6 +16,10 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 ## SagaForge skeleton builds in small phased calls
 - The 504 was latency margin, confirmed by a tiny test call that returned instantly while the full 3500-token skeleton call ran past the Wix web-method wall. The skeleton now builds in phases: a small call for the act spine and threats, then one small call per act for its sessions and scenes, assembled in the tool. Premise trimmed to 450 tokens. Every call now sits well under the limit that SigilForge clears.
 
+## Forged foes are built out like FoeForge
+- SagaForge now gives each foe its full arsenal by tier, the way FoeForge builds one. Infusions are family matched to the foe's build and counted by tier, augmentations are counted by tier, and Acts come from canon. A Minion carries none, an Elite one infusion and one Act, a Champion two infusions, one augmentation, two Acts, an Epic three infusions, one augmentation, three Acts, a Forsaken three infusions, two augmentations, three Acts. A build with no attack attribute carries no infusions.
+- Infusions and augmentations ride through the pack onto the imported foe, survive the account library, and spawn onto the scene. The scene ability panel shows a foe's infusions and augmentations alongside its Acts.
+
 ## Forged foes carry canon Acts
 - SagaForge now gives each forged foe real Acts, drawn only from the canon abilities and spells marked canon in the Creations collection. The forge picks Acts that fit a foe's build and tier, capped by tier: a Minion carries none, an Elite one, a Champion two, an Epic or Forsaken up to three. Nothing is invented, and anything outside the canon pool is dropped.
 - The Acts ride in the pack and land on the imported foe, so a crucible opens with foes that have their kit, editable in the scene ability panel before the fight.
