@@ -36,6 +36,11 @@
     CTX.worldUnlocked = false;
     CTX.goals = [{ title:'Find the archivist beneath Stellum', done:false }, { title:'Wake one forgotten name', done:true }];
     CTX.worldIssues = ['Sellenia is being lulled into a forgetting that erases its history.'];
+    CTX.art = {
+      'map:seed-terr': { image:'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MDAiIGhlaWdodD0iMjUwIj48cmVjdCB3aWR0aD0iNDAwIiBoZWlnaHQ9IjI1MCIgZmlsbD0iIzEwMTYyYSIvPjwvc3ZnPg==',
+        title:'The Drowned Coast', lore:'Salt eats the old roads.',
+        nodeLayout:[ {x:30,y:40,target:'location:seed-loc',label:'Stellum District'}, {x:70,y:60,target:'location:seed-loc2',label:'Moonbeacon Row'} ] }
+    };
     // demo graph nodes if the real graph lacks them
     [['world:seed-world',null,'world','Sellenia'],
      ['map:seed-terr','world:seed-world','map','The Drowned Coast'],
@@ -170,7 +175,20 @@
       var art = artFor(focus);
       h += '<div class="layer-card">';
       if (art && art.image){
-        h += '<div class="layer-map" style="background-image:url('+esc(art.image)+')" data-testid="layer-map"></div>';
+        var spots = '';
+        (art.nodeLayout || []).forEach(function(nd){
+          if (!nd || !nd.target) return;
+          var known = isRevealed(nd.target);
+          var cls = 'map-node' + (known ? '' : ' veiled');
+          var label = nd.label || (byId[nd.target] && byId[nd.target].title) || '';
+          spots += '<button class="'+cls+'" style="left:'+nd.x+'%;top:'+nd.y+'%" '
+            + (known ? 'onclick="tsFocus(\''+esc(nd.target)+'\')"' : 'disabled')
+            + ' data-testid="map-node" title="'+esc(known?label:'Undiscovered')+'">'
+            + '<span class="mn-dot"></span>'
+            + (known && label ? '<span class="mn-label">'+esc(label)+'</span>' : '')
+            + '</button>';
+        });
+        h += '<div class="layer-map-wrap"><div class="layer-map" style="background-image:url('+esc(art.image)+')" data-testid="layer-map"></div>'+spots+'</div>';
       } else {
         h += '<div class="layer-map placeholder" data-testid="layer-map"><span>Map art coming</span></div>';
       }

@@ -3,7 +3,7 @@
 // Feeds the character-first view: the player's character card, the party at their
 // location, revealed nodes, quest-board goals, world issues, and map art.
 import { threadspirePublicChar } from 'backend/characters.web.js';
-import { listQuests, listDiscovered } from 'backend/fatewell.web.js';
+import { listQuests, listDiscovered, getWorldMeta } from 'backend/fatewell.web.js';
 import { listSphereArt } from 'backend/sphereart.web.js';
 import wixLocation from 'wix-location';
 
@@ -52,8 +52,10 @@ async function buildContext(characterId, campaignId) {
       const d = await listDiscovered(campaignId);
       out.discovered = (d && d.nodes) || [];
     } catch (e) {}
-    // worldUnlocked and worldIssues come from the campaign record; a small backend
-    // read supplies them in the next pass. Gated-and-empty is the safe default.
+    try {
+      const wm = await getWorldMeta(campaignId);
+      if (wm) { out.worldUnlocked = !!wm.worldUnlocked; out.worldIssues = wm.worldIssues || []; }
+    } catch (e) {}
   }
 
   // map art for every layer, keyed by node id, from The Cartographer

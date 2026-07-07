@@ -82,3 +82,15 @@ test.describe('party members', () => {
     await expect(page.locator('.pop')).toBeVisible();
   });
 });
+
+test.describe('cartographer hotspots', () => {
+  test('a discovered hotspot on the territory map travels inward', async ({ page }) => {
+    await page.goto(APP);
+    await page.getByTestId('zoom-out').click(); // location
+    await page.getByTestId('zoom-out').click(); // territory (has the art + nodes)
+    const spots = page.getByTestId('map-node');
+    await expect(spots.first()).toBeVisible();
+    await spots.first().click();
+    await expect(page.locator('body')).toHaveAttribute('data-focus-type', 'location');
+  });
+});

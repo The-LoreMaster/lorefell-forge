@@ -512,6 +512,27 @@ export const listQuests = webMethod(Permissions.Anyone, async (campaignId) => {
 // upward only: revealing a node reveals its ancestors, never its children, so a
 // location never spoils its own scenarios. Ancestor ids are passed by the client
 // which holds the graph; this method just writes the set it is given.
+// World layer meta for ThreadSpire: is the world open to players, and what it faces.
+// Both live inside the saved campaign blob; this reads them out without exposing the
+// rest of the campaign.
+export const getWorldMeta = webMethod(Permissions.Anyone, async (campaignId) => {
+  if (!campaignId) return { ok: true, worldUnlocked: false, worldIssues: [] };
+  try {
+    const c = await wixData.get(COLLECTION, campaignId, { suppressAuth: true }).catch(() => null);
+    if (!c) return { ok: true, worldUnlocked: false, worldIssues: [] };
+    // data is the campaign object itself (saveCampaign stores blob.campaign)
+    let unlocked = false, issues = [];
+    if (c.data) {
+      try {
+        const camp = JSON.parse(c.data) || {};
+        unlocked = !!camp.worldUnlocked;
+        issues = Array.isArray(camp.worldIssues) ? camp.worldIssues : [];
+      } catch (e) {}
+    }
+    return { ok: true, worldUnlocked: unlocked, worldIssues: issues };
+  } catch (e) { return { ok: false, worldUnlocked: false, worldIssues: [] }; }
+});
+
 export const revealNodes = webMethod(Permissions.Anyone, async (campaignId, nodeIds) => {
   if (!campaignId || !Array.isArray(nodeIds) || !nodeIds.length) return { ok: false };
   try {
