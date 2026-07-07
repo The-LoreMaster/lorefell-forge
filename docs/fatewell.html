@@ -2926,7 +2926,28 @@ var COMBATANT_STATIC = ['attrs','inv','augments','abilities','sig','source','bui
 function slimCombatantsForSave(camp){
   (camp.acts||[]).forEach(function(a){ (a.sessions||[]).forEach(function(ss){ (ss.scenes||[]).forEach(function(sc){
     (sc.combatants||[]).forEach(function(cb){
-      if(cb.libId && libGet(cb.libId)){
+      if(cb.type!=='monster' && cb.type!=='npc') return;
+      // resolve a library anchor: by id, else by name+type. Repairs orphaned libIds left
+      // by a library cleanup, so a foe whose id no longer matches still slims.
+      var e = (cb.libId && libGet(cb.libId)) || libByNameType(cb.name, cb.type) || libByNameType(baseName(cb.name), cb.type);
+      if(!e){
+        // no library source: adopt a library entry from this combatant's own stats so it
+        // can be stored as a reference. This runs on the SAVE copy, but the library is
+        // account-global, so also add it to the live library and push it.
+        var seed = {
+          id: uid(), type: cb.type, name: baseName(cb.name),
+          sr: cb.sr||'', build: cb.build||'', stance: cb.stance||'', sig: cb.sig||'',
+          maxVit: cb.maxVit||0, attrs: JSON.parse(JSON.stringify(cb.attrs||blankAttrs())),
+          inv: (cb.inv||[]).slice(), augments: (cb.augments||[]).slice(),
+          abilities: JSON.parse(JSON.stringify(cb.abilities||[])), img: cb.img||'', source: cb.source||''
+        };
+        // reuse if an identical name already got adopted this pass
+        var have = libByNameType(seed.name, seed.type);
+        e = have || seed;
+        if(!have){ S.library.push(seed); if(WIX.hosted) pushAsset(seed); }
+      }
+      if(e){
+        cb.libId = e.id;                 // relink to the surviving or adopted entry
         COMBATANT_STATIC.forEach(function(k){ delete cb[k]; });
         cb._slim = 1;
       }
@@ -2934,6 +2955,9 @@ function slimCombatantsForSave(camp){
   }); }); });
   return camp;
 }
+/* A spawned copy is named 'Warden 2'; the library holds 'Warden'. Strip a trailing
+   number so name matching finds the source entry. */
+function baseName(n){ return String(n||'').replace(/\s+\d+$/,'').trim(); }
 function rehydrateCombatants(camp){
   (camp.acts||[]).forEach(function(a){ (a.sessions||[]).forEach(function(ss){ (ss.scenes||[]).forEach(function(sc){
     (sc.combatants||[]).forEach(function(cb){
