@@ -21,6 +21,10 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 - The approved premise drives the skeleton. Opposition seeds the act threats and the antagonist, Clock becomes the visible pressure, Cost becomes the ending's price. A LoreMaster who cannot fill the Opposition line learns the idea is not ready, which is the point of the gate.
 - SagaForge refreshes on its own.
 
+## FateWell can reveal a single place, not just the world
+- The reveal control gains Reveal a place beside Reveal world. It lists the campaign world's maps, locations, and scenarios in reading order, indented by depth. Revealing one cascades upward to its map and world and never downward, so a location never spoils its scenarios.
+- The baked Sphere tree now carries node types so the picker can group places without a backend call.
+
 ## ThreadSpire Stage B, discovery earned at the table
 - Fog is now per campaign. The LoreMaster reveals a node from FateWell and its path to the Sphere reveals with it, worlds and maps above a location, never the scenarios below, so a place never spoils its own secrets. The reveal cascades upward only.
 - New ThreadSpireDiscovery collection, keyed by campaign and node, written by the LoreMaster, read by players in that campaign. Backend methods revealNodes, hideNode, listDiscovered mirror the quest board pattern.
