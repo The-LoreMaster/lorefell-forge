@@ -397,7 +397,6 @@ function vScope(){
          +'<label class="fld">Session count target (optional)</label><input type="text" id="q-sess" value="'+esc(S.sessTarget)+'" placeholder="Leave open for the recommendation">'
         :"")
       +'<div class="btnrow"><button class="btn gold" onclick="fromScope()">Forge the skeleton</button>'
-      +'<button class="btn ghost" onclick="sagaProbe()">Test link</button>'
       +'<button class="btn ghost" onclick="go(\'pitch\')">Back</button></div>'
       +'</div>';
   }
@@ -448,7 +447,7 @@ function sagaProbe(){
 function forgePremise(){
   $("stage").innerHTML='<div class="card wait"><span class="spin"></span>Sharpening the premise. The storyline before the structure.</div>';
   var retried=false;
-  function ask(extra){ return aiCall(premiseSystem(),[{role:"user",content:premiseUserMsg()+(extra||"")}],700); }
+  function ask(extra){ return aiCall(premiseSystem(),[{role:"user",content:premiseUserMsg()+(extra||"")}],450); }
   function handle(text){
     var pr=parsePremise(text);
     var filled=pr.situation&&pr.opposition&&pr.cost;
@@ -494,37 +493,87 @@ function fromPremise(){
 
 /* ---- skeleton ---- */
 function forgeSkeleton(){
-  $("stage").innerHTML='<div class="card wait"><span class="spin"></span>Forging the skeleton. Structure first, prose later.</div>';
-  var skRetried=false;
-  function skAsk(extra){ return aiCall(skeletonSystem(),[{role:"user",content:skeletonUserMsg()+(extra||"")}],3500); }
-  function skHandle(text){
+  // Two phases, each a small fast call that stays under the Wix web-method wall.
+  // Phase 1: the act spine with threats. Phase 2: one call per act for its
+  // sessions and scenes. This avoids the single large 3500-token call that 504s.
+  $("stage").innerHTML='<div class="card wait"><span class="spin"></span>Forging the act spine.</div>';
+  var t=ADV_TYPES[S.type];
+  function spineSystem(){
+    return "You outline the act spine of a LoreFell adventure, a dark and weird fantasy TTRPG. Conflict first, a struggle the Fell can lose. "+voiceRules()
+      +" Output plain text only, this exact format:\n"
+      +"TITLE: <adventure name>\n"
+      +"ACT: <act name> | <one line purpose>\n"
+      +"THREAT: <who or what opposes the Fell this act> | <what they stand to lose>\n"
+      +"Every ACT is followed by its THREAT. "
+      +(t.acts?"Use 2 or 3 acts.":"Use exactly one act named Main.")
+      +" The antagonist holds a specific defensible belief, stated plainly in the final act. Avoid generic fantasy compound names. Do not write sessions or scenes yet.";
+  }
+  function actSystem(){
+    return "You flesh out one act of a LoreFell adventure into sessions and scenes. Conflict first. "+voiceRules()
+      +" Output plain text only, this exact format:\n"
+      +"SESSION: <session name> | <one line purpose>\n"
+      +"SCENE: <scene name> | <one line purpose>\n"
+      +"List each session, then its scenes under it. "
+      +(t.oneSession?"Use exactly one session with 2 to 4 scenes.":"Give this act 2 to 4 sessions, each with 2 to 4 scenes.")
+      +" Scene purposes take active verbs, the Fell decide, confront, sacrifice, defy, race, or break something, never merely witness or learn. At least one scene per session forces an irreversible choice that costs the party. Show the act threat pressing on the Fell. Avoid generic fantasy compound names.";
+  }
+  function actUserMsg(a){
+    var lines=[];
+    if(S.premise){
+      if(S.premise.situation) lines.push("Situation: "+S.premise.situation);
+      if(S.premise.clock) lines.push("Clock: "+S.premise.clock);
+      if(S.premise.cost) lines.push("Cost the ending must demand: "+S.premise.cost);
+    }
+    lines.push("Adventure: "+S.skeleton.name);
+    lines.push("This act: "+a.name+" ("+a.purpose+")");
+    if(a.threat) lines.push("Its threat: "+a.threat+(a.cost?(". At stake: "+a.cost):""));
+    lines.push("Write only this act's sessions and scenes.");
+    return lines.join("\n");
+  }
+
+  var spineRetried=false;
+  function spineAsk(extra){ return aiCall(spineSystem(),[{role:"user",content:skeletonUserMsg()+(extra||"")}],600); }
+  function spineHandle(text){
     var sk=parseSkeleton(text);
-    var hasScenes=sk.acts.some(function(a){ return a.sessions.some(function(s){ return s.scenes.length; }); });
-    if(!sk.acts.length||!hasScenes){
-      if(!skRetried){ skRetried=true; return skAsk("\nUse the exact TITLE, ACT, SESSION, SCENE line format. Every session needs at least one SCENE line.").then(skHandle,skFail); }
-      throw new Error("The skeleton came back hollow.");
+    if(!sk.acts.length){
+      if(!spineRetried){ spineRetried=true; return spineAsk("\nUse the exact TITLE, ACT, THREAT format, at least one ACT.").then(spineHandle,skFail); }
+      throw new Error("The spine came back hollow.");
     }
-    // if generation stopped mid line, the final scene purpose is cut off. Detect it,
-    // drop the fragment, and retry once for a complete outline.
-    var truncated=/@@|[a-z,]$/.test(text.trim()) && !/[.!?)\]"]$/.test(text.trim());
-    if(truncated && !skRetried){
-      skRetried=true;
-      return skAsk("\nThe previous outline was cut off. Return the complete outline, every scene line finished.").then(skHandle,skFail);
-    }
-    // as a floor, prune a trailing scene whose purpose has no end punctuation
-    sk.acts.forEach(function(a){ a.sessions.forEach(function(ss){
-      var last=ss.scenes[ss.scenes.length-1];
-      if(last && last.purpose && !/[.!?)\]"]$/.test(last.purpose.trim()) && ss.scenes.length>1){ ss.scenes.pop(); }
-    }); });
     S.skeleton=sk; S.drafts={}; S.approved={}; S.npcs={}; S.cursor={a:0,s:0};
-    go("skeleton");
+    fleshAct(0);
+  }
+  function fleshAct(i){
+    if(i>=S.skeleton.acts.length){
+      // prune any trailing scene fragment with no end punctuation
+      S.skeleton.acts.forEach(function(a){ a.sessions.forEach(function(ss){
+        var last=ss.scenes[ss.scenes.length-1];
+        if(last && last.purpose && !/[.!?)\]"]$/.test(last.purpose.trim()) && ss.scenes.length>1){ ss.scenes.pop(); }
+      }); });
+      save(); go("skeleton"); return;
+    }
+    var a=S.skeleton.acts[i];
+    $("stage").innerHTML='<div class="card wait"><span class="spin"></span>Building '+esc(a.name)+', act '+(i+1)+' of '+S.skeleton.acts.length+'.</div>';
+    var actRetried=false;
+    function actAsk(extra){ return aiCall(actSystem(),[{role:"user",content:actUserMsg(a)+(extra||"")}],1200); }
+    function actHandle(text){
+      var parsed=parseSkeleton("ACT: "+a.name+" | "+a.purpose+"\n"+text);
+      var built=parsed.acts[0];
+      if(!built || !built.sessions.length){
+        if(!actRetried){ actRetried=true; return actAsk("\nUse the exact SESSION and SCENE format, at least one SESSION with SCENEs.").then(actHandle,skFail); }
+        throw new Error("An act came back without sessions.");
+      }
+      a.sessions=built.sessions;
+      save();
+      fleshAct(i+1);
+    }
+    actAsk("").then(actHandle,skFail);
   }
   function skFail(e){
     $("stage").innerHTML='<div class="card"><div class="err">'+esc(e&&e.rate?"The forge is catching its breath. Try again in a minute.":(e&&e.message)||"The forge could not be reached.")+'</div>'
       +'<div class="btnrow"><button class="btn gold" onclick="forgeSkeleton()">Try again</button>'
       +'<button class="btn ghost" onclick="go(\'scope\')">Back</button></div></div>';
   }
-  skAsk("").then(skHandle,skFail);
+  spineAsk("").then(spineHandle,skFail);
 }
 function vSkeleton(){
   var sk=S.skeleton;
