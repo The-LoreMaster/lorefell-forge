@@ -16,6 +16,10 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 ## SagaForge skeleton builds in small phased calls
 - The 504 was latency margin, confirmed by a tiny test call that returned instantly while the full 3500-token skeleton call ran past the Wix web-method wall. The skeleton now builds in phases: a small call for the act spine and threats, then one small call per act for its sessions and scenes, assembled in the tool. Premise trimmed to 450 tokens. Every call now sits well under the limit that SigilForge clears.
 
+## Outline fields stay plain text, and the wordmark matches
+- Pasting into an act, session, or scene field could carry heading or other markup into the outline. Every editable field now forces plain text on paste and flattens any markup that slips in, so no more bumping to a heading or pasting as plain text by hand.
+- The SagaForge wordmark now colors Forge in gold like the other forges, on a silver base.
+
 ## Act walk edits no longer vanish, and sessions can be removed
 - Adding a scene or session wiped everything you had typed in the act because the edits were not read back before the view redrew. Every add and remove now captures your edits first, so nothing above the change is lost.
 - Sessions can be removed in the act walk, matching scenes. The last session in an act is protected so an act always holds at least one.
