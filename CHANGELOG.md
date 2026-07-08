@@ -1,3 +1,15 @@
+## SagaForge structure and consistency pass
+
+- Fixed the world issue arriving cut off. It was sliced at 120 characters. It now ships as the complete sentence, and the premise asks for a question with two defensible answers.
+- Fixed scene notes shipping empty. Each scene now carries a CAST block naming who is present, what they want, and the offscreen or unnamed forces driving the scene.
+- The NPC roster now holds every named character with an identity, an allegiance, and an arc. It used to carry a name and one line.
+- A crucible is a battle. The drafter only writes one when a fight is loaded, names the foes in the prose, and forks the objective the fight resolves rather than whether to fight at all.
+- Every crucible now carries an LM NOTE - Before the Crucible secret block holding the choice, the trigger, the pressure, what happens if the party stalls, the tactical read, and the costs and gains. LoreMaster directions stay out of read-aloud prose.
+- A foe can no longer share a name with a story NPC or another foe. Collisions are caught and disambiguated.
+- The outline escalates toward the climax and ends in three moves: climax, consequence, resolution. The world issue is referenced at the climax and answered in the epilogue.
+- The premise now fixes the one rule its central phenomenon obeys, and a Legacy saga names what it leaves for the next one. Both ride in the campaign notes so every scene inherits them.
+- Foe briefings run through the house voice. They were the one prose path that skipped it.
+
 ## FateWell roster picker scoped to the campaign
 
 - Adding an asset to a roster or attaching from the library now shows only the assets tagged to the campaign you are on, plus untagged ones. A one-tap toggle switches to the whole library when you need a foe or NPC from elsewhere.
