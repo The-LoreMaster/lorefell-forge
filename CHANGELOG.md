@@ -1,3 +1,8 @@
+## SigilForge status text
+
+- The follows the rules line no longer shows next to a warning. A build that will forge a tier above the pick shows only the explanation, not a mixed all clear and warning.
+- The status by the runes reads the truth: Forged as Tier 3 when cost carries it up, Tier N under budget when it is below the pick, Valid build only when it is on target.
+
 ## SigilForge tier truth
 
 - A build now reports the tier its cost earns. Picking Tier 2 and spending 6 forges as Tier 3, and the build says so instead of claiming it follows the rules at Tier 2. The Tier selector is a floor: cost can raise a build a tier, and a weapon's Form still sets the lowest tier.
