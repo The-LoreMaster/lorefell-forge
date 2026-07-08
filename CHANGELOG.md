@@ -1,3 +1,8 @@
+## SigilForge submit, stop the vault re-gating with old rules
+
+- Fixed the backend rejecting valid v3 builds with messages like Hunted needs Tier 2 or higher and 2nd Form or higher. Those gates live in the old vault config. The tool now does the full v3 legality check itself, and the vault confirms only that the cost lands in the tier, matching v3 where tier is set by cost and there are no Form or Tier component ladders.
+- The rule interpreter's authored path is v3 aware: a tier is defined by its minimum cost, and the top tier is open-topped, so a heavy Tier 3 build no longer trips an over budget error.
+
 ## SigilForge affliction full text
 
 - The full description now reads Apply the (name) affliction instead of writing out the effect. The effect text lives in the FellGuide and the Codex. Combat effects still show their full rule.

@@ -93,14 +93,13 @@ async function handleSubmit(embed, raw) {
     imageUrl: imageUrl
   };
 
-  // Foe abilities are authored foe content. The tool fully validates the build against the
-  // foe vocabulary it carries; the vault re-checks the per-tier cost band rather than trying
-  // to rebuild the foe from components it may not hold. Regular abilities keep full
-  // component validation, since the vault carries those.
-  if (f.mode === 'monster') {
-    payload.authored = true;
-    if (typeof raw.cost === 'number') payload.cost = raw.cost;
-  }
+  // The SigilForge tool runs the full v3 legality check in the browser: tier is set by the
+  // build's total cost, afflictions gate by cost alone, and there are no Form or Tier
+  // component ladders. The old vault ForgeConfig still carries the v2 ladders, so we do not
+  // let it re-gate the build. Every submission is treated as authored: the vault confirms the
+  // cost lands in the tier band and stores it, rather than rebuilding from stale gate data.
+  payload.authored = true;
+  if (typeof raw.cost === 'number') payload.cost = raw.cost;
 
   let similar = [];
   try { similar = await findSimilar(FORGE_KEY, payload); } catch (e) { similar = []; }

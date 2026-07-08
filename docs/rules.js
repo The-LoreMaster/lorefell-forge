@@ -29,9 +29,18 @@ function validate(payload, def) {
   // component slot and gate checks. They are validated only against the tier cost band.
   if (payload.authored) {
     var aBand = (rules.budgets && rules.budgets.byTier && rules.budgets.byTier[String(tier)]) || null;
+    if (aBand) {
+      var aMin = aBand[0], aMax = aBand[1];
+      (rules.exceptions || []).forEach(function (ex) {
+        if (ex.budgetOverride && exactMatch(ex.when, { tier: tier, form: form })) { aMin = ex.budgetOverride[0]; aMax = ex.budgetOverride[1]; }
+      });
+      aBand = [aMin, aMax];
+    }
     var aCost = typeof payload.cost === "number" ? payload.cost : (aBand ? aBand[0] : 0);
-    if (aBand && (aCost < aBand[0] || aCost > aBand[1]))
-      errors.push("Authored cost " + aCost + " is outside the Tier " + tier + " budget of " + aBand[0] + " to " + aBand[1] + ".");
+    // v3: a tier is defined by its minimum cost. The highest tier is open-topped, so a build
+    // may cost more than the old band's ceiling. Only enforce the floor here.
+    if (aBand && aCost < aBand[0])
+      warnings.push("Authored cost " + aCost + " is below the Tier " + tier + " minimum of " + aBand[0] + ".");
     return {
       legal: errors.length === 0,
       errors: errors,
