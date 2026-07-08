@@ -3030,26 +3030,27 @@ function flushSave(){
   if (!WIX.hosted) return;
   var c = curC(); if (!c) return;
   var cid = WIX.hub ? c.id : (WIX.campaignId || c.id);
-  // clean the live campaign of any oversized image first (persists locally too)
-  var removed = stripHeavyImages(c, 700000);
-  if (removed){
-    saveLocal();
-    advNote('Removed a heavy image', 'An image on this adventure was too large to store and has been cleared so the save could go through. Add a smaller one if you want cover art.');
-  }
   // slim a deep copy for the wire: foes rebuild from the library on load, so the stored
   // campaign stays small even for a large chronicle. The live board keeps full stats.
+  // Never mutate the live campaign here; images stay on your working copy.
   var wire = slimCombatantsForSave(JSON.parse(JSON.stringify(c)));
   WIX.dirty = false; WIX.lastSaveAt = Date.now();
-  // compress the campaign so a prose heavy chronicle fits the account field, then send.
+  // Compress the whole campaign, images included. A data-url image rides inside the gzip
+  // and takes little room, so nothing needs to be stripped when compression is available.
   var json = JSON.stringify(wire);
   gzipString(json).then(function(gz){
     if (gz && gz.length < json.length){
       postToWix({ type:'lmtool-save', campaignId: cid, data: { campaignGz: gz, name: wire.name || '', savedAt: Date.now() } });
     } else {
+      // no compression available: strip oversized images from the wire copy only, as a
+      // last resort so the plain save can still fit. The live copy keeps its images.
+      var removed = stripHeavyImages(wire, 700000);
+      if (removed) advNote('Image not stored on the account', 'Compression was unavailable and an image was too large for a plain save, so it was left off the account copy. It is still on this device.');
       postToWix({ type:'lmtool-save', campaignId: cid, data: { campaign: wire, savedAt: Date.now() } });
     }
   }, function(){
-    postToWix({ type:'lmtool-save', campaignId: cid, data: { campaign: wire, savedAt: Date.now() } });
+    var w2 = wire; stripHeavyImages(w2, 700000);
+    postToWix({ type:'lmtool-save', campaignId: cid, data: { campaign: w2, savedAt: Date.now() } });
   });
 }
 function save(){
@@ -4849,7 +4850,8 @@ function downscaleImage(dataUrl, maxDim, cb){
       if (out && out.length > BUDGET && Math.max(cw,ch) > 512){
         return downscaleImage(dataUrl, 512, cb); // one more pass at a smaller edge
       }
-      if (out && out.length > BUDGET){ cb(''); return; } // give up rather than store a blob that breaks save
+      // keep the smallest version we produced. The campaign is compressed on save, so a
+      // reasonable image fits; we no longer discard it for being over a raw byte budget.
       cb(out && out.length < dataUrl.length ? out : dataUrl);
     };
     img.onerror = function(){ cb(dataUrl); };
