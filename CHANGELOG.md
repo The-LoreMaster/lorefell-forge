@@ -1,3 +1,7 @@
+## FateWell modal centering
+
+- Popups in FateWell now center on your screen when embedded. On open the tool asks the Wix page to bring the embed into view and report the window height, then centers the card in the visible band instead of guessing from the last click, which landed off screen in a tall iframe.
+
 ## SigilForge modal centering
 
 - The review popup now centers on your screen when the tool is embedded. On open it asks the Wix page to bring the embed into view and report the window height, then pins itself to the visible area rather than sitting at a fixed spot in a tall iframe that scrolls away. If the tool runs standalone, it falls back to normal centering.

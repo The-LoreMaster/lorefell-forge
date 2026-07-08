@@ -3201,6 +3201,11 @@ function syncPlayersNow(){ var c=curC(); if (WIX.hub && c) postToWix({ type:'lmt
 
 window.addEventListener('message', function(ev){
   var m = ev.data || {};
+  if (m.type === 'lmtool-viewport' || m.type === 'LOREFELL_VIEWPORT'){
+    window._wixVis = { top: Number(m.top)||0, height: Number(m.height)||0 };
+    if (document.querySelector('#modal .m-card')) positionModal();
+    return;
+  }
   if (m.type === 'lmtool-import-pack'){
     if (m.pack){
       window._importedPub = window._importedPub || {};
@@ -3549,6 +3554,7 @@ document.addEventListener('touchstart', function(e){ if (e.touches && e.touches[
 function modal(html){
   document.getElementById('modal').innerHTML =
     '<div class="m-back" onmousedown="window._mdOnBack=(event.target===this)" onclick="if(event.target===this&&window._mdOnBack)closeModal()"><div class="m-card">' + html + '</div></div>';
+  try{ postToWix({ type:'lmtool-modal-open' }); }catch(e){}
   positionModal();
 }
 /* The tool runs as a tall embed. A fixed backdrop pins to the iframe's own top,
@@ -3559,8 +3565,16 @@ function positionModal(){
   var back = document.querySelector('#modal .m-back');
   var card = document.querySelector('#modal .m-card');
   if (!card || !back) return;
-  var y = window._lastY || 0;
-  if (!y) { y = (window.pageYOffset || document.documentElement.scrollTop || 0) + 80; }
+  var y;
+  if (window._wixVis && window._wixVis.height) {
+    /* Embedded: the parent reported the visible band of the iframe. Center the card in it. */
+    var card2 = card;
+    var ch = card2 ? card2.offsetHeight : 0;
+    y = Math.max(8, window._wixVis.top + (window._wixVis.height - ch) / 2) + 70;
+  } else {
+    y = window._lastY || 0;
+    if (!y) { y = (window.pageYOffset || document.documentElement.scrollTop || 0) + 80; }
+  }
   back.style.position = 'absolute'; back.style.inset = 'auto';
   back.style.top = '0'; back.style.left = '0'; back.style.right = '0'; back.style.bottom = 'auto';
   back.style.minHeight = '100%'; back.style.alignItems = 'flex-start';

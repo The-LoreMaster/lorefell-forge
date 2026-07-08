@@ -11,6 +11,7 @@ import { publishAdventure, myPublishedAdventures, unpublishAdventure, getPublish
 import { createInvite, revokeInvite } from 'backend/invites.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
 import wixLocation from 'wix-location';
+import wixWindow from 'wix-window';
 
 const EMBED = '#html1';   // change to your Embed a Site element ID
 
@@ -244,6 +245,16 @@ $w.onReady(() => {
       try { await detachCharacter(m.charId); } catch (e) {}
     } else if (m.type === 'LOREFELL_FEEDBACK_SUBMIT') {
       console.log('FateWell feedback:', JSON.stringify(m.payload || {}));
+    } else if (m.type === 'lmtool-modal-open') {
+      // Bring the embed into view and report the window height so the tool can center its
+      // popup on the reader's screen. After scrollTo the embed top aligns with the viewport
+      // top, so the visible band in iframe coordinates starts at 0.
+      try {
+        await embed.scrollTo();
+        const rect = await wixWindow.getBoundingRect();
+        const vh = (rect && rect.window && rect.window.height) ? rect.window.height : 800;
+        embed.postMessage({ type: 'lmtool-viewport', top: 0, height: vh });
+      } catch (e) {}
     }
   });
 });
