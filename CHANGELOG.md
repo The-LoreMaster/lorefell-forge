@@ -1,3 +1,7 @@
+## SigilForge damage by type
+
+- Abilities must deal damage. The No Damage option is removed for Abilities, since a weapon strike always lands a hit. Spells keep both Standard Damage and No Damage, so a spell can be pure support or control. Foes keep both. The randomizer and the Vision forge follow the same rule.
+
 ## SigilForge affliction wording, keep the v3 changes
 
 - Bleeding reads take your own Base Damage, and Vitiated reads Damage you deal is halved. These are the v3 balance versions and they stay. The canon Breakout Skills are kept.

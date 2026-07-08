@@ -1161,6 +1161,12 @@ function totalCost(){
 }
 /* v3 tier is derived from total cost alone. */
 function tierFromCost(total){ if(total >= 5) return 3; if(total >= 3) return 2; return 1; }
+/* Damage options allowed by build type. Abilities must deal damage (Standard only).
+   Spells may be pure effect (No Damage allowed). Foes can do either. */
+function legalDamage(){
+  if(state.type === "Ability") return ["Standard Damage"];
+  return PRIMARY_DAMAGE.slice();
+}
 /* Whether the current damage choice is an attack (Standard) or not (No Damage). */
 function isAttackDamage(){ const d = byName[state.damage]; return d ? !!d.attack : true; }
 /* Which effects are legal for the current damage type. */
@@ -1720,8 +1726,10 @@ let ADDON_GROUPS = buildAddonGroups();
 /* Fill every select from current data. Safe to call again after
    the CMS bundle replaces the tables. */
 function refreshAllSelects(){
+  const dmgOpts = legalDamage();
+  if(dmgOpts.indexOf(state.damage) < 0) state.damage = dmgOpts[0];
   fillSelect(document.getElementById("damageSel"),
-    PRIMARY_DAMAGE.map(n => ({value:n, label:`${n} (${byName[n].cost >= 0 ? "+" : ""}${byName[n].cost})`}))
+    dmgOpts.map(n => ({value:n, label:`${n} (${byName[n].cost >= 0 ? "+" : ""}${byName[n].cost})`}))
   );
   document.getElementById("damageSel").value = state.damage;
 
@@ -1972,7 +1980,7 @@ function randomizeBuild(){
   const [minB, maxB] = CONFIG.tierBudgets[tier];
   const fits = v => v >= minB && v <= maxB && tierFromCost(v) === tier;
   const combos = [];
-  PRIMARY_DAMAGE.forEach(d => {
+  legalDamage().forEach(d => {
     const attack = !!byName[d].attack;
     // candidate effects for this damage type
     const effs = EFFECTS.filter(e => e.type === "both" ? true : (attack ? e.type === "attack" : e.type === "support"));
@@ -2567,6 +2575,7 @@ function aiSystemPrompt(){
     "AN ABILITY HAS THREE INLAYS: one damage, one effect, one target.",
     "",
     "DAMAGE (free, cost 0): Standard Damage (an attack) or No Damage (support or control).",
+    "DAMAGE BY TYPE: an Ability must use Standard Damage. A Spell may use Standard Damage or No Damage. A Foe may use either.",
     "",
     "COMBAT EFFECTS (Name|cost|type|timing|rule). type is attack, support, or both. timing is pre, post, or both:",
     effs,
@@ -2655,7 +2664,7 @@ function applyAiBuild(b){
   if([1,2,3].includes(+b.tier)) state.tier = +b.tier;
   document.getElementById("tierSel").value = String(state.tier);
   const dmg = resolveComponent(b.damage);
-  if(PRIMARY_DAMAGE.includes(dmg)) state.damage = dmg;
+  if(legalDamage().includes(dmg)) state.damage = dmg; else state.damage = legalDamage()[0];
   document.getElementById("damageSel").value = state.damage;
   const tgt = resolveComponent(b.targeting);
   if(TARGETING_LIST.includes(tgt)) state.targeting = tgt;
