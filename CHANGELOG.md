@@ -1,3 +1,7 @@
+## SigilForge All Targets fix
+
+- Fixed the effect list going empty when All Targets was chosen, which left the build asking you to choose an effect that was not there. All Targets costs 4 and fills a low tier's budget on its own, so the effect filter was hiding everything. The filter now steps aside when the target cost already fills the tier, and the build's cost carries it to the right tier.
+
 ## SigilForge submit, stop the vault re-gating with old rules
 
 - Fixed the backend rejecting valid v3 builds with messages like Hunted needs Tier 2 or higher and 2nd Form or higher. Those gates live in the old vault config. The tool now does the full v3 legality check itself, and the vault confirms only that the cost lands in the tier, matching v3 where tier is set by cost and there are no Form or Tier component ladders.
