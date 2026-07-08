@@ -870,6 +870,8 @@ const AI_FORGE_ENDPOINT = "https://www.lorefell.com/_functions/aiForge";
 const COMPONENTS = [
  /* ===== DAMAGE (free) ===== */
  {category:"Damage",component:"Standard Damage",cost:0,attack:true,breakout:"",rule:"An attack. Deal Standard Damage."},
+ {category:"Damage",component:"Double Base",cost:2,attack:true,breakout:"",rule:"An attack. Deal Double Base Damage."},
+ {category:"Damage",component:"Double Standard",cost:3,attack:true,breakout:"",rule:"An attack. Deal Double Standard Damage."},
  {category:"Damage",component:"No Damage",cost:0,attack:false,breakout:"",rule:"A support or control action. Deal no damage. Target an ally, an enemy, or a space."},
 
  /* ===== TARGETING (auto-spreads everything) ===== */
@@ -898,10 +900,8 @@ const COMPONENTS = [
  {category:"Effect",component:"Sabotaged",cost:3,type:"attack",timing:"pre",breakout:"",rule:"Ignore the target's Armor Stance."},
  {category:"Effect",component:"Crushed",cost:2,type:"attack",timing:"post",breakout:"",rule:"Deal your Base Damage again."},
  {category:"Effect",component:"Refracted",cost:2,type:"attack",timing:"post",breakout:"",rule:"Another target takes half your Bonus Damage."},
- {category:"Effect",component:"Bonus",cost:2,type:"attack",timing:"post",breakout:"",rule:"Add 1d6 to your Bonus Damage."},
+ {category:"Effect",component:"Bonus Damage",cost:2,type:"attack",timing:"post",breakout:"",rule:"Add 1d6 to your Bonus Damage."},
  {category:"Effect",component:"Cleaved",cost:3,type:"attack",timing:"post",breakout:"",rule:"deal your Base Damage to another target."},
- {category:"Effect",component:"Double Base",cost:2,type:"attack",timing:"post",breakout:"",rule:"Deal Double Base Damage."},
- {category:"Effect",component:"Double Standard",cost:3,type:"attack",timing:"post",breakout:"",rule:"Deal Double Standard Damage."},
  {category:"Effect",component:"Siphoned",cost:3,type:"attack",timing:"post",breakout:"",rule:"deal Base Damage and restore that much Vitality."},
  {category:"Effect",component:"Mended",cost:2,type:"support",timing:"post",breakout:"",rule:"Restore Vitality equal to your Spirit."},
  {category:"Effect",component:"Dispelled",cost:2,type:"attack",timing:"post",breakout:"",rule:"Remove one Effect from the target."},
@@ -1048,7 +1048,7 @@ const FAMILY_BY_GROUP = {
 const GROUP_BY_ITEM = {};
 WEAPON_GROUPS.forEach(g => g.items.forEach(it => GROUP_BY_ITEM[it] = g.group));
 MAGIC_GROUPS.forEach(g => g.items.forEach(it => GROUP_BY_ITEM[it] = g.group));
-const PRIMARY_DAMAGE = ["Standard Damage","No Damage"];
+const PRIMARY_DAMAGE = ["Standard Damage","Double Base","Double Standard","No Damage"];
 const TARGETING_LIST = ["One Target","Two Targets","Three Targets","All Targets"];
 const MULTI_TARGETING = ["Two Targets","Three Targets","All Targets"];
 const GAIN_COMPONENTS = ["Attuned"];
@@ -1059,7 +1059,7 @@ const EFFECT_GROUP = {
   "Advanced":"Movement","Pursued":"Movement","Repositioned":"Movement","Swapped":"Movement",
   "Pushed":"Movement","Pulled":"Movement","Placed":"Movement","Gathered":"Movement","Scattered":"Movement",
   "Tracked":"Defense","Exposed":"Defense","Pierced":"Defense","Sabotaged":"Defense",
-  "Crushed":"Damage","Refracted":"Damage","Bonus":"Damage","Cleaved":"Damage","Double Base":"Damage","Double Standard":"Damage","Siphoned":"Damage",
+  "Crushed":"Damage","Refracted":"Damage","Bonus Damage":"Damage","Cleaved":"Damage","Siphoned":"Damage",
   "Mended":"Support","Dispelled":"Support","Purged":"Support","Redirected":"Support","Reinforced":"Support",
   "Guarded":"Support","Warded":"Support","Bound":"Support","Echoed":"Support","Manifested":"Utility","Lucky":"Utility"
 };
@@ -1164,11 +1164,17 @@ function tierFromCost(total){ if(total >= 5) return 3; if(total >= 3) return 2; 
 /* Damage options allowed by build type. Abilities must deal damage (Standard only).
    Spells may be pure effect (No Damage allowed). Foes can do either. */
 function legalDamage(){
-  if(state.type === "Ability") return ["Standard Damage"];
+  if(state.type === "Ability")
+    return PRIMARY_DAMAGE.filter(n => byName[n] && byName[n].attack);  // must deal damage
   return PRIMARY_DAMAGE.slice();
 }
 /* Whether the current damage choice is an attack (Standard) or not (No Damage). */
 function isAttackDamage(){ const d = byName[state.damage]; return d ? !!d.attack : true; }
+/* The damage phrase for the chosen package: Standard Damage, Double Base Damage, etc. */
+function damageWord(){
+  const map = { "Standard Damage":"Standard Damage", "Double Base":"Double Base Damage", "Double Standard":"Double Standard Damage" };
+  return map[state.damage] || "Standard Damage";
+}
 /* Which effects are legal for the current damage type. */
 function legalEffects(){
   const attack = isAttackDamage();
@@ -1292,10 +1298,10 @@ function buildShorthand(){
   }
   if(e && effectIsPre(e)){
     /* pre: name it, then the strike */
-    return `${nm}${tgt}. ${roll}, deal Standard Damage.`;
+    return `${nm}${tgt}. ${roll}, deal ${damageWord()}.`;
   }
   /* post: strike then name it */
-  return `${magicRoll ? "Cast" : "Attack"}${tgt}. ${roll}, deal Standard Damage, then ${nm}.`;
+  return `${magicRoll ? "Cast" : "Attack"}${tgt}. ${roll}, deal ${damageWord()}, then ${nm}.`;
 }
 function buildFull(){
   const e = currentEffect();
@@ -1312,10 +1318,9 @@ function buildFull(){
   if(state.targeting !== "One Target")
     paras.push(`${state.targeting}: everything applies to all targets.`);
 
-  /* effects that replace the damage word rather than adding a sentence */
-  const REPLACER = { "Double Standard":"Double Standard Damage", "Double Base":"Double Base Damage" };
   /* effects that read better as a follow-on "Then ..." clause */
   const THEN = ["Cleaved","Siphoned"];
+  const dmgW = damageWord();
 
   if(noDmg){
     /* support, control, or a Magic affliction without a wound */
@@ -1323,13 +1328,10 @@ function buildFull(){
     else if(e) paras.push(rule);
   } else if(e && effectIsPre(e)){
     /* pre effect: its rule, then the strike, as one paragraph */
-    paras.push(`${rule} ${roll}, ${who} Standard Damage.`);
-  } else if(e && REPLACER[e.component]){
-    /* damage-replacing effect: swap the damage word */
-    paras.push(`${roll}, ${who} ${REPLACER[e.component]}.`);
+    paras.push(`${rule} ${roll}, ${who} ${dmgW}.`);
   } else {
     /* post effect or affliction: strike, then the effect, same paragraph */
-    let para = `${roll}, ${who} Standard Damage.`;
+    let para = `${roll}, ${who} ${dmgW}.`;
     if(e){
       if(isAffliction(e)) para += ` Apply the ${e.component.replace(/\*$/,"")} affliction.`;
       else if(THEN.includes(e.component)) para += ` Then ${lcFirst(rule)}`;
@@ -1594,12 +1596,12 @@ function renderRune(){
         <polygon points="${ringPoly(17,4,0)}" fill="var(--navy)" opacity=".55"/>
       </g>`;
       break;
-    case "Double Base Damage":
+    case "Double Base":
       out += `<g class="core-pulse">${star8(34)}
         <polygon points="${ringPoly(19,4,22.5)}" fill="none" stroke="var(--silver)" stroke-width="1" opacity=".7"/>
       </g>`;
       break;
-    case "Double Standard Damage":
+    case "Double Standard":
       out += `<g class="core-pulse">
         <polygon points="${ringPoly(36,4,0)}" fill="var(--silver)" opacity=".9"/>
         <polygon points="${ringPoly(36,4,45)}" fill="var(--silver)" opacity=".55"/>
@@ -1790,17 +1792,16 @@ function refreshEffectSelect(){
     items = legalAfflictions();
   } else {
     items = legalEffects();
-    /* Hide effects that would push the build past the selected tier, so a Tier 1 ability
-       does not list a cost-3 effect. But the target inlay is a fixed cost the player already
-       chose: if the target alone reaches or exceeds the selected tier's ceiling (All Targets
-       costs 4), do not filter on it, or the whole list would empty. */
-    const base = byName[state.damage] ? byName[state.damage].cost : 0;
-    const tgtC = byName[state.targeting] ? byName[state.targeting].cost : 0;
-    const maxB = CONFIG.tierBudgets[state.tier][1];
-    if(base + tgtC < maxB){
+    /* Tier follows total cost, so higher tiers never need to hide effects. The only tier that
+       filters is Tier 1: it stays cheap by hiding effects that would push a base build past
+       cost 2. Two and Three add target cost, so at Tier 1 those are not offered anyway. At
+       Tier 2 and 3 every effect shows, and a heavier pick simply lands the build a tier up. */
+    if(state.tier === 1){
+      const base = byName[state.damage] ? byName[state.damage].cost : 0;
+      const tgtC = byName[state.targeting] ? byName[state.targeting].cost : 0;
       items = items.filter(c => {
         const pre = (c.timing === "pre") ? CONFIG.preSurcharge : 0;
-        return base + tgtC + c.cost + pre <= maxB;
+        return base + tgtC + c.cost + pre <= CONFIG.tierBudgets[1][1];
       });
     }
   }

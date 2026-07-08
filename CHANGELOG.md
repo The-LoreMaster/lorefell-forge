@@ -1,3 +1,9 @@
+## SigilForge damage packages and Tier 2 fix
+
+- Fixed Tier 2 hiding some cost 3 effects. The effect filter now only trims at Tier 1, which keeps Tier 1 cheap. At Tier 2 and 3 every effect shows, and a heavier pick simply lands the build in the tier its cost earns.
+- Double Base Damage and Double Standard Damage are damage packages again, chosen in the Primary Damage dropdown, not combat effects. Double Base costs 2, Double Standard costs 3, and that cost counts toward the tier. Abilities can pick any of the three attack packages.
+- Bonus is relabeled Bonus Damage and stays a combat effect.
+
 ## SigilForge All Targets fix
 
 - Fixed the effect list going empty when All Targets was chosen, which left the build asking you to choose an effect that was not there. All Targets costs 4 and fills a low tier's budget on its own, so the effect filter was hiding everything. The filter now steps aside when the target cost already fills the tier, and the build's cost carries it to the right tier.
