@@ -1,3 +1,7 @@
+## SigilForge affliction wording, keep the v3 changes
+
+- Bleeding reads take your own Base Damage, and Vitiated reads Damage you deal is halved. These are the v3 balance versions and they stay. The canon Breakout Skills are kept.
+
 ## SigilForge afflictions matched to the FellGuide
 
 - Every affliction now uses its exact FellGuide effect text and its canon Breakout Skill. The tool's placeholder breakouts and reworded effects are replaced with the source wording.
