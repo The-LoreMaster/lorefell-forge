@@ -16,6 +16,9 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 ## SagaForge skeleton builds in small phased calls
 - The 504 was latency margin, confirmed by a tiny test call that returned instantly while the full 3500-token skeleton call ran past the Wix web-method wall. The skeleton now builds in phases: a small call for the act spine and threats, then one small call per act for its sessions and scenes, assembled in the tool. Premise trimmed to 450 tokens. Every call now sits well under the limit that SigilForge clears.
 
+## The Sync button compresses too
+- The per adventure autosave already compressed, but the Sync button and first connect used a separate bulk path that still sent the adventure uncompressed, so a large chronicle failed there. That path now slims and compresses each adventure the same way, so every save route fits the field limit.
+
 ## Chronicles save at any size
 - A prose heavy chronicle carries more text than a single account field can hold, which is what the too-large error was. The tool now compresses the adventure before it goes to the account and expands it on load, so even a large chronicle stores in a fraction of the space. A test chronicle well past the limit compressed to a small fraction of the cap. Import, editing, and the runner are unchanged, the compression happens only at the save and load boundary.
 - Paste: fatewell.web.js and page-fatewell.js, both handle the compressed payload.

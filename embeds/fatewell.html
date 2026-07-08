@@ -3103,8 +3103,19 @@ function syncAllToAccount(){
 }
 function persistLocalCampaigns(){
   if (!WIX.hosted) return;
-  var list = S.campaigns.map(function(c){ return { id:c.id, data:{ campaign:c, savedAt:Date.now() } }; });
-  postToWix({ type:'lmtool-sync', campaigns:list });
+  // slim and compress each campaign the same way flushSave does, so the bulk sync path
+  // (the Sync button and first connect) also fits large chronicles under the field limit.
+  var jobs = S.campaigns.map(function(c){
+    var wire = slimCombatantsForSave(JSON.parse(JSON.stringify(c)));
+    var json = JSON.stringify(wire);
+    return gzipString(json).then(function(gz){
+      if (gz && gz.length < json.length) return { id:c.id, data:{ campaignGz:gz, name:wire.name||'', savedAt:Date.now() } };
+      return { id:c.id, data:{ campaign:wire, savedAt:Date.now() } };
+    }, function(){ return { id:c.id, data:{ campaign:wire, savedAt:Date.now() } }; });
+  });
+  Promise.all(jobs).then(function(list){
+    postToWix({ type:'lmtool-sync', campaigns:list });
+  });
 }
 function mergePool(c){
   S.wixPlayers.forEach(function(wp){
