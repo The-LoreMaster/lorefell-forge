@@ -886,15 +886,15 @@ const COMPONENTS = [
  {category:"Effect",component:"Placed",cost:2,type:"attack",timing:"both",breakout:"",rule:"Move the target to an empty space within 3 spaces."},
  {category:"Effect",component:"Gathered",cost:3,type:"both",timing:"both",breakout:"",rule:"Move each affected target 3 spaces toward a chosen space."},
  {category:"Effect",component:"Scattered",cost:3,type:"both",timing:"both",breakout:"",rule:"Move each affected target 3 spaces from a chosen space."},
- {category:"Effect",component:"Tracked",cost:2,type:"attack",timing:"pre",breakout:"",rule:"This attack ignores your weapon's range."},
- {category:"Effect",component:"Exposed",cost:2,type:"attack",timing:"post",breakout:"",rule:"This attack ignores the target's Durability."},
- {category:"Effect",component:"Pierced",cost:2,type:"attack",timing:"post",breakout:"",rule:"This attack ignores the target's Resistance."},
- {category:"Effect",component:"Sabotaged",cost:3,type:"attack",timing:"pre",breakout:"",rule:"Before attacking, the target's Armor Stance is ignored for this attack, including its effect on Evasion."},
- {category:"Effect",component:"Crushed",cost:2,type:"attack",timing:"post",breakout:"",rule:"This attack deals its Base Damage again."},
- {category:"Effect",component:"Refracted",cost:2,type:"attack",timing:"post",breakout:"",rule:"Another target takes half this attack's Bonus Damage."},
- {category:"Effect",component:"Bonus",cost:2,type:"attack",timing:"post",breakout:"",rule:"Add 1d6 to this attack's Bonus Damage."},
- {category:"Effect",component:"Cleaved",cost:3,type:"attack",timing:"post",breakout:"",rule:"Deal this attack's Base Damage to another target."},
- {category:"Effect",component:"Double Standard",cost:3,type:"attack",timing:"post",breakout:"",rule:"This attack deals Double Standard Damage."},
+ {category:"Effect",component:"Tracked",cost:2,type:"attack",timing:"pre",breakout:"",rule:"Ignore your weapon's range."},
+ {category:"Effect",component:"Exposed",cost:2,type:"attack",timing:"post",breakout:"",rule:"Ignore the target's Durability."},
+ {category:"Effect",component:"Pierced",cost:2,type:"attack",timing:"post",breakout:"",rule:"Ignore the target's Resistance."},
+ {category:"Effect",component:"Sabotaged",cost:3,type:"attack",timing:"pre",breakout:"",rule:"Ignore the target's Armor Stance, including its effect on Evasion."},
+ {category:"Effect",component:"Crushed",cost:2,type:"attack",timing:"post",breakout:"",rule:"Deal your Base Damage again."},
+ {category:"Effect",component:"Refracted",cost:2,type:"attack",timing:"post",breakout:"",rule:"Another target takes half your Bonus Damage."},
+ {category:"Effect",component:"Bonus",cost:2,type:"attack",timing:"post",breakout:"",rule:"Add 1d6 to your Bonus Damage."},
+ {category:"Effect",component:"Cleaved",cost:3,type:"attack",timing:"post",breakout:"",rule:"Deal your Base Damage to another target."},
+ {category:"Effect",component:"Double Standard",cost:3,type:"attack",timing:"post",breakout:"",rule:"Deal Double Standard Damage."},
  {category:"Effect",component:"Siphoned",cost:3,type:"attack",timing:"post",breakout:"",rule:"Deal Base Damage and restore that much Vitality."},
  {category:"Effect",component:"Mended",cost:2,type:"support",timing:"post",breakout:"",rule:"Restore Vitality equal to your Spirit."},
  {category:"Effect",component:"Dispelled",cost:2,type:"attack",timing:"post",breakout:"",rule:"Remove one Effect from the target."},
@@ -906,7 +906,7 @@ const COMPONENTS = [
  {category:"Effect",component:"Bound",cost:2,type:"support",timing:"post",breakout:"",rule:"Damage dealt to the target is dealt to you instead, until an attack lands against that target."},
  {category:"Effect",component:"Echoed",cost:2,type:"attack",timing:"post",breakout:"",rule:"The next spell the target casts also targets themselves."},
  {category:"Effect",component:"Manifested",cost:2,type:"both",timing:"both",breakout:"",rule:"Create a temporary object, barrier, or terrain feature in an empty space."},
- {category:"Effect",component:"Lucky",cost:2,type:"both",timing:"pre",breakout:"",rule:"This attack's roll is Lucky. On a No Damage ability, the target's next roll is Lucky."},
+ {category:"Effect",component:"Lucky",cost:2,type:"both",timing:"pre",breakout:"",rule:"Your roll is Lucky. On a No Damage ability, the target's next roll is Lucky."},
 
  /* ===== AFFLICTIONS (family-locked, always post). family: Precision|Power|Magic ===== */
  {category:"Affliction*",component:"Bleeding*",cost:3,family:"Precision",breakout:"Recover*",rule:"Whenever you take damage, take your own Base Damage."},
@@ -1022,10 +1022,14 @@ const itemMinTier = item => (ITEM_STATS[item] && ITEM_STATS[item].minTier) || 1;
 /* Every tunable rule number lives here. The CMS can override
    any of these through ForgeConfig without touching code. */
 const CONFIG = {
-  /* v3: tier is set by total cost alone. No form ladders, no per-component tier gates. */
+  /* v3: build cost sets the tier. Afflictions gate by cost. But a weapon's Form still
+     sets the lowest Tier it can forge at: a 2nd Form weapon forges Tier 2+, a 3rd Form
+     weapon forges Tier 3 only. That is the weapon tier floor, kept from the old system. */
   tierBudgets: {1:[1,2], 2:[3,4], 3:[5,99]},
   preSurcharge: 1,          /* a pre-timing combat effect costs 1 more */
-  maxAfflictions: 1         /* one effect OR affliction per ability (second inlay deferred) */
+  maxAfflictions: 1,        /* one effect OR affliction per ability (second inlay deferred) */
+  itemFloorByForm: 1,       /* weapon Form sets its minimum Tier */
+  monsterFloorByForm: 1     /* a Foe's Form sets its minimum Tier */
 };
 /* Weapon group -> attack family. Families gate the inlay afflictions only.
    Weapons still grant their own signature affliction regardless of family. */
@@ -1042,6 +1046,17 @@ const TARGETING_LIST = ["One Target","Two Targets","Three Targets","All Targets"
 const MULTI_TARGETING = ["Two Targets","Three Targets","All Targets"];
 const GAIN_COMPONENTS = ["Attuned"];
 const EFFECTS = COMPONENTS.filter(c => c.category === "Effect");
+/* Organize combat effects into named groups for the dropdown. */
+const EFFECT_GROUP = {
+  "Attuned":"Charge","Restored":"Charge","Transferred":"Charge","Drained":"Charge",
+  "Advanced":"Movement","Pursued":"Movement","Repositioned":"Movement","Swapped":"Movement",
+  "Pushed":"Movement","Pulled":"Movement","Placed":"Movement","Gathered":"Movement","Scattered":"Movement",
+  "Tracked":"Defense","Exposed":"Defense","Pierced":"Defense","Sabotaged":"Defense",
+  "Crushed":"Damage","Refracted":"Damage","Bonus":"Damage","Cleaved":"Damage","Double Standard":"Damage","Siphoned":"Damage",
+  "Mended":"Support","Dispelled":"Support","Purged":"Support","Redirected":"Support","Reinforced":"Support",
+  "Guarded":"Support","Warded":"Support","Bound":"Support","Echoed":"Support","Manifested":"Utility","Lucky":"Utility"
+};
+const EFFECT_GROUP_ORDER = ["Damage","Defense","Charge","Movement","Support","Utility"];
 const AFFLICTIONS = COMPONENTS.filter(c => c.category === "Affliction*");
 function afflictionsByFamily(fam){ return AFFLICTIONS.filter(a => a.family === fam); }
 
@@ -1084,6 +1099,11 @@ function currentFamily(){
   if(state.type === "Spell") return "Magic";
   if(state.type === "Monster") return state.monsterArchetype;
   return FAMILY_BY_GROUP[GROUP_BY_ITEM[state.weapon]] || "Precision";
+}
+/* Default the effect inlay so the forge renders a complete build on load. */
+if(!state.effect){
+  const _def = COMPONENTS.filter(c => c.category === "Effect" && (c.type === "both" || c.type === "attack"))[0];
+  if(_def) state.effect = _def.component;
 }
 
 function currentItem(){
@@ -1234,48 +1254,30 @@ function joinClauses(parts){
 function lcFirst(s){ return s.charAt(0).toLowerCase() + s.slice(1); }
 function ucFirst(s){ return s.charAt(0).toUpperCase() + s.slice(1); }
 
-function effectClause(e){
-  if(!e) return "";
-  const name = e.component.replace(/\*$/,"");
-  if(isAffliction(e)) return `apply ${name}`;
-  if(GAIN_COMPONENTS.includes(e.component)) return `${lcFirst(name)}: ${lcFirst(e.rule)}`.replace(/\.$/,"");
-  return `${name}: ${lcFirst(e.rule)}`.replace(/\.$/,"");
-}
 function effectIsPre(e){
   return e && e.category === "Effect" && (e.timing === "pre" || (e.timing === "both" && state.effectTiming === "pre"));
 }
+/* Shorthand uses just the effect name. Full uses the effect rule text. */
+function effectName(e){ return e ? e.component.replace(/\*$/,"") : ""; }
 function buildShorthand(){
   const e = currentEffect();
   const noDmg = state.damage === "No Damage";
   const tgt = state.targeting !== "One Target" ? ` (${state.targeting})` : "";
-  const fam = currentFamily();
-  const isSpell = (state.type === "Spell") || isMonsterMagic() || (fam === "Magic" && state.type !== "Monster" && false);
-  const magicRoll = (fam === "Magic");
-  const clause = e ? effectClause(e) : "choose an effect";
-
-  /* Magic contested roll phrasing */
-  const rollPhrase = magicRoll
-    ? "The LoreMaster rolls the target's Difficulty plus 1d6 against your Magic plus Mastery"
-    : "";
+  const magicRoll = currentFamily() === "Magic";
+  const nm = e ? effectName(e) : "choose an effect";
+  const roll = magicRoll ? "On a success" : "On a hit";
 
   if(noDmg){
-    /* support / control, or a Magic affliction without a wound */
     if(magicRoll && e && isAffliction(e))
-      return `Target${tgt}. ${rollPhrase}. On a success, ${clause}.`;
-    return `Choose an ally, enemy, or space${tgt}. ${ucFirst(clause)}.`;
+      return `${nm}${tgt}. ${roll}, the target is afflicted.`;
+    return `${nm}${tgt}.`;
   }
-
-  /* an attack */
-  const hitPhrase = magicRoll
-    ? `Cast${tgt}. ${rollPhrase}. On a success, deal Standard Damage`
-    : `Attack${tgt}. On a hit, deal Standard Damage`;
-
   if(e && effectIsPre(e)){
-    /* Format B: effect first, then the strike */
-    return `${ucFirst(clause)}. Then ${lcFirst(hitPhrase)}.`;
+    /* pre: name it, then the strike */
+    return `${nm}${tgt}. ${roll}, deal Standard Damage.`;
   }
-  /* Format A: strike then effect */
-  return `${hitPhrase}, then ${clause}.`;
+  /* post: strike then name it */
+  return `${magicRoll ? "Cast" : "Attack"}${tgt}. ${roll}, deal Standard Damage, then ${nm}.`;
 }
 function buildFull(){
   const e = currentEffect();
@@ -1283,35 +1285,31 @@ function buildFull(){
   const facts = currentFacts();
   if(facts) lines.push(`${currentItem()}: ${facts}`);
   const multi = MULTI_TARGETING.includes(state.targeting);
-  const fam = currentFamily();
+  const magicRoll = currentFamily() === "Magic";
   const noDmg = state.damage === "No Damage";
+  const roll = magicRoll ? "On a success" : "On a hit";
+  const rule = e ? e.rule.replace(/\s+$/,"") : "";
 
   if(state.targeting !== "One Target")
-    lines.push(`${state.targeting}: ${lcFirst(byName[state.targeting].rule)}`);
-
-  if(fam === "Magic")
-    lines.push("Magic resolution: the LoreMaster rolls the target's Difficulty plus 1d6 against your Magic plus Mastery. Evasion does not apply.");
-
-  /* pre effect resolves before the strike */
-  if(e && effectIsPre(e))
-    lines.push(`Before the roll, ${lcFirst(e.rule)}`);
+    lines.push(`${state.targeting}: everything applies to all targets.`);
+  if(magicRoll)
+    lines.push("Magic: the LoreMaster rolls the target's Difficulty plus 1d6 against your Magic plus Mastery. Evasion does not apply.");
 
   if(noDmg){
-    lines.push("This ability deals no damage.");
+    if(e && isAffliction(e)) lines.push(`${roll}, ${lcFirst(rule)}`);
+    else if(e) lines.push(rule);
+  } else if(e && effectIsPre(e)){
+    /* pre effect: its rule, then the strike */
+    lines.push(rule);
+    lines.push(`${roll}, ${multi ? "all targets suffer" : "the target suffers"} Standard Damage.`);
   } else {
-    lines.push(multi ? "On a hit, all targets suffer Standard Damage." : "On a hit, the target suffers Standard Damage.");
-  }
-
-  /* post effect / affliction */
-  if(e && !effectIsPre(e)){
-    if(isAffliction(e)){
-      const breakout = e.breakout.replace(/\*$/,"");
-      const nm = e.component.replace(/\*$/,"");
-      lines.push(`The target suffers ${nm}: ${lcFirst(e.rule)} They may spend an Act to attempt a${/^[AEIOU]/.test(breakout)?"n":""} ${breakout} breakout.`);
-    } else if(GAIN_COMPONENTS.includes(e.component)){
-      lines.push(`You gain ${e.component}: ${lcFirst(e.rule)}`);
-    } else {
-      lines.push(`${e.component}: ${lcFirst(e.rule)}`);
+    /* post effect or affliction: strike, then the effect rule */
+    lines.push(`${roll}, ${multi ? "all targets suffer" : "the target suffers"} Standard Damage.`);
+    if(e && isAffliction(e)){
+      const bk = e.breakout.replace(/\*$/,"");
+      lines.push(`${rule} They may spend an Act to attempt a${/^[AEIOU]/.test(bk)?"n":""} ${bk} breakout.`);
+    } else if(e){
+      lines.push(rule);
     }
   }
   return lines.join("\n\n");
@@ -1775,21 +1773,32 @@ function refreshEffectSelect(){
     sel.appendChild(o); sel.disabled = true; state.effect = "";
   } else {
     sel.disabled = false;
-    items.forEach(c => {
+    const optOf = c => {
       const o = document.createElement("option");
-      const nm = c.component.replace(/\*$/,"");
-      const sur = (c.category === "Effect" && c.timing === "pre") ? " pre" : "";
-      o.value = c.component; o.textContent = `${nm} (${c.cost})${sur}`;
-      sel.appendChild(o);
-    });
+      o.value = c.component; o.textContent = `${c.component.replace(/\*$/,"")} (${c.cost})`;
+      return o;
+    };
+    if(effectKind === "effect"){
+      // group combat effects by type
+      EFFECT_GROUP_ORDER.forEach(g => {
+        const inGroup = items.filter(c => EFFECT_GROUP[c.component] === g);
+        if(!inGroup.length) return;
+        const og = document.createElement("optgroup"); og.label = g;
+        inGroup.forEach(c => og.appendChild(optOf(c)));
+        sel.appendChild(og);
+      });
+    } else {
+      items.forEach(c => sel.appendChild(optOf(c)));
+    }
     sel.value = state.effect;
   }
-  // affliction toggle availability
+  // affliction toggle: available only when the build allows it AND above Tier 1
   const afflBtn = document.querySelector('#effKindSeg [data-kind="affliction"]');
   if(afflBtn){
-    const ok = afflictionsAllowedNow();
+    const ok = afflictionsAllowedNow() && state.tier >= 2;
     afflBtn.style.opacity = ok ? "" : ".4";
     afflBtn.style.pointerEvents = ok ? "" : "none";
+    afflBtn.title = state.tier < 2 ? "Afflictions need Tier 2 or higher" : "";
     if(!ok && effectKind === "affliction"){ effectKind = "effect"; }
   }
   // timing control only for combat effects that support both

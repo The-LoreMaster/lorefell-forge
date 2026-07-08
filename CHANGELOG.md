@@ -1,3 +1,12 @@
+## SigilForge v3 fixes
+
+- The rune now renders on load. A default effect is set so the forge shows a complete build from the first paint.
+- The weapon tier floor is back. A weapon's Form sets its lowest Tier: the first weapon in a group forges Tier 1 and up, the second Tier 2 and up, the third Tier 3 only. So Shortbow is Tier 1+, Longbow Tier 2+, Crossbow Tier 3, and the same across every weapon group.
+- Combat effects are grouped in the dropdown by type: Damage, Defense, Charge, Movement, Support, Utility.
+- Afflictions are hidden at Tier 1. The affliction toggle only opens at Tier 2 and higher.
+- The pre label is gone from the dropdown. An effect that can resolve before or after the roll shows a timing choice instead, and the timing reads in the shorthand and description.
+- Shorthand and full descriptions are tighter. Shorthand names the effect, for example Sabotaged. On a hit, deal Standard Damage. The full description states the rule plainly, for example Ignore the target's Armor Stance. On a hit, the target suffers Standard Damage.
+
 ## SigilForge rebuilt on the v3 ruleset
 
 - Abilities are now three inlays: damage, effect, and target, one each. Damage is Standard or None, both free. The effect inlay holds one combat effect or one affliction. The target inlay sets one, two, three, or all targets, and more than one spreads the damage, effect, and affliction to every target.
