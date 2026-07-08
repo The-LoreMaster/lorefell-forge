@@ -1,3 +1,7 @@
+## FateWell export an adventure as JSON
+
+- Each adventure card now has an Export as JSON option in its menu. It downloads the adventure as a pack in the same format Import reads, so you can edit it in bulk and bring it back. The export carries the referenced NPCs and forged foes, clears the table state, and resets any fired hooks, so it lands as a clean copy. If an embedded sandbox blocks the download, a copyable text box opens instead.
+
 ## SagaForge crucible briefings
 
 - Forging foes for a crucible now writes a LoreMaster briefing into the scene. It names the foes, says where they come from and why they are here, how they open the fight and what they want, and the one thing that turns the fight. The lineup is listed with each foe's tier, build, and stance. The player-facing scene keeps its cliffhanger; the briefing is a secret block only the LoreMaster sees, placed just before the crucible. Re-forging replaces the briefing rather than stacking it.

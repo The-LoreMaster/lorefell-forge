@@ -6248,9 +6248,13 @@ function buildAdventurePack(c){
       (ss.scenes || []).forEach(function(sc){ scan(sc.entries); if (sc.ps) sc.ps = {}; if (sc.att) sc.att = {}; sc.mode = 'roleplay'; (sc.hooks||[]).forEach(function(h){ h.fired = false; }); });
     });
   });
-  var npcs = [];
-  S.library.forEach(function(e){ if (e.type === 'npc' && ids[e.id]) npcs.push(JSON.parse(JSON.stringify(e))); });
-  return { meta: { format: 'lorefell-adventure-pack-1', builtAt: Date.now() }, campaign: camp, npcs: npcs };
+  var npcs = [], foes = [];
+  S.library.forEach(function(e){
+    if (!ids[e.id]) return;
+    if (e.type === 'npc') npcs.push(JSON.parse(JSON.stringify(e)));
+    else if (e.type === 'monster') foes.push(JSON.parse(JSON.stringify(e)));
+  });
+  return { meta: { format: 'lorefell-adventure-pack-1', builtAt: Date.now() }, campaign: camp, npcs: npcs, foes: foes };
 }
 function unpublishCampaign(id){
   var pub = (window._published || {})[id];
@@ -6260,6 +6264,28 @@ function unpublishCampaign(id){
     if (window._published) delete window._published[id];
     render();
   }, 'Remove');
+}
+function exportCampaign(id){
+  var c = null; S.campaigns.forEach(function(x){ if (x.id===id) c = x; });
+  if (!c){ advNote('Nothing to export', 'That adventure could not be found.'); return; }
+  var pack = buildAdventurePack(c);
+  var text = JSON.stringify(pack, null, 2);
+  var name = String(c.name || 'adventure').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'') || 'adventure';
+  try {
+    var b = new Blob([text], { type:'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(b);
+    a.download = name + '.lorefell-pack.json';
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 500);
+    advNote('Exported', 'The adventure downloaded as a pack JSON. Edit it, then bring it back through Import and it lands as a fresh copy.');
+  } catch(e){
+    /* Some embedded sandboxes block downloads. Fall back to a copyable text modal. */
+    modal('<h3 class="m-title">Export ' + esc(c.name || 'adventure') + '</h3>'
+      + '<p class="muted">Copy this and save it as a .json file. Bring it back through Import.</p>'
+      + '<textarea class="inp" rows="12" onclick="this.select()" readonly>' + esc(text) + '</textarea>'
+      + '<div class="m-row"><button class="btn" onclick="closeModal()">Done</button></div>');
+  }
 }
 function publishAdventure(id){
   var c = null; S.campaigns.forEach(function(x){ if (x.id===id) c = x; });
@@ -6470,7 +6496,7 @@ function cardItem(opts){
   var hasDesc = opts.desc && opts.desc.length;
   if (!window._cardMenus) window._cardMenus = {};
   var mid = 'm' + (window._cardMenuSeq = (window._cardMenuSeq||0) + 1);
-  window._cardMenus[mid] = { coverFn:opts.coverFn||'', renameFn:opts.renameFn||'', descFn:opts.descFn||'', dupFn:opts.dupFn||'', delFn:opts.delFn||'', pubFn:opts.pubFn||'', unpubFn:opts.unpubFn||'', title:opts.title };
+  window._cardMenus[mid] = { coverFn:opts.coverFn||'', renameFn:opts.renameFn||'', descFn:opts.descFn||'', dupFn:opts.dupFn||'', delFn:opts.delFn||'', pubFn:opts.pubFn||'', unpubFn:opts.unpubFn||'', expFn:opts.expFn||'', title:opts.title };
 
   var reorder = '';
   if (opts.upFn || opts.downFn){
@@ -6522,6 +6548,7 @@ function cardMenu(mid){
   if (m.reforgeFn) h += '<button class="menu-item" onclick="closeModal();'+m.reforgeFn+'">Re-forge to a rating</button>';
   if (m.pubFn) h += '<button class="menu-item" onclick="closeModal();'+m.pubFn+'">'+(m.unpubFn?'Update the published copy':'Publish to the directory')+'</button>';
   if (m.unpubFn) h += '<button class="menu-item" onclick="closeModal();'+m.unpubFn+'">Remove from the directory</button>';
+  if (m.expFn) h += '<button class="menu-item" onclick="closeModal();'+m.expFn+'">Export as JSON</button>';
   if (m.delFn) h += '<button class="menu-item danger" onclick="closeModal();'+m.delFn+'">Delete</button>';
   h += '</div><div class="m-row"><button class="btn ghost" onclick="closeModal()">Cancel</button></div>';
   modal(h);
@@ -6598,7 +6625,7 @@ function cardChrome(){ return viewToggleHTML() + (V.cardView?spineHTML():''); }
 function gridCard(o){
   if(!window._cardMenus) window._cardMenus={};
   var mid='m'+(window._cardMenuSeq=(window._cardMenuSeq||0)+1);
-  window._cardMenus[mid]={ coverFn:o.coverFn||'', renameFn:o.renameFn||'', descFn:o.descFn||'', dupFn:o.dupFn||'', delFn:o.delFn||'', pubFn:o.pubFn||'', unpubFn:o.unpubFn||'', title:o.title };
+  window._cardMenus[mid]={ coverFn:o.coverFn||'', renameFn:o.renameFn||'', descFn:o.descFn||'', dupFn:o.dupFn||'', delFn:o.delFn||'', pubFn:o.pubFn||'', unpubFn:o.unpubFn||'', expFn:o.expFn||'', title:o.title };
   var numBadge = (o.num && o.img) ? '<span class="gc-num">'+o.num+'</span>' : '';
   var numInline = (o.num && !o.img) ? '<span class="gc-num inline">'+o.num+'</span>' : '';
   var cover = o.img ? ('<div class="gc-cover" style="background-image:url(\''+esc(imgSrc(o.img))+'\')">'+numBadge+'</div>') : '';
@@ -6680,7 +6707,7 @@ function scrCampaigns(){
     S.campaigns.forEach(function(c){
       var sub = advSub(c);
       var isPub = !!(window._published && window._published[c.id]);
-      h += cardItem({ img:c.img, desc:c.desc, title:c.name, sub:sub, badge:(isPub?'Published':''), openFn:'nav(\'campaign\',\''+c.id+'\')', coverFn:'setCover(\'c\',\''+c.id+'\')', descFn:'descModalC(\''+c.id+'\')', renameFn:'renameCampaign(\''+c.id+'\')', delFn:'deleteCampaign(\''+c.id+'\')', pubFn:'publishAdventure(\''+c.id+'\')', unpubFn:(isPub?'unpublishCampaign(\''+c.id+'\')':'') });
+      h += cardItem({ img:c.img, desc:c.desc, title:c.name, sub:sub, badge:(isPub?'Published':''), openFn:'nav(\'campaign\',\''+c.id+'\')', coverFn:'setCover(\'c\',\''+c.id+'\')', descFn:'descModalC(\''+c.id+'\')', renameFn:'renameCampaign(\''+c.id+'\')', delFn:'deleteCampaign(\''+c.id+'\')', pubFn:'publishAdventure(\''+c.id+'\')', unpubFn:(isPub?'unpublishCampaign(\''+c.id+'\')':''), expFn:'exportCampaign(\''+c.id+'\')' });
     });
     h += '<button class="btn wide" onclick="addCampaign()">New Adventure</button>';
   }
