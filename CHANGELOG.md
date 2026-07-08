@@ -16,6 +16,10 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 ## SagaForge skeleton builds in small phased calls
 - The 504 was latency margin, confirmed by a tiny test call that returned instantly while the full 3500-token skeleton call ran past the Wix web-method wall. The skeleton now builds in phases: a small call for the act spine and threats, then one small call per act for its sessions and scenes, assembled in the tool. Premise trimmed to 450 tokens. Every call now sits well under the limit that SigilForge clears.
 
+## Images host without blocking a large save
+- A big chronicle that also carried a new image failed, because hosting the image meant sending the whole adventure uncompressed and that overflowed the field. Images are now hosted on their own, only the images go up, they come back as shared links, and then the adventure saves compressed. A large chronicle and its cover art both save now.
+- Paste: page-fatewell.js, it gained the image hosting step.
+
 ## Adventure cover image saves from the list
 - Setting an adventure cover from the adventures list did nothing because the save looked at the currently open adventure, and none was open. It now resolves the adventure by the one you picked, so the cover lands, hosts, and shows.
 

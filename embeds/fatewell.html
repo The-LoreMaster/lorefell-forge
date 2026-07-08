@@ -3037,24 +3037,42 @@ function hasInlineImages(node){
   })(node);
   return found;
 }
+/* Collect every data-url image in the live campaign, each with an owner id, so we can host
+   just the images without sending the whole chronicle uncompressed. */
+function collectInlineImages(c){
+  var out=[];
+  (function walk(o){
+    if(!o||typeof o!=='object') return;
+    if(o.id && typeof o.img==='string' && o.img.indexOf('data:')===0) out.push({ id:o.id, img:o.img });
+    for(var k in o){ if(Object.prototype.hasOwnProperty.call(o,k)){ var v=o[k]; if(v&&typeof v==='object') walk(v); } }
+  })(c);
+  return out;
+}
+/* Apply hosted URLs (keyed by owner id) back onto the live campaign. */
+function applyHostedImages(c, map){
+  (function walk(o){
+    if(!o||typeof o!=='object') return;
+    if(o.id && map[o.id]) o.img=map[o.id];
+    for(var k in o){ if(Object.prototype.hasOwnProperty.call(o,k)){ var v=o[k]; if(v&&typeof v==='object') walk(v); } }
+  })(c);
+}
 function flushSave(){
   clearTimeout(WIX.saveTimer); WIX.saveTimer = null;
   if (!WIX.hosted) return;
   var c = curC(); if (!c) return;
   var cid = WIX.hub ? c.id : (WIX.campaignId || c.id);
+  // Host any data-url images first, sending ONLY the images (not the whole chronicle), so a
+  // large adventure with a new image does not overflow the field on an uncompressed save.
+  var inline = collectInlineImages(c);
+  if (inline.length){
+    WIX.dirty = false; WIX.lastSaveAt = Date.now();
+    postToWix({ type:'lmtool-host-images', campaignId: cid, images: inline });
+    return; // the host result applies hosted URLs, then triggers a normal compressed save
+  }
   // slim a deep copy for the wire: foes rebuild from the library on load, so the stored
   // campaign stays small even for a large chronicle. The live board keeps full stats.
-  // Never mutate the live campaign here; images stay on your working copy.
   var wire = slimCombatantsForSave(JSON.parse(JSON.stringify(c)));
   WIX.dirty = false; WIX.lastSaveAt = Date.now();
-  // If any image is still a data URL, send the campaign UNCOMPRESSED so the page bridge can
-  // upload each image to hosted media and hand back short URLs (which every player can load).
-  // The slimmed echo folds those hosted URLs back into state, so the next save is small and
-  // compresses cleanly. Once images are hosted URLs, compress to fit large chronicles.
-  if (hasInlineImages(wire)){
-    postToWix({ type:'lmtool-save', campaignId: cid, data: { campaign: wire, savedAt: Date.now() } });
-    return;
-  }
   var json = JSON.stringify(wire);
   gzipString(json).then(function(gz){
     if (gz && gz.length < json.length){
@@ -3299,6 +3317,18 @@ window.addEventListener('message', function(ev){
         ? 'An image is likely too large to store. Try a smaller image on that record, then edit and save again.'
         : ('The account save failed. ' + (m.error ? String(m.error).slice(0,120) : 'Try again in a moment.')));
     }
+    return;
+  }
+  if (m.type === 'lmtool-host-images-result'){
+    // the bridge hosted our images and returned { id: hostedUrl }. Apply them to the live
+    // campaign, then run a normal save (now image-light, so it compresses under the cap).
+    var map = m.map || {};
+    var c = null; S.campaigns.forEach(function(x){ if(x.id===m.campaignId) c=x; });
+    if (c){ applyHostedImages(c, map); saveLocal(); render(); }
+    if (m.error){ advNote('Some images could not be hosted', 'They stay on this device. The rest of the adventure saved.'); }
+    // now persist the campaign with hosted links
+    WIX.dirty = false;
+    flushSave();
     return;
   }
   if (m.type === 'lmtool-campaigns-slimmed'){

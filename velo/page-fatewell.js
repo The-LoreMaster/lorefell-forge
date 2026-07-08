@@ -162,6 +162,24 @@ $w.onReady(() => {
       try { await dealDamageToChar(m.campaignId || campaignId, m.charId || '', m.base || 0, m.bonus || 0, m.dt || 'phys'); } catch (e) {}
     } else if (m.type === 'lmtool-combat-charge') {
       try { await setCombatCharge(m.campaignId || campaignId, m.charId || '', m.value || 0); } catch (e) {}
+    } else if (m.type === 'lmtool-host-images') {
+      // Upload just the images (not the whole campaign) to shared media, return hosted URLs
+      // keyed by their owner id. Lets a large adventure host images without an oversized save.
+      const cid = m.campaignId || campaignId;
+      const map = {};
+      let error = false;
+      for (const it of (m.images || [])) {
+        if (!it || !it.id || typeof it.img !== 'string') continue;
+        try {
+          if (it.img.indexOf('data:') === 0) {
+            const url = await uploadRune(it.img, uniqName('cover'));
+            map[it.id] = toStaticImageUrl(url);
+          } else {
+            map[it.id] = toStaticImageUrl(it.img);
+          }
+        } catch (e) { error = true; }
+      }
+      embed.postMessage({ type: 'lmtool-host-images-result', campaignId: cid, map: map, error: error });
     } else if (m.type === 'lmtool-save') {
       const cid = m.campaignId || campaignId;
       const hasCampaign = !!(m.data && (m.data.campaign || m.data.campaignGz));
