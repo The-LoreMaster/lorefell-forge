@@ -3025,6 +3025,18 @@ function stripHeavyImages(node, budget){
   })(node);
   return n;
 }
+function hasInlineImages(node){
+  var found=false;
+  (function walk(o){
+    if(found||!o||typeof o!=='object') return;
+    for(var k in o){ if(found) break; if(!Object.prototype.hasOwnProperty.call(o,k)) continue;
+      var v=o[k];
+      if(k==='img'&&typeof v==='string'&&v.indexOf('data:')===0){ found=true; return; }
+      else if(v&&typeof v==='object') walk(v);
+    }
+  })(node);
+  return found;
+}
 function flushSave(){
   clearTimeout(WIX.saveTimer); WIX.saveTimer = null;
   if (!WIX.hosted) return;
@@ -3035,22 +3047,23 @@ function flushSave(){
   // Never mutate the live campaign here; images stay on your working copy.
   var wire = slimCombatantsForSave(JSON.parse(JSON.stringify(c)));
   WIX.dirty = false; WIX.lastSaveAt = Date.now();
-  // Compress the whole campaign, images included. A data-url image rides inside the gzip
-  // and takes little room, so nothing needs to be stripped when compression is available.
+  // If any image is still a data URL, send the campaign UNCOMPRESSED so the page bridge can
+  // upload each image to hosted media and hand back short URLs (which every player can load).
+  // The slimmed echo folds those hosted URLs back into state, so the next save is small and
+  // compresses cleanly. Once images are hosted URLs, compress to fit large chronicles.
+  if (hasInlineImages(wire)){
+    postToWix({ type:'lmtool-save', campaignId: cid, data: { campaign: wire, savedAt: Date.now() } });
+    return;
+  }
   var json = JSON.stringify(wire);
   gzipString(json).then(function(gz){
     if (gz && gz.length < json.length){
       postToWix({ type:'lmtool-save', campaignId: cid, data: { campaignGz: gz, name: wire.name || '', savedAt: Date.now() } });
     } else {
-      // no compression available: strip oversized images from the wire copy only, as a
-      // last resort so the plain save can still fit. The live copy keeps its images.
-      var removed = stripHeavyImages(wire, 700000);
-      if (removed) advNote('Image not stored on the account', 'Compression was unavailable and an image was too large for a plain save, so it was left off the account copy. It is still on this device.');
       postToWix({ type:'lmtool-save', campaignId: cid, data: { campaign: wire, savedAt: Date.now() } });
     }
   }, function(){
-    var w2 = wire; stripHeavyImages(w2, 700000);
-    postToWix({ type:'lmtool-save', campaignId: cid, data: { campaign: w2, savedAt: Date.now() } });
+    postToWix({ type:'lmtool-save', campaignId: cid, data: { campaign: wire, savedAt: Date.now() } });
   });
 }
 function save(){

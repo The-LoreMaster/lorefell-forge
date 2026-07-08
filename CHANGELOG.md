@@ -16,6 +16,9 @@ Build batches pushed to this repo, newest at the top. The apply workflow is manu
 ## SagaForge skeleton builds in small phased calls
 - The 504 was latency margin, confirmed by a tiny test call that returned instantly while the full 3500-token skeleton call ran past the Wix web-method wall. The skeleton now builds in phases: a small call for the act spine and threats, then one small call per act for its sessions and scenes, assembled in the tool. Premise trimmed to 450 tokens. Every call now sits well under the limit that SigilForge clears.
 
+## Images are hosted and shared again
+- Compression had sidelined the image hosting step, so cover images were not being uploaded to shared media. Now an adventure that carries a freshly added image saves uncompressed once, so the page bridge uploads each image to hosted media and hands back a short link. Those links fold into the adventure, so the next save compresses cleanly and every player who loads the adventure sees the images. Large chronicles still compress once their images are hosted links rather than embedded data.
+
 ## Images save again
 - The save was deleting images off the working copy before storing, a leftover from before compression existed. Now that the whole adventure is compressed, images ride inside it and take little room, so nothing is stripped. The save no longer touches your live images, and an uploaded image is kept at the smallest size it reaches rather than discarded for being over a raw byte budget.
 
