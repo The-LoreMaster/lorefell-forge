@@ -1,3 +1,9 @@
+## SigilForge Vision forge updated for v3
+
+- The Vision forge now knows the current rules. It sees the damage packages (Standard, Double Base, Double Standard, No Damage) and their costs, the family-locked afflictions, and the hard tier budgets.
+- It maximizes the build. When a forged build sits under the picked tier's ceiling, the forge is nudged once to spend the headroom with a costlier damage package, an added target, or a stronger effect that still fits the fantasy, rather than handing back a thin build.
+- The tier is treated as a firm ceiling in the prompt, matching the tool: a build may not exceed its tier's budget.
+
 ## SigilForge tier is a hard budget
 
 - The picked Tier is now a firm ceiling, not a suggestion. A build that costs more than the tier's budget is not valid. It shows Not a valid build in red with a clear error, rather than quietly forging a tier up.
