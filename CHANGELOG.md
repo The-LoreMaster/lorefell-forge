@@ -1,3 +1,7 @@
+## SigilForge solo effects hidden on multi-target
+
+- Cleaved, Refracted, and Redirected now only appear in the effect list when targeting is One Target. On a Two, Three, or All Targets build they are hidden, since they already reach a second target on their own. This mirrors the targeting lock that snaps to One Target when one of them is chosen.
+
 ## SigilForge effect list fix
 
 - Fixed the effect list emptying when a multi-target was chosen. Picking Two Targets showed only two effects and Three Targets showed none, because a leftover Tier 1 filter hid every effect that pushed the build past cost 2. That filter is gone. Every legal effect always shows, and an over-budget build reads as a clear error instead.
