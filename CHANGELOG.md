@@ -1,3 +1,16 @@
+## SigilForge v3 fixes, round three
+
+- Fixed the bug that broke the Ledger and Codex tabs and stopped the rune rendering on load. A dead handler was throwing during startup and halting the rest of the setup. The tabs work and the rune draws on load now.
+- Full descriptions read as paragraphs. The damage sentence and the effect sentence sit together instead of on separate lines.
+- Cleaved and Siphoned read as follow-on clauses: on a hit, deal Standard Damage, then deal the extra.
+- Double Standard replaces the damage rather than adding to it: on a hit, the target suffers Double Standard Damage.
+- Added Double Base Damage at cost 2, which replaces the damage the same way.
+- Manifested now creates an object that has a Vitality of 1.
+- Repositioned is a No Damage effect with a single description, no timing choice. Movement effects only show a before or after choice on an attack, since a No Damage action has no roll. Swapped works on both an attack and a No Damage ability.
+- Builds show a tag: a gold Tracked tag when the effect must be tracked between rolls, a purple Affliction tag when the build carries one.
+- Lucky reads correctly by type: your roll is Lucky on an attack, the target's next roll is Lucky on a No Damage ability.
+- Removed the breakout reminder line and the Evasion note from descriptions. Afflictions will use their FellGuide text.
+
 ## SigilForge v3 fixes, round two
 
 - Sabotaged no longer says including its effect on Evasion. It reads Ignore the target's Armor Stance, since the stance covers Evasion.

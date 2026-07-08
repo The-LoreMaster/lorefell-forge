@@ -360,6 +360,11 @@
   .submit-fail li{padding:2px 0}
 
   /* outputs */
+  .build-tags{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+  .btag{font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:.18em;text-transform:uppercase;
+    padding:4px 10px;border-radius:2px;border:1px solid}
+  .btag.track{color:#d8c47a;border-color:rgba(216,196,122,.5);background:rgba(216,196,122,.08)}
+  .btag.affl{color:#c58bd0;border-color:rgba(197,139,208,.5);background:rgba(197,139,208,.08)}
   .out-card{
     background:var(--navy-2);border:1px solid var(--line);
     padding:14px 14px 12px;margin-top:14px;position:relative;
@@ -636,6 +641,7 @@
 
     <ul class="errors" id="errorList"></ul>
 
+    <div class="build-tags" id="buildTags"></div>
     <div class="out-card">
       <h3>Shorthand</h3>
       <button class="copy-btn" data-copy="shorthandOut">Copy</button>
@@ -893,9 +899,10 @@ const COMPONENTS = [
  {category:"Effect",component:"Crushed",cost:2,type:"attack",timing:"post",breakout:"",rule:"Deal your Base Damage again."},
  {category:"Effect",component:"Refracted",cost:2,type:"attack",timing:"post",breakout:"",rule:"Another target takes half your Bonus Damage."},
  {category:"Effect",component:"Bonus",cost:2,type:"attack",timing:"post",breakout:"",rule:"Add 1d6 to your Bonus Damage."},
- {category:"Effect",component:"Cleaved",cost:3,type:"attack",timing:"post",breakout:"",rule:"Deal your Base Damage to another target."},
+ {category:"Effect",component:"Cleaved",cost:3,type:"attack",timing:"post",breakout:"",rule:"deal your Base Damage to another target."},
+ {category:"Effect",component:"Double Base",cost:2,type:"attack",timing:"post",breakout:"",rule:"Deal Double Base Damage."},
  {category:"Effect",component:"Double Standard",cost:3,type:"attack",timing:"post",breakout:"",rule:"Deal Double Standard Damage."},
- {category:"Effect",component:"Siphoned",cost:3,type:"attack",timing:"post",breakout:"",rule:"Deal Base Damage and restore that much Vitality."},
+ {category:"Effect",component:"Siphoned",cost:3,type:"attack",timing:"post",breakout:"",rule:"deal Base Damage and restore that much Vitality."},
  {category:"Effect",component:"Mended",cost:2,type:"support",timing:"post",breakout:"",rule:"Restore Vitality equal to your Spirit."},
  {category:"Effect",component:"Dispelled",cost:2,type:"attack",timing:"post",breakout:"",rule:"Remove one Effect from the target."},
  {category:"Effect",component:"Purged",cost:2,type:"support",timing:"post",breakout:"",rule:"Remove one Affliction from the target."},
@@ -905,8 +912,8 @@ const COMPONENTS = [
  {category:"Effect",component:"Warded",cost:2,type:"support",timing:"post",breakout:"",rule:"Reduce the next Magic damage the target takes before your next roll by your Magic."},
  {category:"Effect",component:"Bound",cost:2,type:"support",timing:"post",breakout:"",rule:"Damage dealt to the target is dealt to you instead, until an attack lands against that target."},
  {category:"Effect",component:"Echoed",cost:2,type:"attack",timing:"post",breakout:"",rule:"The next spell the target casts also targets themselves."},
- {category:"Effect",component:"Manifested",cost:2,type:"both",timing:"both",breakout:"",rule:"Create a temporary object, barrier, or terrain feature in an empty space."},
- {category:"Effect",component:"Lucky",cost:2,type:"both",timing:"pre",breakout:"",rule:"Your roll is Lucky. On a No Damage ability, the target's next roll is Lucky."},
+ {category:"Effect",component:"Manifested",cost:2,type:"both",timing:"both",breakout:"",rule:"Create a temporary object, barrier, or terrain feature in an empty space that has a Vitality of 1."},
+ {category:"Effect",component:"Lucky",cost:2,type:"both",timing:"pre",breakout:"",rule:"Your roll is Lucky for this attack.",ruleNoDmg:"The target's next roll is Lucky."},
 
  /* ===== AFFLICTIONS (family-locked, always post). family: Precision|Power|Magic ===== */
  {category:"Affliction*",component:"Bleeding*",cost:3,family:"Precision",breakout:"Recover*",rule:"Whenever you take damage, take your own Base Damage."},
@@ -1052,11 +1059,13 @@ const EFFECT_GROUP = {
   "Advanced":"Movement","Pursued":"Movement","Repositioned":"Movement","Swapped":"Movement",
   "Pushed":"Movement","Pulled":"Movement","Placed":"Movement","Gathered":"Movement","Scattered":"Movement",
   "Tracked":"Defense","Exposed":"Defense","Pierced":"Defense","Sabotaged":"Defense",
-  "Crushed":"Damage","Refracted":"Damage","Bonus":"Damage","Cleaved":"Damage","Double Standard":"Damage","Siphoned":"Damage",
+  "Crushed":"Damage","Refracted":"Damage","Bonus":"Damage","Cleaved":"Damage","Double Base":"Damage","Double Standard":"Damage","Siphoned":"Damage",
   "Mended":"Support","Dispelled":"Support","Purged":"Support","Redirected":"Support","Reinforced":"Support",
   "Guarded":"Support","Warded":"Support","Bound":"Support","Echoed":"Support","Manifested":"Utility","Lucky":"Utility"
 };
 const EFFECT_GROUP_ORDER = ["Damage","Defense","Charge","Movement","Support","Utility"];
+/* Effects whose benefit persists and must be tracked between rolls. */
+const TRACK_EFFECTS = new Set(["Guarded","Warded","Bound","Echoed","Tracked"]);
 const AFFLICTIONS = COMPONENTS.filter(c => c.category === "Affliction*");
 function afflictionsByFamily(fam){ return AFFLICTIONS.filter(a => a.family === fam); }
 
@@ -1284,38 +1293,44 @@ function buildShorthand(){
 }
 function buildFull(){
   const e = currentEffect();
-  const lines = [];
   const facts = currentFacts();
-  if(facts) lines.push(`${currentItem()}: ${facts}`);
   const multi = MULTI_TARGETING.includes(state.targeting);
   const magicRoll = currentFamily() === "Magic";
   const noDmg = state.damage === "No Damage";
   const roll = magicRoll ? "On a success" : "On a hit";
-  const rule = e ? e.rule.replace(/\s+$/,"") : "";
+  const rule = e ? ((noDmg && e.ruleNoDmg) ? e.ruleNoDmg : e.rule).replace(/\s+$/,"") : "";
+  const who = multi ? "all targets suffer" : "the target suffers";
+  const paras = [];
 
+  if(facts) paras.push(`${currentItem()}: ${facts}`);
   if(state.targeting !== "One Target")
-    lines.push(`${state.targeting}: everything applies to all targets.`);
-  if(magicRoll)
-    lines.push("Magic: the LoreMaster rolls the target's Difficulty plus 1d6 against your Magic plus Mastery. Evasion does not apply.");
+    paras.push(`${state.targeting}: everything applies to all targets.`);
+
+  /* effects that replace the damage word rather than adding a sentence */
+  const REPLACER = { "Double Standard":"Double Standard Damage", "Double Base":"Double Base Damage" };
+  /* effects that read better as a follow-on "Then ..." clause */
+  const THEN = ["Cleaved","Siphoned"];
 
   if(noDmg){
-    if(e && isAffliction(e)) lines.push(`${roll}, ${lcFirst(rule)}`);
-    else if(e) lines.push(rule);
+    /* support, control, or a Magic affliction without a wound */
+    if(e && isAffliction(e)) paras.push(`${roll}, ${lcFirst(rule)}`);
+    else if(e) paras.push(rule);
   } else if(e && effectIsPre(e)){
-    /* pre effect: its rule, then the strike */
-    lines.push(rule);
-    lines.push(`${roll}, ${multi ? "all targets suffer" : "the target suffers"} Standard Damage.`);
+    /* pre effect: its rule, then the strike, as one paragraph */
+    paras.push(`${rule} ${roll}, ${who} Standard Damage.`);
+  } else if(e && REPLACER[e.component]){
+    /* damage-replacing effect: swap the damage word */
+    paras.push(`${roll}, ${who} ${REPLACER[e.component]}.`);
   } else {
-    /* post effect or affliction: strike, then the effect rule */
-    lines.push(`${roll}, ${multi ? "all targets suffer" : "the target suffers"} Standard Damage.`);
-    if(e && isAffliction(e)){
-      const bk = e.breakout.replace(/\*$/,"");
-      lines.push(`${rule} They may spend an Act to attempt a${/^[AEIOU]/.test(bk)?"n":""} ${bk} breakout.`);
-    } else if(e){
-      lines.push(rule);
+    /* post effect or affliction: strike, then the effect, same paragraph */
+    let para = `${roll}, ${who} Standard Damage.`;
+    if(e){
+      if(THEN.includes(e.component)) para += ` Then ${lcFirst(rule)}`;
+      else para += ` ${rule}`;
     }
+    paras.push(para);
   }
-  return lines.join("\n\n");
+  return paras.join("\n\n");
 }
 function buildBudget(){
   const dmg = byName[state.damage];
@@ -1634,12 +1649,11 @@ function renderLegend(){
    ============================================================ */
 function descFor(c){
   if(!c) return "";
-  const lock = lockText(c);
   const cost = `${c.cost >= 0 ? "+" : ""}${c.cost}`;
-  let s = `<b>${esc(c.component)}</b> (${cost})`;
-  if(c.breakout) s += ` &middot; Breakout: ${esc(c.breakout.replace(/\*$/,""))}`;
-  if(lock) s += ` <span class="lock">${esc(lock)}</span>`;
-  s += `<br>${esc(c.rule)}`;
+  let s = `<b>${esc(c.component.replace(/\*$/,""))}</b> (${cost})`;
+  const noDmg = state.damage === "No Damage";
+  const txt = (noDmg && c.ruleNoDmg) ? c.ruleNoDmg : c.rule;
+  s += `<br>${esc(txt)}`;
   return s.replace(/\*/g, `<span class="ast">*</span>`);
 }
 function setDesc(id, html){
@@ -1816,7 +1830,10 @@ function refreshEffectSelect(){
   // timing control only for combat effects that support both
   const e = currentEffect();
   const tw = document.getElementById("timingWrap");
-  if(effectKind === "effect" && e && e.timing === "both"){
+  /* Timing only matters on an attack (there is a roll to be before or after).
+     A No Damage ability has no roll, so both-timing effects show a single description. */
+  const showTiming = effectKind === "effect" && e && e.timing === "both" && isAttackDamage();
+  if(showTiming){
     tw.style.display = "";
     document.querySelectorAll("#timingSeg button").forEach(b => b.classList.toggle("active", b.dataset.t === state.effectTiming));
     document.getElementById("timingDesc").textContent = state.effectTiming === "pre"
@@ -1825,7 +1842,7 @@ function refreshEffectSelect(){
   } else {
     tw.style.display = "none";
     if(e && e.category === "Effect" && e.timing !== "both") state.effectTiming = e.timing;
-    else if(effectKind === "affliction") state.effectTiming = "post";
+    else state.effectTiming = "post";  /* no-damage or affliction: always the plain form */
   }
 }
 document.getElementById("effKindSeg").addEventListener("click", e => {
@@ -1854,10 +1871,10 @@ document.getElementById("effectSel").addEventListener("change", e => {
  ["monsterFormSel", v => state.monsterForm = +v],
  ["focusSel", v => { state.focus = v; syncSchool(); }],
  ["damageSel", v => state.damage = v],
- ["targetingSel", v => state.targeting = v],
- ["_noop", v => {}]
+ ["targetingSel", v => state.targeting = v]
 ].forEach(([id,fn]) => {
-  document.getElementById(id).addEventListener("change", e => { fn(e.target.value); update(); });
+  const el = document.getElementById(id);
+  if(el) el.addEventListener("change", e => { fn(e.target.value); update(); });
 });
 const FEEDBACK_SOURCE = "sigilforge";
 (function wireFeedback(){
@@ -2191,6 +2208,16 @@ function hideSubmitMsg(){
 function setOut(id, text){
   document.getElementById(id).innerHTML = esc(text).replace(/\*/g, `<span class="ast">*</span>`);
 }
+function renderBuildTags(){
+  const host = document.getElementById("buildTags");
+  if(!host) return;
+  const e = currentEffect();
+  const tags = [];
+  if(e && isAffliction(e)) tags.push('<span class="btag affl">Affliction</span>');
+  if(e && !isAffliction(e) && TRACK_EFFECTS.has(e.component)) tags.push('<span class="btag track">Tracked</span>');
+  host.innerHTML = tags.join("");
+  host.style.display = tags.length ? "flex" : "none";
+}
 function update(){
   /* The item's Form sets the lowest legal Tier. Choosing a heavier
      item raises the Tier with it instead of stranding the build. */
@@ -2236,6 +2263,7 @@ function update(){
 
   setOut("shorthandOut", buildShorthand());
   setOut("fullOut", buildFull());
+  renderBuildTags();
   setOut("budgetOut", buildBudget());
   document.getElementById("submitBtn").disabled = errors.length > 0;
   document.getElementById("runeCard").classList.remove("forged");
