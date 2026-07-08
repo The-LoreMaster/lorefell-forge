@@ -1,3 +1,10 @@
+## FateWell search filters, sort, scope, and asset campaign tags
+
+- Search now has type filters you can combine: Structure (acts, sessions, scenes, notes), Assets (NPCs, foes, items), and Other (campaign, players, glossary, play log). With none picked it shows everything.
+- Added sort: best match, name, newest, oldest, and by type.
+- Added a scope toggle: search this campaign only, or across all campaigns. Cross-campaign results show which campaign they belong to.
+- NPC, foe, and item records now carry a Campaign field you set directly in their editor. Assets tagged to a campaign show only in that campaign's search; untagged assets show everywhere. New assets also stamp a created date so they can be sorted.
+
 ## FateWell export an adventure as JSON
 
 - Each adventure card now has an Export as JSON option in its menu. It downloads the adventure as a pack in the same format Import reads, so you can edit it in bulk and bring it back. The export carries the referenced NPCs and forged foes, clears the table state, and resets any fired hooks, so it lands as a clean copy. If an embedded sandbox blocks the download, a copyable text box opens instead.

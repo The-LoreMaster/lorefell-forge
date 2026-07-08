@@ -441,6 +441,17 @@ body::before{
 .search-title{ display:block; font-family:'Cinzel',serif; font-size:.95rem; color:var(--silver); }
 .search-snip{ display:block; font-size:.85rem; color:var(--ice); opacity:.8; margin-top:2px; line-height:1.4; }
 .search-snip mark, .search-row mark{ background:rgba(201,168,76,.28); color:var(--silver); border-radius:2px; padding:0 1px; }
+.search-controls{ margin:10px 0 14px; display:flex; flex-direction:column; gap:9px; }
+.search-scope{ display:flex; border:1px solid var(--line); border-radius:9px; overflow:hidden; }
+.search-scope .search-tab{ flex:1; background:var(--navy2); border:none; color:var(--muted); font-family:'Cinzel',serif; font-size:.72rem; letter-spacing:.08em; text-transform:uppercase; padding:9px 6px; cursor:pointer; }
+.search-scope .search-tab+.search-tab{ border-left:1px solid var(--line); }
+.search-scope .search-tab.on{ background:var(--navy3); color:var(--silver); box-shadow:inset 0 -2px 0 var(--gold); }
+.search-chips{ display:flex; flex-wrap:wrap; gap:6px; }
+.search-chip{ background:var(--navy2); border:1px solid var(--line); border-radius:20px; color:var(--ice); font-family:'Cinzel',serif; font-size:.68rem; letter-spacing:.06em; padding:6px 13px; cursor:pointer; }
+.search-chip.on{ background:rgba(201,168,76,.16); border-color:var(--gold); color:var(--silver); }
+.search-sort{ display:flex; align-items:center; gap:8px; }
+.search-sort .lbl-inline{ font-family:'Cinzel',serif; font-size:.66rem; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); }
+.search-sort select{ flex:1; }
 
 /* v34: gear, roll tags */
 .cr-gear{ background:none; border:none; color:var(--ice); opacity:.7; cursor:pointer; font-size:1.05rem; padding:0 2px; margin-left:8px; }
@@ -4922,6 +4933,20 @@ function clearToken(){
   var f = document.getElementById('wImgFile'); if (f) f.value = '';
 }
 
+/* Options for the asset's campaign field. Assets are a shared library, but each can be
+   tagged to one campaign so you can filter and organize by it. Empty means any campaign. */
+function assetCampaignOptions(sel){
+  var o = '<option value=""'+(!sel?' selected':'')+'>Any campaign</option>';
+  (S.campaigns||[]).forEach(function(c){
+    o += '<option value="'+esc(c.id)+'"'+(sel===c.id?' selected':'')+'>'+esc(c.name||'Untitled')+'</option>';
+  });
+  return o;
+}
+function campaignNameById(id){
+  var n = '';
+  (S.campaigns||[]).forEach(function(c){ if (c.id===id) n = c.name||''; });
+  return n;
+}
 function wizard(type, entry){
   var keepAttach = window._attachAfter;
   var h = '<h3 class="m-title">'+(entry?'Edit ':'New ')+TYPE_LABEL[type]+'</h3>'
@@ -4956,7 +4981,9 @@ function wizard(type, entry){
   } else {
     h += '<label class="lbl">Item type</label><input class="inp" id="wRole" value="'+esc(entry?entry.role:'')+'" placeholder="Weapon, relic, consumable...">';
   }
-  h += '<label class="lbl">Description</label>'
+  h += '<label class="lbl">Campaign</label>'
+    + '<select class="inp" id="wCampaign">'+assetCampaignOptions(entry?entry.campaignId:((curC()&&!entry)?curC().id:''))+'</select>'
+    + '<label class="lbl">Description</label>'
     + '<textarea class="inp ta" id="wDesc">'+esc(entry?entry.desc:'')+'</textarea>'
     + '<div class="m-row"><button class="btn ghost" onclick="closeModal()">Cancel</button>'
     + '<button class="btn" onclick="saveWizard(\''+type+'\',\''+(entry?entry.id:'')+'\')">Save</button></div>';
@@ -4968,9 +4995,12 @@ function wizard(type, entry){
 function saveWizard(type, id){
   var name = document.getElementById('wName').value.trim();
   if (!name) return;
-  var e = id ? libGet(id) : { id: uid(), type: type };
+  var e = id ? libGet(id) : { id: uid(), type: type, createdAt: Date.now() };
+  if (!e.createdAt) e.createdAt = Date.now();
   e.name = name;
   e.desc = document.getElementById('wDesc').value;
+  var wc = document.getElementById('wCampaign');
+  if (wc){ e.campaignId = wc.value || ''; e.campaignName = e.campaignId ? campaignNameById(e.campaignId) : ''; }
   if (type==='monster'){
     var sr = document.getElementById('wSR').value;
     if (!sr){ alert('Pick a Shatter Rating.'); return; }
@@ -9300,72 +9330,134 @@ function runSearch(q){
   var lc = q.toLowerCase();
   function has(s){ return s && String(s).toLowerCase().indexOf(lc) >= 0; }
 
-  var c = curC();
-  if (c){
+  /* Scope: the open campaign, or every campaign. */
+  var scope = window._searchScope || 'current';
+  var camps = [];
+  if (scope === 'all'){ camps = (S.campaigns||[]); }
+  else { var cc = curC(); if (cc) camps = [cc]; }
+
+  camps.forEach(function(c){
+    var cname = c.name || 'Untitled';
+    var inC = (scope === 'all') ? (' \u00b7 '+cname) : '';
     if (has(c.name) || has(c.desc)){
-      res.push({ kind:'Campaign', title:c.name, sub:snippet(c.desc||c.name, q), go:"nav('campaign','"+c.id+"')" });
+      res.push({ kind:'Campaign', title:c.name, sub:snippet(c.desc||c.name, q), date:c.createdAt||0, camp:cname, go:"nav('campaign','"+c.id+"')" });
     }
-    /* campaign notes */
     (c.entries||[]).forEach(function(en){
       if (has(en.title) || has(en.body)){
-        res.push({ kind:'Note', title:(en.title||'Untitled')+' ('+noteTypeLabel(en.type)+')', sub:snippet(en.body||en.title, q), go:"nav('campaign','"+c.id+"')" });
+        res.push({ kind:'Note', title:(en.title||'Untitled')+' ('+noteTypeLabel(en.type)+')'+inC, sub:snippet(en.body||en.title, q), date:en.createdAt||0, camp:cname, go:"nav('campaign','"+c.id+"')" });
       }
     });
-    /* players */
     (c.players||[]).forEach(function(p){
-      if (has(p.name)) res.push({ kind:'Player', title:p.name, sub:'Level '+p.level, go:"nav('campaign','"+c.id+"');setCTab('roster')" });
+      if (has(p.name)) res.push({ kind:'Player', title:p.name+inC, sub:'Level '+p.level, date:0, camp:cname, go:"nav('campaign','"+c.id+"');setCTab('roster')" });
     });
-    c.acts.forEach(function(a){
-      if (has(a.name) || has(a.desc)) res.push({ kind:'Act', title:a.name, sub:snippet(a.desc||a.name, q), go:"nav('act',undefined,'"+a.id+"')" });
+    (c.acts||[]).forEach(function(a){
+      if (has(a.name) || has(a.desc)) res.push({ kind:'Act', title:a.name+inC, sub:snippet(a.desc||a.name, q), date:a.createdAt||0, camp:cname, go:"nav('campaign','"+c.id+"');nav('act',undefined,'"+a.id+"')" });
       (a.entries||[]).forEach(function(en){
-        if (has(en.title) || has(en.body)) res.push({ kind:'Note', title:(en.title||'Untitled')+' in '+a.name, sub:snippet(en.body||en.title, q), go:"nav('act',undefined,'"+a.id+"')" });
+        if (has(en.title) || has(en.body)) res.push({ kind:'Note', title:(en.title||'Untitled')+' in '+a.name+inC, sub:snippet(en.body||en.title, q), date:en.createdAt||0, camp:cname, go:"nav('campaign','"+c.id+"');nav('act',undefined,'"+a.id+"')" });
       });
-      a.sessions.forEach(function(s){
-        if (has(s.name) || has(s.desc)) res.push({ kind:'Session', title:s.name, sub:snippet(s.desc||s.name, q), go:"nav('session',undefined,undefined,'"+s.id+"')" });
-        (s.entries||[]).forEach(function(en){
-          if (has(en.title) || has(en.body)) res.push({ kind:'Note', title:(en.title||'Untitled')+' in '+s.name, sub:snippet(en.body||en.title, q), go:"nav('session',undefined,undefined,'"+s.id+"')" });
+      (a.sessions||[]).forEach(function(sess){
+        if (has(sess.name) || has(sess.desc)) res.push({ kind:'Session', title:sess.name+inC, sub:snippet(sess.desc||sess.name, q), date:sess.createdAt||0, camp:cname, go:"nav('campaign','"+c.id+"');nav('session',undefined,undefined,'"+sess.id+"')" });
+        (sess.entries||[]).forEach(function(en){
+          if (has(en.title) || has(en.body)) res.push({ kind:'Note', title:(en.title||'Untitled')+' in '+sess.name+inC, sub:snippet(en.body||en.title, q), date:en.createdAt||0, camp:cname, go:"nav('campaign','"+c.id+"');nav('session',undefined,undefined,'"+sess.id+"')" });
         });
-        s.scenes.forEach(function(sc){
-          if (has(sc.name) || has(sc.desc)) res.push({ kind:'Scene', title:sc.name, sub:snippet(sc.desc||sc.name, q), go:"openScene('"+sc.id+"')" });
+        (sess.scenes||[]).forEach(function(sc){
+          if (has(sc.name) || has(sc.desc)) res.push({ kind:'Scene', title:sc.name+inC, sub:snippet(sc.desc||sc.name, q), date:sc.createdAt||0, camp:cname, go:"nav('campaign','"+c.id+"');openScene('"+sc.id+"')" });
           (sc.entries||[]).forEach(function(en){
-            if (has(en.title) || has(en.body)) res.push({ kind:'Note', title:(en.title||'Untitled')+' in '+sc.name, sub:snippet(en.body||en.title, q), go:"openScene('"+sc.id+"')" });
+            if (has(en.title) || has(en.body)) res.push({ kind:'Note', title:(en.title||'Untitled')+' in '+sc.name+inC, sub:snippet(en.body||en.title, q), date:en.createdAt||0, camp:cname, go:"nav('campaign','"+c.id+"');openScene('"+sc.id+"')" });
           });
           (sc.log||[]).forEach(function(lg){
-            if (has(lg.text)) res.push({ kind:'Play log', title:sc.name, sub:snippet(lg.text, q), go:"openScene('"+sc.id+"')" });
+            if (has(lg.text)) res.push({ kind:'Play log', title:sc.name+inC, sub:snippet(lg.text, q), date:lg.at||0, camp:cname, go:"nav('campaign','"+c.id+"');openScene('"+sc.id+"')" });
           });
         });
       });
     });
-  }
-  /* library assets */
-  (S.library||[]).forEach(function(e){
-    if (has(e.name) || has(e.desc) || has(e.role) || has(e.sr)){
-      res.push({ kind:TYPE_LABEL[e.type]||'Asset', title:e.name, sub:snippet(e.desc||e.role||e.sr||TYPE_LABEL[e.type], q), go:"nav('library');editLib('"+e.id+"')" });
-    }
   });
-  /* glossary */
+
+  /* Library assets are a shared list. Each may be tagged to one campaign. In current-campaign
+     scope, show assets tagged to it plus untagged ones (they belong to no campaign in
+     particular). In all scope, show every match. */
+  var curId = (curC()||{}).id || '';
+  (S.library||[]).forEach(function(e){
+    if (!(has(e.name) || has(e.desc) || has(e.role) || has(e.sr))) return;
+    if (scope === 'current' && curId && e.campaignId && e.campaignId !== curId) return;
+    var tag = e.campaignName ? (' \u00b7 '+e.campaignName) : '';
+    res.push({ kind:TYPE_LABEL[e.type]||'Asset', title:e.name+tag, sub:snippet(e.desc||e.role||e.sr||TYPE_LABEL[e.type], q), date:e.createdAt||0, camp:e.campaignName||'', go:"nav('library');editLib('"+e.id+"')" });
+  });
+
   (S.glossary||[]).forEach(function(g){
     if (has(g.term) || has(g.description)){
-      res.push({ kind:'Glossary', title:g.term, sub:snippet(g.description||g.type, q), go:"glossInfo('"+g.id+"')" });
+      res.push({ kind:'Glossary', title:g.term, sub:snippet(g.description||g.type, q), date:g.createdAt||0, camp:'', go:"glossInfo('"+g.id+"')" });
     }
   });
   return res;
 }
 
+/* The filter chips group the result kinds into the buckets the LoreMaster thinks in. */
+var SEARCH_FILTERS = [
+  { id:'structure', label:'Structure', kinds:['Act','Session','Scene','Note'] },
+  { id:'assets',    label:'Assets',    kinds:['NPC','Foe','Item'] },
+  { id:'other',     label:'Other',     kinds:['Campaign','Player','Glossary','Play log'] }
+];
+function searchKindAllowed(kind){
+  var on = window._searchFilters || {};
+  var anyOn = SEARCH_FILTERS.some(function(f){ return on[f.id]; });
+  if (!anyOn) return true; /* no filter picked means show everything */
+  return SEARCH_FILTERS.some(function(f){ return on[f.id] && f.kinds.indexOf(kind) >= 0; });
+}
+function toggleSearchFilter(id){
+  window._searchFilters = window._searchFilters || {};
+  window._searchFilters[id] = !window._searchFilters[id];
+  render();
+  var b = document.getElementById('searchBox'); if (b) b.focus();
+}
+function setSearchScope(v){ window._searchScope = v; render(); var b=document.getElementById('searchBox'); if(b) b.focus(); }
+function setSearchSort(v){ window._searchSort = v; render(); var b=document.getElementById('searchBox'); if(b) b.focus(); }
 function scrSearch(){
   var q = window._searchQ || '';
+  var scope = window._searchScope || 'current';
+  var sort = window._searchSort || 'relevance';
+  var filters = window._searchFilters || {};
   var h = '<h1 class="page-h">Search</h1>';
   h += '<input class="inp" id="searchBox" value="'+esc(q)+'" placeholder="Search names, notes, descriptions..." oninput="onSearch(this.value)" autocomplete="off">';
-  if (!curC()){
-    h += '<p class="muted small-note">Open a campaign to search its acts, sessions, scenes, and notes. The library and glossary are always searched.</p>';
+
+  /* controls: scope toggle, type filter chips, sort */
+  h += '<div class="search-controls">';
+  h += '<div class="search-scope">'
+    + '<button class="search-tab'+(scope==='current'?' on':'')+'" onclick="setSearchScope(\'current\')">This campaign</button>'
+    + '<button class="search-tab'+(scope==='all'?' on':'')+'" onclick="setSearchScope(\'all\')">All campaigns</button>'
+    + '</div>';
+  h += '<div class="search-chips">';
+  SEARCH_FILTERS.forEach(function(f){
+    h += '<button class="search-chip'+(filters[f.id]?' on':'')+'" onclick="toggleSearchFilter(\''+f.id+'\')">'+esc(f.label)+'</button>';
+  });
+  h += '</div>';
+  h += '<div class="search-sort"><label class="lbl-inline">Sort</label>'
+    + '<select class="inp" onchange="setSearchSort(this.value)">'
+    + '<option value="relevance"'+(sort==='relevance'?' selected':'')+'>Best match</option>'
+    + '<option value="name"'+(sort==='name'?' selected':'')+'>Name A to Z</option>'
+    + '<option value="newest"'+(sort==='newest'?' selected':'')+'>Newest first</option>'
+    + '<option value="oldest"'+(sort==='oldest'?' selected':'')+'>Oldest first</option>'
+    + '<option value="type"'+(sort==='type'?' selected':'')+'>Type</option>'
+    + '</select></div>';
+  h += '</div>';
+
+  if (scope === 'current' && !curC()){
+    h += '<p class="muted small-note">No campaign is open. Switch to All campaigns, or open one, to search its acts, sessions, scenes, and notes. The library and glossary are always searched.</p>';
   }
   if (q.trim().length < 2){
     h += '<p class="muted small-note">Type at least two characters.</p>';
     return h;
   }
-  var res = runSearch(q);
+  var res = runSearch(q).filter(function(r){ return searchKindAllowed(r.kind); });
+
+  /* sort */
+  if (sort === 'name') res.sort(function(a,b){ return String(a.title).toLowerCase().localeCompare(String(b.title).toLowerCase()); });
+  else if (sort === 'newest') res.sort(function(a,b){ return (b.date||0) - (a.date||0); });
+  else if (sort === 'oldest') res.sort(function(a,b){ return (a.date||0) - (b.date||0); });
+  else if (sort === 'type') res.sort(function(a,b){ return String(a.kind).localeCompare(String(b.kind)) || String(a.title).localeCompare(String(b.title)); });
+
   if (!res.length){
-    h += '<p class="muted">No matches for "'+esc(q)+'".</p>';
+    h += '<p class="muted">No matches for "'+esc(q)+'"'+(Object.keys(filters).some(function(k){return filters[k];})?' with these filters':'')+'.</p>';
     return h;
   }
   h += '<p class="muted small-note">'+res.length+' result'+(res.length===1?'':'s')+'</p>';
