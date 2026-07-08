@@ -1,3 +1,9 @@
+## SigilForge afflictions matched to the FellGuide
+
+- Every affliction now uses its exact FellGuide effect text and its canon Breakout Skill. The tool's placeholder breakouts and reworded effects are replaced with the source wording.
+- Notable corrections: Bleeding deals 1 additional Base Damage, Vitiated halves Magic damage specifically, Vulnerable breaks out on Guard, and the full set of breakout skills now matches canon.
+- Ruined is renamed to Disenchanted to match the FellGuide.
+
 ## SigilForge v3 fixes, round three
 
 - Fixed the bug that broke the Ledger and Codex tabs and stopped the rune rendering on load. A dead handler was throwing during startup and halting the rest of the setup. The tabs work and the rune draws on load now.
