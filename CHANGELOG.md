@@ -1,3 +1,7 @@
+## SigilForge solo-target effects
+
+- Effects that already reach a second target on their own, Cleaved, Refracted, and Redirected, now lock the build to One Target. The multi-target options are disabled while one of these is chosen, so the second target is not doubled up. Gathered and Scattered still allow multiple targets, since they are built to move every affected target.
+
 ## FateWell modal centering
 
 - Popups in FateWell now center on your screen when embedded. On open the tool asks the Wix page to bring the embed into view and report the window height, then centers the card in the visible band instead of guessing from the last click, which landed off screen in a tall iframe.

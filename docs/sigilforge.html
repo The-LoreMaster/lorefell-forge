@@ -903,14 +903,14 @@ const COMPONENTS = [
  {category:"Effect",component:"Pierced",cost:2,type:"attack",timing:"post",breakout:"",rule:"Ignore the target's Resistance."},
  {category:"Effect",component:"Sabotaged",cost:3,type:"attack",timing:"pre",breakout:"",rule:"Ignore the target's Armor Stance."},
  {category:"Effect",component:"Crushed",cost:2,type:"attack",timing:"post",breakout:"",rule:"Deal your Base Damage again."},
- {category:"Effect",component:"Refracted",cost:2,type:"attack",timing:"post",breakout:"",rule:"Another target takes half your Bonus Damage."},
+ {category:"Effect",component:"Refracted",cost:2,type:"attack",timing:"post",solo:true,breakout:"",rule:"Another target takes half your Bonus Damage."},
  {category:"Effect",component:"Bonus Damage",cost:2,type:"attack",timing:"post",breakout:"",rule:"Add 1d6 to your Bonus Damage."},
- {category:"Effect",component:"Cleaved",cost:3,type:"attack",timing:"post",breakout:"",rule:"deal your Base Damage to another target."},
+ {category:"Effect",component:"Cleaved",cost:3,type:"attack",timing:"post",solo:true,breakout:"",rule:"deal your Base Damage to another target."},
  {category:"Effect",component:"Siphoned",cost:3,type:"attack",timing:"post",breakout:"",rule:"deal Base Damage and restore that much Vitality."},
  {category:"Effect",component:"Mended",cost:2,type:"support",timing:"post",breakout:"",rule:"Restore Vitality equal to your Spirit."},
  {category:"Effect",component:"Dispelled",cost:2,type:"attack",timing:"post",breakout:"",rule:"Remove one Effect from the target."},
  {category:"Effect",component:"Purged",cost:2,type:"support",timing:"post",breakout:"",rule:"Remove one Affliction from the target."},
- {category:"Effect",component:"Redirected",cost:2,type:"both",timing:"post",breakout:"",rule:"Move one Effect from one target to another."},
+ {category:"Effect",component:"Redirected",cost:2,type:"both",timing:"post",solo:true,breakout:"",rule:"Move one Effect from one target to another."},
  {category:"Effect",component:"Reinforced",cost:2,type:"support",timing:"post",breakout:"",rule:"Restore the target's Armor Stance."},
  {category:"Effect",component:"Guarded",cost:2,type:"support",timing:"post",breakout:"",rule:"Reduce the next damage the target takes before your next roll by your Power."},
  {category:"Effect",component:"Warded",cost:2,type:"support",timing:"post",breakout:"",rule:"Reduce the next Magic damage the target takes before your next roll by your Magic."},
@@ -1757,10 +1757,7 @@ function refreshAllSelects(){
   );
   document.getElementById("damageSel").value = state.damage;
 
-  fillSelect(document.getElementById("targetingSel"),
-    TARGETING_LIST.map(n => ({value:n, label:`${n} (+${byName[n].cost})`}))
-  );
-  document.getElementById("targetingSel").value = state.targeting;
+  refreshTargetingSelect();
 
   refreshEffectSelect();
 
@@ -1806,6 +1803,24 @@ document.getElementById("typeSeg").addEventListener("click", e => {
 
 /* v3: the single effect inlay. effectKind picks combat effect vs affliction. */
 var effectKind = "effect";
+/* When the chosen effect inherently reaches a second target (Cleaved, Refracted, Redirected),
+   the ability can only be aimed at One Target. Multi-target options are disabled and the
+   selection snaps back to One Target. */
+function effectIsSolo(){ const e = currentEffect(); return !!(e && e.solo); }
+function refreshTargetingSelect(){
+  const sel = document.getElementById("targetingSel");
+  if(!sel) return;
+  const solo = effectIsSolo();
+  if(solo) state.targeting = "One Target";
+  sel.innerHTML = "";
+  TARGETING_LIST.forEach(n => {
+    const o = document.createElement("option");
+    o.value = n; o.textContent = `${n} (+${byName[n].cost})`;
+    if(solo && n !== "One Target") o.disabled = true;
+    sel.appendChild(o);
+  });
+  sel.value = state.targeting;
+}
 function refreshEffectSelect(){
   const sel = document.getElementById("effectSel");
   let items;
@@ -2266,6 +2281,7 @@ function update(){
   if(tsEl && tsEl.querySelectorAll)
     tsEl.querySelectorAll("option").forEach(o => { o.disabled = +o.value < floorT; });
   refreshEffectSelect();
+  refreshTargetingSelect();
   const total = totalCost();
   const costTier = tierFromCost(total);
   /* The picked Tier is the build's tier and its budget ceiling. The weapon Form can raise the
