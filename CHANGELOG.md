@@ -1,3 +1,7 @@
+## FateWell keyboard runner fix
+
+- The arrow keys did nothing because the guard watched the wrong screen. Run the Scene is the runner, not the scene editor. The keys now fire where they should.
+
 ## FateWell run the scene from the keyboard
 
 - Down and up walk the beats in the stepper. Left and right walk the scenes, and right off the last scene carries you into the next session, the same as the button.
