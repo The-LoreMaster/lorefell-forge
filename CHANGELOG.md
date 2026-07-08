@@ -1,3 +1,12 @@
+## SigilForge rebuilt on the v3 ruleset
+
+- Abilities are now three inlays: damage, effect, and target, one each. Damage is Standard or None, both free. The effect inlay holds one combat effect or one affliction. The target inlay sets one, two, three, or all targets, and more than one spreads the damage, effect, and affliction to every target.
+- Tier is set by total cost alone. No form ladders, no per component tier gates, no Spread or Amplify components. Afflictions cost 3 or more, so they never appear at Tier 1.
+- Combat effects are shared across every weapon. Afflictions are drawn from the build's attack family: Bows, Blades, and Polearms are Precision, Swords, Axes, and Bludgeons are Power, Magic items are Magic. Weapons still grant their own signature affliction on a Fellmark.
+- Effects resolve before or after the roll. A pre effect sets up the strike and costs one more. Afflictions always resolve on the hit.
+- Magic bypasses Evasion. The LoreMaster rolls the target's Difficulty plus 1d6 against the attacker's Magic plus Mastery, and Magic afflictions can land without a wound on a No Damage ability.
+- The Codex, the randomizer, the Vision forge, the rune, and the shorthand and full text builders all follow the new rules. All three build modes stay: Ability, Spell, and Foe.
+
 # LoreFell Forge Change Log
 
 Build batches pushed to this repo, newest at the top. The apply workflow is manual, so a push here changes the repo only. Collections change in Wix when the apply workflow runs.
