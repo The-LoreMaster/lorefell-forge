@@ -1246,7 +1246,13 @@ function validate(){
     }
   }
 
-  /* The selected Tier is a target. Warn if the build's cost lands in a different tier. */
+  /* The picked Tier is a hard budget. A build costing more than the tier's ceiling is not
+     legal at that tier. The player must pick a higher tier or spend less. */
+  const selTier = Math.max(state.tier || 1, (typeof currentMinTier === "function") ? currentMinTier() : 1);
+  const band = CONFIG.tierBudgets[selTier];
+  if(e && !hard.length && total > band[1])
+    hard.push(`This build costs ${total}, over the Tier ${selTier} budget of ${band[0]} to ${band[1]}. Raise the Tier or spend less.`);
+
   /* The selected Tier sets a budget target. Spending below it is allowed but weaker,
      a warning, not an error. Spending at or above it is fine. */
 
@@ -1261,14 +1267,13 @@ function buildWarnings(){
   if(state.unlocked && window._softList && window._softList.length){
     window._softList.forEach(w => warnings.push(w));
   }
-  const costTier2 = tierFromCost(total);
+  /* Over budget is a hard error handled in validate. Here we only note an under-budget build,
+     which is legal but may be weaker than the tier allows. */
   const floorT3 = (typeof currentMinTier === "function") ? currentMinTier() : 1;
   const selected = Math.max(state.tier || 1, floorT3);
-  if(total > 0 && costTier2 > selected){
-    warnings.push(`This build costs ${total}, which is Tier ${costTier2}. It will be forged as Tier ${costTier2}, above the Tier ${selected} you picked.`);
-  } else if(total > 0 && costTier2 < selected){
-    const [minB] = CONFIG.tierBudgets[selected];
-    warnings.push(`This build spends ${total} against a Tier ${selected} budget of ${minB} or more. It may be slightly weaker than the tier allows.`);
+  const bandW = CONFIG.tierBudgets[selected];
+  if(total > 0 && total < bandW[0]){
+    warnings.push(`This build spends ${total} against a Tier ${selected} budget of ${bandW[0]} to ${bandW[1] === 99 ? bandW[0] + " or more" : bandW[1]}. It may be slightly weaker than the tier allows.`);
   }
   const e = currentEffect();
   if(state.damage === "No Damage" && e && e.type === "attack")
@@ -2259,31 +2264,33 @@ function update(){
   refreshEffectSelect();
   const total = totalCost();
   const costTier = tierFromCost(total);
-  /* The build's true tier: the higher of the weapon floor, the selected tier, and the tier
-     the cost earns. Cost can push a build up a tier, but never silently below the pick. */
+  /* The picked Tier is the build's tier and its budget ceiling. The weapon Form can raise the
+     floor, but cost never changes the tier. Over the ceiling is an error, not a bump. */
   const floorT2 = (typeof currentMinTier === "function") ? currentMinTier() : 1;
-  const trueTier = Math.max(floorT2, state.tier || 1, costTier);
-  window._trueTier = trueTier;
+  const pickedTier = Math.max(floorT2, state.tier || 1);
+  window._trueTier = pickedTier;
+  const band2 = CONFIG.tierBudgets[pickedTier];
+  const bandLabel = band2[1] === 99 ? `${band2[0]}+` : `${band2[0]}-${band2[1]}`;
   const errors = validate();
   const warnings = buildWarnings();
 
   document.getElementById("budgetTotal").textContent = total;
-  document.getElementById("budgetReq").textContent = `Tier ${trueTier}`;
+  document.getElementById("budgetReq").textContent = bandLabel;
   document.getElementById("mythicFlag").style.display = "none";
   const bar = document.getElementById("budgetBar");
+  const over = total > band2[1];
   bar.classList.toggle("ok", errors.length === 0);
-  bar.classList.toggle("over", false);
+  bar.classList.toggle("over", over);
   // the toggle, the third slot, and the Vision card all follow state.unlocked
   const uc0=document.getElementById("unlockChk"); if(uc0) uc0.checked=!!state.unlocked;
   /* v3: no third slot */
   const aic=document.getElementById("aiCard"); if(aic) aic.style.display=state.unlocked?"none":"";
   const waived = state.unlocked && (window._softCount || 0) > 0;
-  const selForState = Math.max(state.tier || 1, floorT2);
   let stateTxt;
   if(waived) stateTxt = "Unlocked build";
+  else if(over) stateTxt = "Not a valid build";
   else if(errors.length) stateTxt = "Check errors";
-  else if(costTier > selForState) stateTxt = `Forged as Tier ${trueTier}`;
-  else if(total > 0 && costTier < selForState) stateTxt = `Tier ${trueTier}, under budget`;
+  else if(total > 0 && total < band2[0]) stateTxt = "Under budget";
   else stateTxt = "Valid build";
   document.getElementById("budgetState").textContent = stateTxt;
   document.getElementById("unlockWarn").style.display = waived ? "" : "none";

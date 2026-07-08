@@ -1,3 +1,9 @@
+## SigilForge tier is a hard budget
+
+- The picked Tier is now a firm ceiling, not a suggestion. A build that costs more than the tier's budget is not valid. It shows Not a valid build in red with a clear error, rather than quietly forging a tier up.
+- The budget bar always shows the picked tier's range, for example 6 / 3-4, so an over-budget build is obvious at a glance.
+- Under budget stays a soft note. Tier 3 is open-topped, so a heavy Tier 3 build is fine.
+
 ## SigilForge status text
 
 - The follows the rules line no longer shows next to a warning. A build that will forge a tier above the pick shows only the explanation, not a mixed all clear and warning.
