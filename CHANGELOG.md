@@ -1,3 +1,7 @@
+## SigilForge Vision forge stops asking questions
+
+- The forge no longer asks clarifying questions. It always commits to a build, making the strongest reasonable choice when a description is ambiguous. The player adjusts the result by hand if needed.
+
 ## SigilForge Vision forge updated for v3
 
 - The Vision forge now knows the current rules. It sees the damage packages (Standard, Double Base, Double Standard, No Damage) and their costs, the family-locked afflictions, and the hard tier budgets.

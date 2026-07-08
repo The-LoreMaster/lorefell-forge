@@ -558,7 +558,7 @@
 
     <fieldset class="ai-card" id="aiCard">
       <h3 id="aiVisionTitle">Forge From a Vision</h3>
-      <p class="ai-note">Describe the ability or spell you imagine. The forge will shape a legal build from your words, and ask questions if it needs to.</p>
+      <p class="ai-note">Describe the ability or spell you imagine. The forge will shape a legal build from your words.</p>
       <textarea id="aiDesc" maxlength="600" placeholder="A curse that spreads terror through every enemy on the field"></textarea>
       <div class="ai-msg" id="aiMsg" style="display:none"></div>
       <button type="button" class="rand-btn ai-btn" id="aiBtn">Forge From Description</button>
@@ -2654,15 +2654,14 @@ function aiSystemPrompt(){
     "- The picked Tier is a firm budget with a ceiling. Tier 1 is total cost 1 to 2, Tier 2 is 3 to 4, Tier 3 is 5 or more. Never exceed the picked tier's ceiling.",
     "- MAXIMIZE the build. Spend as close to the top of the tier's budget as the fantasy allows, using the damage package, effect, and target together. Do not hand back a cheap build when the tier affords more. At Tier 2 aim for total cost 4, not 3, by choosing a costlier damage package, a second target, or a stronger effect that still fits the fantasy.",
     "- If the player names a tier, fill that tier. If they do not, pick the tier that best fits the fantasy and fill it.",
-    "- If the description is genuinely ambiguous on a choice that splits the build, ask up to 3 short questions ONCE. After the player answers, you MUST return a build.",
+    "- NEVER ask questions. Always commit to a build. If the description is ambiguous, make the strongest reasonable choice that fits the fantasy and forge it. The player can adjust the result by hand.",
     "",
     "NAME AND FLAVOR:",
     "- name: 60 characters max, evocative, no generic fantasy compound names.",
     "- flavor: 400 characters max, dark fantasy register, plain direct prose.",
     "- Never use em dashes. State facts directly without flourish.",
     "",
-    "OUTPUT: strict JSON only, no markdown fences, no commentary, exactly one of:",
-    '{"questions":["...","..."]}',
+    "OUTPUT: strict JSON only, no markdown fences, no commentary. Always return a build, never questions:",
     '{"build":{"type":"Ability, Spell, or Monster","item":"exact item name, or empty for Monster","archetype":"Monster only: Precision, Power, or Magic","school":"Monster Magic only: school name","form":"Monster only: 1, 2, or 3","tier":1,"damage":"Standard Damage, Double Base, Double Standard, or No Damage","targeting":"exact target name","inlays":["one exact effect or affliction name"],"timing":"pre or post","name":"...","flavor":"...","reasoning":"one sentence on why this build fits, addressed to the player"}}'
   ].join("\n");
 }
@@ -2815,12 +2814,9 @@ async function aiForge(){
         continue;
       }
       if(Array.isArray(parsed.questions) && parsed.questions.length){
-        showAiMsg("The forge asks:\n" +
-          parsed.questions.slice(0, 3).map((q, i) => (i + 1) + ". " + q).join("\n") +
-          "\n\nAnswer in the box above and strike again.");
-        descEl.value = "";
-        descEl.placeholder = "Answer the forge";
-        return;
+        /* The forge must not ask questions. If it tries, tell it to commit and retry. */
+        aiMsgs.push({ role: "user", content: "Do not ask questions. Choose the strongest reasonable interpretation and return a build as JSON only." });
+        continue;
       }
       if(parsed.build){
         const errors = applyAiBuild(parsed.build);
