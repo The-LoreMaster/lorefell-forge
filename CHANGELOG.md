@@ -1,3 +1,7 @@
+## SigilForge effect list fix
+
+- Fixed the effect list emptying when a multi-target was chosen. Picking Two Targets showed only two effects and Three Targets showed none, because a leftover Tier 1 filter hid every effect that pushed the build past cost 2. That filter is gone. Every legal effect always shows, and an over-budget build reads as a clear error instead.
+
 ## SigilForge solo-target effects
 
 - Effects that already reach a second target on their own, Cleaved, Refracted, and Redirected, now lock the build to One Target. The multi-target options are disabled while one of these is chosen, so the second target is not doubled up. Gathered and Scattered still allow multiple targets, since they are built to move every affected target.
