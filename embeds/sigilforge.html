@@ -819,6 +819,10 @@
 </div>
 <style>
 .lm-backdrop{position:fixed;inset:0;background:rgba(4,7,16,.78);display:flex;align-items:flex-end;justify-content:center;z-index:9999}
+/* When the parent reports its visible window (embed case), pin the panel to that band so it
+   stays centered on the reader's screen no matter where the tall iframe is scrolled. */
+.lm-backdrop.pinned{align-items:flex-start}
+.lm-backdrop.pinned .lm-panel{margin-top:var(--vis-center,0px);border-radius:14px;border-bottom:1px solid rgba(201,168,76,.35)}
 .lm-backdrop[hidden]{display:none}
 .lm-panel{background:var(--navy-2);border:1px solid rgba(201,168,76,.35);border-bottom:none;border-radius:14px 14px 0 0;width:100%;max-width:560px;max-height:92vh;overflow:auto;padding:20px 18px 24px;box-shadow:0 -10px 40px rgba(0,0,0,.5)}
 .lm-h{font-family:'Cinzel Decorative',serif;color:var(--silver);font-size:1.15rem;margin:0 0 2px}
@@ -2945,10 +2949,34 @@ function openReview(){
   lmEl("lmOverlap").innerHTML = '<p class="lm-checking">Searching the LoreForge for close matches...</p>';
   const send = lmEl("lmSend"); send.textContent = "Send to the LoreForge"; send.disabled = false;
   lmEl("lmReview").hidden = false;
+  requestModalCenter();
   window.parent.postMessage({ type:"LOREFELL_CHECK_OVERLAP", payload:{ forge: buildForgeBlock(), title: state.name.trim() } }, "*");
   setTimeout(function(){ try{ lmEl("lmNote").focus(); }catch(e){} }, 60);
 }
-function closeReview(){ lmEl("lmReview").hidden = true; }
+function closeReview(){
+  lmEl("lmReview").hidden = true;
+  lmEl("lmReview").classList.remove("pinned");
+}
+/* Ask the parent page to scroll the embed into view and report its visible window so the
+   modal can sit centered on the reader's screen. Falls back to normal fixed centering if
+   the parent does not answer (standalone, not embedded). */
+function requestModalCenter(){
+  try{ window.parent.postMessage({ type:"LOREFELL_MODAL_OPEN" }, "*"); }catch(e){}
+}
+/* Parent replies with the visible band of the iframe: top offset and height in iframe pixels. */
+window.addEventListener("message", function(ev){
+  var d = ev && ev.data;
+  if(!d || d.type !== "LOREFELL_VIEWPORT") return;
+  var bd = document.getElementById("lmReview");
+  if(!bd || bd.hidden) return;
+  var visTop = Number(d.top) || 0;
+  var visH = Number(d.height) || window.innerHeight;
+  var panel = bd.querySelector(".lm-panel");
+  var ph = panel ? panel.offsetHeight : 0;
+  var center = Math.max(8, visTop + (visH - ph) / 2);
+  bd.style.setProperty("--vis-center", center + "px");
+  bd.classList.add("pinned");
+});
 function renderOverlap(matches){
   const box = lmEl("lmOverlap");
   if(!box) return;

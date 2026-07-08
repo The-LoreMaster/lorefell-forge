@@ -6,6 +6,7 @@
 import { submitCreation, findSimilar, getCreations, castVote, aiForge } from 'backend/forge.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
 import { currentMember } from 'wix-members-frontend';
+import wixWindow from 'wix-window';
 
 const FORGE_KEY = 'sigilforge';
 const EMBED = '#html1';   // change to your Embed a Site element ID
@@ -61,6 +62,16 @@ $w.onReady(() => {
     } else if (msg.type === 'LOREFELL_FEEDBACK_SUBMIT') {
       // No feedback collection yet. Logged for now, wire a collection later if wanted.
       console.log('SigilForge feedback:', JSON.stringify(msg.payload || {}));
+    } else if (msg.type === 'LOREFELL_MODAL_OPEN') {
+      // Scroll the embed to the top of the viewport so the modal lands on screen, then report
+      // the window height so the tool can center the modal in the visible area. After this the
+      // embed top aligns with the viewport top, so the visible band starts at 0.
+      try {
+        await embed.scrollTo();
+        const rect = await wixWindow.getBoundingRect();
+        const vh = (rect && rect.window && rect.window.height) ? rect.window.height : 800;
+        embed.postMessage({ type: 'LOREFELL_VIEWPORT', top: 0, height: vh });
+      } catch (e) {}
     }
   });
 });

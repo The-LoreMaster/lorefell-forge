@@ -1,3 +1,7 @@
+## SigilForge modal centering
+
+- The review popup now centers on your screen when the tool is embedded. On open it asks the Wix page to bring the embed into view and report the window height, then pins itself to the visible area rather than sitting at a fixed spot in a tall iframe that scrolls away. If the tool runs standalone, it falls back to normal centering.
+
 ## SigilForge Vision forge stops asking questions
 
 - The forge no longer asks clarifying questions. It always commits to a build, making the strongest reasonable choice when a description is ambiguous. The player adjusts the result by hand if needed.
