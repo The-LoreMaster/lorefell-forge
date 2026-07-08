@@ -5078,16 +5078,18 @@ function toggleAtt(pid){
 }
 
 function attachChooser(){
-  var foes = S.library.filter(function(e){ return e.type==='monster'; });
+  var scoped = scopeAssetsToCampaign(S.library);
+  var foes = scoped.filter(function(e){ return e.type==='monster'; });
   var h = '<h3 class="m-title">Attach from library</h3>';
+  h += rosterScopeToggleHtml('attachChooser');
   if (foes.length){
     h += '<div class="lbl">Foes</div>';
     foes.forEach(function(e){
       h += '<button class="pick-row" onclick="countModal(\''+e.id+'\')"><b>'+esc(e.name)+'</b><span class="muted">'+esc(e.sr)+' &middot; '+effMaxVit(e)+' vit</span></button>';
     });
   }
-  var npcs = S.library.filter(function(e){ return e.type==='npc'; });
-  var items = S.library.filter(function(e){ return e.type==='item'; });
+  var npcs = scoped.filter(function(e){ return e.type==='npc'; });
+  var items = scoped.filter(function(e){ return e.type==='item'; });
   if (npcs.length){
     h += '<div class="lbl">NPCs</div>';
     npcs.forEach(function(e){
@@ -5973,19 +5975,48 @@ function levelManualRefs(ref){
   if (!lv.manualRefs) lv.manualRefs = [];
   return lv;
 }
+/* When picking assets to add to a roster or scene, default to the campaign you are on:
+   show assets tagged to it plus untagged assets (which belong nowhere in particular).
+   window._rosterAllCamps flips it to the whole library. */
+function scopeAssetsToCampaign(list){
+  if (window._rosterAllCamps) return list;
+  var cid = (curC()||{}).id || '';
+  if (!cid) return list;
+  return list.filter(function(e){ return !e.campaignId || e.campaignId === cid; });
+}
+function toggleRosterAllCamps(reopenFn){
+  window._rosterAllCamps = !window._rosterAllCamps;
+  closeModal();
+  if (reopenFn === 'attachChooser') attachChooser();
+  else if (window._rosterReopenRef) addManualRef(window._rosterReopenRef);
+}
+function rosterScopeToggleHtml(reopenFn){
+  var cid = (curC()||{}).id || '';
+  if (!cid) return '';
+  var cname = (curC()||{}).name || 'this campaign';
+  var all = !!window._rosterAllCamps;
+  return '<button class="btn wide ghost small" onclick="toggleRosterAllCamps(\''+reopenFn+'\')">'
+    + (all ? 'Showing all campaigns. Show only '+esc(cname) : 'Showing '+esc(cname)+' and untagged. Show all campaigns')
+    + '</button>';
+}
 function addManualRef(ref){
-  var others = S.library;
-  if (!others.length){ alert('No assets in the library yet. Create one first.'); return; }
+  window._rosterReopenRef = ref;
+  var others = scopeAssetsToCampaign(S.library);
+  if (!S.library.length){ alert('No assets in the library yet. Create one first.'); return; }
   var h = '<h3 class="m-title">Add to roster</h3><p class="muted">Adds an asset to this level even if it is not used in a scene below.</p>';
+  h += rosterScopeToggleHtml('addManualRef');
+  var any = false;
   ['monster','npc','item'].forEach(function(t){
     var list = others.filter(function(e){ return e.type===t; });
     if (!list.length) return;
+    any = true;
     h += '<div class="lbl">'+TYPE_LABEL[t]+'s</div>';
     list.forEach(function(e){
       h += '<button class="pick-row" onclick="confirmManualRef(\''+ref+'\',\''+e.id+'\')"><b>'+esc(e.name)+'</b>'
         + '<span class="muted">'+(e.sr?esc(e.sr):(e.role?esc(e.role):TYPE_LABEL[e.type]))+'</span></button>';
     });
   });
+  if (!any) h += '<p class="muted small-note">No assets tagged to this campaign. Use the button above to show all.</p>';
   h += '<div class="m-row"><button class="btn ghost" onclick="closeModal()">Close</button></div>';
   modal(h);
 }

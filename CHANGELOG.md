@@ -1,3 +1,7 @@
+## FateWell roster picker scoped to the campaign
+
+- Adding an asset to a roster or attaching from the library now shows only the assets tagged to the campaign you are on, plus untagged ones. A one-tap toggle switches to the whole library when you need a foe or NPC from elsewhere.
+
 ## FateWell search filters, sort, scope, and asset campaign tags
 
 - Search now has type filters you can combine: Structure (acts, sessions, scenes, notes), Assets (NPCs, foes, items), and Other (campaign, players, glossary, play log). With none picked it shows everything.
