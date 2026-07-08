@@ -1,3 +1,10 @@
+## SigilForge v3 fixes, round two
+
+- Sabotaged no longer says including its effect on Evasion. It reads Ignore the target's Armor Stance, since the stance covers Evasion.
+- Tier 1 abilities and spells no longer list cost 3 effects. Only what fits a Tier 1 budget shows. The heavier effects appear once you raise the Tier.
+- Fixed the confusing tier message. The Tier you pick sets a budget target. Spending below it is allowed and shows a plain note that the build may be slightly weaker. Nothing turns red for being under budget.
+- Added a language review file listing the shorthand and full description for every effect and affliction, generated straight from the tool, so the wording can be read in one place.
+
 ## SigilForge v3 fixes
 
 - The rune now renders on load. A default effect is set so the forge shows a complete build from the first paint.

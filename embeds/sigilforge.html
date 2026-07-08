@@ -889,7 +889,7 @@ const COMPONENTS = [
  {category:"Effect",component:"Tracked",cost:2,type:"attack",timing:"pre",breakout:"",rule:"Ignore your weapon's range."},
  {category:"Effect",component:"Exposed",cost:2,type:"attack",timing:"post",breakout:"",rule:"Ignore the target's Durability."},
  {category:"Effect",component:"Pierced",cost:2,type:"attack",timing:"post",breakout:"",rule:"Ignore the target's Resistance."},
- {category:"Effect",component:"Sabotaged",cost:3,type:"attack",timing:"pre",breakout:"",rule:"Ignore the target's Armor Stance, including its effect on Evasion."},
+ {category:"Effect",component:"Sabotaged",cost:3,type:"attack",timing:"pre",breakout:"",rule:"Ignore the target's Armor Stance."},
  {category:"Effect",component:"Crushed",cost:2,type:"attack",timing:"post",breakout:"",rule:"Deal your Base Damage again."},
  {category:"Effect",component:"Refracted",cost:2,type:"attack",timing:"post",breakout:"",rule:"Another target takes half your Bonus Damage."},
  {category:"Effect",component:"Bonus",cost:2,type:"attack",timing:"post",breakout:"",rule:"Add 1d6 to your Bonus Damage."},
@@ -1220,8 +1220,8 @@ function validate(){
   }
 
   /* The selected Tier is a target. Warn if the build's cost lands in a different tier. */
-  if(costTier !== state.tier)
-    soft.push(`This build costs ${total}, which is Tier ${costTier}. You selected Tier ${state.tier}.`);
+  /* The selected Tier sets a budget target. Spending below it is allowed but weaker,
+     a warning, not an error. Spending at or above it is fine. */
 
   window._softCount = soft.length;
   window._softList = soft.slice();
@@ -1234,6 +1234,9 @@ function buildWarnings(){
   if(state.unlocked && window._softList && window._softList.length){
     window._softList.forEach(w => warnings.push(w));
   }
+  const [minB] = CONFIG.tierBudgets[state.tier];
+  if(total > 0 && total < minB)
+    warnings.push(`This build spends ${total} against a Tier ${state.tier} budget of ${minB} or more. It may be slightly weaker than the tier allows.`);
   const e = currentEffect();
   if(state.damage === "No Damage" && e && e.type === "attack")
     warnings.push("This effect is built for an attack. On a No Damage ability it may do nothing.");
@@ -1764,6 +1767,15 @@ function refreshEffectSelect(){
     items = legalAfflictions();
   } else {
     items = legalEffects();
+    /* Hide effects that alone exceed the selected tier's budget ceiling, so a Tier 1
+       ability never lists a cost-3 effect it cannot afford. */
+    const maxB = CONFIG.tierBudgets[state.tier][1];
+    items = items.filter(c => {
+      const base = byName[state.damage] ? byName[state.damage].cost : 0;
+      const tgtC = byName[state.targeting] ? byName[state.targeting].cost : 0;
+      const pre = (c.timing === "pre") ? CONFIG.preSurcharge : 0;
+      return base + tgtC + c.cost + pre <= maxB;
+    });
   }
   const names = items.map(x => x.component);
   if(names.indexOf(state.effect) < 0) state.effect = items.length ? items[0].component : "";
@@ -2198,18 +2210,18 @@ function update(){
   const costTier = tierFromCost(total);
 
   document.getElementById("budgetTotal").textContent = total;
-  document.getElementById("budgetReq").textContent = `Tier ${costTier}`;
+  document.getElementById("budgetReq").textContent = `Tier ${state.tier}`;
   document.getElementById("mythicFlag").style.display = "none";
   const bar = document.getElementById("budgetBar");
   bar.classList.toggle("ok", errors.length === 0);
-  bar.classList.toggle("over", costTier !== state.tier);
+  bar.classList.toggle("over", false);
   // the toggle, the third slot, and the Vision card all follow state.unlocked
   const uc0=document.getElementById("unlockChk"); if(uc0) uc0.checked=!!state.unlocked;
   /* v3: no third slot */
   const aic=document.getElementById("aiCard"); if(aic) aic.style.display=state.unlocked?"none":"";
   const waived = state.unlocked && (window._softCount || 0) > 0;
   document.getElementById("budgetState").textContent =
-    waived ? "Unlocked build" : errors.length === 0 ? "Valid build" : (costTier !== state.tier ? ("Costs Tier " + costTier) : "Check errors");
+    waived ? "Unlocked build" : errors.length === 0 ? "Valid build" : "Check errors";
   document.getElementById("unlockWarn").style.display = waived ? "" : "none";
 
   hideSubmitMsg();
