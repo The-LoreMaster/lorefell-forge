@@ -1139,6 +1139,8 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 .nc-more{ margin-top:6px; background:none; border:0; padding:0; cursor:pointer; font-family:var(--head,inherit); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--ice); }
 .nc-more:hover{ color:var(--gold); }
 .run-nav-lbl{ font-family:var(--head,inherit); font-size:9px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); align-self:center; margin-right:2px; }
+.run-keys{ margin-left:auto; font-size:.62rem; letter-spacing:.06em; color:var(--muted); white-space:nowrap; opacity:.7; }
+@media (max-width:640px){ .run-keys{ display:none; } }
 .run-step.gold-glow{ border-color:var(--gold); color:var(--gold); box-shadow:0 0 10px rgba(201,168,76,.45); animation:goldpulse 1.8s ease-in-out infinite; }
 .run-step.nextsess{ font-family:var(--head,inherit); font-size:11px; letter-spacing:.07em; text-transform:uppercase; padding:7px 12px; }
 @keyframes goldpulse{ 0%,100%{ box-shadow:0 0 6px rgba(201,168,76,.3);} 50%{ box-shadow:0 0 13px rgba(201,168,76,.6);} }
@@ -8788,6 +8790,59 @@ function runBeatGo(i){
   sc.runIdx = i; save(); render();
 }
 function setRunList(on){ V.runList = !!on; save(); render(); }
+
+/* ============================================================
+   RUNNING THE SCENE FROM THE KEYBOARD
+   Down and up walk the notes. Right and left walk the scenes, and right off the last scene
+   carries you into the next session the same way the button does. The keys stay quiet while
+   a modal is open, while you are typing, and anywhere but the scene runner.
+   ============================================================ */
+function runnerKeysActive(){
+  if (V.screen !== 'scene') return false;
+  var m = document.getElementById('modal');
+  if (m && m.innerHTML.trim()) return false;
+  var a = document.activeElement;
+  if (a){
+    var tag = (a.tagName||'').toLowerCase();
+    if (tag==='input' || tag==='textarea' || tag==='select') return false;
+    if (a.isContentEditable) return false;
+  }
+  return true;
+}
+function runnerKey(e){
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (!runnerKeysActive()) return;
+  var sc = curSc(); if (!sc) return;
+  var k = e.key;
+  var mode = sc.mode || 'roleplay';
+  var stepping = (mode !== 'combat') && !V.runList;
+
+  if (k === 'ArrowDown' || k === 'ArrowUp'){
+    /* the stepper owns the notes. In list or combat view let the page scroll. */
+    if (!stepping) return;
+    var list = sortedEntries(sc.entries||[]);
+    if (!list.length) return;
+    var i = (typeof sc.runIdx==='number' ? sc.runIdx : 0);
+    if (k === 'ArrowDown' && i >= list.length-1) return;
+    if (k === 'ArrowUp' && i <= 0) return;
+    e.preventDefault();
+    runBeatStep(k === 'ArrowDown' ? 1 : -1);
+    return;
+  }
+
+  if (k === 'ArrowRight' || k === 'ArrowLeft'){
+    var sibs = runnerSiblings();
+    var idx = sibs.map(function(x){ return x.id; }).indexOf(V.scId);
+    if (k === 'ArrowLeft'){
+      if (idx <= 0) return;
+      e.preventDefault(); runnerStep(-1); return;
+    }
+    if (idx < sibs.length-1){ e.preventDefault(); runnerStep(1); return; }
+    if (nextSessionInfo()){ e.preventDefault(); gotoNextSession(); }
+    return;
+  }
+}
+document.addEventListener('keydown', runnerKey);
 /* One note, styled by type, in builder order. */
 function clueSlug(x){ return String(x||'').toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,''); }
 function clueHandlesIn(text){
@@ -8965,7 +9020,8 @@ function sceneNavControls(sc){
   } else {
     next = '<button class="run-step" disabled>&rarr;</button>';
   }
-  return '<div class="run-nav"><span class="run-nav-lbl">Scenes</span>'+prev+next+'</div>';
+  return '<div class="run-nav"><span class="run-nav-lbl">Scenes</span>'+prev+next
+    + '<span class="run-keys" title="Down and up walk the beats. Left and right walk the scenes.">&#8595;&#8593; beats &#8592;&#8594; scenes</span></div>';
 }
 function runnerActions(sc, mode){
   var lr = window._lmRoll;

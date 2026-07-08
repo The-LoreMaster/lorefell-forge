@@ -1,3 +1,8 @@
+## FateWell run the scene from the keyboard
+
+- Down and up walk the beats in the stepper. Left and right walk the scenes, and right off the last scene carries you into the next session, the same as the button.
+- The keys stay quiet while a modal is open, while you are typing in a field, when a modifier is held, and anywhere but the scene runner. In list and combat view the arrows leave scrolling alone, though left and right still move between scenes.
+
 ## SagaForge QA pass and scene rosters
 
 - The export screen now runs a QA pass over the built pack and reports what it finds. Faults are worth fixing before it ships. Warnings are worth a look. The pack still exports either way.
