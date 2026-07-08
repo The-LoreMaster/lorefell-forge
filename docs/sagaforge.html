@@ -998,6 +998,29 @@ function approveSession(){
 }
 
 /* ---- export ---- */
+/* Write a LoreMaster briefing into the crucible scene so the fight lands ready to run. The
+   player-facing blocks keep their cliffhanger. The briefing is a secret block (LoreMaster
+   only), placed just before the crucible block. Re-forging replaces the previous briefing. */
+function injectCrucibleBriefing(key, brief, lineup){
+  if(!brief) return;
+  var parts=String(key).split("-");
+  var ai=+parts[0], si=+parts[1], ci=+parts[2];
+  var dk=ai+"-"+si;
+  var d=S.drafts[dk]; if(!d||!d.scenes||!d.scenes[ci]) return;
+  var sc=d.scenes[ci];
+  sc.entries=sc.entries||[];
+  // drop any prior forged briefing so a re-forge does not stack them
+  sc.entries=sc.entries.filter(function(e){ return !(e && e.forgedBrief); });
+  var foeList=(lineup||[]).map(function(f){
+    var n=Math.max(1,f.count||1);
+    return (n>1?n+"x ":"")+(f.name||"Foe")+" ("+f.tier+" "+f.build+(f.stance?", "+f.stance:"")+(f.sig?", "+f.sig:"")+")";
+  }).join("; ");
+  var body=brief+(foeList?("\n\nThe lineup: "+foeList+"."):"");
+  var row={ type:"secret", title:"Crucible briefing", body:body, forgedBrief:true };
+  var cix=-1;
+  for(var bi=0;bi<sc.entries.length;bi++){ if(sc.entries[bi] && sc.entries[bi].type==="crucible"){ cix=bi; break; } }
+  if(cix>=0) sc.entries.splice(cix,0,row); else sc.entries.unshift(row);
+}
 function crucibleScenes(){
   var out=[];
   (S.skeleton?S.skeleton.acts:[]).forEach(function(a,ai){
@@ -1021,7 +1044,7 @@ function foeExportLine(){
 }
 function forgeFoes(){
   var list=crucibleScenes(); if(!list.length) return;
-  S.foes={}; save();
+  S.foes={}; S.foeBriefs={}; save();
   var i=0;
   function next(){
     if(i>=list.length){ save(); render(); scrollTop(); return; }
@@ -1032,6 +1055,10 @@ function forgeFoes(){
       var lineup=parseFoeLineup(text);
       if(!lineup.length) lineup=[snapFoe({name:"Warden",count:1})];
       S.foes[item.key]=lineup;
+      var brief=parseFoeBrief(text);
+      S.foeBriefs=S.foeBriefs||{};
+      if(brief) S.foeBriefs[item.key]=brief;
+      injectCrucibleBriefing(item.key, brief, lineup);
       save(); i++; next();
     })
     .catch(function(e){
@@ -1107,10 +1134,14 @@ function _seed(str){ var h=0,s=String(str||""); for(var i=0;i<s.length;i++){ h=(
 function foeActBudget(tierName){ return _tierBudget(tierName).acts; }
 function foeSystem(){
   return "You stat the foes for one LoreFell crucible. Pick only from the provided lists, nothing invented. "
-    +"Output plain text only, no JSON. One block per foe in this exact shape:\n"
+    +"Output plain text only, no JSON. First one briefing block, then one block per foe.\n"
+    +"The briefing tells the LoreMaster what walks into the fight, in this exact shape:\n"
+    +"@@BRIEF\nbody:\n<three to five sentences: what the foes are and where they come from, why they are here in this scene, how they open the fight and what they want, and the one thing that turns the fight if the party spots it. Written to the LoreMaster, plain and direct, so they can run the crucible without guessing. Name the foes you stat below.>\n@@END\n"
+    +"Then one block per foe in this exact shape:\n"
     +"@@FOE\nname: <evocative foe name, not generic>\ncount: <how many identical copies, 1 to 6>\nbuild: <one build name from the list>\ntier: <one tier name from the list>\nstance: <one stance name from the list>\naffliction: <one affliction name from the list, or none>\nacts: <comma separated Act names chosen only from the provided Acts list, or none>\n@@END\n"
     +"Compose the encounter with intent. A lone Champion or Epic is a duel. A Champion with a few Minions is a boss and its lackeys. Two or three Elites is a warband. Use fewer, higher blocks for a climax and more, lower blocks for a swarm. Two to four blocks is usual. Match the whole encounter to the stakes of the scene, not each foe in isolation. "
-    +"For each foe pick Acts that fit its build and tier from the Acts list only, never invent an Act. A Minion carries none, an Elite one, a Champion two, an Epic or Forsaken up to three. Give a foe Acts that suit its name and role.";
+    +"For each foe pick Acts that fit its build and tier from the Acts list only, never invent an Act. A Minion carries none, an Elite one, a Champion two, an Epic or Forsaken up to three. Give a foe Acts that suit its name and role. "
+    +"The briefing must name the foes you stat and match their counts, so the LoreMaster reads it and knows exactly what to expect.";
 }
 function foeUserMsg(scene, act){
   var builds=FOE_PACK.builds.map(function(b){ return b.name; }).join(", ");
@@ -1130,6 +1161,19 @@ function foeUserMsg(scene, act){
     lines.push("No Act list is available, leave every acts line as none.");
   }
   return lines.join("\n");
+}
+function parseFoeBrief(text){
+  var m=String(text||"").split(/@@BRIEF/).slice(1);
+  if(!m.length) return "";
+  var body=m[0].split("@@END")[0];
+  var out=[];
+  body.split(/\r?\n/).forEach(function(ln){
+    var mm=ln.match(/^\s*body\s*:\s*(.*)$/i);
+    if(mm){ if(mm[1].trim()) out.push(mm[1].trim()); return; }
+    if(/^\s*$/.test(ln)) return;
+    out.push(ln.trim());
+  });
+  return out.join(" ").replace(/\s+/g," ").trim();
 }
 function parseFoeLineup(text){
   var out=[];

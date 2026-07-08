@@ -1,3 +1,7 @@
+## SagaForge crucible briefings
+
+- Forging foes for a crucible now writes a LoreMaster briefing into the scene. It names the foes, says where they come from and why they are here, how they open the fight and what they want, and the one thing that turns the fight. The lineup is listed with each foe's tier, build, and stance. The player-facing scene keeps its cliffhanger; the briefing is a secret block only the LoreMaster sees, placed just before the crucible. Re-forging replaces the briefing rather than stacking it.
+
 ## SigilForge solo effects hidden on multi-target
 
 - Cleaved, Refracted, and Redirected now only appear in the effect list when targeting is One Target. On a Two, Three, or All Targets build they are hidden, since they already reach a second target on their own. This mirrors the targeting lock that snaps to One Target when one of them is chosen.
