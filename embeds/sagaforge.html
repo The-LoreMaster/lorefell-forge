@@ -85,6 +85,13 @@ textarea:focus,input:focus{ outline:none; border-color:var(--goldline); }
 
 /* export */
 .exp-note{ color:var(--silver-dim); font-size:.92rem; line-height:1.45; }
+.qa-box{ border:1px solid var(--line); border-radius:10px; padding:12px 14px; margin:12px 0; background:var(--panel,#10162a); }
+.qa-h{ font-family:'Cinzel',serif; font-size:.72rem; letter-spacing:.18em; text-transform:uppercase; color:var(--gold); margin-bottom:8px; }
+.qa-sub{ font-family:'Cinzel',serif; font-size:.68rem; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); margin:8px 0 4px; }
+.qa-sub.fault{ color:var(--error,#c97a7a); }
+.qa-list{ margin:0 0 4px; padding-left:18px; }
+.qa-list li{ font-size:.88rem; color:var(--ice); line-height:1.45; padding:2px 0; }
+.qa-list.fault li{ color:var(--error,#c97a7a); }
 @media print{
   body{ background:#fff; color:#1a2540; max-width:none; padding:0; }
   .noprint,.steps,.btnrow,.sess-nav{ display:none !important; }
@@ -1113,10 +1120,41 @@ function forgeFoes(){
   }
   next();
 }
+/* Run the QA pass and show what it found. Faults are worth fixing before the pack ships.
+   Warnings are worth a look. The pass never blocks the download, it only tells the truth. */
+function qaReportHtml(){
+  var r;
+  try { r = qaPack(buildPack()); } catch(e){ return ''; }
+  var f=r.faults, w=dedupe(r.warns);
+  f=dedupe(f);
+  if(!f.length && !w.length){
+    return '<p class="exp-note" style="color:var(--valid,#7fb89a)">The QA pass found nothing. The pack holds together.</p>';
+  }
+  var h='<div class="qa-box">';
+  h+='<div class="qa-h">The QA pass</div>';
+  if(f.length){
+    h+='<div class="qa-sub fault">'+f.length+' to fix</div><ul class="qa-list fault">';
+    f.slice(0,40).forEach(function(x){ h+='<li>'+esc(x)+'</li>'; });
+    h+='</ul>';
+  }
+  if(w.length){
+    h+='<div class="qa-sub">'+w.length+' worth a look</div><ul class="qa-list">';
+    w.slice(0,25).forEach(function(x){ h+='<li>'+esc(x)+'</li>'; });
+    h+='</ul>';
+  }
+  h+='<p class="exp-note">The pack still exports. These are the checks a machine can make, the rest is yours.</p>';
+  return h+'</div>';
+}
+function dedupe(a){
+  var seen={}, out=[];
+  (a||[]).forEach(function(x){ if(!seen[x]){ seen[x]=1; out.push(x); } });
+  return out;
+}
 function vExport(){
   return '<div class="card">'
     +'<h2 style="font-size:1.05rem">'+esc(S.skeleton?S.skeleton.name:"The adventure")+'</h2>'
     +'<p class="exp-note" style="margin-top:8px">Every session is approved. Take it in the shape you need. The FateWell pack imports through Adventures, Import, and lands as your own editable copy.</p>'
+    +qaReportHtml()
     +foeExportLine()
     +'<div class="btnrow">'
     +'<button class="btn gold" onclick="downloadPack()">FateWell pack</button>'
@@ -1313,6 +1351,168 @@ function parseFoe(text){
   f.sig=snap(f.sig,FOE_PACK.afflictions);
   return f;
 }
+/* An NPC belongs on a scene's roster when the scene uses them: they speak, they are named in
+   the cast, or their name appears in the scene's prose. Speaking alone was the old test, so a
+   present but silent NPC never reached the roster. */
+function npcsInScene(ds, npcByName){
+  var out=[], seen={};
+  function take(name){
+    var id=npcByName[name];
+    if(id && !seen[id]){ seen[id]=1; out.push(id); }
+  }
+  (ds.entries||[]).forEach(function(e){ if(e && e.speaker) take(e.speaker); });
+  var hay=[(ds.cast||"")];
+  (ds.entries||[]).forEach(function(e){ if(e) hay.push(e.body||"", e.title||""); });
+  var text=hay.join("\n");
+  Object.keys(npcByName).forEach(function(name){
+    if(!name) return;
+    var rx=new RegExp("(^|[^A-Za-z0-9])"+name.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"([^A-Za-z0-9]|$)");
+    if(rx.test(text)) take(name);
+  });
+  return out;
+}
+/* ============================================================
+   THE QA PASS
+   Walks the built pack and reports what the checklist can actually verify. Anything a machine
+   cannot judge (does the fork bite, does the climax land) is left to the LoreMaster. Findings
+   are either a fault, which should block a ship, or a warning worth a look.
+   ============================================================ */
+var VOICE_BANS=[
+  "tapestry of","testament to","a symphony of","whispers of","the very air","palpable",
+  "sent shivers","little did they know","in that moment","a chill ran down","loomed",
+  "etched into","steeped in mystery","could not shake the feeling"
+];
+function qaPack(pack){
+  var faults=[], warns=[];
+  var camp=pack.campaign||{};
+  var npcList=[]; (pack.npcs||[]).forEach(function(n){ if(n&&n.name) npcList.push(String(n.name)); });
+  var foeList=[]; (pack.foes||[]).forEach(function(f){ if(f&&f.name) foeList.push(String(f.name).replace(/\s+\d+$/,"")); });
+
+  /* world issue is a complete thought */
+  var wi=(camp.worldIssues||[])[0]||"";
+  if(!wi) faults.push("The world issue is empty.");
+  else if(!/[.!?]$/.test(wi.trim())) faults.push("The world issue does not end as a complete sentence: "+wi);
+
+  /* A name cannot sit on a monster card and a story NPC at once, and that includes a story
+     name buried inside a longer combatant name, which is how Kess Thorne slipped through. */
+  function words(n){ return String(n).toLowerCase().split(/[^a-z0-9]+/).filter(Boolean); }
+  var npcWordSets=npcList.map(function(n){ return { name:n, w:words(n) }; });
+  var seenClash={};
+  foeList.forEach(function(fn){
+    var fw=words(fn);
+    npcWordSets.forEach(function(np){
+      var shared=np.w.filter(function(x){ return x.length>2 && fw.indexOf(x)>=0; });
+      if(!shared.length) return;
+      var key=np.name+"|"+fn;
+      if(seenClash[key]) return;
+      seenClash[key]=1;
+      faults.push("The foe "+fn+" shares the name "+np.name+" with a story NPC.");
+    });
+  });
+
+  /* one rule per phenomenon, stated once */
+  if(!/THE RULE/.test(camp.notes||"")) warns.push("The campaign notes do not state the rule its central phenomenon obeys.");
+  if((camp.type||"")==="legacy" && !/CARRIES FORWARD/.test(camp.notes||""))
+    faults.push("A Legacy saga plants nothing for the next one.");
+
+  /* speakers must exist in the roster */
+  var spoke={};
+  var scenes=[];
+  (camp.acts||[]).forEach(function(a){
+    (a.sessions||[]).forEach(function(ss){
+      (ss.scenes||[]).forEach(function(sc){ scenes.push({sc:sc, act:a.name, sess:ss.name}); });
+    });
+  });
+
+  scenes.forEach(function(rec){
+    var sc=rec.sc, where=sc.name;
+    var ents=sc.entries||[];
+    var hasCru=ents.some(function(e){ return e.type==="crucible"; });
+    var hasBattle=(sc.manualRefs||[]).some(function(r){
+      return (pack.foes||[]).some(function(f){ return f.id===r; });
+    });
+
+    /* a crucible is a battle, and the reverse */
+    if(hasCru && !hasBattle) faults.push("Crucible with no foes loaded: "+where);
+    if(hasBattle && !hasCru) faults.push("Foes loaded with no crucible framing: "+where);
+
+    /* every crucible carries its LM note, directly before it */
+    if(hasCru){
+      var ci=-1, ni=-1;
+      ents.forEach(function(e,i){
+        if(ci<0 && e.type==="crucible") ci=i;
+        if(e.type==="secret" && /LM NOTE/i.test(e.title||"")) ni=i;
+      });
+      if(ni<0) faults.push("Crucible has no LM note: "+where);
+      else if(ni>ci) warns.push("The LM note sits after its crucible: "+where);
+      /* costs and gains belong in the note, not the read-aloud */
+      var cru=ents[ci]||{};
+      if(/^\s*(cost|gain)\s*:/im.test(cru.body||"")) faults.push("A COST or GAIN line sits inside crucible prose: "+where);
+    }
+
+    /* LoreMaster directions must not sit in spoken prose */
+    ents.forEach(function(e){
+      if(e.type!=="readaloud" && e.type!=="crucible") return;
+      if(/\b(the loremaster|LM)\b/i.test(e.body||"")) faults.push("LoreMaster direction inside spoken prose: "+where+" ("+(e.title||e.type)+")");
+    });
+
+    /* every scene names its cast */
+    if(!String(sc.notes||"").trim()) faults.push("Scene has no cast block: "+where);
+
+    /* every speaker is a real NPC in the roster */
+    ents.forEach(function(e){
+      if(e.type!=="dialogue" || !e.speaker) return;
+      spoke[e.speaker]=1;
+      var known=(pack.npcs||[]).some(function(n){ return n.id===e.speaker; });
+      if(!known) faults.push("A dialogue speaker is missing from the NPC roster: "+where);
+    });
+
+    /* voice bans, across every string the scene ships */
+    var strings=[sc.notes||""].concat(ents.map(function(e){ return (e.title||"")+" "+(e.body||""); }));
+    strings.join("\n").split("\n").forEach(function(line){
+      if(/\u2014|\u2013|\u2026/.test(line)) faults.push("Banned glyph in prose: "+where);
+      if(/;/.test(line)) warns.push("Semicolon in prose: "+where);
+      VOICE_BANS.forEach(function(b){ if(line.toLowerCase().indexOf(b)>=0) warns.push("Banned phrase \""+b+"\" in "+where); });
+    });
+  });
+
+  /* every named NPC reaches the roster, and none share a name */
+  var seenNpc={};
+  (pack.npcs||[]).forEach(function(n){
+    var k=String(n.name||"").toLowerCase();
+    if(seenNpc[k]) faults.push("Two NPCs share the name "+n.name+".");
+    seenNpc[k]=1;
+    if(!n.desc) warns.push("NPC "+n.name+" has no identity line.");
+    if(!/Arc:/.test(n.notes||"")) warns.push("NPC "+n.name+" has no arc.");
+  });
+
+  /* ids unique across the pack */
+  var ids={}, dupe=0;
+  (function walk(o){
+    if(!o||typeof o!=="object") return;
+    if(typeof o.id==="string"){ if(ids[o.id]) dupe++; ids[o.id]=1; }
+    for(var k in o){ if(Object.prototype.hasOwnProperty.call(o,k)) walk(o[k]); }
+  })(pack);
+  if(dupe) faults.push(dupe+" duplicate id"+(dupe===1?"":"s")+" in the pack.");
+
+  /* the ending runs climax, consequence, resolution */
+  var lastAct=(camp.acts||[])[(camp.acts||[]).length-1];
+  if(lastAct){
+    var lastSess=(lastAct.sessions||[])[(lastAct.sessions||[]).length-1];
+    var tail=(lastSess&&lastSess.scenes)?lastSess.scenes.slice(-3):[];
+    if(tail.length<3) warns.push("The finale has fewer than three closing scenes, so climax, consequence, and resolution may be missing.");
+    else {
+      var climax=tail[0];
+      var climaxHasCru=(climax.entries||[]).some(function(e){ return e.type==="crucible"; });
+      if(!climaxHasCru) warns.push("The climax scene carries no crucible: "+climax.name);
+    }
+    var finalScene=(lastSess&&lastSess.scenes)?lastSess.scenes[lastSess.scenes.length-1]:null;
+    if(finalScene && (finalScene.entries||[]).some(function(e){ return e.type==="crucible"; }))
+      warns.push("The adventure ends on a crucible rather than a resolution: "+finalScene.name);
+  }
+
+  return { faults:faults, warns:warns };
+}
 function buildPack(){
   var npcRows=Object.keys(S.npcs).map(function(n){
     var v=S.npcs[n];
@@ -1361,8 +1561,11 @@ function buildPack(){
           scenes:(ss.scenes||[]).map(function(sc,ci){
             var ds=(d.scenes||[])[ci]||{entries:[]};
             var sceneKey=ai+"-"+si+"-"+ci;
+            var sceneRows=(ds.entries||[]).map(entryRow);
+            var refs=(foeBySceneKey[sceneKey]||[]).slice();
+            npcsInScene(ds, npcByName).forEach(function(nid){ if(refs.indexOf(nid)<0) refs.push(nid); });
             return { id:uid(), name:sc.name, notes:(ds.cast||""), img:"", desc:sc.purpose||"",
-              entries:(ds.entries||[]).map(entryRow), manualRefs:(foeBySceneKey[sceneKey]||[]).slice() };
+              entries:sceneRows, manualRefs:refs };
           })
         };
       })

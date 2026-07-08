@@ -1,3 +1,9 @@
+## SagaForge QA pass and scene rosters
+
+- The export screen now runs a QA pass over the built pack and reports what it finds. Faults are worth fixing before it ships. Warnings are worth a look. The pack still exports either way.
+- The pass checks a crucible carries foes and foes carry a crucible, every crucible has its LM note placed before it, no cost or gain line hides in spoken prose, no LoreMaster direction sits in a read-aloud, every scene names its cast, every dialogue speaker exists in the roster, the world issue is a complete sentence, a Legacy saga plants a hook, no two NPCs share a name, no foe carries a story NPC's name even buried inside a longer one, ids are unique, and the finale runs climax then consequence then resolution.
+- Fixed the scene roster carrying only forged foes. An NPC present in the scene now lands on the roster whether they speak or not.
+
 ## SagaForge structure and consistency pass
 
 - Fixed the world issue arriving cut off. It was sliced at 120 characters. It now ships as the complete sentence, and the premise asks for a question with two defensible answers.
