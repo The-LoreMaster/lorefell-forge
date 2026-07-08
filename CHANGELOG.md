@@ -1,3 +1,7 @@
+## SigilForge affliction full text
+
+- The full description now reads Apply the (name) affliction instead of writing out the effect. The effect text lives in the FellGuide and the Codex. Combat effects still show their full rule.
+
 ## SigilForge damage by type
 
 - Abilities must deal damage. The No Damage option is removed for Abilities, since a weapon strike always lands a hit. Spells keep both Standard Damage and No Damage, so a spell can be pure support or control. Foes keep both. The randomizer and the Vision forge follow the same rule.
