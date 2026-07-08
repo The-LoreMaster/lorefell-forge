@@ -1161,6 +1161,12 @@ function totalCost(){
 }
 /* v3 tier is derived from total cost alone. */
 function tierFromCost(total){ if(total >= 5) return 3; if(total >= 3) return 2; return 1; }
+/* The build's true tier: the higher of the weapon/foe floor and the tier its cost earns.
+   The Tier selector sets a floor, but a costlier build rises to the tier it deserves. */
+function effectiveTier(){
+  const floor = (typeof currentMinTier === "function") ? currentMinTier() : 1;
+  return Math.max(floor, tierFromCost(totalCost()), state.tier || 1);
+}
 /* Damage options allowed by build type. Abilities must deal damage (Standard only).
    Spells may be pure effect (No Damage allowed). Foes can do either. */
 function legalDamage(){
@@ -1255,9 +1261,15 @@ function buildWarnings(){
   if(state.unlocked && window._softList && window._softList.length){
     window._softList.forEach(w => warnings.push(w));
   }
-  const [minB] = CONFIG.tierBudgets[state.tier];
-  if(total > 0 && total < minB)
-    warnings.push(`This build spends ${total} against a Tier ${state.tier} budget of ${minB} or more. It may be slightly weaker than the tier allows.`);
+  const costTier2 = tierFromCost(total);
+  const floorT3 = (typeof currentMinTier === "function") ? currentMinTier() : 1;
+  const selected = Math.max(state.tier || 1, floorT3);
+  if(total > 0 && costTier2 > selected){
+    warnings.push(`This build costs ${total}, which is Tier ${costTier2}. It will be forged as Tier ${costTier2}, above the Tier ${selected} you picked.`);
+  } else if(total > 0 && costTier2 < selected){
+    const [minB] = CONFIG.tierBudgets[selected];
+    warnings.push(`This build spends ${total} against a Tier ${selected} budget of ${minB} or more. It may be slightly weaker than the tier allows.`);
+  }
   const e = currentEffect();
   if(state.damage === "No Damage" && e && e.type === "attack")
     warnings.push("This effect is built for an attack. On a No Damage ability it may do nothing.");
@@ -2245,13 +2257,18 @@ function update(){
   if(tsEl && tsEl.querySelectorAll)
     tsEl.querySelectorAll("option").forEach(o => { o.disabled = +o.value < floorT; });
   refreshEffectSelect();
-  const errors = validate();
-  const warnings = buildWarnings();
   const total = totalCost();
   const costTier = tierFromCost(total);
+  /* The build's true tier: the higher of the weapon floor, the selected tier, and the tier
+     the cost earns. Cost can push a build up a tier, but never silently below the pick. */
+  const floorT2 = (typeof currentMinTier === "function") ? currentMinTier() : 1;
+  const trueTier = Math.max(floorT2, state.tier || 1, costTier);
+  window._trueTier = trueTier;
+  const errors = validate();
+  const warnings = buildWarnings();
 
   document.getElementById("budgetTotal").textContent = total;
-  document.getElementById("budgetReq").textContent = `Tier ${state.tier}`;
+  document.getElementById("budgetReq").textContent = `Tier ${trueTier}`;
   document.getElementById("mythicFlag").style.display = "none";
   const bar = document.getElementById("budgetBar");
   bar.classList.toggle("ok", errors.length === 0);
@@ -2862,7 +2879,7 @@ loadForgeData();
    ============================================================ */
 function buildForgeBlock(){
   return {
-    tier: state.tier,
+    tier: (window._trueTier || state.tier),
     form: currentForm(),
     mode: state.type === "Monster" ? "monster" : "weapon",
     kind: state.type === "Monster" ? "foe" : "character",

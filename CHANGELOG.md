@@ -1,3 +1,9 @@
+## SigilForge tier truth
+
+- A build now reports the tier its cost earns. Picking Tier 2 and spending 6 forges as Tier 3, and the build says so instead of claiming it follows the rules at Tier 2. The Tier selector is a floor: cost can raise a build a tier, and a weapon's Form still sets the lowest tier.
+- Build warnings are consistent across tiers. Over the picked tier reads it will be forged one tier up. Under the picked tier reads it may be slightly weaker. On target reads clean.
+- Submission sends the true tier, so the vault stores the build at the tier it actually is.
+
 ## SigilForge damage packages and Tier 2 fix
 
 - Fixed Tier 2 hiding some cost 3 effects. The effect filter now only trims at Tier 1, which keeps Tier 1 cheap. At Tier 2 and 3 every effect shows, and a heavier pick simply lands the build in the tier its cost earns.
