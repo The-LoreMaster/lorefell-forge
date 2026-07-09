@@ -1,3 +1,7 @@
+## SigilForge breakout skills
+
+- Every affliction's Breakout skill carried a stray asterisk, so the Codex read Renewal star rather than Renewal. The mark belongs on the affliction, never on the skill that ends it.
+
 ## FateWell relics come from the relic catalog
 
 - Fixed the relic list arriving empty. The canon relics live in the Relics collection, and the pool was reading Creations, which holds only what has been forged and submitted. All 58 canon relics now reach the foe sheet.
