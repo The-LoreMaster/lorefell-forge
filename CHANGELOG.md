@@ -1,3 +1,9 @@
+## FateWell relics come from the relic catalog
+
+- Fixed the relic list arriving empty. The canon relics live in the Relics collection, and the pool was reading Creations, which holds only what has been forged and submitted. All 58 canon relics now reach the foe sheet.
+- A forged relic keeps its detail under payload meta, which the reader missed, so a relic you forged carried no group, rarity, or rule. It does now.
+- A relic reads as its rarity, its group, how it is used, and what it does. Canon relics carry no rarity, so the line drops it rather than printing a gap.
+
 ## FateWell the foe sheet says what a foe is
 
 - Choosing a Build now says what it carries and how it attacks. Choosing a Stance names its charge tiers. The signature affliction shows its rule. All three read the same way, a choice with its meaning under it.

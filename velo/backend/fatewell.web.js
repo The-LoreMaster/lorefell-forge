@@ -381,7 +381,8 @@ export const submitItem = webMethod(Permissions.SiteMember, async (item) => {
       canonStatus: 'private',
       shorthand: rule,
       fullText: rule,
-      payload: JSON.stringify({ title: name, tier: 'Common', form: { group: 'Relic', use: 'Passive', rarity: 'Common', description: rule } })
+      payload: JSON.stringify({ kind: 'relic', title: name, tier: 'Common', shorthand: 'Relic, Passive', fullText: rule,
+        meta: { group: 'Relic', use: 'Passive', cost: '', uses: '', rarity: 'Common', description: rule } })
     }, { suppressAuth: true });
     return { ok: true, id: row._id };
   } catch (e) { return { ok: false, error: String(e) }; }
@@ -393,6 +394,25 @@ export const submitItem = webMethod(Permissions.SiteMember, async (item) => {
 export const getForgePools = webMethod(Permissions.Anyone, async () => {
   const mid = await memberId();
   const out = { infusions: [], augmentations: [], items: [] };
+
+  // Canon relics live in their own catalog, not in Creations. Read them first.
+  try {
+    const r = await wixData.query('Relics').ascending('displayOrder').limit(500).find({ suppressAuth: true });
+    r.items.forEach((row) => {
+      if (!row.name) return;
+      out.items.push({
+        name: row.name,
+        group: row.group || '',
+        rarity: row.rarity || '',
+        use: row.use || '',
+        cost: row.cost || '',
+        uses: row.uses || '',
+        rule: row.description || '',
+        source: 'canon'
+      });
+    });
+  } catch (e) {}
+
   const KEYS = { shardforge: 'infusions', augmentforge: 'augmentations', relicforge: 'items' };
   for (const key of Object.keys(KEYS)) {
     const bucket = KEYS[key];
@@ -406,25 +426,30 @@ export const getForgePools = webMethod(Permissions.Anyone, async () => {
     if (mid) {
       try {
         const r2 = await wixData.query('Creations')
-          .eq('forgeKey', key).eq('creatorMemberId', mid).ne('canonStatus', 'canon')
+          .eq('forgeKey', key).eq('creatorMemberId', mid)
           .limit(500).find({ suppressAuth: true });
         rows = rows.concat(r2.items);
       } catch (e) {}
     }
     const seen = {};
+    out[bucket].forEach((x) => { seen[x.name] = 1; });   // canon already on the shelf
     rows.forEach((it) => {
       let pl = {};
       try { pl = typeof it.payload === 'string' ? JSON.parse(it.payload) : (it.payload || {}); } catch (e) { pl = {}; }
       const name = it.creationName || pl.title || pl.name || '';
       if (!name || seen[name]) return;
       seen[name] = 1;
-      const form = pl.form || {};
+      // A relic keeps its detail in payload.meta. Other forges use form, or the row itself.
+      const meta = pl.meta || pl.form || {};
       out[bucket].push({
         name: name,
-        family: pl.family || '',
-        group: form.group || pl.group || '',
-        rarity: form.rarity || pl.tier || '',
-        rule: form.description || pl.rule || pl.full || it.shorthand || '',
+        family: pl.family || meta.family || '',
+        group: meta.group || pl.group || '',
+        rarity: meta.rarity || pl.tier || '',
+        use: meta.use || '',
+        cost: meta.cost || '',
+        uses: meta.uses || '',
+        rule: meta.description || pl.rule || pl.fullText || it.fullText || it.shorthand || '',
         source: it.canonStatus === 'canon' ? 'canon' : 'mine'
       });
     });
