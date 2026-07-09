@@ -1,3 +1,10 @@
+## FateWell foe vitality reads against a Fell
+
+- Foe vitality no longer multiplies by the party size for every rank. A Minion carried a whole player's health, and every Fell who joined the table made every Minion harder. The count answers the party. The health does not.
+- A Fell holds about seven Vitality a level. A foe is measured against that. A Minion holds a third of a Fell, an Elite holds a Fell, a Champion holds half again. An Epic and a Forsaken stand alone, so they alone grow with the party, since they alone take the whole party's damage.
+- Ranks always climb. A small party can never leave a boss softer than the rank beneath it.
+- All three readings of vitality, the attach, the re-forge, and the rescale, now run the same model.
+
 ## FateWell forged Acts and items report where they went
 
 - A forged Act or item now says whether it reached your creations. The vault answers, and the tool tells you plainly if it refused.
