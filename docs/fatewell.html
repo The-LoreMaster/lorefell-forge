@@ -1141,6 +1141,8 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 .run-nav-lbl{ font-family:var(--head,inherit); font-size:9px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); align-self:center; margin-right:2px; }
 .run-keys{ margin-left:auto; font-size:.62rem; letter-spacing:.06em; color:var(--muted); white-space:nowrap; opacity:.7; }
 @media (max-width:640px){ .run-keys{ display:none; } }
+.run-swipe{ display:none; margin-left:auto; font-size:.62rem; letter-spacing:.06em; color:var(--muted); opacity:.7; white-space:nowrap; }
+@media (max-width:640px){ .run-swipe{ display:inline; } }
 .run-step.gold-glow{ border-color:var(--gold); color:var(--gold); box-shadow:0 0 10px rgba(201,168,76,.45); animation:goldpulse 1.8s ease-in-out infinite; }
 .run-step.nextsess{ font-family:var(--head,inherit); font-size:11px; letter-spacing:.07em; text-transform:uppercase; padding:7px 12px; }
 @keyframes goldpulse{ 0%,100%{ box-shadow:0 0 6px rgba(201,168,76,.3);} 50%{ box-shadow:0 0 13px rgba(201,168,76,.6);} }
@@ -8843,6 +8845,54 @@ function runnerKey(e){
   }
 }
 document.addEventListener('keydown', runnerKey);
+
+/* ============================================================
+   SWIPING THE BEATS ON A PHONE
+   A swipe left carries you to the next note, a swipe right back to the previous one. Scenes
+   stay on their buttons. Nothing is preventDefaulted on touchstart or touchmove, so the page
+   scrolls exactly as it always did, and the swipe only resolves once the finger lifts.
+   ============================================================ */
+var _sw = null;
+function swipeTargetOk(t){
+  while (t && t !== document.body){
+    var tag = (t.tagName||'').toLowerCase();
+    if (tag==='button' || tag==='a' || tag==='input' || tag==='textarea' || tag==='select') return false;
+    if (t.classList && t.classList.contains('rs-stack')) return true;
+    t = t.parentNode;
+  }
+  return false;
+}
+function runnerSwipeStart(e){
+  _sw = null;
+  if (V.screen !== 'runner') return;
+  if (!e.touches || e.touches.length !== 1) return;
+  var sc = curSc(); if (!sc) return;
+  if ((sc.mode||'roleplay') === 'combat' || V.runList) return;
+  var m = document.getElementById('modal');
+  if (m && m.innerHTML.trim()) return;
+  if (!swipeTargetOk(e.target)) return;
+  _sw = { x:e.touches[0].clientX, y:e.touches[0].clientY, t:Date.now() };
+}
+function runnerSwipeEnd(e){
+  var s0 = _sw; _sw = null;
+  if (!s0) return;
+  var tch = (e.changedTouches && e.changedTouches[0]);
+  if (!tch) return;
+  var dx = tch.clientX - s0.x;
+  var dy = tch.clientY - s0.y;
+  if (Date.now() - s0.t > 700) return;            /* a slow drag is not a swipe */
+  if (Math.abs(dx) < 48) return;                   /* too small to mean it */
+  if (Math.abs(dx) < Math.abs(dy) * 1.5) return;   /* mostly vertical, leave it to the page */
+
+  var sc = curSc(); if (!sc) return;
+  var list = sortedEntries(sc.entries||[]);
+  if (!list.length) return;
+  var i = (typeof sc.runIdx==='number' ? sc.runIdx : 0);
+  if (dx < 0){ if (i >= list.length-1) return; runBeatStep(1); }
+  else { if (i <= 0) return; runBeatStep(-1); }
+}
+document.addEventListener('touchstart', runnerSwipeStart, { passive:true });
+document.addEventListener('touchend', runnerSwipeEnd, { passive:true });
 /* One note, styled by type, in builder order. */
 function clueSlug(x){ return String(x||'').toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,''); }
 function clueHandlesIn(text){
@@ -9021,7 +9071,8 @@ function sceneNavControls(sc){
     next = '<button class="run-step" disabled>&rarr;</button>';
   }
   return '<div class="run-nav"><span class="run-nav-lbl">Scenes</span>'+prev+next
-    + '<span class="run-keys" title="Down and up walk the beats. Left and right walk the scenes.">&#8595;&#8593; beats &#8592;&#8594; scenes</span></div>';
+    + '<span class="run-keys" title="Down and up walk the beats. Left and right walk the scenes.">&#8595;&#8593; beats &#8592;&#8594; scenes</span>'
+    + '<span class="run-swipe">Swipe the note for beats</span></div>';
 }
 function runnerActions(sc, mode){
   var lr = window._lmRoll;

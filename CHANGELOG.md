@@ -1,3 +1,8 @@
+## FateWell swipe the beats on a phone
+
+- Swipe the note left for the next beat, right for the previous one. Scenes stay on their buttons.
+- The swipe only resolves when your finger lifts, and a mostly vertical drag is left to the page, so scrolling is untouched. It stays quiet on buttons, at the first and last beat, in combat and list view, and behind a modal.
+
 ## SigilForge Vision forge understands affliction families
 
 - The forge was told to pick afflictions by flavor across family lines. Its own guidance offered Frenzied and Terrorized as interchangeable fear afflictions when one is Precision and the other is Power, and pointed at Frozen and Ignited for builds that can never take them. That guidance is gone.
