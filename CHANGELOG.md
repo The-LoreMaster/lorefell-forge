@@ -1,3 +1,8 @@
+## The last two condition files follow the pack
+
+- CanonConditions.seed.json still carried all 99 old conditions. It is rebuilt from the canon pack, 77 rows.
+- FoePack.canon.json still offered foes 54 Afflictions. It offers the 37 that remain, with their rules and Breakouts taken from the pack.
+
 ## Weapons come from the vault
 
 - Added the CanonWeapons collection, with a schema and a seed of all nine trees. Each row carries three forms, three Fellmark Afflictions, three grips, and three ranges.
