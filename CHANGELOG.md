@@ -1,3 +1,9 @@
+## FateWell foe vitality is a share of a Fell
+
+- A foe's Vitality is now seven times the average party level, times the share its Shatter Rating is worth. A Minion is half a Fell, an Elite is one, a Champion one and a half, an Epic two, a Forsaken two and a half.
+- The number of Fell at the table no longer changes a foe's health. A Minion held a whole player's Vitality, and every Fell who joined made every Minion harder. A larger party is answered by fielding more foes.
+- Every reading of vitality, the attach, the re-forge, and the rescale, runs the one formula.
+
 ## FateWell foe vitality reads against a Fell
 
 - Foe vitality no longer multiplies by the party size for every rank. A Minion carried a whole player's health, and every Fell who joined the table made every Minion harder. The count answers the party. The health does not.

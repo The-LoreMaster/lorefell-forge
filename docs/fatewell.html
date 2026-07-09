@@ -2653,40 +2653,33 @@ var FOE_WEIGHT = { Minion:1, Elite:2, Champion:3, Epic:5, Forsaken:8 };
 
 /* ============================================================
    FOE VITALITY
-   A Fell holds about seven Vitality for every level, starting at five and taking a Vigor roll
-   each time they climb. That is the yardstick every foe is measured against.
+   Every foe is measured against a Fell. A Fell holds seven Vitality for each level they carry,
+   which is the shape of starting at five and taking a Vigor roll on the way up.
 
-   The old reading multiplied every foe by the party size, so a Minion carried a whole player's
-   health and every new Fell at the table made every Minion harder. The count answers the party,
-   not the health. Only a foe that stands alone grows, because only it takes the whole party's
-   damage.
+   A foe's Shatter Rating says how many Fell it is worth. An Elite is one. A Minion is half.
+   A Champion is one and a half, an Epic two, a Forsaken two and a half.
 
-   mult is the foe's health as a share of one Fell's. party marks the ones that stand alone.
+       Foe Vitality = 7 x average party level x the rating's share
+
+   The number of Fell at the table never changes a foe's health. A larger party is answered by
+   fielding more foes, not by thickening the ones already there.
    ============================================================ */
 var VIT_PER_LEVEL = 7;
-var VIT_MODEL = {
-  Minion:   { mult:0.35, party:false },   /* falls the round it is engaged */
-  Elite:    { mult:1.00, party:false },   /* a Fell's peer */
-  Champion: { mult:1.60, party:false },   /* a Fell's peer, and then some */
-  Epic:     { mult:0.55, party:true  },   /* stands against the whole party */
-  Forsaken: { mult:0.80, party:true  }    /* that, and then some */
+var VIT_SHARE = {
+  Minion:   0.5,   /* half a Fell */
+  Elite:    1.0,   /* one Fell */
+  Champion: 1.5,   /* one Fell and a half */
+  Epic:     2.0,   /* two Fell */
+  Forsaken: 2.5    /* two Fell and a half */
 };
 var VIT_ORDER = ['Minion','Elite','Champion','Epic','Forsaken'];
+/* Kept as VIT_MODEL for anything still reading it. */
+var VIT_MODEL = VIT_SHARE;
 function fellVitality(apl){ return VIT_PER_LEVEL * Math.max(1, apl||1); }
-function foeVitality(tierName, apl, party){
-  if (!VIT_MODEL[tierName]) return 0;
-  var b = fellVitality(apl), p = Math.max(1, party||1);
-  /* Walk the ranks from the bottom, carrying a floor. A small party must never leave a boss
-     softer than the rank below it, so each tier stands at least a step above the last. */
-  var prev = 0, v = 0;
-  for (var i = 0; i < VIT_ORDER.length; i++){
-    var t = VIT_ORDER[i], m = VIT_MODEL[t];
-    v = m.mult * b * (m.party ? p : 1);
-    if (prev && v < prev * 1.15) v = prev * 1.15;
-    prev = v;
-    if (t === tierName) break;
-  }
-  return Math.max(1, Math.round(v));
+function foeVitality(tierName, apl){
+  var share = VIT_SHARE[tierName];
+  if (!share) return 0;
+  return Math.max(1, Math.round(fellVitality(apl) * share));
 }
 /* Canon foe vocabulary, mirrored from the FoeForge pack (generated from the vault).
    If the vault's builds, stances, or afflictions change, regenerate this list. */
@@ -3560,9 +3553,8 @@ function requestSealed(){
 function effMaxVit(e){
   if (!e) return 0;
   if (e.maxVit && e.maxVit > 0) return e.maxVit;
-  if (e.sr && VIT_MODEL[e.sr]){
-    var pc = partyContext();
-    return foeVitality(e.sr, pc.apl, pc.size);
+  if (e.sr && VIT_SHARE[e.sr]){
+    return foeVitality(e.sr, partyContext().apl);
   }
   return e.maxVit || 0;
 }
@@ -4307,8 +4299,7 @@ function pinEntry(ref, id){
 function expandAllEntries(ref){ levelEntries(ref).forEach(function(e){ e.open = true; }); save(); render(); }
 function collapseAllEntries(ref){ levelEntries(ref).forEach(function(e){ e.open = false; }); save(); render(); }
 function partyScale(tierName){
-  var pc = partyContext();
-  return foeVitality(tierName, pc.apl, pc.size);
+  return foeVitality(tierName, partyContext().apl);
 }
 function reforgeCombatant(cid){
   var sel=document.getElementById('foeReforgeSR'); var tier=sel?sel.value:'';
@@ -4321,7 +4312,7 @@ function reforgeCombatant(cid){
 function rescaleFoe(cid){
   curSc().combatants.forEach(function(c){
     if (c.id===cid){
-      if (VIT_MODEL[c.sr]){ c.maxVit = partyScale(c.sr); c.curVit = c.maxVit; }
+      if (VIT_SHARE[c.sr]){ c.maxVit = partyScale(c.sr); c.curVit = c.maxVit; }
     }
   });
   save(); render(); monInfo(cid);
@@ -5222,7 +5213,7 @@ function fwScaleFoe(buildName, tierName, apl, party){
   apl=Math.max(1,apl||1); party=Math.max(1,party||4);
   var val=Math.max(0,apl+t.attributeOffset);
   var attrs=blankAttrs(); (b.attributes||[]).forEach(function(a){ attrs[a]=val; });
-  return { attrs:attrs, maxVit:foeVitality(tierName, apl, party) };
+  return { attrs:attrs, maxVit:foeVitality(tierName, apl) };
 }
 function fwTierBudget(tierName){ return (FW_FOE_PACK.tierBudget && FW_FOE_PACK.tierBudget[tierName]) || {inf:0,aug:0,acts:0}; }
 function _fwSeed(str){ var h=0,x=String(str||''); for(var i=0;i<x.length;i++){ h=(h*31+x.charCodeAt(i))>>>0; } return h; }
