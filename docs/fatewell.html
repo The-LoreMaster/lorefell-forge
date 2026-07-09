@@ -5244,20 +5244,17 @@ function partyModal(){
       + (note ? '<p class="muted small">'+note+'</p>' : '');
   };
   modal('<h3 class="m-title">The party</h3>'
-    + '<p class="muted">Foe vitality is average party level, times party size, times the foe\'s rating weight. Leave a field empty to read it from the roster.</p>'
+    + '<p class="muted">Set these two and the table follows. Foe vitality, skill difficulty, discord points, and the Lore Points a battle rewards all derive from them. Leave a field empty to read it from the roster.</p>'
     + (pc.empty ? '<p class="muted small-note">No players on this adventure yet, so the roster reads as level '+pc.apl+', '+pc.size+' strong.</p>' : '')
     + row('apl', 'Average party level', ov.apl, String(pc.apl), 'Currently '+pc.apl+(pc.pinnedApl?', pinned':', from the roster'))
     + row('size', 'Party size', ov.size, String(pc.size), 'Currently '+pc.size+(pc.pinnedSize?', pinned':', from the roster'))
-    + row('difficulty', 'Skill difficulty', ov.difficulty, String(pc.difficulty), 'Currently +'+pc.difficulty+(pc.pinnedDiff?', pinned':', one for every five levels of the party'))
-    + row('discord', 'Discord points', ov.discord, String(pc.discordAuto), 'Currently '+pc.discord+(pc.pinnedDiscord?', pinned':', the party size plus the average level ('+pc.size+' plus '+pc.apl+')'))
-    + row('lore', 'Lore Points rewarded', ov.lore, '', 'Left empty a battle rewards one Lore Point for each Shatter Rating category fought. A number here pins every battle in this adventure.')
     + '<div class="m-row"><button class="btn ghost" onclick="clearPartyOverride()">Clear all</button>'
     + '<button class="btn" onclick="savePartyOverride()">Save</button></div>');
 }
 function savePartyOverride(){
   var c = curC(); if (!c) return;
   var ov = {};
-  ['apl','size','difficulty','discord','lore'].forEach(function(k){
+  ['apl','size'].forEach(function(k){
     var el = document.getElementById('po-'+k);
     var v = el ? el.value.trim() : '';
     if (v !== '') ov[k] = Math.max(0, parseInt(v,10) || 0);
@@ -5290,69 +5287,34 @@ function partyContext(){
     size: ov.size ? Math.max(1, +ov.size) : (size || 4),
     pinnedApl: !!ov.apl,
     pinnedSize: !!ov.size,
-    pinnedDiff: (ov.difficulty !== undefined && ov.difficulty !== ''),
-    pinnedDiscord: (ov.discord !== undefined && ov.discord !== ''),
     empty: !size
   };
-  /* Skill difficulty climbs one for every five levels of the party. */
-  out.difficulty = out.pinnedDiff ? Math.max(0, +ov.difficulty) : Math.floor(out.apl / 5);
-  /* Disruptions, the Discord pool, is one per character plus the average level. */
-  out.discordAuto = out.size + out.apl;
-  out.discord = out.pinnedDiscord ? Math.max(0, +ov.discord) : out.discordAuto;
+  /* The tool works these out. The loremaster sets the party, never these. */
+  out.difficulty = Math.floor(out.apl / 5);       /* one for every five levels */
+  out.discord = out.size + out.apl;               /* Disruptions: one per character, plus the level */
   return out;
 }
 /* Lore Points a scene rewards: one for each Shatter Rating category the party fought.
    The loremaster may pin a number when a fight earned more or less than the shape says. */
-function loreReward(){
-  var c = curC(), sc = curSc();
-  var ov = (c && c.partyOverride) || {};
-  if (sc && sc.loreAward !== undefined && sc.loreAward !== '') return Math.max(0, +sc.loreAward);
-  if (ov.lore !== undefined && ov.lore !== '') return Math.max(0, +ov.lore);
-  return lpTotal();
-}
-function loreRewardPinned(){
-  var c = curC(), sc = curSc();
-  var ov = (c && c.partyOverride) || {};
-  return (sc && sc.loreAward !== undefined && sc.loreAward !== '') || (ov.lore !== undefined && ov.lore !== '');
-}
-/* What the battle earned. The ratings fought are named so the number can be checked at a
-   glance, and pinned by hand when a fight was worth more or less than its shape. */
+function loreReward(){ return lpTotal(); }
+/* What the battle earned. The ratings fought are named so the number can be read at a glance.
+   The tool works it out, one Lore Point for each Shatter Rating category the party fought. */
 function loreRewardHtml(){
   var sc = curSc(); if (!sc) return '';
   var seen = {}, order = [];
   (sc.combatants||[]).forEach(function(c){
     if (c.sr && !seen[c.sr]){ seen[c.sr]=true; order.push(c.sr); }
   });
-  var auto = lpTotal();
-  var val = loreReward();
-  var pinned = loreRewardPinned();
-  var parts = order.map(function(r){ return esc(r)+' '+SR_TABLE[r].lp; }).join(' &middot; ');
-
+  var parts = order.map(function(r){ return esc(r)+' '+SR_TABLE[r].lp; }).join(' \u00b7 ');
   var h = '<div class="lore-award">';
-  h += '<div class="la-top"><span class="st-l">Lore Points rewarded</span>'
-    + '<span class="la-n'+(pinned?' pinned':'')+'">'+val+'</span></div>';
+  h += '<div class="la-top"><span class="st-l">Lore Points rewarded</span><span class="la-n">'+loreReward()+'</span></div>';
   h += order.length
-    ? '<p class="muted small center">'+parts+'</p><p class="muted small center">One per Shatter Rating category fought.</p>'
+    ? '<p class="muted small center">'+parts+'</p><p class="muted small center">One for each Shatter Rating category fought.</p>'
     : '<p class="muted small center">No foes fought in this scene.</p>';
-  h += '<div class="qd"><input class="qd-in" id="loreAwardIn" type="number" inputmode="numeric" min="0" value="'
-    + (sc.loreAward!==undefined && sc.loreAward!=='' ? esc(String(sc.loreAward)) : '') + '" placeholder="'+auto+' from the foes">'
-    + '<button class="qd-b" onclick="setSceneLore()">Set</button>'
-    + (sc.loreAward!==undefined ? '<button class="qd-b" onclick="clearSceneLore()">Clear</button>' : '')
-    + '</div>';
   h += '</div>';
   return h;
 }
-function clearSceneLore(){
-  var sc = curSc(); if (!sc) return;
-  delete sc.loreAward; save(); render();
-}
-function setSceneLore(){
-  var sc = curSc(); if (!sc) return;
-  var el = document.getElementById('loreAwardIn');
-  var v = el ? el.value.trim() : '';
-  if (v === '') delete sc.loreAward; else sc.loreAward = Math.max(0, parseInt(v,10)||0);
-  save(); render();
-}
+
 function fwPartyLevel(){ return partyContext().apl; }
 function fwPartySize(){ return partyContext().size; }
 
@@ -7221,9 +7183,8 @@ function scrCampaign(){
   h += '<p class="adv-tag">'+t.label+' &middot; '+t.length
     + ' <button class="adv-change" onclick="advPromote(\''+c.id+'\')">Change type</button></p>';
   var pc = partyContext();
-  var pinned = pc.pinnedApl || pc.pinnedSize || pc.pinnedDiff || pc.discord;
-  h += '<p class="adv-tag">Party &middot; level '+pc.apl+', '+pc.size+' strong, difficulty +'+pc.difficulty
-    + (pc.discord ? ', '+pc.discord+' discord' : '')
+  var pinned = pc.pinnedApl || pc.pinnedSize;
+  h += '<p class="adv-tag">Party &middot; level '+pc.apl+', '+pc.size+' strong'
     + (pinned ? ' <span class="npc-tag">pinned</span>' : (pc.empty ? ' <span class="npc-tag">assumed</span>' : ''))
     + ' <button class="adv-change" onclick="partyModal()">Set the party</button></p>';
   var wn = worldName(c.worldId);

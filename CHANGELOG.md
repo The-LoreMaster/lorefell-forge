@@ -1,3 +1,8 @@
+## FateWell the party sets two numbers
+
+- Set the party now takes only the average party level and the party size. The tool works out skill difficulty, discord points, and the Lore Points a battle rewards.
+- Skill difficulty and discord show on the combat bar, and the Lore Points a battle rewards show with the spoils. None of the three appear on the campaign screen or in Set the party, since none of them are yours to set.
+
 ## FateWell the party drives the table
 
 - Disruptions, the Discord pool, is the number of characters plus the average party level. It shows on the combat bar beside Difficulty.
