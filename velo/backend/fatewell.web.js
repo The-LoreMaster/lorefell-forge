@@ -340,6 +340,29 @@ export const getForgeLibrary = webMethod(Permissions.Anyone, async () => {
     .filter((a) => a.title);
 });
 
+// An Act the loremaster forged at the table. It lands in Creations as their own private
+// creation, so it is theirs on the next load and can be voted toward canon later. Written
+// with suppressAuth after the fields are checked, the same shape SigilForge submits.
+export const submitAct = webMethod(Permissions.SiteMember, async (act) => {
+  const mid = await memberId();
+  if (!mid) return { ok: false, error: 'not a member' };
+  const name = String((act && act.name) || '').trim();
+  if (!name) return { ok: false, error: 'an Act needs a name' };
+  const tier = Math.min(3, Math.max(1, Number(act && act.tier) || 1));
+  const effect = String((act && act.effect) || '').trim();
+  try {
+    const row = await wixData.insert('Creations', {
+      forgeKey: 'sigilforge',
+      creationName: name,
+      creatorMemberId: mid,
+      canonStatus: 'private',
+      shorthand: effect,
+      payload: JSON.stringify({ name: name, tier: tier, use: 'Act', full: effect, effect: effect })
+    }, { suppressAuth: true });
+    return { ok: true, id: row._id };
+  } catch (e) { return { ok: false, error: String(e) }; }
+});
+
 // The pools a foe is built from. Canon lists live in the tool, so this returns only what the
 // collections add on top: the loremaster's own forged infusions, augmentations, and items,
 // plus any that reached canon. The tool merges these with its canon lists.

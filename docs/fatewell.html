@@ -6246,8 +6246,9 @@ function abilityBlock(abs){
   if (!abs || !abs.length) return '';
   var h = '<div class="lbl">Abilities</div>';
   abs.forEach(function(a){
-    h += '<div class="ab-info"><b>'+esc(a.name)+'</b> <span class="muted">Tier '+a.tier+'</span>'
-      + (a.desc ? '<div class="ref-desc">'+esc(a.desc)+'</div>' : '') + '</div>';
+    var txt = a.effect || a.desc || '';
+    h += '<div class="ab-info"'+(txt?' title="'+esc(txt)+'"':'')+'><b>'+esc(a.name)+'</b> <span class="muted">Tier '+a.tier+'</span>'
+      + (txt ? '<div class="ref-desc">'+esc(txt)+'</div>' : '') + '</div>';
   });
   return h;
 }
@@ -6293,9 +6294,30 @@ function itemPool(){
 function isCustomName(bucket, n){
   return poolExtra(bucket).some(function(x){ return x.name===n && x.source!=='canon'; });
 }
-function fsChips(list, empty){
+/* What a name means, wherever the tool knows. Afflictions carry their rule in the canon
+   conditions pack. Infusions, augmentations, and items carry theirs from the collections.
+   Acts carry their own text. Anything unknown shows no tip rather than a guess. */
+function chipTip(name, bucket){
+  var n = String(name||'').replace(/\*+$/,'').trim();
+  if (!n) return '';
+  if (bucket === 'afflictions'){
+    var cc = window.canonCondition && window.canonCondition(n);
+    if (cc && cc.rule) return cc.rule;
+  }
+  var hit = null;
+  (poolExtra(bucket)||[]).forEach(function(x){ if (!hit && x.name === n) hit = x; });
+  if (hit && hit.rule) return hit.rule;
+  return '';
+}
+function tipAttr(name, bucket){
+  var t = chipTip(name, bucket);
+  return t ? ' title="'+esc(t)+'"' : '';
+}
+function fsChips(list, empty, bucket){
   if (!list || !list.length) return '<p class="muted small">'+empty+'</p>';
-  return '<div class="chips">' + list.map(function(n){ return '<span class="chip">'+esc(n)+'</span>'; }).join('') + '</div>';
+  return '<div class="chips">' + list.map(function(n){
+    return '<span class="chip"'+tipAttr(n, bucket)+'>'+esc(n)+'</span>';
+  }).join('') + '</div>';
 }
 function fsPickerChips(pool, chosen, cap, fn, bucket){
   var on = chosen || [];
@@ -6304,7 +6326,7 @@ function fsPickerChips(pool, chosen, cap, fn, bucket){
     var sel = on.indexOf(n) >= 0;
     var dim = (!sel && full) ? ' dim' : '';
     var mine = bucket && isCustomName(bucket, n) ? '<span class="chip-mine">yours</span>' : '';
-    return '<span class="chip'+(sel?' on':'')+dim+'" onclick="'+fn+'(\''+n.replace(/'/g,"\\'")+'\')">'+esc(n)+mine+'</span>';
+    return '<span class="chip'+(sel?' on':'')+dim+'"'+tipAttr(n, bucket)+' onclick="'+fn+'(\''+n.replace(/'/g,"\\'")+'\')">'+esc(n)+mine+'</span>';
   }).join('') + '</div>';
 }
 /* The foe being edited in the sheet, and where it came from. */
@@ -6387,10 +6409,91 @@ function fsDelItem(i){
   f.inv.splice(i,1);
   save(); foeSheet(window._fs.id, window._fs.src);
 }
+/* ============================================================
+   THE ACTS A FOE CARRIES
+   One slot per tier. Each slot reads the forged Act shelf, canon and the loremaster's own,
+   filtered to that tier. Choosing Custom opens a small forge that writes a new Act back to
+   the collection so it is there next time, the same shape SigilForge submits.
+   ============================================================ */
+function actsForTier(t){
+  return (S.forge||[]).filter(function(a){ return (Number(a.tier)||1) === t; });
+}
+function foeActAtTier(f, t){
+  var hit = null;
+  (f.abilities||[]).forEach(function(a){ if (!hit && (Number(a.tier)||1) === t) hit = a; });
+  return hit;
+}
 function fsEditActs(){
   var f = fsTarget(); if (!f) return;
-  if (window._fs.src==='lib'){ closeModal(); editLib(f.id); return; }
-  editCombatantAbilities(f.id);
+  var cap = fwTierBudget(f.sr||'Elite').acts;
+  var h = '<h3 class="m-title">Acts of '+esc(f.name)+'</h3>';
+  h += '<p class="muted">A '+esc(f.sr||'foe')+' carries '+cap+' Act'+(cap===1?'':'s')+'. Each tier holds one.</p>';
+  if (!cap){
+    h += '<p class="muted small">This rating carries no Acts. Raise the Shatter Rating to give it one.</p>';
+  }
+  [1,2,3].forEach(function(t){
+    var locked = t > cap;
+    var cur = foeActAtTier(f, t);
+    var pool = actsForTier(t);
+    h += '<div class="lbl">Tier '+t+(locked?' <span class="muted small">above this rating</span>':'')+'</div>';
+    if (locked){ h += '<p class="muted small">Not available at '+esc(f.sr||'this rating')+'.</p>'; return; }
+    h += '<select class="inp" onchange="fsPickAct('+t+',this.value)"'+(locked?' disabled':'')+'>'
+      + '<option value="">No Act</option>'
+      + pool.map(function(a){
+          var sel = cur && cur.name === a.name;
+          return '<option value="'+esc(a.id)+'"'+(sel?' selected':'')+'>'+esc(a.name)+(a.source==='mine'?' (yours)':'')+'</option>';
+        }).join('')
+      + '<option value="__custom">Forge a custom Act...</option>'
+      + '</select>';
+    if (cur) h += '<p class="muted small">'+esc(cur.effect || cur.desc || 'No text on this Act.')+'</p>';
+  });
+  h += '<div class="m-row"><button class="btn ghost" onclick="closeModal()">Close</button>'
+    + '<button class="btn" onclick="foeSheet(window._fs.id, window._fs.src)">Back to the foe</button></div>';
+  modal(h);
+}
+/* Put an Act in a tier slot, replacing whatever stood there. */
+function fsPickAct(t, id){
+  var f = fsTarget(); if (!f) return;
+  if (id === '__custom'){ fsCustomActModal(t); return; }
+  if (!Array.isArray(f.abilities)) f.abilities = [];
+  f.abilities = f.abilities.filter(function(a){ return (Number(a.tier)||1) !== t; });
+  if (id){
+    var a = null; (S.forge||[]).forEach(function(x){ if (x.id===id) a = x; });
+    if (a) f.abilities.push({ name:a.name, tier:t, effect:a.effect || a.desc || '' });
+  }
+  save(); fsEditActs();
+}
+/* Forge a new Act. It lands on this foe and goes back to the collection as the
+   loremaster's own, so it appears in every foe sheet from now on. */
+function fsCustomActModal(t){
+  modal('<h3 class="m-title">Forge a Tier '+t+' Act</h3>'
+    + '<p class="muted">This Act is saved to your creations and can be used by any foe.</p>'
+    + '<label class="lbl">Name</label><input class="inp" id="caName" placeholder="What it is called">'
+    + '<label class="lbl">What it does</label><textarea class="inp ta" id="caEffect" placeholder="The Act, written as it reads at the table"></textarea>'
+    + '<div id="caMsg" class="muted small-note"></div>'
+    + '<div class="m-row"><button class="btn ghost" onclick="fsEditActs()">Back</button>'
+    + '<button class="btn" onclick="fsSubmitCustomAct('+t+')">Forge it</button></div>');
+}
+function fsSubmitCustomAct(t){
+  var f = fsTarget(); if (!f) return;
+  var nm = (document.getElementById('caName')||{}).value || '';
+  var ef = (document.getElementById('caEffect')||{}).value || '';
+  nm = nm.trim(); ef = ef.trim();
+  var msg = document.getElementById('caMsg');
+  if (!nm){ if (msg) msg.textContent = 'An Act needs a name.'; return; }
+
+  /* On the foe straight away, so the table is never waiting on the vault. */
+  if (!Array.isArray(f.abilities)) f.abilities = [];
+  f.abilities = f.abilities.filter(function(a){ return (Number(a.tier)||1) !== t; });
+  f.abilities.push({ name:nm, tier:t, effect:ef });
+
+  /* On the shelf, so every other foe can reach it. */
+  var local = { id:'local-'+uid(), name:nm, tier:t, use:'Act', effect:ef, desc:ef, source:'mine' };
+  S.forge = (S.forge||[]).concat([local]);
+
+  /* And to the collection, where it outlives this session. */
+  postToWix({ type:'lmtool-act-submit', act:{ name:nm, tier:t, effect:ef } });
+  save(); fsEditActs();
 }
 /* The editable sheet, used by the library and by a roster. src is 'lib' or 'cbt'. */
 function foeSheet(id, src){
@@ -6434,6 +6537,7 @@ function foeSheet(id, src){
     + '</select>';
 
   h += '<div class="lbl">Signature affliction</div>'
+    + (f.sig ? '<p class="muted small"'+tipAttr(f.sig,'afflictions')+'>'+esc(chipTip(f.sig,'afflictions')||'')+'</p>' : '')
     + '<select class="inp" onchange="fsSetField(\'sig\',this.value)">'
     + '<option value="">None</option>'
     + FW_FOE_PACK.afflictions.map(function(x){ return '<option value="'+esc(x)+'"'+(f.sig===x?' selected':'')+'>'+esc(x)+'</option>'; }).join('')
@@ -6449,7 +6553,7 @@ function foeSheet(id, src){
 
   h += '<div class="lbl">Items</div>';
   h += f.inv.length ? '<div class="chips">'+f.inv.map(function(it,i){
-        return '<span class="chip">'+esc(it)+' <button class="chip-x" onclick="fsDelItem('+i+')">&times;</button></span>';
+        return '<span class="chip"'+tipAttr(it,'items')+'>'+esc(it)+' <button class="chip-x" onclick="fsDelItem('+i+')">&times;</button></span>';
       }).join('')+'</div>' : '<p class="muted small">Nothing carried.</p>';
   var ipool = itemPool().filter(function(n){ return f.inv.indexOf(n)<0; });
   if (ipool.length){
@@ -6476,7 +6580,7 @@ function foeSheet(id, src){
   } else {
     h += '<p class="muted small">This rating carries '+bud.acts+' Act'+(bud.acts===1?'':'s')+'. Remove one to add another.</p>';
   }
-  h += '<button class="btn wide ghost" onclick="fsEditActs()">Edit Acts by hand</button>';
+  h += '<button class="btn wide ghost" onclick="fsEditActs()">Edit Acts</button>';
 
   if ((f.attrs && attrSpend(f.attrs)>0)) h += '<div class="lbl">Attributes</div><p>'+attrLine(f.attrs)+'</p>';
   if (f.desc) h += '<div class="lbl">Description</div><p class="chip-desc">'+esc(f.desc)+'</p>';
@@ -6515,9 +6619,9 @@ function monInfo(cid){
     + '<div class="lbl">Shatter rating</div><p>'+(cb.sr?esc(cb.sr):'None')+'</p>'
     + '<div class="lbl">Build</div><p>'+esc([cb.build,cb.stance].filter(Boolean).join(' &middot; ')||'None')+'</p>'
     + '<div class="lbl">Signature affliction</div><p>'+(sig?esc(sig):'None')+'</p>'
-    + '<div class="lbl">Infusions</div>'+fsChips(cb.infusions, 'None')
-    + '<div class="lbl">Augmentations</div>'+fsChips(cb.augments, 'None')
-    + '<div class="lbl">Items</div>'+fsChips(cb.inv, 'Nothing carried.')
+    + '<div class="lbl">Infusions</div>'+fsChips(cb.infusions, 'None', 'infusions')
+    + '<div class="lbl">Augmentations</div>'+fsChips(cb.augments, 'None', 'augmentations')
+    + '<div class="lbl">Items</div>'+fsChips(cb.inv, 'Nothing carried.', 'items')
     + '<div class="lbl">Acts <span class="muted small">'+abN+'</span></div>'+abilityBlock(cb.abilities)
     + ((cb.attrs && attrSpend(cb.attrs)>0) ? '<div class="lbl">Attributes</div><p>'+attrLine(cb.attrs)+'</p>' : '')
     + (lib && lib.desc ? '<div class="lbl">Description</div><p class="chip-desc">'+esc(lib.desc)+'</p>' : '')

@@ -4,7 +4,7 @@
 // campaignId. The tool requests forge, assets, and glossary on load; those are
 // answered from canon Creations, an owner-scoped Assets collection, and a Glossary collection.
 
-import { loadCampaign, saveCampaign, deleteCampaign, listMyCampaigns, getSealed, getForgeLibrary, listAssets, saveAsset, deleteAsset, listGlossary, getCampaignPlayers, detachCharacter, assignClue, upsertQuest, setMemberRole, myAdventureRole, revealNodes, getForgePools } from 'backend/fatewell.web.js';
+import { loadCampaign, saveCampaign, deleteCampaign, listMyCampaigns, getSealed, getForgeLibrary, listAssets, saveAsset, deleteAsset, listGlossary, getCampaignPlayers, detachCharacter, assignClue, upsertQuest, setMemberRole, myAdventureRole, revealNodes, getForgePools, submitAct } from 'backend/fatewell.web.js';
 import { getFoePack } from 'backend/forge.web.js';
 import { publishCombatState, applyCombatToChar, getCombatDeclares, dealDamageToChar, setCombatCharge } from 'backend/combat.web.js';
 import { publishAdventure, myPublishedAdventures, unpublishAdventure, getPublishedPack } from 'backend/published.web.js';
@@ -211,6 +211,14 @@ $w.onReady(() => {
       let abilities = [];
       try { abilities = await getForgeLibrary(); } catch (e) { abilities = []; }
       embed.postMessage({ type: 'lmtool-forge', abilities: abilities });
+    } else if (m.type === 'lmtool-act-submit') {
+      // An Act forged at the table. Saved as the loremaster's own creation, then the pool
+      // is refreshed so the new Act appears everywhere the tool reads Acts.
+      try {
+        await submitAct(m.act || {});
+        const abilities = await getForgeLibrary();
+        embed.postMessage({ type: 'lmtool-forge', abilities: abilities });
+      } catch (e) {}
     } else if (m.type === 'lmtool-pools-request') {
       // Infusions, augmentations, and items the loremaster forged or that reached canon.
       let pools = { infusions: [], augmentations: [], items: [] };

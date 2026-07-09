@@ -1,3 +1,10 @@
+## FateWell foe sheet tooltips and a real Acts editor
+
+- Hovering an infusion, augmentation, item, affliction, or Act on a foe sheet shows what it does. Afflictions read from the canon conditions pack, the rest from the collections. Anything the tool has no text for shows no tip rather than a guess.
+- Fixed Act text never showing on a foe. The sheet read a field the Acts do not carry.
+- Edit Acts opened the old library wizard. It now opens a proper editor with one slot per tier, each reading the forged Act shelf, canon and your own, filtered to that tier and to what the Shatter Rating allows.
+- Each slot carries a Forge a custom Act option. A custom Act lands on the foe at once, joins the shelf for every other foe, and is written back to your creations so it outlives the session.
+
 ## FateWell campaign settings tab
 
 - The adventure type, the party, the world, and what the world faces moved off the top of the campaign screen into a Settings tab beside Overview and Roster. The title now sits directly above the tabs.
