@@ -1,3 +1,8 @@
+## FateWell runner toggle and quieter nav
+
+- The List view now carries the Stepper and List toggle. Switching to List used to strand you there with no way back.
+- Removed the keyboard and swipe hints from the scene nav row. The arrows and the swipe still work, they are just no longer announced.
+
 ## FateWell import sits with the adventures
 
 - Choosing an adventure pack moved out of Settings and onto the Adventures screen, where it belongs. Import Adventure now sits beside Create an Adventure, and both appear when the shelf is empty so a first story can arrive either way.
