@@ -1238,7 +1238,7 @@ function validate(){
     const isAff = isAffliction(e);
     if(isAff){
       if(e.family && e.family !== currentFamily())
-        soft.push(`${e.component.replace(/\*$/,"")} is a ${e.family} affliction. This build is ${currentFamily()}.`);
+        soft.push(`${e.component.replace(/\*$/,"")} is a ${e.family} affliction, and this build is ${currentFamily()}. Choose one of these ${currentFamily()} afflictions instead: ${afflictionsByFamily(currentFamily()).map(a => a.component.replace(/\*$/,"")).join(", ")}. Or change the item to a ${e.family} item.`);
       if(!isAttackDamage() && currentFamily() !== "Magic")
         soft.push(`${e.component.replace(/\*$/,"")} needs a wound. A No Damage ability can only carry a Magic affliction.`);
     } else {
@@ -2623,7 +2623,11 @@ function igniteChangedBands(){
    ============================================================ */
 function aiSystemPrompt(){
   const effs = EFFECTS.map(c => c.component + "|" + c.cost + "|" + c.type + "|" + c.timing + "|" + c.rule).join("\n");
-  const affs = AFFLICTIONS.map(c => c.component.replace(/\*$/,"") + "|" + c.cost + "|" + c.family + "|" + c.rule).join("\n");
+  const affs = ["Precision","Power","Magic"].map(fam => {
+    const rows = AFFLICTIONS.filter(c => c.family === fam)
+      .map(c => "  " + c.component.replace(/\*$/,"") + "|" + c.cost + "|" + c.rule).join("\n");
+    return fam.toUpperCase() + " AFFLICTIONS (only a " + fam + " build may take these):\n" + rows;
+  }).join("\n\n");
   const items = WEAPON_LIST.map(w => w + "|Weapon|" + (FAMILY_BY_GROUP[GROUP_BY_ITEM[w]]||"") + " family|signature " + (ITEM_STATS[w]?ITEM_STATS[w].affliction.replace(/\*$/,""):""))
     .concat(FOCUS_LIST.map(f => f + "|Magic Item|Magic family|" + SCHOOL_BY_ITEM[f] + " school")).join("\n");
   return [
@@ -2642,7 +2646,7 @@ function aiSystemPrompt(){
     "COMBAT EFFECTS (Name|cost|type|timing|rule). type is attack, support, or both. timing is pre, post, or both:",
     effs,
     "",
-    "AFFLICTIONS (Name|cost|family|rule). Family locked. Always post (resolve on the hit):",
+    "AFFLICTIONS. Each belongs to exactly one family and no build may reach outside its own family. The item fixes the family, so the item decides which of these three lists you may read from. Always post, resolving on the hit. Listed as Name|cost|rule:",
     affs,
     "",
     "TARGETS: One Target (0), Two Targets (1), Three Targets (2), All Targets (4). More than one target spreads the damage, effect, and affliction to all.",
@@ -2658,14 +2662,16 @@ function aiSystemPrompt(){
     "- Weapon families: Bows, Blades, Polearms are Precision. Swords, Axes, Bludgeons are Power. Magic items are Magic.",
     "- A pre-timing combat effect (or the pre version of a both-timing effect) costs 1 more.",
     "",
-    "TIER BUDGETS (the total cost must fit the picked tier): Tier 1 is 1 to 2, Tier 2 is 3 to 4, Tier 3 is 5 or more (open-topped). A build over its tier ceiling is illegal. Afflictions cost 3 or more, so they never fit Tier 1.",
+    "TIER BUDGETS (the total cost must fit the picked tier): Tier 1 is 1 to 2, Tier 2 is 3 to 4, Tier 3 is 5 or more (open-topped). A build over its tier ceiling is illegal. An affliction costs 3 or more, so it never fits Tier 1, and a cost 5 affliction only fits Tier 3. Check the affliction cost against the tier before choosing it.",
     "",
     "MAGIC RESOLUTION: a Magic build bypasses Evasion. The LoreMaster rolls the target's Difficulty plus 1d6 against the attacker's Magic plus Mastery.",
     "",
     "MONSTER MODE: for a monster, creature, or beast, use type Monster with archetype (Precision, Power, or Magic), school (only when archetype is Magic), and form (1, 2, or 3). Monsters use no item.",
     "",
     "YOUR APPROACH:",
-    "- Match the described fantasy to the effect or affliction whose rule fits. Fear suggests Frenzied or Terrorized, frost suggests Frozen, healing suggests Mended, fire suggests Ignited.",
+    "- Read the build's family FIRST, then choose only from that family's affliction list. The weapon or magic item sets the family: Bows, Blades, and Polearms are Precision. Swords, Axes, and Bludgeons are Power. Every magic item is Magic. A Spell is always Magic. A Foe uses its archetype.",
+    "- A fantasy never overrides the family. Fear on a Precision weapon is Frenzied, and on a Power weapon it is Terrorized, because those are the fear afflictions each family owns. If the fantasy needs an affliction another family holds, either change the item to one of that family or make it a Spell. Never take an affliction from a list the build cannot read.",
+    "- Combat effects are shared by every family, so match the fantasy to an effect whenever no affliction in the build's own family fits.",
     "- Pick the damage type the fantasy implies: a strike is Standard Damage, a pure buff, heal, curse, or control is No Damage.",
     "- Pick targets to match the scale: a single strike is One Target, a battlefield effect is All Targets.",
     "- The picked Tier is a firm budget with a ceiling. Tier 1 is total cost 1 to 2, Tier 2 is 3 to 4, Tier 3 is 5 or more. Never exceed the picked tier's ceiling.",

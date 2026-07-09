@@ -1,3 +1,10 @@
+## SigilForge Vision forge understands affliction families
+
+- The forge was told to pick afflictions by flavor across family lines. Its own guidance offered Frenzied and Terrorized as interchangeable fear afflictions when one is Precision and the other is Power, and pointed at Frozen and Ignited for builds that can never take them. That guidance is gone.
+- Afflictions now reach the forge in three labelled family blocks, so the gate is visible in the shape of the list rather than buried in a column. The item fixes the family, and the family fixes which list the forge may read.
+- When a build reaches outside its family, the forge is handed the afflictions it may actually use, and told it can change the item instead. It no longer just learns that it was wrong.
+- The tier note now says a cost 5 affliction only fits Tier 3.
+
 ## FateWell keyboard runner fix
 
 - The arrow keys did nothing because the guard watched the wrong screen. Run the Scene is the runner, not the scene editor. The keys now fire where they should.
