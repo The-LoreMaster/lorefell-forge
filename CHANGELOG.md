@@ -1,3 +1,9 @@
+## Weapon afflictions follow the family
+
+- Eight of the twenty seven weapon forms carried an Affliction from the wrong family. A Hatchet applied a Precision Affliction, a Wand applied one, a Long Sword applied a Magic Affliction. Every form now applies an Affliction of its own family.
+- Two Afflictions were doubled. Impeded sat on the Crossbow and the Halberd, Crippled on the Great Axe and the Flail. Every form now carries an Affliction no other form carries.
+- Weapons.canon.json still named Persecuted, Restricted, Defanged, and Dislocated, all four deleted. It is rebuilt from the same map.
+
 ## SigilForge forges Obscured
 
 - Obscured joins the Combat Effects. It costs 3 and rides a No Damage ability only, since dealing damage ends it the moment it lands. That cost puts it out of reach of a Tier 1 build.
