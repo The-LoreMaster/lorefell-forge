@@ -1,3 +1,9 @@
+## Obscured stays
+
+- Obscured was cut with the rest and should not have been. The Xenophis applies it through its Umbra Aspect, the Shadowmeld augmentation grants it, and the Gloomcowl relic hides a Fell in it. It is restored.
+- SigilForge is canon for what an ability may forge. It is not the whole condition catalog. A condition an Aspect, an augmentation, or a relic applies now carries forgeable false, and Obscured is the only one.
+- 37 Afflictions, 34 Combat Effects, 33 of them forgeable.
+
 ## The cut conditions are gone from every tool
 
 - Three weapon groups applied an Affliction that no longer exists. The Flail now applies Crippled, the Halberd applies Impeded, the Ring applies Jinxed, and the Orb applies Masked.

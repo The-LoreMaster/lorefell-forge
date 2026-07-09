@@ -1,5 +1,6 @@
-/* LoreFell canon conditions pack. Generated from SigilForge, which is canon for
-   conditions. 37 afflictions, 33 combat effects, 6 impairments.
+/* LoreFell canon conditions pack. Generated from SigilForge, which is canon for what an
+   ability may forge. A few conditions are applied only by an Aspect, an augmentation, or a
+   relic, and carry forgeable false. 37 afflictions, 34 combat effects, 6 impairments.
    Only an affliction carries a Breakout. Do not hand-edit. Regenerate from SigilForge. */
 (function(g){
   var CONDITIONS = [
@@ -15,7 +16,8 @@
       "kind": "onDamageTaken",
       "op": "addBase",
       "value": 1
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Impeded",
@@ -28,7 +30,8 @@
       "bucket": "C",
       "kind": "reminder",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Vulnerable",
@@ -41,7 +44,8 @@
       "bucket": "C",
       "kind": "reminder",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Immobilized",
@@ -54,7 +58,8 @@
       "bucket": "B",
       "kind": "gate",
       "op": "noMove"
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Hunted",
@@ -67,7 +72,8 @@
       "bucket": "C",
       "kind": "reminder",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Slashed",
@@ -80,7 +86,8 @@
       "bucket": "A",
       "kind": "passive",
       "op": "maxVitHalved"
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Frenzied",
@@ -93,7 +100,8 @@
       "bucket": "B",
       "kind": "target",
       "op": "mustSource"
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Disenchanted",
@@ -106,7 +114,8 @@
       "bucket": "C",
       "kind": "reminder",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Disarmed",
@@ -119,7 +128,8 @@
       "bucket": "B",
       "kind": "gate",
       "op": "noWeapon"
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Disrupted",
@@ -132,7 +142,8 @@
       "bucket": "C",
       "kind": "reminder",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Lacerated",
@@ -145,7 +156,8 @@
       "bucket": "B",
       "kind": "gate",
       "op": "noAttack"
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Diminished",
@@ -158,7 +170,8 @@
       "bucket": "C",
       "kind": "reminder",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Bruised",
@@ -171,7 +184,8 @@
       "bucket": "A",
       "kind": "dmgIn",
       "op": "bonusAsBase"
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Dazzled",
@@ -184,7 +198,8 @@
       "bucket": "C",
       "kind": "reminder",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Terrorized",
@@ -197,7 +212,8 @@
       "bucket": "B",
       "kind": "target",
       "op": "noCloserToSource"
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Disoriented",
@@ -210,7 +226,8 @@
       "bucket": "B",
       "kind": "target",
       "op": "oddTargetsAlly"
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Mangled",
@@ -223,7 +240,8 @@
       "bucket": "A",
       "kind": "onDealDamage",
       "op": "selfBase"
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Vitiated",
@@ -236,7 +254,8 @@
       "bucket": "A",
       "kind": "dmgOut",
       "op": "magicHalved"
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Unclad",
@@ -249,7 +268,8 @@
       "bucket": "C",
       "kind": "reminder",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Staggered",
@@ -262,7 +282,8 @@
       "bucket": "B",
       "kind": "gate",
       "op": "noReact"
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Agonized",
@@ -275,7 +296,8 @@
       "bucket": "B",
       "kind": "gate",
       "op": "noAttack"
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Crippled",
@@ -288,7 +310,8 @@
       "bucket": "C",
       "kind": "reminder",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Jinxed",
@@ -301,7 +324,8 @@
       "bucket": "C",
       "kind": "reminder",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Masked",
@@ -314,7 +338,8 @@
       "bucket": "C",
       "kind": "reminder",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Ignited",
@@ -328,7 +353,8 @@
       "kind": "onAct",
       "op": "selfRoll",
       "value": "1d6"
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Worn",
@@ -341,7 +367,8 @@
       "bucket": "C",
       "kind": "reminder",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Unlucky",
@@ -354,7 +381,8 @@
       "bucket": "C",
       "kind": "reminder",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Reapt",
@@ -367,7 +395,8 @@
       "bucket": "A",
       "kind": "passive",
       "op": "noChargeGain"
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Harvested",
@@ -380,7 +409,8 @@
       "bucket": "A",
       "kind": "heal",
       "op": "invertToBase"
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Accursed",
@@ -393,7 +423,8 @@
       "bucket": "A",
       "kind": "onDealDamage",
       "op": "selfEqualDealt"
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Enfeebled",
@@ -406,7 +437,8 @@
       "bucket": "A",
       "kind": "onApply",
       "op": "loseHalfCurrent"
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Ensnared",
@@ -419,7 +451,8 @@
       "bucket": "B",
       "kind": "gate",
       "op": "noAct"
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Frozen",
@@ -432,7 +465,8 @@
       "bucket": "B",
       "kind": "gate",
       "op": "skillOnly"
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Conjoined",
@@ -445,7 +479,8 @@
       "bucket": "C",
       "kind": "reminder",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Synchronized",
@@ -458,7 +493,8 @@
       "bucket": "C",
       "kind": "reminder",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Plagued",
@@ -471,7 +507,8 @@
       "bucket": "C",
       "kind": "reminder",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Strung",
@@ -484,7 +521,8 @@
       "bucket": "C",
       "kind": "reminder",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Attuned",
@@ -496,7 +534,8 @@
       "bucket": "C",
       "kind": "effect",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Restored",
@@ -508,7 +547,8 @@
       "bucket": "C",
       "kind": "effect",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Transferred",
@@ -520,7 +560,8 @@
       "bucket": "C",
       "kind": "effect",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Drained",
@@ -532,7 +573,8 @@
       "bucket": "C",
       "kind": "effect",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Advanced",
@@ -544,7 +586,8 @@
       "bucket": "C",
       "kind": "effect",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Pursued",
@@ -556,7 +599,8 @@
       "bucket": "C",
       "kind": "effect",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Repositioned",
@@ -568,7 +612,8 @@
       "bucket": "C",
       "kind": "effect",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Swapped",
@@ -580,7 +625,8 @@
       "bucket": "C",
       "kind": "effect",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Pushed",
@@ -592,7 +638,8 @@
       "bucket": "C",
       "kind": "effect",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Pulled",
@@ -604,7 +651,8 @@
       "bucket": "C",
       "kind": "effect",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Placed",
@@ -616,7 +664,8 @@
       "bucket": "C",
       "kind": "effect",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Gathered",
@@ -628,7 +677,8 @@
       "bucket": "C",
       "kind": "effect",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Scattered",
@@ -640,7 +690,8 @@
       "bucket": "C",
       "kind": "effect",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Tracked",
@@ -652,7 +703,8 @@
       "bucket": "C",
       "kind": "effect",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Exposed",
@@ -664,7 +716,8 @@
       "bucket": "C",
       "kind": "effect",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Pierced",
@@ -676,7 +729,8 @@
       "bucket": "C",
       "kind": "effect",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Sabotaged",
@@ -688,7 +742,8 @@
       "bucket": "C",
       "kind": "effect",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Crushed",
@@ -700,7 +755,8 @@
       "bucket": "C",
       "kind": "effect",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Refracted",
@@ -712,7 +768,8 @@
       "bucket": "C",
       "kind": "effect",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Bonus Damage",
@@ -724,7 +781,8 @@
       "bucket": "C",
       "kind": "effect",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Cleaved",
@@ -736,7 +794,8 @@
       "bucket": "C",
       "kind": "effect",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Siphoned",
@@ -748,7 +807,8 @@
       "bucket": "C",
       "kind": "effect",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Mended",
@@ -760,7 +820,8 @@
       "bucket": "C",
       "kind": "effect",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Dispelled",
@@ -772,7 +833,8 @@
       "bucket": "C",
       "kind": "effect",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Purged",
@@ -784,7 +846,8 @@
       "bucket": "C",
       "kind": "effect",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Redirected",
@@ -796,7 +859,8 @@
       "bucket": "C",
       "kind": "effect",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Reinforced",
@@ -808,7 +872,8 @@
       "bucket": "C",
       "kind": "effect",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Guarded",
@@ -820,7 +885,8 @@
       "bucket": "C",
       "kind": "effect",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Warded",
@@ -832,7 +898,8 @@
       "bucket": "C",
       "kind": "effect",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Bound",
@@ -844,7 +911,8 @@
       "bucket": "C",
       "kind": "effect",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Echoed",
@@ -856,7 +924,8 @@
       "bucket": "C",
       "kind": "effect",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Manifested",
@@ -868,7 +937,8 @@
       "bucket": "C",
       "kind": "effect",
       "op": null
-    }
+    },
+    "forgeable": true
   },
   {
     "name": "Lucky",
@@ -876,6 +946,25 @@
     "cost": 2,
     "breakout": "",
     "rule": "Your roll is Lucky for this attack.",
+    "enforce": {
+      "bucket": "C",
+      "kind": "effect",
+      "op": null
+    },
+    "forgeable": true
+  },
+  {
+    "name": "Obscured",
+    "type": "effect",
+    "cost": 0,
+    "breakout": "",
+    "forgeable": false,
+    "rule": "Enemies cannot see or target you until you deal damage or are dealt damage.",
+    "appliedBy": [
+      "The Xenophis, the Umbra Aspect",
+      "the Shadowmeld augmentation",
+      "the Gloomcowl relic"
+    ],
     "enforce": {
       "bucket": "C",
       "kind": "effect",
