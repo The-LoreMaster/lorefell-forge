@@ -1,3 +1,9 @@
+## FateWell forged Acts and items report where they went
+
+- A forged Act or item now says whether it reached your creations. The vault answers, and the tool tells you plainly if it refused.
+- Forging while the tool is not connected to the site says so, rather than pretending it saved.
+- The saved row now fills its kind and full text, so the vote hall reads it the same way it reads anything else.
+
 ## FateWell tooltips on a finger
 
 - Every infusion, augmentation, item, affliction, and Act now carries a small info dot. Tap it and a card opens with its name and what it does. Hovering still opens it on a pointer.

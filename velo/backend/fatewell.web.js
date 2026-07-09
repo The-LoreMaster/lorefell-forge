@@ -353,10 +353,12 @@ export const submitAct = webMethod(Permissions.SiteMember, async (act) => {
   try {
     const row = await wixData.insert('Creations', {
       forgeKey: 'sigilforge',
+      kind: 'act',
       creationName: name,
       creatorMemberId: mid,
       canonStatus: 'private',
       shorthand: effect,
+      fullText: effect,
       payload: JSON.stringify({ name: name, tier: tier, use: 'Act', full: effect, effect: effect })
     }, { suppressAuth: true });
     return { ok: true, id: row._id };
@@ -373,10 +375,12 @@ export const submitItem = webMethod(Permissions.SiteMember, async (item) => {
   try {
     const row = await wixData.insert('Creations', {
       forgeKey: 'itemforge',
+      kind: 'item',
       creationName: name,
       creatorMemberId: mid,
       canonStatus: 'private',
       shorthand: rule,
+      fullText: rule,
       payload: JSON.stringify({ name: name, rule: rule })
     }, { suppressAuth: true });
     return { ok: true, id: row._id };

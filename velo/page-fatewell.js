@@ -215,18 +215,32 @@ $w.onReady(() => {
       // An Act forged at the table. Saved as the loremaster's own creation, then the pool
       // is refreshed so the new Act appears everywhere the tool reads Acts.
       try {
-        await submitAct(m.act || {});
-        const abilities = await getForgeLibrary();
-        embed.postMessage({ type: 'lmtool-forge', abilities: abilities });
-      } catch (e) {}
+        const r = await submitAct(m.act || {});
+        if (r && r.ok) {
+          const abilities = await getForgeLibrary();
+          embed.postMessage({ type: 'lmtool-forge', abilities: abilities });
+        }
+        embed.postMessage({ type: 'lmtool-submit-result', what: 'Act',
+          name: (m.act && m.act.name) || '', ok: !!(r && r.ok), error: (r && r.error) || '' });
+      } catch (e) {
+        embed.postMessage({ type: 'lmtool-submit-result', what: 'Act',
+          name: (m.act && m.act.name) || '', ok: false, error: String(e) });
+      }
     } else if (m.type === 'lmtool-item-submit') {
       // An item forged at the table. Saved, then the pools are refreshed so it appears
       // wherever the tool offers items.
       try {
-        await submitItem(m.item || {});
-        const pools = await getForgePools();
-        embed.postMessage({ type: 'lmtool-pools', pools: pools });
-      } catch (e) {}
+        const r = await submitItem(m.item || {});
+        if (r && r.ok) {
+          const pools = await getForgePools();
+          embed.postMessage({ type: 'lmtool-pools', pools: pools });
+        }
+        embed.postMessage({ type: 'lmtool-submit-result', what: 'item',
+          name: (m.item && m.item.name) || '', ok: !!(r && r.ok), error: (r && r.error) || '' });
+      } catch (e) {
+        embed.postMessage({ type: 'lmtool-submit-result', what: 'item',
+          name: (m.item && m.item.name) || '', ok: false, error: String(e) });
+      }
     } else if (m.type === 'lmtool-pools-request') {
       // Infusions, augmentations, and items the loremaster forged or that reached canon.
       let pools = { infusions: [], augmentations: [], items: [] };
