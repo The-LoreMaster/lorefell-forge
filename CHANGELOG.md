@@ -1,3 +1,10 @@
+## The cut conditions are gone from every tool
+
+- Three weapon groups applied an Affliction that no longer exists. The Flail now applies Crippled, the Halberd applies Impeded, the Ring applies Jinxed, and the Orb applies Masked.
+- FellGlass no longer enforces Dislocated, Infected, or Withered. Vitiated now halves every kind of damage you deal, as its rule reads.
+- The 54 affliction lists in FateWell, BrandForge, FoeForge, and SagaForge are trimmed to the 37 that remain, along with the CanonFoePack seed. The ForgeComponents seed drops the six cut Combat Effects.
+- No tool and no seed names a cut condition.
+
 ## Conditions follow SigilForge
 
 - SigilForge is canon for conditions. The canon conditions pack is regenerated from it. 37 Afflictions, 33 Combat Effects, 6 Impairments.
