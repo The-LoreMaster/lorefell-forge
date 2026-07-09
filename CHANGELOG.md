@@ -1,3 +1,8 @@
+## FellGlass weapon afflictions cannot collapse
+
+- The weapon catalog could be overridden from the vault, and that override read one Affliction for a whole tree. All three forms would have carried the same one. It now reads an Affliction for each form and keeps the inline pack when the vault does not carry all three.
+- The weapon placeholder named Bleed, which is not an Affliction. A weapon with no Affliction now says so plainly instead of naming one that does not exist.
+
 ## Weapon afflictions follow the family
 
 - Eight of the twenty seven weapon forms carried an Affliction from the wrong family. A Hatchet applied a Precision Affliction, a Wand applied one, a Long Sword applied a Magic Affliction. Every form now applies an Affliction of its own family.

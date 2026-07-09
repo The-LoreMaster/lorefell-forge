@@ -2062,7 +2062,7 @@ let WEAPON_DB={
   Sword:{category:"power",forms:["Short Sword","Long Sword","Great Sword"],afflictions:["Disoriented","Vitiated","Agonized"],grips:[1,1,2],ranges:[1,1,1]}
 };
 const CATEGORY_LABEL={precision:"Precision",power:"Power",magic:"Magic"};
-let WEAPON_META={grip:"One-hand (placeholder)",range:"Near (placeholder)",affliction:"Bleed (placeholder)"};
+let WEAPON_META={grip:"One-hand (placeholder)",range:"Near (placeholder)",affliction:""};
 /* Canon weapon level rewards (FellGuide) */
 const WEAPON_LEVELS=[
   "Choose a weapon under your chosen Offensive Attribute. Gain +1 bonus damage and your first Infusion.",
@@ -2253,7 +2253,7 @@ Object.values(SKILLS).flat().forEach(([n])=>C.skills[n]={rank:0,mastery:0,talent
 function newWeapon(){return {tree:"",formIdx:0,level:1,misc:0,afflictions:[null,null,null],infusions:[null,null,null],abilities:[null,null,null]};}
 C.weapons=[]; /* nothing by default; weapons arrive only through creation or leveling */
 const weaponName=w=>w.tree?WEAPON_DB[w.tree].forms[w.formIdx]:"";
-function weaponAff(w){ var db=w&&w.tree&&WEAPON_DB[w.tree]; if(!db) return WEAPON_META.affliction; if(db.afflictions&&db.afflictions[w.formIdx]) return db.afflictions[w.formIdx]; return (db.meta&&db.meta.affliction)||WEAPON_META.affliction; }
+function weaponAff(w){ var db=w&&w.tree&&WEAPON_DB[w.tree]; if(!db) return ""; if(db.afflictions&&db.afflictions[w.formIdx]) return db.afflictions[w.formIdx]; return (db.meta&&db.meta.affliction)||""; }
 
 let god=false;
 const $=id=>document.getElementById(id);
@@ -3280,7 +3280,8 @@ function renderWeapons(){
 
     /* afflictions: slot 1 innate, slots 2/3 unlock at L4/L8 */
     slot.appendChild(el("h3",null,"Afflictions"));
-    slot.appendChild(el("div","comp-desc",w.tree?`Innate \u00b7 ${weaponAff(w)}`:"Innate affliction set by your weapon."));
+    var _wa=w.tree?weaponAff(w):"";
+    slot.appendChild(el("div","comp-desc", _wa?`Innate \u00b7 ${_wa}`:"Innate affliction set by your weapon."));
     for(let i=1;i<3;i++){
       if(w.level>=AFFLICTION_UNLOCK[i]){
         slot.appendChild(slotSelect(AFFLICTIONS,w.afflictions[i],v=>{w.afflictions[i]=v;renderWeapons();},f=>`${f.skill} \u2014 ${f.desc}`));
@@ -3963,9 +3964,17 @@ function loadLibraries(lib){
     const db={};
     lib.weapons.forEach(r=>{
       const tree=F(r,"tree","name","title");if(!tree)return;
-      db[tree]={category:lc(F(r,"category"))||"precision",
+      /* Each form carries its own Affliction. A row that names only one would have given all
+         three forms the same Affliction, so read the three columns and keep the inline pack
+         when they are absent. */
+      const prev=WEAPON_DB[tree]||{};
+      const affs=[F(r,"afflictionOne"),F(r,"afflictionTwo"),F(r,"afflictionThree")];
+      const haveAffs=affs.filter(Boolean).length===3;
+      db[tree]={category:lc(F(r,"category"))||(prev.category||"precision"),
         forms:[F(r,"formOne")||tree,F(r,"formTwo")||tree+" II",F(r,"formThree")||tree+" III"],
-        meta:{grip:F(r,"grip")||WEAPON_META.grip,range:F(r,"range")||WEAPON_META.range,affliction:F(r,"innateAffliction")||WEAPON_META.affliction}};
+        afflictions: haveAffs ? affs : (prev.afflictions||[]),
+        grips: prev.grips, ranges: prev.ranges,
+        meta:{grip:F(r,"grip")||WEAPON_META.grip,range:F(r,"range")||WEAPON_META.range,affliction:""}};
     });
     if(Object.keys(db).length)WEAPON_DB=db;
   }
