@@ -1,3 +1,7 @@
+## FateWell campaign settings tab
+
+- The adventure type, the party, the world, and what the world faces moved off the top of the campaign screen into a Settings tab beside Overview and Roster. The title now sits directly above the tabs.
+
 ## FateWell the party sets two numbers
 
 - Set the party now takes only the average party level and the party size. The tool works out skill difficulty, discord points, and the Lore Points a battle rewards.
