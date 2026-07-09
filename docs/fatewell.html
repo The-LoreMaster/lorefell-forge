@@ -448,6 +448,11 @@ body::before{
 .search-scope .search-tab.on{ background:var(--navy3); color:var(--silver); box-shadow:inset 0 -2px 0 var(--gold); }
 .lib-scope{ margin:10px 0 8px; }
 .lib-bar{ display:flex; gap:8px; align-items:center; margin:0 0 10px; }
+.lore-award{ border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin-top:12px; background:var(--navy2); }
+.la-top{ display:flex; align-items:center; justify-content:space-between; }
+.la-n{ font-family:'Cinzel',serif; font-size:1.5rem; color:var(--gold); }
+.la-n.pinned{ text-decoration:underline dotted; }
+.lore-award .qd{ margin-top:8px; }
 .adv-actions{ display:flex; gap:8px; margin-top:10px; }
 .adv-actions .btn{ flex:1; }
 .adv-actions.one{ margin-top:8px; }
@@ -5243,15 +5248,16 @@ function partyModal(){
     + (pc.empty ? '<p class="muted small-note">No players on this adventure yet, so the roster reads as level '+pc.apl+', '+pc.size+' strong.</p>' : '')
     + row('apl', 'Average party level', ov.apl, String(pc.apl), 'Currently '+pc.apl+(pc.pinnedApl?', pinned':', from the roster'))
     + row('size', 'Party size', ov.size, String(pc.size), 'Currently '+pc.size+(pc.pinnedSize?', pinned':', from the roster'))
-    + row('difficulty', 'Skill difficulty', ov.difficulty, String(pc.difficulty), 'Currently +'+pc.difficulty+(pc.pinnedDiff?', pinned':', which is the party level divided by five'))
-    + row('discord', 'Discord points', ov.discord, '0', 'The pool this adventure has to spend. Tracked here, never spent for you.')
+    + row('difficulty', 'Skill difficulty', ov.difficulty, String(pc.difficulty), 'Currently +'+pc.difficulty+(pc.pinnedDiff?', pinned':', one for every five levels of the party'))
+    + row('discord', 'Discord points', ov.discord, String(pc.discordAuto), 'Currently '+pc.discord+(pc.pinnedDiscord?', pinned':', the party size plus the average level ('+pc.size+' plus '+pc.apl+')'))
+    + row('lore', 'Lore Points rewarded', ov.lore, '', 'Left empty a battle rewards one Lore Point for each Shatter Rating category fought. A number here pins every battle in this adventure.')
     + '<div class="m-row"><button class="btn ghost" onclick="clearPartyOverride()">Clear all</button>'
     + '<button class="btn" onclick="savePartyOverride()">Save</button></div>');
 }
 function savePartyOverride(){
   var c = curC(); if (!c) return;
   var ov = {};
-  ['apl','size','difficulty','discord'].forEach(function(k){
+  ['apl','size','difficulty','discord','lore'].forEach(function(k){
     var el = document.getElementById('po-'+k);
     var v = el ? el.value.trim() : '';
     if (v !== '') ov[k] = Math.max(0, parseInt(v,10) || 0);
@@ -5285,11 +5291,67 @@ function partyContext(){
     pinnedApl: !!ov.apl,
     pinnedSize: !!ov.size,
     pinnedDiff: (ov.difficulty !== undefined && ov.difficulty !== ''),
-    discord: (ov.discord !== undefined && ov.discord !== '') ? Math.max(0, +ov.discord) : 0,
+    pinnedDiscord: (ov.discord !== undefined && ov.discord !== ''),
     empty: !size
   };
+  /* Skill difficulty climbs one for every five levels of the party. */
   out.difficulty = out.pinnedDiff ? Math.max(0, +ov.difficulty) : Math.floor(out.apl / 5);
+  /* Disruptions, the Discord pool, is one per character plus the average level. */
+  out.discordAuto = out.size + out.apl;
+  out.discord = out.pinnedDiscord ? Math.max(0, +ov.discord) : out.discordAuto;
   return out;
+}
+/* Lore Points a scene rewards: one for each Shatter Rating category the party fought.
+   The loremaster may pin a number when a fight earned more or less than the shape says. */
+function loreReward(){
+  var c = curC(), sc = curSc();
+  var ov = (c && c.partyOverride) || {};
+  if (sc && sc.loreAward !== undefined && sc.loreAward !== '') return Math.max(0, +sc.loreAward);
+  if (ov.lore !== undefined && ov.lore !== '') return Math.max(0, +ov.lore);
+  return lpTotal();
+}
+function loreRewardPinned(){
+  var c = curC(), sc = curSc();
+  var ov = (c && c.partyOverride) || {};
+  return (sc && sc.loreAward !== undefined && sc.loreAward !== '') || (ov.lore !== undefined && ov.lore !== '');
+}
+/* What the battle earned. The ratings fought are named so the number can be checked at a
+   glance, and pinned by hand when a fight was worth more or less than its shape. */
+function loreRewardHtml(){
+  var sc = curSc(); if (!sc) return '';
+  var seen = {}, order = [];
+  (sc.combatants||[]).forEach(function(c){
+    if (c.sr && !seen[c.sr]){ seen[c.sr]=true; order.push(c.sr); }
+  });
+  var auto = lpTotal();
+  var val = loreReward();
+  var pinned = loreRewardPinned();
+  var parts = order.map(function(r){ return esc(r)+' '+SR_TABLE[r].lp; }).join(' &middot; ');
+
+  var h = '<div class="lore-award">';
+  h += '<div class="la-top"><span class="st-l">Lore Points rewarded</span>'
+    + '<span class="la-n'+(pinned?' pinned':'')+'">'+val+'</span></div>';
+  h += order.length
+    ? '<p class="muted small center">'+parts+'</p><p class="muted small center">One per Shatter Rating category fought.</p>'
+    : '<p class="muted small center">No foes fought in this scene.</p>';
+  h += '<div class="qd"><input class="qd-in" id="loreAwardIn" type="number" inputmode="numeric" min="0" value="'
+    + (sc.loreAward!==undefined && sc.loreAward!=='' ? esc(String(sc.loreAward)) : '') + '" placeholder="'+auto+' from the foes">'
+    + '<button class="qd-b" onclick="setSceneLore()">Set</button>'
+    + (sc.loreAward!==undefined ? '<button class="qd-b" onclick="clearSceneLore()">Clear</button>' : '')
+    + '</div>';
+  h += '</div>';
+  return h;
+}
+function clearSceneLore(){
+  var sc = curSc(); if (!sc) return;
+  delete sc.loreAward; save(); render();
+}
+function setSceneLore(){
+  var sc = curSc(); if (!sc) return;
+  var el = document.getElementById('loreAwardIn');
+  var v = el ? el.value.trim() : '';
+  if (v === '') delete sc.loreAward; else sc.loreAward = Math.max(0, parseInt(v,10)||0);
+  save(); render();
 }
 function fwPartyLevel(){ return partyContext().apl; }
 function fwPartySize(){ return partyContext().size; }
@@ -5514,13 +5576,7 @@ function lpTotal(){
   });
   return total;
 }
-function difficulty(){
-  var c = curC(), ov = (c && c.partyOverride) || {};
-  if (ov.difficulty !== undefined && ov.difficulty !== '') return Math.max(0, +ov.difficulty);
-  var a = avgLevel();
-  if (!a) return Math.floor(partyContext().apl / 5);   /* no one marked attending */
-  return Math.floor(a / 5);
-}
+function difficulty(){ return partyContext().difficulty; }
 
 function disBase(){
   var sc = curSc();
@@ -7373,6 +7429,7 @@ function statCards(){
     + '<div class="stat"><div class="st-n">'+lpTotal()+'</div><div class="st-l">Lore Points</div></div>'
     + '<div class="stat"><div class="st-n">'+(avg ? (Math.round(avg*10)/10) : 0)+'</div><div class="st-l">Avg Level</div></div>'
     + '<div class="stat"><div class="st-n">+'+difficulty()+'</div><div class="st-l">Difficulty</div></div>'
+    + '<div class="stat"><div class="st-n">'+partyContext().discord+'</div><div class="st-l">Discord</div></div>'
     + '</div>';
 }
 
@@ -8822,7 +8879,7 @@ function tabLoot(sc){
       + '<input class="inp" value="'+esc(L.notes[p.id]||'')+'" onchange="setLootNote(\''+p.id+'\',this.value)" placeholder="Loot awarded">'
       + '</div>';
   });
-  h += '<p class="muted center">Lore Points to award this scene: <b>'+lpTotal()+'</b> (one per Shatter Rating category fought)</p>';
+  h += loreRewardHtml();
   return h;
 }
 

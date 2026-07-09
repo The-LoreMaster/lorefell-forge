@@ -1,3 +1,10 @@
+## FateWell the party drives the table
+
+- Disruptions, the Discord pool, is the number of characters plus the average party level. It shows on the combat bar beside Difficulty.
+- Skill difficulty climbs one for every five levels of the party.
+- A battle now ends with Lore Points rewarded, one for each Shatter Rating category fought, with the ratings named so the number can be checked. The loremaster may pin a number for one scene, or for the whole adventure.
+- Every one of these reads from the party and can be pinned by hand in Set the party. Set the number of players and their average level and the rest follows.
+
 ## FateWell one reading of the party
 
 - Fixed a foe re-forging to a different vitality than it attached at. Two readings of the party disagreed. Attaching averaged the campaign roster, re-forging read the site roster and fell back to level 3 and a party of 4, ignoring the roster in front of you. Both now read one party.
