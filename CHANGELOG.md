@@ -1,3 +1,8 @@
+## FateWell import sits with the adventures
+
+- Choosing an adventure pack moved out of Settings and onto the Adventures screen, where it belongs. Import Adventure now sits beside Create an Adventure, and both appear when the shelf is empty so a first story can arrive either way.
+- The New Adventure button reads Create an Adventure.
+
 ## FateWell library scope and bulk delete
 
 - The library now scopes to the campaign you are on, showing assets tagged to it plus untagged ones, with a toggle for all campaigns. It matches how search works.
