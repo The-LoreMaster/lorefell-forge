@@ -1,3 +1,9 @@
+## SigilForge forges Obscured
+
+- Obscured joins the Combat Effects. It costs 3 and rides a No Damage ability only, since dealing damage ends it the moment it lands. That cost puts it out of reach of a Tier 1 build.
+- The Xenophis, the Shadowmeld augmentation, and the Gloomcowl relic still grant it. A forged spell can now grant it too.
+- 37 Afflictions, 34 Combat Effects, every one of them forgeable.
+
 ## Obscured stays
 
 - Obscured was cut with the rest and should not have been. The Xenophis applies it through its Umbra Aspect, the Shadowmeld augmentation grants it, and the Gloomcowl relic hides a Fell in it. It is restored.

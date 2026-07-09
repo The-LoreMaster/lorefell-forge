@@ -1,6 +1,5 @@
-/* LoreFell canon conditions pack. Generated from SigilForge, which is canon for what an
-   ability may forge. A few conditions are applied only by an Aspect, an augmentation, or a
-   relic, and carry forgeable false. 37 afflictions, 34 combat effects, 6 impairments.
+/* LoreFell canon conditions pack. Generated from SigilForge, which is canon for conditions.
+   37 afflictions, 34 combat effects, 6 impairments.
    Only an affliction carries a Breakout. Do not hand-edit. Regenerate from SigilForge. */
 (function(g){
   var CONDITIONS = [
@@ -11,13 +10,13 @@
     "cost": 3,
     "breakout": "Renewal",
     "rule": "Whenever you take damage, take your own Base Damage.",
+    "forgeable": true,
     "enforce": {
       "bucket": "A",
       "kind": "onDamageTaken",
       "op": "addBase",
       "value": 1
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Impeded",
@@ -26,12 +25,12 @@
     "cost": 3,
     "breakout": "Movement",
     "rule": "Your Evasion becomes 0.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "reminder",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Vulnerable",
@@ -40,12 +39,12 @@
     "cost": 3,
     "breakout": "Guard",
     "rule": "Your Durability becomes 0.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "reminder",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Immobilized",
@@ -54,12 +53,12 @@
     "cost": 3,
     "breakout": "Movement",
     "rule": "You cannot move.",
+    "forgeable": true,
     "enforce": {
       "bucket": "B",
       "kind": "gate",
       "op": "noMove"
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Hunted",
@@ -68,12 +67,12 @@
     "cost": 3,
     "breakout": "Elusion",
     "rule": "Fellmarks land against you on a 5 or 6.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "reminder",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Slashed",
@@ -82,12 +81,12 @@
     "cost": 4,
     "breakout": "Renewal",
     "rule": "Your maximum Vitality is halved.",
+    "forgeable": true,
     "enforce": {
       "bucket": "A",
       "kind": "passive",
       "op": "maxVitHalved"
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Frenzied",
@@ -96,12 +95,12 @@
     "cost": 4,
     "breakout": "Conviction",
     "rule": "You may only target the source of this Affliction.",
+    "forgeable": true,
     "enforce": {
       "bucket": "B",
       "kind": "target",
       "op": "mustSource"
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Disenchanted",
@@ -110,12 +109,12 @@
     "cost": 4,
     "breakout": "Creation",
     "rule": "Your weapons lose their Infusions.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "reminder",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Disarmed",
@@ -124,12 +123,12 @@
     "cost": 4,
     "breakout": "Finesse",
     "rule": "You cannot utilize your weapon.",
+    "forgeable": true,
     "enforce": {
       "bucket": "B",
       "kind": "gate",
       "op": "noWeapon"
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Disrupted",
@@ -138,12 +137,12 @@
     "cost": 4,
     "breakout": "Weaving",
     "rule": "Your spells automatically fail unless a Fellmark is rolled.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "reminder",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Lacerated",
@@ -152,12 +151,12 @@
     "cost": 5,
     "breakout": "Poise",
     "rule": "You cannot utilize attacks.",
+    "forgeable": true,
     "enforce": {
       "bucket": "B",
       "kind": "gate",
       "op": "noAttack"
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Diminished",
@@ -166,12 +165,12 @@
     "cost": 3,
     "breakout": "Resolve",
     "rule": "Your Resistance becomes 0.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "reminder",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Bruised",
@@ -180,12 +179,12 @@
     "cost": 3,
     "breakout": "Bearing",
     "rule": "Bonus Damage dealt to you counts as Base Damage instead.",
+    "forgeable": true,
     "enforce": {
       "bucket": "A",
       "kind": "dmgIn",
       "op": "bonusAsBase"
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Dazzled",
@@ -194,12 +193,12 @@
     "cost": 3,
     "breakout": "Vigilance",
     "rule": "Your Accuracy is halved.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "reminder",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Terrorized",
@@ -208,12 +207,12 @@
     "cost": 3,
     "breakout": "Conviction",
     "rule": "You cannot voluntarily move closer to the source of this Affliction.",
+    "forgeable": true,
     "enforce": {
       "bucket": "B",
       "kind": "target",
       "op": "noCloserToSource"
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Disoriented",
@@ -222,12 +221,12 @@
     "cost": 3,
     "breakout": "Logic",
     "rule": "Roll 1d6 before each attack. On an odd result, you must target an ally if able.",
+    "forgeable": true,
     "enforce": {
       "bucket": "B",
       "kind": "target",
       "op": "oddTargetsAlly"
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Mangled",
@@ -236,12 +235,12 @@
     "cost": 3,
     "breakout": "Renewal",
     "rule": "Whenever you deal damage, you take your own Base Damage.",
+    "forgeable": true,
     "enforce": {
       "bucket": "A",
       "kind": "onDealDamage",
       "op": "selfBase"
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Vitiated",
@@ -250,12 +249,12 @@
     "cost": 4,
     "breakout": "Resonance",
     "rule": "Damage you deal is halved.",
+    "forgeable": true,
     "enforce": {
       "bucket": "A",
       "kind": "dmgOut",
       "op": "magicHalved"
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Unclad",
@@ -264,12 +263,12 @@
     "cost": 4,
     "breakout": "Creation",
     "rule": "Your armor loses its Augmentations.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "reminder",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Staggered",
@@ -278,12 +277,12 @@
     "cost": 4,
     "breakout": "Reflex",
     "rule": "You cannot utilize Reacts.",
+    "forgeable": true,
     "enforce": {
       "bucket": "B",
       "kind": "gate",
       "op": "noReact"
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Agonized",
@@ -292,12 +291,12 @@
     "cost": 5,
     "breakout": "Bearing",
     "rule": "You cannot attack and your Evasion becomes 0.",
+    "forgeable": true,
     "enforce": {
       "bucket": "B",
       "kind": "gate",
       "op": "noAttack"
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Crippled",
@@ -306,12 +305,12 @@
     "cost": 5,
     "breakout": "Anchor",
     "rule": "All of your attributes become equal to your lowest attribute.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "reminder",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Jinxed",
@@ -320,12 +319,12 @@
     "cost": 3,
     "breakout": "Resonance",
     "rule": "Your rolls of 1 or 2 count as Fellstrikes.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "reminder",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Masked",
@@ -334,12 +333,12 @@
     "cost": 3,
     "breakout": "Vigilance",
     "rule": "You may only see spaces and targets in your space or adjacent spaces.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "reminder",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Ignited",
@@ -348,13 +347,13 @@
     "cost": 3,
     "breakout": "Endurance",
     "rule": "Whenever you utilize an Act, take 1d6 damage.",
+    "forgeable": true,
     "enforce": {
       "bucket": "A",
       "kind": "onAct",
       "op": "selfRoll",
       "value": "1d6"
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Worn",
@@ -363,12 +362,12 @@
     "cost": 3,
     "breakout": "Reflex",
     "rule": "You gain 1 rank of Fatigue.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "reminder",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Unlucky",
@@ -377,12 +376,12 @@
     "cost": 4,
     "breakout": "Resonance",
     "rule": "All your rolls become Unlucky.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "reminder",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Reapt",
@@ -391,12 +390,12 @@
     "cost": 4,
     "breakout": "Weaving",
     "rule": "You no longer gain Charges.",
+    "forgeable": true,
     "enforce": {
       "bucket": "A",
       "kind": "passive",
       "op": "noChargeGain"
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Harvested",
@@ -405,12 +404,12 @@
     "cost": 4,
     "breakout": "Spirit",
     "rule": "Any source that would heal your Vitality deals Base Damage instead.",
+    "forgeable": true,
     "enforce": {
       "bucket": "A",
       "kind": "heal",
       "op": "invertToBase"
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Accursed",
@@ -419,12 +418,12 @@
     "cost": 4,
     "breakout": "Sanctum",
     "rule": "You take damage equal to the damage you deal to others.",
+    "forgeable": true,
     "enforce": {
       "bucket": "A",
       "kind": "onDealDamage",
       "op": "selfEqualDealt"
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Enfeebled",
@@ -433,12 +432,12 @@
     "cost": 4,
     "breakout": "Temper",
     "rule": "Lose half your current Vitality.",
+    "forgeable": true,
     "enforce": {
       "bucket": "A",
       "kind": "onApply",
       "op": "loseHalfCurrent"
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Ensnared",
@@ -447,12 +446,12 @@
     "cost": 5,
     "breakout": "Might",
     "rule": "You may not utilize Acts.",
+    "forgeable": true,
     "enforce": {
       "bucket": "B",
       "kind": "gate",
       "op": "noAct"
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Frozen",
@@ -461,12 +460,12 @@
     "cost": 5,
     "breakout": "Bearing",
     "rule": "You may only utilize Skill Rolls.",
+    "forgeable": true,
     "enforce": {
       "bucket": "B",
       "kind": "gate",
       "op": "skillOnly"
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Conjoined",
@@ -475,12 +474,12 @@
     "cost": 5,
     "breakout": "Sanctum",
     "rule": "Choose a target ally. Any damage dealt to that ally is also dealt to you.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "reminder",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Synchronized",
@@ -489,12 +488,12 @@
     "cost": 5,
     "breakout": "Trickery",
     "rule": "Each Affliction that afflicts an ally also afflicts you.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "reminder",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Plagued",
@@ -503,12 +502,12 @@
     "cost": 5,
     "breakout": "Sanctum",
     "rule": "Each Affliction that afflicts an enemy also afflicts you.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "reminder",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Strung",
@@ -517,12 +516,12 @@
     "cost": 5,
     "breakout": "Resonance",
     "rule": "Each spell that targets an enemy also targets an ally.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "reminder",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Attuned",
@@ -530,12 +529,12 @@
     "cost": 3,
     "breakout": "",
     "rule": "Gain 1 Charge.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "effect",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Restored",
@@ -543,12 +542,12 @@
     "cost": 3,
     "breakout": "",
     "rule": "The target gains 1 Charge.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "effect",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Transferred",
@@ -556,12 +555,12 @@
     "cost": 2,
     "breakout": "",
     "rule": "Take 1 Charge from the target.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "effect",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Drained",
@@ -569,12 +568,12 @@
     "cost": 2,
     "breakout": "",
     "rule": "The target loses 1 Charge.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "effect",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Advanced",
@@ -582,12 +581,12 @@
     "cost": 1,
     "breakout": "",
     "rule": "Move up to 3 spaces.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "effect",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Pursued",
@@ -595,12 +594,12 @@
     "cost": 1,
     "breakout": "",
     "rule": "Move adjacent to the target.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "effect",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Repositioned",
@@ -608,12 +607,12 @@
     "cost": 1,
     "breakout": "",
     "rule": "Move an ally up to 3 spaces.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "effect",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Swapped",
@@ -621,12 +620,12 @@
     "cost": 2,
     "breakout": "",
     "rule": "Swap positions with the target.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "effect",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Pushed",
@@ -634,12 +633,12 @@
     "cost": 2,
     "breakout": "",
     "rule": "Move the target 3 spaces directly away.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "effect",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Pulled",
@@ -647,12 +646,12 @@
     "cost": 2,
     "breakout": "",
     "rule": "Move the target 3 spaces directly toward you.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "effect",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Placed",
@@ -660,12 +659,12 @@
     "cost": 2,
     "breakout": "",
     "rule": "Move the target to an empty space within 3 spaces.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "effect",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Gathered",
@@ -673,12 +672,12 @@
     "cost": 3,
     "breakout": "",
     "rule": "Move each affected target 3 spaces toward a chosen space.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "effect",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Scattered",
@@ -686,12 +685,12 @@
     "cost": 3,
     "breakout": "",
     "rule": "Move each affected target 3 spaces from a chosen space.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "effect",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Tracked",
@@ -699,12 +698,12 @@
     "cost": 2,
     "breakout": "",
     "rule": "Ignore your weapon's range.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "effect",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Exposed",
@@ -712,12 +711,12 @@
     "cost": 2,
     "breakout": "",
     "rule": "Ignore the target's Durability.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "effect",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Pierced",
@@ -725,12 +724,12 @@
     "cost": 2,
     "breakout": "",
     "rule": "Ignore the target's Resistance.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "effect",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Sabotaged",
@@ -738,12 +737,12 @@
     "cost": 3,
     "breakout": "",
     "rule": "Ignore the target's Armor Stance.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "effect",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Crushed",
@@ -751,12 +750,12 @@
     "cost": 2,
     "breakout": "",
     "rule": "Deal your Base Damage again.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "effect",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Refracted",
@@ -764,12 +763,12 @@
     "cost": 2,
     "breakout": "",
     "rule": "Another target takes half your Bonus Damage.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "effect",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Bonus Damage",
@@ -777,12 +776,12 @@
     "cost": 2,
     "breakout": "",
     "rule": "Add 1d6 to your Bonus Damage.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "effect",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Cleaved",
@@ -790,12 +789,12 @@
     "cost": 3,
     "breakout": "",
     "rule": "deal your Base Damage to another target.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "effect",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Siphoned",
@@ -803,12 +802,12 @@
     "cost": 3,
     "breakout": "",
     "rule": "deal Base Damage and restore that much Vitality.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "effect",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Mended",
@@ -816,12 +815,12 @@
     "cost": 2,
     "breakout": "",
     "rule": "Restore Vitality equal to your Spirit.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "effect",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Dispelled",
@@ -829,12 +828,12 @@
     "cost": 2,
     "breakout": "",
     "rule": "Remove one Effect from the target.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "effect",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Purged",
@@ -842,12 +841,12 @@
     "cost": 2,
     "breakout": "",
     "rule": "Remove one Affliction from the target.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "effect",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Redirected",
@@ -855,12 +854,12 @@
     "cost": 2,
     "breakout": "",
     "rule": "Move one Effect from one target to another.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "effect",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Reinforced",
@@ -868,12 +867,12 @@
     "cost": 2,
     "breakout": "",
     "rule": "Restore the target's Armor Stance.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "effect",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Guarded",
@@ -881,12 +880,12 @@
     "cost": 2,
     "breakout": "",
     "rule": "Reduce the next damage the target takes before your next roll by your Power.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "effect",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Warded",
@@ -894,12 +893,12 @@
     "cost": 2,
     "breakout": "",
     "rule": "Reduce the next Magic damage the target takes before your next roll by your Magic.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "effect",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Bound",
@@ -907,12 +906,31 @@
     "cost": 2,
     "breakout": "",
     "rule": "Damage dealt to the target is dealt to you instead, until an attack lands against that target.",
+    "forgeable": true,
+    "enforce": {
+      "bucket": "C",
+      "kind": "effect",
+      "op": null
+    }
+  },
+  {
+    "name": "Obscured",
+    "type": "effect",
+    "cost": 3,
+    "breakout": "",
+    "rule": "Enemies cannot see or target the target until it deals damage or is dealt damage.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "effect",
       "op": null
     },
-    "forgeable": true
+    "appliedBy": [
+      "a forged spell",
+      "The Xenophis, the Umbra Aspect",
+      "the Shadowmeld augmentation",
+      "the Gloomcowl relic"
+    ]
   },
   {
     "name": "Echoed",
@@ -920,12 +938,12 @@
     "cost": 2,
     "breakout": "",
     "rule": "The next spell the target casts also targets themselves.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "effect",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Manifested",
@@ -933,12 +951,12 @@
     "cost": 2,
     "breakout": "",
     "rule": "Create a temporary object, barrier, or terrain feature in an empty space that has a Vitality of 1.",
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "effect",
       "op": null
-    },
-    "forgeable": true
+    }
   },
   {
     "name": "Lucky",
@@ -946,25 +964,7 @@
     "cost": 2,
     "breakout": "",
     "rule": "Your roll is Lucky for this attack.",
-    "enforce": {
-      "bucket": "C",
-      "kind": "effect",
-      "op": null
-    },
-    "forgeable": true
-  },
-  {
-    "name": "Obscured",
-    "type": "effect",
-    "cost": 0,
-    "breakout": "",
-    "forgeable": false,
-    "rule": "Enemies cannot see or target you until you deal damage or are dealt damage.",
-    "appliedBy": [
-      "The Xenophis, the Umbra Aspect",
-      "the Shadowmeld augmentation",
-      "the Gloomcowl relic"
-    ],
+    "forgeable": true,
     "enforce": {
       "bucket": "C",
       "kind": "effect",
