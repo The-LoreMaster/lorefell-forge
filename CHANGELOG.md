@@ -1,3 +1,9 @@
+## FateWell one reading of the party
+
+- Fixed a foe re-forging to a different vitality than it attached at. Two readings of the party disagreed. Attaching averaged the campaign roster, re-forging read the site roster and fell back to level 3 and a party of 4, ignoring the roster in front of you. Both now read one party.
+- Added Set the party on the campaign screen. Pin the average party level, the party size, the skill difficulty, and a discord pool. An adventure with no players still scales its foes, and a pinned value holds until you clear it, so bringing players in later does not quietly move the numbers.
+- Each field pins on its own. Leave one empty and it reads from the roster. The campaign line shows what the party currently reads as, and whether it is pinned or assumed.
+
 ## FateWell foes draw from the collections
 
 - The foe sheet now pulls its Acts from the forged Act shelf rather than a blank text box. Pick one and it lands with its name, tier, and text, up to the rating's Act ceiling.

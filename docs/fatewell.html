@@ -3504,14 +3504,8 @@ function effMaxVit(e){
   if (!e) return 0;
   if (e.maxVit && e.maxVit > 0) return e.maxVit;
   if (e.foeWeight){
-    var c = curC();
-    var party = (c && c.players && c.players.length) ? c.players.length : 4;
-    var apl = 1;
-    if (c && c.players && c.players.length){
-      var sum = 0; c.players.forEach(function(p){ sum += (parseInt(p.level,10) || 1); });
-      apl = Math.max(1, Math.round(sum / c.players.length));
-    }
-    return apl * party * e.foeWeight;
+    var pc = partyContext();
+    return pc.apl * pc.size * e.foeWeight;
   }
   return e.maxVit || 0;
 }
@@ -5225,14 +5219,80 @@ function reforgeFoeToTier(foe, newTier){
   if(Array.isArray(foe.abilities) && foe.abilities.length>actCap) foe.abilities=foe.abilities.slice(0,actCap);
   return foe;
 }
-function fwPartyLevel(){
-  var c=curC(); if(c&&c.partyLevel) return Math.max(1,+c.partyLevel||1);
-  // guess from player levels if present, else 3
-  var lv=[]; (S.wixPlayers||[]).forEach(function(p){ if(p&&p.level) lv.push(+p.level); });
-  if(lv.length) return Math.max(1,Math.round(lv.reduce(function(a,b){return a+b;},0)/lv.length));
-  return 3;
+/* ============================================================
+   THE PARTY A FOE IS SCALED AGAINST
+   Foe vitality is average party level times party size times the tier weight. Two readings of
+   the party used to disagree, so a foe re-forged to a different number than it attached at.
+   This is the single reading. A campaign may pin any of it by hand, which is what an adventure
+   with no players on it needs. A pinned value holds until it is cleared.
+   ============================================================ */
+/* Pin the party by hand. An adventure with no players still has to scale its foes, and a
+   loremaster may want to run a fight harder or softer than the roster says. A pinned value
+   holds until it is cleared, so bringing players in later does not quietly move the numbers. */
+function partyModal(){
+  var c = curC(); if (!c) return;
+  var ov = c.partyOverride || {};
+  var pc = partyContext();
+  var row = function(k, label, val, ph, note){
+    return '<label class="lbl">'+label+'</label>'
+      + '<input class="inp" id="po-'+k+'" type="number" inputmode="numeric" min="0" value="'+(val===undefined?'':esc(String(val)))+'" placeholder="'+esc(ph)+'">'
+      + (note ? '<p class="muted small">'+note+'</p>' : '');
+  };
+  modal('<h3 class="m-title">The party</h3>'
+    + '<p class="muted">Foe vitality is average party level, times party size, times the foe\'s rating weight. Leave a field empty to read it from the roster.</p>'
+    + (pc.empty ? '<p class="muted small-note">No players on this adventure yet, so the roster reads as level '+pc.apl+', '+pc.size+' strong.</p>' : '')
+    + row('apl', 'Average party level', ov.apl, String(pc.apl), 'Currently '+pc.apl+(pc.pinnedApl?', pinned':', from the roster'))
+    + row('size', 'Party size', ov.size, String(pc.size), 'Currently '+pc.size+(pc.pinnedSize?', pinned':', from the roster'))
+    + row('difficulty', 'Skill difficulty', ov.difficulty, String(pc.difficulty), 'Currently +'+pc.difficulty+(pc.pinnedDiff?', pinned':', which is the party level divided by five'))
+    + row('discord', 'Discord points', ov.discord, '0', 'The pool this adventure has to spend. Tracked here, never spent for you.')
+    + '<div class="m-row"><button class="btn ghost" onclick="clearPartyOverride()">Clear all</button>'
+    + '<button class="btn" onclick="savePartyOverride()">Save</button></div>');
 }
-function fwPartySize(){ var n=(S.wixPlayers||[]).length; return n>0?n:4; }
+function savePartyOverride(){
+  var c = curC(); if (!c) return;
+  var ov = {};
+  ['apl','size','difficulty','discord'].forEach(function(k){
+    var el = document.getElementById('po-'+k);
+    var v = el ? el.value.trim() : '';
+    if (v !== '') ov[k] = Math.max(0, parseInt(v,10) || 0);
+  });
+  if (ov.apl !== undefined) ov.apl = Math.max(1, ov.apl);
+  if (ov.size !== undefined) ov.size = Math.max(1, ov.size);
+  c.partyOverride = ov;
+  closeModal(); save(); render();
+}
+function clearPartyOverride(){
+  var c = curC(); if (!c) return;
+  delete c.partyOverride;
+  closeModal(); save(); render();
+}
+function partyContext(){
+  var c = curC() || {};
+  var ov = c.partyOverride || {};
+
+  /* Levels the campaign actually knows about: the site roster first, then the local one. */
+  var lv = [];
+  (S.wixPlayers||[]).forEach(function(p){ if (p && p.level) lv.push(+p.level); });
+  if (!lv.length) (c.players||[]).forEach(function(p){ if (p && p.level) lv.push(parseInt(p.level,10)||0); });
+  var known = lv.filter(function(n){ return n>0; });
+
+  var size = (S.wixPlayers||[]).length || (c.players||[]).length || 0;
+  var apl = known.length ? Math.max(1, Math.round(known.reduce(function(a,b){ return a+b; },0) / known.length)) : 0;
+
+  var out = {
+    apl:  ov.apl  ? Math.max(1, +ov.apl)  : (apl  || 3),
+    size: ov.size ? Math.max(1, +ov.size) : (size || 4),
+    pinnedApl: !!ov.apl,
+    pinnedSize: !!ov.size,
+    pinnedDiff: (ov.difficulty !== undefined && ov.difficulty !== ''),
+    discord: (ov.discord !== undefined && ov.discord !== '') ? Math.max(0, +ov.discord) : 0,
+    empty: !size
+  };
+  out.difficulty = out.pinnedDiff ? Math.max(0, +ov.difficulty) : Math.floor(out.apl / 5);
+  return out;
+}
+function fwPartyLevel(){ return partyContext().apl; }
+function fwPartySize(){ return partyContext().size; }
 
 function summonFoes(ref){
   window._summonRef = ref;
@@ -5454,7 +5514,13 @@ function lpTotal(){
   });
   return total;
 }
-function difficulty(){ return Math.floor(avgLevel()/5); }
+function difficulty(){
+  var c = curC(), ov = (c && c.partyOverride) || {};
+  if (ov.difficulty !== undefined && ov.difficulty !== '') return Math.max(0, +ov.difficulty);
+  var a = avgLevel();
+  if (!a) return Math.floor(partyContext().apl / 5);   /* no one marked attending */
+  return Math.floor(a / 5);
+}
 
 function disBase(){
   var sc = curSc();
@@ -7098,6 +7164,12 @@ function scrCampaign(){
   h += '<h1 class="page-h">'+esc(c.name)+'</h1>';
   h += '<p class="adv-tag">'+t.label+' &middot; '+t.length
     + ' <button class="adv-change" onclick="advPromote(\''+c.id+'\')">Change type</button></p>';
+  var pc = partyContext();
+  var pinned = pc.pinnedApl || pc.pinnedSize || pc.pinnedDiff || pc.discord;
+  h += '<p class="adv-tag">Party &middot; level '+pc.apl+', '+pc.size+' strong, difficulty +'+pc.difficulty
+    + (pc.discord ? ', '+pc.discord+' discord' : '')
+    + (pinned ? ' <span class="npc-tag">pinned</span>' : (pc.empty ? ' <span class="npc-tag">assumed</span>' : ''))
+    + ' <button class="adv-change" onclick="partyModal()">Set the party</button></p>';
   var wn = worldName(c.worldId);
   h += '<p class="adv-tag">World &middot; '+(wn?esc(wn):'not set')
     + ' <button class="adv-change" onclick="advSetWorld(\''+c.id+'\')">'+(wn?'Change world':'Set world')+'</button>'
