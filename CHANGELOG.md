@@ -1,3 +1,9 @@
+## FateWell the foe sheet says what a foe is
+
+- Choosing a Build now says what it carries and how it attacks. Choosing a Stance names its charge tiers. The signature affliction shows its rule. All three read the same way, a choice with its meaning under it.
+- Items are relics, drawn from RelicForge. The weapon list is gone, since a Longbow was never an item a foe carried in this sense.
+- Each relic sits in its own row with its rarity, its group, and what it does. Forging a custom relic saves it to RelicForge, not to a made-up item shelf.
+
 ## FateWell the foe sheet names the standard
 
 - The vitality row now says what the rating stands at against this party, so a loremaster can see the standard before padding a foe that fights alone.

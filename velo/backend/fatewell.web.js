@@ -374,14 +374,14 @@ export const submitItem = webMethod(Permissions.SiteMember, async (item) => {
   const rule = String((item && item.rule) || '').trim();
   try {
     const row = await wixData.insert('Creations', {
-      forgeKey: 'itemforge',
-      kind: 'item',
+      forgeKey: 'relicforge',
+      kind: 'relic',
       creationName: name,
       creatorMemberId: mid,
       canonStatus: 'private',
       shorthand: rule,
       fullText: rule,
-      payload: JSON.stringify({ name: name, rule: rule })
+      payload: JSON.stringify({ title: name, tier: 'Common', form: { group: 'Relic', use: 'Passive', rarity: 'Common', description: rule } })
     }, { suppressAuth: true });
     return { ok: true, id: row._id };
   } catch (e) { return { ok: false, error: String(e) }; }
@@ -393,7 +393,7 @@ export const submitItem = webMethod(Permissions.SiteMember, async (item) => {
 export const getForgePools = webMethod(Permissions.Anyone, async () => {
   const mid = await memberId();
   const out = { infusions: [], augmentations: [], items: [] };
-  const KEYS = { shardforge: 'infusions', augmentforge: 'augmentations', itemforge: 'items' };
+  const KEYS = { shardforge: 'infusions', augmentforge: 'augmentations', relicforge: 'items' };
   for (const key of Object.keys(KEYS)) {
     const bucket = KEYS[key];
     let rows = [];
@@ -415,13 +415,16 @@ export const getForgePools = webMethod(Permissions.Anyone, async () => {
     rows.forEach((it) => {
       let pl = {};
       try { pl = typeof it.payload === 'string' ? JSON.parse(it.payload) : (it.payload || {}); } catch (e) { pl = {}; }
-      const name = it.creationName || pl.name || '';
+      const name = it.creationName || pl.title || pl.name || '';
       if (!name || seen[name]) return;
       seen[name] = 1;
+      const form = pl.form || {};
       out[bucket].push({
         name: name,
         family: pl.family || '',
-        rule: pl.rule || pl.full || it.shorthand || '',
+        group: form.group || pl.group || '',
+        rarity: form.rarity || pl.tier || '',
+        rule: form.description || pl.rule || pl.full || it.shorthand || '',
         source: it.canonStatus === 'canon' ? 'canon' : 'mine'
       });
     });
