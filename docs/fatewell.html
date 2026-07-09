@@ -725,6 +725,7 @@ body.runner-mode #savedTag{ display:none; }
 
 /* v9: roster tabs, tokens, chip remove */
 .chip-x{ background:none; border:none; color:var(--danger); font-size:.95rem; cursor:pointer; padding:0 2px 0 6px; }
+.chip-mine{ font-size:.58rem; letter-spacing:.08em; text-transform:uppercase; color:var(--gold); margin-left:5px; opacity:.85; }
 .small-note{ margin:-2px 0 8px; font-size:.86rem; }
 .token-field{ display:flex; align-items:center; gap:12px; margin:4px 0; }
 .token-prev{
@@ -2753,7 +2754,9 @@ function normForge(e){
     name: pick('title','name'),
     tier: Number(pick('tier')) || 1,
     use: pick('use') || 'Act',
-    desc: pick('shorthand','description','desc')
+    desc: pick('shorthand','description','desc'),
+    effect: pick('effect','full','shorthand','description','desc'),
+    source: pick('source') || 'canon'
   };
 }
 function imgSrc(u){
@@ -3421,6 +3424,15 @@ window.addEventListener('message', function(ev){
       saveLocal(); render();
     }
   }
+  if (m.type === 'lmtool-pools'){
+    var pl = m.pools || {};
+    window._pools = {
+      infusions: Array.isArray(pl.infusions) ? pl.infusions : [],
+      augmentations: Array.isArray(pl.augmentations) ? pl.augmentations : [],
+      items: Array.isArray(pl.items) ? pl.items : []
+    };
+    render();
+  }
   if (m.type === 'lmtool-assets'){
     WIX.connected = true;
     if (Array.isArray(m.assets)){
@@ -3474,7 +3486,7 @@ window.addEventListener('message', function(ev){
   }
 });
 
-function requestWix(){ postToWix({ type:'lmtool-ready' }); postToWix({ type:'lmtool-forge-request' }); postToWix({ type:'lmtool-assets-request' }); postToWix({ type:'lmtool-glossary-request' }); postToWix({ type:'lmtool-foepack-request' }); postToWix({ type:'lmtool-published-request' }); }
+function requestWix(){ postToWix({ type:'lmtool-ready' }); postToWix({ type:'lmtool-forge-request' }); postToWix({ type:'lmtool-pools-request' }); postToWix({ type:'lmtool-assets-request' }); postToWix({ type:'lmtool-glossary-request' }); postToWix({ type:'lmtool-foepack-request' }); postToWix({ type:'lmtool-published-request' }); }
 /* The sealed past is loremaster-only. The tool asks the page for it by the current
    campaign's roster, and the page answers only for loremaster and lorekeeper roles. */
 function requestSealed(){
@@ -6174,17 +6186,41 @@ function setFoeMaxVit(cid){
    and every field opens. In a crucible the foe is already on the board, so the sheet locks:
    only current vitality and the conditions riding on it may change.
    ============================================================ */
+/* Canon lives in the tool. The collections add the loremaster's own forged work, and
+   anything of theirs that reached canon. Names merge, custom never shadows canon. */
+function poolExtra(bucket){ return (window._pools && window._pools[bucket]) || []; }
+function infusionPool(buildName){
+  var b = fwFoeBuild(buildName); var atk = (b && b.attackAttributes) || [];
+  var canon = FW_FOE_PACK.infusions.filter(function(i){ return atk.indexOf(i.family)>=0; }).map(function(i){ return i.name; });
+  var extra = poolExtra('infusions').filter(function(x){
+    if (canon.indexOf(x.name) >= 0) return false;
+    return !x.family || atk.indexOf(x.family) >= 0;   /* a custom infusion with no family fits any build */
+  }).map(function(x){ return x.name; });
+  return canon.concat(extra);
+}
+function augmentPool(){
+  var canon = FW_FOE_PACK.augmentations.slice();
+  var extra = poolExtra('augmentations').filter(function(x){ return canon.indexOf(x.name)<0; }).map(function(x){ return x.name; });
+  return canon.concat(extra);
+}
+function itemPool(){
+  return poolExtra('items').map(function(x){ return x.name; });
+}
+function isCustomName(bucket, n){
+  return poolExtra(bucket).some(function(x){ return x.name===n && x.source!=='canon'; });
+}
 function fsChips(list, empty){
   if (!list || !list.length) return '<p class="muted small">'+empty+'</p>';
   return '<div class="chips">' + list.map(function(n){ return '<span class="chip">'+esc(n)+'</span>'; }).join('') + '</div>';
 }
-function fsPickerChips(pool, chosen, cap, fn){
+function fsPickerChips(pool, chosen, cap, fn, bucket){
   var on = chosen || [];
   var full = cap > 0 && on.length >= cap;
   return '<div class="chips pick">' + pool.map(function(n){
     var sel = on.indexOf(n) >= 0;
     var dim = (!sel && full) ? ' dim' : '';
-    return '<span class="chip'+(sel?' on':'')+dim+'" onclick="'+fn+'(\''+n.replace(/'/g,"\\'")+'\')">'+esc(n)+'</span>';
+    var mine = bucket && isCustomName(bucket, n) ? '<span class="chip-mine">yours</span>' : '';
+    return '<span class="chip'+(sel?' on':'')+dim+'" onclick="'+fn+'(\''+n.replace(/'/g,"\\'")+'\')">'+esc(n)+mine+'</span>';
   }).join('') + '</div>';
 }
 /* The foe being edited in the sheet, and where it came from. */
@@ -6241,6 +6277,27 @@ function fsAddItem(){
   f.inv.push(v);
   save(); foeSheet(window._fs.id, window._fs.src);
 }
+function fsAddPickedItem(){
+  var f = fsTarget(); if (!f) return;
+  var el = document.getElementById('fsItemPick'); var v = el ? el.value : '';
+  if (!v) return;
+  if (!Array.isArray(f.inv)) f.inv = [];
+  if (f.inv.indexOf(v) < 0) f.inv.push(v);
+  save(); foeSheet(window._fs.id, window._fs.src);
+}
+/* Pull a forged Act off the LoreForge shelf onto this foe, up to the rating's ceiling. */
+function fsAddAct(){
+  var f = fsTarget(); if (!f) return;
+  var el = document.getElementById('fsActPick'); var id = el ? el.value : '';
+  if (!id) return;
+  var a = null; (S.forge||[]).forEach(function(x){ if (x.id===id) a = x; });
+  if (!a) return;
+  if (!Array.isArray(f.abilities)) f.abilities = [];
+  var cap = fwTierBudget(f.sr).acts;
+  if (f.abilities.length >= cap) return;
+  f.abilities.push({ name:a.name, tier:a.tier||1, effect:a.effect || a.desc || '' });
+  save(); foeSheet(window._fs.id, window._fs.src);
+}
 function fsDelItem(i){
   var f = fsTarget(); if (!f) return;
   f.inv.splice(i,1);
@@ -6262,8 +6319,7 @@ function foeSheet(id, src){
   if (!Array.isArray(f.inv)) f.inv=[];
 
   var bud = fwTierBudget(f.sr||'Elite');
-  var b = fwFoeBuild(f.build); var atk=(b&&b.attackAttributes)||[];
-  var infPool = FW_FOE_PACK.infusions.filter(function(i){ return atk.indexOf(i.family)>=0; }).map(function(i){ return i.name; });
+  var infPool = infusionPool(f.build);
   var srcTag = f.source==='mine' ? ' <span class="npc-tag">yours</span>' : (f.source==='canon' ? ' <span class="npc-tag">canon</span>' : '');
   var abN = (f.abilities||[]).length;
 
@@ -6300,23 +6356,43 @@ function foeSheet(id, src){
     + '</select>';
 
   h += '<div class="lbl">Infusions <span class="muted small">'+(f.infusions.length)+' of '+bud.inf+'</span></div>';
-  h += infPool.length ? fsPickerChips(infPool, f.infusions, bud.inf, 'fsToggleInf')
+  h += infPool.length ? fsPickerChips(infPool, f.infusions, bud.inf, 'fsToggleInf', 'infusions')
      : '<p class="muted small">This build carries no attack attribute, so it takes no infusions.</p>';
 
   h += '<div class="lbl">Augmentations <span class="muted small">'+(f.augments.length)+' of '+bud.aug+'</span></div>';
-  h += bud.aug > 0 ? fsPickerChips(FW_FOE_PACK.augmentations, f.augments, bud.aug, 'fsToggleAug')
+  h += bud.aug > 0 ? fsPickerChips(augmentPool(), f.augments, bud.aug, 'fsToggleAug', 'augmentations')
      : '<p class="muted small">A '+esc(f.sr||'foe')+' carries no augmentations.</p>';
 
   h += '<div class="lbl">Items</div>';
   h += f.inv.length ? '<div class="chips">'+f.inv.map(function(it,i){
         return '<span class="chip">'+esc(it)+' <button class="chip-x" onclick="fsDelItem('+i+')">&times;</button></span>';
       }).join('')+'</div>' : '<p class="muted small">Nothing carried.</p>';
-  h += '<div class="qd"><input class="qd-in" id="fsItem" placeholder="Add an item">'
+  var ipool = itemPool().filter(function(n){ return f.inv.indexOf(n)<0; });
+  if (ipool.length){
+    h += '<div class="qd"><select class="qd-in" id="fsItemPick">'
+      + '<option value="">Add a forged item</option>'
+      + ipool.map(function(n){ return '<option value="'+esc(n)+'">'+esc(n)+(isCustomName('items',n)?' (yours)':'')+'</option>'; }).join('')
+      + '</select><button class="qd-b" onclick="fsAddPickedItem()">Add</button></div>';
+  }
+  h += '<div class="qd"><input class="qd-in" id="fsItem" placeholder="Or type an item">'
     + '<button class="qd-b" onclick="fsAddItem()">Add</button></div>';
 
   h += '<div class="lbl">Acts <span class="muted small">'+abN+' of '+bud.acts+'</span></div>'
-    + abilityBlock(f.abilities)
-    + '<button class="btn wide ghost" onclick="fsEditActs()">Edit Acts</button>';
+    + abilityBlock(f.abilities);
+  var actPool = (S.forge||[]).filter(function(a){
+    return !(f.abilities||[]).some(function(x){ return x.name===a.name; });
+  });
+  if (actPool.length && abN < bud.acts){
+    h += '<div class="qd"><select class="qd-in" id="fsActPick">'
+      + '<option value="">Add a forged Act</option>'
+      + actPool.map(function(a){ return '<option value="'+esc(a.id)+'">'+esc(a.name)+' (Tier '+a.tier+')'+(a.source==='mine'?' (yours)':'')+'</option>'; }).join('')
+      + '</select><button class="qd-b" onclick="fsAddAct()">Add</button></div>';
+  } else if (!actPool.length){
+    h += '<p class="muted small">No forged Acts loaded. Forge them in SigilForge and they appear here.</p>';
+  } else {
+    h += '<p class="muted small">This rating carries '+bud.acts+' Act'+(bud.acts===1?'':'s')+'. Remove one to add another.</p>';
+  }
+  h += '<button class="btn wide ghost" onclick="fsEditActs()">Edit Acts by hand</button>';
 
   if ((f.attrs && attrSpend(f.attrs)>0)) h += '<div class="lbl">Attributes</div><p>'+attrLine(f.attrs)+'</p>';
   if (f.desc) h += '<div class="lbl">Description</div><p class="chip-desc">'+esc(f.desc)+'</p>';

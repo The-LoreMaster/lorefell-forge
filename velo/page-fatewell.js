@@ -4,7 +4,7 @@
 // campaignId. The tool requests forge, assets, and glossary on load; those are
 // answered from canon Creations, an owner-scoped Assets collection, and a Glossary collection.
 
-import { loadCampaign, saveCampaign, deleteCampaign, listMyCampaigns, getSealed, getForgeLibrary, listAssets, saveAsset, deleteAsset, listGlossary, getCampaignPlayers, detachCharacter, assignClue, upsertQuest, setMemberRole, myAdventureRole, revealNodes } from 'backend/fatewell.web.js';
+import { loadCampaign, saveCampaign, deleteCampaign, listMyCampaigns, getSealed, getForgeLibrary, listAssets, saveAsset, deleteAsset, listGlossary, getCampaignPlayers, detachCharacter, assignClue, upsertQuest, setMemberRole, myAdventureRole, revealNodes, getForgePools } from 'backend/fatewell.web.js';
 import { getFoePack } from 'backend/forge.web.js';
 import { publishCombatState, applyCombatToChar, getCombatDeclares, dealDamageToChar, setCombatCharge } from 'backend/combat.web.js';
 import { publishAdventure, myPublishedAdventures, unpublishAdventure, getPublishedPack } from 'backend/published.web.js';
@@ -211,6 +211,11 @@ $w.onReady(() => {
       let abilities = [];
       try { abilities = await getForgeLibrary(); } catch (e) { abilities = []; }
       embed.postMessage({ type: 'lmtool-forge', abilities: abilities });
+    } else if (m.type === 'lmtool-pools-request') {
+      // Infusions, augmentations, and items the loremaster forged or that reached canon.
+      let pools = { infusions: [], augmentations: [], items: [] };
+      try { pools = await getForgePools(); } catch (e) {}
+      embed.postMessage({ type: 'lmtool-pools', pools: pools });
     } else if (m.type === 'lmtool-assets-request') {
       let assets = [];
       try { assets = await listAssets(); } catch (e) { assets = []; }

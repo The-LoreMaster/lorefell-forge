@@ -306,23 +306,80 @@ export const detachCharacter = webMethod(Permissions.Anyone, async (charId) => {
 // SigilForge creations. Tier and use live in the creation payload; name and shorthand
 // are the surfaced columns. Read only.
 export const getForgeLibrary = webMethod(Permissions.Anyone, async () => {
-  let items = [];
+  const mid = await memberId();
+  let canon = [], mine = [];
   try {
     const r = await wixData.query('Creations')
       .eq('forgeKey', 'sigilforge').eq('canonStatus', 'canon')
       .limit(500).find({ suppressAuth: true });
-    items = r.items;
-  } catch (e) { items = []; }
-  return items.map((it) => {
+    canon = r.items;
+  } catch (e) { canon = []; }
+  // The loremaster's own forged Acts are usable at their own table, canon or not.
+  if (mid) {
+    try {
+      const r2 = await wixData.query('Creations')
+        .eq('forgeKey', 'sigilforge').eq('creatorMemberId', mid).ne('canonStatus', 'canon')
+        .limit(500).find({ suppressAuth: true });
+      mine = r2.items;
+    } catch (e) { mine = []; }
+  }
+  const shape = (it, source) => {
     let pl = {};
     try { pl = typeof it.payload === 'string' ? JSON.parse(it.payload) : (it.payload || {}); } catch (e) { pl = {}; }
     return {
       title: it.creationName || pl.name || '',
       tier: Number(pl.tier) || 1,
       use: pl.use || 'Act',
-      shorthand: it.shorthand || pl.shorthand || ''
+      shorthand: it.shorthand || pl.shorthand || '',
+      effect: pl.full || pl.effect || it.shorthand || '',
+      source: source
     };
-  }).filter((a) => a.title);
+  };
+  return canon.map((it) => shape(it, 'canon'))
+    .concat(mine.map((it) => shape(it, 'mine')))
+    .filter((a) => a.title);
+});
+
+// The pools a foe is built from. Canon lists live in the tool, so this returns only what the
+// collections add on top: the loremaster's own forged infusions, augmentations, and items,
+// plus any that reached canon. The tool merges these with its canon lists.
+export const getForgePools = webMethod(Permissions.Anyone, async () => {
+  const mid = await memberId();
+  const out = { infusions: [], augmentations: [], items: [] };
+  const KEYS = { shardforge: 'infusions', augmentforge: 'augmentations', itemforge: 'items' };
+  for (const key of Object.keys(KEYS)) {
+    const bucket = KEYS[key];
+    let rows = [];
+    try {
+      const r = await wixData.query('Creations')
+        .eq('forgeKey', key).eq('canonStatus', 'canon')
+        .limit(500).find({ suppressAuth: true });
+      rows = r.items;
+    } catch (e) { rows = []; }
+    if (mid) {
+      try {
+        const r2 = await wixData.query('Creations')
+          .eq('forgeKey', key).eq('creatorMemberId', mid).ne('canonStatus', 'canon')
+          .limit(500).find({ suppressAuth: true });
+        rows = rows.concat(r2.items);
+      } catch (e) {}
+    }
+    const seen = {};
+    rows.forEach((it) => {
+      let pl = {};
+      try { pl = typeof it.payload === 'string' ? JSON.parse(it.payload) : (it.payload || {}); } catch (e) { pl = {}; }
+      const name = it.creationName || pl.name || '';
+      if (!name || seen[name]) return;
+      seen[name] = 1;
+      out[bucket].push({
+        name: name,
+        family: pl.family || '',
+        rule: pl.rule || pl.full || it.shorthand || '',
+        source: it.canonStatus === 'canon' ? 'canon' : 'mine'
+      });
+    });
+  }
+  return out;
 });
 
 // The loremaster's own asset library (monsters, npcs, items), owner scoped. The tool

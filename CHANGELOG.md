@@ -1,3 +1,10 @@
+## FateWell foes draw from the collections
+
+- The foe sheet now pulls its Acts from the forged Act shelf rather than a blank text box. Pick one and it lands with its name, tier, and text, up to the rating's Act ceiling.
+- Infusions, augmentations, and items merge the canon lists with anything the loremaster forged, and anything of theirs that reached canon. A custom pick is marked yours. A custom infusion still honors the build's attack families, and nothing shadows a canon entry of the same name.
+- Acts the loremaster forged in SigilForge are usable at their own table now, not only the ones voted to canon.
+- Editing Acts by hand is still there for a foe that needs something the shelf does not hold.
+
 ## FateWell one foe sheet everywhere
 
 - The library, the roster, and the crucible now show the same foe sheet. It carries the shatter rating, vitality, build, stance, signature affliction, infusions, augmentations, items, and Acts.
