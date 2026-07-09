@@ -1,3 +1,9 @@
+## FateWell foe sheet reads the arsenal
+
+- Hovering an infusion or augmentation now tells you what it does. The tool carried only their names, so no tip could ever appear. All 33 infusions and all 20 augmentations now carry their canon text, taken from the FellGuide.
+- Items come from the arsenal. The dropdown lists every weapon and magic item by group, with a Forge a custom item option that saves to your creations. The free text box is gone.
+- Removed the Add an Act row from the foe sheet. Acts are managed in Edit Acts, one slot per tier.
+
 ## FateWell foe sheet tooltips and a real Acts editor
 
 - Hovering an infusion, augmentation, item, affliction, or Act on a foe sheet shows what it does. Afflictions read from the canon conditions pack, the rest from the collections. Anything the tool has no text for shows no tip rather than a guess.

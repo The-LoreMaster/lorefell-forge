@@ -363,6 +363,26 @@ export const submitAct = webMethod(Permissions.SiteMember, async (act) => {
   } catch (e) { return { ok: false, error: String(e) }; }
 });
 
+// An item the loremaster forged at the table, saved as their own creation.
+export const submitItem = webMethod(Permissions.SiteMember, async (item) => {
+  const mid = await memberId();
+  if (!mid) return { ok: false, error: 'not a member' };
+  const name = String((item && item.name) || '').trim();
+  if (!name) return { ok: false, error: 'an item needs a name' };
+  const rule = String((item && item.rule) || '').trim();
+  try {
+    const row = await wixData.insert('Creations', {
+      forgeKey: 'itemforge',
+      creationName: name,
+      creatorMemberId: mid,
+      canonStatus: 'private',
+      shorthand: rule,
+      payload: JSON.stringify({ name: name, rule: rule })
+    }, { suppressAuth: true });
+    return { ok: true, id: row._id };
+  } catch (e) { return { ok: false, error: String(e) }; }
+});
+
 // The pools a foe is built from. Canon lists live in the tool, so this returns only what the
 // collections add on top: the loremaster's own forged infusions, augmentations, and items,
 // plus any that reached canon. The tool merges these with its canon lists.
