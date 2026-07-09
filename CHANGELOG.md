@@ -1,3 +1,10 @@
+## FateWell one foe sheet everywhere
+
+- The library, the roster, and the crucible now show the same foe sheet. It carries the shatter rating, vitality, build, stance, signature affliction, infusions, augmentations, items, and Acts.
+- In the library and on a roster every field opens. Infusions and augmentations are picked from the pools the build and rating allow, and the sheet shows how many of the budget are spent. Changing the rating rescales the foe and refills its kit.
+- In a crucible the foe is already on the board, so its forging is locked. Only current vitality and the conditions riding on it may change.
+- Fixed re-forging a foe destroying its items. Infusions were being written into the inventory field. They live apart now, and existing foes are split on load, with infusion names moving across and real items staying put.
+
 ## FateWell runner toggle and quieter nav
 
 - The List view now carries the Stepper and List toggle. Switching to List used to strand you there with no way back.

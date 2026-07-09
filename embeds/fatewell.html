@@ -946,6 +946,12 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 
 /* entity chips */
 .chips{ display:flex; flex-wrap:wrap; gap:6px; margin:8px 0 2px; }
+.chips.pick .chip{ cursor:pointer; border:1px solid var(--line); }
+.chips.pick .chip.on{ background:rgba(201,168,76,.16); border-color:var(--gold); color:var(--silver); }
+.chips.pick .chip.dim{ opacity:.35; }
+.chip-x{ background:none; border:none; color:inherit; cursor:pointer; font-size:1rem; line-height:1; padding:0 0 0 4px; }
+.fs-locked{ border-top:1px solid var(--line); margin-top:14px; padding-top:6px; opacity:.85; }
+.fs-locked .lbl{ color:var(--muted); }
 .chip{
   font-size:.85rem; border:1px solid var(--line2); border-radius:999px;
   padding:4px 12px; color:var(--silver); cursor:pointer;
@@ -2782,7 +2788,10 @@ function migrate(d){
     if (e.type==='monster'){
       if (!e.attrs) e.attrs = blankAttrs();
       if (!e.inv) e.inv = [];
+      if (!e.infusions) e.infusions = [];
+      if (!e.augments) e.augments = [];
       if (!e.abilities) e.abilities = [];
+      splitInfusionsFromInv(e);
     }
   });
   function fixNoteTypes(obj){
@@ -2943,7 +2952,7 @@ function markSaved(){ renderSavedTag(); }
    large chronicle that duplication can push the campaign past the account field limit.
    Before saving, drop the fields that can be rebuilt from the library (keyed by libId),
    keeping only per-combat state. rehydrateCombatants puts them back on load. */
-var COMBATANT_STATIC = ['attrs','inv','augments','abilities','sig','source','build','stance','img'];
+var COMBATANT_STATIC = ['attrs','inv','infusions','augments','abilities','sig','source','build','stance','img'];
 function slimCombatantsForSave(camp){
   (camp.acts||[]).forEach(function(a){ (a.sessions||[]).forEach(function(ss){ (ss.scenes||[]).forEach(function(sc){
     (sc.combatants||[]).forEach(function(cb){
@@ -2959,7 +2968,7 @@ function slimCombatantsForSave(camp){
           id: uid(), type: cb.type, name: baseName(cb.name),
           sr: cb.sr||'', build: cb.build||'', stance: cb.stance||'', sig: cb.sig||'',
           maxVit: cb.maxVit||0, attrs: JSON.parse(JSON.stringify(cb.attrs||blankAttrs())),
-          inv: (cb.inv||[]).slice(), augments: (cb.augments||[]).slice(),
+          inv: (cb.inv||[]).slice(), infusions: (cb.infusions||[]).slice(), augments: (cb.augments||[]).slice(),
           abilities: JSON.parse(JSON.stringify(cb.abilities||[])), img: cb.img||'', source: cb.source||''
         };
         // reuse if an identical name already got adopted this pass
@@ -2982,11 +2991,13 @@ function baseName(n){ return String(n||'').replace(/\s+\d+$/,'').trim(); }
 function rehydrateCombatants(camp){
   (camp.acts||[]).forEach(function(a){ (a.sessions||[]).forEach(function(ss){ (ss.scenes||[]).forEach(function(sc){
     (sc.combatants||[]).forEach(function(cb){
+      splitInfusionsFromInv(cb);
       if(cb._slim && cb.libId){
         var e=libGet(cb.libId);
         if(e){
           if(cb.attrs===undefined) cb.attrs=JSON.parse(JSON.stringify(e.attrs||blankAttrs()));
           if(cb.inv===undefined) cb.inv=(e.inv||[]).slice();
+          if(cb.infusions===undefined) cb.infusions=(e.infusions||[]).slice();
           if(cb.augments===undefined) cb.augments=(e.augments||[]).slice();
           if(cb.abilities===undefined) cb.abilities=JSON.parse(JSON.stringify(e.abilities||[]));
           if(cb.sig===undefined) cb.sig=e.sig||'';
@@ -3534,6 +3545,20 @@ function curC(){ var r=null; S.campaigns.forEach(function(x){ if(x.id===V.cId) r
 function curA(){ var c=curC(); if(!c) return null; var r=null; c.acts.forEach(function(x){ if(x.id===V.aId) r=x; }); return r; }
 function curSe(){ var a=curA(); if(!a) return null; var r=null; a.sessions.forEach(function(x){ if(x.id===V.sId) r=x; }); return r; }
 function curSc(){ var s=curSe(); if(!s) return null; var r=null; s.scenes.forEach(function(x){ if(x.id===V.scId) r=x; }); return r; }
+/* Infusions once shared the inventory field, so re-forging a foe overwrote its items.
+   They live apart now. Anything in inv that names a canon infusion moves across, once. */
+function splitInfusionsFromInv(f){
+  if (!f || f.type && f.type!=='monster' && f.sr===undefined) return;
+  if (!Array.isArray(f.inv)) { if (!Array.isArray(f.infusions)) f.infusions=[]; return; }
+  if (!Array.isArray(f.infusions)) f.infusions=[];
+  if (f._invSplit) return;
+  var items=[], infs=f.infusions.slice();
+  f.inv.forEach(function(n){
+    if (fwIsInfusion(n)){ if (infs.indexOf(n)<0) infs.push(n); }
+    else items.push(n);
+  });
+  f.inv=items; f.infusions=infs; f._invSplit=1;
+}
 function libGet(id){ var r=null; S.library.forEach(function(e){ if(e.id===id) r=e; }); return r; }
 function libByNameType(name, type){ var key=String(name||'').trim().toLowerCase(); var r=null; S.library.forEach(function(e){ if(!r && e.type===type && String(e.name||'').trim().toLowerCase()===key) r=e; }); return r; }
 
@@ -5146,6 +5171,9 @@ function fwTierBudget(tierName){ return (FW_FOE_PACK.tierBudget && FW_FOE_PACK.t
 function _fwSeed(str){ var h=0,x=String(str||''); for(var i=0;i<x.length;i++){ h=(h*31+x.charCodeAt(i))>>>0; } return h; }
 /* Fill infusions to the tier budget, family matched to the build, keeping existing
    picks and adding stable new ones. Trims to cap on a downgrade. */
+function fwIsInfusion(n){
+  return FW_FOE_PACK.infusions.some(function(i){ return i.name === n; });
+}
 function fwFillInfusions(buildName, tierName, existing, seedStr){
   var b=fwFoeBuild(buildName); var atk=(b&&b.attackAttributes)||[];
   var want=fwTierBudget(tierName).inf;
@@ -5179,7 +5207,7 @@ function reforgeFoeToTier(foe, newTier){
     if(foe.curVit!==undefined) foe.curVit=Math.min(foe.curVit||scaled.maxVit, scaled.maxVit);
   }
   foe.sr=newTier;
-  foe.inv=fwFillInfusions(foe.build, newTier, foe.inv, seed);
+  foe.infusions=fwFillInfusions(foe.build, newTier, foe.infusions, seed);
   foe.augments=fwFillAugments(newTier, foe.augments, seed);
   var actCap=fwTierBudget(newTier).acts;
   if(Array.isArray(foe.abilities) && foe.abilities.length>actCap) foe.abilities=foe.abilities.slice(0,actCap);
@@ -6140,37 +6168,219 @@ function setFoeMaxVit(cid){
   });
   save(); render(); monInfo(cid);
 }
+/* ============================================================
+   THE FOE SHEET
+   One sheet renders a foe everywhere. In the library and on a roster the loremaster owns it
+   and every field opens. In a crucible the foe is already on the board, so the sheet locks:
+   only current vitality and the conditions riding on it may change.
+   ============================================================ */
+function fsChips(list, empty){
+  if (!list || !list.length) return '<p class="muted small">'+empty+'</p>';
+  return '<div class="chips">' + list.map(function(n){ return '<span class="chip">'+esc(n)+'</span>'; }).join('') + '</div>';
+}
+function fsPickerChips(pool, chosen, cap, fn){
+  var on = chosen || [];
+  var full = cap > 0 && on.length >= cap;
+  return '<div class="chips pick">' + pool.map(function(n){
+    var sel = on.indexOf(n) >= 0;
+    var dim = (!sel && full) ? ' dim' : '';
+    return '<span class="chip'+(sel?' on':'')+dim+'" onclick="'+fn+'(\''+n.replace(/'/g,"\\'")+'\')">'+esc(n)+'</span>';
+  }).join('') + '</div>';
+}
+/* The foe being edited in the sheet, and where it came from. */
+function fsTarget(){
+  if (!window._fs) return null;
+  return window._fs.src==='lib' ? libGet(window._fs.id) : _findCombatant(window._fs.id);
+}
+function fsSave(){
+  var f = fsTarget(); if (!f) return;
+  save(); render();
+}
+function fsSetSR(v){
+  var f = fsTarget(); if (!f) return;
+  reforgeFoeToTier(f, v);
+  save(); foeSheet(window._fs.id, window._fs.src);
+}
+function fsSetField(k, v){
+  var f = fsTarget(); if (!f) return;
+  if (k==='maxVit'){
+    var n = Math.max(0, parseInt(v,10)||0);
+    f.maxVit = n;
+    if (f.curVit===undefined || f.curVit > n) f.curVit = n;
+  } else if (k==='build'){
+    f.build = v;
+    f.infusions = fwFillInfusions(f.build, f.sr, f.infusions, f.name||f.id);
+  } else {
+    f[k] = v;
+  }
+  save(); foeSheet(window._fs.id, window._fs.src);
+}
+function fsToggleInf(n){
+  var f = fsTarget(); if (!f) return;
+  if (!Array.isArray(f.infusions)) f.infusions = [];
+  var i = f.infusions.indexOf(n);
+  var cap = fwTierBudget(f.sr).inf;
+  if (i>=0) f.infusions.splice(i,1);
+  else if (f.infusions.length < cap) f.infusions.push(n);
+  save(); foeSheet(window._fs.id, window._fs.src);
+}
+function fsToggleAug(n){
+  var f = fsTarget(); if (!f) return;
+  if (!Array.isArray(f.augments)) f.augments = [];
+  var i = f.augments.indexOf(n);
+  var cap = fwTierBudget(f.sr).aug;
+  if (i>=0) f.augments.splice(i,1);
+  else if (f.augments.length < cap) f.augments.push(n);
+  save(); foeSheet(window._fs.id, window._fs.src);
+}
+function fsAddItem(){
+  var f = fsTarget(); if (!f) return;
+  var el = document.getElementById('fsItem'); var v = el ? el.value.trim() : '';
+  if (!v) return;
+  if (!Array.isArray(f.inv)) f.inv = [];
+  f.inv.push(v);
+  save(); foeSheet(window._fs.id, window._fs.src);
+}
+function fsDelItem(i){
+  var f = fsTarget(); if (!f) return;
+  f.inv.splice(i,1);
+  save(); foeSheet(window._fs.id, window._fs.src);
+}
+function fsEditActs(){
+  var f = fsTarget(); if (!f) return;
+  if (window._fs.src==='lib'){ closeModal(); editLib(f.id); return; }
+  editCombatantAbilities(f.id);
+}
+/* The editable sheet, used by the library and by a roster. src is 'lib' or 'cbt'. */
+function foeSheet(id, src){
+  window._fs = { id:id, src:src||'lib' };
+  var f = fsTarget();
+  if (!f){ closeModal(); return; }
+  if (f.type && f.type!=='monster'){ chipInfoPlain(f); return; }
+  if (!Array.isArray(f.infusions)) f.infusions=[];
+  if (!Array.isArray(f.augments)) f.augments=[];
+  if (!Array.isArray(f.inv)) f.inv=[];
+
+  var bud = fwTierBudget(f.sr||'Elite');
+  var b = fwFoeBuild(f.build); var atk=(b&&b.attackAttributes)||[];
+  var infPool = FW_FOE_PACK.infusions.filter(function(i){ return atk.indexOf(i.family)>=0; }).map(function(i){ return i.name; });
+  var srcTag = f.source==='mine' ? ' <span class="npc-tag">yours</span>' : (f.source==='canon' ? ' <span class="npc-tag">canon</span>' : '');
+  var abN = (f.abilities||[]).length;
+
+  var h = '<h3 class="m-title">'+esc(f.name)+srcTag+'</h3>'
+    + (f.img ? '<div class="token-prev big"><img src="'+esc(imgSrc(f.img))+'" alt="token"></div>' : '')
+    + '<p class="muted">'+(f.sr?esc(f.sr)+' &middot; ':'')+(f.maxVit||0)+' vit</p>';
+
+  h += '<div class="lbl">Shatter rating</div>'
+    + '<select class="inp" onchange="fsSetSR(this.value)">'
+    + SR_ORDER.map(function(r){ return '<option value="'+r+'"'+(f.sr===r?' selected':'')+'>'+r+'</option>'; }).join('')
+    + '</select>'
+    + '<p class="muted small">Changing the rating rescales attributes and vitality, and fills infusions and augmentations to the new budget. Acts trim to the ceiling.</p>';
+
+  h += '<div class="lbl">Vitality</div>'
+    + '<div class="qd"><input class="qd-in" type="number" inputmode="numeric" value="'+(f.maxVit||0)+'" onchange="fsSetField(\'maxVit\',this.value)">'
+    + '<button class="qd-b" onclick="fsSetSR(\''+(f.sr||'Elite')+'\')" title="Recompute from the current party">Rescale to party</button></div>';
+
+  h += '<div class="lbl">Build</div>'
+    + '<select class="inp" onchange="fsSetField(\'build\',this.value)">'
+    + '<option value="">No build</option>'
+    + FW_FOE_PACK.builds.map(function(x){ return '<option value="'+esc(x.name)+'"'+(f.build===x.name?' selected':'')+'>'+esc(x.name)+'</option>'; }).join('')
+    + '</select>';
+
+  h += '<div class="lbl">Stance</div>'
+    + '<select class="inp" onchange="fsSetField(\'stance\',this.value)">'
+    + '<option value="">No stance</option>'
+    + FW_FOE_PACK.stances.map(function(x){ return '<option value="'+esc(x)+'"'+(f.stance===x?' selected':'')+'>'+esc(x)+'</option>'; }).join('')
+    + '</select>';
+
+  h += '<div class="lbl">Signature affliction</div>'
+    + '<select class="inp" onchange="fsSetField(\'sig\',this.value)">'
+    + '<option value="">None</option>'
+    + FW_FOE_PACK.afflictions.map(function(x){ return '<option value="'+esc(x)+'"'+(f.sig===x?' selected':'')+'>'+esc(x)+'</option>'; }).join('')
+    + '</select>';
+
+  h += '<div class="lbl">Infusions <span class="muted small">'+(f.infusions.length)+' of '+bud.inf+'</span></div>';
+  h += infPool.length ? fsPickerChips(infPool, f.infusions, bud.inf, 'fsToggleInf')
+     : '<p class="muted small">This build carries no attack attribute, so it takes no infusions.</p>';
+
+  h += '<div class="lbl">Augmentations <span class="muted small">'+(f.augments.length)+' of '+bud.aug+'</span></div>';
+  h += bud.aug > 0 ? fsPickerChips(FW_FOE_PACK.augmentations, f.augments, bud.aug, 'fsToggleAug')
+     : '<p class="muted small">A '+esc(f.sr||'foe')+' carries no augmentations.</p>';
+
+  h += '<div class="lbl">Items</div>';
+  h += f.inv.length ? '<div class="chips">'+f.inv.map(function(it,i){
+        return '<span class="chip">'+esc(it)+' <button class="chip-x" onclick="fsDelItem('+i+')">&times;</button></span>';
+      }).join('')+'</div>' : '<p class="muted small">Nothing carried.</p>';
+  h += '<div class="qd"><input class="qd-in" id="fsItem" placeholder="Add an item">'
+    + '<button class="qd-b" onclick="fsAddItem()">Add</button></div>';
+
+  h += '<div class="lbl">Acts <span class="muted small">'+abN+' of '+bud.acts+'</span></div>'
+    + abilityBlock(f.abilities)
+    + '<button class="btn wide ghost" onclick="fsEditActs()">Edit Acts</button>';
+
+  if ((f.attrs && attrSpend(f.attrs)>0)) h += '<div class="lbl">Attributes</div><p>'+attrLine(f.attrs)+'</p>';
+  if (f.desc) h += '<div class="lbl">Description</div><p class="chip-desc">'+esc(f.desc)+'</p>';
+
+  h += '<div class="m-row"><button class="btn ghost" onclick="closeModal()">Close</button>'
+    + (window._fs.src==='lib' ? '<button class="btn" onclick="closeModal();editLib(\''+f.id+'\')">Full editor</button>' : '')
+    + '</div>';
+  modal(h);
+}
 function monInfo(cid){
-  var cb = null;
-  curSc().combatants.forEach(function(c){ if (c.id===cid) cb = c; });
+  var cb = _findCombatant(cid);
   if (!cb) return;
   var lib = cb.libId ? libGet(cb.libId) : null;
   var srcTag = cb.source==='mine' ? ' <span class="npc-tag">yours</span>' : (cb.source==='canon' ? ' <span class="npc-tag">canon</span>' : '');
   var sig = cb.sig || '';
-  modal('<h3 class="m-title">'+esc(cb.name)+srcTag+'</h3>'
+  var abN = (cb.abilities||[]).length;
+
+  var h = '<h3 class="m-title">'+esc(cb.name)+srcTag+'</h3>'
     + (cb.img ? '<div class="token-prev big"><img src="'+esc(imgSrc(cb.img))+'" alt="token"></div>' : '')
-    + '<p class="muted">'+(cb.sr?esc(cb.sr)+' &middot; ':'')+cb.curVit+' / '+cb.maxVit+' vit</p>'
-    + '<div class="lbl">Vitality</div>'
-    + '<div class="qd"><input class="qd-in" id="foeVitSet" type="number" inputmode="numeric" value="'+cb.maxVit+'" placeholder="max vit">'
-    + '<button class="qd-b" onclick="setFoeMaxVit(\''+cb.id+'\')">Set max</button>'
-    + (cb.sr ? '<button class="qd-b" onclick="rescaleFoe(\''+cb.id+'\')" title="Recompute from the current party">Rescale to party</button>' : '')
-    + '</div>'
-    + (cb.maxVit>0 ? '' : '<p class="muted small">Party scaled. Set a number, or rescale to this party.</p>')
-    + '<div class="lbl">Re-forge to a rating</div>'
-    + '<div class="qd"><select class="qd-in" id="foeReforgeSR">'+SR_ORDER.map(function(r){ return '<option value="'+r+'"'+(cb.sr===r?' selected':'')+'>'+r+'</option>'; }).join('')+'</select>'
-    + '<button class="qd-b" onclick="reforgeCombatant(\''+cb.id+'\')" title="Re-derive stats and kit at the chosen rating">Re-forge</button></div>'
-    + '<p class="muted small">Rescales stats and vitality, and fills infusions and augmentations to the new tier. Acts trim to the tier ceiling, add any new ones in the ability panel.</p>'
-    + (sig ? '<div class="lbl">Signature affliction</div><div class="qd"><span class="sig-name">'+esc(sig)+'</span>'
-        + '<button class="qd-b" onclick="applySignature(\''+cb.id+'\')">Apply to target</button></div>' : '')
-    + ((cb.build||cb.stance) ? '<div class="lbl">Build</div><p>'+esc([cb.build,cb.stance].filter(Boolean).join(' &middot; '))+'</p>' : '')
+    + '<p class="muted">'+(cb.sr?esc(cb.sr)+' &middot; ':'')+cb.curVit+' / '+cb.maxVit+' vit</p>';
+
+  /* The two things a foe on the board may still change. */
+  h += '<div class="lbl">Current vitality</div>'
+    + '<div class="qd"><button class="qd-b" onclick="monVitStep(\''+cb.id+'\',-1)">&minus;</button>'
+    + '<input class="qd-in" id="cbVitSet" type="number" inputmode="numeric" value="'+cb.curVit+'">'
+    + '<button class="qd-b" onclick="monVitStep(\''+cb.id+'\',1)">+</button>'
+    + '<button class="qd-b" onclick="cbVitSetFromInput(\''+cb.id+'\')">Set</button></div>'
+    + '<p class="muted small">Out of '+cb.maxVit+'.</p>';
+
+  h += '<div class="lbl">Conditions</div>' + affChips('m', cb.id, cb.affs);
+  if (sig) h += '<div class="qd"><span class="sig-name">'+esc(sig)+'</span>'
+    + '<button class="qd-b" onclick="applySignature(\''+cb.id+'\')">Apply signature to target</button></div>';
+
+  /* Everything below is the foe as it was forged. Locked while it stands on the board. */
+  h += '<div class="fs-locked">'
+    + '<div class="lbl">Shatter rating</div><p>'+(cb.sr?esc(cb.sr):'None')+'</p>'
+    + '<div class="lbl">Build</div><p>'+esc([cb.build,cb.stance].filter(Boolean).join(' &middot; ')||'None')+'</p>'
+    + '<div class="lbl">Signature affliction</div><p>'+(sig?esc(sig):'None')+'</p>'
+    + '<div class="lbl">Infusions</div>'+fsChips(cb.infusions, 'None')
+    + '<div class="lbl">Augmentations</div>'+fsChips(cb.augments, 'None')
+    + '<div class="lbl">Items</div>'+fsChips(cb.inv, 'Nothing carried.')
+    + '<div class="lbl">Acts <span class="muted small">'+abN+'</span></div>'+abilityBlock(cb.abilities)
     + ((cb.attrs && attrSpend(cb.attrs)>0) ? '<div class="lbl">Attributes</div><p>'+attrLine(cb.attrs)+'</p>' : '')
-    + ((cb.inv && cb.inv.length) ? '<div class="lbl">Inventory</div><p>'+esc(cb.inv.join(', '))+'</p>' : '')
-    + abilityBlock(cb.abilities)
     + (lib && lib.desc ? '<div class="lbl">Description</div><p class="chip-desc">'+esc(lib.desc)+'</p>' : '')
-    + '<div class="m-row"><button class="btn ghost" onclick="closeModal()">Close</button></div>');
+    + '</div>'
+    + '<p class="muted small">This foe stands in a crucible. Its forging is set. Edit it in the library to change what it is.</p>';
+
+  h += '<div class="m-row"><button class="btn ghost" onclick="closeModal()">Close</button></div>';
+  modal(h);
+}
+/* Current vitality from the crucible sheet. Both paths reopen the sheet so it stays put. */
+function monVitStep(cid, d){ adjVit(cid, d); monInfo(cid); }
+function cbVitSetFromInput(cid){
+  var el = document.getElementById('cbVitSet'); if (!el) return;
+  var cb = _findCombatant(cid); if (!cb) return;
+  cb.curVit = Math.max(0, Math.min(cb.maxVit, parseInt(el.value,10)||0));
+  save(); render(); monInfo(cid);
 }
 function chipInfo(id){
   var e = libGet(id); if (!e) return;
+  if (e.type==='monster'){ foeSheet(id, 'lib'); return; }
+  chipInfoPlain(e);
+}
+function chipInfoPlain(e){
   modal('<div class="chip-hd">'
     + (e.img ? '<div class="chip-portrait"><img src="'+esc(imgSrc(e.img))+'" alt=""></div>' : '')
     + '<div class="chip-hd-tx"><h3 class="m-title">'+esc(e.name)+'</h3>'
@@ -9525,7 +9735,8 @@ function scrLibrary(){
       corner += '<button class="card-menu-btn" title="Options" onclick="event.stopPropagation();cardMenu(\''+mid+'\')">&#8943;</button>';
       var hasImg = e.img && e.img.length;
       var on = selecting && (V.libSel||{})[e.id];
-      var mainFn = selecting ? ('toggleLibPick(\''+e.id+'\')') : ('editLib(\''+e.id+'\')');
+      var mainFn = selecting ? ('toggleLibPick(\''+e.id+'\')')
+                : (e.type==='monster' ? ('foeSheet(\''+e.id+'\',\'lib\')') : ('editLib(\''+e.id+'\')'));
       var tagLine = e.campaignName ? '<div class="vcard-origin">'+esc(e.campaignName)+'</div>'
                   : (e.origin ? '<div class="vcard-origin">From '+esc(e.origin)+'</div>' : '');
       h += '<div class="vcard libcard'+(hasImg?' has-cover':'')+(on?' picked':'')+'">'
