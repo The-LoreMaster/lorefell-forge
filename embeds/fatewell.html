@@ -446,6 +446,12 @@ body::before{
 .search-scope .search-tab{ flex:1; background:var(--navy2); border:none; color:var(--muted); font-family:'Cinzel',serif; font-size:.72rem; letter-spacing:.08em; text-transform:uppercase; padding:9px 6px; cursor:pointer; }
 .search-scope .search-tab+.search-tab{ border-left:1px solid var(--line); }
 .search-scope .search-tab.on{ background:var(--navy3); color:var(--silver); box-shadow:inset 0 -2px 0 var(--gold); }
+.lib-scope{ margin:10px 0 8px; }
+.lib-bar{ display:flex; gap:8px; align-items:center; margin:0 0 10px; }
+.btn.small.danger{ border-color:rgba(201,122,122,.6); color:#c97a7a; }
+.btn.small.danger:disabled{ opacity:.35; }
+.vcard.picked{ outline:2px solid var(--gold); outline-offset:-2px; }
+.vcard.picked .vcard-badge{ color:var(--gold); }
 .search-chips{ display:flex; flex-wrap:wrap; gap:6px; }
 .search-chip{ background:var(--navy2); border:1px solid var(--line); border-radius:20px; color:var(--ice); font-family:'Cinzel',serif; font-size:.68rem; letter-spacing:.06em; padding:6px 13px; cursor:pointer; }
 .search-chip.on{ background:rgba(201,168,76,.16); border-color:var(--gold); color:var(--silver); }
@@ -9404,6 +9410,51 @@ function scrRunner(){
 }
 
 
+/* The library is one shared shelf. This scopes what you see to the campaign you are on,
+   the same way search does: assets tagged to it, plus untagged assets that belong nowhere
+   in particular. */
+function setLibScope(v){ V.libScope = v; V.libSel = {}; save(); render(); }
+function libScoped(list){
+  if ((V.libScope||'current') === 'all') return list;
+  var cid = (curC()||{}).id || '';
+  if (!cid) return list;
+  return list.filter(function(e){ return !e.campaignId || e.campaignId === cid; });
+}
+/* Selection mode. Tapping a card picks it rather than opening it. */
+function libSelCount(){ var n=0, s=V.libSel||{}; for (var k in s){ if (s[k]) n++; } return n; }
+function toggleLibSelect(){
+  V.libSelect = !V.libSelect;
+  V.libSel = {};
+  render();
+}
+function toggleLibPick(id){
+  V.libSel = V.libSel || {};
+  V.libSel[id] = !V.libSel[id];
+  render();
+}
+function libVisibleIds(){
+  return libScoped(S.library.filter(function(e){ return V.libFilter==='all' || e.type===V.libFilter; }))
+    .map(function(e){ return e.id; });
+}
+function libSelectAll(){
+  var ids = libVisibleIds();
+  var all = ids.length && ids.every(function(id){ return (V.libSel||{})[id]; });
+  V.libSel = {};
+  if (!all) ids.forEach(function(id){ V.libSel[id] = true; });
+  render();
+}
+function deleteLibSelected(){
+  var ids = Object.keys(V.libSel||{}).filter(function(id){ return V.libSel[id]; });
+  if (!ids.length) return;
+  var n = ids.length;
+  askConfirm('Delete '+n+' profile'+(n===1?'':'s')+' from the library? Scenes that already use them keep their copies.', function(){
+    var kill = {}; ids.forEach(function(id){ kill[id] = true; });
+    S.library = S.library.filter(function(e){ return !kill[e.id]; });
+    ids.forEach(function(id){ deleteAsset(id); });
+    V.libSel = {}; V.libSelect = false;
+    save(); render();
+  }, 'Delete');
+}
 function scrLibrary(){
   var h = '<h1 class="page-h">Library</h1>';
   var sc = curSc();
@@ -9416,8 +9467,32 @@ function scrLibrary(){
     h += '<button class="tab'+(V.libFilter===f[0]?' on':'')+'" onclick="setLibFilter(\''+f[0]+'\')">'+f[1]+'</button>';
   });
   h += '</div>';
-  var list = S.library.filter(function(e){ return V.libFilter==='all' || e.type===V.libFilter; });
+
+  var scope = V.libScope || 'current';
+  var cname = (curC()||{}).name || '';
+  if (cname){
+    h += '<div class="search-scope lib-scope">'
+      + '<button class="search-tab'+(scope==='current'?' on':'')+'" onclick="setLibScope(\'current\')">'+esc(cname)+'</button>'
+      + '<button class="search-tab'+(scope==='all'?' on':'')+'" onclick="setLibScope(\'all\')">All campaigns</button>'
+      + '</div>';
+  }
+
+  var selecting = !!V.libSelect;
+  var picked = libSelCount();
+  h += '<div class="lib-bar">';
+  h += '<button class="btn small'+(selecting?' gold':' ghost')+'" onclick="toggleLibSelect()">'+(selecting?'Done':'Select')+'</button>';
+  if (selecting){
+    var visIds = libVisibleIds();
+    var allOn = visIds.length && visIds.every(function(id){ return (V.libSel||{})[id]; });
+    h += '<button class="btn small ghost" onclick="libSelectAll()">'+(allOn?'Select none':'Select all')+'</button>';
+    h += '<button class="btn small danger" onclick="deleteLibSelected()"'+(picked?'':' disabled')+'>Delete'+(picked?' '+picked:'')+'</button>';
+  }
+  h += '</div>';
+
+  var list = libScoped(S.library.filter(function(e){ return V.libFilter==='all' || e.type===V.libFilter; }));
   if (!list.length){
+    if (scope==='current' && cname && S.library.length)
+      h += '<p class="muted small-note">Nothing here is tagged to '+esc(cname)+'. Switch to All campaigns to see the rest of the shelf.</p>';
     h += emptyState('Nothing here yet. Profiles you create can be attached to any scene in any campaign.', 'New profile', 'newProfile()');
   } else {
     list.forEach(function(e){
@@ -9432,14 +9507,18 @@ function scrLibrary(){
       if (canAttach) corner += '<button class="icon-btn gold attach-btn" title="Add to current scene" onclick="event.stopPropagation();quickAttach(\''+e.id+'\')">+</button>';
       corner += '<button class="card-menu-btn" title="Options" onclick="event.stopPropagation();cardMenu(\''+mid+'\')">&#8943;</button>';
       var hasImg = e.img && e.img.length;
-      h += '<div class="vcard libcard'+(hasImg?' has-cover':'')+'">'
-        + '<button class="vcard-main" onclick="editLib(\''+e.id+'\')">'
+      var on = selecting && (V.libSel||{})[e.id];
+      var mainFn = selecting ? ('toggleLibPick(\''+e.id+'\')') : ('editLib(\''+e.id+'\')');
+      var tagLine = e.campaignName ? '<div class="vcard-origin">'+esc(e.campaignName)+'</div>'
+                  : (e.origin ? '<div class="vcard-origin">From '+esc(e.origin)+'</div>' : '');
+      h += '<div class="vcard libcard'+(hasImg?' has-cover':'')+(on?' picked':'')+'">'
+        + '<button class="vcard-main" onclick="'+mainFn+'">'
         + (hasImg ? '<div class="vcard-cover"><img src="'+esc(imgSrc(e.img))+'" alt=""></div>' : '')
-        + '<div class="vcard-body"><div class="vcard-badge">'+TYPE_LABEL[e.type]+'</div>'
+        + '<div class="vcard-body"><div class="vcard-badge">'+(selecting?(on?'&#10003; Selected':'Tap to select'):TYPE_LABEL[e.type])+'</div>'
         + '<div class="vcard-title">'+esc(e.name)+'</div><div class="vcard-sub">'+sub+'</div>'
-        + (e.origin ? '<div class="vcard-origin">From '+esc(e.origin)+'</div>' : '')
+        + tagLine
         + '</div></button>'
-        + '<div class="vcard-corner inline">'+corner+'</div></div>';
+        + (selecting ? '' : '<div class="vcard-corner inline">'+corner+'</div>') + '</div>';
     });
     h += '<button class="btn wide" onclick="newProfile()">New '+(V.libFilter==='all'?'profile':TYPE_LABEL[V.libFilter])+'</button>';
   }

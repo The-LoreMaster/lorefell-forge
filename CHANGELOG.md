@@ -1,3 +1,10 @@
+## FateWell library scope and bulk delete
+
+- The library now scopes to the campaign you are on, showing assets tagged to it plus untagged ones, with a toggle for all campaigns. It matches how search works.
+- Added Select. In selection mode a tap picks a profile rather than opening it. Select all covers only what is currently visible, so the type filter and the campaign scope both hold, and it flips to Select none once everything is picked.
+- Delete removes every picked profile at once and names the count before it does. Scenes that already use a profile keep their copies, the same as deleting one.
+- A profile tagged to a campaign now shows that campaign on its card.
+
 ## FateWell swipe the beats on a phone
 
 - Swipe the note left for the next beat, right for the previous one. Scenes stay on their buttons.
