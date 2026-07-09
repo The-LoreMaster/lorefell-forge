@@ -89,6 +89,9 @@
   #add{margin-top:30px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px}
   #add h2{font-family:"IM Fell English SC",serif;font-weight:400;font-size:19px;letter-spacing:.08em;color:var(--dim);margin-bottom:10px}
   #add .row{display:flex;gap:8px;margin-top:8px}
+  /* #add .row is (1,1,0) and .hidden is (0,1,0), so .hidden alone never wins here.
+     Any element that can be hidden and lives under a more specific rule needs this. */
+  #add .row.hidden{display:none}
   #add .row select{flex:1}
   #add textarea{margin-top:8px;min-height:64px}
   #add .foot{display:flex;justify-content:flex-end;margin-top:10px}
@@ -192,7 +195,11 @@
       <label><input type="checkbox" id="pairOn" onchange="syncPair()">This change needs a matching change in the other repo</label>
       <div class="pairfields" id="pairFields">
         <input type="text" id="pairTitle" placeholder="Title of the second half">
-        <select id="pairArea" onchange="syncPairHint()"></select>
+        <select id="pairArea" onchange="syncPairArea()"></select>
+        <div class="row hidden" id="pairToolRow">
+          <select id="pairTool" onchange="syncPairTool()"></select>
+        </div>
+        <input type="text" id="pairToolName" class="hidden" placeholder="Name of the new tool">
         <div class="hint" id="pairHint"></div>
         <textarea id="pairNotes" placeholder="What the second half needs. Same three questions: where, what done looks like, what not to touch."></textarea>
       </div>
@@ -213,7 +220,7 @@
 <div id="status"></div>
 
 <script>
-// ===== CONFIG — the board lives in the vault repo, under _Canon =====
+// ===== CONFIG. The board lives in the vault repo, under _Canon. =====
 const OWNER = "The-LoreMaster";
 const REPO  = "lorefell-fellguide";
 const PATH  = "_Canon/backlog.json";
@@ -314,20 +321,49 @@ async function save(note){
 
 function newId(){ return "bl-" + Date.now().toString(36) + Math.random().toString(36).slice(2,5); }
 
-// ===== TOOLS — edit this list as the forge grows =====
+// ===== TOOLS. Label maps to the files a change must touch. =====
+// Convention (SYNC_RUNBOOK.md): most tools live twice. docs/ is served by GitHub
+// Pages; embeds/ feeds the Wix SiteEmbeds collection via embeds.yml. The two copies
+// must stay identical. Editing one and not the other leaves the Wix site stale
+// with nothing reporting a failure.
+//
+// embed: a path        means the tool is mirrored. Change both files or neither.
+// embed: null          means Pages-only. noEmbed says why. Never create the mirror.
 const TOOLS = [
-  "The Hearth", "Fellglass", "Fatewell",
-  "Fellforge", "SigilForge", "Shardforge", "Bondforge", "Brandforge",
-  "Loreforge", "Foeforge", "Relicforge", "Sagaforge",
-  "ThreadSpire", "Character Carousel",
-  "The Sphere Lexicon of Lore", "Discord Widget", "LoreMaster Widget",
-  "Fellboard"
+  {label:"FateWell",            file:"docs/fatewell.html",            embed:"embeds/fatewell.html"},
+  {label:"Fellglass",           file:"docs/fellglass.html",           embed:"embeds/fellglass.html"},
+  {label:"SigilForge",          file:"docs/sigilforge.html",          embed:"embeds/sigilforge.html"},
+  {label:"FoeForge",            file:"docs/foeforge.html",            embed:"embeds/foeforge.html"},
+  {label:"ThreadSpire",         file:"docs/threadspire.html",         embed:"embeds/threadspire.html"},
+  {label:"SagaForge",           file:"docs/sagaforge.html",           embed:"embeds/sagaforge.html"},
+  {label:"FellForge",           file:"docs/fellforge.html",           embed:"embeds/fellforge.html"},
+  {label:"BrandForge",          file:"docs/brandforge.html",          embed:"embeds/brandforge.html"},
+  {label:"RelicForge",          file:"docs/relicforge.html",          embed:"embeds/relicforge.html"},
+  {label:"ShardForge",          file:"docs/shardforge.html",          embed:"embeds/shardforge.html"},
+  {label:"BondForge",           file:"docs/bondforge.html",           embed:"embeds/bondforge.html"},
+  {label:"LoreForge",           file:"docs/loreforge.html",           embed:"embeds/loreforge.html"},
+  {label:"The Cartographer",    file:"docs/the_cartographer.html",    embed:"embeds/the_cartographer.html"},
+  {label:"The Hearth",          file:"docs/the_hearth.html",          embed:"embeds/the_hearth.html"},
+  {label:"Proto-Arsenal",       file:"docs/proto-arsenal.html",       embed:"embeds/proto-arsenal.html"},
+  {label:"Proto-Arsenal Glass", file:"docs/proto-arsenal-glass.html", embed:"embeds/proto-arsenal-glass.html"},
+  {label:"Adventures",          file:"docs/adventures.html",          embed:"embeds/adventures.html"},
+  {label:"Join",                file:"docs/join.html",                embed:"embeds/join.html"},
+
+  {label:"ForgeMaster",         file:"docs/forgemaster.html",         embed:null,
+   noEmbed:"Pages-only. It loads ./rules.js as a sibling, and an embed served standalone from the Wix collection has no siblings. Never create embeds/forgemaster.html."},
+
+  {label:"Rules kernel",        file:"scripts/rules.core.js",         embed:null,
+   noEmbed:"Not a tool. It is the generator. scripts/build.js emits docs/rules.js and velo/backend/rules.js from it. Never hand-edit either output."}
 ];
-// Tools the night shift may never push to directly. It branches, pushes the
-// branch, and blocks the item for review. Fellboard is here because it is the
-// control surface: a broken board means no way to file the item that fixes it.
-const PROTECTED_TOOLS = ["Fellboard"];
-// =====================================================
+// Fellboard is deliberately absent. It is not served from docs/ and the routine
+// cannot deploy it. Its source lives at the forge repo root and changes go to Wix
+// by hand. A protected tool the worker cannot reach is a rule guarding nothing.
+//
+// Never pushed unattended. The worker branches, pushes the branch, and blocks for review.
+// The rules kernel regenerates docs/rules.js and velo/backend/rules.js, so a bad edit
+// reaches ForgeMaster and the Velo backend at once.
+const PROTECTED_TOOLS = ["Rules kernel"];
+// ===============================================================
 
 // Area determines the repo. There is exactly one right answer per area,
 // so Nate picks the area and the repo follows. No way to get it wrong.
@@ -338,58 +374,90 @@ const AREA_LABELS = {
 };
 
 function fillSelects(){
-  $("newTool").innerHTML =
-    TOOLS.map(t => `<option value="${t}">${t}</option>`).join("") +
-    `<option value="__new">+ New tool…</option>`;
+  const toolOpts = TOOLS.map(t => `<option value="${t.label}">${t.label}</option>`).join("")
+    + `<option value="__new">+ New tool…</option>`;
+  $("newTool").innerHTML = toolOpts;
+  $("pairTool").innerHTML = toolOpts;
   $("pairArea").innerHTML =
     Object.keys(AREA_LABELS).map(a => `<option value="${a}">${AREA_LABELS[a]}</option>`).join("");
+}
+function toolOf(label){ return TOOLS.find(x => x.label === label) || null; }
+
+// A tool not yet in TOOLS is one being created. Give it the convention's paths
+// rather than an empty fence, which would be no fence at all.
+function slug(label){
+  return label.toLowerCase().trim().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+}
+function filesOf(label){
+  const t = toolOf(label);
+  if(!t) return ["docs/" + slug(label) + ".html", "embeds/" + slug(label) + ".html"];
+  return t.embed ? [t.file, t.embed] : [t.file];
 }
 
 function repoName(area){ return REPO_OF[area] === "forge" ? "lorefell-forge" : "lorefell-fellguide"; }
 
-function syncRepo(){
-  const area = $("newArea").value;
-  const h = $("repoHint");
-  $("toolRow").classList.toggle("hidden", area !== "site");
-  if(area !== "site") $("newToolName").classList.add("hidden");
-  else syncTool();
-  if(area === "canon"){
-    h.className = "hint warn";
-    h.textContent = "Canon work is never pushed unattended. The worker branches, pushes the branch, and blocks the item for your review.";
-  } else {
-    h.className = "hint";
-    h.textContent = "Repo: " + repoName(area);
-  }
-  // Default the pair's area to the opposite repo, since that's the whole point.
-  $("pairArea").value = REPO_OF[area] === "forge" ? "fellguide" : "site";
-  syncPairHint();
-}
+// Both halves of a paired item use the same controls and the same rules, so they
+// share one code path. Two copies of this logic would drift, and a drifted fence
+// silently points the worker at the wrong file.
+function syncHalf(ids){
+  const area = $(ids.area).value;
+  const h = $(ids.hint);
+  const isSite = area === "site";
 
-function syncTool(){
-  const t = $("newTool").value;
-  $("newToolName").classList.toggle("hidden", t !== "__new");
-  const h = $("repoHint");
+  $(ids.toolRow).classList.toggle("hidden", !isSite);
+  if(!isSite){
+    $(ids.toolName).classList.add("hidden");
+    if(area === "canon"){
+      h.className = "hint warn";
+      h.textContent = "Canon work is never pushed unattended. The worker branches, pushes the branch, and blocks the item for your review.";
+    } else {
+      h.className = "hint";
+      h.textContent = "Repo: " + repoName(area);
+    }
+    return;
+  }
+
+  const t = $(ids.tool).value;
+  const isNew = t === "__new";
+  const meta = toolOf(t);
+  $(ids.toolName).classList.toggle("hidden", !isNew);
+
   if(PROTECTED_TOOLS.includes(t)){
     h.className = "hint warn";
-    h.textContent = t + " is the control surface. The worker branches, pushes the branch, and blocks the item for your review. Nothing lands unattended.";
-  }
-}
-
-function syncPair(){
-  $("pairFields").classList.toggle("open", $("pairOn").checked);
-}
-
-function syncPairHint(){
-  const area = $("pairArea").value;
-  const h = $("pairHint");
-  if(area === "canon"){
+    h.textContent = "Never pushed unattended. The worker branches and blocks for your review. " + (meta && meta.noEmbed ? meta.noEmbed : "");
+  } else if(isNew){
+    h.className = "hint";
+    h.textContent = "New tools land in docs/ and are mirrored into embeds/. Both copies, every time.";
+  } else if(meta && meta.noEmbed){
     h.className = "hint warn";
-    h.textContent = "Canon half will branch and block rather than push.";
+    h.textContent = "Fence: " + meta.file + ". " + meta.noEmbed;
   } else {
     h.className = "hint";
-    h.textContent = "Repo: " + repoName(area);
+    h.textContent = "Fence: " + filesOf(t).join("  +  ");
   }
 }
+
+const MAIN_IDS = {area:"newArea",  tool:"newTool",  toolName:"newToolName",  toolRow:"toolRow",     hint:"repoHint"};
+const PAIR_IDS = {area:"pairArea", tool:"pairTool", toolName:"pairToolName", toolRow:"pairToolRow", hint:"pairHint"};
+
+// Read the tool label for one half. Returns null when that half is not a site item,
+// so a vault half can never inherit a tool from the other half's hidden selector.
+function toolValue(ids){
+  if($(ids.area).value !== "site") return null;
+  const t = $(ids.tool).value;
+  return t === "__new" ? $(ids.toolName).value.trim() : t;
+}
+
+function syncRepo(){
+  syncHalf(MAIN_IDS);
+  // Default the pair's area to the opposite repo, since that's the whole point.
+  $("pairArea").value = REPO_OF[$("newArea").value] === "forge" ? "fellguide" : "site";
+  syncHalf(PAIR_IDS);
+}
+function syncTool(){ syncHalf(MAIN_IDS); }
+function syncPairArea(){ syncHalf(PAIR_IDS); }
+function syncPairTool(){ syncHalf(PAIR_IDS); }
+function syncPair(){ $("pairFields").classList.toggle("open", $("pairOn").checked); }
 
 function makeItem(title, area, tool, notes, status, pair, order){
   const now = new Date().toISOString();
@@ -397,6 +465,8 @@ function makeItem(title, area, tool, notes, status, pair, order){
     id: newId(), title,
     repo: REPO_OF[area], area,
     tool: tool || null,
+    toolFiles: tool ? filesOf(tool) : null,
+    toolNote: tool && toolOf(tool) ? (toolOf(tool).noEmbed || null) : null,
     priority: parseInt($("newPriority").value),
     status,
     notes,
@@ -413,11 +483,10 @@ function addItem(status){
   const area = $("newArea").value;
   const st = status === "hold" ? "hold" : "todo";
 
-  let tool = null;
-  if(area === "site"){
-    tool = $("newTool").value === "__new" ? $("newToolName").value.trim() : $("newTool").value;
-    if(!tool){ toast("Name the new tool", true); return; }
-  }
+  // Each half reads its own selector. A vault half returns null rather than
+  // inheriting whatever sits in the other half's hidden tool dropdown.
+  const tool = toolValue(MAIN_IDS);
+  if(area === "site" && !tool){ toast("Name the new tool", true); return; }
 
   const paired = $("pairOn").checked;
   if(paired){
@@ -425,9 +494,9 @@ function addItem(status){
     const pArea = $("pairArea").value;
     if(!pTitle){ toast("The second half needs a title", true); return; }
     if(REPO_OF[pArea] === REPO_OF[area]){ toast("Both halves are in the same repo. Make them two separate items.", true); return; }
+    const pTool = toolValue(PAIR_IDS);
+    if(pArea === "site" && !pTool){ toast("Name the second half's new tool", true); return; }
     const pairId = "pr-" + Date.now().toString(36);
-    let pTool = null;
-    if(pArea === "site"){ pTool = $("newTool").value === "__new" ? $("newToolName").value.trim() : $("newTool").value; }
     state.items.push(makeItem(title, area, tool, $("newNotes").value.trim(), st, pairId, 1));
     // Second half never runs on its own. It waits for the first, always.
     state.items.push(makeItem(pTitle, pArea, pTool, $("pairNotes").value.trim(), st, pairId, 2));
