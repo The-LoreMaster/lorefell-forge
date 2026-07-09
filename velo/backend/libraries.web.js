@@ -38,5 +38,20 @@ export const getLibraries = webMethod(Permissions.Anyone, async () => {
   } catch (e) {}
   if (components.length) out.components = components;
 
+  // The weapon trees. Each form carries its own Fellmark Affliction, its grip, and its range,
+  // so the sheet reads three of each rather than one for the whole tree.
+  try {
+    const rw = await wixData.query('CanonWeapons').ascending('displayOrder').limit(50).find({ suppressAuth: true });
+    const weapons = rw.items.map((it) => ({
+      tree: it.tree || '',
+      category: it.category || '',
+      formOne: it.formOne || '', formTwo: it.formTwo || '', formThree: it.formThree || '',
+      afflictionOne: it.afflictionOne || '', afflictionTwo: it.afflictionTwo || '', afflictionThree: it.afflictionThree || '',
+      gripOne: it.gripOne, gripTwo: it.gripTwo, gripThree: it.gripThree,
+      rangeOne: it.rangeOne, rangeTwo: it.rangeTwo, rangeThree: it.rangeThree
+    })).filter((w) => w.tree);
+    if (weapons.length) out.weapons = weapons;
+  } catch (e) {}
+
   return out;
 });

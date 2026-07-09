@@ -1,3 +1,9 @@
+## Weapons come from the vault
+
+- Added the CanonWeapons collection, with a schema and a seed of all nine trees. Each row carries three forms, three Fellmark Afflictions, three grips, and three ranges.
+- FellGlass reads the weapon trees from the vault and falls back to the pack baked into it. A row that names fewer than three Afflictions leaves the baked pack alone, so a half filled row can never blank a weapon or give all three forms the same Affliction.
+- The seed matches the baked pack exactly, so provisioning it changes nothing until the vault is edited.
+
 ## FellGlass weapon afflictions cannot collapse
 
 - The weapon catalog could be overridden from the vault, and that override read one Affliction for a whole tree. All three forms would have carried the same one. It now reads an Affliction for each form and keeps the inline pack when the vault does not carry all three.
