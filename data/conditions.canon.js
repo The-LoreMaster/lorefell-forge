@@ -1,56 +1,15 @@
-/* LoreFell canon conditions pack. Generated from the FellGuide vault (The Combat/The Afflictions).
-   54 afflictions, 39 combat effects, 6 impairments. Do not hand-edit. Regenerate from canon. */
+/* LoreFell canon conditions pack. Generated from SigilForge, which is canon for
+   conditions. 37 afflictions, 33 combat effects, 6 impairments.
+   Only an affliction carries a Breakout. Do not hand-edit. Regenerate from SigilForge. */
 (function(g){
   var CONDITIONS = [
   {
-    "name": "Accursed",
-    "type": "affliction",
-    "breakout": "Sanctum",
-    "rule": "You take damage equal to the damage you deal to others.",
-    "enforce": {
-      "bucket": "A",
-      "kind": "onDealDamage",
-      "op": "selfEqualDealt"
-    }
-  },
-  {
-    "name": "Agonized",
-    "type": "affliction",
-    "breakout": "Bearing",
-    "rule": "You cannot attack and your Evasion becomes 0.",
-    "enforce": {
-      "bucket": "B",
-      "kind": "gate",
-      "op": "noAttack"
-    }
-  },
-  {
-    "name": "Anchored",
-    "type": "affliction",
-    "breakout": "Movement",
-    "rule": "You cannot swap tiered abilities in battle.",
-    "enforce": {
-      "bucket": "C",
-      "kind": "reminder",
-      "op": null
-    }
-  },
-  {
-    "name": "Benighted",
-    "type": "affliction",
-    "breakout": "Resolve",
-    "rule": "You are unable to imprint, slag, or use Paragon Points in battle.",
-    "enforce": {
-      "bucket": "C",
-      "kind": "reminder",
-      "op": null
-    }
-  },
-  {
     "name": "Bleeding",
     "type": "affliction",
+    "family": "Precision",
+    "cost": 3,
     "breakout": "Renewal",
-    "rule": "Whenever you take damage, take 1 additional Base Damage.",
+    "rule": "Whenever you take damage, take your own Base Damage.",
     "enforce": {
       "bucket": "A",
       "kind": "onDamageTaken",
@@ -59,21 +18,12 @@
     }
   },
   {
-    "name": "Bruised",
+    "name": "Impeded",
     "type": "affliction",
-    "breakout": "Bearing",
-    "rule": "Bonus Damage dealt to you counts as Base Damage instead.",
-    "enforce": {
-      "bucket": "A",
-      "kind": "dmgIn",
-      "op": "bonusAsBase"
-    }
-  },
-  {
-    "name": "Conjoined",
-    "type": "affliction",
-    "breakout": "Sanctum",
-    "rule": "Choose a target ally. Any damage dealt to that ally is also dealt to you.",
+    "family": "Precision",
+    "cost": 3,
+    "breakout": "Movement",
+    "rule": "Your Evasion becomes 0.",
     "enforce": {
       "bucket": "C",
       "kind": "reminder",
@@ -81,10 +31,12 @@
     }
   },
   {
-    "name": "Constrained",
+    "name": "Vulnerable",
     "type": "affliction",
-    "breakout": "Creation",
-    "rule": "You can only have one of the following summoned during battle: - Weapon - Armor - Lorebound",
+    "family": "Precision",
+    "cost": 3,
+    "breakout": "Guard",
+    "rule": "Your Durability becomes 0.",
     "enforce": {
       "bucket": "C",
       "kind": "reminder",
@@ -92,63 +44,62 @@
     }
   },
   {
-    "name": "Crippled",
+    "name": "Immobilized",
     "type": "affliction",
-    "breakout": "Anchor",
-    "rule": "All of your attributes become equal to your lowest attribute.",
-    "enforce": {
-      "bucket": "C",
-      "kind": "reminder",
-      "op": null
-    }
-  },
-  {
-    "name": "Dazzled",
-    "type": "affliction",
-    "breakout": "Vigilance",
-    "rule": "Your Accuracy is halved.",
-    "enforce": {
-      "bucket": "C",
-      "kind": "reminder",
-      "op": null
-    }
-  },
-  {
-    "name": "Defanged",
-    "type": "affliction",
-    "breakout": "Creation",
-    "rule": "Your Lorebound loses its Aspects.",
-    "enforce": {
-      "bucket": "C",
-      "kind": "reminder",
-      "op": null
-    }
-  },
-  {
-    "name": "Diminished",
-    "type": "affliction",
-    "breakout": "Resolve",
-    "rule": "Your Resistance becomes 0.",
-    "enforce": {
-      "bucket": "C",
-      "kind": "reminder",
-      "op": null
-    }
-  },
-  {
-    "name": "Disarmed",
-    "type": "affliction",
-    "breakout": "Finesse",
-    "rule": "You cannot utilize your weapon.",
+    "family": "Precision",
+    "cost": 3,
+    "breakout": "Movement",
+    "rule": "You cannot move.",
     "enforce": {
       "bucket": "B",
       "kind": "gate",
-      "op": "noWeapon"
+      "op": "noMove"
+    }
+  },
+  {
+    "name": "Hunted",
+    "type": "affliction",
+    "family": "Precision",
+    "cost": 3,
+    "breakout": "Elusion",
+    "rule": "Fellmarks land against you on a 5 or 6.",
+    "enforce": {
+      "bucket": "C",
+      "kind": "reminder",
+      "op": null
+    }
+  },
+  {
+    "name": "Slashed",
+    "type": "affliction",
+    "family": "Precision",
+    "cost": 4,
+    "breakout": "Renewal",
+    "rule": "Your maximum Vitality is halved.",
+    "enforce": {
+      "bucket": "A",
+      "kind": "passive",
+      "op": "maxVitHalved"
+    }
+  },
+  {
+    "name": "Frenzied",
+    "type": "affliction",
+    "family": "Precision",
+    "cost": 4,
+    "breakout": "Conviction",
+    "rule": "You may only target the source of this Affliction.",
+    "enforce": {
+      "bucket": "B",
+      "kind": "target",
+      "op": "mustSource"
     }
   },
   {
     "name": "Disenchanted",
     "type": "affliction",
+    "family": "Precision",
+    "cost": 4,
     "breakout": "Creation",
     "rule": "Your weapons lose their Infusions.",
     "enforce": {
@@ -158,30 +109,23 @@
     }
   },
   {
-    "name": "Dislocated",
+    "name": "Disarmed",
     "type": "affliction",
+    "family": "Precision",
+    "cost": 4,
     "breakout": "Finesse",
-    "rule": "All Physical damage you deal is halved.",
-    "enforce": {
-      "bucket": "A",
-      "kind": "dmgOut",
-      "op": "physHalved"
-    }
-  },
-  {
-    "name": "Disoriented",
-    "type": "affliction",
-    "breakout": "Logic",
-    "rule": "Roll 1d6 before each attack. On an odd result, you must target an ally if able.",
+    "rule": "You cannot utilize your weapon.",
     "enforce": {
       "bucket": "B",
-      "kind": "target",
-      "op": "oddTargetsAlly"
+      "kind": "gate",
+      "op": "noWeapon"
     }
   },
   {
     "name": "Disrupted",
     "type": "affliction",
+    "family": "Precision",
+    "cost": 4,
     "breakout": "Weaving",
     "rule": "Your spells automatically fail unless a Fellmark is rolled.",
     "enforce": {
@@ -191,8 +135,271 @@
     }
   },
   {
+    "name": "Lacerated",
+    "type": "affliction",
+    "family": "Precision",
+    "cost": 5,
+    "breakout": "Poise",
+    "rule": "You cannot utilize attacks.",
+    "enforce": {
+      "bucket": "B",
+      "kind": "gate",
+      "op": "noAttack"
+    }
+  },
+  {
+    "name": "Diminished",
+    "type": "affliction",
+    "family": "Power",
+    "cost": 3,
+    "breakout": "Resolve",
+    "rule": "Your Resistance becomes 0.",
+    "enforce": {
+      "bucket": "C",
+      "kind": "reminder",
+      "op": null
+    }
+  },
+  {
+    "name": "Bruised",
+    "type": "affliction",
+    "family": "Power",
+    "cost": 3,
+    "breakout": "Bearing",
+    "rule": "Bonus Damage dealt to you counts as Base Damage instead.",
+    "enforce": {
+      "bucket": "A",
+      "kind": "dmgIn",
+      "op": "bonusAsBase"
+    }
+  },
+  {
+    "name": "Dazzled",
+    "type": "affliction",
+    "family": "Power",
+    "cost": 3,
+    "breakout": "Vigilance",
+    "rule": "Your Accuracy is halved.",
+    "enforce": {
+      "bucket": "C",
+      "kind": "reminder",
+      "op": null
+    }
+  },
+  {
+    "name": "Terrorized",
+    "type": "affliction",
+    "family": "Power",
+    "cost": 3,
+    "breakout": "Conviction",
+    "rule": "You cannot voluntarily move closer to the source of this Affliction.",
+    "enforce": {
+      "bucket": "B",
+      "kind": "target",
+      "op": "noCloserToSource"
+    }
+  },
+  {
+    "name": "Disoriented",
+    "type": "affliction",
+    "family": "Power",
+    "cost": 3,
+    "breakout": "Logic",
+    "rule": "Roll 1d6 before each attack. On an odd result, you must target an ally if able.",
+    "enforce": {
+      "bucket": "B",
+      "kind": "target",
+      "op": "oddTargetsAlly"
+    }
+  },
+  {
+    "name": "Mangled",
+    "type": "affliction",
+    "family": "Power",
+    "cost": 3,
+    "breakout": "Renewal",
+    "rule": "Whenever you deal damage, you take your own Base Damage.",
+    "enforce": {
+      "bucket": "A",
+      "kind": "onDealDamage",
+      "op": "selfBase"
+    }
+  },
+  {
+    "name": "Vitiated",
+    "type": "affliction",
+    "family": "Power",
+    "cost": 4,
+    "breakout": "Resonance",
+    "rule": "Damage you deal is halved.",
+    "enforce": {
+      "bucket": "A",
+      "kind": "dmgOut",
+      "op": "magicHalved"
+    }
+  },
+  {
+    "name": "Unclad",
+    "type": "affliction",
+    "family": "Power",
+    "cost": 4,
+    "breakout": "Creation",
+    "rule": "Your armor loses its Augmentations.",
+    "enforce": {
+      "bucket": "C",
+      "kind": "reminder",
+      "op": null
+    }
+  },
+  {
+    "name": "Staggered",
+    "type": "affliction",
+    "family": "Power",
+    "cost": 4,
+    "breakout": "Reflex",
+    "rule": "You cannot utilize Reacts.",
+    "enforce": {
+      "bucket": "B",
+      "kind": "gate",
+      "op": "noReact"
+    }
+  },
+  {
+    "name": "Agonized",
+    "type": "affliction",
+    "family": "Power",
+    "cost": 5,
+    "breakout": "Bearing",
+    "rule": "You cannot attack and your Evasion becomes 0.",
+    "enforce": {
+      "bucket": "B",
+      "kind": "gate",
+      "op": "noAttack"
+    }
+  },
+  {
+    "name": "Crippled",
+    "type": "affliction",
+    "family": "Power",
+    "cost": 5,
+    "breakout": "Anchor",
+    "rule": "All of your attributes become equal to your lowest attribute.",
+    "enforce": {
+      "bucket": "C",
+      "kind": "reminder",
+      "op": null
+    }
+  },
+  {
+    "name": "Jinxed",
+    "type": "affliction",
+    "family": "Magic",
+    "cost": 3,
+    "breakout": "Resonance",
+    "rule": "Your rolls of 1 or 2 count as Fellstrikes.",
+    "enforce": {
+      "bucket": "C",
+      "kind": "reminder",
+      "op": null
+    }
+  },
+  {
+    "name": "Masked",
+    "type": "affliction",
+    "family": "Magic",
+    "cost": 3,
+    "breakout": "Vigilance",
+    "rule": "You may only see spaces and targets in your space or adjacent spaces.",
+    "enforce": {
+      "bucket": "C",
+      "kind": "reminder",
+      "op": null
+    }
+  },
+  {
+    "name": "Ignited",
+    "type": "affliction",
+    "family": "Magic",
+    "cost": 3,
+    "breakout": "Endurance",
+    "rule": "Whenever you utilize an Act, take 1d6 damage.",
+    "enforce": {
+      "bucket": "A",
+      "kind": "onAct",
+      "op": "selfRoll",
+      "value": "1d6"
+    }
+  },
+  {
+    "name": "Worn",
+    "type": "affliction",
+    "family": "Magic",
+    "cost": 3,
+    "breakout": "Reflex",
+    "rule": "You gain 1 rank of Fatigue.",
+    "enforce": {
+      "bucket": "C",
+      "kind": "reminder",
+      "op": null
+    }
+  },
+  {
+    "name": "Unlucky",
+    "type": "affliction",
+    "family": "Magic",
+    "cost": 4,
+    "breakout": "Resonance",
+    "rule": "All your rolls become Unlucky.",
+    "enforce": {
+      "bucket": "C",
+      "kind": "reminder",
+      "op": null
+    }
+  },
+  {
+    "name": "Reapt",
+    "type": "affliction",
+    "family": "Magic",
+    "cost": 4,
+    "breakout": "Weaving",
+    "rule": "You no longer gain Charges.",
+    "enforce": {
+      "bucket": "A",
+      "kind": "passive",
+      "op": "noChargeGain"
+    }
+  },
+  {
+    "name": "Harvested",
+    "type": "affliction",
+    "family": "Magic",
+    "cost": 4,
+    "breakout": "Spirit",
+    "rule": "Any source that would heal your Vitality deals Base Damage instead.",
+    "enforce": {
+      "bucket": "A",
+      "kind": "heal",
+      "op": "invertToBase"
+    }
+  },
+  {
+    "name": "Accursed",
+    "type": "affliction",
+    "family": "Magic",
+    "cost": 4,
+    "breakout": "Sanctum",
+    "rule": "You take damage equal to the damage you deal to others.",
+    "enforce": {
+      "bucket": "A",
+      "kind": "onDealDamage",
+      "op": "selfEqualDealt"
+    }
+  },
+  {
     "name": "Enfeebled",
     "type": "affliction",
+    "family": "Magic",
+    "cost": 4,
     "breakout": "Temper",
     "rule": "Lose half your current Vitality.",
     "enforce": {
@@ -204,6 +411,8 @@
   {
     "name": "Ensnared",
     "type": "affliction",
+    "family": "Magic",
+    "cost": 5,
     "breakout": "Might",
     "rule": "You may not utilize Acts.",
     "enforce": {
@@ -213,30 +422,10 @@
     }
   },
   {
-    "name": "Fragmented",
-    "type": "affliction",
-    "breakout": "Lore",
-    "rule": "You may not use or activate Remnants.",
-    "enforce": {
-      "bucket": "C",
-      "kind": "reminder",
-      "op": null
-    }
-  },
-  {
-    "name": "Frenzied",
-    "type": "affliction",
-    "breakout": "Conviction",
-    "rule": "You may only target the source of this Affliction.",
-    "enforce": {
-      "bucket": "B",
-      "kind": "target",
-      "op": "mustSource"
-    }
-  },
-  {
     "name": "Frozen",
     "type": "affliction",
+    "family": "Magic",
+    "cost": 5,
     "breakout": "Bearing",
     "rule": "You may only utilize Skill Rolls.",
     "enforce": {
@@ -246,252 +435,23 @@
     }
   },
   {
-    "name": "Harvested",
+    "name": "Conjoined",
     "type": "affliction",
-    "breakout": "Spirit",
-    "rule": "Any source that would heal your Vitality deals Base Damage instead.",
-    "enforce": {
-      "bucket": "A",
-      "kind": "heal",
-      "op": "invertToBase"
-    }
-  },
-  {
-    "name": "Hunted",
-    "type": "affliction",
-    "breakout": "Elusion",
-    "rule": "Fellmarks land against you on a 5 or 6.",
-    "enforce": {
-      "bucket": "C",
-      "kind": "reminder",
-      "op": null
-    }
-  },
-  {
-    "name": "Ignited",
-    "type": "affliction",
-    "breakout": "Endurance",
-    "rule": "Whenever you utilize an Act, take 1d6 damage.",
-    "enforce": {
-      "bucket": "A",
-      "kind": "onAct",
-      "op": "selfRoll",
-      "value": "1d6"
-    }
-  },
-  {
-    "name": "Immobilized",
-    "type": "affliction",
-    "breakout": "Movement",
-    "rule": "You cannot move as part of an Act or React.",
-    "enforce": {
-      "bucket": "B",
-      "kind": "gate",
-      "op": "noMove"
-    }
-  },
-  {
-    "name": "Impeded",
-    "type": "affliction",
-    "breakout": "Movement",
-    "rule": "Your Evasion becomes 0.",
-    "enforce": {
-      "bucket": "C",
-      "kind": "reminder",
-      "op": null
-    }
-  },
-  {
-    "name": "Inept",
-    "type": "affliction",
-    "breakout": "Logic",
-    "rule": "You may not use Skill Rolls except to remove Afflictions or Effects.",
-    "enforce": {
-      "bucket": "B",
-      "kind": "gate",
-      "op": "skillOnlyCleanse"
-    }
-  },
-  {
-    "name": "Inert",
-    "type": "affliction",
-    "breakout": "Lore",
-    "rule": "You may not search for or use Skyvault Shards in battle.",
-    "enforce": {
-      "bucket": "C",
-      "kind": "reminder",
-      "op": null
-    }
-  },
-  {
-    "name": "Infected",
-    "type": "affliction",
-    "breakout": "Endurance",
-    "rule": "You take 1 additional Base Damage whenever you take damage.",
-    "enforce": {
-      "bucket": "A",
-      "kind": "onDamageTaken",
-      "op": "addBase",
-      "value": 1
-    }
-  },
-  {
-    "name": "Jinxed",
-    "type": "affliction",
-    "breakout": "Resonance",
-    "rule": "Your rolls of 1 or 2 count as Fellstrikes.",
-    "enforce": {
-      "bucket": "C",
-      "kind": "reminder",
-      "op": null
-    }
-  },
-  {
-    "name": "Lacerated",
-    "type": "affliction",
-    "breakout": "Poise",
-    "rule": "You cannot utilize attacks.",
-    "enforce": {
-      "bucket": "B",
-      "kind": "gate",
-      "op": "noAttack"
-    }
-  },
-  {
-    "name": "Mangled",
-    "type": "affliction",
-    "breakout": "Renewal",
-    "rule": "Whenever you deal damage, you take your own Base Damage.",
-    "enforce": {
-      "bucket": "A",
-      "kind": "onDealDamage",
-      "op": "selfBase"
-    }
-  },
-  {
-    "name": "Masked",
-    "type": "affliction",
-    "breakout": "Vigilance",
-    "rule": "You may only see spaces and targets in your space or adjacent spaces.",
-    "enforce": {
-      "bucket": "C",
-      "kind": "reminder",
-      "op": null
-    }
-  },
-  {
-    "name": "Nullified",
-    "type": "affliction",
-    "breakout": "Creation",
-    "rule": "You cannot gain the benefits of Effects.",
-    "enforce": {
-      "bucket": "B",
-      "kind": "gate",
-      "op": "noEffectGain"
-    }
-  },
-  {
-    "name": "Persecuted",
-    "type": "affliction",
-    "breakout": "Trickery",
-    "rule": "Enemies must target you if able.",
-    "enforce": {
-      "bucket": "B",
-      "kind": "target",
-      "op": "enemiesMustHitYou"
-    }
-  },
-  {
-    "name": "Plagued",
-    "type": "affliction",
+    "family": "Magic",
+    "cost": 5,
     "breakout": "Sanctum",
-    "rule": "Each Affliction that afflicts an enemy also afflicts you.",
+    "rule": "Choose a target ally. Any damage dealt to that ally is also dealt to you.",
     "enforce": {
       "bucket": "C",
       "kind": "reminder",
       "op": null
-    }
-  },
-  {
-    "name": "Reapt",
-    "type": "affliction",
-    "breakout": "Weaving",
-    "rule": "You no longer gain Charges.",
-    "enforce": {
-      "bucket": "A",
-      "kind": "passive",
-      "op": "noChargeGain"
-    }
-  },
-  {
-    "name": "Restricted",
-    "type": "affliction",
-    "breakout": "Creation",
-    "rule": "You lose the benefits of Talents.",
-    "enforce": {
-      "bucket": "C",
-      "kind": "reminder",
-      "op": null
-    }
-  },
-  {
-    "name": "Slashed",
-    "type": "affliction",
-    "breakout": "Renewal",
-    "rule": "Your maximum Vitality is halved.",
-    "enforce": {
-      "bucket": "A",
-      "kind": "passive",
-      "op": "maxVitHalved"
-    }
-  },
-  {
-    "name": "Staggered",
-    "type": "affliction",
-    "breakout": "Reflex",
-    "rule": "You cannot utilize Reacts.",
-    "enforce": {
-      "bucket": "B",
-      "kind": "gate",
-      "op": "noReact"
-    }
-  },
-  {
-    "name": "Strung",
-    "type": "affliction",
-    "breakout": "Resonance",
-    "rule": "Each spell that targets an enemy also targets an ally.",
-    "enforce": {
-      "bucket": "C",
-      "kind": "reminder",
-      "op": null
-    }
-  },
-  {
-    "name": "Stymied",
-    "type": "affliction",
-    "breakout": "Reflex",
-    "rule": "You may only make a single Evasion roll each round.",
-    "enforce": {
-      "bucket": "C",
-      "kind": "reminder",
-      "op": null
-    }
-  },
-  {
-    "name": "Suppressed",
-    "type": "affliction",
-    "breakout": "Resolve",
-    "rule": "You cannot utilize Precision or Power weapon abilities.",
-    "enforce": {
-      "bucket": "B",
-      "kind": "gate",
-      "op": "noPrecPowAbility"
     }
   },
   {
     "name": "Synchronized",
     "type": "affliction",
+    "family": "Magic",
+    "cost": 5,
     "breakout": "Trickery",
     "rule": "Each Affliction that afflicts an ally also afflicts you.",
     "enforce": {
@@ -501,10 +461,12 @@
     }
   },
   {
-    "name": "Tainted",
+    "name": "Plagued",
     "type": "affliction",
+    "family": "Magic",
+    "cost": 5,
     "breakout": "Sanctum",
-    "rule": "You cannot use potions or runes.",
+    "rule": "Each Affliction that afflicts an enemy also afflicts you.",
     "enforce": {
       "bucket": "C",
       "kind": "reminder",
@@ -512,87 +474,12 @@
     }
   },
   {
-    "name": "Terrorized",
+    "name": "Strung",
     "type": "affliction",
-    "breakout": "Conviction",
-    "rule": "You cannot voluntarily move closer to the source of this Affliction.",
-    "enforce": {
-      "bucket": "B",
-      "kind": "target",
-      "op": "noCloserToSource"
-    }
-  },
-  {
-    "name": "Unclad",
-    "type": "affliction",
-    "breakout": "Creation",
-    "rule": "Your armor loses its Augmentations.",
-    "enforce": {
-      "bucket": "C",
-      "kind": "reminder",
-      "op": null
-    }
-  },
-  {
-    "name": "Unlucky",
-    "type": "affliction",
+    "family": "Magic",
+    "cost": 5,
     "breakout": "Resonance",
-    "rule": "All your rolls become Unlucky.",
-    "enforce": {
-      "bucket": "C",
-      "kind": "reminder",
-      "op": null
-    }
-  },
-  {
-    "name": "Vitiated",
-    "type": "affliction",
-    "breakout": "Resonance",
-    "rule": "All Magic damage you deal is halved.",
-    "enforce": {
-      "bucket": "A",
-      "kind": "dmgOut",
-      "op": "magicHalved"
-    }
-  },
-  {
-    "name": "Vulnerable",
-    "type": "affliction",
-    "breakout": "Guard",
-    "rule": "Your Durability becomes 0.",
-    "enforce": {
-      "bucket": "C",
-      "kind": "reminder",
-      "op": null
-    }
-  },
-  {
-    "name": "Withered",
-    "type": "affliction",
-    "breakout": "Endurance",
-    "rule": "Any source that would heal your Vitality does not heal your Vitality.",
-    "enforce": {
-      "bucket": "A",
-      "kind": "heal",
-      "op": "blocked"
-    }
-  },
-  {
-    "name": "Witless",
-    "type": "affliction",
-    "breakout": "Logic",
-    "rule": "You cannot utilize Utility Items.",
-    "enforce": {
-      "bucket": "C",
-      "kind": "reminder",
-      "op": null
-    }
-  },
-  {
-    "name": "Worn",
-    "type": "affliction",
-    "breakout": "Reflex",
-    "rule": "You gain 1 rank of Fatigue.",
+    "rule": "Each spell that targets an enemy also targets an ally.",
     "enforce": {
       "bucket": "C",
       "kind": "reminder",
@@ -602,6 +489,7 @@
   {
     "name": "Attuned",
     "type": "effect",
+    "cost": 3,
     "breakout": "",
     "rule": "Gain 1 Charge.",
     "enforce": {
@@ -613,19 +501,9 @@
   {
     "name": "Restored",
     "type": "effect",
+    "cost": 3,
     "breakout": "",
-    "rule": "A target gains 1 Charge.",
-    "enforce": {
-      "bucket": "C",
-      "kind": "effect",
-      "op": null
-    }
-  },
-  {
-    "name": "Drained",
-    "type": "effect",
-    "breakout": "",
-    "rule": "A target loses 1 Charge.",
+    "rule": "The target gains 1 Charge.",
     "enforce": {
       "bucket": "C",
       "kind": "effect",
@@ -635,8 +513,21 @@
   {
     "name": "Transferred",
     "type": "effect",
+    "cost": 2,
     "breakout": "",
-    "rule": "Move 1 Charge between two targets.",
+    "rule": "Take 1 Charge from the target.",
+    "enforce": {
+      "bucket": "C",
+      "kind": "effect",
+      "op": null
+    }
+  },
+  {
+    "name": "Drained",
+    "type": "effect",
+    "cost": 2,
+    "breakout": "",
+    "rule": "The target loses 1 Charge.",
     "enforce": {
       "bucket": "C",
       "kind": "effect",
@@ -646,6 +537,7 @@
   {
     "name": "Advanced",
     "type": "effect",
+    "cost": 1,
     "breakout": "",
     "rule": "Move up to 3 spaces.",
     "enforce": {
@@ -657,8 +549,9 @@
   {
     "name": "Pursued",
     "type": "effect",
+    "cost": 1,
     "breakout": "",
-    "rule": "Move adjacent to a target.",
+    "rule": "Move adjacent to the target.",
     "enforce": {
       "bucket": "C",
       "kind": "effect",
@@ -668,6 +561,7 @@
   {
     "name": "Repositioned",
     "type": "effect",
+    "cost": 1,
     "breakout": "",
     "rule": "Move an ally up to 3 spaces.",
     "enforce": {
@@ -679,8 +573,9 @@
   {
     "name": "Swapped",
     "type": "effect",
+    "cost": 2,
     "breakout": "",
-    "rule": "Swap positions with a target.",
+    "rule": "Swap positions with the target.",
     "enforce": {
       "bucket": "C",
       "kind": "effect",
@@ -690,8 +585,9 @@
   {
     "name": "Pushed",
     "type": "effect",
+    "cost": 2,
     "breakout": "",
-    "rule": "Move one target 3 spaces directly away from the attacker or source space.",
+    "rule": "Move the target 3 spaces directly away.",
     "enforce": {
       "bucket": "C",
       "kind": "effect",
@@ -701,30 +597,9 @@
   {
     "name": "Pulled",
     "type": "effect",
+    "cost": 2,
     "breakout": "",
-    "rule": "Move one target 3 spaces directly toward the attacker or source space.",
-    "enforce": {
-      "bucket": "C",
-      "kind": "effect",
-      "op": null
-    }
-  },
-  {
-    "name": "Gathered",
-    "type": "effect",
-    "breakout": "",
-    "rule": "Choose an empty space within range. Move each affected target 3 spaces toward that space.",
-    "enforce": {
-      "bucket": "C",
-      "kind": "effect",
-      "op": null
-    }
-  },
-  {
-    "name": "Scattered",
-    "type": "effect",
-    "breakout": "",
-    "rule": "Choose a space within range. Move each affected target 3 spaces away from that space.",
+    "rule": "Move the target 3 spaces directly toward you.",
     "enforce": {
       "bucket": "C",
       "kind": "effect",
@@ -734,8 +609,9 @@
   {
     "name": "Placed",
     "type": "effect",
+    "cost": 2,
     "breakout": "",
-    "rule": "Move one target to an empty space within 3 spaces of its current space.",
+    "rule": "Move the target to an empty space within 3 spaces.",
     "enforce": {
       "bucket": "C",
       "kind": "effect",
@@ -743,10 +619,11 @@
     }
   },
   {
-    "name": "Mended",
+    "name": "Gathered",
     "type": "effect",
+    "cost": 3,
     "breakout": "",
-    "rule": "Restore Vitality equal to your Spirit.",
+    "rule": "Move each affected target 3 spaces toward a chosen space.",
     "enforce": {
       "bucket": "C",
       "kind": "effect",
@@ -754,175 +631,11 @@
     }
   },
   {
-    "name": "Siphoned",
+    "name": "Scattered",
     "type": "effect",
+    "cost": 3,
     "breakout": "",
-    "rule": "Deal Base Damage and restore that much Vitality.",
-    "enforce": {
-      "bucket": "C",
-      "kind": "effect",
-      "op": null
-    }
-  },
-  {
-    "name": "Purged",
-    "type": "effect",
-    "breakout": "",
-    "rule": "Remove an Affliction.",
-    "enforce": {
-      "bucket": "C",
-      "kind": "effect",
-      "op": null
-    }
-  },
-  {
-    "name": "Dispelled",
-    "type": "effect",
-    "breakout": "",
-    "rule": "Remove one Effect.",
-    "enforce": {
-      "bucket": "C",
-      "kind": "effect",
-      "op": null
-    }
-  },
-  {
-    "name": "Manifested",
-    "type": "effect",
-    "breakout": "",
-    "rule": "Create a temporary object, barrier, or terrain feature in an empty space.",
-    "enforce": {
-      "bucket": "C",
-      "kind": "effect",
-      "op": null
-    }
-  },
-  {
-    "name": "Cleaved",
-    "type": "effect",
-    "breakout": "",
-    "rule": "Deal Base Damage to another target.",
-    "enforce": {
-      "bucket": "C",
-      "kind": "effect",
-      "op": null
-    }
-  },
-  {
-    "name": "Crushed",
-    "type": "effect",
-    "breakout": "",
-    "rule": "Deal Base Damage again.",
-    "enforce": {
-      "bucket": "C",
-      "kind": "effect",
-      "op": null
-    }
-  },
-  {
-    "name": "Refracted",
-    "type": "effect",
-    "breakout": "",
-    "rule": "Choose another target. They take half Bonus Damage.",
-    "enforce": {
-      "bucket": "C",
-      "kind": "effect",
-      "op": null
-    }
-  },
-  {
-    "name": "Redirected",
-    "type": "effect",
-    "breakout": "",
-    "rule": "Move one Effect from one target to another.",
-    "enforce": {
-      "bucket": "C",
-      "kind": "effect",
-      "op": null
-    }
-  },
-  {
-    "name": "Lucky",
-    "type": "effect",
-    "breakout": "",
-    "rule": "Your rolls are Lucky Rolls until you take damage.",
-    "enforce": {
-      "bucket": "C",
-      "kind": "effect",
-      "op": null
-    }
-  },
-  {
-    "name": "Guarded",
-    "type": "effect",
-    "breakout": "",
-    "rule": "The next source of damage against the target is reduced by your Power.",
-    "enforce": {
-      "bucket": "C",
-      "kind": "effect",
-      "op": null
-    }
-  },
-  {
-    "name": "Warded",
-    "type": "effect",
-    "breakout": "",
-    "rule": "The next source of Magic damage against the target is reduced by your Magic.",
-    "enforce": {
-      "bucket": "C",
-      "kind": "effect",
-      "op": null
-    }
-  },
-  {
-    "name": "Bound",
-    "type": "effect",
-    "breakout": "",
-    "rule": "Damage dealt to the target is dealt to you instead until either of you take damage.",
-    "enforce": {
-      "bucket": "C",
-      "kind": "effect",
-      "op": null
-    }
-  },
-  {
-    "name": "Reinforced",
-    "type": "effect",
-    "breakout": "",
-    "rule": "Restore the target's Armor Stance. Until they take damage, its benefits are doubled.",
-    "enforce": {
-      "bucket": "C",
-      "kind": "effect",
-      "op": null
-    }
-  },
-  {
-    "name": "Sheltered",
-    "type": "effect",
-    "breakout": "",
-    "rule": "Ignore the next Effect applied to the target.",
-    "enforce": {
-      "bucket": "C",
-      "kind": "effect",
-      "op": null
-    }
-  },
-  {
-    "name": "Obscured",
-    "type": "effect",
-    "breakout": "",
-    "rule": "Enemies cannot see or target you until you deal damage or are dealt damage.",
-    "enforce": {
-      "bucket": "C",
-      "kind": "effect",
-      "op": null
-    }
-  },
-  {
-    "name": "Studied",
-    "type": "effect",
-    "breakout": "Trickery",
-    "rule": "Your attacks against the target are Lucky Rolls until you deal damage to them.",
+    "rule": "Move each affected target 3 spaces from a chosen space.",
     "enforce": {
       "bucket": "C",
       "kind": "effect",
@@ -932,8 +645,9 @@
   {
     "name": "Tracked",
     "type": "effect",
-    "breakout": "Elusion",
-    "rule": "You always know the target's location until you deal damage to them.",
+    "cost": 2,
+    "breakout": "",
+    "rule": "Ignore your weapon's range.",
     "enforce": {
       "bucket": "C",
       "kind": "effect",
@@ -943,8 +657,9 @@
   {
     "name": "Exposed",
     "type": "effect",
-    "breakout": "Guard",
-    "rule": "Ignore the target's Durability until after you deal damage to them.",
+    "cost": 2,
+    "breakout": "",
+    "rule": "Ignore the target's Durability.",
     "enforce": {
       "bucket": "C",
       "kind": "effect",
@@ -954,30 +669,9 @@
   {
     "name": "Pierced",
     "type": "effect",
-    "breakout": "Sanctum",
-    "rule": "Ignore the target's Resistance until after you deal damage to them.",
-    "enforce": {
-      "bucket": "C",
-      "kind": "effect",
-      "op": null
-    }
-  },
-  {
-    "name": "Unraveled",
-    "type": "effect",
-    "breakout": "Creation",
-    "rule": "Ignore one of the target's Infusions until after you deal damage to them.",
-    "enforce": {
-      "bucket": "C",
-      "kind": "effect",
-      "op": null
-    }
-  },
-  {
-    "name": "Shattered",
-    "type": "effect",
-    "breakout": "Creation",
-    "rule": "Ignore one of the target's Augmentations until after you deal damage to them.",
+    "cost": 2,
+    "breakout": "",
+    "rule": "Ignore the target's Resistance.",
     "enforce": {
       "bucket": "C",
       "kind": "effect",
@@ -987,8 +681,9 @@
   {
     "name": "Sabotaged",
     "type": "effect",
-    "breakout": "Anchor",
-    "rule": "Ignore the target's Armor Stance until after you deal damage to them.",
+    "cost": 3,
+    "breakout": "",
+    "rule": "Ignore the target's Armor Stance.",
     "enforce": {
       "bucket": "C",
       "kind": "effect",
@@ -996,10 +691,155 @@
     }
   },
   {
-    "name": "Sealed",
+    "name": "Crushed",
     "type": "effect",
-    "breakout": "Lore",
-    "rule": "Ignore one Utility Item effect affecting the target until after you deal damage to them.",
+    "cost": 2,
+    "breakout": "",
+    "rule": "Deal your Base Damage again.",
+    "enforce": {
+      "bucket": "C",
+      "kind": "effect",
+      "op": null
+    }
+  },
+  {
+    "name": "Refracted",
+    "type": "effect",
+    "cost": 2,
+    "breakout": "",
+    "rule": "Another target takes half your Bonus Damage.",
+    "enforce": {
+      "bucket": "C",
+      "kind": "effect",
+      "op": null
+    }
+  },
+  {
+    "name": "Bonus Damage",
+    "type": "effect",
+    "cost": 2,
+    "breakout": "",
+    "rule": "Add 1d6 to your Bonus Damage.",
+    "enforce": {
+      "bucket": "C",
+      "kind": "effect",
+      "op": null
+    }
+  },
+  {
+    "name": "Cleaved",
+    "type": "effect",
+    "cost": 3,
+    "breakout": "",
+    "rule": "deal your Base Damage to another target.",
+    "enforce": {
+      "bucket": "C",
+      "kind": "effect",
+      "op": null
+    }
+  },
+  {
+    "name": "Siphoned",
+    "type": "effect",
+    "cost": 3,
+    "breakout": "",
+    "rule": "deal Base Damage and restore that much Vitality.",
+    "enforce": {
+      "bucket": "C",
+      "kind": "effect",
+      "op": null
+    }
+  },
+  {
+    "name": "Mended",
+    "type": "effect",
+    "cost": 2,
+    "breakout": "",
+    "rule": "Restore Vitality equal to your Spirit.",
+    "enforce": {
+      "bucket": "C",
+      "kind": "effect",
+      "op": null
+    }
+  },
+  {
+    "name": "Dispelled",
+    "type": "effect",
+    "cost": 2,
+    "breakout": "",
+    "rule": "Remove one Effect from the target.",
+    "enforce": {
+      "bucket": "C",
+      "kind": "effect",
+      "op": null
+    }
+  },
+  {
+    "name": "Purged",
+    "type": "effect",
+    "cost": 2,
+    "breakout": "",
+    "rule": "Remove one Affliction from the target.",
+    "enforce": {
+      "bucket": "C",
+      "kind": "effect",
+      "op": null
+    }
+  },
+  {
+    "name": "Redirected",
+    "type": "effect",
+    "cost": 2,
+    "breakout": "",
+    "rule": "Move one Effect from one target to another.",
+    "enforce": {
+      "bucket": "C",
+      "kind": "effect",
+      "op": null
+    }
+  },
+  {
+    "name": "Reinforced",
+    "type": "effect",
+    "cost": 2,
+    "breakout": "",
+    "rule": "Restore the target's Armor Stance.",
+    "enforce": {
+      "bucket": "C",
+      "kind": "effect",
+      "op": null
+    }
+  },
+  {
+    "name": "Guarded",
+    "type": "effect",
+    "cost": 2,
+    "breakout": "",
+    "rule": "Reduce the next damage the target takes before your next roll by your Power.",
+    "enforce": {
+      "bucket": "C",
+      "kind": "effect",
+      "op": null
+    }
+  },
+  {
+    "name": "Warded",
+    "type": "effect",
+    "cost": 2,
+    "breakout": "",
+    "rule": "Reduce the next Magic damage the target takes before your next roll by your Magic.",
+    "enforce": {
+      "bucket": "C",
+      "kind": "effect",
+      "op": null
+    }
+  },
+  {
+    "name": "Bound",
+    "type": "effect",
+    "cost": 2,
+    "breakout": "",
+    "rule": "Damage dealt to the target is dealt to you instead, until an attack lands against that target.",
     "enforce": {
       "bucket": "C",
       "kind": "effect",
@@ -1009,7 +849,8 @@
   {
     "name": "Echoed",
     "type": "effect",
-    "breakout": "Resonance",
+    "cost": 2,
+    "breakout": "",
     "rule": "The next spell the target casts also targets themselves.",
     "enforce": {
       "bucket": "C",
@@ -1018,10 +859,23 @@
     }
   },
   {
-    "name": "Broken",
+    "name": "Manifested",
     "type": "effect",
-    "breakout": "Weaving",
-    "rule": "The next Charge the target gains is lost.",
+    "cost": 2,
+    "breakout": "",
+    "rule": "Create a temporary object, barrier, or terrain feature in an empty space that has a Vitality of 1.",
+    "enforce": {
+      "bucket": "C",
+      "kind": "effect",
+      "op": null
+    }
+  },
+  {
+    "name": "Lucky",
+    "type": "effect",
+    "cost": 2,
+    "breakout": "",
+    "rule": "Your roll is Lucky for this attack.",
     "enforce": {
       "bucket": "C",
       "kind": "effect",

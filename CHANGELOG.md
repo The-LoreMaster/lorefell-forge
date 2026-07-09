@@ -1,3 +1,10 @@
+## Conditions follow SigilForge
+
+- SigilForge is canon for conditions. The canon conditions pack is regenerated from it. 37 Afflictions, 33 Combat Effects, 6 Impairments.
+- 17 Afflictions and 7 Combat Effects are gone. Bonus Damage is added.
+- A Combat Effect no longer carries a Breakout. Ten of them did. Only an Affliction is cleared by a Breakout roll.
+- The foe signature affliction list is trimmed from 54 to the 37 that remain.
+
 ## SigilForge breakout skills
 
 - Every affliction's Breakout skill carried a stray asterisk, so the Codex read Renewal star rather than Renewal. The mark belongs on the affliction, never on the skill that ends it.
