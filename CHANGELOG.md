@@ -1,3 +1,7 @@
+## FateWell the foe sheet names the standard
+
+- The vitality row now says what the rating stands at against this party, so a loremaster can see the standard before padding a foe that fights alone.
+
 ## FateWell foe vitality is a share of a Fell
 
 - A foe's Vitality is now seven times the average party level, times the share its Shatter Rating is worth. A Minion is half a Fell, an Elite is one, a Champion one and a half, an Epic two, a Forsaken two and a half.
