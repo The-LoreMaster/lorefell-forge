@@ -731,6 +731,16 @@ body.runner-mode #savedTag{ display:none; }
 /* v9: roster tabs, tokens, chip remove */
 .chip-x{ background:none; border:none; color:var(--danger); font-size:.95rem; cursor:pointer; padding:0 2px 0 6px; }
 .chip-mine{ font-size:.58rem; letter-spacing:.08em; text-transform:uppercase; color:var(--gold); margin-left:5px; opacity:.85; }
+.tip-dot{ display:inline-flex; align-items:center; justify-content:center; width:15px; height:15px; margin-left:6px;
+  border:1px solid var(--line2, var(--line)); border-radius:50%; background:transparent; color:var(--ice);
+  font-family:'Cinzel',serif; font-size:.6rem; line-height:1; cursor:pointer; padding:0; flex:none; opacity:.75; }
+.tip-dot:hover{ border-color:var(--gold); color:var(--gold); opacity:1; }
+.tip-pop{ position:fixed; z-index:10000; background:var(--navy3, #10162a); border:1px solid var(--gold);
+  border-radius:9px; padding:9px 11px; box-shadow:0 6px 22px rgba(0,0,0,.55); pointer-events:none; }
+.tip-pop b{ display:block; font-family:'Cinzel',serif; font-size:.72rem; letter-spacing:.09em; text-transform:uppercase;
+  color:var(--gold); margin-bottom:4px; }
+.tip-pop span{ display:block; font-size:.86rem; line-height:1.45; color:var(--silver); }
+.ab-info{ position:relative; }
 .small-note{ margin:-2px 0 8px; font-size:.86rem; }
 .token-field{ display:flex; align-items:center; gap:12px; margin:4px 0; }
 .token-prev{
@@ -6248,7 +6258,9 @@ function abilityBlock(abs){
   var h = '<div class="lbl">Abilities</div>';
   abs.forEach(function(a){
     var txt = a.effect || a.desc || '';
-    h += '<div class="ab-info"'+(txt?' title="'+esc(txt)+'"':'')+'><b>'+esc(a.name)+'</b> <span class="muted">Tier '+a.tier+'</span>'
+    var tip = txt ? ' data-tip="'+esc(txt)+'" data-tip-name="'+esc(a.name)+'"' : '';
+    var dot = txt ? '<button class="tip-dot" aria-label="What this does" onclick="event.stopPropagation();tipFromDot(this)">i</button>' : '';
+    h += '<div class="ab-info"'+tip+'><b>'+esc(a.name)+'</b> <span class="muted">Tier '+a.tier+'</span>'+dot
       + (txt ? '<div class="ref-desc">'+esc(txt)+'</div>' : '') + '</div>';
   });
   return h;
@@ -6337,14 +6349,73 @@ function chipTip(name, bucket){
   if (hit && hit.rule) return hit.rule;
   return '';
 }
+/* The tip rides on the element as data. Hovering opens it on a pointer, and the info dot
+   opens it on a finger, so a chip that taps to select still taps to select. */
 function tipAttr(name, bucket){
   var t = chipTip(name, bucket);
-  return t ? ' title="'+esc(t)+'"' : '';
+  return t ? ' data-tip="'+esc(t)+'" data-tip-name="'+esc(String(name).replace(/\*+$/,''))+'"' : '';
 }
+/* The dot itself. Sits inside a chip and never triggers the chip's own tap. */
+function tipDot(name, bucket){
+  return chipTip(name, bucket) ? '<button class="tip-dot" aria-label="What this does" onclick="event.stopPropagation();tipFromDot(this)">i</button>' : '';
+}
+function tipHost(){
+  var el = document.getElementById('tipPop');
+  if (el) return el;
+  el = document.createElement('div');
+  el.id = 'tipPop'; el.className = 'tip-pop'; el.hidden = true;
+  document.body.appendChild(el);
+  return el;
+}
+function showTipFor(el){
+  if (!el) return;
+  var host = el.closest ? (el.closest('[data-tip]') || el) : el;
+  var txt = host.getAttribute && host.getAttribute('data-tip');
+  if (!txt) return;
+  var nm = host.getAttribute('data-tip-name') || '';
+  var pop = tipHost();
+  pop.innerHTML = (nm ? '<b>'+esc(nm)+'</b>' : '') + '<span>'+esc(txt)+'</span>';
+  pop.hidden = false;
+  var r = host.getBoundingClientRect();
+  var pw = Math.min(280, window.innerWidth - 20);
+  pop.style.width = pw + 'px';
+  var left = Math.max(10, Math.min(window.innerWidth - pw - 10, r.left + (r.width/2) - (pw/2)));
+  pop.style.left = left + 'px';
+  var ph = pop.offsetHeight || 60;
+  var top = r.top - ph - 8;
+  if (top < 8) top = r.bottom + 8;
+  pop.style.top = top + 'px';
+  window._tipOpen = host;
+}
+function hideTip(){
+  var pop = document.getElementById('tipPop');
+  if (pop) pop.hidden = true;
+  window._tipOpen = null;
+}
+function tipFromDot(btn){
+  var host = btn.parentNode;
+  if (window._tipOpen === host){ hideTip(); return; }
+  showTipFor(host);
+}
+/* Hover on a pointer. Touch devices never fire these, so they cost nothing there. */
+document.addEventListener('mouseover', function(e){
+  var t = e.target && e.target.closest ? e.target.closest('[data-tip]') : null;
+  if (t) showTipFor(t);
+});
+document.addEventListener('mouseout', function(e){
+  var t = e.target && e.target.closest ? e.target.closest('[data-tip]') : null;
+  if (t && window._tipOpen === t) hideTip();
+});
+/* Anything else closes it. */
+document.addEventListener('click', function(e){
+  if (e.target && e.target.classList && e.target.classList.contains('tip-dot')) return;
+  hideTip();
+}, true);
+document.addEventListener('scroll', hideTip, true);
 function fsChips(list, empty, bucket){
   if (!list || !list.length) return '<p class="muted small">'+empty+'</p>';
   return '<div class="chips">' + list.map(function(n){
-    return '<span class="chip"'+tipAttr(n, bucket)+'>'+esc(n)+'</span>';
+    return '<span class="chip"'+tipAttr(n, bucket)+'>'+esc(n)+tipDot(n, bucket)+'</span>';
   }).join('') + '</div>';
 }
 function fsPickerChips(pool, chosen, cap, fn, bucket){
@@ -6354,7 +6425,7 @@ function fsPickerChips(pool, chosen, cap, fn, bucket){
     var sel = on.indexOf(n) >= 0;
     var dim = (!sel && full) ? ' dim' : '';
     var mine = bucket && isCustomName(bucket, n) ? '<span class="chip-mine">yours</span>' : '';
-    return '<span class="chip'+(sel?' on':'')+dim+'"'+tipAttr(n, bucket)+' onclick="'+fn+'(\''+n.replace(/'/g,"\\'")+'\')">'+esc(n)+mine+'</span>';
+    return '<span class="chip'+(sel?' on':'')+dim+'"'+tipAttr(n, bucket)+' onclick="'+fn+'(\''+n.replace(/'/g,"\\'")+'\')">'+esc(n)+mine+tipDot(n, bucket)+'</span>';
   }).join('') + '</div>';
 }
 /* The foe being edited in the sheet, and where it came from. */
@@ -6569,7 +6640,7 @@ function foeSheet(id, src){
     + '</select>';
 
   h += '<div class="lbl">Signature affliction</div>'
-    + (f.sig ? '<p class="muted small"'+tipAttr(f.sig,'afflictions')+'>'+esc(chipTip(f.sig,'afflictions')||'')+'</p>' : '')
+    + (f.sig ? '<p class="muted small"'+tipAttr(f.sig,'afflictions')+'>'+esc(chipTip(f.sig,'afflictions')||'')+tipDot(f.sig,'afflictions')+'</p>' : '')
     + '<select class="inp" onchange="fsSetField(\'sig\',this.value)">'
     + '<option value="">None</option>'
     + FW_FOE_PACK.afflictions.map(function(x){ return '<option value="'+esc(x)+'"'+(f.sig===x?' selected':'')+'>'+esc(x)+'</option>'; }).join('')
@@ -6585,7 +6656,7 @@ function foeSheet(id, src){
 
   h += '<div class="lbl">Items</div>';
   h += f.inv.length ? '<div class="chips">'+f.inv.map(function(it,i){
-        return '<span class="chip"'+tipAttr(it,'items')+'>'+esc(it)+' <button class="chip-x" onclick="fsDelItem('+i+')">&times;</button></span>';
+        return '<span class="chip"'+tipAttr(it,'items')+'>'+esc(it)+tipDot(it,'items')+' <button class="chip-x" onclick="fsDelItem('+i+')">&times;</button></span>';
       }).join('')+'</div>' : '<p class="muted small">Nothing carried.</p>';
   var taken = f.inv;
   var opts = '<option value="">Add an item</option>';

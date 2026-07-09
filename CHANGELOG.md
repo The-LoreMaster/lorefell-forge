@@ -1,3 +1,8 @@
+## FateWell tooltips on a finger
+
+- Every infusion, augmentation, item, affliction, and Act now carries a small info dot. Tap it and a card opens with its name and what it does. Hovering still opens it on a pointer.
+- The dot never steals a tap from the chip, so a chip that taps to select still taps to select. Tapping anywhere else, or scrolling, closes the card.
+
 ## FateWell foe sheet reads the arsenal
 
 - Hovering an infusion or augmentation now tells you what it does. The tool carried only their names, so no tip could ever appear. All 33 infusions and all 20 augmentations now carry their canon text, taken from the FellGuide.
