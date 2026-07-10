@@ -460,6 +460,7 @@ body::before{
 .search-scope .search-tab+.search-tab{ border-left:1px solid var(--line); }
 .search-scope .search-tab.on{ background:var(--navy3); color:var(--silver); box-shadow:inset 0 -2px 0 var(--gold); }
 .lib-scope{ margin:10px 0 8px; }
+.lib-search{ margin:8px 0 10px; }
 .lib-bar{ display:flex; gap:8px; align-items:center; margin:0 0 10px; }
 .lore-award{ border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin-top:12px; background:var(--navy2); }
 .la-top{ display:flex; align-items:center; justify-content:space-between; }
@@ -3670,39 +3671,24 @@ function modal(html){
   positionModal(reRender);
   if (reRender){ var nc = root.querySelector('.m-card'); if (nc) nc.scrollTop = keepScroll; }
 }
-/* The tool runs as a tall embed. A fixed backdrop pins to the iframe's own top,
-   which sits far from where the loremaster is looking on the parent page, so the
-   popup lands off screen. Anchor the card near the spot they just clicked, inside
-   the document flow, clamped so it stays on the page. On a re-render (a click inside
-   the open card) hold the card where it is so the view never jumps. */
+/* Center the card in the iframe's own viewport, wherever the document is scrolled. A fixed
+   backdrop tracks the scroll for free, and the card caps its height and scrolls its own
+   content, so a long sheet never runs off the top. */
 function positionModal(reRender){
   var back = document.querySelector('#modal .m-back');
   var card = document.querySelector('#modal .m-card');
   if (!card || !back) return;
-  back.style.position = 'absolute'; back.style.inset = 'auto';
-  back.style.top = '0'; back.style.left = '0'; back.style.right = '0'; back.style.bottom = 'auto';
-  back.style.minHeight = '100%'; back.style.alignItems = 'flex-start';
-  card.style.marginBottom = '40px';
+  back.style.position = 'fixed';
+  back.style.top = '0'; back.style.left = '0'; back.style.right = '0'; back.style.bottom = '0';
+  back.style.inset = '0';
+  back.style.minHeight = '';
+  back.style.display = 'flex';
+  back.style.alignItems = 'center';
+  back.style.justifyContent = 'center';
+  back.style.overflowY = 'auto';
+  card.style.marginTop = ''; card.style.marginBottom = '';
   card.style.marginLeft = 'auto'; card.style.marginRight = 'auto';
   card.style.borderRadius = '14px';
-  if (reRender && window._modalTop != null){
-    card.style.marginTop = window._modalTop + 'px';
-    return;
-  }
-  var clickY = window._lastY || 0;
-  var top;
-  if (clickY){
-    /* _lastY is the click in document space and already accounts for any scroll, so a card
-       anchored just above it lands where the loremaster is looking, in every embed. */
-    top = Math.max(8, clickY - 40);
-  } else if (window._wixVis && window._wixVis.height){
-    var ch = card.offsetHeight || 0;
-    top = Math.max(8, window._wixVis.top + (window._wixVis.height - ch) / 2);
-  } else {
-    top = (window.pageYOffset || document.documentElement.scrollTop || 0) + 40;
-  }
-  window._modalTop = Math.max(8, top);
-  card.style.marginTop = window._modalTop + 'px';
 }
 function closeModal(){ document.getElementById('modal').innerHTML=''; window._cb=null; window._attachAfter=false; window._modalTop=null; }
 /* Live filter for the pick lists in the attach and roster choosers. Hides rows whose name
@@ -10218,8 +10204,20 @@ function toggleLibPick(id){
   render();
 }
 function libVisibleIds(){
-  return libScoped(S.library.filter(function(e){ return V.libFilter==='all' || e.type===V.libFilter; }))
-    .map(function(e){ return e.id; });
+  var q = (V.libSearch||'').trim().toLowerCase();
+  return libScoped(S.library.filter(function(e){
+    return (V.libFilter==='all' || e.type===V.libFilter) && (!q || (e.name||'').toLowerCase().indexOf(q) >= 0);
+  })).map(function(e){ return e.id; });
+}
+/* Live name filter for the library grid. Hides non-matching cards without a re-render so
+   typing stays smooth, and holds the query so a later render keeps the filter. */
+function libSearchInput(v){
+  V.libSearch = v || '';
+  var q = V.libSearch.trim().toLowerCase();
+  Array.prototype.forEach.call(document.querySelectorAll('.vcard.libcard'), function(c){
+    var nm = (c.getAttribute('data-name') || '').toLowerCase();
+    c.style.display = (!q || nm.indexOf(q) >= 0) ? '' : 'none';
+  });
 }
 function libSelectAll(){
   var ids = libVisibleIds();
@@ -10262,6 +10260,8 @@ function scrLibrary(){
       + '</div>';
   }
 
+  h += '<input class="inp lib-search" placeholder="Search the library by name" value="'+esc(V.libSearch||'')+'" oninput="libSearchInput(this.value)" autocomplete="off">';
+
   var selecting = !!V.libSelect;
   var picked = libSelCount();
   h += '<div class="lib-bar">';
@@ -10274,7 +10274,10 @@ function scrLibrary(){
   }
   h += '</div>';
 
-  var list = libScoped(S.library.filter(function(e){ return V.libFilter==='all' || e.type===V.libFilter; }));
+  var lq = (V.libSearch||'').trim().toLowerCase();
+  var list = libScoped(S.library.filter(function(e){
+    return (V.libFilter==='all' || e.type===V.libFilter) && (!lq || (e.name||'').toLowerCase().indexOf(lq) >= 0);
+  }));
   if (!list.length){
     if (scope==='current' && cname && S.library.length)
       h += '<p class="muted small-note">Nothing here is tagged to '+esc(cname)+'. Switch to All campaigns to see the rest of the shelf.</p>';
@@ -10297,7 +10300,7 @@ function scrLibrary(){
                 : (e.type==='monster' ? ('foeSheet(\''+e.id+'\',\'lib\')') : ('editLib(\''+e.id+'\')'));
       var tagLine = e.campaignName ? '<div class="vcard-origin">'+esc(e.campaignName)+'</div>'
                   : (e.origin ? '<div class="vcard-origin">From '+esc(e.origin)+'</div>' : '');
-      h += '<div class="vcard libcard'+(hasImg?' has-cover':'')+(on?' picked':'')+'">'
+      h += '<div class="vcard libcard'+(hasImg?' has-cover':'')+(on?' picked':'')+'" data-name="'+esc(e.name)+'">'
         + '<button class="vcard-main" onclick="'+mainFn+'">'
         + (hasImg ? '<div class="vcard-cover"><img src="'+esc(imgSrc(e.img))+'" alt=""></div>' : '')
         + '<div class="vcard-body"><div class="vcard-badge">'+(selecting?(on?'&#10003; Selected':'Tap to select'):TYPE_LABEL[e.type])+'</div>'

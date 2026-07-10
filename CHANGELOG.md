@@ -1,3 +1,8 @@
+## Popups center on the scroll, and the library has a search
+
+- Popups now center in the view wherever the page is scrolled, tracking the document's own scroll rather than a reported band or the click point. A long sheet caps its height and scrolls its own content.
+- The library has a name search. Type to filter the shelf live, across the current filter and scope.
+
 ## The library keeps infusions, and popups land where you click
 
 - Fixed the real save loss: a foe's infusions were never written to the account row. The sync stored build, stance, signature, augmentations, and Acts, but dropped infusions, so a reload came back without them. Infusions now save and load both ways.
