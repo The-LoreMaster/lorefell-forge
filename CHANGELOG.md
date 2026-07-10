@@ -1,3 +1,8 @@
+## The Grimgrit scales with its owner
+
+- The Grimgrit's Aspect deals Base damage equal to the higher of the lorebound owner's Vigor or Wit, and its second Branch deals Bonus damage the same way. FellGlass and the Lorebounds seed already said so. The canon pack and BondForge did not.
+- The Grimgrit and the Solmera now read as the pair they are. Only the trigger differs, hit against missed.
+
 ## The Solmera answers a miss
 
 - The Solmera was the Grimgrit. Same trigger, same verb, and a Branch that offered the same two ideas. Its Aspect answered a blow that landed, which is the Grimgrit's whole reason to exist. It now answers a blow that misses, the way the Guarding infusion answers what the Vengeful infusion cannot.
