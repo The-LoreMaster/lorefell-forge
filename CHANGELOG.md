@@ -1,3 +1,7 @@
+## The foe editor is unlocked
+
+- Editing Acts no longer gates tiers by the foe's rating. All three tiers are open in the editor. A foe is authored in full, and the rating only trims the kit in a scene. Ratings apply in battle, not at the workbench.
+
 ## Foe vitality scales by rating again, never a baked ceiling
 
 - The ceiling authoring baked a fixed vitality onto library foes, the Forsaken value, and that number then showed everywhere through effMaxVit. A foe rated Minion could report the Forsaken vitality, 88 against a level 5 party, instead of its own 18.
