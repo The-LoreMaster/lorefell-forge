@@ -2782,6 +2782,13 @@ function esc(s){
 
 function seed(){ return { campaigns: [], library: [], wixPlayers: [], forge: [], glossary: [], glossaryOn: true, die: 6, sealed: [] }; }
 
+function migCampApl(c, d){
+  var lv=[];
+  (d && d.wixPlayers||[]).forEach(function(p){ if(p&&p.level) lv.push(parseInt(p.level,10)||0); });
+  if(!lv.length) (c && c.players||[]).forEach(function(p){ if(p&&p.level) lv.push(parseInt(p.level,10)||0); });
+  lv=lv.filter(function(n){ return n>0; });
+  return lv.length ? Math.max(1, Math.round(lv.reduce(function(a,b){ return a+b; },0)/lv.length)) : 3;
+}
 function migrate(d){
   if (!d.wixPlayers) d.wixPlayers = [];
   if (!d.sealed) d.sealed = [];
@@ -2802,6 +2809,9 @@ function migrate(d){
       if (!e.infusions) e.infusions = [];
       if (!e.augments) e.augments = [];
       if (!e.abilities) e.abilities = [];
+      /* Vitality scales to the rating. A library foe never stores a fixed number, so a
+         baked ceiling from an earlier build cannot leak into pickers and spawns. */
+      e.maxVit = 0;
       splitInfusionsFromInv(e);
     }
   });
@@ -2818,6 +2828,7 @@ function migrate(d){
     }
   }
   (d.campaigns||[]).forEach(function(c){
+    var _cApl = migCampApl(c, d);
     if (!c.ovOpen) c.ovOpen = {};
     seedEntries(c, 'notes'); fixNoteTypes(c);
     if (c.img===undefined) c.img='';
@@ -2850,6 +2861,18 @@ function migrate(d){
           /* bring any scene up to the full newScene contract, so imported or older
              scenes never crash the roster, runner, or loot views on a missing field */
           if (!Array.isArray(sc.combatants)) sc.combatants = [];
+          /* Heal vitality: a monster's max always derives from its own rating and the
+             party, so a foe that carried a stale or baked number corrects itself here. */
+          sc.combatants.forEach(function(cb){
+            if (cb && cb.type==='monster' && cb.sr && VIT_SHARE[cb.sr]){
+              var nv = foeVitality(cb.sr, (c.partyOverride && c.partyOverride.apl) ? Math.max(1,+c.partyOverride.apl) : _cApl);
+              if (nv && nv !== cb.maxVit){
+                var wasFull = (cb.curVit===undefined || cb.curVit>=cb.maxVit);
+                cb.maxVit = nv;
+                if (wasFull || cb.curVit===undefined || cb.curVit>nv) cb.curVit = nv;
+              }
+            }
+          });
           if (!Array.isArray(sc.refs)) sc.refs = [];
           if (!Array.isArray(sc.manualRefs)) sc.manualRefs = [];
           if (!Array.isArray(sc.log)) sc.log = [];
@@ -6763,11 +6786,11 @@ function foeSheet(id, src){
     + '</select>'
     + '<p class="muted small">This foe is built to the Forsaken ceiling. A scene sets its rating and scales it down from the whole kit below. This is the rating it starts at when you add it to a scene.</p>';
 
-  var ceilVit = foeVitality('Forsaken', partyContext().apl);
-  h += '<div class="lbl">Vitality at the ceiling</div>'
-    + '<div class="qd"><input class="qd-in" type="number" inputmode="numeric" value="'+(f.maxVit||0)+'" onchange="fsSetField(\'maxVit\',this.value)">'
-    + '<button class="qd-b" onclick="fsForsakenVit()" title="Recompute the Forsaken value from the party level">Rescale</button></div>'
-    + (ceilVit ? '<p class="muted small">A Forsaken stands at '+ceilVit+' against this party. Scenes recompute vitality for their own rating, so this number is the ceiling only.</p>' : '');
+  var apl0 = partyContext().apl;
+  var dfltSr = f.sr || 'Elite';
+  h += '<div class="lbl">Vitality</div>'
+    + '<p class="muted small">Vitality scales to the rating a scene sets. Against this party a '
+    + esc(dfltSr)+' stands at '+foeVitality(dfltSr, apl0)+', a Forsaken at '+foeVitality('Forsaken', apl0)+'.</p>';
 
   h += fsChoice('Build', f.build, 'builds', 'fsSetBuild',
         FW_FOE_PACK.builds.map(function(x){ return x.name; }), 'No build');

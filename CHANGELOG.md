@@ -1,3 +1,10 @@
+## Foe vitality scales by rating again, never a baked ceiling
+
+- The ceiling authoring baked a fixed vitality onto library foes, the Forsaken value, and that number then showed everywhere through effMaxVit. A foe rated Minion could report the Forsaken vitality, 88 against a level 5 party, instead of its own 18.
+- Library foes no longer store a vitality number. It derives from the rating every time. The library sheet shows the derived value for the default rating and for Forsaken, read only.
+- On load, every monster combatant re-derives its max from its own rating and the party, so foes carrying a stale or baked number correct themselves. Full-health foes stay full, wounded foes keep their wound clamped to the new max.
+- Vitality is 7 times average party level times the rating share, unchanged. Minion 0.5, Elite 1, Champion 1.5, Epic 2, Forsaken 2.5.
+
 ## One foe card, display and editor, everywhere a foe appears
 
 - Foes now render through a single card. A read-only display card shows the whole kit: build, stance, signature, infusions, augmentations, relics, Acts. The editor shows the same sections as live pickers. Display and editor read the same fields and the same rule text, so they stay in step.
