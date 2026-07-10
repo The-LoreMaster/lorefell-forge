@@ -25,6 +25,13 @@
 ## The foe editor is unlocked
 
 - Editing Acts no longer gates tiers by the foe's rating. All three tiers are open in the editor. A foe is authored in full, and the rating only trims the kit in a scene. Ratings apply in battle, not at the workbench.
+## A canon drift gate guards concepts that live in more than one file
+
+- A concept edited in one place and missed in its siblings is the recurring break. A new CI workflow, Canon Drift Gate, runs on every push and fails when a change drifts.
+- Three checks. Generated staleness re-runs the rules build and fails if the committed rules.js no longer matches its source. The docs and embeds mirror check fails if any pair differs. Manual co-change fails when a push touches some but not all of a concept's sibling blocks, and it prints the exact canon-skip token to override.
+- Eight concepts are mapped in canon.map.json: foe pack, weapons, aspects, skills, attributes, infusions, augmentations, conditions. Each inline block is fenced by a CANON start and end comment, so the checker knows its bounds and an editor sees the warning before an edit is lost.
+- The gate lives in a new canon folder, not scripts, so a push never fires the live Wix apply. genCanon is left out of the staleness check for now. It errors on three targets and would regress two aspect categories, both recorded for a later fix.
+- A companion doc, CANON_SOURCES.md, records the source of truth backlog worst drift first, the vault to seed CI blind spot as the next job, the dead data files, and the live issues found while building the gate.
 
 ## Foe vitality scales by rating again, never a baked ceiling
 

@@ -1,0 +1,47 @@
+name: Canon Drift Gate
+on:
+  push:
+    paths:
+      - 'docs/**'
+      - 'embeds/**'
+      - 'schemas/seed/**'
+      - 'data/**'
+      - 'canon/**'
+      - 'scripts/genCanon.js'
+      - 'scripts/build.js'
+      - 'scripts/rules.core.js'
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'embeds/**'
+      - 'schemas/seed/**'
+      - 'data/**'
+      - 'canon/**'
+      - 'scripts/genCanon.js'
+      - 'scripts/build.js'
+      - 'scripts/rules.core.js'
+  workflow_dispatch:
+jobs:
+  canon:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # need history so axis 3 can diff against the base
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      # Axis 3 is differential: it compares the base of this change to the pushed tree.
+      # PR -> the PR base sha; push -> the commit before the push.
+      - name: Resolve base ref
+        id: base
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "ref=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=${{ github.event.before }}" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Canon drift gate
+        env:
+          CANON_BASE: ${{ steps.base.outputs.ref }}
+        run: node canon/checkCanon.js
