@@ -1,3 +1,10 @@
+## One foe card, display and editor, everywhere a foe appears
+
+- Foes now render through a single card. A read-only display card shows the whole kit: build, stance, signature, infusions, augmentations, relics, Acts. The editor shows the same sections as live pickers. Display and editor read the same fields and the same rule text, so they stay in step.
+- The scene roster, the session, act, and adventure rollups, and the board detail all use this one card. Monsters in the rollups are full cards now, not bare chips. Other entities stay chips.
+- Every foe card carries an edit button that opens the editor. Scene cards keep the inline rating dial and a remove control.
+- Removed the separate on-board abilities editor. Its edits did not survive a reload once the library became the source of truth, so it was a trap. Acts are authored in the one editor.
+
 ## Foe rating scaling survives a reload
 
 - The reload path rehydrated a combatant from its authored library foe without trimming or scaling to the combatant's own rating, so per-scene ratings and the vitality that comes with them were discarded on every load. A Minion rehydrated the full Forsaken kit and kept whatever vitality it was stored with.

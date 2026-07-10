@@ -77,6 +77,17 @@ body::before{
   background:var(--navy2); border:1px solid var(--line); border-radius:10px;
   padding:9px 11px; margin-bottom:7px;
 }
+.foecard{
+  background:var(--navy2); border:1px solid var(--line); border-radius:10px;
+  padding:11px 13px; margin-bottom:10px;
+}
+.foecard .lbl{ margin-top:10px; }
+.foecard .lbl:first-of-type{ margin-top:8px; }
+.fc-head{ display:flex; align-items:center; gap:10px; }
+.fc-id{ flex:1; min-width:0; }
+.fc-name{ font-family:'Cinzel',serif; font-weight:600; color:var(--silver); line-height:1.2; }
+.fc-sub{ font-size:.78rem; color:var(--ice); opacity:.85; margin-top:2px; }
+.fc-acts{ display:flex; align-items:center; gap:2px; flex:0 0 auto; }
 .row-card{ display:flex; align-items:stretch; padding:0; overflow:hidden; }
 .rc-main{
   flex:1; text-align:left; background:none; border:none; color:inherit; font:inherit;
@@ -6127,22 +6138,28 @@ function playerRollupChips(idMap){
   return h + '</div>';
 }
 function entChips(acc){
-  var list = [];
+  var mons = [], rest = [];
   Object.keys(acc.ids).forEach(function(id){
     var e = libGet(id);
-    if (e) list.push(e);
+    if (!e) return;
+    if (e.type==='monster') mons.push(e); else rest.push(e);
   });
   var seen = {};
   acc.extra.forEach(function(x){
     var k = x.type + '|' + x.name.replace(/\s\d+$/,'');
-    if (!seen[k]){ seen[k]=true; list.push({ name:x.name.replace(/\s\d+$/,''), type:x.type, _loose:true }); }
+    if (!seen[k]){ seen[k]=true; rest.push({ name:x.name.replace(/\s\d+$/,''), type:x.type, _loose:true }); }
   });
-  if (!list.length) return '<span class="muted">Nothing attached yet</span>';
-  var h = '<div class="chips">';
-  list.forEach(function(e){
-    h += '<span class="chip t-'+e.type+'"'+(e.id?' onclick="chipInfo(\''+e.id+'\')"':'')+'>'+esc(e.name)+'</span>';
-  });
-  return h + '</div>';
+  if (!mons.length && !rest.length) return '<span class="muted">Nothing attached yet</span>';
+  var h = '';
+  mons.forEach(function(e){ h += foeDisplayCard(e, { editId:e.id }); });
+  if (rest.length){
+    h += '<div class="chips">';
+    rest.forEach(function(e){
+      h += '<span class="chip t-'+e.type+'"'+(e.id?' onclick="chipInfo(\''+e.id+'\')"':'')+'>'+esc(e.name)+'</span>';
+    });
+    h += '</div>';
+  }
+  return h;
 }
 function levelManualRefs(ref){
   var lv = levelByRef(ref);
@@ -6283,9 +6300,9 @@ function attrLine(attrs){
   ATTR_LIST.forEach(function(a){ if (attrs && attrs[a]) parts.push(a+' '+attrs[a]); });
   return parts.length ? parts.join(' &middot; ') : 'No attributes assigned';
 }
-function abilityBlock(abs){
+function abilityBlock(abs, noLabel){
   if (!abs || !abs.length) return '';
-  var h = '<div class="lbl">Abilities</div>';
+  var h = noLabel ? '' : '<div class="lbl">Abilities</div>';
   abs.forEach(function(a){
     var txt = a.effect || a.desc || '';
     var tip = txt ? ' data-tip="'+esc(txt)+'" data-tip-name="'+esc(a.name)+'"' : '';
@@ -6294,6 +6311,61 @@ function abilityBlock(abs){
       + (txt ? '<div class="ref-desc">'+esc(txt)+'</div>' : '') + '</div>';
   });
   return h;
+}
+/* ============================================================
+   ONE FOE CARD, TWO MODES
+   foeKitBody renders a foe's kit read-only. The display card wraps it with a header and
+   optional controls. The editor (foeSheet) renders the same sections as live pickers. Both
+   read the same fields and the same rule text, so display and edit stay in step.
+   ============================================================ */
+function foeKitBody(f, mon){
+  var h = '';
+  if (mon){
+    h += '<div class="lbl">Build</div><p>'+(f.build?esc(f.build):'None')+'</p>'
+       + (f.build && buildTip(f.build) ? '<p class="choice-desc">'+esc(buildTip(f.build))+'</p>' : '')
+       + '<div class="lbl">Stance</div><p>'+(f.stance?esc(f.stance):'None')+'</p>'
+       + (f.stance && stanceTip(f.stance) ? '<p class="choice-desc">'+esc(stanceTip(f.stance))+'</p>' : '')
+       + '<div class="lbl">Signature affliction</div><p>'+(f.sig?esc(f.sig):'None')+'</p>'
+       + (f.sig && chipTip(f.sig,'afflictions') ? '<p class="choice-desc">'+esc(chipTip(f.sig,'afflictions'))+'</p>' : '')
+       + '<div class="lbl">Infusions</div>'+fsChips(f.infusions,'None','infusions')
+       + '<div class="lbl">Augmentations</div>'+fsChips(f.augments,'None','augmentations');
+  }
+  h += '<div class="lbl">Relics</div>'+fsChips(f.inv,'Carries nothing.','items')
+     + '<div class="lbl">Acts <span class="muted small">'+((f.abilities||[]).length)+'</span></div>'
+     + ((f.abilities&&f.abilities.length) ? abilityBlock(f.abilities, true) : '<p class="muted small">None</p>');
+  if (f.attrs && attrSpend(f.attrs)>0) h += '<div class="lbl">Attributes</div><p>'+attrLine(f.attrs)+'</p>';
+  if (f.desc) h += '<div class="lbl">Description</div><p class="chip-desc">'+esc(f.desc)+'</p>';
+  return h;
+}
+/* The read-only card. opts: editId opens the editor, rateId shows the per-scene rating dial,
+   removeId shows a remove control. A monster shows its whole kit; an NPC shows the rest. */
+function foeDisplayCard(f, opts){
+  opts = opts || {};
+  var mon = (f.type||'monster')==='monster';
+  var srcTag = f.source==='mine' ? ' <span class="npc-tag">yours</span>' : (f.source==='canon' ? ' <span class="npc-tag">canon</span>' : '');
+  var thumb = f.img ? '<span class="row-thumb"><img src="'+esc(imgSrc(f.img))+'" alt=""></span>'
+                    : '<span class="row-thumb mono">'+esc((f.name||'?').trim().charAt(0).toUpperCase())+'</span>';
+  var vit = (f.curVit!==undefined && f.curVit!==null ? f.curVit+' / ' : '') + (f.maxVit||0) + ' vit';
+  var acts = '';
+  if (opts.editId){
+    var editCall = mon ? ('foeSheet(\''+opts.editId+'\',\'lib\')') : ('editLib(\''+opts.editId+'\')');
+    acts += '<button class="icon-btn" title="Edit this foe" onclick="'+editCall+'">&#9998;</button>';
+  }
+  if (opts.removeId) acts += '<button class="icon-btn danger" title="Remove" onclick="removeCombatant(\''+opts.removeId+'\')">&times;</button>';
+  var h = '<div class="foecard">'
+    + '<div class="fc-head">'+thumb
+    + '<div class="fc-id"><div class="fc-name">'+esc(f.name)+srcTag+'</div>'
+    + '<div class="fc-sub">'+(f.sr?esc(f.sr)+' &middot; ':'')+vit+'</div></div>'
+    + (acts ? '<div class="fc-acts">'+acts+'</div>' : '')
+    + '</div>';
+  if (opts.rateId && mon){
+    h += '<div class="rc-sr"><span class="muted small">Rating in this scene</span> '
+       + '<select class="inp slim mini-sel" onchange="combatantSetSR(\''+opts.rateId+'\',this.value)">'
+       + SR_ORDER.map(function(r){ return '<option value="'+r+'"'+(f.sr===r?' selected':'')+'>'+r+'</option>'; }).join('')
+       + '</select></div>';
+  }
+  h += foeKitBody(f, mon);
+  return h + '</div>';
 }
 function applySignature(cid){
   var cb=null; curSc().combatants.forEach(function(c){ if(c.id===cid) cb=c; });
@@ -6772,18 +6844,7 @@ function monInfo(cid){
   /* Everything below is the foe as it was forged. Locked while it stands on the board. */
   h += '<div class="fs-locked">'
     + '<div class="lbl">Shatter rating</div><p>'+(cb.sr?esc(cb.sr):'None')+'</p>'
-    + '<div class="lbl">Build</div><p>'+(cb.build?esc(cb.build):'None')+'</p>'
-    + (cb.build && buildTip(cb.build) ? '<p class="choice-desc">'+esc(buildTip(cb.build))+'</p>' : '')
-    + '<div class="lbl">Stance</div><p>'+(cb.stance?esc(cb.stance):'None')+'</p>'
-    + (cb.stance && stanceTip(cb.stance) ? '<p class="choice-desc">'+esc(stanceTip(cb.stance))+'</p>' : '')
-    + '<div class="lbl">Signature affliction</div><p>'+(sig?esc(sig):'None')+'</p>'
-    + (sig && chipTip(sig,'afflictions') ? '<p class="choice-desc">'+esc(chipTip(sig,'afflictions'))+'</p>' : '')
-    + '<div class="lbl">Infusions</div>'+fsChips(cb.infusions, 'None', 'infusions')
-    + '<div class="lbl">Augmentations</div>'+fsChips(cb.augments, 'None', 'augmentations')
-    + '<div class="lbl">Relics</div>'+fsChips(cb.inv, 'Carries nothing.', 'items')
-    + '<div class="lbl">Acts <span class="muted small">'+abN+'</span></div>'+abilityBlock(cb.abilities)
-    + ((cb.attrs && attrSpend(cb.attrs)>0) ? '<div class="lbl">Attributes</div><p>'+attrLine(cb.attrs)+'</p>' : '')
-    + (lib && lib.desc ? '<div class="lbl">Description</div><p class="chip-desc">'+esc(lib.desc)+'</p>' : '')
+    + foeKitBody(cb, cb.type!=='npc')
     + '</div>'
     + '<p class="muted small">This foe stands in a crucible. Its forging is set. Edit it in the library to change what it is.</p>';
 
@@ -7779,21 +7840,7 @@ function tabRoster(sc){
     h += emptyState('No monsters attached. Pull them from the library or create one.', 'Attach from library', 'attachChooser()');
   } else {
     sc.combatants.forEach(function(cb){
-      var abN=(cb.abilities||[]).length;
-      var isMon = cb.type==='monster' && cb.side!=='npc';
-      var srSel = isMon
-        ? '<div class="rc-sr"><span class="muted small">Rating</span> <select class="inp slim mini-sel" onchange="combatantSetSR(\''+cb.id+'\',this.value)">'
-            + SR_ORDER.map(function(r){ return '<option value="'+r+'"'+(cb.sr===r?' selected':'')+'>'+r+'</option>'; }).join('')
-            + '</select></div>'
-        : '';
-      var editBtn = cb.libId
-        ? '<button class="icon-btn" title="Edit this foe" onclick="foeSheet(\''+cb.libId+'\',\'lib\')">&#9998;</button>'
-        : '';
-      h += '<div class="card row-card">'+rowThumb(cb.img, cb.name)+'<div class="rc-main static"><div class="rc-title">'+esc(cb.name)+'</div>'
-        + '<div class="rc-sub">'+cb.curVit+' / '+cb.maxVit+' vit'+(cb.stance?' &middot; '+esc(cb.stance):'')+(abN?' &middot; '+abN+' ability'+(abN===1?'':'s'):'')+'</div>'
-        + srSel + '</div>'
-        + '<div class="rc-acts">'+editBtn+'<button class="icon-btn" title="Abilities and spells" onclick="editCombatantAbilities(\''+cb.id+'\')">&#9670;</button>'
-        + '<button class="icon-btn danger" onclick="removeCombatant(\''+cb.id+'\')">&times;</button></div></div>';
+      h += foeDisplayCard(cb, { editId: cb.libId, rateId: cb.id, removeId: cb.id });
     });
     h += '<button class="btn wide ghost" onclick="attachChooser()">Attach more</button>';
   }
