@@ -1,3 +1,9 @@
+## Foe rating scaling survives a reload
+
+- The reload path rehydrated a combatant from its authored library foe without trimming or scaling to the combatant's own rating, so per-scene ratings and the vitality that comes with them were discarded on every load. A Minion rehydrated the full Forsaken kit and kept whatever vitality it was stored with.
+- Monster combatants now re-derive on load: kit trims to the rating budget in author order, attributes and vitality rescale to the rating. This also heals foes spawned before the ceiling model, so old scenes correct themselves on next open.
+- NPC combatants are unchanged. They carry their authored kit with no rating scaling.
+
 ## Foes author at the ceiling and scale per scene
 
 - A library foe is now built to the Forsaken ceiling. Its whole kit is authored once: up to three infusions, two augmentations, three Acts. A scene sets the rating it fights at, and the instance trims down from that ceiling in author order, first picked first kept. Attributes and vitality rescale to the scene rating. The library foe is never changed.
