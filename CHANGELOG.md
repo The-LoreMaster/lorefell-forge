@@ -1,3 +1,10 @@
+## The Solmera answers a miss
+
+- The Solmera was the Grimgrit. Same trigger, same verb, and a Branch that offered the same two ideas. Its Aspect answered a blow that landed, which is the Grimgrit's whole reason to exist. It now answers a blow that misses, the way the Guarding infusion answers what the Vengeful infusion cannot.
+- Its Aspect is Kindle. Pyre belongs to a spell.
+- The Aspect is worded exactly as Reprisal is, so the two lorebounds read as the pair they are.
+- BondForge, FellGlass, FateWell, the CanonAspects pack, and the Lorebounds seed all carried the Solmera in four different shapes, and two of them already disagreed on whether the Combat Effect was chosen or random. They now agree.
+
 ## SigilForge weapon Afflictions and a truthful payload
 
 - SigilForge carried its own weapon table, and the affliction sweep never reached it. It still named Persecuted, Dislocated, Restricted, and Defanged, four Afflictions that no longer exist, and eight more from the wrong family. Every one of the twenty seven forms now matches canon.
