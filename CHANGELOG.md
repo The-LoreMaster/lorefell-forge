@@ -1,3 +1,9 @@
+## The library keeps infusions, and popups land where you click
+
+- Fixed the real save loss: a foe's infusions were never written to the account row. The sync stored build, stance, signature, augmentations, and Acts, but dropped infusions, so a reload came back without them. Infusions now save and load both ways.
+- Editing a foe in its sheet now pushes the change to the account, not just the local copy. Before, only the create wizard synced, so later edits could vanish on a reload. Each edit autosaves. There is no save button because none is needed.
+- Popups open where you clicked. The old logic clamped the card toward the top of the frame when the page reported its visible band as the whole frame, which put every popup at the top out of reach. It now anchors to the click in document space, which is correct in every embed, and holds its place as the page scrolls.
+
 ## Foes keep their whole kit, and the popups behave
 
 - Adding a built foe to a scene no longer strips it. The rating scales vitality and attributes, but the infusions, augmentations, and Acts are whatever the loremaster built, kept in full at every rating. A Minion of a foe hits softer than a Forsaken of it and brings the same kit.

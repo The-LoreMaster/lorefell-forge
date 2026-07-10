@@ -2706,7 +2706,7 @@ function assetToRow(e){
     inventory: JSON.stringify(e.inv || []),
     abilities: JSON.stringify(e.abilities || []),
     foeWeight: e.foeWeight || 0,
-    foeMeta: JSON.stringify({ build:e.build||'', stance:e.stance||'', sig:e.sig||'', source:e.source||'', augments:e.augments||[] })
+    foeMeta: JSON.stringify({ build:e.build||'', stance:e.stance||'', sig:e.sig||'', source:e.source||'', augments:e.augments||[], infusions:e.infusions||[] })
   };
 }
 /* Rebuild a library entity from a CMS row. Tolerates already-parsed or string JSON. */
@@ -2741,6 +2741,7 @@ function rowToAsset(r){
     e.build = fm.build || pick('build') || '';
     e.stance = fm.stance || pick('stance') || '';
     e.augments = Array.isArray(fm.augments) ? fm.augments : [];
+    e.infusions = Array.isArray(fm.infusions) ? fm.infusions : jp(pick('infusions'), []);
   } else {
     e.role = pick('role') || '';
     if (type==='npc'){
@@ -3288,7 +3289,7 @@ window.addEventListener('message', function(ev){
   var m = ev.data || {};
   if (m.type === 'lmtool-viewport' || m.type === 'LOREFELL_VIEWPORT'){
     window._wixVis = { top: Number(m.top)||0, height: Number(m.height)||0 };
-    if (document.querySelector('#modal .m-card')) positionModal();
+    if (document.querySelector('#modal .m-card')) positionModal(true);
     return;
   }
   if (m.type === 'lmtool-import-pack'){
@@ -3655,6 +3656,8 @@ function setLibFilter(f){ V.libFilter = f; render(); }
 /* ---------- modal ---------- */
 
 document.addEventListener('mousedown', function(e){ window._lastY = (e.clientY||0) + (window.pageYOffset||document.documentElement.scrollTop||0); }, true);
+document.addEventListener('pointerdown', function(e){ if (e.clientY) window._lastY = e.clientY + (window.pageYOffset||document.documentElement.scrollTop||0); }, true);
+document.addEventListener('click', function(e){ if (e.clientY) window._lastY = e.clientY + (window.pageYOffset||document.documentElement.scrollTop||0); }, true);
 document.addEventListener('touchstart', function(e){ if (e.touches && e.touches[0]) window._lastY = (e.touches[0].clientY||0) + (window.pageYOffset||document.documentElement.scrollTop||0); }, true);
 function modal(html){
   var root = document.getElementById('modal');
@@ -3688,16 +3691,15 @@ function positionModal(reRender){
   }
   var clickY = window._lastY || 0;
   var top;
-  if (window._wixVis && window._wixVis.height){
-    var vTop = window._wixVis.top, vH = window._wixVis.height, ch = card.offsetHeight || 0;
-    if (clickY){
-      var floor = Math.max(vTop + 8, vTop + vH - Math.min(ch, vH) - 8);
-      top = Math.min(Math.max(clickY - 40, vTop + 8), floor);
-    } else {
-      top = Math.max(8, vTop + (vH - ch) / 2);
-    }
+  if (clickY){
+    /* _lastY is the click in document space and already accounts for any scroll, so a card
+       anchored just above it lands where the loremaster is looking, in every embed. */
+    top = Math.max(8, clickY - 40);
+  } else if (window._wixVis && window._wixVis.height){
+    var ch = card.offsetHeight || 0;
+    top = Math.max(8, window._wixVis.top + (window._wixVis.height - ch) / 2);
   } else {
-    top = clickY ? Math.max(8, clickY - 40) : ((window.pageYOffset || document.documentElement.scrollTop || 0) + 40);
+    top = (window.pageYOffset || document.documentElement.scrollTop || 0) + 40;
   }
   window._modalTop = Math.max(8, top);
   card.style.marginTop = window._modalTop + 'px';
@@ -6621,6 +6623,15 @@ function fsTarget(){
   if (!window._fs) return null;
   return window._fs.src==='lib' ? libGet(window._fs.id) : _findCombatant(window._fs.id);
 }
+/* Save after a foe-sheet edit. When the foe lives in the library and the tool is hosted,
+   also push the asset to the account so the edit survives a reload, not just a local save. */
+function fsPersist(){
+  save();
+  if (WIX.hosted && window._fs && window._fs.src==='lib'){
+    var f = libGet(window._fs.id);
+    if (f) pushAsset(f);
+  }
+}
 function fsSave(){
   var f = fsTarget(); if (!f) return;
   save(); render();
@@ -6628,13 +6639,13 @@ function fsSave(){
 function fsSetDefaultSR(v){
   var f = fsTarget(); if (!f) return;
   f.sr = v;
-  save(); foeSheet(window._fs.id, window._fs.src);
+  fsPersist(); foeSheet(window._fs.id, window._fs.src);
 }
 function fsForsakenVit(){
   var f = fsTarget(); if (!f) return;
   f.maxVit = foeVitality('Forsaken', partyContext().apl);
   if (f.curVit===undefined || f.curVit > f.maxVit) f.curVit = f.maxVit;
-  save(); foeSheet(window._fs.id, window._fs.src);
+  fsPersist(); foeSheet(window._fs.id, window._fs.src);
 }
 function fsSetField(k, v){
   var f = fsTarget(); if (!f) return;
@@ -6648,7 +6659,7 @@ function fsSetField(k, v){
   } else {
     f[k] = v;
   }
-  save(); foeSheet(window._fs.id, window._fs.src);
+  fsPersist(); foeSheet(window._fs.id, window._fs.src);
 }
 function fsSetBuild(v){ fsSetField('build', v); }
 function fsSetStance(v){ fsSetField('stance', v); }
@@ -6659,7 +6670,7 @@ function fsToggleInf(n){
   var i = f.infusions.indexOf(n);
   if (i>=0) f.infusions.splice(i,1);
   else f.infusions.push(n);
-  save(); foeSheet(window._fs.id, window._fs.src);
+  fsPersist(); foeSheet(window._fs.id, window._fs.src);
 }
 function fsToggleAug(n){
   var f = fsTarget(); if (!f) return;
@@ -6667,7 +6678,7 @@ function fsToggleAug(n){
   var i = f.augments.indexOf(n);
   if (i>=0) f.augments.splice(i,1);
   else f.augments.push(n);
-  save(); foeSheet(window._fs.id, window._fs.src);
+  fsPersist(); foeSheet(window._fs.id, window._fs.src);
 }
 
 function fsItemPicked(v){
@@ -6676,7 +6687,7 @@ function fsItemPicked(v){
   var f = fsTarget(); if (!f) return;
   if (!Array.isArray(f.inv)) f.inv = [];
   if (f.inv.indexOf(v) < 0) f.inv.push(v);
-  save(); foeSheet(window._fs.id, window._fs.src);
+  fsPersist(); foeSheet(window._fs.id, window._fs.src);
 }
 /* Forge an item that is not in the arsenal. It lands on the foe and goes back to the
    collection as the loremaster's own, the same road a custom Act takes. */
@@ -6701,12 +6712,12 @@ function fsSubmitCustomItem(){
   window._pools.items = (window._pools.items||[]).concat([{ name:nm, rule:rl, source:'mine' }]);
   if (WIX.connected) postToWix({ type:'lmtool-item-submit', item:{ name:nm, rule:rl } });
   else toast('Forged for this session. Connect to the site to keep it.');
-  save(); foeSheet(window._fs.id, window._fs.src);
+  fsPersist(); foeSheet(window._fs.id, window._fs.src);
 }
 function fsDelItem(i){
   var f = fsTarget(); if (!f) return;
   f.inv.splice(i,1);
-  save(); foeSheet(window._fs.id, window._fs.src);
+  fsPersist(); foeSheet(window._fs.id, window._fs.src);
 }
 /* ============================================================
    THE ACTS A FOE CARRIES
@@ -6754,7 +6765,7 @@ function fsPickAct(t, id){
     var a = null; (S.forge||[]).forEach(function(x){ if (x.id===id) a = x; });
     if (a) f.abilities.push({ name:a.name, tier:t, effect:a.effect || a.desc || '' });
   }
-  save(); fsEditActs();
+  fsPersist(); fsEditActs();
 }
 /* Forge a new Act. It lands on this foe and goes back to the collection as the
    loremaster's own, so it appears in every foe sheet from now on. */
@@ -6787,7 +6798,7 @@ function fsSubmitCustomAct(t){
   /* And to the collection, where it outlives this session. */
   if (WIX.connected) postToWix({ type:'lmtool-act-submit', act:{ name:nm, tier:t, effect:ef } });
   else toast('Forged for this session. Connect to the site to keep it.');
-  save(); fsEditActs();
+  fsPersist(); fsEditActs();
 }
 /* The editable sheet, used by the library and by a roster. src is 'lib' or 'cbt'. */
 function foeSheet(id, src){
