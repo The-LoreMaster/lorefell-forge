@@ -1,3 +1,13 @@
+## SigilForge weapon Afflictions and a truthful payload
+
+- SigilForge carried its own weapon table, and the affliction sweep never reached it. It still named Persecuted, Dislocated, Restricted, and Defanged, four Afflictions that no longer exist, and eight more from the wrong family. Every one of the twenty seven forms now matches canon.
+- A Spell recorded the weapon dropdown it left behind, so eighteen forged spells claimed to be a Shortbow. The payload now records the item a build was actually forged on, and a Spell carries its focus rather than a weapon.
+
+## SigilForge weapon facts follow canon
+
+- SigilForge carried its own weapon table, and the affliction sweep never reached it. Fourteen of the twenty seven forms named the wrong Fellmark Affliction, and four named an Affliction that has been deleted. Every forged ability printed it into its full text.
+- The table is rebuilt from Weapons.canon.json. Grips and ranges already agreed.
+
 ## SigilForge timing costs nothing
 
 - Resolving a combat effect before the roll no longer costs 1 more than resolving it after. When an effect lands is a choice about the fiction, never a purchase.
