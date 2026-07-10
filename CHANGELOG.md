@@ -1,3 +1,8 @@
+## SigilForge timing costs nothing
+
+- Resolving a combat effect before the roll no longer costs 1 more than resolving it after. When an effect lands is a choice about the fiction, never a purchase.
+- The Vision forge, the randomizer, the budget breakdown, the Codex, and the timing tooltip all follow.
+
 ## The last two condition files follow the pack
 
 - CanonConditions.seed.json still carried all 99 old conditions. It is rebuilt from the canon pack, 77 rows.

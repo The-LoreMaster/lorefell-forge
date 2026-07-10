@@ -630,7 +630,7 @@
       <div class="desc" id="effectDesc"></div>
 
       <div id="timingWrap" style="display:none">
-        <label class="fld">Timing<span class="finfo" tabindex="0" role="button" aria-label="What is this">i<span class="tip">Some effects can resolve before the roll to set up the strike, or after on the hit. A pre effect costs 1 more.</span></span></label>
+        <label class="fld">Timing<span class="finfo" tabindex="0" role="button" aria-label="What is this">i<span class="tip">Some effects can resolve before the roll to set up the strike, or after on the hit. Either costs the same.</span></span></label>
         <div class="seg" id="timingSeg">
           <button type="button" data-t="post" class="active">After the roll</button>
           <button type="button" data-t="pre">Before the roll</button>
@@ -1038,7 +1038,6 @@ const CONFIG = {
      sets the lowest Tier it can forge at: a 2nd Form weapon forges Tier 2+, a 3rd Form
      weapon forges Tier 3 only. That is the weapon tier floor, kept from the old system. */
   tierBudgets: {1:[1,2], 2:[3,4], 3:[5,99]},
-  preSurcharge: 1,          /* a pre-timing combat effect costs 1 more */
   maxAfflictions: 1,        /* one effect OR affliction per ability (second inlay deferred) */
   itemFloorByForm: 1,       /* weapon Form sets its minimum Tier */
   monsterFloorByForm: 1     /* a Foe's Form sets its minimum Tier */
@@ -1150,18 +1149,12 @@ function currentForm(){
 function currentEffect(){ return state.effect ? byName[state.effect] : null; }
 function currentAddons(){ const e = currentEffect(); return e ? [e] : []; }
 function inlaySlots(){ return state.effect ? [state.effect] : []; }
-/* A pre-timing combat effect costs the surcharge. Afflictions are always post. */
-function effectPreSurcharge(){
-  const e = currentEffect();
-  if(!e || e.category !== "Effect") return 0;
-  if(e.timing === "both" && state.effectTiming === "pre") return CONFIG.preSurcharge;
-  return 0;
-}
+/* When an effect resolves is a choice, never a cost. Afflictions are always post. */
 function totalCost(){
   const dmg = byName[state.damage] ? byName[state.damage].cost : 0;
   const tgt = byName[state.targeting] ? byName[state.targeting].cost : 0;
   const e = currentEffect();
-  const eff = e ? e.cost + effectPreSurcharge() : 0;
+  const eff = e ? e.cost : 0;
   return dmg + tgt + eff;
 }
 /* v3 tier is derived from total cost alone. */
@@ -1368,10 +1361,7 @@ function buildBudget(){
   const tgt = byName[state.targeting];
   const lines = [`${dmg.component} (${dmg.cost})`, `${tgt.component} (${tgt.cost})`];
   const _e = currentEffect();
-  if(_e){
-    const sur = effectPreSurcharge();
-    lines.push(`${_e.component.replace(/\*$/,"")} (${_e.cost}${sur ? " +"+sur+" pre" : ""})`);
-  }
+  if(_e) lines.push(`${_e.component.replace(/\*$/,"")} (${_e.cost})`);
   lines.push("");
   lines.push(`Total: ${totalCost()}`);
   return lines.join("\n");
@@ -2030,11 +2020,10 @@ function randomizeBuild(){
       const base = byName[d].cost + byName[t].cost;
       pool.forEach(e => {
         const isEff = e.category === "Effect";
-        // post version
-        if(fits(base + e.cost)) combos.push([d, t, e.component, isEff ? (e.timing === "pre" ? "pre" : "post") : "post"]);
-        // pre version for both-timing effects (surcharge)
-        if(isEff && e.timing === "both" && fits(base + e.cost + CONFIG.preSurcharge))
-          combos.push([d, t, e.component, "pre"]);
+        if(!fits(base + e.cost)) return;
+        combos.push([d, t, e.component, isEff ? (e.timing === "pre" ? "pre" : "post") : "post"]);
+        // a both-timing effect may resolve before the roll instead, at no extra cost
+        if(isEff && e.timing === "both") combos.push([d, t, e.component, "pre"]);
       });
     });
   });
@@ -2385,7 +2374,7 @@ const CODEX_SECTIONS = [
   { id:"targeting", title:"Target Inlay", cats:["Targeting"],
     note:"One target inlay per ability. More than one target spreads the damage, effect, and any affliction to all." },
   { id:"effects", title:"Combat Effects", cats:["Effect"],
-    note:"Shared across every weapon. One combat effect OR one affliction per ability. A pre effect resolves before the roll and costs 1 more." },
+    note:"Shared across every weapon. One combat effect OR one affliction per ability. A pre effect resolves before the roll, and costs no more than a post one." },
   { id:"prec", title:"Precision Afflictions", cats:["Affliction*"], fam:"Precision",
     note:"Drawn only by a Precision weapon (Bows, Blades, Polearms). Land on the hit." },
   { id:"pow", title:"Power Afflictions", cats:["Affliction*"], fam:"Power",
@@ -2661,7 +2650,6 @@ function aiSystemPrompt(){
     "- Afflictions: physical (Precision, Power) afflictions need Standard Damage. Magic afflictions can go on Standard OR No Damage.",
     "- The affliction family must match the build family: Ability uses the weapon's family, Spell is Magic, Foe uses its archetype.",
     "- Weapon families: Bows, Blades, Polearms are Precision. Swords, Axes, Bludgeons are Power. Magic items are Magic.",
-    "- A pre-timing combat effect (or the pre version of a both-timing effect) costs 1 more.",
     "",
     "TIER BUDGETS (the total cost must fit the picked tier): Tier 1 is 1 to 2, Tier 2 is 3 to 4, Tier 3 is 5 or more (open-topped). A build over its tier ceiling is illegal. An affliction costs 3 or more, so it never fits Tier 1, and a cost 5 affliction only fits Tier 3. Check the affliction cost against the tier before choosing it.",
     "",
