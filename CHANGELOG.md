@@ -1,3 +1,9 @@
+## Name, image, and description live in the editor and on the card
+
+- The foe editor edits name, image, and description directly. No trip to a separate editor. Name and description save as you type and sync when you leave the field. The image saves when you choose it.
+- The display card shows the image and description, and combatants now carry the description so a foe reads the same on a scene board as it does in the library.
+- New profile sits at the top of the library, above the search.
+
 ## Popups center on the scroll, and the library has a search
 
 - Popups now center in the view wherever the page is scrolled, tracking the document's own scroll rather than a reported band or the click point. A long sheet caps its height and scrolls its own content.

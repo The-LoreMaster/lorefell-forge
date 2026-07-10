@@ -88,6 +88,9 @@ body::before{
 .fc-name{ font-family:'Cinzel',serif; font-weight:600; color:var(--silver); line-height:1.2; }
 .fc-sub{ font-size:.78rem; color:var(--ice); opacity:.85; margin-top:2px; }
 .fc-acts{ display:flex; align-items:center; gap:2px; flex:0 0 auto; }
+.fc-img{ margin:8px 0 4px; max-height:220px; overflow:hidden; border-radius:10px; }
+.fc-img img{ width:100%; height:auto; display:block; object-fit:cover; }
+.fc-desc{ color:var(--ice); font-size:.9rem; line-height:1.5; margin:6px 0 2px; }
 .row-card{ display:flex; align-items:stretch; padding:0; overflow:hidden; }
 .rc-main{
   flex:1; text-align:left; background:none; border:none; color:inherit; font:inherit;
@@ -2988,7 +2991,7 @@ function markSaved(){ renderSavedTag(); }
    large chronicle that duplication can push the campaign past the account field limit.
    Before saving, drop the fields that can be rebuilt from the library (keyed by libId),
    keeping only per-combat state. rehydrateCombatants puts them back on load. */
-var COMBATANT_STATIC = ['attrs','inv','infusions','augments','abilities','sig','source','build','stance','img'];
+var COMBATANT_STATIC = ['attrs','inv','infusions','augments','abilities','sig','source','build','stance','img','desc'];
 function slimCombatantsForSave(camp){
   (camp.acts||[]).forEach(function(a){ (a.sessions||[]).forEach(function(ss){ (ss.scenes||[]).forEach(function(sc){
     (sc.combatants||[]).forEach(function(cb){
@@ -3048,6 +3051,7 @@ function rehydrateCombatants(camp){
             if(cb.build===undefined) cb.build=e.build||'';
             if(cb.stance===undefined) cb.stance=e.stance||'';
             if(cb.img===undefined) cb.img=e.img||'';
+            if(cb.desc===undefined) cb.desc=e.desc||'';
           } else {
             if(cb.attrs===undefined) cb.attrs=JSON.parse(JSON.stringify(e.attrs||blankAttrs()));
             if(cb.inv===undefined) cb.inv=(e.inv||[]).slice();
@@ -5322,7 +5326,7 @@ function fwMakeMonCombatant(e, name){
     abilities: kit.abilities,
     inv: (e.inv || []).slice(),
     sig: e.sig || '', source: e.source || '', build: e.build || '', stance: e.stance || '',
-    img: e.img || '',
+    img: e.img || '', desc: e.desc || '',
     act:'', target:'', done:false, affs:[]
   };
 }
@@ -6381,7 +6385,6 @@ function foeKitBody(f, mon){
      + '<div class="lbl">Acts <span class="muted small">'+((f.abilities||[]).length)+'</span></div>'
      + ((f.abilities&&f.abilities.length) ? abilityBlock(f.abilities, true) : '<p class="muted small">None</p>');
   if (f.attrs && attrSpend(f.attrs)>0) h += '<div class="lbl">Attributes</div><p>'+attrLine(f.attrs)+'</p>';
-  if (f.desc) h += '<div class="lbl">Description</div><p class="chip-desc">'+esc(f.desc)+'</p>';
   return h;
 }
 /* The read-only card. opts: editId opens the editor, rateId shows the per-scene rating dial,
@@ -6405,6 +6408,8 @@ function foeDisplayCard(f, opts){
     + '<div class="fc-sub">'+(f.sr?esc(f.sr)+' &middot; ':'')+vit+'</div></div>'
     + (acts ? '<div class="fc-acts">'+acts+'</div>' : '')
     + '</div>';
+  if (f.img) h += '<div class="token-prev fc-img"><img src="'+esc(imgSrc(f.img))+'" alt="token"></div>';
+  if (f.desc) h += '<p class="fc-desc">'+esc(f.desc)+'</p>';
   if (opts.rateId && mon){
     h += '<div class="rc-sr"><span class="muted small">Rating in this scene</span> '
        + '<select class="inp slim mini-sel" onchange="combatantSetSR(\''+opts.rateId+'\',this.value)">'
@@ -6618,6 +6623,42 @@ function fsPersist(){
     if (f) pushAsset(f);
   }
 }
+/* Name and description save locally as they are typed, so focus is never lost to a
+   re-render, and push to the account when the field is left. Image saves on choose. */
+function fsSetName(v){ var f = fsTarget(); if (f){ f.name = v; saveLocal(); } }
+function fsSetDesc(v){ var f = fsTarget(); if (f){ f.desc = v; saveLocal(); } }
+function fsPushFoe(){ var f = fsTarget(); if (f){ save(); if (WIX.hosted && window._fs && window._fs.src==='lib') pushAsset(f); } }
+function fsTokenField(current){
+  var has = current && current.length;
+  return '<div class="token-field">'
+    + '<div class="token-prev" id="fsImgPrev">'+(has?'<img src="'+esc(imgSrc(current))+'" alt="token">':'<span class="muted">No image</span>')+'</div>'
+    + '<div class="token-btns">'
+    + '<input type="file" accept="image/*" id="fsImgFile" class="token-file" onchange="fsReadToken(this)">'
+    + '<button type="button" class="btn small token-up" onclick="document.getElementById(\'fsImgFile\').click()">Choose image</button>'
+    + '<button type="button" class="btn small ghost" id="fsImgClear" onclick="fsClearImg()"'+(has?'':' style="display:none"')+'>Remove</button>'
+    + '</div></div>';
+}
+function fsReadToken(input){
+  var file = input.files && input.files[0]; if (!file) return;
+  if (file.size > 25000000){ alert('That image is very large. Please use one under about 25 MB.'); return; }
+  var r = new FileReader();
+  r.onload = function(ev){
+    downscaleImage(ev.target.result, 1024, function(data){
+      var f = fsTarget(); if (!f) return;
+      f.img = data; fsPushFoe();
+      var prev = document.getElementById('fsImgPrev'); if (prev) prev.innerHTML = '<img src="'+data+'" alt="token">';
+      var clr = document.getElementById('fsImgClear'); if (clr) clr.style.display = '';
+    });
+  };
+  r.onerror = function(){ alert('Could not read that image. Try a different file.'); };
+  r.readAsDataURL(file);
+}
+function fsClearImg(){
+  var f = fsTarget(); if (!f) return;
+  f.img = ''; fsPushFoe();
+  var prev = document.getElementById('fsImgPrev'); if (prev) prev.innerHTML = '<span class="muted">No image</span>';
+  var clr = document.getElementById('fsImgClear'); if (clr) clr.style.display = 'none';
+}
 function fsSave(){
   var f = fsTarget(); if (!f) return;
   save(); render();
@@ -6801,9 +6842,13 @@ function foeSheet(id, src){
   var srcTag = f.source==='mine' ? ' <span class="npc-tag">yours</span>' : (f.source==='canon' ? ' <span class="npc-tag">canon</span>' : '');
   var abN = (f.abilities||[]).length;
 
-  var h = '<h3 class="m-title">'+esc(f.name)+srcTag+'</h3>'
-    + (f.img ? '<div class="token-prev big"><img src="'+esc(imgSrc(f.img))+'" alt="token"></div>' : '')
-    + '<p class="muted">'+(f.sr?esc(f.sr)+' &middot; ':'')+(f.maxVit||0)+' vit</p>';
+  var h = '<h3 class="m-title">Edit foe'+srcTag+'</h3>';
+  h += '<label class="lbl">Name</label>'
+    + '<input class="inp" value="'+esc(f.name||'')+'" oninput="fsSetName(this.value)" onchange="fsPushFoe()" placeholder="What it is called">';
+  h += '<label class="lbl">Image</label>' + fsTokenField(f.img);
+  h += '<label class="lbl">Description</label>'
+    + '<textarea class="inp ta" oninput="fsSetDesc(this.value)" onchange="fsPushFoe()" placeholder="What it is, in a line or two">'+esc(f.desc||'')+'</textarea>';
+  h += '<p class="muted">'+(f.sr?esc(f.sr)+' &middot; ':'')+(f.maxVit||0)+' vit</p>';
 
   h += '<div class="lbl">Default rating in scenes</div>'
     + '<select class="inp" onchange="fsSetDefaultSR(this.value)">'
@@ -10260,6 +10305,7 @@ function scrLibrary(){
       + '</div>';
   }
 
+  h += '<button class="btn wide" onclick="newProfile()">New '+(V.libFilter==='all'?'profile':TYPE_LABEL[V.libFilter])+'</button>';
   h += '<input class="inp lib-search" placeholder="Search the library by name" value="'+esc(V.libSearch||'')+'" oninput="libSearchInput(this.value)" autocomplete="off">';
 
   var selecting = !!V.libSelect;
@@ -10309,7 +10355,6 @@ function scrLibrary(){
         + '</div></button>'
         + (selecting ? '' : '<div class="vcard-corner inline">'+corner+'</div>') + '</div>';
     });
-    h += '<button class="btn wide" onclick="newProfile()">New '+(V.libFilter==='all'?'profile':TYPE_LABEL[V.libFilter])+'</button>';
   }
   return h;
 }
