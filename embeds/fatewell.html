@@ -3657,38 +3657,70 @@ function setLibFilter(f){ V.libFilter = f; render(); }
 document.addEventListener('mousedown', function(e){ window._lastY = (e.clientY||0) + (window.pageYOffset||document.documentElement.scrollTop||0); }, true);
 document.addEventListener('touchstart', function(e){ if (e.touches && e.touches[0]) window._lastY = (e.touches[0].clientY||0) + (window.pageYOffset||document.documentElement.scrollTop||0); }, true);
 function modal(html){
-  document.getElementById('modal').innerHTML =
+  var root = document.getElementById('modal');
+  var openCard = root.querySelector('.m-card');
+  var reRender = !!openCard;
+  var keepScroll = openCard ? openCard.scrollTop : 0;
+  root.innerHTML =
     '<div class="m-back" onmousedown="window._mdOnBack=(event.target===this)" onclick="if(event.target===this&&window._mdOnBack)closeModal()"><div class="m-card">' + html + '</div></div>';
   try{ postToWix({ type:'lmtool-modal-open' }); }catch(e){}
-  positionModal();
+  positionModal(reRender);
+  if (reRender){ var nc = root.querySelector('.m-card'); if (nc) nc.scrollTop = keepScroll; }
 }
 /* The tool runs as a tall embed. A fixed backdrop pins to the iframe's own top,
    which sits far from where the loremaster is looking on the parent page, so the
    popup lands off screen. Anchor the card near the spot they just clicked, inside
-   the document flow, clamped so it stays on the page. */
-function positionModal(){
+   the document flow, clamped so it stays on the page. On a re-render (a click inside
+   the open card) hold the card where it is so the view never jumps. */
+function positionModal(reRender){
   var back = document.querySelector('#modal .m-back');
   var card = document.querySelector('#modal .m-card');
   if (!card || !back) return;
-  var y;
-  if (window._wixVis && window._wixVis.height) {
-    /* Embedded: the parent reported the visible band of the iframe. Center the card in it. */
-    var card2 = card;
-    var ch = card2 ? card2.offsetHeight : 0;
-    y = Math.max(8, window._wixVis.top + (window._wixVis.height - ch) / 2) + 70;
-  } else {
-    y = window._lastY || 0;
-    if (!y) { y = (window.pageYOffset || document.documentElement.scrollTop || 0) + 80; }
-  }
   back.style.position = 'absolute'; back.style.inset = 'auto';
   back.style.top = '0'; back.style.left = '0'; back.style.right = '0'; back.style.bottom = 'auto';
   back.style.minHeight = '100%'; back.style.alignItems = 'flex-start';
-  card.style.marginTop = Math.max(8, y - 70) + 'px';
   card.style.marginBottom = '40px';
   card.style.marginLeft = 'auto'; card.style.marginRight = 'auto';
   card.style.borderRadius = '14px';
+  if (reRender && window._modalTop != null){
+    card.style.marginTop = window._modalTop + 'px';
+    return;
+  }
+  var clickY = window._lastY || 0;
+  var top;
+  if (window._wixVis && window._wixVis.height){
+    var vTop = window._wixVis.top, vH = window._wixVis.height, ch = card.offsetHeight || 0;
+    if (clickY){
+      var floor = Math.max(vTop + 8, vTop + vH - Math.min(ch, vH) - 8);
+      top = Math.min(Math.max(clickY - 40, vTop + 8), floor);
+    } else {
+      top = Math.max(8, vTop + (vH - ch) / 2);
+    }
+  } else {
+    top = clickY ? Math.max(8, clickY - 40) : ((window.pageYOffset || document.documentElement.scrollTop || 0) + 40);
+  }
+  window._modalTop = Math.max(8, top);
+  card.style.marginTop = window._modalTop + 'px';
 }
-function closeModal(){ document.getElementById('modal').innerHTML=''; window._cb=null; window._attachAfter=false; }
+function closeModal(){ document.getElementById('modal').innerHTML=''; window._cb=null; window._attachAfter=false; window._modalTop=null; }
+/* Live filter for the pick lists in the attach and roster choosers. Hides rows whose name
+   does not match, then hides any section label left with nothing under it. */
+function fwPickFilter(q){
+  q = (q||'').trim().toLowerCase();
+  var card = document.querySelector('#modal .m-card'); if (!card) return;
+  Array.prototype.forEach.call(card.querySelectorAll('.pick-row'), function(r){
+    var nm = (r.getAttribute('data-name') || r.textContent || '').toLowerCase();
+    r.style.display = (!q || nm.indexOf(q) >= 0) ? '' : 'none';
+  });
+  Array.prototype.forEach.call(card.querySelectorAll('.pick-lbl'), function(lbl){
+    var n = lbl.nextElementSibling, vis = false;
+    while (n && !n.classList.contains('pick-lbl') && !n.classList.contains('m-row')){
+      if (n.classList.contains('pick-row') && n.style.display !== 'none'){ vis = true; break; }
+      n = n.nextElementSibling;
+    }
+    lbl.style.display = vis ? '' : (q ? 'none' : '');
+  });
+}
 
 /* Native confirm() is blocked in many sandboxed embeds, so destructive actions
    silently aborted. This in-tool dialog works inside the iframe. */
@@ -5170,26 +5202,27 @@ function attachChooser(){
   var foes = scoped.filter(function(e){ return e.type==='monster'; });
   var h = '<h3 class="m-title">Attach from library</h3>';
   h += rosterScopeToggleHtml('attachChooser');
+  h += '<input class="inp" id="pickSearch" placeholder="Search by name" oninput="fwPickFilter(this.value)" autocomplete="off">';
   if (foes.length){
-    h += '<div class="lbl">Foes</div>';
+    h += '<div class="lbl pick-lbl">Foes</div>';
     foes.forEach(function(e){
-      h += '<button class="pick-row" onclick="countModal(\''+e.id+'\')"><b>'+esc(e.name)+'</b><span class="muted">'+esc(e.sr)+' &middot; '+effMaxVit(e)+' vit</span></button>';
+      h += '<button class="pick-row" data-name="'+esc(e.name)+'" onclick="countModal(\''+e.id+'\')"><b>'+esc(e.name)+'</b><span class="muted">'+esc(e.sr)+' &middot; '+effMaxVit(e)+' vit</span></button>';
     });
   }
   var npcs = scoped.filter(function(e){ return e.type==='npc'; });
   var items = scoped.filter(function(e){ return e.type==='item'; });
   if (npcs.length){
-    h += '<div class="lbl">NPCs</div>';
+    h += '<div class="lbl pick-lbl">NPCs</div>';
     npcs.forEach(function(e){
-      h += '<div class="pick-row split"><b>'+esc(e.name)+'</b>'
+      h += '<div class="pick-row split" data-name="'+esc(e.name)+'"><b>'+esc(e.name)+'</b>'
         + '<span class="pick-acts"><button class="mini" onclick="attachNpcCombatant(\''+e.id+'\')">To combat</button>'
         + '<button class="mini ghost" onclick="attachRef(\''+e.id+'\')">Reference</button></span></div>';
     });
   }
   if (items.length){
-    h += '<div class="lbl">Items</div>';
+    h += '<div class="lbl pick-lbl">Items</div>';
     items.forEach(function(e){
-      h += '<button class="pick-row" onclick="attachRef(\''+e.id+'\')"><b>'+esc(e.name)+'</b><span class="muted">'+(e.role?esc(e.role):'item')+'</span></button>';
+      h += '<button class="pick-row" data-name="'+esc(e.name)+'" onclick="attachRef(\''+e.id+'\')"><b>'+esc(e.name)+'</b><span class="muted">'+(e.role?esc(e.role):'item')+'</span></button>';
     });
   }
   h += '<div class="lbl">Create new</div>'
@@ -5276,14 +5309,16 @@ function reforgeFoeToTier(foe, newTier){
 function fwDeriveKit(foe, sr){
   var apl=fwPartyLevel(), party=fwPartySize();
   var scaled=fwScaleFoe(foe.build||FW_FOE_PACK.builds[0].name, sr, apl, party) || { attrs:blankAttrs(), maxVit:0 };
-  var bud=fwTierBudget(sr);
+  /* The rating scales vitality and attributes. The kit is what the loremaster built, kept
+     in full at every rating. A Minion of a foe hits softer than a Forsaken of it, but it
+     brings the same infusions, augmentations, and Acts. */
   return {
     sr: sr,
     attrs: scaled.attrs,
     maxVit: scaled.maxVit,
-    infusions: (foe.infusions||[]).slice(0, bud.inf),
-    augments: (foe.augments||[]).slice(0, bud.aug),
-    abilities: JSON.parse(JSON.stringify((foe.abilities||[]).slice(0, bud.acts)))
+    infusions: (foe.infusions||[]).slice(),
+    augments: (foe.augments||[]).slice(),
+    abilities: JSON.parse(JSON.stringify(foe.abilities||[]))
   };
 }
 /* Build a scene combatant from an authored library foe at a chosen rating. */
@@ -6220,14 +6255,15 @@ function addManualRef(ref){
   if (!S.library.length){ alert('No assets in the library yet. Create one first.'); return; }
   var h = '<h3 class="m-title">Add to roster</h3><p class="muted">Adds an asset to this level even if it is not used in a scene below.</p>';
   h += rosterScopeToggleHtml('addManualRef');
+  h += '<input class="inp" id="pickSearch" placeholder="Search by name" oninput="fwPickFilter(this.value)" autocomplete="off">';
   var any = false;
   ['monster','npc','item'].forEach(function(t){
     var list = others.filter(function(e){ return e.type===t; });
     if (!list.length) return;
     any = true;
-    h += '<div class="lbl">'+TYPE_LABEL[t]+'s</div>';
+    h += '<div class="lbl pick-lbl">'+TYPE_LABEL[t]+'s</div>';
     list.forEach(function(e){
-      h += '<button class="pick-row" onclick="confirmManualRef(\''+ref+'\',\''+e.id+'\')"><b>'+esc(e.name)+'</b>'
+      h += '<button class="pick-row" data-name="'+esc(e.name)+'" onclick="confirmManualRef(\''+ref+'\',\''+e.id+'\')"><b>'+esc(e.name)+'</b>'
         + '<span class="muted">'+(e.sr?esc(e.sr):(e.role?esc(e.role):TYPE_LABEL[e.type]))+'</span></button>';
     });
   });
@@ -6621,18 +6657,16 @@ function fsToggleInf(n){
   var f = fsTarget(); if (!f) return;
   if (!Array.isArray(f.infusions)) f.infusions = [];
   var i = f.infusions.indexOf(n);
-  var cap = fwTierBudget('Forsaken').inf;
   if (i>=0) f.infusions.splice(i,1);
-  else if (f.infusions.length < cap) f.infusions.push(n);
+  else f.infusions.push(n);
   save(); foeSheet(window._fs.id, window._fs.src);
 }
 function fsToggleAug(n){
   var f = fsTarget(); if (!f) return;
   if (!Array.isArray(f.augments)) f.augments = [];
   var i = f.augments.indexOf(n);
-  var cap = fwTierBudget('Forsaken').aug;
   if (i>=0) f.augments.splice(i,1);
-  else if (f.augments.length < cap) f.augments.push(n);
+  else f.augments.push(n);
   save(); foeSheet(window._fs.id, window._fs.src);
 }
 
@@ -6791,12 +6825,11 @@ function foeSheet(id, src){
   h += fsChoice('Stance', f.stance, 'stances', 'fsSetStance', FW_FOE_PACK.stances, 'No stance');
   h += fsChoice('Signature affliction', f.sig, 'afflictions', 'fsSetSig', FW_FOE_PACK.afflictions, 'None');
 
-  h += '<div class="lbl">Infusions <span class="muted small">'+(f.infusions.length)+' of '+bud.inf+'</span></div>';
-  h += fsPickerChips(infPool, f.infusions, bud.inf, 'fsToggleInf', 'infusions');
+  h += '<div class="lbl">Infusions <span class="muted small">'+(f.infusions.length)+'</span></div>';
+  h += fsPickerChips(infPool, f.infusions, 0, 'fsToggleInf', 'infusions');
 
-  h += '<div class="lbl">Augmentations <span class="muted small">'+(f.augments.length)+' of '+bud.aug+'</span></div>';
-  h += bud.aug > 0 ? fsPickerChips(augmentPool(), f.augments, bud.aug, 'fsToggleAug', 'augmentations')
-     : '<p class="muted small">A '+esc(f.sr||'foe')+' carries no augmentations.</p>';
+  h += '<div class="lbl">Augmentations <span class="muted small">'+(f.augments.length)+'</span></div>';
+  h += fsPickerChips(augmentPool(), f.augments, 0, 'fsToggleAug', 'augmentations');
 
   h += '<div class="lbl">Relics</div>';
   if (f.inv.length){
@@ -6822,7 +6855,7 @@ function foeSheet(id, src){
   h += '<select class="inp" id="fsItemPick" onchange="fsItemPicked(this.value)">'+ropts+'</select>';
   if (!relics.length) h += '<p class="muted small">No relics forged yet. RelicForge fills this shelf.</p>';
 
-  h += '<div class="lbl">Acts <span class="muted small">'+abN+' of '+bud.acts+'</span></div>'
+  h += '<div class="lbl">Acts <span class="muted small">'+abN+'</span></div>'
     + abilityBlock(f.abilities);
   h += '<button class="btn wide ghost" onclick="fsEditActs()">Edit Acts</button>';
 

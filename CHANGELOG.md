@@ -1,3 +1,10 @@
+## Foes keep their whole kit, and the popups behave
+
+- Adding a built foe to a scene no longer strips it. The rating scales vitality and attributes, but the infusions, augmentations, and Acts are whatever the loremaster built, kept in full at every rating. A Minion of a foe hits softer than a Forsaken of it and brings the same kit.
+- The editor is fully unlocked. Infusions and augmentations are no longer capped by rating. Author as many as you want. Acts were already open.
+- Popups now open where you clicked instead of at the top of the frame, and clamp into view when embedded. Clicking inside an open card no longer scrolls the view. The card holds its place and its scroll position through every re-render.
+- The attach and roster popups have a name search. Type to filter the list, and empty sections fall away.
+
 ## The foe editor is unlocked
 
 - Editing Acts no longer gates tiers by the foe's rating. All three tiers are open in the editor. A foe is authored in full, and the rating only trims the kit in a scene. Ratings apply in battle, not at the workbench.
