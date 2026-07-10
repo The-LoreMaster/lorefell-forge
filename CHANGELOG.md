@@ -1,3 +1,10 @@
+## The Vixel stops healing and the Runesteed builds walls
+
+- The Vixel's Crown removed an Affliction, which is the Cawmarch's whole reason to exist. It now forces the enemy to target a different Fell or lose its Act. Every rung of the Vixel moves something, and none of them touch Afflictions.
+- The Runesteed is rebuilt around Manifested. Its Aspect is Redoubt. It raises a barrier between a Fell and the attacker, and the attack strikes the barrier. The Branch widens the wall or thickens it. The Crown raises a line of them, or encircles the Fell.
+- The Runesteed no longer negates a Combat Effect. Nothing does. A Combat Effect already clears with an Act and a Breakout roll, so no bond needs to answer it.
+- Its archetype moves from restoration to mitigation.
+
 ## The Grimgrit scales with its owner
 
 - The Grimgrit's Aspect deals Base damage equal to the higher of the lorebound owner's Vigor or Wit, and its second Branch deals Bonus damage the same way. FellGlass and the Lorebounds seed already said so. The canon pack and BondForge did not.
