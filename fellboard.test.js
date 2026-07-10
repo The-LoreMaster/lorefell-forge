@@ -157,5 +157,102 @@ console.log("\n== CSS: .hidden actually hides every element we toggle ==");
   check("no display rule outranks .hidden unguarded", bad.length===0, bad.join(" | "));
 }
 
+console.log("\n== Reserved names: every RESERVED_SLUGS entry is exercised ==");
+{
+  // The required set is declared HERE, independently of the file. If the test read
+  // the list out of fellboard.html, deleting an entry would delete its own test and
+  // the suite would stay green. Every name below has a reason, stated once:
+  //   fellboard   -> docs/fellboard.html is the exposure we reverted; never mintable
+  //   forgemaster -> lowercase misses the "ForgeMaster" label and mints the phantom
+  //                  embeds/forgemaster.html, whose rules.js sibling never loads
+  //   rules       -> collides with the generated docs/rules.js
+  //   index       -> docs/index.html is the Pages site root
+  const REQUIRED = ["fellboard", "forgemaster", "rules", "index"];
+
+  const listSrc = html.match(/const RESERVED_SLUGS = \[([^\]]*)\]/)[1];
+  const reserved = listSrc.split(",").map(x => x.trim().replace(/"/g,"")).filter(Boolean);
+  for(const r of REQUIRED)
+    check(`RESERVED_SLUGS still contains "${r}"`, reserved.includes(r), listSrc);
+
+  // Every entry must be rejected when typed as a NEW tool. toolOf() matches labels
+  // exactly, so a lowercase "forgemaster" misses the "ForgeMaster" entry and would
+  // otherwise mint the phantom embeds/forgemaster.html. That is why the slug is
+  // reserved even though a similarly named tool exists.
+  for(const r of REQUIRED){
+    reset();
+    els.newTitle.value="X"; els.newArea.value="site"; els.newPriority.value="3";
+    els.newTool.value="__new"; els.newToolName.value=r;
+    ctx.addItem("todo");
+    check(`RESERVED "${r}" rejected as a new tool`, ctx.getState().items.length===0,
+      "created "+ctx.getState().items.length+" item(s)");
+  }
+
+  // Each reserved entry must carry its weight: removing it must break something.
+  // Assert that its convention paths would collide with a protected path.
+  const PROTECTED_RX = [/fellboard\.html$/, /^docs\/rules\.js$/, /^embeds\/forgemaster\.html$/, /^docs\/index\.html$/];
+  for(const r of REQUIRED){
+    const would = ["docs/"+r+".html", "embeds/"+r+".html", "docs/"+r+".js"];
+    check(`RESERVED "${r}" would otherwise collide with a protected path`,
+      would.some(w => PROTECTED_RX.some(rx => rx.test(w))), would.join(","));
+  }
+
+  // Casing and spacing must not slip past the guard.
+  for(const variant of ["Fellboard","FELLBOARD","  fellboard  "]){
+    reset();
+    els.newTitle.value="X"; els.newArea.value="site"; els.newPriority.value="3";
+    els.newTool.value="__new"; els.newToolName.value=variant;
+    ctx.addItem("todo");
+    check(`"${variant}" rejected regardless of casing`, ctx.getState().items.length===0,
+      "created "+ctx.getState().items.length);
+  }
+
+  // The guard exists to stop a fence from ever naming a protected path.
+  // Assert on the paths, not on the labels, so the test survives a renamed slug.
+  const FORBIDDEN = [/fellboard\.html$/, /^docs\/rules\.js$/, /^velo\//, /^scripts\//, /^schemas\//];
+  reset();
+  let leaked = [];
+  for(const name of ["Fellboard","fellboard","rules","index","Rules Kernel","Wardforge"]){
+    reset();
+    els.newTitle.value="X"; els.newArea.value="site"; els.newPriority.value="3";
+    els.newTool.value="__new"; els.newToolName.value=name;
+    ctx.addItem("todo");
+    const it = ctx.getState().items[0];
+    if(it) for(const f of it.toolFiles||[])
+      if(FORBIDDEN.some(rx => rx.test(f))) leaked.push(`${name} -> ${f}`);
+  }
+  check("no new-tool name can mint a protected path", leaked.length===0, leaked.join(" | "));
+}
+
+console.log("\n== An existing TOOLS label bypasses the reserved check by design ==");
+reset();
+els.newTitle.value="X"; els.newArea.value="site"; els.newPriority.value="3";
+els.newTool.value="ForgeMaster";   // chosen from the dropdown, not typed as new
+ctx.addItem("todo");
+{
+  const fm = ctx.getState().items[0];
+  check("ForgeMaster selectable and fenced to its real file",
+    fm && fm.toolFiles.length===1 && fm.toolFiles[0]==="docs/forgemaster.html",
+    fm ? JSON.stringify(fm.toolFiles) : "none");
+}
+
+console.log("\n== Reserved name is rejected in the pair half too ==");
+reset();
+els.newTitle.value="A"; els.newArea.value="fellguide"; els.newPriority.value="2";
+els.pairOn.checked=true; els.pairTitle.value="B"; els.pairArea.value="site";
+els.pairTool.value="__new"; els.pairToolName.value="Fellboard";
+ctx.addItem("todo");
+check("paired Fellboard rejected", ctx.getState().items.length===0,
+  "got "+ctx.getState().items.length+" items");
+
+console.log("\n== A legitimate new tool still works ==");
+reset();
+els.newTitle.value="X"; els.newArea.value="site"; els.newPriority.value="3";
+els.newTool.value="__new"; els.newToolName.value="Wardforge";
+ctx.addItem("todo");
+const ok=ctx.getState().items[0];
+check("Wardforge accepted with convention paths",
+  ok && JSON.stringify(ok.toolFiles)===JSON.stringify(["docs/wardforge.html","embeds/wardforge.html"]),
+  ok?JSON.stringify(ok.toolFiles):"none");
+
 console.log("\n"+(fails? fails+" FAILURE(S)" : "ALL PASS"));
 process.exit(fails?1:0);
