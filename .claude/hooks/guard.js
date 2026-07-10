@@ -163,7 +163,14 @@ const GH_DENIED = new Set(["secret", "workflow", "api", "auth", "repo", "release
  */
 function substitutions(cmd) {
   const found = [];
-  const patterns = [/\$\(([^()]*)\)/g, /`([^`]*)`/g, /<\(([^()]*)\)/g, />\(([^()]*)\)/g];
+  const patterns = [
+    /\$\(([^()]*)\)/g, /`([^`]*)`/g, /<\(([^()]*)\)/g, />\(([^()]*)\)/g,
+    // PowerShell subexpressions and array-subexpressions, and any bare (...) group
+    // used to run a command whose output another command consumes. Screening these
+    // as their own commands is the durable fix for unlisted write-cmdlets riding
+    // inside them, rather than enumerating cmdlets one at a time.
+    /@\(([^()]*)\)/g, /\(([^()]*)\)/g,
+  ];
   let scan = cmd;
   for (let depth = 0; depth < 8; depth++) {
     let any = false;
@@ -200,7 +207,11 @@ function checkAllowList(cmd) {
     const w = checkCommand(body);
     if (w) return w;
   }
-  for (const rawSeg of segments(cmd)) {
+  // A cd earlier in the chain means a later `npm test` runs a foreign
+  // package.json. `cd x && npm test` is the no-flag form of the --prefix leak.
+  const segs = segments(cmd);
+  const changesDir = segs.some((sg) => /^\s*(cd|pushd|Set-Location|sl|chdir)\s+\S/.test(sg.replace(/^(?:\w+=\S*\s+)+/, "")));
+  for (const rawSeg of segs) {
     const seg = rawSeg.replace(/^(?:\w+=\S*\s+)+/, "");
     // Environment prefixes: FOO=bar cmd ...
     const toks = seg.trim().split(/\s+/).filter(Boolean);
@@ -224,6 +235,21 @@ function checkAllowList(cmd) {
       // gate below never sees it. Reject them outright.
       if (/^-c$|^--config-env/.test((toks[1] || "")) || /\bgit\s+-c\s/.test(seg)) {
         return "git -c and --config-env can set core.editor, core.pager, core.sshCommand, or core.hooksPath to a command git then runs. Denied.";
+      }
+      // git -C <dir> runs the subcommand in another directory and displaces the
+      // real subcommand from the `sub` slot, blinding the gate below. Re-resolve
+      // the subcommand past any -C <dir> / --git-dir / --work-tree prefixes.
+      let gsub = sub, gi = 1;
+      while (/^(-C|--git-dir|--work-tree|--namespace)$/.test(toks[gi] || "") ||
+             /^(--git-dir|--work-tree|--namespace)=/.test(toks[gi] || "")) {
+        gi += /=/.test(toks[gi]) ? 1 : 2;
+      }
+      gsub = (toks[gi] || "").toLowerCase();
+      if (gsub !== sub) {
+        if (GIT_DENIED.has(gsub)) return `git ${gsub} (behind a -C/--git-dir prefix) is denied.`;
+        if (gsub === "config" && !/\s(--get|--list|--get-all|--get-regexp|-l)\b/.test(seg)) {
+          return "git config write behind a -C prefix is denied.";
+        }
       }
       // config reads are fine; config writes set those same dangerous keys.
       if (sub === "config" && /\s(--get|--list|--get-all|--get-regexp|-l)\b/.test(seg)) {
@@ -251,6 +277,16 @@ function checkAllowList(cmd) {
           /npm_config_(prefix|userconfig|globalconfig)=/i.test(rawSeg)) {
         return "npm with --prefix, -C, or a config override runs a foreign package.json's scripts. Denied.";
       }
+      // --node-options / NODE_OPTIONS inject --require, loading an arbitrary
+      // module into every lifecycle script. Code execution without a flag on node.
+      if (/--node-options\b/.test(seg) || /npm_config_node_options=/i.test(rawSeg) ||
+          /\bnode_options=/i.test(rawSeg)) {
+        return "npm --node-options / NODE_OPTIONS can --require an arbitrary module into lifecycle scripts. Denied.";
+      }
+      // A cd/pushd earlier in the chain points npm at a foreign package.json.
+      if (changesDir) {
+        return "npm test after a cd runs a foreign package.json's test script. Run npm test from the repo root only. Denied.";
+      }
     } else if (head === "gh") {
       if (GH_DENIED.has(sub)) return `gh ${sub} is denied.`;
     } else if (head === "find") {
@@ -259,6 +295,9 @@ function checkAllowList(cmd) {
         return "find with -delete or -exec can write or delete any file. Denied.";
       }
     } else if (head === "node") {
+      if (/\bnode_options=/i.test(rawSeg)) {
+        return "NODE_OPTIONS can --require an arbitrary module. Denied.";
+      }
       const raw = (toks[1] || "");
       const script = raw.replace(/\\/g, "/");
       if (!script || /^-/.test(script)) {
@@ -292,7 +331,12 @@ function writeTargets(cmd) {
   const push = (s) => {
     if (!s) return;
     const u = shellUnquote(s);
-    t.push(u === UNRESOLVABLE ? UNRESOLVABLE : u);
+    if (u === UNRESOLVABLE) { t.push(UNRESOLVABLE); return; }
+    // A broad pathspec restores or overwrites everything under it, including
+    // fenced files, without naming them. Treat . ./ * and bare directory roots
+    // that contain fenced paths as unresolvable.
+    if (/^(\.|\.\/|\*|:\/|:\(.*\))$/.test(u) || u === "" ) { t.push(UNRESOLVABLE); return; }
+    t.push(u);
   };
 
   // Redirections. `2>&1` and `>&2` are file-descriptor dups, not files.
@@ -336,7 +380,9 @@ function writeTargets(cmd) {
   // about, and branch names routinely contain slashes (fix/thing, canon/rename).
   // Only pathspecs after `--` are write targets. `git restore <pathspec>` takes
   // paths directly, so every non-flag argument counts, and `--` still delimits.
-  const gitWrite = /\bgit\s+(restore|checkout)\b([^|;&]*)/gi;
+  // git -C <dir> restore ... is still a restore. Strip a leading -C <dir> /
+  // --git-dir=... so the verb regex matches.
+  const gitWrite = /\bgit\b(?:\s+(?:-C\s+\S+|--git-dir(?:=|\s+)\S+|--work-tree(?:=|\s+)\S+))*\s+(restore|checkout)\b([^|;&]*)/gi;
   while ((m = gitWrite.exec(cmd)) !== null) {
     const verb = m[1].toLowerCase();
     const rest = m[2];
@@ -346,6 +392,8 @@ function writeTargets(cmd) {
       for (const a of rest.slice(sep + 4).trim().split(/\s+/)) if (a) push(a);
     } else if (verb === "restore") {
       for (const a of rest.trim().split(/\s+/)) if (a && !a.startsWith("-")) push(a);
+    } else if (verb === "checkout" && /\s--source\b|\s-s\s/.test("")) {
+      // handled by restore branch
     } else {
       // checkout without --. `checkout <branch>` is a switch and writes nothing
       // the guard fences. But `checkout <ref> <pathspec>` restores a working-tree

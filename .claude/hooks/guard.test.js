@@ -457,5 +457,41 @@ console.log("\n=== LEAK: npm foreign package.json ===");
   .forEach((c) => blocked(`blocked \`${c.slice(0,44)}\``, bash(c)));
 ["npm test", "npm ls", "npm view x"].forEach((c) => allowed(`allowed \`${c}\``, bash(c)));
 
+console.log("\n=== LEAK: write-cmdlets inside (...) subexpressions ===");
+["Write-Output (Tee-Object -InputObject x -FilePath docs/fellboard.html)",
+ "Write-Output (Tee-Object -LiteralPath schemas/x.json -InputObject x)",
+ "Write-Output (Export-Csv -Path scripts/build.js -InputObject x)",
+ "x = (Set-Content -Path docs/rules.js -Value y)"]
+  .forEach((c) => blocked(`blocked \`${c.slice(0,48)}\``, ps(c)));
+
+console.log("\n=== LEAK: broad pathspec and -C in git restore/checkout ===");
+["git restore --source=HEAD~1 .",
+ "git restore --overlay --source=HEAD~1 .",
+ "git restore -s badcommit .",
+ "git checkout HEAD~3 -- .",
+ "git -C . restore --source=HEAD~1 scripts/build.js",
+ "git -C ../x restore --source=HEAD~1 .",
+ "git -C ../other config core.hooksPath .evil",
+ "git -C ../other gc",
+ "git --git-dir=../x/.git config core.pager evil",
+ "git restore --source=HEAD~1 scripts/build.js",
+ "git restore scripts/build.js",
+ "git restore velo/x.js",
+ "git restore _Canon/CANON.md"]
+  .forEach((c) => blocked(`blocked \`${c.slice(0,46)}\``, bash(c)));
+["git restore docs/sigilforge.html", "git restore embeds/sigilforge.html",
+ "git checkout main", "git checkout -b canon/x", "git checkout velo/manual-paste"]
+  .forEach((c) => allowed(`allowed \`${c.slice(0,46)}\``, bash(c)));
+
+console.log("\n=== LEAK: npm foreign package.json and NODE_OPTIONS ===");
+["cd ../evil && npm test",
+ "pushd ../evil; npm test",
+ 'npm test --node-options="--require ./evil.js"',
+ "npm_config_node_options=--require=./evil.js npm test",
+ "NODE_OPTIONS=--require=./evil.js node scripts/build.js"]
+  .forEach((c) => blocked(`blocked \`${c.slice(0,48)}\``, bash(c)));
+["npm test", "npm ls", "node scripts/build.js", "cd docs && ls"]
+  .forEach((c) => allowed(`allowed \`${c.slice(0,44)}\``, bash(c)));
+
 console.log("\n" + (fails ? `${fails} FAILURE(S)` : "ALL PASS"));
 process.exit(fails ? 1 : 0);
