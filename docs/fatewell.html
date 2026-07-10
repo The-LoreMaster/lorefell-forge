@@ -85,6 +85,8 @@ body::before{
 .rc-main.static{ cursor:default; }
 .rc-title{ font-family:'Cinzel', serif; font-weight:600; font-size:.92rem; letter-spacing:.02em; }
 .rc-sub{ font-size:.8rem; color:var(--ice); opacity:.8; margin-top:2px; }
+.rc-sr{ display:flex; align-items:center; gap:6px; margin-top:5px; }
+.rc-sr .mini-sel{ margin-top:0; width:auto; min-width:110px; }
 .rc-acts{ display:flex; align-items:center; padding-right:8px; gap:2px; }
 .icon-btn{
   background:none; border:none; color:var(--ice); font-size:1.15rem; cursor:pointer;
@@ -3975,6 +3977,8 @@ function duplicateScene(id){
       maxVit:c.maxVit, curVit:c.maxVit, act:'', target:'', done:false, affs:[], img:c.img||'',
       attrs: c.attrs ? JSON.parse(JSON.stringify(c.attrs)) : undefined,
       inv: (c.inv||[]).slice(),
+      infusions: (c.infusions||[]).slice(),
+      augments: (c.augments||[]).slice(),
       abilities: c.abilities ? JSON.parse(JSON.stringify(c.abilities)) : [],
       sig: c.sig||'', source: c.source||'', build: c.build||'', stance: c.stance||'' };
   });
@@ -5210,6 +5214,61 @@ function reforgeFoeToTier(foe, newTier){
   return foe;
 }
 /* ============================================================
+   AUTHOR AT THE CEILING, SCALE PER SCENE
+   A library foe is built to the Forsaken ceiling: its whole kit is authored once.
+   A scene sets the rating it fights at, and the instance trims down from that ceiling.
+   Infusions, augmentations, and Acts trim in author order, first picked first kept.
+   Attributes and vitality rescale to the rating. The library foe is never touched.
+   ============================================================ */
+function fwDeriveKit(foe, sr){
+  var apl=fwPartyLevel(), party=fwPartySize();
+  var scaled=fwScaleFoe(foe.build||FW_FOE_PACK.builds[0].name, sr, apl, party) || { attrs:blankAttrs(), maxVit:0 };
+  var bud=fwTierBudget(sr);
+  return {
+    sr: sr,
+    attrs: scaled.attrs,
+    maxVit: scaled.maxVit,
+    infusions: (foe.infusions||[]).slice(0, bud.inf),
+    augments: (foe.augments||[]).slice(0, bud.aug),
+    abilities: JSON.parse(JSON.stringify((foe.abilities||[]).slice(0, bud.acts)))
+  };
+}
+/* Build a scene combatant from an authored library foe at a chosen rating. */
+function fwMakeMonCombatant(e, name){
+  var sr = e.sr || 'Elite';
+  var kit = fwDeriveKit(e, sr);
+  return {
+    id: uid(), libId: e.id, type:'monster', side:'monster', name: name,
+    sr: sr, maxVit: kit.maxVit, curVit: kit.maxVit,
+    attrs: kit.attrs,
+    infusions: kit.infusions.slice(),
+    augments: kit.augments.slice(),
+    abilities: kit.abilities,
+    inv: (e.inv || []).slice(),
+    sig: e.sig || '', source: e.source || '', build: e.build || '', stance: e.stance || '',
+    img: e.img || '',
+    act:'', target:'', done:false, affs:[]
+  };
+}
+/* Change a scene combatant's rating. Re-derives its kit from the authored foe when the
+   library still holds it, so raising the rating restores trimmed picks and lowering it
+   drops them cleanly. Falls back to the combatant's own stored kit for summoned foes. */
+function combatantSetSR(cid, sr){
+  var cb=_findCombatant(cid); if(!cb || cb.type!=='monster') return;
+  if(!fwFoeTier(sr)) return;
+  var e = cb.libId ? libGet(cb.libId) : null;
+  var src = e || cb;
+  var kit = fwDeriveKit(src, sr);
+  cb.sr = sr;
+  cb.attrs = kit.attrs;
+  cb.maxVit = kit.maxVit;
+  cb.curVit = kit.maxVit;
+  cb.infusions = kit.infusions.slice();
+  cb.augments = kit.augments.slice();
+  cb.abilities = kit.abilities;
+  save(); render();
+}
+/* ============================================================
    THE PARTY A FOE IS SCALED AGAINST
    Foe vitality is average party level times party size times the tier weight. Two readings of
    the party used to disagree, so a foe re-forged to a different number than it attached at.
@@ -5354,7 +5413,7 @@ function doSummon(diff){
         added++;
         sc.combatants.push({ id:uid(), libId:null, type:'monster', side:'monster', summonName:f.name,
           name:f.name+(cnt>1?' '+(k+1):''), sr:f.tier, maxVit:scd.maxVit, curVit:scd.maxVit,
-          attrs:JSON.parse(JSON.stringify(scd.attrs)), inv:[], abilities:[],
+          attrs:JSON.parse(JSON.stringify(scd.attrs)), inv:[], infusions:[], augments:[], abilities:[],
           sig:f.sig||'', source:'summon', build:f.build, stance:f.stance||'', img:'',
           act:'', target:'', done:false, affs:[] });
       }
@@ -5395,18 +5454,7 @@ function spawnFoeOnScene(sc, libId, copies){
   if (existing) fwNumberExisting(sc, libId, e.name);
   for (var i=0;i<copies;i++){
     var idx = existing + i;
-    sc.combatants.push({
-      id: uid(), libId: libId, type: 'monster', side: 'monster',
-      name: e.name + ((existing+copies)>1 ? ' ' + (idx+1) : ''),
-      sr: e.sr, maxVit: effMaxVit(e), curVit: effMaxVit(e),
-      attrs: JSON.parse(JSON.stringify(e.attrs || blankAttrs())),
-      inv: (e.inv || []).slice(),
-      augments: (e.augments || []).slice(),
-      abilities: JSON.parse(JSON.stringify(e.abilities || [])),
-      sig: e.sig || '', source: e.source || '', build: e.build || '', stance: e.stance || '',
-      img: e.img || '',
-      act:'', target:'', done:false, affs:[]
-    });
+    sc.combatants.push(fwMakeMonCombatant(e, e.name + ((existing+copies)>1 ? ' ' + (idx+1) : '')));
   }
   return copies;
 }
@@ -5451,18 +5499,7 @@ function attachFoe(libId){
   if(existing) fwNumberExisting(sc, libId, e.name);
   for (var i=0;i<n;i++){
     var idx = existing + i;
-    sc.combatants.push({
-      id: uid(), libId: libId, type: 'monster', side: 'monster',
-      name: e.name + ((existing+n)>1 ? ' ' + (idx+1) : ''),
-      sr: e.sr, maxVit: effMaxVit(e), curVit: effMaxVit(e),
-      attrs: JSON.parse(JSON.stringify(e.attrs || blankAttrs())),
-      inv: (e.inv || []).slice(),
-      augments: (e.augments || []).slice(),
-      abilities: JSON.parse(JSON.stringify(e.abilities || [])),
-      sig: e.sig || '', source: e.source || '', build: e.build || '', stance: e.stance || '',
-      img: e.img || '',
-      act:'', target:'', done:false, affs:[]
-    });
+    sc.combatants.push(fwMakeMonCombatant(e, e.name + ((existing+n)>1 ? ' ' + (idx+1) : '')));
   }
   closeModal(); save(); render();
 }
@@ -6262,12 +6299,10 @@ function setFoeMaxVit(cid){
    anything of theirs that reached canon. Names merge, custom never shadows canon. */
 function poolExtra(bucket){ return (window._pools && window._pools[bucket]) || []; }
 function infusionPool(buildName){
-  var b = fwFoeBuild(buildName); var atk = (b && b.attackAttributes) || [];
-  var canon = FW_FOE_PACK.infusions.filter(function(i){ return atk.indexOf(i.family)>=0; }).map(function(i){ return i.name; });
-  var extra = poolExtra('infusions').filter(function(x){
-    if (canon.indexOf(x.name) >= 0) return false;
-    return !x.family || atk.indexOf(x.family) >= 0;   /* a custom infusion with no family fits any build */
-  }).map(function(x){ return x.name; });
+  /* Every foe attacks. Base Damage is at least 1, so every infusion bites regardless of
+     build. The full catalog is open to any foe, canon first then the loremaster's own. */
+  var canon = FW_FOE_PACK.infusions.map(function(i){ return i.name; });
+  var extra = poolExtra('infusions').filter(function(x){ return canon.indexOf(x.name) < 0; }).map(function(x){ return x.name; });
   return canon.concat(extra);
 }
 function augmentPool(){
@@ -6440,9 +6475,15 @@ function fsSave(){
   var f = fsTarget(); if (!f) return;
   save(); render();
 }
-function fsSetSR(v){
+function fsSetDefaultSR(v){
   var f = fsTarget(); if (!f) return;
-  reforgeFoeToTier(f, v);
+  f.sr = v;
+  save(); foeSheet(window._fs.id, window._fs.src);
+}
+function fsForsakenVit(){
+  var f = fsTarget(); if (!f) return;
+  f.maxVit = foeVitality('Forsaken', partyContext().apl);
+  if (f.curVit===undefined || f.curVit > f.maxVit) f.curVit = f.maxVit;
   save(); foeSheet(window._fs.id, window._fs.src);
 }
 function fsSetField(k, v){
@@ -6453,7 +6494,7 @@ function fsSetField(k, v){
     if (f.curVit===undefined || f.curVit > n) f.curVit = n;
   } else if (k==='build'){
     f.build = v;
-    f.infusions = fwFillInfusions(f.build, f.sr, f.infusions, f.name||f.id);
+    if (!Array.isArray(f.infusions)) f.infusions = [];
   } else {
     f[k] = v;
   }
@@ -6466,7 +6507,7 @@ function fsToggleInf(n){
   var f = fsTarget(); if (!f) return;
   if (!Array.isArray(f.infusions)) f.infusions = [];
   var i = f.infusions.indexOf(n);
-  var cap = fwTierBudget(f.sr).inf;
+  var cap = fwTierBudget('Forsaken').inf;
   if (i>=0) f.infusions.splice(i,1);
   else if (f.infusions.length < cap) f.infusions.push(n);
   save(); foeSheet(window._fs.id, window._fs.src);
@@ -6475,7 +6516,7 @@ function fsToggleAug(n){
   var f = fsTarget(); if (!f) return;
   if (!Array.isArray(f.augments)) f.augments = [];
   var i = f.augments.indexOf(n);
-  var cap = fwTierBudget(f.sr).aug;
+  var cap = fwTierBudget('Forsaken').aug;
   if (i>=0) f.augments.splice(i,1);
   else if (f.augments.length < cap) f.augments.push(n);
   save(); foeSheet(window._fs.id, window._fs.src);
@@ -6616,7 +6657,7 @@ function foeSheet(id, src){
   if (!Array.isArray(f.augments)) f.augments=[];
   if (!Array.isArray(f.inv)) f.inv=[];
 
-  var bud = fwTierBudget(f.sr||'Elite');
+  var bud = fwTierBudget('Forsaken');
   var infPool = infusionPool(f.build);
   var srcTag = f.source==='mine' ? ' <span class="npc-tag">yours</span>' : (f.source==='canon' ? ' <span class="npc-tag">canon</span>' : '');
   var abN = (f.abilities||[]).length;
@@ -6625,17 +6666,17 @@ function foeSheet(id, src){
     + (f.img ? '<div class="token-prev big"><img src="'+esc(imgSrc(f.img))+'" alt="token"></div>' : '')
     + '<p class="muted">'+(f.sr?esc(f.sr)+' &middot; ':'')+(f.maxVit||0)+' vit</p>';
 
-  h += '<div class="lbl">Shatter rating</div>'
-    + '<select class="inp" onchange="fsSetSR(this.value)">'
+  h += '<div class="lbl">Default rating in scenes</div>'
+    + '<select class="inp" onchange="fsSetDefaultSR(this.value)">'
     + SR_ORDER.map(function(r){ return '<option value="'+r+'"'+(f.sr===r?' selected':'')+'>'+r+'</option>'; }).join('')
     + '</select>'
-    + '<p class="muted small">Changing the rating rescales attributes and vitality, and fills infusions and augmentations to the new budget. Acts trim to the ceiling.</p>';
+    + '<p class="muted small">This foe is built to the Forsaken ceiling. A scene sets its rating and scales it down from the whole kit below. This is the rating it starts at when you add it to a scene.</p>';
 
-  var stdVit = f.sr ? foeVitality(f.sr, partyContext().apl) : 0;
-  h += '<div class="lbl">Vitality</div>'
+  var ceilVit = foeVitality('Forsaken', partyContext().apl);
+  h += '<div class="lbl">Vitality at the ceiling</div>'
     + '<div class="qd"><input class="qd-in" type="number" inputmode="numeric" value="'+(f.maxVit||0)+'" onchange="fsSetField(\'maxVit\',this.value)">'
-    + '<button class="qd-b" onclick="fsSetSR(\''+(f.sr||'Elite')+'\')" title="Recompute from the party level">Rescale</button></div>'
-    + (stdVit ? '<p class="muted small">A '+esc(f.sr)+' stands at '+stdVit+' against this party. Raise the number to pad a foe that fights alone.</p>' : '');
+    + '<button class="qd-b" onclick="fsForsakenVit()" title="Recompute the Forsaken value from the party level">Rescale</button></div>'
+    + (ceilVit ? '<p class="muted small">A Forsaken stands at '+ceilVit+' against this party. Scenes recompute vitality for their own rating, so this number is the ceiling only.</p>' : '');
 
   h += fsChoice('Build', f.build, 'builds', 'fsSetBuild',
         FW_FOE_PACK.builds.map(function(x){ return x.name; }), 'No build');
@@ -6643,8 +6684,7 @@ function foeSheet(id, src){
   h += fsChoice('Signature affliction', f.sig, 'afflictions', 'fsSetSig', FW_FOE_PACK.afflictions, 'None');
 
   h += '<div class="lbl">Infusions <span class="muted small">'+(f.infusions.length)+' of '+bud.inf+'</span></div>';
-  h += infPool.length ? fsPickerChips(infPool, f.infusions, bud.inf, 'fsToggleInf', 'infusions')
-     : '<p class="muted small">This build carries no attack attribute, so it takes no infusions.</p>';
+  h += fsPickerChips(infPool, f.infusions, bud.inf, 'fsToggleInf', 'infusions');
 
   h += '<div class="lbl">Augmentations <span class="muted small">'+(f.augments.length)+' of '+bud.aug+'</span></div>';
   h += bud.aug > 0 ? fsPickerChips(augmentPool(), f.augments, bud.aug, 'fsToggleAug', 'augmentations')
@@ -7624,16 +7664,19 @@ function sceneAddRef(rid){
   var sc = curSc();
   var existing = sc.combatants.filter(function(c){ return c.libId===rid; }).length;
   if(existing) fwNumberExisting(sc, rid, e.name);
-  var isMon = e.type==='monster';
-  sc.combatants.push({
-    id: uid(), libId: rid, type: isMon?'monster':'npc', side: isMon?'monster':'npc',
-    name: e.name + (existing ? ' ' + (existing+1) : ''),
-    sr: isMon ? e.sr : '', maxVit: isMon ? effMaxVit(e) : (e.maxVit||0), curVit: isMon ? effMaxVit(e) : (e.maxVit||0),
-    attrs: JSON.parse(JSON.stringify(e.attrs || blankAttrs())),
-    inv: (e.inv || []).slice(),
-    abilities: JSON.parse(JSON.stringify(e.abilities || [])),
-    img: e.img || '', act:'', target:'', done:false, affs:[]
-  });
+  var nm = e.name + (existing ? ' ' + (existing+1) : '');
+  if (e.type==='monster'){
+    sc.combatants.push(fwMakeMonCombatant(e, nm));
+  } else {
+    sc.combatants.push({
+      id: uid(), libId: rid, type:'npc', side:'npc', name: nm,
+      sr: '', maxVit: e.maxVit||0, curVit: e.maxVit||0,
+      attrs: JSON.parse(JSON.stringify(e.attrs || blankAttrs())),
+      inv: (e.inv || []).slice(),
+      abilities: JSON.parse(JSON.stringify(e.abilities || [])),
+      img: e.img || '', act:'', target:'', done:false, affs:[]
+    });
+  }
   save(); render();
 }
 function refCard(rid, sc, removable){
@@ -7718,9 +7761,19 @@ function tabRoster(sc){
   } else {
     sc.combatants.forEach(function(cb){
       var abN=(cb.abilities||[]).length;
+      var isMon = cb.type==='monster' && cb.side!=='npc';
+      var srSel = isMon
+        ? '<div class="rc-sr"><span class="muted small">Rating</span> <select class="inp slim mini-sel" onchange="combatantSetSR(\''+cb.id+'\',this.value)">'
+            + SR_ORDER.map(function(r){ return '<option value="'+r+'"'+(cb.sr===r?' selected':'')+'>'+r+'</option>'; }).join('')
+            + '</select></div>'
+        : '';
+      var editBtn = cb.libId
+        ? '<button class="icon-btn" title="Edit this foe" onclick="foeSheet(\''+cb.libId+'\',\'lib\')">&#9998;</button>'
+        : '';
       h += '<div class="card row-card">'+rowThumb(cb.img, cb.name)+'<div class="rc-main static"><div class="rc-title">'+esc(cb.name)+'</div>'
-        + '<div class="rc-sub">'+(cb.sr?esc(cb.sr)+' &middot; ':'')+cb.curVit+' / '+cb.maxVit+' vit'+(cb.stance?' &middot; '+esc(cb.stance):'')+(abN?' &middot; '+abN+' ability'+(abN===1?'':'s'):'')+'</div></div>'
-        + '<div class="rc-acts"><button class="icon-btn" title="Abilities and spells" onclick="editCombatantAbilities(\''+cb.id+'\')">&#9670;</button>'
+        + '<div class="rc-sub">'+cb.curVit+' / '+cb.maxVit+' vit'+(cb.stance?' &middot; '+esc(cb.stance):'')+(abN?' &middot; '+abN+' ability'+(abN===1?'':'s'):'')+'</div>'
+        + srSel + '</div>'
+        + '<div class="rc-acts">'+editBtn+'<button class="icon-btn" title="Abilities and spells" onclick="editCombatantAbilities(\''+cb.id+'\')">&#9670;</button>'
         + '<button class="icon-btn danger" onclick="removeCombatant(\''+cb.id+'\')">&times;</button></div></div>';
     });
     h += '<button class="btn wide ghost" onclick="attachChooser()">Attach more</button>';

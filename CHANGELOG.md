@@ -1,3 +1,11 @@
+## Foes author at the ceiling and scale per scene
+
+- A library foe is now built to the Forsaken ceiling. Its whole kit is authored once: up to three infusions, two augmentations, three Acts. A scene sets the rating it fights at, and the instance trims down from that ceiling in author order, first picked first kept. Attributes and vitality rescale to the scene rating. The library foe is never changed.
+- Every foe takes infusions. Base Damage is at least 1 for any foe, so infusions always bite. The old gate that hid infusions from builds with no attack attribute is gone. The full catalog is open to every build.
+- Fixed a drop: the four scene-spawn paths never carried a foe's infusions onto the board, so authored infusions vanished on attach. Combatants now carry infusions, and monInfo shows them.
+- The scene roster card gains a rating selector and an edit button. Change the rating on the card and the foe re-derives from its authored self. The edit button opens the full foe sheet.
+- The library sheet's rating selector is now a non-destructive default. Picking it no longer reforges attributes or refills the kit. It only sets the rating a foe starts at when added to a scene.
+
 ## The Vixel stops healing and the Runesteed builds walls
 
 - The Vixel's Crown removed an Affliction, which is the Cawmarch's whole reason to exist. It now forces the enemy to target a different Fell or lose its Act. Every rung of the Vixel moves something, and none of them touch Afflictions.
