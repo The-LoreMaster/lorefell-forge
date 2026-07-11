@@ -1181,11 +1181,12 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 .notegrid{ grid-template-columns:1fr; gap:11px; }
 @media(min-width:760px){ .notegrid{ grid-template-columns:1fr 1fr; } }
 .ncard{ position:relative; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 14px 12px 40px; overflow:visible; }
-.nc-ins{ position:absolute; top:-11px; left:-11px; width:22px; height:22px; border-radius:50%; border:1px solid rgba(201,168,76,.55); background:var(--navy2); color:var(--gold); font-size:15px; line-height:1; cursor:pointer; z-index:4; display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity .12s; padding:0; }
-.ncard:hover .nc-ins, .ncard:focus-within .nc-ins{ opacity:1; }
-@media (hover:none){ .nc-ins{ opacity:.55; } }
-.ins-rail{ display:block; width:100%; border:1px dashed var(--line); background:transparent; color:var(--muted,#7e8a99); border-radius:8px; padding:1px 0; margin:5px 0; cursor:pointer; font-size:14px; line-height:1.3; opacity:.45; transition:opacity .12s, color .12s, border-color .12s; }
-.ins-rail:hover{ opacity:1; color:var(--gold); border-color:rgba(201,168,76,.55); }
+.nc-ins{ position:absolute; width:22px; height:22px; border-radius:50%; border:1px solid rgba(201,168,76,.55); background:var(--navy2); color:var(--gold); font-size:15px; line-height:1; cursor:pointer; z-index:4; display:flex; align-items:center; justify-content:center; padding:0; opacity:.92; box-shadow:0 0 0 3px var(--navy,#0a0e1a); }
+.nc-ins:hover{ opacity:1; background:var(--gold); color:var(--navy,#0a0e1a); }
+.nc-ins.ins-top{ top:-18px; left:50%; transform:translateX(-50%); }
+.nc-ins.ins-left{ left:-18px; top:50%; transform:translateY(-50%); }
+.ins-row{ display:flex; justify-content:center; margin:2px 0; }
+.ins-row .nc-ins{ position:static; transform:none; box-shadow:none; }
 .ncard.pinned{ border-color:rgba(201,168,76,.4); }
 .nc-ember{ position:absolute; left:0; top:8px; bottom:8px; width:3px; border-radius:0 2px 2px 0; background:var(--tc,var(--gold)); }
 .ncard .gc-grip{ left:8px; top:10px; }
@@ -4713,7 +4714,7 @@ function noteCard(ref, e, num, insIdx){
   else if (longBody){ body = '<div class="nc-body clamp">'+renderNoteBody(raw, ref)+'</div><button type="button" class="nc-more" onclick="toggleNoteBody(this)">More</button>'; }
   else { body = '<div class="nc-body">'+renderNoteBody(raw, ref)+'</div>'; }
   var numBadge = num ? '<span class="nc-num">'+num+'</span>' : '';
-  var ins = (typeof insIdx==='number') ? '<button class="nc-ins" title="Insert a note here" onclick="insertEntryAt(\''+ref+'\','+insIdx+')">+</button>' : '';
+  var ins = (typeof insIdx==='number') ? '<button class="nc-ins ins-top" title="Insert a note here" onclick="insertEntryAt(\''+ref+'\','+insIdx+')">+</button>' : '';
   return '<div class="ncard dcard t-'+t+(e.pinned?' pinned':'')+'" data-id="'+e.id+'">'
     + ins
     + '<button class="gc-grip" data-grip aria-label="Drag to reorder"><svg viewBox="0 0 11 16">'+GRIP_DOTS+'</svg></button>'
@@ -4761,7 +4762,7 @@ function notesBlock(ref, opts){
       /* collapse rule: 3+ entries default closed unless pinned or explicitly opened */
       var isOpen = e.pinned || (manyOpen ? (e.open===true) : (e.open!==false));
       var idx = -1; entries.forEach(function(x,i){ if(x.id===e.id) idx=i; });
-      h += '<button class="ins-rail" title="Insert a note here" onclick="insertEntryAt(\''+ref+'\','+idx+')">+</button>';
+      h += '<div class="ins-row"><button class="nc-ins" title="Insert a note here" onclick="insertEntryAt(\''+ref+'\','+idx+')">+</button></div>';
       h += '<div class="entry card-type t-'+e.type+(e.pinned?' pinned':'')+'" id="entry-'+e.id+'">'
         + '<div class="entry-hd" onclick="toggleEntry(\''+ref+'\',\''+e.id+'\')">'
         + '<span class="caret'+(isOpen?' open':'')+'">&rsaquo;</span>'
@@ -7606,6 +7607,25 @@ function applyCardOrder(kind, ids, ref){
   save(); render();
 }
 /* pointer drag reorder for the card grids, touch and mouse */
+/* Position each card's insert + in the gap that precedes it. The leftmost card in a row
+   gets a top-centered + (the gap above, between rows); the others get a left-centered +
+   (the gap beside, between two cards in a row). Runs after render and on resize. */
+function placeNoteInserts(){
+  document.querySelectorAll('.notegrid').forEach(function(grid){
+    var cards = [].slice.call(grid.children).filter(function(c){ return c.classList && c.classList.contains('ncard'); });
+    if (!cards.length) return;
+    var minLeft = Infinity;
+    cards.forEach(function(c){ if (c.offsetLeft < minLeft) minLeft = c.offsetLeft; });
+    cards.forEach(function(c){
+      var ins = c.querySelector('.nc-ins'); if (!ins) return;
+      var rowStart = (c.offsetLeft - minLeft) < 4;
+      ins.classList.toggle('ins-left', !rowStart);
+      ins.classList.toggle('ins-top', rowStart);
+    });
+  });
+}
+window.addEventListener('resize', function(){ clearTimeout(window._niT); window._niT = setTimeout(function(){ try{ placeNoteInserts(); }catch(_){} }, 120); });
+
 function wireCardDrag(){
   document.querySelectorAll('.cardgrid').forEach(function(grid){
     var kind=grid.getAttribute('data-kind');
@@ -10708,6 +10728,7 @@ function render(){
   try{ if (V.screen==='library' && (V.libSearch||'').trim()) libSearchInput(V.libSearch); }catch(_){}
   try{ var _scE=document.querySelectorAll('.run-col,.run-scroll'); for(var _si=0;_si<_scE.length;_si++){ if(_scR[_si]!=null) _scE[_si].scrollTop=_scR[_si]; } }catch(_){}
   try { wireCardDrag(); } catch(_){}
+  try { placeNoteInserts(); } catch(_){}
   try { publishCombat(); } catch(_){}
   try { if(window._fwPopKey && document.getElementById('fwTkOvl')) fwTokenPopup(window._fwPopKey); } catch(_){}
   document.getElementById('bnav-slot').innerHTML = '';
