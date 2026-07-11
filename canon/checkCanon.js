@@ -168,7 +168,54 @@ function axis3(base) {
   });
 }
 
+/* ================= SELFTEST (SELFTEST=1 node canon/checkCanon.js) ================= */
+// Guards the `concepts` index without needing git or a diff. Two checks:
+//   1. structural sanity - every concept has a non-empty forge, every forge member has a
+//      file, and a vault key is present.
+//   2. golden parity - the normalized axis-3 groups the index produces must match the
+//      frozen snapshot canon/concepts.groups.golden.json, which was seeded from the exact
+//      membership the legacy `manual` array produced. Any change to concept membership
+//      that diverges from the golden fails here, so the migration's behavior-preserving
+//      property is enforced in CI forever, not merely proven once. When membership changes
+//      on purpose, regenerate the golden (see the note in that file).
+function normalizeGroups() {
+  const out = {};
+  Object.keys(MAP.concepts || {}).filter((k) => k[0] !== '_').sort().forEach((concept) => {
+    out[concept] = (MAP.concepts[concept].forge || [])
+      .map((m) => ({ file: m.file, tag: m.tag || null, anchorStart: m.anchorStart || null, anchorEnd: m.anchorEnd || null }))
+      .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+  });
+  return out;
+}
+function selftest() {
+  const goldenPath = path.join(ROOT, 'canon', 'concepts.groups.golden.json');
+  const errs = [];
+  if (!MAP.concepts) errs.push('no `concepts` block in canon.map.json');
+  Object.keys(MAP.concepts || {}).filter((k) => k[0] !== '_').forEach((c) => {
+    const e = MAP.concepts[c];
+    if (!e.forge || !e.forge.length) errs.push('concept "' + c + '" has no forge members');
+    (e.forge || []).forEach((m) => { if (!m.file) errs.push('concept "' + c + '" has a forge member with no file'); });
+    if (!('vault' in e)) errs.push('concept "' + c + '" is missing its vault key');
+  });
+  const live = normalizeGroups();
+  let golden = null;
+  try { golden = JSON.parse(nl(fs.readFileSync(goldenPath, 'utf8'))); }
+  catch (e) { errs.push('golden missing/unreadable: canon/concepts.groups.golden.json'); }
+  if (golden && JSON.stringify(golden) !== JSON.stringify(live)) {
+    errs.push('axis-3 groups diverge from canon/concepts.groups.golden.json (concept membership changed).'
+      + '\n    If this change is intentional, regenerate the golden from the current concepts index.');
+  }
+  if (errs.length) {
+    console.error('\ncanon SELFTEST FAILED (' + errs.length + '):');
+    errs.forEach((p) => console.error('- ' + p));
+    process.exit(1);
+  }
+  console.log('canon SELFTEST: ok (concepts index well-formed; axis-3 groups match the frozen legacy golden).');
+  process.exit(0);
+}
+
 /* ================= run ================= */
+if (process.env.SELFTEST) selftest(); // runs the self-check and exits; never touches git
 const base = resolveBase();
 console.log('canon gate: base=' + (base || '(none)'));
 axis1();
