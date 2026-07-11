@@ -91,6 +91,10 @@ body::before{
 .fc-img{ margin:8px 0 4px; max-height:220px; overflow:hidden; border-radius:10px; }
 .fc-img img{ width:100%; height:auto; display:block; object-fit:cover; }
 .fc-desc{ color:var(--ice); font-size:.9rem; line-height:1.5; margin:6px 0 2px; }
+.fs-token{ display:block; }
+.fs-token-prev{ width:100%; max-height:260px; overflow:hidden; border-radius:10px; margin-bottom:8px; }
+.fs-token-prev img{ width:100%; height:auto; display:block; object-fit:cover; }
+.fs-token-btns{ display:flex; gap:8px; }
 .row-card{ display:flex; align-items:stretch; padding:0; overflow:hidden; }
 .rc-main{
   flex:1; text-align:left; background:none; border:none; color:inherit; font:inherit;
@@ -2712,7 +2716,7 @@ function assetToRow(e){
     inventory: JSON.stringify(e.inv || []),
     abilities: JSON.stringify(e.abilities || []),
     foeWeight: e.foeWeight || 0,
-    foeMeta: JSON.stringify({ build:e.build||'', stance:e.stance||'', sig:e.sig||'', source:e.source||'', augments:e.augments||[], infusions:e.infusions||[] })
+    foeMeta: JSON.stringify({ build:e.build||'', stance:e.stance||'', sig:e.sig||'', source:e.source||'', augments:e.augments||[], infusions:e.infusions||[], campaignId:e.campaignId||'', campaignName:e.campaignName||'' })
   };
 }
 /* Rebuild a library entity from a CMS row. Tolerates already-parsed or string JSON. */
@@ -2748,6 +2752,8 @@ function rowToAsset(r){
     e.stance = fm.stance || pick('stance') || '';
     e.augments = Array.isArray(fm.augments) ? fm.augments : [];
     e.infusions = Array.isArray(fm.infusions) ? fm.infusions : jp(pick('infusions'), []);
+    if (fm.campaignId !== undefined) e.campaignId = fm.campaignId || '';
+    if (fm.campaignName !== undefined) e.campaignName = fm.campaignName || '';
   } else {
     e.role = pick('role') || '';
     if (type==='npc'){
@@ -6397,8 +6403,6 @@ function foeDisplayCard(f, opts){
   opts = opts || {};
   var mon = (f.type||'monster')==='monster';
   var srcTag = f.source==='mine' ? ' <span class="npc-tag">yours</span>' : (f.source==='canon' ? ' <span class="npc-tag">canon</span>' : '');
-  var thumb = f.img ? '<span class="row-thumb"><img src="'+esc(imgSrc(f.img))+'" alt=""></span>'
-                    : '<span class="row-thumb mono">'+esc((f.name||'?').trim().charAt(0).toUpperCase())+'</span>';
   var vit = (f.curVit!==undefined && f.curVit!==null ? f.curVit+' / ' : '') + (f.maxVit||0) + ' vit';
   var acts = '';
   if (opts.editId){
@@ -6407,7 +6411,7 @@ function foeDisplayCard(f, opts){
   }
   if (opts.removeId) acts += '<button class="icon-btn danger" title="Remove" onclick="removeCombatant(\''+opts.removeId+'\')">&times;</button>';
   var h = '<div class="foecard">'
-    + '<div class="fc-head">'+thumb
+    + '<div class="fc-head">'
     + '<div class="fc-id"><div class="fc-name">'+esc(f.name)+srcTag+'</div>'
     + '<div class="fc-sub">'+(f.sr?esc(f.sr)+' &middot; ':'')+vit+'</div></div>'
     + (acts ? '<div class="fc-acts">'+acts+'</div>' : '')
@@ -6631,12 +6635,18 @@ function fsPersist(){
    re-render, and push to the account when the field is left. Image saves on choose. */
 function fsSetName(v){ var f = fsTarget(); if (f){ f.name = v; saveLocal(); } }
 function fsSetDesc(v){ var f = fsTarget(); if (f){ f.desc = v; saveLocal(); } }
+function fsSetCampaign(v){
+  var f = fsTarget(); if (!f) return;
+  f.campaignId = v || '';
+  f.campaignName = f.campaignId ? campaignNameById(f.campaignId) : '';
+  fsPushFoe();
+}
 function fsPushFoe(){ var f = fsTarget(); if (f){ save(); if (WIX.hosted && window._fs && window._fs.src==='lib') pushAsset(f); } }
 function fsTokenField(current){
   var has = current && current.length;
-  return '<div class="token-field">'
-    + '<div class="token-prev" id="fsImgPrev">'+(has?'<img src="'+esc(imgSrc(current))+'" alt="token">':'<span class="muted">No image</span>')+'</div>'
-    + '<div class="token-btns">'
+  return '<div class="token-field fs-token">'
+    + '<div class="token-prev fs-token-prev" id="fsImgPrev">'+(has?'<img src="'+esc(imgSrc(current))+'" alt="token">':'<span class="muted">No image</span>')+'</div>'
+    + '<div class="token-btns fs-token-btns">'
     + '<input type="file" accept="image/*" id="fsImgFile" class="token-file" onchange="fsReadToken(this)">'
     + '<button type="button" class="btn small token-up" onclick="document.getElementById(\'fsImgFile\').click()">Choose image</button>'
     + '<button type="button" class="btn small ghost" id="fsImgClear" onclick="fsClearImg()"'+(has?'':' style="display:none"')+'>Remove</button>'
@@ -6852,6 +6862,9 @@ function foeSheet(id, src){
   h += '<label class="lbl">Image</label>' + fsTokenField(f.img);
   h += '<label class="lbl">Description</label>'
     + '<textarea class="inp ta" oninput="fsSetDesc(this.value)" onchange="fsPushFoe()" placeholder="What it is, in a line or two">'+esc(f.desc||'')+'</textarea>';
+  h += '<label class="lbl">Campaign</label>'
+    + '<select class="inp" onchange="fsSetCampaign(this.value)">'+assetCampaignOptions(f.campaignId||'')+'</select>'
+    + '<p class="muted small">Which campaign this foe belongs to. Tie it to a campaign to keep it off the shelf in your others. Any campaign keeps it everywhere.</p>';
   h += '<p class="muted">'+(f.sr?esc(f.sr)+' &middot; ':'')+(f.maxVit||0)+' vit</p>';
 
   h += '<div class="lbl">Default rating in scenes</div>'
@@ -10326,10 +10339,7 @@ function scrLibrary(){
   }
   h += '</div>';
 
-  var lq = (V.libSearch||'').trim().toLowerCase();
-  var list = libScoped(S.library.filter(function(e){
-    return (V.libFilter==='all' || e.type===V.libFilter) && (!lq || (e.name||'').toLowerCase().indexOf(lq) >= 0);
-  }));
+  var list = libScoped(S.library.filter(function(e){ return V.libFilter==='all' || e.type===V.libFilter; }));
   if (!list.length){
     if (scope==='current' && cname && S.library.length)
       h += '<p class="muted small-note">Nothing here is tagged to '+esc(cname)+'. Switch to All campaigns to see the rest of the shelf.</p>';
@@ -10588,6 +10598,7 @@ function render(){
   if (V.ov) h += ovHtml();
   var _scR=[]; try{ document.querySelectorAll('.run-col,.run-scroll').forEach(function(el){ _scR.push(el.scrollTop); }); }catch(_){}
   document.getElementById('app').innerHTML = h;
+  try{ if (V.screen==='library' && (V.libSearch||'').trim()) libSearchInput(V.libSearch); }catch(_){}
   try{ var _scE=document.querySelectorAll('.run-col,.run-scroll'); for(var _si=0;_si<_scE.length;_si++){ if(_scR[_si]!=null) _scE[_si].scrollTop=_scR[_si]; } }catch(_){}
   try { wireCardDrag(); } catch(_){}
   try { publishCombat(); } catch(_){}

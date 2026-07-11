@@ -1,3 +1,10 @@
+## Campaign in the editor, one image on the card, search clears clean
+
+- The foe editor sets which campaign a foe belongs to. This ties it to a campaign so it stays off the shelf in your others, or Any campaign to keep it everywhere. The tag now saves to the account too.
+- The display card shows one image, not two. The small header token is gone in favor of the full image.
+- In the editor the image spans the full width with Choose and Remove beneath it.
+- Clearing the library search restores the full list for the current scope. The grid renders every card and the search filters the view, so an empty box shows everything again.
+
 ## Name, image, and description live in the editor and on the card
 
 - The foe editor edits name, image, and description directly. No trip to a separate editor. Name and description save as you type and sync when you leave the field. The image saves when you choose it.
