@@ -1217,6 +1217,7 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 .cb-cname{ font-family:var(--head,inherit); font-size:1rem; color:var(--silver); margin-bottom:7px; }
 .cb-pickrow{ display:flex; align-items:center; gap:8px; margin-top:6px; }
 .cb-pk{ font-size:9px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); width:46px; flex:0 0 auto; }
+.cb-fixed{ font-family:'Cinzel',serif; color:var(--silver); font-size:.9rem; }
 .cb-pickers{ display:flex; gap:6px; flex-wrap:wrap; flex:1; min-width:0; }
 .inp.slim{ padding:7px 9px; font-size:.85rem; min-width:0; flex:1; }
 .cb-spotctl{ display:flex; align-items:center; gap:10px; margin:6px 0 12px; }
@@ -6504,6 +6505,14 @@ function foeDisplayCard(f, opts){
        + SR_ORDER.map(function(r){ return '<option value="'+r+'"'+(f.sr===r?' selected':'')+'>'+r+'</option>'; }).join('')
        + '</select></div>';
   }
+  if (opts.controls && mon && f.maxVit>0){
+    h += '<div class="lbl">Vitality</div>'
+      + '<div class="vit fc-vit"><button class="vit-b" onclick="adjVit(\''+f.id+'\',-1)">&minus;</button>'
+      + '<span class="vit-n">'+f.curVit+'<span class="vit-max">/'+f.maxVit+'</span></span>'
+      + '<button class="vit-b" onclick="adjVit(\''+f.id+'\',1)">+</button></div>'
+      + '<div class="qd"><input class="qd-in" id="dmg-'+f.id+'" type="number" inputmode="numeric" placeholder="dmg" onkeydown="dmgKey(event,\''+f.id+'\')"><button class="qd-b dmg" onclick="applyDmg(\''+f.id+'\',-1)">Hit</button><button class="qd-b heal" onclick="applyDmg(\''+f.id+'\',1)">Heal</button></div>';
+    h += '<div class="lbl">Conditions</div>' + affChips('m', f.id, f.affs||[]);
+  }
   h += foeKitBody(f, mon);
   return h + '</div>';
 }
@@ -8051,7 +8060,7 @@ function tabRoster(sc){
     h += emptyState('No monsters attached. Pull them from the library or create one.', 'Attach from library', 'attachChooser()');
   } else {
     sc.combatants.forEach(function(cb){
-      h += foeDisplayCard(cb, { editId: cb.libId, rateId: cb.id, removeId: cb.id });
+      h += foeDisplayCard(cb, { editId: cb.libId, rateId: cb.id, removeId: cb.id, controls: true });
     });
     h += '<button class="btn wide ghost" onclick="attachChooser()">Attach more</button>';
   }
@@ -8144,6 +8153,7 @@ function tabCombat(sc){
   var primaryFn  = b.phase==='resolve' ? 'cbNextRound()' : 'lockCommits()';
   h += '<div class="round-bar"><span class="round-n"><span class="round-lbl">Round</span> <span class="round-big">'+b.round+'</span></span>'
     + '<button class="btn small" onclick="'+primaryFn+'">'+primaryLbl+'</button>'
+    + '<button class="btn small" title="Roll every foe accuracy and evade for the round" onclick="rollAllFoes()">Roll all foes</button>'
     + '<button class="icon-btn" title="Reset battle" onclick="resetBattle()">&#8634;</button></div>';
   h += '<div class="phases">';
   [['commit','Commit'],['resolve','Resolve']].forEach(function(p,i){
@@ -8248,6 +8258,23 @@ function combatSpots(){
 }
 
 var CB_ACT_TYPES = ['Attack','Use a skill','Use an item'];
+/* One tap rolls the whole foe side of the round. Every foe attacking a player rolls its
+   accuracy, and every foe a player is targeting rolls its evade. Player rolls are read off
+   paper by the loremaster and never entered here. All of it is logged. */
+function rollAllFoes(){
+  var sc=curSc(); if(!sc) return;
+  var n=0;
+  sc.combatants.forEach(function(c){
+    if(c.side==='npc') return;
+    if(c.intent && c.intent.type==='Attack' && c.target && c.target.indexOf('p:')===0){ cbRollFoeAcc(c.id, true); n++; }
+  });
+  attendingPlayers().forEach(function(p){
+    var tgt=(pState(p.id)||{}).target;
+    if(tgt && tgt.indexOf('m:')===0){ cbRollFoeEva(p.id, tgt.slice(2), true); n++; }
+  });
+  save(); render();
+  cbToast(n ? ('Rolled '+n+' foe '+(n===1?'roll':'rolls')+' for the round.') : 'No foe rolls to make. Set foe targets and player targets first.');
+}
 function cbSetFoeStance(id, v){
   var sc=curSc();
   sc.combatants.forEach(function(c){ if(c.id===id){ c.stance=v||''; cbLog('foe', c.name+(v?(' shifts to '+v+'.'):' drops its stance.')); } });
@@ -8266,9 +8293,7 @@ function cbIntentPicker(cb){
     + '<option value="skill"'+(curVal==='skill'?' selected':'')+'>Use a skill</option>'
     + (_inv.length?('<option value="item"'+(curVal==='item'?' selected':'')+'>Use an item</option>'):'')
     + '</optgroup></select>';
-  var stanceRow = '<div class="cb-pickrow"><span class="cb-pk">Stance (React)</span><div class="cb-pickers"><select class="inp slim" onchange="cbSetFoeStance(\''+cb.id+'\',this.value)"><option value=""'+(!cb.stance?' selected':'')+'>No stance</option>'
-      + ['Shrouded','Stalwart','Vestments'].map(function(sn){ return '<option value="'+sn+'"'+(cb.stance===sn?' selected':'')+'>'+sn+'</option>'; }).join('')
-      + '</select></div></div>';
+  var stanceRow = '<div class="cb-pickrow"><span class="cb-pk">Stance</span><div class="cb-pickers"><span class="cb-fixed">'+(cb.stance?esc(cb.stance):'None')+'</span></div></div>';
   var itemRow = (it.type==='Use an item' && _inv.length)
     ? '<div class="cb-pickrow"><span class="cb-pk">Item</span><div class="cb-pickers"><select class="inp slim" onchange="cbSetIntent(\''+cb.id+'\',\'item\',this.value)"><option value="">Choose an item</option>'
       + _inv.map(function(x){ var nm=(x&&x.name)?x.name:String(x||''); return '<option value="'+esc(nm)+'"'+(it.item===nm?' selected':'')+'>'+esc(nm)+'</option>'; }).join('')
@@ -8734,14 +8759,14 @@ function cbIncoming(n){
   });
   return rows;
 }
-function cbRollFoeEva(pid, foeId){
+function cbRollFoeEva(pid, foeId, silent){
   var foe=null; curSc().combatants.forEach(function(c){ if(c.id===foeId) foe=c; });
   if(!foe) return;
   var ev=foeStanceVal(foe,'evasion');
   var lk=cbFoeLuck(foe), rr=cbRollLuck(lk);
   pState(pid)._eva={ foe:foeId, r:rr.kept, bonus:ev, total:rr.kept+ev, dice:rr.dice, kept:rr.kept, luck:lk };
   cbLog('foe', foe.name+' rolls evasion '+(rr.kept+ev)+' ('+rr.kept+'+'+ev+')'+cbLuckDice({dice:rr.dice,kept:rr.kept})+(lk?(' \u00b7 '+lk):'')+'.');
-  save(); render();
+  if(!silent){ save(); render(); }
 }
 function cbSetFoeEva(pid, foeId, face){
   var foe=null; curSc().combatants.forEach(function(c){ if(c.id===foeId) foe=c; });
@@ -9057,7 +9082,7 @@ function fwEvaRow(n){
 function fwFoeReact(n){
   var c=n.ref;
   if(c.reactUsed) return '<div class="cb-foeacc">React spent \u00b7 <button class="cb-link" onclick="fwFoeReactReset(\''+c.id+'\')">Restore</button></div>';
-  var opts=[]; (c.abilities||[]).forEach(function(a){ if(a && a.use && /react/i.test(String(a.use))) opts.push(a.name); }); opts.push('Movement');
+  var opts=[]; (c.abilities||[]).forEach(function(a){ if(a && a.use && /react/i.test(String(a.use))) opts.push(a.name); }); opts.push('Skill'); opts.push('Movement');
   return '<div class="fw-accrow fw-reactrow"><span class="cb-rowlab">React</span><select id="fwR-'+c.id+'" class="inp slim">'
     + opts.map(function(o){ return '<option>'+esc(o)+'</option>'; }).join('')
     + '</select><button class="btn small" onclick="fwUseFoeReact(\''+c.id+'\')">Use React</button></div>';
