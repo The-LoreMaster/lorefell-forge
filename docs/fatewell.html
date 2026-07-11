@@ -1180,9 +1180,14 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 .gc-add:hover{border-color:var(--gold);color:var(--gold)}
 .notegrid{ grid-template-columns:1fr; gap:11px; }
 @media(min-width:760px){ .notegrid{ grid-template-columns:1fr 1fr; } }
-.ncard{ position:relative; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 14px 12px 40px; overflow:hidden; }
+.ncard{ position:relative; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 14px 12px 40px; overflow:visible; }
+.nc-ins{ position:absolute; top:-11px; left:-11px; width:22px; height:22px; border-radius:50%; border:1px solid rgba(201,168,76,.55); background:var(--navy2); color:var(--gold); font-size:15px; line-height:1; cursor:pointer; z-index:4; display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity .12s; padding:0; }
+.ncard:hover .nc-ins, .ncard:focus-within .nc-ins{ opacity:1; }
+@media (hover:none){ .nc-ins{ opacity:.55; } }
+.ins-rail{ display:block; width:100%; border:1px dashed var(--line); background:transparent; color:var(--muted,#7e8a99); border-radius:8px; padding:1px 0; margin:5px 0; cursor:pointer; font-size:14px; line-height:1.3; opacity:.45; transition:opacity .12s, color .12s, border-color .12s; }
+.ins-rail:hover{ opacity:1; color:var(--gold); border-color:rgba(201,168,76,.55); }
 .ncard.pinned{ border-color:rgba(201,168,76,.4); }
-.nc-ember{ position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--tc,var(--gold)); }
+.nc-ember{ position:absolute; left:0; top:8px; bottom:8px; width:3px; border-radius:0 2px 2px 0; background:var(--tc,var(--gold)); }
 .ncard .gc-grip{ left:8px; top:10px; }
 .nc-hd{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px; }
 .nc-type{ font-family:var(--head,inherit); font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:var(--tc,var(--muted)); }
@@ -4188,6 +4193,15 @@ function forgeScene(ref){
 function BLOCK_OK(t){ return ['readaloud','dialogue','crucible','lorecheck','clue','quest','secret','beat','reminder','general'].indexOf(t)>=0; }
 function addEntry(ref){
   window._entryRef = ref;
+  window._entryInsertAt = null;
+  entryModal(ref, null);
+}
+/* Open the note editor to insert a new card at a chosen slot rather than append. The index
+   is a position in the level's underlying entry order, so the new card lands in the gap the
+   loremaster tapped. */
+function insertEntryAt(ref, idx){
+  window._entryRef = ref;
+  window._entryInsertAt = idx;
   entryModal(ref, null);
 }
 function editEntry(ref, id){
@@ -4315,8 +4329,12 @@ function saveEntry(ref, id){
   if (id){
     entries.forEach(function(x){ if(x.id===id){ x.title=title||'Untitled'; x.type=type; x.body=body; x.img=img; x.speaker=speaker; x.handle=handle; } });
   } else {
-    entries.push({ id:uid(), title:title||'Untitled', type:type, body:body, img:img, speaker:speaker, handle:handle, pinned:false, open:true });
+    var ne = { id:uid(), title:title||'Untitled', type:type, body:body, img:img, speaker:speaker, handle:handle, pinned:false, open:true };
+    var at = window._entryInsertAt;
+    if (typeof at==='number' && at>=0 && at<=entries.length) entries.splice(at, 0, ne);
+    else entries.push(ne);
   }
+  window._entryInsertAt = null;
   closeModal(); save(); render();
 }
 function deleteEntry(ref, id){
@@ -4685,7 +4703,7 @@ function toggleNoteBody(btn){
   btn.textContent = clamped ? 'More' : 'Less';
 }
 /* one prep note as a card, used when card view is on */
-function noteCard(ref, e, num){
+function noteCard(ref, e, num, insIdx){
   var t = e.type || 'general';
   var img = e.img ? '<div class="nc-img"><img src="'+esc(imgSrc(e.img))+'" alt=""></div>' : '';
   var raw = e.body || '';
@@ -4695,7 +4713,9 @@ function noteCard(ref, e, num){
   else if (longBody){ body = '<div class="nc-body clamp">'+renderNoteBody(raw, ref)+'</div><button type="button" class="nc-more" onclick="toggleNoteBody(this)">More</button>'; }
   else { body = '<div class="nc-body">'+renderNoteBody(raw, ref)+'</div>'; }
   var numBadge = num ? '<span class="nc-num">'+num+'</span>' : '';
+  var ins = (typeof insIdx==='number') ? '<button class="nc-ins" title="Insert a note here" onclick="insertEntryAt(\''+ref+'\','+insIdx+')">+</button>' : '';
   return '<div class="ncard dcard t-'+t+(e.pinned?' pinned':'')+'" data-id="'+e.id+'">'
+    + ins
     + '<button class="gc-grip" data-grip aria-label="Drag to reorder"><svg viewBox="0 0 11 16">'+GRIP_DOTS+'</svg></button>'
     + '<span class="nc-ember"></span>'
     + '<div class="nc-hd">'+numBadge+'<span class="nc-type t-'+t+'">'+noteTypeLabel(t)+'</span>'
@@ -4717,7 +4737,7 @@ function notesBlock(ref, opts){
       hc += '<p class="muted pad">No notes yet. Break things into titled entries you can fold and jump to.</p>';
     } else {
       hc += '<div class="cardgrid notegrid" data-kind="note" data-ref="'+ref+'">';
-      sortedEntries(entries).forEach(function(e,i){ hc += noteCard(ref, e, i+1); });
+      sortedEntries(entries).forEach(function(e,i){ hc += noteCard(ref, e, i+1, entries.indexOf(e)); });
       hc += '</div>';
     }
     hc += '<button class="btn wide ghost small add-note" onclick="addEntry(\''+ref+'\')">+ Add note</button>';
@@ -4741,6 +4761,7 @@ function notesBlock(ref, opts){
       /* collapse rule: 3+ entries default closed unless pinned or explicitly opened */
       var isOpen = e.pinned || (manyOpen ? (e.open===true) : (e.open!==false));
       var idx = -1; entries.forEach(function(x,i){ if(x.id===e.id) idx=i; });
+      h += '<button class="ins-rail" title="Insert a note here" onclick="insertEntryAt(\''+ref+'\','+idx+')">+</button>';
       h += '<div class="entry card-type t-'+e.type+(e.pinned?' pinned':'')+'" id="entry-'+e.id+'">'
         + '<div class="entry-hd" onclick="toggleEntry(\''+ref+'\',\''+e.id+'\')">'
         + '<span class="caret'+(isOpen?' open':'')+'">&rsaquo;</span>'
