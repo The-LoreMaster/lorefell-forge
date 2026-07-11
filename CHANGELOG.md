@@ -1,3 +1,8 @@
+## Insert a scene note anywhere
+
+- Prep notes gain an insert point. In card view a + sits on each card's leading corner and drops a new note into that gap, which lands both between two cards in a row and between rows. In classic view a slim + rail sits between each card, vertical only. The trailing Add note still appends.
+- The new note opens the editor straight away and slots into the tapped position rather than the end.
+
 ## Motivations grant a starting point
 
 - Choosing a Motivation raises its Attribute by 1 at once, on top of everything from the track, origin, and lineage. It applies at creation and again each time a new Motivation is taken up after a Title.
