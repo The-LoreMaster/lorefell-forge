@@ -106,6 +106,29 @@
   #status.err{color:var(--blood);border-color:var(--blood)}
   .toggle-done{background:none;border:none;color:var(--faint);font-size:12px;cursor:pointer;text-decoration:underline}
   .hidden{display:none}
+
+  /* Last Night's Shift report panel */
+  #sec-shift>header h2{color:var(--ember)}
+  .shift-summary{font-size:12px;color:var(--dim);margin:-2px 0 12px}
+  .shift-summary .shift-stop{color:var(--blood)}
+  #sec-shift .card .top{align-items:center;gap:10px}
+  .shift-badge{font-size:10px;letter-spacing:.08em;text-transform:uppercase;font-weight:600;
+    padding:3px 9px;border-radius:99px;border:1px solid var(--line);color:var(--dim);white-space:nowrap}
+  .shift-badge.sa-branch{border-color:var(--ember);color:var(--ember)}
+  .shift-badge.sa-blocked{border-color:var(--blood);color:var(--blood)}
+  .shift-badge.sa-worked{border-color:var(--moss);color:var(--moss)}
+  .shift-badge.sa-held{border-color:var(--steel);color:var(--steel)}
+  .shift-badge.sa-skipped{border-color:var(--faint);color:var(--faint)}
+  .shift-badge.sa-unknown{border-color:var(--line);color:var(--faint)}
+  .shift-next{margin-top:10px;font-size:13px;color:var(--ink);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .shift-link{background:var(--ember-soft);border:1px solid var(--ember);color:var(--ember);
+    border-radius:6px;padding:4px 11px;font-size:12px;cursor:pointer;text-decoration:none;display:inline-block}
+  .shift-link:hover{filter:brightness(1.15)}
+  .shift-notlabel{font-family:"IM Fell English SC",serif;font-size:14px;letter-spacing:.06em;
+    color:var(--steel);margin:8px 0 8px}
+  #shift-not .card{border-style:dashed;opacity:.8}
+  .shift-foot{margin-top:12px;font-size:11px;color:var(--faint);font-style:italic;line-height:1.5;
+    border-top:1px dashed var(--line);padding-top:8px}
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -146,6 +169,14 @@
       <p><b>Twelve item cap.</b> A thirteenth means deleting something. Use <b>Add on hold</b> to capture an idea without authorizing it; held items don't count.</p>
     </div>
   </details>
+
+  <div class="section hidden" id="sec-shift">
+    <header><h2>Last Night's Shift</h2><span class="count" id="ct-shift"></span></header>
+    <div class="shift-summary" id="shift-summary"></div>
+    <div id="list-shift"></div>
+    <div id="shift-not"></div>
+    <div class="shift-foot">Nothing here is merged, live, or reviewed. &ldquo;Branch pushed&rdquo; means the routine put code on a branch &mdash; it says nothing about whether main is protected. Merging and verifying are yours.</div>
+  </div>
 
   <div class="section blocked hidden" id="sec-blocked">
     <header><h2>Awaiting the Keeper</h2><span class="count" id="ct-blocked"></span></header>
@@ -770,6 +801,69 @@ function card(i){
   </div>`;
 }
 
+// ===== Last Night's Shift. The routine writes state.lastShift; we only render what it recorded.
+// The action vocabulary is a closed set on purpose: there is no "merged"/"live"/"deployed" label.
+// Anything outside this map renders as a neutral "Recorded", so the report can never claim a
+// change is live even if the data says so. =====
+const SHIFT_ACTIONS = {
+  branch_pushed: {label:"Branch pushed", cls:"sa-branch"},
+  blocked:       {label:"Blocked",       cls:"sa-blocked"},
+  worked:        {label:"Worked",        cls:"sa-worked"},
+  held:          {label:"Held",          cls:"sa-held"},
+  skipped:       {label:"Skipped",       cls:"sa-skipped"}
+};
+const shiftMeta = a => SHIFT_ACTIONS[a] || {label:"Recorded", cls:"sa-unknown"};
+
+function shiftCard(it){
+  const m = shiftMeta(it.action);
+  let link = "";
+  if(it.action === "branch_pushed" && it.compareUrl)
+    link = `<a class="shift-link" href="${esc(it.compareUrl)}" target="_blank" rel="noopener">Open a pull request ↗</a>`;
+  else if(it.action === "blocked")
+    link = `<button class="shift-link" onclick="$('sec-blocked').scrollIntoView({behavior:'smooth',block:'start'})">Answer below ↓</button>`;
+  const branchChip = (it.action === "branch_pushed" || it.action === "blocked") && it.branch
+    ? `<span class="chip repo">${esc(it.branch)}</span>` : "";
+  const next = it.nextAction
+    ? `<div class="shift-next">→ ${esc(it.nextAction)}${link ? " " + link : ""}</div>`
+    : (link ? `<div class="shift-next">${link}</div>` : "");
+  return `<div class="card">
+    <div class="top"><span class="shift-badge ${m.cls}">${m.label}</span><div class="title">${esc(it.title)}</div></div>
+    <div class="chips">
+      <span class="chip repo">${REPOS[it.repo]||esc(it.repo||"?")}</span>
+      ${branchChip}
+    </div>
+    ${it.note ? `<div class="notes">${esc(it.note)}</div>` : ""}
+    ${it.question ? `<div class="question"><b>Claude asks</b>${esc(it.question)}</div>` : ""}
+    ${next}
+  </div>`;
+}
+
+function renderShift(){
+  const r = state.lastShift;
+  const items = r && Array.isArray(r.items) ? r.items : [];
+  $("sec-shift").classList.toggle("hidden", !items.length);
+  if(!items.length){ $("ct-shift").textContent = ""; return; }
+
+  const notDone = it => it.action === "held" || it.action === "skipped";
+  const did = items.filter(it => !notDone(it));
+  const withheld = items.filter(notDone);
+
+  const counts = {};
+  items.forEach(it => { const l = shiftMeta(it.action).label; counts[l] = (counts[l]||0) + 1; });
+  const countStr = Object.keys(counts).map(l => counts[l] + " " + l.toLowerCase()).join(", ");
+  const when = r.runAt ? new Date(r.runAt).toLocaleString() : "—";
+
+  $("ct-shift").textContent = items.length;
+  $("shift-summary").innerHTML =
+    `Ran ${esc(when)} · ${items.length} item${items.length === 1 ? "" : "s"}` +
+    (countStr ? ` · ${esc(countStr)}` : "") +
+    (r.stoppedReason ? ` · <span class="shift-stop">stopped: ${esc(r.stoppedReason)}</span>` : "");
+  $("list-shift").innerHTML = did.map(shiftCard).join("");
+  $("shift-not").innerHTML = withheld.length
+    ? `<div class="shift-notlabel">What it did not do</div>` + withheld.map(shiftCard).join("")
+    : "";
+}
+
 function render(){
   const by = s => state.items.filter(i => i.status === s);
   const todo = by("todo").sort((a,b) =>
@@ -793,6 +887,7 @@ function render(){
   $("ct-todo").textContent = todo.length;
   $("ct-done").textContent = done.length;
   $("meta").textContent = "Ledger updated " + new Date(state.updated).toLocaleString();
+  renderShift();
 }
 
 function toggleDone(){

@@ -10,6 +10,7 @@ function el(v){ return {value:v||"", textContent:"", innerHTML:"", classList:{
  "newConcept","conceptHint","conceptRow",
  "pairOn","pairFields","pairTitle","pairArea","pairTool","pairToolName","pairToolRow","pairHint","pairNotes",
  "sec-blocked","sec-progress","sec-hold","sec-done","list-blocked","list-progress","list-hold","list-todo","list-done",
+ "sec-shift","list-shift","shift-summary","shift-not","ct-shift",
  "ct-blocked","ct-progress","ct-hold","ct-todo","ct-done","meta","gate","app","status","tokenInput"
 ].forEach(id=>els[id]=el());
 
@@ -30,7 +31,7 @@ ctx.getState=()=>state; ctx.save=()=>{}; save=()=>{}; ctx.TOOLS=TOOLS;
 ctx.conceptFiles=conceptFiles; ctx.syncConcept=syncConcept; ctx.fillConcepts=fillConcepts;
 ctx.loadCanonMap=loadCanonMap; ctx.expandVaultGlobs=expandVaultGlobs;
 ctx.setCanonMap=m=>{CANON_MAP=m; canonMapError=null;}; ctx.getCanonMap=()=>CANON_MAP;
-ctx.getCanonMapError=()=>canonMapError;`;
+ctx.getCanonMapError=()=>canonMapError; ctx.renderShift=renderShift;`;
 new Function('ctx', body)(ctx);
 ctx.setState({version:2,updated:"",items:[]});
 
@@ -341,6 +342,51 @@ ctx.addItem("todo");
   check("halves land in different repos", forge && vault && forge.repo!==vault.repo);
   check("both carry the concept", forge && vault && forge.concept==="conditions" && vault.concept==="conditions");
 }
+
+console.log("\n== Last Night's Shift: report renders, links, and splits did / did-not ==");
+reset();
+{
+  ctx.setState({version:2, updated:"", items:[], lastShift:{
+    runAt:"2026-07-11T09:00:00Z", attempted:3, stoppedReason:"reached the 2-item cap",
+    items:[
+      {id:"s1", title:"Rewrite Vigil text", repo:"forge", action:"branch_pushed",
+       branch:"claude/vigil-x", compareUrl:"https://github.com/The-LoreMaster/lorefell-forge/compare/main...claude/vigil-x",
+       note:"Edited 3 files.", nextAction:"Open this PR and merge it.", question:null},
+      {id:"s2", title:"Origin cost", repo:"vault", action:"blocked", branch:"claude/origin-y", compareUrl:null,
+       note:"Need a ruling.", nextAction:"Answer, then it continues.", question:"3 or 4 points?"},
+      {id:"s3", title:"Low polish", repo:"forge", action:"skipped", branch:null, compareUrl:null,
+       note:"Ran out of the 2-item budget.", nextAction:null, question:null}
+    ]
+  }});
+  ctx.renderShift();
+  const list=els["list-shift"].innerHTML, not=els["shift-not"].innerHTML, sum=els["shift-summary"].innerHTML;
+  check("count reflects report items", String(els["ct-shift"].textContent)==="3", els["ct-shift"].textContent);
+  check("summary carries runAt and stoppedReason", /Ran/.test(sum) && /reached the 2-item cap/.test(sum), sum);
+  check("branch_pushed links its compare URL as a PR", /compare\/main\.\.\.claude\/vigil-x/.test(list) && /Open a pull request/.test(list));
+  check("blocked surfaces its question", /3 or 4 points\?/.test(list));
+  check("skipped lands under 'what it did not do', not the main list", /Low polish/.test(not) && !/Low polish/.test(list));
+  check("no merged/live/deployed anywhere in the render", !/merged|live|deployed/i.test(sum+list+not));
+}
+
+console.log("\n== Last Night's Shift: honesty guard neutralizes a forged status ==");
+reset();
+{
+  ctx.setState({version:2, updated:"", items:[], lastShift:{ runAt:"2026-07-11T09:00:00Z", items:[
+    {id:"s9", title:"Forged", repo:"forge", action:"merged", branch:"claude/z",
+     compareUrl:"https://x/compare", note:"Claims a false status via the action field.", nextAction:"Trust me.", question:null}
+  ]}});
+  ctx.renderShift();
+  const list=els["list-shift"].innerHTML;
+  check("unknown action renders neutral 'Recorded', never the raw label",
+    /shift-badge sa-unknown">Recorded</.test(list) && !/shift-badge[^>]*>merged</i.test(list), list.slice(0,220));
+  check("forged status counts as 'recorded' in the summary", /1 recorded/.test(els["shift-summary"].innerHTML), els["shift-summary"].innerHTML);
+}
+
+console.log("\n== Last Night's Shift: absent report hides the panel ==");
+reset();
+ctx.setState({version:2, updated:"", items:[]});
+ctx.renderShift();
+check("no lastShift clears the shift count (panel hidden)", els["ct-shift"].textContent==="", els["ct-shift"].textContent);
 
 // ---- async: vault glob expansion + graceful map-fetch failure ----
 (async () => {
