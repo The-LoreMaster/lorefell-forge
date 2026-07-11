@@ -1,3 +1,8 @@
+## Roll All for the foe side, and Skill as a foe React
+
+- One Roll All button in the combat runner rolls the whole foe side of the round at once. Every foe attacking a player rolls its accuracy, and every foe a player targets rolls its evade. Player rolls are read off paper, never entered, and every foe roll is logged. The foe accuracy and evade rolls already existed and stay rerollable in Resolve.
+- The foe React on the Resolve card now offers Skill alongside its React abilities and Movement.
+
 ## Combat declare and roster, closer to one screen
 
 - A foe's stance is fixed. The combat runner no longer offers a stance dropdown; it shows the stance the foe carries, read only. Switching stances is a player move, not a foe one.
