@@ -1217,6 +1217,7 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 .cb-cname{ font-family:var(--head,inherit); font-size:1rem; color:var(--silver); margin-bottom:7px; }
 .cb-pickrow{ display:flex; align-items:center; gap:8px; margin-top:6px; }
 .cb-pk{ font-size:9px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); width:46px; flex:0 0 auto; }
+.cb-fixed{ font-family:'Cinzel',serif; color:var(--silver); font-size:.9rem; }
 .cb-pickers{ display:flex; gap:6px; flex-wrap:wrap; flex:1; min-width:0; }
 .inp.slim{ padding:7px 9px; font-size:.85rem; min-width:0; flex:1; }
 .cb-spotctl{ display:flex; align-items:center; gap:10px; margin:6px 0 12px; }
@@ -6504,6 +6505,14 @@ function foeDisplayCard(f, opts){
        + SR_ORDER.map(function(r){ return '<option value="'+r+'"'+(f.sr===r?' selected':'')+'>'+r+'</option>'; }).join('')
        + '</select></div>';
   }
+  if (opts.controls && mon && f.maxVit>0){
+    h += '<div class="lbl">Vitality</div>'
+      + '<div class="vit fc-vit"><button class="vit-b" onclick="adjVit(\''+f.id+'\',-1)">&minus;</button>'
+      + '<span class="vit-n">'+f.curVit+'<span class="vit-max">/'+f.maxVit+'</span></span>'
+      + '<button class="vit-b" onclick="adjVit(\''+f.id+'\',1)">+</button></div>'
+      + '<div class="qd"><input class="qd-in" id="dmg-'+f.id+'" type="number" inputmode="numeric" placeholder="dmg" onkeydown="dmgKey(event,\''+f.id+'\')"><button class="qd-b dmg" onclick="applyDmg(\''+f.id+'\',-1)">Hit</button><button class="qd-b heal" onclick="applyDmg(\''+f.id+'\',1)">Heal</button></div>';
+    h += '<div class="lbl">Conditions</div>' + affChips('m', f.id, f.affs||[]);
+  }
   h += foeKitBody(f, mon);
   return h + '</div>';
 }
@@ -8051,7 +8060,7 @@ function tabRoster(sc){
     h += emptyState('No monsters attached. Pull them from the library or create one.', 'Attach from library', 'attachChooser()');
   } else {
     sc.combatants.forEach(function(cb){
-      h += foeDisplayCard(cb, { editId: cb.libId, rateId: cb.id, removeId: cb.id });
+      h += foeDisplayCard(cb, { editId: cb.libId, rateId: cb.id, removeId: cb.id, controls: true });
     });
     h += '<button class="btn wide ghost" onclick="attachChooser()">Attach more</button>';
   }
@@ -8108,6 +8117,7 @@ function resCardMon(cb, tier){
     + (cb.act ? '<div class="res-row click" onclick="toggleMonDone(\''+cb.id+'\')"><span class="check'+(cb.done?' on':'')+'"></span><span class="res-txt'+(cb.done?' done':'')+'">'+esc(cb.act)
         + (tn ? ' <span class="tgt">&rarr; '+esc(tn)+'</span>' : '') + '</span></div>'
       : '<div class="muted small-pad">No intent set</div>')
+    + (cb.react ? '<div class="res-row"><span class="res-txt">React: '+esc(cb.react)+'</span></div>' : '')
     + chargeRow('m', cb.id, cb.charge||0)
     + affChips('m', cb.id, cb.affs)
     + '</div>';
@@ -8253,6 +8263,11 @@ function cbSetFoeStance(id, v){
   sc.combatants.forEach(function(c){ if(c.id===id){ c.stance=v||''; cbLog('foe', c.name+(v?(' shifts to '+v+'.'):' drops its stance.')); } });
   save(); render();
 }
+function cbSetFoeReact(id, v){
+  var sc=curSc();
+  sc.combatants.forEach(function(c){ if(c.id===id){ c.react=v||''; cbLog('foe', c.name+(v?(' readies '+v+' as a React.'):' holds no React.')); } });
+  save(); render();
+}
 function cbIntentPicker(cb){
   var it = cb.intent || (cb.intent = {type:'', ability:'', item:''});
   var _inv = (cb.items&&cb.items.length)?cb.items:(cb.inv||[]);
@@ -8266,9 +8281,12 @@ function cbIntentPicker(cb){
     + '<option value="skill"'+(curVal==='skill'?' selected':'')+'>Use a skill</option>'
     + (_inv.length?('<option value="item"'+(curVal==='item'?' selected':'')+'>Use an item</option>'):'')
     + '</optgroup></select>';
-  var stanceRow = '<div class="cb-pickrow"><span class="cb-pk">Stance (React)</span><div class="cb-pickers"><select class="inp slim" onchange="cbSetFoeStance(\''+cb.id+'\',this.value)"><option value=""'+(!cb.stance?' selected':'')+'>No stance</option>'
-      + ['Shrouded','Stalwart','Vestments'].map(function(sn){ return '<option value="'+sn+'"'+(cb.stance===sn?' selected':'')+'>'+sn+'</option>'; }).join('')
-      + '</select></div></div>';
+  var stanceRow = '<div class="cb-pickrow"><span class="cb-pk">Stance</span><div class="cb-pickers"><span class="cb-fixed">'+(cb.stance?esc(cb.stance):'None')+'</span></div></div>';
+  var reactRow = '<div class="cb-pickrow"><span class="cb-pk">React</span><div class="cb-pickers"><select class="inp slim" onchange="cbSetFoeReact(\''+cb.id+'\',this.value)">'
+    + '<option value="">No React</option>'
+    + '<option value="Skill"'+(cb.react==='Skill'?' selected':'')+'>Skill</option>'
+    + (cb.abilities||[]).map(function(a){ return '<option value="'+esc(a.name)+'"'+(cb.react===a.name?' selected':'')+'>'+esc(a.name)+'</option>'; }).join('')
+    + '</select></div></div>';
   var itemRow = (it.type==='Use an item' && _inv.length)
     ? '<div class="cb-pickrow"><span class="cb-pk">Item</span><div class="cb-pickers"><select class="inp slim" onchange="cbSetIntent(\''+cb.id+'\',\'item\',this.value)"><option value="">Choose an item</option>'
       + _inv.map(function(x){ var nm=(x&&x.name)?x.name:String(x||''); return '<option value="'+esc(nm)+'"'+(it.item===nm?' selected':'')+'>'+esc(nm)+'</option>'; }).join('')
@@ -8286,7 +8304,7 @@ function cbIntentPicker(cb){
     infl='<div class="cb-pickrow"><span class="cb-pk">On Fellmark</span><div class="cb-pickers"><button class="cb-link" onclick="cbApplies(\''+cb.id+'\','+abIdx+')">'+appliesLabel((cb.abilities||[])[abIdx])+'</button></div></div>';
   }
   return '<div class="cb-pickrow"><span class="cb-pk">Act</span><div class="cb-pickers">'+actSel+'</div></div>'
-    + stanceRow + itemRow + infl
+    + stanceRow + reactRow + itemRow + infl
     + '<div class="cb-pickrow"><span class="cb-pk">Target</span><div class="cb-pickers">'+focus+'</div></div>'
     + accRow;
 }

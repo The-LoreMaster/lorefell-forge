@@ -1,3 +1,9 @@
+## Combat declare and roster, closer to one screen
+
+- A foe's stance is fixed. The combat runner no longer offers a stance dropdown; it shows the stance the foe carries, read only. Switching stances is a player move, not a foe one.
+- The foe React is its own control now that stance is locked. It offers a Skill, any of the foe's abilities, or none, and the choice shows on the Resolve card.
+- The scene Roster edits vitality and conditions inline. A foe's health and its marked conditions can be changed straight from the Roster, the same object the combat runner uses, so a change in one shows in the other without leaving the screen.
+
 ## Insert a scene note anywhere
 
 - Prep notes gain an insert point. In card view a + sits on each card's leading corner and drops a new note into that gap, which lands both between two cards in a row and between rows. In classic view a slim + rail sits between each card, vertical only. The trailing Add note still appends.
