@@ -1,3 +1,9 @@
+## Declaring for written-in players, done right
+
+- Removed the duplicate player card I added. The real card is the token popup, and it already handled vitality, conditions, reroll, and dealing damage. Tapping a player's name on the resolution card now opens that one card.
+- Written-in players get a light kit in the player editor: a stance and a short list of Acts. Nothing heavier, since a manual player has no full build.
+- Their card gains a declare control that shows only for written-in players. Pick an Act from their kit and a target, and it runs in the spotlight like anyone else. A live player still declares on their own device.
+
 ## The loremaster can run players from the board
 
 - Tap a player on the combat board to open their card. Edit vitality and afflictions, set charge, and declare their Act, target, and React.
