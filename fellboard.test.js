@@ -7,6 +7,7 @@ const els={};
 function el(v){ return {value:v||"", textContent:"", innerHTML:"", classList:{
   toggle(){}, add(){}, remove(){}, contains(){return false} }, checked:false}; }
 ["newTitle","newArea","newTool","newToolName","toolRow","repoHint","newPriority","newNotes",
+ "newConcept","conceptHint","conceptRow",
  "pairOn","pairFields","pairTitle","pairArea","pairTool","pairToolName","pairToolRow","pairHint","pairNotes",
  "sec-blocked","sec-progress","sec-hold","sec-done","list-blocked","list-progress","list-hold","list-todo","list-done",
  "ct-blocked","ct-progress","ct-hold","ct-todo","ct-done","meta","gate","app","status","tokenInput"
@@ -25,7 +26,11 @@ const ctx={};
 const body = script.replace(/boot\(\);\s*$/,'') + `
 ;ctx.addItem=addItem; ctx.syncRepo=syncRepo; ctx.syncHalf=syncHalf; ctx.fillSelects=fillSelects;
 ctx.toolValue=toolValue; ctx.MAIN_IDS=MAIN_IDS; ctx.PAIR_IDS=PAIR_IDS; ctx.setState=s=>{state=s;};
-ctx.getState=()=>state; ctx.save=()=>{}; save=()=>{}; ctx.TOOLS=TOOLS;`;
+ctx.getState=()=>state; ctx.save=()=>{}; save=()=>{}; ctx.TOOLS=TOOLS;
+ctx.conceptFiles=conceptFiles; ctx.syncConcept=syncConcept; ctx.fillConcepts=fillConcepts;
+ctx.loadCanonMap=loadCanonMap; ctx.expandVaultGlobs=expandVaultGlobs;
+ctx.setCanonMap=m=>{CANON_MAP=m; canonMapError=null;}; ctx.getCanonMap=()=>CANON_MAP;
+ctx.getCanonMapError=()=>canonMapError;`;
 new Function('ctx', body)(ctx);
 ctx.setState({version:2,updated:"",items:[]});
 
@@ -254,5 +259,131 @@ check("Wardforge accepted with convention paths",
   ok && JSON.stringify(ok.toolFiles)===JSON.stringify(["docs/wardforge.html","embeds/wardforge.html"]),
   ok?JSON.stringify(ok.toolFiles):"none");
 
-console.log("\n"+(fails? fails+" FAILURE(S)" : "ALL PASS"));
-process.exit(fails?1:0);
+// ===== Canon concept path: map-driven file lists (single source of truth with the gate) =====
+// Uses the REAL canon/canon.map.json as the fixture, matching the fs.readFileSync convention.
+const REAL_MAP = JSON.parse(fs.readFileSync('canon/canon.map.json','utf8'));
+const clone = m => JSON.parse(JSON.stringify(m));
+
+console.log("\n== Concept lookup: forge blast radius incl. synthesized embeds twins ==");
+reset();
+ctx.setCanonMap(clone(REAL_MAP));
+{
+  const cf = ctx.conceptFiles("conditions");
+  check("conditions forge is the full blast radius",
+    JSON.stringify(cf.forge)===JSON.stringify(
+      ["data/conditions.canon.js","docs/fatewell.html","embeds/fatewell.html","docs/fellglass.html","embeds/fellglass.html"]),
+    JSON.stringify(cf.forge));
+  check("conditions vault is unmapped (ships empty)", cf.vaultUnmapped===true && cf.vault.length===0, JSON.stringify(cf.vault));
+  check("unknown concept returns null", ctx.conceptFiles("nope")===null);
+}
+
+console.log("\n== Embeds synthesis: only docs/*.html get a twin, never data/ or schemas/ ==");
+reset();
+ctx.setCanonMap(clone(REAL_MAP));
+{
+  const cf = ctx.conceptFiles("weapons"); // docs/fellglass.html + data/Weapons.canon.json + schemas/seed/CanonWeapons.json
+  check("weapons forge synthesizes only the docs twin",
+    JSON.stringify(cf.forge)===JSON.stringify(
+      ["docs/fellglass.html","embeds/fellglass.html","data/Weapons.canon.json","schemas/seed/CanonWeapons.json"]),
+    JSON.stringify(cf.forge));
+  check("no phantom embed for data/ or schemas/ members",
+    !cf.forge.some(p=>p==="embeds/Weapons.canon.json" || p.startsWith("embeds/schemas")));
+}
+
+console.log("\n== Concept add (forge-only, vault unmapped): one item, full forge files, flagged ==");
+reset();
+ctx.setCanonMap(clone(REAL_MAP));
+els.newTitle.value="Reword afflictions to third person"; els.newPriority.value="2";
+els.newConcept.value="conditions";
+ctx.syncConcept();
+check("unmapped vault raises the manual flag in the hint",
+  /warn/.test(els.conceptHint.className) && /vault/i.test(els.conceptHint.innerHTML),
+  els.conceptHint.className+" :: "+els.conceptHint.innerHTML);
+ctx.addItem("todo");
+{
+  const items = ctx.getState().items;
+  check("one item created (no vault half)", items.length===1, "got "+items.length);
+  const f = items[0];
+  check("item carries the concept", f.concept==="conditions", "concept="+f.concept);
+  check("item is a forge item", f.repo==="forge" && f.area==="site", f.repo+"/"+f.area);
+  check("no tool label on a concept item", f.tool===null, "tool="+f.tool);
+  check("toolFiles = full forge blast radius",
+    JSON.stringify(f.toolFiles)===JSON.stringify(
+      ["data/conditions.canon.js","docs/fatewell.html","embeds/fatewell.html","docs/fellglass.html","embeds/fellglass.html"]),
+    JSON.stringify(f.toolFiles));
+  check("not paired (vault unmapped)", f.pair===null && f.pairOrder===null);
+}
+
+console.log("\n== Concept add with a mapped vault side: paired forge + vault, files from the map ==");
+reset();
+{
+  const m = clone(REAL_MAP);
+  m.concepts.conditions.vault = ["_Canon/The Combat/Afflictions.md","_Canon/collections/Conditions.md"];
+  ctx.setCanonMap(m);
+}
+els.newTitle.value="Afflictions: forge tools"; els.newPriority.value="1";
+els.newConcept.value="conditions";
+els.pairTitle.value="Afflictions: rulebook"; els.pairNotes.value="Update the vault master doc";
+ctx.addItem("todo");
+{
+  const items = ctx.getState().items;
+  check("two items created (paired)", items.length===2, "got "+items.length);
+  const forge = items.find(i=>i.repo==="forge"), vault = items.find(i=>i.repo==="vault");
+  check("forge half has the forge blast radius",
+    forge && JSON.stringify(forge.toolFiles)===JSON.stringify(
+      ["data/conditions.canon.js","docs/fatewell.html","embeds/fatewell.html","docs/fellglass.html","embeds/fellglass.html"]),
+    forge?JSON.stringify(forge.toolFiles):"none");
+  check("vault half has the vault files from the map",
+    vault && JSON.stringify(vault.toolFiles)===JSON.stringify(
+      ["_Canon/The Combat/Afflictions.md","_Canon/collections/Conditions.md"]),
+    vault?JSON.stringify(vault.toolFiles):"none");
+  check("halves share a pair id", forge && vault && forge.pair===vault.pair && !!forge.pair);
+  check("halves land in different repos", forge && vault && forge.repo!==vault.repo);
+  check("both carry the concept", forge && vault && forge.concept==="conditions" && vault.concept==="conditions");
+}
+
+// ---- async: vault glob expansion + graceful map-fetch failure ----
+(async () => {
+  console.log("\n== Vault glob expands against the vault repo (dir listing), *.md only ==");
+  reset();
+  {
+    const m = clone(REAL_MAP);
+    m.concepts.conditions.vault = ["_Canon/collections/Afflictions/*.md"];
+    ctx.setCanonMap(m);
+    const savedFetch = global.fetch;
+    global.fetch = async () => ({ ok:true, json: async () => ([
+      {type:"file", name:"Bleeding.md"}, {type:"file", name:"Impeded.md"},
+      {type:"dir", name:"archive"}, {type:"file", name:"README.txt"}
+    ]) });
+    await ctx.expandVaultGlobs();
+    global.fetch = savedFetch;
+    const cf = ctx.conceptFiles("conditions");
+    check("glob resolved to the two .md pages (dir + non-md excluded)",
+      JSON.stringify(cf.vault)===JSON.stringify(
+        ["_Canon/collections/Afflictions/Bleeding.md","_Canon/collections/Afflictions/Impeded.md"]),
+      JSON.stringify(cf.vault));
+    check("resolved vault is no longer flagged unmapped", cf.vaultUnmapped===false);
+  }
+
+  console.log("\n== Graceful map-fetch failure: form still files items via the tool path ==");
+  reset();
+  {
+    const savedFetch = global.fetch;
+    global.fetch = async () => ({ ok:false, status:403, json: async () => ({}) });
+    await ctx.loadCanonMap();
+    global.fetch = savedFetch;
+    check("map is null after a failed fetch", ctx.getCanonMap()===null);
+    check("an error is recorded", !!ctx.getCanonMapError(), ctx.getCanonMapError());
+    // Tool path must still work with no map loaded.
+    reset();
+    els.newTitle.value="UI tweak"; els.newArea.value="site"; els.newPriority.value="3"; els.newTool.value="FateWell";
+    ctx.addItem("todo");
+    const it = ctx.getState().items[0];
+    check("tool-path item still created when the map is unavailable",
+      it && JSON.stringify(it.toolFiles)===JSON.stringify(["docs/fatewell.html","embeds/fatewell.html"]),
+      it?JSON.stringify(it.toolFiles):"none");
+  }
+})().then(() => {
+  console.log("\n"+(fails? fails+" FAILURE(S)" : "ALL PASS"));
+  process.exit(fails?1:0);
+}).catch(e => { console.error("async test crash:", e); process.exit(1); });
