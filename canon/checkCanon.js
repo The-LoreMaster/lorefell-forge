@@ -138,7 +138,17 @@ function axis3(base) {
   let messages = '';
   try { messages = git(['log', base + '..HEAD', '--format=%B']); } catch (e) { messages = ''; }
 
-  (MAP.manual || []).forEach((group) => {
+  // Co-change groups come from the `concepts` index (single source of truth shared with fellboard.html):
+  // each concept's `forge` list is the axis-3 member set. `vault` is board-only and never read here, so
+  // vault paths absent from the forge checkout cannot trip this gate. Keys starting with `_` (e.g. `_note`)
+  // are documentation, not concepts. Falls back to the legacy flat `manual` array if `concepts` is absent.
+  const groups = MAP.concepts
+    ? Object.keys(MAP.concepts)
+        .filter((k) => k[0] !== '_')
+        .map((concept) => ({ concept, members: MAP.concepts[concept].forge || [] }))
+    : (MAP.manual || []);
+
+  groups.forEach((group) => {
     if (new RegExp('\\[canon-skip:\\s*' + group.concept + '\\s*\\]', 'i').test(messages)) {
       notes.push('[axis3:' + group.concept + '] skipped via [canon-skip: ' + group.concept + ']');
       return;
