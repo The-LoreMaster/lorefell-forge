@@ -184,6 +184,10 @@
         <option value="3">P3 · Someday</option>
       </select>
     </div>
+    <div class="row" id="conceptRow">
+      <select id="newConcept" onchange="syncConcept()"><option value="">canon map loading…</option></select>
+    </div>
+    <div class="hint" id="conceptHint"></div>
     <div class="hint" id="repoHint"></div>
     <div class="row hidden" id="toolRow">
       <select id="newTool" onchange="syncTool()"></select>
@@ -227,7 +231,19 @@ const PATH  = "_Canon/backlog.json";
 // ====================================================================
 
 const API = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${PATH}`;
+
+// ===== CANON MAP. The concept -> file index lives in the FORGE repo (public). =====
+// Read WITHOUT a token: the stored PAT is scoped to the vault repo and would 404 on
+// forge, whereas the public forge repo needs no auth at all. api.github.com is already
+// allowed by the Wix page CSP, so this adds no paste/CSP change.
+const MAP_OWNER = "The-LoreMaster";
+const MAP_REPO  = "lorefell-forge";
+const MAP_PATH  = "canon/canon.map.json";
+const MAP_API   = `https://api.github.com/repos/${MAP_OWNER}/${MAP_REPO}/contents/${MAP_PATH}`;
+// ==================================================================================
+
 let state = null, sha = null, showDone = false;
+let CANON_MAP = null, canonMapError = null;
 
 const $ = id => document.getElementById(id);
 const token = () => localStorage.getItem("fellboard_token");
@@ -398,6 +414,119 @@ function filesOf(label){
   return t.embed ? [t.file, t.embed] : [t.file];
 }
 
+// ===== CANON CONCEPTS. The map's `concepts` block is the single source of truth for =====
+// which files a concept lives in, shared with canon/checkCanon.js. Picking a concept
+// auto-fills the item's file blast radius so nobody has to guess the sibling set.
+async function loadCanonMap(){
+  try{
+    // No Authorization header: the forge repo is public and the vault-scoped token 404s on it.
+    const res = await fetch(MAP_API + "?t=" + Date.now(), { headers:{ "Accept":"application/vnd.github+json" } });
+    if(!res.ok){ const e = new Error("GitHub " + res.status); e.status = res.status; throw e; }
+    const data = await res.json();
+    CANON_MAP = JSON.parse(b64decode(data.content));
+    canonMapError = null;
+    await expandVaultGlobs();   // resolve any dir/*.md vault entries against the vault repo
+  }catch(e){
+    CANON_MAP = null;
+    canonMapError = e.message || "canon map load failed";
+  }
+  fillConcepts();
+}
+
+// A vault entry may be an explicit path or a glob (e.g. "_Canon/collections/Afflictions/*.md").
+// Expand globs by listing the directory on the VAULT repo with the token we already hold
+// (it is scoped to exactly that repo), so adding/renaming a page never rots the concept.
+// The gate never reads vault entries, so this is board-only. On failure the glob is left
+// unresolved and the concept's vault half falls back to the manual/flag path.
+async function expandVaultGlobs(){
+  if(!CANON_MAP || !CANON_MAP.concepts) return;
+  for(const name of Object.keys(CANON_MAP.concepts)){
+    if(name[0] === "_") continue;
+    const c = CANON_MAP.concepts[name];
+    const entries = c.vault || [];
+    if(!entries.some(v => v.indexOf("*") >= 0)) continue;   // nothing to expand
+    const resolved = [];
+    for(const v of entries){
+      if(v.indexOf("*") < 0){ resolved.push(v); continue; }
+      const slash = v.lastIndexOf("/");
+      const dir = slash >= 0 ? v.slice(0, slash) : "";
+      const pat = v.slice(slash + 1);
+      const rx = new RegExp("^" + pat.replace(/[.]/g, "\\.").replace(/\*/g, ".*") + "$");
+      try{
+        const url = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${dir}?t=` + Date.now();
+        const r = await fetch(url, { headers:{ "Authorization":"Bearer " + token(), "Accept":"application/vnd.github+json" } });
+        if(!r.ok) throw new Error("list " + r.status);
+        const arr = await r.json();
+        arr.filter(e => e.type === "file" && rx.test(e.name)).forEach(e => resolved.push((dir ? dir + "/" : "") + e.name));
+      }catch(e){ c._vaultError = true; }
+    }
+    c._vaultResolved = resolved;
+  }
+}
+
+// Resolve a concept to its file lists. Forge = the map's forge members PLUS the embeds twin
+// synthesized for every docs/<name>.html (the mirror rule, never listed in the map). Vault =
+// resolved vault paths (unexpanded globs are dropped, which flags the half as unmapped).
+function conceptFiles(name){
+  const c = CANON_MAP && CANON_MAP.concepts && CANON_MAP.concepts[name];
+  if(!c) return null;
+  const forge = [];
+  (c.forge || []).forEach(m => {
+    forge.push(m.file);
+    const mm = m.file.match(/^docs\/(.+\.html)$/);
+    if(mm) forge.push("embeds/" + mm[1]);
+  });
+  const vault = (c._vaultResolved || c.vault || []).filter(v => v.indexOf("*") < 0);
+  return { label: c.label || name, forge, vault, vaultUnmapped: vault.length === 0 };
+}
+
+// Populate the concept dropdown from the loaded map. Keeps the tool path fully usable
+// whether the map loaded, is still loading, or failed (graceful, never a dead form).
+function fillConcepts(){
+  const sel = $("newConcept");
+  if(!sel) return;
+  if(!CANON_MAP || !CANON_MAP.concepts){
+    sel.innerHTML = `<option value="">${canonMapError ? "⚠ canon map unavailable - use a tool below" : "canon map loading…"}</option>`;
+    syncConcept();
+    return;
+  }
+  const opts = Object.keys(CANON_MAP.concepts).filter(k => k[0] !== "_")
+    .map(k => `<option value="${k}">${esc(CANON_MAP.concepts[k].label || k)}</option>`).join("");
+  sel.innerHTML = `<option value="">— No canon concept (pick a tool/area below) —</option>` + opts;
+  syncConcept();
+}
+
+// When a concept is chosen it drives the file lists, so the manual tool row and pair box
+// step aside. When none is chosen the form behaves exactly as before.
+function syncConcept(){
+  const sel = $("newConcept");
+  const name = sel ? sel.value : "";
+  const active = !!name;
+  const hint = $("conceptHint");
+  const area = $("newArea");
+  if(area) area.disabled = active;
+  // Concept manages pairing; hide the manual pair box while active.
+  const pb = document.querySelector(".pairbox");
+  if(pb) pb.classList.toggle("hidden", active);
+  // Tool row: hidden in concept mode, otherwise visible only for site work (as before).
+  $("toolRow").classList.toggle("hidden", active || ($("newArea") && $("newArea").value !== "site"));
+  if(!hint) return;
+  if(!active){ hint.className = "hint"; hint.textContent = ""; return; }
+  const cf = conceptFiles(name);
+  if(!cf){ hint.className = "hint warn"; hint.textContent = "Concept not found in the canon map."; return; }
+  const forgeList = cf.forge.join("  +  ");
+  if(cf.vaultUnmapped){
+    hint.className = "hint warn";
+    hint.innerHTML = "<b>Forge blast radius (auto-filled):</b> " + esc(forgeList)
+      + "<br>⚠ No vault side in the map yet - gate won't auto-check a vault half. If this change also needs vault edits, file them as a separate manual item.";
+  } else {
+    hint.className = "hint";
+    hint.innerHTML = "<b>Forge (auto-filled):</b> " + esc(forgeList)
+      + "<br><b>Vault (auto-filled):</b> " + esc(cf.vault.join("  +  "));
+  }
+}
+// ========================================================================================
+
 function repoName(area){ return REPO_OF[area] === "forge" ? "lorefell-forge" : "lorefell-fellguide"; }
 
 // Both halves of a paired item use the same controls and the same rules, so they
@@ -463,13 +592,17 @@ function syncPairArea(){ syncHalf(PAIR_IDS); }
 function syncPairTool(){ syncHalf(PAIR_IDS); }
 function syncPair(){ $("pairFields").classList.toggle("open", $("pairOn").checked); }
 
-function makeItem(title, area, tool, notes, status, pair, order){
+// opts (optional): { concept, toolFiles } for concept-driven items. Omitted for the tool
+// path, which keeps its exact prior behavior (toolFiles derived from the tool label).
+function makeItem(title, area, tool, notes, status, pair, order, opts){
+  opts = opts || {};
   const now = new Date().toISOString();
   return {
     id: newId(), title,
     repo: REPO_OF[area], area,
     tool: tool || null,
-    toolFiles: tool ? filesOf(tool) : null,
+    concept: opts.concept || null,
+    toolFiles: opts.toolFiles !== undefined ? opts.toolFiles : (tool ? filesOf(tool) : null),
     toolNote: tool && toolOf(tool) ? (toolOf(tool).noEmbed || null) : null,
     priority: parseInt($("newPriority").value),
     status,
@@ -484,8 +617,36 @@ function makeItem(title, area, tool, notes, status, pair, order){
 function addItem(status){
   const title = $("newTitle").value.trim();
   if(!title){ toast("Give it a title", true); return; }
-  const area = $("newArea").value;
   const st = status === "hold" ? "hold" : "todo";
+
+  // ---- Canon concept path: map-driven file lists, no guessing. ----
+  // Pick a concept and the map fills the complete blast radius. Falls through to the
+  // tool path below when no concept is selected, so all prior behavior is preserved.
+  const conceptName = $("newConcept") ? $("newConcept").value : "";
+  if(conceptName){
+    const cf = conceptFiles(conceptName);
+    if(!cf){ toast("Concept not in the canon map", true); return; }
+    const hasVault = cf.vault.length > 0;
+    const pairId = hasVault ? "pr-" + Date.now().toString(36) : null;
+    // Forge half: the full blast radius from the map. This is exactly what the forge gate checks.
+    state.items.push(makeItem(title, "site", null, $("newNotes").value.trim(), st, pairId, hasVault ? 1 : null,
+      { concept: conceptName, toolFiles: cf.forge }));
+    // Vault half only when the map actually knows the vault files. Otherwise it's a single
+    // forge item and the UI has already flagged that any vault edits must be filed manually.
+    if(hasVault){
+      const vTitle = $("pairTitle").value.trim() || title;
+      state.items.push(makeItem(vTitle, "canon", null, $("pairNotes").value.trim(), st, pairId, 2,
+        { concept: conceptName, toolFiles: cf.vault }));
+    }
+    $("newTitle").value = ""; $("newNotes").value = "";
+    $("pairTitle").value = ""; $("pairNotes").value = "";
+    if($("newConcept")) $("newConcept").value = "";
+    syncConcept();
+    save((hasVault ? "add concept pair \"" : "add concept \"") + title.slice(0,40) + "\"");
+    return;
+  }
+
+  const area = $("newArea").value;
 
   // Each half reads its own selector. A vault half returns null rather than
   // inheriting whatever sits in the other half's hidden tool dropdown.
@@ -600,6 +761,7 @@ function card(i){
       <span class="chip p${i.priority}">P${i.priority}</span>
       <span class="chip area${i.area === "canon" ? " canon" : ""}">${AREAS[i.area]||esc(i.area)}</span>
       ${i.tool ? `<span class="chip tool${PROTECTED_TOOLS.includes(i.tool) ? " canon" : ""}">${esc(i.tool)}</span>` : ""}
+      ${i.concept ? `<span class="chip canon">${esc(i.concept)}</span>` : ""}
       <span class="chip repo">${REPOS[i.repo]||esc(i.repo||"?")}</span>
       ${i.pair ? `<span class="chip pair">paired · ${i.pairOrder === 1 ? "first" : "second"}</span>` : ""}
     </div>
@@ -643,7 +805,7 @@ function boot(){
   const has = !!token();
   $("gate").classList.toggle("hidden", has);
   $("app").classList.toggle("hidden", !has);
-  if(has){ fillSelects(); syncRepo(); syncPair(); load(); }
+  if(has){ fillSelects(); syncRepo(); syncPair(); fillConcepts(); load(); loadCanonMap(); }
 }
 boot();
 </script>
