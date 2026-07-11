@@ -1369,6 +1369,10 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 .fw-die.spin{ border-color:var(--gold); }
 .fw-dielbl{ font-size:.84rem; color:var(--ice); }
 .fw-accrow{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.fw-rollrow{ display:flex; align-items:center; flex-wrap:wrap; gap:9px 14px; }
+.fw-rollchip{ display:flex; align-items:center; gap:5px; }
+.fw-rc-lbl{ font-size:.7rem; color:var(--ice); opacity:.85; letter-spacing:.02em; }
+.fw-rc-tot{ font-size:.82rem; color:var(--gold); font-weight:600; white-space:nowrap; }
 .cb-seg.mini button{ padding:3px 9px; font-size:.68rem; }
 .cb-sbctl{ display:flex; align-items:center; gap:9px; flex-wrap:wrap; }
 .fw-ct-r{ display:inline-flex; align-items:center; gap:8px; }
@@ -8304,7 +8308,7 @@ function cbIntentPicker(cb){
   nd2.forEach(function(n){ if(n.key==='m:'+cb.id) return; focus+='<option value="'+n.key+'"'+(cb.target===n.key?' selected':'')+'>'+esc(n.name)+'</option>'; });
   focus+='<option value="m:'+cb.id+'"'+(cb.target===('m:'+cb.id)?' selected':'')+'>Itself</option>';
   focus+='<option value="env"'+(cb.target==='env'?' selected':'')+'>Space</option></select>';
-  var accRow=fwAccRow(cb);
+  var accRow=fwFoeRollsRow(cb);
   var infl='';
   if(it.type==='Attack' && it.ability && it.ability!=='__std__'){
     var abIdx=(cb.abilities||[]).map(function(a){ return a.name; }).indexOf(it.ability);
@@ -9050,6 +9054,28 @@ function fwSpinDie(btn, done){
   setTimeout(function(){ clearInterval(iv); btn.classList.remove('spin'); done(); },560);
 }
 function fwPickTog(){ window._fwPick=!window._fwPick; render(); }
+/* All of a foe's rolls for the round on one line. The attack roll shows when the foe is
+   attacking a player. An evade roll shows for each attending player targeting this foe, and
+   the slot appears the moment they target it, so the loremaster can roll it or let Roll All
+   fill it. Player rolls are read off paper and never entered here. */
+function fwFoeRollsRow(cb){
+  var chips=[];
+  if(cb.intent && cb.intent.type==='Attack' && cb.target && cb.target.indexOf('p:')===0){
+    var a=cb._acc;
+    chips.push('<div class="fw-rollchip"><span class="fw-rc-lbl">Attack '+esc(targetName(cb.target))+'</span>'
+      + '<button class="fw-die'+(a&&a.kept===6?' fell':'')+'" onclick="fwSpinDie(this,function(){cbRollFoeAcc(\''+cb.id+'\')})" aria-label="Roll accuracy">'+(a?a.kept:'?')+'</button>'
+      + (a?'<span class="fw-rc-tot">'+a.total+(a.kept===6?' Fellmark':(a.kept===1?' Fellstrike':''))+'</span>':'')+'</div>');
+  }
+  attendingPlayers().forEach(function(p){
+    var st=pState(p.id); if(!st || st.target!=='m:'+cb.id) return;
+    var ev=(st._eva && st._eva.foe===cb.id)?st._eva:null;
+    chips.push('<div class="fw-rollchip"><span class="fw-rc-lbl">Evade '+esc(p.name)+'</span>'
+      + '<button class="fw-die'+(ev&&ev.kept===6?' fell':'')+'" onclick="fwSpinDie(this,function(){cbRollFoeEva(\''+p.id+'\',\''+cb.id+'\')})" aria-label="Roll evade">'+(ev?ev.kept:'?')+'</button>'
+      + (ev?'<span class="fw-rc-tot">'+ev.total+'</span>':'')+'</div>');
+  });
+  if(!chips.length) return '';
+  return '<div class="cb-pickrow"><span class="cb-pk">Rolls</span><div class="fw-rollrow">'+chips.join('')+'</div></div>';
+}
 function fwAccRow(cb){
   if(!(cb.intent && cb.intent.type==='Attack' && cb.target && cb.target.indexOf('p:')===0)) return '';
   var a=cb._acc, kept=a?a.kept:null, pk=!!window._fwPick;

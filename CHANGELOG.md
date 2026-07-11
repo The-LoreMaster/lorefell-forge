@@ -1,3 +1,8 @@
+## Foe rolls read at a glance
+
+- A foe's card shows all its rolls on one line. The attack roll appears when the foe is attacking a player, and an evade roll appears for each attending player targeting the foe. The evade slot shows the moment a player targets the foe, so the roll is visible rather than buried in a resolve spotlight.
+- Tap any die to roll or reroll it, or fill them all with Roll All. Player rolls stay off paper and are never entered.
+
 ## Roll All for the foe side, and Skill as a foe React
 
 - One Roll All button in the combat runner rolls the whole foe side of the round at once. Every foe attacking a player rolls its accuracy, and every foe a player targets rolls its evade. Player rolls are read off paper, never entered, and every foe roll is logged. The foe accuracy and evade rolls already existed and stay rerollable in Resolve.
