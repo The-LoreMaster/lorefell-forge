@@ -2033,9 +2033,9 @@ let MOTIVATION_DEFS=[
   {name:"The Durable",attr:"durability",title:"The Immovable"},
   {name:"The Resistant",attr:"resistance",title:"The Unbroken"}
 ];
-/* A Motivation is a destination: its attribute's three skills walked to
-   4 masteries each. One skill there: Lucky Rolls. All three: the Title,
-   +3 to the attribute, and a new Motivation may be chosen. */
+/* Choosing a Motivation raises its attribute by 1 at once. It is also a destination:
+   its attribute's three skills walked to 4 masteries each. One skill there: Lucky Rolls.
+   All three: the Title, +3 to the attribute, and a new Motivation may be chosen. */
 const motSkills=def=>def?SKILLS[def.attr].map(x=>x[0]):[];
 const motByName=n=>MOTIVATION_DEFS.find(m=>m.name===n)||null;
 const skillIsLucky=name=>{
@@ -2481,7 +2481,16 @@ function grantSummary(){
 }
 $("f-lineage").addEventListener("change",e=>{C.identity.lineage=e.target.value;});
 $("f-origin").addEventListener("change",e=>{C.identity.origin=e.target.value;});
-$("f-motivation").addEventListener("change",e=>{C.identity.motivation=e.target.value;renderMotivation();syncIdentityLock();});
+$("f-motivation").addEventListener("change",e=>{
+  const prev=C.identity.motivation||"";
+  const next=e.target.value||"";
+  C.identity.motivation=next;
+  /* Committing to a Motivation from an empty slot raises its Attribute by 1. Empty happens
+     at the first pick and after a Title clears the old vow, so every new Motivation grants
+     the point once, and toggling the field cannot farm it. */
+  if(!prev){ const nd=motByName(next); if(nd){ C.grants.attrs[nd.attr]=(C.grants.attrs[nd.attr]||0)+1; } }
+  renderMotivation();renderDials();renderStrip();syncIdentityLock();scheduleSave();
+});
 /* Portrait is downscaled to a small JPEG and stored on the character, so it
    travels through save messages; the Velo side moves it into the Media Manager
    and swaps in a hosted URL on the next load. */
@@ -2709,7 +2718,7 @@ function ccRender(){
     ccFoot(card,"track","Continue",()=>{CC.step="motivation";ccRender();},CC.originSkills.length!==3);
   }
   else if(CC.step==="motivation"){
-    ccHead(card,"step 3","Your Motivation","The vow you carried through the veil. It grants nothing at first; it is a destination. Walk its three skills to four masteries each and the Title is yours.");
+    ccHead(card,"step 3","Your Motivation","The vow you carried through the veil. Choosing it raises its Attribute by 1 now. Walk its three skills to four masteries each and the Title is yours.");
     MOTIVATION_DEFS.forEach(m=>{
       const b=luOpt(m.name,`${m.attr.charAt(0).toUpperCase()+m.attr.slice(1)} · ${motSkills(m).join(", ")} · Title: ${m.title}`,()=>{
         CC.motivation=m.name;CC.step="lineage";ccRender();
@@ -2800,7 +2809,7 @@ function ccRender(){
     ccFoot(card,"pg-origin",null,null);
   }
   else if(CC.step==="pg-motivation"){
-    ccHead(card,"step 3","Choose your Motivation","A destination, not a bonus. Its Title waits at the end of three mastered skills.");
+    ccHead(card,"step 3","Choose your Motivation","Choosing it raises its Attribute by 1 now. Its Title waits at the end of three mastered skills.");
     MOTIVATION_DEFS.forEach(m=>{
       const b=luOpt(m.name,`${m.attr.charAt(0).toUpperCase()+m.attr.slice(1)} · Title: ${m.title}`,()=>{CC.motivation=m.name;CC.step="identity";ccRender();});
       if(CC.motivation===m.name)b.classList.add("sel");
@@ -2855,6 +2864,11 @@ function ccApply(){
     C.identity.origin=o.name;
     C.identity.motivation=CC.motivation||"";
   }
+  /* A Motivation raises its Attribute by 1 the moment it is chosen. This is on top of
+     everything from the track, origin, and lineage, and it stacks with each new Motivation
+     taken up after a Title. */
+  const _motDef=motByName(C.identity.motivation);
+  if(_motDef)addAttr(_motDef.attr);
   if(CC&&CC.forge)C.forge=CC.forge;
   C.identity.campaign=C.identity.campaign||"";
   C.identity.campaignId=C.identity.campaignId||"";

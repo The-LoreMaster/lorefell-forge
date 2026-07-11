@@ -1,3 +1,9 @@
+## Motivations grant a starting point
+
+- Choosing a Motivation raises its Attribute by 1 at once, on top of everything from the track, origin, and lineage. It applies at creation and again each time a new Motivation is taken up after a Title.
+- The grant fires when a Motivation is committed from an empty slot, which is the first pick and every post-Title choice, so the point lands once per Motivation and the field cannot be toggled to farm it.
+- Creation copy no longer says a Motivation grants nothing. The Title still grants +3 when all three skills reach four masteries.
+
 ## Declaring for written-in players, done right
 
 - Removed the duplicate player card I added. The real card is the token popup, and it already handled vitality, conditions, reroll, and dealing damage. Tapping a player's name on the resolution card now opens that one card.
