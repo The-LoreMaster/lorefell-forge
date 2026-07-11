@@ -1,3 +1,9 @@
+## The loremaster can run players from the board
+
+- Tap a player on the combat board to open their card. Edit vitality and afflictions, set charge, and declare their Act, target, and React.
+- Written-in players (party members with no live app) carry a light kit on the card: a short list of Acts and a stance. The declare control fills from their Acts, so the spotlight runs them like anyone else. A loremaster running the whole table can declare for every player and foe, then resolve as usual.
+- Live players show their own declaration as it comes in. You can still set it by hand if they step away, and their next sync takes over.
+
 ## Campaign in the editor, one image on the card, search clears clean
 
 - The foe editor sets which campaign a foe belongs to. This ties it to a campaign so it stays off the shelf in your others, or Any campaign to keep it everywhere. The tag now saves to the account too.
