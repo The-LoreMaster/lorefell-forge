@@ -1,3 +1,8 @@
+## The vault flows through: seeds and bakes reconciled to current canon
+
+- The FellGuide vault is canon, so the July aspect rulings now flow the whole pipeline: canonFromVault regenerated the Lorebounds, Infusions, and Augmentations seeds, and genCanon rebaked every tool copy. Six aspects return to single-attribute scaling per the vault (the Aerostrix, the Boreal, the Felionis, the Mordel, the Slipfang, the Worgar), the Alkagoo and Aquafin reworks land, and the Agile infusion carries its shorter wording.
+- FateWell's hand-kept aspect name list still carried Unbind, the Runesteed's old aspect, missed when the vault renamed it to Redoubt. Fixed, which is exactly the one-sided drift the gate exists to catch.
+
 ## CI check for vault-to-seed staleness, staged for the workflow
 
 - The canon gate's biggest blind spot has its fix written: a workflow step that checks out the vault, reruns canonFromVault, and fails if any seed no longer matches its vault source, printing the exact fix. A vault canon edit can no longer sit silently unbaked once applied.
