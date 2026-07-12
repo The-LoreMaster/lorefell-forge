@@ -42,8 +42,10 @@ permits only four exact scripts. To run it by hand, add `canon/checkCanon.js` to
    into the seed, or a seed hand-edited out of step with the vault, passes CI silently. **v2 item #1:**
    check out the vault in `canon.yml` (deploy key / token or submodule) and add a `canonFromVault.js`
    regen-diff to axis 1.
-2. **Re-enable genCanon in axis 1.** `genCanon.js` is currently excluded because it is broken (below).
-   Once fixed, its five baked targets should move from axis-3 co-change back to axis-1 regen-diff.
+2. **DONE. genCanon is re-enabled in axis 1.** Its ASPECT_META regression is removed (the aspect
+   category now derives from the seed's own `archetype` field), the bake is committed and idempotent,
+   and `canon.map.json` gates it as a second `generated` entry. Its targets stay in axis-3 co-change
+   too; the axes are complementary (axis 1 catches a stale bake, axis 3 a one-sided hand edit).
 3. **Worlds** co-change group (threadspire / fatewell / bondforge / sagaforge / fellforge /
    the_cartographer). Sibling set not yet pinned. Add once enumerated.
 4. **Axis 4. Wix-seed ↔ inline parity.** Value-equality between seeds and inline copies. Too brittle
@@ -109,13 +111,12 @@ They look canonical by name but nothing consumes them (only `CHANGELOG` history)
 
 ## Live issues found while building the gate (fix independently)
 
-- **`genCanon.js` is broken on 3 of its 5 targets.** Running it errors with `MISS` on the shardforge
-  infusion catalog, shardforge augment catalog, and foeforge augmentations. Its regex anchors no
-  longer match the current HTML. It exits non-zero. (Reason genCanon is excluded from axis 1 in v1.)
-- **`genCanon.js` `ASPECT_META` regresses two aspects.** It has no key for `Redoubt` or `Kindle` (it
-  still carries the obsolete `Pyre`), so a re-bake would flip both categories to the default
-  `support`. The committed `fellglass` is *more correct* than genCanon's output. Fix `ASPECT_META`
-  (add `Redoubt`, `Kindle`. Drop `Pyre`) before re-enabling genCanon.
+- **FIXED. `genCanon.js` runs clean on all 5 targets and is idempotent.** The MISS anchors healed as
+  the HTML converged on the fenced CANON blocks. The remaining trap was `ASPECT_META`: a hand-kept
+  category lookup that had drifted twice (obsolete `Pyre`, missing `Redoubt` and `Kindle`) and would
+  silently regress both categories to `support` on any re-bake. The lookup is deleted; the category
+  now derives from the Lorebounds seed's own `archetype` field, so it cannot drift again. The rebaked
+  fellglass block is committed and axis 1 now gates genCanon (see the v2 list above).
 - **A 5th affliction copy** lives in `docs/brandforge.html` (`const AFFLICTIONS`), beyond the
   conditions group currently gated (`data/conditions.canon.js`, fatewell, fellglass) and the copies in
   `sigilforge`, the foe packs. Fold into the conditions group when convenient.

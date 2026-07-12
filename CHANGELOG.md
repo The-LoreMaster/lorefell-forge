@@ -1,3 +1,19 @@
+## The vault flows through: seeds and bakes reconciled to current canon
+
+- The FellGuide vault is canon, so the July aspect rulings now flow the whole pipeline: canonFromVault regenerated the Lorebounds, Infusions, and Augmentations seeds, and genCanon rebaked every tool copy. Six aspects return to single-attribute scaling per the vault (the Aerostrix, the Boreal, the Felionis, the Mordel, the Slipfang, the Worgar), the Alkagoo and Aquafin reworks land, and the Agile infusion carries its shorter wording.
+- FateWell's hand-kept aspect name list still carried Unbind, the Runesteed's old aspect, missed when the vault renamed it to Redoubt. Fixed, which is exactly the one-sided drift the gate exists to catch.
+
+## CI check for vault-to-seed staleness, staged for the workflow
+
+- The canon gate's biggest blind spot has its fix written: a workflow step that checks out the vault, reruns canonFromVault, and fails if any seed no longer matches its vault source, printing the exact fix. A vault canon edit can no longer sit silently unbaked once applied.
+- The change ships as canon/canon.yml.proposed because a token without workflow scope cannot push workflow files. Applying it is two steps in the GitHub UI: copy the proposed file over .github/workflows/canon.yml, and add a VAULT_TOKEN repository secret with read access to the vault. Without the secret the step warns loudly and skips instead of failing.
+
+## genCanon is trustworthy again and the gate watches it
+
+- Fixed the trap in genCanon.js that would quietly regress two lorebound categories on any re-bake. The hand-kept ASPECT_META lookup still carried the obsolete Pyre and knew nothing of Redoubt or Kindle, so a run flipped both to support. The lookup is gone. The category now derives from the Lorebounds seed's own archetype field, which is the source of record, so it cannot drift again.
+- The FellGlass aspect block is rebaked from the seed and committed, and a second run changes nothing.
+- The canon gate's axis 1 now runs genCanon alongside the rules pipeline. A seed edit without a re-bake, or a hand edit to a baked block, fails CI with the exact fix printed. The same blocks stay under axis 3 co-change, so a stale bake and a one-sided edit are each caught by the axis built for them.
+
 ## Foes belong to their campaign, and leave with it
 
 - Importing an adventure now stamps every foe and NPC it brings in with that campaign. They scope to it in the library and travel with it.
