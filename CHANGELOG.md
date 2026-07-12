@@ -1,3 +1,8 @@
+## CI check for vault-to-seed staleness, staged for the workflow
+
+- The canon gate's biggest blind spot has its fix written: a workflow step that checks out the vault, reruns canonFromVault, and fails if any seed no longer matches its vault source, printing the exact fix. A vault canon edit can no longer sit silently unbaked once applied.
+- The change ships as canon/canon.yml.proposed because a token without workflow scope cannot push workflow files. Applying it is two steps in the GitHub UI: copy the proposed file over .github/workflows/canon.yml, and add a VAULT_TOKEN repository secret with read access to the vault. Without the secret the step warns loudly and skips instead of failing.
+
 ## genCanon is trustworthy again and the gate watches it
 
 - Fixed the trap in genCanon.js that would quietly regress two lorebound categories on any re-bake. The hand-kept ASPECT_META lookup still carried the obsolete Pyre and knew nothing of Redoubt or Kindle, so a run flipped both to support. The lookup is gone. The category now derives from the Lorebounds seed's own archetype field, which is the source of record, so it cannot drift again.
