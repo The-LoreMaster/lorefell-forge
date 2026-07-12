@@ -3995,9 +3995,14 @@ function addCampaignLegacy(){ createLevelModal('New campaign', function(n, d, im
 }); }
 function renameCampaign(id){ var c; S.campaigns.forEach(function(x){ if(x.id===id) c=x; }); nameModal('Rename adventure',c.name,function(n){ c.name=n; if (WIX.hosted && (WIX.hub || WIX.campaignId===id)) postToWix({ type:'lmtool-campaign-title', campaignId:id, title:n }); save(); render(); }); }
 function deleteCampaign(id){
-  askConfirm('Delete this campaign and everything in it?', function(){
+  askConfirm('Delete this campaign and everything in it, including the foes and NPCs assigned to it?', function(){
     S.campaigns = S.campaigns.filter(function(x){ return x.id!==id; });
-    if (WIX.hosted) postToWix({ type:'lmtool-campaign-delete', campaignId:id });
+    var removed = S.library.filter(function(e){ return e.campaignId===id; });
+    S.library = S.library.filter(function(e){ return e.campaignId!==id; });
+    if (WIX.hosted){
+      postToWix({ type:'lmtool-campaign-delete', campaignId:id });
+      removed.forEach(function(e){ deleteAsset(e.id); });
+    }
     save(); render();
   }, 'Delete');
 }
@@ -7287,17 +7292,23 @@ function importPack(pack, msg){
     }
   })(S);
   function freshId(){ var id; do { id = uid(); } while (usedIds[id]); usedIds[id] = 1; return id; }
+  /* Mint the campaign id first so every profile this pack brings in is stamped with it.
+     Tagged profiles scope to this campaign in the library and are removed with it on delete,
+     so testing adventures stops leaving orphaned foes behind. */
+  var newCid = freshId();
+  var newCName = (pack.campaign && pack.campaign.name) || 'Adventure';
 
   /* 1. add every pack NPC to the library as new, map old id -> new id */
   var npcMap = {};
   pack.npcs.forEach(function(n){
-    var existing = libByNameType(n.name, 'npc');
-    if (existing){ npcMap[n.id] = existing.id; return; } /* reuse, do not duplicate */
+    var existing = S.library.filter(function(e){ return e.type==='npc' && String(e.name||'').trim().toLowerCase()===String(n.name||'').trim().toLowerCase() && e.campaignId===newCid; })[0];
+    if (existing){ npcMap[n.id] = existing.id; return; } /* reuse this campaign's own copy, do not duplicate */
     var copy = JSON.parse(JSON.stringify(n));
     var nid = freshId();
     npcMap[n.id] = nid;
     copy.id = nid;
     if (copy.type !== 'npc') copy.type = 'npc';
+    copy.campaignId = newCid; copy.campaignName = newCName;
     S.library.push(copy);
     if (WIX.hosted) pushAsset(copy);
   });
@@ -7305,13 +7316,14 @@ function importPack(pack, msg){
   /* 1b. add every forged foe to the library as a monster, map old id -> new id */
   var foeMap = {};
   (pack.foes || []).forEach(function(f){
-    var existing = libByNameType(f.name, 'monster');
-    if (existing){ foeMap[f.id] = existing.id; return; } /* reuse, do not duplicate */
+    var existing = S.library.filter(function(e){ return e.type==='monster' && String(e.name||'').trim().toLowerCase()===String(f.name||'').trim().toLowerCase() && e.campaignId===newCid; })[0];
+    if (existing){ foeMap[f.id] = existing.id; return; } /* reuse this campaign's own copy, do not duplicate */
     var copy = JSON.parse(JSON.stringify(f));
     var fid = freshId();
     foeMap[f.id] = fid;
     copy.id = fid;
     copy.type = 'monster';
+    copy.campaignId = newCid; copy.campaignName = newCName;
     S.library.push(copy);
     if (WIX.hosted) pushAsset(copy);
   });
@@ -7323,7 +7335,7 @@ function importPack(pack, msg){
     if (e.speaker) e.speaker = npcMap[e.speaker] || e.speaker;
   }
   var camp = JSON.parse(JSON.stringify(pack.campaign));
-  camp.id = freshId();
+  camp.id = newCid;
   if (!camp.ovOpen) camp.ovOpen = {};
   // match a free-text world hint from a forged pack to a real world, if it names one
   if (!camp.worldId && camp.worldHint){

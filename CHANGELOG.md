@@ -1,3 +1,9 @@
+## Foes belong to their campaign, and leave with it
+
+- Importing an adventure now stamps every foe and NPC it brings in with that campaign. They scope to it in the library and travel with it.
+- Deleting a campaign deletes the foes and NPCs assigned to it, so testing adventures stops leaving a pile of orphaned copies behind. Foes marked Any campaign and foes tied to other campaigns are untouched.
+- Import dedup is now per campaign, so each adventure carries its own set rather than silently sharing one that cannot be cleaned up.
+
 ## Roll All for the foe side, and Skill as a foe React
 
 - One Roll All button in the combat runner rolls the whole foe side of the round at once. Every foe attacking a player rolls its accuracy, and every foe a player targets rolls its evade. Player rolls are read off paper, never entered, and every foe roll is logged. The foe accuracy and evade rolls already existed and stay rerollable in Resolve.
