@@ -1,3 +1,9 @@
+## genCanon is trustworthy again and the gate watches it
+
+- Fixed the trap in genCanon.js that would quietly regress two lorebound categories on any re-bake. The hand-kept ASPECT_META lookup still carried the obsolete Pyre and knew nothing of Redoubt or Kindle, so a run flipped both to support. The lookup is gone. The category now derives from the Lorebounds seed's own archetype field, which is the source of record, so it cannot drift again.
+- The FellGlass aspect block is rebaked from the seed and committed, and a second run changes nothing.
+- The canon gate's axis 1 now runs genCanon alongside the rules pipeline. A seed edit without a re-bake, or a hand edit to a baked block, fails CI with the exact fix printed. The same blocks stay under axis 3 co-change, so a stale bake and a one-sided edit are each caught by the axis built for them.
+
 ## Foes belong to their campaign, and leave with it
 
 - Importing an adventure now stamps every foe and NPC it brings in with that campaign. They scope to it in the library and travel with it.

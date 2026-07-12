@@ -22,14 +22,9 @@ function replaceOnce(file, s, re, replacement, label) {
   return s.replace(re, replacement);
 }
 
-/* Aspect presentation metadata not carried by the seed. */
-const ASPECT_META = {
-  Augury: 'control', Distillation: 'negation', Siphon: 'empower', Succor: 'mitigation',
-  Scour: 'control', Boon: 'control', Aegis: 'mitigation', Reprisal: 'retort',
-  Weave: 'empower', Forfeit: 'control', Adamant: 'mitigation', Unbind: 'restoration',
-  Elude: 'negation', Pyre: 'control', Snare: 'retort', Veer: 'control',
-  Reap: 'restoration', Umbra: 'control'
-};
+/* The category comes from the seed's own archetype field. A hand-kept lookup here drifted
+   twice (Pyre outliving its rename to Kindle, Redoubt missing) and silently regressed the
+   bake to 'support'. The seed is the source of record, so it names the category. */
 
 const ord = (a, b) => (a.displayOrder || 0) - (b.displayOrder || 0);
 
@@ -81,7 +76,7 @@ const ord = (a, b) => (a.displayOrder || 0) - (b.displayOrder || 0);
   let s = read(file);
   const rows = seed('Lorebounds.json').slice().sort(ord).map(r => ({
     name: r.aspectName,
-    category: ASPECT_META[r.aspectName] || 'support',
+    category: r.archetype || 'support',
     use: 'React',
     lorebound: r.name,
     desc: r.initial,
