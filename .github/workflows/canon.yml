@@ -24,6 +24,8 @@ on:
 jobs:
   canon:
     runs-on: ubuntu-latest
+    env:
+      HAS_VAULT_TOKEN: ${{ secrets.VAULT_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -41,6 +43,28 @@ jobs:
           else
             echo "ref=${{ github.event.before }}" >> "$GITHUB_OUTPUT"
           fi
+      # Vault-to-seed staleness (v2 item 1). The vault is a separate private repo, so this
+      # step needs a VAULT_TOKEN secret with read access to The-LoreMaster/lorefell-fellguide.
+      # Without the secret the step skips loudly rather than failing, so forks and secretless
+      # runs stay green while the main repo gets the real check.
+      - name: Check out the vault
+        if: ${{ env.HAS_VAULT_TOKEN == 'true' }}
+        uses: actions/checkout@v4
+        with:
+          repository: The-LoreMaster/lorefell-fellguide
+          token: ${{ secrets.VAULT_TOKEN }}
+          path: .vault-checkout
+      - name: Vault to seed staleness
+        if: ${{ env.HAS_VAULT_TOKEN == 'true' }}
+        run: |
+          VAULT_DIR=.vault-checkout node scripts/canonFromVault.js
+          if ! git diff --exit-code --stat schemas/seed/; then
+            echo '::error::Seeds are stale against the vault. Run VAULT_DIR=../lorefell-fellguide node scripts/canonFromVault.js and commit the result (then node scripts/genCanon.js for the baked copies).'
+            exit 1
+          fi
+      - name: Note when the vault check is skipped
+        if: ${{ env.HAS_VAULT_TOKEN != 'true' }}
+        run: echo '::warning::VAULT_TOKEN secret not set; vault-to-seed staleness NOT checked.'
       - name: Canon drift gate
         env:
           CANON_BASE: ${{ steps.base.outputs.ref }}
