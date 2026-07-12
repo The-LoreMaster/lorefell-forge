@@ -9,7 +9,7 @@
     "family": "Precision",
     "cost": 3,
     "breakout": "Renewal",
-    "rule": "Whenever you take damage, take your own Base Damage.",
+    "rule": "Whenever the target takes damage, the target takes the target's own Base Damage.",
     "forgeable": true,
     "enforce": {
       "bucket": "A",
@@ -24,7 +24,7 @@
     "family": "Precision",
     "cost": 3,
     "breakout": "Movement",
-    "rule": "Your Evasion becomes 0.",
+    "rule": "The target's Evasion becomes 0.",
     "forgeable": true,
     "enforce": {
       "bucket": "C",
@@ -38,7 +38,7 @@
     "family": "Precision",
     "cost": 3,
     "breakout": "Guard",
-    "rule": "Your Durability becomes 0.",
+    "rule": "The target's Durability becomes 0.",
     "forgeable": true,
     "enforce": {
       "bucket": "C",
@@ -52,7 +52,7 @@
     "family": "Precision",
     "cost": 3,
     "breakout": "Movement",
-    "rule": "You cannot move.",
+    "rule": "The target cannot move.",
     "forgeable": true,
     "enforce": {
       "bucket": "B",
@@ -66,7 +66,7 @@
     "family": "Precision",
     "cost": 3,
     "breakout": "Elusion",
-    "rule": "Fellmarks land against you on a 5 or 6.",
+    "rule": "Fellmarks land against the target on a 5 or 6.",
     "forgeable": true,
     "enforce": {
       "bucket": "C",
@@ -80,7 +80,7 @@
     "family": "Precision",
     "cost": 4,
     "breakout": "Renewal",
-    "rule": "Your maximum Vitality is halved.",
+    "rule": "The target's maximum Vitality is halved.",
     "forgeable": true,
     "enforce": {
       "bucket": "A",
@@ -94,7 +94,7 @@
     "family": "Precision",
     "cost": 4,
     "breakout": "Conviction",
-    "rule": "You may only target the source of this Affliction.",
+    "rule": "The target may only target the source of this Affliction.",
     "forgeable": true,
     "enforce": {
       "bucket": "B",
@@ -108,7 +108,7 @@
     "family": "Precision",
     "cost": 4,
     "breakout": "Creation",
-    "rule": "Your weapons lose their Infusions.",
+    "rule": "The target's weapons lose their Infusions.",
     "forgeable": true,
     "enforce": {
       "bucket": "C",
@@ -122,7 +122,7 @@
     "family": "Precision",
     "cost": 4,
     "breakout": "Finesse",
-    "rule": "You cannot utilize your weapon.",
+    "rule": "The target cannot utilize the target's weapon.",
     "forgeable": true,
     "enforce": {
       "bucket": "B",
@@ -136,7 +136,7 @@
     "family": "Precision",
     "cost": 4,
     "breakout": "Weaving",
-    "rule": "Your spells automatically fail unless a Fellmark is rolled.",
+    "rule": "The target's spells automatically fail unless a Fellmark is rolled.",
     "forgeable": true,
     "enforce": {
       "bucket": "C",
@@ -150,7 +150,7 @@
     "family": "Precision",
     "cost": 5,
     "breakout": "Poise",
-    "rule": "You cannot utilize attacks.",
+    "rule": "The target cannot utilize attacks.",
     "forgeable": true,
     "enforce": {
       "bucket": "B",
@@ -164,7 +164,7 @@
     "family": "Power",
     "cost": 3,
     "breakout": "Resolve",
-    "rule": "Your Resistance becomes 0.",
+    "rule": "The target's Resistance becomes 0.",
     "forgeable": true,
     "enforce": {
       "bucket": "C",
@@ -178,7 +178,7 @@
     "family": "Power",
     "cost": 3,
     "breakout": "Bearing",
-    "rule": "Bonus Damage dealt to you counts as Base Damage instead.",
+    "rule": "Bonus Damage dealt to the target counts as Base Damage instead.",
     "forgeable": true,
     "enforce": {
       "bucket": "A",
@@ -192,7 +192,7 @@
     "family": "Power",
     "cost": 3,
     "breakout": "Vigilance",
-    "rule": "Your Accuracy is halved.",
+    "rule": "The target's Accuracy is halved.",
     "forgeable": true,
     "enforce": {
       "bucket": "C",
@@ -206,7 +206,7 @@
     "family": "Power",
     "cost": 3,
     "breakout": "Conviction",
-    "rule": "You cannot voluntarily move closer to the source of this Affliction.",
+    "rule": "The target cannot voluntarily move closer to the source of this Affliction.",
     "forgeable": true,
     "enforce": {
       "bucket": "B",
@@ -220,7 +220,7 @@
     "family": "Power",
     "cost": 3,
     "breakout": "Logic",
-    "rule": "Roll 1d6 before each attack. On an odd result, you must target an ally if able.",
+    "rule": "Roll 1d6 before each attack. On an odd result, the target must target an ally if able.",
     "forgeable": true,
     "enforce": {
       "bucket": "B",
@@ -234,7 +234,7 @@
     "family": "Power",
     "cost": 3,
     "breakout": "Renewal",
-    "rule": "Whenever you deal damage, you take your own Base Damage.",
+    "rule": "Whenever the target deals damage, the target takes the target's own Base Damage.",
     "forgeable": true,
     "enforce": {
       "bucket": "A",
@@ -248,7 +248,7 @@
     "family": "Power",
     "cost": 4,
     "breakout": "Resonance",
-    "rule": "Damage you deal is halved.",
+    "rule": "Damage the target deals is halved.",
     "forgeable": true,
     "enforce": {
       "bucket": "A",
@@ -262,7 +262,7 @@
     "family": "Power",
     "cost": 4,
     "breakout": "Creation",
-    "rule": "Your armor loses its Augmentations.",
+    "rule": "The target's armor loses its Augmentations.",
     "forgeable": true,
     "enforce": {
       "bucket": "C",
@@ -276,7 +276,7 @@
     "family": "Power",
     "cost": 4,
     "breakout": "Reflex",
-    "rule": "You cannot utilize Reacts.",
+    "rule": "The target cannot utilize Reacts.",
     "forgeable": true,
     "enforce": {
       "bucket": "B",
@@ -290,7 +290,7 @@
     "family": "Power",
     "cost": 5,
     "breakout": "Bearing",
-    "rule": "You cannot attack and your Evasion becomes 0.",
+    "rule": "The target cannot attack and the target's Evasion becomes 0.",
     "forgeable": true,
     "enforce": {
       "bucket": "B",
@@ -304,7 +304,7 @@
     "family": "Power",
     "cost": 5,
     "breakout": "Anchor",
-    "rule": "All of your attributes become equal to your lowest attribute.",
+    "rule": "All of the target's attributes become equal to the target's lowest attribute.",
     "forgeable": true,
     "enforce": {
       "bucket": "C",
@@ -318,7 +318,7 @@
     "family": "Magic",
     "cost": 3,
     "breakout": "Resonance",
-    "rule": "Your rolls of 1 or 2 count as Fellstrikes.",
+    "rule": "The target's rolls of 1 or 2 count as Fellstrikes.",
     "forgeable": true,
     "enforce": {
       "bucket": "C",
@@ -332,7 +332,7 @@
     "family": "Magic",
     "cost": 3,
     "breakout": "Vigilance",
-    "rule": "You may only see spaces and targets in your space or adjacent spaces.",
+    "rule": "The target may only see spaces and targets in the target's space or adjacent spaces.",
     "forgeable": true,
     "enforce": {
       "bucket": "C",
@@ -346,7 +346,7 @@
     "family": "Magic",
     "cost": 3,
     "breakout": "Endurance",
-    "rule": "Whenever you utilize an Act, take 1d6 damage.",
+    "rule": "Whenever the target utilizes an Act, the target takes 1d6 damage.",
     "forgeable": true,
     "enforce": {
       "bucket": "A",
@@ -361,7 +361,7 @@
     "family": "Magic",
     "cost": 3,
     "breakout": "Reflex",
-    "rule": "You gain 1 rank of Fatigue.",
+    "rule": "The target gains 1 rank of Fatigue.",
     "forgeable": true,
     "enforce": {
       "bucket": "C",
@@ -375,7 +375,7 @@
     "family": "Magic",
     "cost": 4,
     "breakout": "Resonance",
-    "rule": "All your rolls become Unlucky.",
+    "rule": "All of the target's rolls become Unlucky.",
     "forgeable": true,
     "enforce": {
       "bucket": "C",
@@ -389,7 +389,7 @@
     "family": "Magic",
     "cost": 4,
     "breakout": "Weaving",
-    "rule": "You no longer gain Charges.",
+    "rule": "The target no longer gains Charges.",
     "forgeable": true,
     "enforce": {
       "bucket": "A",
@@ -403,7 +403,7 @@
     "family": "Magic",
     "cost": 4,
     "breakout": "Spirit",
-    "rule": "Any source that would heal your Vitality deals Base Damage instead.",
+    "rule": "Any source that would heal the target's Vitality deals Base Damage instead.",
     "forgeable": true,
     "enforce": {
       "bucket": "A",
@@ -417,7 +417,7 @@
     "family": "Magic",
     "cost": 4,
     "breakout": "Sanctum",
-    "rule": "You take damage equal to the damage you deal to others.",
+    "rule": "The target takes damage equal to the damage the target deals to others.",
     "forgeable": true,
     "enforce": {
       "bucket": "A",
@@ -431,7 +431,7 @@
     "family": "Magic",
     "cost": 4,
     "breakout": "Temper",
-    "rule": "Lose half your current Vitality.",
+    "rule": "The target loses half the target's current Vitality.",
     "forgeable": true,
     "enforce": {
       "bucket": "A",
@@ -445,7 +445,7 @@
     "family": "Magic",
     "cost": 5,
     "breakout": "Might",
-    "rule": "You may not utilize Acts.",
+    "rule": "The target may not utilize Acts.",
     "forgeable": true,
     "enforce": {
       "bucket": "B",
@@ -459,7 +459,7 @@
     "family": "Magic",
     "cost": 5,
     "breakout": "Bearing",
-    "rule": "You may only utilize Skill Rolls.",
+    "rule": "The target may only utilize Skill Rolls.",
     "forgeable": true,
     "enforce": {
       "bucket": "B",
@@ -473,7 +473,7 @@
     "family": "Magic",
     "cost": 5,
     "breakout": "Sanctum",
-    "rule": "Choose a target ally. Any damage dealt to that ally is also dealt to you.",
+    "rule": "Choose a target ally. Any damage dealt to that ally is also dealt to the target.",
     "forgeable": true,
     "enforce": {
       "bucket": "C",
@@ -487,7 +487,7 @@
     "family": "Magic",
     "cost": 5,
     "breakout": "Trickery",
-    "rule": "Each Affliction that afflicts an ally also afflicts you.",
+    "rule": "Each Affliction that afflicts an ally also afflicts the target.",
     "forgeable": true,
     "enforce": {
       "bucket": "C",
@@ -501,7 +501,7 @@
     "family": "Magic",
     "cost": 5,
     "breakout": "Sanctum",
-    "rule": "Each Affliction that afflicts an enemy also afflicts you.",
+    "rule": "Each Affliction that afflicts an enemy also afflicts the target.",
     "forgeable": true,
     "enforce": {
       "bucket": "C",
