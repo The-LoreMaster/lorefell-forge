@@ -620,6 +620,12 @@ body.runner-mode #savedTag{ display:none; }
 .hook-chip.ready{ border-color:rgba(184,204,216,.6); color:var(--ice); background:#11203022; }
 .hook-chip.fired{ opacity:.35; text-decoration:line-through; }
 .hook-chip .hk-dot{ width:7px; height:7px; border-radius:50%; background:var(--ice); box-shadow:0 0 6px var(--ice); }
+.hook-banner-box{ position:fixed; top:10px; left:50%; transform:translateX(-50%); z-index:130; display:flex; flex-direction:column; gap:8px; max-width:92vw; width:420px; }
+.hook-banner{ background:var(--navy-4,#1c2742); border:1px solid var(--gold); border-radius:10px; padding:9px 8px 9px 14px; box-shadow:0 8px 28px rgba(0,0,0,.5); display:flex; align-items:center; gap:10px; }
+.hook-banner .hb-text{ flex:1; min-width:0; }
+.hook-banner .hb-eyebrow{ font-family:'Cinzel',serif; font-size:.62rem; letter-spacing:.1em; text-transform:uppercase; color:var(--gold); display:block; }
+.hook-banner .hb-label{ color:var(--silver); font-family:'Crimson Pro',serif; font-size:.95rem; }
+.hook-banner .hb-x{ background:none; border:none; color:var(--silver-dim); font-size:1.1rem; line-height:1; cursor:pointer; padding:6px 10px; font-family:inherit; }
 .hk-pager{ justify-content:center; align-items:center; gap:12px; }
 .hk-count{ color:var(--silver-dim); font-variant-numeric:tabular-nums; font-size:.85rem; }
 .hk-cond-row{ display:flex; gap:6px; align-items:center; margin-bottom:6px; flex-wrap:wrap; }
@@ -8658,7 +8664,9 @@ function publishCombat(){
   if(active){
     var bb=sc.battle||{}; var cc=curC(); var spotChars=[];
     (bb.spotBox||[]).forEach(function(k){ if(k.indexOf('p:')!==0) return; var pid=k.slice(2); (cc.players||[]).forEach(function(p){ if(p.id===pid && p.charId) spotChars.push(p.charId); }); });
-    state={ active:true, round:bb.round||1, phase:bb.phase||'commit', sceneId:sc.id, sceneName:sc.name||'', fighters:combatFighters(sc), spotlightChars:spotChars, pend:bb.pend||{}, orders:bb.orders||{}, log:(bb.clog||[]).slice(0,50) };
+    var aps=attendingPlayers(), declaredCount=0;
+    aps.forEach(function(p){ if(pState(p.id).act) declaredCount++; });
+    state={ active:true, round:bb.round||1, phase:bb.phase||'commit', sceneId:sc.id, sceneName:sc.name||'', fighters:combatFighters(sc), spotlightChars:spotChars, pend:bb.pend||{}, orders:bb.orders||{}, log:(bb.clog||[]).slice(0,50), total:aps.length, declared:declaredCount };
   } else { state={ active:false }; }
   var sig=JSON.stringify(state)+'@'+cid;
   if(sig!==window._combatPubSig){
@@ -10190,6 +10198,31 @@ function hookState(sc, hook){
   if (!cs.length) return 'ready'; /* manual */
   return cs.every(function(c){ return evalCond(sc, c); }) ? 'ready' : 'armed';
 }
+
+/* ---- Fired-hook banner: a dismissible callout when a conditioned hook's trigger
+   goes true, so prep reaches the table even if the Triggers strip goes unnoticed. */
+function hookBannerCheck(sc){
+  if (!sc || !(sc.hooks||[]).length) return;
+  if (window._hookBannerScene !== sc.id){ window._hookBannerScene = sc.id; window._hookBannerPrev = {}; var box=document.getElementById('hookBannerBox'); if (box) box.innerHTML=''; }
+  window._hookBannerPrev = window._hookBannerPrev || {};
+  sc.hooks.forEach(function(h){
+    if (!(h.conditions||[]).length) return; /* manual hooks have no trigger to fire */
+    var st = hookState(sc, h);
+    if (st==='ready' && window._hookBannerPrev[h.id]!=='ready') showHookBanner(h);
+    window._hookBannerPrev[h.id] = st;
+  });
+}
+function showHookBanner(hook){
+  var box = document.getElementById('hookBannerBox');
+  if (!box){ box=document.createElement('div'); box.id='hookBannerBox'; box.className='hook-banner-box'; document.body.appendChild(box); }
+  if (document.getElementById('hookBanner-'+hook.id)) return;
+  var row = document.createElement('div');
+  row.className = 'hook-banner'; row.id = 'hookBanner-'+hook.id;
+  row.innerHTML = '<div class="hb-text"><span class="hb-eyebrow">Trigger fired</span><span class="hb-label">'+esc(hook.label||'Hook')+'</span></div>'
+    + '<button class="hb-x" aria-label="Dismiss">&#10005;</button>';
+  row.querySelector('.hb-x').addEventListener('click', function(){ row.remove(); });
+  box.appendChild(row);
+}
 function condText(cond){
   var d = hookKindDef(cond.k);
   if (d.needs==='pct')  return d.label.replace('%', (Number(cond.pct)||0)+'%');
@@ -10797,6 +10830,7 @@ function render(){
   try { wireCardDrag(); } catch(_){}
   try { placeNoteInserts(); } catch(_){}
   try { publishCombat(); } catch(_){}
+  try { if(_fw) hookBannerCheck(_fsc); } catch(_){}
   try { if(window._fwPopKey && document.getElementById('fwTkOvl')) fwTokenPopup(window._fwPopKey); } catch(_){}
   document.getElementById('bnav-slot').innerHTML = '';
 }
