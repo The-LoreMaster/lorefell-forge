@@ -9635,9 +9635,46 @@ function escalateScene(){
   sc.mode = 'combat';
   save(); render();
 }
+/* Battle summary: rounds fought and a per-side tally of damage dealt and
+   afflictions landed, read from the battle's own combat log (clog) rather
+   than tracked separately. Fell attacks log as "hits X for N"; foe attacks
+   log as "takes N base + M bonus" (direct or Bulwark-redirected); a foe's
+   Fellmark-triggered affliction logs its own "lands on" line, while a fell's
+   Fellmark affliction rides on its own hit line as "+ <condition>". */
+function combatSummaryText(sc){
+  var b = sc && sc.battle;
+  if (!b || !Array.isArray(b.clog) || !b.clog.length) return null;
+  var rounds = b.round || 1;
+  var dealt = { fell:0, foe:0 }, landed = { fell:0, foe:0 };
+  var condNames = (window.CANON_CONDITIONS||[]).map(function(c){ return c.name; });
+  b.clog.forEach(function(e){
+    var t = e.text || '', m;
+    if ((m = /\bhits\s+.+\s+for\s+(\d+)\b/.exec(t))){
+      dealt.fell += parseInt(m[1],10) || 0;
+      if (condNames.some(function(nm){ return t.indexOf(' + '+nm) >= 0; })) landed.fell++;
+    } else if ((m = /\btakes\s+(\d+)\s+base\s*\+\s*(\d+)\s+bonus\b/.exec(t))){
+      dealt.foe += (parseInt(m[1],10)||0) + (parseInt(m[2],10)||0);
+    } else if (/Fellmark.*lands on/.test(t)){
+      landed.foe++;
+    }
+  });
+  return 'Battle summary · ' + rounds + ' round' + (rounds===1?'':'s') + ' fought. '
+    + 'Fells dealt ' + dealt.fell + ' damage, ' + landed.fell + ' affliction' + (landed.fell===1?'':'s') + ' landed. '
+    + 'Foes dealt ' + dealt.foe + ' damage, ' + landed.foe + ' affliction' + (landed.foe===1?'':'s') + ' landed.';
+}
+function logCombatSummary(sc){
+  if (!sc) return;
+  var txt = combatSummaryText(sc);
+  if (!txt) return;
+  var d = new Date();
+  var ts = d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  if (!Array.isArray(sc.log)) sc.log = [];
+  sc.log.unshift({ ts:ts, text:txt });
+}
 function deEscalateScene(){
   var sc = curSc(); if (!sc) return;
   askConfirm('Return this scene to roleplay? The combat board stays saved, it is just set aside.', function(){
+    logCombatSummary(curSc());
     curSc().mode = 'roleplay'; save(); render();
   }, 'Return to roleplay');
 }
