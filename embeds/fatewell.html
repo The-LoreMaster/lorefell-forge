@@ -1493,6 +1493,9 @@ body.runner-mode.fw-flow{ overflow-x:hidden; }
 .cb-fm.on{ border-color:var(--gold); color:var(--gold); background:rgba(201,168,76,.12); }
 .cb-toast{ position:fixed; left:50%; bottom:90px; transform:translateX(-50%) translateY(12px); background:var(--navy-4,#1c2742); border:1px solid var(--gold); color:var(--silver); padding:10px 16px; border-radius:10px; font-size:.86rem; box-shadow:0 8px 28px rgba(0,0,0,.5); opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; z-index:120; max-width:84vw; text-align:center; }
 .cb-toast.on{ opacity:1; transform:translateX(-50%) translateY(0); }
+.cb-toast.has-undo{ pointer-events:auto; }
+.cb-toast-undo{ margin-left:10px; background:none; border:1px solid var(--gold); color:var(--gold); border-radius:6px; padding:2px 10px; font-size:.8rem; font-family:inherit; cursor:pointer; }
+.cb-toast-undo:hover{ background:var(--gold); color:var(--navy-4,#1c2742); }
 
 @media (max-width:600px){
   /* the save stamp becomes a quiet badge instead of loose text over the mast */
@@ -8230,8 +8233,32 @@ function tabCombat(sc){
 function cbToast(t){
   var n = document.getElementById('cbToast');
   if(!n){ n = document.createElement('div'); n.id='cbToast'; n.className='cb-toast'; document.body.appendChild(n); }
-  n.textContent = t; n.classList.add('on'); clearTimeout(n._t);
+  n.classList.remove('has-undo'); n.textContent = t; n.classList.add('on'); clearTimeout(n._t);
   n._t = setTimeout(function(){ n.classList.remove('on'); }, 2200);
+}
+/* Single-slot undo for direct combat-board edits (a vitality nudge, an
+   affliction mark): one level deep, so arming a new one simply replaces
+   whatever was there. cbToastUndo shows it with a clickable Undo instead
+   of the plain cbToast() every other message uses. */
+var _boardUndo = null;
+function cbArmUndo(desc, undoFn){ _boardUndo = { desc:desc, undo:undoFn }; }
+function cbUndoBoardEdit(){
+  if(!_boardUndo) return;
+  var u = _boardUndo; _boardUndo = null;
+  u.undo(); save(); render();
+  cbToast('Undid: '+u.desc);
+}
+function cbToastUndo(t){
+  var n = document.getElementById('cbToast');
+  if(!n){ n = document.createElement('div'); n.id='cbToast'; n.className='cb-toast'; document.body.appendChild(n); }
+  n.textContent = '';
+  var msg = document.createElement('span'); msg.textContent = t; n.appendChild(msg);
+  var btn = document.createElement('button');
+  btn.type = 'button'; btn.className = 'cb-toast-undo'; btn.textContent = 'Undo';
+  btn.onclick = function(){ cbUndoBoardEdit(); };
+  n.appendChild(btn);
+  n.classList.add('on'); n.classList.add('has-undo'); clearTimeout(n._t);
+  n._t = setTimeout(function(){ n.classList.remove('on'); n.classList.remove('has-undo'); }, 4000);
 }
 function cbInitBattle(b){
   if (!b.pend) b.pend = {};
@@ -8375,7 +8402,7 @@ function cbVitRow(n){
   if(!max){
     return '<div class="cb-vit none"><span class="cb-ronum">no vitality set</span></div>';
   }
-  var adj = 'adjVit(\''+n.ref.id+'\',';
+  var adj = 'cbAdjVitBoard(\''+n.ref.id+'\',';
   var pct = Math.max(0, Math.min(100, Math.round(cur/max*100)));
   var col = (pct>50?'var(--vit-full,#86c79b)':pct>20?'var(--vit-mid,#d4a86b)':'var(--vit-low,#d98a6a)');
   return '<div class="cb-vit">'
@@ -8390,8 +8417,25 @@ function cbEditVit(key){
   var n=nodeByKey(key); if(!n) return; var v=cbVitOf(n);
   var x=prompt('Vitality for '+n.name, (v.curVit||0));
   if(x===null) return; var num=parseInt(x,10); if(isNaN(num)) return;
+  var prev=v.curVit;
   v.curVit = Math.max(0, Math.min(v.maxVit||num, num));
   save(); render();
+  if(v.curVit!==prev){
+    cbArmUndo(n.name+"'s vitality", function(){ var nn=nodeByKey(key); if(nn) cbVitOf(nn).curVit=prev; });
+    cbToastUndo(n.name+' set to '+v.curVit+' vitality');
+  }
+}
+/* Combat-board-only wrapper around adjVit: the roster/foe-editor cards also
+   call adjVit directly and should not pop an undoable toast for pre-combat
+   setup nudges, only the live board's -5/-1/+1/+5 row. */
+function cbAdjVitBoard(cid, d){
+  var n=nodeByKey('m:'+cid); if(!n) return;
+  var v=cbVitOf(n), prev=v.curVit;
+  adjVit(cid, d);
+  if(v.curVit!==prev){
+    cbArmUndo(n.name+"'s vitality", function(){ var nn=nodeByKey('m:'+cid); if(nn) cbVitOf(nn).curVit=prev; });
+    cbToastUndo((d>0?'+':'')+d+' vitality · '+n.name);
+  }
 }
 function cbChips(n){
   var affs=cbAffsOf(n);
@@ -9245,15 +9289,23 @@ function fwResetAct(key){
 function fwAddCond(key){
   var sel=document.getElementById('fwCondSel'); if(!sel || !sel.value) return;
   var opt=sel.options[sel.selectedIndex], kind=opt.getAttribute('data-kind')||'affliction', name=sel.value;
-  if(key.indexOf('m:')===0){
-    var id=key.slice(2); curSc().combatants.forEach(function(c){ if(c.id===id && !(c.affs||[]).some(function(a){return a.name===name;})){ (c.affs=c.affs||[]).push({name:name, kind:kind}); cbLog('system', name+' marked on '+c.name+'.'); cbToast(name+' marked on '+c.name+'.'); } });
+  var applied=false, isFoe=key.indexOf('m:')===0;
+  if(isFoe){
+    var id=key.slice(2); curSc().combatants.forEach(function(c){ if(c.id===id && !(c.affs||[]).some(function(a){return a.name===name;})){ (c.affs=c.affs||[]).push({name:name, kind:kind}); cbLog('system', name+' marked on '+c.name+'.'); cbToast(name+' marked on '+c.name+'.'); applied=true; } });
   } else {
     cbApplyCondition(key, { name:name, kind:kind });
     var pid=key.slice(2), pl=null; (curC().players||[]).forEach(function(x){ if(x.id===pid) pl=x; });
     cbLog('system', name+' marked on '+(pl?pl.name:'a Fell')+'.');
     cbToast(name+' marked, sending to their sheet.');
+    applied=true;
   }
   save(); render();
+  if(applied){
+    cbArmUndo(name+' on '+targetName(key), isFoe
+      ? function(){ fwRmCond(key, name); }
+      : function(){ cbRemoveFromKey(key, name); });
+    cbToastUndo(name+' marked · '+targetName(key));
+  }
 }
 function fwRmCond(key, name){
   if(key.indexOf('m:')!==0) return;
@@ -9635,9 +9687,46 @@ function escalateScene(){
   sc.mode = 'combat';
   save(); render();
 }
+/* Battle summary: rounds fought and a per-side tally of damage dealt and
+   afflictions landed, read from the battle's own combat log (clog) rather
+   than tracked separately. Fell attacks log as "hits X for N"; foe attacks
+   log as "takes N base + M bonus" (direct or Bulwark-redirected); a foe's
+   Fellmark-triggered affliction logs its own "lands on" line, while a fell's
+   Fellmark affliction rides on its own hit line as "+ <condition>". */
+function combatSummaryText(sc){
+  var b = sc && sc.battle;
+  if (!b || !Array.isArray(b.clog) || !b.clog.length) return null;
+  var rounds = b.round || 1;
+  var dealt = { fell:0, foe:0 }, landed = { fell:0, foe:0 };
+  var condNames = (window.CANON_CONDITIONS||[]).map(function(c){ return c.name; });
+  b.clog.forEach(function(e){
+    var t = e.text || '', m;
+    if ((m = /\bhits\s+.+\s+for\s+(\d+)\b/.exec(t))){
+      dealt.fell += parseInt(m[1],10) || 0;
+      if (condNames.some(function(nm){ return t.indexOf(' + '+nm) >= 0; })) landed.fell++;
+    } else if ((m = /\btakes\s+(\d+)\s+base\s*\+\s*(\d+)\s+bonus\b/.exec(t))){
+      dealt.foe += (parseInt(m[1],10)||0) + (parseInt(m[2],10)||0);
+    } else if (/Fellmark.*lands on/.test(t)){
+      landed.foe++;
+    }
+  });
+  return 'Battle summary · ' + rounds + ' round' + (rounds===1?'':'s') + ' fought. '
+    + 'Fells dealt ' + dealt.fell + ' damage, ' + landed.fell + ' affliction' + (landed.fell===1?'':'s') + ' landed. '
+    + 'Foes dealt ' + dealt.foe + ' damage, ' + landed.foe + ' affliction' + (landed.foe===1?'':'s') + ' landed.';
+}
+function logCombatSummary(sc){
+  if (!sc) return;
+  var txt = combatSummaryText(sc);
+  if (!txt) return;
+  var d = new Date();
+  var ts = d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  if (!Array.isArray(sc.log)) sc.log = [];
+  sc.log.unshift({ ts:ts, text:txt });
+}
 function deEscalateScene(){
   var sc = curSc(); if (!sc) return;
   askConfirm('Return this scene to roleplay? The combat board stays saved, it is just set aside.', function(){
+    logCombatSummary(curSc());
     curSc().mode = 'roleplay'; save(); render();
   }, 'Return to roleplay');
 }
