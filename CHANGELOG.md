@@ -1,3 +1,8 @@
+## ThreadSpire becomes a play surface, spec and shell
+
+- THREADSPIRE_SPEC.md rules the plan: ThreadSpire is the place players run the game, FellGlass keeps creation and remains the one rules engine, and ThreadSpire renders it. The spec carries the state seam, the LM-owned view state, the token model, six phases, and the decisions log from design review.
+- docs/proto-threadspire.html is the phase one shell with placeholder art. Desktop: map stage, plaque rail, session log, character card cluster, one window shell closed by the X or a map click. Mobile: HUD strip, five slot icon rail with More holding Notes and the log, full screen windows, and the battle bottom sheet with a peek state. Combat flashes the vitality gem pink and the gem toggles the battle surface. Demo tokens drag with grid snap through the transport seam.
+
 ## The vault flows through: seeds and bakes reconciled to current canon
 
 - The FellGuide vault is canon, so the July aspect rulings now flow the whole pipeline: canonFromVault regenerated the Lorebounds, Infusions, and Augmentations seeds, and genCanon rebaked every tool copy. Six aspects return to single-attribute scaling per the vault (the Aerostrix, the Boreal, the Felionis, the Mordel, the Slipfang, the Worgar), the Alkagoo and Aquafin reworks land, and the Agile infusion carries its shorter wording.

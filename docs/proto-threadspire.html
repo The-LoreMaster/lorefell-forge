@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>ThreadSpire Shell</title>
+<style>
+:root{ --navy:#0a0e1a; --panel:#10162a; --panel2:#141b33; --line:#2a3352; --gold:#c9a84c; --silver:#dce8ef; --ice:#b8ccd8; --muted:#7e8a99; --danger:#a32d2d; --pink:#d4537e; }
+*{ box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+html,body{ height:100%; }
+body{ background:var(--navy); color:var(--silver); font-family:'Crimson Pro',Georgia,serif; overflow:hidden; }
+button{ font:inherit; color:inherit; background:none; border:none; cursor:pointer; }
+
+#stage{ position:fixed; inset:0; }
+#map{ position:absolute; inset:0; background:#66788a; overflow:hidden; touch-action:none; }
+#map.video-bg video{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+#grid{ position:absolute; inset:0; pointer-events:none; opacity:.5; }
+.token{ position:absolute; width:44px; height:44px; margin:-22px 0 0 -22px; border-radius:50%; border:3px solid rgba(0,0,0,.35); display:flex; align-items:center; justify-content:center; font-family:Cinzel,serif; font-size:.7rem; color:#fff; user-select:none; touch-action:none; }
+.token.mine{ border-color:var(--gold); box-shadow:0 0 10px rgba(201,168,76,.6); cursor:grab; }
+.token.lm-drag{ cursor:grab; }
+.token.p{ background:#37548d; } .token.foe{ background:var(--danger); } .token.npc{ background:#5f5e5a; } .token.asset{ background:#3d6b58; }
+
+.frame{ position:fixed; inset:0; pointer-events:none; border:14px solid transparent; border-image:linear-gradient(160deg,#171208,#57431a,#171208) 1; }
+
+#log{ position:fixed; top:16px; right:16px; width:250px; max-height:220px; overflow-y:auto; background:rgba(10,14,26,.92); border:1px solid var(--gold); border-radius:8px; padding:8px 10px; font-size:.82rem; line-height:1.45; }
+#log div{ color:var(--gold); } #log div b{ color:var(--ice); font-weight:600; }
+
+#rail{ position:fixed; right:16px; top:250px; display:flex; flex-direction:column; gap:10px; width:200px; }
+.plaque{ background:var(--panel); border:1.5px solid var(--gold); border-radius:6px; padding:11px 14px; font-family:Cinzel,serif; letter-spacing:.1em; font-size:.85rem; color:var(--silver); text-align:left; transition:background .15s; }
+.plaque .ico{ display:none; }
+.plaque:hover{ background:var(--panel2); }
+.plaque.lit{ background:#1e3f8f; border-color:#9fc3ff; color:#fff; box-shadow:0 0 14px rgba(60,110,220,.55); }
+
+#hud{ position:fixed; right:16px; bottom:16px; width:200px; background:var(--panel); border:1.5px solid var(--gold); border-radius:8px; padding:10px; }
+#hud .prow{ display:flex; align-items:center; gap:10px; cursor:pointer; }
+#hud .portrait{ width:56px; height:56px; border-radius:8px; border:2px solid var(--gold); background:#37548d center/cover; flex:none; }
+#hud .pname{ font-family:Cinzel,serif; font-size:.9rem; }
+#hud .psub{ font-size:.78rem; color:var(--ice); }
+#hud .gems{ display:flex; gap:10px; margin-top:10px; align-items:center; }
+.gem{ width:44px; height:44px; transform:rotate(45deg); border:2px solid var(--gold); background:#1c4f8f; display:flex; align-items:center; justify-content:center; border-radius:6px; flex:none; }
+.gem span{ transform:rotate(-45deg); font-family:Cinzel,serif; font-size:.85rem; color:#fff; }
+.gem.lp{ background:#26215c; }
+.gem.combat{ background:var(--pink); border-color:#ed93b1; animation:pulse 1.1s ease-in-out infinite; cursor:pointer; }
+@keyframes pulse{ 0%,100%{ box-shadow:0 0 0 0 rgba(212,83,126,.7);} 50%{ box-shadow:0 0 16px 5px rgba(212,83,126,.45);} }
+
+#win{ position:fixed; top:60px; right:250px; width:min(720px,55vw); bottom:60px; background:var(--panel); border:2px solid var(--gold); border-radius:10px; display:none; flex-direction:column; }
+#win.open{ display:flex; }
+#win .whead{ display:flex; align-items:center; gap:10px; padding:12px 14px; border-bottom:1px solid var(--line); }
+#win .wx{ width:28px; height:28px; border:1.5px solid var(--gold); border-radius:50%; color:var(--gold); font-size:1rem; line-height:1; flex:none; }
+#win .wtitle{ font-family:Cinzel,serif; letter-spacing:.14em; font-size:.95rem; }
+#win .wbody{ flex:1; overflow-y:auto; padding:16px; font-size:.95rem; line-height:1.6; }
+.stub{ height:12px; background:var(--panel2); border-radius:4px; margin:10px 0; }
+.pill{ display:inline-block; border:1px solid var(--gold); border-radius:14px; padding:3px 12px; font-size:.82rem; margin:0 6px 6px 0; }
+.pill.dim{ border-color:var(--line); color:var(--ice); }
+.sendbtn{ display:block; width:100%; background:#1e3f8f; border:1px solid #9fc3ff; border-radius:8px; color:#fff; font-family:Cinzel,serif; letter-spacing:.08em; padding:10px 0; margin-top:14px; }
+.die{ width:42px; height:42px; border:1.5px solid var(--gold); border-radius:8px; font-family:Cinzel,serif; font-size:1.1rem; color:var(--silver); background:linear-gradient(180deg,#121831,#0b101f); }
+
+#drawer{ display:none; }
+#devbar{ position:fixed; left:16px; bottom:16px; display:flex; gap:8px; z-index:60; }
+#devbar button{ background:#000a; border:1px solid var(--line); border-radius:6px; color:var(--ice); font-size:.72rem; padding:5px 9px; }
+
+#mhud,#mrail{ display:none; }
+
+@media (max-width:700px){
+  #log,#rail,#hud,#devbar{ display:none; }
+  #win{ top:56px; bottom:60px; left:0; right:0; width:auto; border-left:none; border-right:none; border-radius:0; }
+  #mhud{ position:fixed; top:0; left:0; right:0; height:56px; display:flex; align-items:center; gap:8px; padding:0 10px; background:rgba(10,14,26,.94); border-bottom:1px solid var(--gold); z-index:40; }
+  #mhud .portrait{ width:38px; height:38px; border-radius:50%; border:2px solid var(--gold); background:#37548d; }
+  #mhud .mid{ flex:1; min-width:0; }
+  #mhud .pname{ font-family:Cinzel,serif; font-size:.78rem; }
+  #mhud .psub{ font-size:.68rem; color:var(--ice); }
+  #mhud .gem{ width:36px; height:36px; }
+  #mhud .gem span{ font-size:.72rem; }
+  #mrail{ position:fixed; bottom:0; left:0; right:0; height:60px; display:grid; grid-template-columns:repeat(5,1fr); background:rgba(10,14,26,.96); border-top:1px solid var(--gold); z-index:40; }
+  #mrail button{ display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; font-size:.62rem; color:var(--ice); letter-spacing:.04em; }
+  #mrail .ico{ width:20px; height:20px; transform:rotate(45deg); border:1.5px solid var(--gold); border-radius:4px; background:#1c2b52; }
+  #mrail button.lit{ color:#fff; } #mrail button.lit .ico{ background:#1e3f8f; border-color:#9fc3ff; box-shadow:0 0 10px rgba(60,110,220,.6); }
+  #drawer{ display:block; position:fixed; left:0; right:0; bottom:60px; height:52vh; background:#141020; border-top:2px solid var(--danger); border-radius:14px 14px 0 0; transform:translateY(calc(100% - 44px)); transition:transform .22s ease; z-index:45; }
+  #drawer.up{ transform:translateY(0); }
+  #drawer.hidden{ display:none; }
+  #drawer .handle{ width:44px; height:4px; border-radius:2px; background:var(--muted); margin:7px auto; }
+  #drawer .dhead{ display:flex; justify-content:space-between; align-items:center; padding:0 14px 8px; font-size:.8rem; color:var(--ice); }
+  #drawer .dbody{ padding:0 14px; overflow-y:auto; height:calc(100% - 60px); }
+}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="map"><svg id="grid" width="100%" height="100%"></svg></div>
+  <div class="frame"></div>
+  <div id="log" aria-live="polite"></div>
+  <div id="rail"></div>
+  <div id="hud">
+    <div class="prow" onclick="openWin('identity')">
+      <div class="portrait"></div>
+      <div><div class="pname" id="hudName">Acantha</div><div class="psub" id="hudSub">Level 12</div></div>
+    </div>
+    <div class="gems">
+      <div class="gem" id="vitGem" title="Vitality"><span id="vitVal">70</span></div>
+      <div class="gem lp"><span>LP 9</span></div>
+    </div>
+  </div>
+  <div id="mhud">
+    <div class="portrait" onclick="openWin('identity')"></div>
+    <div class="mid" onclick="openWin('identity')"><div class="pname">Acantha</div><div class="psub" id="mhudSub">Level 12</div></div>
+    <div class="gem" id="vitGemM"><span id="vitValM">70</span></div>
+  </div>
+  <div id="win">
+    <div class="whead"><button class="wx" onclick="closeWin()" aria-label="Close">&times;</button><span class="wtitle" id="winTitle"></span></div>
+    <div class="wbody" id="winBody"></div>
+  </div>
+  <div id="drawer" class="hidden">
+    <div class="handle" id="drawerHandle"></div>
+    <div class="dhead"><span id="drawHead">Combat</span><span id="drawMeta"></span></div>
+    <div class="dbody" id="drawBody"></div>
+  </div>
+  <div id="mrail"></div>
+  <div id="devbar">
+    <button onclick="devCombat()">Toggle combat</button>
+    <button onclick="devRole()">Toggle LM role</button>
+    <button onclick="devToken()">Add foe token</button>
+  </div>
+</div>
+<script>
+"use strict";
+/* ThreadSpire shell, phase one. Placeholder art, stub transport, real layout and interactions.
+   The state seam is binding: applyRemoteState is the only writer of shared state into the
+   view, and send is the only sender of player intent outward. Polling feeds these now, a
+   live transport later replaces the feed and touches nothing else. */
+
+var S = {
+  role: 'player',
+  mode: 'explore',
+  round: 2,
+  charge: 1,
+  fatigue: 0,
+  openSection: null,
+  character: { name:'Acantha', level:12, vit:70, maxVit:70, lp:9 },
+  tokens: [
+    { id:'t1', kind:'p', label:'AC', x:32, y:48, mine:true },
+    { id:'t2', kind:'npc', label:'N', x:55, y:70, mine:false }
+  ]
+};
+
+/* ---- the seam ---- */
+function applyRemoteState(patch){
+  Object.keys(patch).forEach(function(k){ S[k] = patch[k]; });
+  render();
+}
+function send(evt){
+  /* stub transport, echoes token moves and combat toggles back as remote truth */
+  setTimeout(function(){
+    if (evt.type === 'token-move'){
+      S.tokens.forEach(function(t){ if (t.id === evt.id){ t.x = evt.x; t.y = evt.y; } });
+      applyRemoteState({ tokens: S.tokens });
+    }
+    if (evt.type === 'declare'){ logLine('<b>' + S.character.name + '</b> declares ' + evt.act + '.'); }
+  }, 120);
+}
+
+/* ---- sections ---- */
+var SECTIONS = {
+  identity:  { title:'Identity' },
+  notes:     { title:'Notes' },
+  inventory: { title:'Inventory' },
+  skills:    { title:'Skills' },
+  arsenal:   { title:'Arsenal' },
+  attributes:{ title:'Attributes' },
+  battle:    { title:'Battle' },
+  more:      { title:'More' },
+  log:       { title:'Session log' }
+};
+var RAIL_DESKTOP = ['notes','inventory','skills','arsenal','attributes'];
+var RAIL_MOBILE  = ['inventory','skills','arsenal','attributes','more'];
+
+function sectionBody(key){
+  if (key === 'battle') return battleBody();
+  if (key === 'more') return '<button class="plaque" style="display:block;width:100%;margin:0 0 10px" onclick="openWin(\'notes\')">Notes</button>'
+    + '<button class="plaque" style="display:block;width:100%" onclick="openWin(\'log\')">Session log</button>';
+  if (key === 'log') return '<div id="logBody">' + document.getElementById('log').innerHTML + '</div>';
+  var h = '<p style="color:var(--ice)">Placeholder for the ' + SECTIONS[key].title + ' section. Phase two ports the FellGlass content here, rendering only, engine untouched.</p>';
+  for (var i=0;i<6;i++) h += '<div class="stub" style="width:' + (58 + (i*7)%38) + '%"></div>';
+  return h;
+}
+function battleBody(){
+  return '<p style="font-size:.8rem;color:var(--ice)">Declare your Act</p>'
+    + '<div style="margin:10px 0"><span class="pill">Attack</span><span class="pill dim">Use a skill</span></div>'
+    + '<div class="stub" style="width:70%"></div>'
+    + '<div style="display:flex;align-items:center;gap:10px;margin:12px 0">'
+    + '<button class="die" id="demoDie" onclick="rollDemo()">?</button>'
+    + '<span style="font-size:.85rem;color:var(--ice)" id="rollOut">Tap the die</span></div>'
+    + '<button class="sendbtn" onclick="send({type:\'declare\',act:\'Attack\'})">Send to LoreMaster</button>';
+}
+function rollDemo(){
+  var d = document.getElementById('demoDie'), n = 0, t = 0;
+  var iv = setInterval(function(){
+    n = 1 + Math.floor(Math.random()*6); d.textContent = n; t++;
+    if (t > 9){ clearInterval(iv);
+      d.style.color = (n === 6) ? 'var(--gold)' : (n === 1 ? '#f09595' : 'var(--silver)');
+      document.getElementById('rollOut').textContent = 'Accuracy ' + n + ' + Precision 0 = ' + n + (n===6?' Fellmark':(n===1?' Fellstrike':''));
+      logLine('<b>' + S.character.name + '</b> rolled ' + n + '.');
+    }
+  }, 60);
+}
+
+/* ---- windows ---- */
+function isMobile(){ return window.matchMedia('(max-width:700px)').matches; }
+function openWin(key){
+  if (key === 'battle' && isMobile()){ toggleDrawer(true); return; }
+  S.openSection = key;
+  document.getElementById('winTitle').textContent = SECTIONS[key].title.toUpperCase();
+  document.getElementById('winBody').innerHTML = sectionBody(key);
+  document.getElementById('win').classList.add('open');
+  paintRails();
+}
+function closeWin(){
+  S.openSection = null;
+  document.getElementById('win').classList.remove('open');
+  paintRails();
+}
+document.getElementById('map').addEventListener('pointerdown', function(e){
+  if (!isMobile() && S.openSection && e.target.id === 'map') closeWin();
+});
+
+/* ---- rails ---- */
+function paintRails(){
+  var r = document.getElementById('rail'); r.innerHTML = '';
+  RAIL_DESKTOP.forEach(function(k){
+    var b = document.createElement('button');
+    b.className = 'plaque' + (S.openSection === k ? ' lit' : '');
+    b.textContent = SECTIONS[k].title;
+    b.onclick = function(){ (S.openSection === k) ? closeWin() : openWin(k); };
+    r.appendChild(b);
+  });
+  var m = document.getElementById('mrail'); m.innerHTML = '';
+  RAIL_MOBILE.forEach(function(k){
+    var lit = S.openSection === k || (k === 'more' && (S.openSection === 'notes' || S.openSection === 'log'));
+    var b = document.createElement('button');
+    b.className = lit ? 'lit' : '';
+    b.innerHTML = '<span class="ico"></span>' + SECTIONS[k].title;
+    b.onclick = function(){ (S.openSection === k) ? closeWin() : openWin(k); };
+    m.appendChild(b);
+  });
+}
+
+/* ---- combat ---- */
+function devCombat(){ applyRemoteState({ mode: S.mode === 'combat' ? 'explore' : 'combat' }); }
+function devRole(){ S.role = S.role === 'player' ? 'lm' : 'player'; logLine('Role is now <b>' + S.role + '</b>.'); renderTokens(); }
+function devToken(){
+  S.tokens.push({ id:'t' + (S.tokens.length + 1), kind:'foe', label:'F' + S.tokens.length, x:20 + Math.random()*60, y:20 + Math.random()*55, mine:false });
+  renderTokens();
+}
+function toggleDrawer(up){
+  var d = document.getElementById('drawer');
+  d.classList.remove('hidden');
+  d.classList.toggle('up', up === undefined ? !d.classList.contains('up') : up);
+  document.getElementById('drawBody').innerHTML = battleBody();
+  document.getElementById('drawMeta').textContent = 'charge ' + '\u25c8'.repeat(S.charge) + '\u25c7'.repeat(3 - S.charge) + ' \u00b7 fatigue ' + S.fatigue;
+}
+(function wireDrawer(){
+  var h = document.getElementById('drawerHandle'), startY = 0, up = false;
+  h.addEventListener('pointerdown', function(e){ startY = e.clientY; up = document.getElementById('drawer').classList.contains('up'); h.setPointerCapture(e.pointerId); });
+  h.addEventListener('pointerup', function(e){
+    var dy = e.clientY - startY;
+    if (Math.abs(dy) < 8){ toggleDrawer(); }
+    else toggleDrawer(dy < 0);
+  });
+})();
+
+/* ---- tokens ---- */
+function renderTokens(){
+  var map = document.getElementById('map');
+  map.querySelectorAll('.token').forEach(function(n){ n.remove(); });
+  S.tokens.forEach(function(t){
+    var el = document.createElement('div');
+    var draggable = t.mine || S.role === 'lm';
+    el.className = 'token ' + t.kind + (t.mine ? ' mine' : '') + (draggable && !t.mine ? ' lm-drag' : '');
+    el.style.left = t.x + '%'; el.style.top = t.y + '%';
+    el.textContent = t.label;
+    if (draggable) wireDrag(el, t);
+    map.appendChild(el);
+  });
+}
+function wireDrag(el, t){
+  el.addEventListener('pointerdown', function(e){
+    e.preventDefault(); el.setPointerCapture(e.pointerId);
+    var map = document.getElementById('map').getBoundingClientRect();
+    function mv(ev){
+      t.x = Math.max(2, Math.min(98, (ev.clientX - map.left) / map.width * 100));
+      t.y = Math.max(2, Math.min(98, (ev.clientY - map.top) / map.height * 100));
+      el.style.left = t.x + '%'; el.style.top = t.y + '%';
+    }
+    function upfn(){
+      el.removeEventListener('pointermove', mv); el.removeEventListener('pointerup', upfn);
+      /* snap to grid then send through the seam */
+      var g = 10;
+      t.x = Math.round(t.x / g) * g; t.y = Math.round(t.y / g) * g;
+      el.style.left = t.x + '%'; el.style.top = t.y + '%';
+      send({ type:'token-move', id:t.id, x:t.x, y:t.y });
+    }
+    el.addEventListener('pointermove', mv); el.addEventListener('pointerup', upfn);
+  });
+}
+function drawGrid(){
+  var svg = document.getElementById('grid'), w = svg.clientWidth, h = svg.clientHeight, g = 10, s = '';
+  for (var x = g; x < 100; x += g) s += '<line x1="' + x + '%" y1="0" x2="' + x + '%" y2="100%" stroke="#55677a" stroke-width="1"/>';
+  for (var y = g; y < 100; y += g) s += '<line x1="0" y1="' + y + '%" x2="100%" y2="' + y + '%" stroke="#55677a" stroke-width="1"/>';
+  svg.innerHTML = s;
+}
+
+/* ---- log ---- */
+function logLine(html){
+  var l = document.getElementById('log'), d = document.createElement('div');
+  d.innerHTML = '\u00b7 ' + html; l.appendChild(d); l.scrollTop = l.scrollHeight;
+}
+
+/* ---- render ---- */
+function render(){
+  var combat = S.mode === 'combat';
+  ['vitGem','vitGemM'].forEach(function(id){
+    var g = document.getElementById(id);
+    g.classList.toggle('combat', combat);
+    g.onclick = combat ? function(){ isMobile() ? toggleDrawer() : openWin('battle'); } : null;
+  });
+  if (!combat){
+    document.getElementById('drawer').classList.add('hidden');
+    if (S.openSection === 'battle') closeWin();
+  } else if (isMobile()){
+    toggleDrawer(false);
+  }
+  document.getElementById('vitVal').textContent = S.character.vit;
+  document.getElementById('vitValM').textContent = S.character.vit;
+  paintRails(); renderTokens();
+}
+window.addEventListener('resize', drawGrid);
+drawGrid(); render();
+logLine('<b>The LoreMaster</b> opened the scene.');
+logLine('<b>Kaelo</b> rolled 5.');
+</script>
+</body>
+</html>
