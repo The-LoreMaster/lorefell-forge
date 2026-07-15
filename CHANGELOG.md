@@ -1,3 +1,9 @@
+## ThreadSpire roll readout, the die shows the roll and the log shows the math
+
+- The die face carries the raw d6 and nothing else. The session log now spells the working out in full: 5 + Power 2 + Might 1 = 8 on Attack, with Fellmark and Fellstrike called on the raw die per canon.
+- A readout rises at the bottom of the play surface when a roll lands, naming the type, the die, each modifier, and the total, then fades on its own. It waits out the tumble so the number on screen always agrees with the face that came up. A Fellmark lights it gold, a Fellstrike lights it red.
+- The breakdown arrives as remote truth and the view only renders it. Where the modifiers come from is the engine's business, so the shell carries a stub resolver sitting with the stub transport, fenced off from the view and marked for deletion when the phase four bridge lands. Nothing about the math lives in ThreadSpire.
+
 ## ThreadSpire round two rulings land on the shell
 
 - The session log is one stream and every surface renders the same array, so the panel and the full log overlay cannot drift apart. Chat, rolls, and system lines are entry kinds on that stream, interleaved, newest at the bottom, auto scrolled. A chat box sits at the top of the log panel and the overlay carries its own, since mobile reaches the log through More. Chat text is escaped on the way in.

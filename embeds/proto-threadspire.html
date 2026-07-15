@@ -87,6 +87,22 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 .tpick button:hover{ background:var(--panel2); }
 .tpick button.on{ color:#fff; background:#1e3f8f; }
 
+#flourish{ position:fixed; left:50%; bottom:26px; z-index:55; opacity:0; transform:translate(-50%,16px); pointer-events:none;
+  transition:opacity .3s ease, transform .3s ease; background:rgba(10,14,26,.94); border:1px solid var(--gold); border-radius:9px;
+  padding:10px 18px; font-family:Cinzel,serif; font-size:.92rem; letter-spacing:.06em; display:flex; align-items:baseline; gap:9px; white-space:nowrap; }
+#flourish.show{ opacity:1; transform:translate(-50%,0); }
+#flourish .ftype{ font-size:.68rem; letter-spacing:.14em; color:var(--muted); }
+#flourish .fdie{ font-size:1.5rem; color:var(--silver); }
+#flourish .fmod{ font-size:.8rem; color:var(--ice); }
+#flourish .ftot{ font-size:1.5rem; color:var(--gold); }
+#flourish.mark{ border-color:var(--gold); box-shadow:0 0 20px rgba(201,168,76,.45); }
+#flourish.mark .fdie{ color:var(--gold); }
+#flourish.strike{ border-color:#a32d2d; box-shadow:0 0 20px rgba(163,45,45,.4); }
+#flourish.strike .fdie{ color:#f09595; }
+#flourish .fnote{ font-size:.68rem; letter-spacing:.14em; }
+#flourish.mark .fnote{ color:var(--gold); }
+#flourish.strike .fnote{ color:#f09595; }
+
 #drawer{ display:none; }
 #devbar{ position:fixed; left:16px; bottom:104px; display:flex; gap:8px; z-index:60; }
 #devbar button{ background:#000a; border:1px solid var(--line); border-radius:6px; color:var(--ice); font-size:.72rem; padding:5px 9px; }
@@ -105,6 +121,9 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
   #cube .f3{ transform:rotateX(90deg) translateZ(27px); }
   #cube .f4{ transform:rotateX(-90deg) translateZ(27px); }
   .tpick{ bottom:68px; }
+  #flourish{ bottom:132px; left:10px; right:10px; transform:translate(0,16px); white-space:normal; flex-wrap:wrap; padding:8px 12px; font-size:.8rem; gap:7px; }
+  #flourish.show{ transform:translate(0,0); }
+  #flourish .fdie,#flourish .ftot{ font-size:1.2rem; }
   #win{ top:56px; bottom:60px; left:0; right:0; width:auto; border-left:none; border-right:none; border-radius:0; }
   #mhud{ position:fixed; top:0; left:0; right:0; height:56px; display:flex; align-items:center; gap:8px; padding:0 10px; background:rgba(10,14,26,.94); border-bottom:1px solid var(--gold); z-index:40; }
   #mhud .portrait{ width:38px; height:38px; border-radius:50%; border:2px solid var(--gold); background:#37548d; }
@@ -164,6 +183,7 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
     <div class="dbody" id="drawBody"></div>
   </div>
   <div id="mrail"></div>
+  <div id="flourish"></div>
   <div id="tray">
     <div id="cube" onclick="rollFromTray()"></div>
     <button class="tchip" id="typeChip" onclick="toggleTypePicker()">Attack</button>
@@ -198,10 +218,32 @@ var S = {
   ]
 };
 
+/* ---- the stub rules engine ----
+   Placeholder only. ThreadSpire never owns this math. The engine resolves a
+   roll and returns the breakdown, the view renders what it is handed. Phase
+   four wires the real bridge and this whole block is deleted, not extended.
+   The numbers below are a fake sheet standing in for the real one. */
+var STUB_MODS = {
+  attack:  [['Precision',3], ['Finesse',2]],
+  evade:   [['Precision',3], ['Movement',1]],
+  skill:   [['Precision',3], ['Trickery',1]],
+  generic: []
+};
+function stubResolve(rollType, n){
+  var mods = (STUB_MODS[rollType] || []).map(function(m){ return { label:m[0], value:m[1] }; });
+  var total = mods.reduce(function(a, m){ return a + m.value; }, n);
+  return { kind:'roll', who:S.character.name, rollType:rollType, n:n, mods:mods, total:total };
+}
+
 /* ---- the seam ---- */
 function applyRemoteState(patch){
   Object.keys(patch).forEach(function(k){ S[k] = patch[k]; });
   render();
+  var last = S.log[S.log.length - 1];
+  if (last && last.kind === 'roll' && last.who === S.character.name && last.id !== flourishedId){
+    flourishedId = last.id;
+    flourish(last);
+  }
 }
 function send(evt){
   /* stub transport, echoes token moves and combat toggles back as remote truth */
@@ -212,7 +254,7 @@ function send(evt){
     }
     if (evt.type === 'declare'){ pushLog({ kind:'sys', html:'<b>' + esc(S.character.name) + '</b> declares ' + esc(evt.act) + '.' }); }
     if (evt.type === 'say'){ pushLog({ kind:'say', who:S.character.name, text:evt.text }); }
-    if (evt.type === 'roll'){ pushLog({ kind:'roll', who:S.character.name, rollType:evt.rollType, n:evt.n }); }
+    if (evt.type === 'roll'){ pushLog(stubResolve(evt.rollType, evt.n)); }
   }, 120);
 }
 
@@ -279,8 +321,29 @@ function animateDie(n, instant){
   spins += 2;
   c.style.transform = 'rotateX(' + (spins*360 + r[0]) + 'deg) rotateY(' + (spins*360 + r[1]) + 'deg)';
   if (instant){ void c.offsetWidth; c.style.transition = ''; return; }
+  tumbleEnds = Date.now() + 900;
   c.classList.add('rolling');
   setTimeout(function(){ c.classList.remove('rolling'); }, 900);
+}
+var tumbleEnds = 0, flourishT = null, flourishedId = 0;
+function flourish(e){
+  /* wait out the tumble so the readout and the face agree, then hold and fade */
+  clearTimeout(flourishT);
+  flourishT = setTimeout(function(){
+    var f = document.getElementById('flourish');
+    var note = e.n === 6 ? '<span class="fnote">Fellmark</span>'
+             : e.n === 1 ? '<span class="fnote">Fellstrike</span>' : '';
+    var mods = (e.mods || []).map(function(x){
+      return '<span class="fmod">+ ' + esc(x.label) + ' ' + x.value + '</span>';
+    }).join('');
+    var tot = (e.mods && e.mods.length) ? '<span class="ftot">= ' + e.total + '</span>' : '';
+    f.className = e.n === 6 ? 'mark' : e.n === 1 ? 'strike' : '';
+    f.innerHTML = '<span class="ftype">' + esc(ROLL_TYPES[e.rollType] || e.rollType) + '</span>'
+      + '<span class="fdie">' + e.n + '</span>' + mods + tot + note;
+    void f.offsetWidth;
+    f.classList.add('show');
+    flourishT = setTimeout(function(){ f.classList.remove('show'); }, 2800);
+  }, Math.max(0, tumbleEnds - Date.now()));
 }
 function rollFromTray(){
   var n = 1 + Math.floor(Math.random()*6);
@@ -433,14 +496,18 @@ function sayFrom(id){
   el.value = '';
   send({ type:'say', text:text });
 }
-function pushLog(e){ S.log.push(e); applyRemoteState({ log:S.log }); }
+var logSeq = 0;
+function mkId(){ return ++logSeq; }
+function pushLog(e){ e.id = mkId(); S.log.push(e); applyRemoteState({ log:S.log }); }
 function entryHtml(e){
   if (e.kind === 'say') return '<div class="le say"><b>' + esc(e.who) + '</b> ' + esc(e.text) + '</div>';
   if (e.kind === 'roll'){
     var m = e.n === 6 ? ' <span class="mark">Fellmark</span>'
           : e.n === 1 ? ' <span class="strike">Fellstrike</span>' : '';
-    return '<div class="le roll"><b>' + esc(e.who) + '</b> rolled <span class="num">' + e.n
-      + '</span> on ' + esc(ROLL_TYPES[e.rollType] || e.rollType) + m + '</div>';
+    var sum = (e.mods || []).map(function(x){ return ' + ' + esc(x.label) + ' ' + x.value; }).join('');
+    var tot = (e.mods && e.mods.length) ? ' = <span class="num">' + e.total + '</span>' : '';
+    return '<div class="le roll"><b>' + esc(e.who) + '</b> rolled <span class="num">' + e.n + '</span>'
+      + sum + tot + ' on ' + esc(ROLL_TYPES[e.rollType] || e.rollType) + m + '</div>';
   }
   return '<div class="le sys">\u00b7 ' + e.html + '</div>';
 }
@@ -476,9 +543,10 @@ window.addEventListener('resize', drawGrid);
 buildCube(); paintTypePicker(); setRollType(S.rollType);
 drawGrid(); render();
 /* seeded as if it arrived from the LoreMaster */
-S.log.push({ kind:'sys', html:'<b>The LoreMaster</b> opened the scene.' });
-S.log.push({ kind:'roll', who:'Kaelo', rollType:'attack', n:5 });
-S.log.push({ kind:'say', who:'Kaelo', text:'The door is barred from the far side.' });
+S.log.push({ id:mkId(), kind:'sys', html:'<b>The LoreMaster</b> opened the scene.' });
+S.log.push({ id:mkId(), kind:'roll', who:'Kaelo', rollType:'attack', n:5,
+  mods:[{ label:'Power', value:2 }, { label:'Might', value:1 }], total:8 });
+S.log.push({ id:mkId(), kind:'say', who:'Kaelo', text:'The door is barred from the far side.' });
 applyRemoteState({ log:S.log });
 </script>
 </body>
