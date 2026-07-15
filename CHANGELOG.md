@@ -1,3 +1,10 @@
+## ThreadSpire round two rulings land on the shell
+
+- The session log is one stream and every surface renders the same array, so the panel and the full log overlay cannot drift apart. Chat, rolls, and system lines are entry kinds on that stream, interleaved, newest at the bottom, auto scrolled. A chat box sits at the top of the log panel and the overlay carries its own, since mobile reaches the log through More. Chat text is escaped on the way in.
+- A d6 sits bottom left of the play surface with a picker for Attack, Evade, Skill, or Generic. The type tags the roll in the log and in the event sent to the LoreMaster. On mobile the tray lifts clear of the battle drawer instead of hiding under it.
+- The die is a CSS 3D cube that tumbles and lands on the rolled face. Faces come from a skin set keyed off the character, so dice skins are a texture swap and a cosmetic hook. Result and visual are separate layers: rollFromTray owns the number and the seam, animateDie is only told what landed, which is the seam a physics layer would replace later.
+- The drawer's demo die is gone. One die, one roll path. The old copy also printed its own attack math, which was a second implementation of a rule the spec forbids reimplementing here. The tray reports the raw die and leaves modifiers to the engine.
+
 ## ThreadSpire becomes a play surface, spec and shell
 
 - THREADSPIRE_SPEC.md rules the plan: ThreadSpire is the place players run the game, FellGlass keeps creation and remains the one rules engine, and ThreadSpire renders it. The spec carries the state seam, the LM-owned view state, the token model, six phases, and the decisions log from design review.

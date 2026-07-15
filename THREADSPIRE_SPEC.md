@@ -48,7 +48,7 @@ Percent coordinates against the map art, the Cartographer trick, so any art size
 
 ## Phases
 
-1. Shell. This file. Layouts, window shell, HUD, rail, drawer, map layer with draggable demo tokens, the state seam with a stub transport, the combat flash. Placeholder art throughout.
+1. Shell. This file. Layouts, window shell, HUD, rail, drawer, map layer with draggable demo tokens, the state seam with a stub transport, the combat flash. Placeholder art throughout. Round two adds the chat box on the log stream, the full log overlay, and the dice tray with its type picker and CSS cube.
 2. Section ports. Each rail button's content ports from FellGlass one section at a time, rendering only, engine untouched. Old FellGlass keeps working throughout.
 3. Token layer for real. The positions collection, LM palette, grid config, viewState wiring.
 4. Battle surface wired to the live combat bridge, the same declare flow and dice ritual FellGlass runs.
