@@ -62,3 +62,10 @@ Percent coordinates against the map art, the Cartographer trick, so any art size
 - Portrait lock for v1. Landscape waits on serving ThreadSpire without the Wix page chrome.
 - One log. Dice rolls surface on screen in the moment, so the log is reference, not urgency.
 - Exit is X top left everywhere, plus map click outside on desktop and rail retap on mobile.
+
+## Round two rulings, after shell review
+
+- A chat box sits at the top of the log panel. Chat is one more entry kind on the existing log stream, interleaved with rolls and effects.
+- Log entries flow top to bottom, newest at the bottom, auto scrolled. A control opens the full log in the centered window shell as an overlay.
+- A d6 sits bottom left of the play surface with a clean picker for the roll type: Attack, Evade, Skill, or Generic. The type tags the roll in the log and to the LoreMaster. Same dice ritual FellGlass runs today.
+- The die renders as a CSS 3D cube with tumble, faces drawn from a skin set, so dice skins are texture swaps and a per character cosmetic hook. A physics dice layer (three.js) can replace the visual later without touching the roll logic, result and visual stay separate layers.
