@@ -3001,9 +3001,9 @@ function renderSavedTag(){
   try {
     var L = document.getElementById('savedLocal'), A = document.getElementById('savedAcct');
     if (L) L.textContent = S._savedLocal ? ('Saved ' + fmtClock(S._savedLocal)) : 'Not saved yet';
-    if (A) A.textContent = S._syncedAcct ? ('Synced to account ' + fmtClock(S._syncedAcct)) : '';
+    if (A) A.textContent = WIX.offline ? 'Offline, will sync' : (S._syncedAcct ? ('Synced to account ' + fmtClock(S._syncedAcct)) : '');
     var R = document.getElementById('runSavedLine');
-    if (R) R.textContent = (S._savedLocal ? ('Saved ' + fmtClock(S._savedLocal)) : 'Not saved') + (S._syncedAcct ? ' \u00b7 synced' : '');
+    if (R) R.textContent = (S._savedLocal ? ('Saved ' + fmtClock(S._savedLocal)) : 'Not saved') + (WIX.offline ? ' \u00b7 offline, will sync' : (S._syncedAcct ? ' \u00b7 synced' : ''));
   } catch(_){}
 }
 /* Stamp the account-sync line when the server confirms a save. */
@@ -3013,6 +3013,20 @@ function markSynced(){
   renderSavedTag();
 }
 function markSaved(){ renderSavedTag(); }
+
+/* If a save posted to the account gets no reply within this window, the bridge is treated
+   as unreachable and the tag/run-bar switch to an honest "offline, will sync" line instead
+   of staying silent. Cleared the moment any message comes back from the parent page. */
+var WIX_OFFLINE_MS = 6000;
+function armOfflineCheck(){
+  clearTimeout(WIX.offlineTimer);
+  var postedAt = WIX.lastSaveAt;
+  WIX.offlineTimer = setTimeout(function(){
+    if (WIX.hosted && WIX.lastSaveAt === postedAt && (!WIX.lastSaveOk || WIX.lastSaveOk < postedAt)){
+      WIX.offline = true; renderSavedTag();
+    }
+  }, WIX_OFFLINE_MS);
+}
 
 /* In hosted mode the campaign contents are one object; the library and forge
    are account-global and sync separately, so they are excluded from the blob. */
@@ -3186,6 +3200,7 @@ function flushSave(){
   var inline = collectInlineImages(c);
   if (inline.length){
     WIX.dirty = false; WIX.lastSaveAt = Date.now();
+    armOfflineCheck();
     postToWix({ type:'lmtool-host-images', campaignId: cid, images: inline });
     return; // the host result applies hosted URLs, then triggers a normal compressed save
   }
@@ -3193,6 +3208,7 @@ function flushSave(){
   // campaign stays small even for a large chronicle. The live board keeps full stats.
   var wire = slimCombatantsForSave(JSON.parse(JSON.stringify(c)));
   WIX.dirty = false; WIX.lastSaveAt = Date.now();
+  armOfflineCheck();
   var json = JSON.stringify(wire);
   gzipString(json).then(function(gz){
     if (gz && gz.length < json.length){
@@ -3321,6 +3337,8 @@ function syncPlayersNow(){ var c=curC(); if (WIX.hub && c) postToWix({ type:'lmt
 
 window.addEventListener('message', function(ev){
   var m = ev.data || {};
+  /* Any reply proves the bridge is alive, whatever it's about; drop a stale "offline" flag. */
+  if (WIX.offline){ WIX.offline = false; renderSavedTag(); }
   if (m.type === 'lmtool-viewport' || m.type === 'LOREFELL_VIEWPORT'){
     window._wixVis = { top: Number(m.top)||0, height: Number(m.height)||0 };
     if (document.querySelector('#modal .m-card')) positionModal(true);
@@ -10546,7 +10564,7 @@ function scrRunner(){
     + '<span class="mode-badge '+mode+'">'+(mode==='combat'?'Combat':'Roleplay')+'</span>'
     + (sc.status==='done'?'<span class="done-badge">Done</span>':'')+'</span>'
     + '<span class="run-pos">Scene '+(idx+1)+' of '+sibs.length+'</span>'
-    + '<span class="run-saved" id="runSavedLine">'+(S._savedLocal?('Saved '+fmtClock(S._savedLocal)):'')+(S._syncedAcct?(' &middot; synced'):'')+'</span></div>'
+    + '<span class="run-saved" id="runSavedLine">'+(S._savedLocal?('Saved '+fmtClock(S._savedLocal)):'')+(WIX.offline?' &middot; offline, will sync':(S._syncedAcct?' &middot; synced':''))+'</span></div>'
     + sceneNavControls(sc)
     + '</div>';
 
@@ -10928,6 +10946,11 @@ document.addEventListener('DOMContentLoaded', function(){
   render();
   requestWix();
   setTimeout(function(){ if (!WIX.connected) requestWix(); }, 1600);
+  /* Embedded but the parent page never answered at all: no account to reach, not just a
+     slow one. Same honest offline line as a save that goes unconfirmed. */
+  setTimeout(function(){
+    if (!WIX.connected && window.parent !== window){ WIX.offline = true; renderSavedTag(); }
+  }, 5000);
 });
 
 </script>
