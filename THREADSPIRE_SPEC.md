@@ -56,7 +56,11 @@ A player drags only their own token. The LM drags everything and places NPC, ass
 
 ## Phases
 
-1. Shell. This file. Layouts, window shell, HUD, rail, drawer, map layer with draggable demo tokens, the state seam with a stub transport, the combat flash. Placeholder art throughout. Round two adds the chat box on the log stream, the full log overlay, and the dice tray with its type picker and CSS cube. Round three flips the log to newest first under the chat box, moves the rail to Inventory through Attributes with Lore at the foot, hands combat to the Fellmark, and puts token editing in a menu.
+1. Shell. This file. Layouts, window shell, HUD, rail, drawer, map layer with draggable demo tokens, the state seam with a stub transport, the combat flash. Placeholder art throughout. Round two adds the chat box on the log stream, the full log overlay, and the dice tray with its type picker and CSS cube. Round three flips the log to newest first under the chat box, moves the rail to Inventory through Attributes with Lore at the foot, hands combat to the Fellmark, and puts token editing in a menu. Round four throws the dice on screen.
+
+Dice are thrown in screen space, so they land the same for everyone regardless of where each camera is pointed. The throw is choreography and nothing else. The number is decided elsewhere and arrives as remote truth, and the animation is only ever told what to carry. Nothing in the throw may pick a face, or the tumble becomes a rule.
+
+Every roll at the table throws, not only your own. Skins are earned in game, so they live on the Fell and they travel, and each roll carries the skin it was thrown with. That is what lets the rest of the table see what you unlocked. A player assigns a skin per roll type, so the die says what is being rolled before anyone reads a word. Your die leaves your socket and returns to it. Everyone else's arcs in from the edge, wears their own skin, carries their name, and fades where it lands. The bottom readout spells out your own maths alone.
 2. Section ports. Each rail button's content ports from FellGlass one section at a time, rendering only, engine untouched. Old FellGlass keeps working throughout.
 3. Token layer for real. The positions collection, LM palette, grid config, viewState wiring. Round two built the camera, the grid, and footprints against the stub, so what remains here is where the shared half lives and how it syncs.
 4. Battle surface wired to the live combat bridge, the same declare flow and dice ritual FellGlass runs.
