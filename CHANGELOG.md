@@ -1,3 +1,11 @@
+## ThreadSpire round three: log order, the rail, the Fellmark, and the token menu
+
+- The log runs newest first. A new line lands directly under Say something and older ones work downward off the panel, so the two things always in view are the chat box and the latest thing that happened. Nothing has to be chased. The full log overlay reads the same way.
+- The rail is Inventory, Skills, Arsenal, Attributes, Lore. Notes leaves the rail and will live inside Lore, along with player description, origin, lineage, total ascension crystals, and skyvault shards. Lore takes the foot of the rail on both desktop and mobile, which retires the More slot.
+- The Fellmark is the combat trigger. It sits at the foot of the column, lights and pulses when combat opens, and takes you to the battle surface. The vitality gem stops flashing and goes back to being vitality. One thing signals combat, one thing shows health. The symbol is a placeholder standing in for Joel's art, and the behaviour will not change when the art lands.
+- Token editing moved into a menu. Tapping a token lights it up for anyone, so you can see what you are touching. The LoreMaster gets a menu on the selection carrying the label and the footprint, which replaces the click-to-cycle sizing that got messy the moment a tap meant two things at once. The menu is drawn in screen space and anchored to the token, so it stays legible at any zoom.
+- Selection sits outside the shared state with the camera. Who you are touching is a fact about your screen, not about the board, so it never syncs. Same wall, same reason.
+
 ## ThreadSpire map space: the camera, the grid, and the wall between them
 
 - The map now has a coordinate system of its own. One layer carries a camera, translate then scale, and the background, the grid, and the tokens all ride it. Everything else stays in screen space and never moves. Tokens store their centre in map units instead of screen percentages, which is the change that makes zoom possible at all.
