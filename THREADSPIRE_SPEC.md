@@ -38,19 +38,27 @@ Polling feeds these two functions now. A live transport later replaces the feed 
 
 The campaign or combat state carries one object the LM controls during a live session:
 
-    viewState: { mode: explore | combat, node, background }
+    viewState: { mode: explore | combat, node, background, grid }
 
-`background` is an image or video reference (video muted, looping, playsinline). Players' ThreadSpire follows viewState while a session is live. Offline, a player roams their discovered nodes freely through the existing zoom stack: character, location, territory, world.
+`background` is an image or video reference (video muted, looping, playsinline). `grid` is `{ size, offX, offY, opacity }`. Players' ThreadSpire follows viewState while a session is live. Offline, a player roams their discovered nodes freely through the existing zoom stack: character, location, territory, world.
+
+The LoreMaster decides what lives on the map. Every viewer decides where they stand. Only the ON syncs, not the view. Cell size and offset are the coordinate system itself, so they are shared and LM written, otherwise two people counting squares to the same door get different answers. Zoom and pan are the camera and belong to whoever is looking. They live outside the synced state object entirely, not merely marked local, so the bridge cannot reach them even by accident.
 
 ## Tokens
 
-Percent coordinates against the map art, the Cartographer trick, so any art size holds. A configurable grid per map, size and offset, snap on drop, drawn live by the tool and never baked into art. A player drags only their own token. The LM drags everything and places NPC, asset, and foe tokens from the campaign library. Positions persist per campaign and map node through the bridge, same pattern as combat sync.
+Map space, never screen space. Each node declares a nominal map box, a fixed width with the height taken from the art's aspect, and the art is fitted into it. Any art size still holds, which is the Cartographer trick, but the units are now whole numbers a grid can divide cleanly instead of percentages.
+
+Tokens store their centre in map units. Not screen percentages, which break the instant anyone zooms. Not cell indices, which would teleport every token on the board the moment the LM recalibrates the grid. The art is the truth and the grid is an overlay onto it, so tokens hold their spot on the art and the grid slides under them.
+
+A configurable grid per map, cell size, offset on both axes, and opacity, snap on drop, drawn live by the tool and never baked into art. Offset is not optional, no map art has its grid starting at the origin. Footprint is per token in cells, and it is a game fact rather than a cosmetic one, an Epic owning 2x2 is something a player reads off the board. Odd footprints centre on a cell, even ones centre on an intersection. Token size is derived, never stored: cell size times footprint times a global inset. The inset is only air, so grid lines stay visible and neighbouring tokens do not fuse into one blob.
+
+A player drags only their own token. The LM drags everything and places NPC, asset, and foe tokens from the campaign library. Positions persist per campaign and map node through the bridge, same pattern as combat sync.
 
 ## Phases
 
 1. Shell. This file. Layouts, window shell, HUD, rail, drawer, map layer with draggable demo tokens, the state seam with a stub transport, the combat flash. Placeholder art throughout. Round two adds the chat box on the log stream, the full log overlay, and the dice tray with its type picker and CSS cube.
 2. Section ports. Each rail button's content ports from FellGlass one section at a time, rendering only, engine untouched. Old FellGlass keeps working throughout.
-3. Token layer for real. The positions collection, LM palette, grid config, viewState wiring.
+3. Token layer for real. The positions collection, LM palette, grid config, viewState wiring. Round two built the camera, the grid, and footprints against the stub, so what remains here is where the shared half lives and how it syncs.
 4. Battle surface wired to the live combat bridge, the same declare flow and dice ritual FellGlass runs.
 5. Skin drop. The artist's pieces replace placeholders. Nine slice frames, gem states, plaque bars.
 6. Transport swap when live sync is wanted. Replaces the polling feed behind the seam.

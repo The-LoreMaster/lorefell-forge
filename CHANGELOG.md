@@ -1,3 +1,13 @@
+## ThreadSpire map space: the camera, the grid, and the wall between them
+
+- The map now has a coordinate system of its own. One layer carries a camera, translate then scale, and the background, the grid, and the tokens all ride it. Everything else stays in screen space and never moves. Tokens store their centre in map units instead of screen percentages, which is the change that makes zoom possible at all.
+- Only the ON syncs, not the view. The LoreMaster decides what lives on the map, every viewer decides where they stand. The camera lives outside the shared state object rather than inside it marked local, so applyRemoteState physically cannot reach it. A wall, not a convention.
+- Wheel zooms to the cursor and pinch zooms to the midpoint, because centre anchored zoom is useless the moment you look at a corner. One finger on the map pans, one finger on a token you hold moves it, two fingers pinch. A pan no longer closes the open window the way a click does.
+- The grid is drawn in map space with non-scaling strokes, so it stays welded to the art and stays a hairline at 4x instead of thickening into rope. The LoreMaster owns cell size, offset on both axes, and opacity. Offset earns its place, no map art has its grid starting at the origin.
+- Token size is derived rather than stored: cell size times footprint times inset. Footprint is per token in cells and is a game fact, an Epic owning 2x2 is something a player reads off the board. Odd footprints centre on a cell, even ones on an intersection, so a 2x2 covers four whole squares instead of straddling eight halves. The inset is only air, keeping grid lines visible and stopping neighbours fusing into one blob.
+- Recalibrating the grid no longer moves anything. Tokens hold their spot on the art and the grid slides under them, which is the whole reason positions are map units and not cell indices.
+- THREADSPIRE_SPEC.md updated to match on both counts, since the old text had tokens at screen percentages and viewState silent on where the camera lives.
+
 ## ThreadSpire roll readout, the die shows the roll and the log shows the math
 
 - The die face carries the raw d6 and nothing else. The session log now spells the working out in full: 5 + Power 2 + Might 1 = 8 on Attack, with Fellmark and Fellstrike called on the raw die per canon.
