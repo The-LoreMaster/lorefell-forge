@@ -3778,6 +3778,27 @@ function renderRecords(cat){
    Characters collection, replying with a confirmation message. */
 let saveTimer=null;
 let LOADING=false;
+let lastAutosaveAt=null;
+let lastBridgeAt=0;
+let offline=false;
+let offlineTimer=null;
+/* If a save posted to Velo gets no reply from the parent page within this window, the
+   bridge is treated as unreachable and the save line switches to an honest "offline,
+   will sync" note instead of staying silent. Cleared the moment any message comes back. */
+const OFFLINE_MS=6000;
+function armOfflineCheck(){
+  clearTimeout(offlineTimer);
+  var postedAt=Date.now();
+  offlineTimer=setTimeout(function(){
+    if(window.parent!==window && lastBridgeAt<postedAt){ offline=true; renderSaveState(); }
+  },OFFLINE_MS);
+}
+function renderSaveState(){
+  var el=$("saveState"); if(!el) return;
+  if(!lastAutosaveAt){ el.textContent=offline?"Offline, will sync":"Autosave on. Every change saves automatically."; return; }
+  var t=new Date(lastAutosaveAt), hh=String(t.getHours()).padStart(2,"0"), mm=String(t.getMinutes()).padStart(2,"0");
+  el.textContent=`Autosaved \u00b7 ${hh}:${mm}`+(offline?" \u00b7 offline, will sync":"");
+}
 function scheduleSave(){
   if(LOADING) return;            // never save while a character is loading in
   clearTimeout(saveTimer);
@@ -3787,10 +3808,10 @@ function scheduleSave(){
 function doSave(){
   clearTimeout(saveTimer); saveTimer=null;
   if(LOADING) return;            // a load is mid-flight, do not write
-  const t=new Date();
-  const hh=String(t.getHours()).padStart(2,"0"),mm=String(t.getMinutes()).padStart(2,"0");
-  $("saveState").textContent=`Autosaved \u00b7 ${hh}:${mm}`;
+  lastAutosaveAt=Date.now();
+  renderSaveState();
   postToVelo({type:"save",charId:CUR_WIX_ID,localId:CUR_LOCAL_ID,character:C});
+  armOfflineCheck();
   combatSyncPush();
 }
 function meName(){ return (C&&C.identity&&C.identity.name)||"A Fell"; }
@@ -5243,6 +5264,8 @@ window.onmessage=ev=>{
   const d=ev&&ev.data;
   if(!d||typeof d!=="object"||!d.type)return;
   bridged=true;
+  lastBridgeAt=Date.now();
+  if(offline){ offline=false; renderSaveState(); }
   if(d.libraries)loadLibraries(d.libraries);
   if(d.type==="init"&&d.character){
     LOADING=true; clearTimeout(saveTimer); saveTimer=null;
@@ -5273,6 +5296,11 @@ window.onmessage=ev=>{
   else if(d.type==="char-deleted"){ if(d.remaining===0){ if(confirm("You have no characters left. Create a new one?")) postToVelo({type:"add-character"}); } }
 };
 postToVelo({type:"ready"});
+/* Embedded but the parent page never answered at all: no account to reach, not just a
+   slow one. Same honest offline line as a save that goes unconfirmed. */
+setTimeout(function(){
+  if(!bridged && window.parent!==window){ offline=true; renderSaveState(); }
+},5000);
 document.addEventListener("click",function(e){ window._cbClickY=(e.clientY||0)+(window.pageYOffset||document.documentElement.scrollTop||0); },true);
 document.addEventListener("input",scheduleSave);
 document.addEventListener("change",scheduleSave);
