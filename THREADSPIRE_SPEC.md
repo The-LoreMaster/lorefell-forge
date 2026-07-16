@@ -56,7 +56,7 @@ A player drags only their own token. The LM drags everything and places NPC, ass
 
 ## Phases
 
-1. Shell. This file. Layouts, window shell, HUD, rail, drawer, map layer with draggable demo tokens, the state seam with a stub transport, the combat flash. Placeholder art throughout. Round two adds the chat box on the log stream, the full log overlay, and the dice tray with its type picker and CSS cube.
+1. Shell. This file. Layouts, window shell, HUD, rail, drawer, map layer with draggable demo tokens, the state seam with a stub transport, the combat flash. Placeholder art throughout. Round two adds the chat box on the log stream, the full log overlay, and the dice tray with its type picker and CSS cube. Round three flips the log to newest first under the chat box, moves the rail to Inventory through Attributes with Lore at the foot, hands combat to the Fellmark, and puts token editing in a menu.
 2. Section ports. Each rail button's content ports from FellGlass one section at a time, rendering only, engine untouched. Old FellGlass keeps working throughout.
 3. Token layer for real. The positions collection, LM palette, grid config, viewState wiring. Round two built the camera, the grid, and footprints against the stub, so what remains here is where the shared half lives and how it syncs.
 4. Battle surface wired to the live combat bridge, the same declare flow and dice ritual FellGlass runs.
