@@ -12,10 +12,17 @@ body{ background:var(--navy); color:var(--silver); font-family:'Crimson Pro',Geo
 button{ font:inherit; color:inherit; background:none; border:none; cursor:pointer; }
 
 #stage{ position:fixed; inset:0; }
-#map{ position:absolute; inset:0; background:#66788a; overflow:hidden; touch-action:none; }
-#map.video-bg video{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
-#grid{ position:absolute; inset:0; pointer-events:none; opacity:.5; }
-.token{ position:absolute; width:44px; height:44px; margin:-22px 0 0 -22px; border-radius:50%; border:3px solid rgba(0,0,0,.35); display:flex; align-items:center; justify-content:center; font-family:Cinzel,serif; font-size:.7rem; color:#fff; user-select:none; touch-action:none; }
+#map{ position:absolute; inset:0; background:var(--navy); overflow:hidden; touch-action:none; cursor:grab; }
+#map.panning{ cursor:grabbing; }
+#mapLayer{ position:absolute; left:0; top:0; transform-origin:0 0; will-change:transform; }
+#mapArt{ position:absolute; left:0; top:0; background:
+  radial-gradient(circle at 28% 34%, #7d90a4 0 16%, transparent 16.4%),
+  radial-gradient(circle at 72% 66%, #5a6a7b 0 20%, transparent 20.4%),
+  radial-gradient(circle at 54% 18%, #6f8296 0 11%, transparent 11.4%), #66788a; }
+#mapArt video{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+#grid{ position:absolute; left:0; top:0; pointer-events:none; }
+.token{ position:absolute; border-radius:50%; border:2px solid rgba(0,0,0,.4); display:flex; align-items:center;
+  justify-content:center; font-family:Cinzel,serif; color:#fff; user-select:none; touch-action:none; }
 .token.mine{ border-color:var(--gold); box-shadow:0 0 10px rgba(201,168,76,.6); cursor:grab; }
 .token.lm-drag{ cursor:grab; }
 .token.p{ background:#37548d; } .token.foe{ background:var(--danger); } .token.npc{ background:#5f5e5a; } .token.asset{ background:#3d6b58; }
@@ -104,13 +111,20 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 #flourish.strike .fnote{ color:#f09595; }
 
 #drawer{ display:none; }
+#lmbar{ position:fixed; left:16px; bottom:140px; z-index:60; width:212px; background:rgba(10,14,26,.94); border:1px solid var(--line); border-radius:8px; padding:9px 11px; }
+#lmbar.hidden{ display:none; }
+#lmbar .lmh{ font-family:Cinzel,serif; font-size:.66rem; letter-spacing:.14em; color:var(--gold); margin-bottom:7px; }
+#lmbar .lmrow{ display:flex; align-items:center; gap:7px; margin:5px 0; font-size:.68rem; color:var(--ice); }
+#lmbar .lmrow label{ width:44px; flex:none; }
+#lmbar .lmrow input{ flex:1; min-width:0; height:3px; accent-color:var(--gold); }
+#lmbar .lmrow span{ width:32px; flex:none; text-align:right; font-family:Cinzel,serif; color:var(--silver); }
 #devbar{ position:fixed; left:16px; bottom:104px; display:flex; gap:8px; z-index:60; }
 #devbar button{ background:#000a; border:1px solid var(--line); border-radius:6px; color:var(--ice); font-size:.72rem; padding:5px 9px; }
 
 #mhud,#mrail{ display:none; }
 
 @media (max-width:700px){
-  #log,#rail,#hud,#devbar{ display:none; }
+  #log,#rail,#hud,#devbar,#lmbar{ display:none; }
   #tray{ left:10px; bottom:68px; transition:bottom .22s ease; }
   #tray.drawerup{ bottom:calc(52vh + 68px); }
   #cube{ width:54px; height:54px; }
@@ -147,7 +161,12 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 </head>
 <body>
 <div id="stage">
-  <div id="map"><svg id="grid" width="100%" height="100%"></svg></div>
+  <div id="map">
+    <div id="mapLayer">
+      <div id="mapArt"></div>
+      <svg id="grid" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+  </div>
   <div class="frame"></div>
   <div id="log">
     <div class="lchat">
@@ -189,10 +208,19 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
     <button class="tchip" id="typeChip" onclick="toggleTypePicker()">Attack</button>
     <div class="tpick" id="typePick"></div>
   </div>
+  <div id="lmbar" class="hidden">
+    <div class="lmh">MAP</div>
+    <div class="lmrow"><label>Cell</label><input type="range" id="gSize" min="20" max="220" step="2"><span id="gSizeV"></span></div>
+    <div class="lmrow"><label>Off X</label><input type="range" id="gOffX" min="0" max="219" step="1"><span id="gOffXV"></span></div>
+    <div class="lmrow"><label>Off Y</label><input type="range" id="gOffY" min="0" max="219" step="1"><span id="gOffYV"></span></div>
+    <div class="lmrow"><label>Fade</label><input type="range" id="gOpac" min="0" max="100" step="1"><span id="gOpacV"></span></div>
+    <div class="lmrow"><label>Inset</label><input type="range" id="gInset" min="60" max="100" step="1"><span id="gInsetV"></span></div>
+  </div>
   <div id="devbar">
     <button onclick="devCombat()">Toggle combat</button>
     <button onclick="devRole()">Toggle LM role</button>
     <button onclick="devToken()">Add foe token</button>
+    <button onclick="fitCam()">Fit map</button>
   </div>
 </div>
 <script>
@@ -212,11 +240,57 @@ var S = {
   rollType: 'attack',
   log: [],
   character: { name:'Acantha', level:12, vit:70, maxVit:70, lp:9, diceSkin:'emberglass' },
+  /* map space. The art is the truth, the grid is an overlay onto it. */
+  map: { w:2400, h:1600 },
+  /* the LoreMaster owns all three knobs. Cell size and offset are the coordinate
+     system itself, so they cannot be per viewer or nobody agrees where anything is. */
+  grid: { size:100, offX:0, offY:0, opacity:0.5 },
+  /* cosmetic. How much air sits between token art and the cell edge. */
+  inset: 0.9,
+  /* x and y are map pixels at the token centre, never screen percentages, and
+     never cell indices. Cell indices would teleport every token the moment the
+     LoreMaster recalibrates the grid. Size is derived from cells at render. */
   tokens: [
-    { id:'t1', kind:'p', label:'AC', x:32, y:48, mine:true },
-    { id:'t2', kind:'npc', label:'N', x:55, y:70, mine:false }
+    { id:'t1', kind:'p',   label:'AC', x:700,  y:800,  cells:1, mine:true },
+    { id:'t2', kind:'npc', label:'N',  x:1300, y:1100, cells:1, mine:false }
   ]
 };
+
+/* ---- the camera ----
+   Local to this viewer and deliberately outside S. The LoreMaster decides what
+   lives on the map, every viewer decides where they stand. applyRemoteState only
+   ever writes into S, so sync physically cannot reach cam. That is the wall. */
+var cam = { zoom:1, x:0, y:0 };
+var ZMIN = 0.2, ZMAX = 4;
+function clamp(v, a, b){ return v < a ? a : v > b ? b : v; }
+function mapEl(){ return document.getElementById('map'); }
+function applyCam(){
+  document.getElementById('mapLayer').style.transform =
+    'translate(' + cam.x + 'px,' + cam.y + 'px) scale(' + cam.zoom + ')';
+}
+function clampCam(){
+  var r = mapEl().getBoundingClientRect();
+  var mw = S.map.w * cam.zoom, mh = S.map.h * cam.zoom;
+  cam.x = mw <= r.width  ? (r.width - mw) / 2  : clamp(cam.x, r.width - mw, 0);
+  cam.y = mh <= r.height ? (r.height - mh) / 2 : clamp(cam.y, r.height - mh, 0);
+}
+function toMap(sx, sy){
+  var r = mapEl().getBoundingClientRect();
+  return { x:(sx - r.left - cam.x) / cam.zoom, y:(sy - r.top - cam.y) / cam.zoom };
+}
+function zoomAt(sx, sy, factor){
+  var r = mapEl().getBoundingClientRect(), px = sx - r.left, py = sy - r.top;
+  var z = clamp(cam.zoom * factor, ZMIN, ZMAX), k = z / cam.zoom;
+  cam.x = px - (px - cam.x) * k;
+  cam.y = py - (py - cam.y) * k;
+  cam.zoom = z;
+  clampCam(); applyCam();
+}
+function fitCam(){
+  var r = mapEl().getBoundingClientRect();
+  cam.zoom = clamp(Math.min(r.width / S.map.w, r.height / S.map.h), ZMIN, ZMAX);
+  clampCam(); applyCam();
+}
 
 /* ---- the stub rules engine ----
    Placeholder only. ThreadSpire never owns this math. The engine resolves a
@@ -246,16 +320,24 @@ function applyRemoteState(patch){
   }
 }
 function send(evt){
-  /* stub transport, echoes token moves and combat toggles back as remote truth */
+  /* stub transport, echoes shared state back as remote truth. Latency varies by
+     kind for the same reason a real one would, a slider cannot wait on a round trip. */
+  var live = evt.type === 'grid' || evt.type === 'inset';
   setTimeout(function(){
     if (evt.type === 'token-move'){
       S.tokens.forEach(function(t){ if (t.id === evt.id){ t.x = evt.x; t.y = evt.y; } });
       applyRemoteState({ tokens: S.tokens });
     }
+    if (evt.type === 'token-size'){
+      S.tokens.forEach(function(t){ if (t.id === evt.id){ t.cells = evt.cells; } });
+      applyRemoteState({ tokens: S.tokens });
+    }
+    if (evt.type === 'grid'){ applyRemoteState({ grid: evt.grid }); }
+    if (evt.type === 'inset'){ applyRemoteState({ inset: evt.inset }); }
     if (evt.type === 'declare'){ pushLog({ kind:'sys', html:'<b>' + esc(S.character.name) + '</b> declares ' + esc(evt.act) + '.' }); }
     if (evt.type === 'say'){ pushLog({ kind:'say', who:S.character.name, text:evt.text }); }
     if (evt.type === 'roll'){ pushLog(stubResolve(evt.rollType, evt.n)); }
-  }, 120);
+  }, live ? 0 : 120);
 }
 
 /* ---- sections ---- */
@@ -383,9 +465,6 @@ function closeWin(){
   document.getElementById('win').classList.remove('open');
   paintRails();
 }
-document.getElementById('map').addEventListener('pointerdown', function(e){
-  if (!isMobile() && S.openSection && e.target.id === 'map') closeWin();
-});
 
 /* ---- rails ---- */
 function paintRails(){
@@ -410,9 +489,12 @@ function paintRails(){
 
 /* ---- combat ---- */
 function devCombat(){ applyRemoteState({ mode: S.mode === 'combat' ? 'explore' : 'combat' }); }
-function devRole(){ S.role = S.role === 'player' ? 'lm' : 'player'; pushLog({ kind:'sys', html:'Role is now <b>' + esc(S.role) + '</b>.' }); renderTokens(); }
+function devRole(){ S.role = S.role === 'player' ? 'lm' : 'player'; pushLog({ kind:'sys', html:'Role is now <b>' + esc(S.role) + '</b>.' }); render(); }
 function devToken(){
-  S.tokens.push({ id:'t' + (S.tokens.length + 1), kind:'foe', label:'F' + S.tokens.length, x:20 + Math.random()*60, y:20 + Math.random()*55, mine:false });
+  var c = 1 + Math.floor(Math.random() * 2);
+  S.tokens.push({ id:'t' + (S.tokens.length + 1), kind:'foe', label:'F' + S.tokens.length,
+    x:snapAxis(S.map.w * (0.2 + Math.random() * 0.6), S.grid.offX, c),
+    y:snapAxis(S.map.h * (0.2 + Math.random() * 0.6), S.grid.offY, c), cells:c, mine:false });
   renderTokens();
 }
 function toggleDrawer(up){
@@ -433,46 +515,176 @@ function toggleDrawer(up){
   });
 })();
 
-/* ---- tokens ---- */
+/* ---- tokens ----
+   A token is one cell unless the LoreMaster says otherwise. Footprint is a game
+   fact, an Epic owning 2x2 is something a player reads off the board. Inset is
+   only air, so the grid stays visible and neighbours do not fuse. */
+function tokenPx(t){ return S.grid.size * (t.cells || 1) * S.inset; }
+function place(el, t){
+  var px = tokenPx(t);
+  el.style.width = el.style.height = px + 'px';
+  el.style.left = (t.x - px / 2) + 'px';
+  el.style.top  = (t.y - px / 2) + 'px';
+  el.style.fontSize = Math.max(8, px * 0.26) + 'px';
+  el.style.borderWidth = Math.max(2, px * 0.055) + 'px';
+}
 function renderTokens(){
-  var map = document.getElementById('map');
-  map.querySelectorAll('.token').forEach(function(n){ n.remove(); });
+  var layer = document.getElementById('mapLayer');
+  layer.querySelectorAll('.token').forEach(function(n){ n.remove(); });
   S.tokens.forEach(function(t){
     var el = document.createElement('div');
     var draggable = t.mine || S.role === 'lm';
     el.className = 'token ' + t.kind + (t.mine ? ' mine' : '') + (draggable && !t.mine ? ' lm-drag' : '');
-    el.style.left = t.x + '%'; el.style.top = t.y + '%';
     el.textContent = t.label;
+    place(el, t);
     if (draggable) wireDrag(el, t);
-    map.appendChild(el);
+    layer.appendChild(el);
   });
+}
+/* Odd footprints centre on a cell, even footprints centre on an intersection,
+   otherwise a 2x2 straddles four half cells and covers none of them. */
+function snapAxis(v, off, cells){
+  var g = S.grid.size, half = (cells % 2) ? g / 2 : 0;
+  return Math.round((v - off - half) / g) * g + off + half;
 }
 function wireDrag(el, t){
   el.addEventListener('pointerdown', function(e){
-    e.preventDefault(); el.setPointerCapture(e.pointerId);
-    var map = document.getElementById('map').getBoundingClientRect();
+    e.preventDefault(); e.stopPropagation();
+    el.setPointerCapture(e.pointerId);
+    var m = toMap(e.clientX, e.clientY), ox = t.x - m.x, oy = t.y - m.y, moved = false;
     function mv(ev){
-      t.x = Math.max(2, Math.min(98, (ev.clientX - map.left) / map.width * 100));
-      t.y = Math.max(2, Math.min(98, (ev.clientY - map.top) / map.height * 100));
-      el.style.left = t.x + '%'; el.style.top = t.y + '%';
+      var p = toMap(ev.clientX, ev.clientY);
+      t.x = clamp(p.x + ox, 0, S.map.w); t.y = clamp(p.y + oy, 0, S.map.h);
+      moved = true; place(el, t);
     }
     function upfn(){
       el.removeEventListener('pointermove', mv); el.removeEventListener('pointerup', upfn);
-      /* snap to grid then send through the seam */
-      var g = 10;
-      t.x = Math.round(t.x / g) * g; t.y = Math.round(t.y / g) * g;
-      el.style.left = t.x + '%'; el.style.top = t.y + '%';
+      if (!moved){
+        /* a tap with no drag, the LoreMaster cycles the footprint */
+        if (S.role === 'lm') send({ type:'token-size', id:t.id, cells:((t.cells || 1) % 3) + 1 });
+        return;
+      }
+      var c = t.cells || 1;
+      t.x = clamp(snapAxis(t.x, S.grid.offX, c), 0, S.map.w);
+      t.y = clamp(snapAxis(t.y, S.grid.offY, c), 0, S.map.h);
+      place(el, t);
       send({ type:'token-move', id:t.id, x:t.x, y:t.y });
     }
     el.addEventListener('pointermove', mv); el.addEventListener('pointerup', upfn);
   });
 }
+/* ---- grid ----
+   Drawn in map space, so it rides the camera and stays welded to the art.
+   non-scaling-stroke keeps the lines hairlines instead of ropes at 4x. */
 function drawGrid(){
-  var svg = document.getElementById('grid'), w = svg.clientWidth, h = svg.clientHeight, g = 10, s = '';
-  for (var x = g; x < 100; x += g) s += '<line x1="' + x + '%" y1="0" x2="' + x + '%" y2="100%" stroke="#55677a" stroke-width="1"/>';
-  for (var y = g; y < 100; y += g) s += '<line x1="0" y1="' + y + '%" x2="100%" y2="' + y + '%" stroke="#55677a" stroke-width="1"/>';
-  svg.innerHTML = s;
+  var svg = document.getElementById('grid'), g = S.grid, out = '';
+  svg.setAttribute('width', S.map.w); svg.setAttribute('height', S.map.h);
+  svg.setAttribute('viewBox', '0 0 ' + S.map.w + ' ' + S.map.h);
+  for (var x = g.offX % g.size; x <= S.map.w; x += g.size)
+    out += '<line x1="' + x + '" y1="0" x2="' + x + '" y2="' + S.map.h + '"/>';
+  for (var y = g.offY % g.size; y <= S.map.h; y += g.size)
+    out += '<line x1="0" y1="' + y + '" x2="' + S.map.w + '" y2="' + y + '"/>';
+  svg.innerHTML = '<g stroke="#55677a" stroke-width="1" vector-effect="non-scaling-stroke">' + out + '</g>';
+  svg.style.opacity = g.opacity;
+  document.getElementById('mapArt').style.width = S.map.w + 'px';
+  document.getElementById('mapArt').style.height = S.map.h + 'px';
 }
+
+/* ---- gestures ----
+   One finger on empty map pans, one finger on a token you hold moves it, two
+   fingers pinch. Wheel zooms to the cursor, never to the centre, because
+   centre anchored zoom is useless the moment you look at a corner. */
+var pts = new Map(), pan = null, pinch = null;
+function pv(){ var a = []; pts.forEach(function(p){ a.push(p); }); return a; }
+function dist(a, b){ return Math.hypot(a.x - b.x, a.y - b.y); }
+function mid(a, b){ return { x:(a.x + b.x) / 2, y:(a.y + b.y) / 2 }; }
+(function wireCamera(){
+  var m = mapEl();
+  m.addEventListener('pointerdown', function(e){
+    if (e.target.closest && e.target.closest('.token')) return;
+    m.setPointerCapture(e.pointerId);
+    pts.set(e.pointerId, { x:e.clientX, y:e.clientY });
+    if (pts.size === 1){
+      pan = { x:e.clientX, y:e.clientY, cx:cam.x, cy:cam.y, moved:false };
+      pinch = null; m.classList.add('panning');
+    } else if (pts.size === 2){
+      var a = pv();
+      pan = null;
+      pinch = { d:dist(a[0], a[1]), mid:mid(a[0], a[1]), zoom:cam.zoom, cx:cam.x, cy:cam.y };
+    }
+  });
+  m.addEventListener('pointermove', function(e){
+    if (!pts.has(e.pointerId)) return;
+    pts.set(e.pointerId, { x:e.clientX, y:e.clientY });
+    if (pinch && pts.size >= 2){
+      var a = pv(), d = dist(a[0], a[1]), c = mid(a[0], a[1]);
+      var r = m.getBoundingClientRect();
+      var z = clamp(pinch.zoom * (d / (pinch.d || 1)), ZMIN, ZMAX), k = z / pinch.zoom;
+      var px = pinch.mid.x - r.left, py = pinch.mid.y - r.top;
+      cam.zoom = z;
+      cam.x = px - (px - pinch.cx) * k + (c.x - pinch.mid.x);
+      cam.y = py - (py - pinch.cy) * k + (c.y - pinch.mid.y);
+      clampCam(); applyCam();
+    } else if (pan){
+      cam.x = pan.cx + (e.clientX - pan.x);
+      cam.y = pan.cy + (e.clientY - pan.y);
+      if (Math.abs(e.clientX - pan.x) > 4 || Math.abs(e.clientY - pan.y) > 4) pan.moved = true;
+      clampCam(); applyCam();
+    }
+  });
+  function release(e){
+    pts.delete(e.pointerId);
+    if (pts.size < 2) pinch = null;
+    if (pts.size === 1){
+      var a = pv()[0];
+      pan = { x:a.x, y:a.y, cx:cam.x, cy:cam.y, moved:true };
+    }
+    if (pts.size === 0){
+      m.classList.remove('panning');
+      /* a click, not a pan, still closes the open window */
+      if (pan && !pan.moved && !isMobile() && S.openSection) closeWin();
+      pan = null;
+    }
+  }
+  m.addEventListener('pointerup', release);
+  m.addEventListener('pointercancel', release);
+  m.addEventListener('wheel', function(e){
+    e.preventDefault();
+    zoomAt(e.clientX, e.clientY, Math.pow(0.999, e.deltaY));
+  }, { passive:false });
+})();
+
+/* ---- the LoreMaster's map knobs ---- */
+var GRID_CTL = [
+  ['gSize',  'size',    function(v){ return +v; },       function(v){ return v; }],
+  ['gOffX',  'offX',    function(v){ return +v; },       function(v){ return v; }],
+  ['gOffY',  'offY',    function(v){ return +v; },       function(v){ return v; }],
+  ['gOpac',  'opacity', function(v){ return +v / 100; }, function(v){ return Math.round(v * 100); }]
+];
+function paintLmbar(){
+  var bar = document.getElementById('lmbar');
+  bar.classList.toggle('hidden', S.role !== 'lm');
+  GRID_CTL.forEach(function(c){
+    var el = document.getElementById(c[0]);
+    el.value = c[3](S.grid[c[1]]);
+    document.getElementById(c[0] + 'V').textContent = el.value;
+  });
+  var i = document.getElementById('gInset');
+  i.value = Math.round(S.inset * 100);
+  document.getElementById('gInsetV').textContent = i.value;
+}
+(function wireLmbar(){
+  GRID_CTL.forEach(function(c){
+    document.getElementById(c[0]).addEventListener('input', function(){
+      var g = { size:S.grid.size, offX:S.grid.offX, offY:S.grid.offY, opacity:S.grid.opacity };
+      g[c[1]] = c[2](this.value);
+      send({ type:'grid', grid:g });
+    });
+  });
+  document.getElementById('gInset').addEventListener('input', function(){
+    send({ type:'inset', inset:+this.value / 100 });
+  });
+})();
 
 /* ---- log ----
    One stream. Chat, rolls, and effects are entry kinds on it, newest at the
@@ -537,11 +749,11 @@ function render(){
   }
   document.getElementById('vitVal').textContent = S.character.vit;
   document.getElementById('vitValM').textContent = S.character.vit;
-  paintRails(); renderTokens(); renderLog();
+  paintRails(); drawGrid(); renderTokens(); renderLog(); paintLmbar();
 }
-window.addEventListener('resize', drawGrid);
+window.addEventListener('resize', function(){ clampCam(); applyCam(); });
 buildCube(); paintTypePicker(); setRollType(S.rollType);
-drawGrid(); render();
+render(); fitCam();
 /* seeded as if it arrived from the LoreMaster */
 S.log.push({ id:mkId(), kind:'sys', html:'<b>The LoreMaster</b> opened the scene.' });
 S.log.push({ id:mkId(), kind:'roll', who:'Kaelo', rollType:'attack', n:5,
