@@ -1,3 +1,8 @@
+## ThreadSpire: CampaignView ruled its own collection, seam proven before ports
+
+- View state splits three ways by owner and write rhythm, not by screen. CombatState holds the round, phase, charges, and acts. CampaignView, its own collection, holds what the LM sets for the table: mode, node, background, and the grid that defines the coordinate system. The camera holds no record at all, living outside every synced object so the bridge cannot reach it. CampaignView is separate from CombatState on purpose, so a camera reframe never rewrites the combat blob and an act never rewrites the view, which under last write wins would clobber each other.
+- The build order gains a proving slice. Before porting FellGlass sections, one real value travels FateWell to the seam to a ThreadSpire render end to end, foe charge first, CampaignView in parallel, so both records are shown to sync independently before the section ports and the battle bridge repeat the pattern. ThreadSpire renders the FateWell and FellGlass engines through the seam and never holds them, so the combat and character math stay single sourced.
+
 ## FateWell: the top dock charge diamonds track the live charge
 
 - The charge set on a foe now shows on its card in the top combat strip. The dock already read the same live charge, but its diamonds were styled so faintly that an empty one looked lit and a set one did not stand out, so the strip appeared stuck at empty while the Spotlight showed the real charge. Every read-only charge diamond now reads clearly dark when empty and solid gold when set, so the top card, the Spotlight, and the popup all show the same charge at a glance. The dock stays tap-to-open since its card is small; the setting is done on the larger cards.
