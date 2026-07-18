@@ -1,3 +1,8 @@
+## FateWell: charge only on a confirmed hit, and manual charge controls
+
+- The foe charge advanced the moment an attack was assigned, not when it landed. The resolve check defaulted to landed and only flipped to missed when a real evasion roll was on record, so in hand-run combat where the loremaster calls hits, every declared swing charged the foe. Now the tool charges only on a hit it can confirm, holding both rolls with accuracy meeting evasion. An unresolved swing is not a landed one, so an unknown outcome leaves the charge alone and the loremaster carries it by hand.
+- The charge row gained a minus and a plus beside the pips, clamped 0 to 3. The plus is what you tap when a swing lands while you are judging hits yourself. The pips still set a tier directly, and clicking the top lit pip still drops one. This covers the testing mode where no evasion is recorded.
+
 ## FateWell: the foe combat sheet, one reckoning on every surface
 
 - A foe now shows the same sheet in the library, on the roster, in the crucible, and in the Spotlight: derived attributes, the Standard Attack's damage line, its Acts, infusions, augmentations, stance, and signature affliction. One renderer serves all four, so the surfaces cannot drift apart again. The library and roster keep their editors; the crucible stays locked, per the ruling that a foe on the board is already forged.

@@ -194,6 +194,8 @@ body::before{
 .st-n.big{ font-size:2rem; }
 .st-l{ font-family:'Cinzel', serif; font-size:.66rem; letter-spacing:.12em; text-transform:uppercase; color:var(--ice); margin-top:2px; }
 
+.chg-step{ width:22px; height:22px; border:1px solid var(--line2); border-radius:6px; background:var(--navy3); color:var(--silver); font-size:1rem; line-height:1; cursor:pointer; padding:0; margin:0 2px; }
+.chg-step:active{ background:var(--gold); color:var(--navy); }
 /* the foe combat sheet, one look everywhere */
 .cbk{ margin:4px 0; }
 .cbk-head{ display:flex; align-items:center; justify-content:space-between; cursor:pointer; padding:4px 6px; border:1px solid var(--line); border-radius:8px; background:var(--navy3); }
@@ -5859,8 +5861,22 @@ function unlockCommits(){
    then a T3 use resets. Tap a pip to set the tier, tap the lit top pip to step down. */
 function chargeRow(kind, id, lvl){
   var pips='';
-  for (var t=1;t<=3;t++){ pips += '<button class="chg-pip'+(lvl>=t?' on':'')+'" title="Tier '+t+'" onclick="setCharge(\''+kind+'\',\''+id+'\','+t+')"></button>'; }
-  return '<div class="chg-row"><span class="chg-lbl">Charge</span>'+pips+'<span class="chg-t">'+(lvl?('Tier '+lvl+' ready'):'none')+'</span></div>';
+  for (var t=1;t<=3;t++){ pips += '<button class="chg-pip'+(lvl>=t?' on':'')+'" title="Tier '+t+', click to set" onclick="setCharge(\''+kind+'\',\''+id+'\','+t+')"></button>'; }
+  return '<div class="chg-row"><span class="chg-lbl">Charge</span>'
+    + '<button class="chg-step" title="Lower a charge" onclick="stepCharge(\''+kind+'\',\''+id+'\',-1)">\u2212</button>'
+    + pips
+    + '<button class="chg-step" title="A hit charges the next tier" onclick="stepCharge(\''+kind+'\',\''+id+'\',1)">+</button>'
+    + '<span class="chg-t">'+(lvl?('Tier '+lvl+' ready'):'none')+'</span></div>';
+}
+/* Step a charge up or down by one, clamped 0 to 3. The plus is what the
+   loremaster taps when a swing lands, since the tool only auto charges when it
+   holds both rolls. */
+function stepCharge(kind, id, d){
+  var sc=curSc();
+  function clamp(v){ return Math.max(0, Math.min(3, v)); }
+  if(kind==='m'){ sc.combatants.forEach(function(c){ if(c.id===id){ c.charge = clamp((c.charge||0)+d); } }); }
+  else { var st=pState(id); st.charge = clamp((st.charge||0)+d); }
+  save(); render();
 }
 function setCharge(kind, id, t){
   var sc=curSc();
@@ -8762,13 +8778,18 @@ function cbResolveSpot(){
     if(n && n.kind==='m' && n.ref.intent && n.ref.intent.type==='Attack'){
       var _it=n.ref.intent, _T=0;
       if(_it.ability && _it.ability!=='__std__'){ var _ab=(n.ref.abilities||[]).filter(function(a){ return a.name===_it.ability; })[0]; if(_ab && typeof _ab.tier==='number') _T=_ab.tier; }
-      var _landed=true;
+      /* charge only on a confirmed hit. A hit is confirmed when the tool holds
+         both rolls and accuracy met evasion. No evasion on record means the
+         loremaster is calling it by hand, so the tool leaves the charge alone
+         and the manual pips carry it. Charging on an unresolved swing was the
+         bug: a declared attack is not a landed one. */
+      var _known=false, _landed=false;
       if(n.ref.target && n.ref.target.indexOf('p:')===0){
         var _pst=pState(n.ref.target.slice(2)), _acc=(n.ref._acc&&n.ref._acc.total)||0, _eva=null;
         (_pst.defEva||[]).forEach(function(e){ if(e.foe===('m:'+n.ref.id)) _eva=e.total; });
-        if(_eva!=null) _landed=(_acc>=_eva);
+        if(_eva!=null){ _known=true; _landed=(_acc>=_eva); }
       }
-      if(_landed){ var _fc=n.ref.charge||0, _fnv=(_T===3?0:(_T===_fc?Math.min(3,_T+1):_fc)); if(_fnv!==_fc){ n.ref.charge=_fnv; cbLog('system', n.ref.name+' charge now '+_fnv+'.'); } }
+      if(_known && _landed){ var _fc=n.ref.charge||0, _fnv=(_T===3?0:(_T===_fc?Math.min(3,_T+1):_fc)); if(_fnv!==_fc){ n.ref.charge=_fnv; cbLog('system', n.ref.name+' charge now '+_fnv+'.'); } }
     }
     b.spotDone[k]=true;
   });
