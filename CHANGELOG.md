@@ -1,3 +1,7 @@
+## ThreadSpire: foe cards carry the full combat runner detail
+
+- The combat foe card on the ThreadSpire map now matches the FateWell runner line for line. Attributes grid, the standard attack damage with its to-hit and the base and bonus note, the Acts with tiers and effects and both grays, needs charge for a locked tier and beyond rating for one above the rung, infusions and augmentations with the rating reveal, stance, and signature affliction. The act line is a real act picker and target picker in Commit, resolving to the target's name once locked. The React row is a dropdown of the foe's react ready Acts plus Skill and Movement, with used and restore. Fell cards show their reacts on hand. Everything reads from scene state through the seam, no math owned here.
+
 ## ThreadSpire: the run cards become a carousel over the map
 
 - The LoreMaster cards no longer sit in a window with a blue background. They float over the map as a carousel, the current card centered and sharp, the previous and next flanking it small and dimmed. Arrow keys, clicks, and taps swipe through them, and dots mark the position. The strip container passes clicks through to the map so panning still works around the cards.

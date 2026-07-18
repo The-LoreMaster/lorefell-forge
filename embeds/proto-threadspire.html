@@ -182,7 +182,27 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 .lmbtn.sm{ font-size:.58rem; padding:5px 9px; margin-top:8px; width:100%; }
 .lmbtn:active{ background:var(--navy3); }
 /* the card itself. Solid for the LM, no see-through, it floats on the map. */
-.lmcard{ width:280px; background:var(--panel); border:1px solid var(--line); border-radius:11px; padding:13px 15px; box-shadow:0 6px 24px rgba(0,0,0,.5); }
+.lmcard{ width:300px; max-height:56vh; overflow-y:auto; background:var(--panel); border:1px solid var(--line); border-radius:11px; padding:13px 15px; box-shadow:0 6px 24px rgba(0,0,0,.5); }
+.lm-slot.left .lmcard, .lm-slot.right .lmcard{ max-height:56vh; overflow:hidden; }
+.lmc-lbl{ font-family:Cinzel,serif; font-size:.58rem; letter-spacing:.12em; text-transform:uppercase; color:var(--ice); opacity:.85; margin:9px 0 3px; }
+.lmc-note{ font-size:.72rem; color:var(--muted); margin:2px 0 0; line-height:1.35; }
+.lmc-attrs{ display:grid; grid-template-columns:1fr 1fr; gap:2px 14px; }
+.lmc-arow{ display:flex; justify-content:space-between; font-size:.78rem; color:var(--ice); padding:2px 0; border-bottom:1px solid rgba(220,232,239,.08); }
+.lmc-arow b{ color:var(--silver); }
+.lmc-kit{ position:relative; padding:4px 8px; margin:3px 0; border:1px solid var(--line); border-radius:7px; background:var(--navy2,#0e1526); }
+.lmc-kn{ font-weight:600; color:var(--silver); font-size:.82rem; }
+.lmc-kt{ margin-left:7px; font-size:.68rem; color:var(--ice); }
+.lmc-why{ float:right; font-family:Cinzel,serif; font-size:.54rem; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); }
+.lmc-ke{ font-size:.74rem; color:var(--muted); margin-top:2px; line-height:1.35; }
+.lmc-kit.gray{ opacity:.4; filter:grayscale(.7); }
+.lmc-kit.gray .lmc-kn{ color:var(--ice); }
+.lmc-to{ color:var(--gold); }
+.lmc-reactrow{ display:flex; align-items:center; gap:6px; margin-top:9px; }
+.lmc-rsel{ flex:1; min-width:0; background:#0b1020; border:1px solid var(--line); border-radius:5px; color:var(--silver); font:inherit; font-size:.76rem; padding:3px 6px; }
+.lmc-reactspent{ font-size:.74rem; color:var(--ice); margin-top:9px; }
+.lmc-ropts{ font-size:.72rem; color:var(--muted); margin-top:9px; line-height:1.35; }
+.lmbtn.sm2{ font-size:.56rem; padding:4px 9px; white-space:nowrap; }
+.lm-link{ color:var(--gold); text-decoration:underline; background:none; border:none; cursor:pointer; font:inherit; font-size:.72rem; }
 .lmcard.beat.read{ border-left:3px solid var(--ice); }
 .lmcard.beat.check{ border-left:3px solid var(--gold); }
 .lmcard.beat.choice{ border-left:3px solid #ed93b1; }
@@ -395,16 +415,28 @@ var S = {
        held. Charge and vitality are live scene state. */
     foes: [
       { id:'f1', name:'The Erasure', sr:'Champion', side:'foe', curVit:53, maxVit:53, charge:1,
+        attrs:{ Precision:6, Evasion:4, Power:6, Durability:5, Magic:0, Resistance:3, Vigor:5, Wit:2 },
         dmg:{ base:7, bonus:6, type:'physical', acc:'1d6 + Precision 6' },
-        act:'Attack', target:'Alarik', locked:false, spot:null },
+        acts:[ { name:'Unmake', tier:2, effect:'Erase a skill or a memory from the struck Fell until it is won back.' },
+               { name:'Hollow Reach', tier:1, effect:'Pull a Fell one band closer, no save.' },
+               { name:'The Long Silence', tier:3, effect:'Every Fell in range loses one point of Lore.' } ],
+        infusions:['Wounding'], augments:[], stance:'', sig:'Crippled',
+        reacts:['Hollow Reach','Skill','Movement'],
+        act:'Attack', target:'p1', locked:false, spot:null, reactUsed:false },
       { id:'f2', name:'Masked Swordsman', sr:'Elite', side:'foe', curVit:18, maxVit:18, charge:0,
+        attrs:{ Precision:4, Evasion:3, Power:5, Durability:2, Magic:0, Resistance:1, Vigor:3, Wit:2 },
         dmg:{ base:5, bonus:3, type:'physical', acc:'1d6 + Precision 4' },
-        act:'', target:'', locked:false, spot:null }
+        acts:[ { name:'Riposte', tier:1, effect:'On a miss against it, strike back for Standard Damage.' } ],
+        infusions:[], augments:[], stance:'Balanced', sig:'',
+        reacts:['Riposte','Skill','Movement'],
+        act:'', target:'', locked:false, spot:null, reactUsed:false }
     ],
     /* the Fell at the table, so the LM sees the whole board */
     fell: [
-      { id:'p1', name:'Alarik', curVit:35, maxVit:35, charge:0, act:'', locked:false, spot:null },
-      { id:'p2', name:'Kaelo', curVit:35, maxVit:35, charge:2, act:'', locked:false, spot:null }
+      { id:'p1', name:'Alarik', curVit:35, maxVit:35, charge:0, act:'', target:'', locked:false, spot:null,
+        reacts:['Guard','Assist an ally','Any skill','Movement'], react:'' },
+      { id:'p2', name:'Kaelo', curVit:35, maxVit:35, charge:2, act:'', target:'', locked:false, spot:null,
+        reacts:['Riposte','Assist an ally','Any skill','Movement'], react:'' }
     ]
   }
 };
@@ -863,23 +895,96 @@ function boardCards(){
        + sc.fell.map(function(p){ return fellCard(p); }).join('');
 }
 
+/* the rating reveal and tier ceiling, matching FateWell's budget */
+var TS_RATING = { Minion:{acts:0,inf:0}, Elite:{acts:1,inf:1}, Champion:{acts:2,inf:2}, Forsaken:{acts:3,inf:3} };
+function tsRating(sr){ return TS_RATING[sr] || TS_RATING.Elite; }
+
+/* the full foe card, every line the FateWell combat card shows */
 function foeCard(f){
-  var d = f.dmg;
-  return '<div class="lmcard foe' + (f.locked ? ' locked' : '') + '">'
-    + '<div class="lmc-top"><span class="lmc-name">' + esc(f.name) + '</span>'
-    + '<span class="lmc-sd">Foe</span></div>'
-    + '<div class="lmc-vit">' + f.curVit + ' / ' + f.maxVit + chargePips(f, 'foe') + '</div>'
-    + '<div class="lmc-dmg">' + d.base + ' + ' + d.bonus + ' ' + d.type
-    + '<span class="lmc-acc">' + esc(d.acc) + ' to hit</span></div>'
-    + actLine(f, 'foe') + '</div>';
+  var d = f.dmg, sr = f.sr || 'Elite', minion = sr === 'Minion';
+  var h = '<div class="lmcard foe' + (f.locked ? ' locked' : '') + '">';
+  h += '<div class="lmc-top"><span class="lmc-name">' + esc(f.name) + '</span>'
+     + '<span class="lmc-sd">' + esc(sr) + ' Foe</span></div>';
+  h += '<div class="lmc-vit">' + f.curVit + ' / ' + f.maxVit + chargePips(f, 'foe') + '</div>';
+  /* target and act */
+  h += actLine(f, 'foe');
+  /* attributes, the 2-column grid */
+  if (f.attrs) h += '<div class="lmc-lbl">Attributes</div>' + attrsGrid(f.attrs);
+  /* standard attack damage */
+  h += '<div class="lmc-lbl">Standard attack</div>'
+     + '<div class="lmc-dmg">' + d.base + ' + ' + d.bonus + ' ' + d.type
+     + '<span class="lmc-acc">' + esc(d.acc) + ' to hit</span></div>'
+     + '<div class="lmc-note">Base always lands. Bonus meets ' + (d.type === 'magical' ? 'Resistance' : 'Durability') + '.'
+     + (minion ? '' : ' Landing it charges the first tier.') + '</div>';
+  /* acts, with the two grays */
+  h += '<div class="lmc-lbl">Acts</div>';
+  var acts = (f.acts || []).slice().sort(function(a,b){ return (a.tier||0)-(b.tier||0); });
+  var ceil = tsRating(sr).acts, ch = f.charge || 0;
+  if (minion) h += '<div class="lmc-note">A Minion brings only its Standard Attack.</div>';
+  if (!acts.length && !minion) h += '<div class="lmc-note">No Acts forged.</div>';
+  acts.forEach(function(a){
+    var t = a.tier || 0, beyond = t > ceil, locked = !beyond && !minion && t > ch;
+    var gray = beyond || locked || (minion && t > 0);
+    var why = (beyond || minion) ? 'beyond rating' : (locked ? 'needs charge ' + t : '');
+    h += '<div class="lmc-kit' + (gray ? ' gray' : '') + '">'
+       + '<span class="lmc-kn">' + esc(a.name) + '</span><span class="lmc-kt">Tier ' + t + '</span>'
+       + (why ? '<span class="lmc-why">' + why + '</span>' : '')
+       + '<div class="lmc-ke">' + esc(a.effect || '') + '</div></div>';
+  });
+  /* infusions, augmentations, rating-gray */
+  h += kitChunk('Infusions', f.infusions || [], tsRating(sr).inf);
+  h += kitChunk('Augmentations', f.augments || [], tsRating(sr).inf);
+  /* stance and signature */
+  if (f.stance) h += '<div class="lmc-lbl">Stance</div><div class="lmc-kit"><span class="lmc-kn">' + esc(f.stance) + '</span></div>';
+  if (f.sig) h += '<div class="lmc-lbl">Signature affliction</div><div class="lmc-kit"><span class="lmc-kn">' + esc(f.sig) + '</span><span class="lmc-kt">on Fellmark</span></div>';
+  /* the react row, a real dropdown */
+  h += foeReactRow(f);
+  h += '</div>';
+  return h;
 }
+function attrsGrid(a){
+  var pairs = [['Precision','Evasion'],['Power','Durability'],['Magic','Resistance'],['Vigor','Wit']];
+  return '<div class="lmc-attrs">' + pairs.map(function(p){
+    return '<div class="lmc-arow"><span>' + p[0] + '</span><b>' + (a[p[0]]||0) + '</b></div>'
+         + '<div class="lmc-arow"><span>' + p[1] + '</span><b>' + (a[p[1]]||0) + '</b></div>';
+  }).join('') + '</div>';
+}
+function kitChunk(label, list, revealed){
+  if (!list.length) return '';
+  var h = '<div class="lmc-lbl">' + label + '</div>';
+  list.forEach(function(nm, i){
+    var gray = i >= revealed;
+    h += '<div class="lmc-kit' + (gray ? ' gray' : '') + '"><span class="lmc-kn">' + esc(nm) + '</span>'
+       + (gray ? '<span class="lmc-why">beyond rating</span>' : '') + '</div>';
+  });
+  return h;
+}
+function foeReactRow(f){
+  if (f.reactUsed) return '<div class="lmc-reactspent">React spent \u00b7 <button class="lm-link" onclick="lmFoeReactReset(\'' + f.id + '\')">Restore</button></div>';
+  var opts = (f.reacts || ['Skill','Movement']);
+  return '<div class="lmc-reactrow"><span class="lmc-alab">React</span>'
+    + '<select class="lmc-rsel" id="tsR-' + f.id + '">'
+    + opts.map(function(o){ return '<option>' + esc(o) + '</option>'; }).join('')
+    + '</select><button class="lmbtn sm2" onclick="lmUseFoeReact(\'' + f.id + '\')">Use</button></div>';
+}
+function lmUseFoeReact(id){ var c = findC(id); if(c){ c.reactUsed = true; applyRemoteState({ scene:S.scene }); } }
+function lmFoeReactReset(id){ var c = findC(id); if(c){ c.reactUsed = false; applyRemoteState({ scene:S.scene }); } }
 
 function fellCard(p){
-  return '<div class="lmcard fell' + (p.locked ? ' locked' : '') + '">'
-    + '<div class="lmc-top"><span class="lmc-name">' + esc(p.name) + '</span>'
-    + '<span class="lmc-sd">Fell</span></div>'
-    + '<div class="lmc-vit">' + p.curVit + ' / ' + p.maxVit + chargePips(p, 'fell') + '</div>'
-    + actLine(p, 'fell') + '</div>';
+  var h = '<div class="lmcard fell' + (p.locked ? ' locked' : '') + '">';
+  h += '<div class="lmc-top"><span class="lmc-name">' + esc(p.name) + '</span>'
+     + '<span class="lmc-sd">Fell</span></div>';
+  h += '<div class="lmc-vit">' + p.curVit + ' / ' + p.maxVit + chargePips(p, 'fell') + '</div>';
+  h += actLine(p, 'fell');
+  /* the Fell's reacts on hand, matching fwReactOpts for a player */
+  if (p.react){
+    h += '<div class="lmc-reactspent">React \u00b7 ' + esc(p.react) + '</div>';
+  } else {
+    var opts = (p.reacts || ['Movement','Assist an ally','Any skill']);
+    h += '<div class="lmc-ropts">Reacts on hand \u00b7 ' + opts.map(esc).join(' \u00b7 ') + '</div>';
+  }
+  h += '</div>';
+  return h;
 }
 
 /* charge pips, dark when empty and gold when set, clickable for the LM */
@@ -893,13 +998,32 @@ function chargePips(c, side){
   return h + '</span>';
 }
 
-function actLine(c, side){
-  if (S.scene.combatPhase !== 'commit') return c.act
-    ? '<div class="lmc-act"><span class="lmc-alab">Act</span>' + esc(c.act) + (c.target ? ' \u2192 ' + esc(c.target) : '') + '</div>' : '';
-  return '<div class="lmc-act commit"><span class="lmc-alab">Act</span>'
-    + '<input class="lmc-actin" value="' + esc(c.act) + '" placeholder="what it does" '
-    + 'oninput="lmSetAct(\'' + side + '\',\'' + c.id + '\',this.value)"></div>';
+function targetName(id){
+  if (!id) return '';
+  var r = id;
+  S.scene.foes.concat(S.scene.fell).forEach(function(c){ if (c.id === id) r = c.name; });
+  return r;
 }
+function actLine(c, side){
+  if (S.scene.combatPhase !== 'commit'){
+    if (!c.act) return '';
+    return '<div class="lmc-act"><span class="lmc-alab">Act</span>' + esc(c.act)
+      + (c.target ? ' <span class="lmc-to">\u2192 ' + esc(targetName(c.target)) + '</span>' : '') + '</div>';
+  }
+  /* commit: an act picker and a target picker, both real selects */
+  var actOpts = ['', 'Attack'].concat((c.acts || []).map(function(a){ return a.name; }));
+  var targets = (side === 'foe' ? S.scene.fell : S.scene.foes);
+  return '<div class="lmc-act commit"><span class="lmc-alab">Act</span>'
+    + '<select class="lmc-rsel" onchange="lmSetAct(\'' + side + '\',\'' + c.id + '\',this.value)">'
+    + actOpts.map(function(o){ return '<option' + (o === c.act ? ' selected' : '') + '>' + (o ? esc(o) : '\u2014') + '</option>'; }).join('')
+    + '</select>'
+    + '<span class="lmc-alab">at</span>'
+    + '<select class="lmc-rsel" onchange="lmSetTarget(\'' + side + '\',\'' + c.id + '\',this.value)">'
+    + '<option value="">\u2014</option>'
+    + targets.map(function(t){ return '<option value="' + t.id + '"' + (t.id === c.target ? ' selected' : '') + '>' + esc(t.name) + '</option>'; }).join('')
+    + '</select></div>';
+}
+function lmSetTarget(side, id, v){ var c = findC(id); if(c){ c.target = v; applyRemoteState({ scene:S.scene }); } }
 
 /* once acts lock, each committed act becomes a Spotlight, wrapped in a gold box.
    The LM swipes through them and resolves one at a time. */
@@ -914,7 +1038,7 @@ function spotCard(c, n){
     + '<div class="lmc-top"><span class="lmc-name">' + esc(c.name) + '</span>'
     + '<span class="lmc-sd">' + (isFoe ? 'Foe' : 'Fell') + '</span></div>'
     + '<div class="lmc-vit">' + c.curVit + ' / ' + c.maxVit + chargePips(c, isFoe ? 'foe' : 'fell') + '</div>'
-    + '<div class="lmc-act"><span class="lmc-alab">Act</span>' + esc(c.act) + (c.target ? ' \u2192 ' + esc(c.target) : '') + '</div>'
+    + '<div class="lmc-act"><span class="lmc-alab">Act</span>' + esc(c.act) + (c.target ? ' \u2192 ' + esc(targetName(c.target)) : '') + '</div>'
     + (isFoe && c.dmg ? '<div class="lmc-dmg">' + c.dmg.base + ' + ' + c.dmg.bonus + ' ' + c.dmg.type + '</div>' : '')
     + '<button class="lmbtn sm" onclick="lmResolveSpot(\'' + c.id + '\')">' + (c.spot === 'done' ? 'Resolved' : 'Resolve') + '</button></div>';
 }
@@ -926,7 +1050,7 @@ function lmLockActs(){ S.scene.combatPhase = 'resolve'; S.scene.foes.concat(S.sc
 function lmUnlock(){ S.scene.combatPhase = 'commit'; S.scene.foes.concat(S.scene.fell).forEach(function(c){ c.locked=false; c.spot=null; }); applyRemoteState({ scene:S.scene }); }
 function lmNextRound(){ S.scene.combatPhase = 'commit'; S.scene.foes.concat(S.scene.fell).forEach(function(c){ c.act=''; c.locked=false; c.spot=null; }); applyRemoteState({ round:S.round+1, scene:S.scene }); }
 function lmResolveSpot(id){ var c = findC(id); if(c){ c.spot = c.spot === 'done' ? null : 'done'; applyRemoteState({ scene:S.scene }); } }
-function lmSetAct(side, id, v){ var c = findC(id); if(c){ c.act = v; S.scene = S.scene; render(); } }
+function lmSetAct(side, id, v){ var c = findC(id); if(c){ c.act = (v === '\u2014' ? '' : v); applyRemoteState({ scene:S.scene }); } }
 function lmSetCharge(side, id, t){ var c = findC(id); if(c){ c.charge = c.charge === t ? t-1 : t; applyRemoteState({ scene:S.scene }); } }
 function lmStepCharge(side, id, d){ var c = findC(id); if(c){ c.charge = clamp((c.charge||0)+d, 0, 3); applyRemoteState({ scene:S.scene }); } }
 function findC(id){ var r=null; S.scene.foes.concat(S.scene.fell).forEach(function(c){ if(c.id===id) r=c; }); return r; }
