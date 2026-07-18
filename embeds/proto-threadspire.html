@@ -225,6 +225,7 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 .mp-name{ font-family:Cinzel,serif; font-size:.76rem; color:var(--silver); }
 .mp-meta{ font-size:.66rem; color:var(--muted); margin-top:2px; }
 .mp-upload{ border-style:dashed; }
+.mp-upload.drag{ border-color:var(--gold); background:rgba(201,168,76,.1); }
 .lm-slot.left .lmcard, .lm-slot.right .lmcard{ overflow:hidden; }
 /* compact foe card, the FateWell strip look */
 .lmc-cname{ font-family:Cinzel,serif; font-size:.74rem; color:var(--silver); margin-bottom:7px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -370,6 +371,7 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
   <div id="map">
     <div id="mapLayer">
       <div id="mapArt"></div>
+  <input type="file" id="mapFileInput" accept="image/*" style="display:none" onchange="lmMapFilePicked(this)">
       <svg id="grid" xmlns="http://www.w3.org/2000/svg"></svg>
     </div>
   </div>
@@ -1404,20 +1406,59 @@ function paintMapPicker(){
   el.style.display = 'flex';
   var cards = (S.scene.maps||[]).map(function(m){
     var on = m.id === S.scene.background;
+    var thumb = m.url
+      ? '<div class="mp-thumb" style="background-image:url(' + m.url + ');background-size:cover;background-position:center"></div>'
+      : '<div class="mp-thumb mp-' + m.source + '"></div>';
     return '<button class="mp-card' + (on?' on':'') + '" onclick="lmSetMap(\'' + m.id + '\')">'
-      + '<div class="mp-thumb mp-' + m.source + '"></div>'
+      + thumb
       + '<div class="mp-name">' + esc(m.name) + '</div>'
-      + '<div class="mp-meta">' + m.w + ' \u00d7 ' + m.h + ' \u00b7 ' + esc(m.source) + '</div></button>';
+      + '<div class="mp-meta">' + m.w + ' \u00d7 ' + m.h + ' \u00b7 ' + esc(m.source) + (m.local?' \u00b7 not yet saved':'') + '</div></button>';
   }).join('');
-  var upload = '<button class="mp-card mp-upload" onclick="lmMapUploadStub()">'
+  var upload = '<button class="mp-card mp-upload" onclick="lmMapUploadStub()" '
+    + 'ondragover="event.preventDefault();this.classList.add(\'drag\')" '
+    + 'ondragleave="this.classList.remove(\'drag\')" '
+    + 'ondrop="lmMapDrop(event)">'
     + '<div class="mp-thumb mp-up"><span>+</span></div>'
     + '<div class="mp-name">Upload a map</div>'
-    + '<div class="mp-meta">saved to your account</div></button>';
+    + '<div class="mp-meta">drop an image or click</div></button>';
   el.innerHTML = '<div class="mp-box"><div class="mp-head"><span>Choose a map</span>'
     + '<button class="lm-minbtn" onclick="lmCloseMaps()">\u00d7</button></div>'
     + '<div class="mp-grid">' + cards + upload + '</div></div>';
 }
-function lmMapUploadStub(){ pushLog({ kind:'sys', html:'Map upload arrives with account storage.' }); applyRemoteState({ log:S.log }); }
+/* local upload. Reads the file to an object URL, measures the image so the map box
+   matches the art, adds it to the scene maps tagged account, sets it as background.
+   Nothing leaves the device yet. Phase B swaps this preview URL for a stored one and
+   writes the record to the account collection, the rest of this path stays. */
+function lmMapUploadStub(){ document.getElementById('mapFileInput').click(); }
+function lmMapDrop(e){
+  e.preventDefault();
+  var el = e.currentTarget; if(el) el.classList.remove('drag');
+  var file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if (!file) return;
+  var fake = { files:[file], value:'' };
+  lmMapFilePicked(fake);
+}
+function lmMapFilePicked(input){
+  var file = input.files && input.files[0];
+  if (!file) return;
+  if (!/^image\//.test(file.type)){ pushLog({ kind:'sys', html:'That file is not an image.' }); applyRemoteState({ log:S.log }); return; }
+  var url = URL.createObjectURL(file);
+  var img = new Image();
+  img.onload = function(){
+    var id = 'up-' + Date.now();
+    var m = { id:id, name:file.name.replace(/\.[^.]+$/, ''), url:url, w:img.naturalWidth||2400, h:img.naturalHeight||1600, source:'account', local:true };
+    S.scene.maps.push(m);
+    S.scene.background = id;
+    S.map = { w:m.w, h:m.h };
+    pushLog({ kind:'sys', html:'Map <b>' + esc(m.name) + '</b> loaded. It will save to your account when storage lands.' });
+    applyRemoteState({ scene:S.scene, map:S.map, log:S.log });
+    paintMapArt();
+    lmCloseMaps();
+  };
+  img.onerror = function(){ pushLog({ kind:'sys', html:'That image could not be read.' }); applyRemoteState({ log:S.log }); };
+  img.src = url;
+  input.value = '';
+}
 function lmBeginCombat(){ S.scene.combatPhase = 'commit'; applyRemoteState({ mode:'combat', scene:S.scene }); }
 function lmEndCombat(){ S.scene.combatPhase = null; S.scene.foes.concat(S.scene.fell).forEach(function(c){ c.act=''; c.locked=false; c.spot=null; }); applyRemoteState({ mode:'explore', scene:S.scene }); }
 function lmLockActs(){ S.scene.combatPhase = 'resolve'; S.scene.foes.concat(S.scene.fell).forEach(function(c){ if(c.act) c.locked = true; }); applyRemoteState({ scene:S.scene }); }

@@ -1,3 +1,7 @@
+## ThreadSpire: upload a map from your device, local preview
+
+- The upload slot in the map picker now takes a real image. Click it to pick a file or drag one onto it. The image is read locally, measured so the map box matches its natural size, added to the picker as a reusable card with a thumbnail, and set as the scene background. Nothing leaves the device yet, the card is marked not yet saved. This is the upload interaction ahead of account storage: the same path will persist to the account collection when storage lands, and only the preview URL changes to a stored one. Non image files are turned away with a reason.
+
 ## ThreadSpire: the map picker, adventure maps first
 
 - A Maps button on the scene controls opens a picker of the maps the adventure preloaded. Choosing one sets it as the scene background and sizes the map box to the art, so a map of any shape no longer stretches to the old hardcoded box. The choice rides on scene state through the seam, since the background is what the LoreMaster sets for the table, not a per player view. This is the first of the map sources, the ones the adventure authors. The picker also shows an upload slot, stubbed for now, that lands when account storage does.
