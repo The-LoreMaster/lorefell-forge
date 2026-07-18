@@ -1,3 +1,9 @@
+## ThreadSpire: tabbed foe cards, auto-width scene cards, dropdown fix
+
+- The foe combat card is compact by default, the same small card the FateWell strip shows, name, vitality bar, and charge. Clicking it expands to a tabbed card just larger than a scene card, with five tabs. About holds name, vitality, charge, and the act and target pickers. Attributes holds the grid. Attack holds the damage line. Acts holds the Acts with their grays and the React row. Stats holds infusions, augmentations, stance, and afflictions.
+- Scene run cards grow to fit their note up to a width that stays clear of the dice tray on the left and the character panel on the right, then the body scrolls. Short beats stay small, long beats widen to the cap.
+- Fixed the Act and target dropdowns closing the instant they opened. The centered card carried a recentering click that re-rendered the whole card on any click inside it, including opening a select. The center card no longer recenters on its own clicks, so its dropdowns stay open to choose from.
+
 ## ThreadSpire: foe cards carry the full combat runner detail
 
 - The combat foe card on the ThreadSpire map now matches the FateWell runner line for line. Attributes grid, the standard attack damage with its to-hit and the base and bonus note, the Acts with tiers and effects and both grays, needs charge for a locked tier and beyond rating for one above the rung, infusions and augmentations with the rating reveal, stance, and signature affliction. The act line is a real act picker and target picker in Commit, resolving to the target's name once locked. The React row is a dropdown of the foe's react ready Acts plus Skill and Movement, with used and restore. Fell cards show their reacts on hand. Everything reads from scene state through the seam, no math owned here.
