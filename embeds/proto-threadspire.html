@@ -191,7 +191,23 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 /* foe combat card, compact by default like the FateWell strip, expands on click */
 .lmcard.foe, .lmcard.fell{ width:172px; cursor:pointer; }
 .lmcard.foe.expanded, .lmcard.fell.expanded{ width:320px; max-height:60vh; overflow-y:auto; cursor:default; }
-.lmcard.spotbox{ width:300px; max-height:60vh; overflow-y:auto; }
+.lmcard.spotbox{ width:max-content; max-width:min(92vw, 720px); max-height:none; padding:10px 13px 12px; }
+.lmc-spothead{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:8px; }
+.lmc-spothead .lmbtn.sm2{ margin:0; width:auto; }
+.lm-spotrow{ display:flex; gap:9px; align-items:flex-start; overflow-x:auto; }
+.lm-spotslot{ position:relative; flex:0 0 auto; }
+.lm-spotslot .lmc-mdot{ position:absolute; top:-4px; right:-4px; z-index:2; }
+.lm-spotslot.open{ flex:0 0 auto; }
+.lm-minidie{ margin-top:5px; }
+.lm-minidie .lmc-dicerow{ margin-top:0; }
+.lm-minidie .lmc-alab{ display:none; }
+.lm-minidie .lmc-die{ width:24px; height:24px; font-size:.74rem; }
+.lm-minidie .lmc-dieout{ font-size:.64rem; }
+/* the minimized pill */
+.lm-pill{ background:rgba(10,14,26,.94); border:1px solid var(--gold); border-radius:20px; color:var(--gold); font-family:Cinzel,serif; font-size:.66rem; letter-spacing:.1em; text-transform:uppercase; padding:8px 16px; cursor:pointer; box-shadow:0 4px 16px rgba(0,0,0,.5); }
+.lm-pill-arrow{ margin-left:6px; }
+.lm-minbtn{ background:none; border:1px solid var(--line); border-radius:5px; color:var(--ice); width:22px; height:22px; line-height:1; cursor:pointer; font-size:.9rem; padding:0; }
+.lm-minbtn:active{ background:var(--navy3); }
 .lm-slot.left .lmcard, .lm-slot.right .lmcard{ overflow:hidden; }
 /* compact foe card, the FateWell strip look */
 .lmc-cname{ font-family:Cinzel,serif; font-size:.74rem; color:var(--silver); margin-bottom:7px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -863,6 +879,9 @@ function isLM(){ return S.role === 'lm'; }
    the camera and never syncs. Keyed per face so scene and combat keep their place. */
 var lmFocus = { scene:0, commit:0, resolve:0 };
 var lmExpanded = null;        /* id of the foe card opened to tabs, or null */
+var lmMin = false;            /* the whole strip collapsed to a pill */
+function lmMinimize(){ lmMin = true; paintLmStrip(); }
+function lmRestore(){ lmMin = false; paintLmStrip(); }
 var lmTab = 'about';          /* active tab on the expanded card */
 function lmToggleCard(id){ lmExpanded = (lmExpanded === id) ? null : id; lmTab = 'about'; paintLmStrip(); }
 function lmSetTab(id, tab){ lmExpanded = id; lmTab = tab; paintLmStrip(); }
@@ -907,7 +926,12 @@ function lmStripHtml(){
   var dots = deck.length > 1 ? '<div class="lm-dots">' + deck.map(function(_, i){
     return '<span class="lm-dot' + (i === focus ? ' on' : '') + '" onclick="lmGoTo(' + i + ')"></span>';
   }).join('') + '</div>' : '';
-  return '<div class="lm-topbar"><span class="lm-head">' + head + '</span>' + lmPhaseControls() + '</div>'
+  if (lmMin){
+    return '<button class="lm-pill" onclick="lmRestore()">' + head
+      + ' <span class="lm-pill-arrow">\u25b4</span></button>';
+  }
+  return '<div class="lm-topbar"><span class="lm-head">' + head + '</span>' + lmPhaseControls()
+    + '<button class="lm-minbtn" onclick="lmMinimize()" title="Minimize">\u2013</button></div>'
     + '<div class="lm-stage">'
     + (deck.length > 1 ? '<button class="lm-arrow l" onclick="lmStep(-1)" aria-label="Previous">\u2039</button>' : '')
     + stage
@@ -929,24 +953,27 @@ function lmFoeRoll(id){
   pushLog({ kind:'sys', html:'<b>' + esc(f.name) + '</b> rolls \u2192 ' + esc(tag) + '.' });
   applyRemoteState({ log:S.log });
 }
+/* the Spotlight gold box, matching the FateWell runner: compact cards side by side,
+   click one to open its tabs in place. The box hugs its members, low and wide, so
+   the map stays visible above it. */
 function spotGroupCard(it){
   var done = spotResolved(it);
   var manual = S.scene.spotMode==='manual';
   var inner = it.nodes.map(function(n){
     var c = n.ref, isFoe = n.kind==='foe';
-    var mtog = manual ? '<button class="lmc-mdot inline' + (S.scene.manual[n.key]?' on':'') + '" onclick="lmToggleManual(\'' + n.key + '\')" title="Group into the spotlight">\u25c9</button>' : '';
-    return '<div class="lm-spotmember ' + (isFoe?'foe':'fell') + '">'
-      + '<div class="lmc-top"><span class="lmc-name">' + esc(c.name) + '</span>'
-      + '<span class="lmc-sd">' + mtog + (isFoe?'Foe':'Fell') + '</span></div>'
-      + '<div class="lmc-vit">' + c.curVit + ' / ' + c.maxVit + chargePips(c, isFoe?'foe':'fell') + '</div>'
-      + '<div class="lmc-act"><span class="lmc-alab">Act</span>' + esc(c.act||'\u2014')
-      + (c.target ? ' <span class="lmc-to">\u2192 ' + esc(targetName(c.target)) + '</span>' : '') + '</div>'
-      + (isFoe && c.dmg ? '<div class="lmc-dmg">' + c.dmg.base + ' + ' + c.dmg.bonus + ' ' + c.dmg.type + '</div>' : '')
-      + (isFoe ? foeDiceRow(c) : '') + '</div>';
+    if (lmExpanded === c.id){
+      return '<div class="lm-spotslot open">' + (isFoe ? foeCardOpen(c) : fellCardOpen(c)) + '</div>';
+    }
+    var mtog = manual ? '<button class="lmc-mdot' + (S.scene.manual[n.key]?' on':'') + '" onclick="event.stopPropagation();lmToggleManual(\'' + n.key + '\')" title="Group into the spotlight">\u25c9</button>' : '';
+    var mini = isFoe ? foeCardCompact(c) : fellCardCompact(c);
+    /* a small die on the compact face so a foe can roll without opening */
+    var die = isFoe ? '<div class="lm-minidie">' + foeDiceRow(c) + '</div>' : '';
+    return '<div class="lm-spotslot">' + mtog + mini + die + '</div>';
   }).join('');
   return '<div class="lmcard spotbox' + (done?' done':'') + '">'
-    + '<div class="lmc-spotnum">' + esc(it.label) + '</div>' + inner
-    + '<button class="lmbtn sm" onclick="lmResolveGroup(\'' + it.id + '\')">' + (done?'Resolved':'Resolve spotlight') + '</button></div>';
+    + '<div class="lmc-spothead"><span class="lmc-spotnum">' + esc(it.label) + '</span>'
+    + '<button class="lmbtn sm2" onclick="lmResolveGroup(\'' + it.id + '\')">' + (done?'Resolved':'Resolve') + '</button></div>'
+    + '<div class="lm-spotrow">' + inner + '</div></div>';
 }
 function lmResolveGroup(id){
   var it = buildSpotlights().filter(function(x){ return x.id===id; })[0];
