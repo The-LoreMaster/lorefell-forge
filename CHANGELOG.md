@@ -1,3 +1,7 @@
+## FateWell: the token popup joins the one foe sheet
+
+- The foe token popup, the one with the current-vitality and luck controls, kept its own hand-built attribute grid and ability list, read straight from the combatant. So it still showed The Erasure at all zeros while the Spotlight card beside it showed the synced Precision 6 and Power 6. It now renders the same shared sheet the roster and Spotlight use, read through to the library, non editable. Its live board controls stay, current vitality, charge, conditions, accuracy, but the foe's kit below them is one renderer everywhere. Four foe surfaces, one sheet, no drift.
+
 ## FateWell: the loremaster decides a foe's damage type on a tie
 
 - When a foe's Power and Magic are level, the strike could read either way, so the loremaster picks. A small toggle appears on the foe sheet only on a tie, physical or magical, and the choice drives the whole line: Base off Power or Magic, and Bonus met by Durability or Resistance. The moment one attribute leads, the lead wins and the toggle is gone. The choice stores on the foe, survives the library round-trip, and syncs to the board like the rest of the kit.
