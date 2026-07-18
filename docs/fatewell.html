@@ -194,6 +194,10 @@ body::before{
 .st-n.big{ font-size:2rem; }
 .st-l{ font-family:'Cinzel', serif; font-size:.66rem; letter-spacing:.12em; text-transform:uppercase; color:var(--ice); margin-top:2px; }
 
+.fw-tierow{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin:5px 0 2px; }
+.fw-tielbl{ font-size:.72rem; color:var(--ice); }
+.fw-tie{ border:1px solid var(--line2); border-radius:6px; background:var(--navy3); color:var(--ice); font-size:.72rem; padding:3px 9px; cursor:pointer; }
+.fw-tie.on{ border-color:var(--gold); color:var(--gold); background:rgba(201,168,76,.12); }
 .chg-step{ width:22px; height:22px; border:1px solid var(--line2); border-radius:6px; background:var(--navy3); color:var(--silver); font-size:1rem; line-height:1; cursor:pointer; padding:0; margin:0 2px; }
 .chg-step:active{ background:var(--gold); color:var(--navy); }
 /* the foe combat sheet, one look everywhere */
@@ -2759,7 +2763,7 @@ function assetToRow(e){
     inventory: JSON.stringify(e.inv || []),
     abilities: JSON.stringify(e.abilities || []),
     foeWeight: e.foeWeight || 0,
-    foeMeta: JSON.stringify({ build:e.build||'', stance:e.stance||'', sig:e.sig||'', source:e.source||'', augments:e.augments||[], infusions:e.infusions||[], campaignId:e.campaignId||'', campaignName:e.campaignName||'' })
+    foeMeta: JSON.stringify({ build:e.build||'', stance:e.stance||'', sig:e.sig||'', source:e.source||'', augments:e.augments||[], infusions:e.infusions||[], atkPref:e.atkPref||'', campaignId:e.campaignId||'', campaignName:e.campaignName||'' })
   };
 }
 /* Rebuild a library entity from a CMS row. Tolerates already-parsed or string JSON. */
@@ -2794,6 +2798,7 @@ function rowToAsset(r){
     e.build = fm.build || pick('build') || '';
     e.stance = fm.stance || pick('stance') || '';
     e.augments = Array.isArray(fm.augments) ? fm.augments : [];
+    if (fm.atkPref) e.atkPref = fm.atkPref;
     e.infusions = Array.isArray(fm.infusions) ? fm.infusions : jp(pick('infusions'), []);
     if (fm.campaignId !== undefined) e.campaignId = fm.campaignId || '';
     if (fm.campaignName !== undefined) e.campaignName = fm.campaignName || '';
@@ -6666,7 +6671,15 @@ var FW_BONUS_INF = { Mauling:'Power', Wounding:'Precision', Blighting:'Magic' };
 var FW_WEAPON_BONUS = { 1:1, 2:1, 3:3, 4:3, 5:6, 6:6, 7:10, 8:10, 9:15, 10:15 };
 function fwWeaponBonus(apl){ return FW_WEAPON_BONUS[Math.max(1, Math.min(10, apl|0))] || 1; }
 /* Physical when Power leads, magical when Magic leads. Nate's ruling. */
-function fwAtkType(attrs){ return ((attrs&&attrs.Magic)||0) > ((attrs&&attrs.Power)||0) ? 'magic' : 'phys'; }
+/* Physical when Power leads, magical when Magic leads. On a tie the loremaster
+   decides, and that choice rides on the foe as atkPref. A tie is the only case
+   the override touches; the moment one attribute leads, the lead wins. */
+function fwIsTie(attrs){ var p=(attrs&&attrs.Power)||0, m=(attrs&&attrs.Magic)||0; return p>0 && p===m; }
+function fwAtkType(attrs, foe){
+  var p=(attrs&&attrs.Power)||0, m=(attrs&&attrs.Magic)||0;
+  if(p>0 && p===m && foe && (foe.atkPref==='phys'||foe.atkPref==='magic')) return foe.atkPref;
+  return m > p ? 'magic' : 'phys';
+}
 function fwActsCeiling(sr){ return fwTierBudget(sr||'Elite').acts; }
 /* Which of the foe's carried infusions its rating has revealed. The kit is full;
    the rating shows the first N of it, escalation shows the next. */
@@ -6677,7 +6690,7 @@ function fwRevealedAug(f){ return (f.augments||[]).slice(0, fwTierBudget(f.sr||'
    Standard Attack has none of its own. */
 function fwFoeDamage(f, attrs){
   attrs = attrs || f.attrs || blankAttrs();
-  var t = fwAtkType(attrs);
+  var t = fwAtkType(attrs, f);
   var base = 1 + ((t==='magic' ? attrs.Magic : attrs.Power) || 0);
   /* the weapon's own bonus, always present, by party level, then the kit stacks */
   var bonus = fwWeaponBonus(fwPartyLevel());
@@ -6688,6 +6701,22 @@ function fwFoeDamage(f, attrs){
   var acc = t==='magic' ? ('1d6 + Magic '+(attrs.Magic||0)) : ('1d6 + Precision '+(attrs.Precision||0));
   return { type:t, base:base, bonus:bonus, acc:acc,
     text: base + (bonus ? ' + ' + bonus : ' + 0') + ' ' + (t==='magic' ? 'magical' : 'physical') };
+}
+/* On a Power and Magic tie, the loremaster picks the damage type. The choice
+   stores on the foe and syncs like the rest of the kit. */
+function fwTieToggle(f){
+  var pref = (f.atkPref==='magic') ? 'magic' : (f.atkPref==='phys' ? 'phys' : 'phys');
+  var fid = f.libId || f.id || '';
+  function b(val, lab){ return '<button class="fw-tie'+(pref===val?' on':'')+'" onclick="fwSetAtkPref(\''+fid+'\',\''+val+'\')">'+lab+'</button>'; }
+  return '<div class="fw-tierow"><span class="fw-tielbl">Power and Magic are level. Strike as</span>'
+    + b('phys','Physical') + b('magic','Magical') + '</div>';
+}
+function fwSetAtkPref(id, val){
+  var f = libGet(id) || _findCombatant(id);
+  if(!f) return;
+  f.atkPref = val;
+  if(WIX.hosted && libGet(id)) pushAsset(libGet(id));
+  save(); render();
 }
 function fwDmgLine(f, attrs){
   var d = fwFoeDamage(f, attrs);
@@ -6714,6 +6743,29 @@ function fwLiveAttrs(f){
   if (f && f.build){ var k = fwDeriveKit(f, f.sr || 'Elite'); if (k && attrSpend(k.attrs) > 0) return k.attrs; }
   return (f && f.attrs) || blankAttrs();
 }
+/* The foe as the library now defines it, scaled to this combatant's scene rating.
+   The combat runner reads through to the library so an edit made mid combat reaches
+   the board on the next render. The scene owns only what a scene owns: current
+   vitality, live charge, conditions, and the rating it fights at. Everything the
+   library authors, attributes, build, acts, infusions, augments, stance, and
+   signature, is read live. Falls back to the combatant's own stored kit for a
+   summoned foe the library never held. */
+function fwSyncFoe(cb){
+  if (!cb || cb.type!=='monster') return cb;
+  var e = cb.libId ? libGet(cb.libId) : (libByNameType(cb.name, 'monster') || libByNameType(baseName(cb.name), 'monster'));
+  if (!e) return cb;
+  var sr = cb.sr || e.sr || 'Elite';
+  var kit = fwDeriveKit(e, sr);
+  /* a shallow view: library kit under the scene's live fields */
+  return {
+    id: cb.id, libId: e.id, type:'monster', side:cb.side, name: cb.name,
+    sr: sr, maxVit: cb.maxVit, curVit: cb.curVit, charge: cb.charge,
+    affs: cb.affs, intent: cb.intent, target: cb.target, _acc: cb._acc,
+    attrs: kit.attrs, build: e.build||'', stance: e.stance||'', sig: e.sig||'', atkPref: e.atkPref||'',
+    infusions: kit.infusions, augments: kit.augments, abilities: kit.abilities,
+    inv: e.inv||[], img: e.img||cb.img||'', desc: e.desc||cb.desc||''
+  };
+}
 function fwFoeSheet(f, attrs, charge){
   attrs = (attrs && attrSpend(attrs) > 0) ? attrs : fwLiveAttrs(f);
   var sr = f.sr || 'Elite';
@@ -6724,7 +6776,8 @@ function fwFoeSheet(f, attrs, charge){
   var h = '<div class="fwk">';
   h += '<div class="fwk-lbl">Attributes</div><p class="fwk-attrs">'+attrLine(attrs)+'</p>';
   h += '<div class="fwk-lbl">Standard attack</div>' + fwDmgLine(f, attrs)
-    + '<p class="fwk-note">Base always lands. Bonus meets '+(fwAtkType(attrs)==='magic'?'Resistance':'Durability')+'.'
+    + (fwIsTie(attrs) ? fwTieToggle(f) : '')
+    + '<p class="fwk-note">Base always lands. Bonus meets '+(fwAtkType(attrs, f)==='magic'?'Resistance':'Durability')+'.'
     + (minion ? '' : ' Landing it charges the first tier.')+'</p>';
   /* acts, both grays */
   var abs = healActTiers((f.abilities||[]).slice()).sort(function(a,b){ return (a.tier||0)-(b.tier||0); });
@@ -7238,7 +7291,7 @@ function monInfo(cid){
   /* Everything below is the foe as it was forged. Locked while it stands on the board. */
   h += '<div class="fs-locked">'
     + '<div class="lbl">Shatter rating</div><p>'+(cb.sr?esc(cb.sr):'None')+'</p>'
-    + (cb.type!=='npc' ? fwFoeSheet(cb, fwLiveAttrs(cb), cb.charge||0) : foeKitBody(cb, false))
+    + (cb.type!=='npc' ? (function(){ var lf=fwSyncFoe(cb); return fwFoeSheet(lf, lf.attrs, cb.charge||0); })() : foeKitBody(cb, false))
     + '</div>'
     + '<p class="muted small">This foe stands in a crucible. Its forging is set. Edit it in the library to change what it is.</p>';
 
@@ -8706,12 +8759,12 @@ function fwCardSheet(n){
   var cb = n.ref;
   window._fwOpen = window._fwOpen || {};
   var open = !!window._fwOpen[n.key];
-  var la = fwLiveAttrs(cb);
+  var lf = fwSyncFoe(cb);
   return '<div class="cbk">'
     + '<div class="cbk-head" onclick="fwToggleSheet(\''+n.key+'\')">'
-    + fwDmgLine(cb, la)
+    + fwDmgLine(lf, lf.attrs)
     + '<span class="cbk-arrow">'+(open?'\u25b4':'\u25be')+'</span></div>'
-    + (open ? fwFoeSheet(cb, la, cb.charge||0) : '')
+    + (open ? fwFoeSheet(lf, lf.attrs, cb.charge||0) : '')
     + '</div>';
 }
 function fwToggleSheet(key){
