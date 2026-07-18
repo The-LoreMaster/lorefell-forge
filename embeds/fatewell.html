@@ -1385,7 +1385,12 @@ select.inp{ appearance:none; -webkit-appearance:none; }
 .fw-tk .ts2{ display:flex; align-items:center; justify-content:space-between; gap:5px; margin-top:4px; }
 .tk-pips{ display:inline-flex; gap:4px; }
 .tk-pip{ width:8px; height:8px; transform:rotate(45deg); border:1px solid rgba(201,168,76,.5); border-radius:2px; }
-.tk-pip.lit{ background:var(--gold); border-color:var(--gold); box-shadow:0 0 7px rgba(201,168,76,.7); }
+".tk-pip.lit{ background:var(--gold); border-color:var(--gold); box-shadow:0 0 7px rgba(201,168,76,.7); }
+button.tk-pip{ padding:0; cursor:pointer; }
+button.tk-pip.live{ width:11px; height:11px; }
+.tk-pips.live{ align-items:center; gap:5px; }
+.tk-chg{ width:20px; height:20px; border:1px solid var(--line2); border-radius:5px; background:var(--navy3); color:var(--silver); font-size:.9rem; line-height:1; cursor:pointer; padding:0; }
+.tk-chg:active{ background:var(--gold); color:var(--navy); }
 .tk-st{ font-size:.56rem; font-family:'Cinzel',serif; letter-spacing:.05em; color:var(--ice); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .tk-lock{ position:absolute; top:6px; right:6px; width:9px; height:9px; border-radius:50%; background:#d8b74a; box-shadow:0 0 7px rgba(216,183,74,.7); }
 .tk-lock.in{ background:#7fb58a; box-shadow:0 0 7px rgba(127,181,138,.75); }
@@ -9268,7 +9273,15 @@ function fwTokenPopup(key){
   var v=cbVitOf(n), b=curSc().battle, pd=(b&&b.pend||{})[key];
   function row(l,val){ return '<div class="fw-pop-row"><span>'+l+'</span><b>'+val+'</b></div>'; }
   var ch=(n.kind==='m')?cbChargeOf(n):((n.st&&n.st.charge)||0);
-  var pips=''; for(var pi=0;pi<3;pi++) pips+='<span class="tk-pip'+(pi<ch?' lit':'')+'"></span>';
+  var pips='';
+  if(n.kind==='m' && n.ref && n.ref.sr!=='Minion'){
+    var _cid=n.ref.id;
+    pips+='<button class="tk-chg" onclick="event.stopPropagation();stepCharge(\'m\',\''+_cid+'\',-1);fwTokenPopup(\''+key+'\')">\u2212</button>';
+    for(var pj=1;pj<=3;pj++) pips+='<button class="tk-pip live'+(ch>=pj?' lit':'')+'" onclick="event.stopPropagation();setCharge(\'m\',\''+_cid+'\','+pj+');fwTokenPopup(\''+key+'\')"></button>';
+    pips+='<button class="tk-chg" onclick="event.stopPropagation();stepCharge(\'m\',\''+_cid+'\',1);fwTokenPopup(\''+key+'\')">+</button>';
+  } else {
+    for(var pi=0;pi<3;pi++) pips+='<span class="tk-pip'+(pi<ch?' lit':'')+'"></span>';
+  }
   var rows='';
   rows+=row('Vitality', v.maxVit?(Math.max(0,v.curVit||0)+' / '+v.maxVit):'on sheet');
   rows+='<div class="fw-pop-row"><span>Charge</span><b><span class="tk-pips">'+pips+'</span></b></div>';
@@ -9473,8 +9486,19 @@ function fwVitRO(n){
 }
 function fwPipsRO(n){
   var ch=(n.kind==='m')?cbChargeOf(n):((n.st&&n.st.charge)||0);
-  var pips=''; for(var i=0;i<3;i++) pips+='<span class="tk-pip'+(i<ch?' lit':'')+'"></span>';
-  return '<span class="tk-pips" title="Charge Tier '+ch+'">'+pips+'</span>';
+  /* A foe's charge is the loremaster's to run, so its pips are live: click a
+     diamond to set that tier, step with the minus and plus. A Minion never
+     charges, and a player runs their own, so both stay read-only here. */
+  if(n.kind==='m' && n.ref && n.ref.sr!=='Minion'){
+    var id=n.ref.id, pips='';
+    for(var t=1;t<=3;t++) pips+='<button class="tk-pip live'+(ch>=t?' lit':'')+'" title="Set Tier '+t+'" onclick="event.stopPropagation();setCharge(\'m\',\''+id+'\','+t+')"></button>';
+    return '<span class="tk-pips live" title="Charge Tier '+ch+'">'
+      + '<button class="tk-chg" title="Lower a charge" onclick="event.stopPropagation();stepCharge(\'m\',\''+id+'\',-1)">\u2212</button>'
+      + pips
+      + '<button class="tk-chg" title="A hit charges the next tier" onclick="event.stopPropagation();stepCharge(\'m\',\''+id+'\',1)">+</button></span>';
+  }
+  var ro=''; for(var i=0;i<3;i++) ro+='<span class="tk-pip'+(i<ch?' lit':'')+'"></span>';
+  return '<span class="tk-pips" title="Charge Tier '+ch+'">'+ro+'</span>';
 }
 function fwReactOpts(n){
   var opts=[];

@@ -1,3 +1,7 @@
+## FateWell: charge is adjustable on every foe surface
+
+- The charge control worked only on the Resolve card. The Spotlight card, the card header, and the token popup showed the charge as read-only diamonds, so there was nowhere to set it while running a fight from those views. A foe's charge diamonds are now live everywhere a foe appears: click a diamond to set that tier, and a minus and plus step it. A Minion stays read-only since it never charges, and a player's own charge stays read-only on these views since a player runs their own. This pairs with the earlier fix that stopped the tool auto charging on an unresolved swing, so in hand-run combat the loremaster now sets charge directly from whatever card is in front of them.
+
 ## FateWell: the token popup joins the one foe sheet
 
 - The foe token popup, the one with the current-vitality and luck controls, kept its own hand-built attribute grid and ability list, read straight from the combatant. So it still showed The Erasure at all zeros while the Spotlight card beside it showed the synced Precision 6 and Power 6. It now renders the same shared sheet the roster and Spotlight use, read through to the library, non editable. Its live board controls stay, current vitality, charge, conditions, accuracy, but the foe's kit below them is one renderer everywhere. Four foe surfaces, one sheet, no drift.
