@@ -1,3 +1,12 @@
+## ThreadSpire round four: the dice hit the table
+
+- Rolling throws a die onto the screen. It leaves the socket, arcs, bounces twice, lands somewhere new every time, sits for two seconds, then shrinks back into the socket it came from. The socket shows an empty outline while its die is away. Screen space, so it lands the same for everyone no matter where their camera is pointed.
+- A Fellmark announces itself. Gold aura, three rings expanding out of the landing point, the die glowing and its pips flaring brighter gold, and a swell on impact. A Fellstrike goes red, tighter and faster, and shakes rather than rises. Everything else stays quiet, which is what makes those two land.
+- Skins are earned, so they belong to the Fell and they travel. Each roll carries the skin it was thrown with, and a player assigns one per roll type, so the die says what is being rolled before anyone reads a word. The rest of the table sees what you unlocked instead of taking your word for it.
+- Every roll at the table throws now, not only your own. Kaelo rolling puts Kaelo's die on your screen, wearing Kaelo's skin and carrying his name. Yours returns to your socket, everyone else's lifts and fades where it lands. The bottom readout still spells out your own maths alone.
+- One code path for every die. A roll leaves through the seam and the throw happens when it comes back, so your own die is drawn from remote truth exactly like everyone else's. The animation cannot pick a face, and a test greps the throw for a random face roll and fails if one ever appears.
+- The Fellmark moved into the gem row between vitality and LP, where it stops covering the Lore plaque. The rail now stacks off the top of the character card rather than from a fixed offset, so the two no longer grow into each other on a short window.
+
 ## ThreadSpire round three: log order, the rail, the Fellmark, and the token menu
 
 - The log runs newest first. A new line lands directly under Say something and older ones work downward off the panel, so the two things always in view are the chat box and the latest thing that happened. Nothing has to be chased. The full log overlay reads the same way.
