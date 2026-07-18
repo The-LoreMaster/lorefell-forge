@@ -1,3 +1,10 @@
+## ThreadSpire: real spotlight groups, Fell cards tabbed, foe dice, two visual fixes
+
+- Spotlights now form the way the FateWell runner forms them. In auto mode the focus graph clusters combatants who target each other into one spotlight, so an attacker and its target sit in the same gold box and resolve together. In manual mode the LoreMaster toggles which cards group, matching the two modes the runner has. A spotlight is one gold box holding every member, with a single resolve that clears the whole group. Resolved spotlights sink below the unresolved, and unengaged combatants stand as their own solos.
+- Fell cards get the same compact to tabbed treatment as foes, with the same five tabs, pulling from the FellGlass sheet. About holds level, vitality, charge, and reacts on hand. Attributes holds the grid. Attack holds the weapon line. Acts holds the Fell's Acts and skills. Stats holds arsenal and lore.
+- Foe dice stay on the card, a d6 the LoreMaster throws for the foe, Fellmark on 6 and Fellstrike on 1, logged to the stream, present on the About tab and inside the spotlight. Targeting drives the grouping, so the act and target pickers now feed the focus graph.
+- Fixed the map knob panel peeking out from behind the testing panel, now stacked below it, and the carousel arrows overlapping the cards, now sat outside the card zone with the neighbors tucked in.
+
 ## ThreadSpire: fix a broken CSS value that displaced the HUD and testing bar
 
 - A stray unclosed color value in the compact card style broke CSS parsing for the rules after it, which stripped the fixed positioning from the testing bar and the character HUD. The vitality gem fell to the top left on its own and the testing buttons vanished behind the map. The value is closed now, so both return to place. The testing bar is also a labeled panel in the top left so it is easy to find, with Toggle LM role first.
