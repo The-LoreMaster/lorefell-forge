@@ -1,3 +1,7 @@
+## FateWell: the top dock charge diamonds track the live charge
+
+- The charge set on a foe now shows on its card in the top combat strip. The dock already read the same live charge, but its diamonds were styled so faintly that an empty one looked lit and a set one did not stand out, so the strip appeared stuck at empty while the Spotlight showed the real charge. Every read-only charge diamond now reads clearly dark when empty and solid gold when set, so the top card, the Spotlight, and the popup all show the same charge at a glance. The dock stays tap-to-open since its card is small; the setting is done on the larger cards.
+
 ## FateWell: charge diamonds read dark until lit
 
 - The interactive charge diamonds carried a faint gold border even when empty, so an unlit charge looked half on and a click that landed looked like nothing changed. An empty charge diamond now reads clearly dark, and a set one fills solid gold with a glow, so setting or stepping a charge is unmistakable. The click path was already sound; this is the contrast that makes it legible.
