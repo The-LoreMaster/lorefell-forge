@@ -1,3 +1,7 @@
+## ThreadSpire: the map picker, adventure maps first
+
+- A Maps button on the scene controls opens a picker of the maps the adventure preloaded. Choosing one sets it as the scene background and sizes the map box to the art, so a map of any shape no longer stretches to the old hardcoded box. The choice rides on scene state through the seam, since the background is what the LoreMaster sets for the table, not a per player view. This is the first of the map sources, the ones the adventure authors. The picker also shows an upload slot, stubbed for now, that lands when account storage does.
+
 ## ThreadSpire: auto evasion rolls return, carousel arrows clear the cards
 
 - The evasion line is back on the foe card, matching the runner. When a foe's act targets a Fell it auto shows, waiting on the roll and naming the Fell's Evasion. Throwing the foe die resolves it: accuracy, the die plus Precision, against the Fell's Evasion, landing on Hit or Evaded, and the contest logs to the stream.

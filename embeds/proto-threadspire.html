@@ -209,6 +209,22 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 .lm-pill-arrow{ margin-left:6px; }
 .lm-minbtn{ background:none; border:1px solid var(--line); border-radius:5px; color:var(--ice); width:22px; height:22px; line-height:1; cursor:pointer; font-size:.9rem; padding:0; }
 .lm-minbtn:active{ background:var(--navy3); }
+/* the map picker overlay */
+#mapPicker{ position:fixed; inset:0; z-index:70; display:none; align-items:center; justify-content:center; background:rgba(4,7,14,.72); }
+.mp-box{ width:min(680px,90vw); max-height:80vh; overflow-y:auto; background:var(--panel); border:2px solid var(--gold); border-radius:12px; padding:16px 18px; }
+.mp-head{ display:flex; align-items:center; justify-content:space-between; font-family:Cinzel,serif; letter-spacing:.1em; font-size:.8rem; color:var(--gold); text-transform:uppercase; margin-bottom:14px; }
+.mp-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; }
+.mp-card{ background:var(--navy2,#0e1526); border:1px solid var(--line); border-radius:9px; padding:8px; cursor:pointer; text-align:left; transition:border-color .15s; }
+.mp-card:hover{ border-color:var(--ice); }
+.mp-card.on{ border-color:var(--gold); box-shadow:0 0 0 1px rgba(201,168,76,.4); }
+.mp-thumb{ height:82px; border-radius:6px; margin-bottom:7px; background:linear-gradient(135deg,#4a5a6d,#2b3646); position:relative; overflow:hidden; }
+.mp-thumb.mp-adventure{ background:linear-gradient(135deg,#5a6a7b,#38506e); }
+.mp-thumb.mp-account{ background:linear-gradient(135deg,#3d6b58,#2a4a3d); }
+.mp-thumb.mp-up{ background:var(--navy3,#0c1424); border:1px dashed var(--gold); display:flex; align-items:center; justify-content:center; }
+.mp-thumb.mp-up span{ color:var(--gold); font-size:1.6rem; }
+.mp-name{ font-family:Cinzel,serif; font-size:.76rem; color:var(--silver); }
+.mp-meta{ font-size:.66rem; color:var(--muted); margin-top:2px; }
+.mp-upload{ border-style:dashed; }
 .lm-slot.left .lmcard, .lm-slot.right .lmcard{ overflow:hidden; }
 /* compact foe card, the FateWell strip look */
 .lmc-cname{ font-family:Cinzel,serif; font-size:.74rem; color:var(--silver); margin-bottom:7px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -468,6 +484,16 @@ var S = {
   scene: {
     name: 'The Silent Beacon',
     combatPhase: null,
+    /* maps the adventure preloaded, source C. Each is an image the LM can set as
+       the scene background. w and h are the nominal map box the art defines, so a
+       token's map-pixel position stays true across scenes. url null here means the
+       prototype paints its placeholder; a real adventure hands over real URLs. */
+    background: null,          /* the active map id, or null for the placeholder */
+    maps: [
+      { id:'m-beacon', name:'The Silent Beacon', url:null, w:2400, h:1600, source:'adventure' },
+      { id:'m-undercroft', name:'The Undercroft', url:null, w:2000, h:2000, source:'adventure' },
+      { id:'m-span', name:'The Broken Span', url:null, w:3000, h:1400, source:'adventure' }
+    ],
     spotMode: 'auto',
     manual: {},
     spotOrder: [],
@@ -1032,7 +1058,8 @@ window.addEventListener('keydown', function(e){
 
 function lmPhaseControls(){
   if (S.mode !== 'combat')
-    return '<button class="lmbtn" onclick="lmBeginCombat()">Begin combat</button>';
+    return '<button class="lmbtn" onclick="lmOpenMaps()">Maps</button>'
+         + '<button class="lmbtn" onclick="lmBeginCombat()">Begin combat</button>';
   if (S.scene.combatPhase === 'commit')
     return '<button class="lmbtn gold" onclick="lmLockActs()">Lock acts into Spotlights</button>'
          + '<button class="lmbtn" onclick="lmEndCombat()">End combat</button>';
@@ -1349,6 +1376,48 @@ function spotCard(c, n){
 }
 
 /* ---- LM intent, all through send() or local scene edits echoed as remote truth ---- */
+var lmMapsOpen = false;
+function lmOpenMaps(){ lmMapsOpen = true; paintMapPicker(); }
+function lmCloseMaps(){ lmMapsOpen = false; paintMapPicker(); }
+function lmSetMap(id){
+  var m = null; S.scene.maps.forEach(function(x){ if(x.id===id) m=x; });
+  if (m){ S.scene.background = id; S.map = { w:m.w, h:m.h }; applyRemoteState({ scene:S.scene, map:S.map }); paintMapArt(); }
+  lmCloseMaps();
+}
+function activeMap(){
+  var r=null; (S.scene.maps||[]).forEach(function(m){ if(m.id===S.scene.background) r=m; }); return r;
+}
+/* paint the chosen map into #mapArt. A real url shows the image; null keeps the
+   placeholder so the prototype still reads. The nominal box drives sizing. */
+function paintMapArt(){
+  var art = document.getElementById('mapArt');
+  if (!art) return;
+  art.style.width = S.map.w + 'px'; art.style.height = S.map.h + 'px';
+  var m = activeMap();
+  if (m && m.url){ art.style.backgroundImage = 'url(' + m.url + ')'; art.style.backgroundSize = 'cover'; }
+  /* null url keeps the CSS placeholder gradient */
+}
+function paintMapPicker(){
+  var el = document.getElementById('mapPicker');
+  if (!el){ el = document.createElement('div'); el.id = 'mapPicker'; document.body.appendChild(el); }
+  if (!lmMapsOpen || !isLM()){ el.style.display = 'none'; return; }
+  el.style.display = 'flex';
+  var cards = (S.scene.maps||[]).map(function(m){
+    var on = m.id === S.scene.background;
+    return '<button class="mp-card' + (on?' on':'') + '" onclick="lmSetMap(\'' + m.id + '\')">'
+      + '<div class="mp-thumb mp-' + m.source + '"></div>'
+      + '<div class="mp-name">' + esc(m.name) + '</div>'
+      + '<div class="mp-meta">' + m.w + ' \u00d7 ' + m.h + ' \u00b7 ' + esc(m.source) + '</div></button>';
+  }).join('');
+  var upload = '<button class="mp-card mp-upload" onclick="lmMapUploadStub()">'
+    + '<div class="mp-thumb mp-up"><span>+</span></div>'
+    + '<div class="mp-name">Upload a map</div>'
+    + '<div class="mp-meta">saved to your account</div></button>';
+  el.innerHTML = '<div class="mp-box"><div class="mp-head"><span>Choose a map</span>'
+    + '<button class="lm-minbtn" onclick="lmCloseMaps()">\u00d7</button></div>'
+    + '<div class="mp-grid">' + cards + upload + '</div></div>';
+}
+function lmMapUploadStub(){ pushLog({ kind:'sys', html:'Map upload arrives with account storage.' }); applyRemoteState({ log:S.log }); }
 function lmBeginCombat(){ S.scene.combatPhase = 'commit'; applyRemoteState({ mode:'combat', scene:S.scene }); }
 function lmEndCombat(){ S.scene.combatPhase = null; S.scene.foes.concat(S.scene.fell).forEach(function(c){ c.act=''; c.locked=false; c.spot=null; }); applyRemoteState({ mode:'explore', scene:S.scene }); }
 function lmLockActs(){ S.scene.combatPhase = 'resolve'; S.scene.foes.concat(S.scene.fell).forEach(function(c){ if(c.act) c.locked = true; }); applyRemoteState({ scene:S.scene }); }
@@ -1675,7 +1744,7 @@ function render(){
   }
   document.getElementById('vitVal').textContent = S.character.vit;
   document.getElementById('vitValM').textContent = S.character.vit;
-  paintRails(); drawGrid(); renderTokens(); renderLog(); paintLmbar(); paintTokMenu(); paintLmStrip();
+  paintRails(); drawGrid(); renderTokens(); renderLog(); paintLmbar(); paintTokMenu(); paintLmStrip(); paintMapPicker(); paintMapArt();
 }
 window.addEventListener('resize', function(){ clampCam(); applyCam(); });
 (function buildFellmarks(){
