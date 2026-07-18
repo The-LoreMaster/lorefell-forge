@@ -1,3 +1,10 @@
+## FateWell: the foe combat sheet, one reckoning on every surface
+
+- A foe now shows the same sheet in the library, on the roster, in the crucible, and in the Spotlight: derived attributes, the Standard Attack's damage line, its Acts, infusions, augmentations, stance, and signature affliction. One renderer serves all four, so the surfaces cannot drift apart again. The library and roster keep their editors; the crucible stays locked, per the ruling that a foe on the board is already forged.
+- The damage line reads straight from Building Crucibles: Base is 1 plus Power for a physical foe or 1 plus Magic for a magical one, and the Standard Attack carries no Bonus of its own. Bonus comes only from what the revealed kit grants, Mauling, Wounding, and Blighting filling Bonus and Brutal, Sharp, and Potent raising Base. Physical when Power leads, magical when Magic leads. The line rides open on every combat card, 6 + 3 physical, so the loremaster reads what to allocate at a glance, with the to-hit beside it.
+- Two grays, two facts. The Shatter Rating reveals a slice of the full Forsaken kit and everything beyond the rung waits grayed as beyond rating, still there for escalation. Within the reveal, a Tier N Act stays grayed as needs charge N until the foe's meter reaches it, and it lights the moment the charge lands. A Minion shows only its Standard Attack, its whole kit waits, and its charge meter does not render, since a Minion never charges.
+- Fixed a quiet math corruption: the ability editor saved an Act's tier as a string. The unlock check survived by coercion but charge advancement did not, reading a string tier as tier 0 and charging the foe as if it had swung bare handed. Tiers now save as numbers and existing data heals on load.
+
 ## ThreadSpire round four: the dice hit the table
 
 - Rolling throws a die onto the screen. It leaves the socket, arcs, bounces twice, lands somewhere new every time, sits for two seconds, then shrinks back into the socket it came from. The socket shows an empty outline while its die is away. Screen space, so it lands the same for everyone no matter where their camera is pointed.
