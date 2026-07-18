@@ -1,3 +1,7 @@
+## FateWell: charge diamonds read dark until lit
+
+- The interactive charge diamonds carried a faint gold border even when empty, so an unlit charge looked half on and a click that landed looked like nothing changed. An empty charge diamond now reads clearly dark, and a set one fills solid gold with a glow, so setting or stepping a charge is unmistakable. The click path was already sound; this is the contrast that makes it legible.
+
 ## FateWell: charge is adjustable on every foe surface
 
 - The charge control worked only on the Resolve card. The Spotlight card, the card header, and the token popup showed the charge as read-only diamonds, so there was nowhere to set it while running a fight from those views. A foe's charge diamonds are now live everywhere a foe appears: click a diamond to set that tier, and a minus and plus step it. A Minion stays read-only since it never charges, and a player's own charge stays read-only on these views since a player runs their own. This pairs with the earlier fix that stopped the tool auto charging on an unresolved swing, so in hand-run combat the loremaster now sets charge directly from whatever card is in front of them.
