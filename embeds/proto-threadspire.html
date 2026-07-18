@@ -182,8 +182,31 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 .lmbtn.sm{ font-size:.58rem; padding:5px 9px; margin-top:8px; width:100%; }
 .lmbtn:active{ background:var(--navy3); }
 /* the card itself. Solid for the LM, no see-through, it floats on the map. */
-.lmcard{ width:300px; max-height:56vh; overflow-y:auto; background:var(--panel); border:1px solid var(--line); border-radius:11px; padding:13px 15px; box-shadow:0 6px 24px rgba(0,0,0,.5); }
-.lm-slot.left .lmcard, .lm-slot.right .lmcard{ max-height:56vh; overflow:hidden; }
+/* the clear zone each side control needs: HUD is 200 + 16 inset, plus a gap.
+   A centered card is capped so its half never crosses into that zone. */
+.lmcard{ background:var(--panel); border:1px solid var(--line); border-radius:11px; padding:13px 15px; box-shadow:0 6px 24px rgba(0,0,0,.5); }
+/* scene beat card: grows to content, caps clear of the side controls, then scrolls */
+.lmcard.beat{ width:max-content; min-width:280px; max-width:min(640px, calc(100vw - 520px)); }
+.lmcard.beat .lmc-body{ max-height:34vh; overflow-y:auto; }
+/* foe combat card, compact by default like the FateWell strip, expands on click */
+.lmcard.foe, .lmcard.fell{ width:172px; cursor:pointer; }
+.lmcard.foe.expanded, .lmcard.fell.expanded{ width:320px; max-height:60vh; overflow-y:auto; cursor:default; }
+.lmcard.spotbox{ width:300px; max-height:60vh; overflow-y:auto; }
+.lm-slot.left .lmcard, .lm-slot.right .lmcard{ overflow:hidden; }
+/* compact foe card, the FateWell strip look */
+.lmc-cname{ font-family:Cinzel,serif; font-size:.74rem; color:var(--silver); margin-bottom:7px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.lmc-cbar{ height:4px; background:var(--navy3,#0c1424; border-radius:3px; overflow:hidden; margin-bottom:5px; }
+.lmc-cfill{ height:100%; background:var(--danger,#c96a5a); }
+.lmc-cvit{ font-size:.72rem; color:var(--ice); margin-bottom:6px; }
+.lmc-cpips{ display:flex; gap:5px; }
+.lmc-cpip{ width:10px; height:10px; transform:rotate(45deg); border:1.5px solid var(--line2,#2a3550); background:#141d33; border-radius:2px; }
+.lmc-cpip.lit{ background:var(--gold); border-color:var(--gold); box-shadow:0 0 6px rgba(201,168,76,.7); }
+/* the tab row on the expanded card */
+.lmc-tabs{ display:flex; gap:2px; margin:8px 0 10px; border-bottom:1px solid var(--line); }
+.lmc-tab{ flex:1; font-family:Cinzel,serif; font-size:.58rem; letter-spacing:.06em; text-transform:uppercase; color:var(--ice); opacity:.6; padding:6px 2px; border-bottom:2px solid transparent; cursor:pointer; background:none; }
+.lmc-tab.on{ opacity:1; color:var(--gold); border-bottom-color:var(--gold); }
+.lmc-tabbody{ min-height:80px; }
+.lmc-close{ background:none; border:none; color:var(--ice); font-size:1.1rem; cursor:pointer; line-height:1; padding:0 2px; }
 .lmc-lbl{ font-family:Cinzel,serif; font-size:.58rem; letter-spacing:.12em; text-transform:uppercase; color:var(--ice); opacity:.85; margin:9px 0 3px; }
 .lmc-note{ font-size:.72rem; color:var(--muted); margin:2px 0 0; line-height:1.35; }
 .lmc-attrs{ display:grid; grid-template-columns:1fr 1fr; gap:2px 14px; }
@@ -804,6 +827,10 @@ function isLM(){ return S.role === 'lm'; }
 /* which card sits centered in the carousel. A view fact, so it lives out here with
    the camera and never syncs. Keyed per face so scene and combat keep their place. */
 var lmFocus = { scene:0, commit:0, resolve:0 };
+var lmExpanded = null;        /* id of the foe card opened to tabs, or null */
+var lmTab = 'about';          /* active tab on the expanded card */
+function lmToggleCard(id){ lmExpanded = (lmExpanded === id) ? null : id; lmTab = 'about'; paintLmStrip(); }
+function lmSetTab(id, tab){ lmExpanded = id; lmTab = tab; paintLmStrip(); }
 function lmFace(){ return S.mode === 'combat' ? (S.scene.combatPhase || 'commit') : 'scene'; }
 function lmDeck(){
   var f = lmFace();
@@ -838,7 +865,8 @@ function lmStripHtml(){
       var rel = i - focus;
       if (Math.abs(rel) > 1) return '';
       var pos = rel === 0 ? 'center' : (rel < 0 ? 'left' : 'right');
-      return '<div class="lm-slot ' + pos + '" onclick="lmGoTo(' + i + ')">' + cardFor(item) + '</div>';
+      var clickAttr = pos === 'center' ? '' : ' onclick="lmGoTo(' + i + ')"';
+      return '<div class="lm-slot ' + pos + '"' + clickAttr + '>' + cardFor(item) + '</div>';
     }).join('');
   }
   var dots = deck.length > 1 ? '<div class="lm-dots">' + deck.map(function(_, i){
@@ -899,48 +927,76 @@ function boardCards(){
 var TS_RATING = { Minion:{acts:0,inf:0}, Elite:{acts:1,inf:1}, Champion:{acts:2,inf:2}, Forsaken:{acts:3,inf:3} };
 function tsRating(sr){ return TS_RATING[sr] || TS_RATING.Elite; }
 
-/* the full foe card, every line the FateWell combat card shows */
-function foeCard(f){
-  var d = f.dmg, sr = f.sr || 'Elite', minion = sr === 'Minion';
-  var h = '<div class="lmcard foe' + (f.locked ? ' locked' : '') + '">';
-  h += '<div class="lmc-top"><span class="lmc-name">' + esc(f.name) + '</span>'
-     + '<span class="lmc-sd">' + esc(sr) + ' Foe</span></div>';
-  h += '<div class="lmc-vit">' + f.curVit + ' / ' + f.maxVit + chargePips(f, 'foe') + '</div>';
-  /* target and act */
-  h += actLine(f, 'foe');
-  /* attributes, the 2-column grid */
-  if (f.attrs) h += '<div class="lmc-lbl">Attributes</div>' + attrsGrid(f.attrs);
-  /* standard attack damage */
-  h += '<div class="lmc-lbl">Standard attack</div>'
-     + '<div class="lmc-dmg">' + d.base + ' + ' + d.bonus + ' ' + d.type
-     + '<span class="lmc-acc">' + esc(d.acc) + ' to hit</span></div>'
-     + '<div class="lmc-note">Base always lands. Bonus meets ' + (d.type === 'magical' ? 'Resistance' : 'Durability') + '.'
-     + (minion ? '' : ' Landing it charges the first tier.') + '</div>';
-  /* acts, with the two grays */
-  h += '<div class="lmc-lbl">Acts</div>';
-  var acts = (f.acts || []).slice().sort(function(a,b){ return (a.tier||0)-(b.tier||0); });
-  var ceil = tsRating(sr).acts, ch = f.charge || 0;
-  if (minion) h += '<div class="lmc-note">A Minion brings only its Standard Attack.</div>';
-  if (!acts.length && !minion) h += '<div class="lmc-note">No Acts forged.</div>';
-  acts.forEach(function(a){
-    var t = a.tier || 0, beyond = t > ceil, locked = !beyond && !minion && t > ch;
-    var gray = beyond || locked || (minion && t > 0);
-    var why = (beyond || minion) ? 'beyond rating' : (locked ? 'needs charge ' + t : '');
-    h += '<div class="lmc-kit' + (gray ? ' gray' : '') + '">'
-       + '<span class="lmc-kn">' + esc(a.name) + '</span><span class="lmc-kt">Tier ' + t + '</span>'
-       + (why ? '<span class="lmc-why">' + why + '</span>' : '')
-       + '<div class="lmc-ke">' + esc(a.effect || '') + '</div></div>';
-  });
-  /* infusions, augmentations, rating-gray */
-  h += kitChunk('Infusions', f.infusions || [], tsRating(sr).inf);
-  h += kitChunk('Augmentations', f.augments || [], tsRating(sr).inf);
-  /* stance and signature */
-  if (f.stance) h += '<div class="lmc-lbl">Stance</div><div class="lmc-kit"><span class="lmc-kn">' + esc(f.stance) + '</span></div>';
-  if (f.sig) h += '<div class="lmc-lbl">Signature affliction</div><div class="lmc-kit"><span class="lmc-kn">' + esc(f.sig) + '</span><span class="lmc-kt">on Fellmark</span></div>';
-  /* the react row, a real dropdown */
-  h += foeReactRow(f);
-  h += '</div>';
+/* the foe card. Compact by default, matching the FateWell strip. Click to expand
+   into a tabbed card: About, Attributes, Attack, Acts, Stats. */
+function foeCard(f){ return lmExpanded === f.id ? foeCardOpen(f) : foeCardCompact(f); }
+
+function foeCardCompact(f){
+  return '<div class="lmcard foe compact' + (f.locked ? ' locked' : '') + '" onclick="lmToggleCard(\'' + f.id + '\')">'
+    + '<div class="lmc-cname">' + esc(f.name) + '</div>'
+    + '<div class="lmc-cbar"><div class="lmc-cfill" style="width:' + Math.round((f.curVit/f.maxVit)*100) + '%"></div></div>'
+    + '<div class="lmc-cvit">' + f.curVit + ' / ' + f.maxVit + '</div>'
+    + '<div class="lmc-cpips">' + compactPips(f) + '</div></div>';
+}
+function compactPips(f){
+  if (f.sr === 'Minion') return '';
+  var h = ''; for (var t = 1; t <= 3; t++) h += '<span class="lmc-cpip' + ((f.charge||0) >= t ? ' lit' : '') + '"></span>';
   return h;
+}
+
+function foeCardOpen(f){
+  var tabs = ['about','attributes','attack','acts','stats'];
+  var labels = { about:'About', attributes:'Attributes', attack:'Attack', acts:'Acts', stats:'Stats' };
+  var head = '<div class="lmc-top"><span class="lmc-name">' + esc(f.name) + '</span>'
+    + '<button class="lmc-close" onclick="lmToggleCard(\'' + f.id + '\')">\u00d7</button></div>';
+  var tabrow = '<div class="lmc-tabs">' + tabs.map(function(t){
+    return '<button class="lmc-tab' + (lmTab === t ? ' on' : '') + '" onclick="lmSetTab(\'' + f.id + '\',\'' + t + '\')">' + labels[t] + '</button>';
+  }).join('') + '</div>';
+  var body = '<div class="lmc-tabbody">' + foeTabBody(f, lmTab) + '</div>';
+  return '<div class="lmcard foe expanded' + (f.locked ? ' locked' : '') + '">' + head + tabrow + body + '</div>';
+}
+
+function foeTabBody(f, tab){
+  var sr = f.sr || 'Elite', minion = sr === 'Minion', d = f.dmg;
+  if (tab === 'about'){
+    return '<div class="lmc-sd">' + esc(sr) + ' Foe</div>'
+      + '<div class="lmc-vit">' + f.curVit + ' / ' + f.maxVit + chargePips(f, 'foe') + '</div>'
+      + actLine(f, 'foe');
+  }
+  if (tab === 'attributes'){
+    return f.attrs ? attrsGrid(f.attrs) : '<div class="lmc-note">No attributes.</div>';
+  }
+  if (tab === 'attack'){
+    return '<div class="lmc-dmg">' + d.base + ' + ' + d.bonus + ' ' + d.type
+      + '<span class="lmc-acc">' + esc(d.acc) + ' to hit</span></div>'
+      + '<div class="lmc-note">Base always lands. Bonus meets ' + (d.type === 'magical' ? 'Resistance' : 'Durability') + '.'
+      + (minion ? '' : ' Landing it charges the first tier.') + '</div>';
+  }
+  if (tab === 'acts'){
+    var h = '', acts = (f.acts || []).slice().sort(function(a,b){ return (a.tier||0)-(b.tier||0); });
+    var ceil = tsRating(sr).acts, ch = f.charge || 0;
+    if (minion) h += '<div class="lmc-note">A Minion brings only its Standard Attack.</div>';
+    if (!acts.length && !minion) h += '<div class="lmc-note">No Acts forged.</div>';
+    acts.forEach(function(a){
+      var t = a.tier || 0, beyond = t > ceil, locked = !beyond && !minion && t > ch;
+      var gray = beyond || locked || (minion && t > 0);
+      var why = (beyond || minion) ? 'beyond rating' : (locked ? 'needs charge ' + t : '');
+      h += '<div class="lmc-kit' + (gray ? ' gray' : '') + '"><span class="lmc-kn">' + esc(a.name) + '</span>'
+         + '<span class="lmc-kt">Tier ' + t + '</span>' + (why ? '<span class="lmc-why">' + why + '</span>' : '')
+         + '<div class="lmc-ke">' + esc(a.effect || '') + '</div></div>';
+    });
+    h += '<div class="lmc-lbl">React</div>' + foeReactRow(f);
+    return h;
+  }
+  if (tab === 'stats'){
+    var h = kitChunk('Infusions', f.infusions || [], tsRating(sr).inf)
+          + kitChunk('Augmentations', f.augments || [], tsRating(sr).inf);
+    if (f.stance) h += '<div class="lmc-lbl">Stance</div><div class="lmc-kit"><span class="lmc-kn">' + esc(f.stance) + '</span></div>';
+    if (f.sig) h += '<div class="lmc-lbl">Afflictions</div><div class="lmc-kit"><span class="lmc-kn">' + esc(f.sig) + '</span><span class="lmc-kt">on Fellmark, signature</span></div>';
+    if (!h) h = '<div class="lmc-note">Nothing carried.</div>';
+    return h;
+  }
+  return '';
 }
 function attrsGrid(a){
   var pairs = [['Precision','Evasion'],['Power','Durability'],['Magic','Resistance'],['Vigor','Wit']];
