@@ -1,3 +1,7 @@
+## FateWell: the loremaster decides a foe's damage type on a tie
+
+- When a foe's Power and Magic are level, the strike could read either way, so the loremaster picks. A small toggle appears on the foe sheet only on a tie, physical or magical, and the choice drives the whole line: Base off Power or Magic, and Bonus met by Durability or Resistance. The moment one attribute leads, the lead wins and the toggle is gone. The choice stores on the foe, survives the library round-trip, and syncs to the board like the rest of the kit.
+
 ## FateWell: the combat runner reads through to the library, live
 
 - A foe on the board now renders from the library entry it came from, resolved by its stored link and scaled to the rating it fights at. The library is the truth and the card reads through to it, so a change made in the library mid combat reaches the board on the next render. This replaces the earlier attempt that trusted a copy stored on the combatant, which is why The Erasure could read every attribute as zero on the board while the library showed Precision 6 and Power 6.
