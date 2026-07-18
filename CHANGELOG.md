@@ -1,3 +1,8 @@
+## ThreadSpire: the LoreMaster runtime, run cards that flip to combat
+
+- ThreadSpire gains the LoreMaster's run surface, a bottom card strip that reads the scene FateWell authored and renders it. In a scene it shows run cards, read aloud, checks, and choices. Beginning combat flips the cards to foe and Fell cards wearing the same shape and the same canon damage line the FateWell tracker shows. Committing acts and locking them groups the cards into Spotlights the LoreMaster resolves one at a time. Charge sets from the card with dark when empty and gold when set diamonds. Ending combat returns to the scene.
+- This is the first vertical slice of the seam. The strip reads S.scene as remote truth handed over by the engine and never owns the math. All intent leaves through the same seam the rest of the shell uses. It proves a LoreMaster can run a scene and a battle from inside ThreadSpire, the runtime, while FateWell stays the authoring tool. Foe kit, damage, and the phase model are read through, not held, so the single source of truth stays in FateWell.
+
 ## ThreadSpire: CampaignView ruled its own collection, seam proven before ports
 
 - View state splits three ways by owner and write rhythm, not by screen. CombatState holds the round, phase, charges, and acts. CampaignView, its own collection, holds what the LM sets for the table: mode, node, background, and the grid that defines the coordinate system. The camera holds no record at all, living outside every synced object so the bridge cannot reach it. CampaignView is separate from CombatState on purpose, so a camera reframe never rewrites the combat blob and an act never rewrites the view, which under last write wins would clobber each other.
