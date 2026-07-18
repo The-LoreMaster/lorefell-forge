@@ -6714,6 +6714,29 @@ function fwLiveAttrs(f){
   if (f && f.build){ var k = fwDeriveKit(f, f.sr || 'Elite'); if (k && attrSpend(k.attrs) > 0) return k.attrs; }
   return (f && f.attrs) || blankAttrs();
 }
+/* The foe as the library now defines it, scaled to this combatant's scene rating.
+   The combat runner reads through to the library so an edit made mid combat reaches
+   the board on the next render. The scene owns only what a scene owns: current
+   vitality, live charge, conditions, and the rating it fights at. Everything the
+   library authors, attributes, build, acts, infusions, augments, stance, and
+   signature, is read live. Falls back to the combatant's own stored kit for a
+   summoned foe the library never held. */
+function fwSyncFoe(cb){
+  if (!cb || cb.type!=='monster') return cb;
+  var e = cb.libId ? libGet(cb.libId) : (libByNameType(cb.name, 'monster') || libByNameType(baseName(cb.name), 'monster'));
+  if (!e) return cb;
+  var sr = cb.sr || e.sr || 'Elite';
+  var kit = fwDeriveKit(e, sr);
+  /* a shallow view: library kit under the scene's live fields */
+  return {
+    id: cb.id, libId: e.id, type:'monster', side:cb.side, name: cb.name,
+    sr: sr, maxVit: cb.maxVit, curVit: cb.curVit, charge: cb.charge,
+    affs: cb.affs, intent: cb.intent, target: cb.target, _acc: cb._acc,
+    attrs: kit.attrs, build: e.build||'', stance: e.stance||'', sig: e.sig||'',
+    infusions: kit.infusions, augments: kit.augments, abilities: kit.abilities,
+    inv: e.inv||[], img: e.img||cb.img||'', desc: e.desc||cb.desc||''
+  };
+}
 function fwFoeSheet(f, attrs, charge){
   attrs = (attrs && attrSpend(attrs) > 0) ? attrs : fwLiveAttrs(f);
   var sr = f.sr || 'Elite';
@@ -7238,7 +7261,7 @@ function monInfo(cid){
   /* Everything below is the foe as it was forged. Locked while it stands on the board. */
   h += '<div class="fs-locked">'
     + '<div class="lbl">Shatter rating</div><p>'+(cb.sr?esc(cb.sr):'None')+'</p>'
-    + (cb.type!=='npc' ? fwFoeSheet(cb, fwLiveAttrs(cb), cb.charge||0) : foeKitBody(cb, false))
+    + (cb.type!=='npc' ? (function(){ var lf=fwSyncFoe(cb); return fwFoeSheet(lf, lf.attrs, cb.charge||0); })() : foeKitBody(cb, false))
     + '</div>'
     + '<p class="muted small">This foe stands in a crucible. Its forging is set. Edit it in the library to change what it is.</p>';
 
@@ -8706,12 +8729,12 @@ function fwCardSheet(n){
   var cb = n.ref;
   window._fwOpen = window._fwOpen || {};
   var open = !!window._fwOpen[n.key];
-  var la = fwLiveAttrs(cb);
+  var lf = fwSyncFoe(cb);
   return '<div class="cbk">'
     + '<div class="cbk-head" onclick="fwToggleSheet(\''+n.key+'\')">'
-    + fwDmgLine(cb, la)
+    + fwDmgLine(lf, lf.attrs)
     + '<span class="cbk-arrow">'+(open?'\u25b4':'\u25be')+'</span></div>'
-    + (open ? fwFoeSheet(cb, la, cb.charge||0) : '')
+    + (open ? fwFoeSheet(lf, lf.attrs, cb.charge||0) : '')
     + '</div>';
 }
 function fwToggleSheet(key){

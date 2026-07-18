@@ -1,3 +1,8 @@
+## FateWell: the combat runner reads through to the library, live
+
+- A foe on the board now renders from the library entry it came from, resolved by its stored link and scaled to the rating it fights at. The library is the truth and the card reads through to it, so a change made in the library mid combat reaches the board on the next render. This replaces the earlier attempt that trusted a copy stored on the combatant, which is why The Erasure could read every attribute as zero on the board while the library showed Precision 6 and Power 6.
+- The scene still owns what a scene owns: current vitality, the live charge, conditions, and the rating the foe fights at. Everything the library authors, its attributes, build, Acts, infusions, augmentations, stance, and signature, is read live from the library. A summoned foe the library never held falls back to its own stored kit.
+
 ## FateWell: foe cards derive attributes live, healing older foes
 
 - A foe on the board could read No attributes assigned while the library and roster showed its real Precision and Power. The library re-derives a foe's attributes on every render, but the combat card trusted the value stored on the combatant, which was empty for any foe placed before that value was derived. The card now derives the same way the library does, from the foe's build and rating, so a foe placed at any time shows its true attributes and its damage line reads off real Power or Magic. A scene that scaled a foe's attributes still wins, so per-scene scaling is not lost.
