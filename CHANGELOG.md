@@ -1,3 +1,8 @@
+## ThreadSpire: the spotlight hugs the map's edge, and combat minimizes to a pill
+
+- The spotlight gold box no longer stacks full cards down the screen. It matches the FateWell runner: members sit side by side as the same compact cards the commit phase shows, the box hugs them low and wide, and the map stays visible above it. Clicking a member opens its five tabs in place inside the box. Foes keep a small die on the compact face so a roll does not need the card opened. The resolve control sits in the box head.
+- The whole combat strip minimizes to a small gold pill naming the round and phase. One click collapses it so the LoreMaster has the map, one click reopens it where it was. The pill works in scene mode too.
+
 ## ThreadSpire: real spotlight groups, Fell cards tabbed, foe dice, two visual fixes
 
 - Spotlights now form the way the FateWell runner forms them. In auto mode the focus graph clusters combatants who target each other into one spotlight, so an attacker and its target sit in the same gold box and resolve together. In manual mode the LoreMaster toggles which cards group, matching the two modes the runner has. A spotlight is one gold box holding every member, with a single resolve that clears the whole group. Resolved spotlights sink below the unresolved, and unengaged combatants stand as their own solos.
