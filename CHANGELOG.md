@@ -1,3 +1,9 @@
+## ThreadSpire: the run cards become a carousel over the map
+
+- The LoreMaster cards no longer sit in a window with a blue background. They float over the map as a carousel, the current card centered and sharp, the previous and next flanking it small and dimmed. Arrow keys, clicks, and taps swipe through them, and dots mark the position. The strip container passes clicks through to the map so panning still works around the cards.
+- Combat wears the same carousel. Foe cards center on the map with a solid background for the LoreMaster's eyes, carrying the canon damage line and the charge diamonds. Once acts lock, each becomes a Spotlight wrapped in a gold box, swiped through and resolved one at a time, the same combat rhythm on the ThreadSpire map. Each face keeps its own place in the deck, so scene, commit, and resolve remember where you were.
+- The dev bar and the map knob panel moved to the top left, clear of the carousel at the bottom.
+
 ## ThreadSpire: the LoreMaster runtime, run cards that flip to combat
 
 - ThreadSpire gains the LoreMaster's run surface, a bottom card strip that reads the scene FateWell authored and renders it. In a scene it shows run cards, read aloud, checks, and choices. Beginning combat flips the cards to foe and Fell cards wearing the same shape and the same canon damage line the FateWell tracker shows. Committing acts and locking them groups the cards into Spotlights the LoreMaster resolves one at a time. Charge sets from the card with dark when empty and gold when set diamonds. Ending combat returns to the scene.
