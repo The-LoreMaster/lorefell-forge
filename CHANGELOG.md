@@ -1,3 +1,7 @@
+## ThreadSpire: fix a broken CSS value that displaced the HUD and testing bar
+
+- A stray unclosed color value in the compact card style broke CSS parsing for the rules after it, which stripped the fixed positioning from the testing bar and the character HUD. The vitality gem fell to the top left on its own and the testing buttons vanished behind the map. The value is closed now, so both return to place. The testing bar is also a labeled panel in the top left so it is easy to find, with Toggle LM role first.
+
 ## ThreadSpire: tabbed foe cards, auto-width scene cards, dropdown fix
 
 - The foe combat card is compact by default, the same small card the FateWell strip shows, name, vitality bar, and charge. Clicking it expands to a tabbed card just larger than a scene card, with five tabs. About holds name, vitality, charge, and the act and target pickers. Attributes holds the grid. Attack holds the damage line. Acts holds the Acts with their grays and the React row. Stats holds infusions, augmentations, stance, and afflictions.
