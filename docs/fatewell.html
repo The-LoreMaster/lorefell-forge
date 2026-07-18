@@ -6705,8 +6705,17 @@ function fwKitRow(cls, name, meta, tip, gray, why){
 }
 /* The sheet. charge is the live meter in a crucible and null on the shelf,
    where charge-gray does not apply and only the rating reveal shows. */
+/* The attributes a foe actually fights with. A stored value wins when it carries
+   one, since a scene may have scaled it. Otherwise derive from the build and the
+   rating, the same reckoning the library shows, so a foe placed before attrs were
+   derived stops reading empty. */
+function fwLiveAttrs(f){
+  if (f && f.attrs && attrSpend(f.attrs) > 0) return f.attrs;
+  if (f && f.build){ var k = fwDeriveKit(f, f.sr || 'Elite'); if (k && attrSpend(k.attrs) > 0) return k.attrs; }
+  return (f && f.attrs) || blankAttrs();
+}
 function fwFoeSheet(f, attrs, charge){
-  attrs = attrs || f.attrs || blankAttrs();
+  attrs = (attrs && attrSpend(attrs) > 0) ? attrs : fwLiveAttrs(f);
   var sr = f.sr || 'Elite';
   var minion = sr==='Minion';
   var ceil = fwActsCeiling(sr);
@@ -7229,7 +7238,7 @@ function monInfo(cid){
   /* Everything below is the foe as it was forged. Locked while it stands on the board. */
   h += '<div class="fs-locked">'
     + '<div class="lbl">Shatter rating</div><p>'+(cb.sr?esc(cb.sr):'None')+'</p>'
-    + (cb.type!=='npc' ? fwFoeSheet(cb, cb.attrs, cb.charge||0) : foeKitBody(cb, false))
+    + (cb.type!=='npc' ? fwFoeSheet(cb, fwLiveAttrs(cb), cb.charge||0) : foeKitBody(cb, false))
     + '</div>'
     + '<p class="muted small">This foe stands in a crucible. Its forging is set. Edit it in the library to change what it is.</p>';
 
@@ -8697,12 +8706,12 @@ function fwCardSheet(n){
   var cb = n.ref;
   window._fwOpen = window._fwOpen || {};
   var open = !!window._fwOpen[n.key];
-  var d = fwFoeDamage(cb, cb.attrs);
+  var la = fwLiveAttrs(cb);
   return '<div class="cbk">'
     + '<div class="cbk-head" onclick="fwToggleSheet(\''+n.key+'\')">'
-    + fwDmgLine(cb, cb.attrs)
+    + fwDmgLine(cb, la)
     + '<span class="cbk-arrow">'+(open?'\u25b4':'\u25be')+'</span></div>'
-    + (open ? fwFoeSheet(cb, cb.attrs, cb.charge||0) : '')
+    + (open ? fwFoeSheet(cb, la, cb.charge||0) : '')
     + '</div>';
 }
 function fwToggleSheet(key){

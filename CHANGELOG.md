@@ -1,3 +1,7 @@
+## FateWell: foe cards derive attributes live, healing older foes
+
+- A foe on the board could read No attributes assigned while the library and roster showed its real Precision and Power. The library re-derives a foe's attributes on every render, but the combat card trusted the value stored on the combatant, which was empty for any foe placed before that value was derived. The card now derives the same way the library does, from the foe's build and rating, so a foe placed at any time shows its true attributes and its damage line reads off real Power or Magic. A scene that scaled a foe's attributes still wins, so per-scene scaling is not lost.
+
 ## FateWell: charge only on a confirmed hit, and manual charge controls
 
 - The foe charge advanced the moment an attack was assigned, not when it landed. The resolve check defaulted to landed and only flipped to missed when a real evasion roll was on record, so in hand-run combat where the loremaster calls hits, every declared swing charged the foe. Now the tool charges only on a hit it can confirm, holding both rolls with accuracy meeting evasion. An unresolved swing is not a landed one, so an unknown outcome leaves the charge alone and the loremaster carries it by hand.
