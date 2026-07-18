@@ -1,3 +1,8 @@
+## ThreadSpire: auto evasion rolls return, carousel arrows clear the cards
+
+- The evasion line is back on the foe card, matching the runner. When a foe's act targets a Fell it auto shows, waiting on the roll and naming the Fell's Evasion. Throwing the foe die resolves it: accuracy, the die plus Precision, against the Fell's Evasion, landing on Hit or Evaded, and the contest logs to the stream.
+- The carousel arrows no longer sit on the cards. They are pinned to the viewport edges, well outside the centered card, and tuck to the screen edges on a narrow screen.
+
 ## ThreadSpire: the spotlight hugs the map's edge, and combat minimizes to a pill
 
 - The spotlight gold box no longer stacks full cards down the screen. It matches the FateWell runner: members sit side by side as the same compact cards the commit phase shows, the box hugs them low and wide, and the map stays visible above it. Clicking a member opens its five tabs in place inside the box. Foes keep a small die on the compact face so a roll does not need the card opened. The resolve control sits in the box head.
