@@ -1,3 +1,15 @@
+## FateWell: charge only on a confirmed hit, and manual charge controls
+
+- The foe charge advanced the moment an attack was assigned, not when it landed. The resolve check defaulted to landed and only flipped to missed when a real evasion roll was on record, so in hand-run combat where the loremaster calls hits, every declared swing charged the foe. Now the tool charges only on a hit it can confirm, holding both rolls with accuracy meeting evasion. An unresolved swing is not a landed one, so an unknown outcome leaves the charge alone and the loremaster carries it by hand.
+- The charge row gained a minus and a plus beside the pips, clamped 0 to 3. The plus is what you tap when a swing lands while you are judging hits yourself. The pips still set a tier directly, and clicking the top lit pip still drops one. This covers the testing mode where no evasion is recorded.
+
+## FateWell: the foe combat sheet, one reckoning on every surface
+
+- A foe now shows the same sheet in the library, on the roster, in the crucible, and in the Spotlight: derived attributes, the Standard Attack's damage line, its Acts, infusions, augmentations, stance, and signature affliction. One renderer serves all four, so the surfaces cannot drift apart again. The library and roster keep their editors; the crucible stays locked, per the ruling that a foe on the board is already forged.
+- The damage line reads from the FellGuide. Base is 1 plus Power for a physical foe or 1 plus Magic for a magical one. Bonus always exists: a foe makes the same strike a Fell makes, so it swings a weapon leveled like the party's, and its Bonus is the Arsenal weapon table read at the Average Party Level. The kit stacks on top of that, Mauling, Wounding, and Blighting adding to Bonus and Brutal, Sharp, and Potent raising Base, per the stacking rule in Bonus Damage. Physical when Power leads, magical when Magic leads. The line rides open on every combat card, 6 + 3 physical, so the loremaster reads what to allocate at a glance, with the to-hit beside it.
+- Two grays, two facts. The Shatter Rating reveals a slice of the full Forsaken kit and everything beyond the rung waits grayed as beyond rating, still there for escalation. Within the reveal, a Tier N Act stays grayed as needs charge N until the foe's meter reaches it, and it lights the moment the charge lands. A Minion shows only its Standard Attack, its whole kit waits, and its charge meter does not render, since a Minion never charges.
+- Fixed a quiet math corruption: the ability editor saved an Act's tier as a string. The unlock check survived by coercion but charge advancement did not, reading a string tier as tier 0 and charging the foe as if it had swung bare handed. Tiers now save as numbers and existing data heals on load.
+
 ## ThreadSpire round four: the dice hit the table
 
 - Rolling throws a die onto the screen. It leaves the socket, arcs, bounces twice, lands somewhere new every time, sits for two seconds, then shrinks back into the socket it came from. The socket shows an empty outline while its die is away. Screen space, so it lands the same for everyone no matter where their camera is pointed.

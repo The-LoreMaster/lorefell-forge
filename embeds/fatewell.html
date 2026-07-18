@@ -194,6 +194,28 @@ body::before{
 .st-n.big{ font-size:2rem; }
 .st-l{ font-family:'Cinzel', serif; font-size:.66rem; letter-spacing:.12em; text-transform:uppercase; color:var(--ice); margin-top:2px; }
 
+.chg-step{ width:22px; height:22px; border:1px solid var(--line2); border-radius:6px; background:var(--navy3); color:var(--silver); font-size:1rem; line-height:1; cursor:pointer; padding:0; margin:0 2px; }
+.chg-step:active{ background:var(--gold); color:var(--navy); }
+/* the foe combat sheet, one look everywhere */
+.cbk{ margin:4px 0; }
+.cbk-head{ display:flex; align-items:center; justify-content:space-between; cursor:pointer; padding:4px 6px; border:1px solid var(--line); border-radius:8px; background:var(--navy3); }
+.cbk-arrow{ color:var(--ice); font-size:.8rem; }
+.cbk .fwk{ padding:0 4px; }
+.fwk{ margin-top:6px; }
+.fwk-lbl{ font-family:'Cinzel', serif; font-size:.62rem; letter-spacing:.12em; text-transform:uppercase; color:var(--ice); opacity:.85; margin:9px 0 3px; }
+.fwk-attrs{ font-size:.82rem; color:var(--silver); margin:0; }
+.fwk-note{ font-size:.75rem; color:var(--muted); margin:2px 0 0; }
+.fw-dmg{ display:flex; align-items:baseline; gap:10px; }
+.fw-dmg-n{ font-family:'Cinzel', serif; font-size:1.05rem; color:var(--gold); }
+.fw-dmg-acc{ font-size:.74rem; color:var(--ice); }
+.fwk-row{ position:relative; padding:5px 8px; margin:3px 0; border:1px solid var(--line); border-radius:8px; background:var(--navy2); }
+.fwk-nm{ font-weight:600; color:var(--silver); font-size:.85rem; }
+.fwk-meta{ margin-left:7px; font-size:.7rem; color:var(--ice); }
+.fwk-why{ float:right; font-family:'Cinzel', serif; font-size:.6rem; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); }
+.fwk-tip{ font-size:.75rem; color:var(--muted); margin-top:2px; }
+.fwk-gray{ opacity:.42; filter:grayscale(.7); }
+.fwk-gray .fwk-nm{ color:var(--ice); }
+
 /* combat */
 .round-bar{ display:flex; align-items:center; gap:10px; margin:4px 0 12px; }
 .round-n{ flex:1; display:flex; align-items:baseline; gap:7px; }
@@ -2839,6 +2861,7 @@ function migrate(d){
     if (e.type==='enemy') e.type='monster';
     if (e.type==='monster'){
       if (!e.attrs) e.attrs = blankAttrs();
+      healActTiers(e.abilities);
       if (!e.inv) e.inv = [];
       if (!e.infusions) e.infusions = [];
       if (!e.augments) e.augments = [];
@@ -3070,10 +3093,18 @@ function slimCombatantsForSave(camp){
 /* A spawned copy is named 'Warden 2'; the library holds 'Warden'. Strip a trailing
    number so name matching finds the source entry. */
 function baseName(n){ return String(n||'').replace(/\s+\d+$/,'').trim(); }
+/* An Act's tier must be a number. The editor once wrote it as a string, which the
+   unlock check survived by coercion but the charge advancement did not: a string
+   tier read as tier 0 and charged the foe as if it had swung bare handed. */
+function healActTiers(list){
+  (list||[]).forEach(function(a){ if(a && typeof a.tier!=='number'){ a.tier = parseInt(a.tier,10)||0; } });
+  return list;
+}
 function rehydrateCombatants(camp){
   (camp.acts||[]).forEach(function(a){ (a.sessions||[]).forEach(function(ss){ (ss.scenes||[]).forEach(function(sc){
     (sc.combatants||[]).forEach(function(cb){
       splitInfusionsFromInv(cb);
+      healActTiers(cb.abilities);
       if(cb._slim && cb.libId){
         var e=libGet(cb.libId);
         if(e){
@@ -5694,7 +5725,7 @@ function renderAbilityEditor(){
     +'<div class="btnrow"><button class="btn" onclick="abAdd()">Add an ability</button>'
     +'<button class="btn gold" onclick="abSave()">Done</button></div>');
 }
-function abSet(i,k,v){ var cb=_findCombatant(window._abTarget); if(!cb||!cb.abilities[i]) return; cb.abilities[i][k]=v; }
+function abSet(i,k,v){ var cb=_findCombatant(window._abTarget); if(!cb||!cb.abilities[i]) return; cb.abilities[i][k] = (k==='tier') ? (parseInt(v,10)||0) : v; }
 function abAdd(){ var cb=_findCombatant(window._abTarget); if(!cb) return; cb.abilities.push({name:'',tier:1,effect:''}); renderAbilityEditor(); }
 function abDel(i){ var cb=_findCombatant(window._abTarget); if(!cb) return; cb.abilities.splice(i,1); renderAbilityEditor(); }
 function abSave(){ var cb=_findCombatant(window._abTarget); if(cb){ cb.abilities=cb.abilities.filter(function(a){ return (a.name||'').trim(); }); } save(); closeModal(); render(); }
@@ -5830,8 +5861,22 @@ function unlockCommits(){
    then a T3 use resets. Tap a pip to set the tier, tap the lit top pip to step down. */
 function chargeRow(kind, id, lvl){
   var pips='';
-  for (var t=1;t<=3;t++){ pips += '<button class="chg-pip'+(lvl>=t?' on':'')+'" title="Tier '+t+'" onclick="setCharge(\''+kind+'\',\''+id+'\','+t+')"></button>'; }
-  return '<div class="chg-row"><span class="chg-lbl">Charge</span>'+pips+'<span class="chg-t">'+(lvl?('Tier '+lvl+' ready'):'none')+'</span></div>';
+  for (var t=1;t<=3;t++){ pips += '<button class="chg-pip'+(lvl>=t?' on':'')+'" title="Tier '+t+', click to set" onclick="setCharge(\''+kind+'\',\''+id+'\','+t+')"></button>'; }
+  return '<div class="chg-row"><span class="chg-lbl">Charge</span>'
+    + '<button class="chg-step" title="Lower a charge" onclick="stepCharge(\''+kind+'\',\''+id+'\',-1)">\u2212</button>'
+    + pips
+    + '<button class="chg-step" title="A hit charges the next tier" onclick="stepCharge(\''+kind+'\',\''+id+'\',1)">+</button>'
+    + '<span class="chg-t">'+(lvl?('Tier '+lvl+' ready'):'none')+'</span></div>';
+}
+/* Step a charge up or down by one, clamped 0 to 3. The plus is what the
+   loremaster taps when a swing lands, since the tool only auto charges when it
+   holds both rolls. */
+function stepCharge(kind, id, d){
+  var sc=curSc();
+  function clamp(v){ return Math.max(0, Math.min(3, v)); }
+  if(kind==='m'){ sc.combatants.forEach(function(c){ if(c.id===id){ c.charge = clamp((c.charge||0)+d); } }); }
+  else { var st=pState(id); st.charge = clamp((st.charge||0)+d); }
+  save(); render();
 }
 function setCharge(kind, id, t){
   var sc=curSc();
@@ -6602,6 +6647,112 @@ function buildTip(n){
   var attrs = (b.attributes||[]).join(' and ');
   return attrs + '.';
 }
+/* ============================================================
+   THE FOE COMBAT SHEET
+   One reckoning renders on every surface: library, roster, crucible, Spotlight.
+   All numbers derive from the kit and the canon in Building Crucibles, nothing
+   is stored. Two kinds of graying, and they are different facts:
+   rating-gray, the Shatter Rating reveals a slice of the full Forsaken kit and
+   what is grayed is still there, waiting. charge-gray, a revealed Act stays
+   locked until the foe's charge reaches its tier. A Minion never charges.
+   ============================================================ */
+var FW_BASE_INF = { Brutal:'Power', Sharp:'Precision', Potent:'Magic' };
+var FW_BONUS_INF = { Mauling:'Power', Wounding:'Precision', Blighting:'Magic' };
+/* The weapon bonus table from the Arsenal, totals by weapon level. A foe makes
+   the same strike a Fell makes, so it swings a weapon leveled like the party's:
+   its Bonus Damage is this table read at the Average Party Level. The tier does
+   not move it. Rating hits harder on the Base and acts more often; the weapon
+   keeps pace with the party. */
+var FW_WEAPON_BONUS = { 1:1, 2:1, 3:3, 4:3, 5:6, 6:6, 7:10, 8:10, 9:15, 10:15 };
+function fwWeaponBonus(apl){ return FW_WEAPON_BONUS[Math.max(1, Math.min(10, apl|0))] || 1; }
+/* Physical when Power leads, magical when Magic leads. Nate's ruling. */
+function fwAtkType(attrs){ return ((attrs&&attrs.Magic)||0) > ((attrs&&attrs.Power)||0) ? 'magic' : 'phys'; }
+function fwActsCeiling(sr){ return fwTierBudget(sr||'Elite').acts; }
+/* Which of the foe's carried infusions its rating has revealed. The kit is full;
+   the rating shows the first N of it, escalation shows the next. */
+function fwRevealedInf(f){ return (f.infusions||[]).slice(0, fwTierBudget(f.sr||'Elite').inf); }
+function fwRevealedAug(f){ return (f.augments||[]).slice(0, fwTierBudget(f.sr||'Elite').aug); }
+/* The damage line. Base = 1 + Power (or Magic for a magic foe) plus any
+   base infusions revealed. Bonus is only what the revealed kit grants; the
+   Standard Attack has none of its own. */
+function fwFoeDamage(f, attrs){
+  attrs = attrs || f.attrs || blankAttrs();
+  var t = fwAtkType(attrs);
+  var base = 1 + ((t==='magic' ? attrs.Magic : attrs.Power) || 0);
+  /* the weapon's own bonus, always present, by party level, then the kit stacks */
+  var bonus = fwWeaponBonus(fwPartyLevel());
+  fwRevealedInf(f).forEach(function(n){
+    if (FW_BASE_INF[n]) base += attrs[FW_BASE_INF[n]] || 0;
+    if (FW_BONUS_INF[n]) bonus += attrs[FW_BONUS_INF[n]] || 0;
+  });
+  var acc = t==='magic' ? ('1d6 + Magic '+(attrs.Magic||0)) : ('1d6 + Precision '+(attrs.Precision||0));
+  return { type:t, base:base, bonus:bonus, acc:acc,
+    text: base + (bonus ? ' + ' + bonus : ' + 0') + ' ' + (t==='magic' ? 'magical' : 'physical') };
+}
+function fwDmgLine(f, attrs){
+  var d = fwFoeDamage(f, attrs);
+  return '<div class="fw-dmg"><span class="fw-dmg-n">'+d.text+'</span>'
+    + '<span class="fw-dmg-acc">'+esc(d.acc)+' to hit</span></div>';
+}
+/* One row of the sheet. gray carries why it is gray, so the card teaches the rule. */
+function fwKitRow(cls, name, meta, tip, gray, why){
+  return '<div class="fwk-row'+(gray?' fwk-gray':'')+' '+cls+'">'
+    + '<span class="fwk-nm">'+esc(name)+'</span>'
+    + (meta ? '<span class="fwk-meta">'+meta+'</span>' : '')
+    + (gray ? '<span class="fwk-why">'+esc(why)+'</span>' : '')
+    + (tip ? '<div class="fwk-tip">'+esc(tip)+'</div>' : '')
+    + '</div>';
+}
+/* The sheet. charge is the live meter in a crucible and null on the shelf,
+   where charge-gray does not apply and only the rating reveal shows. */
+function fwFoeSheet(f, attrs, charge){
+  attrs = attrs || f.attrs || blankAttrs();
+  var sr = f.sr || 'Elite';
+  var minion = sr==='Minion';
+  var ceil = fwActsCeiling(sr);
+  var live = (typeof charge==='number') && !minion;
+  var ch = live ? (charge||0) : null;
+  var h = '<div class="fwk">';
+  h += '<div class="fwk-lbl">Attributes</div><p class="fwk-attrs">'+attrLine(attrs)+'</p>';
+  h += '<div class="fwk-lbl">Standard attack</div>' + fwDmgLine(f, attrs)
+    + '<p class="fwk-note">Base always lands. Bonus meets '+(fwAtkType(attrs)==='magic'?'Resistance':'Durability')+'.'
+    + (minion ? '' : ' Landing it charges the first tier.')+'</p>';
+  /* acts, both grays */
+  var abs = healActTiers((f.abilities||[]).slice()).sort(function(a,b){ return (a.tier||0)-(b.tier||0); });
+  h += '<div class="fwk-lbl">Acts</div>';
+  if (minion){ h += '<p class="fwk-note">A Minion brings only its Standard Attack. The rest of the kit waits, grayed, for escalation.</p>'; }
+  if (!abs.length){ h += minion ? '' : '<p class="fwk-note">No Acts forged yet.</p>'; }
+  abs.forEach(function(a){
+    var t = a.tier||0;
+    var beyond = t > ceil;
+    var locked = !beyond && live && t > ch;
+    h += fwKitRow('fwk-act', a.name, 'Tier '+t, a.effect||a.desc||'',
+      beyond||locked||(minion&&t>0),
+      beyond||minion ? 'beyond rating' : (locked ? 'needs charge '+t : ''));
+  });
+  /* infusions and augmentations, rating-gray only */
+  function chunk(label, list, revealed, bucket){
+    h += '<div class="fwk-lbl">'+label+'</div>';
+    if (!list.length){ h += '<p class="fwk-note">None.</p>'; return; }
+    list.forEach(function(n, i){
+      var gray = i >= revealed;
+      h += fwKitRow('fwk-inf', n, '', chipTip(n, bucket), gray, 'beyond rating');
+    });
+  }
+  chunk('Infusions', f.infusions||[], fwTierBudget(sr).inf, 'infusions');
+  chunk('Augmentations', f.augments||[], fwTierBudget(sr).aug, 'augmentations');
+  /* stance, its effect at the live charge */
+  if (f.stance){
+    h += '<div class="fwk-lbl">Stance</div>'
+      + fwKitRow('fwk-st', f.stance, live ? ('at charge '+ch) : '', stanceTip(f.stance), false, '');
+  }
+  if (f.sig){
+    h += '<div class="fwk-lbl">Signature affliction</div>'
+      + fwKitRow('fwk-sig', f.sig, 'on Fellmark', chipTip(f.sig,'afflictions'), false, '');
+  }
+  h += '</div>';
+  return h;
+}
 /* What a Stance is: the canon armor stances, by charge. */
 var STANCE_TIP = {
   Shrouded: 'Speed and evasion. Charge 1 gives +2 Evasion. Charge 2 reduces incoming damage by Evasion, base before bonus. Charge 3 ignores the Fellstrikes it rolls.',
@@ -6987,6 +7138,11 @@ function foeSheet(id, src){
     + '<p class="muted small">Which campaign this foe belongs to. Tie it to a campaign to keep it off the shelf in your others. Any campaign keeps it everywhere.</p>';
   h += '<p class="muted">'+(f.sr?esc(f.sr)+' &middot; ':'')+(f.maxVit||0)+' vit</p>';
 
+  /* the same sheet a crucible shows, derived at this rating against this party.
+     No live charge on the shelf, so only the rating reveal grays. */
+  var _kd = fwDeriveKit(f, f.sr || 'Elite');
+  h += '<div class="lbl">As it stands against this party</div>' + fwFoeSheet(f, _kd.attrs, null);
+
   h += '<div class="lbl">Default rating in scenes</div>'
     + '<select class="inp" onchange="fsSetDefaultSR(this.value)">'
     + SR_ORDER.map(function(r){ return '<option value="'+r+'"'+(f.sr===r?' selected':'')+'>'+r+'</option>'; }).join('')
@@ -7073,7 +7229,7 @@ function monInfo(cid){
   /* Everything below is the foe as it was forged. Locked while it stands on the board. */
   h += '<div class="fs-locked">'
     + '<div class="lbl">Shatter rating</div><p>'+(cb.sr?esc(cb.sr):'None')+'</p>'
-    + foeKitBody(cb, cb.type!=='npc')
+    + (cb.type!=='npc' ? fwFoeSheet(cb, cb.attrs, cb.charge||0) : foeKitBody(cb, false))
     + '</div>'
     + '<p class="muted small">This foe stands in a crucible. Its forging is set. Edit it in the library to change what it is.</p>';
 
@@ -8155,7 +8311,7 @@ function resCardMon(cb, tier){
     + (cb.act ? '<div class="res-row click" onclick="toggleMonDone(\''+cb.id+'\')"><span class="check'+(cb.done?' on':'')+'"></span><span class="res-txt'+(cb.done?' done':'')+'">'+esc(cb.act)
         + (tn ? ' <span class="tgt">&rarr; '+esc(tn)+'</span>' : '') + '</span></div>'
       : '<div class="muted small-pad">No intent set</div>')
-    + chargeRow('m', cb.id, cb.charge||0)
+    + (cb.sr==='Minion' ? '<p class="fwk-note">A Minion never charges.</p>' : chargeRow('m', cb.id, cb.charge||0))
     + affChips('m', cb.id, cb.affs)
     + '</div>';
 }
@@ -8529,10 +8685,30 @@ function cbCard(n, o){
     + '<div class="cb-top"><span class="cb-nm">'+esc(n.name)+'</span><span class="cb-sd">'+sideLbl+'</span></div>'
     + '<div class="fw-cardtop">'+fwVitRO(n)+'<span class="fw-ct-r">'+fwPipsRO(n)+((n.kind==='m'&&n.ref.stance)?'<span class="tk-st">'+esc(n.ref.stance)+'</span>':'')+'</span></div>'
     + cbChips(n) + fwPendTag(n.key)
-    + cbActDisplay(n) + (n.kind==='m' ? fwFoeRollsReadout(n.ref) : '') + (n.kind==='m' ? fwEvaRow(n) : '') + (n.kind==='m' ? cbIncoming(n) : '') + (n.kind==='m' ? cbImpRow(n) : cbImpRowP(n)) + (n.kind==='m' ? fwFoeReact(n) : (fwReactOpts(n) + cbReact(n)))
+    + cbActDisplay(n) + (n.kind==='m' ? fwCardSheet(n) : '') + (n.kind==='m' ? fwFoeRollsReadout(n.ref) : '') + (n.kind==='m' ? fwEvaRow(n) : '') + (n.kind==='m' ? cbIncoming(n) : '') + (n.kind==='m' ? cbImpRow(n) : cbImpRowP(n)) + (n.kind==='m' ? fwFoeReact(n) : (fwReactOpts(n) + cbReact(n)))
     + (o.addSpot?'<div class="cb-spotline"><button class="cb-link" onclick="cbAddSpot(\''+n.key+'\')">+ Spotlight</button></div>':'')
     + (o.removeSpot?'<div class="cb-spotline"><button class="cb-link" onclick="cbRmSpot(\''+n.key+'\')">Remove</button></div>':'')
   + '</div>';
+}
+/* The sheet on a crucible card. The damage line rides in the open so the
+   loremaster reads what to allocate at a glance; the full reckoning folds out.
+   Open state lives per card key on the view, so a render does not slam it shut. */
+function fwCardSheet(n){
+  var cb = n.ref;
+  window._fwOpen = window._fwOpen || {};
+  var open = !!window._fwOpen[n.key];
+  var d = fwFoeDamage(cb, cb.attrs);
+  return '<div class="cbk">'
+    + '<div class="cbk-head" onclick="fwToggleSheet(\''+n.key+'\')">'
+    + fwDmgLine(cb, cb.attrs)
+    + '<span class="cbk-arrow">'+(open?'\u25b4':'\u25be')+'</span></div>'
+    + (open ? fwFoeSheet(cb, cb.attrs, cb.charge||0) : '')
+    + '</div>';
+}
+function fwToggleSheet(key){
+  window._fwOpen = window._fwOpen || {};
+  window._fwOpen[key] = !window._fwOpen[key];
+  render();
 }
 function cbDoneRow(n){
   return '<div class="cb-donecard"><span class="cb-dn">'+esc(n.name)+'</span>'
@@ -8602,13 +8778,18 @@ function cbResolveSpot(){
     if(n && n.kind==='m' && n.ref.intent && n.ref.intent.type==='Attack'){
       var _it=n.ref.intent, _T=0;
       if(_it.ability && _it.ability!=='__std__'){ var _ab=(n.ref.abilities||[]).filter(function(a){ return a.name===_it.ability; })[0]; if(_ab && typeof _ab.tier==='number') _T=_ab.tier; }
-      var _landed=true;
+      /* charge only on a confirmed hit. A hit is confirmed when the tool holds
+         both rolls and accuracy met evasion. No evasion on record means the
+         loremaster is calling it by hand, so the tool leaves the charge alone
+         and the manual pips carry it. Charging on an unresolved swing was the
+         bug: a declared attack is not a landed one. */
+      var _known=false, _landed=false;
       if(n.ref.target && n.ref.target.indexOf('p:')===0){
         var _pst=pState(n.ref.target.slice(2)), _acc=(n.ref._acc&&n.ref._acc.total)||0, _eva=null;
         (_pst.defEva||[]).forEach(function(e){ if(e.foe===('m:'+n.ref.id)) _eva=e.total; });
-        if(_eva!=null) _landed=(_acc>=_eva);
+        if(_eva!=null){ _known=true; _landed=(_acc>=_eva); }
       }
-      if(_landed){ var _fc=n.ref.charge||0, _fnv=(_T===3?0:(_T===_fc?Math.min(3,_T+1):_fc)); if(_fnv!==_fc){ n.ref.charge=_fnv; cbLog('system', n.ref.name+' charge now '+_fnv+'.'); } }
+      if(_known && _landed){ var _fc=n.ref.charge||0, _fnv=(_T===3?0:(_T===_fc?Math.min(3,_T+1):_fc)); if(_fnv!==_fc){ n.ref.charge=_fnv; cbLog('system', n.ref.name+' charge now '+_fnv+'.'); } }
     }
     b.spotDone[k]=true;
   });
