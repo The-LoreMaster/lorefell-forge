@@ -1,3 +1,7 @@
+## SigilForge: Rooted, the combat effect
+
+- Rooted joins the shared combat effects, the single round form of the Rooting infusion. When it lands the target cannot move until the end of the round. It costs 2 and sits in the Movement group of the effect inlay, the lighter kin of Immobilized. Authored in SigilForge, carried into the conditions pack, and baked into FateWell and FellGlass.
+
 ## FateWell: keep ThreadSpire's maps and tokens out of the foe library
 
 - ThreadSpire's saved maps and tokens live in the same Assets collection as the foe library, tagged by kind. FateWell's library ingest took every named row, so a saved map or token appeared in the roster as an empty foe. The ingest now drops rows tagged map or token before they reach the library. Foe rows are untouched.
