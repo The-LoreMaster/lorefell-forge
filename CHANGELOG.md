@@ -1,3 +1,7 @@
+## ThreadSpire: cards stay inside the arrow lane
+
+- The carousel arrows sit on a fixed lane, and every card is now capped so its edge, and the edge of its peeking neighbor, stays inside that lane. A card can no longer slide under an arrow at any width. The neighbors tuck in a little tighter to hold the margin, and the scene, foe, Fell, and spotlight cards all share the same cap so none of them reach the arrows.
+
 ## ThreadSpire: upload a map from your device, local preview
 
 - The upload slot in the map picker now takes a real image. Click it to pick a file or drag one onto it. The image is read locally, measured so the map box matches its natural size, added to the picker as a reusable card with a thumbnail, and set as the scene background. Nothing leaves the device yet, the card is marked not yet saved. This is the upload interaction ahead of account storage: the same path will persist to the account collection when storage lands, and only the preview URL changes to a stored one. Non image files are turned away with a reason.
