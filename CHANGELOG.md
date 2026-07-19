@@ -1,3 +1,9 @@
+## ThreadSpire: scenes remember themselves, tokens delete, labels beneath
+
+- Scenes are now saved bundles. Each holds its map, every token's position and footprint, and the grid. The scene name in the top bar is the switcher: click it and a compact deck drops down with a card per scene, its map thumbnail, and its token count. Switching snapshots the table into the scene being left and restores the one entered, so the party stands where you left them, between scene changes and between sessions. New scene and delete live on the deck, and the last scene cannot be deleted. Bundles persist through a scene seam mirroring the asset seam, stubbed now, a Scenes collection when storage lands.
+- The LoreMaster can remove a token from the map, a control on the token menu.
+- Token labels render as text beneath the token, not inside the disc. The disc keeps its portrait or initials, the name sits under it on a small plaque.
+
 ## ThreadSpire: asset save seam, uploads persist to the account
 
 - Uploaded maps and tokens now save through one asset seam, three calls, upload, save, list, that stand in front of the account store. An uploaded map saves and reappears in the picker on a later load; an uploaded token saves and joins a Your saved tokens section of the palette to place again. The seam runs on a local stub for now that mimics the live Wix contract exactly, so the full save and reappear flow works offline. The stubs swap to the live uploadRune, saveAsset, and listAssets in one place, the seam itself does not move. This is Option 1 of the asset storage spec, reusing the Assets collection with a kind discriminator.
