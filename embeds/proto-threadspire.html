@@ -35,6 +35,7 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 #tokmenu .tmsz button.on{ background:#1e3f8f; border-color:#9fc3ff; color:#fff; }
 .token.lm-drag{ cursor:grab; }
 .token.p{ background:#37548d; } .token.foe{ background:var(--danger); } .token.npc{ background:#5f5e5a; } .token.asset{ background:#3d6b58; }
+.token.hasimg{ background-size:cover; background-position:center; color:transparent; }
 
 .frame{ position:fixed; inset:0; pointer-events:none; border:14px solid transparent; border-image:linear-gradient(160deg,#171208,#57431a,#171208) 1; }
 
@@ -228,6 +229,24 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 .mp-meta{ font-size:.66rem; color:var(--muted); margin-top:2px; }
 .mp-upload{ border-style:dashed; }
 .mp-upload.drag{ border-color:var(--gold); background:rgba(201,168,76,.1); }
+/* the token palette */
+#tokPalette{ position:fixed; inset:0; z-index:70; display:none; align-items:center; justify-content:center; background:rgba(4,7,14,.72); }
+.tp-box{ width:min(560px,90vw); max-height:82vh; overflow-y:auto; background:var(--panel); border:2px solid var(--gold); border-radius:12px; padding:16px 18px; }
+.tp-head{ display:flex; align-items:center; justify-content:space-between; font-family:Cinzel,serif; letter-spacing:.1em; font-size:.8rem; color:var(--gold); text-transform:uppercase; margin-bottom:12px; }
+.tp-sec{ margin-bottom:12px; }
+.tp-lbl{ font-family:Cinzel,serif; font-size:.6rem; letter-spacing:.12em; text-transform:uppercase; color:var(--ice); opacity:.85; margin-bottom:6px; }
+.tp-row{ display:flex; flex-wrap:wrap; gap:8px; }
+.tp-empty{ font-size:.74rem; color:var(--muted); }
+.tp-chip{ display:flex; flex-direction:column; align-items:center; gap:5px; width:74px; padding:7px 5px; border:1px solid var(--line); border-radius:9px; background:var(--navy2,#0e1526); cursor:pointer; }
+.tp-chip:hover{ border-color:var(--ice); }
+.tp-face{ width:42px; height:42px; border-radius:50%; background-size:cover; background-position:center; display:flex; align-items:center; justify-content:center; font-family:Cinzel,serif; font-size:.86rem; color:#fff; border:2px solid rgba(0,0,0,.35); }
+.tp-face.tp-foe{ background:var(--danger,#c96a5a); }
+.tp-face.tp-p{ background:#37548d; }
+.tp-face.tp-npc{ background:#5f5e5a; }
+.tp-face.tp-up{ background:var(--navy3,#0c1424); border:1px dashed var(--gold); color:var(--gold); font-size:1.3rem; }
+.tp-name{ font-size:.66rem; color:var(--silver); text-align:center; line-height:1.15; }
+.tp-upload{ border-style:dashed; }
+.tp-upload.drag{ border-color:var(--gold); background:rgba(201,168,76,.1); }
 .lm-slot.left .lmcard, .lm-slot.right .lmcard{ overflow:hidden; }
 /* compact foe card, the FateWell strip look */
 .lmc-cname{ font-family:Cinzel,serif; font-size:.74rem; color:var(--silver); margin-bottom:7px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -374,6 +393,7 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
     <div id="mapLayer">
       <div id="mapArt"></div>
   <input type="file" id="mapFileInput" accept="image/*" style="display:none" onchange="lmMapFilePicked(this)">
+  <input type="file" id="tokFileInput" accept="image/*" style="display:none" onchange="lmTokenFilePicked(this)">
       <svg id="grid" xmlns="http://www.w3.org/2000/svg"></svg>
     </div>
   </div>
@@ -1065,6 +1085,7 @@ window.addEventListener('keydown', function(e){
 function lmPhaseControls(){
   if (S.mode !== 'combat')
     return '<button class="lmbtn" onclick="lmOpenMaps()">Maps</button>'
+         + '<button class="lmbtn" onclick="lmOpenTokens()">Tokens</button>'
          + '<button class="lmbtn" onclick="lmBeginCombat()">Begin combat</button>';
   if (S.scene.combatPhase === 'commit')
     return '<button class="lmbtn gold" onclick="lmLockActs()">Lock acts into Spotlights</button>'
@@ -1382,6 +1403,86 @@ function spotCard(c, n){
 }
 
 /* ---- LM intent, all through send() or local scene edits echoed as remote truth ---- */
+var lmTokensOpen = false;
+/* the palette sources, all real records handed over through the seam:
+   foes and NPCs the adventure preloaded, and the Fell from their FellGlass sheets. */
+function tokenPalette(){
+  var foes = (S.scene.foes||[]).map(function(f){
+    return { kind:'foe', label:initials(f.name), name:f.name, img:f.img||null, cells:f.sr==='Champion'?2:1, refId:f.id, source:'adventure' };
+  });
+  var npcs = (S.scene.npcs||[]).map(function(n){
+    return { kind:'npc', label:initials(n.name), name:n.name, img:n.img||null, cells:1, refId:n.id, source:'adventure' };
+  });
+  var fell = (S.scene.fell||[]).map(function(p){
+    return { kind:'p', label:initials(p.name), name:p.name, img:p.img||null, cells:1, refId:p.id, source:'fellglass' };
+  });
+  return { foes:foes, npcs:npcs, fell:fell };
+}
+function initials(nm){
+  var parts = String(nm||'').replace(/^The /,'').trim().split(/\s+/);
+  return (parts[0]||'?').slice(0,1).toUpperCase() + (parts[1]?parts[1].slice(0,1).toUpperCase():'');
+}
+function lmOpenTokens(){ lmTokensOpen = true; paintTokenPalette(); }
+function lmCloseTokens(){ lmTokensOpen = false; paintTokenPalette(); }
+function lmPlaceToken(kind, refId){
+  var pal = tokenPalette();
+  var all = pal.foes.concat(pal.npcs, pal.fell);
+  var t = null; all.forEach(function(x){ if(x.refId===refId && x.kind===kind) t=x; });
+  if (!t) return;
+  var id = 'tok-' + Date.now();
+  S.tokens.push({ id:id, kind:t.kind, label:t.label, name:t.name, img:t.img,
+    x:Math.round(S.map.w/2), y:Math.round(S.map.h/2), cells:t.cells, mine:false, refId:t.refId });
+  applyRemoteState({ tokens:S.tokens });
+  pushLog({ kind:'sys', html:'Placed <b>' + esc(t.name) + '</b> on the map.' });
+  applyRemoteState({ log:S.log });
+  renderTokens();
+}
+function paintTokenPalette(){
+  var el = document.getElementById('tokPalette');
+  if (!el){ el = document.createElement('div'); el.id='tokPalette'; document.body.appendChild(el); }
+  if (!lmTokensOpen || !isLM()){ el.style.display='none'; return; }
+  el.style.display='flex';
+  var pal = tokenPalette();
+  function chip(t){
+    var face = t.img
+      ? '<span class="tp-face" style="background-image:url('+t.img+')"></span>'
+      : '<span class="tp-face tp-'+t.kind+'">'+esc(t.label)+'</span>';
+    return '<button class="tp-chip" onclick="lmPlaceToken(\''+t.kind+'\',\''+t.refId+'\')">'
+      + face + '<span class="tp-name">'+esc(t.name)+'</span></button>';
+  }
+  function section(title, list, hint){
+    return '<div class="tp-sec"><div class="tp-lbl">'+title+'</div>'
+      + (list.length ? '<div class="tp-row">'+list.map(chip).join('')+'</div>' : '<div class="tp-empty">'+hint+'</div>') + '</div>';
+  }
+  el.innerHTML = '<div class="tp-box"><div class="tp-head"><span>Place a token</span>'
+    + '<button class="lm-minbtn" onclick="lmCloseTokens()">\u00d7</button></div>'
+    + section('Foes', pal.foes, 'No foes in this scene.')
+    + section('Fell', pal.fell, 'No Fell at the table.')
+    + section('NPCs', pal.npcs, 'No NPCs in this scene.')
+    + '<div class="tp-sec"><div class="tp-lbl">Upload</div>'
+    + '<button class="tp-chip tp-upload" onclick="lmTokenUploadStub()" ondragover="event.preventDefault();this.classList.add(\'drag\')" ondragleave="this.classList.remove(\'drag\')" ondrop="lmTokenDrop(event)"><span class="tp-face tp-up">+</span><span class="tp-name">Ad hoc token</span></button></div>'
+    + '</div>';
+}
+function lmTokenUploadStub(){ document.getElementById('tokFileInput').click(); }
+function lmTokenFilePicked(input){
+  var file = input.files && input.files[0];
+  if (!file) return;
+  if (!/^image\//.test(file.type)){ pushLog({ kind:'sys', html:'That file is not an image.' }); applyRemoteState({ log:S.log }); return; }
+  var url = URL.createObjectURL(file);
+  var id = 'tok-' + Date.now();
+  var nm = file.name.replace(/\.[^.]+$/, '');
+  S.tokens.push({ id:id, kind:'asset', label:initials(nm), name:nm, img:url,
+    x:Math.round(S.map.w/2), y:Math.round(S.map.h/2), cells:1, mine:false, local:true });
+  pushLog({ kind:'sys', html:'Token <b>' + esc(nm) + '</b> placed. It will save to your account when storage lands.' });
+  applyRemoteState({ tokens:S.tokens, log:S.log });
+  renderTokens(); lmCloseTokens();
+  input.value='';
+}
+function lmTokenDrop(e){
+  e.preventDefault(); var el=e.currentTarget; if(el) el.classList.remove('drag');
+  var file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if (file) lmTokenFilePicked({ files:[file], value:'' });
+}
 var lmMapsOpen = false;
 function lmOpenMaps(){ lmMapsOpen = true; paintMapPicker(); }
 function lmCloseMaps(){ lmMapsOpen = false; paintMapPicker(); }
@@ -1529,8 +1630,9 @@ function renderTokens(){
     var el = document.createElement('div');
     var draggable = t.mine || S.role === 'lm';
     el.className = 'token ' + t.kind + (t.mine ? ' mine' : '') + (draggable && !t.mine ? ' lm-drag' : '')
-      + (sel === t.id ? ' sel' : '');
-    el.textContent = t.label;
+      + (sel === t.id ? ' sel' : '') + (t.img ? ' hasimg' : '');
+    if (t.img){ el.style.backgroundImage = 'url(' + t.img + ')'; el.textContent = ''; }
+    else { el.style.backgroundImage = ''; el.textContent = t.label; }
     place(el, t);
     if (draggable) wireDrag(el, t);
     layer.appendChild(el);
@@ -1789,7 +1891,7 @@ function render(){
   }
   document.getElementById('vitVal').textContent = S.character.vit;
   document.getElementById('vitValM').textContent = S.character.vit;
-  paintRails(); drawGrid(); renderTokens(); renderLog(); paintLmbar(); paintTokMenu(); paintLmStrip(); paintMapPicker(); paintMapArt();
+  paintRails(); drawGrid(); renderTokens(); renderLog(); paintLmbar(); paintTokMenu(); paintLmStrip(); paintMapPicker(); paintMapArt(); paintTokenPalette();
 }
 window.addEventListener('resize', function(){ clampCam(); applyCam(); });
 (function buildFellmarks(){
