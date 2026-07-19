@@ -1,3 +1,7 @@
+## ThreadSpire: carousel arrows move into the top bar
+
+- The prev and next arrows now live inside the top bar, one on each end, with the scene name and controls between them. They are part of the chrome, so they cannot sit on or near a card at any width. When only one card is present the ends hold spacers instead, keeping the bar balanced.
+
 ## ThreadSpire: cards stay inside the arrow lane
 
 - The carousel arrows sit on a fixed lane, and every card is now capped so its edge, and the edge of its peeking neighbor, stays inside that lane. A card can no longer slide under an arrow at any width. The neighbors tuck in a little tighter to hold the margin, and the scene, foe, Fell, and spotlight cards all share the same cap so none of them reach the arrows.
