@@ -56,6 +56,11 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 #hud{ position:fixed; right:16px; bottom:16px; width:200px; background:var(--panel); border:1.5px solid var(--gold); border-radius:8px; padding:10px; }
 #hud .prow{ display:flex; align-items:center; gap:10px; cursor:pointer; }
 #hud .portrait{ width:56px; height:56px; border-radius:8px; border:2px solid var(--gold); background:#37548d center/cover; flex:none; }
+#hud.lm .gems{ display:none; }
+#mhud.lm .gems, #mhud.lm .fmark, #mhud.lm .gem{ display:none; }
+.win-note{ font-size:.86rem; color:var(--ice); line-height:1.5; margin-bottom:12px; }
+.win-search{ width:100%; background:#0b1020; border:1px solid var(--line); border-radius:6px; color:var(--silver); font:inherit; font-size:.86rem; padding:8px 10px; }
+.win-search:focus{ outline:none; border-color:var(--gold); }
 #hud .pname{ font-family:Cinzel,serif; font-size:.9rem; }
 #hud .psub{ font-size:.78rem; color:var(--ice); }
 #hud .gems{ display:flex; gap:7px; margin-top:10px; align-items:center; justify-content:space-between; }
@@ -707,12 +712,23 @@ var SECTIONS = {
   attributes:{ title:'Attributes' },
   lore:      { title:'Lore' },
   battle:    { title:'Battle' },
-  log:       { title:'Session log' }
+  log:       { title:'Session log' },
+  /* the LoreMaster's rail */
+  notes:     { title:'Notes' },
+  library:   { title:'Library' },
+  stages:    { title:'Stages' },
+  search:    { title:'Search' },
+  settings:  { title:'Settings' }
 };
-var RAIL_DESKTOP = ['inventory','skills','arsenal','attributes','lore'];
-var RAIL_MOBILE  = ['inventory','skills','arsenal','attributes','lore'];
+var RAIL_PLAYER = ['inventory','skills','arsenal','attributes','lore'];
+var RAIL_LM     = ['notes','library','stages','search','settings'];
+function railKeys(){ return S.role === 'lm' ? RAIL_LM : RAIL_PLAYER; }
 
 function sectionBody(key){
+  if (key === 'notes') return '<div class="win-note">The LoreMaster\u2019s notes. Acts, sessions, and scenes of the adventure, read from FateWell when the bridge lands.</div><div class="stub"></div><div class="stub"></div><div class="stub"></div>';
+  if (key === 'library') return '<div class="win-note">The library. Foes, NPCs, and creations, read through from FateWell.</div><div class="stub"></div><div class="stub"></div>';
+  if (key === 'search') return '<div class="win-note">Search the FellGuide and the adventure.</div><input class="win-search" placeholder="Search" aria-label="Search">';
+  if (key === 'settings') return '<div class="win-note">Table settings. Grid, log, and view controls gather here.</div><div class="stub"></div>';
   if (key === 'battle') return battleBody();
   if (key === 'lore') return '<p style="color:var(--ice)">Placeholder for Lore, which gathers the character behind the numbers. '
     + 'Notes, player description, origin, lineage, total ascension crystals, and skyvault shards all land here. '
@@ -938,22 +954,28 @@ function closeWin(){
 }
 
 /* ---- rails ---- */
+function railClick(k){
+  if (k === 'stages'){ closeWin(); lmToggleScenes(); return; }
+  (S.openSection === k) ? closeWin() : openWin(k);
+}
 function paintRails(){
+  var keys = railKeys();
   var r = document.getElementById('rail'); r.innerHTML = '';
-  RAIL_DESKTOP.forEach(function(k){
+  keys.forEach(function(k){
+    var lit = (k === 'stages') ? lmScenesOpen : (S.openSection === k);
     var b = document.createElement('button');
-    b.className = 'plaque' + (S.openSection === k ? ' lit' : '');
+    b.className = 'plaque' + (lit ? ' lit' : '');
     b.textContent = SECTIONS[k].title;
-    b.onclick = function(){ (S.openSection === k) ? closeWin() : openWin(k); };
+    b.onclick = function(){ railClick(k); };
     r.appendChild(b);
   });
   var m = document.getElementById('mrail'); m.innerHTML = '';
-  RAIL_MOBILE.forEach(function(k){
-    var lit = S.openSection === k;
+  keys.forEach(function(k){
+    var lit = (k === 'stages') ? lmScenesOpen : (S.openSection === k);
     var b = document.createElement('button');
     b.className = lit ? 'lit' : '';
     b.innerHTML = '<span class="ico"></span>' + SECTIONS[k].title;
-    b.onclick = function(){ (S.openSection === k) ? closeWin() : openWin(k); };
+    b.onclick = function(){ railClick(k); };
     m.appendChild(b);
   });
 }
@@ -1635,6 +1657,33 @@ function lmTokenDrop(e){
   if (file) lmTokenFilePicked({ files:[file], value:'' });
 }
 var lmScenesOpen = false;
+/* the signed-in member's name. The live page reads this from the Wix member, the
+   prototype stubs it. */
+S.memberName = S.memberName || 'Nate';
+function paintHud(){
+  var name = document.getElementById('hudName');
+  var sub = document.getElementById('hudSub');
+  var hud = document.getElementById('hud');
+  if (!name || !sub || !hud) return;
+  if (isLM()){
+    name.textContent = 'LoreMaster';
+    sub.textContent = S.memberName;
+    hud.classList.add('lm');
+  } else {
+    name.textContent = 'Acantha';
+    sub.textContent = 'Level 12';
+    hud.classList.remove('lm');
+  }
+  var msub = document.getElementById('mhudSub');
+  var mhud = document.getElementById('mhud');
+  if (msub && mhud){
+    if (isLM()){ mhud.classList.add('lm'); msub.textContent = S.memberName;
+      var mn = mhud.querySelector('.pname'); if (mn) mn.textContent = 'LoreMaster';
+    } else { mhud.classList.remove('lm'); msub.textContent = 'Level 12';
+      var mn2 = mhud.querySelector('.pname'); if (mn2) mn2.textContent = 'Acantha';
+    }
+  }
+}
 function lmToggleScenes(){ lmScenesOpen = !lmScenesOpen; paintSceneDeck(); }
 function lmCloseScenes(){ lmScenesOpen = false; paintSceneDeck(); }
 function paintSceneDeck(){
@@ -2107,7 +2156,7 @@ function render(){
   }
   document.getElementById('vitVal').textContent = S.character.vit;
   document.getElementById('vitValM').textContent = S.character.vit;
-  paintRails(); drawGrid(); renderTokens(); renderLog(); paintLmbar(); paintTokMenu(); paintLmStrip(); paintMapPicker(); paintMapArt(); paintTokenPalette(); paintSceneDeck();
+  paintRails(); drawGrid(); renderTokens(); renderLog(); paintLmbar(); paintTokMenu(); paintLmStrip(); paintMapPicker(); paintMapArt(); paintTokenPalette(); paintSceneDeck(); paintHud();
 }
 window.addEventListener('resize', function(){ clampCam(); applyCam(); });
 (function buildFellmarks(){

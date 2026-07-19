@@ -1,3 +1,7 @@
+## ThreadSpire: the LoreMaster's rail and identity panel
+
+- In LM mode the right side of the table becomes the LoreMaster's. The identity panel reads LoreMaster with the signed in member's name beneath, read from the Wix member on the live page, and the vitality and LP gems step aside. The five character plaques become Notes, Library, Stages, Search, and Settings. Notes, Library, Search, and Settings open windows in the same frame the character sections use, ready to carry FateWell and FellGuide content when the bridge lands. Stages opens the scene deck directly, the saved table layouts, named Stages so the word scene stays with the adventure's narrative scenes. Flipping back to a player restores the character rail and panel untouched.
+
 ## ThreadSpire: scenes remember themselves, tokens delete, labels beneath
 
 - Scenes are now saved bundles. Each holds its map, every token's position and footprint, and the grid. The scene name in the top bar is the switcher: click it and a compact deck drops down with a card per scene, its map thumbnail, and its token count. Switching snapshots the table into the scene being left and restores the one entered, so the party stands where you left them, between scene changes and between sessions. New scene and delete live on the deck, and the last scene cannot be deleted. Bundles persist through a scene seam mirroring the asset seam, stubbed now, a Scenes collection when storage lands.
