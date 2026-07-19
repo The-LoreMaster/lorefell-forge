@@ -1403,6 +1403,29 @@ function spotCard(c, n){
 }
 
 /* ---- LM intent, all through send() or local scene edits echoed as remote truth ---- */
+/* ---- the asset backend seam ----
+   ThreadSpire saves and lists account assets through these three calls only. The
+   stubs mimic the real Wix contract: uploadRune returns an image descriptor, saveAsset
+   persists a row scoped to the account, listAssets returns this account's rows. Phase B
+   final swaps the three stubs for the live methods, this seam does not move. */
+var _assetStore = [];   /* stands in for the account's Assets rows, kind map or token */
+function stubUploadImage(fileOrUrl, name){
+  /* the real uploadRune takes base64 and returns wix:image://... . The stub keeps the
+     local object URL, standing in for a stored descriptor. */
+  return Promise.resolve(typeof fileOrUrl === 'string' ? fileOrUrl : URL.createObjectURL(fileOrUrl));
+}
+function stubSaveAsset(asset){
+  var i = -1; _assetStore.forEach(function(a, k){ if(a.assetId === asset.assetId) i = k; });
+  if (i >= 0) _assetStore[i] = Object.assign({}, _assetStore[i], asset);
+  else _assetStore.push(Object.assign({}, asset));
+  return Promise.resolve({ ok:true });
+}
+function stubListAssets(kind){
+  return Promise.resolve(_assetStore.filter(function(a){ return !kind || a.kind === kind; }));
+}
+/* the three the app calls. Swappable to the live backend in one edit each. */
+var assetBackend = { upload:stubUploadImage, save:stubSaveAsset, list:stubListAssets };
+
 var lmTokensOpen = false;
 /* the palette sources, all real records handed over through the seam:
    foes and NPCs the adventure preloaded, and the Fell from their FellGlass sheets. */
@@ -1416,17 +1439,18 @@ function tokenPalette(){
   var fell = (S.scene.fell||[]).map(function(p){
     return { kind:'p', label:initials(p.name), name:p.name, img:p.img||null, cells:1, refId:p.id, source:'fellglass' };
   });
-  return { foes:foes, npcs:npcs, fell:fell };
+  var account = (S.scene.accountTokens||[]).slice();
+  return { foes:foes, npcs:npcs, fell:fell, account:account };
 }
 function initials(nm){
   var parts = String(nm||'').replace(/^The /,'').trim().split(/\s+/);
   return (parts[0]||'?').slice(0,1).toUpperCase() + (parts[1]?parts[1].slice(0,1).toUpperCase():'');
 }
-function lmOpenTokens(){ lmTokensOpen = true; paintTokenPalette(); }
+function lmOpenTokens(){ loadAccountAssets(); lmTokensOpen = true; paintTokenPalette(); }
 function lmCloseTokens(){ lmTokensOpen = false; paintTokenPalette(); }
 function lmPlaceToken(kind, refId){
   var pal = tokenPalette();
-  var all = pal.foes.concat(pal.npcs, pal.fell);
+  var all = pal.foes.concat(pal.npcs, pal.fell, pal.account||[]);
   var t = null; all.forEach(function(x){ if(x.refId===refId && x.kind===kind) t=x; });
   if (!t) return;
   var id = 'tok-' + Date.now();
@@ -1459,6 +1483,7 @@ function paintTokenPalette(){
     + section('Foes', pal.foes, 'No foes in this scene.')
     + section('Fell', pal.fell, 'No Fell at the table.')
     + section('NPCs', pal.npcs, 'No NPCs in this scene.')
+    + (pal.account && pal.account.length ? section('Your saved tokens', pal.account, '') : '')
     + '<div class="tp-sec"><div class="tp-lbl">Upload</div>'
     + '<button class="tp-chip tp-upload" onclick="lmTokenUploadStub()" ondragover="event.preventDefault();this.classList.add(\'drag\')" ondragleave="this.classList.remove(\'drag\')" ondrop="lmTokenDrop(event)"><span class="tp-face tp-up">+</span><span class="tp-name">Ad hoc token</span></button></div>'
     + '</div>';
@@ -1471,12 +1496,23 @@ function lmTokenFilePicked(input){
   var url = URL.createObjectURL(file);
   var id = 'tok-' + Date.now();
   var nm = file.name.replace(/\.[^.]+$/, '');
+  var aid = 'ta-' + Date.now();
   S.tokens.push({ id:id, kind:'asset', label:initials(nm), name:nm, img:url,
-    x:Math.round(S.map.w/2), y:Math.round(S.map.h/2), cells:1, mine:false, local:true });
-  pushLog({ kind:'sys', html:'Token <b>' + esc(nm) + '</b> placed. It will save to your account when storage lands.' });
-  applyRemoteState({ tokens:S.tokens, log:S.log });
+    x:Math.round(S.map.w/2), y:Math.round(S.map.h/2), cells:1, mine:false, local:true, refId:aid });
+  applyRemoteState({ tokens:S.tokens });
   renderTokens(); lmCloseTokens();
   input.value='';
+  /* save the token asset so it joins the palette next time */
+  assetBackend.upload(file, nm).then(function(imgRef){
+    return assetBackend.save({ assetId:aid, kind:'token', name:nm, image:imgRef, w:0, h:0 });
+  }).then(function(){
+    S.scene.accountTokens = (S.scene.accountTokens||[]).concat([{ kind:'asset', label:initials(nm), name:nm, img:url, cells:1, refId:aid, source:'account' }]);
+    pushLog({ kind:'sys', html:'Token <b>' + esc(nm) + '</b> saved to your account.' });
+    applyRemoteState({ scene:S.scene, log:S.log });
+  }).catch(function(){
+    pushLog({ kind:'sys', html:'Token <b>' + esc(nm) + '</b> is placed but did not save.' });
+    applyRemoteState({ log:S.log });
+  });
 }
 function lmTokenDrop(e){
   e.preventDefault(); var el=e.currentTarget; if(el) el.classList.remove('drag');
@@ -1484,12 +1520,32 @@ function lmTokenDrop(e){
   if (file) lmTokenFilePicked({ files:[file], value:'' });
 }
 var lmMapsOpen = false;
-function lmOpenMaps(){ lmMapsOpen = true; paintMapPicker(); }
+function lmOpenMaps(){ loadAccountAssets(); lmMapsOpen = true; paintMapPicker(); }
 function lmCloseMaps(){ lmMapsOpen = false; paintMapPicker(); }
 function lmSetMap(id){
   var m = null; S.scene.maps.forEach(function(x){ if(x.id===id) m=x; });
   if (m){ S.scene.background = id; S.map = { w:m.w, h:m.h }; applyRemoteState({ scene:S.scene, map:S.map }); paintMapArt(); }
   lmCloseMaps();
+}
+/* pull the account's stored maps into the scene list once, so they show in the
+   picker beside the adventure maps. Runs on demand and dedupes by id. */
+var _assetsLoaded = false;
+function loadAccountAssets(){
+  if (_assetsLoaded) return;
+  _assetsLoaded = true;
+  assetBackend.list('map').then(function(rows){
+    rows.forEach(function(r){
+      if (!S.scene.maps.some(function(m){ return m.id === r.assetId; }))
+        S.scene.maps.push({ id:r.assetId, name:r.name, url:r.image, w:r.w||2400, h:r.h||1600, source:'account' });
+    });
+    if (rows.length) paintMapPicker();
+  });
+  assetBackend.list('token').then(function(rows){
+    S.scene.accountTokens = rows.map(function(r){
+      return { kind:'asset', label:initials(r.name), name:r.name, img:r.image, cells:1, refId:r.assetId, source:'account' };
+    });
+    if (rows.length) paintTokenPalette();
+  });
 }
 function activeMap(){
   var r=null; (S.scene.maps||[]).forEach(function(m){ if(m.id===S.scene.background) r=m; }); return r;
@@ -1551,14 +1607,26 @@ function lmMapFilePicked(input){
   var img = new Image();
   img.onload = function(){
     var id = 'up-' + Date.now();
-    var m = { id:id, name:file.name.replace(/\.[^.]+$/, ''), url:url, w:img.naturalWidth||2400, h:img.naturalHeight||1600, source:'account', local:true };
+    var nm = file.name.replace(/\.[^.]+$/, '');
+    var w = img.naturalWidth||2400, h = img.naturalHeight||1600;
+    var m = { id:id, name:nm, url:url, w:w, h:h, source:'account', local:true };
     S.scene.maps.push(m);
     S.scene.background = id;
-    S.map = { w:m.w, h:m.h };
-    pushLog({ kind:'sys', html:'Map <b>' + esc(m.name) + '</b> loaded. It will save to your account when storage lands.' });
-    applyRemoteState({ scene:S.scene, map:S.map, log:S.log });
+    S.map = { w:w, h:h };
+    applyRemoteState({ scene:S.scene, map:S.map });
     paintMapArt();
     lmCloseMaps();
+    /* save to the account through the seam */
+    assetBackend.upload(file, nm).then(function(imgRef){
+      return assetBackend.save({ assetId:id, kind:'map', name:nm, image:imgRef, w:w, h:h });
+    }).then(function(){
+      m.local = false;
+      pushLog({ kind:'sys', html:'Map <b>' + esc(nm) + '</b> saved to your account.' });
+      applyRemoteState({ log:S.log });
+    }).catch(function(){
+      pushLog({ kind:'sys', html:'Map <b>' + esc(nm) + '</b> is on the map but did not save.' });
+      applyRemoteState({ log:S.log });
+    });
   };
   img.onerror = function(){ pushLog({ kind:'sys', html:'That image could not be read.' }); applyRemoteState({ log:S.log }); };
   img.src = url;

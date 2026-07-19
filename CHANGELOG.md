@@ -1,3 +1,7 @@
+## ThreadSpire: asset save seam, uploads persist to the account
+
+- Uploaded maps and tokens now save through one asset seam, three calls, upload, save, list, that stand in front of the account store. An uploaded map saves and reappears in the picker on a later load; an uploaded token saves and joins a Your saved tokens section of the palette to place again. The seam runs on a local stub for now that mimics the live Wix contract exactly, so the full save and reappear flow works offline. The stubs swap to the live uploadRune, saveAsset, and listAssets in one place, the seam itself does not move. This is Option 1 of the asset storage spec, reusing the Assets collection with a kind discriminator.
+
 ## ThreadSpire: the token palette, from records and by upload
 
 - A Tokens button opens a palette that places tokens drawn from the scene's own records. Foes and NPCs come from the adventure, the Fell come from their FellGlass sheets, each as a chip with its portrait or its initials. Placing one drops it at the map centre for the LoreMaster to move, carrying its record link, its name, and a footprint that matches its rating. A token with a portrait renders that image as its face on the map.
