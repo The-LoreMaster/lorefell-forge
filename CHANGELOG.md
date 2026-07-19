@@ -1,3 +1,10 @@
+## ThreadSpire: Stages in the window frame, the stage vocabulary, and the live storage bridge
+
+- Stages now opens in the same window frame as Notes, Library, Search, and Settings, a proper section with the deck as cards, switch, delete, and new stage. The floating popover is gone. The stage name in the top bar opens the same window.
+- The saved table model speaks Stage throughout the code: the backend seam, the snapshot and restore, the switch and delete, and the seed ids. The word scene stays with the adventure's narrative scenes.
+- Notes and Library are fed from the adventure's own state: Notes lists the scene's beats with their kinds, Library lists the foes, Fell, and NPCs at the table. Search and Settings hold their frames.
+- The live storage bridge lands. Embedded in the Wix page, the asset and stage seams route over postMessage to the page, which calls uploadRune, saveAsset, and listAssets for images and the new threadspire.web.js trio, listStages, saveStage, deleteStage, owner scoped like the Assets methods, for stages. Standalone, the stubs keep the proto working offline. A new Stages collection schema carries stageId, owner, campaign, name, map reference, token JSON, grid JSON, and the map box. On an embedded load the account's stages pull into the deck, so last session's tables come back.
+
 ## ThreadSpire: the LoreMaster's rail and identity panel
 
 - In LM mode the right side of the table becomes the LoreMaster's. The identity panel reads LoreMaster with the signed in member's name beneath, read from the Wix member on the live page, and the vitality and LP gems step aside. The five character plaques become Notes, Library, Stages, Search, and Settings. Notes, Library, Search, and Settings open windows in the same frame the character sections use, ready to carry FateWell and FellGuide content when the bridge lands. Stages opens the scene deck directly, the saved table layouts, named Stages so the word scene stays with the adventure's narrative scenes. Flipping back to a player restores the character rail and panel untouched.

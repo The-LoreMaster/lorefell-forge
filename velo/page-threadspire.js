@@ -3,9 +3,20 @@
 // Feeds the character-first view: the player's character card, the party at their
 // location, revealed nodes, quest-board goals, world issues, and map art.
 import { threadspirePublicChar } from 'backend/characters.web.js';
-import { listQuests, listDiscovered, getWorldMeta } from 'backend/fatewell.web.js';
+import { listQuests, listDiscovered, getWorldMeta, saveAsset, listAssets } from 'backend/fatewell.web.js';
 import { listSphereArt } from 'backend/sphereart.web.js';
+import { uploadRune } from 'backend/loreforge.web.js';
+import { listStages, saveStage, deleteStage } from 'backend/threadspire.web.js';
 import wixLocation from 'wix-location';
+
+// uploadRune hands back a wix:image:// descriptor, which a plain <img> cannot load.
+// Convert to an https url the embed can paint. Same conversion page-fatewell uses.
+function toHttps(u) {
+  if (typeof u !== 'string') return u;
+  const m = u.match(/^wix:image:\/\/v1\/([^/]+)/);
+  if (m) return 'https://static.wixstatic.com/media/' + m[1];
+  return u;
+}
 
 const EMBED = '#html1';
 
@@ -32,6 +43,38 @@ $w.onReady(function () {
       try { wixLocation.to('/the-fellglass?character=' + encodeURIComponent(msg.characterId || characterId)); } catch (e) {}
     } else if (msg.type === 'THREADSPIRE_SCROLLTOP') {
       try { $w(EMBED).scrollTo(); } catch (e) {}
+    } else if (msg.type && msg.reqId && msg.type.indexOf('TS_') === 0) {
+      // The table's storage bridge. The embed asks, the page calls the backend, and
+      // answers TS_RESULT carrying the same reqId. Assets ride uploadRune, saveAsset,
+      // and listAssets. Stages ride the threadspire.web.js trio.
+      const reply = (ok, data, error) => {
+        embed.postMessage({ type: 'TS_RESULT', reqId: msg.reqId, ok: ok, data: data, error: error });
+      };
+      try {
+        if (msg.type === 'TS_ASSET_UPLOAD') {
+          const ref = await uploadRune(msg.base64, msg.name || 'threadspire-upload');
+          reply(true, toHttps(ref));
+        } else if (msg.type === 'TS_ASSET_SAVE') {
+          const r = await saveAsset(msg.asset);
+          reply(!!(r && r.ok), r, r && r.error);
+        } else if (msg.type === 'TS_ASSET_LIST') {
+          const rows = await listAssets();
+          const mine = (rows || []).filter((a) => !msg.kind || a.kind === msg.kind)
+            .map((a) => Object.assign({}, a, { image: toHttps(a.image) }));
+          reply(true, mine);
+        } else if (msg.type === 'TS_STAGE_SAVE') {
+          const r = await saveStage(msg.stage);
+          reply(!!(r && r.ok), r, r && r.error);
+        } else if (msg.type === 'TS_STAGE_LIST') {
+          const rows = await listStages(msg.campaignId || campaignId);
+          reply(true, rows || []);
+        } else if (msg.type === 'TS_STAGE_DELETE') {
+          const r = await deleteStage(msg.stageId);
+          reply(!!(r && r.ok), r, r && r.error);
+        }
+      } catch (e) {
+        reply(false, null, String(e));
+      }
     }
   });
 });

@@ -191,7 +191,16 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 .lm-scenebtn{ font-family:Cinzel,serif; letter-spacing:.1em; font-size:.68rem; color:var(--gold); text-transform:uppercase; background:none; border:none; cursor:pointer; padding:2px 4px; }
 .lm-scenebtn:hover{ text-shadow:0 0 8px rgba(201,168,76,.6); }
 .lm-chev{ font-size:.6rem; }
-#sceneDeck{ position:fixed; bottom:120px; left:50%; transform:translateX(-50%); z-index:66; display:none; }
+.sd-list{ display:flex; flex-direction:column; gap:7px; margin-bottom:10px; }
+.nb-scene{ font-family:Cinzel,serif; font-size:.86rem; color:var(--gold); letter-spacing:.06em; margin:12px 0 7px; }
+.nb-beat{ border:1px solid var(--line); border-left-width:3px; border-radius:8px; padding:8px 11px; margin-bottom:7px; background:var(--navy2,#0e1526); }
+.nb-beat.read{ border-left-color:var(--ice); } .nb-beat.check{ border-left-color:var(--gold); } .nb-beat.choice{ border-left-color:#ed93b1; }
+.nb-tag{ font-family:Cinzel,serif; font-size:.56rem; letter-spacing:.12em; text-transform:uppercase; color:var(--ice); opacity:.8; display:block; }
+.nb-title{ font-family:Cinzel,serif; font-size:.88rem; color:var(--silver); display:block; margin:2px 0; }
+.nb-body{ font-size:.84rem; color:var(--ice); line-height:1.45; }
+.lb-row{ display:flex; justify-content:space-between; align-items:baseline; padding:6px 2px; border-bottom:1px solid rgba(220,232,239,.1); }
+.lb-name{ font-family:Cinzel,serif; font-size:.84rem; color:var(--silver); }
+.lb-meta{ font-size:.7rem; color:var(--muted); }
 .sd-box{ background:var(--panel); border:2px solid var(--gold); border-radius:11px; padding:10px; display:flex; flex-direction:column; gap:7px; width:min(300px,86vw); max-height:52vh; overflow-y:auto; box-shadow:0 10px 34px rgba(0,0,0,.6); }
 .sd-card{ display:flex; align-items:stretch; gap:0; border:1px solid var(--line); border-radius:8px; overflow:hidden; background:var(--navy2,#0e1526); }
 .sd-card.on{ border-color:var(--gold); box-shadow:0 0 0 1px rgba(201,168,76,.35); }
@@ -545,11 +554,11 @@ var S = {
       { id:'m-undercroft', name:'The Undercroft', url:null, w:2000, h:2000, source:'adventure' },
       { id:'m-span', name:'The Broken Span', url:null, w:3000, h:1400, source:'adventure' }
     ],
-    activeSceneId: 'sc-beacon',
-    sceneName: 'The Silent Beacon',
+    activeStageId: 'st-beacon',
+    stageName: 'The Silent Beacon',
     deck: [
-      { sceneId:'sc-beacon', name:'The Silent Beacon', mapId:'m-beacon', tokens:null, grid:null, mapW:2400, mapH:1600 },
-      { sceneId:'sc-undercroft', name:'The Undercroft', mapId:'m-undercroft', tokens:[], grid:null, mapW:2000, mapH:2000 }
+      { stageId:'st-beacon', name:'The Silent Beacon', mapId:'m-beacon', tokens:null, grid:null, mapW:2400, mapH:1600 },
+      { stageId:'st-undercroft', name:'The Undercroft', mapId:'m-undercroft', tokens:[], grid:null, mapW:2000, mapH:2000 }
     ],
     spotMode: 'auto',
     manual: {},
@@ -693,7 +702,7 @@ function send(evt){
     if (evt.type === 'token-remove'){
       S.tokens = S.tokens.filter(function(t){ return t.id !== evt.id; });
       applyRemoteState({ tokens: S.tokens });
-      if (typeof lmSaveCurrentScene === 'function' && isLM()) lmSaveCurrentScene();
+      if (typeof lmSaveCurrentStage === 'function' && isLM()) lmSaveCurrentStage();
     }
     if (evt.type === 'grid'){ applyRemoteState({ grid: evt.grid }); }
     if (evt.type === 'inset'){ applyRemoteState({ inset: evt.inset }); }
@@ -724,9 +733,53 @@ var RAIL_PLAYER = ['inventory','skills','arsenal','attributes','lore'];
 var RAIL_LM     = ['notes','library','stages','search','settings'];
 function railKeys(){ return S.role === 'lm' ? RAIL_LM : RAIL_PLAYER; }
 
+function stagesBody(){
+  var deck = stageDeck();
+  var cards = deck.map(function(b){
+    var on = b.stageId === S.scene.activeStageId;
+    var mp = null; (S.scene.maps||[]).forEach(function(m){ if(m.id===b.mapId) mp=m; });
+    var thumb = mp && mp.url
+      ? '<span class="sd-thumb" style="background-image:url('+mp.url+')"></span>'
+      : '<span class="sd-thumb sd-ph"></span>';
+    var count = on ? S.tokens.length : ((b.tokens||[]).length);
+    return '<div class="sd-card' + (on?' on':'') + '">'
+      + '<button class="sd-main" onclick="lmSwitchStage(\''+b.stageId+'\')">' + thumb
+      + '<span><span class="sd-name">' + esc(b.name) + '</span>'
+      + '<span class="sd-meta">' + (mp?esc(mp.name):'no map') + ' \u00b7 ' + count + ' tokens</span></span></button>'
+      + '<button class="sd-x" onclick="lmDeleteStage(\''+b.stageId+'\')" title="Delete stage">\u00d7</button></div>';
+  }).join('');
+  return '<div class="win-note">Stages are saved tables: a map and where every token stands. Switching keeps each as you left it.</div>'
+    + '<div class="sd-list">' + cards + '</div>'
+    + '<button class="sd-new" onclick="lmNewStage()">+ New stage</button>';
+}
+function notesBody(){
+  var h = '<div class="win-note">The adventure\u2019s notes: its scenes and their beats. FateWell edits them.</div>';
+  h += '<div class="nb-scene">' + esc(S.scene.name) + '</div>';
+  (S.scene.beats||[]).forEach(function(b){
+    var tag = b.kind === 'read' ? 'Read aloud' : (b.kind === 'check' ? 'Check' : 'Choice');
+    h += '<div class="nb-beat ' + b.kind + '"><span class="nb-tag">' + tag + '</span>'
+      + '<span class="nb-title">' + esc(b.title) + '</span>'
+      + '<div class="nb-body">' + esc(b.body) + '</div></div>';
+  });
+  return h;
+}
+function libraryBody(){
+  var h = '<div class="win-note">The library: everything the adventure brings to the table.</div>';
+  function group(title, list, line){
+    if (!list || !list.length) return '';
+    var out = '<div class="nb-scene">' + title + '</div>';
+    list.forEach(function(c){ out += '<div class="lb-row"><span class="lb-name">' + esc(c.name) + '</span><span class="lb-meta">' + line(c) + '</span></div>'; });
+    return out;
+  }
+  h += group('Foes', S.scene.foes, function(f){ return esc(f.sr||'') + ' \u00b7 ' + f.curVit + '/' + f.maxVit; });
+  h += group('Fell', S.scene.fell, function(p){ return 'Level ' + (p.level||1); });
+  h += group('NPCs', S.scene.npcs, function(){ return ''; });
+  return h;
+}
 function sectionBody(key){
-  if (key === 'notes') return '<div class="win-note">The LoreMaster\u2019s notes. Acts, sessions, and scenes of the adventure, read from FateWell when the bridge lands.</div><div class="stub"></div><div class="stub"></div><div class="stub"></div>';
-  if (key === 'library') return '<div class="win-note">The library. Foes, NPCs, and creations, read through from FateWell.</div><div class="stub"></div><div class="stub"></div>';
+  if (key === 'stages') return stagesBody();
+  if (key === 'notes') return notesBody();
+  if (key === 'library') return libraryBody();
   if (key === 'search') return '<div class="win-note">Search the FellGuide and the adventure.</div><input class="win-search" placeholder="Search" aria-label="Search">';
   if (key === 'settings') return '<div class="win-note">Table settings. Grid, log, and view controls gather here.</div><div class="stub"></div>';
   if (key === 'battle') return battleBody();
@@ -955,14 +1008,14 @@ function closeWin(){
 
 /* ---- rails ---- */
 function railClick(k){
-  if (k === 'stages'){ closeWin(); lmToggleScenes(); return; }
   (S.openSection === k) ? closeWin() : openWin(k);
 }
+function refreshStagesWin(){ if (S.openSection === 'stages') openWin('stages'); }
 function paintRails(){
   var keys = railKeys();
   var r = document.getElementById('rail'); r.innerHTML = '';
   keys.forEach(function(k){
-    var lit = (k === 'stages') ? lmScenesOpen : (S.openSection === k);
+    var lit = S.openSection === k;
     var b = document.createElement('button');
     b.className = 'plaque' + (lit ? ' lit' : '');
     b.textContent = SECTIONS[k].title;
@@ -971,7 +1024,7 @@ function paintRails(){
   });
   var m = document.getElementById('mrail'); m.innerHTML = '';
   keys.forEach(function(k){
-    var lit = (k === 'stages') ? lmScenesOpen : (S.openSection === k);
+    var lit = S.openSection === k;
     var b = document.createElement('button');
     b.className = lit ? 'lit' : '';
     b.innerHTML = '<span class="ico"></span>' + SECTIONS[k].title;
@@ -1015,9 +1068,9 @@ function paintLmStrip(){
 function lmStripHtml(){
   if (!isLM()) return '';
   var f = lmFace();
-  var sceneLabel = esc(S.scene.sceneName || S.scene.name);
+  var sceneLabel = esc(S.scene.stageName || S.scene.name);
   var head = f === 'scene'
-    ? ('<button class="lm-scenebtn" onclick="lmToggleScenes()">' + sceneLabel + ' <span class="lm-chev">\u25be</span></button>')
+    ? ('<button class="lm-scenebtn" onclick="openWin(\'stages\')">' + sceneLabel + ' <span class="lm-chev">\u25be</span></button>')
     : (f === 'resolve' ? ('Round ' + S.round + ' \u00b7 Spotlights')
     : ('Round ' + S.round + ' \u00b7 Commit'));
   var deck = lmDeck();
@@ -1465,21 +1518,21 @@ function spotCard(c, n){
    footprint, and the grid. The deck belongs to the campaign and outlives the
    session. Switching scenes snapshots the live table into the scene being left and
    restores the one being entered, so the party stands where you left them. */
-var _sceneStore = [];   /* stands in for the Scenes collection rows */
-function stubSaveScene(sc){
-  var i=-1; _sceneStore.forEach(function(x,k){ if(x.sceneId===sc.sceneId) i=k; });
-  if(i>=0) _sceneStore[i]=Object.assign({},_sceneStore[i],sc); else _sceneStore.push(Object.assign({},sc));
+var _stageStore = [];   /* stands in for the Scenes collection rows */
+function stubSaveStage(sc){
+  var i=-1; _stageStore.forEach(function(x,k){ if(x.stageId===sc.stageId) i=k; });
+  if(i>=0) _stageStore[i]=Object.assign({},_stageStore[i],sc); else _stageStore.push(Object.assign({},sc));
   return Promise.resolve({ ok:true });
 }
-function stubListScenes(){ return Promise.resolve(_sceneStore.slice()); }
-function stubDeleteScene(id){ _sceneStore=_sceneStore.filter(function(x){ return x.sceneId!==id; }); return Promise.resolve({ ok:true }); }
-var sceneBackend = { save:stubSaveScene, list:stubListScenes, remove:stubDeleteScene };
+function stubListStages(){ return Promise.resolve(_stageStore.slice()); }
+function stubDeleteStage(id){ _stageStore=_stageStore.filter(function(x){ return x.stageId!==id; }); return Promise.resolve({ ok:true }); }
+var stageBackend = { save:stubSaveStage, list:stubListStages, remove:stubDeleteStage };
 
 /* snapshot the live table into a bundle */
-function sceneSnapshot(){
+function stageSnapshot(){
   return {
-    sceneId: S.scene.activeSceneId || ('sc-' + Date.now()),
-    name: S.scene.sceneName || S.scene.name,
+    stageId: S.scene.activeStageId || ('st-' + Date.now()),
+    name: S.scene.stageName || S.scene.name,
     mapId: S.scene.background || null,
     tokens: S.tokens.map(function(t){ return { id:t.id, kind:t.kind, label:t.label, name:t.name, img:t.img, x:t.x, y:t.y, cells:t.cells, mine:t.mine, refId:t.refId }; }),
     grid: Object.assign({}, S.grid),
@@ -1487,9 +1540,9 @@ function sceneSnapshot(){
   };
 }
 /* restore a bundle onto the live table, through the seam so it syncs */
-function sceneRestore(b){
-  S.scene.activeSceneId = b.sceneId;
-  S.scene.sceneName = b.name;
+function stageRestore(b){
+  S.scene.activeStageId = b.stageId;
+  S.scene.stageName = b.name;
   S.scene.background = b.mapId;
   S.tokens = (b.tokens||[]).map(function(t){ return Object.assign({}, t); });
   S.grid = Object.assign({}, b.grid || S.grid);
@@ -1498,45 +1551,45 @@ function sceneRestore(b){
   paintMapArt();
 }
 /* the deck the switcher shows, kept in shared state so it survives and syncs */
-function sceneDeck(){ return S.scene.deck || []; }
-function lmSaveCurrentScene(){
-  var b = sceneSnapshot();
-  S.scene.activeSceneId = b.sceneId;
-  var deck = sceneDeck();
-  var i=-1; deck.forEach(function(x,k){ if(x.sceneId===b.sceneId) i=k; });
+function stageDeck(){ return S.scene.deck || []; }
+function lmSaveCurrentStage(){
+  var b = stageSnapshot();
+  S.scene.activeStageId = b.stageId;
+  var deck = stageDeck();
+  var i=-1; deck.forEach(function(x,k){ if(x.stageId===b.stageId) i=k; });
   if(i>=0) deck[i]=b; else deck.push(b);
   S.scene.deck = deck;
-  sceneBackend.save(b);
+  stageBackend.save(b);
   applyRemoteState({ scene:S.scene });
 }
-function lmSwitchScene(id){
-  if (S.scene.activeSceneId === id) { lmCloseScenes(); return; }
-  lmSaveCurrentScene();                       /* the leaving scene keeps its layout */
-  var b=null; sceneDeck().forEach(function(x){ if(x.sceneId===id) b=x; });
-  if (b){ sceneRestore(b); pushLog({ kind:'sys', html:'Scene set to <b>' + esc(b.name) + '</b>.' }); applyRemoteState({ log:S.log }); }
-  lmCloseScenes();
+function lmSwitchStage(id){
+  if (S.scene.activeStageId === id) { return; }
+  lmSaveCurrentStage();                       /* the leaving scene keeps its layout */
+  var b=null; stageDeck().forEach(function(x){ if(x.stageId===id) b=x; });
+  if (b){ stageRestore(b); pushLog({ kind:'sys', html:'Stage set to <b>' + esc(b.name) + '</b>.' }); applyRemoteState({ log:S.log }); }
+  refreshStagesWin();
 }
-function lmNewScene(){
-  lmSaveCurrentScene();
-  var id='sc-'+Date.now();
-  var b={ sceneId:id, name:'New scene', mapId:null, tokens:[], grid:Object.assign({},S.grid), mapW:2400, mapH:1600 };
-  S.scene.deck = sceneDeck().concat([b]);
-  sceneBackend.save(b);
-  sceneRestore(b);
+function lmNewStage(){
+  lmSaveCurrentStage();
+  var id='st-'+Date.now();
+  var b={ stageId:id, name:'New scene', mapId:null, tokens:[], grid:Object.assign({},S.grid), mapW:2400, mapH:1600 };
+  S.scene.deck = stageDeck().concat([b]);
+  stageBackend.save(b);
+  stageRestore(b);
   applyRemoteState({ scene:S.scene });
-  paintSceneDeck();
+  refreshStagesWin();
 }
-function lmDeleteScene(id){
-  if (sceneDeck().length<=1){ pushLog({ kind:'sys', html:'The last scene stays.' }); applyRemoteState({ log:S.log }); return; }
-  S.scene.deck = sceneDeck().filter(function(x){ return x.sceneId!==id; });
-  sceneBackend.remove(id);
-  if (S.scene.activeSceneId===id && S.scene.deck.length) sceneRestore(S.scene.deck[0]);
+function lmDeleteStage(id){
+  if (stageDeck().length<=1){ pushLog({ kind:'sys', html:'The last scene stays.' }); applyRemoteState({ log:S.log }); return; }
+  S.scene.deck = stageDeck().filter(function(x){ return x.stageId!==id; });
+  stageBackend.remove(id);
+  if (S.scene.activeStageId===id && S.scene.deck.length) stageRestore(S.scene.deck[0]);
   applyRemoteState({ scene:S.scene });
-  paintSceneDeck();
+  refreshStagesWin();
 }
-function lmRenameScene(id, name){
-  sceneDeck().forEach(function(x){ if(x.sceneId===id){ x.name=name; sceneBackend.save(x); } });
-  if (S.scene.activeSceneId===id) S.scene.sceneName=name;
+function lmRenameStage(id, name){
+  stageDeck().forEach(function(x){ if(x.stageId===id){ x.name=name; stageBackend.save(x); } });
+  if (S.scene.activeStageId===id) S.scene.stageName=name;
   applyRemoteState({ scene:S.scene });
 }
 
@@ -1562,6 +1615,76 @@ function stubListAssets(kind){
 }
 /* the three the app calls. Swappable to the live backend in one edit each. */
 var assetBackend = { upload:stubUploadImage, save:stubSaveAsset, list:stubListAssets };
+/* ---- the live bridge ----
+   Embedded in the Wix page, both seams route through postMessage: the embed asks,
+   the page calls the backend (uploadRune, saveAsset, listAssets, saveStage,
+   listStages, deleteStage) and answers TS_RESULT with the same reqId. Standalone,
+   the stubs above keep everything working offline. */
+var _tsReq = 0, _tsPending = {};
+function tsEmbedded(){ try { return window.parent && window.parent !== window; } catch(e){ return false; } }
+function tsAsk(type, payload){
+  return new Promise(function(res, rej){
+    var id = 'r' + (++_tsReq);
+    _tsPending[id] = { res:res, rej:rej };
+    window.parent.postMessage(Object.assign({ type:type, reqId:id }, payload || {}), '*');
+    setTimeout(function(){ if(_tsPending[id]){ _tsPending[id].rej(new Error('bridge timeout')); delete _tsPending[id]; } }, 15000);
+  });
+}
+var _prevOnMessage = window.onmessage;
+window.onmessage = function(ev){
+  if (_prevOnMessage) try { _prevOnMessage(ev); } catch(e){}
+  var d = ev && ev.data;
+  if (!d || d.type !== 'TS_RESULT' || !d.reqId || !_tsPending[d.reqId]) return;
+  var p = _tsPending[d.reqId]; delete _tsPending[d.reqId];
+  if (d.ok) p.res(d.data); else p.rej(new Error(d.error || 'bridge error'));
+};
+function fileToBase64(file){
+  return new Promise(function(res, rej){
+    var r = new FileReader();
+    r.onload = function(){ res(String(r.result).split(',')[1] || ''); };
+    r.onerror = function(){ rej(new Error('read failed')); };
+    r.readAsDataURL(file);
+  });
+}
+if (tsEmbedded()){
+  assetBackend = {
+    upload: function(fileOrUrl, name){
+      if (typeof fileOrUrl === 'string') return Promise.resolve(fileOrUrl);
+      return fileToBase64(fileOrUrl).then(function(b64){ return tsAsk('TS_ASSET_UPLOAD', { base64:b64, name:name }); });
+    },
+    save: function(asset){ return tsAsk('TS_ASSET_SAVE', { asset:asset }); },
+    list: function(kind){ return tsAsk('TS_ASSET_LIST', { kind:kind }); }
+  };
+  stageBackend = {
+    save: function(stage){
+      var row = Object.assign({}, stage, { tokens: JSON.stringify(stage.tokens||[]), grid: JSON.stringify(stage.grid||{}) });
+      return tsAsk('TS_STAGE_SAVE', { stage:row });
+    },
+    list: function(){ return tsAsk('TS_STAGE_LIST', {}).then(function(rows){
+      return (rows||[]).map(function(r){
+        var t=[], g={};
+        try { t = JSON.parse(r.tokens||'[]'); } catch(e){ t=[]; }
+        try { g = JSON.parse(r.grid||'{}'); } catch(e){ g={}; }
+        return { stageId:r.stageId, name:r.name, mapId:r.mapId, tokens:t, grid:g, mapW:r.mapW, mapH:r.mapH };
+      });
+    }); },
+    remove: function(id){ return tsAsk('TS_STAGE_DELETE', { stageId:id }); }
+  };
+}
+/* on an embedded load, pull the account's stages into the deck so last session's
+   tables come back */
+function loadAccountStages(){
+  if (!tsEmbedded()) return;
+  stageBackend.list().then(function(rows){
+    if (!rows || !rows.length) return;
+    var deck = stageDeck();
+    rows.forEach(function(b){
+      if (!deck.some(function(x){ return x.stageId === b.stageId; })) deck.push(b);
+    });
+    S.scene.deck = deck;
+    applyRemoteState({ scene:S.scene });
+  });
+}
 
 var lmTokensOpen = false;
 /* the palette sources, all real records handed over through the seam:
@@ -1656,10 +1779,10 @@ function lmTokenDrop(e){
   var file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
   if (file) lmTokenFilePicked({ files:[file], value:'' });
 }
-var lmScenesOpen = false;
 /* the signed-in member's name. The live page reads this from the Wix member, the
    prototype stubs it. */
 S.memberName = S.memberName || 'Nate';
+setTimeout(function(){ try { loadAccountStages(); } catch(e){} }, 0);
 function paintHud(){
   var name = document.getElementById('hudName');
   var sub = document.getElementById('hudSub');
@@ -1684,37 +1807,12 @@ function paintHud(){
     }
   }
 }
-function lmToggleScenes(){ lmScenesOpen = !lmScenesOpen; paintSceneDeck(); }
-function lmCloseScenes(){ lmScenesOpen = false; paintSceneDeck(); }
-function paintSceneDeck(){
-  var el = document.getElementById('sceneDeck');
-  if (!el){ el = document.createElement('div'); el.id='sceneDeck'; document.body.appendChild(el); }
-  if (!lmScenesOpen || !isLM()){ el.style.display='none'; return; }
-  el.style.display='block';
-  /* make sure the live table is captured in the deck before painting counts */
-  var deck = sceneDeck();
-  var cards = deck.map(function(b){
-    var on = b.sceneId === S.scene.activeSceneId;
-    var mp = null; (S.scene.maps||[]).forEach(function(m){ if(m.id===b.mapId) mp=m; });
-    var thumb = mp && mp.url
-      ? '<span class="sd-thumb" style="background-image:url('+mp.url+')"></span>'
-      : '<span class="sd-thumb sd-ph"></span>';
-    var count = on ? S.tokens.length : ((b.tokens||[]).length);
-    return '<div class="sd-card' + (on?' on':'') + '">'
-      + '<button class="sd-main" onclick="lmSwitchScene(\''+b.sceneId+'\')">' + thumb
-      + '<span class="sd-name">' + esc(b.name) + '</span>'
-      + '<span class="sd-meta">' + (mp?esc(mp.name):'no map') + ' \u00b7 ' + count + ' tokens</span></button>'
-      + '<button class="sd-x" onclick="lmDeleteScene(\''+b.sceneId+'\')" title="Delete scene">\u00d7</button></div>';
-  }).join('');
-  el.innerHTML = '<div class="sd-box">' + cards
-    + '<button class="sd-new" onclick="lmNewScene()">+ New scene</button></div>';
-}
 var lmMapsOpen = false;
 function lmOpenMaps(){ loadAccountAssets(); lmMapsOpen = true; paintMapPicker(); }
 function lmCloseMaps(){ lmMapsOpen = false; paintMapPicker(); }
 function lmSetMap(id){
   var m = null; S.scene.maps.forEach(function(x){ if(x.id===id) m=x; });
-  if (m){ S.scene.background = id; S.map = { w:m.w, h:m.h }; applyRemoteState({ scene:S.scene, map:S.map }); paintMapArt(); lmSaveCurrentScene(); }
+  if (m){ S.scene.background = id; S.map = { w:m.w, h:m.h }; applyRemoteState({ scene:S.scene, map:S.map }); paintMapArt(); lmSaveCurrentStage(); }
   lmCloseMaps();
 }
 /* pull the account's stored maps into the scene list once, so they show in the
@@ -2156,7 +2254,7 @@ function render(){
   }
   document.getElementById('vitVal').textContent = S.character.vit;
   document.getElementById('vitValM').textContent = S.character.vit;
-  paintRails(); drawGrid(); renderTokens(); renderLog(); paintLmbar(); paintTokMenu(); paintLmStrip(); paintMapPicker(); paintMapArt(); paintTokenPalette(); paintSceneDeck(); paintHud();
+  paintRails(); drawGrid(); renderTokens(); renderLog(); paintLmbar(); paintTokMenu(); paintLmStrip(); paintMapPicker(); paintMapArt(); paintTokenPalette(); paintHud();
 }
 window.addEventListener('resize', function(){ clampCam(); applyCam(); });
 (function buildFellmarks(){
