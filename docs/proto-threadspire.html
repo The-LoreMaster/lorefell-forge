@@ -33,9 +33,14 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 #tokmenu .tmsz{ display:flex; gap:5px; }
 #tokmenu .tmsz button{ flex:1; border:1px solid var(--line); border-radius:5px; font-family:Cinzel,serif; font-size:.68rem; color:var(--ice); padding:6px 0; }
 #tokmenu .tmsz button.on{ background:#1e3f8f; border-color:#9fc3ff; color:#fff; }
+#tokmenu .tm-del{ width:100%; margin-top:8px; border:1px solid rgba(201,106,90,.6); border-radius:5px; color:#e0b0a4; font-family:Cinzel,serif; font-size:.62rem; letter-spacing:.08em; text-transform:uppercase; padding:6px 0; }
+#tokmenu .tm-del:active{ background:rgba(201,106,90,.25); }
 .token.lm-drag{ cursor:grab; }
 .token.p{ background:#37548d; } .token.foe{ background:var(--danger); } .token.npc{ background:#5f5e5a; } .token.asset{ background:#3d6b58; }
-.token.hasimg{ background-size:cover; background-position:center; color:transparent; }
+.token.hasimg{ background-size:cover; background-position:center; }
+.token .tok-face{ display:flex; align-items:center; justify-content:center; width:100%; height:100%; }
+.token.hasimg .tok-face{ visibility:hidden; }
+.token .tok-label{ position:absolute; top:100%; left:50%; transform:translateX(-50%); margin-top:3px; white-space:nowrap; font-family:Cinzel,serif; font-size:.62rem; letter-spacing:.04em; color:var(--silver); background:rgba(10,14,26,.82); border:1px solid rgba(220,232,239,.2); border-radius:4px; padding:1px 6px; pointer-events:none; }
 
 .frame{ position:fixed; inset:0; pointer-events:none; border:14px solid transparent; border-image:linear-gradient(160deg,#171208,#57431a,#171208) 1; }
 
@@ -178,6 +183,22 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 .lm-nav:active{ background:var(--gold); color:var(--navy); }
 .lm-nav.l{ margin-right:2px; } .lm-nav.r{ margin-left:2px; }
 .lm-nav-sp{ width:30px; flex:none; }
+.lm-scenebtn{ font-family:Cinzel,serif; letter-spacing:.1em; font-size:.68rem; color:var(--gold); text-transform:uppercase; background:none; border:none; cursor:pointer; padding:2px 4px; }
+.lm-scenebtn:hover{ text-shadow:0 0 8px rgba(201,168,76,.6); }
+.lm-chev{ font-size:.6rem; }
+#sceneDeck{ position:fixed; bottom:120px; left:50%; transform:translateX(-50%); z-index:66; display:none; }
+.sd-box{ background:var(--panel); border:2px solid var(--gold); border-radius:11px; padding:10px; display:flex; flex-direction:column; gap:7px; width:min(300px,86vw); max-height:52vh; overflow-y:auto; box-shadow:0 10px 34px rgba(0,0,0,.6); }
+.sd-card{ display:flex; align-items:stretch; gap:0; border:1px solid var(--line); border-radius:8px; overflow:hidden; background:var(--navy2,#0e1526); }
+.sd-card.on{ border-color:var(--gold); box-shadow:0 0 0 1px rgba(201,168,76,.35); }
+.sd-main{ flex:1; display:flex; align-items:center; gap:9px; padding:7px 9px; cursor:pointer; text-align:left; min-width:0; }
+.sd-thumb{ width:44px; height:32px; border-radius:5px; flex:none; background:linear-gradient(135deg,#4a5a6d,#2b3646); background-size:cover; background-position:center; }
+.sd-thumb.sd-ph{ background:linear-gradient(135deg,#38506e,#1c2b45); }
+.sd-name{ font-family:Cinzel,serif; font-size:.74rem; color:var(--silver); display:block; }
+.sd-meta{ font-size:.62rem; color:var(--muted); display:block; }
+.sd-main > span:nth-child(2){ flex:1; min-width:0; }
+.sd-x{ width:28px; flex:none; color:var(--muted); font-size:.95rem; cursor:pointer; border-left:1px solid var(--line); }
+.sd-x:hover{ color:#e0b0a4; }
+.sd-new{ border:1px dashed var(--gold); border-radius:8px; color:var(--gold); font-family:Cinzel,serif; font-size:.66rem; letter-spacing:.08em; text-transform:uppercase; padding:8px 0; cursor:pointer; }
 .lm-dots{ display:flex; gap:6px; margin-top:9px; justify-content:center; }
 .lm-dot{ width:7px; height:7px; border-radius:50%; background:rgba(220,232,239,.3); cursor:pointer; }
 .lm-dot.on{ background:var(--gold); }
@@ -444,8 +465,9 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
   <div id="dieField"></div>
   <div id="tokmenu">
     <div class="tmh">TOKEN</div>
-    <input id="tmLabel" maxlength="4" aria-label="Token label">
+    <input id="tmLabel" maxlength="14" aria-label="Token label">
     <div class="tmsz" id="tmSize"></div>
+    <button id="tmDelete" class="tm-del">Remove from the map</button>
   </div>
   <div id="lmbar" class="hidden">
     <div class="lmh">MAP</div>
@@ -517,6 +539,12 @@ var S = {
       { id:'m-beacon', name:'The Silent Beacon', url:null, w:2400, h:1600, source:'adventure' },
       { id:'m-undercroft', name:'The Undercroft', url:null, w:2000, h:2000, source:'adventure' },
       { id:'m-span', name:'The Broken Span', url:null, w:3000, h:1400, source:'adventure' }
+    ],
+    activeSceneId: 'sc-beacon',
+    sceneName: 'The Silent Beacon',
+    deck: [
+      { sceneId:'sc-beacon', name:'The Silent Beacon', mapId:'m-beacon', tokens:null, grid:null, mapW:2400, mapH:1600 },
+      { sceneId:'sc-undercroft', name:'The Undercroft', mapId:'m-undercroft', tokens:[], grid:null, mapW:2000, mapH:2000 }
     ],
     spotMode: 'auto',
     manual: {},
@@ -656,6 +684,11 @@ function send(evt){
     if (evt.type === 'token-label'){
       S.tokens.forEach(function(t){ if (t.id === evt.id){ t.label = evt.label; } });
       applyRemoteState({ tokens: S.tokens });
+    }
+    if (evt.type === 'token-remove'){
+      S.tokens = S.tokens.filter(function(t){ return t.id !== evt.id; });
+      applyRemoteState({ tokens: S.tokens });
+      if (typeof lmSaveCurrentScene === 'function' && isLM()) lmSaveCurrentScene();
     }
     if (evt.type === 'grid'){ applyRemoteState({ grid: evt.grid }); }
     if (evt.type === 'inset'){ applyRemoteState({ inset: evt.inset }); }
@@ -960,7 +993,9 @@ function paintLmStrip(){
 function lmStripHtml(){
   if (!isLM()) return '';
   var f = lmFace();
-  var head = f === 'scene' ? ('Scene \u00b7 ' + esc(S.scene.name))
+  var sceneLabel = esc(S.scene.sceneName || S.scene.name);
+  var head = f === 'scene'
+    ? ('<button class="lm-scenebtn" onclick="lmToggleScenes()">' + sceneLabel + ' <span class="lm-chev">\u25be</span></button>')
     : (f === 'resolve' ? ('Round ' + S.round + ' \u00b7 Spotlights')
     : ('Round ' + S.round + ' \u00b7 Commit'));
   var deck = lmDeck();
@@ -1403,6 +1438,86 @@ function spotCard(c, n){
 }
 
 /* ---- LM intent, all through send() or local scene edits echoed as remote truth ---- */
+/* ---- the scene deck ----
+   A scene is a saved bundle of the table: the map, every token's position and
+   footprint, and the grid. The deck belongs to the campaign and outlives the
+   session. Switching scenes snapshots the live table into the scene being left and
+   restores the one being entered, so the party stands where you left them. */
+var _sceneStore = [];   /* stands in for the Scenes collection rows */
+function stubSaveScene(sc){
+  var i=-1; _sceneStore.forEach(function(x,k){ if(x.sceneId===sc.sceneId) i=k; });
+  if(i>=0) _sceneStore[i]=Object.assign({},_sceneStore[i],sc); else _sceneStore.push(Object.assign({},sc));
+  return Promise.resolve({ ok:true });
+}
+function stubListScenes(){ return Promise.resolve(_sceneStore.slice()); }
+function stubDeleteScene(id){ _sceneStore=_sceneStore.filter(function(x){ return x.sceneId!==id; }); return Promise.resolve({ ok:true }); }
+var sceneBackend = { save:stubSaveScene, list:stubListScenes, remove:stubDeleteScene };
+
+/* snapshot the live table into a bundle */
+function sceneSnapshot(){
+  return {
+    sceneId: S.scene.activeSceneId || ('sc-' + Date.now()),
+    name: S.scene.sceneName || S.scene.name,
+    mapId: S.scene.background || null,
+    tokens: S.tokens.map(function(t){ return { id:t.id, kind:t.kind, label:t.label, name:t.name, img:t.img, x:t.x, y:t.y, cells:t.cells, mine:t.mine, refId:t.refId }; }),
+    grid: Object.assign({}, S.grid),
+    mapW: S.map.w, mapH: S.map.h
+  };
+}
+/* restore a bundle onto the live table, through the seam so it syncs */
+function sceneRestore(b){
+  S.scene.activeSceneId = b.sceneId;
+  S.scene.sceneName = b.name;
+  S.scene.background = b.mapId;
+  S.tokens = (b.tokens||[]).map(function(t){ return Object.assign({}, t); });
+  S.grid = Object.assign({}, b.grid || S.grid);
+  S.map = { w: b.mapW || 2400, h: b.mapH || 1600 };
+  applyRemoteState({ scene:S.scene, tokens:S.tokens, grid:S.grid, map:S.map });
+  paintMapArt();
+}
+/* the deck the switcher shows, kept in shared state so it survives and syncs */
+function sceneDeck(){ return S.scene.deck || []; }
+function lmSaveCurrentScene(){
+  var b = sceneSnapshot();
+  S.scene.activeSceneId = b.sceneId;
+  var deck = sceneDeck();
+  var i=-1; deck.forEach(function(x,k){ if(x.sceneId===b.sceneId) i=k; });
+  if(i>=0) deck[i]=b; else deck.push(b);
+  S.scene.deck = deck;
+  sceneBackend.save(b);
+  applyRemoteState({ scene:S.scene });
+}
+function lmSwitchScene(id){
+  if (S.scene.activeSceneId === id) { lmCloseScenes(); return; }
+  lmSaveCurrentScene();                       /* the leaving scene keeps its layout */
+  var b=null; sceneDeck().forEach(function(x){ if(x.sceneId===id) b=x; });
+  if (b){ sceneRestore(b); pushLog({ kind:'sys', html:'Scene set to <b>' + esc(b.name) + '</b>.' }); applyRemoteState({ log:S.log }); }
+  lmCloseScenes();
+}
+function lmNewScene(){
+  lmSaveCurrentScene();
+  var id='sc-'+Date.now();
+  var b={ sceneId:id, name:'New scene', mapId:null, tokens:[], grid:Object.assign({},S.grid), mapW:2400, mapH:1600 };
+  S.scene.deck = sceneDeck().concat([b]);
+  sceneBackend.save(b);
+  sceneRestore(b);
+  applyRemoteState({ scene:S.scene });
+  paintSceneDeck();
+}
+function lmDeleteScene(id){
+  if (sceneDeck().length<=1){ pushLog({ kind:'sys', html:'The last scene stays.' }); applyRemoteState({ log:S.log }); return; }
+  S.scene.deck = sceneDeck().filter(function(x){ return x.sceneId!==id; });
+  sceneBackend.remove(id);
+  if (S.scene.activeSceneId===id && S.scene.deck.length) sceneRestore(S.scene.deck[0]);
+  applyRemoteState({ scene:S.scene });
+  paintSceneDeck();
+}
+function lmRenameScene(id, name){
+  sceneDeck().forEach(function(x){ if(x.sceneId===id){ x.name=name; sceneBackend.save(x); } });
+  if (S.scene.activeSceneId===id) S.scene.sceneName=name;
+  applyRemoteState({ scene:S.scene });
+}
+
 /* ---- the asset backend seam ----
    ThreadSpire saves and lists account assets through these three calls only. The
    stubs mimic the real Wix contract: uploadRune returns an image descriptor, saveAsset
@@ -1519,12 +1634,38 @@ function lmTokenDrop(e){
   var file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
   if (file) lmTokenFilePicked({ files:[file], value:'' });
 }
+var lmScenesOpen = false;
+function lmToggleScenes(){ lmScenesOpen = !lmScenesOpen; paintSceneDeck(); }
+function lmCloseScenes(){ lmScenesOpen = false; paintSceneDeck(); }
+function paintSceneDeck(){
+  var el = document.getElementById('sceneDeck');
+  if (!el){ el = document.createElement('div'); el.id='sceneDeck'; document.body.appendChild(el); }
+  if (!lmScenesOpen || !isLM()){ el.style.display='none'; return; }
+  el.style.display='block';
+  /* make sure the live table is captured in the deck before painting counts */
+  var deck = sceneDeck();
+  var cards = deck.map(function(b){
+    var on = b.sceneId === S.scene.activeSceneId;
+    var mp = null; (S.scene.maps||[]).forEach(function(m){ if(m.id===b.mapId) mp=m; });
+    var thumb = mp && mp.url
+      ? '<span class="sd-thumb" style="background-image:url('+mp.url+')"></span>'
+      : '<span class="sd-thumb sd-ph"></span>';
+    var count = on ? S.tokens.length : ((b.tokens||[]).length);
+    return '<div class="sd-card' + (on?' on':'') + '">'
+      + '<button class="sd-main" onclick="lmSwitchScene(\''+b.sceneId+'\')">' + thumb
+      + '<span class="sd-name">' + esc(b.name) + '</span>'
+      + '<span class="sd-meta">' + (mp?esc(mp.name):'no map') + ' \u00b7 ' + count + ' tokens</span></button>'
+      + '<button class="sd-x" onclick="lmDeleteScene(\''+b.sceneId+'\')" title="Delete scene">\u00d7</button></div>';
+  }).join('');
+  el.innerHTML = '<div class="sd-box">' + cards
+    + '<button class="sd-new" onclick="lmNewScene()">+ New scene</button></div>';
+}
 var lmMapsOpen = false;
 function lmOpenMaps(){ loadAccountAssets(); lmMapsOpen = true; paintMapPicker(); }
 function lmCloseMaps(){ lmMapsOpen = false; paintMapPicker(); }
 function lmSetMap(id){
   var m = null; S.scene.maps.forEach(function(x){ if(x.id===id) m=x; });
-  if (m){ S.scene.background = id; S.map = { w:m.w, h:m.h }; applyRemoteState({ scene:S.scene, map:S.map }); paintMapArt(); }
+  if (m){ S.scene.background = id; S.map = { w:m.w, h:m.h }; applyRemoteState({ scene:S.scene, map:S.map }); paintMapArt(); lmSaveCurrentScene(); }
   lmCloseMaps();
 }
 /* pull the account's stored maps into the scene list once, so they show in the
@@ -1699,8 +1840,10 @@ function renderTokens(){
     var draggable = t.mine || S.role === 'lm';
     el.className = 'token ' + t.kind + (t.mine ? ' mine' : '') + (draggable && !t.mine ? ' lm-drag' : '')
       + (sel === t.id ? ' sel' : '') + (t.img ? ' hasimg' : '');
-    if (t.img){ el.style.backgroundImage = 'url(' + t.img + ')'; el.textContent = ''; }
-    else { el.style.backgroundImage = ''; el.textContent = t.label; }
+    var face = t.img ? '' : esc(initials(t.name || t.label || '?'));
+    if (t.img) el.style.backgroundImage = 'url(' + t.img + ')';
+    el.innerHTML = '<span class="tok-face">' + face + '</span>'
+      + (t.label ? '<span class="tok-label">' + esc(t.label) + '</span>' : '');
     place(el, t);
     if (draggable) wireDrag(el, t);
     layer.appendChild(el);
@@ -1789,6 +1932,11 @@ function paintTokMenu(){
   placeTokMenu();
 }
 (function wireTokMenu(){
+  document.getElementById('tmDelete').addEventListener('click', function(){
+    if (!sel) return;
+    send({ type:'token-remove', id:sel });
+    sel = null; paintTokMenu();
+  });
   document.getElementById('tmLabel').addEventListener('input', function(){
     if (sel) send({ type:'token-label', id:sel, label:this.value });
   });
@@ -1959,7 +2107,7 @@ function render(){
   }
   document.getElementById('vitVal').textContent = S.character.vit;
   document.getElementById('vitValM').textContent = S.character.vit;
-  paintRails(); drawGrid(); renderTokens(); renderLog(); paintLmbar(); paintTokMenu(); paintLmStrip(); paintMapPicker(); paintMapArt(); paintTokenPalette();
+  paintRails(); drawGrid(); renderTokens(); renderLog(); paintLmbar(); paintTokMenu(); paintLmStrip(); paintMapPicker(); paintMapArt(); paintTokenPalette(); paintSceneDeck();
 }
 window.addEventListener('resize', function(){ clampCam(); applyCam(); });
 (function buildFellmarks(){
