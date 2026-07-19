@@ -65,3 +65,9 @@ Nothing else in phase B touches live infrastructure. The prototype wiring, the p
 - An uploaded token does the same in the palette.
 - A map or token from the adventure or a record still works unchanged.
 - No existing foe or character asset is disturbed by the schema edit.
+
+## Build notes, as executed
+
+- Schema: `kind`, `w`, `h` added to `schemas/Assets.json`, additive only, backup saved to `.schema-backups/` first. This is the only push that fires `apply.yml`.
+- Backend: no change needed. `saveAsset` uses `Object.assign({}, asset, ...)`, so it passes the new fields straight to the insert once the columns exist. `listAssets` returns the account's rows and ThreadSpire filters by `kind` on the client, which the seam already does. So the schema edit alone unlocks storage.
+- Frontend swap: the prototype's `assetBackend` object is the single swap point. In the live page wiring, its three members map to `uploadRune` (upload), `saveAsset` (save), and `listAssets` then filter (list). The prototype ships with the local stub so the flow is testable without Wix; the page file provides the real three when embedded.
