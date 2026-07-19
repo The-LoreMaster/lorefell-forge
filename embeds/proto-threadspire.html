@@ -172,8 +172,9 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 .lm-slot.center{ z-index:3; transform:scale(1); opacity:1; }
 .lm-slot.left{ z-index:1; transform:scale(.78) translateX(16%); opacity:.35; }
 .lm-slot.right{ z-index:1; transform:scale(.78) translateX(-16%); opacity:.35; }
-.lm-arrow{ position:absolute; top:50%; transform:translateY(-50%); z-index:6; width:34px; height:34px; border-radius:50%; background:rgba(10,14,26,.9); border:1px solid var(--gold); color:var(--gold); font-size:1.3rem; line-height:1; cursor:pointer; }
-.lm-arrow.l{ left:-6px; } .lm-arrow.r{ right:-6px; }
+.lm-arrow{ position:fixed; bottom:20px; z-index:56; width:38px; height:38px; border-radius:50%; background:rgba(10,14,26,.94); border:1px solid var(--gold); color:var(--gold); font-size:1.35rem; line-height:1; cursor:pointer; box-shadow:0 2px 12px rgba(0,0,0,.55); display:flex; align-items:center; justify-content:center; }
+.lm-arrow.l{ left:calc(50% - 430px); } .lm-arrow.r{ right:calc(50% - 430px); }
+@media (max-width:920px){ .lm-arrow.l{ left:8px; } .lm-arrow.r{ right:8px; } }
 .lm-dots{ display:flex; gap:6px; margin-top:9px; justify-content:center; }
 .lm-dot{ width:7px; height:7px; border-radius:50%; background:rgba(220,232,239,.3); cursor:pointer; }
 .lm-dot.on{ background:var(--gold); }
@@ -208,6 +209,23 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 .lm-pill-arrow{ margin-left:6px; }
 .lm-minbtn{ background:none; border:1px solid var(--line); border-radius:5px; color:var(--ice); width:22px; height:22px; line-height:1; cursor:pointer; font-size:.9rem; padding:0; }
 .lm-minbtn:active{ background:var(--navy3); }
+/* the map picker overlay */
+#mapPicker{ position:fixed; inset:0; z-index:70; display:none; align-items:center; justify-content:center; background:rgba(4,7,14,.72); }
+.mp-box{ width:min(680px,90vw); max-height:80vh; overflow-y:auto; background:var(--panel); border:2px solid var(--gold); border-radius:12px; padding:16px 18px; }
+.mp-head{ display:flex; align-items:center; justify-content:space-between; font-family:Cinzel,serif; letter-spacing:.1em; font-size:.8rem; color:var(--gold); text-transform:uppercase; margin-bottom:14px; }
+.mp-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; }
+.mp-card{ background:var(--navy2,#0e1526); border:1px solid var(--line); border-radius:9px; padding:8px; cursor:pointer; text-align:left; transition:border-color .15s; }
+.mp-card:hover{ border-color:var(--ice); }
+.mp-card.on{ border-color:var(--gold); box-shadow:0 0 0 1px rgba(201,168,76,.4); }
+.mp-thumb{ height:82px; border-radius:6px; margin-bottom:7px; background:linear-gradient(135deg,#4a5a6d,#2b3646); position:relative; overflow:hidden; }
+.mp-thumb.mp-adventure{ background:linear-gradient(135deg,#5a6a7b,#38506e); }
+.mp-thumb.mp-account{ background:linear-gradient(135deg,#3d6b58,#2a4a3d); }
+.mp-thumb.mp-up{ background:var(--navy3,#0c1424); border:1px dashed var(--gold); display:flex; align-items:center; justify-content:center; }
+.mp-thumb.mp-up span{ color:var(--gold); font-size:1.6rem; }
+.mp-name{ font-family:Cinzel,serif; font-size:.76rem; color:var(--silver); }
+.mp-meta{ font-size:.66rem; color:var(--muted); margin-top:2px; }
+.mp-upload{ border-style:dashed; }
+.mp-upload.drag{ border-color:var(--gold); background:rgba(201,168,76,.1); }
 .lm-slot.left .lmcard, .lm-slot.right .lmcard{ overflow:hidden; }
 /* compact foe card, the FateWell strip look */
 .lmc-cname{ font-family:Cinzel,serif; font-size:.74rem; color:var(--silver); margin-bottom:7px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -253,6 +271,10 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 .lmc-die.fell{ background:var(--gold); color:var(--navy); box-shadow:0 0 10px rgba(201,168,76,.7); }
 .lmc-die.strike{ background:var(--danger,#c96a5a); color:#fff; border-color:var(--danger,#c96a5a); }
 .lmc-dieout{ font-size:.76rem; color:var(--ice); }
+.lmc-eva{ font-size:.76rem; color:var(--ice); margin-top:5px; }
+.lmc-wait{ color:var(--muted); font-style:italic; }
+.lmc-hit{ color:var(--danger,#c96a5a); }
+.lmc-miss{ color:var(--ice); }
 /* manual grouping dot */
 .lmc-mdot{ position:absolute; top:6px; right:6px; width:20px; height:20px; border:none; background:none; color:var(--muted); font-size:.9rem; cursor:pointer; padding:0; }
 .lmc-mdot.on{ color:var(--gold); text-shadow:0 0 8px rgba(201,168,76,.8); }
@@ -349,6 +371,7 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
   <div id="map">
     <div id="mapLayer">
       <div id="mapArt"></div>
+  <input type="file" id="mapFileInput" accept="image/*" style="display:none" onchange="lmMapFilePicked(this)">
       <svg id="grid" xmlns="http://www.w3.org/2000/svg"></svg>
     </div>
   </div>
@@ -463,6 +486,16 @@ var S = {
   scene: {
     name: 'The Silent Beacon',
     combatPhase: null,
+    /* maps the adventure preloaded, source C. Each is an image the LM can set as
+       the scene background. w and h are the nominal map box the art defines, so a
+       token's map-pixel position stays true across scenes. url null here means the
+       prototype paints its placeholder; a real adventure hands over real URLs. */
+    background: null,          /* the active map id, or null for the placeholder */
+    maps: [
+      { id:'m-beacon', name:'The Silent Beacon', url:null, w:2400, h:1600, source:'adventure' },
+      { id:'m-undercroft', name:'The Undercroft', url:null, w:2000, h:2000, source:'adventure' },
+      { id:'m-span', name:'The Broken Span', url:null, w:3000, h:1400, source:'adventure' }
+    ],
     spotMode: 'auto',
     manual: {},
     spotOrder: [],
@@ -932,26 +965,50 @@ function lmStripHtml(){
   }
   return '<div class="lm-topbar"><span class="lm-head">' + head + '</span>' + lmPhaseControls()
     + '<button class="lm-minbtn" onclick="lmMinimize()" title="Minimize">\u2013</button></div>'
-    + '<div class="lm-stage">'
-    + (deck.length > 1 ? '<button class="lm-arrow l" onclick="lmStep(-1)" aria-label="Previous">\u2039</button>' : '')
-    + stage
-    + (deck.length > 1 ? '<button class="lm-arrow r" onclick="lmStep(1)" aria-label="Next">\u203a</button>' : '')
-    + '</div>' + dots;
+    + '<div class="lm-stage">' + stage + '</div>' + dots
+    + (deck.length > 1 ? '<button class="lm-arrow l" onclick="lmStep(-1)" aria-label="Previous">\u2039</button>'
+       + '<button class="lm-arrow r" onclick="lmStep(1)" aria-label="Next">\u203a</button>' : '');
 }
 function foeDiceRow(f){
   return '<div class="lmc-dicerow"><span class="lmc-alab">Roll</span>'
-    + '<button class="lmc-die" id="tsDie-' + f.id + '" onclick="lmFoeRoll(\'' + f.id + '\')" aria-label="Roll the foe die">?</button>'
-    + '<span class="lmc-dieout" id="tsDieOut-' + f.id + '"></span></div>';
+    + '<button class="lmc-die" id="tsDie-' + f.id + '" onclick="lmFoeRoll(\'' + f.id + '\')" aria-label="Roll the foe die">' + (f._roll || '?') + '</button>'
+    + '<span class="lmc-dieout" id="tsDieOut-' + f.id + '">' + (f._roll ? foeRollTag(f) : '') + '</span></div>'
+    + evaRow(f);
+}
+function foeRollTag(f){
+  var v = f._roll;
+  return v===6 ? 'Fellmark' : (v===1 ? 'Fellstrike' : String(v));
+}
+/* auto evasion, matching fwEvaRow. Shows only when this foe's act targets a Fell.
+   Before the die is thrown it waits; after, accuracy meets the Fell's Evasion. */
+function evaRow(f){
+  if (!(f.act && f.target)) return '';
+  var tgt = null; S.scene.fell.forEach(function(p){ if(p.id===f.target) tgt=p; });
+  if (!tgt) return '';
+  var eva = (tgt.attrs && tgt.attrs.Evasion) || 0;
+  if (!f._roll) return '<div class="lmc-eva"><span class="lmc-alab">Evasion</span>'
+    + '<span class="lmc-wait">waiting on the roll vs ' + esc(tgt.name) + ' (Evasion ' + eva + ')</span></div>';
+  var prec = (f.attrs && f.attrs.Precision) || 0;
+  var acc = f._roll + prec;
+  var hit = acc >= eva;
+  return '<div class="lmc-eva"><span class="lmc-alab">Evasion</span>'
+    + 'accuracy ' + acc + ' vs Evasion ' + eva + ' \u00b7 '
+    + '<b class="' + (hit?'lmc-hit':'lmc-miss') + '">' + (hit?'Hit':'Evaded') + '</b></div>';
 }
 function lmFoeRoll(id){
   var f = findC(id); if(!f) return;
-  var v = 1 + Math.floor(Math.random()*6);
-  var tag = v===6 ? 'Fellmark' : (v===1 ? 'Fellstrike' : String(v));
-  var die = document.getElementById('tsDie-'+id), out = document.getElementById('tsDieOut-'+id);
-  if(die){ die.textContent = v; die.classList.toggle('fell', v===6); die.classList.toggle('strike', v===1); }
-  if(out){ out.textContent = tag + (f.dmg ? ' \u00b7 ' + f.dmg.base + ' + ' + f.dmg.bonus + ' ' + f.dmg.type : ''); }
-  pushLog({ kind:'sys', html:'<b>' + esc(f.name) + '</b> rolls \u2192 ' + esc(tag) + '.' });
-  applyRemoteState({ log:S.log });
+  f._roll = 1 + Math.floor(Math.random()*6);
+  var tag = foeRollTag(f);
+  var prec = (f.attrs && f.attrs.Precision) || 0;
+  var line = '<b>' + esc(f.name) + '</b> rolls ' + f._roll;
+  if (f.act && f.target){
+    var tgt=null; S.scene.fell.forEach(function(p){ if(p.id===f.target) tgt=p; });
+    if (tgt){ var eva=(tgt.attrs&&tgt.attrs.Evasion)||0, acc=f._roll+prec;
+      line += ' + Precision ' + prec + ' = ' + acc + ' vs ' + esc(tgt.name) + ' Evasion ' + eva
+        + ' \u2192 <b>' + (acc>=eva?'Hit':'Evaded') + '</b>'; }
+  } else { line += ' \u2192 ' + esc(tag); }
+  pushLog({ kind:'sys', html:line + '.' });
+  applyRemoteState({ scene:S.scene, log:S.log });
 }
 /* the Spotlight gold box, matching the FateWell runner: compact cards side by side,
    click one to open its tabs in place. The box hugs its members, low and wide, so
@@ -1003,7 +1060,8 @@ window.addEventListener('keydown', function(e){
 
 function lmPhaseControls(){
   if (S.mode !== 'combat')
-    return '<button class="lmbtn" onclick="lmBeginCombat()">Begin combat</button>';
+    return '<button class="lmbtn" onclick="lmOpenMaps()">Maps</button>'
+         + '<button class="lmbtn" onclick="lmBeginCombat()">Begin combat</button>';
   if (S.scene.combatPhase === 'commit')
     return '<button class="lmbtn gold" onclick="lmLockActs()">Lock acts into Spotlights</button>'
          + '<button class="lmbtn" onclick="lmEndCombat()">End combat</button>';
@@ -1320,11 +1378,92 @@ function spotCard(c, n){
 }
 
 /* ---- LM intent, all through send() or local scene edits echoed as remote truth ---- */
+var lmMapsOpen = false;
+function lmOpenMaps(){ lmMapsOpen = true; paintMapPicker(); }
+function lmCloseMaps(){ lmMapsOpen = false; paintMapPicker(); }
+function lmSetMap(id){
+  var m = null; S.scene.maps.forEach(function(x){ if(x.id===id) m=x; });
+  if (m){ S.scene.background = id; S.map = { w:m.w, h:m.h }; applyRemoteState({ scene:S.scene, map:S.map }); paintMapArt(); }
+  lmCloseMaps();
+}
+function activeMap(){
+  var r=null; (S.scene.maps||[]).forEach(function(m){ if(m.id===S.scene.background) r=m; }); return r;
+}
+/* paint the chosen map into #mapArt. A real url shows the image; null keeps the
+   placeholder so the prototype still reads. The nominal box drives sizing. */
+function paintMapArt(){
+  var art = document.getElementById('mapArt');
+  if (!art) return;
+  art.style.width = S.map.w + 'px'; art.style.height = S.map.h + 'px';
+  var m = activeMap();
+  if (m && m.url){ art.style.backgroundImage = 'url(' + m.url + ')'; art.style.backgroundSize = 'cover'; }
+  /* null url keeps the CSS placeholder gradient */
+}
+function paintMapPicker(){
+  var el = document.getElementById('mapPicker');
+  if (!el){ el = document.createElement('div'); el.id = 'mapPicker'; document.body.appendChild(el); }
+  if (!lmMapsOpen || !isLM()){ el.style.display = 'none'; return; }
+  el.style.display = 'flex';
+  var cards = (S.scene.maps||[]).map(function(m){
+    var on = m.id === S.scene.background;
+    var thumb = m.url
+      ? '<div class="mp-thumb" style="background-image:url(' + m.url + ');background-size:cover;background-position:center"></div>'
+      : '<div class="mp-thumb mp-' + m.source + '"></div>';
+    return '<button class="mp-card' + (on?' on':'') + '" onclick="lmSetMap(\'' + m.id + '\')">'
+      + thumb
+      + '<div class="mp-name">' + esc(m.name) + '</div>'
+      + '<div class="mp-meta">' + m.w + ' \u00d7 ' + m.h + ' \u00b7 ' + esc(m.source) + (m.local?' \u00b7 not yet saved':'') + '</div></button>';
+  }).join('');
+  var upload = '<button class="mp-card mp-upload" onclick="lmMapUploadStub()" '
+    + 'ondragover="event.preventDefault();this.classList.add(\'drag\')" '
+    + 'ondragleave="this.classList.remove(\'drag\')" '
+    + 'ondrop="lmMapDrop(event)">'
+    + '<div class="mp-thumb mp-up"><span>+</span></div>'
+    + '<div class="mp-name">Upload a map</div>'
+    + '<div class="mp-meta">drop an image or click</div></button>';
+  el.innerHTML = '<div class="mp-box"><div class="mp-head"><span>Choose a map</span>'
+    + '<button class="lm-minbtn" onclick="lmCloseMaps()">\u00d7</button></div>'
+    + '<div class="mp-grid">' + cards + upload + '</div></div>';
+}
+/* local upload. Reads the file to an object URL, measures the image so the map box
+   matches the art, adds it to the scene maps tagged account, sets it as background.
+   Nothing leaves the device yet. Phase B swaps this preview URL for a stored one and
+   writes the record to the account collection, the rest of this path stays. */
+function lmMapUploadStub(){ document.getElementById('mapFileInput').click(); }
+function lmMapDrop(e){
+  e.preventDefault();
+  var el = e.currentTarget; if(el) el.classList.remove('drag');
+  var file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if (!file) return;
+  var fake = { files:[file], value:'' };
+  lmMapFilePicked(fake);
+}
+function lmMapFilePicked(input){
+  var file = input.files && input.files[0];
+  if (!file) return;
+  if (!/^image\//.test(file.type)){ pushLog({ kind:'sys', html:'That file is not an image.' }); applyRemoteState({ log:S.log }); return; }
+  var url = URL.createObjectURL(file);
+  var img = new Image();
+  img.onload = function(){
+    var id = 'up-' + Date.now();
+    var m = { id:id, name:file.name.replace(/\.[^.]+$/, ''), url:url, w:img.naturalWidth||2400, h:img.naturalHeight||1600, source:'account', local:true };
+    S.scene.maps.push(m);
+    S.scene.background = id;
+    S.map = { w:m.w, h:m.h };
+    pushLog({ kind:'sys', html:'Map <b>' + esc(m.name) + '</b> loaded. It will save to your account when storage lands.' });
+    applyRemoteState({ scene:S.scene, map:S.map, log:S.log });
+    paintMapArt();
+    lmCloseMaps();
+  };
+  img.onerror = function(){ pushLog({ kind:'sys', html:'That image could not be read.' }); applyRemoteState({ log:S.log }); };
+  img.src = url;
+  input.value = '';
+}
 function lmBeginCombat(){ S.scene.combatPhase = 'commit'; applyRemoteState({ mode:'combat', scene:S.scene }); }
 function lmEndCombat(){ S.scene.combatPhase = null; S.scene.foes.concat(S.scene.fell).forEach(function(c){ c.act=''; c.locked=false; c.spot=null; }); applyRemoteState({ mode:'explore', scene:S.scene }); }
 function lmLockActs(){ S.scene.combatPhase = 'resolve'; S.scene.foes.concat(S.scene.fell).forEach(function(c){ if(c.act) c.locked = true; }); applyRemoteState({ scene:S.scene }); }
 function lmUnlock(){ S.scene.combatPhase = 'commit'; S.scene.foes.concat(S.scene.fell).forEach(function(c){ c.locked=false; c.spot=null; }); applyRemoteState({ scene:S.scene }); }
-function lmNextRound(){ S.scene.combatPhase = 'commit'; S.scene.foes.concat(S.scene.fell).forEach(function(c){ c.act=''; c.locked=false; c.spot=null; }); applyRemoteState({ round:S.round+1, scene:S.scene }); }
+function lmNextRound(){ S.scene.combatPhase = 'commit'; S.scene.foes.concat(S.scene.fell).forEach(function(c){ c.act=''; c.locked=false; c.spot=null; c._roll=null; }); applyRemoteState({ round:S.round+1, scene:S.scene }); }
 function lmResolveSpot(id){ var c = findC(id); if(c){ c.spot = c.spot === 'done' ? null : 'done'; applyRemoteState({ scene:S.scene }); } }
 function lmSpotMode(m){ S.scene.spotMode = m; S.scene.spotOrder = []; applyRemoteState({ scene:S.scene }); }
 function lmToggleManual(key){ S.scene.manual[key] = !S.scene.manual[key]; S.scene.spotOrder = []; applyRemoteState({ scene:S.scene }); }
@@ -1646,7 +1785,7 @@ function render(){
   }
   document.getElementById('vitVal').textContent = S.character.vit;
   document.getElementById('vitValM').textContent = S.character.vit;
-  paintRails(); drawGrid(); renderTokens(); renderLog(); paintLmbar(); paintTokMenu(); paintLmStrip();
+  paintRails(); drawGrid(); renderTokens(); renderLog(); paintLmbar(); paintTokMenu(); paintLmStrip(); paintMapPicker(); paintMapArt();
 }
 window.addEventListener('resize', function(){ clampCam(); applyCam(); });
 (function buildFellmarks(){
