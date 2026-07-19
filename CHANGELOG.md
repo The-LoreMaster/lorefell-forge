@@ -1,3 +1,7 @@
+## FateWell: keep ThreadSpire's maps and tokens out of the foe library
+
+- ThreadSpire's saved maps and tokens live in the same Assets collection as the foe library, tagged by kind. FateWell's library ingest took every named row, so a saved map or token appeared in the roster as an empty foe. The ingest now drops rows tagged map or token before they reach the library. Foe rows are untouched.
+
 ## ThreadSpire: the LoreMaster's rail and identity panel
 
 - In LM mode the right side of the table becomes the LoreMaster's. The identity panel reads LoreMaster with the signed in member's name beneath, read from the Wix member on the live page, and the vitality and LP gems step aside. The five character plaques become Notes, Library, Stages, Search, and Settings. Notes, Library, Search, and Settings open windows in the same frame the character sections use, ready to carry FateWell and FellGuide content when the bridge lands. Stages opens the scene deck directly, the saved table layouts, named Stages so the word scene stays with the adventure's narrative scenes. Flipping back to a player restores the character rail and panel untouched.
