@@ -1,3 +1,7 @@
+## ThreadSpire: the shared-state transport seam (Phase 1)
+
+- The live sync wire is in place. A stateBackend seam relays the shared slice outward on every send (board, active scene and stage, phase) and a feed pulls remote truth back, version-gated so a client never clobbers its own live edits. The stub keeps a versioned snapshot in memory, so a lone client runs exactly as before; embedded, the same two calls ride the page bridge to a CampaignView-shaped stub store on the page. Swapping that stub for the CampaignView collection is the whole of Phase 2, the seam does not move. FateWell and schemas untouched.
+
 ## ThreadSpire: multi-scene handover and the scene picker
 
 - The runtime now receives the adventure spine, Act then Session then Scene, the shape FateWell authors. S.scene points at the active scene and everything reads it unchanged; switching repoints it and restores that scene's board through its own private binding, so each scene keeps its own stages and returns to where you left it. The runner bar's gold label is now the scene picker, grouped down the spine, and the Notes tab stays the current scene's beats. Stages remain private instance state, so the module stays portable. FateWell and schemas untouched.
