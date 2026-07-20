@@ -3011,10 +3011,54 @@ var V = { screen:'campaigns', cId:null, aId:null, sId:null, scId:null, tab:'note
    - hosted: the Wix page sends a campaignId; the tool works on that one campaign
      and saves its contents back to that campaign's row (Option B).
    - standalone: no page; full multi-campaign localStorage behaviour for offline use. */
-var WIX = { connected:false, loaded:false, hosted:false, hub:false, campaignId:null, saveTimer:null };
+var WIX = { connected:false, loaded:false, hosted:false, hub:false, campaignId:null, saveTimer:null, join:false };
 
 function postToWix(m){
   try { if (window.parent !== window) window.parent.postMessage(m, '*'); } catch(e){}
+}
+
+/* ---- ThreadSpire join, opt-in and dormant unless WIX.join ----
+   A light shared view of the running scene, mirrored to ThreadSpire through CampaignView.
+   Off by default, so a normal session behaves exactly as it always has. Purely additive,
+   and never the source of truth for the campaign's own data, which still saves as before. */
+var _fwCvSeen = 0, _fwCvTimer = null;
+function fwCvSnapshot(){
+  var sc = (typeof curSc === 'function') ? curSc() : null;
+  return {
+    from: 'fatewell',
+    activeSceneId: sc ? sc.id : null,
+    combatPhase: (sc && sc.battle) ? sc.battle.phase : null,
+    round: (sc && sc.battle) ? sc.battle.round : null
+  };
+}
+function fwCvPush(){
+  if (!WIX.join || !WIX.hosted || !WIX.campaignId) return;
+  postToWix({ type:'lmtool-cv-push', campaignId: WIX.campaignId, snap: fwCvSnapshot() });
+}
+function fwCvPull(){
+  if (!WIX.join || !WIX.hosted || !WIX.campaignId) return;
+  postToWix({ type:'lmtool-cv-pull', campaignId: WIX.campaignId, since: _fwCvSeen });
+}
+function fwCvApply(res){
+  if (!res || typeof res.version !== 'number' || res.version <= _fwCvSeen) return;
+  _fwCvSeen = res.version;
+  var snap = res.snap;
+  if (!snap || snap.from === 'fatewell') return;        /* ignore our own echo */
+  if (snap.activeSceneId){
+    var c = curC(), found = null;
+    if (c) (c.acts||[]).forEach(function(a){ (a.sessions||[]).forEach(function(se){ (se.scenes||[]).forEach(function(x){ if (x.id === snap.activeSceneId) found = { a:a, se:se, sc:x }; }); }); });
+    if (found){ V.aId = found.a.id; V.sId = found.se.id; V.scId = found.sc.id; render(); }
+  }
+}
+function fwCvStart(){
+  if (_fwCvTimer || !WIX.join) return;
+  _fwCvTimer = setInterval(function(){ fwCvPush(); fwCvPull(); }, 2000);
+}
+/* turn the join on or off for this session; off restores the plain behaviour at once */
+function fwJoinThreadSpire(on){
+  WIX.join = !!on;
+  if (on) fwCvStart();
+  else if (_fwCvTimer){ clearInterval(_fwCvTimer); _fwCvTimer = null; }
 }
 
 function saveLocal(){
@@ -3397,6 +3441,7 @@ window.addEventListener('message', function(ev){
   var m = ev.data || {};
   /* Any reply proves the bridge is alive, whatever it's about; drop a stale "offline" flag. */
   if (WIX.offline){ WIX.offline = false; renderSavedTag(); }
+  if (m.type === 'lmtool-cv-state'){ fwCvApply(m); return; }
   if (m.type === 'lmtool-viewport' || m.type === 'LOREFELL_VIEWPORT'){
     window._wixVis = { top: Number(m.top)||0, height: Number(m.height)||0 };
     if (document.querySelector('#modal .m-card')) positionModal(true);
@@ -11231,6 +11276,7 @@ document.addEventListener('DOMContentLoaded', function(){
   render();
   requestWix();
   setTimeout(function(){ if (!WIX.connected) requestWix(); }, 1600);
+  fwCvStart();
   /* Embedded but the parent page never answered at all: no account to reach, not just a
      slow one. Same honest offline line as a save that goes unconfirmed. */
   setTimeout(function(){

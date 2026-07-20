@@ -1,3 +1,7 @@
+## FateWell: the ThreadSpire join (opt-in, dormant)
+
+- FateWell can mirror its running scene to ThreadSpire through a shared CampaignView, and reflect ThreadSpire's back. It is off by default: nothing runs unless a session turns the join on, so a normal weekend behaves exactly as before, and the campaign's own data still saves the way it always has. Adds a shared campaignview.web.js backend (member-checked, campaign-scoped), a CampaignView collection, and the two bridge handlers. Merging this creates the collection on apply, which is a create and never a replace, so the Campaigns collection is skipped and untouched.
+
 ## SigilForge: Rooted, the combat effect
 
 - Rooted joins the shared combat effects, the single round form of the Rooting infusion. When it lands the target cannot move until the end of the round. It costs 2 and sits in the Movement group of the effect inlay, the lighter kin of Immobilized. Authored in SigilForge, carried into the conditions pack, and baked into FateWell and FellGlass.

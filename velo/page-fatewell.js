@@ -10,6 +10,7 @@ import { publishCombatState, applyCombatToChar, getCombatDeclares, dealDamageToC
 import { publishAdventure, myPublishedAdventures, unpublishAdventure, getPublishedPack } from 'backend/published.web.js';
 import { createInvite, revokeInvite } from 'backend/invites.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
+import { getCampaignState, saveCampaignState } from 'backend/campaignview.web.js';
 import wixLocation from 'wix-location';
 import wixWindow from 'wix-window';
 
@@ -280,6 +281,13 @@ $w.onReady(() => {
       try { await detachCharacter(m.charId); } catch (e) {}
     } else if (m.type === 'LOREFELL_FEEDBACK_SUBMIT') {
       console.log('FateWell feedback:', JSON.stringify(m.payload || {}));
+    } else if (m.type === 'lmtool-cv-push') {
+      // ThreadSpire join, opt-in: mirror the running scene into CampaignView
+      try { await saveCampaignState(m.campaignId || campaignId, m.snap); } catch (e) {}
+    } else if (m.type === 'lmtool-cv-pull') {
+      let cv = null;
+      try { cv = await getCampaignState(m.campaignId || campaignId, m.since); } catch (e) { cv = null; }
+      if (cv) embed.postMessage(Object.assign({ type: 'lmtool-cv-state' }, cv));
     } else if (m.type === 'lmtool-modal-open') {
       // Bring the embed into view and report the window height so the tool can center its
       // popup on the reader's screen. After scrollTo the embed top aligns with the viewport
