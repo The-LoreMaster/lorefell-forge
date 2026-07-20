@@ -536,6 +536,18 @@ var S = {
     { id:'t1', kind:'p',   label:'AC', x:700,  y:800,  cells:1, mine:true },
     { id:'t2', kind:'npc', label:'N',  x:1300, y:1100, cells:1, mine:false }
   ],
+  /* The private instance layer. These belong to this LoreMaster and never travel.
+     stages are the LM's own boards, a map plus where every token stands. bindings link
+     a scene to the stages it uses, many to many, and remember which stage is active. An
+     exported adventure carries the scene and its map pack, never anything in here, so one
+     table's boards can never reach another LoreMaster. */
+  instance: {
+    stages: [
+      { stageId:'st-beacon',     name:'The Silent Beacon', mapId:'m-beacon',     tokens:null, grid:null, mapW:2400, mapH:1600 },
+      { stageId:'st-undercroft', name:'The Undercroft',    mapId:'m-undercroft', tokens:[],   grid:null, mapW:2000, mapH:2000 }
+    ],
+    bindings: { 'sc-beacon': { stageIds:['st-beacon','st-undercroft'], activeStageId:'st-beacon' } }
+  },
   /* The LoreMaster runtime. This is the scene FateWell authored, handed over as
      remote truth. ThreadSpire renders these cards, it owns none of the math. The
      phase drives which face the cards wear: run cards in a scene, foe cards in
@@ -543,6 +555,7 @@ var S = {
      commit, then resolve. */
   scene: {
     name: 'The Silent Beacon',
+    id: 'sc-beacon',
     combatPhase: null,
     /* maps the adventure preloaded, source C. Each is an image the LM can set as
        the scene background. w and h are the nominal map box the art defines, so a
@@ -554,12 +567,8 @@ var S = {
       { id:'m-undercroft', name:'The Undercroft', url:null, w:2000, h:2000, source:'adventure' },
       { id:'m-span', name:'The Broken Span', url:null, w:3000, h:1400, source:'adventure' }
     ],
-    activeStageId: 'st-beacon',
-    stageName: 'The Silent Beacon',
-    deck: [
-      { stageId:'st-beacon', name:'The Silent Beacon', mapId:'m-beacon', tokens:null, grid:null, mapW:2400, mapH:1600 },
-      { stageId:'st-undercroft', name:'The Undercroft', mapId:'m-undercroft', tokens:[], grid:null, mapW:2000, mapH:2000 }
-    ],
+    /* stages and their scene bindings live in S.instance now, not on the scene.
+       The scene is portable module content and never carries a LoreMaster's boards. */
     spotMode: 'auto',
     manual: {},
     spotOrder: [],
@@ -736,7 +745,7 @@ function railKeys(){ return S.role === 'lm' ? RAIL_LM : RAIL_PLAYER; }
 function stagesBody(){
   var deck = stageDeck();
   var cards = deck.map(function(b){
-    var on = b.stageId === S.scene.activeStageId;
+    var on = b.stageId === activeStageId();
     var mp = null; (S.scene.maps||[]).forEach(function(m){ if(m.id===b.mapId) mp=m; });
     var thumb = mp && mp.url
       ? '<span class="sd-thumb" style="background-image:url('+mp.url+')"></span>'
@@ -1068,9 +1077,9 @@ function paintLmStrip(){
 function lmStripHtml(){
   if (!isLM()) return '';
   var f = lmFace();
-  var sceneLabel = esc(S.scene.stageName || S.scene.name);
+  var sceneLabel = esc(S.scene.name);
   var head = f === 'scene'
-    ? ('<button class="lm-scenebtn" onclick="openWin(\'stages\')">' + sceneLabel + ' <span class="lm-chev">\u25be</span></button>')
+    ? ('<button class="lm-scenebtn" onclick="openWin(\'notes\')">' + sceneLabel + ' <span class="lm-chev">\u25be</span></button>')
     : (f === 'resolve' ? ('Round ' + S.round + ' \u00b7 Spotlights')
     : ('Round ' + S.round + ' \u00b7 Commit'));
   var deck = lmDeck();
@@ -1528,69 +1537,100 @@ function stubListStages(){ return Promise.resolve(_stageStore.slice()); }
 function stubDeleteStage(id){ _stageStore=_stageStore.filter(function(x){ return x.stageId!==id; }); return Promise.resolve({ ok:true }); }
 var stageBackend = { save:stubSaveStage, list:stubListStages, remove:stubDeleteStage };
 
-/* snapshot the live table into a bundle */
+/* ---- Stages: the private instance layer ----
+   A stage is one board, a map and where every token stands. Stages live in S.instance,
+   never on the scene, so an exported adventure carries the scene and its map pack but
+   never a board. Scenes bind to stages many to many through S.instance.bindings, keyed by
+   scene id: a scene lists the stages it uses and which is active, and one stage can serve
+   several scenes, sharing its layout between them. Persistence is per account through
+   stageBackend, so one LoreMaster's stages never reach another. */
+function curSceneId(){ return S.scene.id || 'sc-default'; }
+function sceneBinding(){
+  var id = curSceneId();
+  if (!S.instance.bindings[id]) S.instance.bindings[id] = { stageIds:[], activeStageId:null };
+  return S.instance.bindings[id];
+}
+function instanceStages(){ return S.instance.stages || (S.instance.stages = []); }
+function stageById(id){ var r=null; instanceStages().forEach(function(x){ if(x.stageId===id) r=x; }); return r; }
+function sceneStages(){ return (sceneBinding().stageIds||[]).map(stageById).filter(Boolean); }
+function activeStageId(){ return sceneBinding().activeStageId; }
+function stageUpsert(b){
+  var lib = instanceStages(), i=-1;
+  lib.forEach(function(x,k){ if(x.stageId===b.stageId) i=k; });
+  if (i>=0) lib[i]=b; else lib.push(b);
+}
+function bindStageToScene(id){
+  var bd = sceneBinding();
+  if (bd.stageIds.indexOf(id) < 0) bd.stageIds.push(id);
+}
+
+/* snapshot the live table into a stage bundle */
 function stageSnapshot(){
+  var active = activeStageId();
+  var known = active ? stageById(active) : null;
   return {
-    stageId: S.scene.activeStageId || ('st-' + Date.now()),
-    name: S.scene.stageName || S.scene.name,
+    stageId: active || ('st-' + Date.now()),
+    name: (known && known.name) || S.scene.name,
     mapId: S.scene.background || null,
     tokens: S.tokens.map(function(t){ return { id:t.id, kind:t.kind, label:t.label, name:t.name, img:t.img, x:t.x, y:t.y, cells:t.cells, mine:t.mine, refId:t.refId }; }),
     grid: Object.assign({}, S.grid),
     mapW: S.map.w, mapH: S.map.h
   };
 }
-/* restore a bundle onto the live table, through the seam so it syncs */
+/* restore a stage onto the live table, through the seam so it syncs */
 function stageRestore(b){
-  S.scene.activeStageId = b.stageId;
-  S.scene.stageName = b.name;
+  sceneBinding().activeStageId = b.stageId;
   S.scene.background = b.mapId;
   S.tokens = (b.tokens||[]).map(function(t){ return Object.assign({}, t); });
   S.grid = Object.assign({}, b.grid || S.grid);
   S.map = { w: b.mapW || 2400, h: b.mapH || 1600 };
-  applyRemoteState({ scene:S.scene, tokens:S.tokens, grid:S.grid, map:S.map });
+  applyRemoteState({ scene:S.scene, tokens:S.tokens, grid:S.grid, map:S.map, instance:S.instance });
   paintMapArt();
 }
-/* the deck the switcher shows, kept in shared state so it survives and syncs */
-function stageDeck(){ return S.scene.deck || []; }
+/* the switcher lists the stages bound to the current scene */
+function stageDeck(){ return sceneStages(); }
 function lmSaveCurrentStage(){
   var b = stageSnapshot();
-  S.scene.activeStageId = b.stageId;
-  var deck = stageDeck();
-  var i=-1; deck.forEach(function(x,k){ if(x.stageId===b.stageId) i=k; });
-  if(i>=0) deck[i]=b; else deck.push(b);
-  S.scene.deck = deck;
+  var bd = sceneBinding();
+  bd.activeStageId = b.stageId;
+  bindStageToScene(b.stageId);
+  stageUpsert(b);
   stageBackend.save(b);
-  applyRemoteState({ scene:S.scene });
+  applyRemoteState({ instance:S.instance });
 }
 function lmSwitchStage(id){
-  if (S.scene.activeStageId === id) { return; }
-  lmSaveCurrentStage();                       /* the leaving scene keeps its layout */
-  var b=null; stageDeck().forEach(function(x){ if(x.stageId===id) b=x; });
+  if (activeStageId() === id) { return; }
+  lmSaveCurrentStage();                       /* the leaving stage keeps its layout */
+  var b = stageById(id);
   if (b){ stageRestore(b); pushLog({ kind:'sys', html:'Stage set to <b>' + esc(b.name) + '</b>.' }); applyRemoteState({ log:S.log }); }
   refreshStagesWin();
 }
 function lmNewStage(){
   lmSaveCurrentStage();
   var id='st-'+Date.now();
-  var b={ stageId:id, name:'New scene', mapId:null, tokens:[], grid:Object.assign({},S.grid), mapW:2400, mapH:1600 };
-  S.scene.deck = stageDeck().concat([b]);
+  var b={ stageId:id, name:'New stage', mapId:null, tokens:[], grid:Object.assign({},S.grid), mapW:2400, mapH:1600 };
+  stageUpsert(b);
+  bindStageToScene(id);
   stageBackend.save(b);
   stageRestore(b);
-  applyRemoteState({ scene:S.scene });
+  applyRemoteState({ instance:S.instance });
   refreshStagesWin();
 }
 function lmDeleteStage(id){
-  if (stageDeck().length<=1){ pushLog({ kind:'sys', html:'The last scene stays.' }); applyRemoteState({ log:S.log }); return; }
-  S.scene.deck = stageDeck().filter(function(x){ return x.stageId!==id; });
-  stageBackend.remove(id);
-  if (S.scene.activeStageId===id && S.scene.deck.length) stageRestore(S.scene.deck[0]);
-  applyRemoteState({ scene:S.scene });
+  var bd = sceneBinding();
+  if ((bd.stageIds||[]).length<=1){ pushLog({ kind:'sys', html:'The scene keeps at least one stage.' }); applyRemoteState({ log:S.log }); return; }
+  bd.stageIds = bd.stageIds.filter(function(x){ return x!==id; });
+  /* drop the stage from the library only if no other scene still binds it */
+  var stillUsed=false;
+  Object.keys(S.instance.bindings).forEach(function(k){ if((S.instance.bindings[k].stageIds||[]).indexOf(id)>=0) stillUsed=true; });
+  if (!stillUsed){ S.instance.stages = instanceStages().filter(function(x){ return x.stageId!==id; }); stageBackend.remove(id); }
+  if (bd.activeStageId===id && bd.stageIds.length){ var nx=stageById(bd.stageIds[0]); if(nx) stageRestore(nx); }
+  applyRemoteState({ instance:S.instance });
   refreshStagesWin();
 }
 function lmRenameStage(id, name){
-  stageDeck().forEach(function(x){ if(x.stageId===id){ x.name=name; stageBackend.save(x); } });
-  if (S.scene.activeStageId===id) S.scene.stageName=name;
-  applyRemoteState({ scene:S.scene });
+  var st=stageById(id); if(st){ st.name=name; stageBackend.save(st); }
+  applyRemoteState({ instance:S.instance });
 }
 
 /* ---- the asset backend seam ----
@@ -1677,12 +1717,11 @@ function loadAccountStages(){
   if (!tsEmbedded()) return;
   stageBackend.list().then(function(rows){
     if (!rows || !rows.length) return;
-    var deck = stageDeck();
     rows.forEach(function(b){
-      if (!deck.some(function(x){ return x.stageId === b.stageId; })) deck.push(b);
+      stageUpsert(b);
+      bindStageToScene(b.stageId);   /* account stages attach to the current scene until CampaignView carries the bindings */
     });
-    S.scene.deck = deck;
-    applyRemoteState({ scene:S.scene });
+    applyRemoteState({ instance:S.instance });
   });
 }
 

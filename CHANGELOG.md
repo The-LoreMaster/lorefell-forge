@@ -1,3 +1,7 @@
+## ThreadSpire: Stages as a private instance layer
+
+- Stages and their scene bindings move off the scene into S.instance, a layer private to the LoreMaster. A scene now carries only portable module content, its map pack and beats, so an exported adventure can never carry anyone's board. Scenes bind to stages many to many through S.instance.bindings keyed by scene id, one stage can serve several scenes and shares its layout between them, and stages persist per account through stageBackend so one table's boards never reach another. The runner bar shows the scene and opens its notes, stage switching lives on the Stages tab. FateWell and schemas untouched.
+
 ## ThreadSpire: Stages in the window frame, the stage vocabulary, and the live storage bridge
 
 - Stages now opens in the same window frame as Notes, Library, Search, and Settings, a proper section with the deck as cards, switch, delete, and new stage. The floating popover is gone. The stage name in the top bar opens the same window.
