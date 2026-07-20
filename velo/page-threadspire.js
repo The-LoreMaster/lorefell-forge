@@ -8,6 +8,7 @@ import { listSphereArt } from 'backend/sphereart.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
 import { listStages, saveStage, deleteStage } from 'backend/threadspire.web.js';
 import { getCampaignState, saveCampaignState } from 'backend/campaignview.web.js';
+import { myAdventureRole } from 'backend/fatewell.web.js';
 import wixLocation from 'wix-location';
 
 // uploadRune hands back a wix:image:// descriptor, which a plain <img> cannot load.
@@ -35,7 +36,12 @@ $w.onReady(function () {
 
     if (msg.type === 'THREADSPIRE_READY') {
       const ctx = await buildContext(characterId, campaignId);
-      embed.postMessage(Object.assign({ type: 'THREADSPIRE_CONTEXT' }, ctx));
+      // Entry point requests LM (Cast carries ?role=lm); ownership must confirm it.
+      let role = 'player';
+      if (q.role === 'lm' && campaignId) {
+        try { const ar = await myAdventureRole(campaignId); if (ar === 'loremaster' || ar === 'lorekeeper') role = 'lm'; } catch (e) {}
+      }
+      embed.postMessage(Object.assign({ type: 'THREADSPIRE_CONTEXT', role: role, campaignId: campaignId }, ctx));
     } else if (msg.type === 'THREADSPIRE_WANT_LORE') {
       let character = null;
       try { character = await threadspirePublicChar(msg.characterId); } catch (e) { character = null; }
