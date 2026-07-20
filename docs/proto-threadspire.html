@@ -784,6 +784,7 @@ function send(evt){
     if (evt.type === 'declare'){ pushLog({ kind:'sys', html:'<b>' + esc(S.character.name) + '</b> declares ' + esc(evt.act) + '.' }); }
     if (evt.type === 'say'){ pushLog({ kind:'say', who:S.character.name, text:evt.text }); }
     if (evt.type === 'roll'){ pushLog(stubResolve(evt.rollType, evt.n)); }
+    pushState();
   }, live ? 0 : 120);
 }
 
@@ -1728,6 +1729,60 @@ var assetBackend = { upload:stubUploadImage, save:stubSaveAsset, list:stubListAs
    the page calls the backend (uploadRune, saveAsset, listAssets, saveStage,
    listStages, deleteStage) and answers TS_RESULT with the same reqId. Standalone,
    the stubs above keep everything working offline. */
+/* ---- the shared-state seam ----
+   send relays outward, a feed pulls remote truth back. The stub keeps a versioned
+   snapshot in memory so a lone client runs unchanged. Embedded, the same two calls ride
+   the page bridge to a CampaignView-shaped store, and later to the collection itself.
+   Swapping the stub for the live methods is the whole change, this seam does not move. */
+var _stateStore = { version:0, snap:null };
+var _stateSeen = 0;
+function stubPushState(snap){ _stateStore = { version:_stateStore.version + 1, snap:snap }; return Promise.resolve({ ok:true, version:_stateStore.version }); }
+function stubPullState(since){ return Promise.resolve(_stateStore.version > (since||0) ? { version:_stateStore.version, snap:_stateStore.snap } : null); }
+var stateBackend = { push:stubPushState, pull:stubPullState };
+/* the shared slice two clients agree on: the board, the active scene and stage, the phase.
+   Coarse for now, deltas can come later without moving the seam. */
+function sharedSnapshot(){
+  return {
+    tokens: S.tokens, grid: S.grid, map: S.map,
+    background: S.scene.background,
+    activeSceneId: S.adventure ? S.adventure.activeSceneId : S.scene.id,
+    activeStageId: (function(){ try { return activeStageId(); } catch(e){ return null; } })(),
+    combatPhase: S.scene.combatPhase, mode: S.mode, round: S.round
+  };
+}
+/* relay our state outward. On acknowledgement we mark the version seen, so the feed never
+   pulls our own writes back and clobbers a live interaction. */
+function pushState(){
+  try {
+    stateBackend.push(sharedSnapshot()).then(function(r){ if (r && r.version) _stateSeen = Math.max(_stateSeen, r.version); }).catch(function(){});
+  } catch(e){}
+}
+/* apply a remote snapshot as truth */
+function applyRemoteSnapshot(snap){
+  if (!snap) return;
+  if (snap.tokens) S.tokens = snap.tokens;
+  if (snap.grid) S.grid = snap.grid;
+  if (snap.map) S.map = snap.map;
+  if (snap.background !== undefined) S.scene.background = snap.background;
+  if (snap.combatPhase !== undefined) S.scene.combatPhase = snap.combatPhase;
+  if (snap.mode) S.mode = snap.mode;
+  if (typeof snap.round === 'number') S.round = snap.round;
+  if (snap.activeSceneId && S.adventure && snap.activeSceneId !== S.scene.id){
+    var hit = (typeof tsSceneById === 'function') ? tsSceneById(snap.activeSceneId) : null;
+    if (hit){ S.scene = hit.scene; S.adventure.activeSceneId = snap.activeSceneId; }
+  }
+  applyRemoteState({ scene:S.scene, tokens:S.tokens, grid:S.grid, map:S.map });
+}
+var _stateFeedTimer = null;
+function startStateFeed(){
+  if (!tsEmbedded() || _stateFeedTimer) return;
+  _stateFeedTimer = setInterval(function(){
+    stateBackend.pull(_stateSeen).then(function(res){
+      if (res && res.version > _stateSeen){ _stateSeen = res.version; applyRemoteSnapshot(res.snap); }
+    }).catch(function(){});
+  }, 1500);
+}
+
 var _tsReq = 0, _tsPending = {};
 function tsEmbedded(){ try { return window.parent && window.parent !== window; } catch(e){ return false; } }
 function tsAsk(type, payload){
@@ -1777,6 +1832,10 @@ if (tsEmbedded()){
       });
     }); },
     remove: function(id){ return tsAsk('TS_STAGE_DELETE', { stageId:id }); }
+  };
+  stateBackend = {
+    push: function(snap){ return tsAsk('TS_STATE_PUSH', { snap:snap }); },
+    pull: function(since){ return tsAsk('TS_STATE_PULL', { since:since }); }
   };
 }
 /* on an embedded load, pull the account's stages into the deck so last session's
@@ -1889,7 +1948,7 @@ function lmTokenDrop(e){
 /* the signed-in member's name. The live page reads this from the Wix member, the
    prototype stubs it. */
 S.memberName = S.memberName || 'Nate';
-setTimeout(function(){ try { loadAccountStages(); } catch(e){} }, 0);
+setTimeout(function(){ try { loadAccountStages(); startStateFeed(); } catch(e){} }, 0);
 function paintHud(){
   var name = document.getElementById('hudName');
   var sub = document.getElementById('hudSub');
