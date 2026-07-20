@@ -15,7 +15,7 @@ $w.onReady(function () {
 
   const q = wixLocation.query || {};
   const characterId = q.character || '';
-  const campaignId = q.campaign || '';
+  const campaignId = q.campaign || q.campaignId || '';
 
   embed.onMessage(async (event) => {
     const msg = event && event.data;
