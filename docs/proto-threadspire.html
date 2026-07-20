@@ -680,6 +680,72 @@ function stubResolve(rollType, n){
 }
 
 /* ---- the seam ---- */
+/* ---- the adventure spine ----
+   The portable module FateWell authors and hands over: Act, then Session, then Scene,
+   the same shape FateWell holds. S.scene always points at the active scene, so the rest
+   of the runtime keeps reading S.scene unchanged. Switching a scene repoints S.scene and
+   restores that scene's board through its own private binding. Stages never live here. */
+function tsMakeScene(id, name){
+  return {
+    name: name, id: id, combatPhase: null, background: null,
+    maps: S.scene.maps,            /* the map pack is module content, shared across scenes */
+    spotMode: 'auto', manual: {}, spotOrder: [], activeSpot: 0,
+    beats: [], foes: [], fell: S.scene.fell, npcs: []
+  };
+}
+S.adventure = {
+  name: 'The Silent Beacon',
+  activeSceneId: S.scene.id,
+  acts: [
+    { id:'act-1', name:'Act I, The Gathering Dark', sessions:[
+      { id:'ses-1', name:'Session 1', scenes:[
+        tsMakeScene('sc-approach', 'The Long Approach'),
+        S.scene,                                  /* sc-beacon, the authored active scene */
+        tsMakeScene('sc-undercroft', 'The Undercroft')
+      ] }
+    ] }
+  ]
+};
+/* each scene keeps its own private binding, so its stages come back when you return */
+S.instance.bindings['sc-approach']   = S.instance.bindings['sc-approach']   || { stageIds:[], activeStageId:null };
+S.instance.bindings['sc-undercroft'] = S.instance.bindings['sc-undercroft'] || { stageIds:['st-undercroft'], activeStageId:'st-undercroft' };
+
+function tsScenes(){
+  var out=[];
+  (S.adventure.acts||[]).forEach(function(a){ (a.sessions||[]).forEach(function(se){ (se.scenes||[]).forEach(function(sc){ out.push({ act:a, ses:se, scene:sc }); }); }); });
+  return out;
+}
+function tsSceneById(id){ var r=null; tsScenes().forEach(function(x){ if(x.scene.id===id) r=x; }); return r; }
+function setActiveScene(id){
+  if (S.scene.id === id){ closeWin(); return; }
+  if (isLM()) lmSaveCurrentStage();               /* the scene you leave keeps its board */
+  var hit = tsSceneById(id); if (!hit) return;
+  S.scene = hit.scene;
+  S.adventure.activeSceneId = id;
+  var bd = sceneBinding();
+  var st = bd.activeStageId ? stageById(bd.activeStageId) : null;
+  if (st) stageRestore(st);                        /* restore returns this scene's board and syncs */
+  else applyRemoteState({ scene:S.scene, adventure:S.adventure, instance:S.instance });
+  pushLog({ kind:'sys', html:'Scene set to <b>' + esc(S.scene.name) + '</b>.' });
+  applyRemoteState({ log:S.log });
+  closeWin();
+}
+/* the scene picker window, grouped down the spine */
+function scenesBody(){
+  var h = '<div class="win-note">The adventure\u2019s spine. Pick the scene you are running. Each scene keeps its own stages.</div>';
+  (S.adventure.acts||[]).forEach(function(a){
+    h += '<div class="nb-scene">' + esc(a.name) + '</div>';
+    (a.sessions||[]).forEach(function(se){
+      h += '<div style="font-family:Cinzel,serif;font-size:.66rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted,#7e8a99);margin:6px 0 3px">' + esc(se.name) + '</div>';
+      (se.scenes||[]).forEach(function(sc){
+        var on = sc.id === S.scene.id;
+        h += '<button onclick="setActiveScene(\'' + sc.id + '\')" style="display:block;width:100%;text-align:left;padding:9px 11px;margin:4px 0;border-radius:8px;border:1px solid ' + (on?'var(--gold)':'var(--line2,#2a3552)') + ';background:' + (on?'rgba(201,168,76,.12)':'transparent') + ';color:var(--silver);font:inherit;cursor:pointer">' + esc(sc.name) + (on?' <span style="color:var(--gold);font-size:.7rem;letter-spacing:.08em">running</span>':'') + '</button>';
+      });
+    });
+  });
+  return h;
+}
+
 function applyRemoteState(patch){
   Object.keys(patch).forEach(function(k){ S[k] = patch[k]; });
   render();
@@ -733,6 +799,7 @@ var SECTIONS = {
   log:       { title:'Session log' },
   /* the LoreMaster's rail */
   notes:     { title:'Notes' },
+  scenes:    { title:'Scenes' },
   library:   { title:'Library' },
   stages:    { title:'Stages' },
   search:    { title:'Search' },
@@ -788,6 +855,7 @@ function libraryBody(){
 function sectionBody(key){
   if (key === 'stages') return stagesBody();
   if (key === 'notes') return notesBody();
+  if (key === 'scenes') return scenesBody();
   if (key === 'library') return libraryBody();
   if (key === 'search') return '<div class="win-note">Search the FellGuide and the adventure.</div><input class="win-search" placeholder="Search" aria-label="Search">';
   if (key === 'settings') return '<div class="win-note">Table settings. Grid, log, and view controls gather here.</div><div class="stub"></div>';
@@ -1079,7 +1147,7 @@ function lmStripHtml(){
   var f = lmFace();
   var sceneLabel = esc(S.scene.name);
   var head = f === 'scene'
-    ? ('<button class="lm-scenebtn" onclick="openWin(\'notes\')">' + sceneLabel + ' <span class="lm-chev">\u25be</span></button>')
+    ? ('<button class="lm-scenebtn" onclick="openWin(\'scenes\')">' + sceneLabel + ' <span class="lm-chev">\u25be</span></button>')
     : (f === 'resolve' ? ('Round ' + S.round + ' \u00b7 Spotlights')
     : ('Round ' + S.round + ' \u00b7 Commit'));
   var deck = lmDeck();

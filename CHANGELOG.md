@@ -1,3 +1,7 @@
+## ThreadSpire: multi-scene handover and the scene picker
+
+- The runtime now receives the adventure spine, Act then Session then Scene, the shape FateWell authors. S.scene points at the active scene and everything reads it unchanged; switching repoints it and restores that scene's board through its own private binding, so each scene keeps its own stages and returns to where you left it. The runner bar's gold label is now the scene picker, grouped down the spine, and the Notes tab stays the current scene's beats. Stages remain private instance state, so the module stays portable. FateWell and schemas untouched.
+
 ## ThreadSpire: Stages as a private instance layer
 
 - Stages and their scene bindings move off the scene into S.instance, a layer private to the LoreMaster. A scene now carries only portable module content, its map pack and beats, so an exported adventure can never carry anyone's board. Scenes bind to stages many to many through S.instance.bindings keyed by scene id, one stage can serve several scenes and shares its layout between them, and stages persist per account through stageBackend so one table's boards never reach another. The runner bar shows the scene and opens its notes, stage switching lives on the Stages tab. FateWell and schemas untouched.
