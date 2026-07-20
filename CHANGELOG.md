@@ -1,3 +1,7 @@
+## ThreadSpire: context handoff, role by entry point and ownership
+
+- ThreadSpire now completes the handshake it was missing. On load it announces THREADSPIRE_READY, and it consumes the THREADSPIRE_CONTEXT the page returns, so it finally learns its role and campaign instead of defaulting to a player on the seeded demo. Role is decided by entry point and secured by ownership: the page honors an LM request only when myAdventureRole confirms the signed-in member is the loremaster or lorekeeper, so a plain link opens the player view even for the LM, a Cast link opens the LoreMaster runtime, and a player who forges role=lm still gets the player view. FateWell and schemas untouched.
+
 ## ThreadSpire: CampaignView, live shared state (Phase 2)
 
 - The transport now points at a real store. A CampaignView collection holds one versioned snapshot per campaign, and threadspire.web.js gains getCampaignState and saveCampaignState, member-aware and campaign-scoped through the admin-locked collection. The page bridge swaps its in-memory stub for these methods, degrading quietly if the collection is not live yet. The ThreadSpire client is unchanged: its Phase 1 seam already speaks TS_STATE, so this only moves the far end from stub to collection. FateWell untouched; the collection is created, never a replace, so Campaigns is skipped on apply.
