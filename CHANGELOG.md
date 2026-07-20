@@ -1,3 +1,25 @@
+## ThreadSpire: CampaignView, live shared state (Phase 2)
+
+- The transport now points at a real store. A CampaignView collection holds one versioned snapshot per campaign, and threadspire.web.js gains getCampaignState and saveCampaignState, member-aware and campaign-scoped through the admin-locked collection. The page bridge swaps its in-memory stub for these methods, degrading quietly if the collection is not live yet. The ThreadSpire client is unchanged: its Phase 1 seam already speaks TS_STATE, so this only moves the far end from stub to collection. FateWell untouched; the collection is created, never a replace, so Campaigns is skipped on apply.
+
+## ThreadSpire: the shared-state transport seam (Phase 1)
+
+- The live sync wire is in place. A stateBackend seam relays the shared slice outward on every send (board, active scene and stage, phase) and a feed pulls remote truth back, version-gated so a client never clobbers its own live edits. The stub keeps a versioned snapshot in memory, so a lone client runs exactly as before; embedded, the same two calls ride the page bridge to a CampaignView-shaped stub store on the page. Swapping that stub for the CampaignView collection is the whole of Phase 2, the seam does not move. FateWell and schemas untouched.
+
+## ThreadSpire: multi-scene handover and the scene picker
+
+- The runtime now receives the adventure spine, Act then Session then Scene, the shape FateWell authors. S.scene points at the active scene and everything reads it unchanged; switching repoints it and restores that scene's board through its own private binding, so each scene keeps its own stages and returns to where you left it. The runner bar's gold label is now the scene picker, grouped down the spine, and the Notes tab stays the current scene's beats. Stages remain private instance state, so the module stays portable. FateWell and schemas untouched.
+
+## ThreadSpire: Stages as a private instance layer
+
+- Stages and their scene bindings move off the scene into S.instance, a layer private to the LoreMaster. A scene now carries only portable module content, its map pack and beats, so an exported adventure can never carry anyone's board. Scenes bind to stages many to many through S.instance.bindings keyed by scene id, one stage can serve several scenes and shares its layout between them, and stages persist per account through stageBackend so one table's boards never reach another. The runner bar shows the scene and opens its notes, stage switching lives on the Stages tab. FateWell and schemas untouched.
+
+## ThreadSpire: Stages in the window frame, the stage vocabulary, and the live storage bridge
+
+- Stages now opens in the same window frame as Notes, Library, Search, and Settings, a proper section with the deck as cards, switch, delete, and new stage. The floating popover is gone. The stage name in the top bar opens the same window.
+- The saved table model speaks Stage throughout the code: the backend seam, the snapshot and restore, the switch and delete, and the seed ids. The word scene stays with the adventure's narrative scenes.
+- Notes and Library are fed from the adventure's own state: Notes lists the scene's beats with their kinds, Library lists the foes, Fell, and NPCs at the table. Search and Settings hold their frames.
+- The live storage bridge lands. Embedded in the Wix page, the asset and stage seams route over postMessage to the page, which calls uploadRune, saveAsset, and listAssets for images and the new threadspire.web.js trio, listStages, saveStage, deleteStage, owner scoped like the Assets methods, for stages. Standalone, the stubs keep the proto working offline. A new Stages collection schema carries stageId, owner, campaign, name, map reference, token JSON, grid JSON, and the map box. On an embedded load the account's stages pull into the deck, so last session's tables come back.
 ## FateWell: the ThreadSpire join (opt-in, dormant)
 
 - FateWell can mirror its running scene to ThreadSpire through a shared CampaignView, and reflect ThreadSpire's back. It is off by default: nothing runs unless a session turns the join on, so a normal weekend behaves exactly as before, and the campaign's own data still saves the way it always has. Adds a shared campaignview.web.js backend (member-checked, campaign-scoped), a CampaignView collection, and the two bridge handlers. Merging this creates the collection on apply, which is a create and never a replace, so the Campaigns collection is skipped and untouched.
