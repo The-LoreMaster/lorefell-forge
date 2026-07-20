@@ -6,13 +6,8 @@ import { threadspirePublicChar } from 'backend/characters.web.js';
 import { listQuests, listDiscovered, getWorldMeta, saveAsset, listAssets } from 'backend/fatewell.web.js';
 import { listSphereArt } from 'backend/sphereart.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
-import { listStages, saveStage, deleteStage } from 'backend/threadspire.web.js';
+import { listStages, saveStage, deleteStage, getCampaignState, saveCampaignState } from 'backend/threadspire.web.js';
 import wixLocation from 'wix-location';
-
-// Phase 1 shared-state stub: a CampaignView-shaped store the embed pushes to and pulls
-// from, proving the transport path end to end. Phase 2 swaps this in-memory object for
-// the CampaignView collection through a backend module, and this dispatch does not move.
-let tsState = { version: 0, snap: null };
 
 // uploadRune hands back a wix:image:// descriptor, which a plain <img> cannot load.
 // Convert to an https url the embed can paint. Same conversion page-fatewell uses.
@@ -77,10 +72,11 @@ $w.onReady(function () {
           const r = await deleteStage(msg.stageId);
           reply(!!(r && r.ok), r, r && r.error);
         } else if (msg.type === 'TS_STATE_PUSH') {
-          tsState = { version: tsState.version + 1, snap: msg.snap };
-          reply(true, { ok: true, version: tsState.version });
+          try { const r = await saveCampaignState(campaignId, msg.snap); reply(!!(r && r.ok), r, r && r.error); }
+          catch (e) { reply(false, null, String(e)); }
         } else if (msg.type === 'TS_STATE_PULL') {
-          reply(true, tsState.version > (msg.since || 0) ? { version: tsState.version, snap: tsState.snap } : null);
+          try { const r = await getCampaignState(campaignId, msg.since); reply(true, r); }
+          catch (e) { reply(true, null); }
         }
       } catch (e) {
         reply(false, null, String(e));

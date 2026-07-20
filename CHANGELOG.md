@@ -1,3 +1,7 @@
+## ThreadSpire: CampaignView, live shared state (Phase 2)
+
+- The transport now points at a real store. A CampaignView collection holds one versioned snapshot per campaign, and threadspire.web.js gains getCampaignState and saveCampaignState, member-aware and campaign-scoped through the admin-locked collection. The page bridge swaps its in-memory stub for these methods, degrading quietly if the collection is not live yet. The ThreadSpire client is unchanged: its Phase 1 seam already speaks TS_STATE, so this only moves the far end from stub to collection. FateWell untouched; the collection is created, never a replace, so Campaigns is skipped on apply.
+
 ## ThreadSpire: the shared-state transport seam (Phase 1)
 
 - The live sync wire is in place. A stateBackend seam relays the shared slice outward on every send (board, active scene and stage, phase) and a feed pulls remote truth back, version-gated so a client never clobbers its own live edits. The stub keeps a versioned snapshot in memory, so a lone client runs exactly as before; embedded, the same two calls ride the page bridge to a CampaignView-shaped stub store on the page. Swapping that stub for the CampaignView collection is the whole of Phase 2, the seam does not move. FateWell and schemas untouched.
