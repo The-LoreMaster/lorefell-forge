@@ -20,6 +20,17 @@
 - The saved table model speaks Stage throughout the code: the backend seam, the snapshot and restore, the switch and delete, and the seed ids. The word scene stays with the adventure's narrative scenes.
 - Notes and Library are fed from the adventure's own state: Notes lists the scene's beats with their kinds, Library lists the foes, Fell, and NPCs at the table. Search and Settings hold their frames.
 - The live storage bridge lands. Embedded in the Wix page, the asset and stage seams route over postMessage to the page, which calls uploadRune, saveAsset, and listAssets for images and the new threadspire.web.js trio, listStages, saveStage, deleteStage, owner scoped like the Assets methods, for stages. Standalone, the stubs keep the proto working offline. A new Stages collection schema carries stageId, owner, campaign, name, map reference, token JSON, grid JSON, and the map box. On an embedded load the account's stages pull into the deck, so last session's tables come back.
+## FateWell: the ThreadSpire join (opt-in, dormant)
+
+- FateWell can mirror its running scene to ThreadSpire through a shared CampaignView, and reflect ThreadSpire's back. It is off by default: nothing runs unless a session turns the join on, so a normal weekend behaves exactly as before, and the campaign's own data still saves the way it always has. Adds a shared campaignview.web.js backend (member-checked, campaign-scoped), a CampaignView collection, and the two bridge handlers. Merging this creates the collection on apply, which is a create and never a replace, so the Campaigns collection is skipped and untouched.
+
+## SigilForge: Rooted, the combat effect
+
+- Rooted joins the shared combat effects, the single round form of the Rooting infusion. When it lands the target cannot move until the end of the round. It costs 2 and sits in the Movement group of the effect inlay, the lighter kin of Immobilized. Authored in SigilForge, carried into the conditions pack, and baked into FateWell and FellGlass.
+
+## FateWell: keep ThreadSpire's maps and tokens out of the foe library
+
+- ThreadSpire's saved maps and tokens live in the same Assets collection as the foe library, tagged by kind. FateWell's library ingest took every named row, so a saved map or token appeared in the roster as an empty foe. The ingest now drops rows tagged map or token before they reach the library. Foe rows are untouched.
 
 ## ThreadSpire: the LoreMaster's rail and identity panel
 

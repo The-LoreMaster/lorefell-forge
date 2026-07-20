@@ -6,7 +6,8 @@ import { threadspirePublicChar } from 'backend/characters.web.js';
 import { listQuests, listDiscovered, getWorldMeta, saveAsset, listAssets } from 'backend/fatewell.web.js';
 import { listSphereArt } from 'backend/sphereart.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
-import { listStages, saveStage, deleteStage, getCampaignState, saveCampaignState } from 'backend/threadspire.web.js';
+import { listStages, saveStage, deleteStage } from 'backend/threadspire.web.js';
+import { getCampaignState, saveCampaignState } from 'backend/campaignview.web.js';
 import wixLocation from 'wix-location';
 
 // uploadRune hands back a wix:image:// descriptor, which a plain <img> cannot load.

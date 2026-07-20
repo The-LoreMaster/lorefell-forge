@@ -1,5 +1,5 @@
 /* LoreFell canon conditions pack. Generated from SigilForge, which is canon for conditions.
-   37 afflictions, 34 combat effects, 6 impairments.
+   37 afflictions, 35 combat effects, 6 impairments.
    Only an affliction carries a Breakout. Do not hand-edit. Regenerate from SigilForge. */
 (function(g){
   var CONDITIONS = [
@@ -964,6 +964,19 @@
     "cost": 2,
     "breakout": "",
     "rule": "Your roll is Lucky for this attack.",
+    "forgeable": true,
+    "enforce": {
+      "bucket": "C",
+      "kind": "effect",
+      "op": null
+    }
+  },
+  {
+    "name": "Rooted",
+    "type": "effect",
+    "cost": 2,
+    "breakout": "",
+    "rule": "The target cannot move until the end of the round.",
     "forgeable": true,
     "enforce": {
       "bucket": "C",
