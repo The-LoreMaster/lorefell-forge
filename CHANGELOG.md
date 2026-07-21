@@ -1,3 +1,7 @@
+## ThreadSpire: declutter the LoreMaster view
+
+- Two always-on panels were crowding the map. The Testing panel is now hidden when embedded (it was pure scaffolding); a backtick keypress summons it while testing. The grid sliders no longer sit open on the map for every LoreMaster; they moved behind a Grid controls toggle in Settings, where the window already promised grid, log, and view controls would gather. The map stays clear until you ask for a tool.
+
 ## ThreadSpire: promote the runtime to the production file
 
 - The live site embeds threadspire.html, but the whole runtime was built in proto-threadspire.html, so none of it was ever live. This promotes the runtime into threadspire.html (docs and embeds) and removes the prototype, so the existing embed serves the real ThreadSpire: the LoreMaster view, the scene picker, Stages, the transport, the context handoff, and the real-adventure load. No second file left to drift.
