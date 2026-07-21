@@ -1,3 +1,7 @@
+## ThreadSpire: rail hugs the identity card
+
+- The right-side tabs were parked high to clear the scene bar, leaving a gap above the LoreMaster card. They now drop down to sit just above the identity card and the tabs are a touch more compact, so the cluster reads as one and stays well clear of the log above.
+
 ## ThreadSpire: the LoreMaster's Journal
 
 - A new LM-only Journal tab, a single stream you type into as you play, in roleplay and in battle, timestamped and kept for your recaps. It lives on the campaign row but only the LoreMaster can read it, so it never reaches a player, and it never touches FateWell prep. The running log still captures every roll and line as before; the Journal is for what you choose to write.
