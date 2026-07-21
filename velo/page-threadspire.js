@@ -7,7 +7,7 @@ import { listQuests, listDiscovered, getWorldMeta, saveAsset, listAssets } from 
 import { listSphereArt } from 'backend/sphereart.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
 import { listStages, saveStage, deleteStage } from 'backend/threadspire.web.js';
-import { getCampaignState, saveCampaignState } from 'backend/campaignview.web.js';
+import { getCampaignState, saveCampaignState, getJournal, saveJournal } from 'backend/campaignview.web.js';
 import { myAdventureRole } from 'backend/fatewell.web.js';
 import wixLocation from 'wix-location';
 
@@ -84,6 +84,12 @@ $w.onReady(function () {
         } else if (msg.type === 'TS_STATE_PULL') {
           try { const r = await getCampaignState(campaignId, msg.since); reply(true, r); }
           catch (e) { reply(true, null); }
+        } else if (msg.type === 'TS_JOURNAL_GET') {
+          try { const j = await getJournal(campaignId); reply(true, j || []); }
+          catch (e) { reply(true, []); }
+        } else if (msg.type === 'TS_JOURNAL_SAVE') {
+          try { const r = await saveJournal(campaignId, msg.entries || []); reply(!!(r && r.ok), r, r && r.error); }
+          catch (e) { reply(false, null, String(e)); }
         }
       } catch (e) {
         reply(false, null, String(e));

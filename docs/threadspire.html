@@ -66,6 +66,17 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 .win-note{ font-size:.86rem; color:var(--ice); line-height:1.5; margin-bottom:12px; }
 .win-search{ width:100%; background:#0b1020; border:1px solid var(--line); border-radius:6px; color:var(--silver); font:inherit; font-size:.86rem; padding:8px 10px; }
 .win-search:focus{ outline:none; border-color:var(--gold); }
+.jrow{ display:flex; gap:7px; margin-bottom:14px; }
+.jrow input{ flex:1; min-width:0; background:#0b1020; border:1px solid var(--line); border-radius:6px; color:var(--silver); font:inherit; font-size:.88rem; padding:8px 10px; }
+.jrow input:focus{ outline:none; border-color:var(--gold); }
+.jadd{ border:1px solid var(--gold); border-radius:6px; color:var(--gold); font-family:Cinzel,serif; font-size:.68rem; letter-spacing:.08em; text-transform:uppercase; padding:0 14px; flex:none; }
+.jempty{ color:var(--muted); font-size:.86rem; padding:10px 0; }
+.jentry{ border:1px solid var(--line); border-left:3px solid var(--gold); border-radius:8px; padding:8px 11px; margin-bottom:8px; background:var(--navy2,#0e1526); }
+.jhead{ display:flex; align-items:center; justify-content:space-between; margin-bottom:3px; }
+.jtime{ font-family:Cinzel,serif; font-size:.6rem; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
+.jx{ background:none; border:none; color:var(--muted); font-size:.95rem; line-height:1; cursor:pointer; padding:0 2px; }
+.jx:hover{ color:#e0b0a4; }
+.jtext{ font-size:.9rem; color:var(--ice); line-height:1.45; white-space:pre-wrap; }
 #hud .pname{ font-family:Cinzel,serif; font-size:.9rem; }
 #hud .psub{ font-size:.78rem; color:var(--ice); }
 #hud .gems{ display:flex; gap:7px; margin-top:10px; align-items:center; justify-content:space-between; }
@@ -812,6 +823,7 @@ var SECTIONS = {
   log:       { title:'Session log' },
   /* the LoreMaster's rail */
   notes:     { title:'Notes' },
+  journal:   { title:'Journal' },
   scenes:    { title:'Scenes' },
   library:   { title:'Library' },
   stages:    { title:'Stages' },
@@ -819,7 +831,7 @@ var SECTIONS = {
   settings:  { title:'Settings' }
 };
 var RAIL_PLAYER = ['inventory','skills','arsenal','attributes','lore'];
-var RAIL_LM     = ['notes','library','stages','search','settings'];
+var RAIL_LM     = ['notes','journal','library','stages','search','settings'];
 function railKeys(){ return S.role === 'lm' ? RAIL_LM : RAIL_PLAYER; }
 
 function stagesBody(){
@@ -873,9 +885,42 @@ function libraryBody(){
   h += group('NPCs', S.scene.npcs, function(){ return ''; });
   return h;
 }
+function jTime(ts){ try { return new Date(ts).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}); } catch(e){ return ''; } }
+function journalBody(){
+  var h = '<div class="win-note">The LoreMaster\u2019s Journal. Jot what happens as you play, in roleplay and in battle. Only you see it, and it is here for your recaps.</div>';
+  h += '<div class="jrow"><input id="jInput" maxlength="600" placeholder="What just happened..." onkeydown="if(event.key===\'Enter\')journalAdd()"><button class="jadd" onclick="journalAdd()">Add</button></div>';
+  var entries = (S.journal||[]).slice().reverse();
+  if (!entries.length) h += '<div class="jempty">Nothing yet. Your first note lands here.</div>';
+  entries.forEach(function(e){
+    h += '<div class="jentry"><div class="jhead"><span class="jtime">' + jTime(e.ts) + '</span>'
+      + '<button class="jx" onclick="journalDelete(\'' + e.id + '\')" title="Delete">\u00d7</button></div>'
+      + '<div class="jtext">' + esc(e.text) + '</div></div>';
+  });
+  return h;
+}
+function journalAdd(){
+  var el = document.getElementById('jInput'); if (!el) return;
+  var text = el.value.trim(); if (!text) return;
+  el.value = '';
+  S.journal.push({ id:'j' + Date.now(), ts:Date.now(), text:text });
+  journalBackend.save(S.journal).catch(function(){});
+  if (S.openSection === 'journal') openWin('journal');
+}
+function journalDelete(id){
+  S.journal = (S.journal||[]).filter(function(e){ return e.id !== id; });
+  journalBackend.save(S.journal).catch(function(){});
+  if (S.openSection === 'journal') openWin('journal');
+}
+function loadJournal(){
+  if (!tsEmbedded() || !isLM()) return;
+  journalBackend.get().then(function(rows){
+    if (Array.isArray(rows)){ S.journal = rows; if (S.openSection === 'journal') openWin('journal'); }
+  }).catch(function(){});
+}
 function sectionBody(key){
   if (key === 'stages') return stagesBody();
   if (key === 'notes') return notesBody();
+  if (key === 'journal') return journalBody();
   if (key === 'scenes') return scenesBody();
   if (key === 'library') return libraryBody();
   if (key === 'search') return '<div class="win-note">Search the FellGuide and the adventure.</div><input class="win-search" placeholder="Search" aria-label="Search">';
@@ -1774,6 +1819,13 @@ var _stateSeen = 0;
 function stubPushState(snap){ _stateStore = { version:_stateStore.version + 1, snap:snap }; return Promise.resolve({ ok:true, version:_stateStore.version }); }
 function stubPullState(since){ return Promise.resolve(_stateStore.version > (since||0) ? { version:_stateStore.version, snap:_stateStore.snap } : null); }
 var stateBackend = { push:stubPushState, pull:stubPullState };
+/* the LoreMaster's Journal seam. LM-only, kept apart from the shared game snapshot so it
+   never reaches a player. Stub keeps it in memory; embedded, it rides the page bridge to a
+   member-checked store. */
+var _journalStore = [];
+function stubGetJournal(){ return Promise.resolve(_journalStore.slice()); }
+function stubSaveJournal(entries){ _journalStore = (entries||[]).slice(); return Promise.resolve({ ok:true }); }
+var journalBackend = { get:stubGetJournal, save:stubSaveJournal };
 /* the shared slice two clients agree on: the board, the active scene and stage, the phase.
    Coarse for now, deltas can come later without moving the seam. */
 function sharedSnapshot(){
@@ -1868,6 +1920,7 @@ window.onmessage = function(ev){
     if (d.campaignId) S.campaignId = d.campaignId;
     if (d.memberName) S.memberName = d.memberName;
     render();
+    if (isLM()) loadJournal();
     return;
   }
   if (!d || d.type !== 'TS_RESULT' || !d.reqId || !_tsPending[d.reqId]) return;
@@ -1909,6 +1962,10 @@ if (tsEmbedded()){
   stateBackend = {
     push: function(snap){ return tsAsk('TS_STATE_PUSH', { snap:snap }); },
     pull: function(since){ return tsAsk('TS_STATE_PULL', { since:since }); }
+  };
+  journalBackend = {
+    get: function(){ return tsAsk('TS_JOURNAL_GET', {}); },
+    save: function(entries){ return tsAsk('TS_JOURNAL_SAVE', { entries:entries }); }
   };
 }
 /* on an embedded load, pull the account's stages into the deck so last session's
@@ -2021,7 +2078,8 @@ function lmTokenDrop(e){
 /* the signed-in member's name. The live page reads this from the Wix member, the
    prototype stubs it. */
 S.memberName = S.memberName || 'Nate';
-setTimeout(function(){ try { loadAccountStages(); startStateFeed(); if (tsEmbedded()) window.parent.postMessage({ type:'THREADSPIRE_READY' }, '*'); } catch(e){} }, 0);
+S.journal = S.journal || [];
+setTimeout(function(){ try { loadAccountStages(); startStateFeed(); loadJournal(); if (tsEmbedded()) window.parent.postMessage({ type:'THREADSPIRE_READY' }, '*'); } catch(e){} }, 0);
 /* the testing panel is scaffolding, not part of a real table: hidden when embedded,
    summoned with the backtick key when you need it while testing */
 (function(){
