@@ -1,3 +1,7 @@
+## FellGlass: route players to ThreadSpire
+
+- FellGlass becomes the on-ramp, not the daily home. Opening the-fellglass from the site with a character now heads straight to ThreadSpire, where the rail is the sheet. A player with no character gets the creation wizard, and finishing it carries them to ThreadSpire with their new character. Deep links with an explicit charId still open the sheet as before, and if the character lookup fails the tool falls open to the builder so no one is ever stranded.
+
 ## ThreadSpire: context handoff, role by entry point and ownership
 
 - ThreadSpire now completes the handshake it was missing. On load it announces THREADSPIRE_READY, and it consumes the THREADSPIRE_CONTEXT the page returns, so it finally learns its role and campaign instead of defaulting to a player on the seeded demo. Role is decided by entry point and secured by ownership: the page honors an LM request only when myAdventureRole confirms the signed-in member is the loremaster or lorekeeper, so a plain link opens the player view even for the LM, a Cast link opens the LoreMaster runtime, and a player who forges role=lm still gets the player view. FateWell and schemas untouched.
