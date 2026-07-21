@@ -1,3 +1,7 @@
+## ThreadSpire: real note categories with matching colors
+
+- Scene notes carried only their text before, so every one showed as gray Read aloud. The Cast handoff now carries each note's real FateWell type, and ThreadSpire renders the matching label and color: Read-aloud, Dialogue, Crucible, Lore Check, Clue, Quest, Secret, Beat, Reminder, and Note, each in the same hue FateWell uses. The tags now match what you wrote.
+
 ## ThreadSpire: clean view and full screen for streaming
 
 - Two viewing modes for streaming or projecting. Clean view hides every widget, the rail, the scene bar, the dice, the log, the identity card, and shows only the map and tokens; a faint Show widgets pill in the top corner brings them back. Full screen takes the runtime to the whole display. Both are in the Settings tab, and both have shortcuts: H toggles clean view, F toggles full screen. Full screen needs the embed to allow it, which is a one-time setting on the host page.
