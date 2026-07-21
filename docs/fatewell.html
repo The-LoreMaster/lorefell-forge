@@ -7779,6 +7779,39 @@ function crumb(){
 function spireBtn(id){
   return '<button onclick="openThreadSpire(\'' + id + '\')" style="margin-left:auto;font-family:Cinzel,serif;font-size:.72rem;letter-spacing:.06em;color:var(--gold);background:transparent;border:1px solid var(--gold);border-radius:6px;padding:5px 11px;cursor:pointer">Cast to the Spire</button>';
 }
+/* the roster a scene hands to ThreadSpire: foes with their kit, NPCs by name, and the Fell
+   at the table by name and level. Everything is read-through; the cards render, the math
+   stays in the engine. Guarded so one odd combatant never breaks the whole cast. */
+function fwCastFoe(cb){
+  var d = {};
+  try { d = fwFoeDamage(cb, cb.attrs || {}); } catch(e){ d = {}; }
+  return {
+    id: cb.id || ('f-' + (cb.libId || Math.random().toString(36).slice(2))),
+    name: cb.name || 'Foe', sr: cb.sr || 'Elite', side: 'foe',
+    curVit: (cb.curVit !== undefined ? cb.curVit : cb.maxVit) || 0, maxVit: cb.maxVit || 0, charge: cb.charge || 0,
+    attrs: cb.attrs || {},
+    dmg: { base: d.base || 0, bonus: d.bonus || 0, type: (d.type === 'magic' ? 'magical' : 'physical'), acc: d.acc || '' },
+    acts: (cb.abilities || []).map(function(a){ return { name: a.name || '', tier: a.tier || 0, effect: a.effect || '' }; }),
+    infusions: (cb.infusions || []).slice(), augments: (cb.augments || []).slice(),
+    stance: cb.stance || '', sig: cb.sig || '',
+    reacts: (cb.reacts && cb.reacts.length) ? cb.reacts.slice() : ['Skill', 'Movement']
+  };
+}
+function fwCastNpc(cb){ return { id: cb.id || ('n-' + Math.random().toString(36).slice(2)), name: cb.name || 'NPC' }; }
+function fwCastFell(pl){ return { id: pl.id || ('p-' + Math.random().toString(36).slice(2)), name: pl.name || 'Fell', level: pl.level || 1, curVit: pl.maxVit || 0, maxVit: pl.maxVit || 0, charge: 0 }; }
+function fwSpineScene(sc, c){
+  var foes = [], npcs = [];
+  (sc.combatants || []).forEach(function(cb){
+    if (!cb) return;
+    if (cb.type === 'npc' || cb.side === 'npc') npcs.push(fwCastNpc(cb));
+    else foes.push(fwCastFoe(cb));
+  });
+  return {
+    id: sc.id, name: sc.name,
+    beats: (sc.entries || []).map(function(e){ return { kind: e.type || 'general', title: e.title || '', body: e.body || '' }; }),
+    foes: foes, npcs: npcs, fell: (c.players || []).map(fwCastFell)
+  };
+}
 function openThreadSpire(id){
   /* hand the real adventure spine to the play surface through CampaignView, then open it.
      ThreadSpire reads the spine and lands on the scene you are on, no blob parsing needed. */
@@ -7788,7 +7821,7 @@ function openThreadSpire(id){
       var spine = {
         name: c.name,
         activeSceneId: (curSc() ? curSc().id : null),
-        acts: (c.acts||[]).map(function(a){ return { id:a.id, name:a.name, sessions:(a.sessions||[]).map(function(se){ return { id:se.id, name:se.name, scenes:(se.scenes||[]).map(function(sc){ return { id:sc.id, name:sc.name, beats:(sc.entries||[]).map(function(e){ return { kind:e.type||'general', title:e.title||'', body:e.body||'' }; }) }; }) }; }) }; })
+        acts: (c.acts||[]).map(function(a){ return { id:a.id, name:a.name, sessions:(a.sessions||[]).map(function(se){ return { id:se.id, name:se.name, scenes:(se.scenes||[]).map(function(sc){ return fwSpineScene(sc, c); }) }; }) }; })
       };
       postToWix({ type:'lmtool-cv-push', campaignId:(WIX.campaignId||id), snap:{ from:'fatewell', adventure:spine, activeSceneId:spine.activeSceneId } });
     }

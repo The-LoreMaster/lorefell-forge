@@ -1,3 +1,7 @@
+## ThreadSpire: the roster travels with the cast
+
+- Casting to the Spire now carries each scene's whole roster, not just its notes. Foes arrive with their rating, vitality, attributes, acts, infusions, and attack line; NPCs by name; and the Fell at the table by name and level. They fill the Library tab and, once combat begins, the foe and Fell cards on the play strip. Everything is read-through, the cards show, the math stays in the engine.
+
 ## FateWell: table journal appears in Adventure Notes
 
 - The LoreMaster's Journal from ThreadSpire now shows up on its own in FateWell's Adventure Notes, no button to press. When you open the adventure, FateWell pulls your table journal in and drops each entry into Adventure Notes as a real note, titled by the time you wrote it, so you can rename, fold, reorder, and delete them for recaps. Each entry is pulled exactly once and tracked, so nothing duplicates and a note you delete stays gone. The pull is one-way and never rewrites the campaign, FateWell adds the notes through its own save, so there is no risk to your prep.
