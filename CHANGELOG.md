@@ -1,3 +1,7 @@
+## FateWell: Cast to the Spire
+
+- A gold "Cast to the Spire" button now sits in the breadcrumb bar whenever an adventure is open, hidden on the home list. It opens ThreadSpire in a new tab on this same campaign, carrying campaign and role=lm, so FateWell stays open and the two run side by side. It solves the campaign-id problem too: FateWell already knows the id and builds the link for you. Access is still gated on the ThreadSpire side by ownership, so the role=lm hint only lands you in the LoreMaster view if you actually run the adventure.
+
 ## ThreadSpire: context handoff, role by entry point and ownership
 
 - ThreadSpire now completes the handshake it was missing. On load it announces THREADSPIRE_READY, and it consumes the THREADSPIRE_CONTEXT the page returns, so it finally learns its role and campaign instead of defaulting to a player on the seeded demo. Role is decided by entry point and secured by ownership: the page honors an LM request only when myAdventureRole confirms the signed-in member is the loremaster or lorekeeper, so a plain link opens the player view even for the LM, a Cast link opens the LoreMaster runtime, and a player who forges role=lm still gets the player view. FateWell and schemas untouched.
