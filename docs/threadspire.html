@@ -1847,7 +1847,7 @@ function pushState(){
 /* apply a remote snapshot as truth */
 function applyRemoteSnapshot(snap){
   if (!snap) return;
-  if (snap.adventure && snap.adventure.acts) loadAdventureSpine(snap.adventure);
+  if (snap.adventure && snap.adventure.acts){ loadAdventureSpine(snap.adventure); mergeFellSheets(); }
   if (snap.tokens) S.tokens = snap.tokens;
   if (snap.grid) S.grid = snap.grid;
   if (snap.map) S.map = snap.map;
@@ -1865,6 +1865,33 @@ var _stateFeedTimer = null;
 /* build the real adventure from the spine FateWell handed over: real act, session, and
    scene ids and names, so the scene picker and the join both work on the true game. Per
    scene content (beats, foes) ports in later; the spine is enough to run and switch. */
+/* fold each Fell's public sheet, portrait, gear, talents, and identity, onto the roster
+   card by matching character id. The combat numbers stay with the sheet module; this is
+   the face and the kit the LoreMaster reads at the table. */
+function mergeFellSheets(){
+  if (!S.party || !S.party.length) return;
+  var byChar = {}; S.party.forEach(function(sh){ if (sh && sh.charId) byChar[sh.charId] = sh; });
+  function enrich(list){
+    (list||[]).forEach(function(p){
+      var sh = p && p.charId ? byChar[p.charId] : null;
+      if (!sh) return;
+      if (sh.image) p.img = sh.image;
+      if (sh.playerName) p.playerName = sh.playerName;
+      var ar = sh.arsenal || {};
+      var kit = [].concat(ar.weapons||[], ar.lorebounds||[], ar.armor||[]);
+      if (kit.length) p.arsenal = kit;
+      if (sh.talents && sh.talents.length) p.skills = sh.talents.slice();
+      var lore = [];
+      if (sh.lineage) lore.push('Lineage: ' + sh.lineage);
+      if (sh.origin) lore.push('Origin: ' + sh.origin);
+      if (sh.motivation) lore.push('Motivation: ' + sh.motivation);
+      if (sh.blurb) lore.push(sh.blurb);
+      if (lore.length) p.lore = lore;
+    });
+  }
+  enrich(S.scene && S.scene.fell);
+  ((S.adventure && S.adventure.acts) || []).forEach(function(a){ (a.sessions||[]).forEach(function(se){ (se.scenes||[]).forEach(function(sc){ enrich(sc.fell); }); }); });
+}
 function tsSceneFromSpine(sc){
   var seed = S.scene || {};
   return { name: sc.name || 'Scene', id: sc.id, combatPhase:null, background:null,
@@ -1922,6 +1949,7 @@ window.onmessage = function(ev){
     if (d.role === 'lm' || d.role === 'player') S.role = d.role;
     if (d.campaignId) S.campaignId = d.campaignId;
     if (d.memberName) S.memberName = d.memberName;
+    if (d.party) { S.party = d.party; mergeFellSheets(); }
     render();
     if (isLM()) loadJournal();
     return;
@@ -2082,6 +2110,7 @@ function lmTokenDrop(e){
    prototype stubs it. */
 S.memberName = S.memberName || 'Nate';
 S.journal = S.journal || [];
+S.party = S.party || [];
 setTimeout(function(){ try { loadAccountStages(); startStateFeed(); loadJournal(); if (tsEmbedded()) window.parent.postMessage({ type:'THREADSPIRE_READY' }, '*'); } catch(e){} }, 0);
 /* the testing panel is scaffolding, not part of a real table: hidden when embedded,
    summoned with the backtick key when you need it while testing */

@@ -1,3 +1,7 @@
+## ThreadSpire: the Fell get their faces and gear
+
+- The Fell cards were bare name and level. Now, on cast, each Fell is matched to its character sheet and picks up its portrait, weapons, lorebounds, armor, talents, and identity, lineage, origin, and motivation, so the LoreMaster sees who is at the table and what they carry, and Fell tokens wear their portraits. The deep combat numbers still live with the sheet module and come later; this is the face and the kit.
+
 ## ThreadSpire: the roster travels with the cast
 
 - Casting to the Spire now carries each scene's whole roster, not just its notes. Foes arrive with their rating, vitality, attributes, acts, infusions, and attack line; NPCs by name; and the Fell at the table by name and level. They fill the Library tab and, once combat begins, the foe and Fell cards on the play strip. Everything is read-through, the cards show, the math stays in the engine.
