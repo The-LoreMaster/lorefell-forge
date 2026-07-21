@@ -1,3 +1,7 @@
+## ThreadSpire: load the real adventure on Cast
+
+- Cast to the Spire now hands the real game over. The button gate was too strict (it required a campaign id that hub mode leaves empty), so it never showed; it now appears whenever an adventure is open. On Cast, FateWell pushes the adventure spine, the true acts, sessions, and scenes with their ids and names, into CampaignView, then opens ThreadSpire. ThreadSpire reads that spine on load and builds its scene picker from your actual adventure, landing on the scene you were on, instead of the seeded demo. Per-scene content ports later; the spine is enough to run and switch. No blob parsing, the spine comes straight from FateWell's own model.
+
 ## FellGlass: route players to ThreadSpire
 
 - FellGlass becomes the on-ramp, not the daily home. Opening the-fellglass from the site with a character now heads straight to ThreadSpire, where the rail is the sheet. A player with no character gets the creation wizard, and finishing it carries them to ThreadSpire with their new character. Deep links with an explicit charId still open the sheet as before, and if the character lookup fails the tool falls open to the builder so no one is ever stranded.
