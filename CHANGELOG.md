@@ -1,3 +1,7 @@
+## ThreadSpire: scene beats through the handoff, and FellGlass flash fix
+
+- Cast now carries each scene's beats, not just its name, so the Notes window shows what you wrote to run the scene instead of Nothing here. FateWell maps a scene's entries into read, check, and choice beats and hands them over in the spine; ThreadSpire loads them per scene. FellGlass no longer flashes the sheet before redirecting: when embedded it stays behind a cover until it knows it is staying (a deep-linked sheet or a new-character wizard) or is standalone or offline, so a player being routed to the table never sees the sheet blink.
+
 ## ThreadSpire: promote the runtime to the production file
 
 - The live site embeds threadspire.html, but the whole runtime was built in proto-threadspire.html, so none of it was ever live. This promotes the runtime into threadspire.html (docs and embeds) and removes the prototype, so the existing embed serves the real ThreadSpire: the LoreMaster view, the scene picker, Stages, the transport, the context handoff, and the real-adventure load. No second file left to drift.
