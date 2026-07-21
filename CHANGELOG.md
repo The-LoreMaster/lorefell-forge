@@ -1,3 +1,7 @@
+## ThreadSpire: card sizing, width-to-bar, collapsible log, focus discipline
+
+- Every card now caps at 44vh and scrolls inside, so nothing ever runs off screen. The beat card takes the width of the scene bar above it, left and right, so they read as one stacked unit. The play log collapses to a small pill from a toggle in its header. And the view keeps one thing in focus at a time: opening a rail window minimizes the scene bar and beats and closes any open card, closing the window brings the bar back, and opening a foe or player card closes an open window.
+
 ## ThreadSpire: contain the beat cards
 
 - The scene notes were ballooning over the map, onto the dice, and off the bottom of the screen. Now a beat shows one card at a time (the peeking neighbor cards are gone; the arrows and dots navigate), the card is compact and capped at 44vh so long notes scroll inside it instead of running off screen, and its width is held to about 420px so it stays clear of the rail on the right and the dice at the bottom left. The map stays readable while a beat is open.
