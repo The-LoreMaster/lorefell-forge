@@ -1,6 +1,9 @@
 ## FellGlass: route players to ThreadSpire
 
 - FellGlass becomes the on-ramp, not the daily home. Opening the-fellglass from the site with a character now heads straight to ThreadSpire, where the rail is the sheet. A player with no character gets the creation wizard, and finishing it carries them to ThreadSpire with their new character. Deep links with an explicit charId still open the sheet as before, and if the character lookup fails the tool falls open to the builder so no one is ever stranded.
+## FateWell: Cast to the Spire
+
+- A gold "Cast to the Spire" button now sits in the breadcrumb bar whenever an adventure is open, hidden on the home list. It opens ThreadSpire in a new tab on this same campaign, carrying campaign and role=lm, so FateWell stays open and the two run side by side. It solves the campaign-id problem too: FateWell already knows the id and builds the link for you. Access is still gated on the ThreadSpire side by ownership, so the role=lm hint only lands you in the LoreMaster view if you actually run the adventure.
 
 ## ThreadSpire: context handoff, role by entry point and ownership
 
