@@ -3,7 +3,7 @@
 // Feeds the character-first view: the player's character card, the party at their
 // location, revealed nodes, quest-board goals, world issues, and map art.
 import { threadspirePublicChar } from 'backend/characters.web.js';
-import { listQuests, listDiscovered, getWorldMeta, saveAsset, listAssets } from 'backend/fatewell.web.js';
+import { listQuests, listDiscovered, getWorldMeta, saveAsset, listAssets, getCampaignPlayers } from 'backend/fatewell.web.js';
 import { listSphereArt } from 'backend/sphereart.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
 import { listStages, saveStage, deleteStage } from 'backend/threadspire.web.js';
@@ -117,6 +117,17 @@ async function buildContext(characterId, campaignId) {
     try {
       const wm = await getWorldMeta(campaignId);
       if (wm) { out.worldUnlocked = !!wm.worldUnlocked; out.worldIssues = wm.worldIssues || []; }
+    } catch (e) {}
+    try {
+      const roster = await getCampaignPlayers(campaignId);
+      const sheets = [];
+      for (const pl of (roster || [])) {
+        if (!pl.charId) continue;
+        let ch = null;
+        try { ch = await threadspirePublicChar(pl.charId); } catch (e) {}
+        sheets.push(Object.assign({ charId: pl.charId, level: pl.level, maxVit: pl.maxVit, memberName: pl.memberName }, ch || {}));
+      }
+      out.party = sheets;
     } catch (e) {}
   }
 
