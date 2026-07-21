@@ -1,3 +1,7 @@
+## ThreadSpire: clean view and full screen for streaming
+
+- Two viewing modes for streaming or projecting. Clean view hides every widget, the rail, the scene bar, the dice, the log, the identity card, and shows only the map and tokens; a faint Show widgets pill in the top corner brings them back. Full screen takes the runtime to the whole display. Both are in the Settings tab, and both have shortcuts: H toggles clean view, F toggles full screen. Full screen needs the embed to allow it, which is a one-time setting on the host page.
+
 ## ThreadSpire: fixed beat height, arrow-key navigation
 
 - The beat card is now a fixed height instead of growing to its content, so the scene bar above it stays put no matter how long or short a note is; long notes scroll inside the set frame. The left and right arrow keys now step through beats and no longer scroll the whole window (they are ignored while typing in the chat box).
