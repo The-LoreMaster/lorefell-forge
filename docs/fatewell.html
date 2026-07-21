@@ -7716,7 +7716,7 @@ function crumb(){
   var onTop = (V.screen==='campaigns');
   var deep = ['campaign','act','session','scene'].indexOf(V.screen)>=0;
   /* access ThreadSpire from within an adventure; hidden on the home list and outside hosting */
-  var spire = (c && !onTop && WIX.hosted && WIX.campaignId) ? spireBtn(c.id) : '';
+  var spire = (c && !onTop && WIX.hosted) ? spireBtn(c.id) : '';
   if (V.cardView && c && deep){
     /* the descent spine shows the path now; only the route back to the full list stays here */
     return h + '<span class="cr-link" onclick="nav(\'campaigns\')">Adventures</span>' + spire + '</div>';
@@ -7746,6 +7746,19 @@ function spireBtn(id){
   return '<button onclick="openThreadSpire(\'' + id + '\')" style="margin-left:auto;font-family:Cinzel,serif;font-size:.72rem;letter-spacing:.06em;color:var(--gold);background:transparent;border:1px solid var(--gold);border-radius:6px;padding:5px 11px;cursor:pointer">Cast to the Spire</button>';
 }
 function openThreadSpire(id){
+  /* hand the real adventure spine to the play surface through CampaignView, then open it.
+     ThreadSpire reads the spine and lands on the scene you are on, no blob parsing needed. */
+  try {
+    var c = curC();
+    if (c){
+      var spine = {
+        name: c.name,
+        activeSceneId: (curSc() ? curSc().id : null),
+        acts: (c.acts||[]).map(function(a){ return { id:a.id, name:a.name, sessions:(a.sessions||[]).map(function(se){ return { id:se.id, name:se.name, scenes:(se.scenes||[]).map(function(sc){ return { id:sc.id, name:sc.name }; }) }; }) }; })
+      };
+      postToWix({ type:'lmtool-cv-push', campaignId:(WIX.campaignId||id), snap:{ from:'fatewell', adventure:spine, activeSceneId:spine.activeSceneId } });
+    }
+  } catch(e){}
   var base = '';
   try { base = new URL(document.referrer).origin; } catch(e){}
   if (!base || base.indexOf('http') !== 0) base = 'https://lorefell.com';

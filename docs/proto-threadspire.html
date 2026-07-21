@@ -1760,6 +1760,7 @@ function pushState(){
 /* apply a remote snapshot as truth */
 function applyRemoteSnapshot(snap){
   if (!snap) return;
+  if (snap.adventure && snap.adventure.acts) loadAdventureSpine(snap.adventure);
   if (snap.tokens) S.tokens = snap.tokens;
   if (snap.grid) S.grid = snap.grid;
   if (snap.map) S.map = snap.map;
@@ -1774,13 +1775,42 @@ function applyRemoteSnapshot(snap){
   applyRemoteState({ scene:S.scene, tokens:S.tokens, grid:S.grid, map:S.map });
 }
 var _stateFeedTimer = null;
+/* build the real adventure from the spine FateWell handed over: real act, session, and
+   scene ids and names, so the scene picker and the join both work on the true game. Per
+   scene content (beats, foes) ports in later; the spine is enough to run and switch. */
+function tsSceneFromSpine(sc){
+  var seed = S.scene || {};
+  return { name: sc.name || 'Scene', id: sc.id, combatPhase:null, background:null,
+    maps: seed.maps || [], spotMode:'auto', manual:{}, spotOrder:[], activeSpot:0,
+    beats:[], foes:[], fell: seed.fell || [], npcs:[] };
+}
+function loadAdventureSpine(spine){
+  var acts = (spine.acts||[]).map(function(a){
+    return { id:a.id, name:a.name, sessions:(a.sessions||[]).map(function(se){
+      return { id:se.id, name:se.name, scenes:(se.scenes||[]).map(tsSceneFromSpine) };
+    }) };
+  });
+  if (!acts.length) return;
+  var firstScene = null;
+  acts.forEach(function(a){ (a.sessions||[]).forEach(function(se){ (se.scenes||[]).forEach(function(sc){ if(!firstScene) firstScene = sc; }); }); });
+  var activeId = spine.activeSceneId || (firstScene && firstScene.id);
+  S.adventure = { name: spine.name || 'Adventure', activeSceneId: activeId, acts: acts };
+  /* make sure every scene has a private binding, and land on the active one */
+  (spine.acts||[]).forEach(function(a){ (a.sessions||[]).forEach(function(se){ (se.scenes||[]).forEach(function(sc){
+    if (!S.instance.bindings[sc.id]) S.instance.bindings[sc.id] = { stageIds:[], activeStageId:null };
+  }); }); });
+  var hit = (typeof tsSceneById === 'function') ? tsSceneById(activeId) : null;
+  if (hit) S.scene = hit.scene;
+}
 function startStateFeed(){
   if (!tsEmbedded() || _stateFeedTimer) return;
-  _stateFeedTimer = setInterval(function(){
+  function pullOnce(){
     stateBackend.pull(_stateSeen).then(function(res){
       if (res && res.version > _stateSeen){ _stateSeen = res.version; applyRemoteSnapshot(res.snap); }
     }).catch(function(){});
-  }, 1500);
+  }
+  pullOnce();                                  /* land on the real adventure right away */
+  _stateFeedTimer = setInterval(pullOnce, 1500);
 }
 
 var _tsReq = 0, _tsPending = {};
