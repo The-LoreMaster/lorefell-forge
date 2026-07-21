@@ -1,3 +1,7 @@
+## ThreadSpire: the LoreMaster's Journal
+
+- A new LM-only Journal tab, a single stream you type into as you play, in roleplay and in battle, timestamped and kept for your recaps. It lives on the campaign row but only the LoreMaster can read it, so it never reaches a player, and it never touches FateWell prep. The running log still captures every roll and line as before; the Journal is for what you choose to write.
+
 ## ThreadSpire: real note categories with matching colors
 
 - Scene notes carried only their text before, so every one showed as gray Read aloud. The Cast handoff now carries each note's real FateWell type, and ThreadSpire renders the matching label and color: Read-aloud, Dialogue, Crucible, Lore Check, Clue, Quest, Secret, Beat, Reminder, and Note, each in the same hue FateWell uses. The tags now match what you wrote.
