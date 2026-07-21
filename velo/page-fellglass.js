@@ -44,6 +44,10 @@ $w.onReady(() => {
       let libraries = {};
       try { libraries = await getLibraries(); } catch (e) { libraries = {}; }
       const list = await listChars();
+      // Site entry with an existing character heads to the table; the sheet lives in ThreadSpire's rail now.
+      if (!charId && list.length) {
+        try { wixLocation.to('/the-threadspire?character=' + encodeURIComponent(list[0].id)); return; } catch (e) {}
+      }
       if (!charId && list.length) charId = list[0].id;
       embed.postMessage({ type: 'characters', list: list, currentId: charId || '' });
       let adventures = [];
