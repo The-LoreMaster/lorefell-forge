@@ -1,3 +1,7 @@
+## ThreadSpire: contain the beat cards
+
+- The scene notes were ballooning over the map, onto the dice, and off the bottom of the screen. Now a beat shows one card at a time (the peeking neighbor cards are gone; the arrows and dots navigate), the card is compact and capped at 44vh so long notes scroll inside it instead of running off screen, and its width is held to about 420px so it stays clear of the rail on the right and the dice at the bottom left. The map stays readable while a beat is open.
+
 ## ThreadSpire: declutter the LoreMaster view
 
 - Two always-on panels were crowding the map. The Testing panel is now hidden when embedded (it was pure scaffolding); a backtick keypress summons it while testing. The grid sliders no longer sit open on the map for every LoreMaster; they moved behind a Grid controls toggle in Settings, where the window already promised grid, log, and view controls would gather. The map stays clear until you ask for a tool.
