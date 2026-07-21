@@ -1,3 +1,7 @@
+## ThreadSpire: fixed beat height, arrow-key navigation
+
+- The beat card is now a fixed height instead of growing to its content, so the scene bar above it stays put no matter how long or short a note is; long notes scroll inside the set frame. The left and right arrow keys now step through beats and no longer scroll the whole window (they are ignored while typing in the chat box).
+
 ## ThreadSpire: card sizing, width-to-bar, collapsible log, focus discipline
 
 - Every card now caps at 44vh and scrolls inside, so nothing ever runs off screen. The beat card takes the width of the scene bar above it, left and right, so they read as one stacked unit. The play log collapses to a small pill from a toggle in its header. And the view keeps one thing in focus at a time: opening a rail window minimizes the scene bar and beats and closes any open card, closing the window brings the bar back, and opening a foe or player card closes an open window.
