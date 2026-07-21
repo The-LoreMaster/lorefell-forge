@@ -1,3 +1,7 @@
+## FateWell: table journal appears in Adventure Notes
+
+- The LoreMaster's Journal from ThreadSpire now shows up on its own in FateWell's Adventure Notes, no button to press. When you open the adventure, FateWell pulls your table journal in and drops each entry into Adventure Notes as a real note, titled by the time you wrote it, so you can rename, fold, reorder, and delete them for recaps. Each entry is pulled exactly once and tracked, so nothing duplicates and a note you delete stays gone. The pull is one-way and never rewrites the campaign, FateWell adds the notes through its own save, so there is no risk to your prep.
+
 ## ThreadSpire: rail hugs the identity card
 
 - The right-side tabs were parked high to clear the scene bar, leaving a gap above the LoreMaster card. They now drop down to sit just above the identity card and the tabs are a touch more compact, so the cluster reads as one and stays well clear of the log above.

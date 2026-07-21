@@ -10,7 +10,7 @@ import { publishCombatState, applyCombatToChar, getCombatDeclares, dealDamageToC
 import { publishAdventure, myPublishedAdventures, unpublishAdventure, getPublishedPack } from 'backend/published.web.js';
 import { createInvite, revokeInvite } from 'backend/invites.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
-import { getCampaignState, saveCampaignState } from 'backend/campaignview.web.js';
+import { getCampaignState, saveCampaignState, getJournal } from 'backend/campaignview.web.js';
 import wixLocation from 'wix-location';
 import wixWindow from 'wix-window';
 
@@ -288,6 +288,10 @@ $w.onReady(() => {
       let cv = null;
       try { cv = await getCampaignState(m.campaignId || campaignId, m.since); } catch (e) { cv = null; }
       if (cv) embed.postMessage(Object.assign({ type: 'lmtool-cv-state' }, cv));
+    } else if (m.type === 'lmtool-journal-request') {
+      let jentries = [];
+      try { jentries = await getJournal(m.campaignId || campaignId); } catch (e) { jentries = []; }
+      embed.postMessage({ type: 'lmtool-journal', campaignId: m.campaignId || campaignId, entries: jentries || [] });
     } else if (m.type === 'lmtool-modal-open') {
       // Bring the embed into view and report the window height so the tool can center its
       // popup on the reader's screen. After scrollTo the embed top aligns with the viewport
