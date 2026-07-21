@@ -1,3 +1,7 @@
+## ThreadSpire: promote the runtime to the production file
+
+- The live site embeds threadspire.html, but the whole runtime was built in proto-threadspire.html, so none of it was ever live. This promotes the runtime into threadspire.html (docs and embeds) and removes the prototype, so the existing embed serves the real ThreadSpire: the LoreMaster view, the scene picker, Stages, the transport, the context handoff, and the real-adventure load. No second file left to drift.
+
 ## ThreadSpire: load the real adventure on Cast
 
 - Cast to the Spire now hands the real game over. The button gate was too strict (it required a campaign id that hub mode leaves empty), so it never showed; it now appears whenever an adventure is open. On Cast, FateWell pushes the adventure spine, the true acts, sessions, and scenes with their ids and names, into CampaignView, then opens ThreadSpire. ThreadSpire reads that spine on load and builds its scene picker from your actual adventure, landing on the scene you were on, instead of the seeded demo. Per-scene content ports later; the spine is enough to run and switch. No blob parsing, the spine comes straight from FateWell's own model.
