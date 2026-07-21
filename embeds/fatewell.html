@@ -3442,6 +3442,7 @@ window.addEventListener('message', function(ev){
   /* Any reply proves the bridge is alive, whatever it's about; drop a stale "offline" flag. */
   if (WIX.offline){ WIX.offline = false; renderSavedTag(); }
   if (m.type === 'lmtool-cv-state'){ fwCvApply(m); return; }
+  if (m.type === 'lmtool-journal'){ fwImportJournal(m.entries||[]); return; }
   if (m.type === 'lmtool-viewport' || m.type === 'LOREFELL_VIEWPORT'){
     window._wixVis = { top: Number(m.top)||0, height: Number(m.height)||0 };
     if (document.querySelector('#modal .m-card')) positionModal(true);
@@ -4027,6 +4028,39 @@ function advSub(c){
 function implicitAct(c){
   if (!c.acts.length){ c.acts.push({ id:uid(), name:'Main', implicit:true, notes:'', img:'', desc:'', entries:[], manualRefs:[], sessions:[] }); }
   return c.acts[0];
+}
+function fwJournalTitle(ts){
+  try { return 'Table note, ' + new Date(ts).toLocaleString([], { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }); }
+  catch(e){ return 'Table note'; }
+}
+/* the LoreMaster's table journal, pulled in one-way from ThreadSpire and dropped into this
+   adventure's notes for recaps. Each entry is pulled exactly once, tracked by id, so a note
+   you delete here never comes back and nothing duplicates. The blob is never rewritten from
+   the other side; FateWell adds these through its own save, the same as any note. */
+function fwImportJournal(entries){
+  var c = curC(); if (!c) return;
+  if (!c.entries) c.entries = [];
+  c.journalPulled = c.journalPulled || [];
+  var added = 0;
+  (entries||[]).forEach(function(je){
+    if (!je || !je.id) return;
+    if (c.journalPulled.indexOf(je.id) >= 0) return;
+    c.journalPulled.push(je.id);
+    c.entries.push({ id:'j-' + je.id, title:fwJournalTitle(je.ts), type:'general', body:je.text || '' });
+    added++;
+  });
+  if (added){ save(); render(); advNote('From the table', added + (added===1 ? ' journal note' : ' journal notes') + ' pulled into your Adventure Notes.'); }
+}
+function fwRequestJournal(){
+  if (!WIX.hosted) return;
+  var c = curC(); if (!c) return;
+  var cid = WIX.campaignId || c.id; if (!cid) return;
+  var role = (window._viewerRole && window._viewerRole[cid]) || 'loremaster';
+  if (role !== 'loremaster' && role !== 'lorekeeper') return;
+  window._journalReq = window._journalReq || {};
+  if (window._journalReq[cid]) return;
+  window._journalReq[cid] = 1;
+  postToWix({ type:'lmtool-journal-request', campaignId: cid });
 }
 function advNote(title, body){
   modal('<h3 class="m-title">'+esc(title)+'</h3><p class="muted">'+esc(body)+'</p>'
@@ -11263,6 +11297,7 @@ function scrData(){
 
 function mast(){ return '<div class="fw-mast">The Fate<span class="fw-well">Well</span></div>'; }
 function render(){
+  fwRequestJournal();
   renderSavedTag();
   var runner = (V.screen==='runner');
   try { document.body.classList.toggle('runner-mode', runner); document.documentElement.classList.toggle('runner', runner); } catch(_){}
