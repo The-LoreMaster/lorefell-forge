@@ -45,6 +45,11 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 .frame{ position:fixed; inset:0; pointer-events:none; border:14px solid transparent; border-image:linear-gradient(160deg,#171208,#57431a,#171208) 1; }
 
 #log{ position:fixed; top:16px; right:16px; width:250px; max-height:220px; overflow-y:auto; background:rgba(10,14,26,.92); border:1px solid var(--gold); border-radius:8px; padding:8px 10px; font-size:.82rem; line-height:1.45; }
+.log-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+.log-h{ font-family:Cinzel,serif; font-size:.62rem; letter-spacing:.14em; text-transform:uppercase; color:var(--gold); }
+.log-x{ background:none; border:none; color:var(--gold); font-size:.95rem; line-height:1; cursor:pointer; padding:0 4px; }
+#log.min{ max-height:none; }
+#log.min .lchat, #log.min .logstream{ display:none; }
 #log div{ color:var(--gold); } #log div b{ color:var(--ice); font-weight:600; }
 
 #rail{ position:fixed; right:16px; bottom:172px; display:flex; flex-direction:column; gap:10px; width:200px; }
@@ -226,12 +231,12 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
    A centered card is capped so its half never crosses into that zone. */
 .lmcard{ background:var(--panel); border:1px solid var(--line); border-radius:11px; padding:13px 15px; box-shadow:0 6px 24px rgba(0,0,0,.5); }
 /* scene beat card: compact, hard-capped so it never leaves the screen; body scrolls within */
-.lmcard.beat{ width:min(420px, calc(100vw - 320px)); min-width:0; max-width:420px; padding:11px 14px; max-height:44vh; display:flex; flex-direction:column; }
+.lmcard.beat{ width:min(94vw, 560px); min-width:0; max-width:none; padding:11px 14px; max-height:44vh; display:flex; flex-direction:column; box-sizing:border-box; }
 .lmcard.beat .lmc-body{ max-height:none; flex:1 1 auto; min-height:0; overflow-y:auto; font-size:.85rem; line-height:1.5; }
 /* foe combat card, compact by default like the FateWell strip, expands on click */
 .lmcard.foe, .lmcard.fell{ width:172px; cursor:pointer; }
-.lmcard.foe.expanded, .lmcard.fell.expanded{ width:min(340px, calc(100vw - 160px)); max-height:60vh; overflow-y:auto; cursor:default; }
-.lmcard.spotbox{ width:max-content; max-width:min(680px, calc(100vw - 160px)); max-height:none; padding:10px 13px 12px; }
+.lmcard.foe.expanded, .lmcard.fell.expanded{ width:min(340px, calc(100vw - 160px)); max-height:44vh; overflow-y:auto; cursor:default; }
+.lmcard.spotbox{ width:max-content; max-width:min(680px, calc(100vw - 160px)); max-height:44vh; overflow-y:auto; padding:10px 13px 12px; }
 .lmc-spothead{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:8px; }
 .lmc-spothead .lmbtn.sm2{ margin:0; width:auto; }
 .lm-spotrow{ display:flex; gap:9px; align-items:flex-start; overflow-x:auto; }
@@ -435,6 +440,7 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
   </div>
   <div class="frame"></div>
   <div id="log">
+    <div class="log-head"><span class="log-h">Log</span><button class="log-x" onclick="toggleLog()" title="Collapse the log">−</button></div>
     <div class="lchat">
       <input id="chatPanel" maxlength="240" placeholder="Say something" onkeydown="if(event.key==='Enter')sayFrom('chatPanel')">
       <button onclick="sayFrom('chatPanel')">Say</button>
@@ -1075,15 +1081,19 @@ function isMobile(){ return window.matchMedia('(max-width:700px)').matches; }
 function openWin(key){
   if (key === 'battle' && isMobile()){ toggleDrawer(true); return; }
   S.openSection = key;
+  lmMin = true; lmExpanded = null;
   document.getElementById('winTitle').textContent = SECTIONS[key].title.toUpperCase();
   document.getElementById('winBody').innerHTML = sectionBody(key);
   document.getElementById('win').classList.add('open');
   paintRails(); renderLog();
+  if (typeof paintLmStrip === 'function' && isLM()) paintLmStrip();
 }
 function closeWin(){
   S.openSection = null;
   document.getElementById('win').classList.remove('open');
+  lmMin = false;
   paintRails();
+  if (typeof paintLmStrip === 'function' && isLM()) paintLmStrip();
 }
 
 /* ---- rails ---- */
@@ -1124,9 +1134,9 @@ var lmFocus = { scene:0, commit:0, resolve:0 };
 var lmExpanded = null;        /* id of the foe card opened to tabs, or null */
 var lmMin = false;            /* the whole strip collapsed to a pill */
 function lmMinimize(){ lmMin = true; paintLmStrip(); }
-function lmRestore(){ lmMin = false; paintLmStrip(); }
+function lmRestore(){ if (S.openSection){ closeWin(); } else { lmMin = false; paintLmStrip(); } }
 var lmTab = 'about';          /* active tab on the expanded card */
-function lmToggleCard(id){ lmExpanded = (lmExpanded === id) ? null : id; lmTab = 'about'; paintLmStrip(); }
+function lmToggleCard(id){ lmExpanded = (lmExpanded === id) ? null : id; if (lmExpanded && S.openSection) closeWin(); lmTab = 'about'; paintLmStrip(); }
 function lmSetTab(id, tab){ lmExpanded = id; lmTab = tab; paintLmStrip(); }
 function lmFace(){ return S.mode === 'combat' ? (S.scene.combatPhase || 'commit') : 'scene'; }
 function lmDeck(){
@@ -1143,6 +1153,11 @@ function paintLmStrip(){
   el.classList.remove('hidden');
   el.className = 'lm-' + lmFace();
   el.innerHTML = lmStripHtml();
+  try {
+    var _tb = el.querySelector('.lm-topbar');
+    var _card = el.querySelector('.lm-slot.center .lmcard.beat');
+    if (_tb && _card) _card.style.width = _tb.offsetWidth + 'px';
+  } catch(e){}
 }
 
 function lmStripHtml(){
@@ -2444,6 +2459,7 @@ function entryHtml(e){
   }
   return '<div class="le sys">\u00b7 ' + e.html + '</div>';
 }
+function toggleLog(){ var l=document.getElementById('log'); if(!l) return; var m=l.classList.toggle('min'); var x=l.querySelector('.log-x'); if(x) x.textContent = m ? '+' : '−'; }
 function renderLog(){
   /* newest sits directly under the chat box and older work downward off the
      panel. The chat box and the newest line are the two things always in view,
