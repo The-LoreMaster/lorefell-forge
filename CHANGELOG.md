@@ -1,3 +1,7 @@
+## ThreadSpire: derive the character id from the sheet context
+
+- The sheet load no longer depends on a single id field in the page message. If the character id is not passed directly, ThreadSpire now takes it from the character object the table already sends, so the sheet still finds its owner and loads.
+
 ## 2026-07-21 — SagaForge adventure craft engine
 
 - Added variation decks: sixteen adventure frames and ten antagonist stances, rolled on the Scope step with reroll and hand pick, avoiding recently used picks. The rolled frame and stance ride in the premise, spine, and every scene prompt.
