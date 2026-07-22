@@ -1,3 +1,7 @@
+## ThreadSpire: your real character in the rail tabs
+
+- ThreadSpire now loads your actual character from the one Characters record instead of the Acantha placeholder, so your name, level, vitality, and portrait are yours. The rail tabs render your real sheet: Attributes, Skills, Inventory, Arsenal (weapons, lorebounds, armor), and Lore (lineage, origin, motivation). These read the stored sheet directly; the situational math, grants, stance bonuses, and forged weapon names, still lives in FellGlass so the two never drift.
+
 ## ThreadSpire hosts the character sheet (FellGlass, live)
 
 - The player's full sheet now lives inside ThreadSpire. Tapping the rail or the identity card opens the real FellGlass, the whole tool, not a copy, in a panel over the table. Its bridge is relayed through ThreadSpire's page to the same Characters record its own page uses, so every edit saves to the one record that FateWell and the rest of ThreadSpire already read. Nothing is duplicated, so nothing can drift. This is the first half of making ThreadSpire the single home; the LoreMaster's authoring tool is next.

@@ -926,6 +926,11 @@ function loadJournal(){
   }).catch(function(){});
 }
 function sectionBody(key){
+  if (key === 'attributes') return attributesBody();
+  if (key === 'skills') return skillsBody();
+  if (key === 'inventory') return inventoryBody();
+  if (key === 'arsenal') return arsenalBody();
+  if (key === 'lore') return loreBody();
   if (key === 'stages') return stagesBody();
   if (key === 'notes') return notesBody();
   if (key === 'journal') return journalBody();
@@ -940,9 +945,6 @@ function sectionBody(key){
       + '<button onclick="toggleFull()" style="' + sBtn + '">Full screen (F)</button>';
   }
   if (key === 'battle') return battleBody();
-  if (key === 'lore') return '<p style="color:var(--ice)">Placeholder for Lore, which gathers the character behind the numbers. '
-    + 'Notes, player description, origin, lineage, total ascension crystals, and skyvault shards all land here. '
-    + 'Phase two ports the content, rendering only, engine untouched.</p>' + stubs(7);
   if (key === 'log') return chatRow('chatWin') + '<div class="logstream" aria-live="polite"></div>';
   return '<p style="color:var(--ice)">Placeholder for the ' + SECTIONS[key].title
     + ' section. Phase two ports the FellGlass content here, rendering only, engine untouched.</p>' + stubs(6);
@@ -1151,7 +1153,6 @@ function paintTypePicker(){
 function isMobile(){ return window.matchMedia('(max-width:700px)').matches; }
 function openWin(key){
   if (key === 'battle' && isMobile()){ toggleDrawer(true); return; }
-  if (key === 'identity' && !isLM()){ openSheet(); return; }
   S.openSection = key;
   lmMin = true; lmExpanded = null;
   document.getElementById('winTitle').textContent = SECTIONS[key].title.toUpperCase();
@@ -1170,7 +1171,6 @@ function closeWin(){
 
 /* ---- rails ---- */
 function railClick(k){
-  if (!isLM()){ openSheet(); return; }
   (S.openSection === k) ? closeWin() : openWin(k);
 }
 function refreshStagesWin(){ if (S.openSection === 'stages') openWin('stages'); }
@@ -1829,6 +1829,8 @@ var _stateSeen = 0;
 function stubPushState(snap){ _stateStore = { version:_stateStore.version + 1, snap:snap }; return Promise.resolve({ ok:true, version:_stateStore.version }); }
 function stubPullState(since){ return Promise.resolve(_stateStore.version > (since||0) ? { version:_stateStore.version, snap:_stateStore.snap } : null); }
 var stateBackend = { push:stubPushState, pull:stubPullState };
+/* the player's own sheet, read from the one Characters record through the bridge */
+var charBackend = { load: function(){ return Promise.resolve(null); } };
 /* the LoreMaster's Journal seam. LM-only, kept apart from the shared game snapshot so it
    never reaches a player. Stub keeps it in memory; embedded, it rides the page bridge to a
    member-checked store. */
@@ -1878,6 +1880,67 @@ var _stateFeedTimer = null;
 /* fold each Fell's public sheet, portrait, gear, talents, and identity, onto the roster
    card by matching character id. The combat numbers stay with the sheet module; this is
    the face and the kit the LoreMaster reads at the table. */
+var SHEET_ATTRS = [['precision','Precision'],['evasion','Evasion'],['power','Power'],['durability','Durability'],['magic','Magic'],['resistance','Resistance'],['vigor','Vigor'],['wit','Wit']];
+function sheetLoading(){ return '<div class="win-note">Loading your sheet...</div>'; }
+function applySheet(){
+  var sh = S.sheet; if (!sh) return;
+  S.character = S.character || {};
+  if (sh.identity && sh.identity.name) S.character.name = sh.identity.name;
+  if (sh.lore && sh.lore.level) S.character.level = sh.lore.level;
+  if (sh.vitality){ if (sh.vitality.current !== undefined) S.character.vit = sh.vitality.current; if (sh.vitality.max !== undefined) S.character.maxVit = sh.vitality.max; }
+  if (sh.portrait) S.character.portrait = sh.portrait;
+}
+function loadMyChar(){
+  if (!tsEmbedded() || isLM() || !S.characterId) return;
+  charBackend.load(S.characterId).then(function(data){ if (data){ S.sheet = data; applySheet(); render(); } }).catch(function(){});
+}
+function attributesBody(){
+  if (!S.sheet) return sheetLoading();
+  var a = S.sheet.attrs || {};
+  var h = '<div class="win-note">Your attributes.</div><div class="lmc-attrs">';
+  SHEET_ATTRS.forEach(function(p){ var v = a[p[0]] ? ((a[p[0]].base||0)+(a[p[0]].mod||0)) : 0; h += '<div class="lmc-arow"><span>'+p[1]+'</span><b>'+v+'</b></div>'; });
+  h += '</div><div class="lmc-note">Base sheet values. Situational grants and stance bonuses are applied in FellGlass.</div>';
+  return h;
+}
+function skillsBody(){
+  if (!S.sheet) return sheetLoading();
+  var sk = S.sheet.skills || {};
+  var keys = Object.keys(sk).filter(function(k){ return (sk[k] && ((sk[k].rank||0)>0 || (sk[k].mastery||0)>0)); });
+  if (!keys.length) return '<div class="win-note">No skills ranked yet.</div>';
+  var h = '<div class="win-note">Your skills.</div>';
+  keys.forEach(function(k){ var s = sk[k]; h += '<div class="lb-row"><span class="lb-name">'+esc(k)+'</span><span class="lb-meta">Rank '+(s.rank||0)+(s.mastery?(' \u00b7 Mastery '+s.mastery):'')+'</span></div>'; });
+  return h;
+}
+function inventoryBody(){
+  if (!S.sheet) return sheetLoading();
+  var inv = S.sheet.inventory || [];
+  if (!inv.length) return '<div class="win-note">No items yet. Your pack is light.</div>';
+  var h = '<div class="win-note">Your inventory.</div>';
+  inv.forEach(function(it){ h += '<div class="nb-beat"><span class="nb-title">'+esc(it.name||'Item')+'</span>'+(it.desc?'<div class="nb-body">'+esc(it.desc)+'</div>':'')+'</div>'; });
+  return h;
+}
+function arsenalBody(){
+  if (!S.sheet) return sheetLoading();
+  var h = '<div class="win-note">Your arsenal.</div>';
+  var w = S.sheet.weapons || [];
+  if (w.length){ h += '<div class="nb-scene">Weapons</div>'; w.forEach(function(x,i){ h += '<div class="lb-row"><span class="lb-name">'+esc(x.name||('Weapon '+(i+1)))+'</span><span class="lb-meta">Level '+(x.level||1)+'</span></div>'; }); }
+  var lb = S.sheet.lorebounds || [];
+  if (lb.length){ h += '<div class="nb-scene">Lorebounds</div>'; lb.forEach(function(x,i){ h += '<div class="lb-row"><span class="lb-name">'+esc(x.name||('Lorebound '+(i+1)))+'</span><span class="lb-meta">'+esc(x.type||'')+(x.level?(' \u00b7 L'+x.level):'')+'</span></div>'; }); }
+  var ar = S.sheet.armor || {};
+  if (ar.level){ h += '<div class="nb-scene">Armor</div><div class="lb-row"><span class="lb-name">'+esc(ar.active||'Armor')+'</span><span class="lb-meta">Level '+ar.level+'</span></div>'; }
+  if (!w.length && !lb.length && !ar.level) h += '<div class="win-note">Nothing equipped yet.</div>';
+  return h;
+}
+function loreBody(){
+  if (!S.sheet) return sheetLoading();
+  var id = S.sheet.identity || {}, lo = S.sheet.lore || {};
+  var h = '<div class="win-note">The character behind the numbers.</div>';
+  function row(l,v){ return v ? '<div class="lb-row"><span class="lb-name">'+l+'</span><span class="lb-meta">'+esc(v)+'</span></div>' : ''; }
+  h += row('Lineage', id.lineage) + row('Origin', id.origin) + row('Motivation', id.motivation);
+  h += '<div class="lb-row"><span class="lb-name">Level</span><span class="lb-meta">'+(lo.level||1)+'</span></div>';
+  if (id.desc) h += '<div class="nb-body" style="margin-top:10px">'+esc(id.desc)+'</div>';
+  return h;
+}
 function mergeFellSheets(){
   if (!S.party || !S.party.length) return;
   var byChar = {}; S.party.forEach(function(sh){ if (sh && sh.charId) byChar[sh.charId] = sh; });
@@ -1960,8 +2023,10 @@ window.onmessage = function(ev){
     if (d.campaignId) S.campaignId = d.campaignId;
     if (d.memberName) S.memberName = d.memberName;
     if (d.party) { S.party = d.party; mergeFellSheets(); }
+    if (d.characterId) S.characterId = d.characterId;
     render();
     if (isLM()) loadJournal();
+    if (!isLM()) loadMyChar();
     return;
   }
   if (!d || d.type !== 'TS_RESULT' || !d.reqId || !_tsPending[d.reqId]) return;
@@ -2008,6 +2073,7 @@ if (tsEmbedded()){
     get: function(){ return tsAsk('TS_JOURNAL_GET', {}); },
     save: function(entries){ return tsAsk('TS_JOURNAL_SAVE', { entries:entries }); }
   };
+  charBackend = { load: function(id){ return tsAsk('TS_CHAR_LOAD', { charId:id }); } };
 }
 /* on an embedded load, pull the account's stages into the deck so last session's
    tables come back */
@@ -2121,6 +2187,8 @@ function lmTokenDrop(e){
 S.memberName = S.memberName || 'Nate';
 S.journal = S.journal || [];
 S.party = S.party || [];
+S.characterId = S.characterId || '';
+S.sheet = S.sheet || null;
 setTimeout(function(){ try { loadAccountStages(); startStateFeed(); loadJournal(); if (tsEmbedded()) window.parent.postMessage({ type:'THREADSPIRE_READY' }, '*'); } catch(e){} }, 0);
 /* the testing panel is scaffolding, not part of a real table: hidden when embedded,
    summoned with the backtick key when you need it while testing */
@@ -2151,17 +2219,19 @@ function paintHud(){
     sub.textContent = S.memberName;
     hud.classList.add('lm');
   } else {
-    name.textContent = 'Acantha';
-    sub.textContent = 'Level 12';
+    name.textContent = (S.character && S.character.name) || 'Fell';
+    sub.textContent = 'Level ' + ((S.character && S.character.level) || 1);
     hud.classList.remove('lm');
+    var por = hud.querySelector('.portrait');
+    if (por && S.character && S.character.portrait) por.style.backgroundImage = 'url(' + S.character.portrait + ')';
   }
   var msub = document.getElementById('mhudSub');
   var mhud = document.getElementById('mhud');
   if (msub && mhud){
     if (isLM()){ mhud.classList.add('lm'); msub.textContent = S.memberName;
       var mn = mhud.querySelector('.pname'); if (mn) mn.textContent = 'LoreMaster';
-    } else { mhud.classList.remove('lm'); msub.textContent = 'Level 12';
-      var mn2 = mhud.querySelector('.pname'); if (mn2) mn2.textContent = 'Acantha';
+    } else { mhud.classList.remove('lm'); msub.textContent = 'Level ' + ((S.character && S.character.level) || 1);
+      var mn2 = mhud.querySelector('.pname'); if (mn2) mn2.textContent = (S.character && S.character.name) || 'Fell';
     }
   }
 }
