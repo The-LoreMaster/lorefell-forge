@@ -1,3 +1,7 @@
+## ThreadSpire: Arsenal splits into Weapons, Lorebounds, Armor
+
+- The Arsenal tab now carries its own inner tabs. Opening Arsenal shows Weapons, Lorebounds, and Armor across the top, each swapping the panel to that FellGlass section, so the whole arsenal is reachable from one tab instead of weapons only.
+
 ## ThreadSpire: the sheet panel fits and lands on the right section
 
 - The sheet now opens in a large panel that fills the table beside the rail, instead of a cramped box, so the FellGlass section has room to render. FellGlass's character-switcher bar is hidden in embed mode along with its header and hub, so only the panel shows. And the requested section now sticks: tapping Attributes lands on attributes, not the default lore panel, even after the character finishes loading.
