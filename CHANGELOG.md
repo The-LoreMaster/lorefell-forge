@@ -1,3 +1,7 @@
+## ThreadSpire: tabs and log aligned to the frame slots
+
+- The rail tabs now sit on the frame's gem slots exactly, detected from the art at a 37px pitch, real coordinates instead of a scaled approximation, and the log drops into its top-right slot. Active tab reads in gold. Identity and the stat gems come next.
+
 ## ThreadSpire: Joel's frame art layered in
 
 - The tabletop art is now layered into the table: the aged background behind the play area, the outer frame, and the right-side UI frame with its tab, vitality, and identity slots. The interface elements sit transparent over the art so the ornate shapes show through, with the log, tabs, and identity in the right column. This is the first alignment pass; exact slot placement gets dialed in next.
