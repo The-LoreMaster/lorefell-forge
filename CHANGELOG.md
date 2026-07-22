@@ -1,3 +1,7 @@
+## ThreadSpire: fix map drag stutter + fellmark toggles
+
+- Dragging the map is smooth again. The infinite grid was rebuilding its full gradient every camera frame; it now only rebuilds when the zoom or grid size changes and just shifts position while panning. The fellmark menu gem now closes on a second click.
+
 ## ThreadSpire: glow art swaps on click, god-mode LM toggle, smaller fellmark
 
 - Selecting a tab now actually swaps in Joel's glow art (the swap runs on open and close, and the old blue highlight box is removed so only the art shows). LoreMaster Mode in the menu now means god mode, it unlocks editing every part of the sheet, driven into FellGlass, rather than swapping views. The fellmark logo is sized down to sit inside its gem.
