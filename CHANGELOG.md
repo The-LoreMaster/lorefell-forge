@@ -6,6 +6,17 @@
 - Upgraded crucibles: every crucible body opens with OBJECTIVE, TERRAIN, and TURN lines. Objectives draw from a ten entry deck with no repeats inside an adventure, Takedown allowed once. The LM NOTE gains a FAILURE line so a loss moves the story forward.
 - Upgraded NPCs: the NPC block gains want, fear, tell, and voice fields, carried through parsing, the FateWell pack, and the Markdown export. New NPCs must differ from every prior NPC in role, manner, and want.
 - Added standing world lore capsules for Valoria, Vyrathis, Pyranthia, and Burhallow, injected when the world matches, plus bans on the worn shapes of past campaigns drawn from The Histories.
+## ThreadSpire: clearer sheet loading, and the name shows right away
+
+- The sheet tabs no longer sit on a silent Loading forever. If no character is linked, if the sheet is private to another owner, or if the page code has not answered, the tab now says exactly what is wrong. The character name and portrait also show immediately from the table context, before the full sheet finishes loading, instead of holding on the placeholder.
+
+## ThreadSpire: your real character in the rail tabs
+
+- ThreadSpire now loads your actual character from the one Characters record instead of the Acantha placeholder, so your name, level, vitality, and portrait are yours. The rail tabs render your real sheet: Attributes, Skills, Inventory, Arsenal (weapons, lorebounds, armor), and Lore (lineage, origin, motivation). These read the stored sheet directly; the situational math, grants, stance bonuses, and forged weapon names, still lives in FellGlass so the two never drift.
+
+## ThreadSpire hosts the character sheet (FellGlass, live)
+
+- The player's full sheet now lives inside ThreadSpire. Tapping the rail or the identity card opens the real FellGlass, the whole tool, not a copy, in a panel over the table. Its bridge is relayed through ThreadSpire's page to the same Characters record its own page uses, so every edit saves to the one record that FateWell and the rest of ThreadSpire already read. Nothing is duplicated, so nothing can drift. This is the first half of making ThreadSpire the single home; the LoreMaster's authoring tool is next.
 
 ## ThreadSpire: the Fell get their faces and gear
 
