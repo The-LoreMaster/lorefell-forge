@@ -1,3 +1,7 @@
+## ThreadSpire: viewport-proportional layout (the fix for the drift)
+
+- The interface was placed at fixed pixel positions computed for one window size, so any other window size made everything miss the art. Every slot, tabs, log, and all the identity gems, is now positioned as a percentage of the viewport, exactly as drawn in the SVG, and text scales in viewport units. The art stretches to the window and the interface stretches identically with it, so alignment holds at any size. The dice sits with equal padding from the left and bottom borders, clear of Attack.
+
 ## ThreadSpire: rescale interface to the true 1077x590 viewport
 
 - Every slot recomputed from the SVG at the app's real viewport (1077x590), so the tabs, log, and identity gems land on Joel's frame instead of sitting too far right. The dice is pulled left and down and bottom-aligned with Attack. The map default is now transparent so the table texture shows through instead of the placeholder gradient.
