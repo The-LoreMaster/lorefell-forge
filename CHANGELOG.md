@@ -1,3 +1,7 @@
+## ThreadSpire: sheet window set to 315x480 for the 980x550 embed
+
+- The FellGlass sheet window is now 315 by 480, the scaled slot for the current 980 by 550 embed (Joel's 1920 by 1080 design at ~0.51). Positioned against the menu.
+
 ## ThreadSpire: fixed 610x940 sheet window
 
 - The FellGlass sheet window is now a fixed 610 by 940 frame positioned against the menu, matching the target layout, instead of auto-sizing to content. The FellGlass sections fill and scroll inside it for now; how they sit in that frame gets redesigned next.
