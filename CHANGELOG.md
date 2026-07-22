@@ -1,3 +1,7 @@
+## ThreadSpire: interface placed to the frame's exact slots
+
+- Using the SVG guide boxes Joel drew, every interface element now sits in its precise slot: the five tabs, the log feed in its corner, and a rebuilt identity block, the LP gem, the TEMP/CURRENT/MAX and TOTAL vitality gems, the charge gem, the name, portrait, and level badge, each placed to the art. Text is in Cinzel and Crimson Pro to match the site. The log shows only the roll feed in its slot; the say-input is tucked away for now.
+
 ## ThreadSpire: interface text now sits in front of the frame art
 
 - The tabs, log, and identity were rendering behind Joel's frame because the play area is a fixed layer that trapped them below it. The frame art now lives in the same layer as the interface, so the text reads in front of the art as intended. Log set in Crimson Pro to match the site.
