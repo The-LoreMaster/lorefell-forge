@@ -151,6 +151,10 @@ $w.onReady(function () {
           let ch = null;
           try { const r = await loadCharacter(msg.charId || characterId); ch = (r && r.character) ? r.character : null; } catch (e) { ch = null; }
           reply(true, ch);
+        } else if (msg.type === 'TS_CHAR_LIST') {
+          let list = [];
+          try { list = await listMyCharacters(); } catch (e) { list = []; }
+          reply(true, list);
         } else if (msg.type === 'TS_CHAR_SAVEMETA') {
           let ok = false;
           try { const r = await threadspireSaveMeta(msg.charId || characterId, { name: msg.name, portrait: msg.portrait }); ok = !!(r && r.ok); } catch (e) { ok = false; }

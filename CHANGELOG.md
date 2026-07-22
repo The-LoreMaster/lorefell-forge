@@ -1,3 +1,7 @@
+## ThreadSpire: smaller dice, character switcher, no load flashes
+
+- The dice is halved (the cube itself), keeping its bottom-left spot and the gap to the type button. Renaming from the name is removed (rename lives in Lore); clicking the name now opens a Characters slideout to switch between your Fell or build a new one. The identity stats no longer flash defaults, they hold blank until the real sheet loads. And the sheet tabs no longer flash the build-a-new-character flow before loading, the embedded sheet waits for the real character instead of falling back to creation.
+
 ## ThreadSpire: real 70px dice, infinite grid, no stat flash
 
 - The die itself (the cube) is now 70px, so it actually changed size; before, only its empty container was resized. The grid is now an infinite white grid that tracks the camera and fills the whole view at any zoom, over a transparent background, instead of a bounded grid that vanished past the map edge. And the identity stats no longer flash their defaults before the character loads; they stay blank until the real values are ready.
