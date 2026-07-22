@@ -1,3 +1,7 @@
+## ThreadSpire: right column scaled to the art proportions
+
+- The log, rail menu, and identity card are scaled down to about 0.6, so the right column reads at roughly the width Joel's frame uses (about 120px at the 980x550 embed) instead of the oversized 200px. The content windows now meet that scaled column. This is a first pass at matching the target layout; fine placement comes with the art overlay.
+
 ## ThreadSpire: fixed 610x940 sheet window
 
 - The FellGlass sheet window is now a fixed 610 by 940 frame positioned against the menu, matching the target layout, instead of auto-sizing to content. The FellGlass sections fill and scroll inside it for now; how they sit in that frame gets redesigned next.
