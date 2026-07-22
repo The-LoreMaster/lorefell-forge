@@ -1,3 +1,7 @@
+## ThreadSpire: real 70px dice, infinite grid, no stat flash
+
+- The die itself (the cube) is now 70px, so it actually changed size; before, only its empty container was resized. The grid is now an infinite white grid that tracks the camera and fills the whole view at any zoom, over a transparent background, instead of a bounded grid that vanished past the map edge. And the identity stats no longer flash their defaults before the character loads; they stay blank until the real values are ready.
+
 ## ThreadSpire: dice to its slot at 70px, and name/portrait/log now persist
 
 - The dice sits in its SVG slot at 70px (6.47vh, scaling with the view), with its type option beside it. Renaming the character and uploading a portrait now save to the Characters record through a new meta-save, so they survive a reload. The session log is written into the shared table state and restored on load, so it persists instead of starting fresh every time.
