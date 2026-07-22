@@ -1,3 +1,6 @@
+## ThreadSpire: explicit table layer order
+
+- The table now stacks in the intended order: the uploaded background as the map surface (it was hidden under an opaque fill), then the grid, tokens, and dice, then the outer frame and the right menu art, then the interface text and buttons, and the slideout window on top. The dice is smaller and nudged up and to the right.
 ## ThreadSpire: fix the boot crash from the removed fellmark
 
 - Boot was throwing because a helper still tried to write into the desktop fellmark element that the identity rebuild had removed, and that error fired before render, leaving the whole interface blank. The helper now skips a missing element, so boot completes and the tabs, log, and identity paint again.
