@@ -1,3 +1,7 @@
+## ThreadSpire: clearer sheet loading, and the name shows right away
+
+- The sheet tabs no longer sit on a silent Loading forever. If no character is linked, if the sheet is private to another owner, or if the page code has not answered, the tab now says exactly what is wrong. The character name and portrait also show immediately from the table context, before the full sheet finishes loading, instead of holding on the placeholder.
+
 ## ThreadSpire: your real character in the rail tabs
 
 - ThreadSpire now loads your actual character from the one Characters record instead of the Acantha placeholder, so your name, level, vitality, and portrait are yours. The rail tabs render your real sheet: Attributes, Skills, Inventory, Arsenal (weapons, lorebounds, armor), and Lore (lineage, origin, motivation). These read the stored sheet directly; the situational math, grants, stance bonuses, and forged weapon names, still lives in FellGlass so the two never drift.

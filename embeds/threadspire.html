@@ -1881,7 +1881,7 @@ var _stateFeedTimer = null;
    card by matching character id. The combat numbers stay with the sheet module; this is
    the face and the kit the LoreMaster reads at the table. */
 var SHEET_ATTRS = [['precision','Precision'],['evasion','Evasion'],['power','Power'],['durability','Durability'],['magic','Magic'],['resistance','Resistance'],['vigor','Vigor'],['wit','Wit']];
-function sheetLoading(){ return '<div class="win-note">Loading your sheet...</div>'; }
+function sheetLoading(){ return '<div class="win-note">' + esc(S.sheetMsg || 'Loading your sheet...') + '</div>'; }
 function applySheet(){
   var sh = S.sheet; if (!sh) return;
   S.character = S.character || {};
@@ -1891,9 +1891,17 @@ function applySheet(){
   if (sh.portrait) S.character.portrait = sh.portrait;
 }
 function loadMyChar(){
-  if (!tsEmbedded() || isLM() || !S.characterId) return;
-  charBackend.load(S.characterId).then(function(data){ if (data){ S.sheet = data; applySheet(); render(); } }).catch(function(){});
+  if (isLM()) return;
+  if (!S.characterId){ S.sheetMsg = 'No character is linked to this view. Open the table from your character in FellGlass, or use a link with ?character=your-id.'; refreshWinBody(); return; }
+  if (!tsEmbedded()){ S.sheetMsg = 'Your sheet loads on the live table.'; refreshWinBody(); return; }
+  S.sheetMsg = 'Loading your sheet...'; refreshWinBody();
+  charBackend.load(S.characterId).then(function(data){
+    if (data){ S.sheet = data; applySheet(); }
+    else { S.sheetMsg = 'Your sheet could not be loaded. Open the table from your own character (the sheet is private to its owner).'; }
+    render(); refreshWinBody();
+  }).catch(function(){ S.sheetMsg = 'Your sheet did not answer. If this is the live table, make sure the ThreadSpire page code is pasted, then reload.'; render(); refreshWinBody(); });
 }
+function refreshWinBody(){ if (S.openSection){ var b = document.getElementById('winBody'); if (b) b.innerHTML = sectionBody(S.openSection); } }
 function attributesBody(){
   if (!S.sheet) return sheetLoading();
   var a = S.sheet.attrs || {};
@@ -2024,6 +2032,7 @@ window.onmessage = function(ev){
     if (d.memberName) S.memberName = d.memberName;
     if (d.party) { S.party = d.party; mergeFellSheets(); }
     if (d.characterId) S.characterId = d.characterId;
+    if (d.character){ S.character = S.character || {}; if (d.character.name) S.character.name = d.character.name; if (d.character.image) S.character.portrait = d.character.image; }
     render();
     if (isLM()) loadJournal();
     if (!isLM()) loadMyChar();
@@ -2189,6 +2198,7 @@ S.journal = S.journal || [];
 S.party = S.party || [];
 S.characterId = S.characterId || '';
 S.sheet = S.sheet || null;
+S.sheetMsg = S.sheetMsg || 'Loading your sheet...';
 setTimeout(function(){ try { loadAccountStages(); startStateFeed(); loadJournal(); if (tsEmbedded()) window.parent.postMessage({ type:'THREADSPIRE_READY' }, '*'); } catch(e){} }, 0);
 /* the testing panel is scaffolding, not part of a real table: hidden when embedded,
    summoned with the backtick key when you need it while testing */
