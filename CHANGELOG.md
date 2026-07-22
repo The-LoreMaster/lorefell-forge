@@ -1,3 +1,7 @@
+## ThreadSpire: selected-tab glow art + fellmark menu gem
+
+- Selecting a tab now swaps in Joel's glowing selected-state art for that slot, so the chosen menu item lights up in the frame. A fellmark gem is added at the bottom of the identity column; it opens a Menu slideout that holds the character switcher (moved off the name) plus settings, LoreMaster Mode is back as a toggle, and dice skins are stubbed for when the art arrives. The character name is display-only now.
+
 ## ThreadSpire: the menu follows the current Fell live
 
 - The identity menu now stays in sync with the sheet. When you build a new Fell, edit the name in Lore, or change the portrait, the menu's image, name, and level update immediately, because the menu now listens to the sheet's own load and save events and adopts whichever Fell the sheet is on.

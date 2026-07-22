@@ -84,6 +84,9 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 .hLvl{ left:95.258%; top:83.57%; width:4.16%; height:7.461%; flex-direction:column; gap:0; pointer-events:auto; }
 .hLvl .hlbl{ font-size:1.1vh; color:#cfe0ff; letter-spacing:.08em; }
 .hLvl #hudLvl{ font-size:2.7vh; color:#fff; }
+.hFell{ left:93.169%; top:89.351%; width:3.322%; height:7.027%; pointer-events:auto; cursor:pointer; }
+.hFell img{ width:100%; height:100%; object-fit:contain; opacity:.9; }
+.hFell:hover img{ opacity:1; }
 .artlayer{ position:fixed; inset:0; width:100%; height:100%; object-fit:fill; pointer-events:none; }
 #frameArt, #uiArt{ position:absolute; }
 #frameArt{ z-index:56; }
@@ -522,9 +525,10 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
     <div class="hslot hNum hCur" id="hudCur"></div>
     <div class="hslot hNum hMax" id="hudMax"></div>
     <div class="hslot hCharge" id="hudCharge">0</div>
-    <div class="hslot hName" id="hudName" onclick="if(!isLM())openWin('characters')" title="Switch or build a character"></div>
+    <div class="hslot hName" id="hudName"></div>
     <div class="hslot hPortrait" id="hudPortrait" onclick="if(!isLM())openWin('lore')" title="Set the portrait in Lore"></div>
     <div class="hslot hLvl"><span class="hlbl">LVL</span><span id="hudLvl"></span></div>
+    <div class="hslot hFell" id="hudFell" onclick="openWin('menu')" title="Menu"><img src="assets/fellmark-white.png" alt="Menu"></div>
   </div>
   <div id="mhud">
     <div class="portrait" onclick="openWin('identity')"></div>
@@ -878,6 +882,7 @@ function send(evt){
 var SECTIONS = {
   identity:  { title:'Identity' },
   characters:{ title:'Characters' },
+  menu:      { title:'Menu' },
   inventory: { title:'Inventory' },
   skills:    { title:'Skills' },
   arsenal:   { title:'Arsenal' },
@@ -983,6 +988,7 @@ function loadJournal(){
 }
 function sectionBody(key){
   if (key === 'characters') return charactersBody();
+  if (key === 'menu') return menuBody();
   if (key === 'attributes') return attributesBody();
   if (key === 'skills') return skillsBody();
   if (key === 'inventory') return inventoryBody();
@@ -1964,6 +1970,22 @@ function applySheet(){
   if (sh.portrait) S.character.portrait = sh.portrait;
   if (typeof paintHud === 'function') paintHud();
 }
+function menuBody(){
+  var lm = isLM();
+  var h = '<div class="win-note">Characters</div>'
+    + '<div id="charList" class="win-note">Loading...</div>'
+    + '<button class="ts-newfell" onclick="buildNewFell()">Build a new Fell</button>';
+  h += '<div class="win-note" style="margin-top:14px">Settings</div>';
+  h += '<div class="lb-row" style="cursor:pointer" onclick="toggleLmMode()"><span class="lb-name">LoreMaster Mode</span><span class="lb-meta">' + (lm?'On':'Off') + '</span></div>';
+  h += '<div class="lb-row"><span class="lb-name">Dice skins</span><span class="lb-meta">Soon</span></div>';
+  setTimeout(loadCharList, 30);
+  return h;
+}
+function toggleLmMode(){
+  S.role = (S.role === 'lm') ? 'player' : 'lm';
+  closeWin(); render();
+  if (S.role !== 'lm' && !S.sheet && typeof loadMyChar === 'function') loadMyChar();
+}
 function charactersBody(){
   setTimeout(loadCharList, 30);
   return '<div class="win-note">Your Fell. Switch to another, or forge a new one.</div>'
@@ -2362,6 +2384,14 @@ function hudNameEdit(){
   if (v!==null && v.trim()){ if(!S.character) S.character={}; S.character.name = v.trim();
     var n = document.getElementById('hudName'); if(n) n.textContent = v.trim();
     if (typeof saveHudEdit==='function') saveHudEdit(); }
+}
+var SELECT_ART = ['assets/ui-notes.png','assets/ui-inventory.png','assets/ui-skills.png','assets/ui-arsenal.png','assets/ui-attributes.png'];
+function paintSelectArt(){
+  var ui = document.getElementById('uiArt'); if (!ui) return;
+  var keys = (typeof railKeys === 'function') ? railKeys() : [];
+  var i = keys.indexOf(S.openSection);
+  var src = (i >= 0 && i < SELECT_ART.length) ? SELECT_ART[i] : 'assets/table-ui.png';
+  if (ui.getAttribute('src') !== src) ui.setAttribute('src', src);
 }
 function paintHud(){
   var hud = document.getElementById('hud');
@@ -2891,7 +2921,7 @@ function render(){
     toggleDrawer(false);
   }
   var _vm=document.getElementById('vitValM'); if(_vm) _vm.textContent = S.character.vit;
-  paintRails(); drawGrid(); renderTokens(); renderLog(); paintLmbar(); paintTokMenu(); paintLmStrip(); paintMapPicker(); paintMapArt(); paintTokenPalette(); paintHud();
+  paintRails(); drawGrid(); renderTokens(); renderLog(); paintLmbar(); paintTokMenu(); paintLmStrip(); paintMapPicker(); paintMapArt(); paintTokenPalette(); paintHud(); paintSelectArt();
 }
 window.addEventListener('resize', function(){ clampCam(); applyCam(); });
 (function buildFellmarks(){
