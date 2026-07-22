@@ -194,13 +194,10 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 #cleanExit:hover{ opacity:1; }
 body.clean #cleanExit{ display:block; }
 body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean #mrail, body.clean #tray, body.clean #lmstrip, body.clean #devbar, body.clean #log{ display:none !important; }
-#sheetPanel{ position:fixed; inset:0; z-index:80; display:none; flex-direction:column; background:var(--navy); }
-#sheetPanel.open{ display:flex; }
-.sheet-bar{ display:flex; align-items:center; justify-content:space-between; padding:8px 14px; background:rgba(10,14,26,.95); border-bottom:1px solid var(--gold); flex:none; }
-.sheet-h{ font-family:Cinzel,serif; font-size:.8rem; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); }
-.sheet-x{ border:1px solid var(--gold); border-radius:6px; color:var(--gold); font-family:Cinzel,serif; font-size:.66rem; letter-spacing:.08em; padding:6px 12px; cursor:pointer; background:none; }
-.sheet-x:active{ background:var(--gold); color:var(--navy); }
-#sheetFrame{ flex:1; width:100%; border:none; background:var(--navy); }
+#win{ position:relative; }
+#win #sheetFrame{ display:none; position:absolute; left:0; right:0; top:44px; bottom:0; width:100%; border:none; background:var(--navy); border-radius:0 0 12px 12px; }
+#win.sheeting #winBody{ display:none; }
+#win.sheeting #sheetFrame{ display:block; }
 #lmstrip.hidden{ display:none; }
 #lmstrip > *{ pointer-events:auto; }
 .lm-topbar{ display:flex; align-items:center; gap:9px; margin-bottom:10px; background:rgba(10,14,26,.9); border:1px solid var(--line); border-radius:10px; padding:6px 10px; }
@@ -452,7 +449,6 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 </head>
 <body>
 <button id="cleanExit" onclick="toggleClean()" title="Show the widgets">Show widgets</button>
-<div id="sheetPanel"><div class="sheet-bar"><span class="sheet-h">Character Sheet</span><button class="sheet-x" onclick="closeSheet()">Back to the table</button></div><iframe id="sheetFrame" title="Character sheet"></iframe></div>
 <div id="stage">
   <div id="map">
     <div id="mapLayer">
@@ -494,6 +490,7 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
   <div id="win">
     <div class="whead"><button class="wx" onclick="closeWin()" aria-label="Close">&times;</button><span class="wtitle" id="winTitle"></span></div>
     <div class="wbody" id="winBody"></div>
+    <iframe id="sheetFrame" title="Character sheet"></iframe>
   </div>
   <div id="drawer" class="hidden">
     <div class="handle" id="drawerHandle"></div>
@@ -1156,14 +1153,17 @@ function openWin(key){
   S.openSection = key;
   lmMin = true; lmExpanded = null;
   document.getElementById('winTitle').textContent = SECTIONS[key].title.toUpperCase();
-  document.getElementById('winBody').innerHTML = sectionBody(key);
-  document.getElementById('win').classList.add('open');
+  var win = document.getElementById('win');
+  var panel = (!isLM() && SHEET_PANELS[key]);
+  if (panel){ ensureSheet(); win.classList.add('sheeting'); sheetGoto(panel); }
+  else { win.classList.remove('sheeting'); document.getElementById('winBody').innerHTML = sectionBody(key); }
+  win.classList.add('open');
   paintRails(); renderLog();
   if (typeof paintLmStrip === 'function' && isLM()) paintLmStrip();
 }
 function closeWin(){
   S.openSection = null;
-  document.getElementById('win').classList.remove('open');
+  var win = document.getElementById('win'); win.classList.remove('open'); win.classList.remove('sheeting');
   lmMin = false;
   paintRails();
   if (typeof paintLmStrip === 'function' && isLM()) paintLmStrip();
@@ -1886,6 +1886,7 @@ function applySheet(){
   var sh = S.sheet; if (!sh) return;
   S.character = S.character || {};
   if (sh.identity && sh.identity.name) S.character.name = sh.identity.name;
+  S.charReady = true;
   if (sh.lore && sh.lore.level) S.character.level = sh.lore.level;
   if (sh.vitality){ if (sh.vitality.current !== undefined) S.character.vit = sh.vitality.current; if (sh.vitality.max !== undefined) S.character.maxVit = sh.vitality.max; }
   if (sh.portrait) S.character.portrait = sh.portrait;
@@ -2033,7 +2034,7 @@ window.onmessage = function(ev){
     if (d.party) { S.party = d.party; mergeFellSheets(); }
     if (d.characterId) S.characterId = d.characterId;
     else if (d.character && d.character.id) S.characterId = d.character.id;
-    if (d.character){ S.character = S.character || {}; if (d.character.name) S.character.name = d.character.name; if (d.character.image) S.character.portrait = d.character.image; }
+    if (d.character){ S.character = S.character || {}; if (d.character.name){ S.character.name = d.character.name; S.charReady = true; } if (d.character.image) S.character.portrait = d.character.image; }
     render();
     if (isLM()) loadJournal();
     if (!isLM()) loadMyChar();
@@ -2199,6 +2200,7 @@ S.journal = S.journal || [];
 S.party = S.party || [];
 S.characterId = S.characterId || '';
 S.sheet = S.sheet || null;
+S.charReady = S.charReady || false;
 S.sheetMsg = S.sheetMsg || 'Loading your sheet...';
 setTimeout(function(){ try { loadAccountStages(); startStateFeed(); loadJournal(); if (tsEmbedded()) window.parent.postMessage({ type:'THREADSPIRE_READY' }, '*'); } catch(e){} }, 0);
 /* the testing panel is scaffolding, not part of a real table: hidden when embedded,
@@ -2230,8 +2232,8 @@ function paintHud(){
     sub.textContent = S.memberName;
     hud.classList.add('lm');
   } else {
-    name.textContent = (S.character && S.character.name) || 'Fell';
-    sub.textContent = 'Level ' + ((S.character && S.character.level) || 1);
+    name.textContent = S.charReady ? ((S.character && S.character.name) || 'Fell') : (tsEmbedded() ? '...' : ((S.character && S.character.name) || 'Fell'));
+    sub.textContent = S.charReady ? ('Level ' + ((S.character && S.character.level) || 1)) : (tsEmbedded() ? '' : ('Level ' + ((S.character && S.character.level) || 1)));
     hud.classList.remove('lm');
     var por = hud.querySelector('.portrait');
     if (por && S.character && S.character.portrait) por.style.backgroundImage = 'url(' + S.character.portrait + ')';
@@ -2253,17 +2255,14 @@ function lmToggleGrid(){ lmGridOpen = !lmGridOpen; paintLmbar(); }
 function toggleClean(){ document.body.classList.toggle('clean'); if (S.openSection) closeWin(); }
 /* the player's full sheet, the real FellGlass, hosted here. Its bridge is relayed up to the
    page, which answers from the one Characters record. Loaded once, shown on demand. */
+var SHEET_PANELS = { attributes:'attributes', skills:'skills', inventory:'inventory', arsenal:'weapons', lore:'lore' };
 var _sheetLoaded = false;
-function openSheet(){
-  var p = document.getElementById('sheetPanel'), f = document.getElementById('sheetFrame');
-  if (!p || !f) return;
-  if (!_sheetLoaded){ f.src = 'fellglass.html'; _sheetLoaded = true; }
-  p.classList.add('open');
-}
-function closeSheet(){ var p = document.getElementById('sheetPanel'); if (p) p.classList.remove('open'); }
+function ensureSheet(){ var f = document.getElementById('sheetFrame'); if (f && !_sheetLoaded){ f.src = 'fellglass.html?host=threadspire'; _sheetLoaded = true; } }
+function sheetGoto(panel){ S.sheetPanel = panel; var f = document.getElementById('sheetFrame'); if (f && f.contentWindow) f.contentWindow.postMessage({ type:'goto-panel', panel:panel }, '*'); }
 window.addEventListener('message', function(ev){
   var f = document.getElementById('sheetFrame');
   if (f && ev.source === f.contentWindow && ev.data && ev.data.type){
+    if (ev.data.type === 'ready' && S.sheetPanel && f.contentWindow) f.contentWindow.postMessage({ type:'goto-panel', panel:S.sheetPanel }, '*');
     if (tsEmbedded()) window.parent.postMessage({ type:'TS_TOOL_UP', tool:'fellglass', msg: ev.data }, '*');
     return;
   }
