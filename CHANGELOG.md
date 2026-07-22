@@ -1,3 +1,7 @@
+## ThreadSpire: sheet window back to the contained panel
+
+- The sheet panel no longer takes over the whole top of the table. It returns to the contained panel that pops out beside the rail, the FellGlass section renders inside it and scrolls if it is long.
+
 ## ThreadSpire: Arsenal splits into Weapons, Lorebounds, Armor
 
 - The Arsenal tab now carries its own inner tabs. Opening Arsenal shows Weapons, Lorebounds, and Armor across the top, each swapping the panel to that FellGlass section, so the whole arsenal is reachable from one tab instead of weapons only.
