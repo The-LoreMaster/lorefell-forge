@@ -1,3 +1,7 @@
+## ThreadSpire: Joel's frame art layered in
+
+- The tabletop art is now layered into the table: the aged background behind the play area, the outer frame, and the right-side UI frame with its tab, vitality, and identity slots. The interface elements sit transparent over the art so the ornate shapes show through, with the log, tabs, and identity in the right column. This is the first alignment pass; exact slot placement gets dialed in next.
+
 ## ThreadSpire: right column scaled to the art proportions
 
 - The log, rail menu, and identity card are scaled down to about 0.6, so the right column reads at roughly the width Joel's frame uses (about 120px at the 980x550 embed) instead of the oversized 200px. The content windows now meet that scaled column. This is a first pass at matching the target layout; fine placement comes with the art overlay.
