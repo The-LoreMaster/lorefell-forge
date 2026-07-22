@@ -18,7 +18,7 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 #mapArt{ position:absolute; left:0; top:0; background:transparent; }
 #mapArt video{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
 #grid{ display:none; }
-#gridOverlay{ position:absolute; inset:0; pointer-events:none; z-index:0; }
+#gridInf{ position:absolute; left:-20000px; top:-20000px; width:40000px; height:40000px; pointer-events:none; }
 .token{ position:absolute; border-radius:50%; border:2px solid rgba(0,0,0,.4); display:flex; align-items:center;
   justify-content:center; font-family:Cinzel,serif; color:#fff; user-select:none; touch-action:none; }
 .token.mine{ border-color:var(--gold); box-shadow:0 0 10px rgba(201,168,76,.6); cursor:grab; }
@@ -134,7 +134,7 @@ body.clean .artlayer{ display:none; }
 #win{ position:fixed; top:2.5%; right:10.5%; left:auto; bottom:auto; width:31%; height:87vh; max-height:87vh; background:transparent; border:none; border-radius:10px; display:none; flex-direction:column; z-index:55; }
 #win.open{ display:flex; }
 #win .whead{ display:flex; align-items:center; gap:8px; padding:8px 10px 10px 2px; border-bottom:1px solid rgba(201,168,76,.25); }
-#win .wx{ width:26px; height:26px; margin-top:-2px; border:1.5px solid var(--gold); border-radius:50%; background:rgba(10,14,26,.5); color:var(--gold); font-size:.95rem; line-height:1; flex:none; }
+#win .wx{ width:24px; height:24px; margin-top:-2px; border:none; background:transparent; color:var(--gold); font-size:1.4rem; line-height:1; flex:none; }
 #win .wtitle{ font-family:Cinzel,serif; letter-spacing:.12em; font-size:.9rem; margin-left:0; }
 #win .wbody{ flex:1; overflow-y:auto; padding:16px; font-size:.95rem; line-height:1.6; }
 .stub{ height:12px; background:var(--panel2); border-radius:4px; margin:10px 0; }
@@ -496,16 +496,14 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 <button id="cleanExit" onclick="toggleClean()" title="Show the widgets">Show widgets</button>
 <div id="stage">
   <div id="map">
-    <div id="gridOverlay"></div>
     <div id="mapLayer">
       <div id="mapArt"></div>
+      <div id="gridInf"></div>
   <input type="file" id="mapFileInput" accept="image/*" style="display:none" onchange="lmMapFilePicked(this)">
   <input type="file" id="tokFileInput" accept="image/*" style="display:none" onchange="lmTokenFilePicked(this)">
-      <svg id="grid" xmlns="http://www.w3.org/2000/svg"></svg>
     </div>
   </div>
   <div class="frame"></div>
-  <img id="winArt" class="artlayer" src="assets/win-art.png" alt="">
   <img id="frameArt" class="artlayer" src="assets/table-frame.png" alt="">
   <img id="uiArt" class="artlayer" src="assets/table-ui.png" alt="">
   <div id="log">
@@ -711,8 +709,8 @@ var sel = null;
 var ZMIN = 0.2, ZMAX = 4;
 function clamp(v, a, b){ return v < a ? a : v > b ? b : v; }
 function mapEl(){ return document.getElementById('map'); }
-var _gridKey = '';
-function paintGridOverlay(){
+function paintGridOverlay(){ drawGrid(); return;
+  var _unused=''; function _old(){
   var go = document.getElementById('gridOverlay'); if (!go) return;
   var base = (S.grid && S.grid.size) ? S.grid.size : 60;
   var sz = base * cam.zoom;
@@ -726,11 +724,10 @@ function paintGridOverlay(){
     go.style.backgroundSize = sz + 'px ' + sz + 'px';
   }
   go.style.backgroundPosition = cam.x + 'px ' + cam.y + 'px';
-}
+} }
 function applyCam(){
   document.getElementById('mapLayer').style.transform =
     'translate(' + cam.x + 'px,' + cam.y + 'px) scale(' + cam.zoom + ')';
-  paintGridOverlay();
   if (typeof placeTokMenu === 'function') placeTokMenu();
 }
 function clampCam(){ /* infinite grid: free panning, no bounds */ }
@@ -1236,14 +1233,12 @@ function openWin(key){
   else { win.classList.remove('sheeting'); win.classList.remove('arsenal'); document.getElementById('winBody').innerHTML = sectionBody(key); }
   win.classList.add('open');
   paintRails(); renderLog(); paintSelectArt();
-  var _wa=document.getElementById('winArt'); if(_wa) _wa.style.display='block';
   if (typeof paintLmStrip === 'function' && isLM()) paintLmStrip();
 }
 function closeWin(){
   S.openSection = null;
   var win = document.getElementById('win'); win.classList.remove('open'); win.classList.remove('sheeting'); win.classList.remove('arsenal'); win.style.height = ''; win.style.bottom = '';
   lmMin = false;
-  var _wa=document.getElementById('winArt'); if(_wa) _wa.style.display='none';
   paintRails(); paintSelectArt();
   if (typeof paintLmStrip === 'function' && isLM()) paintLmStrip();
 }
@@ -2141,6 +2136,7 @@ function loadAdventureSpine(spine){
 function startStateFeed(){
   if (!tsEmbedded() || _stateFeedTimer) return;
   function pullOnce(){
+    if (pan || pinch) return;
     stateBackend.pull(_stateSeen).then(function(res){
       if (res && res.version > _stateSeen){ _stateSeen = res.version; applyRemoteSnapshot(res.snap); }
     }).catch(function(){});
@@ -2695,17 +2691,13 @@ function wireDrag(el, t){
    Drawn in map space, so it rides the camera and stays welded to the art.
    non-scaling-stroke keeps the lines hairlines instead of ropes at 4x. */
 function drawGrid(){
-  var svg = document.getElementById('grid'), g = S.grid, out = '';
-  svg.setAttribute('width', S.map.w); svg.setAttribute('height', S.map.h);
-  svg.setAttribute('viewBox', '0 0 ' + S.map.w + ' ' + S.map.h);
-  for (var x = g.offX % g.size; x <= S.map.w; x += g.size)
-    out += '<line x1="' + x + '" y1="0" x2="' + x + '" y2="' + S.map.h + '"/>';
-  for (var y = g.offY % g.size; y <= S.map.h; y += g.size)
-    out += '<line x1="0" y1="' + y + '" x2="' + S.map.w + '" y2="' + y + '"/>';
-  svg.innerHTML = '';
-  paintGridOverlay();
-  document.getElementById('mapArt').style.width = S.map.w + 'px';
-  document.getElementById('mapArt').style.height = S.map.h + 'px';
+  var gi = document.getElementById('gridInf');
+  if (gi){
+    var g = S.grid || {}; var op = (g.opacity !== undefined) ? g.opacity : 0.45; var sz = g.size || 60;
+    gi.style.backgroundImage = 'linear-gradient(rgba(255,255,255,' + op + ') 1px, transparent 1px),linear-gradient(90deg, rgba(255,255,255,' + op + ') 1px, transparent 1px)';
+    gi.style.backgroundSize = sz + 'px ' + sz + 'px';
+  }
+  var ma = document.getElementById('mapArt'); if (ma){ ma.style.width = S.map.w + 'px'; ma.style.height = S.map.h + 'px'; }
 }
 
 /* ---- token menu ----
