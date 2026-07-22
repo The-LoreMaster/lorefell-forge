@@ -1,3 +1,7 @@
+## ThreadSpire: rescale interface to the true 1077x590 viewport
+
+- Every slot recomputed from the SVG at the app's real viewport (1077x590), so the tabs, log, and identity gems land on Joel's frame instead of sitting too far right. The dice is pulled left and down and bottom-aligned with Attack. The map default is now transparent so the table texture shows through instead of the placeholder gradient.
+
 ## ThreadSpire: fix render crashing on the removed fellmark
 
 - render() looped over the desktop and mobile fellmarks and toggled a class on each without checking it exists. With the desktop fellmark removed in the identity rebuild, that threw on every render, so the rail never populated and nothing was clickable. Guarded now, so render completes and the interface paints and responds.
