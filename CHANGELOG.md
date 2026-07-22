@@ -1,3 +1,7 @@
+## ThreadSpire: sheet window hugs its content, no repeated header
+
+- The sheet panel now sizes to the section inside it instead of floating in a fixed tall box, FellGlass reports its content height and the window fits it, capped so long sections scroll. FellGlass's own panel title is hidden in embed mode, so the section name no longer appears twice above the tab.
+
 ## ThreadSpire: sheet window back to the contained panel
 
 - The sheet panel no longer takes over the whole top of the table. It returns to the contained panel that pops out beside the rail, the FellGlass section renders inside it and scrolls if it is long.
