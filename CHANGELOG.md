@@ -1,3 +1,7 @@
+## ThreadSpire: free map panning + slideout polish
+
+- The map pans freely now, it was snapping back to center whenever it was smaller than the view, which read as the twitch. With the infinite grid there are no bounds. The slideout returns to its previous position, sits behind the portrait, and its card backgrounds are transparent so the frame art shows through. The close X moves to the top-left and the title pulls left.
+
 ## ThreadSpire: Joel's slideout frame art
 
 - The slideout window now uses Joel's extended-menu frame art. The art sits behind the window and shows only while a window is open; the window itself is transparent and positioned into the art's panel, so the sheet and menus render inside the ornate frame on the right, with the tabs overlaying its edge.
