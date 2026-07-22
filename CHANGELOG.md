@@ -1,3 +1,7 @@
+## ThreadSpire: the real FellGlass sections in the tabs
+
+- The sheet tabs are no longer a barebones rebuild. Each tab now shows the actual FellGlass panel, its real rendering and full functionality: Attributes opens FellGlass's attributes, Arsenal its weapons, Skills its skills, Inventory its inventory, Lore its lore. FellGlass runs in an embed mode that hides its own header and hub so only the panel shows, and ThreadSpire's tabs drive which panel is up. Same code, same behavior, no drift. The Acantha placeholder no longer flashes before your character loads.
+
 ## 2026-07-21 — SagaForge: the Churn is Burhallow's alone
 
 - Canon correction. The Chronicle playbook cited the Churn as the world-neutral reason open tables change between sessions. The Churn is Harfolk belief, Burhallow alone. Across LoreFell the LoreMaster summons Fell souls and bodies as needed, and the playbook now says so. The Burhallow lore capsule keeps the Churn and marks it as that warren's own account.
