@@ -1,3 +1,7 @@
+## ThreadSpire: portrait synced to Lore, dice type on hover/tap, consistent window
+
+- The identity portrait now reflects the sheet's Lore portrait, updating when the sheet loads and when you switch characters; clicking it opens Lore to change it, rather than a separate upload. The dice type is no longer a button: hovering the dice on desktop (or tapping once on mobile) reveals the types, and selecting one rolls it. The slideout window is positioned proportionally so it sits in the same place in fullscreen as it does windowed.
+
 ## ThreadSpire: smaller dice, character switcher, no load flashes
 
 - The dice is halved (the cube itself), keeping its bottom-left spot and the gap to the type button. Renaming from the name is removed (rename lives in Lore); clicking the name now opens a Characters slideout to switch between your Fell or build a new one. The identity stats no longer flash defaults, they hold blank until the real sheet loads. And the sheet tabs no longer flash the build-a-new-character flow before loading, the embedded sheet waits for the real character instead of falling back to creation.
