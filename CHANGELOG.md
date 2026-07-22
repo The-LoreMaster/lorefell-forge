@@ -1,3 +1,7 @@
+## ThreadSpire: fix the boot crash from the removed fellmark
+
+- Boot was throwing because a helper still tried to write into the desktop fellmark element that the identity rebuild had removed, and that error fired before render, leaving the whole interface blank. The helper now skips a missing element, so boot completes and the tabs, log, and identity paint again.
+
 ## ThreadSpire: fix the interface vanishing (hud was a full-screen box)
 
 - The rebuilt identity container was a full-viewport element sitting over the whole table, which hid the tabs and log and blocked interaction. It is now boxless, only its small stat slots exist, each a fixed element in its own place. The interface and clicks come back.
