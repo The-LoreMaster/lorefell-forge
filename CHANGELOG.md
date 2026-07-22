@@ -1,3 +1,7 @@
+## ThreadSpire: HUD polish pass
+
+- The dice is smaller and raised higher off the bottom border. The portrait now sits behind the menu art (the frame overlays its edges) while staying clickable to upload and change the character image. The character name is click-to-edit. The log defaults empty instead of the demo seed, and the chat bar is back at the top of the log, shrunk to fit so you can type in the slot.
+
 ## ThreadSpire: viewport-proportional layout (the fix for the drift)
 
 - The interface was placed at fixed pixel positions computed for one window size, so any other window size made everything miss the art. Every slot, tabs, log, and all the identity gems, is now positioned as a percentage of the viewport, exactly as drawn in the SVG, and text scales in viewport units. The art stretches to the window and the interface stretches identically with it, so alignment holds at any size. The dice sits with equal padding from the left and bottom borders, clear of Attack.
