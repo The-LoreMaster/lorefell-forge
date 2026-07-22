@@ -1,3 +1,11 @@
+## 2026-07-21 — SagaForge adventure craft engine
+
+- Added variation decks: sixteen adventure frames and ten antagonist stances, rolled on the Scope step with reroll and hand pick, avoiding recently used picks. The rolled frame and stance ride in the premise, spine, and every scene prompt.
+- Added the repetition ledger: each exported adventure logs a fingerprint (title, size, world, frame, stance) to local storage, and the last eight ride in prompts as explicit bans so adventures stop converging on one shape.
+- Added per size playbooks: Tale (in medias res, one reversal, complete tonight), Story (hook, complication, irreversible turn), Legacy (antagonist plan of four to six offscreen steps as PLAN lines, false victory, mid saga reframe), Chronicle (self contained open table sessions, three to five FACTION lines with goals and ticks). PLAN and FACTION parse into the skeleton and ride in campaign notes.
+- Upgraded crucibles: every crucible body opens with OBJECTIVE, TERRAIN, and TURN lines. Objectives draw from a ten entry deck with no repeats inside an adventure, Takedown allowed once. The LM NOTE gains a FAILURE line so a loss moves the story forward.
+- Upgraded NPCs: the NPC block gains want, fear, tell, and voice fields, carried through parsing, the FateWell pack, and the Markdown export. New NPCs must differ from every prior NPC in role, manner, and want.
+- Added standing world lore capsules for Valoria, Vyrathis, Pyranthia, and Burhallow, injected when the world matches, plus bans on the worn shapes of past campaigns drawn from The Histories.
 ## ThreadSpire: clearer sheet loading, and the name shows right away
 
 - The sheet tabs no longer sit on a silent Loading forever. If no character is linked, if the sheet is private to another owner, or if the page code has not answered, the tab now says exactly what is wrong. The character name and portrait also show immediately from the table context, before the full sheet finishes loading, instead of holding on the placeholder.
