@@ -1,3 +1,12 @@
+## 2026-07-21 — SagaForge adventure craft engine
+
+- Added variation decks: sixteen adventure frames and ten antagonist stances, rolled on the Scope step with reroll and hand pick, avoiding recently used picks. The rolled frame and stance ride in the premise, spine, and every scene prompt.
+- Added the repetition ledger: each exported adventure logs a fingerprint (title, size, world, frame, stance) to local storage, and the last eight ride in prompts as explicit bans so adventures stop converging on one shape.
+- Added per size playbooks: Tale (in medias res, one reversal, complete tonight), Story (hook, complication, irreversible turn), Legacy (antagonist plan of four to six offscreen steps as PLAN lines, false victory, mid saga reframe), Chronicle (self contained open table sessions, three to five FACTION lines with goals and ticks). PLAN and FACTION parse into the skeleton and ride in campaign notes.
+- Upgraded crucibles: every crucible body opens with OBJECTIVE, TERRAIN, and TURN lines. Objectives draw from a ten entry deck with no repeats inside an adventure, Takedown allowed once. The LM NOTE gains a FAILURE line so a loss moves the story forward.
+- Upgraded NPCs: the NPC block gains want, fear, tell, and voice fields, carried through parsing, the FateWell pack, and the Markdown export. New NPCs must differ from every prior NPC in role, manner, and want.
+- Added standing world lore capsules for Valoria, Vyrathis, Pyranthia, and Burhallow, injected when the world matches, plus bans on the worn shapes of past campaigns drawn from The Histories.
+
 ## ThreadSpire: the Fell get their faces and gear
 
 - The Fell cards were bare name and level. Now, on cast, each Fell is matched to its character sheet and picks up its portrait, weapons, lorebounds, armor, talents, and identity, lineage, origin, and motivation, so the LoreMaster sees who is at the table and what they carry, and Fell tokens wear their portraits. The deep combat numbers still live with the sheet module and come later; this is the face and the kit.
