@@ -1,3 +1,7 @@
+## ThreadSpire: the menu follows the current Fell live
+
+- The identity menu now stays in sync with the sheet. When you build a new Fell, edit the name in Lore, or change the portrait, the menu's image, name, and level update immediately, because the menu now listens to the sheet's own load and save events and adopts whichever Fell the sheet is on.
+
 ## ThreadSpire/FellGlass: editable name, no lingering red flash, faster switcher
 
 - The Lore name is editable at any time again (the forged-name lock is off). The Fellstrike red edge-flash no longer re-fires when you change tabs, its class is cleared once the flash finishes, so a later reflow can't restart it. The character switcher now shows a cached list instantly and refreshes in the background, and the list is warmed when the character loads, so swapping characters no longer waits every time.
