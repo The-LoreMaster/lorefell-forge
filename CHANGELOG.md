@@ -1,3 +1,7 @@
+## ThreadSpire: sheet iframe fills the window
+
+- The character sheet frame now stretches to fill its window as a flex child, instead of an absolutely placed box that held a short intrinsic height and scrolled inside a tall empty panel. The section fills the frame; the window sizes to it.
+
 ## ThreadSpire: sheet window measures the settled panel
 
 - The window now measures the panel's real content, not the padded page, and re-reports as the content finishes rendering and whenever it changes, using a resize observer. That stops the window from locking to a stale height measured before the section had drawn, so it sizes to what is actually there.
