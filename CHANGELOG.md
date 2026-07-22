@@ -1,3 +1,7 @@
+## ThreadSpire: fixed 610x940 sheet window
+
+- The FellGlass sheet window is now a fixed 610 by 940 frame positioned against the menu, matching the target layout, instead of auto-sizing to content. The FellGlass sections fill and scroll inside it for now; how they sit in that frame gets redesigned next.
+
 ## ThreadSpire: right column aligned
 
 - The log, the rail menu, and the identity card now share one right-hand column at the same width, and the content windows end where the menu begins instead of floating with a gap. This lines the interface up so the frame art can overlay cleanly later.
