@@ -1,3 +1,7 @@
+## ThreadSpire: fix the interface vanishing (hud was a full-screen box)
+
+- The rebuilt identity container was a full-viewport element sitting over the whole table, which hid the tabs and log and blocked interaction. It is now boxless, only its small stat slots exist, each a fixed element in its own place. The interface and clicks come back.
+
 ## ThreadSpire: interface placed to the frame's exact slots
 
 - Using the SVG guide boxes Joel drew, every interface element now sits in its precise slot: the five tabs, the log feed in its corner, and a rebuilt identity block, the LP gem, the TEMP/CURRENT/MAX and TOTAL vitality gems, the charge gem, the name, portrait, and level badge, each placed to the art. Text is in Cinzel and Crimson Pro to match the site. The log shows only the roll feed in its slot; the say-input is tucked away for now.
