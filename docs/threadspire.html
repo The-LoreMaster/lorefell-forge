@@ -1970,21 +1970,28 @@ function charactersBody(){
     + '<div id="charList" class="win-note">Loading...</div>'
     + '<button class="ts-newfell" onclick="buildNewFell()">Build a new Fell</button>';
 }
+function renderCharList(list){
+  var e = document.getElementById('charList'); if (!e) return;
+  list = list || [];
+  if (!list.length){ e.innerHTML = '<div class="win-note">No characters yet.</div>'; return; }
+  e.innerHTML = list.map(function(c){
+    var on = c.id === S.characterId;
+    return '<div class="lb-row" style="cursor:pointer" onclick="switchCharacter(\''+c.id+'\')"><span class="lb-name">'+esc(c.name||'Unnamed Fell')+'</span><span class="lb-meta">'+(on?'Active':'Switch')+'</span></div>';
+  }).join('');
+}
+function warmCharList(){
+  if (!charBackend.list) return;
+  charBackend.list().then(function(list){ S._charList = list || []; renderCharList(S._charList); }).catch(function(){});
+}
 function loadCharList(){
-  var el = document.getElementById('charList'); if (!el || !charBackend.list) return;
-  charBackend.list().then(function(list){
-    var e = document.getElementById('charList'); if (!e) return;
-    list = list || [];
-    if (!list.length){ e.innerHTML = '<div class="win-note">No characters yet.</div>'; return; }
-    e.innerHTML = list.map(function(c){
-      var on = c.id === S.characterId;
-      return '<div class="lb-row" style="cursor:pointer" onclick="switchCharacter(\''+c.id+'\')"><span class="lb-name">'+esc(c.name||'Unnamed Fell')+'</span><span class="lb-meta">'+(on?'Active':'Switch')+'</span></div>';
-    }).join('');
-  }).catch(function(){ var e=document.getElementById('charList'); if(e) e.innerHTML='<div class="win-note">Could not load your characters.</div>'; });
+  var el = document.getElementById('charList'); if (!el) return;
+  if (S._charList) renderCharList(S._charList);          // instant from cache
+  else el.innerHTML = '<div class="win-note">Loading...</div>';
+  warmCharList();                                        // refresh in the background
 }
 function switchCharacter(id){
   if (!id || id === S.characterId){ closeWin(); return; }
-  S.characterId = id; S.sheet = null; S.charReady = false; if (S.character) S.character.portrait = '';
+  S.characterId = id; S.sheet = null; S.charReady = false; if (S.character) S.character.portrait = ''; S._charList = null;
   _sheetLoaded = false; var f = document.getElementById('sheetFrame'); if (f) f.src = '';
   closeWin(); render(); loadMyChar();
 }
@@ -2003,6 +2010,7 @@ function loadMyChar(){
   if (!tsEmbedded()){ S.sheetMsg = 'Your sheet loads on the live table.'; refreshWinBody(); return; }
   S.sheetMsg = 'Loading your sheet...'; refreshWinBody();
   if (typeof ensureSheet === 'function') ensureSheet();
+  if (typeof warmCharList === 'function') warmCharList();
   charBackend.load(S.characterId).then(function(data){
     if (data){ S.sheet = data; applySheet(); }
     else { S.sheetMsg = 'Your sheet could not be loaded. Open the table from your own character (the sheet is private to its owner).'; }

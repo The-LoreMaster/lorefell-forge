@@ -1,3 +1,7 @@
+## ThreadSpire/FellGlass: editable name, no lingering red flash, faster switcher
+
+- The Lore name is editable at any time again (the forged-name lock is off). The Fellstrike red edge-flash no longer re-fires when you change tabs, its class is cleared once the flash finishes, so a later reflow can't restart it. The character switcher now shows a cached list instantly and refreshes in the background, and the list is warmed when the character loads, so swapping characters no longer waits every time.
+
 ## ThreadSpire: portrait resets per character, faster sheet, reachable dice menu
 
 - The identity portrait now clears when a character has none, so one Fell's image no longer lingers on another. The sheet iframe preloads when the character loads, so opening the slideouts no longer waits on a fresh load. And the dice type menu no longer vanishes when you move to click it, hovering now holds it open with a short grace delay so you can reach and select a type.
