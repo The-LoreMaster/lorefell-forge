@@ -1,3 +1,7 @@
+## ThreadSpire: glow art swaps on click, god-mode LM toggle, smaller fellmark
+
+- Selecting a tab now actually swaps in Joel's glow art (the swap runs on open and close, and the old blue highlight box is removed so only the art shows). LoreMaster Mode in the menu now means god mode, it unlocks editing every part of the sheet, driven into FellGlass, rather than swapping views. The fellmark logo is sized down to sit inside its gem.
+
 ## ThreadSpire: selected-tab glow art + fellmark menu gem
 
 - Selecting a tab now swaps in Joel's glowing selected-state art for that slot, so the chosen menu item lights up in the frame. A fellmark gem is added at the bottom of the identity column; it opens a Menu slideout that holds the character switcher (moved off the name) plus settings, LoreMaster Mode is back as a toggle, and dice skins are stubbed for when the art arrives. The character name is display-only now.
