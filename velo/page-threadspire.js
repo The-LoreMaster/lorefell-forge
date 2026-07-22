@@ -2,7 +2,7 @@
 // Paste into the ThreadSpire page. Set the embed element ID to match EMBED.
 // Feeds the character-first view: the player's character card, the party at their
 // location, revealed nodes, quest-board goals, world issues, and map art.
-import { threadspirePublicChar, listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter } from 'backend/characters.web.js';
+import { threadspirePublicChar, listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter, threadspireSaveMeta } from 'backend/characters.web.js';
 import { listQuests, listDiscovered, getWorldMeta, saveAsset, listAssets, getCampaignPlayers, getClueCards } from 'backend/fatewell.web.js';
 import { getCombatForChar, saveCombatDeclare, syncCombatPlayer } from 'backend/combat.web.js';
 import { getLibraries } from 'backend/libraries.web.js';
@@ -151,6 +151,10 @@ $w.onReady(function () {
           let ch = null;
           try { const r = await loadCharacter(msg.charId || characterId); ch = (r && r.character) ? r.character : null; } catch (e) { ch = null; }
           reply(true, ch);
+        } else if (msg.type === 'TS_CHAR_SAVEMETA') {
+          let ok = false;
+          try { const r = await threadspireSaveMeta(msg.charId || characterId, { name: msg.name, portrait: msg.portrait }); ok = !!(r && r.ok); } catch (e) { ok = false; }
+          reply(ok);
         }
       } catch (e) {
         reply(false, null, String(e));

@@ -1,3 +1,7 @@
+## ThreadSpire: dice to its slot at 70px, and name/portrait/log now persist
+
+- The dice sits in its SVG slot at 70px (6.47vh, scaling with the view), with its type option beside it. Renaming the character and uploading a portrait now save to the Characters record through a new meta-save, so they survive a reload. The session log is written into the shared table state and restored on load, so it persists instead of starting fresh every time.
+
 ## ThreadSpire: HUD polish pass
 
 - The dice is smaller and raised higher off the bottom border. The portrait now sits behind the menu art (the frame overlays its edges) while staying clickable to upload and change the character image. The character name is click-to-edit. The log defaults empty instead of the demo seed, and the chat bar is back at the top of the log, shrunk to fit so you can type in the slot.
