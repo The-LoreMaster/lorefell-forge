@@ -1,3 +1,7 @@
+## ThreadSpire: Joel's slideout art restored, positioned by the SVG
+
+- Joel's slideout frame art is back. The window and its close X are now placed by the Slideout SVG, the content sits in the panel slot and the X on its corner diamond. The FellGlass panels are transparent so the art shows through, with only the light-blue interactive elements kept; cards are a subtle dark blue and scrollbars are faint to match.
+
 ## ThreadSpire: real drag fix (composited grid + feed pause), bare slideout
 
 - The map drags smoothly now. The grid moved into the transformed layer so it pans and zooms as one GPU-composited layer instead of repainting a full-screen gradient every frame, and the background state feed pauses while you're panning so it can't re-render mid-drag. The slideout background art is removed, only the cards themselves show now, and the circle around the close X is gone.
