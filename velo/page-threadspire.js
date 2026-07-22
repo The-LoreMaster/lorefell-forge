@@ -47,6 +47,7 @@ $w.onReady(function () {
       else reply({ type: 'new', libraries: libraries, charId: id });
     }
     if (m.type === 'ready') {
+      if (m.charId) fgCharId = m.charId;
       let libraries = {}; try { libraries = await getLibraries(); } catch (e) { libraries = {}; }
       if (!fgCharId) { const list = await listChars(); if (list.length) fgCharId = list[0].id; }
       await sendCharacters(fgCharId);

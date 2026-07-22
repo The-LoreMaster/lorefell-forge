@@ -1,3 +1,7 @@
+## ThreadSpire: sheet loads the table's character, and the menu sits over the slideout
+
+- The embedded sheet was defaulting to the first character in your account rather than the Fell the table is for, which is why the identity card and the open sheet disagreed. The table now tells the sheet which character to load on open and on switch, so they match. The right menu now renders over the slideout window's edge instead of the window covering the menu.
+
 ## ThreadSpire: portrait synced to Lore, dice type on hover/tap, consistent window
 
 - The identity portrait now reflects the sheet's Lore portrait, updating when the sheet loads and when you switch characters; clicking it opens Lore to change it, rather than a separate upload. The dice type is no longer a button: hovering the dice on desktop (or tapping once on mobile) reveals the types, and selecting one rolls it. The slideout window is positioned proportionally so it sits in the same place in fullscreen as it does windowed.
