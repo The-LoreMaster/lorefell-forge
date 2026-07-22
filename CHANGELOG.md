@@ -1,3 +1,7 @@
+## ThreadSpire: sheet window measures the settled panel
+
+- The window now measures the panel's real content, not the padded page, and re-reports as the content finishes rendering and whenever it changes, using a resize observer. That stops the window from locking to a stale height measured before the section had drawn, so it sizes to what is actually there.
+
 ## ThreadSpire: sheet window hugs its content, no repeated header
 
 - The sheet panel now sizes to the section inside it instead of floating in a fixed tall box, FellGlass reports its content height and the window fits it, capped so long sections scroll. FellGlass's own panel title is hidden in embed mode, so the section name no longer appears twice above the tab.
