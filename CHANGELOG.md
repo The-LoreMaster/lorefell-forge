@@ -1,3 +1,6 @@
+## ThreadSpire: right column aligned
+
+- The log, the rail menu, and the identity card now share one right-hand column at the same width, and the content windows end where the menu begins instead of floating with a gap. This lines the interface up so the frame art can overlay cleanly later.
 ## ThreadSpire: sheet iframe fills the window
 
 - The character sheet frame now stretches to fill its window as a flex child, instead of an absolutely placed box that held a short intrinsic height and scrolled inside a tall empty panel. The section fills the frame; the window sizes to it.
