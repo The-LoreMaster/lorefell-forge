@@ -160,3 +160,20 @@ export const saveCharacter = webMethod(Permissions.Anyone, async (charId, charac
   const saved = await wixData.save(COLLECTION, row, { suppressAuth: true });
   return { ok: true, id: saved._id };
 });
+
+export const threadspireSaveMeta = webMethod(Permissions.Anyone, async (charId, patch) => {
+  try {
+    if (!charId) return { ok: false };
+    const id = await memberId();
+    const row = await wixData.get(COLLECTION, charId, { suppressAuth: true }).catch(() => null);
+    if (!row) return { ok: false, error: 'not found' };
+    if (row.ownerMemberId && id && row.ownerMemberId !== id) return { ok: false, error: 'not yours' };
+    let data = {};
+    try { data = typeof row.data === 'string' ? JSON.parse(row.data || '{}') : (row.data || {}); } catch (e) { data = {}; }
+    if (patch && patch.name) { data.identity = data.identity || {}; data.identity.name = patch.name; row.charName = patch.name; }
+    if (patch && patch.portrait !== undefined) { data.portrait = patch.portrait; }
+    row.data = JSON.stringify(data);
+    await wixData.save(COLLECTION, row, { suppressAuth: true });
+    return { ok: true };
+  } catch (e) { return { ok: false, error: String(e) }; }
+});

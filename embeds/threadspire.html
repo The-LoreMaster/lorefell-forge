@@ -152,10 +152,10 @@ body.clean .artlayer{ display:none; }
 .logstream .mark{ color:var(--gold); font-family:Cinzel,serif; font-size:.72rem; letter-spacing:.08em; }
 .logstream .strike{ color:#f09595; font-family:Cinzel,serif; font-size:.72rem; letter-spacing:.08em; }
 
-#tray{ position:fixed; left:3.4vh; bottom:6vh; z-index:50; display:flex; align-items:flex-end; gap:14px; }
+#tray{ position:fixed; left:2.141%; bottom:3.8%; z-index:50; display:flex; align-items:flex-end; gap:1vh; }
 /* the socket the die lives in and returns to. It is the click target, the die
    itself flies and is pointer transparent the whole way. */
-#dieSlot{ width:5vh; height:5vh; border-radius:0.8vh; border:1.5px dashed transparent; transition:border-color .3s, background .3s; }
+#dieSlot{ width:6.47vh; height:6.47vh; border-radius:0.9vh; border:1.5px dashed transparent; transition:border-color .3s, background .3s; }
 #dieSlot.empty{ border-color:rgba(201,168,76,.45); background:rgba(201,168,76,.05); }
 
 .dieflight{ position:fixed; width:64px; height:64px; margin:-32px 0 0 -32px; pointer-events:none; z-index:57; }
@@ -1892,7 +1892,8 @@ function sharedSnapshot(){
     background: S.scene.background,
     activeSceneId: S.adventure ? S.adventure.activeSceneId : S.scene.id,
     activeStageId: (function(){ try { return activeStageId(); } catch(e){ return null; } })(),
-    combatPhase: S.scene.combatPhase, mode: S.mode, round: S.round
+    combatPhase: S.scene.combatPhase, mode: S.mode, round: S.round,
+    log: (S.log || []).slice(-80)
   };
 }
 /* relay our state outward. On acknowledgement we mark the version seen, so the feed never
@@ -1917,6 +1918,7 @@ function applyRemoteSnapshot(snap){
     var hit = (typeof tsSceneById === 'function') ? tsSceneById(snap.activeSceneId) : null;
     if (hit){ S.scene = hit.scene; S.adventure.activeSceneId = snap.activeSceneId; }
   }
+  if (snap.log){ S.log = snap.log; if (typeof renderLog === 'function') renderLog(); }
   applyRemoteState({ scene:S.scene, tokens:S.tokens, grid:S.grid, map:S.map });
 }
 var _stateFeedTimer = null;
@@ -2130,7 +2132,7 @@ if (tsEmbedded()){
     get: function(){ return tsAsk('TS_JOURNAL_GET', {}); },
     save: function(entries){ return tsAsk('TS_JOURNAL_SAVE', { entries:entries }); }
   };
-  charBackend = { load: function(id){ return tsAsk('TS_CHAR_LOAD', { charId:id }); } };
+  charBackend = { load: function(id){ return tsAsk('TS_CHAR_LOAD', { charId:id }); }, saveMeta: function(patch){ return tsAsk('TS_CHAR_SAVEMETA', { charId:S.characterId, name:patch.name, portrait:patch.portrait }); } };
 }
 /* on an embedded load, pull the account's stages into the deck so last session's
    tables come back */
@@ -2268,6 +2270,11 @@ setTimeout(function(){ try { loadAccountStages(); startStateFeed(); loadJournal(
     });
   } catch(e){}
 })();
+function saveHudEdit(){
+  if (!tsEmbedded() || isLM() || !S.characterId || !charBackend.saveMeta) return;
+  var C = S.character || {};
+  charBackend.saveMeta({ name:C.name, portrait:C.portrait }).catch(function(){});
+}
 function hudPortraitClick(){
   if (isLM()) return;
   var inp = document.createElement('input'); inp.type='file'; inp.accept='image/*';
@@ -2762,7 +2769,8 @@ function sayFrom(id){
 }
 var logSeq = 0;
 function mkId(){ return ++logSeq; }
-function pushLog(e){ e.id = mkId(); S.log.push(e); applyRemoteState({ log:S.log }); }
+var _logPushT = null;
+function pushLog(e){ e.id = mkId(); S.log.push(e); applyRemoteState({ log:S.log }); if (_logPushT) clearTimeout(_logPushT); _logPushT = setTimeout(function(){ try { pushState(); } catch(err){} }, 600); }
 function entryHtml(e){
   if (e.kind === 'say') return '<div class="le say"><b>' + esc(e.who) + '</b> ' + esc(e.text) + '</div>';
   if (e.kind === 'roll'){
