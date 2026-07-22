@@ -1,3 +1,7 @@
+## ThreadSpire: right column aligned
+
+- The log, the rail menu, and the identity card now share one right-hand column at the same width, and the content windows end where the menu begins instead of floating with a gap. This lines the interface up so the frame art can overlay cleanly later.
+
 ## ThreadSpire: sheet window measures the settled panel
 
 - The window now measures the panel's real content, not the padded page, and re-reports as the content finishes rendering and whenever it changes, using a resize observer. That stops the window from locking to a stale height measured before the section had drawn, so it sizes to what is actually there.
