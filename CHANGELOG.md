@@ -1,3 +1,7 @@
+## ThreadSpire: Joel's slideout frame art
+
+- The slideout window now uses Joel's extended-menu frame art. The art sits behind the window and shows only while a window is open; the window itself is transparent and positioned into the art's panel, so the sheet and menus render inside the ornate frame on the right, with the tabs overlaying its edge.
+
 ## ThreadSpire: fix map drag stutter + fellmark toggles
 
 - Dragging the map is smooth again. The infinite grid was rebuilding its full gradient every camera frame; it now only rebuilds when the zoom or grid size changes and just shifts position while panning. The fellmark menu gem now closes on a second click.
