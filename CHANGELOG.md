@@ -1,3 +1,7 @@
+## ThreadSpire: explicit table layer order
+
+- The table now stacks in the intended order: the uploaded background as the map surface (it was hidden under an opaque fill), then the grid, tokens, and dice, then the outer frame and the right menu art, then the interface text and buttons, and the slideout window on top. The dice is smaller and nudged up and to the right.
+
 ## ThreadSpire: fix the interface vanishing (hud was a full-screen box)
 
 - The rebuilt identity container was a full-viewport element sitting over the whole table, which hid the tabs and log and blocked interaction. It is now boxless, only its small stat slots exist, each a fixed element in its own place. The interface and clicks come back.
