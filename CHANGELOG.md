@@ -1,3 +1,7 @@
+## ThreadSpire: the sheet panel fits and lands on the right section
+
+- The sheet now opens in a large panel that fills the table beside the rail, instead of a cramped box, so the FellGlass section has room to render. FellGlass's character-switcher bar is hidden in embed mode along with its header and hub, so only the panel shows. And the requested section now sticks: tapping Attributes lands on attributes, not the default lore panel, even after the character finishes loading.
+
 ## ThreadSpire: the real FellGlass sections in the tabs
 
 - The sheet tabs are no longer a barebones rebuild. Each tab now shows the actual FellGlass panel, its real rendering and full functionality: Attributes opens FellGlass's attributes, Arsenal its weapons, Skills its skills, Inventory its inventory, Lore its lore. FellGlass runs in an embed mode that hides its own header and hub so only the panel shows, and ThreadSpire's tabs drive which panel is up. Same code, same behavior, no drift. The Acantha placeholder no longer flashes before your character loads.
