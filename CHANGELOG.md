@@ -1,3 +1,7 @@
+## ThreadSpire: real drag fix (composited grid + feed pause), bare slideout
+
+- The map drags smoothly now. The grid moved into the transformed layer so it pans and zooms as one GPU-composited layer instead of repainting a full-screen gradient every frame, and the background state feed pauses while you're panning so it can't re-render mid-drag. The slideout background art is removed, only the cards themselves show now, and the circle around the close X is gone.
+
 ## ThreadSpire: free map panning + slideout polish
 
 - The map pans freely now, it was snapping back to center whenever it was smaller than the view, which read as the twitch. With the infinite grid there are no bounds. The slideout returns to its previous position, sits behind the portrait, and its card backgrounds are transparent so the frame art shows through. The close X moves to the top-left and the title pulls left.
