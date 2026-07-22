@@ -96,7 +96,7 @@ $w.onReady(function () {
       if (q.role === 'lm' && campaignId) {
         try { const ar = await myAdventureRole(campaignId); if (ar === 'loremaster' || ar === 'lorekeeper') role = 'lm'; } catch (e) {}
       }
-      embed.postMessage(Object.assign({ type: 'THREADSPIRE_CONTEXT', role: role, campaignId: campaignId }, ctx));
+      embed.postMessage(Object.assign({ type: 'THREADSPIRE_CONTEXT', role: role, campaignId: campaignId, characterId: characterId }, ctx));
     } else if (msg.type === 'THREADSPIRE_WANT_LORE') {
       let character = null;
       try { character = await threadspirePublicChar(msg.characterId); } catch (e) { character = null; }
@@ -147,6 +147,10 @@ $w.onReady(function () {
         } else if (msg.type === 'TS_JOURNAL_SAVE') {
           try { const r = await saveJournal(campaignId, msg.entries || []); reply(!!(r && r.ok), r, r && r.error); }
           catch (e) { reply(false, null, String(e)); }
+        } else if (msg.type === 'TS_CHAR_LOAD') {
+          let ch = null;
+          try { const r = await loadCharacter(msg.charId || characterId); ch = (r && r.character) ? r.character : null; } catch (e) { ch = null; }
+          reply(true, ch);
         }
       } catch (e) {
         reply(false, null, String(e));
