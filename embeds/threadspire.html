@@ -194,6 +194,13 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 #cleanExit:hover{ opacity:1; }
 body.clean #cleanExit{ display:block; }
 body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean #mrail, body.clean #tray, body.clean #lmstrip, body.clean #devbar, body.clean #log{ display:none !important; }
+#sheetPanel{ position:fixed; inset:0; z-index:80; display:none; flex-direction:column; background:var(--navy); }
+#sheetPanel.open{ display:flex; }
+.sheet-bar{ display:flex; align-items:center; justify-content:space-between; padding:8px 14px; background:rgba(10,14,26,.95); border-bottom:1px solid var(--gold); flex:none; }
+.sheet-h{ font-family:Cinzel,serif; font-size:.8rem; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); }
+.sheet-x{ border:1px solid var(--gold); border-radius:6px; color:var(--gold); font-family:Cinzel,serif; font-size:.66rem; letter-spacing:.08em; padding:6px 12px; cursor:pointer; background:none; }
+.sheet-x:active{ background:var(--gold); color:var(--navy); }
+#sheetFrame{ flex:1; width:100%; border:none; background:var(--navy); }
 #lmstrip.hidden{ display:none; }
 #lmstrip > *{ pointer-events:auto; }
 .lm-topbar{ display:flex; align-items:center; gap:9px; margin-bottom:10px; background:rgba(10,14,26,.9); border:1px solid var(--line); border-radius:10px; padding:6px 10px; }
@@ -445,6 +452,7 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 </head>
 <body>
 <button id="cleanExit" onclick="toggleClean()" title="Show the widgets">Show widgets</button>
+<div id="sheetPanel"><div class="sheet-bar"><span class="sheet-h">Character Sheet</span><button class="sheet-x" onclick="closeSheet()">Back to the table</button></div><iframe id="sheetFrame" title="Character sheet"></iframe></div>
 <div id="stage">
   <div id="map">
     <div id="mapLayer">
@@ -1143,6 +1151,7 @@ function paintTypePicker(){
 function isMobile(){ return window.matchMedia('(max-width:700px)').matches; }
 function openWin(key){
   if (key === 'battle' && isMobile()){ toggleDrawer(true); return; }
+  if (key === 'identity' && !isLM()){ openSheet(); return; }
   S.openSection = key;
   lmMin = true; lmExpanded = null;
   document.getElementById('winTitle').textContent = SECTIONS[key].title.toUpperCase();
@@ -1161,6 +1170,7 @@ function closeWin(){
 
 /* ---- rails ---- */
 function railClick(k){
+  if (!isLM()){ openSheet(); return; }
   (S.openSection === k) ? closeWin() : openWin(k);
 }
 function refreshStagesWin(){ if (S.openSection === 'stages') openWin('stages'); }
@@ -2160,6 +2170,26 @@ var lmGridOpen = false;                        /* grid sliders are summoned from
 function lmToggleGrid(){ lmGridOpen = !lmGridOpen; paintLmbar(); }
 /* streaming views: hide every widget but the map, and full screen */
 function toggleClean(){ document.body.classList.toggle('clean'); if (S.openSection) closeWin(); }
+/* the player's full sheet, the real FellGlass, hosted here. Its bridge is relayed up to the
+   page, which answers from the one Characters record. Loaded once, shown on demand. */
+var _sheetLoaded = false;
+function openSheet(){
+  var p = document.getElementById('sheetPanel'), f = document.getElementById('sheetFrame');
+  if (!p || !f) return;
+  if (!_sheetLoaded){ f.src = 'fellglass.html'; _sheetLoaded = true; }
+  p.classList.add('open');
+}
+function closeSheet(){ var p = document.getElementById('sheetPanel'); if (p) p.classList.remove('open'); }
+window.addEventListener('message', function(ev){
+  var f = document.getElementById('sheetFrame');
+  if (f && ev.source === f.contentWindow && ev.data && ev.data.type){
+    if (tsEmbedded()) window.parent.postMessage({ type:'TS_TOOL_UP', tool:'fellglass', msg: ev.data }, '*');
+    return;
+  }
+  if (ev.data && ev.data.type === 'TS_TOOL_DOWN' && ev.data.tool === 'fellglass'){
+    if (f && f.contentWindow) f.contentWindow.postMessage(ev.data.msg, '*');
+  }
+});
 function toggleFull(){
   try {
     var el = document.documentElement;

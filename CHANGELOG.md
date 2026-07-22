@@ -1,3 +1,7 @@
+## ThreadSpire hosts the character sheet (FellGlass, live)
+
+- The player's full sheet now lives inside ThreadSpire. Tapping the rail or the identity card opens the real FellGlass, the whole tool, not a copy, in a panel over the table. Its bridge is relayed through ThreadSpire's page to the same Characters record its own page uses, so every edit saves to the one record that FateWell and the rest of ThreadSpire already read. Nothing is duplicated, so nothing can drift. This is the first half of making ThreadSpire the single home; the LoreMaster's authoring tool is next.
+
 ## ThreadSpire: the Fell get their faces and gear
 
 - The Fell cards were bare name and level. Now, on cast, each Fell is matched to its character sheet and picks up its portrait, weapons, lorebounds, armor, talents, and identity, lineage, origin, and motivation, so the LoreMaster sees who is at the table and what they carry, and Fell tokens wear their portraits. The deep combat numbers still live with the sheet module and come later; this is the face and the kit.
