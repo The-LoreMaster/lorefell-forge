@@ -1,3 +1,7 @@
+## ThreadSpire: interface text now sits in front of the frame art
+
+- The tabs, log, and identity were rendering behind Joel's frame because the play area is a fixed layer that trapped them below it. The frame art now lives in the same layer as the interface, so the text reads in front of the art as intended. Log set in Crimson Pro to match the site.
+
 ## ThreadSpire: tabs and log aligned to the frame slots
 
 - The rail tabs now sit on the frame's gem slots exactly, detected from the art at a 37px pitch, real coordinates instead of a scaled approximation, and the log drops into its top-right slot. Active tab reads in gold. Identity and the stat gems come next.
