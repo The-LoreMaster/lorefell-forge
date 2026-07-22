@@ -1,3 +1,7 @@
+## ThreadSpire: portrait resets per character, faster sheet, reachable dice menu
+
+- The identity portrait now clears when a character has none, so one Fell's image no longer lingers on another. The sheet iframe preloads when the character loads, so opening the slideouts no longer waits on a fresh load. And the dice type menu no longer vanishes when you move to click it, hovering now holds it open with a short grace delay so you can reach and select a type.
+
 ## ThreadSpire: sheet loads the table's character, and the menu sits over the slideout
 
 - The embedded sheet was defaulting to the first character in your account rather than the Fell the table is for, which is why the identity card and the open sheet disagreed. The table now tells the sheet which character to load on open and on switch, so they match. The right menu now renders over the slideout window's edge instead of the window covering the menu.
