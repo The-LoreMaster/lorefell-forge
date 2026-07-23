@@ -1,3 +1,7 @@
+## ThreadSpire: fonts load everywhere, full stat sync, empty stage default
+
+- ThreadSpire now loads its own fonts (Cinzel, Crimson Pro) instead of relying on the device already having them, which is why they looked wrong on another machine. The identity menu now syncs Lore Points, temp vitality, charge, and fatigue from the sheet, not just level and current/max. A fresh stage starts with no tokens instead of the two demo tokens. The slideout title is raised further onto the gold line.
+
 ## ThreadSpire: title on the gold line, portrait toggles
 
 - The slideout title now sits right at the top gold line (dropped the header's top padding and its redundant divider). Clicking the portrait a second time now closes Lore, matching the fellmark's toggle behavior.
