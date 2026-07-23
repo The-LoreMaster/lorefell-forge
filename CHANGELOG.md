@@ -1,3 +1,7 @@
+## ThreadSpire: the LoreMaster identity rail
+
+- The LoreMaster's tabs are now Journal, Fell, Library, Stages, Story, and Settings moves off the rail onto the fellmark gem at the bottom, which carries the same fellmark symbol the player side uses. The identity column gains its LoreMaster meanings: LP and SS on the blue gems, the red circle takes the vitality of a clicked foe, the three shapes beside it light gold with that foe's charges, the gem left of the name shows the skill difficulty step, DP sits at the bottom right, and the portrait is the LoreMaster's own, uploaded by clicking it. Name and portrait swap to whichever foe or NPC is speaking.
+
 ## ThreadSpire: fix the right-click dice menu
 
 - The right-click menu now stays where you opened it. It was snapping back to the dice tray and closing immediately, because the cursor landing on the menu triggered the tray's hover logic. A menu opened by right-click now holds until you pick a type or click away.
