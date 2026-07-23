@@ -1,3 +1,7 @@
+## ThreadSpire: roster removal and member sheets work, library entries open
+
+- Removing a roster member and opening one both work now. Every identifier created at the table was a number while the same value came back from a click as text, so no lookup ever matched: the removal deleted nothing and the member sheet had nothing to open. Identifiers are now text and carry a stamp so they stay unique across reloads, and every lookup compares them as text, so older entries still match. The X removes straight away, with no confirmation. Library entries open a card showing portrait, rating, vitality, build, signature affliction, attributes, infusions, augments, inventory, abilities, and description, the same face FateWell shows.
+
 ## ThreadSpire: the adventure loads again
 
 - The table opens the real adventure from FateWell instead of the placeholder storyline. Yesterday's guard against stale syncs was written so that the first arrival of the adventure could never pass it, so the seed stayed put. The adventure now always wins when it first arrives, and the guard only applies to later updates. Scene fields the table owns, attendance and prep among them, survive a reload instead of being dropped.
