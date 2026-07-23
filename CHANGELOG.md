@@ -1,3 +1,7 @@
+## ThreadSpire: remove the slideout title
+
+- The slideout title is gone; the selected tab already shows where you are. The window now fills the art's content slot without a title band.
+
 ## ThreadSpire: fonts load everywhere, full stat sync, empty stage default
 
 - ThreadSpire now loads its own fonts (Cinzel, Crimson Pro) instead of relying on the device already having them, which is why they looked wrong on another machine. The identity menu now syncs Lore Points, temp vitality, charge, and fatigue from the sheet, not just level and current/max. A fresh stage starts with no tokens instead of the two demo tokens. The slideout title is raised further onto the gold line.
