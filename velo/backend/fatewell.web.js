@@ -712,3 +712,31 @@ export const getClueCards = webMethod(Permissions.Anyone, async (charId) => {
   } catch (e) { items = []; }
   return items.map((it) => ({ handle: it.handle, title: it.clueTitle, body: it.clueBody, scene: it.scene, at: it.discoveredAt }));
 });
+
+// The LoreMaster's own portrait, kept on their member row so it follows them.
+export const getLmPortrait = webMethod(Permissions.Anyone, async (campaignId) => {
+  try {
+    const id = await memberId();
+    if (!id || !campaignId) return { ok: false, portrait: '' };
+    const r = await wixData.query('AdventureMembers')
+      .eq('campaignId', campaignId).eq('memberId', id)
+      .limit(1).find({ suppressAuth: true });
+    const row = r.items[0];
+    return { ok: true, portrait: (row && row.portrait) || '' };
+  } catch (e) { return { ok: false, portrait: '', error: String(e) }; }
+});
+
+export const saveLmPortrait = webMethod(Permissions.Anyone, async (campaignId, portrait) => {
+  try {
+    const id = await memberId();
+    if (!id || !campaignId) return { ok: false };
+    const r = await wixData.query('AdventureMembers')
+      .eq('campaignId', campaignId).eq('memberId', id)
+      .limit(1).find({ suppressAuth: true });
+    let row = r.items[0];
+    if (!row) row = { campaignId: campaignId, memberId: id, status: 'active', role: 'loremaster', joinedAt: new Date().toISOString() };
+    row.portrait = portrait || '';
+    await wixData.save('AdventureMembers', row, { suppressAuth: true });
+    return { ok: true };
+  } catch (e) { return { ok: false, error: String(e) }; }
+});
