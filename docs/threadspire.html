@@ -296,6 +296,15 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .vcard-corner{ position:absolute; top:8px; right:8px; z-index:2; display:flex; gap:6px; }
 .card-x{ width:28px; height:28px; border-radius:8px; cursor:pointer; background:rgba(10,14,26,.72); border:1px solid var(--line2,#2a3552); color:var(--silver); font-size:.8rem; line-height:1; }
 .card-x:hover{ border-color:var(--danger,#8d3b3b); color:var(--danger,#8d3b3b); }
+.bt-live{ margin:6px 0; padding:6px 8px; background:rgba(10,16,32,.45); border:1px solid rgba(201,168,76,.2); border-radius:8px; }
+.bt-row{ display:flex; align-items:center; gap:5px; margin:3px 0; }
+.bt-row.wrap{ flex-wrap:wrap; }
+.bt-lbl{ font-family:Cinzel,serif; font-size:.56rem; letter-spacing:.1em; text-transform:uppercase; color:var(--muted,#7e8a99); min-width:56px; }
+.bt-b{ background:rgba(20,30,54,.7); border:1px solid var(--line2,#2a3552); border-radius:5px; color:var(--silver); font:inherit; font-size:.68rem; padding:1px 6px; cursor:pointer; }
+.bt-b:hover{ border-color:var(--gold); color:var(--gold); }
+.bt-n{ font-family:Cinzel,serif; font-size:.8rem; color:var(--silver); min-width:56px; text-align:center; }
+.bt-pip{ width:20px; height:20px; border-radius:50%; border:1px solid var(--line2,#2a3552); background:transparent; color:var(--muted,#7e8a99); font-size:.62rem; cursor:pointer; padding:0; }
+.bt-pip.on{ border-color:var(--gold); background:rgba(201,168,76,.25); color:var(--gold); }
 .qs-row{ display:flex; align-items:flex-start; gap:7px; padding:5px 2px; border-bottom:1px solid rgba(201,168,76,.10); }
 .qs-row.done .qs-title{ opacity:.5; text-decoration:line-through; }
 .qs-tick{ background:transparent; border:none; color:var(--gold); cursor:pointer; font-size:.85rem; padding:0 2px; }
@@ -2666,6 +2675,7 @@ function foeTabBody(f, tab){
   if (tab === 'about'){
     return '<div class="lmc-sd">' + esc(sr) + ' Foe</div>'
       + '<div class="lmc-vit">' + f.curVit + ' / ' + f.maxVit + chargePips(f, 'foe') + '</div>'
+      + foeLiveHtml(f)
       + actLine(f, 'foe') + foeDiceRow(f);
   }
   if (tab === 'attributes'){
@@ -2796,6 +2806,100 @@ function fellTabBody(p, tab){
 }
 
 /* charge pips, dark when empty and gold when set, clickable for the LM */
+/* In battle the LoreMaster moves a foe's vitality, charges and what is on it.
+   Nothing else edits these; the shelf holds what a foe is, this holds what is happening. */
+function inBattle(){ return S.mode === 'combat'; }
+function foeById(id){
+  var hit = null;
+  ((S.scene && S.scene.foes) || []).forEach(function(f){ if (sameId(f.id, id)) hit = f; });
+  return hit;
+}
+function foeVit(id, delta){
+  var f = foeById(id); if (!f) return;
+  f.curVit = Math.max(0, Math.min(f.maxVit || 0, (f.curVit || 0) + delta));
+  pushLog({ kind:'sys', html:esc(f.name) + (delta < 0 ? ' takes ' + (-delta) : ' recovers ' + delta) + ', now ' + f.curVit + '/' + f.maxVit + '.' });
+  combatPublish(); applyRemoteState({ scene:S.scene, log:S.log }); paintLmStrip(); paintHud();
+}
+function foeCharge(id, v){
+  var f = foeById(id); if (!f) return;
+  f.charge = Math.max(0, Math.min(3, v));
+  combatPublish(); applyRemoteState({ scene:S.scene }); paintLmStrip(); paintHud();
+}
+var TS_EFFECTS = ['Bleeding','Burning','Blinded','Dazed','Exposed','Frozen','Poisoned','Prone','Rooted','Silenced','Slowed','Staggered','Weakened'];
+function foeAffAdd(id){
+  var f = foeById(id); if (!f) return;
+  var opts = TS_EFFECTS.filter(function(e){ return (f.affs || []).indexOf(e) < 0; });
+  tsModal('<h3 class="tsm-title">What takes hold</h3>'
+    + '<select class="tsm-inp" id="afPick">' + opts.map(function(e){ return '<option value="' + esc(e) + '">' + esc(e) + '</option>'; }).join('') + '</select>'
+    + (opts.length ? '' : '<p class="tsm-note">Everything is already on it.</p>')
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button>'
+    + '<button class="tsm-btn" onclick="foeAffSave(\'' + id + '\')">Apply</button></div>');
+}
+function foeAffSave(id){
+  var f = foeById(id); if (!f) return;
+  var v = (document.getElementById('afPick') || {}).value;
+  if (v){
+    f.affs = f.affs || [];
+    if (f.affs.indexOf(v) < 0) f.affs.push(v);
+    pushLog({ kind:'sys', html:esc(v) + ' takes hold of ' + esc(f.name) + '.' });
+  }
+  tsCloseModal(); combatPublish(); applyRemoteState({ scene:S.scene, log:S.log }); paintLmStrip();
+}
+function foeAffDrop(id, name){
+  var f = foeById(id); if (!f) return;
+  f.affs = (f.affs || []).filter(function(x){ return x !== name; });
+  combatPublish(); applyRemoteState({ scene:S.scene }); paintLmStrip();
+}
+function foeLiveHtml(f){
+  if (!inBattle()) return '';
+  var affs = (f.affs || []).map(function(a){
+    return '<span class="chip on">' + esc(a) + '<button class="chip-i" onclick="foeAffDrop(\'' + f.id + '\',\'' + a.replace(/'/g, "\\'") + '\')" title="Lift">\u00d7</button></span>';
+  }).join('');
+  return '<div class="bt-live">'
+    + '<div class="bt-row"><span class="bt-lbl">Vitality</span>'
+    + '<button class="bt-b" onclick="foeVit(\'' + f.id + '\',-5)">-5</button>'
+    + '<button class="bt-b" onclick="foeVit(\'' + f.id + '\',-1)">-1</button>'
+    + '<span class="bt-n">' + (f.curVit || 0) + ' / ' + (f.maxVit || 0) + '</span>'
+    + '<button class="bt-b" onclick="foeVit(\'' + f.id + '\',1)">+1</button>'
+    + '<button class="bt-b" onclick="foeVit(\'' + f.id + '\',5)">+5</button></div>'
+    + '<div class="bt-row"><span class="bt-lbl">Charges</span>'
+    + [0,1,2,3].map(function(n){
+        return '<button class="bt-pip' + ((f.charge || 0) >= n && n > 0 ? ' on' : '') + '" onclick="foeCharge(\'' + f.id + '\',' + n + ')">' + (n === 0 ? '\u2013' : n) + '</button>';
+      }).join('')
+    + '</div>'
+    + '<div class="bt-row wrap"><span class="bt-lbl">Upon it</span>' + (affs || '<span class="tsm-note">Nothing.</span>')
+    + '<button class="bt-b" onclick="foeAffAdd(\'' + f.id + '\')">Apply</button></div>'
+    + '</div>';
+}
+/* the table's combat state, so the players' sheets follow it */
+function combatPublish(){
+  if (!isLM() || !window._tsAsk) return;
+  tsAsk('TS_COMBAT_PUBLISH', { state:{ active: inBattle(), round: S.round || 0,
+    phase: (S.scene && S.scene.combatPhase) || '', sceneId: (S.scene && S.scene.id) || '' } }).catch(function(){});
+}
+/* what the players have declared this round */
+function declaresLoad(){
+  if (!isLM() || !window._tsAsk) return;
+  tsAsk('TS_COMBAT_DECLARES', {}).then(function(list){
+    S.declares = list || [];
+    if (typeof paintLmStrip === 'function') paintLmStrip();
+  }).catch(function(){});
+}
+function declareFor(charId){
+  var hit = null;
+  (S.declares || []).forEach(function(x){ if (sameId(x.charId, charId)) hit = x; });
+  return hit;
+}
+/* what the LoreMaster sends back to a Fell */
+function lmDealDamage(charId, base, bonus, dt){
+  tsAsk('TS_COMBAT_DAMAGE', { charId:charId, base:base, bonus:bonus, dt:dt || 'phys' }).catch(function(){});
+}
+function lmSetCharge(charId, v){
+  tsAsk('TS_COMBAT_CHARGE', { charId:charId, value:v }).catch(function(){});
+}
+function lmApplyEffects(charId, applied, recap){
+  tsAsk('TS_COMBAT_APPLY', { charId:charId, applied:applied || [], recap:recap || null }).catch(function(){});
+}
 function chargePips(c, side){
   if (side === 'foe' && c.sr === 'Minion') return '<span class="lmc-nocharge">no charge</span>';
   var h = '<span class="lmc-pips">';
@@ -3112,6 +3216,7 @@ function applyRemoteSnapshot(snap){
   if (snap.background !== undefined) S.scene.background = snap.background;
   if (snap.combatPhase !== undefined) S.scene.combatPhase = snap.combatPhase;
   if (snap.mode) S.mode = snap.mode;
+  if (isLM() && S.mode === 'combat' && !S.declares) declaresLoad();
   if (typeof snap.round === 'number') S.round = snap.round;
   if (snap.activeSceneId && S.adventure && snap.activeSceneId !== S.scene.id){
     var hit = (typeof tsSceneById === 'function') ? tsSceneById(snap.activeSceneId) : null;
@@ -4021,7 +4126,7 @@ function lmStepCharge(side, id, d){ var c = findC(id); if(c){ c.charge = clamp((
 function findC(id){ var r=null; S.scene.foes.concat(S.scene.fell).forEach(function(c){ if(c.id===id) r=c; }); return r; }
 
 /* ---- combat ---- */
-function devCombat(){ applyRemoteState({ mode: S.mode === 'combat' ? 'explore' : 'combat' }); }
+function devCombat(){ setTimeout(function(){ combatPublish(); declaresLoad(); }, 60); applyRemoteState({ mode: S.mode === 'combat' ? 'explore' : 'combat' }); }
 function devRole(){ S.role = S.role === 'player' ? 'lm' : 'player'; pushLog({ kind:'sys', html:'Role is now <b>' + esc(S.role) + '</b>.' }); render(); }
 function devOther(){
   var n = 1 + Math.floor(Math.random() * 6);

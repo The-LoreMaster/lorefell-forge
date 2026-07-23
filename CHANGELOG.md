@@ -1,3 +1,7 @@
+## ThreadSpire: the foe card in battle
+
+- In battle a foe's card is where the fight is tracked. Vitality moves by one or five either way, charges are set on a row of pips, and what has taken hold of it is applied and lifted from the card itself, each change logged and pushed to the table so the players see it. The rest of the card still holds what the foe is, and none of it edits from the shelf. The table also publishes whether combat is running and which round it is on, and reads back what the Fell have declared.
+
 ## ThreadSpire: quests on the scene, publishing, and clearing the shelf
 
 - A scene now carries its quests. Raise one where it comes up and it posts to the board the players read, mark it done when they finish it, or take it down. Settings publishes the adventure to the directory and takes it down again, and shows whether it is up. A library entry can be deleted from its card, leaving the shelf everywhere while scenes already holding it keep what they have.
