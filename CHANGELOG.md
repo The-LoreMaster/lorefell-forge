@@ -1,3 +1,7 @@
+## ThreadSpire: search the library, tend the maps, keep the Lobby
+
+- The library has a search at the top. Maps are treated as what they are, images on the LoreMaster's shelf: each can be renamed or removed from the picker, and a map still on the table has to be replaced before it can go. Every table now keeps a Lobby, the blue parchment the party gathers on before a map is laid down; it is always the first stage and it says so rather than going quietly when someone tries to remove it.
+
 ## Canon: the gate understands a generated concept
 
 - The drift gate no longer asks for a hand co-change on the foe pack. A generated concept's copies are outputs of a bake, so touching them without the seed is the ordinary shape; what matters is that the bake is fresh, and the gate now enforces exactly that by re-running the generator and failing if any output moves. Hand-editing a baked file, or changing a seed without rebuilding, both fail.

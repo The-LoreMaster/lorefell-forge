@@ -274,6 +274,10 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .rs-open:hover{ background:rgba(30,44,76,.6); }
 .rs-count{ font-family:'Crimson Pro',serif; font-size:.78rem; letter-spacing:0; color:var(--silver); }
 .rs-wrap{ max-height:52vh; overflow-y:auto; }
+.lib-find{ margin:6px 0; }
+.mp-card{ position:relative; }
+.mp-main{ display:block; width:100%; background:none; border:none; color:inherit; font:inherit; padding:0; cursor:pointer; text-align:left; }
+.mp-acts{ position:absolute; top:4px; right:4px; display:flex; gap:2px; background:rgba(10,14,26,.72); border-radius:6px; padding:1px 3px; }
 .lib-scope{ display:block; width:100%; margin:6px 0 8px; font-size:.66rem; }
 .lib-list{ max-height:46vh; overflow-y:auto; }
 .lib-row{ display:flex; align-items:center; gap:8px; width:100%; padding:6px 4px; background:transparent; border:none; border-bottom:1px solid rgba(201,168,76,.10); color:var(--silver); font:inherit; text-align:left; cursor:pointer; }
@@ -1305,6 +1309,7 @@ var RAIL_LM     = ['journal','fell','library','stages','story'];
 function railKeys(){ return S.role === 'lm' ? RAIL_LM : RAIL_PLAYER; }
 
 function stagesBody(){
+  ensureLobby();
   var deck = stageDeck();
   var cards = deck.map(function(b){
     var on = b.stageId === activeStageId();
@@ -1441,6 +1446,15 @@ function libDelete(id){
     + '<p class="tsm-note">It leaves the shelf everywhere. Scenes already holding it keep what they have.</p>'
     + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button>'
     + '<button class="tsm-btn danger" onclick="tsConfirmYes()">Delete</button></div>');
+}
+function libSearch(q){
+  S.libQuery = q || '';
+  var rows = document.querySelectorAll('#winBody .vcard.libcard');
+  var t = S.libQuery.toLowerCase();
+  for (var i = 0; i < rows.length; i++){
+    var nm = (rows[i].querySelector('.vcard-title') || {}).textContent || '';
+    rows[i].style.display = (!t || nm.toLowerCase().indexOf(t) >= 0) ? '' : 'none';
+  }
 }
 function libToggleScope(){ S.libAll = !S.libAll; refreshWinBody(); }
 /* Build a scene combatant from a library entry, keeping the link so stats and art stay shared. */
@@ -2185,6 +2199,7 @@ function libraryBody(){
     return '<div class="win-note">The library: everything the adventure brings to the table.</div><div class="win-note">Loading...</div>';
   }
   var h = '<div class="win-note">The library: everything the adventure brings to the table.</div>'
+    + '<input class="tsm-inp lib-find" id="libFind" placeholder="Search by name" value="' + esc(S.libQuery || '') + '" oninput="libSearch(this.value)">'
     + '<button class="tsm-btn ghost lib-scope" onclick="libToggleScope()">' + (S.libAll ? 'Showing: saved collection' : 'Showing: this adventure') + '</button>';
   var lib = libScoped();
   if (S.libLoaded && lib.length){
@@ -3318,6 +3333,20 @@ function stageRestore(b){
   paintMapArt();
 }
 /* the switcher lists the stages bound to the current scene */
+/* The Lobby is the table before a map is laid down: the blue parchment, no tokens. */
+function ensureLobby(){
+  var bd = sceneBinding(); if (!bd) return;
+  var stages = instanceStages();
+  var lobby = stages.filter(function(s){ return String(s.name || '').toLowerCase() === 'lobby'; })[0];
+  if (!lobby){
+    lobby = { stageId:'st-lobby', name:'Lobby', mapId:null, tokens:[], grid:S.grid, mapW:S.map.w, mapH:S.map.h };
+    S.instance.stages = stages.concat([lobby]);
+    if (stageBackend && stageBackend.save) stageBackend.save(lobby);
+  }
+  bd.stageIds = bd.stageIds || [];
+  if (bd.stageIds.indexOf(lobby.stageId) < 0) bd.stageIds.unshift(lobby.stageId);
+  if (!bd.activeStageId) bd.activeStageId = lobby.stageId;
+}
 function stageDeck(){ return sceneStages(); }
 function lmSaveCurrentStage(){
   var b = stageSnapshot();
@@ -3346,8 +3375,18 @@ function lmNewStage(){
   applyRemoteState({ instance:S.instance });
   refreshStagesWin();
 }
+function isLobby(id){
+  var st = stageById(id);
+  return !!(st && String(st.name || '').toLowerCase() === 'lobby');
+}
 function lmDeleteStage(id){
   var bd = sceneBinding();
+  if (isLobby(id)){
+    tsModal('<h3 class="tsm-title">The Lobby stays</h3>'
+      + '<p class="lc-p">Every table keeps its Lobby. It is where the party gathers before a map is laid down, so it cannot be removed.</p>'
+      + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
+    return;
+  }
   if ((bd.stageIds||[]).length<=1){ pushLog({ kind:'sys', html:'The scene keeps at least one stage.' }); applyRemoteState({ log:S.log }); return; }
   bd.stageIds = bd.stageIds.filter(function(x){ return x!==id; });
   /* drop the stage from the library only if no other scene still binds it */
@@ -4253,6 +4292,34 @@ function toggleFull(){
 }
 function lmOpenMaps(){ loadAccountAssets(); lmMapsOpen = true; paintMapPicker(); }
 function lmCloseMaps(){ lmMapsOpen = false; paintMapPicker(); }
+function mapById(id){ var m = null; (S.scene.maps || []).forEach(function(x){ if (sameId(x.id, id)) m = x; }); return m; }
+function lmRenameMap(id){
+  var m = mapById(id); if (!m) return;
+  tsAsk2({ title:'Rename the map', label:'Name', value:m.name, onSave:function(n){
+    if (!n) return;
+    m.name = n;
+    if (m.assetId && assetBackend.save) assetBackend.save({ assetId:m.assetId, kind:'map', name:n, image:m.url, w:m.w, h:m.h }).catch(function(){});
+    applyRemoteState({ scene:S.scene }); paintMapPicker();
+  }});
+}
+function lmDeleteMap(id){
+  var m = mapById(id); if (!m) return;
+  if (S.scene.background === id){
+    tsModal('<h3 class="tsm-title">That map is on the table</h3>'
+      + '<p class="lc-p">Put another map down first, then this one can go.</p>'
+      + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
+    return;
+  }
+  window._tsYes = function(){
+    S.scene.maps = (S.scene.maps || []).filter(function(x){ return !sameId(x.id, id); });
+    if (m.assetId) tsAsk('TS_ASSET_DELETE', { assetId:m.assetId }).catch(function(){});
+    tsCloseModal(); applyRemoteState({ scene:S.scene }); paintMapPicker();
+  };
+  tsModal('<h3 class="tsm-title">Remove ' + esc(m.name) + '?</h3>'
+    + '<p class="tsm-note">It leaves your shelf of maps. Stages already using it keep what they have.</p>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button>'
+    + '<button class="tsm-btn danger" onclick="tsConfirmYes()">Remove</button></div>');
+}
 function lmSetMap(id){
   var m = null; S.scene.maps.forEach(function(x){ if(x.id===id) m=x; });
   if (m){ S.scene.background = id; S.map = { w:m.w, h:m.h }; applyRemoteState({ scene:S.scene, map:S.map }); paintMapArt(); lmSaveCurrentStage(); }
@@ -4301,10 +4368,13 @@ function paintMapPicker(){
     var thumb = m.url
       ? '<div class="mp-thumb" style="background-image:url(' + m.url + ');background-size:cover;background-position:center"></div>'
       : '<div class="mp-thumb mp-' + m.source + '"></div>';
-    return '<button class="mp-card' + (on?' on':'') + '" onclick="lmSetMap(\'' + m.id + '\')">'
-      + thumb
+    return '<div class="mp-card' + (on?' on':'') + '">'
+      + '<button class="mp-main" onclick="lmSetMap(\'' + m.id + '\')">' + thumb
       + '<div class="mp-name">' + esc(m.name) + '</div>'
-      + '<div class="mp-meta">' + m.w + ' \u00d7 ' + m.h + ' \u00b7 ' + esc(m.source) + (m.local?' \u00b7 not yet saved':'') + '</div></button>';
+      + '<div class="mp-meta">' + m.w + ' \u00d7 ' + m.h + ' \u00b7 ' + esc(m.source) + (m.local?' \u00b7 not yet saved':'') + '</div></button>'
+      + '<span class="mp-acts">'
+      + '<button class="st-b" onclick="event.stopPropagation();lmRenameMap(\'' + m.id + '\')" title="Rename">\u270e</button>'
+      + '<button class="st-b" onclick="event.stopPropagation();lmDeleteMap(\'' + m.id + '\')" title="Remove">\u2715</button></span></div>';
   }).join('');
   var upload = '<button class="mp-card mp-upload" onclick="lmMapUploadStub()" '
     + 'ondragover="event.preventDefault();this.classList.add(\'drag\')" '
