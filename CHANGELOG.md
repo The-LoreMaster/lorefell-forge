@@ -1,3 +1,7 @@
+## ThreadSpire: the foe card, drawn from the forge
+
+- A foe now opens the card FateWell gives it, and its choices come from the same collections in Wix. Build, stance, and signature affliction are picked from the canon foe pack. Infusions and augmentations are chips from the forged pools, tapped to add or drop, each carrying what it does on hover and behind its info dot. Relics are chosen from the forged shelf with their rules shown, rather than typed. The card also reads its rating against the party, showing what a foe of that rating stands at, and what it would stand at as a Forsaken.
+
 ## ThreadSpire: one sheet for a figure, on the shelf or at the table
 
 - Opening a figure gives the same sheet whether you reach it from the library or from a scene's roster: portrait, name, description, rating or role, maximum vitality, build and stance, signature affliction, attributes, infusions, augments, inventory, and abilities, all editable in both places. Saving writes to the library and carries the change to every scene holding that figure. Vitality in play and charges are no longer on this sheet; those belong to the foe card in battle, along with effects and afflictions.
