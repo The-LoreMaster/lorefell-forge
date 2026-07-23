@@ -1,3 +1,7 @@
+## ThreadSpire: running a round
+
+- A Fell's card now shows what they declared, what they rolled against, and the damage they are holding, with a single press to land it on the foe they named. Vitality comes off that foe, the table sees it, and the log records who struck whom. The same card sends a strike back the other way, sets their charges, and puts an effect on them, all reaching the player's own sheet. Beginning combat, turning the round, and ending it now announce themselves to the table and pull the declares in fresh.
+
 ## ThreadSpire: the foe card in battle
 
 - In battle a foe's card is where the fight is tracked. Vitality moves by one or five either way, charges are set on a row of pips, and what has taken hold of it is applied and lifted from the card itself, each change logged and pushed to the table so the players see it. The rest of the card still holds what the foe is, and none of it edits from the shelf. The table also publishes whether combat is running and which round it is on, and reads back what the Fell have declared.
