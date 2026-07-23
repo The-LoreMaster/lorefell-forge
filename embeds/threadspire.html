@@ -277,8 +277,10 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .lib-find{ margin:6px 0; }
 .mp-card{ position:relative; }
 .mp-main{ display:block; width:100%; background:none; border:none; color:inherit; font:inherit; padding:0; cursor:pointer; text-align:left; }
+.sd-grip{ cursor:grab; color:var(--muted,#7e8a99); padding:0 4px; align-self:center; }
+.sd-grip:active{ cursor:grabbing; }
 .sd-card.drop{ outline:1px dashed var(--gold); outline-offset:-2px; }
-.sd-card{ cursor:grab; }
+
 .mp-folder.drop, .tp-fold.drop{ background:rgba(201,168,76,.2); outline:1px dashed var(--gold); }
 .mp-newf, .tp-newf{ font-size:.6rem; padding:3px 8px; margin-left:auto; }
 .tp-fold{ display:flex; align-items:center; gap:4px; font-family:Cinzel,serif; font-size:.6rem; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); margin:6px 0 3px; padding:2px 4px; border-radius:5px; }
@@ -287,6 +289,7 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .sd-acts{ display:flex; gap:1px; }
 .mp-folder{ grid-column:1/-1; display:flex; align-items:center; gap:6px; margin:6px 0 2px; font-family:Cinzel,serif; font-size:.62rem; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); }
 .mp-fname{ flex:1; }
+.mp-thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
 .mp-name{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .mp-meta{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .tp-name{ display:block; max-width:74px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -1327,10 +1330,10 @@ function stagesBody(){
       ? '<span class="sd-thumb" style="background-image:url('+mp.url+')"></span>'
       : '<span class="sd-thumb sd-ph"></span>';
     var count = on ? S.tokens.length : ((b.tokens||[]).length);
-    return '<div class="sd-card' + (on?' on':'') + '" draggable="true"'
-      + ' ondragstart="stageDragStart(event,\'' + b.stageId + '\')"'
+    return '<div class="sd-card' + (on?' on':'') + '"'
       + ' ondragover="stageDragOver(event,this)" ondragleave="stageDragLeave(this)"'
       + ' ondrop="stageDrop(event,this,\'' + b.stageId + '\')">'
+      + '<span class="sd-grip" draggable="true" ondragstart="stageDragStart(event,\'' + b.stageId + '\')" title="Drag to reorder">\u283f</span>'
       + '<button class="sd-main" onclick="lmSwitchStage(\''+b.stageId+'\')">' + thumb
       + '<span><span class="sd-name">' + esc(b.name) + '</span>'
       + '<span class="sd-meta">' + (mp?esc(mp.name):'no map') + ' \u00b7 ' + count + ' tokens</span></span></button>'
@@ -3314,7 +3317,11 @@ function instanceStages(){ return S.instance.stages || (S.instance.stages = []);
 function stageById(id){ var r=null; instanceStages().forEach(function(x){ if(x.stageId===id) r=x; }); return r; }
 function sceneStages(){ return (sceneBinding().stageIds||[]).map(stageById).filter(Boolean); }
 function activeStageId(){ return sceneBinding().activeStageId; }
+/* Stage work counts as a local edit: without this stamp an in-flight snapshot
+   lands a moment later and puts the old deck back. */
+function stageTouch(){ S._advTouch = Date.now(); }
 function stageUpsert(b){
+  stageTouch();
   var lib = instanceStages(), i=-1;
   lib.forEach(function(x,k){ if(x.stageId===b.stageId) i=k; });
   if (i>=0) lib[i]=b; else lib.push(b);
@@ -3395,7 +3402,7 @@ function lmRenameStage(id){
   }
   tsAsk2({ title:'Name this stage', label:'Name', value:st.name, onSave:function(n){
     if (!n) return;
-    st.name = n; stageBackend.save(st);
+    st.name = n; stageTouch(); stageBackend.save(st);
     applyRemoteState({ instance:S.instance }); refreshStagesWin();
   }});
 }
@@ -3416,6 +3423,7 @@ function lmStageMap(id){
 function lmStageMapSave(id){
   var st = stageById(id); if (!st) return;
   var v = (document.getElementById('stMap') || {}).value || null;
+  stageTouch();
   st.mapId = v;
   var m = v ? mapById(v) : null;
   if (m){ st.mapW = m.w; st.mapH = m.h; }
@@ -3425,6 +3433,7 @@ function lmStageMapSave(id){
   applyRemoteState({ instance:S.instance }); refreshStagesWin();
 }
 function lmNewStage(){
+  stageTouch();
   lmSaveCurrentStage();
   var id='st-'+Date.now();
   var b={ stageId:id, name:'Stage ' + (instanceStages().length + 1), mapId:null, tokens:[], grid:Object.assign({},S.grid), mapW:2400, mapH:1600 };
@@ -3456,10 +3465,12 @@ function stageDrop(ev, el, overId){
   if (i < 0 || j < 0) return;
   ids.splice(i, 1); ids.splice(j, 0, from);
   bd.stageIds = ids;
+  stageTouch();
   applyRemoteState({ instance:S.instance });
   refreshStagesWin();
 }
 function lmDeleteStage(id){
+  stageTouch();
   var bd = sceneBinding();
   if (isLobby(id)){
     tsModal('<h3 class="tsm-title">The Lobby stays</h3>'
@@ -3576,10 +3587,15 @@ function applyRemoteSnapshot(snap){
     var hit = (typeof tsSceneById === 'function') ? tsSceneById(snap.activeSceneId) : null;
     if (hit){ S.scene = hit.scene; S.adventure.activeSceneId = snap.activeSceneId; }
   }
-  if (snap.instance && snap.instance.bindings && !(S._advTouch && Date.now() - S._advTouch < 6000)){
+  if (snap.instance && snap.instance.bindings && !(S._advTouch && Date.now() - S._advTouch < 8000)){
     S.instance = S.instance || {};
+    /* keep any stage this table already knows: the account list is the record, the
+       snapshot only says how they are arranged */
+    var mine = {};
+    (S.instance.stages || []).forEach(function(s){ mine[s.stageId] = s; });
+    (snap.instance.stages || []).forEach(function(s){ if (!mine[s.stageId]) mine[s.stageId] = s; });
+    S.instance.stages = Object.keys(mine).map(function(k){ return mine[k]; });
     S.instance.bindings = snap.instance.bindings;
-    if (snap.instance.stages && snap.instance.stages.length) S.instance.stages = snap.instance.stages;
   }
   if (snap.log){ S.log = snap.log; if (typeof renderLog === 'function') renderLog(); }
   applyRemoteState({ scene:S.scene, tokens:S.tokens, grid:S.grid, map:S.map });
@@ -4592,7 +4608,7 @@ function loadAccountAssets(){
         S.scene.maps.push({ id:r.assetId, assetId:r.assetId, folder:r.folder || '', name:r.name, url:r.image, w:r.w||2400, h:r.h||1600, source:'account' });
     });
     if (rows.length) paintMapPicker();
-  });
+  }).catch(function(){});
   assetBackend.list('token').then(function(rows){
     S.assets = rows;
     S.scene.accountTokens = rows.map(function(r){
@@ -4623,7 +4639,7 @@ function paintMapPicker(){
   function mapCard(m){
     var on = m.id === S.scene.background;
     var thumb = m.url
-      ? '<div class="mp-thumb" style="background-image:url(' + m.url + ');background-size:cover;background-position:center"></div>'
+      ? '<div class="mp-thumb"><img src="' + esc(m.url) + '" alt="" loading="lazy" decoding="async"></div>'
       : '<div class="mp-thumb mp-' + m.source + '"></div>';
     return '<div class="mp-card' + (on?' on':'') + '" draggable="true" ondragstart="folderDragStart(event,\'map\',\'' + m.id + '\')">'
       + '<button class="mp-main" onclick="lmSetMap(\'' + m.id + '\')">' + thumb
