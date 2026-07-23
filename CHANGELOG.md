@@ -1,3 +1,7 @@
+## ThreadSpire: one card, drawn the way FateWell draws it
+
+- The library and the roster now use the same card, and that card is FateWell's: a cover portrait, the type across the top, the name, and a line beneath carrying rank and vitality, with where it came from underneath. A figure looks the same on the shelf and at the table. Roster cards add current vitality to that line and carry the remove control in the corner.
+
 ## ThreadSpire: roster removal and member sheets work, library entries open
 
 - Removing a roster member and opening one both work now. Every identifier created at the table was a number while the same value came back from a click as text, so no lookup ever matched: the removal deleted nothing and the member sheet had nothing to open. Identifiers are now text and carry a stamp so they stay unique across reloads, and every lookup compares them as text, so older entries still match. The X removes straight away, with no confirmation. Library entries open a card showing portrait, rating, vitality, build, signature affliction, attributes, infusions, augments, inventory, abilities, and description, the same face FateWell shows.
