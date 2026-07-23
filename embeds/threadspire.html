@@ -354,6 +354,8 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .rs-prev{ width:64px; height:64px; border-radius:8px; overflow:hidden; background:rgba(10,16,32,.6); border:1px solid var(--line2,#2a3552); display:flex; align-items:center; justify-content:center; flex:none; }
 .rs-prev img{ width:100%; height:100%; object-fit:cover; }
 .rs-vit{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.rs-step{ display:inline-flex; align-items:center; gap:3px; }
+.rs-step .rs-anum{ width:46px; }
 .rs-anum{ width:64px; display:inline-block; text-align:center; }
 .rs-attrs{ display:grid; grid-template-columns:1fr 1fr; gap:5px 8px; }
 .rs-attr{ display:flex; align-items:center; justify-content:space-between; gap:6px; font-size:.72rem; color:var(--ice,#b8ccd8); }
@@ -1022,7 +1024,7 @@ function tsModal(html){
   m.innerHTML = '<div class="tsm-back" onclick="tsCloseModal()"></div><div class="tsm-panel">' + html + '</div>';
   m.style.display = 'block';
 }
-function tsCloseModal(){ window._rosterOpen = false; var m = document.getElementById('tsModal'); if (m){ m.style.display = 'none'; m.innerHTML = ''; } }
+function tsCloseModal(){ window._rosterOpen = false; window._questScene = null; var m = document.getElementById('tsModal'); if (m){ m.style.display = 'none'; m.innerHTML = ''; } }
 function tsAsk2(opts){
   window._tsCb = opts.onSave;
   var h = '<h3 class="tsm-title">' + esc(opts.title) + '</h3>'
@@ -1558,12 +1560,14 @@ function rosterRemove(sceneId, kind, id){
 
 /* ---- roster member sheet: name, art and stats, the same fields FateWell edits ---- */
 function rosterReopenAfter(){ if (window._rosterScene) rosterWindow(window._rosterScene); else tsCloseModal(); }
-var FORGE = { pools:{ infusions:[], augmentations:[], items:[] }, pack:{ builds:[], stances:[], afflictions:[] }, acts:[], campaigns:[], glossary:[], loaded:false };
+var FORGE = { pools:{ infusions:[], augmentations:[], items:[] }, pack:{ builds:[], stances:[], afflictions:[], infusions:[], augmentations:[], tiers:[], tierBudget:{} }, acts:[], campaigns:[], glossary:[], loaded:false };
 function forgeLoad(){
   return tsAsk('TS_FORGE_DATA', {}).then(function(r){
     if (r){
       if (r.pools) FORGE.pools = { infusions:r.pools.infusions||[], augmentations:r.pools.augmentations||[], items:r.pools.items||[] };
-      if (r.pack) FORGE.pack = { builds:r.pack.builds||[], stances:r.pack.stances||[], afflictions:r.pack.afflictions||[] };
+      if (r.pack) FORGE.pack = { builds:r.pack.builds||[], stances:r.pack.stances||[], afflictions:r.pack.afflictions||[],
+                                 infusions:r.pack.infusions||[], augmentations:r.pack.augmentations||[],
+                                 tiers:r.pack.tiers||[], tierBudget:r.pack.tierBudget||{} };
       if (r.acts) FORGE.acts = r.acts.map(normAct).filter(function(a){ return a.name; });
       if (r.campaigns) FORGE.campaigns = r.campaigns;
       if (r.glossary) FORGE.glossary = r.glossary;
@@ -1618,6 +1622,41 @@ function sheetPickAct(tier, id){
   }
   sheetLiveSave(); sheetActs();
 }
+function foeBuild(name){ var hit = null; (FORGE.pack.builds || []).forEach(function(b){ if (b && b.name === name) hit = b; }); return hit; }
+function foeTier(name){ var hit = null; (FORGE.pack.tiers || []).forEach(function(t){ if (t && t.name === name) hit = t; }); return hit; }
+/* A foe is built to the ceiling. The rating and the party it faces decide what it
+   actually brings: attributes are the party's level shifted by the rating. */
+function deriveKit(foe, sr){
+  var apl = partyLevel();
+  var b = foeBuild(foe.build || ((FORGE.pack.builds[0] || {}).name));
+  var t = foeTier(sr);
+  var attrs = blankAttrs();
+  if (b && t){
+    var val = Math.max(0, apl + (t.attributeOffset || 0));
+    (b.attributes || []).forEach(function(a){ attrs[a] = val; });
+  }
+  return { sr:sr, attrs:attrs, maxVit:foeVitality(sr, apl) };
+}
+/* Applying a rating writes the derived kit onto the foe, keeping its own picks. */
+function applyKit(){
+  var t = curSheet(); if (!t) return;
+  var e = t.obj;
+  var kit = deriveKit(e, e.sr || 'Elite');
+  e.attrs = kit.attrs; e.maxVit = kit.maxVit;
+  if (e.curVit === undefined || e.curVit > e.maxVit) e.curVit = e.maxVit;
+  sheetLiveSave(); sheetReopen();
+}
+/* the catalogue a foe picks from: canon first, then anything forged since */
+function infusionNames(){
+  var canon = (FORGE.pack.infusions || []).map(function(i){ return typeof i === 'string' ? i : i.name; }).filter(Boolean);
+  var extra = poolNames('infusions').filter(function(n){ return canon.indexOf(n) < 0; });
+  return canon.concat(extra);
+}
+function augmentNames(){
+  var canon = (FORGE.pack.augmentations || []).map(function(a){ return typeof a === 'string' ? a : a.name; }).filter(Boolean);
+  var extra = poolNames('augmentations').filter(function(n){ return canon.indexOf(n) < 0; });
+  return canon.concat(extra);
+}
 function poolNames(bucket){
   return (FORGE.pools[bucket] || []).map(function(x){ return typeof x === 'string' ? x : x.name; }).filter(Boolean);
 }
@@ -1629,6 +1668,9 @@ function forgeTip(name, bucket){
   if (!n) return '';
   var hit = '';
   (FORGE.pools[bucket] || []).forEach(function(x){ if (!hit && x && x.name === n) hit = x.rule || x.desc || ''; });
+  ['infusions','augmentations'].forEach(function(k){
+    (FORGE.pack[k] || []).forEach(function(x){ if (!hit && x && x.name === n) hit = x.rule || x.desc || ''; });
+  });
   if (hit) return hit;
   ['builds','stances','afflictions'].forEach(function(k){
     (FORGE.pack[k] || []).forEach(function(x){
@@ -1646,7 +1688,7 @@ function forgeInfo(name, bucket){
 function sheetReopen(){ var s = window._sheet; if (s) entrySheet(s.src, s.sceneId, s.kind, s.id); else tsCloseModal(); }
 function sheetChips(bucket, chosen, fn){
   var on = chosen || [];
-  var names = poolNames(bucket);
+  var names = bucket === 'infusions' ? infusionNames() : augmentNames();
   if (!names.length) return '<p class="tsm-note">Nothing forged in this pool yet.</p>';
   return '<div class="chips pick">' + names.map(function(n){
     var esn = n.replace(/'/g, "\\'");
@@ -1812,7 +1854,10 @@ function entrySheet(src, sceneId, kind, id){
   }).join('');
   var attrs = e.attrs || blankAttrs();
   var attrHtml = ATTR_LIST.map(function(a){
-    return '<label class="rs-attr"><span>' + a + '</span><input class="tsm-inp rs-anum" id="rsA_' + a + '" type="number" value="' + (attrs[a] || 0) + '"></label>';
+    return '<label class="rs-attr"><span>' + a + '</span><span class="rs-step">'
+      + '<button class="bt-b" onclick="stepNum(\'rsA_' + a + '\',-1)">-</button>'
+      + '<input class="tsm-inp rs-anum" id="rsA_' + a + '" type="number" value="' + (attrs[a] || 0) + '">'
+      + '<button class="bt-b" onclick="stepNum(\'rsA_' + a + '\',1)">+</button></span></label>';
   }).join('');
   function lines(v){ return (v || []).map(function(x){ return (x && (x.name || x.title)) ? (x.name || x.title) + (x.body || x.text ? ' :: ' + (x.body || x.text) : '') : String(x); }).join('\n'); }
   var apl = partyLevel();
@@ -1841,7 +1886,11 @@ function entrySheet(src, sceneId, kind, id){
       + ['Minion','Elite','Champion','Epic','Forsaken'].map(function(x){ return '<option value="' + x + '"' + (sr === x ? ' selected' : '') + '>' + x + '</option>'; }).join('')
       + '</select>'
       + '<p class="tsm-note">A scene sets this foe\'s rating and scales it from the kit below. This is where it starts.</p>'
-      + '<label class="tsm-lbl">Maximum vitality</label><input class="tsm-inp rs-anum" id="rsMax" type="number" value="' + (e.maxVit || 0) + '">'
+      + '<button class="tsm-btn ghost" style="width:100%" onclick="applyKit()">Derive from build and rating</button>'
+      + '<label class="tsm-lbl">Maximum vitality</label><span class="rs-step">'
+      + '<button class="bt-b" onclick="stepNum(\'rsMax\',-1)">-</button>'
+      + '<input class="tsm-inp rs-anum" id="rsMax" type="number" value="' + (e.maxVit || 0) + '">'
+      + '<button class="bt-b" onclick="stepNum(\'rsMax\',1)">+</button></span>'
       + '<p class="tsm-note">Against this party a ' + esc(sr) + ' stands at ' + foeVitality(sr, apl) + ', a Forsaken at ' + foeVitality('Forsaken', apl) + '.</p>'
       + sheetChoice('Build', e.build || '', packNames('builds'), 'sheetSetBuild', 'No build', 'builds')
       + sheetChoice('Stance', e.stance || '', packNames('stances'), 'sheetSetStance', 'No stance', 'stances')
@@ -1903,6 +1952,10 @@ function sheetTarget(src, sceneId, kind, id){
 }
 function curSheet(){ var s = window._sheet; return s ? sheetTarget(s.src, s.sceneId, s.kind, s.id) : null; }
 function sheetBack(){ var s = window._sheet; if (s && s.src === 'roster' && window._rosterScene) rosterWindow(window._rosterScene); else tsCloseModal(); }
+function stepNum(id, delta){
+  var el = document.getElementById(id); if (!el) return;
+  el.value = Math.max(0, (Number(el.value) || 0) + delta);
+}
 function sheetSRChange(){
   var sr = (document.getElementById('rsSR') || {}).value || '';
   if (!sr || !SR_TABLE[sr]) return;
@@ -1996,6 +2049,7 @@ function libPropagate(libId, e){
 }
 function questWindow(sceneId){
   var f = storyFind('scene', sceneId); if (!f) return;
+  window._questScene = sceneId;
   tsModal('<h3 class="tsm-title">Quests</h3><p class="tsm-note">Raised in this scene, posted to the board the players read.</p>'
     + '<div class="rs-wrap">' + storyQuestsHtml(f.scene) + '</div>'
     + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
@@ -3878,7 +3932,7 @@ function questAdd(sceneId){
     f.scene.quests = f.scene.quests || [];
     var q = { entryId:mkId(), title:t, body:b || '', status:'open' };
     f.scene.quests.push(q);
-    questPush(q); storySave(); refreshWinBody();
+    questPush(q); storySave(); questRefresh();
   }});
 }
 function questEdit(sceneId, entryId){
@@ -3887,7 +3941,7 @@ function questEdit(sceneId, entryId){
   if (!q) return;
   tsAsk2({ title:'Edit quest', label:'Title', value:q.title, body:q.body || '', onSave:function(t, b){
     if (t) q.title = t; q.body = b || '';
-    questPush(q); storySave(); refreshWinBody();
+    questPush(q); storySave(); questRefresh();
   }});
 }
 function questStatus(sceneId, entryId){
@@ -3895,14 +3949,17 @@ function questStatus(sceneId, entryId){
   var q = (f.scene.quests || []).filter(function(x){ return sameId(x.entryId, entryId); })[0];
   if (!q) return;
   q.status = q.status === 'open' ? 'done' : 'open';
-  questPush(q); storySave(); refreshWinBody();
+  questPush(q); storySave(); questRefresh();
 }
 function questRemove(sceneId, entryId){
   var f = storyFind('scene', sceneId); if (!f) return;
   var q = (f.scene.quests || []).filter(function(x){ return sameId(x.entryId, entryId); })[0];
   if (q){ q.status = 'closed'; questPush(q); }
   f.scene.quests = (f.scene.quests || []).filter(function(x){ return !sameId(x.entryId, entryId); });
-  storySave(); refreshWinBody();
+  storySave(); questRefresh();
+}
+function questRefresh(){
+  if (window._questScene) questWindow(window._questScene); else refreshWinBody();
 }
 function questPush(q){ tsAsk('TS_QUEST_SAVE', { quest:q }).catch(function(){}); }
 function storyQuestsHtml(sc){
