@@ -3,6 +3,7 @@
 // Feeds the character-first view: the player's character card, the party at their
 // location, revealed nodes, quest-board goals, world issues, and map art.
 import { threadspirePublicChar, listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter, threadspireSaveMeta } from 'backend/characters.web.js';
+import { getLmPortrait, saveLmPortrait } from 'backend/fatewell.web.js';
 import { listQuests, listDiscovered, getWorldMeta, saveAsset, listAssets, getCampaignPlayers, getClueCards } from 'backend/fatewell.web.js';
 import { getCombatForChar, saveCombatDeclare, syncCombatPlayer } from 'backend/combat.web.js';
 import { getLibraries } from 'backend/libraries.web.js';
@@ -154,6 +155,14 @@ $w.onReady(function () {
           let ch = null;
           try { const r = await loadCharacter(msg.charId || characterId); ch = (r && r.character) ? r.character : null; } catch (e) { ch = null; }
           reply(true, ch);
+        } else if (msg.type === 'TS_LM_PORTRAIT_GET') {
+          let por = '';
+          try { const r = await getLmPortrait(campaignId); por = (r && r.portrait) || ''; } catch (e) { por = ''; }
+          reply(true, por);
+        } else if (msg.type === 'TS_LM_PORTRAIT_SAVE') {
+          let ok = false;
+          try { const r = await saveLmPortrait(campaignId, msg.portrait); ok = !!(r && r.ok); } catch (e) { ok = false; }
+          reply(ok);
         } else if (msg.type === 'TS_CHAR_LIST') {
           let list = [];
           try { list = await listMyCharacters(); } catch (e) { list = []; }

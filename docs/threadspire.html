@@ -867,6 +867,7 @@ function setActiveScene(id){
   closeWin();
 }
 /* the scene picker window, grouped down the spine */
+var lmBackend = { getPortrait:function(){ return Promise.resolve(''); }, savePortrait:function(){ return Promise.resolve(true); } };
 var storyOpen = { act:{}, ses:{}, scene:{} };
 function storyToggle(lvl, id){ storyOpen[lvl][id] = !storyOpen[lvl][id]; refreshWinBody(); }
 function storyFind(kind, id){
@@ -998,7 +999,7 @@ function storyNotesHtml(kind, id, node){
   h += '<button class="st-add" onclick="storyAddNote(\'' + kind + '\',\'' + id + '\')">Add a note</button>';
   return h;
 }
-function storySave(){ try { pushState(); } catch(e){} }
+function storySave(){ S._advTouch = Date.now(); try { pushState(); } catch(e){} }
 function storyBody(){
   var A = S.adventure || (S.adventure = { acts:[] });
   var h = '<div class="win-note">The adventure spine. Open an act to reach its sessions, scenes, and notes.</div>';
@@ -1024,7 +1025,8 @@ function storyBody(){
         var on = sc.id === (S.scene && S.scene.id);
         var co = !!storyOpen.scene[sc.id];
         h += '<div class="st-row st-scene' + (on ? ' live' : '') + '"><span class="st-tw" onclick="storyToggle(\'scene\',\'' + sc.id + '\')">' + (co ? '\u25be' : '\u25b8') + '</span>'
-           + '<span class="st-name" onclick="setActiveScene(\'' + sc.id + '\')">' + esc(sc.name) + (on ? ' <em class="st-live">running</em>' : '') + '</span>'
+           + '<span class="st-name" onclick="storyToggle(\'scene\',\'' + sc.id + '\')">' + esc(sc.name) + (on ? ' <em class="st-live">running</em>' : '') + '</span>'
+           + (on ? '' : '<button class="st-b st-run" onclick="setActiveScene(\'' + sc.id + '\')" title="Run this scene">\u25b6</button>')
            + '<button class="st-b" onclick="storyRename(\'scene\',\'' + sc.id + '\')" title="Rename">\u270e</button>'
            + '<button class="st-b" onclick="storyDelete(\'scene\',\'' + sc.id + '\')" title="Delete">\u2715</button></div>';
         if (!co) return;
@@ -2186,7 +2188,7 @@ function applyRemoteSnapshot(snap){
     if (hit){ S.scene = hit.scene; S.adventure.activeSceneId = snap.activeSceneId; }
   }
   if (snap.log){ S.log = snap.log; if (typeof renderLog === 'function') renderLog(); }
-  if (snap.adventure && snap.adventure.acts) S.adventure = snap.adventure;
+  if (snap.adventure && snap.adventure.acts && !(S._advTouch && Date.now() - S._advTouch < 6000)) S.adventure = snap.adventure;
   applyRemoteState({ scene:S.scene, tokens:S.tokens, grid:S.grid, map:S.map });
 }
 var _stateFeedTimer = null;
@@ -2409,7 +2411,12 @@ window.onmessage = function(ev){
   }
   if (d && d.type === 'THREADSPIRE_CONTEXT'){
     /* the page decided role by entry-point hint and confirmed it by ownership; we trust it */
-    if (d.role === 'lm' || d.role === 'player'){ S.role = d.role; S.roleReady = true; document.body.classList.remove('roleboot'); }
+    if (d.role === 'lm' || d.role === 'player'){
+      S.role = d.role; S.roleReady = true; document.body.classList.remove('roleboot');
+      if (d.role === 'lm' && lmBackend.getPortrait){
+        lmBackend.getPortrait().then(function(p){ if (p){ S.lm = S.lm || {}; S.lm.portrait = p; paintHud(); } }).catch(function(){});
+      }
+    }
     if (d.campaignId) S.campaignId = d.campaignId;
     if (d.memberName) S.memberName = d.memberName;
     if (d.party) { S.party = d.party; mergeFellSheets(); }
@@ -2460,6 +2467,10 @@ if (tsEmbedded()){
   stateBackend = {
     push: function(snap){ return tsAsk('TS_STATE_PUSH', { snap:snap }); },
     pull: function(since){ return tsAsk('TS_STATE_PULL', { since:since }); }
+  };
+  lmBackend = {
+    getPortrait: function(){ return tsAsk('TS_LM_PORTRAIT_GET', {}); },
+    savePortrait: function(p){ return tsAsk('TS_LM_PORTRAIT_SAVE', { portrait:p }); }
   };
   journalBackend = {
     get: function(){ return tsAsk('TS_JOURNAL_GET', {}); },
@@ -2656,6 +2667,7 @@ function lmPortraitPicked(inp){
   rd.onload = function(){
     S.lm = S.lm || {}; S.lm.portrait = rd.result;
     try { localStorage.setItem('ts_lm_portrait', rd.result); } catch(e){}
+    if (lmBackend.savePortrait) lmBackend.savePortrait(rd.result).catch(function(){});
     paintHud();
   };
   rd.readAsDataURL(f); inp.value = '';

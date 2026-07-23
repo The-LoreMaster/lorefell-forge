@@ -1,3 +1,7 @@
+## ThreadSpire: LoreMaster portrait on the member record, scene notes reachable
+
+- The LoreMaster's portrait now saves to their member row, so it follows them to any device. The Adventure Members collection gains one additive Portrait field, backed up before the change. In Story, clicking a scene now opens it to show its notes, with a run arrow beside it to make that scene the running one; before, the name only set the scene live and its notes stayed hidden. A local edit is also protected from being overwritten by an in-flight table sync.
+
 ## ThreadSpire: in-table editing for Story, notes at every level, no role flash
 
 - Story now edits inside the table. Creating, renaming, and deleting an act, session, scene, or note opens a proper panel with a name field and a body, the same shape as the FateWell popup, instead of a browser prompt. Notes sit under acts and sessions as well as scenes. The table also paints the right side immediately now: the page tells the table which side to draw as soon as it opens, so a slow load no longer shows the player view first.
