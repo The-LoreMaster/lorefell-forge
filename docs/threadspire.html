@@ -269,6 +269,11 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .tsm-btn.danger{ background:var(--danger,#8d3b3b); border-color:var(--danger,#8d3b3b); color:#fff; }
 .stb-card{ display:flex; align-items:center; gap:7px; margin:4px 0; padding:5px 8px; border-left:3px solid var(--gold); border-radius:0 6px 6px 0; background:rgba(10,16,32,.34); cursor:pointer; }
 .stb-card:hover{ background:rgba(20,30,54,.5); }
+.stb-main{ display:flex; align-items:center; gap:7px; flex:1; min-width:0; cursor:pointer; }
+.stb-ord{ display:flex; flex-direction:column; gap:0; flex:none; }
+.stb-ord .st-b{ line-height:.8; padding:0 2px; font-size:.66rem; }
+.stb-ord .st-b[disabled]{ opacity:.25; cursor:default; }
+.stb-spk{ font-style:normal; font-family:Cinzel,serif; font-size:.6rem; letter-spacing:.08em; color:var(--gold); }
 .stb-tag{ font-family:Cinzel,serif; font-size:.56rem; letter-spacing:.12em; text-transform:uppercase; flex:none; }
 .stb-title{ font-size:.8rem; color:var(--silver); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .st-nbody{ font-size:.8rem; color:var(--ice,#b8ccd8); white-space:pre-wrap; padding:3px 2px 5px; }
@@ -970,14 +975,28 @@ function storyDelete(kind, id){
 }
 function storyBeatsHtml(sc){
   var h = '';
+  var n = (sc.beats || []).length;
   (sc.beats || []).forEach(function(b, i){
     var m = beatMeta(b.kind);
-    h += '<div class="stb-card" style="border-left-color:' + m[1] + '" onclick="storyBeatOpen(\'' + sc.id + '\',' + i + ')">'
+    h += '<div class="stb-card" style="border-left-color:' + m[1] + '">'
+      + '<span class="stb-main" onclick="storyBeatOpen(\'' + sc.id + '\',' + i + ')">'
       + '<span class="stb-tag" style="color:' + m[1] + '">' + m[0] + '</span>'
-      + '<span class="stb-title">' + esc(b.title || 'Beat') + '</span></div>';
+      + '<span class="stb-title">' + esc(b.title || 'Beat') + (b.speaker ? ' <em class="stb-spk">' + esc(b.speaker) + '</em>' : '') + '</span></span>'
+      + '<span class="stb-ord">'
+      + '<button class="st-b" onclick="storyBeatMove(\'' + sc.id + '\',' + i + ',-1)"' + (i === 0 ? ' disabled' : '') + ' title="Move up">\u25b4</button>'
+      + '<button class="st-b" onclick="storyBeatMove(\'' + sc.id + '\',' + i + ',1)"' + (i === n - 1 ? ' disabled' : '') + ' title="Move down">\u25be</button>'
+      + '</span></div>';
   });
   h += '<button class="st-add" onclick="storyBeatAdd(\'' + sc.id + '\')">Add a beat</button>';
   return h;
+}
+function storyBeatMove(sceneId, idx, dir){
+  var f = storyFind('scene', sceneId); if (!f) return;
+  var arr = f.scene.beats || []; var j = idx + dir;
+  if (j < 0 || j >= arr.length) return;
+  var t = arr[idx]; arr[idx] = arr[j]; arr[j] = t;
+  storySave(); refreshWinBody();
+  if (typeof paintLmStrip === 'function' && isLM()) paintLmStrip();
 }
 function storyBeatAdd(sceneId){ tsBeatModal(sceneId, -1); }
 function storyBeatOpen(sceneId, idx){ tsBeatModal(sceneId, idx); }
@@ -991,7 +1010,11 @@ function tsBeatModal(sceneId, idx){
     opts += '<option value="' + k + '"' + (b.kind === k ? ' selected' : '') + '>' + BEAT_TYPES[k][0] + '</option>';
   });
   tsModal('<h3 class="tsm-title">' + (idx >= 0 ? 'Edit beat' : 'New beat') + '</h3>'
-    + '<label class="tsm-lbl">Type</label><select class="tsm-inp" id="tsmKind">' + opts + '</select>'
+    + '<label class="tsm-lbl">Type</label><select class="tsm-inp" id="tsmKind" onchange="tsBeatKindChange()">' + opts + '</select>'
+    + '<div id="tsmSpkRow"' + (b.kind === 'dialogue' ? '' : ' style="display:none"') + '>'
+    + '<label class="tsm-lbl">Speaker</label>'
+    + '<input class="tsm-inp" id="tsmSpk" list="tsmSpkList" value="' + esc(b.speaker || '') + '" placeholder="Who is speaking">'
+    + '<datalist id="tsmSpkList">' + tsSpeakerOpts() + '</datalist></div>'
     + '<label class="tsm-lbl">Title</label><input class="tsm-inp" id="tsmName" value="' + esc(b.title || '') + '">'
     + '<label class="tsm-lbl">Body</label><textarea class="tsm-inp tsm-ta" id="tsmBody">' + esc(b.body || '') + '</textarea>'
     + '<div class="tsm-row">' + (idx >= 0 ? '<button class="tsm-btn danger" onclick="tsBeatDelete()">Delete</button>' : '')
@@ -999,15 +1022,27 @@ function tsBeatModal(sceneId, idx){
     + '<button class="tsm-btn" onclick="tsBeatSave()">Save</button></div>');
   setTimeout(function(){ var e = document.getElementById('tsmName'); if (e){ e.focus(); } }, 40);
 }
+function tsBeatKindChange(){
+  var k = (document.getElementById('tsmKind') || {}).value;
+  var row = document.getElementById('tsmSpkRow');
+  if (row) row.style.display = (k === 'dialogue') ? '' : 'none';
+}
+function tsSpeakerOpts(){
+  var seen = {}, out = '';
+  ((S.scene && S.scene.foes) || []).forEach(function(f){ if (f.name && !seen[f.name]){ seen[f.name] = 1; out += '<option value="' + esc(f.name) + '">'; } });
+  ((S.library || [])).forEach(function(e){ if (e && e.name && !seen[e.name] && (e.type === 'npc' || e.type === 'monster')){ seen[e.name] = 1; out += '<option value="' + esc(e.name) + '">'; } });
+  return out;
+}
 function tsBeatSave(){
   var c = window._beatCtx; if (!c) return;
   var f = storyFind('scene', c.sceneId); if (!f) return;
   var kind = (document.getElementById('tsmKind') || {}).value || 'general';
   var title = ((document.getElementById('tsmName') || {}).value || '').replace(/^\s+|\s+$/g,'');
   var body = (document.getElementById('tsmBody') || {}).value || '';
+  var spk = (kind === 'dialogue') ? (((document.getElementById('tsmSpk') || {}).value) || '').replace(/^\s+|\s+$/g,'') : '';
   f.scene.beats = f.scene.beats || [];
-  if (c.idx >= 0){ var b = f.scene.beats[c.idx]; if (b){ b.kind = kind; b.title = title; b.body = body; } }
-  else f.scene.beats.push({ id:mkId(), kind:kind, title:title, body:body });
+  if (c.idx >= 0){ var b = f.scene.beats[c.idx]; if (b){ b.kind = kind; b.title = title; b.body = body; b.speaker = spk; } }
+  else f.scene.beats.push({ id:mkId(), kind:kind, title:title, body:body, speaker:spk });
   tsCloseModal(); storySave(); refreshWinBody();
   if (typeof paintLmStrip === 'function' && isLM()) paintLmStrip();
 }
@@ -1174,7 +1209,7 @@ function notesBody(){
   (S.scene.beats||[]).forEach(function(b){
     var _m = beatMeta(b.kind);
     h += '<div class="nb-beat ' + b.kind + '"><span class="nb-tag" style="color:' + _m[1] + '">' + _m[0] + '</span>'
-      + '<span class="nb-title">' + esc(b.title) + '</span>'
+      + '<span class="nb-title">' + esc(b.title) + (b.speaker ? ' <em class="stb-spk">' + esc(b.speaker) + '</em>' : '') + '</span>'
       + '<div class="nb-body">' + esc(b.body) + '</div></div>';
   });
   return h;
