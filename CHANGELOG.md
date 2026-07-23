@@ -1,3 +1,7 @@
+## ThreadSpire: stages hold, and the maps open quickly
+
+- A stage's own buttons work again. The whole card had been made draggable, and a draggable card swallows the presses inside it, so rename and the rest did nothing; only a grip drags now. Stage work also marks itself as yours, so a table update arriving a moment later can no longer put the old deck back over what you just did. Opening Maps was fetching every asset you own, foes and all their statistics included, to show a handful of pictures; it now asks only for the pictures, and thumbnails load as they come into view.
+
 ## ThreadSpire: stages come back
 
 - Stages survive a reload now. They were being saved without the adventure they belong to, while the list that fetches them asks for exactly that, so every stage was written and then never found again, leaving only the Lobby that gets made fresh each time. The deck itself, which stages a scene holds and which one is up, now travels with the table state rather than being rebuilt from nothing. Renaming a stage says when it cannot find it instead of appearing to do nothing.

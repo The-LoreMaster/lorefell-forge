@@ -130,8 +130,17 @@ $w.onReady(function () {
           reply(!!(r && r.ok), r, r && r.error);
         } else if (msg.type === 'TS_ASSET_LIST') {
           const rows = await listAssets();
-          const mine = (rows || []).filter((a) => !msg.kind || a.kind === msg.kind)
-            .map((a) => Object.assign({}, a, { image: toHttps(a.image) }));
+          let mine = (rows || []).filter((a) => !msg.kind || a.kind === msg.kind);
+          // Maps and tokens are pictures. Sending each one's foe stats, abilities and
+          // inventory with it made opening the picker fetch the whole library.
+          if (msg.kind === 'map' || msg.kind === 'token') {
+            mine = mine.map((a) => ({
+              assetId: a.assetId, kind: a.kind, name: a.name,
+              image: toHttps(a.image), w: a.w || 0, h: a.h || 0, folder: a.folder || ''
+            }));
+          } else {
+            mine = mine.map((a) => Object.assign({}, a, { image: toHttps(a.image) }));
+          }
           reply(true, mine);
         } else if (msg.type === 'TS_STAGE_SAVE') {
           // Stamp the adventure on the way in: listStages filters by it, so a stage
