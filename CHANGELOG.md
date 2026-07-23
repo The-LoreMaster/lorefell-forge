@@ -1,3 +1,7 @@
+## ThreadSpire: Story shows a scene's authored notes
+
+- Opening a scene in Story now shows its authored notes, the beats FateWell wrote, with their kind tags, alongside any notes added at the table. Before, Story only showed table-added notes, so authored scenes looked empty even though the runner displayed them.
+
 ## ThreadSpire: LoreMaster portrait on the member record, scene notes reachable
 
 - The LoreMaster's portrait now saves to their member row, so it follows them to any device. The Adventure Members collection gains one additive Portrait field, backed up before the change. In Story, clicking a scene now opens it to show its notes, with a run arrow beside it to make that scene the running one; before, the name only set the scene live and its notes stayed hidden. A local edit is also protected from being overwritten by an in-flight table sync.
