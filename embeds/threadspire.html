@@ -296,6 +296,17 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .vcard-corner{ position:absolute; top:8px; right:8px; z-index:2; display:flex; gap:6px; }
 .card-x{ width:28px; height:28px; border-radius:8px; cursor:pointer; background:rgba(10,14,26,.72); border:1px solid var(--line2,#2a3552); color:var(--silver); font-size:.8rem; line-height:1; }
 .card-x:hover{ border-color:var(--danger,#8d3b3b); color:var(--danger,#8d3b3b); }
+.chips.pick{ display:flex; flex-wrap:wrap; gap:5px; margin:4px 0 6px; }
+.chip{ display:inline-flex; align-items:center; gap:4px; padding:3px 5px 3px 9px; border:1px solid var(--line2,#2a3552); border-radius:12px; background:rgba(10,16,32,.5); color:var(--ice,#b8ccd8); font-family:Cinzel,serif; font-size:.6rem; letter-spacing:.08em; text-transform:uppercase; }
+.chip .chip-lb{ cursor:pointer; }
+.chip.on{ border-color:var(--gold); color:var(--gold); background:rgba(201,168,76,.12); }
+.chip-i{ width:15px; height:15px; border-radius:50%; border:1px solid currentColor; background:transparent; color:inherit; font-size:.52rem; line-height:1; cursor:pointer; padding:0; opacity:.75; }
+.chip-i:hover{ opacity:1; }
+.tsm-count{ color:var(--gold); font-family:'Crimson Pro',serif; letter-spacing:0; }
+.relic-row{ margin:4px 0; padding:5px 8px; background:rgba(10,16,32,.34); border-left:2px solid var(--gold); border-radius:0 6px 6px 0; }
+.relic-hd{ display:flex; align-items:center; justify-content:space-between; font-size:.8rem; }
+.chip-x{ background:transparent; border:none; color:var(--muted,#7e8a99); cursor:pointer; font-size:.9rem; }
+.chip-x:hover{ color:var(--danger,#8d3b3b); }
 .lc-wrap{ max-height:58vh; overflow-y:auto; }
 .lc-hd{ display:flex; align-items:center; gap:10px; margin-bottom:8px; }
 .lc-por{ width:64px; height:64px; border-radius:8px; overflow:hidden; flex:none; background:rgba(40,54,86,.7); }
@@ -1502,12 +1513,119 @@ function rosterRemove(sceneId, kind, id){
 
 /* ---- roster member sheet: name, art and stats, the same fields FateWell edits ---- */
 function rosterReopenAfter(){ if (window._rosterScene) rosterWindow(window._rosterScene); else tsCloseModal(); }
+var FORGE = { pools:{ infusions:[], augmentations:[], items:[] }, pack:{ builds:[], stances:[], afflictions:[] }, loaded:false };
+function forgeLoad(){
+  return tsAsk('TS_FORGE_DATA', {}).then(function(r){
+    if (r){
+      if (r.pools) FORGE.pools = { infusions:r.pools.infusions||[], augmentations:r.pools.augmentations||[], items:r.pools.items||[] };
+      if (r.pack) FORGE.pack = { builds:r.pack.builds||[], stances:r.pack.stances||[], afflictions:r.pack.afflictions||[] };
+    }
+    FORGE.loaded = true; return FORGE;
+  }).catch(function(){ FORGE.loaded = true; return FORGE; });
+}
+function poolNames(bucket){
+  return (FORGE.pools[bucket] || []).map(function(x){ return typeof x === 'string' ? x : x.name; }).filter(Boolean);
+}
+function packNames(k){
+  return (FORGE.pack[k] || []).map(function(x){ return typeof x === 'string' ? x : x.name; }).filter(Boolean);
+}
+function forgeTip(name, bucket){
+  var n = String(name || '').replace(/\*+$/,'').replace(/^\s+|\s+$/g,'');
+  if (!n) return '';
+  var hit = '';
+  (FORGE.pools[bucket] || []).forEach(function(x){ if (!hit && x && x.name === n) hit = x.rule || x.desc || ''; });
+  if (hit) return hit;
+  ['builds','stances','afflictions'].forEach(function(k){
+    (FORGE.pack[k] || []).forEach(function(x){
+      if (hit || typeof x === 'string') return;
+      if (x.name === n) hit = x.rule || x.desc || '';
+    });
+  });
+  return hit;
+}
+function forgeInfo(name, bucket){
+  tsModal('<h3 class="tsm-title">' + esc(name) + '</h3>'
+    + '<p class="lc-p">' + esc(forgeTip(name, bucket) || 'No description recorded for this yet.') + '</p>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="sheetReopen()">Back</button></div>');
+}
+function sheetReopen(){ var s = window._sheet; if (s) entrySheet(s.src, s.sceneId, s.kind, s.id); else tsCloseModal(); }
+function sheetChips(bucket, chosen, fn){
+  var on = chosen || [];
+  var names = poolNames(bucket);
+  if (!names.length) return '<p class="tsm-note">Nothing forged in this pool yet.</p>';
+  return '<div class="chips pick">' + names.map(function(n){
+    var esn = n.replace(/'/g, "\\'");
+    return '<span class="chip' + (on.indexOf(n) >= 0 ? ' on' : '') + '" title="' + esc(forgeTip(n, bucket) || n) + '">'
+      + '<span class="chip-lb" onclick="' + fn + '(\'' + esn + '\')">' + esc(n) + '</span>'
+      + '<button class="chip-i" onclick="event.stopPropagation();forgeInfo(\'' + esn + '\',\'' + bucket + '\')">i</button></span>';
+  }).join('') + '</div>';
+}
+function sheetChoice(label, cur, names, fn, noneLabel, bucket){
+  var h = '<label class="tsm-lbl">' + label + '</label>'
+    + '<select class="tsm-inp" onchange="' + fn + '(this.value)">'
+    + '<option value="">' + (noneLabel || 'None') + '</option>'
+    + names.map(function(n){ return '<option value="' + esc(n) + '"' + (cur === n ? ' selected' : '') + '>' + esc(n) + '</option>'; }).join('')
+    + '</select>';
+  var t = cur ? forgeTip(cur, bucket) : '';
+  if (t) h += '<p class="tsm-note">' + esc(t) + '</p>';
+  return h;
+}
+function sheetToggle(bucket, name){
+  var t = curSheet(); if (!t) return;
+  var key = bucket === 'infusions' ? 'infusions' : 'augments';
+  var arr = t.obj[key] = t.obj[key] || [];
+  var i = arr.indexOf(name);
+  if (i >= 0) arr.splice(i, 1); else arr.push(name);
+  sheetLiveSave(); sheetReopen();
+}
+function sheetToggleInf(n){ sheetToggle('infusions', n); }
+function sheetToggleAug(n){ sheetToggle('augmentations', n); }
+function sheetSetField(f, v){ var t = curSheet(); if (!t) return; t.obj[f] = v; sheetLiveSave(); sheetReopen(); }
+function sheetSetBuild(v){ sheetSetField('build', v); }
+function sheetSetStance(v){ sheetSetField('stance', v); }
+function sheetSetSig(v){ sheetSetField('sig', v); }
+function sheetAddRelic(v){
+  if (!v) return;
+  var t = curSheet(); if (!t) return;
+  t.obj.inv = t.obj.inv || [];
+  if (t.obj.inv.indexOf(v) < 0) t.obj.inv.push(v);
+  sheetLiveSave(); sheetReopen();
+}
+function sheetDelRelic(i){ var t = curSheet(); if (!t) return; (t.obj.inv || []).splice(i, 1); sheetLiveSave(); sheetReopen(); }
+function sheetLiveSave(){ var t = curSheet(); if (t){ sheetSync(t); storySave(); } }
+function partyLevel(){
+  var l = (S.scene && S.scene.fell) || [];
+  if (!l.length) return 1;
+  var t = 0; l.forEach(function(p){ t += p.level || 1; });
+  return Math.max(1, Math.round(t / l.length));
+}
+function foeVitality(sr, apl){
+  var base = (SR_TABLE[sr] || SR_TABLE.Elite).vit;
+  return Math.round(base + (base / 8) * (apl - 1));
+}
+function assetToRow(e){
+  return {
+    assetId: e.id, type: e.type || 'monster', name: e.name || '', description: e.desc || '',
+    shatterRating: e.sr || '', lp: e.lp || 0, sp: e.sp || 0, maxVit: e.maxVit || 0,
+    role: e.role || '', image: e.img || '', origin: e.origin || '',
+    attrs: JSON.stringify(e.attrs || {}), inventory: JSON.stringify(e.inv || []),
+    abilities: JSON.stringify(e.abilities || []), foeWeight: e.foeWeight || 0,
+    foeMeta: JSON.stringify({ build:e.build||'', stance:e.stance||'', sig:e.sig||'', source:e.source||'',
+      augments:e.augments||[], infusions:e.infusions||[], atkPref:e.atkPref||'',
+      campaignId:e.campaignId||'', campaignName:e.campaignName||'' })
+  };
+}
 /* One sheet for a figure, wherever you open it: the library shelf or a scene's
    roster. Same fields, same editing. Live vitality and charges are not here,
    they belong to the foe card in battle. */
 function entrySheet(src, sceneId, kind, id){
   var t = sheetTarget(src, sceneId, kind, id);
   if (!t) return;
+  if (!FORGE.loaded){
+    tsModal('<h3 class="tsm-title">Loading...</h3>');
+    forgeLoad().then(function(){ entrySheet(src, sceneId, kind, id); });
+    return;
+  }
   window._sheet = { src:src, sceneId:sceneId, kind:kind, id:id };
   var e = t.obj;
   var isFoe = (src === 'lib') ? (e.type === 'monster') : (kind === 'foe');
@@ -1521,41 +1639,62 @@ function entrySheet(src, sceneId, kind, id){
     return '<label class="rs-attr"><span>' + a + '</span><input class="tsm-inp rs-anum" id="rsA_' + a + '" type="number" value="' + (attrs[a] || 0) + '"></label>';
   }).join('');
   function lines(v){ return (v || []).map(function(x){ return (x && (x.name || x.title)) ? (x.name || x.title) + (x.body || x.text ? ' :: ' + (x.body || x.text) : '') : String(x); }).join('\n'); }
-  tsModal('<h3 class="tsm-title">' + (isFoe ? 'Foe' : 'NPC') + (lib ? ' <span class="rs-linked">library</span>' : '') + '</h3>'
+  var apl = partyLevel();
+  var sr = e.sr || 'Elite';
+  var h = '<h3 class="tsm-title">' + (isFoe ? 'Edit foe' : 'Edit NPC') + (lib ? ' <span class="rs-linked">library</span>' : '') + '</h3>'
     + '<div class="rs-edit">'
     + '<div class="rs-imgrow"><div class="rs-prev" id="rsPrev">' + (img ? '<img src="' + esc(img) + '" alt="">' : '<span class="tsm-note">No image</span>') + '</div>'
     + '<div><input type="file" accept="image/*" id="rsImgFile" style="display:none" onchange="sheetImgPicked(this)">'
     + '<button class="tsm-btn ghost" onclick="document.getElementById(\'rsImgFile\').click()">Choose image</button>'
     + '<button class="tsm-btn ghost" onclick="sheetImgClear()">Remove</button></div></div>'
     + '<label class="tsm-lbl">Name</label><input class="tsm-inp" id="rsName" value="' + esc(e.name || '') + '">'
-    + '<label class="tsm-lbl">Description</label><textarea class="tsm-inp tsm-ta" id="rsDesc">' + esc(e.desc || '') + '</textarea>'
-    + (isFoe
-        ? '<label class="tsm-lbl">Shatter Rating</label><select class="tsm-inp" id="rsSR" onchange="sheetSRChange()">' + srOpts + '</select>'
-        : '<label class="tsm-lbl">Role</label><input class="tsm-inp" id="rsRole" value="' + esc(e.role || '') + '">')
-    + '<label class="tsm-lbl">Maximum vitality</label><input class="tsm-inp rs-anum" id="rsMax" type="number" value="' + (e.maxVit || 0) + '">'
-    + (isFoe ? '<label class="tsm-lbl">Build and stance</label><input class="tsm-inp" id="rsBuild" value="' + esc([e.build, e.stance].filter(Boolean).join(' \u00b7 ')) + '" placeholder="Build \u00b7 stance">'
-             + '<label class="tsm-lbl">Signature affliction</label><input class="tsm-inp" id="rsSig" value="' + esc(e.sig || '') + '">' : '')
-    + '<label class="tsm-lbl">Attributes</label><div class="rs-attrs">' + attrHtml + '</div>'
-    + (isFoe ? '<label class="tsm-lbl">Infusions</label><textarea class="tsm-inp tsm-ta short" id="rsInf" placeholder="One per line">' + esc((e.infusions || []).join('\n')) + '</textarea>'
-             + '<label class="tsm-lbl">Augments</label><textarea class="tsm-inp tsm-ta short" id="rsAug" placeholder="One per line">' + esc((e.augments || []).join('\n')) + '</textarea>' : '')
-    + '<label class="tsm-lbl">Inventory</label><textarea class="tsm-inp tsm-ta short" id="rsInv" placeholder="One per line">' + esc((e.inv || []).join('\n')) + '</textarea>'
-    + '<label class="tsm-lbl">Abilities</label><textarea class="tsm-inp tsm-ta" id="rsAb" placeholder="Name :: what it does, one per line">' + esc(lines(e.abilities)) + '</textarea>'
+    + '<label class="tsm-lbl">Description</label><textarea class="tsm-inp tsm-ta short" id="rsDesc">' + esc(e.desc || '') + '</textarea>';
+  if (isFoe){
+    h += '<p class="tsm-note">' + esc(sr) + ' \u00b7 ' + (e.maxVit || foeVitality(sr, apl)) + ' vit</p>'
+      + '<div class="tsm-lbl">As it stands against this party</div>'
+      + '<p class="lc-p">' + esc(attrLine(e.attrs) || 'No attributes set') + '</p>'
+      + '<div class="tsm-lbl">Default rating in scenes</div>'
+      + '<select class="tsm-inp" id="rsSR" onchange="sheetSRChange()">'
+      + ['Minion','Elite','Champion','Epic','Forsaken'].map(function(x){ return '<option value="' + x + '"' + (sr === x ? ' selected' : '') + '>' + x + '</option>'; }).join('')
+      + '</select>'
+      + '<p class="tsm-note">A scene sets this foe\'s rating and scales it from the kit below. This is where it starts.</p>'
+      + '<label class="tsm-lbl">Maximum vitality</label><input class="tsm-inp rs-anum" id="rsMax" type="number" value="' + (e.maxVit || 0) + '">'
+      + '<p class="tsm-note">Against this party a ' + esc(sr) + ' stands at ' + foeVitality(sr, apl) + ', a Forsaken at ' + foeVitality('Forsaken', apl) + '.</p>'
+      + sheetChoice('Build', e.build || '', packNames('builds'), 'sheetSetBuild', 'No build', 'builds')
+      + sheetChoice('Stance', e.stance || '', packNames('stances'), 'sheetSetStance', 'No stance', 'stances')
+      + sheetChoice('Signature affliction', e.sig || '', packNames('afflictions'), 'sheetSetSig', 'None', 'afflictions');
+  } else {
+    h += '<label class="tsm-lbl">Role</label><input class="tsm-inp" id="rsRole" value="' + esc(e.role || '') + '">'
+      + '<label class="tsm-lbl">Maximum vitality</label><input class="tsm-inp rs-anum" id="rsMax" type="number" value="' + (e.maxVit || 0) + '">';
+  }
+  h += '<label class="tsm-lbl">Attributes</label><div class="rs-attrs">' + attrHtml + '</div>';
+  if (isFoe){
+    h += '<div class="tsm-lbl">Infusions <span class="tsm-count">' + (e.infusions || []).length + '</span></div>'
+      + sheetChips('infusions', e.infusions, 'sheetToggleInf')
+      + '<div class="tsm-lbl">Augmentations <span class="tsm-count">' + (e.augments || []).length + '</span></div>'
+      + sheetChips('augmentations', e.augments, 'sheetToggleAug')
+      + '<div class="tsm-lbl">Relics</div>';
+    if ((e.inv || []).length){
+      h += (e.inv || []).map(function(it, i){
+        var t2 = forgeTip(it, 'items');
+        return '<div class="relic-row"><div class="relic-hd"><b>' + esc(it) + '</b>'
+          + '<button class="chip-x" onclick="sheetDelRelic(' + i + ')" title="Remove">\u00d7</button></div>'
+          + (t2 ? '<p class="tsm-note">' + esc(t2) + '</p>' : '') + '</div>';
+      }).join('');
+    } else h += '<p class="tsm-note">Carries nothing.</p>';
+    var relics = poolNames('items').filter(function(x){ return (e.inv || []).indexOf(x) < 0; });
+    h += '<select class="tsm-inp" onchange="sheetAddRelic(this.value)"><option value="">Add a relic</option>'
+      + relics.map(function(x){ return '<option value="' + esc(x) + '">' + esc(x) + '</option>'; }).join('') + '</select>';
+    if (!relics.length) h += '<p class="tsm-note">No relics forged yet. RelicForge fills this shelf.</p>';
+  } else {
+    h += '<label class="tsm-lbl">Inventory</label><textarea class="tsm-inp tsm-ta short" id="rsInv" placeholder="One per line">' + esc((e.inv || []).join('\n')) + '</textarea>';
+  }
+  h += '<label class="tsm-lbl">Abilities</label><textarea class="tsm-inp tsm-ta" id="rsAb" placeholder="Name :: what it does, one per line">' + esc(lines(e.abilities)) + '</textarea>'
     + '<p class="tsm-note">' + (lib || src === 'lib' ? 'Saving updates the library everywhere. Vitality in play and charges live on the foe card in battle.' : 'This figure is local to the scene.') + '</p>'
     + '</div>'
     + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="sheetBack()">Cancel</button>'
-    + '<button class="tsm-btn" onclick="sheetSave()">Save</button></div>');
-}
-function assetToRow(e){
-  return {
-    assetId: e.id, type: e.type || 'monster', name: e.name || '', description: e.desc || '',
-    shatterRating: e.sr || '', lp: e.lp || 0, sp: e.sp || 0, maxVit: e.maxVit || 0,
-    role: e.role || '', image: e.img || '', origin: e.origin || '',
-    attrs: JSON.stringify(e.attrs || {}), inventory: JSON.stringify(e.inv || []),
-    abilities: JSON.stringify(e.abilities || []), foeWeight: e.foeWeight || 0,
-    foeMeta: JSON.stringify({ build:e.build||'', stance:e.stance||'', sig:e.sig||'', source:e.source||'',
-      augments:e.augments||[], infusions:e.infusions||[], atkPref:e.atkPref||'',
-      campaignId:e.campaignId||'', campaignName:e.campaignName||'' })
-  };
+    + '<button class="tsm-btn" onclick="sheetSave()">Save</button></div>';
+  tsModal(h);
 }
 function sheetTarget(src, sceneId, kind, id){
   if (src === 'lib'){ var e = libGet(id); return e ? { obj:e, lib:null } : null; }

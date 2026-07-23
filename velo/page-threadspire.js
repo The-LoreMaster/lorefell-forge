@@ -3,7 +3,8 @@
 // Feeds the character-first view: the player's character card, the party at their
 // location, revealed nodes, quest-board goals, world issues, and map art.
 import { threadspirePublicChar, listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter, threadspireSaveMeta } from 'backend/characters.web.js';
-import { getLmPortrait, saveLmPortrait } from 'backend/fatewell.web.js';
+import { getLmPortrait, saveLmPortrait, getForgePools } from 'backend/fatewell.web.js';
+import { getFoePack } from 'backend/forge.web.js';
 import { listQuests, listDiscovered, getWorldMeta, saveAsset, listAssets, getCampaignPlayers, getClueCards } from 'backend/fatewell.web.js';
 import { getCombatForChar, saveCombatDeclare, syncCombatPlayer } from 'backend/combat.web.js';
 import { getLibraries } from 'backend/libraries.web.js';
@@ -155,6 +156,12 @@ $w.onReady(function () {
           let ch = null;
           try { const r = await loadCharacter(msg.charId || characterId); ch = (r && r.character) ? r.character : null; } catch (e) { ch = null; }
           reply(true, ch);
+        } else if (msg.type === 'TS_FORGE_DATA') {
+          let pools = { infusions: [], augmentations: [], items: [] };
+          let pack = null;
+          try { pools = await getForgePools(); } catch (e) {}
+          try { pack = await getFoePack(); } catch (e) {}
+          reply(true, { pools: pools, pack: pack });
         } else if (msg.type === 'TS_LM_PORTRAIT_GET') {
           let por = '';
           try { const r = await getLmPortrait(campaignId); por = (r && r.portrait) || ''; } catch (e) { por = ''; }
