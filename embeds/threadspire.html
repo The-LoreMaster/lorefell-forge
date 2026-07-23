@@ -281,8 +281,10 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .sd-card{ cursor:grab; }
 .mp-folder.drop, .tp-fold.drop{ background:rgba(201,168,76,.2); outline:1px dashed var(--gold); }
 .mp-newf, .tp-newf{ font-size:.6rem; padding:3px 8px; margin-left:auto; }
-.tp-fold{ font-family:Cinzel,serif; font-size:.6rem; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); margin:6px 0 3px; padding:2px 4px; border-radius:5px; }
-.tp-wrap{ display:inline-block; }
+.tp-fold{ display:flex; align-items:center; gap:4px; font-family:Cinzel,serif; font-size:.6rem; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); margin:6px 0 3px; padding:2px 4px; border-radius:5px; }
+.tp-fname{ flex:1; }
+.tp-chip{ cursor:grab; }
+.sd-acts{ display:flex; gap:1px; }
 .mp-folder{ grid-column:1/-1; display:flex; align-items:center; gap:6px; margin:6px 0 2px; font-family:Cinzel,serif; font-size:.62rem; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); }
 .mp-fname{ flex:1; }
 .mp-name{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -823,11 +825,7 @@ var S = {
        token's map-pixel position stays true across scenes. url null here means the
        prototype paints its placeholder; a real adventure hands over real URLs. */
     background: null,          /* the active map id, or null for the placeholder */
-    maps: [
-      { id:'m-beacon', name:'The Silent Beacon', url:null, w:2400, h:1600, source:'adventure' },
-      { id:'m-undercroft', name:'The Undercroft', url:null, w:2000, h:2000, source:'adventure' },
-      { id:'m-span', name:'The Broken Span', url:null, w:3000, h:1400, source:'adventure' }
-    ],
+    maps: [],
     /* stages and their scene bindings live in S.instance now, not on the scene.
        The scene is portable module content and never carries a LoreMaster's boards. */
     spotMode: 'auto',
@@ -1336,7 +1334,10 @@ function stagesBody(){
       + '<button class="sd-main" onclick="lmSwitchStage(\''+b.stageId+'\')">' + thumb
       + '<span><span class="sd-name">' + esc(b.name) + '</span>'
       + '<span class="sd-meta">' + (mp?esc(mp.name):'no map') + ' \u00b7 ' + count + ' tokens</span></span></button>'
-      + '<button class="sd-x" onclick="lmDeleteStage(\''+b.stageId+'\')" title="Delete stage">\u00d7</button></div>';
+      + '<span class="sd-acts">'
+      + '<button class="st-b" onclick="lmRenameStage(\''+b.stageId+'\')" title="Rename">\u270e</button>'
+      + '<button class="st-b" onclick="lmStageMap(\''+b.stageId+'\')" title="Choose its map">\u25a6</button>'
+      + '<button class="st-b" onclick="lmDeleteStage(\''+b.stageId+'\')" title="Delete stage">\u2715</button></span></div>';
   }).join('');
   return '<div class="win-note">Stages are saved tables: a map and where every token stands. Switching keeps each as you left it.</div>'
     + '<div class="sd-list">' + cards + '</div>'
@@ -3378,10 +3379,48 @@ function lmSwitchStage(id){
   if (b){ stageRestore(b); pushLog({ kind:'sys', html:'Stage set to <b>' + esc(b.name) + '</b>.' }); applyRemoteState({ log:S.log }); }
   refreshStagesWin();
 }
+function lmRenameStage(id){
+  var st = stageById(id); if (!st) return;
+  if (isLobby(id)){
+    tsModal('<h3 class="tsm-title">The Lobby keeps its name</h3>'
+      + '<p class="lc-p">Every table gathers in the Lobby, so it is always called that.</p>'
+      + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
+    return;
+  }
+  tsAsk2({ title:'Name this stage', label:'Name', value:st.name, onSave:function(n){
+    if (!n) return;
+    st.name = n; stageBackend.save(st);
+    applyRemoteState({ instance:S.instance }); refreshStagesWin();
+  }});
+}
+/* Which map this stage lays down. The stage remembers it, so coming back to the
+   stage brings the map with it. */
+function lmStageMap(id){
+  var st = stageById(id); if (!st) return;
+  var maps = S.scene.maps || [];
+  tsModal('<h3 class="tsm-title">The map for ' + esc(st.name) + '</h3>'
+    + '<select class="tsm-inp" id="stMap"><option value="">No map, the blue parchment</option>'
+    + maps.map(function(m){ return '<option value="' + esc(m.id) + '"' + (st.mapId === m.id ? ' selected' : '') + '>' + esc(m.name) + '</option>'; }).join('')
+    + '</select>'
+    + (maps.length ? '' : '<p class="tsm-note">Your shelf is empty. Upload one from Maps in the scene runner.</p>')
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button>'
+    + '<button class="tsm-btn" onclick="lmStageMapSave(\'' + id + '\')">Save</button></div>');
+}
+function lmStageMapSave(id){
+  var st = stageById(id); if (!st) return;
+  var v = (document.getElementById('stMap') || {}).value || null;
+  st.mapId = v;
+  var m = v ? mapById(v) : null;
+  if (m){ st.mapW = m.w; st.mapH = m.h; }
+  stageBackend.save(st);
+  tsCloseModal();
+  if (sameId(activeStageId(), id)) stageRestore(st);
+  applyRemoteState({ instance:S.instance }); refreshStagesWin();
+}
 function lmNewStage(){
   lmSaveCurrentStage();
   var id='st-'+Date.now();
-  var b={ stageId:id, name:'New stage', mapId:null, tokens:[], grid:Object.assign({},S.grid), mapW:2400, mapH:1600 };
+  var b={ stageId:id, name:'Stage ' + (instanceStages().length + 1), mapId:null, tokens:[], grid:Object.assign({},S.grid), mapW:2400, mapH:1600 };
   stageUpsert(b);
   bindStageToScene(id);
   stageBackend.save(b);
@@ -3961,8 +4000,8 @@ function paintTokenPalette(){
       ? '<span class="tp-face" style="background-image:url('+t.img+')"></span>'
       : '<span class="tp-face tp-'+t.kind+'">'+esc(t.label)+'</span>';
     var drag = t.assetId ? ' draggable="true" ondragstart="folderDragStart(event,\'token\',\''+t.assetId+'\')"' : '';
-    return '<span class="tp-wrap"'+drag+'><button class="tp-chip" onclick="lmPlaceToken(\''+t.kind+'\',\''+t.refId+'\')">'
-      + face + '<span class="tp-name">'+esc(t.name)+'</span></button></span>';
+    return '<button class="tp-chip"'+drag+' onclick="lmPlaceToken(\''+t.kind+'\',\''+t.refId+'\')">'
+      + face + '<span class="tp-name">'+esc(t.name)+'</span></button>';
   }
   function foldered(list){
     var folders = assetFolders(list);
@@ -3970,8 +4009,14 @@ function paintTokenPalette(){
     var out = '';
     folders.forEach(function(f){
       var inIt = list.filter(function(t){ return (t.folder || '') === f; });
-      out += '<div class="tp-fold" ondragover="folderDragOver(event,this)" ondragleave="folderDragLeave(this)" ondrop="folderDrop(event,this,\''+f.replace(/'/g, "\\'")+'\')">'+esc(f)+'</div>'
-        + (inIt.length ? '<div class="tp-row">' + inIt.map(chip).join('') + '</div>' : '<div class="tp-empty">Drop a token here.</div>');
+      var shut = folderShut(f);
+      var esf = f.replace(/'/g, "\\'");
+      out += '<div class="tp-fold" ondragover="folderDragOver(event,this)" ondragleave="folderDragLeave(this)" ondrop="folderDrop(event,this,\''+esf+'\')">'
+        + '<button class="st-b" onclick="folderToggle(\''+esf+'\')" title="' + (shut ? 'Open' : 'Fold away') + '">' + (shut ? '\u25b8' : '\u25be') + '</button>'
+        + '<span class="tp-fname">'+esc(f)+' <span class="tsm-count">'+inIt.length+'</span></span>'
+        + '<button class="st-b" onclick="lmFolderRename(\''+esf+'\')" title="Rename">\u270e</button>'
+        + '<button class="st-b" onclick="lmFolderDrop(\''+esf+'\')" title="Remove the folder">\u2715</button></div>'
+        + (shut ? '' : (inIt.length ? '<div class="tp-row">' + inIt.map(chip).join('') + '</div>' : '<div class="tp-empty">Drop a token here.</div>'));
     });
     var loose = list.filter(function(t){ return !(t.folder || ''); });
     out += '<div class="tp-fold" ondragover="folderDragOver(event,this)" ondragleave="folderDragLeave(this)" ondrop="folderDrop(event,this,\'\')">Loose</div>'
@@ -4390,6 +4435,17 @@ function assetFolders(list){
   return out;
 }
 function mapFolders(){ return assetFolders(S.scene.maps); }
+function folderShut(name){
+  try { return (JSON.parse(localStorage.getItem('ts_folds') || '[]')).indexOf(name) >= 0; } catch(e){ return false; }
+}
+function folderToggle(name){
+  var list = [];
+  try { list = JSON.parse(localStorage.getItem('ts_folds') || '[]'); } catch(e){ list = []; }
+  var i = list.indexOf(name);
+  if (i >= 0) list.splice(i, 1); else list.push(name);
+  try { localStorage.setItem('ts_folds', JSON.stringify(list)); } catch(e){}
+  paintTokenPalette(); paintMapPicker();
+}
 function newFolder(kind){
   tsAsk2({ title:'New folder', label:'Name', cta:'Make it', onSave:function(n){
     if (!n) return;
@@ -4448,6 +4504,8 @@ function lmFolderSave(id){
 function lmFolderRename(from){
   tsAsk2({ title:'Rename the folder', label:'Name', value:from, onSave:function(n){
     if (!n) return;
+    unnameFolder(from); nameFolder(n);
+    (S.assets || []).forEach(function(a){ if ((a.folder || '') === from) tokenSetFolder(a.assetId, n); });
     (S.scene.maps || []).forEach(function(m){
       if ((m.folder || '') !== from) return;
       m.folder = n;
@@ -4459,6 +4517,7 @@ function lmFolderRename(from){
 function lmFolderDrop(name){
   unnameFolder(name);
   window._tsYes = function(){
+    (S.assets || []).forEach(function(a){ if ((a.folder || '') === name) tokenSetFolder(a.assetId, ''); });
     (S.scene.maps || []).forEach(function(m){
       if ((m.folder || '') !== name) return;
       m.folder = '';

@@ -1,3 +1,7 @@
+## ThreadSpire: stages you can name and set a map on
+
+- A stage now carries its own controls: rename it, choose which map it lays down, or delete it. Choosing the map is explicit rather than guessed, and the stage remembers it, so returning to a stage brings its map back with it. The placeholder maps are gone from the shelf, so what you see there is what you put there. Token folders can be renamed, removed and folded away, they carry a count, and the tokens themselves drag into them properly now.
+
 ## ThreadSpire: maps that stay, stages you can order
 
 - Uploaded maps save properly now. A full size battle map runs to many megabytes once encoded, and the upload was giving out quietly, leaving the map alive only until the page reloaded; images are drawn down to a sensible size before they go up. Maps and tokens coming back from your account now carry their own identity and folder, so filing, renaming and removing reach them rather than doing nothing. Stages can be dragged into whatever order you want them in, and long names cut off cleanly instead of sprawling.
