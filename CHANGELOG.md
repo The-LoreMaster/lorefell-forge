@@ -1,3 +1,11 @@
+## 2026-07-23 — ThreadSpire: a removed stage stays removed through a reload, and the table closes a window
+
+The X removes a stage outright now. The confirmation step is gone; the button is the decision.
+
+Removal used to be remembered only for as long as the page stayed open, so a refresh forgot every removal and the arrangement arriving from the table put the stage straight back. The note of what was removed now travels with the table state and is kept in the browser as well, so a stage stays gone across a reload and across the other seats. A stage that was removed before its record reached the account is cleared the next time the deck loads, which sweeps the ones already stuck there.
+
+Tapping the table behind an open window closes it. The rails, the HUD, the log and any dialog keep their own handling.
+
 ## 2026-07-23 — ThreadSpire: remove the duplicated block that shadowed every stage fix
 
 A previous edit inserted its rewritten stage section instead of replacing the old one, leaving 2,178 dead lines: a byte-identical copy of an earlier 2,004 line span, plus the pre-rework stage functions. Later definitions win in a script, so the stale copies of all 17 stage functions shadowed the adventure-wide delete and the tombstone fix. Stage deletion fired the old guard and deleted stages resurfaced on the next snapshot. Removed lines 3516 to 5693 in one cut, verified the defined-function set is identical before and after, and confirmed the tombstone lmDeleteStage is now the only definition. No behavior added; the fixes already merged now actually run.
