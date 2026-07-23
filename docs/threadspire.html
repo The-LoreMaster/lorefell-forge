@@ -269,6 +269,10 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .tsm-btn.danger{ background:var(--danger,#8d3b3b); border-color:var(--danger,#8d3b3b); color:#fff; }
 .stb-card{ display:flex; align-items:center; gap:7px; margin:4px 0; padding:5px 8px; border-left:3px solid var(--gold); border-radius:0 6px 6px 0; background:rgba(10,16,32,.34); cursor:pointer; }
 .stb-card:hover{ background:rgba(20,30,54,.5); }
+.rs-open{ display:flex; align-items:center; justify-content:space-between; width:100%; margin:6px 0 10px; padding:7px 10px; background:rgba(20,30,54,.45); border:1px solid rgba(201,168,76,.35); border-radius:6px; color:var(--gold); font-family:Cinzel,serif; font-size:.7rem; letter-spacing:.12em; text-transform:uppercase; cursor:pointer; }
+.rs-open:hover{ background:rgba(30,44,76,.6); }
+.rs-count{ font-family:'Crimson Pro',serif; font-size:.78rem; letter-spacing:0; color:var(--silver); }
+.rs-wrap{ max-height:52vh; overflow-y:auto; }
 .lib-scope{ display:block; width:100%; margin:6px 0 8px; font-size:.66rem; }
 .lib-list{ max-height:46vh; overflow-y:auto; }
 .lib-row{ display:flex; align-items:center; gap:8px; width:100%; padding:6px 4px; background:transparent; border:none; border-bottom:1px solid rgba(201,168,76,.10); color:var(--silver); font:inherit; text-align:left; cursor:pointer; }
@@ -1117,7 +1121,7 @@ function storyBody(){
            + '<button class="st-b" onclick="storyDelete(\'scene\',\'' + sc.id + '\')" title="Delete">\u2715</button></div>';
         if (!co) return;
         h += '<div class="st-kids">';
-        h += storyRosterHtml(sc);
+        h += '<button class="rs-open" onclick="rosterWindow(\'' + sc.id + '\')">Roster <span class="rs-count">' + (scenePlayers(sc).filter(function(p){ return !p.out; }).length + castList(sc).length) + '</span></button>';
         h += storyBeatsHtml(sc);
         h += '</div>';
       });
@@ -1347,7 +1351,7 @@ function togglePlayerOut(sceneId, pid){
   var f = storyFind('scene', sceneId); if (!f) return;
   f.scene.out = f.scene.out || {};
   if (f.scene.out[pid]) delete f.scene.out[pid]; else f.scene.out[pid] = true;
-  storySave(); refreshWinBody(); render();
+  storySave(); rosterRefresh(); render();
 }
 function rosterAddFromLib(sceneId){
   var f = storyFind('scene', sceneId); if (!f) return;
@@ -1394,7 +1398,7 @@ function libAttach(sceneId, libId){
   f.scene[key] = f.scene[key] || [];
   var same = f.scene[key].filter(function(c){ return c.libId === libId; }).length;
   f.scene[key].push(libMakeCombatant(e, e.name + (same ? ' ' + (same + 1) : '')));
-  tsCloseModal(); storySave(); refreshWinBody(); render();
+  tsCloseModal(); storySave(); rosterRefresh(); render();
 }
 function rosterAdd(sceneId, kind){
   var f = storyFind('scene', sceneId); if (!f) return;
@@ -1407,7 +1411,7 @@ function rosterAdd(sceneId, kind){
       f.scene.foes = f.scene.foes || [];
       f.scene.foes.push({ id:mkId(), name:n, sr:'', side:'foe', curVit:0, maxVit:0, charge:0, img:'' });
     }
-    storySave(); refreshWinBody(); render();
+    storySave(); rosterRefresh(); render();
   }});
 }
 function rosterRemove(sceneId, kind, id){
@@ -1416,13 +1420,25 @@ function rosterRemove(sceneId, kind, id){
   f.scene[key] = (f.scene[key] || []).filter(function(x){ return x.id !== id; });
   storySave(); refreshWinBody(); render();
 }
+function rosterWindow(sceneId){
+  var f = storyFind('scene', sceneId); if (!f) return;
+  window._rosterScene = sceneId;
+  tsModal('<h3 class="tsm-title">Roster</h3><div class="rs-wrap">' + storyRosterHtml(f.scene) + '</div>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
+}
+function rosterRefresh(){
+  var id = window._rosterScene;
+  if (id && document.getElementById('tsModal') && document.getElementById('tsModal').style.display === 'block') rosterWindow(id);
+  else refreshWinBody();
+}
 function storyRosterHtml(sc){
-  var h = '<div class="st-sub">Roster</div>';
+  var h = '<div class="st-sub">The Fell</div>';
   scenePlayers(sc).forEach(function(p){
     h += '<div class="rs-row' + (p.out ? ' out' : '') + '">'
       + '<span class="rs-name">' + esc(p.name || 'Fell') + '</span>'
       + '<button class="rs-pill" onclick="togglePlayerOut(\'' + sc.id + '\',\'' + p.id + '\')">' + (p.out ? 'Out' : 'In') + '</button></div>';
   });
+  h += '<div class="st-sub">Cast</div>';
   castList(sc).forEach(function(c){
     var st = (c.ref && c.ref.maxVit) ? (c.ref.curVit + '/' + c.ref.maxVit + (c.ref.sr ? ' \u00b7 ' + esc(c.ref.sr) : '')) : '';
     h += '<div class="rs-row">'
@@ -1433,8 +1449,7 @@ function storyRosterHtml(sc){
   });
   h += '<div class="rs-adds"><button class="st-add" onclick="rosterAddFromLib(\'' + sc.id + '\')">Add from library</button>'
     + '<button class="st-add" onclick="rosterAdd(\'' + sc.id + '\',\'npc\')">New NPC</button>'
-    + '<button class="st-add" onclick="rosterAdd(\'' + sc.id + '\',\'foe\')">New foe</button></div>'
-    + '<div class="st-sub">Beats</div>';
+    + '<button class="st-add" onclick="rosterAdd(\'' + sc.id + '\',\'foe\')">New foe</button></div>';
   return h;
 }
 function castGet(id, sc){
@@ -1469,7 +1484,10 @@ function notesBody(){
   return h;
 }
 function libraryBody(){
-  if (!S.libLoaded) libLoad().then(function(){ if (S.openSection === 'library') refreshWinBody(); });
+  if (!S.libLoaded){
+    libLoad().then(function(){ if (S.openSection === 'library') refreshWinBody(); });
+    return '<div class="win-note">The library: everything the adventure brings to the table.</div><div class="win-note">Loading...</div>';
+  }
   var h = '<div class="win-note">The library: everything the adventure brings to the table.</div>'
     + '<button class="tsm-btn ghost lib-scope" onclick="libToggleScope()">' + (S.libAll ? 'Showing: saved collection' : 'Showing: this adventure') + '</button>';
   var lib = libScoped();
@@ -1485,10 +1503,8 @@ function libraryBody(){
           + '<span class="lib-nm">' + esc(e.name) + '</span><span class="lib-meta">' + esc(meta) + '</span></div>';
       });
     });
-  } else if (S.libLoaded){
-    h += '<div class="win-note">Nothing in the library yet. FateWell authors it.</div>';
   } else {
-    h += '<div class="win-note">Loading...</div>';
+    h += '<div class="win-note">Nothing in the library yet. FateWell authors it.</div>';
   }
   h += '<div class="nb-scene">At this scene</div>';
   function group(title, list, line){
@@ -2746,6 +2762,7 @@ window.onmessage = function(ev){
     /* the page decided role by entry-point hint and confirmed it by ownership; we trust it */
     if (d.role === 'lm' || d.role === 'player'){
       S.role = d.role; S.roleReady = true; document.body.classList.remove('roleboot');
+      if (d.role === 'lm' && typeof libLoad === 'function') libLoad();
       if (d.role === 'lm' && lmBackend.getPortrait){
         lmBackend.getPortrait().then(function(p){ if (p){ S.lm = S.lm || {}; S.lm.portrait = p; paintHud(); } }).catch(function(){});
       }

@@ -1,3 +1,7 @@
+## ThreadSpire: roster in its own window, no library flash
+
+- The roster moves out of the scene body into its own window, opened by a Roster button at the top of the scene that shows how many are at the table, so nothing competes with the beats. The Library tab no longer shows its old layout for a moment before the real one arrives; it holds until the library is ready, and the library is fetched as soon as the LoreMaster's role is known so the tab is usually ready before it is opened.
+
 ## ThreadSpire: the library, and rosters built from it
 
 - ThreadSpire now reads the same library FateWell authors, using the same conversion, so a foe or NPC means the same thing in both tools. The Library tab lists foes, NPCs, and items with their portraits and stats, scoped to this adventure by default with a toggle for the whole saved collection. A scene's roster can add from the library: the entry arrives with its name, portrait, rank, vitality, attributes, abilities, inventory, infusions, and augments intact, and keeps its link back to the library. Roster rows show the portrait and vitality, and a dialogue beat's speaker resolves through that same link, so one figure's art and stats follow it into the roster, the notes, and battle.
