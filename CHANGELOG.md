@@ -1,3 +1,7 @@
+## ThreadSpire: no role flash, and Story builds the adventure spine
+
+- The table no longer shows the player side for a moment before the LoreMaster loads; the identity column and rail stay hidden until the role is known. Story is now a working spine: acts open to sessions, sessions to scenes, scenes to their notes, with add, rename, and delete at every level and a click to set the running scene. Notes are edited in place. The spine travels with the table state, so it survives a reload.
+
 ## ThreadSpire: the LoreMaster identity rail
 
 - The LoreMaster's tabs are now Journal, Fell, Library, Stages, Story, and Settings moves off the rail onto the fellmark gem at the bottom, which carries the same fellmark symbol the player side uses. The identity column gains its LoreMaster meanings: LP and SS on the blue gems, the red circle takes the vitality of a clicked foe, the three shapes beside it light gold with that foe's charges, the gem left of the name shows the skill difficulty step, DP sits at the bottom right, and the portrait is the LoreMaster's own, uploaded by clicking it. Name and portrait swap to whichever foe or NPC is speaking.

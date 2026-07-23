@@ -79,6 +79,7 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 
 #hud{ display:contents; }
 #hud.lm .hlbl{ color:#9fb0c8; }
+body.roleboot #hud, body.roleboot #rail, body.roleboot #tray, body.roleboot #lmstrip{ visibility:hidden; }
 .hslot{ position:fixed; z-index:60; pointer-events:none; display:flex; align-items:center; justify-content:center; color:var(--silver); font-family:Cinzel,serif; text-align:center; line-height:1; overflow:hidden; }
 .hLP{ left:93.076%; top:45.12%; width:5.981%; height:3.38%; font-size:1.7vh; color:#cfe0ff; }
 .hVlbl{ left:89.53%; top:50.14%; width:9.373%; height:3.38%; font-size:1.2vh; letter-spacing:.02em; color:#9fb0c8; font-family:'Crimson Pro',serif; }
@@ -253,6 +254,22 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 #win.sheeting{ top:11.186%; left:54.691%; right:auto; bottom:5.184%; width:30.688%; height:auto; max-height:none; }
 #win.sheeting #winBody{ display:none; }
 #win.sheeting #sheetFrame{ display:block; }
+.st-row{ display:flex; align-items:center; gap:6px; padding:6px 4px; border-bottom:1px solid rgba(201,168,76,.10); }
+.st-row .st-tw{ width:14px; color:var(--gold); cursor:pointer; font-size:.7rem; }
+.st-row .st-name{ flex:1; cursor:pointer; font-family:Cinzel,serif; font-size:.76rem; letter-spacing:.04em; color:var(--silver); }
+.st-act > .st-name{ color:var(--gold); }
+.st-ses > .st-name{ font-size:.72rem; color:var(--ice,#b8ccd8); }
+.st-scene > .st-name{ font-family:'Crimson Pro',serif; letter-spacing:0; font-size:.82rem; }
+.st-scene.live > .st-name{ color:var(--gold); }
+.st-live{ font-size:.62rem; letter-spacing:.08em; color:var(--gold); font-style:normal; }
+.st-b{ background:transparent; border:none; color:var(--muted,#7e8a99); cursor:pointer; font-size:.72rem; padding:2px 3px; }
+.st-b:hover{ color:var(--gold); }
+.st-kids{ margin-left:12px; padding-left:6px; border-left:1px solid rgba(201,168,76,.14); }
+.st-add{ display:block; width:100%; text-align:left; margin:4px 0 8px; padding:5px 8px; border-radius:6px; border:1px dashed rgba(201,168,76,.3); background:transparent; color:var(--muted,#7e8a99); font:inherit; font-size:.72rem; cursor:pointer; }
+.st-add:hover{ color:var(--gold); border-color:var(--gold); }
+.st-note{ margin:5px 0; }
+.st-nhead{ display:flex; align-items:center; justify-content:space-between; font-family:Cinzel,serif; font-size:.66rem; letter-spacing:.1em; text-transform:uppercase; color:var(--muted,#7e8a99); }
+.st-narea{ width:100%; min-height:52px; background:rgba(10,16,32,.34); border:1px solid rgba(201,168,76,.16); border-radius:6px; color:var(--silver); font:inherit; font-size:.8rem; padding:6px; resize:vertical; }
 .ts-newfell{ margin-top:10px; width:100%; background:var(--navy2,#10162a); border:1px solid var(--gold); border-radius:8px; color:var(--gold); font-family:Cinzel,serif; font-size:.72rem; letter-spacing:.08em; padding:8px; cursor:pointer; }
 .ts-newfell:active{ background:var(--gold); color:var(--navy); }
 #sheetSub{ display:none; gap:6px; padding:8px 12px; border-bottom:1px solid var(--line); flex-wrap:wrap; }
@@ -838,6 +855,120 @@ function setActiveScene(id){
   closeWin();
 }
 /* the scene picker window, grouped down the spine */
+var storyOpen = { act:{}, ses:{}, scene:{} };
+function storyToggle(lvl, id){ storyOpen[lvl][id] = !storyOpen[lvl][id]; refreshWinBody(); }
+function storyFind(kind, id){
+  var A = S.adventure || {};
+  var acts = A.acts || [];
+  for (var i=0;i<acts.length;i++){
+    if (kind === 'act' && acts[i].id === id) return { act:acts[i], list:acts, idx:i };
+    var ses = acts[i].sessions || [];
+    for (var j=0;j<ses.length;j++){
+      if (kind === 'session' && ses[j].id === id) return { act:acts[i], ses:ses[j], list:ses, idx:j };
+      var scs = ses[j].scenes || [];
+      for (var k=0;k<scs.length;k++){
+        if (kind === 'scene' && scs[k].id === id) return { act:acts[i], ses:ses[j], scene:scs[k], list:scs, idx:k };
+      }
+    }
+  }
+  return null;
+}
+function storyNewScene(name){
+  return { id:mkId(), name:name, prep:'', img:'', desc:'', mode:'roleplay', status:'active', beatDone:{},
+           entries:[], beats:[], log:[], att:{}, refs:[], combatants:[], ps:{}, hooks:[],
+           battle:{ round:1, phase:'commit', locked:false, pLocked:false, spots:[], spotMode:'auto', manual:{}, order:[] },
+           dis:{ spent:[], base:null }, loot:{ lucky:{}, shards:{}, rolls:{}, notes:{} } };
+}
+function storyAdd(kind, parentId){
+  var A = S.adventure || (S.adventure = { acts:[] });
+  var n = prompt(kind === 'act' ? 'Name this act' : kind === 'session' ? 'Name this session' : kind === 'scene' ? 'Name this scene' : 'Note title');
+  if (!n) return;
+  if (kind === 'act'){
+    A.acts = A.acts || [];
+    A.acts.push({ id:mkId(), name:n, notes:'', img:'', desc:'', entries:[], manualRefs:[], sessions:[] });
+  } else if (kind === 'session'){
+    var fa = storyFind('act', parentId); if (!fa) return;
+    fa.act.sessions = fa.act.sessions || [];
+    fa.act.sessions.push({ id:mkId(), name:n, notes:'', img:'', desc:'', entries:[], manualRefs:[], scenes:[] });
+    storyOpen.act[parentId] = true;
+  } else if (kind === 'scene'){
+    var fs = storyFind('session', parentId); if (!fs) return;
+    fs.ses.scenes = fs.ses.scenes || [];
+    fs.ses.scenes.push(storyNewScene(n));
+    storyOpen.ses[parentId] = true;
+  } else if (kind === 'note'){
+    var fc = storyFind('scene', parentId); if (!fc) return;
+    fc.scene.entries = fc.scene.entries || [];
+    fc.scene.entries.push({ id:mkId(), title:n, type:'general', body:'', pinned:false, open:true });
+    storyOpen.scene[parentId] = true;
+  }
+  storySave(); refreshWinBody();
+}
+function storyRename(kind, id){
+  var f = storyFind(kind, id); if (!f) return;
+  var t = kind === 'act' ? f.act : kind === 'session' ? f.ses : f.scene;
+  var n = prompt('Rename', t.name); if (!n) return;
+  t.name = n; storySave(); refreshWinBody(); render();
+}
+function storyDelete(kind, id){
+  var f = storyFind(kind, id); if (!f) return;
+  var t = kind === 'act' ? f.act : kind === 'session' ? f.ses : f.scene;
+  if (!confirm('Delete "' + t.name + '"?')) return;
+  f.list.splice(f.idx, 1); storySave(); refreshWinBody(); render();
+}
+function storyNoteEdit(sceneId, noteId, v){
+  var f = storyFind('scene', sceneId); if (!f) return;
+  (f.scene.entries || []).forEach(function(e){ if (e.id === noteId) e.body = v; });
+  storySave();
+}
+function storyNoteDelete(sceneId, noteId){
+  var f = storyFind('scene', sceneId); if (!f) return;
+  f.scene.entries = (f.scene.entries || []).filter(function(e){ return e.id !== noteId; });
+  storySave(); refreshWinBody();
+}
+function storySave(){ try { pushState(); } catch(e){} }
+function storyBody(){
+  var A = S.adventure || (S.adventure = { acts:[] });
+  var h = '<div class="win-note">The adventure spine. Open an act to reach its sessions, scenes, and notes.</div>';
+  (A.acts || []).forEach(function(a){
+    var ao = !!storyOpen.act[a.id];
+    h += '<div class="st-row st-act"><span class="st-tw" onclick="storyToggle(\'act\',\'' + a.id + '\')">' + (ao ? '\u25be' : '\u25b8') + '</span>'
+       + '<span class="st-name" onclick="storyToggle(\'act\',\'' + a.id + '\')">' + esc(a.name) + '</span>'
+       + '<button class="st-b" onclick="storyRename(\'act\',\'' + a.id + '\')" title="Rename">\u270e</button>'
+       + '<button class="st-b" onclick="storyDelete(\'act\',\'' + a.id + '\')" title="Delete">\u2715</button></div>';
+    if (!ao) return;
+    h += '<div class="st-kids">';
+    (a.sessions || []).forEach(function(se){
+      var so = !!storyOpen.ses[se.id];
+      h += '<div class="st-row st-ses"><span class="st-tw" onclick="storyToggle(\'ses\',\'' + se.id + '\')">' + (so ? '\u25be' : '\u25b8') + '</span>'
+         + '<span class="st-name" onclick="storyToggle(\'ses\',\'' + se.id + '\')">' + esc(se.name) + '</span>'
+         + '<button class="st-b" onclick="storyRename(\'session\',\'' + se.id + '\')" title="Rename">\u270e</button>'
+         + '<button class="st-b" onclick="storyDelete(\'session\',\'' + se.id + '\')" title="Delete">\u2715</button></div>';
+      if (!so) return;
+      h += '<div class="st-kids">';
+      (se.scenes || []).forEach(function(sc){
+        var on = sc.id === (S.scene && S.scene.id);
+        var co = !!storyOpen.scene[sc.id];
+        h += '<div class="st-row st-scene' + (on ? ' live' : '') + '"><span class="st-tw" onclick="storyToggle(\'scene\',\'' + sc.id + '\')">' + (co ? '\u25be' : '\u25b8') + '</span>'
+           + '<span class="st-name" onclick="setActiveScene(\'' + sc.id + '\')">' + esc(sc.name) + (on ? ' <em class="st-live">running</em>' : '') + '</span>'
+           + '<button class="st-b" onclick="storyRename(\'scene\',\'' + sc.id + '\')" title="Rename">\u270e</button>'
+           + '<button class="st-b" onclick="storyDelete(\'scene\',\'' + sc.id + '\')" title="Delete">\u2715</button></div>';
+        if (!co) return;
+        h += '<div class="st-kids">';
+        (sc.entries || []).forEach(function(e){
+          h += '<div class="st-note"><div class="st-nhead">' + esc(e.title || 'Note')
+             + '<button class="st-b" onclick="storyNoteDelete(\'' + sc.id + '\',\'' + e.id + '\')" title="Delete">\u2715</button></div>'
+             + '<textarea class="st-narea" onchange="storyNoteEdit(\'' + sc.id + '\',\'' + e.id + '\',this.value)" placeholder="Write the note">' + esc(e.body || '') + '</textarea></div>';
+        });
+        h += '<button class="st-add" onclick="storyAdd(\'note\',\'' + sc.id + '\')">Add a note</button></div>';
+      });
+      h += '<button class="st-add" onclick="storyAdd(\'scene\',\'' + se.id + '\')">Add a scene</button></div>';
+    });
+    h += '<button class="st-add" onclick="storyAdd(\'session\',\'' + a.id + '\')">Add a session</button></div>';
+  });
+  h += '<button class="ts-newfell" onclick="storyAdd(\'act\')">Add an act</button>';
+  return h;
+}
 function scenesBody(){
   var h = '<div class="win-note">The adventure\u2019s spine. Pick the scene you are running. Each scene keeps its own stages.</div>';
   (S.adventure.acts||[]).forEach(function(a){
@@ -1017,7 +1148,7 @@ function sectionBody(key){
   if (key === 'notes') return notesBody();
   if (key === 'journal') return journalBody();
   if (key === 'fell') return lmFellBody();
-  if (key === 'story') return scenesBody();
+  if (key === 'story') return storyBody();
   if (key === 'scenes') return scenesBody();
   if (key === 'library') return libraryBody();
   if (key === 'search') return '<div class="win-note">Search the FellGuide and the adventure.</div><input class="win-search" placeholder="Search" aria-label="Search">';
@@ -1958,7 +2089,8 @@ function sharedSnapshot(){
     activeSceneId: S.adventure ? S.adventure.activeSceneId : S.scene.id,
     activeStageId: (function(){ try { return activeStageId(); } catch(e){ return null; } })(),
     combatPhase: S.scene.combatPhase, mode: S.mode, round: S.round,
-    log: (S.log || []).slice(-80)
+    log: (S.log || []).slice(-80),
+    adventure: S.adventure
   };
 }
 /* relay our state outward. On acknowledgement we mark the version seen, so the feed never
@@ -1984,6 +2116,7 @@ function applyRemoteSnapshot(snap){
     if (hit){ S.scene = hit.scene; S.adventure.activeSceneId = snap.activeSceneId; }
   }
   if (snap.log){ S.log = snap.log; if (typeof renderLog === 'function') renderLog(); }
+  if (snap.adventure && snap.adventure.acts) S.adventure = snap.adventure;
   applyRemoteState({ scene:S.scene, tokens:S.tokens, grid:S.grid, map:S.map });
 }
 var _stateFeedTimer = null;
@@ -2200,7 +2333,7 @@ window.onmessage = function(ev){
   var d = ev && ev.data;
   if (d && d.type === 'THREADSPIRE_CONTEXT'){
     /* the page decided role by entry-point hint and confirmed it by ownership; we trust it */
-    if (d.role === 'lm' || d.role === 'player') S.role = d.role;
+    if (d.role === 'lm' || d.role === 'player'){ S.role = d.role; S.roleReady = true; document.body.classList.remove('roleboot'); }
     if (d.campaignId) S.campaignId = d.campaignId;
     if (d.memberName) S.memberName = d.memberName;
     if (d.party) { S.party = d.party; mergeFellSheets(); }
@@ -2256,6 +2389,10 @@ if (tsEmbedded()){
     get: function(){ return tsAsk('TS_JOURNAL_GET', {}); },
     save: function(entries){ return tsAsk('TS_JOURNAL_SAVE', { entries:entries }); }
   };
+  if (tsEmbedded() && !S.roleReady){
+    document.body.classList.add('roleboot');
+    setTimeout(function(){ document.body.classList.remove('roleboot'); }, 4000);
+  }
   try { var _lp = localStorage.getItem('ts_lm_portrait'); if (_lp){ S.lm = S.lm || {}; S.lm.portrait = _lp; } } catch(e){}
   charBackend = { load: function(id){ return tsAsk('TS_CHAR_LOAD', { charId:id }); }, saveMeta: function(patch){ return tsAsk('TS_CHAR_SAVEMETA', { charId:S.characterId, name:patch.name, portrait:patch.portrait }); }, list: function(){ return tsAsk('TS_CHAR_LIST', {}); } };
 }
