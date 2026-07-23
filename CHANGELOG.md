@@ -1,3 +1,7 @@
+## ThreadSpire: the rules show on infusions and augmentations
+
+- What an infusion or augmentation does now reads under it. The text was in the collections all along, recorded as the effect, while the tool was only looking for a rule. It now takes either, so anything the forges write shows wherever the pick appears.
+
 ## ThreadSpire: infusions and augmentations read like relics
 
 - Infusions and augmentations are now chosen from a dropdown and listed with what each one does, the same way relics already worked. What is on a foe reads plainly with its rule beneath it, and comes off with a single press, rather than being hunted for in a grid of chips.
