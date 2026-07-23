@@ -8,7 +8,7 @@ import { createInvite, revokeInvite } from 'backend/invites.web.js';
 import { publishAdventure, unpublishAdventure, myPublishedAdventures } from 'backend/published.web.js';
 import { getFoePack } from 'backend/forge.web.js';
 import { listQuests, listDiscovered, getWorldMeta, saveAsset, listAssets, getCampaignPlayers, getClueCards, upsertQuest } from 'backend/fatewell.web.js';
-import { getCombatForChar, saveCombatDeclare, syncCombatPlayer } from 'backend/combat.web.js';
+import { getCombatForChar, saveCombatDeclare, syncCombatPlayer, publishCombatState, applyCombatToChar, dealDamageToChar, setCombatCharge, getCombatDeclares } from 'backend/combat.web.js';
 import { getLibraries } from 'backend/libraries.web.js';
 import { listSphereArt } from 'backend/sphereart.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
@@ -169,6 +169,26 @@ $w.onReady(function () {
           try { camps = await listMyCampaigns(); } catch (e) { camps = []; }
           try { gloss = await listGlossary(); } catch (e) { gloss = []; }
           reply(true, { pools: pools, pack: pack, acts: acts, campaigns: camps, glossary: gloss });
+        } else if (msg.type === 'TS_COMBAT_PUBLISH') {
+          let ok = false;
+          try { const r = await publishCombatState(campaignId, msg.state || {}); ok = !!(r && r.ok); } catch (e) { ok = false; }
+          reply(ok);
+        } else if (msg.type === 'TS_COMBAT_DECLARES') {
+          let list = [];
+          try { list = await getCombatDeclares(campaignId); } catch (e) { list = []; }
+          reply(true, list);
+        } else if (msg.type === 'TS_COMBAT_APPLY') {
+          let ok = false;
+          try { const r = await applyCombatToChar(campaignId, msg.charId, msg.applied || [], msg.recap || null); ok = !!(r && r.ok); } catch (e) { ok = false; }
+          reply(ok);
+        } else if (msg.type === 'TS_COMBAT_DAMAGE') {
+          let ok = false;
+          try { const r = await dealDamageToChar(campaignId, msg.charId, msg.base, msg.bonus, msg.dt); ok = !!(r && r.ok); } catch (e) { ok = false; }
+          reply(ok);
+        } else if (msg.type === 'TS_COMBAT_CHARGE') {
+          let ok = false;
+          try { const r = await setCombatCharge(campaignId, msg.charId, msg.value); ok = !!(r && r.ok); } catch (e) { ok = false; }
+          reply(ok);
         } else if (msg.type === 'TS_QUEST_SAVE') {
           let ok = false;
           try { const r = await upsertQuest(campaignId, msg.quest || {}); ok = !!(r && r.ok); } catch (e) { ok = false; }
