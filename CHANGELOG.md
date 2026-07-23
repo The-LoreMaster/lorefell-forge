@@ -1,3 +1,7 @@
+## Canon: the foe pack carries its per-rating budget
+
+- The pack now also seeds how many infusions, augmentations and Acts each rating allows. The row added alongside the ratings was the Act tier ladder, which is a different thing; the budget is read straight off the ratings themselves and matches what the tools already hold.
+
 ## Canon: the foe pack seeds its ratings, infusions and augmentations
 
 - The foe pack collection only ever held builds, stances and afflictions. Its ratings, infusions, augmentations and ability budget were never seeded, so nothing downstream could scale a foe: attributes derive from the party's level shifted by a rating's offset, and with no ratings there was nothing to shift by. All four are now seeded from the canon file that has held them all along. The three rows already there are untouched.
