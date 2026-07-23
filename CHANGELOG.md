@@ -1,3 +1,7 @@
+## ThreadSpire: a removed stage stays removed, and the deck stops collecting dust
+
+- Removing a stage sticks now. The table keeps a note of what was removed, because the arrangement arriving from the table a moment later still carried it and quietly put it back, which is why the card never left. Scenes that hold no stages no longer leave an empty entry behind either, so the deck stops accumulating one for every scene ever opened.
+
 ## ThreadSpire: removing a stage removes it
 
 - A stage now goes for good when you remove it, taking it off every scene that held it and out of the account, with a word first about what is being lost. It had only been unpinning the stage from the scene you were on, and refusing to let go of it entirely while any other scene still held it, so it stayed in the list and looked as though nothing had happened.

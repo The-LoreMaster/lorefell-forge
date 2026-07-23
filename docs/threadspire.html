@@ -3324,6 +3324,10 @@ function activeStageId(){ return sceneBinding().activeStageId; }
 /* Stage work counts as a local edit: without this stamp an in-flight snapshot
    lands a moment later and puts the old deck back. */
 function stageTouch(){ S._advTouch = Date.now(); }
+/* A stage the LoreMaster removed. The union below would otherwise take it back
+   from any table state still carrying it, so removal looked like nothing happened. */
+var _stageGone = {};
+function stageBuried(id){ return !!_stageGone[String(id)]; }
 function stageUpsert(b){
   stageTouch();
   var lib = instanceStages(), i=-1;
@@ -3492,6 +3496,7 @@ function lmDeleteStage(id){
       b.stageIds = (b.stageIds || []).filter(function(x){ return !sameId(x, id); });
       if (sameId(b.activeStageId, id)) b.activeStageId = b.stageIds[0] || null;
     });
+    _stageGone[String(id)] = true;
     S.instance.stages = instanceStages().filter(function(x){ return !sameId(x.stageId, id); });
     if (stageBackend && stageBackend.remove) stageBackend.remove(id);
     ensureLobby();
@@ -5745,7 +5750,16 @@ function sharedSnapshot(){
     log: (S.log || []).slice(-80),
     adventure: S.adventure,
     advRev: S.advRev || 0,
-    instance: S.instance
+    instance: (function(){
+      /* every scene ever opened was leaving an empty binding behind */
+      var out = { stages: (S.instance && S.instance.stages) || [], bindings: {} };
+      var b = (S.instance && S.instance.bindings) || {};
+      Object.keys(b).forEach(function(k){
+        var v = b[k];
+        if (v && ((v.stageIds || []).length || v.activeStageId)) out.bindings[k] = v;
+      });
+      return out;
+    })()
   };
 }
 /* relay our state outward. On acknowledgement we mark the version seen, so the feed never
@@ -5786,10 +5800,15 @@ function applyRemoteSnapshot(snap){
     /* keep any stage this table already knows: the account list is the record, the
        snapshot only says how they are arranged */
     var mine = {};
-    (S.instance.stages || []).forEach(function(s){ mine[s.stageId] = s; });
-    (snap.instance.stages || []).forEach(function(s){ if (!mine[s.stageId]) mine[s.stageId] = s; });
+    (S.instance.stages || []).forEach(function(s){ if (!stageBuried(s.stageId)) mine[s.stageId] = s; });
+    (snap.instance.stages || []).forEach(function(s){ if (!mine[s.stageId] && !stageBuried(s.stageId)) mine[s.stageId] = s; });
     S.instance.stages = Object.keys(mine).map(function(k){ return mine[k]; });
-    S.instance.bindings = snap.instance.bindings;
+    var bnd = snap.instance.bindings || {};
+    Object.keys(bnd).forEach(function(k){
+      bnd[k].stageIds = (bnd[k].stageIds || []).filter(function(x){ return !stageBuried(x); });
+      if (stageBuried(bnd[k].activeStageId)) bnd[k].activeStageId = bnd[k].stageIds[0] || null;
+    });
+    S.instance.bindings = bnd;
   }
   if (snap.log){ S.log = snap.log; if (typeof renderLog === 'function') renderLog(); }
   applyRemoteState({ scene:S.scene, tokens:S.tokens, grid:S.grid, map:S.map });
@@ -6172,6 +6191,7 @@ function loadAccountStages(){
     var bd = sceneBinding();
     var known = (bd && bd.stageIds) || [];
     rows.forEach(function(b){
+      if (stageBuried(b.stageId)) return;
       stageUpsert(b);
       /* the table state carries the bindings now; only adopt a stage the deck has not heard of */
       if (known.indexOf(b.stageId) < 0) bindStageToScene(b.stageId);
