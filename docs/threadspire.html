@@ -2562,6 +2562,19 @@ function closeWin(){
   if (typeof paintLmStrip === 'function' && isLM()) paintLmStrip();
 }
 
+/* An open window closes when the LoreMaster taps the table behind it. The rails,
+   the HUD, the log and any modal are not the table, so they keep their own handling:
+   closing here first would fight railClick, which already toggles. Pointerdown rather
+   than click, so the window is gone before a drag on the map begins. */
+function winOutsideClose(ev){
+  if (!S.openSection) return;
+  var t = ev.target;
+  if (!t || !t.closest) return;
+  if (t.closest('#win, #winX, #rail, #mrail, #hud, #mhud, #log, #drawer, #tsModal, #cleanExit')) return;
+  closeWin();
+}
+document.addEventListener('pointerdown', winOutsideClose, true);
+
 /* ---- rails ---- */
 function railClick(k){
   (S.openSection === k) ? closeWin() : openWin(k);
@@ -3317,7 +3330,14 @@ function sceneBinding(){
   if (!S.instance.bindings[id]) S.instance.bindings[id] = { stageIds:[], activeStageId:null };
   return S.instance.bindings[id];
 }
-function instanceStages(){ return S.instance.stages || (S.instance.stages = []); }
+function instanceStages(){
+  var lib = S.instance.stages || (S.instance.stages = []);
+  /* a reload rebuilds the deck from whatever arrived first, so filter here rather
+     than trusting every caller to remember */
+  var live = lib.filter(function(x){ return !stageBuried(x.stageId); });
+  if (live.length !== lib.length) S.instance.stages = live;
+  return S.instance.stages;
+}
 function stageById(id){ var r=null; instanceStages().forEach(function(x){ if(x.stageId===id) r=x; }); return r; }
 function sceneStages(){ return (sceneBinding().stageIds||[]).map(stageById).filter(Boolean); }
 function activeStageId(){ return sceneBinding().activeStageId; }
@@ -3325,9 +3345,35 @@ function activeStageId(){ return sceneBinding().activeStageId; }
    lands a moment later and puts the old deck back. */
 function stageTouch(){ S._advTouch = Date.now(); }
 /* A stage the LoreMaster removed. The union below would otherwise take it back
-   from any table state still carrying it, so removal looked like nothing happened. */
+   from any table state still carrying it, so removal looked like nothing happened.
+   The record has to outlive the page: held only in memory, a refresh forgot every
+   removal and the table state handed the stage straight back. It now rides in the
+   snapshot as instance.gone and is mirrored to this browser, so a stage stays
+   removed across a reload and across the other seats at the table. */
 var _stageGone = {};
+function stageGoneLoad(){
+  try {
+    var raw = localStorage.getItem('ts_stages_gone');
+    if (raw) JSON.parse(raw).forEach(function(id){ _stageGone[String(id)] = true; });
+  } catch(e){}
+}
+function stageGoneList(){ return Object.keys(_stageGone); }
+function stageGoneSave(){
+  /* the last 200 removals is far more than a table ever revisits */
+  var ids = stageGoneList().slice(-200);
+  S.instance = S.instance || {};
+  S.instance.gone = ids;
+  try { localStorage.setItem('ts_stages_gone', JSON.stringify(ids)); } catch(e){}
+}
+function stageBury(id){ _stageGone[String(id)] = true; stageGoneSave(); }
+function stageGoneAdopt(list){
+  if (!list || !list.length) return;
+  var added = false;
+  list.forEach(function(id){ if (!_stageGone[String(id)]){ _stageGone[String(id)] = true; added = true; } });
+  if (added) stageGoneSave();
+}
 function stageBuried(id){ return !!_stageGone[String(id)]; }
+stageGoneLoad();
 function stageUpsert(b){
   stageTouch();
   var lib = instanceStages(), i=-1;
@@ -3486,32 +3532,24 @@ function lmDeleteStage(id){
       + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
     return;
   }
-  var st = stageById(id);
-  window._tsYes = function(){
-    stageTouch();
-    /* A stage belongs to the adventure, so removing it takes it off every scene that
-       held it and out of the account, not merely off the one you happen to be on. */
-    Object.keys(S.instance.bindings || {}).forEach(function(k){
-      var b = S.instance.bindings[k];
-      b.stageIds = (b.stageIds || []).filter(function(x){ return !sameId(x, id); });
-      if (sameId(b.activeStageId, id)) b.activeStageId = b.stageIds[0] || null;
-    });
-    _stageGone[String(id)] = true;
-    S.instance.stages = instanceStages().filter(function(x){ return !sameId(x.stageId, id); });
-    if (stageBackend && stageBackend.remove) stageBackend.remove(id);
-    ensureLobby();
-    var bd = sceneBinding();
-    if (!bd.activeStageId && bd.stageIds.length) bd.activeStageId = bd.stageIds[0];
-    var nx = stageById(bd.activeStageId);
-    if (nx) stageRestore(nx);
-    tsCloseModal();
-    applyRemoteState({ instance:S.instance });
-    refreshStagesWin();
-  };
-  tsModal('<h3 class="tsm-title">Remove ' + esc((st && st.name) || 'this stage') + '?</h3>'
-    + '<p class="tsm-note">It leaves the adventure, along with the map and tokens saved on it.</p>'
-    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button>'
-    + '<button class="tsm-btn danger" onclick="tsConfirmYes()">Remove</button></div>');
+  stageTouch();
+  /* A stage belongs to the adventure, so removing it takes it off every scene that
+     held it and out of the account, not merely off the one you happen to be on. */
+  Object.keys(S.instance.bindings || {}).forEach(function(k){
+    var b = S.instance.bindings[k];
+    b.stageIds = (b.stageIds || []).filter(function(x){ return !sameId(x, id); });
+    if (sameId(b.activeStageId, id)) b.activeStageId = b.stageIds[0] || null;
+  });
+  stageBury(id);
+  S.instance.stages = instanceStages().filter(function(x){ return !sameId(x.stageId, id); });
+  if (stageBackend && stageBackend.remove) stageBackend.remove(id);
+  ensureLobby();
+  var bd = sceneBinding();
+  if (!bd.activeStageId && bd.stageIds.length) bd.activeStageId = bd.stageIds[0];
+  var nx = stageById(bd.activeStageId);
+  if (nx) stageRestore(nx);
+  applyRemoteState({ instance:S.instance });
+  refreshStagesWin();
 }
 
 /* ---- the asset backend seam ----
@@ -3574,7 +3612,7 @@ function sharedSnapshot(){
     advRev: S.advRev || 0,
     instance: (function(){
       /* every scene ever opened was leaving an empty binding behind */
-      var out = { stages: (S.instance && S.instance.stages) || [], bindings: {} };
+      var out = { stages: (S.instance && S.instance.stages) || [], bindings: {}, gone: stageGoneList() };
       var b = (S.instance && S.instance.bindings) || {};
       Object.keys(b).forEach(function(k){
         var v = b[k];
@@ -3621,6 +3659,7 @@ function applyRemoteSnapshot(snap){
     S.instance = S.instance || {};
     /* keep any stage this table already knows: the account list is the record, the
        snapshot only says how they are arranged */
+    stageGoneAdopt(snap.instance.gone);
     var mine = {};
     (S.instance.stages || []).forEach(function(s){ if (!stageBuried(s.stageId)) mine[s.stageId] = s; });
     (snap.instance.stages || []).forEach(function(s){ if (!mine[s.stageId] && !stageBuried(s.stageId)) mine[s.stageId] = s; });
@@ -4013,7 +4052,12 @@ function loadAccountStages(){
     var bd = sceneBinding();
     var known = (bd && bd.stageIds) || [];
     rows.forEach(function(b){
-      if (stageBuried(b.stageId)) return;
+      /* a row buried before the account write landed is still out there. Clear it
+         once here rather than letting it climb back into the deck every load. */
+      if (stageBuried(b.stageId)){
+        if (stageBackend && stageBackend.remove) stageBackend.remove(b.stageId);
+        return;
+      }
       stageUpsert(b);
       /* the table state carries the bindings now; only adopt a stage the deck has not heard of */
       if (known.indexOf(b.stageId) < 0) bindStageToScene(b.stageId);
