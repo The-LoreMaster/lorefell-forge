@@ -296,6 +296,15 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .vcard-corner{ position:absolute; top:8px; right:8px; z-index:2; display:flex; gap:6px; }
 .card-x{ width:28px; height:28px; border-radius:8px; cursor:pointer; background:rgba(10,14,26,.72); border:1px solid var(--line2,#2a3552); color:var(--silver); font-size:.8rem; line-height:1; }
 .card-x:hover{ border-color:var(--danger,#8d3b3b); color:var(--danger,#8d3b3b); }
+.pt-row{ display:flex; align-items:center; gap:8px; padding:6px 2px; border-bottom:1px solid rgba(201,168,76,.10); }
+.pt-main{ flex:1; min-width:0; display:flex; flex-direction:column; }
+.pt-name{ font-family:Cinzel,serif; font-size:.82rem; color:var(--silver); }
+.pt-meta{ font-size:.68rem; color:var(--muted,#7e8a99); }
+.pt-role{ font-family:Cinzel,serif; font-size:.56rem; letter-spacing:.1em; text-transform:uppercase; padding:2px 7px; border-radius:9px; border:1px solid var(--line2,#2a3552); color:var(--ice,#b8ccd8); }
+.pt-role.rl-loremaster{ border-color:var(--gold); color:var(--gold); }
+.pt-role.rl-lorekeeper{ border-color:#9aa8e0; color:#9aa8e0; }
+.menu-list{ display:flex; flex-direction:column; gap:6px; margin:8px 0; }
+.tsm-btn.wide{ width:100%; }
 .fw-dmg{ display:flex; align-items:baseline; gap:8px; margin:2px 0 4px; }
 .fw-dmg-n{ font-family:Cinzel,serif; font-size:1.05rem; color:var(--gold); letter-spacing:.04em; text-transform:uppercase; }
 .fw-dmg-acc{ font-size:.74rem; color:var(--muted,#7e8a99); }
@@ -3568,11 +3577,93 @@ function lmPortraitPicked(inp){
 }
 function lmSetSpeaker(name, portrait){ S.lm = S.lm || {}; S.lm.speaker = name ? { name:name, portrait:portrait||'' } : null; paintHud(); }
 function lmFellBody(){
-  var list = (S.scene && S.scene.fell) || [];
-  if (!list.length) return '<div class="win-note">No Fell at the table yet.</div>';
-  return list.map(function(c){
-    return '<div class="lb-row"><span class="lb-name">' + esc(c.name || 'Fell') + '</span><span class="lb-meta">' + (c.curVit !== undefined ? (c.curVit + ' / ' + c.maxVit) : '') + '</span></div>';
-  }).join('');
+  if (!S.party) { S.party = []; partyLoad(); }
+  var h = '<div class="win-note">Who is at this adventure, what they play, and what they may do.</div>';
+  var list = S.party || [];
+  if (!list.length) h += '<div class="win-note">No one has joined yet. Share an invite and they will appear here.</div>';
+  list.forEach(function(p){
+    var role = p.role || 'player';
+    var vit = (p.curVit !== undefined && p.maxVit) ? (p.curVit + ' / ' + p.maxVit) : '';
+    h += '<div class="pt-row">'
+      + (p.img ? '<img class="rs-av" src="' + esc(p.img) + '" alt="">' : '<span class="rs-av lib-ph"></span>')
+      + '<span class="pt-main"><span class="pt-name">' + esc(p.charName || p.name || 'Unnamed') + '</span>'
+      + '<span class="pt-meta">' + esc(p.name || '') + (vit ? ' \u00b7 ' + vit : '') + '</span></span>'
+      + '<span class="pt-role rl-' + esc(role) + '">' + esc(role) + '</span>'
+      + '<button class="st-b" onclick="partyMenu(\'' + esc(p.memberId || '') + '\')" title="Options">\u22ef</button></div>';
+  });
+  h += '<div class="rs-adds"><button class="st-add" onclick="partyInvite()">Invite a player</button>'
+    + '<button class="st-add" onclick="partyRefresh()">Refresh</button></div>';
+  return h;
+}
+function partyLoad(){
+  if (!window._tsAsk) return;
+  tsAsk('TS_PARTY_LIST', {}).then(function(list){
+    S.party = list || [];
+    if (S.openSection === 'fell') refreshWinBody();
+  }).catch(function(){ S.party = []; });
+}
+function partyRefresh(){ S.party = null; refreshWinBody(); partyLoad(); }
+function partyGet(memberId){
+  var hit = null;
+  (S.party || []).forEach(function(p){ if (sameId(p.memberId, memberId)) hit = p; });
+  return hit;
+}
+function partyMenu(memberId){
+  var p = partyGet(memberId); if (!p) return;
+  var who = p.charName || p.name || 'this player';
+  var role = p.role || 'player';
+  var h = '<h3 class="tsm-title">' + esc(who) + '</h3><div class="menu-list">';
+  if (role !== 'loremaster') h += '<button class="tsm-btn ghost wide" onclick="partySetRole(\'' + esc(memberId) + '\',\'loremaster\')">Make loremaster</button>';
+  if (role !== 'lorekeeper') h += '<button class="tsm-btn ghost wide" onclick="partySetRole(\'' + esc(memberId) + '\',\'lorekeeper\')">Make lorekeeper</button>';
+  if (role !== 'player') h += '<button class="tsm-btn ghost wide" onclick="partySetRole(\'' + esc(memberId) + '\',\'player\')">Make player</button>';
+  if (p.charId) h += '<button class="tsm-btn danger wide" onclick="partyDetach(\'' + esc(p.charId) + '\')">Release their character</button>';
+  h += '</div><div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>';
+  tsModal(h);
+}
+function partySetRole(memberId, role){
+  if (role === 'loremaster'){
+    var p = partyGet(memberId);
+    tsConfirmRole('Make ' + esc((p && (p.charName || p.name)) || 'this player') + ' the loremaster? You step down to lorekeeper. An adventure has one loremaster.', function(){ partyRoleSend(memberId, role); });
+    return;
+  }
+  partyRoleSend(memberId, role);
+}
+function tsConfirmRole(msg, onYes){
+  window._tsYes = onYes;
+  tsModal('<h3 class="tsm-title">' + msg + '</h3>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button>'
+    + '<button class="tsm-btn" onclick="tsConfirmYes()">Confirm</button></div>');
+}
+function partyRoleSend(memberId, role){
+  tsModal('<h3 class="tsm-title">Setting the role...</h3>');
+  tsAsk('TS_PARTY_ROLE', { memberId:memberId, role:role }).then(function(list){
+    S.party = list || S.party; tsCloseModal(); refreshWinBody();
+  }).catch(function(){ tsCloseModal(); });
+}
+function partyDetach(charId){
+  tsConfirmRole('Release this character from the adventure? It is unlinked so it can join another.', function(){
+    tsAsk('TS_PARTY_DETACH', { charId:charId }).then(function(){ partyRefresh(); }).catch(function(){});
+  });
+}
+function partyInvite(){
+  tsModal('<h3 class="tsm-title">Making an invite...</h3>');
+  tsAsk('TS_INVITE_MAKE', {}).then(function(url){
+    if (!url){ tsModal('<h3 class="tsm-title">Invite</h3><p class="tsm-note">The invite could not be made.</p><div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>'); return; }
+    tsModal('<h3 class="tsm-title">Invite</h3>'
+      + '<p class="tsm-note">Anyone with this link can join the adventure.</p>'
+      + '<input class="tsm-inp" id="invUrl" value="' + esc(url) + '" readonly onclick="this.select()">'
+      + '<div class="tsm-row"><button class="tsm-btn danger" onclick="partyRevoke()">Revoke</button>'
+      + '<button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button>'
+      + '<button class="tsm-btn" onclick="partyCopyInvite()">Copy</button></div>');
+  }).catch(function(){ tsCloseModal(); });
+}
+function partyCopyInvite(){
+  var el = document.getElementById('invUrl'); if (!el) return;
+  el.select();
+  try { document.execCommand('copy'); } catch(e){}
+}
+function partyRevoke(){
+  tsAsk('TS_INVITE_REVOKE', {}).then(function(){ tsCloseModal(); }).catch(function(){ tsCloseModal(); });
 }
 function paintHud(){
   var hud = document.getElementById('hud');

@@ -3,7 +3,8 @@
 // Feeds the character-first view: the player's character card, the party at their
 // location, revealed nodes, quest-board goals, world issues, and map art.
 import { threadspirePublicChar, listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter, threadspireSaveMeta } from 'backend/characters.web.js';
-import { getLmPortrait, saveLmPortrait, getForgePools, getForgeLibrary, listMyCampaigns, submitAct, submitItem, deleteAsset, listGlossary } from 'backend/fatewell.web.js';
+import { getLmPortrait, saveLmPortrait, getForgePools, getForgeLibrary, listMyCampaigns, submitAct, submitItem, deleteAsset, listGlossary , setMemberRole, detachCharacter } from 'backend/fatewell.web.js';
+import { createInvite, revokeInvite } from 'backend/invites.web.js';
 import { getFoePack } from 'backend/forge.web.js';
 import { listQuests, listDiscovered, getWorldMeta, saveAsset, listAssets, getCampaignPlayers, getClueCards } from 'backend/fatewell.web.js';
 import { getCombatForChar, saveCombatDeclare, syncCombatPlayer } from 'backend/combat.web.js';
@@ -167,6 +168,27 @@ $w.onReady(function () {
           try { camps = await listMyCampaigns(); } catch (e) { camps = []; }
           try { gloss = await listGlossary(); } catch (e) { gloss = []; }
           reply(true, { pools: pools, pack: pack, acts: acts, campaigns: camps, glossary: gloss });
+        } else if (msg.type === 'TS_PARTY_LIST') {
+          let players = [];
+          try { players = await getCampaignPlayers(campaignId, ''); } catch (e) { players = []; }
+          reply(true, players);
+        } else if (msg.type === 'TS_PARTY_ROLE') {
+          let players = [];
+          try { await setMemberRole(campaignId, msg.memberId, msg.role); } catch (e) {}
+          try { players = await getCampaignPlayers(campaignId, ''); } catch (e) { players = []; }
+          reply(true, players);
+        } else if (msg.type === 'TS_PARTY_DETACH') {
+          let ok = false;
+          try { await detachCharacter(msg.charId); ok = true; } catch (e) { ok = false; }
+          reply(ok);
+        } else if (msg.type === 'TS_INVITE_MAKE') {
+          let url = '';
+          try { const r = await createInvite(campaignId); url = (r && r.url) || ''; } catch (e) { url = ''; }
+          reply(!!url, url);
+        } else if (msg.type === 'TS_INVITE_REVOKE') {
+          let ok = false;
+          try { await revokeInvite(campaignId); ok = true; } catch (e) { ok = false; }
+          reply(ok);
         } else if (msg.type === 'TS_FORGE_ACT') {
           let ok = false;
           try { const r = await submitAct(msg.act || {}); ok = !!(r && r.ok); } catch (e) { ok = false; }

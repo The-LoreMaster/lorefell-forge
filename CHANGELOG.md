@@ -1,3 +1,7 @@
+## ThreadSpire: the Fell tab runs the party
+
+- The Fell tab is now the party itself. It lists everyone at the adventure with their character, their vitality, and their role, and each one opens to hand over the loremaster's seat, name a lorekeeper, set someone back to player, or release their character so it can join another adventure. An invite link can be made, copied, and revoked from the table, rather than only from FateWell.
+
 ## ThreadSpire: the rest of the foe card, and the forges behind it
 
 - The foe card now shows the strike a foe makes, its base and bonus damage by type with what it rolls to hit, and asks the LoreMaster which way it swings when Power and Magic tie. A foe can be tied to an adventure or left on every shelf. Acts and relics can be forged from the table when the shelf has not got what a scene needs; each is saved as yours and appears wherever the tool offers them. The glossary and the adventure list are now read at the table too.
