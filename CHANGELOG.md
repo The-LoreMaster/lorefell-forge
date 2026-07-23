@@ -1,3 +1,7 @@
+## ThreadSpire: the rest of the foe card, and the forges behind it
+
+- The foe card now shows the strike a foe makes, its base and bonus damage by type with what it rolls to hit, and asks the LoreMaster which way it swings when Power and Magic tie. A foe can be tied to an adventure or left on every shelf. Acts and relics can be forged from the table when the shelf has not got what a scene needs; each is saved as yours and appears wherever the tool offers them. The glossary and the adventure list are now read at the table too.
+
 ## ThreadSpire: Acts on the foe card
 
 - A foe's Acts now come from SigilForge, the same forged shelf FateWell reads. The card lists what the foe carries with its tier and text, and Edit Acts opens the three tiers, each choosing from the Acts forged at that tier and showing what the chosen one does. Typing abilities by hand is gone for foes.
