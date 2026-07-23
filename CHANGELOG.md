@@ -1,3 +1,7 @@
+## ThreadSpire: foe edits go home to the library, and attendance updates at once
+
+- Editing a roster member that came from the library now writes back to the library automatically, no button to press. Name, portrait, description, rating, maximum vitality, attributes, abilities, inventory, infusions, and augments all travel, and every other scene holding that foe picks up the change. Current vitality and charges stay with the scene, since those are what is happening now rather than what the foe is. The attendance toggle now updates the moment it is clicked, and reads Attending or Absent.
+
 ## ThreadSpire: edit and remove roster members
 
 - Removing an NPC or foe from a roster now works and asks first; before, the removal happened but the open window never repainted, so it looked like nothing did. Clicking a roster member opens their sheet: portrait with upload and remove, name, description, Shatter Rating, vitality, charges, and all eight attributes, the same fields FateWell edits. Choosing a rating fills in that rating's vitality. Members added from the library stay linked, and edits made here apply to this scene.
