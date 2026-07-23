@@ -1,3 +1,7 @@
+## ThreadSpire: stages come back
+
+- Stages survive a reload now. They were being saved without the adventure they belong to, while the list that fetches them asks for exactly that, so every stage was written and then never found again, leaving only the Lobby that gets made fresh each time. The deck itself, which stages a scene holds and which one is up, now travels with the table state rather than being rebuilt from nothing. Renaming a stage says when it cannot find it instead of appearing to do nothing.
+
 ## ThreadSpire: stages you can name and set a map on
 
 - A stage now carries its own controls: rename it, choose which map it lays down, or delete it. Choosing the map is explicit rather than guessed, and the stage remembers it, so returning to a stage brings its map back with it. The placeholder maps are gone from the shelf, so what you see there is what you put there. Token folders can be renamed, removed and folded away, they carry a count, and the tokens themselves drag into them properly now.

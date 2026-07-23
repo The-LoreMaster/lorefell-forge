@@ -3380,7 +3380,13 @@ function lmSwitchStage(id){
   refreshStagesWin();
 }
 function lmRenameStage(id){
-  var st = stageById(id); if (!st) return;
+  var st = stageById(id);
+  if (!st){
+    tsModal('<h3 class="tsm-title">That stage is not on the deck</h3>'
+      + '<p class="lc-p">It may not have reached your account yet. Close this and open Stages again.</p>'
+      + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
+    return;
+  }
   if (isLobby(id)){
     tsModal('<h3 class="tsm-title">The Lobby keeps its name</h3>'
       + '<p class="lc-p">Every table gathers in the Lobby, so it is always called that.</p>'
@@ -3396,7 +3402,8 @@ function lmRenameStage(id){
 /* Which map this stage lays down. The stage remembers it, so coming back to the
    stage brings the map with it. */
 function lmStageMap(id){
-  var st = stageById(id); if (!st) return;
+  var st = stageById(id);
+  if (!st){ tsModal('<h3 class="tsm-title">That stage is not on the deck</h3><div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>'); return; }
   var maps = S.scene.maps || [];
   tsModal('<h3 class="tsm-title">The map for ' + esc(st.name) + '</h3>'
     + '<select class="tsm-inp" id="stMap"><option value="">No map, the blue parchment</option>'
@@ -3532,7 +3539,8 @@ function sharedSnapshot(){
     combatPhase: S.scene.combatPhase, mode: S.mode, round: S.round,
     log: (S.log || []).slice(-80),
     adventure: S.adventure,
-    advRev: S.advRev || 0
+    advRev: S.advRev || 0,
+    instance: S.instance
   };
 }
 /* relay our state outward. On acknowledgement we mark the version seen, so the feed never
@@ -3567,6 +3575,11 @@ function applyRemoteSnapshot(snap){
   if (snap.activeSceneId && S.adventure && snap.activeSceneId !== S.scene.id){
     var hit = (typeof tsSceneById === 'function') ? tsSceneById(snap.activeSceneId) : null;
     if (hit){ S.scene = hit.scene; S.adventure.activeSceneId = snap.activeSceneId; }
+  }
+  if (snap.instance && snap.instance.bindings && !(S._advTouch && Date.now() - S._advTouch < 6000)){
+    S.instance = S.instance || {};
+    S.instance.bindings = snap.instance.bindings;
+    if (snap.instance.stages && snap.instance.stages.length) S.instance.stages = snap.instance.stages;
   }
   if (snap.log){ S.log = snap.log; if (typeof renderLog === 'function') renderLog(); }
   applyRemoteState({ scene:S.scene, tokens:S.tokens, grid:S.grid, map:S.map });
@@ -3946,10 +3959,14 @@ function loadAccountStages(){
   if (!tsEmbedded()) return;
   stageBackend.list().then(function(rows){
     if (!rows || !rows.length) return;
+    var bd = sceneBinding();
+    var known = (bd && bd.stageIds) || [];
     rows.forEach(function(b){
       stageUpsert(b);
-      bindStageToScene(b.stageId);   /* account stages attach to the current scene until CampaignView carries the bindings */
+      /* the table state carries the bindings now; only adopt a stage the deck has not heard of */
+      if (known.indexOf(b.stageId) < 0) bindStageToScene(b.stageId);
     });
+    if (typeof refreshStagesWin === 'function') refreshStagesWin();
     applyRemoteState({ instance:S.instance });
   });
 }
