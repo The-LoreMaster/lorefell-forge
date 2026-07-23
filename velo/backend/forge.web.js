@@ -491,13 +491,17 @@ function parse(s, fallback) {
    share one source and cannot drift. Empty arrays if the collection is missing, which
    lets each tool fall back to its inline copy. */
 export const getFoePack = webMethod(Permissions.Anyone, async () => {
-  const out = { builds: [], stances: [], afflictions: [] };
+  // Every kind the pack holds, not a fixed three: tiers and tierBudget carry the
+  // rating offsets a foe's attributes derive from, and infusions and augmentations
+  // are the canon catalogue a foe picks from.
+  const out = { builds: [], stances: [], afflictions: [], infusions: [], augmentations: [], tiers: [], tierBudget: {} };
   try {
     const r = await wixData.query('CanonFoePack').limit(50).find({ suppressAuth: true });
     r.items.forEach((row) => {
+      if (!row.kind) return;
       let data = [];
       try { data = JSON.parse(row.data || '[]'); } catch (e) { data = []; }
-      if (row.kind && Object.prototype.hasOwnProperty.call(out, row.kind)) out[row.kind] = data;
+      out[row.kind] = data;
     });
   } catch (e) {}
   return out;

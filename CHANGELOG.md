@@ -1,3 +1,7 @@
+## ThreadSpire: a foe's kit derives again, and the catalogue appears
+
+- Attributes and vitality derive from a foe's build and rating against the party it faces, rather than sitting at zero, and there is a press on the card to derive them. Infusions and augmentations now offer the whole canon catalogue with anything forged since, because the foe pack was only handing over three of its kinds and keeping the rest, including the rating offsets the derivation reads. Numbers on the sheet gained plus and minus alongside the field. A quest now leaves the window the moment it is taken down.
+
 ## ThreadSpire: running a round
 
 - A Fell's card now shows what they declared, what they rolled against, and the damage they are holding, with a single press to land it on the foe they named. Vitality comes off that foe, the table sees it, and the log records who struck whom. The same card sends a strike back the other way, sets their charges, and puts an effect on them, all reaching the player's own sheet. Beginning combat, turning the round, and ending it now announce themselves to the table and pull the declares in fresh.
