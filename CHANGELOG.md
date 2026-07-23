@@ -1,3 +1,7 @@
+## ThreadSpire: beats own the Story, and the runner steps aside for slideouts
+
+- Prep notes are now beats everywhere. In Story, a scene's beats show as compact color-coded cards, one line each with the kind tag; clicking a card opens it in a panel to edit its type, title, and body, or delete it, and Add a beat creates one with the full set of types. The separate table-notes feature is removed, the Journal covers that. Beats edited at the table live on the same scene the runner reads, so they show in the scene runner when the scene is run. And opening any slideout now hides the scene runner entirely, restoring it in whatever state it was in, minimized or open, when the slideout closes.
+
 ## 2026-07-21 — SagaForge story engine
 
 - The spine now states its promises and its reversals. Three PROMISE lines (one of tone, one of arc, one of plot, each with where it pays off) and one or two TWIST lines carrying two concrete plants each. Both parse into the skeleton, ride in campaign notes, and reach every scene draft, so plants land as ordinary detail before the reversal and twists read surprising then inevitable.
