@@ -1,3 +1,7 @@
+## ThreadSpire/FellGlass: subtle dark-blue scrollbars
+
+- The slideout scrollbar now matches the theme, dark blue and semi-transparent over a transparent track, instead of the browser default. The earlier rule targeted descendant scrollbars but the sheet scrolls the document itself, so it's now a global scrollbar style covering both webkit and Firefox.
+
 ## ThreadSpire: player combat, step 1 (real battle panel + entry)
 
 - The player's combat now opens the real FellGlass battle panel through the seam instead of a placeholder. Battle is mapped as a sheet panel, so declares, rolls, and vitality/charge/fatigue sync run through the combat bridge that already exists. While combat is active the fellmark gem pulses and opens battle; otherwise it opens the menu.
