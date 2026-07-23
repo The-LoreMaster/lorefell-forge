@@ -1,3 +1,7 @@
+## ThreadSpire: player combat, step 1 (real battle panel + entry)
+
+- The player's combat now opens the real FellGlass battle panel through the seam instead of a placeholder. Battle is mapped as a sheet panel, so declares, rolls, and vitality/charge/fatigue sync run through the combat bridge that already exists. While combat is active the fellmark gem pulses and opens battle; otherwise it opens the menu.
+
 ## ThreadSpire: remove the slideout title
 
 - The slideout title is gone; the selected tab already shows where you are. The window now fills the art's content slot without a title band.
