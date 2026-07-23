@@ -78,7 +78,7 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 .plaque.lit{ background:transparent; color:#fff; }
 
 #hud{ display:contents; }
-#hud.lm{ display:none; }
+#hud.lm .hlbl{ color:#9fb0c8; }
 .hslot{ position:fixed; z-index:60; pointer-events:none; display:flex; align-items:center; justify-content:center; color:var(--silver); font-family:Cinzel,serif; text-align:center; line-height:1; overflow:hidden; }
 .hLP{ left:93.076%; top:45.12%; width:5.981%; height:3.38%; font-size:1.7vh; color:#cfe0ff; }
 .hVlbl{ left:89.53%; top:50.14%; width:9.373%; height:3.38%; font-size:1.2vh; letter-spacing:.02em; color:#9fb0c8; font-family:'Crimson Pro',serif; }
@@ -87,6 +87,8 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 .hTotal #hudTotal{ font-size:2.6vh; color:#fff; }
 .hNum{ top:54.028%; width:1.832%; height:4.328%; font-size:1.8vh; color:#f0e0d8; }
 .hTemp{ left:90.966%; } .hCur{ left:93.508%; } .hMax{ left:96.624%; }
+.hNum.charged{ color:var(--gold); text-shadow:0 0 8px rgba(201,168,76,.85); }
+.hNum.charged::after{ content:'\25c6'; font-size:1.9vh; }
 .hCharge{ left:87.025%; top:60.632%; width:2.723%; height:4.893%; font-size:1.9vh; color:#cfe0ff; }
 .hName{ left:90.284%; top:61.847%; width:8.658%; height:3.569%; font-size:1.9vh; color:#e8eef7; letter-spacing:.03em; pointer-events:auto; cursor:pointer; }
 .hPortrait{ left:90.284%; top:65.842%; width:8.658%; height:24.548%; z-index:56; pointer-events:auto; cursor:pointer; background:#37548d center/cover; }
@@ -533,16 +535,17 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
   <div id="rail"></div>
   <div id="hud">
     <div class="hslot hLP" id="hudLP"></div>
-    <div class="hslot hVlbl">TEMP · CURRENT · MAX</div>
-    <div class="hslot hTotal"><span class="hlbl">TOTAL</span><span id="hudTotal"></span></div>
+    <div class="hslot hVlbl" id="hudVlbl">TEMP · CURRENT · MAX</div>
+    <div class="hslot hTotal"><span class="hlbl" id="hudTotalLbl">TOTAL</span><span id="hudTotal"></span></div>
     <div class="hslot hNum hTemp" id="hudTemp"></div>
     <div class="hslot hNum hCur" id="hudCur"></div>
     <div class="hslot hNum hMax" id="hudMax"></div>
     <div class="hslot hCharge" id="hudCharge">0</div>
     <div class="hslot hName" id="hudName"></div>
-    <div class="hslot hPortrait" id="hudPortrait" onclick="if(!isLM())railClick('lore')" title="Set the portrait in Lore"></div>
-    <div class="hslot hLvl"><span class="hlbl">LVL</span><span id="hudLvl"></span></div>
-    <div class="hslot hFell" id="hudFell" onclick="railClick('menu')" title="Menu"><img src="assets/fellmark-white.png" alt="Menu"></div>
+    <div class="hslot hPortrait" id="hudPortrait" onclick="isLM()?lmPortraitPick():railClick('lore')" title="Portrait"></div>
+    <input type="file" id="lmPortInput" accept="image/*" style="display:none" onchange="lmPortraitPicked(this)">
+    <div class="hslot hLvl"><span class="hlbl" id="hudLvlLbl">LVL</span><span id="hudLvl"></span></div>
+    <div class="hslot hFell" id="hudFell" onclick="railClick(isLM()?'settings':'menu')" title="Menu"><img src="assets/fellmark-white.png" alt="Menu"></div>
   </div>
   <div id="mhud">
     <div class="portrait" onclick="openWin('identity')"></div>
@@ -604,6 +607,9 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 
 var S = {
   role: 'player',
+  /* the LoreMaster's identity rail. lp and ss come from the adventure, dp from
+     the table, diff from party level. speaker is set by a dialogue note card. */
+  lm: { portrait:'', dp:0, ss:0, lp:0, diff:0, speaker:null },
   mode: 'explore',
   round: 2,
   charge: 1,
@@ -908,10 +914,12 @@ var SECTIONS = {
   library:   { title:'Library' },
   stages:    { title:'Stages' },
   search:    { title:'Search' },
-  settings:  { title:'Settings' }
+  settings:  { title:'Settings' },
+  fell:      { title:'Fell' },
+  story:     { title:'Story' }
 };
 var RAIL_PLAYER = ['inventory','skills','arsenal','attributes','lore'];
-var RAIL_LM     = ['notes','journal','library','stages','search','settings'];
+var RAIL_LM     = ['journal','fell','library','stages','story'];
 function railKeys(){ return S.role === 'lm' ? RAIL_LM : RAIL_PLAYER; }
 
 function stagesBody(){
@@ -1008,6 +1016,8 @@ function sectionBody(key){
   if (key === 'stages') return stagesBody();
   if (key === 'notes') return notesBody();
   if (key === 'journal') return journalBody();
+  if (key === 'fell') return lmFellBody();
+  if (key === 'story') return scenesBody();
   if (key === 'scenes') return scenesBody();
   if (key === 'library') return libraryBody();
   if (key === 'search') return '<div class="win-note">Search the FellGuide and the adventure.</div><input class="win-search" placeholder="Search" aria-label="Search">';
@@ -1310,8 +1320,8 @@ var lmMin = false;            /* the whole strip collapsed to a pill */
 function lmMinimize(){ lmMin = true; paintLmStrip(); }
 function lmRestore(){ if (S.openSection){ closeWin(); } else { lmMin = false; paintLmStrip(); } }
 var lmTab = 'about';          /* active tab on the expanded card */
-function lmToggleCard(id){ lmExpanded = (lmExpanded === id) ? null : id; if (lmExpanded && S.openSection) closeWin(); lmTab = 'about'; paintLmStrip(); }
-function lmSetTab(id, tab){ lmExpanded = id; lmTab = tab; paintLmStrip(); }
+function lmToggleCard(id){ lmExpanded = (lmExpanded === id) ? null : id; if (lmExpanded && S.openSection) closeWin(); lmTab = 'about'; paintLmStrip(); paintHud(); }
+function lmSetTab(id, tab){ lmExpanded = id; lmTab = tab; paintLmStrip(); paintHud(); }
 function lmFace(){ return S.mode === 'combat' ? (S.scene.combatPhase || 'commit') : 'scene'; }
 function lmDeck(){
   var f = lmFace();
@@ -2246,6 +2256,7 @@ if (tsEmbedded()){
     get: function(){ return tsAsk('TS_JOURNAL_GET', {}); },
     save: function(entries){ return tsAsk('TS_JOURNAL_SAVE', { entries:entries }); }
   };
+  try { var _lp = localStorage.getItem('ts_lm_portrait'); if (_lp){ S.lm = S.lm || {}; S.lm.portrait = _lp; } } catch(e){}
   charBackend = { load: function(id){ return tsAsk('TS_CHAR_LOAD', { charId:id }); }, saveMeta: function(patch){ return tsAsk('TS_CHAR_SAVEMETA', { charId:S.characterId, name:patch.name, portrait:patch.portrait }); }, list: function(){ return tsAsk('TS_CHAR_LIST', {}); } };
 }
 /* on an embedded load, pull the account's stages into the deck so last session's
@@ -2419,14 +2430,60 @@ function paintSelectArt(){
   var src = (i >= 0 && i < SELECT_ART.length) ? SELECT_ART[i] : 'assets/table-ui.png';
   if (ui.getAttribute('src') !== src) ui.setAttribute('src', src);
 }
+function lmSelectedFoe(){
+  if (typeof lmExpanded === 'undefined' || !lmExpanded) return null;
+  var list = (S.scene && S.scene.foes) || [];
+  for (var i = 0; i < list.length; i++) if (list[i].id === lmExpanded) return list[i];
+  return null;
+}
+function lmPortraitPick(){ var i = document.getElementById('lmPortInput'); if (i) i.click(); }
+function lmPortraitPicked(inp){
+  var f = inp.files && inp.files[0]; if (!f) return;
+  var rd = new FileReader();
+  rd.onload = function(){
+    S.lm = S.lm || {}; S.lm.portrait = rd.result;
+    try { localStorage.setItem('ts_lm_portrait', rd.result); } catch(e){}
+    paintHud();
+  };
+  rd.readAsDataURL(f); inp.value = '';
+}
+function lmSetSpeaker(name, portrait){ S.lm = S.lm || {}; S.lm.speaker = name ? { name:name, portrait:portrait||'' } : null; paintHud(); }
+function lmFellBody(){
+  var list = (S.scene && S.scene.fell) || [];
+  if (!list.length) return '<div class="win-note">No Fell at the table yet.</div>';
+  return list.map(function(c){
+    return '<div class="lb-row"><span class="lb-name">' + esc(c.name || 'Fell') + '</span><span class="lb-meta">' + (c.curVit !== undefined ? (c.curVit + ' / ' + c.maxVit) : '') + '</span></div>';
+  }).join('');
+}
 function paintHud(){
   var hud = document.getElementById('hud');
   if (!hud) return;
   function setT(id,v){ var e=document.getElementById(id); if(e) e.textContent=v; }
   if (isLM()){
     hud.classList.add('lm');
+    var L = S.lm || (S.lm = {});
+    var foe = lmSelectedFoe();
+    setT('hudLP',   (L.lp   !== undefined && L.lp   !== null) ? (L.lp + ' LP') : '');
+    setT('hudVlbl', (L.ss   !== undefined && L.ss   !== null) ? (L.ss + ' SS') : '');
+    setT('hudTotalLbl', 'VIT');
+    setT('hudTotal', foe ? foe.curVit : '');
+    [['hudTemp',1],['hudCur',2],['hudMax',3]].forEach(function(p){
+      var e = document.getElementById(p[0]); if (!e) return;
+      e.textContent = '';
+      e.classList.toggle('charged', !!foe && (foe.charge || 0) >= p[1]);
+    });
+    setT('hudCharge', (L.diff !== undefined && L.diff !== null) ? ('+' + L.diff) : '');
+    var sp = L.speaker;
+    setT('hudName', (sp && sp.name) ? sp.name : 'LoreMaster');
+    var lpor = document.getElementById('hudPortrait');
+    var limg = (sp && sp.portrait) ? sp.portrait : (L.portrait || '');
+    if (lpor) lpor.style.backgroundImage = limg ? ('url(' + limg + ')') : '';
+    setT('hudLvlLbl', 'DP');
+    setT('hudLvl', (L.dp !== undefined && L.dp !== null) ? L.dp : '');
   } else {
     hud.classList.remove('lm');
+    setT('hudVlbl', 'TEMP \u00b7 CURRENT \u00b7 MAX'); setT('hudTotalLbl', 'TOTAL'); setT('hudLvlLbl', 'LVL');
+    ['hudTemp','hudCur','hudMax'].forEach(function(id){ var e=document.getElementById(id); if(e) e.classList.remove('charged'); });
     var C = S.character || {};
     var emb = tsEmbedded();
     var nameReady = S.charReady || !emb;
@@ -2942,9 +2999,12 @@ function renderLog(){
 function render(){
   var combat = S.mode === 'combat';
   var hf = document.getElementById('hudFell');
-  if (hf && !isLM()){
-    hf.classList.toggle('combat', combat);
-    hf.onclick = combat ? function(){ railClick('battle'); } : function(){ railClick('menu'); };
+  if (hf){
+    if (isLM()){ hf.classList.remove('combat'); hf.onclick = function(){ railClick('settings'); }; }
+    else {
+      hf.classList.toggle('combat', combat);
+      hf.onclick = combat ? function(){ railClick('battle'); } : function(){ railClick('menu'); };
+    }
   }
   if (!combat){
     var dr = document.getElementById('drawer'); if (dr) dr.classList.add('hidden');
