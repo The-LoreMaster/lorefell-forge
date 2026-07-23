@@ -951,7 +951,7 @@ function tsModal(html){
   m.innerHTML = '<div class="tsm-back" onclick="tsCloseModal()"></div><div class="tsm-panel">' + html + '</div>';
   m.style.display = 'block';
 }
-function tsCloseModal(){ var m = document.getElementById('tsModal'); if (m){ m.style.display = 'none'; m.innerHTML = ''; } }
+function tsCloseModal(){ window._rosterOpen = false; var m = document.getElementById('tsModal'); if (m){ m.style.display = 'none'; m.innerHTML = ''; } }
 function tsAsk2(opts){
   window._tsCb = opts.onSave;
   var h = '<h3 class="tsm-title">' + esc(opts.title) + '</h3>'
@@ -1410,7 +1410,7 @@ function libAttach(sceneId, libId){
   f.scene[key] = f.scene[key] || [];
   var same = f.scene[key].filter(function(c){ return c.libId === libId; }).length;
   f.scene[key].push(libMakeCombatant(e, e.name + (same ? ' ' + (same + 1) : '')));
-  tsCloseModal(); storySave(); rosterRefresh(); render();
+  storySave(); rosterReopenAfter(); render();
 }
 function rosterAdd(sceneId, kind){
   var f = storyFind('scene', sceneId); if (!f) return;
@@ -1437,6 +1437,7 @@ function rosterRemove(sceneId, kind, id){
 }
 
 /* ---- roster member sheet: name, art and stats, the same fields FateWell edits ---- */
+function rosterReopenAfter(){ if (window._rosterScene) rosterWindow(window._rosterScene); else tsCloseModal(); }
 function rosterEdit(sceneId, kind, id){
   var f = storyFind('scene', sceneId); if (!f) return;
   var key = kind === 'npc' ? 'npcs' : 'foes';
@@ -1467,10 +1468,53 @@ function rosterEdit(sceneId, kind, id){
     + '<input class="tsm-inp rs-anum" id="rsMax" type="number" value="' + (c.maxVit || 0) + '"></span></div>'
     + (isFoe ? '<div class="rs-vit"><label class="tsm-lbl">Charges</label><span><input class="tsm-inp rs-anum" id="rsCharge" type="number" min="0" max="3" value="' + (c.charge || 0) + '"></span></div>' : '')
     + '<label class="tsm-lbl">Attributes</label><div class="rs-attrs">' + attrHtml + '</div>'
-    + (lib ? '<p class="tsm-note">Linked to the library. Saving changes this scene only.</p>' : '')
+    + (lib ? '<p class="tsm-note">Linked to the library. Saving updates the library everywhere, except current vitality and charges.</p>' : '')
     + '</div>'
     + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button>'
     + '<button class="tsm-btn" onclick="rosterEditSave()">Save</button></div>');
+}
+/* Everything except live vitality and charges belongs to the foe, so it goes home
+   to the library. Current vitality and charge stay with the scene. */
+function assetToRow(e){
+  return {
+    assetId: e.id, type: e.type, name: e.name || '', description: e.desc || '',
+    shatterRating: e.sr || '', lp: e.lp || 0, sp: e.sp || 0, maxVit: e.maxVit || 0,
+    role: e.role || '', image: e.img || '', origin: e.origin || '',
+    attrs: JSON.stringify(e.attrs || {}), inventory: JSON.stringify(e.inv || []),
+    abilities: JSON.stringify(e.abilities || []), foeWeight: e.foeWeight || 0,
+    foeMeta: JSON.stringify({ build:e.build||'', stance:e.stance||'', sig:e.sig||'', source:e.source||'',
+      augments:e.augments||[], infusions:e.infusions||[], atkPref:e.atkPref||'',
+      campaignId:e.campaignId||'', campaignName:e.campaignName||'' })
+  };
+}
+function libSyncFrom(c){
+  if (!c || !c.libId) return;
+  var e = libGet(c.libId); if (!e) return;
+  e.name = c.name; e.desc = c.desc || ''; e.img = c.img || '';
+  if (c.sr !== undefined) e.sr = c.sr;
+  e.maxVit = c.maxVit || 0;
+  e.attrs = JSON.parse(JSON.stringify(c.attrs || blankAttrs()));
+  if (c.abilities) e.abilities = JSON.parse(JSON.stringify(c.abilities));
+  if (c.inv) e.inv = c.inv.slice();
+  if (c.infusions) e.infusions = c.infusions.slice();
+  if (c.augments) e.augments = c.augments.slice();
+  if (c.sig !== undefined) e.sig = c.sig;
+  if (assetBackend && assetBackend.save) assetBackend.save(assetToRow(e)).catch(function(){});
+  /* every other scene holding this foe picks up the same change */
+  ((S.adventure && S.adventure.acts) || []).forEach(function(a){
+    (a.sessions || []).forEach(function(se){
+      (se.scenes || []).forEach(function(sc){
+        ['foes','npcs'].forEach(function(k){
+          (sc[k] || []).forEach(function(x){
+            if (x.libId !== c.libId || x === c) return;
+            x.name = e.name; x.desc = e.desc; x.img = e.img; x.sr = e.sr;
+            x.maxVit = e.maxVit; x.attrs = JSON.parse(JSON.stringify(e.attrs));
+            if (x.curVit > x.maxVit) x.curVit = x.maxVit;
+          });
+        });
+      });
+    });
+  });
 }
 function rsEditTarget(){
   var e = window._rsEdit; if (!e) return null;
@@ -1495,7 +1539,7 @@ function rosterImgPicked(input){
     c.img = ref || '';
     var p = document.getElementById('rsPrev');
     if (p) p.innerHTML = c.img ? '<img src="' + esc(c.img) + '" alt="">' : '<span class="tsm-note">No image</span>';
-    storySave();
+    libSyncFrom(c); storySave();
   }).catch(function(){
     var p = document.getElementById('rsPrev'); if (p) p.innerHTML = '<span class="tsm-note">Upload failed</span>';
   });
@@ -1504,7 +1548,7 @@ function rosterImgClear(){
   var c = rsEditTarget(); if (!c) return;
   c.img = '';
   var p = document.getElementById('rsPrev'); if (p) p.innerHTML = '<span class="tsm-note">No image</span>';
-  storySave();
+  libSyncFrom(c); storySave();
 }
 function rosterEditSave(){
   var e = window._rsEdit, c = rsEditTarget();
@@ -1519,17 +1563,17 @@ function rosterEditSave(){
   c.curVit = num('rsCur'); c.maxVit = num('rsMax');
   c.attrs = c.attrs || blankAttrs();
   ATTR_LIST.forEach(function(a){ c.attrs[a] = num('rsA_' + a); });
-  tsCloseModal(); storySave(); rosterRefresh(); render();
+  libSyncFrom(c);
+  storySave(); rosterReopenAfter(); render();
 }
 function rosterWindow(sceneId){
   var f = storyFind('scene', sceneId); if (!f) return;
-  window._rosterScene = sceneId;
+  window._rosterScene = sceneId; window._rosterOpen = true;
   tsModal('<h3 class="tsm-title">Roster</h3><div class="rs-wrap">' + storyRosterHtml(f.scene) + '</div>'
     + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
 }
 function rosterRefresh(){
-  var id = window._rosterScene;
-  if (id && document.getElementById('tsModal') && document.getElementById('tsModal').style.display === 'block') rosterWindow(id);
+  if (window._rosterOpen && window._rosterScene) rosterWindow(window._rosterScene);
   else refreshWinBody();
 }
 function storyRosterHtml(sc){
@@ -1537,7 +1581,7 @@ function storyRosterHtml(sc){
   scenePlayers(sc).forEach(function(p){
     h += '<div class="rs-row' + (p.out ? ' out' : '') + '">'
       + '<span class="rs-name">' + esc(p.name || 'Fell') + '</span>'
-      + '<button class="rs-pill" onclick="togglePlayerOut(\'' + sc.id + '\',\'' + p.id + '\')">' + (p.out ? 'Out' : 'In') + '</button></div>';
+      + '<button class="rs-pill" onclick="togglePlayerOut(\'' + sc.id + '\',\'' + p.id + '\')">' + (p.out ? 'Absent' : 'Attending') + '</button></div>';
   });
   h += '<div class="st-sub">Cast</div>';
   castList(sc).forEach(function(c){
