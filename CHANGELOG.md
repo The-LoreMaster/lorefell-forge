@@ -1,3 +1,7 @@
+## ThreadSpire: restore the Story saver
+
+- Story and roster actions work again. The function that saves the adventure spine had gone missing while thirteen places still called it, so removing a foe, opening a member, toggling attendance, and every Story edit failed the moment they were clicked. It is restored, and the spine now carries a revision so a returning sync cannot roll back or rebuild a newer local tree underneath an open window.
+
 ## ThreadSpire: foe edits go home to the library, and attendance updates at once
 
 - Editing a roster member that came from the library now writes back to the library automatically, no button to press. Name, portrait, description, rating, maximum vitality, attributes, abilities, inventory, infusions, and augments all travel, and every other scene holding that foe picks up the change. Current vitality and charges stay with the scene, since those are what is happening now rather than what the foe is. The attendance toggle now updates the moment it is clicked, and reads Attending or Absent.
