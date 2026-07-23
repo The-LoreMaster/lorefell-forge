@@ -134,7 +134,9 @@ $w.onReady(function () {
             .map((a) => Object.assign({}, a, { image: toHttps(a.image) }));
           reply(true, mine);
         } else if (msg.type === 'TS_STAGE_SAVE') {
-          const r = await saveStage(msg.stage);
+          // Stamp the adventure on the way in: listStages filters by it, so a stage
+          // saved without one could never be found again.
+          const r = await saveStage(Object.assign({ campaignId: campaignId }, msg.stage));
           reply(!!(r && r.ok), r, r && r.error);
         } else if (msg.type === 'TS_STAGE_LIST') {
           const rows = await listStages(msg.campaignId || campaignId);
