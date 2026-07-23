@@ -1,3 +1,7 @@
+## ThreadSpire: title on the gold line, portrait toggles
+
+- The slideout title now sits right at the top gold line (dropped the header's top padding and its redundant divider). Clicking the portrait a second time now closes Lore, matching the fellmark's toggle behavior.
+
 ## ThreadSpire: Joel's slideout art restored, positioned by the SVG
 
 - Joel's slideout frame art is back. The window and its close X are now placed by the Slideout SVG, the content sits in the panel slot and the X on its corner diamond. The FellGlass panels are transparent so the art shows through, with only the light-blue interactive elements kept; cards are a subtle dark blue and scrollbars are faint to match.
