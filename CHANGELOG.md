@@ -1,3 +1,7 @@
+## ThreadSpire: the shelf of maps takes folders
+
+- Maps are the LoreMaster's own, across every adventure, and can now be put into folders. A folder is made by naming one, renamed in place, and removed without touching what is in it; the maps simply come back out loose. The picker groups by folder and keeps the loose ones together at the end.
+
 ## ThreadSpire: search the library, tend the maps, keep the Lobby
 
 - The library has a search at the top. Maps are treated as what they are, images on the LoreMaster's shelf: each can be renamed or removed from the picker, and a map still on the table has to be replaced before it can go. Every table now keeps a Lobby, the blue parchment the party gathers on before a map is laid down; it is always the first stage and it says so rather than going quietly when someone tries to remove it.

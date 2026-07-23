@@ -277,6 +277,8 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .lib-find{ margin:6px 0; }
 .mp-card{ position:relative; }
 .mp-main{ display:block; width:100%; background:none; border:none; color:inherit; font:inherit; padding:0; cursor:pointer; text-align:left; }
+.mp-folder{ grid-column:1/-1; display:flex; align-items:center; gap:6px; margin:6px 0 2px; font-family:Cinzel,serif; font-size:.62rem; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); }
+.mp-fname{ flex:1; }
 .mp-acts{ position:absolute; top:4px; right:4px; display:flex; gap:2px; background:rgba(10,14,26,.72); border-radius:6px; padding:1px 3px; }
 .lib-scope{ display:block; width:100%; margin:6px 0 8px; font-size:.66rem; }
 .lib-list{ max-height:46vh; overflow-y:auto; }
@@ -4292,6 +4294,59 @@ function toggleFull(){
 }
 function lmOpenMaps(){ loadAccountAssets(); lmMapsOpen = true; paintMapPicker(); }
 function lmCloseMaps(){ lmMapsOpen = false; paintMapPicker(); }
+/* The shelf is account wide. Folders are just a name carried on each image, so a
+   folder exists exactly as long as something sits in it. */
+function mapFolders(){
+  var seen = {}, out = [];
+  (S.scene.maps || []).forEach(function(m){
+    var f = m.folder || '';
+    if (f && !seen[f]){ seen[f] = 1; out.push(f); }
+  });
+  out.sort();
+  return out;
+}
+function lmFolderPick(id){
+  var m = mapById(id); if (!m) return;
+  var folders = mapFolders();
+  tsModal('<h3 class="tsm-title">Put ' + esc(m.name) + ' in a folder</h3>'
+    + '<label class="tsm-lbl">Folder</label>'
+    + '<input class="tsm-inp" id="mpFolder" list="mpFolders" value="' + esc(m.folder || '') + '" placeholder="Loose, if you leave it blank">'
+    + '<datalist id="mpFolders">' + folders.map(function(f){ return '<option value="' + esc(f) + '">'; }).join('') + '</datalist>'
+    + '<p class="tsm-note">Type a new name to make a folder. Empty it to take the map back out.</p>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button>'
+    + '<button class="tsm-btn" onclick="lmFolderSave(\'' + id + '\')">Save</button></div>');
+}
+function lmFolderSave(id){
+  var m = mapById(id); if (!m) return;
+  m.folder = ((document.getElementById('mpFolder') || {}).value || '').replace(/^\s+|\s+$/g,'');
+  if (m.assetId && assetBackend.save) assetBackend.save({ assetId:m.assetId, kind:'map', name:m.name, image:m.url, w:m.w, h:m.h, folder:m.folder }).catch(function(){});
+  tsCloseModal(); applyRemoteState({ scene:S.scene }); paintMapPicker();
+}
+function lmFolderRename(from){
+  tsAsk2({ title:'Rename the folder', label:'Name', value:from, onSave:function(n){
+    if (!n) return;
+    (S.scene.maps || []).forEach(function(m){
+      if ((m.folder || '') !== from) return;
+      m.folder = n;
+      if (m.assetId && assetBackend.save) assetBackend.save({ assetId:m.assetId, kind:'map', name:m.name, image:m.url, w:m.w, h:m.h, folder:n }).catch(function(){});
+    });
+    applyRemoteState({ scene:S.scene }); paintMapPicker();
+  }});
+}
+function lmFolderDrop(name){
+  window._tsYes = function(){
+    (S.scene.maps || []).forEach(function(m){
+      if ((m.folder || '') !== name) return;
+      m.folder = '';
+      if (m.assetId && assetBackend.save) assetBackend.save({ assetId:m.assetId, kind:'map', name:m.name, image:m.url, w:m.w, h:m.h, folder:'' }).catch(function(){});
+    });
+    tsCloseModal(); applyRemoteState({ scene:S.scene }); paintMapPicker();
+  };
+  tsModal('<h3 class="tsm-title">Remove the folder ' + esc(name) + '?</h3>'
+    + '<p class="tsm-note">The maps in it stay on your shelf; they simply come back out loose.</p>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button>'
+    + '<button class="tsm-btn danger" onclick="tsConfirmYes()">Remove the folder</button></div>');
+}
 function mapById(id){ var m = null; (S.scene.maps || []).forEach(function(x){ if (sameId(x.id, id)) m = x; }); return m; }
 function lmRenameMap(id){
   var m = mapById(id); if (!m) return;
@@ -4363,7 +4418,7 @@ function paintMapPicker(){
   if (!el){ el = document.createElement('div'); el.id = 'mapPicker'; document.body.appendChild(el); }
   if (!lmMapsOpen || !isLM()){ el.style.display = 'none'; return; }
   el.style.display = 'flex';
-  var cards = (S.scene.maps||[]).map(function(m){
+  function mapCard(m){
     var on = m.id === S.scene.background;
     var thumb = m.url
       ? '<div class="mp-thumb" style="background-image:url(' + m.url + ');background-size:cover;background-position:center"></div>'
@@ -4374,8 +4429,22 @@ function paintMapPicker(){
       + '<div class="mp-meta">' + m.w + ' \u00d7 ' + m.h + ' \u00b7 ' + esc(m.source) + (m.local?' \u00b7 not yet saved':'') + '</div></button>'
       + '<span class="mp-acts">'
       + '<button class="st-b" onclick="event.stopPropagation();lmRenameMap(\'' + m.id + '\')" title="Rename">\u270e</button>'
+      + '<button class="st-b" onclick="event.stopPropagation();lmFolderPick(\'' + m.id + '\')" title="Folder">\u2630</button>'
       + '<button class="st-b" onclick="event.stopPropagation();lmDeleteMap(\'' + m.id + '\')" title="Remove">\u2715</button></span></div>';
-  }).join('');
+  }
+  var all = S.scene.maps || [];
+  var cards = '';
+  mapFolders().forEach(function(f){
+    var inIt = all.filter(function(m){ return (m.folder || '') === f; });
+    if (!inIt.length) return;
+    cards += '<div class="mp-folder"><span class="mp-fname">' + esc(f) + '</span>'
+      + '<button class="st-b" onclick="lmFolderRename(\'' + f.replace(/'/g, "\\'") + '\')" title="Rename">\u270e</button>'
+      + '<button class="st-b" onclick="lmFolderDrop(\'' + f.replace(/'/g, "\\'") + '\')" title="Remove the folder">\u2715</button></div>'
+      + inIt.map(mapCard).join('');
+  });
+  var loose = all.filter(function(m){ return !(m.folder || ''); });
+  if (loose.length && mapFolders().length) cards += '<div class="mp-folder"><span class="mp-fname">Loose</span></div>';
+  cards += loose.map(mapCard).join('');
   var upload = '<button class="mp-card mp-upload" onclick="lmMapUploadStub()" '
     + 'ondragover="event.preventDefault();this.classList.add(\'drag\')" '
     + 'ondragleave="this.classList.remove(\'drag\')" '
