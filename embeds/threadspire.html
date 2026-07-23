@@ -282,6 +282,19 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .lib-ph{ display:inline-block; background:rgba(40,54,86,.7); }
 .lib-nm{ flex:1; font-size:.82rem; }
 .lib-meta{ font-size:.66rem; color:var(--muted,#7e8a99); }
+.vcard{ position:relative; background:var(--navy2,#10162a); border:1px solid var(--line,#22304d); border-radius:12px; margin-bottom:9px; overflow:hidden; display:flex; align-items:stretch; min-height:56px; }
+.vcard.has-cover{ flex-direction:column; }
+.vcard-main{ flex:1; min-width:0; text-align:left; background:none; border:none; color:inherit; font:inherit; cursor:pointer; padding:0; display:flex; flex-direction:column; }
+.vcard-cover{ width:100%; height:112px; overflow:hidden; background:var(--navy3,#0b1020); }
+.vcard-cover img{ width:100%; height:100%; object-fit:cover; display:block; }
+.vcard-body{ padding:10px 12px; }
+.vcard-badge{ font-family:Cinzel,serif; font-size:.58rem; letter-spacing:.14em; text-transform:uppercase; color:var(--gold); margin-bottom:3px; }
+.vcard-title{ font-family:Cinzel,serif; font-weight:600; font-size:.94rem; letter-spacing:.02em; }
+.vcard-sub{ font-size:.8rem; color:var(--ice,#b8ccd8); opacity:.8; margin-top:2px; }
+.vcard-origin{ font-size:.7rem; color:var(--muted,#7e8a99); margin-top:3px; }
+.vcard-corner{ position:absolute; top:8px; right:8px; z-index:2; display:flex; gap:6px; }
+.card-x{ width:28px; height:28px; border-radius:8px; cursor:pointer; background:rgba(10,14,26,.72); border:1px solid var(--line2,#2a3552); color:var(--silver); font-size:.8rem; line-height:1; }
+.card-x:hover{ border-color:var(--danger,#8d3b3b); color:var(--danger,#8d3b3b); }
 .lc-wrap{ max-height:58vh; overflow-y:auto; }
 .lc-hd{ display:flex; align-items:center; gap:10px; margin-bottom:8px; }
 .lc-por{ width:64px; height:64px; border-radius:8px; overflow:hidden; flex:none; background:rgba(40,54,86,.7); }
@@ -1330,6 +1343,31 @@ function libLoad(force){
     return S.library;
   }).catch(function(){ S.libLoaded = true; return []; });
 }
+var TYPE_LABEL = { monster:'Foe', npc:'NPC', item:'Item' };
+/* The library card, as FateWell renders it. The library list and a scene's roster
+   both draw with this, so an NPC looks the same wherever you meet them. */
+function tsVCard(o){
+  var hasImg = o.img && o.img.length;
+  return '<div class="vcard libcard' + (hasImg ? ' has-cover' : '') + '">'
+    + '<button class="vcard-main" onclick="' + o.openFn + '">'
+    + (hasImg ? '<div class="vcard-cover"><img src="' + esc(o.img) + '" alt=""></div>' : '')
+    + '<div class="vcard-body">'
+    + '<div class="vcard-badge">' + esc(o.badge || '') + '</div>'
+    + '<div class="vcard-title">' + esc(o.title || '') + '</div>'
+    + (o.sub ? '<div class="vcard-sub">' + esc(o.sub) + '</div>' : '')
+    + (o.origin ? '<div class="vcard-origin">' + esc(o.origin) + '</div>' : '')
+    + '</div></button>'
+    + (o.corner ? '<div class="vcard-corner inline">' + o.corner + '</div>' : '')
+    + '</div>';
+}
+/* The one line under a name, wherever the figure appears. */
+function entrySub(e){
+  var s = TYPE_LABEL[e.type] || (e.kind === 'foe' ? 'Foe' : 'NPC');
+  if (e.sr) s += ' \u00b7 ' + e.sr + ' \u00b7 ' + (e.maxVit || 0) + ' vit';
+  else if (e.maxVit) s += ' \u00b7 ' + (e.maxVit || 0) + ' vit';
+  else if (e.role) s += ' \u00b7 ' + e.role;
+  return s;
+}
 function attrLine(attrs){
   return ATTR_LIST.filter(function(a){ return (attrs || {})[a]; })
     .map(function(a){ return a + ' ' + attrs[a]; }).join(', ');
@@ -1638,12 +1676,15 @@ function storyRosterHtml(sc){
   });
   h += '<div class="st-sub">Cast</div>';
   castList(sc).forEach(function(c){
-    var st = (c.ref && c.ref.maxVit) ? (c.ref.curVit + '/' + c.ref.maxVit + (c.ref.sr ? ' \u00b7 ' + esc(c.ref.sr) : '')) : '';
-    h += '<div class="rs-row">'
-      + (c.img ? '<img class="rs-av" src="' + esc(c.img) + '" alt="">' : '<span class="rs-av lib-ph"></span>')
-      + '<span class="rs-name rs-click" onclick="rosterEdit(\'' + sc.id + '\',\'' + c.kind + '\',\'' + c.id + '\')">' + esc(c.name) + (st ? ' <em class="rs-stat">' + st + '</em>' : '') + '</span>'
-      + '<span class="rs-kind">' + (c.kind === 'npc' ? 'NPC' : 'Foe') + '</span>'
-      + '<button class="st-b" onclick="rosterRemove(\'' + sc.id + '\',\'' + c.kind + '\',\'' + c.id + '\')" title="Remove">\u2715</button></div>';
+    var ref = c.ref || {}, lib = c.lib || {};
+    var e = { type:(c.kind === 'foe' ? 'monster' : 'npc'), kind:c.kind,
+              sr: ref.sr || lib.sr || '', maxVit: ref.maxVit || lib.maxVit || 0, role: lib.role || '' };
+    var sub = entrySub(e);
+    if (ref.maxVit) sub += ' \u00b7 ' + ref.curVit + ' now';
+    h += tsVCard({ img:c.img, badge:TYPE_LABEL[e.type], title:c.name, sub:sub,
+                   origin: lib.name ? 'From the library' : '',
+                   openFn: 'rosterEdit(\'' + sc.id + '\',\'' + c.kind + '\',\'' + c.id + '\')',
+                   corner: '<button class="card-x" title="Remove" onclick="event.stopPropagation();rosterRemove(\'' + sc.id + '\',\'' + c.kind + '\',\'' + c.id + '\')">\u2715</button>' });
   });
   h += '<div class="rs-adds"><button class="st-add" onclick="rosterAddFromLib(\'' + sc.id + '\')">Add from library</button>'
     + '<button class="st-add" onclick="rosterAdd(\'' + sc.id + '\',\'npc\')">New NPC</button>'
@@ -1695,10 +1736,9 @@ function libraryBody(){
       if (!rows.length) return;
       h += '<div class="nb-scene">' + (t === 'monster' ? 'Foes' : t === 'npc' ? 'NPCs' : 'Items') + '</div>';
       rows.forEach(function(e){
-        var meta = t === 'monster' ? ((e.sr || '') + (e.maxVit ? ' \u00b7 ' + e.maxVit + ' vit' : '')) : (e.role || '');
-        h += '<button class="lib-row" onclick="libCard(\'' + e.id + '\')">'
-          + (e.img ? '<img class="lib-av" src="' + esc(e.img) + '" alt="">' : '<span class="lib-av lib-ph"></span>')
-          + '<span class="lib-nm">' + esc(e.name) + '</span><span class="lib-meta">' + esc(meta) + '</span></button>';
+        h += tsVCard({ img:e.img, badge:TYPE_LABEL[e.type] || '', title:e.name, sub:entrySub(e),
+                       origin: e.campaignName || (e.origin ? 'From ' + e.origin : ''),
+                       openFn: 'libCard(\'' + e.id + '\')' });
       });
     });
   } else {
