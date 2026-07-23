@@ -1,3 +1,7 @@
+## ThreadSpire: every stage is the adventure's, not one scene's
+
+- Stages were being saved all along; they were tied to whichever scene happened to be open when they were made, so opening another scene left them behind and the deck looked empty but for the Lobby. The window now shows every stage the adventure holds, and switching to one attaches it to the scene you are on. A stage saved without a name reads as untitled rather than as a blank card, and each card's own buttons keep their presses to themselves.
+
 ## ThreadSpire: stages hold, and the maps open quickly
 
 - A stage's own buttons work again. The whole card had been made draggable, and a draggable card swallows the presses inside it, so rename and the rest did nothing; only a grip drags now. Stage work also marks itself as yours, so a table update arriving a moment later can no longer put the old deck back over what you just did. Opening Maps was fetching every asset you own, foes and all their statistics included, to show a handful of pictures; it now asks only for the pictures, and thumbnails load as they come into view.
