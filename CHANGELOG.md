@@ -1,3 +1,7 @@
+## ThreadSpire: right-click to roll, pinned log bar
+
+- Right-clicking anywhere on the map opens the dice type menu at the cursor; picking a type rolls it. Clicking elsewhere dismisses it. The log's say bar now stays pinned in place while only the log entries scroll beneath it.
+
 ## ThreadSpire/FellGlass: subtle dark-blue scrollbars
 
 - The slideout scrollbar now matches the theme, dark blue and semi-transparent over a transparent track, instead of the browser default. The earlier rule targeted descendant scrollbars but the sheet scrolls the document itself, so it's now a global scrollbar style covering both webkit and Firefox.
