@@ -79,6 +79,7 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 
 #hud{ display:contents; }
 #hud.lm .hlbl{ color:#9fb0c8; }
+body.winopen #lmstrip{ display:none !important; }
 body.roleboot #hud, body.roleboot #rail, body.roleboot #tray, body.roleboot #lmstrip{ visibility:hidden; }
 .hslot{ position:fixed; z-index:60; pointer-events:none; display:flex; align-items:center; justify-content:center; color:var(--silver); font-family:Cinzel,serif; text-align:center; line-height:1; overflow:hidden; }
 .hLP{ left:93.076%; top:45.12%; width:5.981%; height:3.38%; font-size:1.7vh; color:#cfe0ff; }
@@ -266,6 +267,10 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .tsm-btn{ padding:7px 14px; border-radius:6px; border:1px solid var(--gold); background:var(--gold); color:var(--navy); font-family:Cinzel,serif; font-size:.72rem; letter-spacing:.08em; cursor:pointer; }
 .tsm-btn.ghost{ background:transparent; color:var(--silver); border-color:var(--line2,#2a3552); }
 .tsm-btn.danger{ background:var(--danger,#8d3b3b); border-color:var(--danger,#8d3b3b); color:#fff; }
+.stb-card{ display:flex; align-items:center; gap:7px; margin:4px 0; padding:5px 8px; border-left:3px solid var(--gold); border-radius:0 6px 6px 0; background:rgba(10,16,32,.34); cursor:pointer; }
+.stb-card:hover{ background:rgba(20,30,54,.5); }
+.stb-tag{ font-family:Cinzel,serif; font-size:.56rem; letter-spacing:.12em; text-transform:uppercase; flex:none; }
+.stb-title{ font-size:.8rem; color:var(--silver); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .st-nbody{ font-size:.8rem; color:var(--ice,#b8ccd8); white-space:pre-wrap; padding:3px 2px 5px; }
 .st-row{ display:flex; align-items:center; gap:6px; padding:6px 4px; border-bottom:1px solid rgba(201,168,76,.10); }
 .st-row .st-tw{ width:14px; color:var(--gold); cursor:pointer; font-size:.7rem; }
@@ -963,51 +968,56 @@ function storyDelete(kind, id){
     f.list.splice(f.idx, 1); storySave(); refreshWinBody(); render();
   });
 }
-function storyAddNote(kind, id){
-  var n = storyNode(kind, id); if (!n) return;
-  tsAsk2({ title:'New note', label:'Title', body:'', cta:'Create', onSave:function(t, b){
-    if (!t) return;
-    n.entries = n.entries || [];
-    n.entries.push({ id:mkId(), title:t, type:'general', body:b || '', pinned:false, open:true });
-    storyOpen[kind === 'session' ? 'ses' : kind][id] = true;
-    storySave(); refreshWinBody();
-  }});
-}
-function storyEditNote(kind, id, noteId){
-  var n = storyNode(kind, id); if (!n) return;
-  var e = (n.entries || []).filter(function(x){ return x.id === noteId; })[0]; if (!e) return;
-  tsAsk2({ title:'Edit note', label:'Title', value:e.title, body:e.body || '', onSave:function(t, b){
-    if (t) e.title = t; e.body = b || ''; storySave(); refreshWinBody();
-  }});
-}
-function storyDeleteNote(kind, id, noteId){
-  var n = storyNode(kind, id); if (!n) return;
-  var e = (n.entries || []).filter(function(x){ return x.id === noteId; })[0];
-  tsConfirm('Delete ' + ((e && e.title) || 'this note') + '?', function(){
-    n.entries = (n.entries || []).filter(function(x){ return x.id !== noteId; });
-    storySave(); refreshWinBody();
-  });
-}
-function storyNotesHtml(kind, id, node){
+function storyBeatsHtml(sc){
   var h = '';
-  if (kind === 'scene'){
-    (node.beats || []).forEach(function(b){
-      var _m = beatMeta(b.kind);
-      h += '<div class="nb-beat ' + b.kind + '"><span class="nb-tag" style="color:' + _m[1] + '">' + _m[0] + '</span>'
-        + '<span class="nb-title">' + esc(b.title) + '</span>'
-        + '<div class="nb-body">' + esc(b.body) + '</div></div>';
-    });
-  }
-  (node.entries || []).forEach(function(e){
-    h += '<div class="st-note"><div class="st-nhead"><span>' + esc(e.title || 'Note') + '</span><span>'
-      + '<button class="st-b" onclick="storyEditNote(\'' + kind + '\',\'' + id + '\',\'' + e.id + '\')" title="Edit">\u270e</button>'
-      + '<button class="st-b" onclick="storyDeleteNote(\'' + kind + '\',\'' + id + '\',\'' + e.id + '\')" title="Delete">\u2715</button></span></div>'
-      + (e.body ? '<div class="st-nbody">' + esc(e.body) + '</div>' : '') + '</div>';
+  (sc.beats || []).forEach(function(b, i){
+    var m = beatMeta(b.kind);
+    h += '<div class="stb-card" style="border-left-color:' + m[1] + '" onclick="storyBeatOpen(\'' + sc.id + '\',' + i + ')">'
+      + '<span class="stb-tag" style="color:' + m[1] + '">' + m[0] + '</span>'
+      + '<span class="stb-title">' + esc(b.title || 'Beat') + '</span></div>';
   });
-  h += '<button class="st-add" onclick="storyAddNote(\'' + kind + '\',\'' + id + '\')">Add a note</button>';
+  h += '<button class="st-add" onclick="storyBeatAdd(\'' + sc.id + '\')">Add a beat</button>';
   return h;
 }
-function storySave(){ S._advTouch = Date.now(); try { pushState(); } catch(e){} }
+function storyBeatAdd(sceneId){ tsBeatModal(sceneId, -1); }
+function storyBeatOpen(sceneId, idx){ tsBeatModal(sceneId, idx); }
+function tsBeatModal(sceneId, idx){
+  var f = storyFind('scene', sceneId); if (!f) return;
+  var b = idx >= 0 ? (f.scene.beats || [])[idx] : { kind:'general', title:'', body:'' };
+  if (!b) return;
+  window._beatCtx = { sceneId:sceneId, idx:idx };
+  var opts = '';
+  Object.keys(BEAT_TYPES).forEach(function(k){
+    opts += '<option value="' + k + '"' + (b.kind === k ? ' selected' : '') + '>' + BEAT_TYPES[k][0] + '</option>';
+  });
+  tsModal('<h3 class="tsm-title">' + (idx >= 0 ? 'Edit beat' : 'New beat') + '</h3>'
+    + '<label class="tsm-lbl">Type</label><select class="tsm-inp" id="tsmKind">' + opts + '</select>'
+    + '<label class="tsm-lbl">Title</label><input class="tsm-inp" id="tsmName" value="' + esc(b.title || '') + '">'
+    + '<label class="tsm-lbl">Body</label><textarea class="tsm-inp tsm-ta" id="tsmBody">' + esc(b.body || '') + '</textarea>'
+    + '<div class="tsm-row">' + (idx >= 0 ? '<button class="tsm-btn danger" onclick="tsBeatDelete()">Delete</button>' : '')
+    + '<button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button>'
+    + '<button class="tsm-btn" onclick="tsBeatSave()">Save</button></div>');
+  setTimeout(function(){ var e = document.getElementById('tsmName'); if (e){ e.focus(); } }, 40);
+}
+function tsBeatSave(){
+  var c = window._beatCtx; if (!c) return;
+  var f = storyFind('scene', c.sceneId); if (!f) return;
+  var kind = (document.getElementById('tsmKind') || {}).value || 'general';
+  var title = ((document.getElementById('tsmName') || {}).value || '').replace(/^\s+|\s+$/g,'');
+  var body = (document.getElementById('tsmBody') || {}).value || '';
+  f.scene.beats = f.scene.beats || [];
+  if (c.idx >= 0){ var b = f.scene.beats[c.idx]; if (b){ b.kind = kind; b.title = title; b.body = body; } }
+  else f.scene.beats.push({ id:mkId(), kind:kind, title:title, body:body });
+  tsCloseModal(); storySave(); refreshWinBody();
+  if (typeof paintLmStrip === 'function' && isLM()) paintLmStrip();
+}
+function tsBeatDelete(){
+  var c = window._beatCtx; if (!c) return;
+  var f = storyFind('scene', c.sceneId); if (!f) return;
+  (f.scene.beats || []).splice(c.idx, 1);
+  tsCloseModal(); storySave(); refreshWinBody();
+  if (typeof paintLmStrip === 'function' && isLM()) paintLmStrip();
+}
 function storyBody(){
   var A = S.adventure || (S.adventure = { acts:[] });
   var h = '<div class="win-note">The adventure spine. Open an act to reach its sessions, scenes, and notes.</div>';
@@ -1019,7 +1029,6 @@ function storyBody(){
        + '<button class="st-b" onclick="storyDelete(\'act\',\'' + a.id + '\')" title="Delete">\u2715</button></div>';
     if (!ao) return;
     h += '<div class="st-kids">';
-    h += storyNotesHtml('act', a.id, a);
     (a.sessions || []).forEach(function(se){
       var so = !!storyOpen.ses[se.id];
       h += '<div class="st-row st-ses"><span class="st-tw" onclick="storyToggle(\'ses\',\'' + se.id + '\')">' + (so ? '\u25be' : '\u25b8') + '</span>'
@@ -1028,7 +1037,6 @@ function storyBody(){
          + '<button class="st-b" onclick="storyDelete(\'session\',\'' + se.id + '\')" title="Delete">\u2715</button></div>';
       if (!so) return;
       h += '<div class="st-kids">';
-      h += storyNotesHtml('session', se.id, se);
       (se.scenes || []).forEach(function(sc){
         var on = sc.id === (S.scene && S.scene.id);
         var co = !!storyOpen.scene[sc.id];
@@ -1039,7 +1047,7 @@ function storyBody(){
            + '<button class="st-b" onclick="storyDelete(\'scene\',\'' + sc.id + '\')" title="Delete">\u2715</button></div>';
         if (!co) return;
         h += '<div class="st-kids">';
-        h += storyNotesHtml('scene', sc.id, sc);
+        h += storyBeatsHtml(sc);
         h += '</div>';
       });
       h += '<button class="st-add" onclick="storyAdd(\'scene\',\'' + se.id + '\')">Add a scene</button></div>';
@@ -1463,8 +1471,10 @@ function paintTypePicker(){
 function isMobile(){ return window.matchMedia('(max-width:700px)').matches; }
 function openWin(key){
   if (key === 'battle' && isMobile()){ toggleDrawer(true); return; }
+  if (S.openSection === null) window._lmPrevMin = lmMin;
   S.openSection = key;
-  lmMin = true; lmExpanded = null;
+  lmExpanded = null;
+  document.body.classList.add('winopen');
   document.getElementById('winTitle').textContent = SECTIONS[key].title.toUpperCase();
   var win = document.getElementById('win');
   win.style.height = ''; win.style.bottom = '';
@@ -1483,8 +1493,9 @@ function openWin(key){
 }
 function closeWin(){
   S.openSection = null;
+  document.body.classList.remove('winopen');
+  if (window._lmPrevMin !== undefined){ lmMin = window._lmPrevMin; window._lmPrevMin = undefined; }
   var win = document.getElementById('win'); win.classList.remove('open'); win.classList.remove('sheeting'); win.classList.remove('arsenal'); win.style.height = ''; win.style.bottom = '';
-  lmMin = false;
   var _wa=document.getElementById('winArt'); if(_wa) _wa.style.display='none';
   var _wx=document.getElementById('winX'); if(_wx) _wx.style.display='none';
   paintRails(); paintSelectArt();
