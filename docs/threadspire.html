@@ -309,6 +309,8 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .bt-n{ font-family:Cinzel,serif; font-size:.8rem; color:var(--silver); min-width:56px; text-align:center; }
 .bt-pip{ width:20px; height:20px; border-radius:50%; border:1px solid var(--line2,#2a3552); background:transparent; color:var(--muted,#7e8a99); font-size:.62rem; cursor:pointer; padding:0; }
 .bt-pip.on{ border-color:var(--gold); background:rgba(201,168,76,.25); color:var(--gold); }
+.qb-post{ display:block; width:100%; margin-top:8px; }
+.qb-done{ margin-top:8px; font-family:Cinzel,serif; font-size:.6rem; letter-spacing:.1em; text-transform:uppercase; color:var(--gold); opacity:.8; }
 .qs-row{ display:flex; align-items:flex-start; gap:7px; padding:5px 2px; border-bottom:1px solid rgba(201,168,76,.10); }
 .qs-row.done .qs-title{ opacity:.5; text-decoration:line-through; }
 .qs-tick{ background:transparent; border:none; color:var(--gold); cursor:pointer; font-size:.85rem; padding:0 2px; }
@@ -2680,7 +2682,37 @@ function beatCard(b){
     + speakerHead(sp)
     + '<div class="lmc-title">' + esc(b.title) + '</div>'
     + (b.img ? '<img class="lmc-img" src="' + esc(b.img) + '" alt="">' : '')
-    + '<div class="lmc-body">' + esc(b.body) + '</div></div>';
+    + '<div class="lmc-body">' + esc(b.body) + '</div>'
+    + questBeatAction(b) + '</div>';
+}
+/* A quest is prep until it is offered. Running the beat is what puts it on the board. */
+function questBeatAction(b){
+  if (!isLM() || b.kind !== 'quest') return '';
+  if (b.posted) return '<div class="qb-done">Posted to the board</div>';
+  return '<button class="lmbtn gold qb-post" onclick="postQuestBeat(\'' + b.id + '\')">Post this quest</button>';
+}
+function beatById(id){
+  var hit = null;
+  ((S.scene && S.scene.beats) || []).forEach(function(b){ if (sameId(b.id, id)) hit = b; });
+  return hit;
+}
+function postQuestBeat(id){
+  var b = beatById(id); if (!b || b.posted) return;
+  var sc = S.scene;
+  sc.quests = sc.quests || [];
+  var q = { entryId:'qb-' + b.id, title:b.title || 'A quest', body:b.body || '', status:'open' };
+  var already = sc.quests.filter(function(x){ return sameId(x.entryId, q.entryId); })[0];
+  if (!already) sc.quests.push(q); else q.entryId = already.entryId;
+  b.posted = true;
+  questPush(q);
+  pushLog({ kind:'sys', html:'<b>' + esc(q.title) + '</b> is posted to the board.' });
+  storySave(); applyRemoteState({ scene:S.scene, log:S.log });
+  if (typeof paintLmStrip === 'function') paintLmStrip();
+}
+/* taking a posted quest down again releases the beat to be offered later */
+function questUnpostBeat(entryId){
+  var id = String(entryId || '').replace(/^qb-/, '');
+  var b = beatById(id); if (b) b.posted = false;
 }
 
 /* a combat card, foe or Fell, worn during Commit */
@@ -3956,6 +3988,7 @@ function questRemove(sceneId, entryId){
   var q = (f.scene.quests || []).filter(function(x){ return sameId(x.entryId, entryId); })[0];
   if (q){ q.status = 'closed'; questPush(q); }
   f.scene.quests = (f.scene.quests || []).filter(function(x){ return !sameId(x.entryId, entryId); });
+  questUnpostBeat(entryId);
   storySave(); questRefresh();
 }
 function questRefresh(){
