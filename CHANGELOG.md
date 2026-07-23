@@ -1,3 +1,7 @@
+## 2026-07-23 — ThreadSpire: remove the duplicated block that shadowed every stage fix
+
+A previous edit inserted its rewritten stage section instead of replacing the old one, leaving 2,178 dead lines: a byte-identical copy of an earlier 2,004 line span, plus the pre-rework stage functions. Later definitions win in a script, so the stale copies of all 17 stage functions shadowed the adventure-wide delete and the tombstone fix. Stage deletion fired the old guard and deleted stages resurfaced on the next snapshot. Removed lines 3516 to 5693 in one cut, verified the defined-function set is identical before and after, and confirmed the tombstone lmDeleteStage is now the only definition. No behavior added; the fixes already merged now actually run.
+
 ## ThreadSpire: a removed stage stays removed, and the deck stops collecting dust
 
 - Removing a stage sticks now. The table keeps a note of what was removed, because the arrangement arriving from the table a moment later still carried it and quietly put it back, which is why the card never left. Scenes that hold no stages no longer leave an empty entry behind either, so the deck stops accumulating one for every scene ever opened.
