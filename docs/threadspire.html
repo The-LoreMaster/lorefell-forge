@@ -1322,7 +1322,11 @@ function railKeys(){ return S.role === 'lm' ? RAIL_LM : RAIL_PLAYER; }
 
 function stagesBody(){
   ensureLobby();
-  var deck = stageDeck();
+  /* Every stage this account holds for the adventure. Binding them to a single
+     scene meant a stage made on one scene vanished the moment you opened another. */
+  var seen = {}, deck = [];
+  stageDeck().forEach(function(b){ if (!seen[b.stageId]){ seen[b.stageId] = 1; deck.push(b); } });
+  instanceStages().forEach(function(s){ if (!seen[s.stageId]){ seen[s.stageId] = 1; deck.push(s); } });
   var cards = deck.map(function(b){
     var on = b.stageId === activeStageId();
     var mp = null; (S.scene.maps||[]).forEach(function(m){ if(m.id===b.mapId) mp=m; });
@@ -1335,12 +1339,12 @@ function stagesBody(){
       + ' ondrop="stageDrop(event,this,\'' + b.stageId + '\')">'
       + '<span class="sd-grip" draggable="true" ondragstart="stageDragStart(event,\'' + b.stageId + '\')" title="Drag to reorder">\u283f</span>'
       + '<button class="sd-main" onclick="lmSwitchStage(\''+b.stageId+'\')">' + thumb
-      + '<span><span class="sd-name">' + esc(b.name) + '</span>'
+      + '<span><span class="sd-name">' + esc(b.name || 'Untitled stage') + '</span>'
       + '<span class="sd-meta">' + (mp?esc(mp.name):'no map') + ' \u00b7 ' + count + ' tokens</span></span></button>'
       + '<span class="sd-acts">'
-      + '<button class="st-b" onclick="lmRenameStage(\''+b.stageId+'\')" title="Rename">\u270e</button>'
-      + '<button class="st-b" onclick="lmStageMap(\''+b.stageId+'\')" title="Choose its map">\u25a6</button>'
-      + '<button class="st-b" onclick="lmDeleteStage(\''+b.stageId+'\')" title="Delete stage">\u2715</button></span></div>';
+      + '<button type="button" class="st-b" onclick="event.stopPropagation();event.preventDefault();lmRenameStage(\''+b.stageId+'\')" title="Rename">\u270e</button>'
+      + '<button type="button" class="st-b" onclick="event.stopPropagation();event.preventDefault();lmStageMap(\''+b.stageId+'\')" title="Choose its map">\u25a6</button>'
+      + '<button type="button" class="st-b" onclick="event.stopPropagation();event.preventDefault();lmDeleteStage(\''+b.stageId+'\')" title="Delete stage">\u2715</button></span></div>';
   }).join('');
   return '<div class="win-note">Stages are saved tables: a map and where every token stands. Switching keeps each as you left it.</div>'
     + '<div class="sd-list">' + cards + '</div>'
@@ -3380,6 +3384,8 @@ function lmSaveCurrentStage(){
   applyRemoteState({ instance:S.instance });
 }
 function lmSwitchStage(id){
+  var _bd = sceneBinding();
+  if (_bd && (_bd.stageIds || []).indexOf(id) < 0){ _bd.stageIds = (_bd.stageIds || []).concat([id]); stageTouch(); }
   if (activeStageId() === id) { return; }
   lmSaveCurrentStage();                       /* the leaving stage keeps its layout */
   var b = stageById(id);
@@ -3945,7 +3951,7 @@ if (tsEmbedded()){
         var t=[], g={};
         try { t = JSON.parse(r.tokens||'[]'); } catch(e){ t=[]; }
         try { g = JSON.parse(r.grid||'{}'); } catch(e){ g={}; }
-        return { stageId:r.stageId, name:r.name, mapId:r.mapId, tokens:t, grid:g, mapW:r.mapW, mapH:r.mapH };
+        return { stageId:r.stageId, name:r.name || 'Untitled stage', mapId:r.mapId, tokens:t, grid:g, mapW:r.mapW, mapH:r.mapH };
       });
     }); },
     remove: function(id){ return tsAsk('TS_STAGE_DELETE', { stageId:id }); }
