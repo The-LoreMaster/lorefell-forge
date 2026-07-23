@@ -1711,6 +1711,41 @@ function sheetReopen(){
   var e = document.querySelector('#tsModal .rs-edit');
   if (e && y) e.scrollTop = y;
 }
+/* Chosen ones read with their rule, and a picker beneath. The shape relics use. */
+function sheetPickBlock(label, bucket, chosen, names, dropFn, pickFn, pickLabel){
+  var on = chosen || [];
+  var h = '<div class="tsm-lbl">' + label + ' <span class="tsm-count">' + on.length + '</span></div>';
+  if (on.length){
+    h += on.map(function(n, i){
+      var rule = forgeTip(n, bucket);
+      return '<div class="relic-row"><div class="relic-hd"><b>' + esc(n) + '</b>'
+        + '<button class="chip-x" onclick="' + dropFn + '(' + i + ')" title="Remove">\u00d7</button></div>'
+        + (rule ? '<p class="tsm-note">' + esc(rule) + '</p>' : '<p class="tsm-note">No rule recorded for this one.</p>') + '</div>';
+    }).join('');
+  } else {
+    h += '<p class="tsm-note">None.</p>';
+  }
+  var left = names.filter(function(n){ return on.indexOf(n) < 0; });
+  h += '<select class="tsm-inp" onchange="' + pickFn + '(this.value)"><option value="">' + esc(pickLabel) + '</option>'
+    + left.map(function(n){ return '<option value="' + esc(n) + '">' + esc(n) + '</option>'; }).join('') + '</select>';
+  if (!names.length) h += '<p class="tsm-note">The foe pack has none loaded.</p>';
+  return h;
+}
+function sheetPickInf(v){ if (v) sheetAddTo('infusions', v); }
+function sheetPickAug(v){ if (v) sheetAddTo('augments', v); }
+function sheetDropInf(i){ sheetDropFrom('infusions', i); }
+function sheetDropAug(i){ sheetDropFrom('augments', i); }
+function sheetAddTo(key, v){
+  var t = curSheet(); if (!t) return;
+  t.obj[key] = t.obj[key] || [];
+  if (t.obj[key].indexOf(v) < 0) t.obj[key].push(v);
+  sheetLiveSave(); sheetReopen();
+}
+function sheetDropFrom(key, i){
+  var t = curSheet(); if (!t) return;
+  (t.obj[key] || []).splice(i, 1);
+  sheetLiveSave(); sheetReopen();
+}
 function sheetChips(bucket, chosen, fn){
   var on = chosen || [];
   var names = bucket === 'infusions' ? infusionNames() : augmentNames();
@@ -1926,10 +1961,8 @@ function entrySheet(src, sceneId, kind, id){
   }
   h += '<label class="tsm-lbl">Attributes</label><div class="rs-attrs">' + attrHtml + '</div>';
   if (isFoe){
-    h += '<div class="tsm-lbl">Infusions <span class="tsm-count">' + (e.infusions || []).length + '</span></div>'
-      + sheetChips('infusions', e.infusions, 'sheetToggleInf')
-      + '<div class="tsm-lbl">Augmentations <span class="tsm-count">' + (e.augments || []).length + '</span></div>'
-      + sheetChips('augmentations', e.augments, 'sheetToggleAug')
+    h += sheetPickBlock('Infusions', 'infusions', e.infusions, infusionNames(), 'sheetDropInf', 'sheetPickInf', 'Add an infusion')
+      + sheetPickBlock('Augmentations', 'augmentations', e.augments, augmentNames(), 'sheetDropAug', 'sheetPickAug', 'Add an augmentation')
       + '<div class="tsm-lbl">Relics</div>';
     if ((e.inv || []).length){
       h += (e.inv || []).map(function(it, i){

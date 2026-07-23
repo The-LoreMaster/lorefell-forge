@@ -1,3 +1,7 @@
+## ThreadSpire: infusions and augmentations read like relics
+
+- Infusions and augmentations are now chosen from a dropdown and listed with what each one does, the same way relics already worked. What is on a foe reads plainly with its rule beneath it, and comes off with a single press, rather than being hunted for in a grid of chips.
+
 ## Canon: the foe pack carries its per-rating budget
 
 - The pack now also seeds how many infusions, augmentations and Acts each rating allows. The row added alongside the ratings was the Act tier ladder, which is a different thing; the budget is read straight off the ratings themselves and matches what the tools already hold.
