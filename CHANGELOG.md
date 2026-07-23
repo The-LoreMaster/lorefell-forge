@@ -1,3 +1,7 @@
+## ThreadSpire: one sheet for a figure, on the shelf or at the table
+
+- Opening a figure gives the same sheet whether you reach it from the library or from a scene's roster: portrait, name, description, rating or role, maximum vitality, build and stance, signature affliction, attributes, infusions, augments, inventory, and abilities, all editable in both places. Saving writes to the library and carries the change to every scene holding that figure. Vitality in play and charges are no longer on this sheet; those belong to the foe card in battle, along with effects and afflictions.
+
 ## ThreadSpire: one card, drawn the way FateWell draws it
 
 - The library and the roster now use the same card, and that card is FateWell's: a cover portrait, the type across the top, the name, and a line beneath carrying rank and vitality, with where it came from underneath. A figure looks the same on the shelf and at the table. Roster cards add current vitality to that line and carry the remove control in the corner.

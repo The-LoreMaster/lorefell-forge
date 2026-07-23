@@ -263,6 +263,7 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .tsm-inp{ width:100%; background:rgba(10,16,32,.6); border:1px solid var(--line2,#2a3552); border-radius:6px; color:var(--silver); font:inherit; font-size:.85rem; padding:7px 8px; }
 .tsm-inp:focus{ outline:none; border-color:var(--gold); }
 .tsm-ta{ min-height:96px; resize:vertical; }
+.tsm-ta.short{ min-height:56px; }
 .tsm-row{ display:flex; gap:8px; justify-content:flex-end; margin-top:12px; }
 .tsm-btn{ padding:7px 14px; border-radius:6px; border:1px solid var(--gold); background:var(--gold); color:var(--navy); font-family:Cinzel,serif; font-size:.72rem; letter-spacing:.08em; cursor:pointer; }
 .tsm-btn.ghost{ background:transparent; color:var(--silver); border-color:var(--line2,#2a3552); }
@@ -1381,34 +1382,6 @@ function abilityBlock(list){
   }).join('');
 }
 /* The library card: the same face FateWell shows when you open an entry. */
-function libCard(id){
-  var e = libGet(id); if (!e) return;
-  var isFoe = e.type === 'monster';
-  var label = isFoe ? 'Foe' : (e.type === 'npc' ? 'NPC' : 'Item');
-  var head = (e.sr ? ' \u00b7 ' + esc(e.sr) : '') + (e.maxVit ? ' \u00b7 ' + e.maxVit + ' vit' : '') + (e.role ? ' \u00b7 ' + esc(e.role) : '');
-  var h = '<div class="lc-hd">'
-    + (e.img ? '<div class="lc-por"><img src="' + esc(e.img) + '" alt=""></div>' : '<div class="lc-por lib-ph"></div>')
-    + '<div><h3 class="tsm-title" style="margin:0">' + esc(e.name) + '</h3>'
-    + '<p class="tsm-note">' + label + head + '</p></div></div>';
-  if (isFoe){
-    if (e.build || e.stance) h += '<div class="tsm-lbl">Build</div><p class="lc-p">' + esc([e.build, e.stance].filter(Boolean).join(' \u00b7 ')) + '</p>';
-    if (e.sig) h += '<div class="tsm-lbl">Signature affliction</div><p class="lc-p">' + esc(e.sig) + '</p>';
-    var al = attrLine(e.attrs);
-    if (al) h += '<div class="tsm-lbl">Attributes</div><p class="lc-p">' + esc(al) + '</p>';
-    if (e.infusions && e.infusions.length) h += '<div class="tsm-lbl">Infusions</div><p class="lc-p">' + esc(e.infusions.join(', ')) + '</p>';
-    if (e.augments && e.augments.length) h += '<div class="tsm-lbl">Augments</div><p class="lc-p">' + esc(e.augments.join(', ')) + '</p>';
-    if (e.inv && e.inv.length) h += '<div class="tsm-lbl">Inventory</div><p class="lc-p">' + esc(e.inv.join(', ')) + '</p>';
-    h += abilityBlock(e.abilities);
-  } else if (e.type === 'npc'){
-    var al2 = attrLine(e.attrs);
-    if (al2) h += '<div class="tsm-lbl">Attributes</div><p class="lc-p">' + esc(al2) + '</p>';
-    if (e.inv && e.inv.length) h += '<div class="tsm-lbl">Inventory</div><p class="lc-p">' + esc(e.inv.join(', ')) + '</p>';
-    h += abilityBlock(e.abilities);
-  }
-  if (e.desc) h += '<p class="lc-desc">' + esc(e.desc) + '</p>';
-  tsModal('<div class="lc-wrap">' + h + '</div>'
-    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
-}
 function libToggleScope(){ S.libAll = !S.libAll; refreshWinBody(); }
 /* Build a scene combatant from a library entry, keeping the link so stats and art stay shared. */
 function libMakeCombatant(e, name){
@@ -1529,46 +1502,52 @@ function rosterRemove(sceneId, kind, id){
 
 /* ---- roster member sheet: name, art and stats, the same fields FateWell edits ---- */
 function rosterReopenAfter(){ if (window._rosterScene) rosterWindow(window._rosterScene); else tsCloseModal(); }
-function rosterEdit(sceneId, kind, id){
-  var f = storyFind('scene', sceneId); if (!f){ rosterRefresh(); return; }
-  var key = kind === 'npc' ? 'npcs' : 'foes';
-  var c = (f.scene[key] || []).filter(function(x){ return sameId(x.id, id); })[0];
-  if (!c) return;
-  window._rsEdit = { sceneId:sceneId, kind:kind, id:id };
-  var isFoe = kind === 'foe';
-  var lib = c.libId ? libGet(c.libId) : null;
-  var img = c.img || (lib && lib.img) || '';
+/* One sheet for a figure, wherever you open it: the library shelf or a scene's
+   roster. Same fields, same editing. Live vitality and charges are not here,
+   they belong to the foe card in battle. */
+function entrySheet(src, sceneId, kind, id){
+  var t = sheetTarget(src, sceneId, kind, id);
+  if (!t) return;
+  window._sheet = { src:src, sceneId:sceneId, kind:kind, id:id };
+  var e = t.obj;
+  var isFoe = (src === 'lib') ? (e.type === 'monster') : (kind === 'foe');
+  var lib = t.lib;
+  var img = e.img || (lib && lib.img) || '';
   var srOpts = ['','Minion','Elite','Champion','Epic','Forsaken'].map(function(s){
-    return '<option value="' + s + '"' + ((c.sr || '') === s ? ' selected' : '') + '>' + (s || 'No rating') + '</option>';
+    return '<option value="' + s + '"' + ((e.sr || '') === s ? ' selected' : '') + '>' + (s || 'No rating') + '</option>';
   }).join('');
-  var attrs = c.attrs || blankAttrs();
+  var attrs = e.attrs || blankAttrs();
   var attrHtml = ATTR_LIST.map(function(a){
     return '<label class="rs-attr"><span>' + a + '</span><input class="tsm-inp rs-anum" id="rsA_' + a + '" type="number" value="' + (attrs[a] || 0) + '"></label>';
   }).join('');
-  tsModal('<h3 class="tsm-title">' + (isFoe ? 'Edit foe' : 'Edit NPC') + (lib ? ' <span class="rs-linked">linked</span>' : '') + '</h3>'
+  function lines(v){ return (v || []).map(function(x){ return (x && (x.name || x.title)) ? (x.name || x.title) + (x.body || x.text ? ' :: ' + (x.body || x.text) : '') : String(x); }).join('\n'); }
+  tsModal('<h3 class="tsm-title">' + (isFoe ? 'Foe' : 'NPC') + (lib ? ' <span class="rs-linked">library</span>' : '') + '</h3>'
     + '<div class="rs-edit">'
     + '<div class="rs-imgrow"><div class="rs-prev" id="rsPrev">' + (img ? '<img src="' + esc(img) + '" alt="">' : '<span class="tsm-note">No image</span>') + '</div>'
-    + '<div><input type="file" accept="image/*" id="rsImgFile" style="display:none" onchange="rosterImgPicked(this)">'
+    + '<div><input type="file" accept="image/*" id="rsImgFile" style="display:none" onchange="sheetImgPicked(this)">'
     + '<button class="tsm-btn ghost" onclick="document.getElementById(\'rsImgFile\').click()">Choose image</button>'
-    + (img ? '<button class="tsm-btn ghost" onclick="rosterImgClear()">Remove</button>' : '') + '</div></div>'
-    + '<label class="tsm-lbl">Name</label><input class="tsm-inp" id="rsName" value="' + esc(c.name || '') + '">'
-    + '<label class="tsm-lbl">Description</label><textarea class="tsm-inp tsm-ta" id="rsDesc">' + esc(c.desc || '') + '</textarea>'
-    + (isFoe ? '<label class="tsm-lbl">Shatter Rating</label><select class="tsm-inp" id="rsSR" onchange="rosterSRChange()">' + srOpts + '</select>' : '')
-    + '<div class="rs-vit"><label class="tsm-lbl">Vitality</label>'
-    + '<span><input class="tsm-inp rs-anum" id="rsCur" type="number" value="' + (c.curVit || 0) + '"> / '
-    + '<input class="tsm-inp rs-anum" id="rsMax" type="number" value="' + (c.maxVit || 0) + '"></span></div>'
-    + (isFoe ? '<div class="rs-vit"><label class="tsm-lbl">Charges</label><span><input class="tsm-inp rs-anum" id="rsCharge" type="number" min="0" max="3" value="' + (c.charge || 0) + '"></span></div>' : '')
+    + '<button class="tsm-btn ghost" onclick="sheetImgClear()">Remove</button></div></div>'
+    + '<label class="tsm-lbl">Name</label><input class="tsm-inp" id="rsName" value="' + esc(e.name || '') + '">'
+    + '<label class="tsm-lbl">Description</label><textarea class="tsm-inp tsm-ta" id="rsDesc">' + esc(e.desc || '') + '</textarea>'
+    + (isFoe
+        ? '<label class="tsm-lbl">Shatter Rating</label><select class="tsm-inp" id="rsSR" onchange="sheetSRChange()">' + srOpts + '</select>'
+        : '<label class="tsm-lbl">Role</label><input class="tsm-inp" id="rsRole" value="' + esc(e.role || '') + '">')
+    + '<label class="tsm-lbl">Maximum vitality</label><input class="tsm-inp rs-anum" id="rsMax" type="number" value="' + (e.maxVit || 0) + '">'
+    + (isFoe ? '<label class="tsm-lbl">Build and stance</label><input class="tsm-inp" id="rsBuild" value="' + esc([e.build, e.stance].filter(Boolean).join(' \u00b7 ')) + '" placeholder="Build \u00b7 stance">'
+             + '<label class="tsm-lbl">Signature affliction</label><input class="tsm-inp" id="rsSig" value="' + esc(e.sig || '') + '">' : '')
     + '<label class="tsm-lbl">Attributes</label><div class="rs-attrs">' + attrHtml + '</div>'
-    + (lib ? '<p class="tsm-note">Linked to the library. Saving updates the library everywhere, except current vitality and charges.</p>' : '')
+    + (isFoe ? '<label class="tsm-lbl">Infusions</label><textarea class="tsm-inp tsm-ta short" id="rsInf" placeholder="One per line">' + esc((e.infusions || []).join('\n')) + '</textarea>'
+             + '<label class="tsm-lbl">Augments</label><textarea class="tsm-inp tsm-ta short" id="rsAug" placeholder="One per line">' + esc((e.augments || []).join('\n')) + '</textarea>' : '')
+    + '<label class="tsm-lbl">Inventory</label><textarea class="tsm-inp tsm-ta short" id="rsInv" placeholder="One per line">' + esc((e.inv || []).join('\n')) + '</textarea>'
+    + '<label class="tsm-lbl">Abilities</label><textarea class="tsm-inp tsm-ta" id="rsAb" placeholder="Name :: what it does, one per line">' + esc(lines(e.abilities)) + '</textarea>'
+    + '<p class="tsm-note">' + (lib || src === 'lib' ? 'Saving updates the library everywhere. Vitality in play and charges live on the foe card in battle.' : 'This figure is local to the scene.') + '</p>'
     + '</div>'
-    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button>'
-    + '<button class="tsm-btn" onclick="rosterEditSave()">Save</button></div>');
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="sheetBack()">Cancel</button>'
+    + '<button class="tsm-btn" onclick="sheetSave()">Save</button></div>');
 }
-/* Everything except live vitality and charges belongs to the foe, so it goes home
-   to the library. Current vitality and charge stay with the scene. */
 function assetToRow(e){
   return {
-    assetId: e.id, type: e.type, name: e.name || '', description: e.desc || '',
+    assetId: e.id, type: e.type || 'monster', name: e.name || '', description: e.desc || '',
     shatterRating: e.sr || '', lp: e.lp || 0, sp: e.sp || 0, maxVit: e.maxVit || 0,
     role: e.role || '', image: e.img || '', origin: e.origin || '',
     attrs: JSON.stringify(e.attrs || {}), inventory: JSON.stringify(e.inv || []),
@@ -1578,84 +1557,106 @@ function assetToRow(e){
       campaignId:e.campaignId||'', campaignName:e.campaignName||'' })
   };
 }
-function libSyncFrom(c){
-  if (!c || !c.libId) return;
-  var e = libGet(c.libId); if (!e) return;
-  e.name = c.name; e.desc = c.desc || ''; e.img = c.img || '';
-  if (c.sr !== undefined) e.sr = c.sr;
-  e.maxVit = c.maxVit || 0;
-  e.attrs = JSON.parse(JSON.stringify(c.attrs || blankAttrs()));
-  if (c.abilities) e.abilities = JSON.parse(JSON.stringify(c.abilities));
-  if (c.inv) e.inv = c.inv.slice();
-  if (c.infusions) e.infusions = c.infusions.slice();
-  if (c.augments) e.augments = c.augments.slice();
-  if (c.sig !== undefined) e.sig = c.sig;
-  if (assetBackend && assetBackend.save) assetBackend.save(assetToRow(e)).catch(function(){});
-  /* every other scene holding this foe picks up the same change */
+function sheetTarget(src, sceneId, kind, id){
+  if (src === 'lib'){ var e = libGet(id); return e ? { obj:e, lib:null } : null; }
+  var f = storyFind('scene', sceneId); if (!f) return null;
+  var key = kind === 'npc' ? 'npcs' : 'foes';
+  var c = (f.scene[key] || []).filter(function(x){ return sameId(x.id, id); })[0];
+  if (!c) return null;
+  return { obj:c, lib: c.libId ? libGet(c.libId) : null };
+}
+function curSheet(){ var s = window._sheet; return s ? sheetTarget(s.src, s.sceneId, s.kind, s.id) : null; }
+function sheetBack(){ var s = window._sheet; if (s && s.src === 'roster' && window._rosterScene) rosterWindow(window._rosterScene); else tsCloseModal(); }
+function sheetSRChange(){
+  var sr = (document.getElementById('rsSR') || {}).value || '';
+  if (!sr || !SR_TABLE[sr]) return;
+  var mx = document.getElementById('rsMax'); if (mx) mx.value = SR_TABLE[sr].vit;
+}
+function sheetImgPicked(input){
+  var file = input.files && input.files[0]; if (!file) return;
+  var t = curSheet(); if (!t) return;
+  var p = document.getElementById('rsPrev'); if (p) p.innerHTML = '<span class="tsm-note">Uploading...</span>';
+  assetBackend.upload(file, file.name.replace(/\.[^.]+$/, '')).then(function(ref){
+    t.obj.img = ref || '';
+    var q = document.getElementById('rsPrev');
+    if (q) q.innerHTML = t.obj.img ? '<img src="' + esc(t.obj.img) + '" alt="">' : '<span class="tsm-note">No image</span>';
+    sheetSync(t); storySave();
+  }).catch(function(){ var q = document.getElementById('rsPrev'); if (q) q.innerHTML = '<span class="tsm-note">Upload failed</span>'; });
+}
+function sheetImgClear(){
+  var t = curSheet(); if (!t) return;
+  t.obj.img = '';
+  var p = document.getElementById('rsPrev'); if (p) p.innerHTML = '<span class="tsm-note">No image</span>';
+  sheetSync(t); storySave();
+}
+function sheetSave(){
+  var s = window._sheet, t = curSheet();
+  if (!s || !t){ tsCloseModal(); return; }
+  var e = t.obj;
+  function val(id){ var el = document.getElementById(id); return el ? el.value : undefined; }
+  function num(id){ var el = document.getElementById(id); return el ? (Number(el.value) || 0) : 0; }
+  function list(id){ var v = val(id); return v === undefined ? undefined : v.split('\n').map(function(x){ return x.replace(/^\s+|\s+$/g,''); }).filter(Boolean); }
+  var nm = (val('rsName') || '').replace(/^\s+|\s+$/g,''); if (nm) e.name = nm;
+  e.desc = val('rsDesc') || '';
+  if (val('rsSR') !== undefined) e.sr = val('rsSR');
+  if (val('rsRole') !== undefined) e.role = val('rsRole');
+  e.maxVit = num('rsMax');
+  if (val('rsBuild') !== undefined){
+    var parts = String(val('rsBuild')).split('\u00b7').map(function(x){ return x.replace(/^\s+|\s+$/g,''); });
+    e.build = parts[0] || ''; e.stance = parts[1] || '';
+  }
+  if (val('rsSig') !== undefined) e.sig = val('rsSig');
+  e.attrs = e.attrs || blankAttrs();
+  ATTR_LIST.forEach(function(a){ e.attrs[a] = num('rsA_' + a); });
+  var inf = list('rsInf'); if (inf) e.infusions = inf;
+  var aug = list('rsAug'); if (aug) e.augments = aug;
+  var inv = list('rsInv'); if (inv) e.inv = inv;
+  var ab = list('rsAb');
+  if (ab) e.abilities = ab.map(function(l){ var p = l.split('::'); return { name:(p[0]||'').replace(/^\s+|\s+$/g,''), body:(p[1]||'').replace(/^\s+|\s+$/g,'') }; });
+  if (e.curVit === undefined || e.curVit > e.maxVit) e.curVit = e.maxVit;
+  sheetSync(t);
+  storySave(); render();
+  if (s.src === 'roster') sheetBack(); else { tsCloseModal(); refreshWinBody(); }
+}
+/* push the figure back to the library and out to every scene that holds it */
+function sheetSync(t){
+  if (!t) return;
+  if (window._sheet && window._sheet.src === 'lib'){
+    if (assetBackend && assetBackend.save) assetBackend.save(assetToRow(t.obj)).catch(function(){});
+    libPropagate(t.obj.id, t.obj);
+  } else if (t.lib){
+    var e = t.lib, c = t.obj;
+    e.name = c.name; e.desc = c.desc || ''; e.img = c.img || ''; e.sr = c.sr || '';
+    e.maxVit = c.maxVit || 0; e.role = c.role || '';
+    e.attrs = JSON.parse(JSON.stringify(c.attrs || blankAttrs()));
+    e.abilities = JSON.parse(JSON.stringify(c.abilities || []));
+    e.inv = (c.inv || []).slice(); e.infusions = (c.infusions || []).slice();
+    e.augments = (c.augments || []).slice(); e.sig = c.sig || '';
+    e.build = c.build || ''; e.stance = c.stance || '';
+    if (assetBackend && assetBackend.save) assetBackend.save(assetToRow(e)).catch(function(){});
+    libPropagate(e.id, e);
+  }
+}
+function libPropagate(libId, e){
   ((S.adventure && S.adventure.acts) || []).forEach(function(a){
     (a.sessions || []).forEach(function(se){
       (se.scenes || []).forEach(function(sc){
         ['foes','npcs'].forEach(function(k){
           (sc[k] || []).forEach(function(x){
-            if (!sameId(x.libId, c.libId) || x === c) return;
-            x.name = e.name; x.desc = e.desc; x.img = e.img; x.sr = e.sr;
-            x.maxVit = e.maxVit; x.attrs = JSON.parse(JSON.stringify(e.attrs));
+            if (!sameId(x.libId, libId)) return;
+            x.name = e.name; x.desc = e.desc || ''; x.img = e.img || ''; x.sr = e.sr || '';
+            x.maxVit = e.maxVit || 0; x.role = e.role || '';
+            x.attrs = JSON.parse(JSON.stringify(e.attrs || blankAttrs()));
+            x.abilities = JSON.parse(JSON.stringify(e.abilities || []));
+            x.inv = (e.inv || []).slice(); x.infusions = (e.infusions || []).slice();
+            x.augments = (e.augments || []).slice(); x.sig = e.sig || '';
+            x.build = e.build || ''; x.stance = e.stance || '';
             if (x.curVit > x.maxVit) x.curVit = x.maxVit;
           });
         });
       });
     });
   });
-}
-function rsEditTarget(){
-  var e = window._rsEdit; if (!e) return null;
-  var f = storyFind('scene', e.sceneId); if (!f) return null;
-  var key = e.kind === 'npc' ? 'npcs' : 'foes';
-  return (f.scene[key] || []).filter(function(x){ return sameId(x.id, e.id); })[0] || null;
-}
-function rosterSRChange(){
-  var sr = (document.getElementById('rsSR') || {}).value || '';
-  if (!sr || !SR_TABLE[sr]) return;
-  var mx = document.getElementById('rsMax'), cu = document.getElementById('rsCur');
-  if (mx) mx.value = SR_TABLE[sr].vit;
-  if (cu) cu.value = SR_TABLE[sr].vit;
-}
-function rosterImgPicked(input){
-  var file = input.files && input.files[0]; if (!file) return;
-  var c = rsEditTarget(); if (!c) return;
-  var prev = document.getElementById('rsPrev');
-  if (prev) prev.innerHTML = '<span class="tsm-note">Uploading...</span>';
-  var nm = file.name.replace(/\.[^.]+$/, '');
-  assetBackend.upload(file, nm).then(function(ref){
-    c.img = ref || '';
-    var p = document.getElementById('rsPrev');
-    if (p) p.innerHTML = c.img ? '<img src="' + esc(c.img) + '" alt="">' : '<span class="tsm-note">No image</span>';
-    libSyncFrom(c); storySave();
-  }).catch(function(){
-    var p = document.getElementById('rsPrev'); if (p) p.innerHTML = '<span class="tsm-note">Upload failed</span>';
-  });
-}
-function rosterImgClear(){
-  var c = rsEditTarget(); if (!c) return;
-  c.img = '';
-  var p = document.getElementById('rsPrev'); if (p) p.innerHTML = '<span class="tsm-note">No image</span>';
-  libSyncFrom(c); storySave();
-}
-function rosterEditSave(){
-  var e = window._rsEdit, c = rsEditTarget();
-  if (!e || !c){ tsCloseModal(); return; }
-  function num(id){ var el = document.getElementById(id); return el ? (Number(el.value) || 0) : 0; }
-  c.name = ((document.getElementById('rsName') || {}).value || '').replace(/^\s+|\s+$/g,'') || c.name;
-  c.desc = (document.getElementById('rsDesc') || {}).value || '';
-  if (e.kind === 'foe'){
-    c.sr = (document.getElementById('rsSR') || {}).value || '';
-    c.charge = Math.max(0, Math.min(3, num('rsCharge')));
-  }
-  c.curVit = num('rsCur'); c.maxVit = num('rsMax');
-  c.attrs = c.attrs || blankAttrs();
-  ATTR_LIST.forEach(function(a){ c.attrs[a] = num('rsA_' + a); });
-  libSyncFrom(c);
-  storySave(); rosterReopenAfter(); render();
 }
 function rosterWindow(sceneId){
   var f = storyFind('scene', sceneId); if (!f) return;
@@ -1683,7 +1684,7 @@ function storyRosterHtml(sc){
     if (ref.maxVit) sub += ' \u00b7 ' + ref.curVit + ' now';
     h += tsVCard({ img:c.img, badge:TYPE_LABEL[e.type], title:c.name, sub:sub,
                    origin: lib.name ? 'From the library' : '',
-                   openFn: 'rosterEdit(\'' + sc.id + '\',\'' + c.kind + '\',\'' + c.id + '\')',
+                   openFn: 'entrySheet(\'roster\',\'' + sc.id + '\',\'' + c.kind + '\',\'' + c.id + '\')',
                    corner: '<button class="card-x" title="Remove" onclick="event.stopPropagation();rosterRemove(\'' + sc.id + '\',\'' + c.kind + '\',\'' + c.id + '\')">\u2715</button>' });
   });
   h += '<div class="rs-adds"><button class="st-add" onclick="rosterAddFromLib(\'' + sc.id + '\')">Add from library</button>'
@@ -1738,7 +1739,7 @@ function libraryBody(){
       rows.forEach(function(e){
         h += tsVCard({ img:e.img, badge:TYPE_LABEL[e.type] || '', title:e.name, sub:entrySub(e),
                        origin: e.campaignName || (e.origin ? 'From ' + e.origin : ''),
-                       openFn: 'libCard(\'' + e.id + '\')' });
+                       openFn: 'entrySheet(\'lib\',\'\',\'\',\'' + e.id + '\')' });
       });
     });
   } else {
