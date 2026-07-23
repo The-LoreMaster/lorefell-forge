@@ -1,3 +1,7 @@
+## ThreadSpire: removing a stage removes it
+
+- A stage now goes for good when you remove it, taking it off every scene that held it and out of the account, with a word first about what is being lost. It had only been unpinning the stage from the scene you were on, and refusing to let go of it entirely while any other scene still held it, so it stayed in the list and looked as though nothing had happened.
+
 ## ThreadSpire: every stage is the adventure's, not one scene's
 
 - Stages were being saved all along; they were tied to whichever scene happened to be open when they were made, so opening another scene left them behind and the deck looked empty but for the Lobby. The window now shows every stage the adventure holds, and switching to one attaches it to the scene you are on. A stage saved without a name reads as untitled rather than as a blank card, and each card's own buttons keep their presses to themselves.

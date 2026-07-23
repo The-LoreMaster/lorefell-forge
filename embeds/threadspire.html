@@ -3476,6 +3476,2194 @@ function stageDrop(ev, el, overId){
   refreshStagesWin();
 }
 function lmDeleteStage(id){
+  if (isLobby(id)){
+    tsModal('<h3 class="tsm-title">The Lobby stays</h3>'
+      + '<p class="lc-p">Every table keeps its Lobby. It is where the party gathers before a map is laid down, so it cannot be removed.</p>'
+      + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
+    return;
+  }
+  var st = stageById(id);
+  window._tsYes = function(){
+    stageTouch();
+    /* A stage belongs to the adventure, so removing it takes it off every scene that
+       held it and out of the account, not merely off the one you happen to be on. */
+    Object.keys(S.instance.bindings || {}).forEach(function(k){
+      var b = S.instance.bindings[k];
+      b.stageIds = (b.stageIds || []).filter(function(x){ return !sameId(x, id); });
+      if (sameId(b.activeStageId, id)) b.activeStageId = b.stageIds[0] || null;
+    });
+    S.instance.stages = instanceStages().filter(function(x){ return !sameId(x.stageId, id); });
+    if (stageBackend && stageBackend.remove) stageBackend.remove(id);
+    ensureLobby();
+    var bd = sceneBinding();
+    if (!bd.activeStageId && bd.stageIds.length) bd.activeStageId = bd.stageIds[0];
+    var nx = stageById(bd.activeStageId);
+    if (nx) stageRestore(nx);
+    tsCloseModal();
+    applyRemoteState({ instance:S.instance });
+    refreshStagesWin();
+  };
+  tsModal('<h3 class="tsm-title">Remove ' + esc((st && st.name) || 'this stage') + '?</h3>'
+    + '<p class="tsm-note">It leaves the adventure, along with the map and tokens saved on it.</p>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button>'
+    + '<button class="tsm-btn danger" onclick="tsConfirmYes()">Remove</button></div>');
+}
+function stagesBody(){
+  ensureLobby();
+  /* Every stage this account holds for the adventure. Binding them to a single
+     scene meant a stage made on one scene vanished the moment you opened another. */
+  var seen = {}, deck = [];
+  stageDeck().forEach(function(b){ if (!seen[b.stageId]){ seen[b.stageId] = 1; deck.push(b); } });
+  instanceStages().forEach(function(s){ if (!seen[s.stageId]){ seen[s.stageId] = 1; deck.push(s); } });
+  var cards = deck.map(function(b){
+    var on = b.stageId === activeStageId();
+    var mp = null; (S.scene.maps||[]).forEach(function(m){ if(m.id===b.mapId) mp=m; });
+    var thumb = mp && mp.url
+      ? '<span class="sd-thumb" style="background-image:url('+mp.url+')"></span>'
+      : '<span class="sd-thumb sd-ph"></span>';
+    var count = on ? S.tokens.length : ((b.tokens||[]).length);
+    return '<div class="sd-card' + (on?' on':'') + '"'
+      + ' ondragover="stageDragOver(event,this)" ondragleave="stageDragLeave(this)"'
+      + ' ondrop="stageDrop(event,this,\'' + b.stageId + '\')">'
+      + '<span class="sd-grip" draggable="true" ondragstart="stageDragStart(event,\'' + b.stageId + '\')" title="Drag to reorder">\u283f</span>'
+      + '<button class="sd-main" onclick="lmSwitchStage(\''+b.stageId+'\')">' + thumb
+      + '<span><span class="sd-name">' + esc(b.name || 'Untitled stage') + '</span>'
+      + '<span class="sd-meta">' + (mp?esc(mp.name):'no map') + ' \u00b7 ' + count + ' tokens</span></span></button>'
+      + '<span class="sd-acts">'
+      + '<button type="button" class="st-b" onclick="event.stopPropagation();event.preventDefault();lmRenameStage(\''+b.stageId+'\')" title="Rename">\u270e</button>'
+      + '<button type="button" class="st-b" onclick="event.stopPropagation();event.preventDefault();lmStageMap(\''+b.stageId+'\')" title="Choose its map">\u25a6</button>'
+      + '<button type="button" class="st-b" onclick="event.stopPropagation();event.preventDefault();lmDeleteStage(\''+b.stageId+'\')" title="Delete stage">\u2715</button></span></div>';
+  }).join('');
+  return '<div class="win-note">Stages are saved tables: a map and where every token stands. Switching keeps each as you left it.</div>'
+    + '<div class="sd-list">' + cards + '</div>'
+    + '<button class="sd-new" onclick="lmNewStage()">+ New stage</button>';
+}
+var BEAT_TYPES = {
+  readaloud:['Read-aloud','#6fc7c0'], dialogue:['Dialogue','#86c79b'], crucible:['Crucible','#d98a6a'],
+  lorecheck:['Lore Check','#9aa8e0'], clue:['Clue','#d4a86b'], quest:['Quest','#c9a84c'],
+  secret:['Secret','#c9a84c'], beat:['Beat','#b18fd0'], reminder:['Reminder','#d98a8a'],
+  general:['Note','#8fa0b3'],
+  read:['Read-aloud','#6fc7c0'], check:['Lore Check','#9aa8e0'], choice:['Beat','#b18fd0']
+};
+function beatMeta(kind){ return BEAT_TYPES[kind] || ['Note','#8fa0b3']; }
+var ATTR_LIST = ['Precision','Power','Magic','Evasion','Durability','Resistance','Vigor','Wit'];
+var SR_TABLE = { 'Minion':{lp:1,sp:9,vit:8}, 'Elite':{lp:2,sp:11,vit:16}, 'Champion':{lp:3,sp:14,vit:24}, 'Epic':{lp:4,sp:16,vit:32}, 'Forsaken':{lp:5,sp:19,vit:40} };
+function blankAttrs(){ var o = {}; ATTR_LIST.forEach(function(a){ o[a] = 0; }); return o; }
+/* Same conversion FateWell uses, so a row means the same thing in both tools. */
+function rowToAsset(r){
+  function pick(){ for (var i=0;i<arguments.length;i++){ var k=arguments[i]; if (r[k]!==undefined && r[k]!==null && r[k]!=='') return r[k]; } return undefined; }
+  function jp(v, fb){ if (v===undefined||v===null||v==='') return fb; if (typeof v==='object') return v; try { return JSON.parse(v); } catch(e){ return fb; } }
+  var type = pick('type') || 'monster';
+  var e = { id:pick('assetId','_id','id') || mkId(), type:type, name:pick('name') || '',
+            desc:pick('description','desc') || '', origin:pick('origin') || '', img:pick('image','img') || '' };
+  if (type === 'monster'){
+    e.sr = pick('shatterRating','sr') || '';
+    e.lp = Number(pick('lp')) || (e.sr && SR_TABLE[e.sr] ? SR_TABLE[e.sr].lp : 0);
+    e.sp = Number(pick('sp')) || (e.sr && SR_TABLE[e.sr] ? SR_TABLE[e.sr].sp : 0);
+    e.maxVit = Number(pick('maxVit')) || 0;
+    e.foeWeight = Number(pick('foeWeight')) || 0;
+    e.attrs = jp(pick('attrs'), blankAttrs());
+    e.inv = jp(pick('inventory','inv'), []);
+    e.abilities = jp(pick('abilities'), []);
+    var fm = jp(pick('foeMeta'), {});
+    e.sig = pick('signatureAffliction','sig') || fm.sig || '';
+    e.source = pick('source') || fm.source || '';
+    e.build = fm.build || pick('build') || '';
+    e.stance = fm.stance || pick('stance') || '';
+    e.augments = Array.isArray(fm.augments) ? fm.augments : [];
+    e.infusions = Array.isArray(fm.infusions) ? fm.infusions : jp(pick('infusions'), []);
+    if (fm.campaignId !== undefined) e.campaignId = fm.campaignId || '';
+    if (fm.campaignName !== undefined) e.campaignName = fm.campaignName || '';
+  } else {
+    e.role = pick('role') || '';
+    if (type === 'npc'){
+      e.maxVit = Number(pick('maxVit')) || 0;
+      e.attrs = jp(pick('attrs'), blankAttrs());
+      e.inv = jp(pick('inventory','inv'), []);
+      e.abilities = jp(pick('abilities'), []);
+    }
+  }
+  return e;
+}
+S.library = [];
+S.libAll = false;                 /* false: this adventure only. true: the saved collection. */
+S.libLoaded = false;
+function libGet(id){ var r = null; (S.library || []).forEach(function(e){ if (sameId(e.id, id)) r = e; }); return r; }
+function libScoped(){
+  var list = S.library || [];
+  if (S.libAll) return list;
+  var cid = S.campaignId || '';
+  if (!cid) return list;
+  return list.filter(function(e){ return !e.campaignId || e.campaignId === cid; });
+}
+function libLoad(force){
+  if (S.libLoaded && !force) return Promise.resolve(S.library);
+  if (!assetBackend || !assetBackend.list) return Promise.resolve([]);
+  return assetBackend.list().then(function(rows){
+    var keep = (rows || []).filter(function(a){ return !a || !a.kind || (a.kind !== 'map' && a.kind !== 'token'); });
+    S.library = keep.map(rowToAsset).filter(function(a){ return a.name; });
+    S.libLoaded = true;
+    return S.library;
+  }).catch(function(){ S.libLoaded = true; return []; });
+}
+var TYPE_LABEL = { monster:'Foe', npc:'NPC', item:'Item' };
+/* The library card, as FateWell renders it. The library list and a scene's roster
+   both draw with this, so an NPC looks the same wherever you meet them. */
+function tsVCard(o){
+  var hasImg = o.img && o.img.length;
+  return '<div class="vcard libcard' + (hasImg ? ' has-cover' : '') + '">'
+    + '<button class="vcard-main" onclick="' + o.openFn + '">'
+    + (hasImg ? '<div class="vcard-cover"><img src="' + esc(o.img) + '" alt=""></div>' : '')
+    + '<div class="vcard-body">'
+    + '<div class="vcard-badge">' + esc(o.badge || '') + '</div>'
+    + '<div class="vcard-title">' + esc(o.title || '') + '</div>'
+    + (o.sub ? '<div class="vcard-sub">' + esc(o.sub) + '</div>' : '')
+    + (o.origin ? '<div class="vcard-origin">' + esc(o.origin) + '</div>' : '')
+    + '</div></button>'
+    + (o.corner ? '<div class="vcard-corner inline">' + o.corner + '</div>' : '')
+    + '</div>';
+}
+/* The one line under a name, wherever the figure appears. */
+function entrySub(e){
+  var s = TYPE_LABEL[e.type] || (e.kind === 'foe' ? 'Foe' : 'NPC');
+  if (e.sr) s += ' \u00b7 ' + e.sr + ' \u00b7 ' + (e.maxVit || 0) + ' vit';
+  else if (e.maxVit) s += ' \u00b7 ' + (e.maxVit || 0) + ' vit';
+  else if (e.role) s += ' \u00b7 ' + e.role;
+  return s;
+}
+function attrLine(attrs){
+  return ATTR_LIST.filter(function(a){ return (attrs || {})[a]; })
+    .map(function(a){ return a + ' ' + attrs[a]; }).join(', ');
+}
+function abilityBlock(list){
+  if (!list || !list.length) return '';
+  return '<div class="tsm-lbl">Abilities</div>' + list.map(function(ab){
+    var nm = ab && (ab.name || ab.title) ? (ab.name || ab.title) : String(ab);
+    var tx = ab && (ab.body || ab.text || ab.desc) ? (ab.body || ab.text || ab.desc) : '';
+    return '<div class="lc-ab"><b>' + esc(nm) + '</b>' + (tx ? '<div class="lc-abtx">' + esc(tx) + '</div>' : '') + '</div>';
+  }).join('');
+}
+/* The library card: the same face FateWell shows when you open an entry. */
+function libDelete(id){
+  var e = libGet(id); if (!e) return;
+  window._tsYes = function(){
+    tsAsk('TS_ASSET_DELETE', { assetId:id }).then(function(){
+      S.library = (S.library || []).filter(function(x){ return !sameId(x.id, id); });
+      tsCloseModal(); refreshWinBody();
+    }).catch(function(){ tsCloseModal(); });
+  };
+  tsModal('<h3 class="tsm-title">Delete ' + esc(e.name) + '?</h3>'
+    + '<p class="tsm-note">It leaves the shelf everywhere. Scenes already holding it keep what they have.</p>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button>'
+    + '<button class="tsm-btn danger" onclick="tsConfirmYes()">Delete</button></div>');
+}
+function libSearch(q){
+  S.libQuery = q || '';
+  var rows = document.querySelectorAll('#winBody .vcard.libcard');
+  var t = S.libQuery.toLowerCase();
+  for (var i = 0; i < rows.length; i++){
+    var nm = (rows[i].querySelector('.vcard-title') || {}).textContent || '';
+    rows[i].style.display = (!t || nm.toLowerCase().indexOf(t) >= 0) ? '' : 'none';
+  }
+}
+function libToggleScope(){ S.libAll = !S.libAll; refreshWinBody(); }
+/* Build a scene combatant from a library entry, keeping the link so stats and art stay shared. */
+function libMakeCombatant(e, name){
+  var isFoe = e.type === 'monster';
+  var vit = e.maxVit || (isFoe && e.sr && SR_TABLE[e.sr] ? SR_TABLE[e.sr].vit : 0);
+  return {
+    id: mkId(), libId: e.id, type: isFoe ? 'monster' : 'npc', side: isFoe ? 'foe' : 'npc',
+    name: name || e.name, sr: e.sr || '', maxVit: vit, curVit: vit, charge: 0,
+    attrs: JSON.parse(JSON.stringify(e.attrs || blankAttrs())),
+    abilities: JSON.parse(JSON.stringify(e.abilities || [])),
+    inv: (e.inv || []).slice(),
+    infusions: (e.infusions || []).slice(), augments: (e.augments || []).slice(),
+    sig: e.sig || '', source: e.source || '', build: e.build || '', stance: e.stance || '',
+    img: e.img || '', desc: e.desc || '',
+    act:'', target:'', done:false, affs:[]
+  };
+}
+var SPEAKER_COLORS = ['#7fb3d5','#86c79b','#b18fd0','#e0a86b','#d98a8a','#6fc7c0','#c9b06a','#9aa8e0','#d49ac0','#8fc16a'];
+function speakerColor(name){
+  var key = String(name || '').toLowerCase().replace(/\s+\d+$/,'').replace(/^\s+|\s+$/g,'');
+  var h = 0;
+  for (var i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+  return SPEAKER_COLORS[h % SPEAKER_COLORS.length];
+}
+/* everyone at the table who can speak: the scene's NPCs and foes */
+function castList(sc){
+  sc = sc || S.scene || {};
+  var out = [];
+  function add(c, kind){
+    var lib = c.libId ? libGet(c.libId) : null;
+    out.push({ id:c.id, libId:c.libId || '', kind:kind, ref:c, lib:lib,
+               name: c.name || (lib && lib.name) || '',
+               img: c.img || (lib && lib.img) || '' });
+  }
+  (sc.npcs || []).forEach(function(n){ add(n, 'npc'); });
+  (sc.foes || []).forEach(function(f){ add(f, 'foe'); });
+  return out;
+}
+/* the players at this scene. Everyone is in unless the LoreMaster marks them out. */
+function scenePlayers(sc){
+  sc = sc || S.scene || {};
+  var roster = (sc.fell && sc.fell.length) ? sc.fell : ((S.scene && S.scene.fell) || []);
+  return roster.map(function(p){ return { id:p.id, name:p.name, level:p.level, out:!!(sc.out && sc.out[p.id]), ref:p }; });
+}
+function togglePlayerOut(sceneId, pid){
+  var f = storyFind('scene', sceneId); if (!f){ rosterRefresh(); return; }
+  f.scene.out = f.scene.out || {};
+  if (f.scene.out[pid]) delete f.scene.out[pid]; else f.scene.out[pid] = true;
+  storySave(); rosterRefresh(); render();
+}
+function rosterAddFromLib(sceneId){
+  var f = storyFind('scene', sceneId); if (!f) return;
+  window._rosterScene = sceneId;
+  libLoad().then(function(){ libChooser(sceneId); });
+  tsModal('<h3 class="tsm-title">Library</h3><p class="tsm-note">Loading...</p>');
+}
+function libChooser(sceneId){
+  var list = libScoped();
+  var foes = list.filter(function(e){ return e.type === 'monster'; });
+  var npcs = list.filter(function(e){ return e.type === 'npc'; });
+  var h = '<h3 class="tsm-title">Add from library</h3>'
+    + '<button class="tsm-btn ghost lib-scope" onclick="libScopeFlip(\'' + sceneId + '\')">' + (S.libAll ? 'Showing: saved collection' : 'Showing: this adventure') + '</button>'
+    + '<input class="tsm-inp" id="libSearch" placeholder="Search by name" oninput="libFilter(this.value)">'
+    + '<div class="lib-list" id="libList">';
+  function row(e, kind){
+    var meta = kind === 'foe'
+      ? ((e.sr || '') + (e.maxVit ? ' \u00b7 ' + e.maxVit + ' vit' : ''))
+      : (e.role || 'NPC');
+    return '<button class="lib-row" data-name="' + esc(e.name.toLowerCase()) + '" onclick="libAttach(\'' + sceneId + '\',\'' + e.id + '\')">'
+      + (e.img ? '<img class="lib-av" src="' + esc(e.img) + '" alt="">' : '<span class="lib-av lib-ph"></span>')
+      + '<span class="lib-nm">' + esc(e.name) + '</span><span class="lib-meta">' + esc(meta) + '</span></button>';
+  }
+  if (foes.length){ h += '<div class="tsm-lbl">Foes</div>'; foes.forEach(function(e){ h += row(e, 'foe'); }); }
+  if (npcs.length){ h += '<div class="tsm-lbl">NPCs</div>'; npcs.forEach(function(e){ h += row(e, 'npc'); }); }
+  if (!foes.length && !npcs.length) h += '<p class="tsm-note">Nothing here yet. FateWell authors the library.</p>';
+  h += '</div><div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>';
+  tsModal(h);
+}
+function libScopeFlip(sceneId){ S.libAll = !S.libAll; libChooser(sceneId); }
+function libFilter(q){
+  q = String(q || '').toLowerCase();
+  var rows = document.querySelectorAll('#libList .lib-row');
+  for (var i = 0; i < rows.length; i++){
+    var n = rows[i].getAttribute('data-name') || '';
+    rows[i].style.display = (!q || n.indexOf(q) >= 0) ? '' : 'none';
+  }
+}
+function libAttach(sceneId, libId){
+  var f = storyFind('scene', sceneId); if (!f) return;
+  var e = libGet(libId); if (!e) return;
+  var isFoe = e.type === 'monster';
+  var key = isFoe ? 'foes' : 'npcs';
+  f.scene[key] = f.scene[key] || [];
+  var same = f.scene[key].filter(function(c){ return sameId(c.libId, libId); }).length;
+  f.scene[key].push(libMakeCombatant(e, e.name + (same ? ' ' + (same + 1) : '')));
+  storySave(); rosterReopenAfter(); render();
+}
+function rosterAdd(sceneId, kind){
+  var f = storyFind('scene', sceneId); if (!f) return;
+  tsAsk2({ title: kind === 'npc' ? 'Add an NPC' : 'Add a foe', label:'Name', cta:'Add', onSave:function(n){
+    if (!n) return;
+    if (kind === 'npc'){
+      f.scene.npcs = f.scene.npcs || [];
+      f.scene.npcs.push({ id:mkId(), name:n, img:'' });
+    } else {
+      f.scene.foes = f.scene.foes || [];
+      f.scene.foes.push({ id:mkId(), name:n, sr:'', side:'foe', curVit:0, maxVit:0, charge:0, img:'' });
+    }
+    storySave(); rosterRefresh(); render();
+  }});
+}
+function rosterRemove(sceneId, kind, id){
+  var f = storyFind('scene', sceneId); if (!f){ rosterRefresh(); return; }
+  var key = kind === 'npc' ? 'npcs' : 'foes';
+  f.scene[key] = (f.scene[key] || []).filter(function(x){ return !sameId(x.id, id); });
+  storySave(); rosterRefresh(); render();
+}
+
+/* ---- roster member sheet: name, art and stats, the same fields FateWell edits ---- */
+function rosterReopenAfter(){ if (window._rosterScene) rosterWindow(window._rosterScene); else tsCloseModal(); }
+var FORGE = { pools:{ infusions:[], augmentations:[], items:[] }, pack:{ builds:[], stances:[], afflictions:[], infusions:[], augmentations:[], tiers:[], tierBudget:{} }, acts:[], campaigns:[], glossary:[], loaded:false };
+function forgeLoad(){
+  return tsAsk('TS_FORGE_DATA', {}).then(function(r){
+    if (r){
+      if (r.pools) FORGE.pools = { infusions:r.pools.infusions||[], augmentations:r.pools.augmentations||[], items:r.pools.items||[] };
+      if (r.pack) FORGE.pack = { builds:r.pack.builds||[], stances:r.pack.stances||[], afflictions:r.pack.afflictions||[],
+                                 infusions:r.pack.infusions||[], augmentations:r.pack.augmentations||[],
+                                 tiers:r.pack.tiers||[], tierBudget:r.pack.tierBudget||{} };
+      if (r.acts) FORGE.acts = r.acts.map(normAct).filter(function(a){ return a.name; });
+      if (r.campaigns) FORGE.campaigns = r.campaigns;
+      if (r.glossary) FORGE.glossary = r.glossary;
+    }
+    FORGE.loaded = true; return FORGE;
+  }).catch(function(){ FORGE.loaded = true; return FORGE; });
+}
+/* An Act as SigilForge saved it. */
+function normAct(e){
+  function pick(){ for (var i=0;i<arguments.length;i++){ var k=arguments[i]; if (e[k]!==undefined && e[k]!==null && e[k]!=='') return e[k]; } return ''; }
+  return { id: pick('_id','id') || mkId(), name: pick('title','name'), tier: Number(pick('tier')) || 1,
+           use: pick('use') || 'Act', desc: pick('shorthand','description','desc'),
+           effect: pick('effect','full','shorthand','description','desc'), source: pick('source') || 'canon' };
+}
+function actsForTier(t){ return (FORGE.acts || []).filter(function(a){ return (Number(a.tier) || 1) === t; }); }
+function foeActAtTier(f, t){
+  var hit = null;
+  (f.abilities || []).forEach(function(a){ if (!hit && (Number(a.tier) || 1) === t) hit = a; });
+  return hit;
+}
+function sheetActs(){
+  var t = curSheet(); if (!t) return;
+  var f = t.obj;
+  var h = '<h3 class="tsm-title">Acts of ' + esc(f.name || 'this foe') + '</h3>'
+    + '<p class="tsm-note">Author all three tiers. A scene trims to the rating it fights at.</p><div class="rs-edit">';
+  [1,2,3].forEach(function(tier){
+    var cur = foeActAtTier(f, tier);
+    var pool = actsForTier(tier);
+    h += '<label class="tsm-lbl">Tier ' + tier + '</label>'
+      + '<select class="tsm-inp" onchange="sheetActPick(' + tier + ',this.value)">'
+      + '<option value="">No Act</option>'
+      + pool.map(function(a){
+          return '<option value="' + esc(a.id) + '"' + (cur && cur.name === a.name ? ' selected' : '') + '>'
+            + esc(a.name) + (a.source === 'mine' ? ' (yours)' : '') + '</option>';
+        }).join('')
+      + '<option value="__custom">Forge a custom Act...</option>'
+      + '</select>';
+    if (cur) h += '<p class="tsm-note">' + esc(cur.effect || cur.desc || 'No text on this Act.') + '</p>';
+    else if (!pool.length) h += '<p class="tsm-note">No tier ' + tier + ' Acts forged yet. SigilForge fills this shelf.</p>';
+  });
+  h += '</div><div class="tsm-row"><button class="tsm-btn ghost" onclick="sheetReopen()">Back to the foe</button></div>';
+  tsModal(h);
+}
+function sheetPickAct(tier, id){
+  var t = curSheet(); if (!t) return;
+  var f = t.obj;
+  f.abilities = (f.abilities || []).filter(function(a){ return (Number(a.tier) || 1) !== tier; });
+  if (id){
+    var pick = null;
+    (FORGE.acts || []).forEach(function(a){ if (sameId(a.id, id)) pick = a; });
+    if (pick) f.abilities.push({ id:pick.id, name:pick.name, tier:tier, use:pick.use, desc:pick.desc, effect:pick.effect, source:pick.source });
+  }
+  sheetLiveSave(); sheetActs();
+}
+function foeBuild(name){ var hit = null; (FORGE.pack.builds || []).forEach(function(b){ if (b && b.name === name) hit = b; }); return hit; }
+function foeTier(name){ var hit = null; (FORGE.pack.tiers || []).forEach(function(t){ if (t && t.name === name) hit = t; }); return hit; }
+/* A foe is built to the ceiling. The rating and the party it faces decide what it
+   actually brings: attributes are the party's level shifted by the rating. */
+function deriveKit(foe, sr){
+  var apl = partyLevel();
+  var b = foeBuild(foe.build || ((FORGE.pack.builds[0] || {}).name));
+  var t = foeTier(sr);
+  var attrs = blankAttrs();
+  if (b && t){
+    var val = Math.max(0, apl + (t.attributeOffset || 0));
+    (b.attributes || []).forEach(function(a){ attrs[a] = val; });
+  }
+  return { sr:sr, attrs:attrs, maxVit:foeVitality(sr, apl) };
+}
+/* Applying a rating writes the derived kit onto the foe, keeping its own picks. */
+function applyKit(){
+  var t = curSheet(); if (!t) return;
+  var e = t.obj;
+  var sr = (document.getElementById('rsSR') || {}).value || e.sr || 'Elite';
+  var why = kitBlocker(e, sr);
+  if (why){ tsModal('<h3 class="tsm-title">Cannot derive yet</h3><p class="lc-p">' + esc(why) + '</p>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="sheetReopen()">Back</button></div>'); return; }
+  e.sr = sr;
+  var kit = deriveKit(e, sr);
+  e.attrs = kit.attrs; e.maxVit = kit.maxVit;
+  if (e.curVit === undefined || e.curVit > e.maxVit) e.curVit = e.maxVit;
+  sheetLiveSave(); sheetReopen();
+}
+/* Why a kit will not derive, in the words of what is missing. */
+function kitBlocker(foe, sr){
+  if (!(FORGE.pack.tiers || []).length)
+    return 'The foe pack has no ratings loaded, so there is nothing to scale by. The ratings live in the CanonFoePack collection as a tiers row.';
+  if (!(FORGE.pack.builds || []).length)
+    return 'The foe pack has no builds loaded, so there is nothing to say which attributes this foe leans on.';
+  var b = foeBuild(foe.build || ((FORGE.pack.builds[0] || {}).name));
+  if (!b) return 'Give this foe a build first. The build decides which attributes it carries.';
+  if (!foeTier(sr)) return 'The pack has no rating called ' + sr + '.';
+  return '';
+}
+/* the catalogue a foe picks from: canon first, then anything forged since */
+function infusionNames(){
+  var canon = (FORGE.pack.infusions || []).map(function(i){ return typeof i === 'string' ? i : i.name; }).filter(Boolean);
+  var extra = poolNames('infusions').filter(function(n){ return canon.indexOf(n) < 0; });
+  return canon.concat(extra);
+}
+function augmentNames(){
+  var canon = (FORGE.pack.augmentations || []).map(function(a){ return typeof a === 'string' ? a : a.name; }).filter(Boolean);
+  var extra = poolNames('augmentations').filter(function(n){ return canon.indexOf(n) < 0; });
+  return canon.concat(extra);
+}
+function poolNames(bucket){
+  return (FORGE.pools[bucket] || []).map(function(x){ return typeof x === 'string' ? x : x.name; }).filter(Boolean);
+}
+function packNames(k){
+  return (FORGE.pack[k] || []).map(function(x){ return typeof x === 'string' ? x : x.name; }).filter(Boolean);
+}
+/* Canon records the text as effect. FateWell's baked copy calls it rule. Take either. */
+function forgeText(x){ return (x && (x.effect || x.rule || x.desc || x.text)) || ''; }
+function forgeTip(name, bucket){
+  var n = String(name || '').replace(/\*+$/,'').replace(/^\s+|\s+$/g,'');
+  if (!n) return '';
+  var hit = '';
+  (FORGE.pools[bucket] || []).forEach(function(x){ if (!hit && x && x.name === n) hit = forgeText(x); });
+  ['infusions','augmentations'].forEach(function(k){
+    (FORGE.pack[k] || []).forEach(function(x){ if (!hit && x && x.name === n) hit = forgeText(x); });
+  });
+  if (hit) return hit;
+  ['builds','stances','afflictions'].forEach(function(k){
+    (FORGE.pack[k] || []).forEach(function(x){
+      if (hit || typeof x === 'string') return;
+      if (x.name === n) hit = forgeText(x);
+    });
+  });
+  return hit;
+}
+function forgeInfo(name, bucket){
+  tsModal('<h3 class="tsm-title">' + esc(name) + '</h3>'
+    + '<p class="lc-p">' + esc(forgeTip(name, bucket) || 'No description recorded for this yet.') + '</p>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="sheetReopen()">Back</button></div>');
+}
+function sheetScroll(){ var e = document.querySelector('#tsModal .rs-edit'); return e ? e.scrollTop : 0; }
+function sheetReopen(){
+  var s = window._sheet, y = sheetScroll();
+  if (!s){ tsCloseModal(); return; }
+  entrySheet(s.src, s.sceneId, s.kind, s.id);
+  var e = document.querySelector('#tsModal .rs-edit');
+  if (e && y) e.scrollTop = y;
+}
+/* Chosen ones read with their rule, and a picker beneath. The shape relics use. */
+function sheetPickBlock(label, bucket, chosen, names, dropFn, pickFn, pickLabel){
+  var on = chosen || [];
+  var h = '<div class="tsm-lbl">' + label + ' <span class="tsm-count">' + on.length + '</span></div>';
+  if (on.length){
+    h += on.map(function(n, i){
+      var rule = forgeTip(n, bucket);
+      return '<div class="relic-row"><div class="relic-hd"><b>' + esc(n) + '</b>'
+        + '<button class="chip-x" onclick="' + dropFn + '(' + i + ')" title="Remove">\u00d7</button></div>'
+        + (rule ? '<p class="tsm-note">' + esc(rule) + '</p>' : '<p class="tsm-note">No rule recorded for this one.</p>') + '</div>';
+    }).join('');
+  } else {
+    h += '<p class="tsm-note">None.</p>';
+  }
+  var left = names.filter(function(n){ return on.indexOf(n) < 0; });
+  h += '<select class="tsm-inp" onchange="' + pickFn + '(this.value)"><option value="">' + esc(pickLabel) + '</option>'
+    + left.map(function(n){ return '<option value="' + esc(n) + '">' + esc(n) + '</option>'; }).join('') + '</select>';
+  if (!names.length) h += '<p class="tsm-note">The foe pack has none loaded.</p>';
+  return h;
+}
+function sheetPickInf(v){ if (v) sheetAddTo('infusions', v); }
+function sheetPickAug(v){ if (v) sheetAddTo('augments', v); }
+function sheetDropInf(i){ sheetDropFrom('infusions', i); }
+function sheetDropAug(i){ sheetDropFrom('augments', i); }
+function sheetAddTo(key, v){
+  var t = curSheet(); if (!t) return;
+  t.obj[key] = t.obj[key] || [];
+  if (t.obj[key].indexOf(v) < 0) t.obj[key].push(v);
+  sheetLiveSave(); sheetReopen();
+}
+function sheetDropFrom(key, i){
+  var t = curSheet(); if (!t) return;
+  (t.obj[key] || []).splice(i, 1);
+  sheetLiveSave(); sheetReopen();
+}
+function sheetChips(bucket, chosen, fn){
+  var on = chosen || [];
+  var names = bucket === 'infusions' ? infusionNames() : augmentNames();
+  if (!names.length) return '<p class="tsm-note">Nothing forged in this pool yet.</p>';
+  return '<div class="chips pick">' + names.map(function(n){
+    var esn = n.replace(/'/g, "\\'");
+    return '<span class="chip' + (on.indexOf(n) >= 0 ? ' on' : '') + '" title="' + esc(forgeTip(n, bucket) || n) + '">'
+      + '<span class="chip-lb" onclick="' + fn + '(\'' + esn + '\')">' + esc(n) + '</span>'
+      + '<button class="chip-i" onclick="event.stopPropagation();forgeInfo(\'' + esn + '\',\'' + bucket + '\')">i</button></span>';
+  }).join('') + '</div>';
+}
+function sheetChoice(label, cur, names, fn, noneLabel, bucket){
+  var h = '<label class="tsm-lbl">' + label + '</label>'
+    + '<select class="tsm-inp" onchange="' + fn + '(this.value)">'
+    + '<option value="">' + (noneLabel || 'None') + '</option>'
+    + names.map(function(n){ return '<option value="' + esc(n) + '"' + (cur === n ? ' selected' : '') + '>' + esc(n) + '</option>'; }).join('')
+    + '</select>';
+  var t = cur ? forgeTip(cur, bucket) : '';
+  if (t) h += '<p class="tsm-note">' + esc(t) + '</p>';
+  return h;
+}
+function sheetToggle(bucket, name){
+  var t = curSheet(); if (!t) return;
+  var key = bucket === 'infusions' ? 'infusions' : 'augments';
+  var arr = t.obj[key] = t.obj[key] || [];
+  var i = arr.indexOf(name);
+  if (i >= 0) arr.splice(i, 1); else arr.push(name);
+  sheetLiveSave(); sheetReopen();
+}
+function sheetToggleInf(n){ sheetToggle('infusions', n); }
+function sheetToggleAug(n){ sheetToggle('augmentations', n); }
+function sheetSetField(f, v){ var t = curSheet(); if (!t) return; t.obj[f] = v; sheetLiveSave(); sheetReopen(); }
+function sheetSetBuild(v){ sheetSetField('build', v); }
+function sheetSetStance(v){ sheetSetField('stance', v); }
+function sheetSetSig(v){ sheetSetField('sig', v); }
+function sheetAddRelic(v){
+  if (!v) return;
+  var t = curSheet(); if (!t) return;
+  t.obj.inv = t.obj.inv || [];
+  if (t.obj.inv.indexOf(v) < 0) t.obj.inv.push(v);
+  sheetLiveSave(); sheetReopen();
+}
+function sheetDelRelic(i){ var t = curSheet(); if (!t) return; (t.obj.inv || []).splice(i, 1); sheetLiveSave(); sheetReopen(); }
+function sheetLiveSave(){ var t = curSheet(); if (t){ sheetSync(t); storySave(); } }
+var FW_WEAPON_BONUS = { 1:1, 2:1, 3:3, 4:3, 5:6, 6:6, 7:10, 8:10, 9:15, 10:15 };
+var FW_BASE_INF  = { Brutal:'Power', Sharp:'Precision', Potent:'Magic' };
+var FW_BONUS_INF = { Mauling:'Power', Wounding:'Precision', Blighting:'Magic' };
+function weaponBonus(apl){ return FW_WEAPON_BONUS[Math.max(1, Math.min(10, apl | 0))] || 1; }
+function atkType(attrs, foe){
+  var p = (attrs && attrs.Power) || 0, m = (attrs && attrs.Magic) || 0;
+  if (p > 0 && p === m && foe && (foe.atkPref === 'phys' || foe.atkPref === 'magic')) return foe.atkPref;
+  return m > p ? 'magic' : 'phys';
+}
+function isTie(attrs){ var p = (attrs && attrs.Power) || 0, m = (attrs && attrs.Magic) || 0; return p > 0 && p === m; }
+function foeDamage(f, attrs){
+  attrs = attrs || f.attrs || blankAttrs();
+  var t = atkType(attrs, f);
+  var base = 1 + ((t === 'magic' ? attrs.Magic : attrs.Power) || 0);
+  var bonus = weaponBonus(partyLevel());
+  (f.infusions || []).forEach(function(n){
+    if (FW_BASE_INF[n]) base += attrs[FW_BASE_INF[n]] || 0;
+    if (FW_BONUS_INF[n]) bonus += attrs[FW_BONUS_INF[n]] || 0;
+  });
+  return { type:t, base:base, bonus:bonus,
+           acc: t === 'magic' ? ('1d6 + Magic ' + (attrs.Magic || 0)) : ('1d6 + Precision ' + (attrs.Precision || 0)),
+           text: base + ' + ' + bonus + ' ' + (t === 'magic' ? 'magical' : 'physical') };
+}
+function sheetSetAtkPref(v){ sheetSetField('atkPref', v); }
+/* Forge an Act or a relic from the table. Both land in the same shelves the forges fill. */
+function forgeCustomAct(tier){
+  window._actTier = tier;
+  tsModal('<h3 class="tsm-title">Forge an Act</h3>'
+    + '<label class="tsm-lbl">Name</label><input class="tsm-inp" id="faName">'
+    + '<label class="tsm-lbl">Tier</label><input class="tsm-inp rs-anum" id="faTier" type="number" min="1" max="3" value="' + (tier || 1) + '">'
+    + '<label class="tsm-lbl">What it does</label><textarea class="tsm-inp tsm-ta" id="faText"></textarea>'
+    + '<p class="tsm-note">Saved as yours, and it appears wherever Acts are offered.</p>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="sheetActs()">Cancel</button>'
+    + '<button class="tsm-btn" onclick="forgeActSave()">Forge</button></div>');
+}
+function forgeActSave(){
+  var nm = ((document.getElementById('faName') || {}).value || '').replace(/^\s+|\s+$/g,'');
+  if (!nm) return;
+  var tier = Math.max(1, Math.min(3, Number((document.getElementById('faTier') || {}).value) || 1));
+  var tx = (document.getElementById('faText') || {}).value || '';
+  tsModal('<h3 class="tsm-title">Forging...</h3>');
+  tsAsk('TS_FORGE_ACT', { act:{ title:nm, tier:tier, effect:tx, use:'Act', source:'mine' } }).then(function(acts){
+    if (acts) FORGE.acts = acts.map(normAct).filter(function(a){ return a.name; });
+    var made = null;
+    FORGE.acts.forEach(function(a){ if (a.name === nm) made = a; });
+    if (made) sheetPickAct(tier, made.id); else sheetActs();
+  }).catch(function(){ sheetActs(); });
+}
+function forgeCustomRelic(){
+  tsModal('<h3 class="tsm-title">Forge a relic</h3>'
+    + '<label class="tsm-lbl">Name</label><input class="tsm-inp" id="frName">'
+    + '<label class="tsm-lbl">What it does</label><textarea class="tsm-inp tsm-ta" id="frText"></textarea>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="sheetReopen()">Cancel</button>'
+    + '<button class="tsm-btn" onclick="forgeRelicSave()">Forge</button></div>');
+}
+function forgeRelicSave(){
+  var nm = ((document.getElementById('frName') || {}).value || '').replace(/^\s+|\s+$/g,'');
+  if (!nm) return;
+  var rl = (document.getElementById('frText') || {}).value || '';
+  tsModal('<h3 class="tsm-title">Forging...</h3>');
+  tsAsk('TS_FORGE_ITEM', { item:{ name:nm, rule:rl, source:'mine' } }).then(function(pools){
+    if (pools) FORGE.pools = { infusions:pools.infusions||[], augmentations:pools.augmentations||[], items:pools.items||[] };
+    sheetAddRelic(nm);
+  }).catch(function(){ sheetReopen(); });
+}
+function sheetRelicPick(v){ if (v === '__custom') forgeCustomRelic(); else sheetAddRelic(v); }
+function sheetActPick(tier, v){ if (v === '__custom') forgeCustomAct(tier); else sheetPickAct(tier, v); }
+/* Which adventure a figure belongs to. Untied, it sits on every shelf. */
+function sheetSetCampaignByName(nm){
+  var id = '';
+  (FORGE.campaigns || []).forEach(function(c){ if ((c.title || c.name) === nm) id = c._id || c.id || ''; });
+  sheetSetCampaign(id);
+}
+function sheetSetCampaign(v){
+  var t = curSheet(); if (!t) return;
+  t.obj.campaignId = v || '';
+  var nm = '';
+  (FORGE.campaigns || []).forEach(function(c){ if (sameId(c._id || c.id, v)) nm = c.title || c.name || ''; });
+  t.obj.campaignName = nm;
+  sheetLiveSave(); sheetReopen();
+}
+function partyLevel(){
+  var l = (S.scene && S.scene.fell) || [];
+  if (!l.length) return 1;
+  var t = 0; l.forEach(function(p){ t += p.level || 1; });
+  return Math.max(1, Math.round(t / l.length));
+}
+function foeVitality(sr, apl){
+  var base = (SR_TABLE[sr] || SR_TABLE.Elite).vit;
+  return Math.round(base + (base / 8) * (apl - 1));
+}
+function assetToRow(e){
+  return {
+    assetId: e.id, type: e.type || 'monster', name: e.name || '', description: e.desc || '',
+    shatterRating: e.sr || '', lp: e.lp || 0, sp: e.sp || 0, maxVit: e.maxVit || 0,
+    role: e.role || '', image: e.img || '', origin: e.origin || '',
+    attrs: JSON.stringify(e.attrs || {}), inventory: JSON.stringify(e.inv || []),
+    abilities: JSON.stringify(e.abilities || []), foeWeight: e.foeWeight || 0,
+    foeMeta: JSON.stringify({ build:e.build||'', stance:e.stance||'', sig:e.sig||'', source:e.source||'',
+      augments:e.augments||[], infusions:e.infusions||[], atkPref:e.atkPref||'',
+      campaignId:e.campaignId||'', campaignName:e.campaignName||'' })
+  };
+}
+/* One sheet for a figure, wherever you open it: the library shelf or a scene's
+   roster. Same fields, same editing. Live vitality and charges are not here,
+   they belong to the foe card in battle. */
+function entrySheet(src, sceneId, kind, id){
+  var t = sheetTarget(src, sceneId, kind, id);
+  if (!t) return;
+  if (!FORGE.loaded){
+    tsModal('<h3 class="tsm-title">Loading...</h3>');
+    forgeLoad().then(function(){ entrySheet(src, sceneId, kind, id); });
+    return;
+  }
+  window._sheet = { src:src, sceneId:sceneId, kind:kind, id:id };
+  var e = t.obj;
+  var isFoe = (src === 'lib') ? (e.type === 'monster') : (kind === 'foe');
+  var lib = t.lib;
+  var img = e.img || (lib && lib.img) || '';
+  var srOpts = ['','Minion','Elite','Champion','Epic','Forsaken'].map(function(s){
+    return '<option value="' + s + '"' + ((e.sr || '') === s ? ' selected' : '') + '>' + (s || 'No rating') + '</option>';
+  }).join('');
+  var attrs = e.attrs || blankAttrs();
+  var attrHtml = ATTR_LIST.map(function(a){
+    return '<label class="rs-attr"><span>' + a + '</span><span class="rs-step">'
+      + '<button class="bt-b" onclick="stepNum(\'rsA_' + a + '\',-1)">-</button>'
+      + '<input class="tsm-inp rs-anum" id="rsA_' + a + '" type="number" value="' + (attrs[a] || 0) + '">'
+      + '<button class="bt-b" onclick="stepNum(\'rsA_' + a + '\',1)">+</button></span></label>';
+  }).join('');
+  function lines(v){ return (v || []).map(function(x){ return (x && (x.name || x.title)) ? (x.name || x.title) + (x.body || x.text ? ' :: ' + (x.body || x.text) : '') : String(x); }).join('\n'); }
+  var apl = partyLevel();
+  var sr = e.sr || 'Elite';
+  var h = '<h3 class="tsm-title">' + (isFoe ? 'Edit foe' : 'Edit NPC') + (lib ? ' <span class="rs-linked">library</span>' : '') + '</h3>'
+    + '<div class="rs-edit">'
+    + '<div class="rs-imgrow"><div class="rs-prev" id="rsPrev">' + (img ? '<img src="' + esc(img) + '" alt="">' : '<span class="tsm-note">No image</span>') + '</div>'
+    + '<div><input type="file" accept="image/*" id="rsImgFile" style="display:none" onchange="sheetImgPicked(this)">'
+    + '<button class="tsm-btn ghost" onclick="document.getElementById(\'rsImgFile\').click()">Choose image</button>'
+    + '<button class="tsm-btn ghost" onclick="sheetImgClear()">Remove</button></div></div>'
+    + '<label class="tsm-lbl">Name</label><input class="tsm-inp" id="rsName" value="' + esc(e.name || '') + '">'
+    + '<label class="tsm-lbl">Description</label><textarea class="tsm-inp tsm-ta short" id="rsDesc">' + esc(e.desc || '') + '</textarea>';
+  if (isFoe){
+    var dmg = foeDamage(e, e.attrs);
+    h += sheetChoice('Campaign', e.campaignId || '', (FORGE.campaigns || []).map(function(c){ return c.title || c.name || ''; }), 'sheetSetCampaignByName', 'Any campaign', '')
+      + '<p class="tsm-note">Tie it to an adventure to keep it off the shelf in your others.</p>'
+      + '<p class="tsm-note">' + esc(sr) + ' \u00b7 ' + (e.maxVit || foeVitality(sr, apl)) + ' vit</p>'
+      + '<div class="tsm-lbl">As it stands against this party</div>'
+      + '<p class="lc-p">' + esc(attrLine(e.attrs) || 'No attributes set') + '</p>'
+      + '<div class="tsm-lbl">Standard attack</div>'
+      + '<div class="fw-dmg"><span class="fw-dmg-n">' + esc(dmg.text) + '</span><span class="fw-dmg-acc">' + esc(dmg.acc) + ' to hit</span></div>'
+      + '<p class="tsm-note">Base always lands. Bonus meets ' + (dmg.type === 'magic' ? 'Resistance' : 'Durability') + '. Landing it charges the first tier.</p>'
+      + (isTie(e.attrs) ? sheetChoice('On a tie it strikes', e.atkPref || '', ['phys','magic'], 'sheetSetAtkPref', 'Physical', '') : '')
+      + '<div class="tsm-lbl">Default rating in scenes</div>'
+      + '<select class="tsm-inp" id="rsSR" onchange="sheetSRChange()">'
+      + ['Minion','Elite','Champion','Epic','Forsaken'].map(function(x){ return '<option value="' + x + '"' + (sr === x ? ' selected' : '') + '>' + x + '</option>'; }).join('')
+      + '</select>'
+      + '<p class="tsm-note">A scene sets this foe\'s rating and scales it from the kit below. This is where it starts.</p>'
+      + '<button class="tsm-btn ghost" style="width:100%" onclick="applyKit()">Derive from build and rating</button>'
+      + '<label class="tsm-lbl">Maximum vitality</label><span class="rs-step">'
+      + '<button class="bt-b" onclick="stepNum(\'rsMax\',-1)">-</button>'
+      + '<input class="tsm-inp rs-anum" id="rsMax" type="number" value="' + (e.maxVit || 0) + '">'
+      + '<button class="bt-b" onclick="stepNum(\'rsMax\',1)">+</button></span>'
+      + '<p class="tsm-note">Against this party a ' + esc(sr) + ' stands at ' + foeVitality(sr, apl) + ', a Forsaken at ' + foeVitality('Forsaken', apl) + '.</p>'
+      + sheetChoice('Build', e.build || '', packNames('builds'), 'sheetSetBuild', 'No build', 'builds')
+      + sheetChoice('Stance', e.stance || '', packNames('stances'), 'sheetSetStance', 'No stance', 'stances')
+      + sheetChoice('Signature affliction', e.sig || '', packNames('afflictions'), 'sheetSetSig', 'None', 'afflictions');
+  } else {
+    h += '<label class="tsm-lbl">Role</label><input class="tsm-inp" id="rsRole" value="' + esc(e.role || '') + '">'
+      + '<label class="tsm-lbl">Maximum vitality</label><input class="tsm-inp rs-anum" id="rsMax" type="number" value="' + (e.maxVit || 0) + '">';
+  }
+  h += '<label class="tsm-lbl">Attributes</label><div class="rs-attrs">' + attrHtml + '</div>';
+  if (isFoe){
+    h += sheetPickBlock('Infusions', 'infusions', e.infusions, infusionNames(), 'sheetDropInf', 'sheetPickInf', 'Add an infusion')
+      + sheetPickBlock('Augmentations', 'augmentations', e.augments, augmentNames(), 'sheetDropAug', 'sheetPickAug', 'Add an augmentation')
+      + '<div class="tsm-lbl">Relics</div>';
+    if ((e.inv || []).length){
+      h += (e.inv || []).map(function(it, i){
+        var t2 = forgeTip(it, 'items');
+        return '<div class="relic-row"><div class="relic-hd"><b>' + esc(it) + '</b>'
+          + '<button class="chip-x" onclick="sheetDelRelic(' + i + ')" title="Remove">\u00d7</button></div>'
+          + (t2 ? '<p class="tsm-note">' + esc(t2) + '</p>' : '') + '</div>';
+      }).join('');
+    } else h += '<p class="tsm-note">Carries nothing.</p>';
+    var relics = poolNames('items').filter(function(x){ return (e.inv || []).indexOf(x) < 0; });
+    h += '<select class="tsm-inp" onchange="sheetRelicPick(this.value)"><option value="">Add a relic</option>'
+      + relics.map(function(x){ return '<option value="' + esc(x) + '">' + esc(x) + '</option>'; }).join('')
+      + '<option value="__custom">Forge a custom relic...</option></select>';
+    if (!relics.length) h += '<p class="tsm-note">No relics forged yet. RelicForge fills this shelf.</p>';
+  } else {
+    h += '<label class="tsm-lbl">Inventory</label><textarea class="tsm-inp tsm-ta short" id="rsInv" placeholder="One per line">' + esc((e.inv || []).join('\n')) + '</textarea>';
+  }
+  if (isFoe){
+    var acts = (e.abilities || []).slice().sort(function(a, b){ return (a.tier || 1) - (b.tier || 1); });
+    h += '<div class="tsm-lbl">Acts <span class="tsm-count">' + acts.length + '</span></div>';
+    if (acts.length){
+      h += acts.map(function(a){
+        return '<div class="relic-row"><div class="relic-hd"><b>' + esc(a.name) + '</b><span class="tsm-count">T' + (a.tier || 1) + '</span></div>'
+          + '<p class="tsm-note">' + esc(a.effect || a.desc || '') + '</p></div>';
+      }).join('');
+    } else h += '<p class="tsm-note">No Acts forged yet.</p>';
+    h += '<button class="tsm-btn ghost" style="width:100%" onclick="sheetActs()">Edit Acts</button>';
+  } else {
+    h += '<label class="tsm-lbl">Abilities</label><textarea class="tsm-inp tsm-ta" id="rsAb" placeholder="Name :: what it does, one per line">' + esc(lines(e.abilities)) + '</textarea>';
+  }
+  h += ''
+    + '<p class="tsm-note">' + (lib || src === 'lib' ? 'Saving updates the library everywhere. Vitality in play and charges live on the foe card in battle.' : 'This figure is local to the scene.') + '</p>'
+    + '</div>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="sheetBack()">Cancel</button>'
+    + '<button class="tsm-btn" onclick="sheetSave()">Save</button></div>';
+  tsModal(h);
+}
+function sheetTarget(src, sceneId, kind, id){
+  if (src === 'lib'){ var e = libGet(id); return e ? { obj:e, lib:null } : null; }
+  var f = storyFind('scene', sceneId); if (!f) return null;
+  var key = kind === 'npc' ? 'npcs' : 'foes';
+  var c = (f.scene[key] || []).filter(function(x){ return sameId(x.id, id); })[0];
+  if (!c) return null;
+  return { obj:c, lib: c.libId ? libGet(c.libId) : null };
+}
+function curSheet(){ var s = window._sheet; return s ? sheetTarget(s.src, s.sceneId, s.kind, s.id) : null; }
+function sheetBack(){ var s = window._sheet; if (s && s.src === 'roster' && window._rosterScene) rosterWindow(window._rosterScene); else tsCloseModal(); }
+function stepNum(id, delta){
+  var el = document.getElementById(id); if (!el) return;
+  el.value = Math.max(0, (Number(el.value) || 0) + delta);
+}
+function sheetSRChange(){
+  var sr = (document.getElementById('rsSR') || {}).value || '';
+  if (!sr || !SR_TABLE[sr]) return;
+  var mx = document.getElementById('rsMax'); if (mx) mx.value = SR_TABLE[sr].vit;
+}
+function sheetImgPicked(input){
+  var file = input.files && input.files[0]; if (!file) return;
+  var t = curSheet(); if (!t) return;
+  var p = document.getElementById('rsPrev'); if (p) p.innerHTML = '<span class="tsm-note">Uploading...</span>';
+  assetBackend.upload(file, file.name.replace(/\.[^.]+$/, '')).then(function(ref){
+    t.obj.img = ref || '';
+    var q = document.getElementById('rsPrev');
+    if (q) q.innerHTML = t.obj.img ? '<img src="' + esc(t.obj.img) + '" alt="">' : '<span class="tsm-note">No image</span>';
+    sheetSync(t); storySave();
+  }).catch(function(){ var q = document.getElementById('rsPrev'); if (q) q.innerHTML = '<span class="tsm-note">Upload failed</span>'; });
+}
+function sheetImgClear(){
+  var t = curSheet(); if (!t) return;
+  t.obj.img = '';
+  var p = document.getElementById('rsPrev'); if (p) p.innerHTML = '<span class="tsm-note">No image</span>';
+  sheetSync(t); storySave();
+}
+function sheetSave(){
+  var s = window._sheet, t = curSheet();
+  if (!s || !t){ tsCloseModal(); return; }
+  var e = t.obj;
+  function val(id){ var el = document.getElementById(id); return el ? el.value : undefined; }
+  function num(id){ var el = document.getElementById(id); return el ? (Number(el.value) || 0) : 0; }
+  function list(id){ var v = val(id); return v === undefined ? undefined : v.split('\n').map(function(x){ return x.replace(/^\s+|\s+$/g,''); }).filter(Boolean); }
+  var nm = (val('rsName') || '').replace(/^\s+|\s+$/g,''); if (nm) e.name = nm;
+  e.desc = val('rsDesc') || '';
+  if (val('rsSR') !== undefined) e.sr = val('rsSR');
+  if (val('rsRole') !== undefined) e.role = val('rsRole');
+  e.maxVit = num('rsMax');
+  if (val('rsBuild') !== undefined){
+    var parts = String(val('rsBuild')).split('\u00b7').map(function(x){ return x.replace(/^\s+|\s+$/g,''); });
+    e.build = parts[0] || ''; e.stance = parts[1] || '';
+  }
+  if (val('rsSig') !== undefined) e.sig = val('rsSig');
+  e.attrs = e.attrs || blankAttrs();
+  ATTR_LIST.forEach(function(a){ e.attrs[a] = num('rsA_' + a); });
+  var inf = list('rsInf'); if (inf) e.infusions = inf;
+  var aug = list('rsAug'); if (aug) e.augments = aug;
+  var inv = list('rsInv'); if (inv) e.inv = inv;
+  var ab = list('rsAb');
+  if (ab) e.abilities = ab.map(function(l){ var p = l.split('::'); return { name:(p[0]||'').replace(/^\s+|\s+$/g,''), body:(p[1]||'').replace(/^\s+|\s+$/g,'') }; });
+  if (e.curVit === undefined || e.curVit > e.maxVit) e.curVit = e.maxVit;
+  sheetSync(t);
+  storySave(); render();
+  if (s.src === 'roster') sheetBack(); else { tsCloseModal(); refreshWinBody(); }
+}
+/* push the figure back to the library and out to every scene that holds it */
+function sheetSync(t){
+  if (!t) return;
+  if (window._sheet && window._sheet.src === 'lib'){
+    if (assetBackend && assetBackend.save) assetBackend.save(assetToRow(t.obj)).catch(function(){});
+    libPropagate(t.obj.id, t.obj);
+  } else if (t.lib){
+    var e = t.lib, c = t.obj;
+    e.name = c.name; e.desc = c.desc || ''; e.img = c.img || ''; e.sr = c.sr || '';
+    e.maxVit = c.maxVit || 0; e.role = c.role || '';
+    e.attrs = JSON.parse(JSON.stringify(c.attrs || blankAttrs()));
+    e.abilities = JSON.parse(JSON.stringify(c.abilities || []));
+    e.inv = (c.inv || []).slice(); e.infusions = (c.infusions || []).slice();
+    e.augments = (c.augments || []).slice(); e.sig = c.sig || '';
+    e.build = c.build || ''; e.stance = c.stance || '';
+    if (assetBackend && assetBackend.save) assetBackend.save(assetToRow(e)).catch(function(){});
+    libPropagate(e.id, e);
+  }
+}
+function libPropagate(libId, e){
+  ((S.adventure && S.adventure.acts) || []).forEach(function(a){
+    (a.sessions || []).forEach(function(se){
+      (se.scenes || []).forEach(function(sc){
+        ['foes','npcs'].forEach(function(k){
+          (sc[k] || []).forEach(function(x){
+            if (!sameId(x.libId, libId)) return;
+            x.name = e.name; x.desc = e.desc || ''; x.img = e.img || ''; x.sr = e.sr || '';
+            x.maxVit = e.maxVit || 0; x.role = e.role || '';
+            x.attrs = JSON.parse(JSON.stringify(e.attrs || blankAttrs()));
+            x.abilities = JSON.parse(JSON.stringify(e.abilities || []));
+            x.inv = (e.inv || []).slice(); x.infusions = (e.infusions || []).slice();
+            x.augments = (e.augments || []).slice(); x.sig = e.sig || '';
+            x.build = e.build || ''; x.stance = e.stance || '';
+            if (x.curVit > x.maxVit) x.curVit = x.maxVit;
+          });
+        });
+      });
+    });
+  });
+}
+function questWindow(sceneId){
+  var f = storyFind('scene', sceneId); if (!f) return;
+  window._questScene = sceneId;
+  tsModal('<h3 class="tsm-title">Quests</h3><p class="tsm-note">Raised in this scene, posted to the board the players read.</p>'
+    + '<div class="rs-wrap">' + storyQuestsHtml(f.scene) + '</div>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
+}
+function rosterWindow(sceneId){
+  var f = storyFind('scene', sceneId); if (!f) return;
+  window._rosterScene = sceneId; window._rosterOpen = true;
+  tsModal('<h3 class="tsm-title">Roster</h3><div class="rs-wrap">' + storyRosterHtml(f.scene) + '</div>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
+}
+function rosterRefresh(){
+  if (window._rosterOpen && window._rosterScene) rosterWindow(window._rosterScene);
+  else refreshWinBody();
+}
+function storyRosterHtml(sc){
+  var h = '<div class="st-sub">The Fell</div>';
+  scenePlayers(sc).forEach(function(p){
+    h += '<div class="rs-row' + (p.out ? ' out' : '') + '">'
+      + '<span class="rs-name">' + esc(p.name || 'Fell') + '</span>'
+      + '<button class="rs-pill" onclick="togglePlayerOut(\'' + sc.id + '\',\'' + p.id + '\')">' + (p.out ? 'Absent' : 'Attending') + '</button></div>';
+  });
+  h += '<div class="st-sub">Cast</div>';
+  castList(sc).forEach(function(c){
+    var ref = c.ref || {}, lib = c.lib || {};
+    var e = { type:(c.kind === 'foe' ? 'monster' : 'npc'), kind:c.kind,
+              sr: ref.sr || lib.sr || '', maxVit: ref.maxVit || lib.maxVit || 0, role: lib.role || '' };
+    var sub = entrySub(e);
+    if (ref.maxVit) sub += ' \u00b7 ' + ref.curVit + ' now';
+    h += tsVCard({ img:c.img, badge:TYPE_LABEL[e.type], title:c.name, sub:sub,
+                   origin: lib.name ? 'From the library' : '',
+                   openFn: 'entrySheet(\'roster\',\'' + sc.id + '\',\'' + c.kind + '\',\'' + c.id + '\')',
+                   corner: '<button class="card-x" title="Remove" onclick="event.stopPropagation();rosterRemove(\'' + sc.id + '\',\'' + c.kind + '\',\'' + c.id + '\')">\u2715</button>' });
+  });
+  h += '<div class="rs-adds"><button class="st-add" onclick="rosterAddFromLib(\'' + sc.id + '\')">Add from library</button>'
+    + '<button class="st-add" onclick="rosterAdd(\'' + sc.id + '\',\'npc\')">New NPC</button>'
+    + '<button class="st-add" onclick="rosterAdd(\'' + sc.id + '\',\'foe\')">New foe</button></div>';
+  return h;
+}
+function castGet(id, sc){
+  if (!id) return null;
+  var l = castList(sc);
+  for (var i = 0; i < l.length; i++) if (sameId(l[i].id, id) || l[i].name === id) return l[i];
+  return null;
+}
+/* a beat's speaker, resolved to name, colour, portrait and any stats it carries */
+function beatSpeaker(b, sc){
+  if (!b || b.kind !== 'dialogue' || !b.speaker) return null;
+  var c = castGet(b.speaker, sc);
+  var name = c ? c.name : b.speaker;
+  return { name:name, color:speakerColor(name), img:(c && c.img) || '', ref:(c && c.ref) || null, kind:(c && c.kind) || '' };
+}
+function speakerHead(sp){
+  if (!sp) return '';
+  var av = sp.img ? '<img class="dlg-av" src="' + esc(sp.img) + '" alt="">' : '<span class="dlg-av dlg-ph" style="background:' + sp.color + '"></span>';
+  var stat = '';
+  if (sp.ref && sp.ref.curVit !== undefined) stat = '<span class="dlg-stat">' + sp.ref.curVit + '/' + sp.ref.maxVit + (sp.ref.sr ? ' \u00b7 ' + esc(sp.ref.sr) : '') + '</span>';
+  return '<div class="dlg-head" style="color:' + sp.color + '">' + av + '<b>' + esc(sp.name) + '</b>' + stat + '</div>';
+}
+function notesBody(){
+  var h = '<div class="win-note">The adventure\u2019s notes: its scenes and their beats. FateWell edits them.</div>';
+  h += '<div class="nb-scene">' + esc(S.scene.name) + '</div>';
+  (S.scene.beats||[]).forEach(function(b){
+    var _m = beatMeta(b.kind);
+    h += '<div class="nb-beat ' + b.kind + '"><span class="nb-tag" style="color:' + _m[1] + '">' + _m[0] + '</span>'
+      + '<span class="nb-title">' + esc(b.title) + (b.speaker ? ' <em class="stb-spk">' + esc(b.speaker) + '</em>' : '') + '</span>'
+      + '<div class="nb-body">' + esc(b.body) + '</div></div>';
+  });
+  return h;
+}
+function libraryBody(){
+  if (!S.libLoaded){
+    libLoad().then(function(){ if (S.openSection === 'library') refreshWinBody(); });
+    return '<div class="win-note">The library: everything the adventure brings to the table.</div><div class="win-note">Loading...</div>';
+  }
+  var h = '<div class="win-note">The library: everything the adventure brings to the table.</div>'
+    + '<input class="tsm-inp lib-find" id="libFind" placeholder="Search by name" value="' + esc(S.libQuery || '') + '" oninput="libSearch(this.value)">'
+    + '<button class="tsm-btn ghost lib-scope" onclick="libToggleScope()">' + (S.libAll ? 'Showing: saved collection' : 'Showing: this adventure') + '</button>';
+  var lib = libScoped();
+  if (S.libLoaded && lib.length){
+    ['monster','npc','item'].forEach(function(t){
+      var rows = lib.filter(function(e){ return e.type === t; });
+      if (!rows.length) return;
+      h += '<div class="nb-scene">' + (t === 'monster' ? 'Foes' : t === 'npc' ? 'NPCs' : 'Items') + '</div>';
+      rows.forEach(function(e){
+        h += tsVCard({ img:e.img, badge:TYPE_LABEL[e.type] || '', title:e.name, sub:entrySub(e),
+                       origin: e.campaignName || (e.origin ? 'From ' + e.origin : ''),
+                       openFn: 'entrySheet(\'lib\',\'\',\'\',\'' + e.id + '\')',
+                       corner: '<button class="card-x" title="Delete" onclick="event.stopPropagation();libDelete(\'' + e.id + '\')">\u2715</button>' });
+      });
+    });
+  } else {
+    h += '<div class="win-note">Nothing in the library yet. FateWell authors it.</div>';
+  }
+  h += '<div class="nb-scene">At this scene</div>';
+  function group(title, list, line){
+    if (!list || !list.length) return '';
+    var out = '<div class="nb-scene">' + title + '</div>';
+    list.forEach(function(c){ out += '<div class="lb-row"><span class="lb-name">' + esc(c.name) + '</span><span class="lb-meta">' + line(c) + '</span></div>'; });
+    return out;
+  }
+  h += group('Foes', S.scene.foes, function(f){ return esc(f.sr||'') + ' \u00b7 ' + f.curVit + '/' + f.maxVit; });
+  h += group('Fell', S.scene.fell, function(p){ return 'Level ' + (p.level||1); });
+  h += group('NPCs', S.scene.npcs, function(){ return ''; });
+  return h;
+}
+function jTime(ts){ try { return new Date(ts).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}); } catch(e){ return ''; } }
+function journalBody(){
+  var h = '<div class="win-note">The LoreMaster\u2019s Journal. Jot what happens as you play, in roleplay and in battle. Only you see it, and it is here for your recaps.</div>';
+  h += '<div class="jrow"><input id="jInput" maxlength="600" placeholder="What just happened..." onkeydown="if(event.key===\'Enter\')journalAdd()"><button class="jadd" onclick="journalAdd()">Add</button></div>';
+  var entries = (S.journal||[]).slice().reverse();
+  if (!entries.length) h += '<div class="jempty">Nothing yet. Your first note lands here.</div>';
+  entries.forEach(function(e){
+    h += '<div class="jentry"><div class="jhead"><span class="jtime">' + jTime(e.ts) + '</span>'
+      + '<button class="jx" onclick="journalDelete(\'' + e.id + '\')" title="Delete">\u00d7</button></div>'
+      + '<div class="jtext">' + esc(e.text) + '</div></div>';
+  });
+  return h;
+}
+function journalAdd(){
+  var el = document.getElementById('jInput'); if (!el) return;
+  var text = el.value.trim(); if (!text) return;
+  el.value = '';
+  S.journal.push({ id:'j' + Date.now(), ts:Date.now(), text:text });
+  journalBackend.save(S.journal).catch(function(){});
+  if (S.openSection === 'journal') openWin('journal');
+}
+function journalDelete(id){
+  S.journal = (S.journal||[]).filter(function(e){ return e.id !== id; });
+  journalBackend.save(S.journal).catch(function(){});
+  if (S.openSection === 'journal') openWin('journal');
+}
+function loadJournal(){
+  if (!tsEmbedded() || !isLM()) return;
+  journalBackend.get().then(function(rows){
+    if (Array.isArray(rows)){ S.journal = rows; if (S.openSection === 'journal') openWin('journal'); }
+  }).catch(function(){});
+}
+function sectionBody(key){
+  if (key === 'characters') return charactersBody();
+  if (key === 'menu') return menuBody();
+  if (key === 'settings') return settingsBody();
+  if (key === 'attributes') return attributesBody();
+  if (key === 'skills') return skillsBody();
+  if (key === 'inventory') return inventoryBody();
+  if (key === 'arsenal') return arsenalBody();
+  if (key === 'lore') return loreBody();
+  if (key === 'stages') return stagesBody();
+  if (key === 'notes') return notesBody();
+  if (key === 'journal') return journalBody();
+  if (key === 'fell') return lmFellBody();
+  if (key === 'story') return storyBody();
+  if (key === 'scenes') return scenesBody();
+  if (key === 'library') return libraryBody();
+  if (key === 'search') return '<div class="win-note">Search the FellGuide and the adventure.</div><input class="win-search" placeholder="Search" aria-label="Search">';
+  if (key === 'settings'){
+    var sBtn = 'width:100%;text-align:left;padding:9px 11px;margin:2px 0;border-radius:8px;border:1px solid var(--line2,#2a3552);background:transparent;color:var(--silver);font:inherit;cursor:pointer';
+    return '<div class="win-note">Table settings. Grid, log, and view controls gather here.</div>'
+      + '<button onclick="lmToggleGrid()" style="' + sBtn + '">Grid controls</button>'
+      + '<button onclick="toggleClean()" style="' + sBtn + '">Clean view, hide widgets (H)</button>'
+      + '<button onclick="toggleFull()" style="' + sBtn + '">Full screen (F)</button>';
+  }
+  if (key === 'battle') return battleBody();
+  if (key === 'log') return chatRow('chatWin') + '<div class="logstream" aria-live="polite"></div>';
+  return '<p style="color:var(--ice)">Placeholder for the ' + SECTIONS[key].title
+    + ' section. Phase two ports the FellGlass content here, rendering only, engine untouched.</p>' + stubs(6);
+}
+function stubs(n){
+  var h = '';
+  for (var i = 0; i < n; i++) h += '<div class="stub" style="width:' + (58 + (i*7) % 38) + '%"></div>';
+  return h;
+}
+function battleBody(){
+  return '<p style="font-size:.8rem;color:var(--ice)">Declare your Act</p>'
+    + '<div style="margin:10px 0"><span class="pill">Attack</span><span class="pill dim">Use a skill</span></div>'
+    + '<div class="stub" style="width:70%"></div>'
+    + '<p style="font-size:.78rem;color:var(--muted);margin:12px 0">Roll from the die on the play surface. The type picker tags the roll.</p>'
+    + '<button class="sendbtn" onclick="send({type:\'declare\',act:\'Attack\'})">Send to LoreMaster</button>';
+}
+/* ---- dice ----
+   Two layers, kept apart on purpose. rollFromTray owns the result and sends it
+   through the seam. animateDie owns the visual and is told what landed. A
+   physics layer can replace animateDie later without touching the result. */
+var ROLL_TYPES = { attack:'Attack', evade:'Evade', skill:'Skill', generic:'Generic' };
+var PIPS = { 1:[4], 2:[0,8], 3:[0,4,8], 4:[0,2,6,8], 5:[0,2,4,6,8], 6:[0,2,3,5,6,8] };
+var REST = { 1:[0,0], 2:[0,-90], 3:[-90,0], 4:[90,0], 5:[0,90], 6:[0,180] };
+/* A skin is a texture swap and nothing more. Skins are earned in game, so they
+   live on the Fell and they travel. Every roll carries the skin it was thrown
+   with, which is what lets the rest of the table see what you unlocked instead
+   of taking your word for it. Placeholder names, Joel and Nate own the real ones. */
+var DICE_SKINS = {
+  emberglass: { bg:'linear-gradient(160deg,#3d1a22,#170a10)', pip:'#f0b49c' },
+  frostvein:  { bg:'linear-gradient(160deg,#16304a,#081420)', pip:'#b8ccd8' },
+  loamcut:    { bg:'linear-gradient(160deg,#271c3e,#0f0a1c)', pip:'#c6b2ea' },
+  plainstone: { bg:'linear-gradient(160deg,#1b2440,#0b101f)', pip:'#dce8ef' },
+  boneash:    { bg:'linear-gradient(160deg,#2a2622,#14110e)', pip:'#c9a84c' }
+};
+function skinFor(type, who){
+  var owner = (!who || who === S.character.name) ? S.character : (S.party || {})[who];
+  return DICE_SKINS[((owner || {}).diceSkins || {})[type]] || DICE_SKINS.plainstone;
+}
+function skinKey(type, who){
+  var owner = (!who || who === S.character.name) ? S.character : (S.party || {})[who];
+  return ((owner || {}).diceSkins || {})[type] || 'plainstone';
+}
+var spins = 0, tumbleEnds = 0;
+
+function paintCube(c, skin){
+  var h = '';
+  c.style.setProperty('--pip', skin.pip);
+  for (var n = 1; n <= 6; n++){
+    var cells = '';
+    for (var i = 0; i < 9; i++) cells += '<i' + (PIPS[n].indexOf(i) >= 0 ? ' class="on"' : '') + '></i>';
+    h += '<div class="face f' + n + '" style="background:' + skin.bg + '">' + cells + '</div>';
+  }
+  c.innerHTML = h;
+}
+/* the socket die, which is only ever your own and only ever shows your skin */
+function buildCube(type){
+  paintCube(document.getElementById('restCube'), skinFor(type || S.rollType));
+  aimCube(document.getElementById('restCube'), 1, true);
+}
+function aimCube(c, n, instant){
+  var r = REST[n];
+  if (instant){ c.style.transition = 'none'; }
+  spins += 2;
+  c.style.transform = 'rotateX(' + (spins*360 + r[0]) + 'deg) rotateY(' + (spins*360 + r[1]) + 'deg)';
+  if (instant){ void c.offsetWidth; c.style.transition = ''; }
+}
+var flourishT = null, flourishedId = 0;
+function flourish(e){
+  /* wait out the tumble so the readout and the face agree, then hold and fade */
+  clearTimeout(flourishT);
+  flourishT = setTimeout(function(){
+    var f = document.getElementById('flourish');
+    var note = e.n === 6 ? '<span class="fnote">Fellmark</span>'
+             : e.n === 1 ? '<span class="fnote">Fellstrike</span>' : '';
+    var mods = (e.mods || []).map(function(x){
+      return '<span class="fmod">+ ' + esc(x.label) + ' ' + x.value + '</span>';
+    }).join('');
+    var tot = (e.mods && e.mods.length) ? '<span class="ftot">= ' + e.total + '</span>' : '';
+    f.className = e.n === 6 ? 'mark' : e.n === 1 ? 'strike' : '';
+    f.innerHTML = '<span class="ftype">' + esc(ROLL_TYPES[e.rollType] || e.rollType) + '</span>'
+      + '<span class="fdie">' + e.n + '</span>' + mods + tot + note;
+    void f.offsetWidth;
+    f.classList.add('show');
+    flourishT = setTimeout(function(){ f.classList.remove('show'); }, HOLD);
+  }, Math.max(0, tumbleEnds - Date.now()));
+}
+/* ---- the throw ----
+   Screen space, so it lands the same for everyone no matter where their camera is.
+   Choreography only. The number is decided elsewhere and arrives as remote truth,
+   this is only told what to carry. Nothing here may ever pick a face.
+   Every roll at the table throws, not only your own. That is the point of earning
+   a skin. Your die leaves your socket and returns to it, everyone else's arcs in
+   from the edge and fades where it lands, wearing whatever they unlocked. */
+var FLIGHT = 900, HOLD = 2000, HOME = 420;
+var myDice = 0, dieHome = true, booted = false;
+
+function slotCentre(){
+  var r = document.getElementById('dieSlot').getBoundingClientRect();
+  return { x:r.left + r.width / 2, y:r.top + r.height / 2 };
+}
+/* The table, minus the furniture. Two randoms averaged give a centre bias, so it
+   scatters like a thrown die instead of drifting to the edges or repeating a spot. */
+function landSpot(){
+  var r = mapEl().getBoundingClientRect(), m = isMobile();
+  var x0 = r.left + (m ? 30 : 250), x1 = r.left + r.width - (m ? 30 : 286);
+  var y0 = r.top + (m ? 86 : 58), y1 = r.top + r.height - (m ? 116 : 152);
+  if (x1 <= x0 || y1 <= y0) return { x:r.left + r.width / 2, y:r.top + r.height / 2 };
+  function pick(a, b){ return a + (b - a) * ((Math.random() + Math.random()) / 2); }
+  return { x:pick(x0, x1), y:pick(y0, y1) };
+}
+/* one long arc, then two decaying bounces off the table */
+function hop(p){
+  if (p < 0.70) return Math.sin((p / 0.70) * Math.PI) * 168;
+  if (p < 0.89) return Math.sin(((p - 0.70) / 0.19) * Math.PI) * 38;
+  return Math.sin(((p - 0.89) / 0.11) * Math.PI) * 10;
+}
+function easeOut(p){ return 1 - Math.pow(1 - p, 3); }
+function makeDie(skin, tag){
+  var el = document.createElement('div');
+  el.className = 'dieflight';
+  el.innerHTML = '<div class="diefx"><i></i><i></i><i></i><b></b></div>'
+    + '<div class="dieshake"><div class="cube"></div></div>'
+    + (tag ? '<div class="dietag">' + esc(tag) + '</div>' : '');
+  paintCube(el.querySelector('.cube'), skin);
+  document.getElementById('dieField').appendChild(el);
+  return el;
+}
+function throwFor(e){
+  var mine = e.who === S.character.name;
+  var skin = DICE_SKINS[e.skin] || skinFor(e.rollType, e.who);
+  /* work out the throw before anything reaches the DOM, so a bad measurement
+     cannot strand a die on the table with nothing to animate it */
+  var to = landSpot();
+  var from = mine ? slotCentre() : { x:to.x, y:mapEl().getBoundingClientRect().top - 70 };
+  var el = makeDie(skin, mine ? '' : e.who);
+  var cube = el.querySelector('.cube');
+  el.style.left = from.x + 'px'; el.style.top = from.y + 'px';
+  el.style.opacity = '1'; el.style.transform = 'translate(0px,0px) scale(1)';
+  if (mine){
+    myDice++;
+    dieHome = false;
+    tumbleEnds = Date.now() + FLIGHT;
+    document.getElementById('restCube').classList.add('away');
+    document.getElementById('dieSlot').classList.add('empty');
+  }
+  aimCube(cube, e.n);
+  var dx = to.x - from.x, dy = to.y - from.y, t0 = performance.now();
+  (function frame(now){
+    var p = Math.min(1, (now - t0) / FLIGHT), q = easeOut(p);
+    el.style.transform = 'translate(' + (dx * q) + 'px,' + (dy * q - hop(p)) + 'px) scale('
+      + (1 + 0.28 * Math.sin(p * Math.PI)) + ')';
+    if (p < 1) requestAnimationFrame(frame);
+  })(t0);
+  /* the landing, where a Fellmark or a Fellstrike announces itself */
+  setTimeout(function(){
+    if (e.n === 6 || e.n === 1){
+      var kind = e.n === 6 ? 'mark' : 'strike';
+      el.querySelector('.diefx').className = 'diefx ' + kind;
+      el.querySelector('.dieshake').className = 'dieshake ' + kind;
+      cube.classList.add(kind);
+      if (e.n === 6) cube.style.setProperty('--pip', '#f6e3a6');
+    }
+  }, FLIGHT);
+  /* sit, then leave. Yours shrinks back into its socket, everyone else's lifts and fades. */
+  setTimeout(function(){
+    el.classList.add('home');
+    el.style.transform = mine
+      ? 'translate(' + (dx * 0.18) + 'px,' + (dy * 0.18 - 26) + 'px) scale(0.3)'
+      : 'translate(' + dx + 'px,' + (dy - 26) + 'px) scale(0.85)';
+    el.style.opacity = '0';
+  }, FLIGHT + HOLD);
+  setTimeout(function(){
+    el.remove();
+    if (mine && --myDice === 0){
+      dieHome = true;
+      document.getElementById('restCube').classList.remove('away');
+      document.getElementById('dieSlot').classList.remove('empty');
+      buildCube(S.rollType);
+    }
+  }, FLIGHT + HOLD + HOME);
+}
+function rollFromTray(){
+  send({ type:'roll', rollType:S.rollType, n:1 + Math.floor(Math.random() * 6) });
+}
+function setRollType(t){
+  S.rollType = t;
+  /* the skin follows the type, but never while the die is in the air */
+  if (dieHome) buildCube(t);
+  var tc = document.getElementById('typeChip'); if (tc) tc.textContent = ROLL_TYPES[t];
+  document.getElementById('typePick').classList.remove('open');
+  paintTypePicker();
+}
+function toggleTypePicker(){ document.getElementById('typePick').classList.toggle('open'); }
+function pickAndRoll(t){ setRollType(t); var p=document.getElementById('typePick'); if(p){ p.classList.remove('open'); tpUnpin(p); } rollFromTray(); }
+function dieTap(){ if (isMobile()){ var p=document.getElementById('typePick'); if(p) p.classList.toggle('open'); } else { rollFromTray(); } }
+var _tpHideT = null;
+function tpShow(){ if (isMobile()) return; clearTimeout(_tpHideT); var p=document.getElementById('typePick'); if(!p) return; if(p.classList.contains('atcursor')) return; p.classList.add('open'); }
+function tpKeep(){ clearTimeout(_tpHideT); }
+function tpUnpin(p){ p = p || document.getElementById('typePick'); if(!p) return; p.classList.remove('atcursor'); p.style.left=''; p.style.top=''; }
+function tpAtCursor(x, y){
+  var p = document.getElementById('typePick'); if (!p) return;
+  clearTimeout(_tpHideT);
+  p.classList.add('atcursor','open');
+  var w = p.offsetWidth || 118, h = p.offsetHeight || 140;
+  p.style.left = Math.max(4, Math.min(x + 6, window.innerWidth  - w - 6)) + 'px';
+  p.style.top  = Math.max(4, Math.min(y + 6, window.innerHeight - h - 6)) + 'px';
+}
+function tpHideSoon(){ if (isMobile()) return; var p=document.getElementById('typePick'); if(p && p.classList.contains('atcursor')) return; clearTimeout(_tpHideT); _tpHideT = setTimeout(function(){ var q=document.getElementById('typePick'); if(q) q.classList.remove('open'); }, 280); }
+function paintTypePicker(){
+  var p = document.getElementById('typePick'); p.innerHTML = '';
+  Object.keys(ROLL_TYPES).forEach(function(t){
+    var b = document.createElement('button');
+    b.className = S.rollType === t ? 'on' : '';
+    b.textContent = ROLL_TYPES[t];
+    b.onclick = function(){ pickAndRoll(t); };
+    p.appendChild(b);
+  });
+}
+
+/* ---- windows ---- */
+function isMobile(){ return window.matchMedia('(max-width:700px)').matches; }
+function openWin(key){
+  if (key === 'battle' && isMobile()){ toggleDrawer(true); return; }
+  if (S.openSection === null) window._lmPrevMin = lmMin;
+  S.openSection = key;
+  lmExpanded = null;
+  document.body.classList.add('winopen');
+  document.getElementById('winTitle').textContent = SECTIONS[key].title.toUpperCase();
+  var win = document.getElementById('win');
+  win.style.height = ''; win.style.bottom = '';
+  var panel = (!isLM() && SHEET_PANELS[key]);
+  if (panel){
+    ensureSheet(); win.classList.add('sheeting');
+    if (key === 'arsenal'){ win.classList.add('arsenal'); renderSheetSub('weapons'); sheetGoto('weapons'); }
+    else { win.classList.remove('arsenal'); sheetGoto(panel); }
+  }
+  else { win.classList.remove('sheeting'); win.classList.remove('arsenal'); document.getElementById('winBody').innerHTML = sectionBody(key); }
+  win.classList.add('open');
+  var _wa=document.getElementById('winArt'); if(_wa) _wa.style.display='block';
+  var _wx=document.getElementById('winX'); if(_wx) _wx.style.display='flex';
+  paintRails(); renderLog(); paintSelectArt();
+  if (typeof paintLmStrip === 'function' && isLM()) paintLmStrip();
+}
+function closeWin(){
+  S.openSection = null;
+  document.body.classList.remove('winopen');
+  if (window._lmPrevMin !== undefined){ lmMin = window._lmPrevMin; window._lmPrevMin = undefined; }
+  var win = document.getElementById('win'); win.classList.remove('open'); win.classList.remove('sheeting'); win.classList.remove('arsenal'); win.style.height = ''; win.style.bottom = '';
+  var _wa=document.getElementById('winArt'); if(_wa) _wa.style.display='none';
+  var _wx=document.getElementById('winX'); if(_wx) _wx.style.display='none';
+  paintRails(); paintSelectArt();
+  if (typeof paintLmStrip === 'function' && isLM()) paintLmStrip();
+}
+
+/* ---- rails ---- */
+function railClick(k){
+  (S.openSection === k) ? closeWin() : openWin(k);
+}
+function refreshStagesWin(){ if (S.openSection === 'stages') openWin('stages'); }
+function paintRails(){
+  var keys = railKeys();
+  var r = document.getElementById('rail'); r.innerHTML = '';
+  keys.forEach(function(k){
+    var lit = S.openSection === k;
+    var b = document.createElement('button');
+    b.className = 'plaque' + (lit ? ' lit' : '');
+    b.textContent = SECTIONS[k].title;
+    b.onclick = function(){ railClick(k); };
+    r.appendChild(b);
+  });
+  var m = document.getElementById('mrail'); m.innerHTML = '';
+  keys.forEach(function(k){
+    var lit = S.openSection === k;
+    var b = document.createElement('button');
+    b.className = lit ? 'lit' : '';
+    b.innerHTML = '<span class="ico"></span>' + SECTIONS[k].title;
+    b.onclick = function(){ railClick(k); };
+    m.appendChild(b);
+  });
+}
+
+/* ---- the LoreMaster card strip ----
+   The run surface. It reads S.scene and never writes game math, intent leaves
+   through send() like everything else. The phase picks the face: run cards in a
+   scene, foe cards in battle, Spotlight groups once acts lock. */
+function isLM(){ return S.role === 'lm'; }
+/* which card sits centered in the carousel. A view fact, so it lives out here with
+   the camera and never syncs. Keyed per face so scene and combat keep their place. */
+var lmFocus = { scene:0, commit:0, resolve:0 };
+var lmExpanded = null;        /* id of the foe card opened to tabs, or null */
+var lmMin = false;            /* the whole strip collapsed to a pill */
+function lmMinimize(){ lmMin = true; paintLmStrip(); }
+function lmRestore(){ if (S.openSection){ closeWin(); } else { lmMin = false; paintLmStrip(); } }
+var lmTab = 'about';          /* active tab on the expanded card */
+function lmToggleCard(id){ lmExpanded = (lmExpanded === id) ? null : id; if (lmExpanded && S.openSection) closeWin(); lmTab = 'about'; paintLmStrip(); paintHud(); }
+function lmSetTab(id, tab){ lmExpanded = id; lmTab = tab; paintLmStrip(); paintHud(); }
+function lmFace(){ return S.mode === 'combat' ? (S.scene.combatPhase || 'commit') : 'scene'; }
+function lmDeck(){
+  var f = lmFace();
+  if (f === 'scene') return S.scene.beats.map(function(b){ return { kind:'beat', data:b }; });
+  if (f === 'resolve') return lmSpotDeck();
+  return S.scene.foes.concat(S.scene.fell).map(function(c){
+    return { kind: S.scene.foes.indexOf(c) >= 0 ? 'foe' : 'fell', data:c };
+  });
+}
+function paintLmStrip(){
+  var el = document.getElementById('lmstrip');
+  if (!isLM()){ el.classList.add('hidden'); return; }
+  el.classList.remove('hidden');
+  el.className = 'lm-' + lmFace();
+  el.innerHTML = lmStripHtml();
+  try {
+    var _tb = el.querySelector('.lm-topbar');
+    var _card = el.querySelector('.lm-slot.center .lmcard.beat');
+    if (_tb && _card) _card.style.width = _tb.offsetWidth + 'px';
+  } catch(e){}
+}
+
+function lmStripHtml(){
+  if (!isLM()) return '';
+  var f = lmFace();
+  var sceneLabel = esc(S.scene.name);
+  var head = f === 'scene'
+    ? ('<button class="lm-scenebtn" onclick="openWin(\'scenes\')">' + sceneLabel + ' <span class="lm-chev">\u25be</span></button>')
+    : (f === 'resolve' ? ('Round ' + S.round + ' \u00b7 Spotlights')
+    : ('Round ' + S.round + ' \u00b7 Commit'));
+  var deck = lmDeck();
+  var focus = Math.max(0, Math.min(lmFocus[f] || 0, deck.length - 1));
+  lmFocus[f] = focus;
+  var stage = '';
+  if (!deck.length){
+    stage = '<div class="lm-empty">' + (f === 'resolve' ? 'No acts were committed.' : 'Nothing here.') + '</div>';
+  } else {
+    stage = deck.map(function(item, i){
+      var rel = i - focus;
+      if (Math.abs(rel) > 1) return '';
+      var pos = rel === 0 ? 'center' : (rel < 0 ? 'left' : 'right');
+      var clickAttr = pos === 'center' ? '' : ' onclick="lmGoTo(' + i + ')"';
+      return '<div class="lm-slot ' + pos + '"' + clickAttr + '>' + cardFor(item) + '</div>';
+    }).join('');
+  }
+  var dots = deck.length > 1 ? '<div class="lm-dots">' + deck.map(function(_, i){
+    return '<span class="lm-dot' + (i === focus ? ' on' : '') + '" onclick="lmGoTo(' + i + ')"></span>';
+  }).join('') + '</div>' : '';
+  if (lmMin){
+    return '<button class="lm-pill" onclick="lmRestore()">' + head
+      + ' <span class="lm-pill-arrow">\u25b4</span></button>';
+  }
+  var prev = deck.length > 1 ? '<button class="lm-nav l" onclick="lmStep(-1)" aria-label="Previous">\u2039</button>' : '<span class="lm-nav-sp"></span>';
+  var next = deck.length > 1 ? '<button class="lm-nav r" onclick="lmStep(1)" aria-label="Next">\u203a</button>' : '<span class="lm-nav-sp"></span>';
+  return '<div class="lm-topbar">' + prev
+    + '<span class="lm-head">' + head + '</span>' + lmPhaseControls()
+    + '<button class="lm-minbtn" onclick="lmMinimize()" title="Minimize">\u2013</button>'
+    + next + '</div>'
+    + '<div class="lm-stage">' + stage + '</div>' + dots;
+}
+function foeDiceRow(f){
+  return '<div class="lmc-dicerow"><span class="lmc-alab">Roll</span>'
+    + '<button class="lmc-die" id="tsDie-' + f.id + '" onclick="lmFoeRoll(\'' + f.id + '\')" aria-label="Roll the foe die">' + (f._roll || '?') + '</button>'
+    + '<span class="lmc-dieout" id="tsDieOut-' + f.id + '">' + (f._roll ? foeRollTag(f) : '') + '</span></div>'
+    + evaRow(f);
+}
+function foeRollTag(f){
+  var v = f._roll;
+  return v===6 ? 'Fellmark' : (v===1 ? 'Fellstrike' : String(v));
+}
+/* auto evasion, matching fwEvaRow. Shows only when this foe's act targets a Fell.
+   Before the die is thrown it waits; after, accuracy meets the Fell's Evasion. */
+function evaRow(f){
+  if (!(f.act && f.target)) return '';
+  var tgt = null; S.scene.fell.forEach(function(p){ if(p.id===f.target) tgt=p; });
+  if (!tgt) return '';
+  var eva = (tgt.attrs && tgt.attrs.Evasion) || 0;
+  if (!f._roll) return '<div class="lmc-eva"><span class="lmc-alab">Evasion</span>'
+    + '<span class="lmc-wait">waiting on the roll vs ' + esc(tgt.name) + ' (Evasion ' + eva + ')</span></div>';
+  var prec = (f.attrs && f.attrs.Precision) || 0;
+  var acc = f._roll + prec;
+  var hit = acc >= eva;
+  return '<div class="lmc-eva"><span class="lmc-alab">Evasion</span>'
+    + 'accuracy ' + acc + ' vs Evasion ' + eva + ' \u00b7 '
+    + '<b class="' + (hit?'lmc-hit':'lmc-miss') + '">' + (hit?'Hit':'Evaded') + '</b></div>';
+}
+function lmFoeRoll(id){
+  var f = findC(id); if(!f) return;
+  f._roll = 1 + Math.floor(Math.random()*6);
+  var tag = foeRollTag(f);
+  var prec = (f.attrs && f.attrs.Precision) || 0;
+  var line = '<b>' + esc(f.name) + '</b> rolls ' + f._roll;
+  if (f.act && f.target){
+    var tgt=null; S.scene.fell.forEach(function(p){ if(p.id===f.target) tgt=p; });
+    if (tgt){ var eva=(tgt.attrs&&tgt.attrs.Evasion)||0, acc=f._roll+prec;
+      line += ' + Precision ' + prec + ' = ' + acc + ' vs ' + esc(tgt.name) + ' Evasion ' + eva
+        + ' \u2192 <b>' + (acc>=eva?'Hit':'Evaded') + '</b>'; }
+  } else { line += ' \u2192 ' + esc(tag); }
+  pushLog({ kind:'sys', html:line + '.' });
+  applyRemoteState({ scene:S.scene, log:S.log });
+}
+/* the Spotlight gold box, matching the FateWell runner: compact cards side by side,
+   click one to open its tabs in place. The box hugs its members, low and wide, so
+   the map stays visible above it. */
+function spotGroupCard(it){
+  var done = spotResolved(it);
+  var manual = S.scene.spotMode==='manual';
+  var inner = it.nodes.map(function(n){
+    var c = n.ref, isFoe = n.kind==='foe';
+    if (lmExpanded === c.id){
+      return '<div class="lm-spotslot open">' + (isFoe ? foeCardOpen(c) : fellCardOpen(c)) + '</div>';
+    }
+    var mtog = manual ? '<button class="lmc-mdot' + (S.scene.manual[n.key]?' on':'') + '" onclick="event.stopPropagation();lmToggleManual(\'' + n.key + '\')" title="Group into the spotlight">\u25c9</button>' : '';
+    var mini = isFoe ? foeCardCompact(c) : fellCardCompact(c);
+    /* a small die on the compact face so a foe can roll without opening */
+    var die = isFoe ? '<div class="lm-minidie">' + foeDiceRow(c) + '</div>' : '';
+    return '<div class="lm-spotslot">' + mtog + mini + die + '</div>';
+  }).join('');
+  return '<div class="lmcard spotbox' + (done?' done':'') + '">'
+    + '<div class="lmc-spothead"><span class="lmc-spotnum">' + esc(it.label) + '</span>'
+    + '<button class="lmbtn sm2" onclick="lmResolveGroup(\'' + it.id + '\')">' + (done?'Resolved':'Resolve') + '</button></div>'
+    + '<div class="lm-spotrow">' + inner + '</div></div>';
+}
+function lmResolveGroup(id){
+  var it = buildSpotlights().filter(function(x){ return x.id===id; })[0];
+  if (!it) return;
+  var done = spotResolved(it);
+  it.nodes.forEach(function(n){ n.ref.spot = done ? null : 'done'; });
+  applyRemoteState({ scene:S.scene });
+}
+function cardFor(item){
+  if (item.kind === 'beat') return beatCard(item.data);
+  if (item.kind === 'foe') return foeCard(item.data);
+  if (item.kind === 'fell') return fellCard(item.data);
+  if (item.kind === 'spotgroup') return spotGroupCard(item.data);
+  return '';
+}
+function lmStep(d){
+  var f = lmFace(), deck = lmDeck();
+  lmFocus[f] = Math.max(0, Math.min((lmFocus[f] || 0) + d, deck.length - 1));
+  paintLmStrip();
+}
+function lmGoTo(i){ lmFocus[lmFace()] = i; paintLmStrip(); }
+window.addEventListener('keydown', function(e){
+  if (!isLM()) return;
+  if (e.key === 'ArrowLeft') lmStep(-1);
+  if (e.key === 'ArrowRight') lmStep(1);
+});
+
+function lmPhaseControls(){
+  if (S.mode !== 'combat')
+    return '<button class="lmbtn" onclick="lmOpenMaps()">Maps</button>'
+         + '<button class="lmbtn" onclick="lmOpenTokens()">Tokens</button>'
+         + '<button class="lmbtn" onclick="lmBeginCombat()">Begin combat</button>';
+  if (S.scene.combatPhase === 'commit')
+    return '<button class="lmbtn gold" onclick="lmLockActs()">Lock acts into Spotlights</button>'
+         + '<button class="lmbtn" onclick="declaresLoad()">Read declares</button>'
+         + '<button class="lmbtn" onclick="lmEndCombat()">End combat</button>';
+  return '<button class="lmbtn' + (S.scene.spotMode==='auto'?' gold':'') + '" onclick="lmSpotMode(\'auto\')">Auto</button>'
+       + '<button class="lmbtn' + (S.scene.spotMode==='manual'?' gold':'') + '" onclick="lmSpotMode(\'manual\')">Manual</button>'
+       + '<button class="lmbtn" onclick="lmUnlock()">Back to Commit</button>'
+       + '<button class="lmbtn" onclick="lmNextRound()">Next round</button>';
+}
+
+function beatCard(b){
+  var _m = beatMeta(b.kind);
+  var sp = beatSpeaker(b);
+  if (sp && typeof lmSetSpeaker === 'function' && isLM()) lmSetSpeaker(sp.name, sp.img);
+  return '<div class="lmcard beat ' + b.kind + '">'
+    + '<div class="lmc-tag" style="color:' + _m[1] + '">' + _m[0] + (b.handle ? ' <span class="bt-handle">#' + esc(b.handle) + '</span>' : '') + '</div>'
+    + speakerHead(sp)
+    + '<div class="lmc-title">' + esc(b.title) + '</div>'
+    + (b.img ? '<img class="lmc-img" src="' + esc(b.img) + '" alt="">' : '')
+    + '<div class="lmc-body">' + esc(b.body) + '</div>'
+    + questBeatAction(b) + '</div>';
+}
+/* A quest is prep until it is offered. Running the beat is what puts it on the board. */
+function questBeatAction(b){
+  if (!isLM() || b.kind !== 'quest') return '';
+  if (b.posted) return '<div class="qb-done">Posted to the board</div>';
+  return '<button class="lmbtn gold qb-post" onclick="postQuestBeat(\'' + b.id + '\')">Post this quest</button>';
+}
+function beatById(id){
+  var hit = null;
+  ((S.scene && S.scene.beats) || []).forEach(function(b){ if (sameId(b.id, id)) hit = b; });
+  return hit;
+}
+function postQuestBeat(id){
+  var b = beatById(id); if (!b || b.posted) return;
+  var sc = S.scene;
+  sc.quests = sc.quests || [];
+  var q = { entryId:'qb-' + b.id, title:b.title || 'A quest', body:b.body || '', status:'open' };
+  var already = sc.quests.filter(function(x){ return sameId(x.entryId, q.entryId); })[0];
+  if (!already) sc.quests.push(q); else q.entryId = already.entryId;
+  b.posted = true;
+  questPush(q);
+  pushLog({ kind:'sys', html:'<b>' + esc(q.title) + '</b> is posted to the board.' });
+  storySave(); applyRemoteState({ scene:S.scene, log:S.log });
+  if (typeof paintLmStrip === 'function') paintLmStrip();
+}
+/* taking a posted quest down again releases the beat to be offered later */
+function questUnpostBeat(entryId){
+  var id = String(entryId || '').replace(/^qb-/, '');
+  var b = beatById(id); if (b) b.posted = false;
+}
+
+/* a combat card, foe or Fell, worn during Commit */
+function boardCards(){
+  var sc = S.scene;
+  return sc.foes.map(function(f){ return foeCard(f); }).join('')
+       + sc.fell.map(function(p){ return fellCard(p); }).join('');
+}
+
+/* the rating reveal and tier ceiling, matching FateWell's budget */
+var TS_RATING = { Minion:{acts:0,inf:0}, Elite:{acts:1,inf:1}, Champion:{acts:2,inf:2}, Epic:{acts:3,inf:3}, Forsaken:{acts:3,inf:3} };
+function tsRating(sr){ return TS_RATING[sr] || TS_RATING.Elite; }
+
+/* the foe card. Compact by default, matching the FateWell strip. Click to expand
+   into a tabbed card: About, Attributes, Attack, Acts, Stats. */
+function foeCard(f){ return lmExpanded === f.id ? foeCardOpen(f) : foeCardCompact(f); }
+
+function manualDot(key){
+  if (!(S.mode==='combat' && S.scene.combatPhase==='resolve' && S.scene.spotMode==='manual')) return '';
+  var on = !!S.scene.manual[key];
+  return '<button class="lmc-mdot' + (on?' on':'') + '" onclick="event.stopPropagation();lmToggleManual(\'' + key + '\')" title="Group into the spotlight">\u25c9</button>';
+}
+function foeCardCompact(f){
+  return '<div class="lmcard foe compact' + (f.locked ? ' locked' : '') + '" onclick="lmToggleCard(\'' + f.id + '\')">'
+    + manualDot('f:'+f.id)
+    + '<div class="lmc-cname">' + esc(f.name) + '</div>'
+    + '<div class="lmc-cbar"><div class="lmc-cfill" style="width:' + Math.round((f.curVit/f.maxVit)*100) + '%"></div></div>'
+    + '<div class="lmc-cvit">' + f.curVit + ' / ' + f.maxVit + '</div>'
+    + '<div class="lmc-cpips">' + compactPips(f) + '</div></div>';
+}
+function compactPips(f){
+  if (f.sr === 'Minion') return '';
+  var h = ''; for (var t = 1; t <= 3; t++) h += '<span class="lmc-cpip' + ((f.charge||0) >= t ? ' lit' : '') + '"></span>';
+  return h;
+}
+
+function foeCardOpen(f){
+  var tabs = ['about','attributes','attack','acts','stats'];
+  var labels = { about:'About', attributes:'Attributes', attack:'Attack', acts:'Acts', stats:'Stats' };
+  var head = '<div class="lmc-top"><span class="lmc-name">' + esc(f.name) + '</span>'
+    + '<button class="lmc-close" onclick="lmToggleCard(\'' + f.id + '\')">\u00d7</button></div>';
+  var tabrow = '<div class="lmc-tabs">' + tabs.map(function(t){
+    return '<button class="lmc-tab' + (lmTab === t ? ' on' : '') + '" onclick="lmSetTab(\'' + f.id + '\',\'' + t + '\')">' + labels[t] + '</button>';
+  }).join('') + '</div>';
+  var body = '<div class="lmc-tabbody">' + foeTabBody(f, lmTab) + '</div>';
+  return '<div class="lmcard foe expanded' + (f.locked ? ' locked' : '') + '">' + head + tabrow + body + '</div>';
+}
+
+function foeTabBody(f, tab){
+  var sr = f.sr || 'Elite', minion = sr === 'Minion', d = f.dmg;
+  if (tab === 'about'){
+    return '<div class="lmc-sd">' + esc(sr) + ' Foe</div>'
+      + '<div class="lmc-vit">' + f.curVit + ' / ' + f.maxVit + chargePips(f, 'foe') + '</div>'
+      + foeLiveHtml(f)
+      + actLine(f, 'foe') + foeDiceRow(f);
+  }
+  if (tab === 'attributes'){
+    return f.attrs ? attrsGrid(f.attrs) : '<div class="lmc-note">No attributes.</div>';
+  }
+  if (tab === 'attack'){
+    return '<div class="lmc-dmg">' + d.base + ' + ' + d.bonus + ' ' + d.type
+      + '<span class="lmc-acc">' + esc(d.acc) + ' to hit</span></div>'
+      + '<div class="lmc-note">Base always lands. Bonus meets ' + (d.type === 'magical' ? 'Resistance' : 'Durability') + '.'
+      + (minion ? '' : ' Landing it charges the first tier.') + '</div>';
+  }
+  if (tab === 'acts'){
+    var h = '', acts = (f.acts || []).slice().sort(function(a,b){ return (a.tier||0)-(b.tier||0); });
+    var ceil = tsRating(sr).acts, ch = f.charge || 0;
+    if (minion) h += '<div class="lmc-note">A Minion brings only its Standard Attack.</div>';
+    if (!acts.length && !minion) h += '<div class="lmc-note">No Acts forged.</div>';
+    acts.forEach(function(a){
+      var t = a.tier || 0, beyond = t > ceil, locked = !beyond && !minion && t > ch;
+      var gray = beyond || locked || (minion && t > 0);
+      var why = (beyond || minion) ? 'beyond rating' : (locked ? 'needs charge ' + t : '');
+      h += '<div class="lmc-kit' + (gray ? ' gray' : '') + '"><span class="lmc-kn">' + esc(a.name) + '</span>'
+         + '<span class="lmc-kt">Tier ' + t + '</span>' + (why ? '<span class="lmc-why">' + why + '</span>' : '')
+         + '<div class="lmc-ke">' + esc(a.effect || '') + '</div></div>';
+    });
+    h += '<div class="lmc-lbl">React</div>' + foeReactRow(f);
+    return h;
+  }
+  if (tab === 'stats'){
+    var h = kitChunk('Infusions', f.infusions || [], tsRating(sr).inf)
+          + kitChunk('Augmentations', f.augments || [], tsRating(sr).inf);
+    if (f.stance) h += '<div class="lmc-lbl">Stance</div><div class="lmc-kit"><span class="lmc-kn">' + esc(f.stance) + '</span></div>';
+    if (f.sig) h += '<div class="lmc-lbl">Afflictions</div><div class="lmc-kit"><span class="lmc-kn">' + esc(f.sig) + '</span><span class="lmc-kt">on Fellmark, signature</span></div>';
+    if (!h) h = '<div class="lmc-note">Nothing carried.</div>';
+    return h;
+  }
+  return '';
+}
+function attrsGrid(a){
+  var pairs = [['Precision','Evasion'],['Power','Durability'],['Magic','Resistance'],['Vigor','Wit']];
+  return '<div class="lmc-attrs">' + pairs.map(function(p){
+    return '<div class="lmc-arow"><span>' + p[0] + '</span><b>' + (a[p[0]]||0) + '</b></div>'
+         + '<div class="lmc-arow"><span>' + p[1] + '</span><b>' + (a[p[1]]||0) + '</b></div>';
+  }).join('') + '</div>';
+}
+function kitChunk(label, list, revealed){
+  if (!list.length) return '';
+  var h = '<div class="lmc-lbl">' + label + '</div>';
+  list.forEach(function(nm, i){
+    var gray = i >= revealed;
+    h += '<div class="lmc-kit' + (gray ? ' gray' : '') + '"><span class="lmc-kn">' + esc(nm) + '</span>'
+       + (gray ? '<span class="lmc-why">beyond rating</span>' : '') + '</div>';
+  });
+  return h;
+}
+function foeReactRow(f){
+  if (f.reactUsed) return '<div class="lmc-reactspent">React spent \u00b7 <button class="lm-link" onclick="lmFoeReactReset(\'' + f.id + '\')">Restore</button></div>';
+  var opts = (f.reacts || ['Skill','Movement']);
+  return '<div class="lmc-reactrow"><span class="lmc-alab">React</span>'
+    + '<select class="lmc-rsel" id="tsR-' + f.id + '">'
+    + opts.map(function(o){ return '<option>' + esc(o) + '</option>'; }).join('')
+    + '</select><button class="lmbtn sm2" onclick="lmUseFoeReact(\'' + f.id + '\')">Use</button></div>';
+}
+function lmUseFoeReact(id){ var c = findC(id); if(c){ c.reactUsed = true; applyRemoteState({ scene:S.scene }); } }
+function lmFoeReactReset(id){ var c = findC(id); if(c){ c.reactUsed = false; applyRemoteState({ scene:S.scene }); } }
+
+/* Fell card mirrors the foe card: compact by default, tabbed when opened. Tabs
+   pull from the FellGlass sheet: About, Attributes, Attack, Acts, Stats. */
+function fellCard(p){ return lmExpanded === p.id ? fellCardOpen(p) : fellCardCompact(p); }
+function fellCardCompact(p){
+  return '<div class="lmcard fell compact' + (p.locked ? ' locked' : '') + '" onclick="lmToggleCard(\'' + p.id + '\')">'
+    + manualDot('p:'+p.id)
+    + '<div class="lmc-cname">' + esc(p.name) + '</div>'
+    + '<div class="lmc-cbar fell"><div class="lmc-cfill" style="width:' + Math.round((p.curVit/p.maxVit)*100) + '%"></div></div>'
+    + '<div class="lmc-cvit">' + p.curVit + ' / ' + p.maxVit + '</div>'
+    + '<div class="lmc-cpips">' + compactPipsFell(p) + '</div></div>';
+}
+function compactPipsFell(p){
+  var h=''; for(var t=1;t<=3;t++) h+='<span class="lmc-cpip'+((p.charge||0)>=t?' lit':'')+'"></span>'; return h;
+}
+function fellCardOpen(p){
+  var tabs = ['about','attributes','attack','acts','stats'];
+  var labels = { about:'About', attributes:'Attributes', attack:'Attack', acts:'Acts', stats:'Stats' };
+  var head = '<div class="lmc-top"><span class="lmc-name">' + esc(p.name) + '</span>'
+    + '<button class="lmc-close" onclick="lmToggleCard(\'' + p.id + '\')">\u00d7</button></div>';
+  var tabrow = '<div class="lmc-tabs">' + tabs.map(function(t){
+    return '<button class="lmc-tab' + (lmTab === t ? ' on' : '') + '" onclick="lmSetTab(\'' + p.id + '\',\'' + t + '\')">' + labels[t] + '</button>';
+  }).join('') + '</div>';
+  return '<div class="lmcard fell expanded' + (p.locked ? ' locked' : '') + '">' + head + tabrow
+    + '<div class="lmc-tabbody">' + fellTabBody(p, lmTab) + '</div></div>';
+}
+function fellTabBody(p, tab){
+  var d = p.dmg;
+  if (tab === 'about'){
+    return '<div class="lmc-sd">Fell \u00b7 Level ' + (p.level||1) + '</div>'
+      + '<div class="lmc-vit">' + p.curVit + ' / ' + p.maxVit + chargePips(p, 'fell') + '</div>'
+      + fellDeclareHtml(p)
+      + actLine(p, 'fell')
+      + (p.react ? '<div class="lmc-reactspent">React \u00b7 ' + esc(p.react) + '</div>'
+                 : '<div class="lmc-ropts">Reacts on hand \u00b7 ' + (p.reacts||[]).map(esc).join(' \u00b7 ') + '</div>');
+  }
+  if (tab === 'attributes') return p.attrs ? attrsGrid(p.attrs) : '<div class="lmc-note">No attributes.</div>';
+  if (tab === 'attack'){
+    if (!d) return '<div class="lmc-note">No weapon set.</div>';
+    return '<div class="lmc-dmg">' + d.base + ' + ' + d.bonus + ' ' + d.type
+      + '<span class="lmc-acc">' + esc(d.acc) + ' to hit</span></div>'
+      + '<div class="lmc-note">Base always lands. Bonus meets ' + (d.type==='magical'?'Resistance':'Durability') + '.</div>';
+  }
+  if (tab === 'acts'){
+    var h='', acts=(p.acts||[]).slice().sort(function(a,b){return (a.tier||0)-(b.tier||0);}), ch=p.charge||0;
+    if(!acts.length) h+='<div class="lmc-note">No Acts.</div>';
+    acts.forEach(function(a){
+      var t=a.tier||0, locked=t>ch;
+      h+='<div class="lmc-kit'+(locked?' gray':'')+'"><span class="lmc-kn">'+esc(a.name)+'</span>'
+        +'<span class="lmc-kt">Tier '+t+'</span>'+(locked?'<span class="lmc-why">needs charge '+t+'</span>':'')
+        +'<div class="lmc-ke">'+esc(a.effect||'')+'</div></div>';
+    });
+    h+='<div class="lmc-lbl">Skills</div><div class="lmc-note">'+((p.skills||[]).map(esc).join(', ')||'None')+'</div>';
+    return h;
+  }
+  if (tab === 'stats'){
+    var h='';
+    h+='<div class="lmc-lbl">Arsenal</div>';
+    (p.arsenal||[]).forEach(function(x){ h+='<div class="lmc-kit"><span class="lmc-kn">'+esc(x)+'</span></div>'; });
+    h+='<div class="lmc-lbl">Lore</div>';
+    (p.lore||[]).forEach(function(x){ h+='<div class="lmc-note">'+esc(x)+'</div>'; });
+    return h || '<div class="lmc-note">Nothing carried.</div>';
+  }
+  return '';
+}
+
+/* charge pips, dark when empty and gold when set, clickable for the LM */
+/* In battle the LoreMaster moves a foe's vitality, charges and what is on it.
+   Nothing else edits these; the shelf holds what a foe is, this holds what is happening. */
+function inBattle(){ return S.mode === 'combat'; }
+function foeById(id){
+  var hit = null;
+  ((S.scene && S.scene.foes) || []).forEach(function(f){ if (sameId(f.id, id)) hit = f; });
+  return hit;
+}
+function foeVit(id, delta){
+  var f = foeById(id); if (!f) return;
+  f.curVit = Math.max(0, Math.min(f.maxVit || 0, (f.curVit || 0) + delta));
+  pushLog({ kind:'sys', html:esc(f.name) + (delta < 0 ? ' takes ' + (-delta) : ' recovers ' + delta) + ', now ' + f.curVit + '/' + f.maxVit + '.' });
+  combatPublish(); applyRemoteState({ scene:S.scene, log:S.log }); paintLmStrip(); paintHud();
+}
+function foeCharge(id, v){
+  var f = foeById(id); if (!f) return;
+  f.charge = Math.max(0, Math.min(3, v));
+  combatPublish(); applyRemoteState({ scene:S.scene }); paintLmStrip(); paintHud();
+}
+var TS_EFFECTS = ['Bleeding','Burning','Blinded','Dazed','Exposed','Frozen','Poisoned','Prone','Rooted','Silenced','Slowed','Staggered','Weakened'];
+function foeAffAdd(id){
+  var f = foeById(id); if (!f) return;
+  var opts = TS_EFFECTS.filter(function(e){ return (f.affs || []).indexOf(e) < 0; });
+  tsModal('<h3 class="tsm-title">What takes hold</h3>'
+    + '<select class="tsm-inp" id="afPick">' + opts.map(function(e){ return '<option value="' + esc(e) + '">' + esc(e) + '</option>'; }).join('') + '</select>'
+    + (opts.length ? '' : '<p class="tsm-note">Everything is already on it.</p>')
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button>'
+    + '<button class="tsm-btn" onclick="foeAffSave(\'' + id + '\')">Apply</button></div>');
+}
+function foeAffSave(id){
+  var f = foeById(id); if (!f) return;
+  var v = (document.getElementById('afPick') || {}).value;
+  if (v){
+    f.affs = f.affs || [];
+    if (f.affs.indexOf(v) < 0) f.affs.push(v);
+    pushLog({ kind:'sys', html:esc(v) + ' takes hold of ' + esc(f.name) + '.' });
+  }
+  tsCloseModal(); combatPublish(); applyRemoteState({ scene:S.scene, log:S.log }); paintLmStrip();
+}
+function foeAffDrop(id, name){
+  var f = foeById(id); if (!f) return;
+  f.affs = (f.affs || []).filter(function(x){ return x !== name; });
+  combatPublish(); applyRemoteState({ scene:S.scene }); paintLmStrip();
+}
+/* A Fell's declare as it came off their sheet, and the LoreMaster's answer to it. */
+function fellDeclareHtml(p){
+  if (!inBattle()) return '';
+  var dcl = declareFor(p.charId || p.id);
+  var h = '<div class="bt-live">';
+  if (dcl && (dcl.act || dcl.roll)){
+    var tgt = '';
+    ((S.scene && S.scene.foes) || []).forEach(function(f){ if (sameId(f.id, dcl.target) || f.name === dcl.target) tgt = f.name; });
+    h += '<div class="bt-row wrap"><span class="bt-lbl">Declared</span>'
+      + '<span class="bt-decl">' + esc(dcl.act || 'an act') + (tgt ? ' on ' + esc(tgt) : '') + '</span></div>';
+    if (dcl.roll) h += '<div class="bt-row"><span class="bt-lbl">Rolled</span><span class="bt-n">' + dcl.roll + (dcl.acc ? ' vs ' + dcl.acc : '') + '</span>'
+      + (dcl.fellstrike ? '<span class="bt-strike">Fellstrike</span>' : '') + '</div>';
+    if (dcl.dmg) h += '<div class="bt-row"><span class="bt-lbl">Damage</span><span class="bt-n">' + (dcl.base || 0) + ' + ' + Math.max(0, (dcl.dmg || 0) - (dcl.base || 0)) + '</span>'
+      + '<button class="bt-b" onclick="resolveOnFoe(\'' + esc(p.charId || p.id) + '\')">Land it</button></div>';
+  } else {
+    h += '<div class="bt-row"><span class="bt-lbl">Declared</span><span class="tsm-note">Nothing yet.</span></div>';
+  }
+  h += '<div class="bt-row"><span class="bt-lbl">Strike</span>'
+    + '<input class="tsm-inp bt-in" id="dmgB_' + esc(p.charId || p.id) + '" type="number" placeholder="base" value="">'
+    + '<input class="tsm-inp bt-in" id="dmgN_' + esc(p.charId || p.id) + '" type="number" placeholder="bonus" value="">'
+    + '<select class="tsm-inp bt-sel" id="dmgT_' + esc(p.charId || p.id) + '"><option value="phys">physical</option><option value="magic">magical</option></select>'
+    + '<button class="bt-b" onclick="strikeFell(\'' + esc(p.charId || p.id) + '\')">Send</button></div>'
+  + '<div class="bt-row"><span class="bt-lbl">Charges</span>'
+    + [0,1,2,3].map(function(n){ return '<button class="bt-pip' + ((p.charge || 0) >= n && n > 0 ? ' on' : '') + '" onclick="chargeFell(\'' + esc(p.charId || p.id) + '\',' + n + ')">' + (n === 0 ? '\u2013' : n) + '</button>'; }).join('')
+    + '</div>'
+  + '<div class="bt-row wrap"><span class="bt-lbl">Upon them</span>'
+    + ((p.affs || []).map(function(a){ return '<span class="chip on">' + esc(a) + '</span>'; }).join('') || '<span class="tsm-note">Nothing.</span>')
+    + '<button class="bt-b" onclick="affFell(\'' + esc(p.charId || p.id) + '\')">Apply</button></div>'
+  + '</div>';
+  return h;
+}
+function fellByCharId(id){
+  var hit = null;
+  ((S.scene && S.scene.fell) || []).forEach(function(p){ if (sameId(p.charId, id) || sameId(p.id, id)) hit = p; });
+  return hit;
+}
+/* the Fell's declared damage, landed on the foe they aimed at */
+function resolveOnFoe(charId){
+  var dcl = declareFor(charId); if (!dcl) return;
+  var p = fellByCharId(charId);
+  var f = null;
+  ((S.scene && S.scene.foes) || []).forEach(function(x){ if (sameId(x.id, dcl.target) || x.name === dcl.target) f = x; });
+  if (!f){ pushLog({ kind:'sys', html:'No foe named on that declare.' }); applyRemoteState({ log:S.log }); return; }
+  var total = Math.max(0, dcl.dmg || 0);
+  f.curVit = Math.max(0, (f.curVit || 0) - total);
+  pushLog({ kind:'sys', html:'<b>' + esc((p && p.name) || 'A Fell') + '</b> lands ' + total + ' on <b>' + esc(f.name) + '</b>, now ' + f.curVit + '/' + f.maxVit + '.' });
+  combatPublish(); applyRemoteState({ scene:S.scene, log:S.log }); paintLmStrip(); paintHud();
+}
+function strikeFell(charId){
+  var b = Number((document.getElementById('dmgB_' + charId) || {}).value) || 0;
+  var n = Number((document.getElementById('dmgN_' + charId) || {}).value) || 0;
+  var t = (document.getElementById('dmgT_' + charId) || {}).value || 'phys';
+  if (!b && !n) return;
+  lmDealDamage(charId, b, n, t);
+  var p = fellByCharId(charId);
+  pushLog({ kind:'sys', html:'<b>' + esc((p && p.name) || 'A Fell') + '</b> is struck for ' + b + ' + ' + n + '.' });
+  applyRemoteState({ log:S.log });
+  ['dmgB_','dmgN_'].forEach(function(k){ var e = document.getElementById(k + charId); if (e) e.value = ''; });
+}
+function chargeFell(charId, v){
+  var p = fellByCharId(charId); if (p) p.charge = v;
+  lmSetCharge(charId, v);
+  applyRemoteState({ scene:S.scene }); paintLmStrip();
+}
+function affFell(charId){
+  var p = fellByCharId(charId); if (!p) return;
+  var opts = TS_EFFECTS.filter(function(e){ return (p.affs || []).indexOf(e) < 0; });
+  window._affFell = charId;
+  tsModal('<h3 class="tsm-title">What takes hold</h3>'
+    + '<select class="tsm-inp" id="afPick">' + opts.map(function(e){ return '<option value="' + esc(e) + '">' + esc(e) + '</option>'; }).join('') + '</select>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button>'
+    + '<button class="tsm-btn" onclick="affFellSave()">Apply</button></div>');
+}
+function affFellSave(){
+  var charId = window._affFell; var p = fellByCharId(charId); if (!p){ tsCloseModal(); return; }
+  var v = (document.getElementById('afPick') || {}).value;
+  if (v){
+    p.affs = p.affs || [];
+    if (p.affs.indexOf(v) < 0) p.affs.push(v);
+    lmApplyEffects(charId, p.affs, { msg:v + ' takes hold.', at:Date.now() });
+    pushLog({ kind:'sys', html:esc(v) + ' takes hold of <b>' + esc(p.name) + '</b>.' });
+  }
+  tsCloseModal(); applyRemoteState({ scene:S.scene, log:S.log }); paintLmStrip();
+}
+function foeLiveHtml(f){
+  if (!inBattle()) return '';
+  var affs = (f.affs || []).map(function(a){
+    return '<span class="chip on">' + esc(a) + '<button class="chip-i" onclick="foeAffDrop(\'' + f.id + '\',\'' + a.replace(/'/g, "\\'") + '\')" title="Lift">\u00d7</button></span>';
+  }).join('');
+  return '<div class="bt-live">'
+    + '<div class="bt-row"><span class="bt-lbl">Vitality</span>'
+    + '<button class="bt-b" onclick="foeVit(\'' + f.id + '\',-5)">-5</button>'
+    + '<button class="bt-b" onclick="foeVit(\'' + f.id + '\',-1)">-1</button>'
+    + '<span class="bt-n">' + (f.curVit || 0) + ' / ' + (f.maxVit || 0) + '</span>'
+    + '<button class="bt-b" onclick="foeVit(\'' + f.id + '\',1)">+1</button>'
+    + '<button class="bt-b" onclick="foeVit(\'' + f.id + '\',5)">+5</button></div>'
+    + '<div class="bt-row"><span class="bt-lbl">Charges</span>'
+    + [0,1,2,3].map(function(n){
+        return '<button class="bt-pip' + ((f.charge || 0) >= n && n > 0 ? ' on' : '') + '" onclick="foeCharge(\'' + f.id + '\',' + n + ')">' + (n === 0 ? '\u2013' : n) + '</button>';
+      }).join('')
+    + '</div>'
+    + '<div class="bt-row wrap"><span class="bt-lbl">Upon it</span>' + (affs || '<span class="tsm-note">Nothing.</span>')
+    + '<button class="bt-b" onclick="foeAffAdd(\'' + f.id + '\')">Apply</button></div>'
+    + '</div>';
+}
+/* the table's combat state, so the players' sheets follow it */
+function combatPublish(){
+  if (!isLM() || !window._tsAsk) return;
+  tsAsk('TS_COMBAT_PUBLISH', { state:{ active: inBattle(), round: S.round || 0,
+    phase: (S.scene && S.scene.combatPhase) || '', sceneId: (S.scene && S.scene.id) || '' } }).catch(function(){});
+}
+/* what the players have declared this round */
+function declaresLoad(){
+  if (!isLM() || !window._tsAsk) return;
+  tsAsk('TS_COMBAT_DECLARES', {}).then(function(list){
+    S.declares = list || [];
+    if (typeof paintLmStrip === 'function') paintLmStrip();
+  }).catch(function(){});
+}
+function declareFor(charId){
+  var hit = null;
+  (S.declares || []).forEach(function(x){ if (sameId(x.charId, charId)) hit = x; });
+  return hit;
+}
+/* what the LoreMaster sends back to a Fell */
+function lmDealDamage(charId, base, bonus, dt){
+  tsAsk('TS_COMBAT_DAMAGE', { charId:charId, base:base, bonus:bonus, dt:dt || 'phys' }).catch(function(){});
+}
+function lmSetCharge(charId, v){
+  tsAsk('TS_COMBAT_CHARGE', { charId:charId, value:v }).catch(function(){});
+}
+function lmApplyEffects(charId, applied, recap){
+  tsAsk('TS_COMBAT_APPLY', { charId:charId, applied:applied || [], recap:recap || null }).catch(function(){});
+}
+function chargePips(c, side){
+  if (side === 'foe' && c.sr === 'Minion') return '<span class="lmc-nocharge">no charge</span>';
+  var h = '<span class="lmc-pips">';
+  h += '<button class="lmc-step" onclick="lmStepCharge(\'' + side + '\',\'' + c.id + '\',-1)">\u2212</button>';
+  for (var t = 1; t <= 3; t++)
+    h += '<button class="lmc-pip' + (c.charge >= t ? ' lit' : '') + '" onclick="lmSetCharge(\'' + side + '\',\'' + c.id + '\',' + t + ')"></button>';
+  h += '<button class="lmc-step" onclick="lmStepCharge(\'' + side + '\',\'' + c.id + '\',1)">+</button>';
+  return h + '</span>';
+}
+
+function targetName(id){
+  if (!id) return '';
+  var r = id;
+  S.scene.foes.concat(S.scene.fell).forEach(function(c){ if (c.id === id) r = c.name; });
+  return r;
+}
+function actLine(c, side){
+  if (S.scene.combatPhase !== 'commit'){
+    if (!c.act) return '';
+    return '<div class="lmc-act"><span class="lmc-alab">Act</span>' + esc(c.act)
+      + (c.target ? ' <span class="lmc-to">\u2192 ' + esc(targetName(c.target)) + '</span>' : '') + '</div>';
+  }
+  /* commit: an act picker and a target picker, both real selects */
+  var actOpts = ['', 'Attack'].concat((c.acts || []).map(function(a){ return a.name; }));
+  var targets = (side === 'foe' ? S.scene.fell : S.scene.foes);
+  return '<div class="lmc-act commit"><span class="lmc-alab">Act</span>'
+    + '<select class="lmc-rsel" onchange="lmSetAct(\'' + side + '\',\'' + c.id + '\',this.value)">'
+    + actOpts.map(function(o){ return '<option' + (o === c.act ? ' selected' : '') + '>' + (o ? esc(o) : '\u2014') + '</option>'; }).join('')
+    + '</select>'
+    + '<span class="lmc-alab">at</span>'
+    + '<select class="lmc-rsel" onchange="lmSetTarget(\'' + side + '\',\'' + c.id + '\',this.value)">'
+    + '<option value="">\u2014</option>'
+    + targets.map(function(t){ return '<option value="' + t.id + '"' + (t.id === c.target ? ' selected' : '') + '>' + esc(t.name) + '</option>'; }).join('')
+    + '</select></div>';
+}
+function lmSetTarget(side, id, v){ var c = findC(id); if(c){ c.target = v; applyRemoteState({ scene:S.scene }); } }
+
+/* once acts lock, each committed act becomes a Spotlight, wrapped in a gold box.
+   The LM swipes through them and resolves one at a time. */
+function battleNodes(){
+  return S.scene.foes.map(function(c){ return { key:'f:'+c.id, kind:'foe', ref:c }; })
+    .concat(S.scene.fell.map(function(c){ return { key:'p:'+c.id, kind:'fell', ref:c }; }));
+}
+function focusGraph(){
+  var nodes = battleNodes(), byKey = {};
+  nodes.forEach(function(n){ byKey[n.key]=n; n.focus=0; });
+  var edges = [];
+  nodes.forEach(function(n){
+    var tgt = n.ref.target;
+    var tk = tgt ? (S.scene.foes.some(function(f){return f.id===tgt;}) ? 'f:'+tgt : 'p:'+tgt) : null;
+    if (n.ref.act && tk && byKey[tk]){ edges.push([n.key, tk]); byKey[n.key].focus++; byKey[tk].focus++; }
+  });
+  var inEdge = {}; edges.forEach(function(e){ inEdge[e[0]]=true; inEdge[e[1]]=true; });
+  var parent = {}; nodes.forEach(function(n){ parent[n.key]=n.key; });
+  function find(k){ while(parent[k]!==k){ parent[k]=parent[parent[k]]; k=parent[k]; } return k; }
+  edges.forEach(function(e){ var a=find(e[0]), b=find(e[1]); if(a!==b) parent[a]=b; });
+  var clusters = {};
+  nodes.forEach(function(n){
+    if (inEdge[n.key]){ var root=find(n.key);
+      if(!clusters[root]) clusters[root]={ nodes:[], heat:0 };
+      clusters[root].nodes.push(n); clusters[root].heat+=n.focus; }
+  });
+  var list = Object.keys(clusters).map(function(k){ return clusters[k]; });
+  list.sort(function(a,b){ return b.heat-a.heat; });
+  var loose = nodes.filter(function(n){ return !inEdge[n.key]; });
+  return { clusters:list, loose:loose, nodes:nodes };
+}
+function buildSpotlights(){
+  var raw = [], fg = focusGraph();
+  if (S.scene.spotMode === 'auto'){
+    fg.clusters.forEach(function(cl){
+      var keys = cl.nodes.map(function(n){ return n.key; });
+      raw.push({ type:'cluster', id:'cl:'+keys.slice().sort().join('|'), nodes:cl.nodes });
+    });
+    fg.loose.forEach(function(n){ raw.push({ type:'solo', id:'solo:'+n.key, nodes:[n] }); });
+  } else {
+    var nodes = battleNodes();
+    var lit = nodes.filter(function(n){ return S.scene.manual[n.key]; });
+    if (lit.length) raw.push({ type:'manual', id:'manual:'+lit.map(function(n){return n.key;}).sort().join('|'), nodes:lit });
+    nodes.filter(function(n){ return !S.scene.manual[n.key]; }).forEach(function(n){
+      raw.push({ type:'solo', id:'solo:'+n.key, nodes:[n] });
+    });
+  }
+  var byId={}; raw.forEach(function(r){ byId[r.id]=r; });
+  var ordered=[];
+  (S.scene.spotOrder||[]).forEach(function(id){ if(byId[id]){ ordered.push(byId[id]); delete byId[id]; } });
+  raw.forEach(function(r){ if(byId[r.id]) ordered.push(r); });
+  var unresolved = ordered.filter(function(it){ return !spotResolved(it); });
+  var resolved = ordered.filter(function(it){ return spotResolved(it); });
+  var finalList = unresolved.concat(resolved);
+  var n=0;
+  finalList.forEach(function(it){
+    if(it.type==='cluster'||it.type==='manual'){ n++; it.label='Spotlight '+n; }
+    else it.label='Unengaged: '+it.nodes[0].ref.name;
+  });
+  S.scene.spotOrder = finalList.map(function(it){ return it.id; });
+  return finalList;
+}
+function spotResolved(it){
+  return it.nodes.every(function(n){ return n.ref.spot==='done' || (n.ref.curVit||0)<=0 || !n.ref.act; });
+}
+function lmSpotDeck(){
+  return buildSpotlights().filter(function(it){ return it.type!=='solo' || it.nodes[0].ref.act; })
+    .map(function(it){ return { kind:'spotgroup', data:it }; });
+}
+function spotCard(c, n){
+  var isFoe = S.scene.foes.indexOf(c) >= 0;
+  return '<div class="lmcard spotbox ' + (isFoe ? 'foe' : 'fell') + (c.spot === 'done' ? ' done' : '') + '">'
+    + '<div class="lmc-spotnum">Spotlight ' + n + '</div>'
+    + '<div class="lmc-top"><span class="lmc-name">' + esc(c.name) + '</span>'
+    + '<span class="lmc-sd">' + (isFoe ? 'Foe' : 'Fell') + '</span></div>'
+    + '<div class="lmc-vit">' + c.curVit + ' / ' + c.maxVit + chargePips(c, isFoe ? 'foe' : 'fell') + '</div>'
+    + '<div class="lmc-act"><span class="lmc-alab">Act</span>' + esc(c.act) + (c.target ? ' \u2192 ' + esc(targetName(c.target)) : '') + '</div>'
+    + (isFoe && c.dmg ? '<div class="lmc-dmg">' + c.dmg.base + ' + ' + c.dmg.bonus + ' ' + c.dmg.type + '</div>' : '')
+    + '<button class="lmbtn sm" onclick="lmResolveSpot(\'' + c.id + '\')">' + (c.spot === 'done' ? 'Resolved' : 'Resolve') + '</button></div>';
+}
+
+/* ---- LM intent, all through send() or local scene edits echoed as remote truth ---- */
+/* ---- the scene deck ----
+   A scene is a saved bundle of the table: the map, every token's position and
+   footprint, and the grid. The deck belongs to the campaign and outlives the
+   session. Switching scenes snapshots the live table into the scene being left and
+   restores the one being entered, so the party stands where you left them. */
+var _stageStore = [];   /* stands in for the Scenes collection rows */
+function stubSaveStage(sc){
+  var i=-1; _stageStore.forEach(function(x,k){ if(x.stageId===sc.stageId) i=k; });
+  if(i>=0) _stageStore[i]=Object.assign({},_stageStore[i],sc); else _stageStore.push(Object.assign({},sc));
+  return Promise.resolve({ ok:true });
+}
+function stubListStages(){ return Promise.resolve(_stageStore.slice()); }
+function stubDeleteStage(id){ _stageStore=_stageStore.filter(function(x){ return x.stageId!==id; }); return Promise.resolve({ ok:true }); }
+var stageBackend = { save:stubSaveStage, list:stubListStages, remove:stubDeleteStage };
+
+/* ---- Stages: the private instance layer ----
+   A stage is one board, a map and where every token stands. Stages live in S.instance,
+   never on the scene, so an exported adventure carries the scene and its map pack but
+   never a board. Scenes bind to stages many to many through S.instance.bindings, keyed by
+   scene id: a scene lists the stages it uses and which is active, and one stage can serve
+   several scenes, sharing its layout between them. Persistence is per account through
+   stageBackend, so one LoreMaster's stages never reach another. */
+function curSceneId(){ return S.scene.id || 'sc-default'; }
+function sceneBinding(){
+  var id = curSceneId();
+  if (!S.instance.bindings[id]) S.instance.bindings[id] = { stageIds:[], activeStageId:null };
+  return S.instance.bindings[id];
+}
+function instanceStages(){ return S.instance.stages || (S.instance.stages = []); }
+function stageById(id){ var r=null; instanceStages().forEach(function(x){ if(x.stageId===id) r=x; }); return r; }
+function sceneStages(){ return (sceneBinding().stageIds||[]).map(stageById).filter(Boolean); }
+function activeStageId(){ return sceneBinding().activeStageId; }
+/* Stage work counts as a local edit: without this stamp an in-flight snapshot
+   lands a moment later and puts the old deck back. */
+function stageTouch(){ S._advTouch = Date.now(); }
+function stageUpsert(b){
+  stageTouch();
+  var lib = instanceStages(), i=-1;
+  lib.forEach(function(x,k){ if(x.stageId===b.stageId) i=k; });
+  if (i>=0) lib[i]=b; else lib.push(b);
+}
+function bindStageToScene(id){
+  var bd = sceneBinding();
+  if (bd.stageIds.indexOf(id) < 0) bd.stageIds.push(id);
+}
+
+/* snapshot the live table into a stage bundle */
+function stageSnapshot(){
+  var active = activeStageId();
+  var known = active ? stageById(active) : null;
+  return {
+    stageId: active || ('st-' + Date.now()),
+    name: (known && known.name) || S.scene.name,
+    mapId: S.scene.background || null,
+    tokens: S.tokens.map(function(t){ return { id:t.id, kind:t.kind, label:t.label, name:t.name, img:t.img, x:t.x, y:t.y, cells:t.cells, mine:t.mine, refId:t.refId }; }),
+    grid: Object.assign({}, S.grid),
+    mapW: S.map.w, mapH: S.map.h
+  };
+}
+/* restore a stage onto the live table, through the seam so it syncs */
+function stageRestore(b){
+  sceneBinding().activeStageId = b.stageId;
+  S.scene.background = b.mapId;
+  S.tokens = (b.tokens||[]).map(function(t){ return Object.assign({}, t); });
+  S.grid = Object.assign({}, b.grid || S.grid);
+  S.map = { w: b.mapW || 2400, h: b.mapH || 1600 };
+  applyRemoteState({ scene:S.scene, tokens:S.tokens, grid:S.grid, map:S.map, instance:S.instance });
+  paintMapArt();
+}
+/* the switcher lists the stages bound to the current scene */
+/* The Lobby is the table before a map is laid down: the blue parchment, no tokens. */
+function ensureLobby(){
+  var bd = sceneBinding(); if (!bd) return;
+  var stages = instanceStages();
+  var lobby = stages.filter(function(s){ return String(s.name || '').toLowerCase() === 'lobby'; })[0];
+  if (!lobby){
+    lobby = { stageId:'st-lobby', name:'Lobby', mapId:null, tokens:[], grid:S.grid, mapW:S.map.w, mapH:S.map.h };
+    S.instance.stages = stages.concat([lobby]);
+    if (stageBackend && stageBackend.save) stageBackend.save(lobby);
+  }
+  bd.stageIds = bd.stageIds || [];
+  if (bd.stageIds.indexOf(lobby.stageId) < 0) bd.stageIds.unshift(lobby.stageId);
+  if (!bd.activeStageId) bd.activeStageId = lobby.stageId;
+}
+function stageDeck(){ return sceneStages(); }
+function lmSaveCurrentStage(){
+  var b = stageSnapshot();
+  var bd = sceneBinding();
+  bd.activeStageId = b.stageId;
+  bindStageToScene(b.stageId);
+  stageUpsert(b);
+  stageBackend.save(b);
+  applyRemoteState({ instance:S.instance });
+}
+function lmSwitchStage(id){
+  var _bd = sceneBinding();
+  if (_bd && (_bd.stageIds || []).indexOf(id) < 0){ _bd.stageIds = (_bd.stageIds || []).concat([id]); stageTouch(); }
+  if (activeStageId() === id) { return; }
+  lmSaveCurrentStage();                       /* the leaving stage keeps its layout */
+  var b = stageById(id);
+  if (b){ stageRestore(b); pushLog({ kind:'sys', html:'Stage set to <b>' + esc(b.name) + '</b>.' }); applyRemoteState({ log:S.log }); }
+  refreshStagesWin();
+}
+function lmRenameStage(id){
+  var st = stageById(id);
+  if (!st){
+    tsModal('<h3 class="tsm-title">That stage is not on the deck</h3>'
+      + '<p class="lc-p">It may not have reached your account yet. Close this and open Stages again.</p>'
+      + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
+    return;
+  }
+  if (isLobby(id)){
+    tsModal('<h3 class="tsm-title">The Lobby keeps its name</h3>'
+      + '<p class="lc-p">Every table gathers in the Lobby, so it is always called that.</p>'
+      + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
+    return;
+  }
+  tsAsk2({ title:'Name this stage', label:'Name', value:st.name, onSave:function(n){
+    if (!n) return;
+    st.name = n; stageTouch(); stageBackend.save(st);
+    applyRemoteState({ instance:S.instance }); refreshStagesWin();
+  }});
+}
+/* Which map this stage lays down. The stage remembers it, so coming back to the
+   stage brings the map with it. */
+function lmStageMap(id){
+  var st = stageById(id);
+  if (!st){ tsModal('<h3 class="tsm-title">That stage is not on the deck</h3><div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>'); return; }
+  var maps = S.scene.maps || [];
+  tsModal('<h3 class="tsm-title">The map for ' + esc(st.name) + '</h3>'
+    + '<select class="tsm-inp" id="stMap"><option value="">No map, the blue parchment</option>'
+    + maps.map(function(m){ return '<option value="' + esc(m.id) + '"' + (st.mapId === m.id ? ' selected' : '') + '>' + esc(m.name) + '</option>'; }).join('')
+    + '</select>'
+    + (maps.length ? '' : '<p class="tsm-note">Your shelf is empty. Upload one from Maps in the scene runner.</p>')
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button>'
+    + '<button class="tsm-btn" onclick="lmStageMapSave(\'' + id + '\')">Save</button></div>');
+}
+function lmStageMapSave(id){
+  var st = stageById(id); if (!st) return;
+  var v = (document.getElementById('stMap') || {}).value || null;
+  stageTouch();
+  st.mapId = v;
+  var m = v ? mapById(v) : null;
+  if (m){ st.mapW = m.w; st.mapH = m.h; }
+  stageBackend.save(st);
+  tsCloseModal();
+  if (sameId(activeStageId(), id)) stageRestore(st);
+  applyRemoteState({ instance:S.instance }); refreshStagesWin();
+}
+function lmNewStage(){
+  stageTouch();
+  lmSaveCurrentStage();
+  var id='st-'+Date.now();
+  var b={ stageId:id, name:'Stage ' + (instanceStages().length + 1), mapId:null, tokens:[], grid:Object.assign({},S.grid), mapW:2400, mapH:1600 };
+  stageUpsert(b);
+  bindStageToScene(id);
+  stageBackend.save(b);
+  stageRestore(b);
+  applyRemoteState({ instance:S.instance });
+  refreshStagesWin();
+}
+function isLobby(id){
+  var st = stageById(id);
+  return !!(st && String(st.name || '').toLowerCase() === 'lobby');
+}
+function stageDragStart(ev, id){
+  window._dragStage = id;
+  try { ev.dataTransfer.setData('text/plain', id); ev.dataTransfer.effectAllowed = 'move'; } catch(e){}
+}
+function stageDragOver(ev, el){ ev.preventDefault(); if (el) el.classList.add('drop'); }
+function stageDragLeave(el){ if (el) el.classList.remove('drop'); }
+function stageDrop(ev, el, overId){
+  ev.preventDefault();
+  if (el) el.classList.remove('drop');
+  var from = window._dragStage; window._dragStage = null;
+  if (!from || sameId(from, overId)) return;
+  var bd = sceneBinding(); if (!bd) return;
+  var ids = (bd.stageIds || []).slice();
+  var i = ids.indexOf(from), j = ids.indexOf(overId);
+  if (i < 0 || j < 0) return;
+  ids.splice(i, 1); ids.splice(j, 0, from);
+  bd.stageIds = ids;
+  stageTouch();
+  applyRemoteState({ instance:S.instance });
+  refreshStagesWin();
+}
+function lmDeleteStage(id){
   stageTouch();
   var bd = sceneBinding();
   if (isLobby(id)){
