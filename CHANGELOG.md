@@ -1,3 +1,7 @@
+## ThreadSpire: the adventure loads again
+
+- The table opens the real adventure from FateWell instead of the placeholder storyline. Yesterday's guard against stale syncs was written so that the first arrival of the adventure could never pass it, so the seed stayed put. The adventure now always wins when it first arrives, and the guard only applies to later updates. Scene fields the table owns, attendance and prep among them, survive a reload instead of being dropped.
+
 ## ThreadSpire: restore the Story saver
 
 - Story and roster actions work again. The function that saves the adventure spine had gone missing while thirteen places still called it, so removing a foe, opening a member, toggling attendance, and every Story edit failed the moment they were clicked. It is restored, and the spine now carries a revision so a returning sync cannot roll back or rebuild a newer local tree underneath an open window.
