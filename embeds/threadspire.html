@@ -282,6 +282,14 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .lib-ph{ display:inline-block; background:rgba(40,54,86,.7); }
 .lib-nm{ flex:1; font-size:.82rem; }
 .lib-meta{ font-size:.66rem; color:var(--muted,#7e8a99); }
+.lc-wrap{ max-height:58vh; overflow-y:auto; }
+.lc-hd{ display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+.lc-por{ width:64px; height:64px; border-radius:8px; overflow:hidden; flex:none; background:rgba(40,54,86,.7); }
+.lc-por img{ width:100%; height:100%; object-fit:cover; }
+.lc-p{ margin:2px 0 6px; font-size:.82rem; color:var(--ice,#b8ccd8); }
+.lc-desc{ margin-top:8px; font-size:.82rem; color:var(--silver); white-space:pre-wrap; }
+.lc-ab{ margin:4px 0; padding:5px 8px; background:rgba(10,16,32,.34); border-left:2px solid var(--gold); border-radius:0 6px 6px 0; }
+.lc-abtx{ font-size:.78rem; color:var(--ice,#b8ccd8); margin-top:2px; }
 .rs-click{ cursor:pointer; }
 .rs-click:hover{ color:var(--gold); }
 .rs-linked{ font-family:'Crimson Pro',serif; font-size:.6rem; letter-spacing:.06em; color:var(--muted,#7e8a99); }
@@ -929,17 +937,18 @@ function storySave(){
   try { pushState(); } catch(e){}
 }
 function storyToggle(lvl, id){ storyOpen[lvl][id] = !storyOpen[lvl][id]; refreshWinBody(); }
+function sameId(a, b){ return String(a) === String(b); }
 function storyFind(kind, id){
   var A = S.adventure || {};
   var acts = A.acts || [];
   for (var i=0;i<acts.length;i++){
-    if (kind === 'act' && acts[i].id === id) return { act:acts[i], list:acts, idx:i };
+    if (kind === 'act' && sameId(acts[i].id, id)) return { act:acts[i], list:acts, idx:i };
     var ses = acts[i].sessions || [];
     for (var j=0;j<ses.length;j++){
-      if (kind === 'session' && ses[j].id === id) return { act:acts[i], ses:ses[j], list:ses, idx:j };
+      if (kind === 'session' && sameId(ses[j].id, id)) return { act:acts[i], ses:ses[j], list:ses, idx:j };
       var scs = ses[j].scenes || [];
       for (var k=0;k<scs.length;k++){
-        if (kind === 'scene' && scs[k].id === id) return { act:acts[i], ses:ses[j], scene:scs[k], list:scs, idx:k };
+        if (kind === 'scene' && sameId(scs[k].id, id)) return { act:acts[i], ses:ses[j], scene:scs[k], list:scs, idx:k };
       }
     }
   }
@@ -1303,7 +1312,7 @@ function rowToAsset(r){
 S.library = [];
 S.libAll = false;                 /* false: this adventure only. true: the saved collection. */
 S.libLoaded = false;
-function libGet(id){ var r = null; (S.library || []).forEach(function(e){ if (e.id === id) r = e; }); return r; }
+function libGet(id){ var r = null; (S.library || []).forEach(function(e){ if (sameId(e.id, id)) r = e; }); return r; }
 function libScoped(){
   var list = S.library || [];
   if (S.libAll) return list;
@@ -1320,6 +1329,47 @@ function libLoad(force){
     S.libLoaded = true;
     return S.library;
   }).catch(function(){ S.libLoaded = true; return []; });
+}
+function attrLine(attrs){
+  return ATTR_LIST.filter(function(a){ return (attrs || {})[a]; })
+    .map(function(a){ return a + ' ' + attrs[a]; }).join(', ');
+}
+function abilityBlock(list){
+  if (!list || !list.length) return '';
+  return '<div class="tsm-lbl">Abilities</div>' + list.map(function(ab){
+    var nm = ab && (ab.name || ab.title) ? (ab.name || ab.title) : String(ab);
+    var tx = ab && (ab.body || ab.text || ab.desc) ? (ab.body || ab.text || ab.desc) : '';
+    return '<div class="lc-ab"><b>' + esc(nm) + '</b>' + (tx ? '<div class="lc-abtx">' + esc(tx) + '</div>' : '') + '</div>';
+  }).join('');
+}
+/* The library card: the same face FateWell shows when you open an entry. */
+function libCard(id){
+  var e = libGet(id); if (!e) return;
+  var isFoe = e.type === 'monster';
+  var label = isFoe ? 'Foe' : (e.type === 'npc' ? 'NPC' : 'Item');
+  var head = (e.sr ? ' \u00b7 ' + esc(e.sr) : '') + (e.maxVit ? ' \u00b7 ' + e.maxVit + ' vit' : '') + (e.role ? ' \u00b7 ' + esc(e.role) : '');
+  var h = '<div class="lc-hd">'
+    + (e.img ? '<div class="lc-por"><img src="' + esc(e.img) + '" alt=""></div>' : '<div class="lc-por lib-ph"></div>')
+    + '<div><h3 class="tsm-title" style="margin:0">' + esc(e.name) + '</h3>'
+    + '<p class="tsm-note">' + label + head + '</p></div></div>';
+  if (isFoe){
+    if (e.build || e.stance) h += '<div class="tsm-lbl">Build</div><p class="lc-p">' + esc([e.build, e.stance].filter(Boolean).join(' \u00b7 ')) + '</p>';
+    if (e.sig) h += '<div class="tsm-lbl">Signature affliction</div><p class="lc-p">' + esc(e.sig) + '</p>';
+    var al = attrLine(e.attrs);
+    if (al) h += '<div class="tsm-lbl">Attributes</div><p class="lc-p">' + esc(al) + '</p>';
+    if (e.infusions && e.infusions.length) h += '<div class="tsm-lbl">Infusions</div><p class="lc-p">' + esc(e.infusions.join(', ')) + '</p>';
+    if (e.augments && e.augments.length) h += '<div class="tsm-lbl">Augments</div><p class="lc-p">' + esc(e.augments.join(', ')) + '</p>';
+    if (e.inv && e.inv.length) h += '<div class="tsm-lbl">Inventory</div><p class="lc-p">' + esc(e.inv.join(', ')) + '</p>';
+    h += abilityBlock(e.abilities);
+  } else if (e.type === 'npc'){
+    var al2 = attrLine(e.attrs);
+    if (al2) h += '<div class="tsm-lbl">Attributes</div><p class="lc-p">' + esc(al2) + '</p>';
+    if (e.inv && e.inv.length) h += '<div class="tsm-lbl">Inventory</div><p class="lc-p">' + esc(e.inv.join(', ')) + '</p>';
+    h += abilityBlock(e.abilities);
+  }
+  if (e.desc) h += '<p class="lc-desc">' + esc(e.desc) + '</p>';
+  tsModal('<div class="lc-wrap">' + h + '</div>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
 }
 function libToggleScope(){ S.libAll = !S.libAll; refreshWinBody(); }
 /* Build a scene combatant from a library entry, keeping the link so stats and art stay shared. */
@@ -1414,7 +1464,7 @@ function libAttach(sceneId, libId){
   var isFoe = e.type === 'monster';
   var key = isFoe ? 'foes' : 'npcs';
   f.scene[key] = f.scene[key] || [];
-  var same = f.scene[key].filter(function(c){ return c.libId === libId; }).length;
+  var same = f.scene[key].filter(function(c){ return sameId(c.libId, libId); }).length;
   f.scene[key].push(libMakeCombatant(e, e.name + (same ? ' ' + (same + 1) : '')));
   storySave(); rosterReopenAfter(); render();
 }
@@ -1435,11 +1485,8 @@ function rosterAdd(sceneId, kind){
 function rosterRemove(sceneId, kind, id){
   var f = storyFind('scene', sceneId); if (!f){ rosterRefresh(); return; }
   var key = kind === 'npc' ? 'npcs' : 'foes';
-  var who = (f.scene[key] || []).filter(function(x){ return x.id === id; })[0];
-  tsConfirm('Remove ' + ((who && who.name) || 'this') + ' from the scene?', function(){
-    f.scene[key] = (f.scene[key] || []).filter(function(x){ return x.id !== id; });
-    storySave(); rosterRefresh(); render();
-  });
+  f.scene[key] = (f.scene[key] || []).filter(function(x){ return !sameId(x.id, id); });
+  storySave(); rosterRefresh(); render();
 }
 
 /* ---- roster member sheet: name, art and stats, the same fields FateWell edits ---- */
@@ -1447,7 +1494,7 @@ function rosterReopenAfter(){ if (window._rosterScene) rosterWindow(window._rost
 function rosterEdit(sceneId, kind, id){
   var f = storyFind('scene', sceneId); if (!f){ rosterRefresh(); return; }
   var key = kind === 'npc' ? 'npcs' : 'foes';
-  var c = (f.scene[key] || []).filter(function(x){ return x.id === id; })[0];
+  var c = (f.scene[key] || []).filter(function(x){ return sameId(x.id, id); })[0];
   if (!c) return;
   window._rsEdit = { sceneId:sceneId, kind:kind, id:id };
   var isFoe = kind === 'foe';
@@ -1512,7 +1559,7 @@ function libSyncFrom(c){
       (se.scenes || []).forEach(function(sc){
         ['foes','npcs'].forEach(function(k){
           (sc[k] || []).forEach(function(x){
-            if (x.libId !== c.libId || x === c) return;
+            if (!sameId(x.libId, c.libId) || x === c) return;
             x.name = e.name; x.desc = e.desc; x.img = e.img; x.sr = e.sr;
             x.maxVit = e.maxVit; x.attrs = JSON.parse(JSON.stringify(e.attrs));
             if (x.curVit > x.maxVit) x.curVit = x.maxVit;
@@ -1526,7 +1573,7 @@ function rsEditTarget(){
   var e = window._rsEdit; if (!e) return null;
   var f = storyFind('scene', e.sceneId); if (!f) return null;
   var key = e.kind === 'npc' ? 'npcs' : 'foes';
-  return (f.scene[key] || []).filter(function(x){ return x.id === e.id; })[0] || null;
+  return (f.scene[key] || []).filter(function(x){ return sameId(x.id, e.id); })[0] || null;
 }
 function rosterSRChange(){
   var sr = (document.getElementById('rsSR') || {}).value || '';
@@ -1606,7 +1653,7 @@ function storyRosterHtml(sc){
 function castGet(id, sc){
   if (!id) return null;
   var l = castList(sc);
-  for (var i = 0; i < l.length; i++) if (l[i].id === id || l[i].name === id) return l[i];
+  for (var i = 0; i < l.length; i++) if (sameId(l[i].id, id) || l[i].name === id) return l[i];
   return null;
 }
 /* a beat's speaker, resolved to name, colour, portrait and any stats it carries */
@@ -1649,9 +1696,9 @@ function libraryBody(){
       h += '<div class="nb-scene">' + (t === 'monster' ? 'Foes' : t === 'npc' ? 'NPCs' : 'Items') + '</div>';
       rows.forEach(function(e){
         var meta = t === 'monster' ? ((e.sr || '') + (e.maxVit ? ' \u00b7 ' + e.maxVit + ' vit' : '')) : (e.role || '');
-        h += '<div class="lib-row static">'
+        h += '<button class="lib-row" onclick="libCard(\'' + e.id + '\')">'
           + (e.img ? '<img class="lib-av" src="' + esc(e.img) + '" alt="">' : '<span class="lib-av lib-ph"></span>')
-          + '<span class="lib-nm">' + esc(e.name) + '</span><span class="lib-meta">' + esc(meta) + '</span></div>';
+          + '<span class="lib-nm">' + esc(e.name) + '</span><span class="lib-meta">' + esc(meta) + '</span></button>';
       });
     });
   } else {
@@ -3703,7 +3750,7 @@ function sayFrom(id){
   send({ type:'say', text:text });
 }
 var logSeq = 0;
-function mkId(){ return ++logSeq; }
+function mkId(){ return 'e' + (++logSeq) + '-' + Date.now().toString(36); }
 var _logPushT = null;
 function pushLog(e){ e.id = mkId(); S.log.push(e); applyRemoteState({ log:S.log }); if (_logPushT) clearTimeout(_logPushT); _logPushT = setTimeout(function(){ try { pushState(); } catch(err){} }, 600); }
 function entryHtml(e){
