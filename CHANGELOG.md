@@ -1,3 +1,7 @@
+## ThreadSpire: fix the right-click dice menu
+
+- The right-click menu now stays where you opened it. It was snapping back to the dice tray and closing immediately, because the cursor landing on the menu triggered the tray's hover logic. A menu opened by right-click now holds until you pick a type or click away.
+
 ## ThreadSpire: right-click to roll, pinned log bar
 
 - Right-clicking anywhere on the map opens the dice type menu at the cursor; picking a type rolls it. Clicking elsewhere dismisses it. The log's say bar now stays pinned in place while only the log entries scroll beneath it.
