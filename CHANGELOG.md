@@ -1,3 +1,7 @@
+## Canon: the gate understands a generated concept
+
+- The drift gate no longer asks for a hand co-change on the foe pack. A generated concept's copies are outputs of a bake, so touching them without the seed is the ordinary shape; what matters is that the bake is fresh, and the gate now enforces exactly that by re-running the generator and failing if any output moves. Hand-editing a baked file, or changing a seed without rebuilding, both fail.
+
 ## Canon: the foe pack is generated, not kept by hand
 
 - The foe pack lived in three places at once and had drifted apart: the pack's own copies of the infusion and augmentation text had fallen behind the collections that own them, and the two tools spelled the same field differently from canon. It is now baked into both tools from the seeds by the generator, taking each part from whatever collection owns it. The bake reproduces what was already live exactly, so nothing at the table changes; what changes is that the next edit lands everywhere at once.
