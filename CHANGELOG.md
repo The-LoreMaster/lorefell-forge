@@ -1,3 +1,7 @@
+## ThreadSpire: quests on the scene, publishing, and clearing the shelf
+
+- A scene now carries its quests. Raise one where it comes up and it posts to the board the players read, mark it done when they finish it, or take it down. Settings publishes the adventure to the directory and takes it down again, and shows whether it is up. A library entry can be deleted from its card, leaving the shelf everywhere while scenes already holding it keep what they have.
+
 ## ThreadSpire: the Fell tab runs the party
 
 - The Fell tab is now the party itself. It lists everyone at the adventure with their character, their vitality, and their role, and each one opens to hand over the loremaster's seat, name a lorekeeper, set someone back to player, or release their character so it can join another adventure. An invite link can be made, copied, and revoked from the table, rather than only from FateWell.
