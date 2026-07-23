@@ -296,6 +296,12 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .vcard-corner{ position:absolute; top:8px; right:8px; z-index:2; display:flex; gap:6px; }
 .card-x{ width:28px; height:28px; border-radius:8px; cursor:pointer; background:rgba(10,14,26,.72); border:1px solid var(--line2,#2a3552); color:var(--silver); font-size:.8rem; line-height:1; }
 .card-x:hover{ border-color:var(--danger,#8d3b3b); color:var(--danger,#8d3b3b); }
+.qs-row{ display:flex; align-items:flex-start; gap:7px; padding:5px 2px; border-bottom:1px solid rgba(201,168,76,.10); }
+.qs-row.done .qs-title{ opacity:.5; text-decoration:line-through; }
+.qs-tick{ background:transparent; border:none; color:var(--gold); cursor:pointer; font-size:.85rem; padding:0 2px; }
+.qs-main{ flex:1; min-width:0; cursor:pointer; display:flex; flex-direction:column; }
+.qs-title{ font-size:.82rem; color:var(--silver); }
+.qs-body{ font-size:.72rem; color:var(--muted,#7e8a99); }
 .pt-row{ display:flex; align-items:center; gap:8px; padding:6px 2px; border-bottom:1px solid rgba(201,168,76,.10); }
 .pt-main{ flex:1; min-width:0; display:flex; flex-direction:column; }
 .pt-name{ font-family:Cinzel,serif; font-size:.82rem; color:var(--silver); }
@@ -1185,7 +1191,8 @@ function storyBody(){
            + '<button class="st-b" onclick="storyDelete(\'scene\',\'' + sc.id + '\')" title="Delete">\u2715</button></div>';
         if (!co) return;
         h += '<div class="st-kids">';
-        h += '<button class="rs-open" onclick="rosterWindow(\'' + sc.id + '\')">Roster <span class="rs-count">' + (scenePlayers(sc).filter(function(p){ return !p.out; }).length + castList(sc).length) + '</span></button>';
+        h += '<button class="rs-open" onclick="rosterWindow(\'' + sc.id + '\')">Roster <span class="rs-count">' + (scenePlayers(sc).filter(function(p){ return !p.out; }).length + castList(sc).length) + '</span></button>'
+           + '<button class="rs-open" onclick="questWindow(\'' + sc.id + '\')">Quests <span class="rs-count">' + sceneQuests(sc).length + '</span></button>';
         h += storyBeatsHtml(sc);
         h += '</div>';
       });
@@ -1405,6 +1412,19 @@ function abilityBlock(list){
   }).join('');
 }
 /* The library card: the same face FateWell shows when you open an entry. */
+function libDelete(id){
+  var e = libGet(id); if (!e) return;
+  window._tsYes = function(){
+    tsAsk('TS_ASSET_DELETE', { assetId:id }).then(function(){
+      S.library = (S.library || []).filter(function(x){ return !sameId(x.id, id); });
+      tsCloseModal(); refreshWinBody();
+    }).catch(function(){ tsCloseModal(); });
+  };
+  tsModal('<h3 class="tsm-title">Delete ' + esc(e.name) + '?</h3>'
+    + '<p class="tsm-note">It leaves the shelf everywhere. Scenes already holding it keep what they have.</p>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button>'
+    + '<button class="tsm-btn danger" onclick="tsConfirmYes()">Delete</button></div>');
+}
 function libToggleScope(){ S.libAll = !S.libAll; refreshWinBody(); }
 /* Build a scene combatant from a library entry, keeping the link so stats and art stay shared. */
 function libMakeCombatant(e, name){
@@ -1961,6 +1981,12 @@ function libPropagate(libId, e){
     });
   });
 }
+function questWindow(sceneId){
+  var f = storyFind('scene', sceneId); if (!f) return;
+  tsModal('<h3 class="tsm-title">Quests</h3><p class="tsm-note">Raised in this scene, posted to the board the players read.</p>'
+    + '<div class="rs-wrap">' + storyQuestsHtml(f.scene) + '</div>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
+}
 function rosterWindow(sceneId){
   var f = storyFind('scene', sceneId); if (!f) return;
   window._rosterScene = sceneId; window._rosterOpen = true;
@@ -2042,7 +2068,8 @@ function libraryBody(){
       rows.forEach(function(e){
         h += tsVCard({ img:e.img, badge:TYPE_LABEL[e.type] || '', title:e.name, sub:entrySub(e),
                        origin: e.campaignName || (e.origin ? 'From ' + e.origin : ''),
-                       openFn: 'entrySheet(\'lib\',\'\',\'\',\'' + e.id + '\')' });
+                       openFn: 'entrySheet(\'lib\',\'\',\'\',\'' + e.id + '\')',
+                       corner: '<button class="card-x" title="Delete" onclick="event.stopPropagation();libDelete(\'' + e.id + '\')">\u2715</button>' });
       });
     });
   } else {
@@ -2095,6 +2122,7 @@ function loadJournal(){
 function sectionBody(key){
   if (key === 'characters') return charactersBody();
   if (key === 'menu') return menuBody();
+  if (key === 'settings') return settingsBody();
   if (key === 'attributes') return attributesBody();
   if (key === 'skills') return skillsBody();
   if (key === 'inventory') return inventoryBody();
@@ -3113,6 +3141,57 @@ function applySheet(){
   if (sh.portrait) S.character.portrait = sh.portrait;
   if (typeof paintHud === 'function') paintHud();
 }
+function settingsBody(){
+  if (!S.published) { S.published = []; publishLoad(); }
+  var h = '<div class="win-note">This adventure, and the shelf it is published to.</div>';
+  var mine = (S.published || []).filter(function(p){ return sameId(p.campaignId, S.campaignId); })[0];
+  if (mine){
+    h += '<div class="pt-row"><span class="pt-main"><span class="pt-name">' + esc(mine.title || 'Published') + '</span>'
+      + '<span class="pt-meta">On the directory</span></span></div>'
+      + '<div class="rs-adds"><button class="st-add" onclick="publishOpen()">Update the published copy</button>'
+      + '<button class="st-add" onclick="unpublishNow(\'' + esc(mine._id || mine.id || '') + '\')">Take it down</button></div>';
+  } else {
+    h += '<div class="win-note">Not published. Publishing puts it on the directory for others to run.</div>'
+      + '<button class="st-add" onclick="publishOpen()">Publish this adventure</button>';
+  }
+  h += '<div class="nb-scene">Table</div>'
+    + '<div class="lb-row" style="cursor:pointer" onclick="toggleGodMode()"><span class="lb-name">LoreMaster Mode</span><span class="lb-meta">' + (S.godMode ? 'On' : 'Off') + '</span></div>'
+    + '<div class="lb-row"><span class="lb-name">Dice skins</span><span class="lb-meta">Soon</span></div>';
+  return h;
+}
+function publishLoad(){
+  if (!window._tsAsk) return;
+  tsAsk('TS_PUBLISH_LIST', {}).then(function(list){
+    S.published = list || [];
+    if (S.openSection === 'settings') refreshWinBody();
+  }).catch(function(){ S.published = []; });
+}
+function publishOpen(){
+  var name = (S.adventure && S.adventure.name) || 'This adventure';
+  tsModal('<h3 class="tsm-title">Publish</h3>'
+    + '<label class="tsm-lbl">Title</label><input class="tsm-inp" id="pbTitle" value="' + esc(name) + '">'
+    + '<label class="tsm-lbl">Blurb</label><textarea class="tsm-inp tsm-ta" id="pbBlurb" placeholder="What it is, in a line or two"></textarea>'
+    + '<p class="tsm-note">The adventure goes on the directory for others to run. You can take it down again.</p>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button>'
+    + '<button class="tsm-btn" onclick="publishNow()">Publish</button></div>');
+}
+function publishNow(){
+  var t = ((document.getElementById('pbTitle') || {}).value || '').replace(/^\s+|\s+$/g,'');
+  if (!t) return;
+  var b = (document.getElementById('pbBlurb') || {}).value || '';
+  tsModal('<h3 class="tsm-title">Publishing...</h3>');
+  tsAsk('TS_PUBLISH', { title:t, blurb:b, pack:{ adventure:S.adventure } }).then(function(){
+    tsCloseModal(); S.published = null; refreshWinBody(); publishLoad();
+  }).catch(function(){ tsCloseModal(); });
+}
+function unpublishNow(id){
+  window._tsYes = function(){
+    tsAsk('TS_UNPUBLISH', { id:id }).then(function(){ tsCloseModal(); S.published = null; refreshWinBody(); publishLoad(); }).catch(function(){ tsCloseModal(); });
+  };
+  tsModal('<h3 class="tsm-title">Take it down?</h3><p class="tsm-note">It leaves the directory. Your copy stays.</p>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button>'
+    + '<button class="tsm-btn danger" onclick="tsConfirmYes()">Take it down</button></div>');
+}
 function menuBody(){
   var lm = isLM();
   var h = '<div class="win-note">Characters</div>'
@@ -3593,6 +3672,55 @@ function lmFellBody(){
   });
   h += '<div class="rs-adds"><button class="st-add" onclick="partyInvite()">Invite a player</button>'
     + '<button class="st-add" onclick="partyRefresh()">Refresh</button></div>';
+  return h;
+}
+/* A quest is raised in a scene and posted to the board the players read. */
+function sceneQuests(sc){ return (sc.quests || []); }
+function questAdd(sceneId){
+  var f = storyFind('scene', sceneId); if (!f) return;
+  tsAsk2({ title:'Post a quest', label:'Title', body:'', cta:'Post', onSave:function(t, b){
+    if (!t) return;
+    f.scene.quests = f.scene.quests || [];
+    var q = { entryId:mkId(), title:t, body:b || '', status:'open' };
+    f.scene.quests.push(q);
+    questPush(q); storySave(); refreshWinBody();
+  }});
+}
+function questEdit(sceneId, entryId){
+  var f = storyFind('scene', sceneId); if (!f) return;
+  var q = (f.scene.quests || []).filter(function(x){ return sameId(x.entryId, entryId); })[0];
+  if (!q) return;
+  tsAsk2({ title:'Edit quest', label:'Title', value:q.title, body:q.body || '', onSave:function(t, b){
+    if (t) q.title = t; q.body = b || '';
+    questPush(q); storySave(); refreshWinBody();
+  }});
+}
+function questStatus(sceneId, entryId){
+  var f = storyFind('scene', sceneId); if (!f) return;
+  var q = (f.scene.quests || []).filter(function(x){ return sameId(x.entryId, entryId); })[0];
+  if (!q) return;
+  q.status = q.status === 'open' ? 'done' : 'open';
+  questPush(q); storySave(); refreshWinBody();
+}
+function questRemove(sceneId, entryId){
+  var f = storyFind('scene', sceneId); if (!f) return;
+  var q = (f.scene.quests || []).filter(function(x){ return sameId(x.entryId, entryId); })[0];
+  if (q){ q.status = 'closed'; questPush(q); }
+  f.scene.quests = (f.scene.quests || []).filter(function(x){ return !sameId(x.entryId, entryId); });
+  storySave(); refreshWinBody();
+}
+function questPush(q){ tsAsk('TS_QUEST_SAVE', { quest:q }).catch(function(){}); }
+function storyQuestsHtml(sc){
+  var list = sceneQuests(sc);
+  var h = '';
+  list.forEach(function(q){
+    h += '<div class="qs-row' + (q.status === 'done' ? ' done' : '') + '">'
+      + '<button class="qs-tick" onclick="questStatus(\'' + sc.id + '\',\'' + q.entryId + '\')" title="Mark">' + (q.status === 'done' ? '\u2713' : '\u25cb') + '</button>'
+      + '<span class="qs-main" onclick="questEdit(\'' + sc.id + '\',\'' + q.entryId + '\')"><span class="qs-title">' + esc(q.title) + '</span>'
+      + (q.body ? '<span class="qs-body">' + esc(q.body) + '</span>' : '') + '</span>'
+      + '<button class="st-b" onclick="questRemove(\'' + sc.id + '\',\'' + q.entryId + '\')" title="Take down">\u2715</button></div>';
+  });
+  h += '<button class="st-add" onclick="questAdd(\'' + sc.id + '\')">Post a quest</button>';
   return h;
 }
 function partyLoad(){

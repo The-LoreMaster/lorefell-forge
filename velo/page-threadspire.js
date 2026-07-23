@@ -5,8 +5,9 @@
 import { threadspirePublicChar, listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter, threadspireSaveMeta } from 'backend/characters.web.js';
 import { getLmPortrait, saveLmPortrait, getForgePools, getForgeLibrary, listMyCampaigns, submitAct, submitItem, deleteAsset, listGlossary , setMemberRole, detachCharacter } from 'backend/fatewell.web.js';
 import { createInvite, revokeInvite } from 'backend/invites.web.js';
+import { publishAdventure, unpublishAdventure, myPublishedAdventures } from 'backend/published.web.js';
 import { getFoePack } from 'backend/forge.web.js';
-import { listQuests, listDiscovered, getWorldMeta, saveAsset, listAssets, getCampaignPlayers, getClueCards } from 'backend/fatewell.web.js';
+import { listQuests, listDiscovered, getWorldMeta, saveAsset, listAssets, getCampaignPlayers, getClueCards, upsertQuest } from 'backend/fatewell.web.js';
 import { getCombatForChar, saveCombatDeclare, syncCombatPlayer } from 'backend/combat.web.js';
 import { getLibraries } from 'backend/libraries.web.js';
 import { listSphereArt } from 'backend/sphereart.web.js';
@@ -168,6 +169,28 @@ $w.onReady(function () {
           try { camps = await listMyCampaigns(); } catch (e) { camps = []; }
           try { gloss = await listGlossary(); } catch (e) { gloss = []; }
           reply(true, { pools: pools, pack: pack, acts: acts, campaigns: camps, glossary: gloss });
+        } else if (msg.type === 'TS_QUEST_SAVE') {
+          let ok = false;
+          try { const r = await upsertQuest(campaignId, msg.quest || {}); ok = !!(r && r.ok); } catch (e) { ok = false; }
+          let list = [];
+          try { list = await listQuests(campaignId); } catch (e) { list = []; }
+          reply(ok, list);
+        } else if (msg.type === 'TS_QUEST_LIST') {
+          let list = [];
+          try { list = await listQuests(campaignId); } catch (e) { list = []; }
+          reply(true, list);
+        } else if (msg.type === 'TS_PUBLISH_LIST') {
+          let items = [];
+          try { items = await myPublishedAdventures(); } catch (e) { items = []; }
+          reply(true, items);
+        } else if (msg.type === 'TS_PUBLISH') {
+          let res = null;
+          try { res = await publishAdventure(msg.title, msg.blurb, msg.pack, campaignId); } catch (e) { res = null; }
+          reply(!!(res && res.ok), res);
+        } else if (msg.type === 'TS_UNPUBLISH') {
+          let ok = false;
+          try { const r = await unpublishAdventure(msg.id); ok = !!(r && r.ok); } catch (e) { ok = false; }
+          reply(ok);
         } else if (msg.type === 'TS_PARTY_LIST') {
           let players = [];
           try { players = await getCampaignPlayers(campaignId, ''); } catch (e) { players = []; }
