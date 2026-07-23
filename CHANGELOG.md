@@ -1,3 +1,7 @@
+## ThreadSpire: Acts on the foe card
+
+- A foe's Acts now come from SigilForge, the same forged shelf FateWell reads. The card lists what the foe carries with its tier and text, and Edit Acts opens the three tiers, each choosing from the Acts forged at that tier and showing what the chosen one does. Typing abilities by hand is gone for foes.
+
 ## ThreadSpire: the foe card, drawn from the forge
 
 - A foe now opens the card FateWell gives it, and its choices come from the same collections in Wix. Build, stance, and signature affliction are picked from the canon foe pack. Infusions and augmentations are chips from the forged pools, tapped to add or drop, each carrying what it does on hover and behind its info dot. Relics are chosen from the forged shelf with their rules shown, rather than typed. The card also reads its rating against the party, showing what a foe of that rating stands at, and what it would stand at as a Forsaken.

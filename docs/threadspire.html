@@ -1513,15 +1513,62 @@ function rosterRemove(sceneId, kind, id){
 
 /* ---- roster member sheet: name, art and stats, the same fields FateWell edits ---- */
 function rosterReopenAfter(){ if (window._rosterScene) rosterWindow(window._rosterScene); else tsCloseModal(); }
-var FORGE = { pools:{ infusions:[], augmentations:[], items:[] }, pack:{ builds:[], stances:[], afflictions:[] }, loaded:false };
+var FORGE = { pools:{ infusions:[], augmentations:[], items:[] }, pack:{ builds:[], stances:[], afflictions:[] }, acts:[], loaded:false };
 function forgeLoad(){
   return tsAsk('TS_FORGE_DATA', {}).then(function(r){
     if (r){
       if (r.pools) FORGE.pools = { infusions:r.pools.infusions||[], augmentations:r.pools.augmentations||[], items:r.pools.items||[] };
       if (r.pack) FORGE.pack = { builds:r.pack.builds||[], stances:r.pack.stances||[], afflictions:r.pack.afflictions||[] };
+      if (r.acts) FORGE.acts = r.acts.map(normAct).filter(function(a){ return a.name; });
     }
     FORGE.loaded = true; return FORGE;
   }).catch(function(){ FORGE.loaded = true; return FORGE; });
+}
+/* An Act as SigilForge saved it. */
+function normAct(e){
+  function pick(){ for (var i=0;i<arguments.length;i++){ var k=arguments[i]; if (e[k]!==undefined && e[k]!==null && e[k]!=='') return e[k]; } return ''; }
+  return { id: pick('_id','id') || mkId(), name: pick('title','name'), tier: Number(pick('tier')) || 1,
+           use: pick('use') || 'Act', desc: pick('shorthand','description','desc'),
+           effect: pick('effect','full','shorthand','description','desc'), source: pick('source') || 'canon' };
+}
+function actsForTier(t){ return (FORGE.acts || []).filter(function(a){ return (Number(a.tier) || 1) === t; }); }
+function foeActAtTier(f, t){
+  var hit = null;
+  (f.abilities || []).forEach(function(a){ if (!hit && (Number(a.tier) || 1) === t) hit = a; });
+  return hit;
+}
+function sheetActs(){
+  var t = curSheet(); if (!t) return;
+  var f = t.obj;
+  var h = '<h3 class="tsm-title">Acts of ' + esc(f.name || 'this foe') + '</h3>'
+    + '<p class="tsm-note">Author all three tiers. A scene trims to the rating it fights at.</p><div class="rs-edit">';
+  [1,2,3].forEach(function(tier){
+    var cur = foeActAtTier(f, tier);
+    var pool = actsForTier(tier);
+    h += '<label class="tsm-lbl">Tier ' + tier + '</label>'
+      + '<select class="tsm-inp" onchange="sheetPickAct(' + tier + ',this.value)">'
+      + '<option value="">No Act</option>'
+      + pool.map(function(a){
+          return '<option value="' + esc(a.id) + '"' + (cur && cur.name === a.name ? ' selected' : '') + '>'
+            + esc(a.name) + (a.source === 'mine' ? ' (yours)' : '') + '</option>';
+        }).join('')
+      + '</select>';
+    if (cur) h += '<p class="tsm-note">' + esc(cur.effect || cur.desc || 'No text on this Act.') + '</p>';
+    else if (!pool.length) h += '<p class="tsm-note">No tier ' + tier + ' Acts forged yet. SigilForge fills this shelf.</p>';
+  });
+  h += '</div><div class="tsm-row"><button class="tsm-btn ghost" onclick="sheetReopen()">Back to the foe</button></div>';
+  tsModal(h);
+}
+function sheetPickAct(tier, id){
+  var t = curSheet(); if (!t) return;
+  var f = t.obj;
+  f.abilities = (f.abilities || []).filter(function(a){ return (Number(a.tier) || 1) !== tier; });
+  if (id){
+    var pick = null;
+    (FORGE.acts || []).forEach(function(a){ if (sameId(a.id, id)) pick = a; });
+    if (pick) f.abilities.push({ id:pick.id, name:pick.name, tier:tier, use:pick.use, desc:pick.desc, effect:pick.effect, source:pick.source });
+  }
+  sheetLiveSave(); sheetActs();
 }
 function poolNames(bucket){
   return (FORGE.pools[bucket] || []).map(function(x){ return typeof x === 'string' ? x : x.name; }).filter(Boolean);
@@ -1689,7 +1736,20 @@ function entrySheet(src, sceneId, kind, id){
   } else {
     h += '<label class="tsm-lbl">Inventory</label><textarea class="tsm-inp tsm-ta short" id="rsInv" placeholder="One per line">' + esc((e.inv || []).join('\n')) + '</textarea>';
   }
-  h += '<label class="tsm-lbl">Abilities</label><textarea class="tsm-inp tsm-ta" id="rsAb" placeholder="Name :: what it does, one per line">' + esc(lines(e.abilities)) + '</textarea>'
+  if (isFoe){
+    var acts = (e.abilities || []).slice().sort(function(a, b){ return (a.tier || 1) - (b.tier || 1); });
+    h += '<div class="tsm-lbl">Acts <span class="tsm-count">' + acts.length + '</span></div>';
+    if (acts.length){
+      h += acts.map(function(a){
+        return '<div class="relic-row"><div class="relic-hd"><b>' + esc(a.name) + '</b><span class="tsm-count">T' + (a.tier || 1) + '</span></div>'
+          + '<p class="tsm-note">' + esc(a.effect || a.desc || '') + '</p></div>';
+      }).join('');
+    } else h += '<p class="tsm-note">No Acts forged yet.</p>';
+    h += '<button class="tsm-btn ghost" style="width:100%" onclick="sheetActs()">Edit Acts</button>';
+  } else {
+    h += '<label class="tsm-lbl">Abilities</label><textarea class="tsm-inp tsm-ta" id="rsAb" placeholder="Name :: what it does, one per line">' + esc(lines(e.abilities)) + '</textarea>';
+  }
+  h += ''
     + '<p class="tsm-note">' + (lib || src === 'lib' ? 'Saving updates the library everywhere. Vitality in play and charges live on the foe card in battle.' : 'This figure is local to the scene.') + '</p>'
     + '</div>'
     + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="sheetBack()">Cancel</button>'
