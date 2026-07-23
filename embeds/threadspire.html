@@ -269,6 +269,17 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .tsm-btn.danger{ background:var(--danger,#8d3b3b); border-color:var(--danger,#8d3b3b); color:#fff; }
 .stb-card{ display:flex; align-items:center; gap:7px; margin:4px 0; padding:5px 8px; border-left:3px solid var(--gold); border-radius:0 6px 6px 0; background:rgba(10,16,32,.34); cursor:pointer; }
 .stb-card:hover{ background:rgba(20,30,54,.5); }
+.lib-scope{ display:block; width:100%; margin:6px 0 8px; font-size:.66rem; }
+.lib-list{ max-height:46vh; overflow-y:auto; }
+.lib-row{ display:flex; align-items:center; gap:8px; width:100%; padding:6px 4px; background:transparent; border:none; border-bottom:1px solid rgba(201,168,76,.10); color:var(--silver); font:inherit; text-align:left; cursor:pointer; }
+.lib-row.static{ cursor:default; }
+.lib-row:hover:not(.static){ background:rgba(20,30,54,.5); }
+.lib-av{ width:26px; height:26px; border-radius:50%; object-fit:cover; flex:none; }
+.lib-ph{ display:inline-block; background:rgba(40,54,86,.7); }
+.lib-nm{ flex:1; font-size:.82rem; }
+.lib-meta{ font-size:.66rem; color:var(--muted,#7e8a99); }
+.rs-av{ width:20px; height:20px; border-radius:50%; object-fit:cover; flex:none; }
+.rs-stat{ font-style:normal; font-size:.64rem; color:var(--muted,#7e8a99); }
 .st-sub{ font-family:Cinzel,serif; font-size:.62rem; letter-spacing:.14em; text-transform:uppercase; color:var(--muted,#7e8a99); margin:8px 0 4px; }
 .rs-row{ display:flex; align-items:center; gap:6px; padding:3px 2px; }
 .rs-row.out .rs-name{ opacity:.45; text-decoration:line-through; }
@@ -1228,6 +1239,83 @@ var BEAT_TYPES = {
   read:['Read-aloud','#6fc7c0'], check:['Lore Check','#9aa8e0'], choice:['Beat','#b18fd0']
 };
 function beatMeta(kind){ return BEAT_TYPES[kind] || ['Note','#8fa0b3']; }
+var ATTR_LIST = ['Precision','Power','Magic','Evasion','Durability','Resistance','Vigor','Wit'];
+var SR_TABLE = { 'Minion':{lp:1,sp:9,vit:8}, 'Elite':{lp:2,sp:11,vit:16}, 'Champion':{lp:3,sp:14,vit:24}, 'Epic':{lp:4,sp:16,vit:32}, 'Forsaken':{lp:5,sp:19,vit:40} };
+function blankAttrs(){ var o = {}; ATTR_LIST.forEach(function(a){ o[a] = 0; }); return o; }
+/* Same conversion FateWell uses, so a row means the same thing in both tools. */
+function rowToAsset(r){
+  function pick(){ for (var i=0;i<arguments.length;i++){ var k=arguments[i]; if (r[k]!==undefined && r[k]!==null && r[k]!=='') return r[k]; } return undefined; }
+  function jp(v, fb){ if (v===undefined||v===null||v==='') return fb; if (typeof v==='object') return v; try { return JSON.parse(v); } catch(e){ return fb; } }
+  var type = pick('type') || 'monster';
+  var e = { id:pick('assetId','_id','id') || mkId(), type:type, name:pick('name') || '',
+            desc:pick('description','desc') || '', origin:pick('origin') || '', img:pick('image','img') || '' };
+  if (type === 'monster'){
+    e.sr = pick('shatterRating','sr') || '';
+    e.lp = Number(pick('lp')) || (e.sr && SR_TABLE[e.sr] ? SR_TABLE[e.sr].lp : 0);
+    e.sp = Number(pick('sp')) || (e.sr && SR_TABLE[e.sr] ? SR_TABLE[e.sr].sp : 0);
+    e.maxVit = Number(pick('maxVit')) || 0;
+    e.foeWeight = Number(pick('foeWeight')) || 0;
+    e.attrs = jp(pick('attrs'), blankAttrs());
+    e.inv = jp(pick('inventory','inv'), []);
+    e.abilities = jp(pick('abilities'), []);
+    var fm = jp(pick('foeMeta'), {});
+    e.sig = pick('signatureAffliction','sig') || fm.sig || '';
+    e.source = pick('source') || fm.source || '';
+    e.build = fm.build || pick('build') || '';
+    e.stance = fm.stance || pick('stance') || '';
+    e.augments = Array.isArray(fm.augments) ? fm.augments : [];
+    e.infusions = Array.isArray(fm.infusions) ? fm.infusions : jp(pick('infusions'), []);
+    if (fm.campaignId !== undefined) e.campaignId = fm.campaignId || '';
+    if (fm.campaignName !== undefined) e.campaignName = fm.campaignName || '';
+  } else {
+    e.role = pick('role') || '';
+    if (type === 'npc'){
+      e.maxVit = Number(pick('maxVit')) || 0;
+      e.attrs = jp(pick('attrs'), blankAttrs());
+      e.inv = jp(pick('inventory','inv'), []);
+      e.abilities = jp(pick('abilities'), []);
+    }
+  }
+  return e;
+}
+S.library = [];
+S.libAll = false;                 /* false: this adventure only. true: the saved collection. */
+S.libLoaded = false;
+function libGet(id){ var r = null; (S.library || []).forEach(function(e){ if (e.id === id) r = e; }); return r; }
+function libScoped(){
+  var list = S.library || [];
+  if (S.libAll) return list;
+  var cid = S.campaignId || '';
+  if (!cid) return list;
+  return list.filter(function(e){ return !e.campaignId || e.campaignId === cid; });
+}
+function libLoad(force){
+  if (S.libLoaded && !force) return Promise.resolve(S.library);
+  if (!assetBackend || !assetBackend.list) return Promise.resolve([]);
+  return assetBackend.list().then(function(rows){
+    var keep = (rows || []).filter(function(a){ return !a || !a.kind || (a.kind !== 'map' && a.kind !== 'token'); });
+    S.library = keep.map(rowToAsset).filter(function(a){ return a.name; });
+    S.libLoaded = true;
+    return S.library;
+  }).catch(function(){ S.libLoaded = true; return []; });
+}
+function libToggleScope(){ S.libAll = !S.libAll; refreshWinBody(); }
+/* Build a scene combatant from a library entry, keeping the link so stats and art stay shared. */
+function libMakeCombatant(e, name){
+  var isFoe = e.type === 'monster';
+  var vit = e.maxVit || (isFoe && e.sr && SR_TABLE[e.sr] ? SR_TABLE[e.sr].vit : 0);
+  return {
+    id: mkId(), libId: e.id, type: isFoe ? 'monster' : 'npc', side: isFoe ? 'foe' : 'npc',
+    name: name || e.name, sr: e.sr || '', maxVit: vit, curVit: vit, charge: 0,
+    attrs: JSON.parse(JSON.stringify(e.attrs || blankAttrs())),
+    abilities: JSON.parse(JSON.stringify(e.abilities || [])),
+    inv: (e.inv || []).slice(),
+    infusions: (e.infusions || []).slice(), augments: (e.augments || []).slice(),
+    sig: e.sig || '', source: e.source || '', build: e.build || '', stance: e.stance || '',
+    img: e.img || '', desc: e.desc || '',
+    act:'', target:'', done:false, affs:[]
+  };
+}
 var SPEAKER_COLORS = ['#7fb3d5','#86c79b','#b18fd0','#e0a86b','#d98a8a','#6fc7c0','#c9b06a','#9aa8e0','#d49ac0','#8fc16a'];
 function speakerColor(name){
   var key = String(name || '').toLowerCase().replace(/\s+\d+$/,'').replace(/^\s+|\s+$/g,'');
@@ -1239,8 +1327,14 @@ function speakerColor(name){
 function castList(sc){
   sc = sc || S.scene || {};
   var out = [];
-  (sc.npcs || []).forEach(function(n){ out.push({ id:n.id, name:n.name, img:n.img || n.portrait || '', kind:'npc', ref:n }); });
-  (sc.foes || []).forEach(function(f){ out.push({ id:f.id, name:f.name, img:f.img || f.portrait || '', kind:'foe', ref:f }); });
+  function add(c, kind){
+    var lib = c.libId ? libGet(c.libId) : null;
+    out.push({ id:c.id, libId:c.libId || '', kind:kind, ref:c, lib:lib,
+               name: c.name || (lib && lib.name) || '',
+               img: c.img || (lib && lib.img) || '' });
+  }
+  (sc.npcs || []).forEach(function(n){ add(n, 'npc'); });
+  (sc.foes || []).forEach(function(f){ add(f, 'foe'); });
   return out;
 }
 /* the players at this scene. Everyone is in unless the LoreMaster marks them out. */
@@ -1254,6 +1348,53 @@ function togglePlayerOut(sceneId, pid){
   f.scene.out = f.scene.out || {};
   if (f.scene.out[pid]) delete f.scene.out[pid]; else f.scene.out[pid] = true;
   storySave(); refreshWinBody(); render();
+}
+function rosterAddFromLib(sceneId){
+  var f = storyFind('scene', sceneId); if (!f) return;
+  window._rosterScene = sceneId;
+  libLoad().then(function(){ libChooser(sceneId); });
+  tsModal('<h3 class="tsm-title">Library</h3><p class="tsm-note">Loading...</p>');
+}
+function libChooser(sceneId){
+  var list = libScoped();
+  var foes = list.filter(function(e){ return e.type === 'monster'; });
+  var npcs = list.filter(function(e){ return e.type === 'npc'; });
+  var h = '<h3 class="tsm-title">Add from library</h3>'
+    + '<button class="tsm-btn ghost lib-scope" onclick="libScopeFlip(\'' + sceneId + '\')">' + (S.libAll ? 'Showing: saved collection' : 'Showing: this adventure') + '</button>'
+    + '<input class="tsm-inp" id="libSearch" placeholder="Search by name" oninput="libFilter(this.value)">'
+    + '<div class="lib-list" id="libList">';
+  function row(e, kind){
+    var meta = kind === 'foe'
+      ? ((e.sr || '') + (e.maxVit ? ' \u00b7 ' + e.maxVit + ' vit' : ''))
+      : (e.role || 'NPC');
+    return '<button class="lib-row" data-name="' + esc(e.name.toLowerCase()) + '" onclick="libAttach(\'' + sceneId + '\',\'' + e.id + '\')">'
+      + (e.img ? '<img class="lib-av" src="' + esc(e.img) + '" alt="">' : '<span class="lib-av lib-ph"></span>')
+      + '<span class="lib-nm">' + esc(e.name) + '</span><span class="lib-meta">' + esc(meta) + '</span></button>';
+  }
+  if (foes.length){ h += '<div class="tsm-lbl">Foes</div>'; foes.forEach(function(e){ h += row(e, 'foe'); }); }
+  if (npcs.length){ h += '<div class="tsm-lbl">NPCs</div>'; npcs.forEach(function(e){ h += row(e, 'npc'); }); }
+  if (!foes.length && !npcs.length) h += '<p class="tsm-note">Nothing here yet. FateWell authors the library.</p>';
+  h += '</div><div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>';
+  tsModal(h);
+}
+function libScopeFlip(sceneId){ S.libAll = !S.libAll; libChooser(sceneId); }
+function libFilter(q){
+  q = String(q || '').toLowerCase();
+  var rows = document.querySelectorAll('#libList .lib-row');
+  for (var i = 0; i < rows.length; i++){
+    var n = rows[i].getAttribute('data-name') || '';
+    rows[i].style.display = (!q || n.indexOf(q) >= 0) ? '' : 'none';
+  }
+}
+function libAttach(sceneId, libId){
+  var f = storyFind('scene', sceneId); if (!f) return;
+  var e = libGet(libId); if (!e) return;
+  var isFoe = e.type === 'monster';
+  var key = isFoe ? 'foes' : 'npcs';
+  f.scene[key] = f.scene[key] || [];
+  var same = f.scene[key].filter(function(c){ return c.libId === libId; }).length;
+  f.scene[key].push(libMakeCombatant(e, e.name + (same ? ' ' + (same + 1) : '')));
+  tsCloseModal(); storySave(); refreshWinBody(); render();
 }
 function rosterAdd(sceneId, kind){
   var f = storyFind('scene', sceneId); if (!f) return;
@@ -1283,12 +1424,16 @@ function storyRosterHtml(sc){
       + '<button class="rs-pill" onclick="togglePlayerOut(\'' + sc.id + '\',\'' + p.id + '\')">' + (p.out ? 'Out' : 'In') + '</button></div>';
   });
   castList(sc).forEach(function(c){
-    h += '<div class="rs-row"><span class="rs-name">' + esc(c.name) + '</span>'
+    var st = (c.ref && c.ref.maxVit) ? (c.ref.curVit + '/' + c.ref.maxVit + (c.ref.sr ? ' \u00b7 ' + esc(c.ref.sr) : '')) : '';
+    h += '<div class="rs-row">'
+      + (c.img ? '<img class="rs-av" src="' + esc(c.img) + '" alt="">' : '<span class="rs-av lib-ph"></span>')
+      + '<span class="rs-name">' + esc(c.name) + (st ? ' <em class="rs-stat">' + st + '</em>' : '') + '</span>'
       + '<span class="rs-kind">' + (c.kind === 'npc' ? 'NPC' : 'Foe') + '</span>'
       + '<button class="st-b" onclick="rosterRemove(\'' + sc.id + '\',\'' + c.kind + '\',\'' + c.id + '\')" title="Remove">\u2715</button></div>';
   });
-  h += '<div class="rs-adds"><button class="st-add" onclick="rosterAdd(\'' + sc.id + '\',\'npc\')">Add an NPC</button>'
-    + '<button class="st-add" onclick="rosterAdd(\'' + sc.id + '\',\'foe\')">Add a foe</button></div>'
+  h += '<div class="rs-adds"><button class="st-add" onclick="rosterAddFromLib(\'' + sc.id + '\')">Add from library</button>'
+    + '<button class="st-add" onclick="rosterAdd(\'' + sc.id + '\',\'npc\')">New NPC</button>'
+    + '<button class="st-add" onclick="rosterAdd(\'' + sc.id + '\',\'foe\')">New foe</button></div>'
     + '<div class="st-sub">Beats</div>';
   return h;
 }
@@ -1324,7 +1469,28 @@ function notesBody(){
   return h;
 }
 function libraryBody(){
-  var h = '<div class="win-note">The library: everything the adventure brings to the table.</div>';
+  if (!S.libLoaded) libLoad().then(function(){ if (S.openSection === 'library') refreshWinBody(); });
+  var h = '<div class="win-note">The library: everything the adventure brings to the table.</div>'
+    + '<button class="tsm-btn ghost lib-scope" onclick="libToggleScope()">' + (S.libAll ? 'Showing: saved collection' : 'Showing: this adventure') + '</button>';
+  var lib = libScoped();
+  if (S.libLoaded && lib.length){
+    ['monster','npc','item'].forEach(function(t){
+      var rows = lib.filter(function(e){ return e.type === t; });
+      if (!rows.length) return;
+      h += '<div class="nb-scene">' + (t === 'monster' ? 'Foes' : t === 'npc' ? 'NPCs' : 'Items') + '</div>';
+      rows.forEach(function(e){
+        var meta = t === 'monster' ? ((e.sr || '') + (e.maxVit ? ' \u00b7 ' + e.maxVit + ' vit' : '')) : (e.role || '');
+        h += '<div class="lib-row static">'
+          + (e.img ? '<img class="lib-av" src="' + esc(e.img) + '" alt="">' : '<span class="lib-av lib-ph"></span>')
+          + '<span class="lib-nm">' + esc(e.name) + '</span><span class="lib-meta">' + esc(meta) + '</span></div>';
+      });
+    });
+  } else if (S.libLoaded){
+    h += '<div class="win-note">Nothing in the library yet. FateWell authors it.</div>';
+  } else {
+    h += '<div class="win-note">Loading...</div>';
+  }
+  h += '<div class="nb-scene">At this scene</div>';
   function group(title, list, line){
     if (!list || !list.length) return '';
     var out = '<div class="nb-scene">' + title + '</div>';
