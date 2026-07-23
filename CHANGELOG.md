@@ -1,3 +1,11 @@
+## 2026-07-21 — SagaForge story engine
+
+- The spine now states its promises and its reversals. Three PROMISE lines (one of tone, one of arc, one of plot, each with where it pays off) and one or two TWIST lines carrying two concrete plants each. Both parse into the skeleton, ride in campaign notes, and reach every scene draft, so plants land as ordinary detail before the reversal and twists read surprising then inevitable.
+- Black moment placed per size: the Tale's setback, the Story's second to last session, deep in the Legacy's final third after the false victory sours. Whatever turns the black moment was planted earlier, never new help from nowhere. Legacy finales converge at least two threads paying off in the same scene. Chronicle sessions each run a complete small arc while season promises live in the factions.
+- Try and fail cadence: sessions before the climax resolve on yes but or no and, clean victories only at a false victory or the finale. Every scene shows progress or meaningful backsliding on a named promise. The antagonist moves first until the darkest turn.
+- World texture rule: every session shows the world pressing on ordinary life in at least three details that could exist nowhere else, plus one unexplained detail a session, never explained. A scene that could move to another world unchanged gets rewritten.
+- Foes fight through visible limits the table can learn, winnable by understanding. NPC arcs are movement: more or less capable, driven, or worthy of trust than they began.
+
 ## ThreadSpire: Story shows a scene's authored notes
 
 - Opening a scene in Story now shows its authored notes, the beats FateWell wrote, with their kind tags, alongside any notes added at the table. Before, Story only showed table-added notes, so authored scenes looked empty even though the runner displayed them.

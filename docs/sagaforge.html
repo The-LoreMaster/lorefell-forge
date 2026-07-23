@@ -251,23 +251,37 @@ function loreLine(){
 function typeCraft(){
   var t=S.type||"story";
   if(t==="tale") return {
-    spine:"This is a Tale, one sitting, complete. Open in the middle of trouble, the Fell already pressed, the situation already moving. One reversal near the middle changes what the problem actually is. No subplot, no thread left open, no NPC whose arc needs a second session. The shape: an opening threat, a pressure that is social or strange rather than a second fight, a setback that flips the plan, the climax, and an ending that pays out with a sting in it.",
+    spine:"This is a Tale, one sitting, complete. Open in the middle of trouble, the Fell already pressed, the situation already moving. One reversal near the middle changes what the problem actually is. The setback is the black moment: the plan dead, the cost personal, and what saves them already planted in the opening. No subplot, no thread left open, no NPC whose arc needs a second session. The shape: an opening threat, a pressure that is social or strange rather than a second fight, a setback that flips the plan, the climax, and an ending that pays out with a sting in it.",
     scene:"This is a Tale. Everything introduced must pay off tonight. No seeds for later sessions."
   };
   if(t==="story") return {
-    spine:"This is a Story, a short arc that burns bright and closes. Three moves across it: the hook, a complication that changes what the job actually is, and an irreversible turn the ending must answer. The premise is a question, and the final session answers it completely. Nothing carries past the last scene except consequences.",
+    spine:"This is a Story, a short arc that burns bright and closes. Three moves across it: the hook, a complication that changes what the job actually is, and an irreversible turn the ending must answer. The black moment closes the second to last session: the plan dead, the cost personal, the road forward invisible until something planted earlier turns in the hand. The premise is a question, and the final session answers it completely. Nothing carries past the last scene except consequences.",
     scene:"This is a Story. Keep the arc tight, every scene either advances the central question or raises its price."
   };
   if(t==="legacy") return {
-    spine:"This is a Legacy, the backbone saga, and its ending marks canon. The antagonist runs a plan of four to six steps that advance offscreen while the Fell rest, detour, or fail. After the last THREAT line, output the plan as PLAN: <step> lines in order, worst last. Mandatory beats across the acts: an early victory the party believes is real and is not, a mid saga revelation that reframes the first act, and a finale whose outcome leaves a permanent mark on the world.",
+    spine:"This is a Legacy, the backbone saga, and its ending marks canon. The antagonist runs a plan of four to six steps that advance offscreen while the Fell rest, detour, or fail. After the last THREAT line, output the plan as PLAN: <step> lines in order, worst last. Mandatory beats across the acts: an early victory the party believes is real and is not, a mid saga revelation that reframes the first act, a black moment deep in the final third where the false victory has fully soured, the plan is dead, and the cost is personal, and a finale where at least two threads of the saga converge and pay off in the same scene, each payoff feeding the next, leaving a permanent mark on the world.",
     scene:"This is a Legacy. The antagonist plan advances in the background, and scenes show its footprints before the party understands them."
   };
   return {
-    spine:"This is a Chronicle, an open table world. Every session stands alone and returns the surviving Fell to safety by its end, because the LoreMaster summons Fell souls and bodies as needed and the table changes between sessions. No beat may require a specific Fell to be present. The spine is factions in motion, not one villain: after the last THREAT line, output three to five FACTION: <name> | <what they want> | <what advances for them after any session that ignores them> lines.",
+    spine:"This is a Chronicle, an open table world. Every session stands alone and returns the surviving Fell to safety by its end, because the LoreMaster summons Fell souls and bodies as needed and the table changes between sessions. No beat may require a specific Fell to be present. Each session runs its own small arc of promise, struggle, and payoff, complete in one evening, while the season level promises live in the factions. The spine is factions in motion, not one villain: after the last THREAT line, output three to five FACTION: <name> | <what they want> | <what advances for them after any session that ignores them> lines.",
     scene:"This is a Chronicle. This session must open cold for a table of strangers and close with the survivors back at safety, complete on its own, while the world visibly moved."
   };
 }
 /* Objectives already claimed by drafted crucibles, scanned from the drafts. */
+/* ============ the story engine ============
+   House craft rules distilled from the promise, progress, payoff school of
+   plotting. The spine states its promises and its reversals with their plants,
+   and every scene draft receives them, so twists land as surprising then
+   inevitable instead of arriving from nowhere. */
+function storyEngineLines(){
+  var out=[], sk=S.skeleton||{};
+  if(sk.promises&&sk.promises.length) out.push("THE PROMISES, every scene shows progress or meaningful backsliding on one of these by name: "+sk.promises.map(function(p){return p.kind+": "+p.what+" (pays off "+p.where+")";}).join("; "));
+  if(sk.twists&&sk.twists.length){
+    out.push("THE REVERSALS AND THEIR PLANTS: "+sk.twists.map(function(t){return t.what+" (plants: "+t.plants.join("; ")+")";}).join(" | "));
+    out.push("Plants land as ordinary detail in scenes before the reversal, never announced, never winked at. A reversal must read surprising in the moment and inevitable in hindsight. If this scene sits before a reversal in story order and its plants have not yet appeared, work one in.");
+  }
+  return out;
+}
 function usedCruxObjectives(){
   var used=[];
   Object.keys(S.drafts||{}).forEach(function(k){
@@ -458,11 +472,13 @@ function parseSkeleton(text){
   var lines=text.split(/\r?\n/), sk={name:"",acts:[]}, act=null, sess=null;
   function split(rest){ var i=rest.indexOf("|"); return i<0?[rest.trim(),""]:[rest.slice(0,i).trim(),rest.slice(i+1).trim()]; }
   lines.forEach(function(ln){
-    var m=ln.match(/^\s*(TITLE|ACT|THREAT|SESSION|SCENE|PLAN|FACTION)\s*:\s*(.*)$/i);
+    var m=ln.match(/^\s*(TITLE|ACT|THREAT|SESSION|SCENE|PLAN|FACTION|PROMISE|TWIST)\s*:\s*(.*)$/i);
     if(!m) return;
     var tag=m[1].toUpperCase(), rest=m[2];
     if(tag==="TITLE"){ sk.name=rest.trim(); }
     else if(tag==="PLAN"){ (sk.plan=sk.plan||[]).push(rest.trim()); }
+    else if(tag==="PROMISE"){ var pp=rest.split("|").map(function(x){return x.trim();}); (sk.promises=sk.promises||[]).push({kind:pp[0]||"",what:pp[1]||"",where:pp[2]||""}); }
+    else if(tag==="TWIST"){ var tw=rest.split("|").map(function(x){return x.trim();}); (sk.twists=sk.twists||[]).push({what:tw[0]||"",plants:tw.slice(1).filter(Boolean)}); }
     else if(tag==="FACTION"){ var fp=rest.split("|").map(function(x){return x.trim();}); (sk.factions=sk.factions||[]).push({name:fp[0]||"",goal:fp[1]||"",tick:fp[2]||""}); }
     else if(tag==="ACT"){ var a=split(rest); act={name:a[0],purpose:a[1],threat:"",cost:"",sessions:[]}; sk.acts.push(act); sess=null; }
     else if(tag==="THREAT"){ if(act){ var th=split(rest); act.threat=th[0]; act.cost=th[1]; } }
@@ -504,7 +520,7 @@ function draftSystem(){
     +" Output plain text in this exact block format, nothing else, no JSON, no code fences:\n"
     +"@@BLOCK\ntype: <one of readaloud|dialogue|crucible|lorecheck|clue|quest|secret|beat|reminder|general>\ntitle: <short descriptive title>\nspeaker: <NPC name, dialogue blocks only, otherwise leave blank>\nbody:\n<the block text, may run several lines>\n@@END\n"
     +"Open the scene with one cast block naming who is present:\n@@CAST\nbody:\n<who is in the room and what each wants here, one per line. Include offscreen presences and unnamed forces such as wardens, a crowd, or the creature. Written to the LoreMaster.>\n@@END\n"
-    +"Repeat the scene block 3 to 6 times. After the last block, if any new NPC appeared, add lines in the form:\n@@NPC\nname: <NPC name>\ndesc: <one line of identity for the LoreMaster>\nallegiance: <who they serve or stand with>\narc: <their arc in one sentence>\nwant: <what they want from the Fell right now>\nfear: <what they fear losing>\ntell: <one physical habit a table can see>\nvoice: <one speech habit a LoreMaster can perform>\n@@END\n"
+    +"Repeat the scene block 3 to 6 times. After the last block, if any new NPC appeared, add lines in the form:\n@@NPC\nname: <NPC name>\ndesc: <one line of identity for the LoreMaster>\nallegiance: <who they serve or stand with>\narc: <their arc in one sentence, and an arc is movement, they end more or less capable, driven, or worthy of trust than they began>\nwant: <what they want from the Fell right now>\nfear: <what they fear losing>\ntell: <one physical habit a table can see>\nvoice: <one speech habit a LoreMaster can perform>\n@@END\n"
     +"Rules: every block carries a descriptive title, never a bare speaker name. One speaker per dialogue block, split exchanges into separate blocks. "
     +"Read-aloud is verbatim box text. Crucible frames a battle. Lore Check names what a successful check reveals. Clue is a discoverable pointer. Quest is a task the party can take. Secret is for the LoreMaster only. Beat is a structural turn. Reminder is a table nudge. Note is anything else. "
     +"A CRUCIBLE IS A BATTLE. Only write a crucible when the scene carries a fight. A pivotal decision with no fight is a beat, never a crucible. The crucible text must put the foes on the page, named or manifesting, so the fiction and the fight agree. The choice is the objective the fight resolves, not a substitute for it: reach the ledger or reach the street, save the creature or let it die. Fork the objective, never the question of whether to fight. Prefer asymmetric forks where one branch buys safety and loses information and the other buys information and loses safety. Never write that there is no third option. "
@@ -514,6 +530,10 @@ function draftSystem(){
     +"Craft rules for the table. Every scene contains either a decision the players make or an opposing force pushing on them, information alone is never a scene. Read-alouds run three sentences or fewer, concrete and sensory, ending on motion or wrongness, never describing what the party feels. NPCs in dialogue want something from the Fell and fear something, let both show in their words. A clue costs something to obtain, name the cost in the block. A secret tells the LoreMaster the plain truth in one or two lines. The final block of the scene lands on a hook, a threat advancing, or a choice left open, never a tidy close. "
     +"Introduce a named NPC before they drive a choice. A recurring NPC carries one arc with a seeded turning point, never repeated entrances. If an NPC betrays or breaks with the party, plant it two scenes early. Never reuse a name already taken by another NPC or by a foe. "
     +"Player characters never appear in the module, it runs cold for any LoreMaster. Never place questions, options, or notes to the author inside any block. "
+    +"Progress is felt every scene: the situation is different at the end of a scene than at its start, on a named promise, forward or backsliding, never level. "
+    +"At the black moment the plan is dead and the cost is personal, and whatever turns it was planted earlier as ordinary detail, never new help from nowhere. "
+    +"Every session shows this world pressing on ordinary life in at least three concrete details that could exist nowhere else, what people eat, shelter from, trade, swear by, or fear after dark. If a scene could be moved to another world unchanged, rewrite it until it cannot. Hint at more world than you show, one unexplained detail a session, never explained. "
+    +"When two versions of a moment are both true to the story, keep the one with more wonder or dread in it. "
     +typeCraft().scene;
 }
 /* parse the delimited block format into {entries, npcs, cast} */
@@ -559,6 +579,8 @@ function campaignNotes(){
   var wi=worldIssueLines()[0];
   if(wi) out.push("THE WORLD ISSUE\n"+wi);
   if(pr.legacyhook && S.type==="legacy") out.push("CARRIES FORWARD\n"+pr.legacyhook);
+  if(S.skeleton&&S.skeleton.promises&&S.skeleton.promises.length) out.push("THE PROMISES\n"+S.skeleton.promises.map(function(p){return p.kind+": "+p.what+". Pays off "+p.where+".";}).join("\n"));
+  if(S.skeleton&&S.skeleton.twists&&S.skeleton.twists.length) out.push("THE REVERSALS AND THEIR PLANTS\n"+S.skeleton.twists.map(function(t){return t.what+" (planted by: "+t.plants.join("; ")+")";}).join("\n"));
   if(S.skeleton&&S.skeleton.plan&&S.skeleton.plan.length) out.push("THE ANTAGONIST PLAN, advancing offscreen\n"+S.skeleton.plan.map(function(p,i){return (i+1)+". "+p;}).join("\n"));
   if(S.skeleton&&S.skeleton.factions&&S.skeleton.factions.length) out.push("THE FACTIONS\n"+S.skeleton.factions.map(function(f){return f.name+": wants "+f.goal+". If ignored: "+f.tick;}).join("\n"));
   return out.join("\n\n");
@@ -582,6 +604,7 @@ function sceneUserMsg(a,si,ci,redline){
   var usedObj=usedCruxObjectives();
   if(usedObj.length) lines.push("Objectives already used in this adventure, pick none of these again: "+usedObj.join("; ")+".");
   lines.push("Terrain that earns its TERRAIN line, for inspiration: "+CRUX_TERRAIN+".");
+  storyEngineLines().forEach(function(l){ lines.push(l); });
   if(ci===0) lines.push("This opens the session, lead with a readaloud.");
   if(redline) lines.push("The LoreMaster's redline on the session, honor it fully: "+redline);
   lines.push("Give this scene 3 to 6 blocks.");
@@ -872,7 +895,8 @@ function forgeSkeleton(){
         if(st.mode==="manual") return "Use exactly "+st.acts+" act"+(st.acts===1?"":"s")+", no more, no fewer.";
         return "Use 2 or 3 acts.";
        })()
-      +" The antagonist holds a specific defensible belief, stated plainly in the final act. Avoid generic fantasy compound names. Do not write sessions or scenes yet. "
+      +" The antagonist holds a specific defensible belief, stated plainly in the final act, and acts on a schedule of their own: until the darkest turn of the adventure the antagonist moves first and the Fell answer. Avoid generic fantasy compound names. Do not write sessions or scenes yet. "
+      +" After everything else, output the promises and the reversals. Exactly three PROMISE lines in the form PROMISE: <tone, arc, or plot> | <what is promised in the opening sessions> | <where it pays off>. One promise of tone, one of arc, one of plot. Escalate gradually, a payoff only lands if the road to it was walked on screen. Then one or two TWIST lines in the form TWIST: <the reversal> | <first plant> | <second plant>. Each plant is a concrete detail that can sit in an early scene looking ordinary. "
       +typeCraft().spine;
   }
   function actSystem(){
@@ -942,7 +966,7 @@ function walkActSystem(){
       }
       return t.oneSession?"Use exactly one session with 2 to 4 scenes.":"Give this act 2 to 4 sessions, each with 2 to 4 scenes.";
      })()
-    +" Scene purposes take active verbs, the Fell decide, confront, sacrifice, defy, race, or break something, never merely witness or learn. At least one scene per session forces an irreversible choice that costs the party. Show the act threat pressing on the Fell. Vary the ground: no two sessions in this act share a scene shape, a battle, a talk, a chase, a watch, a trial, and a theft are all different rooms. Avoid generic fantasy compound names. "
+    +" Scene purposes take active verbs, the Fell decide, confront, sacrifice, defy, race, or break something, never merely witness or learn. At least one scene per session forces an irreversible choice that costs the party. Show the act threat pressing on the Fell. Vary the ground: no two sessions in this act share a scene shape, a battle, a talk, a chase, a watch, a trial, and a theft are all different rooms. Every scene shows progress or meaningful backsliding on one of the adventure promises. Sessions before the climax resolve on yes but or no and: the Fell get what they came for and it costs them, or they fail and things worsen. A clean victory appears only at a false victory or the finale. "
     +typeCraft().spine;
 }
 function walkActUserMsg(a, idx, note){
@@ -1420,7 +1444,7 @@ function foeSystem(){
     +"@@BRIEF\nbody:\n<what the foes are and where they come from, why they are here in this scene, what triggers the fight, the pressure in one line, what happens if the party stalls, how the foes open and what they want, and one line of tactical read naming which target to drop first and what the hardest enemy protects. Written to the LoreMaster, plain and direct. Name the foes you stat below.>\n@@END\n"
     +"Then one block per foe in this exact shape:\n"
     +"@@FOE\nname: <evocative foe name, not generic>\ncount: <how many identical copies, 1 to 6>\nbuild: <one build name from the list>\ntier: <one tier name from the list>\nstance: <one stance name from the list>\naffliction: <one affliction name from the list, or none>\nacts: <comma separated Act names chosen only from the provided Acts list, or none>\n@@END\n"
-    +"Compose the encounter with intent. A lone Champion or Epic is a duel. A Champion with a few Minions is a boss and its lackeys. Two or three Elites is a warband. Use fewer, higher blocks for a climax and more, lower blocks for a swarm. Two to four blocks is usual. Match the whole encounter to the stakes of the scene, not each foe in isolation. "
+    +"Compose the encounter with intent. Foes are dangerous through limits and costs the table can learn, not raw power: give every foe one visible limit or rule in the fiction, and let the fight be winnable by understanding it, a fight the Fell can out think beats one they must out roll. A lone Champion or Epic is a duel. A Champion with a few Minions is a boss and its lackeys. Two or three Elites is a warband. Use fewer, higher blocks for a climax and more, lower blocks for a swarm. Two to four blocks is usual. Match the whole encounter to the stakes of the scene, not each foe in isolation. "
     +"For each foe pick Acts that fit its build and tier from the Acts list only, never invent an Act. A Minion carries none, an Elite one, a Champion two, an Epic or Forsaken up to three. Give a foe Acts that suit its name and role. "
     +"The briefing must name the foes you stat and match their counts, so the LoreMaster reads it and knows exactly what to expect. "
     +"A foe name may never match a story NPC or another foe in this fight. Give each a distinct name.";
