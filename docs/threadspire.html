@@ -51,12 +51,12 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 
 .frame{ position:fixed; inset:0; pointer-events:none; border:14px solid transparent; border-image:linear-gradient(160deg,#171208,#57431a,#171208) 1; }
 
-#log{ position:fixed; left:88.836%; top:0.1%; width:10.554%; height:12.343%; overflow-y:auto; background:transparent; border:none; padding:0.6vh 0.8vh; font-family:'Crimson Pro',serif; font-size:1.5vh; line-height:1.35; z-index:60; }
+#log{ position:fixed; left:88.836%; top:0.1%; width:10.554%; height:12.343%; overflow:hidden; display:flex; flex-direction:column; background:transparent; border:none; padding:0.6vh 0.8vh; font-family:'Crimson Pro',serif; font-size:1.5vh; line-height:1.35; z-index:60; }
 #log .log-head{ display:none; }
-#log .lchat{ flex-wrap:nowrap; gap:0.4vh; padding-bottom:0.4vh; margin-bottom:0.4vh; }
+#log .lchat{ flex:none; flex-wrap:nowrap; gap:0.4vh; padding-bottom:0.4vh; margin-bottom:0.4vh; }
 #log .lchat input{ font-size:1.2vh; padding:0.2vh 0.5vh; flex:1; min-width:0; }
 #log .lchat button{ font-size:1.1vh; padding:0.2vh 0.5vh; flex:none; }
-#log .logstream{ font-size:1.3vh; }
+#log .logstream{ font-size:1.3vh; flex:1 1 auto; min-height:0; overflow-y:auto; }
 .log-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
 .log-h{ font-family:Cinzel,serif; font-size:.62rem; letter-spacing:.14em; text-transform:uppercase; color:var(--gold); }
 .log-x{ background:none; border:none; color:var(--gold); font-size:.95rem; line-height:1; cursor:pointer; padding:0 4px; }
@@ -216,6 +216,7 @@ body.clean .artlayer{ display:none; }
 .cube.mark .face{ border-color:var(--gold); box-shadow:inset 0 0 16px rgba(201,168,76,.6), 0 0 26px rgba(201,168,76,.55); }
 .cube.strike .face{ border-color:#e24b4a; box-shadow:inset 0 0 16px rgba(226,75,74,.5), 0 0 22px rgba(226,75,74,.5); }
 .tchip{ background:var(--panel); border:1.5px solid var(--gold); border-radius:6px; font-family:Cinzel,serif; font-size:.72rem; letter-spacing:.1em; color:var(--silver); padding:7px 10px; }
+.tpick.atcursor{ position:fixed; bottom:auto; }
 .tpick{ position:absolute; left:0; bottom:52px; display:none; flex-direction:column; background:var(--panel); border:1.5px solid var(--gold); border-radius:6px; overflow:hidden; min-width:118px; z-index:52; }
 .tpick.open{ display:flex; }
 @media (hover:hover){ #tray .tpick.open{ display:flex; } }
@@ -1211,10 +1212,19 @@ function setRollType(t){
   paintTypePicker();
 }
 function toggleTypePicker(){ document.getElementById('typePick').classList.toggle('open'); }
-function pickAndRoll(t){ setRollType(t); var p=document.getElementById('typePick'); if(p) p.classList.remove('open'); rollFromTray(); }
+function pickAndRoll(t){ setRollType(t); var p=document.getElementById('typePick'); if(p){ p.classList.remove('open'); tpUnpin(p); } rollFromTray(); }
 function dieTap(){ if (isMobile()){ var p=document.getElementById('typePick'); if(p) p.classList.toggle('open'); } else { rollFromTray(); } }
 var _tpHideT = null;
-function tpShow(){ if (isMobile()) return; clearTimeout(_tpHideT); var p=document.getElementById('typePick'); if(p) p.classList.add('open'); }
+function tpShow(){ if (isMobile()) return; clearTimeout(_tpHideT); var p=document.getElementById('typePick'); if(!p) return; tpUnpin(p); p.classList.add('open'); }
+function tpUnpin(p){ p = p || document.getElementById('typePick'); if(!p) return; p.classList.remove('atcursor'); p.style.left=''; p.style.top=''; }
+function tpAtCursor(x, y){
+  var p = document.getElementById('typePick'); if (!p) return;
+  clearTimeout(_tpHideT);
+  p.classList.add('atcursor','open');
+  var w = p.offsetWidth || 118, h = p.offsetHeight || 140;
+  p.style.left = Math.max(4, Math.min(x, window.innerWidth  - w - 6)) + 'px';
+  p.style.top  = Math.max(4, Math.min(y, window.innerHeight - h - 6)) + 'px';
+}
 function tpHideSoon(){ if (isMobile()) return; clearTimeout(_tpHideT); _tpHideT = setTimeout(function(){ var p=document.getElementById('typePick'); if(p) p.classList.remove('open'); }, 280); }
 function paintTypePicker(){
   var p = document.getElementById('typePick'); p.innerHTML = '';
@@ -2776,6 +2786,16 @@ function dist(a, b){ return Math.hypot(a.x - b.x, a.y - b.y); }
 function mid(a, b){ return { x:(a.x + b.x) / 2, y:(a.y + b.y) / 2 }; }
 (function wireCamera(){
   var m = mapEl();
+  m.addEventListener('contextmenu', function(e){
+    e.preventDefault();
+    tpAtCursor(e.clientX, e.clientY);
+  });
+  document.addEventListener('pointerdown', function(e){
+    var p = document.getElementById('typePick');
+    if (!p || !p.classList.contains('atcursor') || !p.classList.contains('open')) return;
+    if (e.target.closest && e.target.closest('#typePick')) return;
+    p.classList.remove('open'); tpUnpin(p);
+  }, true);
   m.addEventListener('pointerdown', function(e){
     if (e.target.closest && e.target.closest('.token')) return;
     m.setPointerCapture(e.pointerId);
