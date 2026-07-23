@@ -153,6 +153,14 @@ function axis3(base) {
       notes.push('[axis3:' + group.concept + '] skipped via [canon-skip: ' + group.concept + ']');
       return;
     }
+    // A generated concept has no siblings to keep in step by hand: its copies are outputs of
+    // a bake, so touching them without the source is the normal shape. Axis 1 is what holds
+    // it honest, by re-running the generator and failing if any output moves.
+    const meta = MAP.concepts && MAP.concepts[group.concept];
+    if (meta && meta.generated) {
+      notes.push('[axis3:' + group.concept + '] generated concept; freshness is axis 1\'s to enforce');
+      return;
+    }
     const touched = [], untouched = [];
     group.members.forEach((m) => {
       const res = memberChanged(m, changed);
