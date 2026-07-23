@@ -1,3 +1,7 @@
+## ThreadSpire: the library, and rosters built from it
+
+- ThreadSpire now reads the same library FateWell authors, using the same conversion, so a foe or NPC means the same thing in both tools. The Library tab lists foes, NPCs, and items with their portraits and stats, scoped to this adventure by default with a toggle for the whole saved collection. A scene's roster can add from the library: the entry arrives with its name, portrait, rank, vitality, attributes, abilities, inventory, infusions, and augments intact, and keeps its link back to the library. Roster rows show the portrait and vitality, and a dialogue beat's speaker resolves through that same link, so one figure's art and stats follow it into the roster, the notes, and battle.
+
 ## ThreadSpire: every scene has a roster
 
 - A scene now carries its own roster, and that roster is what the dialogue speaker list reads from. Every player is in the scene by default; the LoreMaster can mark one out when they do not join, and an absent player shows struck through. NPCs and foes can be added to a scene by name and removed again, so there is something to choose from when a dialogue beat asks who is speaking.
