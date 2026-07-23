@@ -1,3 +1,7 @@
+## ThreadSpire: every scene has a roster
+
+- A scene now carries its own roster, and that roster is what the dialogue speaker list reads from. Every player is in the scene by default; the LoreMaster can mark one out when they do not join, and an absent player shows struck through. NPCs and foes can be added to a scene by name and removed again, so there is something to choose from when a dialogue beat asks who is speaking.
+
 ## ThreadSpire: beats match the FateWell editor
 
 - Beats now carry what FateWell gives them. A dialogue beat picks its speaker from the cast at the table, and that speaker's portrait, colour, and stats attach to the beat wherever it appears; running the beat also swaps the LoreMaster's identity portrait and name to whoever is talking. Clue beats carry a handle, the short tag a Lore Check references to reveal them. Any beat can carry an image. All of it shows in the scene runner.
