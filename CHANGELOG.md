@@ -1,3 +1,7 @@
+## ThreadSpire: beat speakers and reordering
+
+- A dialogue beat can now name its speaker. The field appears when you pick Dialogue and suggests the foes and library figures already at the table, and the speaker shows on the beat card and in the scene runner. Beats can also be moved up and down within their scene, so the order you run them in is the order you set.
+
 ## ThreadSpire: beats own the Story, and the runner steps aside for slideouts
 
 - Prep notes are now beats everywhere. In Story, a scene's beats show as compact color-coded cards, one line each with the kind tag; clicking a card opens it in a panel to edit its type, title, and body, or delete it, and Add a beat creates one with the full set of types. The separate table-notes feature is removed, the Journal covers that. Beats edited at the table live on the same scene the runner reads, so they show in the scene runner when the scene is run. And opening any slideout now hides the scene runner entirely, restoring it in whatever state it was in, minimized or open, when the slideout closes.
