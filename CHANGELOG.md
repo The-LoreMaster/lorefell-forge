@@ -1,3 +1,7 @@
+## ThreadSpire: maps that stay, stages you can order
+
+- Uploaded maps save properly now. A full size battle map runs to many megabytes once encoded, and the upload was giving out quietly, leaving the map alive only until the page reloaded; images are drawn down to a sensible size before they go up. Maps and tokens coming back from your account now carry their own identity and folder, so filing, renaming and removing reach them rather than doing nothing. Stages can be dragged into whatever order you want them in, and long names cut off cleanly instead of sprawling.
+
 ## ThreadSpire: new folders, and drag to file
 
 - Maps and saved tokens both take folders now. A folder is made with a press and stands empty until something is put in it, and an image is filed by dragging it onto a folder heading, or back out onto Loose. Removing a folder leaves everything in it on the shelf.

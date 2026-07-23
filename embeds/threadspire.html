@@ -277,12 +277,17 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .lib-find{ margin:6px 0; }
 .mp-card{ position:relative; }
 .mp-main{ display:block; width:100%; background:none; border:none; color:inherit; font:inherit; padding:0; cursor:pointer; text-align:left; }
+.sd-card.drop{ outline:1px dashed var(--gold); outline-offset:-2px; }
+.sd-card{ cursor:grab; }
 .mp-folder.drop, .tp-fold.drop{ background:rgba(201,168,76,.2); outline:1px dashed var(--gold); }
 .mp-newf, .tp-newf{ font-size:.6rem; padding:3px 8px; margin-left:auto; }
 .tp-fold{ font-family:Cinzel,serif; font-size:.6rem; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); margin:6px 0 3px; padding:2px 4px; border-radius:5px; }
 .tp-wrap{ display:inline-block; }
 .mp-folder{ grid-column:1/-1; display:flex; align-items:center; gap:6px; margin:6px 0 2px; font-family:Cinzel,serif; font-size:.62rem; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); }
 .mp-fname{ flex:1; }
+.mp-name{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.mp-meta{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tp-name{ display:block; max-width:74px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .mp-acts{ position:absolute; top:4px; right:4px; display:flex; gap:2px; background:rgba(10,14,26,.72); border-radius:6px; padding:1px 3px; }
 .lib-scope{ display:block; width:100%; margin:6px 0 8px; font-size:.66rem; }
 .lib-list{ max-height:46vh; overflow-y:auto; }
@@ -1324,7 +1329,10 @@ function stagesBody(){
       ? '<span class="sd-thumb" style="background-image:url('+mp.url+')"></span>'
       : '<span class="sd-thumb sd-ph"></span>';
     var count = on ? S.tokens.length : ((b.tokens||[]).length);
-    return '<div class="sd-card' + (on?' on':'') + '">'
+    return '<div class="sd-card' + (on?' on':'') + '" draggable="true"'
+      + ' ondragstart="stageDragStart(event,\'' + b.stageId + '\')"'
+      + ' ondragover="stageDragOver(event,this)" ondragleave="stageDragLeave(this)"'
+      + ' ondrop="stageDrop(event,this,\'' + b.stageId + '\')">'
       + '<button class="sd-main" onclick="lmSwitchStage(\''+b.stageId+'\')">' + thumb
       + '<span><span class="sd-name">' + esc(b.name) + '</span>'
       + '<span class="sd-meta">' + (mp?esc(mp.name):'no map') + ' \u00b7 ' + count + ' tokens</span></span></button>'
@@ -3385,6 +3393,26 @@ function isLobby(id){
   var st = stageById(id);
   return !!(st && String(st.name || '').toLowerCase() === 'lobby');
 }
+function stageDragStart(ev, id){
+  window._dragStage = id;
+  try { ev.dataTransfer.setData('text/plain', id); ev.dataTransfer.effectAllowed = 'move'; } catch(e){}
+}
+function stageDragOver(ev, el){ ev.preventDefault(); if (el) el.classList.add('drop'); }
+function stageDragLeave(el){ if (el) el.classList.remove('drop'); }
+function stageDrop(ev, el, overId){
+  ev.preventDefault();
+  if (el) el.classList.remove('drop');
+  var from = window._dragStage; window._dragStage = null;
+  if (!from || sameId(from, overId)) return;
+  var bd = sceneBinding(); if (!bd) return;
+  var ids = (bd.stageIds || []).slice();
+  var i = ids.indexOf(from), j = ids.indexOf(overId);
+  if (i < 0 || j < 0) return;
+  ids.splice(i, 1); ids.splice(j, 0, from);
+  bd.stageIds = ids;
+  applyRemoteState({ instance:S.instance });
+  refreshStagesWin();
+}
 function lmDeleteStage(id){
   var bd = sceneBinding();
   if (isLobby(id)){
@@ -3799,6 +3827,29 @@ window.onmessage = function(ev){
   var p = _tsPending[d.reqId]; delete _tsPending[d.reqId];
   if (d.ok) p.res(d.data); else p.rej(new Error(d.error || 'bridge error'));
 };
+/* A full size battle map is many megabytes as base64 and the upload gives out
+   quietly. Draw it down to something sane first, as the other tools do. */
+function shrinkImage(file, max){
+  return new Promise(function(resolve){
+    var fr = new FileReader();
+    fr.onload = function(ev){
+      var img = new Image();
+      img.onload = function(){
+        var w = img.naturalWidth || 1, h = img.naturalHeight || 1;
+        var scale = Math.min(1, max / Math.max(w, h));
+        if (scale >= 1){ resolve(String(ev.target.result).split(',')[1]); return; }
+        var c = document.createElement('canvas');
+        c.width = Math.round(w * scale); c.height = Math.round(h * scale);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        resolve(c.toDataURL('image/jpeg', 0.86).split(',')[1]);
+      };
+      img.onerror = function(){ resolve(String(ev.target.result).split(',')[1]); };
+      img.src = ev.target.result;
+    };
+    fr.onerror = function(){ resolve(''); };
+    fr.readAsDataURL(file);
+  });
+}
 function fileToBase64(file){
   return new Promise(function(res, rej){
     var r = new FileReader();
@@ -3811,7 +3862,7 @@ if (tsEmbedded()){
   assetBackend = {
     upload: function(fileOrUrl, name){
       if (typeof fileOrUrl === 'string') return Promise.resolve(fileOrUrl);
-      return fileToBase64(fileOrUrl).then(function(b64){ return tsAsk('TS_ASSET_UPLOAD', { base64:b64, name:name }); });
+      return shrinkImage(fileOrUrl, 1600).then(function(b64){ return tsAsk('TS_ASSET_UPLOAD', { base64:b64, name:name }); });
     },
     save: function(asset){ return tsAsk('TS_ASSET_SAVE', { asset:asset }); },
     list: function(kind){ return tsAsk('TS_ASSET_LIST', { kind:kind }); }
@@ -4368,11 +4419,13 @@ function mapSetFolder(id, folder){
   applyRemoteState({ scene:S.scene }); paintMapPicker();
 }
 function tokenSetFolder(assetId, folder){
-  var t = null;
-  (S.assets || []).forEach(function(a){ if (sameId(a.assetId, assetId)) t = a; });
-  if (!t) return;
-  t.folder = folder || '';
-  if (assetBackend.save) assetBackend.save({ assetId:t.assetId, kind:'token', name:t.name, image:t.image, w:t.w || 0, h:t.h || 0, folder:t.folder }).catch(function(){});
+  var row = null;
+  (S.assets || []).forEach(function(a){ if (sameId(a.assetId, assetId)) row = a; });
+  (S.scene.accountTokens || []).forEach(function(t){ if (sameId(t.assetId, assetId)) t.folder = folder || ''; });
+  if (row){
+    row.folder = folder || '';
+    if (assetBackend.save) assetBackend.save({ assetId:row.assetId, kind:'token', name:row.name, image:row.image, w:row.w || 0, h:row.h || 0, folder:row.folder }).catch(function(){});
+  }
   paintTokenPalette();
 }
 function lmFolderPick(id){
@@ -4460,13 +4513,15 @@ function loadAccountAssets(){
   assetBackend.list('map').then(function(rows){
     rows.forEach(function(r){
       if (!S.scene.maps.some(function(m){ return m.id === r.assetId; }))
-        S.scene.maps.push({ id:r.assetId, name:r.name, url:r.image, w:r.w||2400, h:r.h||1600, source:'account' });
+        S.scene.maps.push({ id:r.assetId, assetId:r.assetId, folder:r.folder || '', name:r.name, url:r.image, w:r.w||2400, h:r.h||1600, source:'account' });
     });
     if (rows.length) paintMapPicker();
   });
   assetBackend.list('token').then(function(rows){
+    S.assets = rows;
     S.scene.accountTokens = rows.map(function(r){
-      return { kind:'asset', label:initials(r.name), name:r.name, img:r.image, cells:1, refId:r.assetId, source:'account' };
+      return { kind:'asset', label:initials(r.name), name:r.name, img:r.image, cells:1, refId:r.assetId,
+               assetId:r.assetId, folder:r.folder || '', w:r.w||0, h:r.h||0, source:'account' };
     });
     if (rows.length) paintTokenPalette();
   });
@@ -4551,7 +4606,7 @@ function lmMapFilePicked(input){
     var id = 'up-' + Date.now();
     var nm = file.name.replace(/\.[^.]+$/, '');
     var w = img.naturalWidth||2400, h = img.naturalHeight||1600;
-    var m = { id:id, name:nm, url:url, w:w, h:h, source:'account', local:true };
+    var m = { id:id, assetId:id, folder:'', name:nm, url:url, w:w, h:h, source:'account', local:true };
     S.scene.maps.push(m);
     S.scene.background = id;
     S.map = { w:w, h:h };
