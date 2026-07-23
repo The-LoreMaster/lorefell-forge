@@ -1,3 +1,7 @@
+## ThreadSpire: new folders, and drag to file
+
+- Maps and saved tokens both take folders now. A folder is made with a press and stands empty until something is put in it, and an image is filed by dragging it onto a folder heading, or back out onto Loose. Removing a folder leaves everything in it on the shelf.
+
 ## ThreadSpire: the shelf of maps takes folders
 
 - Maps are the LoreMaster's own, across every adventure, and can now be put into folders. A folder is made by naming one, renamed in place, and removed without touching what is in it; the maps simply come back out loose. The picker groups by folder and keeps the loose ones together at the end.
