@@ -282,6 +282,18 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .lib-ph{ display:inline-block; background:rgba(40,54,86,.7); }
 .lib-nm{ flex:1; font-size:.82rem; }
 .lib-meta{ font-size:.66rem; color:var(--muted,#7e8a99); }
+.rs-click{ cursor:pointer; }
+.rs-click:hover{ color:var(--gold); }
+.rs-linked{ font-family:'Crimson Pro',serif; font-size:.6rem; letter-spacing:.06em; color:var(--muted,#7e8a99); }
+.rs-edit{ max-height:56vh; overflow-y:auto; }
+.rs-imgrow{ display:flex; align-items:center; gap:10px; margin-bottom:6px; }
+.rs-prev{ width:64px; height:64px; border-radius:8px; overflow:hidden; background:rgba(10,16,32,.6); border:1px solid var(--line2,#2a3552); display:flex; align-items:center; justify-content:center; flex:none; }
+.rs-prev img{ width:100%; height:100%; object-fit:cover; }
+.rs-vit{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.rs-anum{ width:64px; display:inline-block; text-align:center; }
+.rs-attrs{ display:grid; grid-template-columns:1fr 1fr; gap:5px 8px; }
+.rs-attr{ display:flex; align-items:center; justify-content:space-between; gap:6px; font-size:.72rem; color:var(--ice,#b8ccd8); }
+.rs-attr .rs-anum{ width:52px; }
 .rs-av{ width:20px; height:20px; border-radius:50%; object-fit:cover; flex:none; }
 .rs-stat{ font-style:normal; font-size:.64rem; color:var(--muted,#7e8a99); }
 .st-sub{ font-family:Cinzel,serif; font-size:.62rem; letter-spacing:.14em; text-transform:uppercase; color:var(--muted,#7e8a99); margin:8px 0 4px; }
@@ -1417,8 +1429,97 @@ function rosterAdd(sceneId, kind){
 function rosterRemove(sceneId, kind, id){
   var f = storyFind('scene', sceneId); if (!f) return;
   var key = kind === 'npc' ? 'npcs' : 'foes';
-  f.scene[key] = (f.scene[key] || []).filter(function(x){ return x.id !== id; });
-  storySave(); refreshWinBody(); render();
+  var who = (f.scene[key] || []).filter(function(x){ return x.id === id; })[0];
+  tsConfirm('Remove ' + ((who && who.name) || 'this') + ' from the scene?', function(){
+    f.scene[key] = (f.scene[key] || []).filter(function(x){ return x.id !== id; });
+    storySave(); rosterRefresh(); render();
+  });
+}
+
+/* ---- roster member sheet: name, art and stats, the same fields FateWell edits ---- */
+function rosterEdit(sceneId, kind, id){
+  var f = storyFind('scene', sceneId); if (!f) return;
+  var key = kind === 'npc' ? 'npcs' : 'foes';
+  var c = (f.scene[key] || []).filter(function(x){ return x.id === id; })[0];
+  if (!c) return;
+  window._rsEdit = { sceneId:sceneId, kind:kind, id:id };
+  var isFoe = kind === 'foe';
+  var lib = c.libId ? libGet(c.libId) : null;
+  var img = c.img || (lib && lib.img) || '';
+  var srOpts = ['','Minion','Elite','Champion','Epic','Forsaken'].map(function(s){
+    return '<option value="' + s + '"' + ((c.sr || '') === s ? ' selected' : '') + '>' + (s || 'No rating') + '</option>';
+  }).join('');
+  var attrs = c.attrs || blankAttrs();
+  var attrHtml = ATTR_LIST.map(function(a){
+    return '<label class="rs-attr"><span>' + a + '</span><input class="tsm-inp rs-anum" id="rsA_' + a + '" type="number" value="' + (attrs[a] || 0) + '"></label>';
+  }).join('');
+  tsModal('<h3 class="tsm-title">' + (isFoe ? 'Edit foe' : 'Edit NPC') + (lib ? ' <span class="rs-linked">linked</span>' : '') + '</h3>'
+    + '<div class="rs-edit">'
+    + '<div class="rs-imgrow"><div class="rs-prev" id="rsPrev">' + (img ? '<img src="' + esc(img) + '" alt="">' : '<span class="tsm-note">No image</span>') + '</div>'
+    + '<div><input type="file" accept="image/*" id="rsImgFile" style="display:none" onchange="rosterImgPicked(this)">'
+    + '<button class="tsm-btn ghost" onclick="document.getElementById(\'rsImgFile\').click()">Choose image</button>'
+    + (img ? '<button class="tsm-btn ghost" onclick="rosterImgClear()">Remove</button>' : '') + '</div></div>'
+    + '<label class="tsm-lbl">Name</label><input class="tsm-inp" id="rsName" value="' + esc(c.name || '') + '">'
+    + '<label class="tsm-lbl">Description</label><textarea class="tsm-inp tsm-ta" id="rsDesc">' + esc(c.desc || '') + '</textarea>'
+    + (isFoe ? '<label class="tsm-lbl">Shatter Rating</label><select class="tsm-inp" id="rsSR" onchange="rosterSRChange()">' + srOpts + '</select>' : '')
+    + '<div class="rs-vit"><label class="tsm-lbl">Vitality</label>'
+    + '<span><input class="tsm-inp rs-anum" id="rsCur" type="number" value="' + (c.curVit || 0) + '"> / '
+    + '<input class="tsm-inp rs-anum" id="rsMax" type="number" value="' + (c.maxVit || 0) + '"></span></div>'
+    + (isFoe ? '<div class="rs-vit"><label class="tsm-lbl">Charges</label><span><input class="tsm-inp rs-anum" id="rsCharge" type="number" min="0" max="3" value="' + (c.charge || 0) + '"></span></div>' : '')
+    + '<label class="tsm-lbl">Attributes</label><div class="rs-attrs">' + attrHtml + '</div>'
+    + (lib ? '<p class="tsm-note">Linked to the library. Saving changes this scene only.</p>' : '')
+    + '</div>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button>'
+    + '<button class="tsm-btn" onclick="rosterEditSave()">Save</button></div>');
+}
+function rsEditTarget(){
+  var e = window._rsEdit; if (!e) return null;
+  var f = storyFind('scene', e.sceneId); if (!f) return null;
+  var key = e.kind === 'npc' ? 'npcs' : 'foes';
+  return (f.scene[key] || []).filter(function(x){ return x.id === e.id; })[0] || null;
+}
+function rosterSRChange(){
+  var sr = (document.getElementById('rsSR') || {}).value || '';
+  if (!sr || !SR_TABLE[sr]) return;
+  var mx = document.getElementById('rsMax'), cu = document.getElementById('rsCur');
+  if (mx) mx.value = SR_TABLE[sr].vit;
+  if (cu) cu.value = SR_TABLE[sr].vit;
+}
+function rosterImgPicked(input){
+  var file = input.files && input.files[0]; if (!file) return;
+  var c = rsEditTarget(); if (!c) return;
+  var prev = document.getElementById('rsPrev');
+  if (prev) prev.innerHTML = '<span class="tsm-note">Uploading...</span>';
+  var nm = file.name.replace(/\.[^.]+$/, '');
+  assetBackend.upload(file, nm).then(function(ref){
+    c.img = ref || '';
+    var p = document.getElementById('rsPrev');
+    if (p) p.innerHTML = c.img ? '<img src="' + esc(c.img) + '" alt="">' : '<span class="tsm-note">No image</span>';
+    storySave();
+  }).catch(function(){
+    var p = document.getElementById('rsPrev'); if (p) p.innerHTML = '<span class="tsm-note">Upload failed</span>';
+  });
+}
+function rosterImgClear(){
+  var c = rsEditTarget(); if (!c) return;
+  c.img = '';
+  var p = document.getElementById('rsPrev'); if (p) p.innerHTML = '<span class="tsm-note">No image</span>';
+  storySave();
+}
+function rosterEditSave(){
+  var e = window._rsEdit, c = rsEditTarget();
+  if (!e || !c){ tsCloseModal(); return; }
+  function num(id){ var el = document.getElementById(id); return el ? (Number(el.value) || 0) : 0; }
+  c.name = ((document.getElementById('rsName') || {}).value || '').replace(/^\s+|\s+$/g,'') || c.name;
+  c.desc = (document.getElementById('rsDesc') || {}).value || '';
+  if (e.kind === 'foe'){
+    c.sr = (document.getElementById('rsSR') || {}).value || '';
+    c.charge = Math.max(0, Math.min(3, num('rsCharge')));
+  }
+  c.curVit = num('rsCur'); c.maxVit = num('rsMax');
+  c.attrs = c.attrs || blankAttrs();
+  ATTR_LIST.forEach(function(a){ c.attrs[a] = num('rsA_' + a); });
+  tsCloseModal(); storySave(); rosterRefresh(); render();
 }
 function rosterWindow(sceneId){
   var f = storyFind('scene', sceneId); if (!f) return;
@@ -1443,7 +1544,7 @@ function storyRosterHtml(sc){
     var st = (c.ref && c.ref.maxVit) ? (c.ref.curVit + '/' + c.ref.maxVit + (c.ref.sr ? ' \u00b7 ' + esc(c.ref.sr) : '')) : '';
     h += '<div class="rs-row">'
       + (c.img ? '<img class="rs-av" src="' + esc(c.img) + '" alt="">' : '<span class="rs-av lib-ph"></span>')
-      + '<span class="rs-name">' + esc(c.name) + (st ? ' <em class="rs-stat">' + st + '</em>' : '') + '</span>'
+      + '<span class="rs-name rs-click" onclick="rosterEdit(\'' + sc.id + '\',\'' + c.kind + '\',\'' + c.id + '\')">' + esc(c.name) + (st ? ' <em class="rs-stat">' + st + '</em>' : '') + '</span>'
       + '<span class="rs-kind">' + (c.kind === 'npc' ? 'NPC' : 'Foe') + '</span>'
       + '<button class="st-b" onclick="rosterRemove(\'' + sc.id + '\',\'' + c.kind + '\',\'' + c.id + '\')" title="Remove">\u2715</button></div>';
   });

@@ -1,3 +1,7 @@
+## ThreadSpire: edit and remove roster members
+
+- Removing an NPC or foe from a roster now works and asks first; before, the removal happened but the open window never repainted, so it looked like nothing did. Clicking a roster member opens their sheet: portrait with upload and remove, name, description, Shatter Rating, vitality, charges, and all eight attributes, the same fields FateWell edits. Choosing a rating fills in that rating's vitality. Members added from the library stay linked, and edits made here apply to this scene.
+
 ## ThreadSpire: roster in its own window, no library flash
 
 - The roster moves out of the scene body into its own window, opened by a Roster button at the top of the scene that shows how many are at the table, so nothing competes with the beats. The Library tab no longer shows its old layout for a moment before the real one arrives; it holds until the library is ready, and the library is fetched as soon as the LoreMaster's role is known so the tab is usually ready before it is opened.
