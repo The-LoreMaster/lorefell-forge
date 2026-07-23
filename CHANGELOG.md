@@ -1,3 +1,7 @@
+## ThreadSpire: in-table editing for Story, notes at every level, no role flash
+
+- Story now edits inside the table. Creating, renaming, and deleting an act, session, scene, or note opens a proper panel with a name field and a body, the same shape as the FateWell popup, instead of a browser prompt. Notes sit under acts and sessions as well as scenes. The table also paints the right side immediately now: the page tells the table which side to draw as soon as it opens, so a slow load no longer shows the player view first.
+
 ## ThreadSpire: no role flash, and Story builds the adventure spine
 
 - The table no longer shows the player side for a moment before the LoreMaster loads; the identity column and rail stay hidden until the role is known. Story is now a working spine: acts open to sessions, sessions to scenes, scenes to their notes, with add, rename, and delete at every level and a click to set the running scene. Notes are edited in place. The spine travels with the table state, so it survives a reload.

@@ -254,6 +254,19 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 #win.sheeting{ top:11.186%; left:54.691%; right:auto; bottom:5.184%; width:30.688%; height:auto; max-height:none; }
 #win.sheeting #winBody{ display:none; }
 #win.sheeting #sheetFrame{ display:block; }
+#tsModal{ display:none; position:fixed; inset:0; z-index:90; }
+#tsModal .tsm-back{ position:absolute; inset:0; background:rgba(6,10,20,.72); }
+#tsModal .tsm-panel{ position:relative; width:min(340px,86%); margin:14vh auto 0; background:var(--navy2,#10162a); border:1.5px solid var(--gold); border-radius:10px; padding:14px; box-shadow:0 18px 50px rgba(0,0,0,.6); }
+.tsm-title{ margin:0 0 10px; font-family:Cinzel,serif; font-size:.9rem; letter-spacing:.1em; color:var(--gold); font-weight:400; }
+.tsm-lbl{ display:block; font-family:Cinzel,serif; font-size:.64rem; letter-spacing:.12em; text-transform:uppercase; color:var(--muted,#7e8a99); margin:8px 0 3px; }
+.tsm-inp{ width:100%; background:rgba(10,16,32,.6); border:1px solid var(--line2,#2a3552); border-radius:6px; color:var(--silver); font:inherit; font-size:.85rem; padding:7px 8px; }
+.tsm-inp:focus{ outline:none; border-color:var(--gold); }
+.tsm-ta{ min-height:96px; resize:vertical; }
+.tsm-row{ display:flex; gap:8px; justify-content:flex-end; margin-top:12px; }
+.tsm-btn{ padding:7px 14px; border-radius:6px; border:1px solid var(--gold); background:var(--gold); color:var(--navy); font-family:Cinzel,serif; font-size:.72rem; letter-spacing:.08em; cursor:pointer; }
+.tsm-btn.ghost{ background:transparent; color:var(--silver); border-color:var(--line2,#2a3552); }
+.tsm-btn.danger{ background:var(--danger,#8d3b3b); border-color:var(--danger,#8d3b3b); color:#fff; }
+.st-nbody{ font-size:.8rem; color:var(--ice,#b8ccd8); white-space:pre-wrap; padding:3px 2px 5px; }
 .st-row{ display:flex; align-items:center; gap:6px; padding:6px 4px; border-bottom:1px solid rgba(201,168,76,.10); }
 .st-row .st-tw{ width:14px; color:var(--gold); cursor:pointer; font-size:.7rem; }
 .st-row .st-name{ flex:1; cursor:pointer; font-family:Cinzel,serif; font-size:.76rem; letter-spacing:.04em; color:var(--silver); }
@@ -269,7 +282,6 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .st-add:hover{ color:var(--gold); border-color:var(--gold); }
 .st-note{ margin:5px 0; }
 .st-nhead{ display:flex; align-items:center; justify-content:space-between; font-family:Cinzel,serif; font-size:.66rem; letter-spacing:.1em; text-transform:uppercase; color:var(--muted,#7e8a99); }
-.st-narea{ width:100%; min-height:52px; background:rgba(10,16,32,.34); border:1px solid rgba(201,168,76,.16); border-radius:6px; color:var(--silver); font:inherit; font-size:.8rem; padding:6px; resize:vertical; }
 .ts-newfell{ margin-top:10px; width:100%; background:var(--navy2,#10162a); border:1px solid var(--gold); border-radius:8px; color:var(--gold); font-family:Cinzel,serif; font-size:.72rem; letter-spacing:.08em; padding:8px; cursor:pointer; }
 .ts-newfell:active{ background:var(--gold); color:var(--navy); }
 #sheetSub{ display:none; gap:6px; padding:8px 12px; border-bottom:1px solid var(--line); flex-wrap:wrap; }
@@ -879,52 +891,112 @@ function storyNewScene(name){
            battle:{ round:1, phase:'commit', locked:false, pLocked:false, spots:[], spotMode:'auto', manual:{}, order:[] },
            dis:{ spent:[], base:null }, loot:{ lucky:{}, shards:{}, rolls:{}, notes:{} } };
 }
+function tsModal(html){
+  var m = document.getElementById('tsModal');
+  if (!m){ m = document.createElement('div'); m.id = 'tsModal'; document.body.appendChild(m); }
+  m.innerHTML = '<div class="tsm-back" onclick="tsCloseModal()"></div><div class="tsm-panel">' + html + '</div>';
+  m.style.display = 'block';
+}
+function tsCloseModal(){ var m = document.getElementById('tsModal'); if (m){ m.style.display = 'none'; m.innerHTML = ''; } }
+function tsAsk2(opts){
+  window._tsCb = opts.onSave;
+  var h = '<h3 class="tsm-title">' + esc(opts.title) + '</h3>'
+    + '<label class="tsm-lbl">' + esc(opts.label || 'Name') + '</label>'
+    + '<input class="tsm-inp" id="tsmName" value="' + esc(opts.value || '') + '" placeholder="' + esc(opts.ph || '') + '">';
+  if (opts.body !== undefined) h += '<label class="tsm-lbl">Body</label><textarea class="tsm-inp tsm-ta" id="tsmBody" placeholder="Write the note">' + esc(opts.body || '') + '</textarea>';
+  h += '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button>'
+    + '<button class="tsm-btn" onclick="tsModalSave()">' + esc(opts.cta || 'Save') + '</button></div>';
+  tsModal(h);
+  setTimeout(function(){ var e = document.getElementById('tsmName'); if (e){ e.focus(); e.select(); } }, 40);
+}
+function tsModalSave(){
+  var n = (document.getElementById('tsmName') || {}).value || '';
+  var b = document.getElementById('tsmBody') ? document.getElementById('tsmBody').value : undefined;
+  var cb = window._tsCb; tsCloseModal();
+  if (cb) cb(n.replace(/^\s+|\s+$/g,''), b);
+}
+function tsConfirm(msg, onYes){
+  window._tsYes = onYes;
+  tsModal('<h3 class="tsm-title">' + esc(msg) + '</h3>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button>'
+    + '<button class="tsm-btn danger" onclick="tsConfirmYes()">Delete</button></div>');
+}
+function tsConfirmYes(){ var cb = window._tsYes; tsCloseModal(); if (cb) cb(); }
+
+function storyNode(kind, id){
+  var f = storyFind(kind, id); if (!f) return null;
+  return kind === 'act' ? f.act : kind === 'session' ? f.ses : f.scene;
+}
 function storyAdd(kind, parentId){
   var A = S.adventure || (S.adventure = { acts:[] });
-  var n = prompt(kind === 'act' ? 'Name this act' : kind === 'session' ? 'Name this session' : kind === 'scene' ? 'Name this scene' : 'Note title');
-  if (!n) return;
-  if (kind === 'act'){
-    A.acts = A.acts || [];
-    A.acts.push({ id:mkId(), name:n, notes:'', img:'', desc:'', entries:[], manualRefs:[], sessions:[] });
-  } else if (kind === 'session'){
-    var fa = storyFind('act', parentId); if (!fa) return;
-    fa.act.sessions = fa.act.sessions || [];
-    fa.act.sessions.push({ id:mkId(), name:n, notes:'', img:'', desc:'', entries:[], manualRefs:[], scenes:[] });
-    storyOpen.act[parentId] = true;
-  } else if (kind === 'scene'){
-    var fs = storyFind('session', parentId); if (!fs) return;
-    fs.ses.scenes = fs.ses.scenes || [];
-    fs.ses.scenes.push(storyNewScene(n));
-    storyOpen.ses[parentId] = true;
-  } else if (kind === 'note'){
-    var fc = storyFind('scene', parentId); if (!fc) return;
-    fc.scene.entries = fc.scene.entries || [];
-    fc.scene.entries.push({ id:mkId(), title:n, type:'general', body:'', pinned:false, open:true });
-    storyOpen.scene[parentId] = true;
-  }
-  storySave(); refreshWinBody();
+  var title = kind === 'act' ? 'New act' : kind === 'session' ? 'New session' : 'New scene';
+  tsAsk2({ title:title, label:'Name', cta:'Create', onSave:function(n){
+    if (!n) return;
+    if (kind === 'act'){
+      A.acts = A.acts || [];
+      A.acts.push({ id:mkId(), name:n, notes:'', img:'', desc:'', entries:[], manualRefs:[], sessions:[] });
+    } else if (kind === 'session'){
+      var fa = storyFind('act', parentId); if (!fa) return;
+      fa.act.sessions = fa.act.sessions || [];
+      fa.act.sessions.push({ id:mkId(), name:n, notes:'', img:'', desc:'', entries:[], manualRefs:[], scenes:[] });
+      storyOpen.act[parentId] = true;
+    } else {
+      var fs = storyFind('session', parentId); if (!fs) return;
+      fs.ses.scenes = fs.ses.scenes || [];
+      fs.ses.scenes.push(storyNewScene(n));
+      storyOpen.ses[parentId] = true;
+    }
+    storySave(); refreshWinBody(); render();
+  }});
 }
 function storyRename(kind, id){
-  var f = storyFind(kind, id); if (!f) return;
-  var t = kind === 'act' ? f.act : kind === 'session' ? f.ses : f.scene;
-  var n = prompt('Rename', t.name); if (!n) return;
-  t.name = n; storySave(); refreshWinBody(); render();
+  var t = storyNode(kind, id); if (!t) return;
+  tsAsk2({ title:'Rename', label:'Name', value:t.name, onSave:function(n){
+    if (!n) return; t.name = n; storySave(); refreshWinBody(); render();
+  }});
 }
 function storyDelete(kind, id){
   var f = storyFind(kind, id); if (!f) return;
   var t = kind === 'act' ? f.act : kind === 'session' ? f.ses : f.scene;
-  if (!confirm('Delete "' + t.name + '"?')) return;
-  f.list.splice(f.idx, 1); storySave(); refreshWinBody(); render();
+  tsConfirm('Delete ' + (t.name || 'this') + '?', function(){
+    f.list.splice(f.idx, 1); storySave(); refreshWinBody(); render();
+  });
 }
-function storyNoteEdit(sceneId, noteId, v){
-  var f = storyFind('scene', sceneId); if (!f) return;
-  (f.scene.entries || []).forEach(function(e){ if (e.id === noteId) e.body = v; });
-  storySave();
+function storyAddNote(kind, id){
+  var n = storyNode(kind, id); if (!n) return;
+  tsAsk2({ title:'New note', label:'Title', body:'', cta:'Create', onSave:function(t, b){
+    if (!t) return;
+    n.entries = n.entries || [];
+    n.entries.push({ id:mkId(), title:t, type:'general', body:b || '', pinned:false, open:true });
+    storyOpen[kind === 'session' ? 'ses' : kind][id] = true;
+    storySave(); refreshWinBody();
+  }});
 }
-function storyNoteDelete(sceneId, noteId){
-  var f = storyFind('scene', sceneId); if (!f) return;
-  f.scene.entries = (f.scene.entries || []).filter(function(e){ return e.id !== noteId; });
-  storySave(); refreshWinBody();
+function storyEditNote(kind, id, noteId){
+  var n = storyNode(kind, id); if (!n) return;
+  var e = (n.entries || []).filter(function(x){ return x.id === noteId; })[0]; if (!e) return;
+  tsAsk2({ title:'Edit note', label:'Title', value:e.title, body:e.body || '', onSave:function(t, b){
+    if (t) e.title = t; e.body = b || ''; storySave(); refreshWinBody();
+  }});
+}
+function storyDeleteNote(kind, id, noteId){
+  var n = storyNode(kind, id); if (!n) return;
+  var e = (n.entries || []).filter(function(x){ return x.id === noteId; })[0];
+  tsConfirm('Delete ' + ((e && e.title) || 'this note') + '?', function(){
+    n.entries = (n.entries || []).filter(function(x){ return x.id !== noteId; });
+    storySave(); refreshWinBody();
+  });
+}
+function storyNotesHtml(kind, id, node){
+  var h = '';
+  (node.entries || []).forEach(function(e){
+    h += '<div class="st-note"><div class="st-nhead"><span>' + esc(e.title || 'Note') + '</span><span>'
+      + '<button class="st-b" onclick="storyEditNote(\'' + kind + '\',\'' + id + '\',\'' + e.id + '\')" title="Edit">\u270e</button>'
+      + '<button class="st-b" onclick="storyDeleteNote(\'' + kind + '\',\'' + id + '\',\'' + e.id + '\')" title="Delete">\u2715</button></span></div>'
+      + (e.body ? '<div class="st-nbody">' + esc(e.body) + '</div>' : '') + '</div>';
+  });
+  h += '<button class="st-add" onclick="storyAddNote(\'' + kind + '\',\'' + id + '\')">Add a note</button>';
+  return h;
 }
 function storySave(){ try { pushState(); } catch(e){} }
 function storyBody(){
@@ -938,6 +1010,7 @@ function storyBody(){
        + '<button class="st-b" onclick="storyDelete(\'act\',\'' + a.id + '\')" title="Delete">\u2715</button></div>';
     if (!ao) return;
     h += '<div class="st-kids">';
+    h += storyNotesHtml('act', a.id, a);
     (a.sessions || []).forEach(function(se){
       var so = !!storyOpen.ses[se.id];
       h += '<div class="st-row st-ses"><span class="st-tw" onclick="storyToggle(\'ses\',\'' + se.id + '\')">' + (so ? '\u25be' : '\u25b8') + '</span>'
@@ -946,6 +1019,7 @@ function storyBody(){
          + '<button class="st-b" onclick="storyDelete(\'session\',\'' + se.id + '\')" title="Delete">\u2715</button></div>';
       if (!so) return;
       h += '<div class="st-kids">';
+      h += storyNotesHtml('session', se.id, se);
       (se.scenes || []).forEach(function(sc){
         var on = sc.id === (S.scene && S.scene.id);
         var co = !!storyOpen.scene[sc.id];
@@ -955,12 +1029,8 @@ function storyBody(){
            + '<button class="st-b" onclick="storyDelete(\'scene\',\'' + sc.id + '\')" title="Delete">\u2715</button></div>';
         if (!co) return;
         h += '<div class="st-kids">';
-        (sc.entries || []).forEach(function(e){
-          h += '<div class="st-note"><div class="st-nhead">' + esc(e.title || 'Note')
-             + '<button class="st-b" onclick="storyNoteDelete(\'' + sc.id + '\',\'' + e.id + '\')" title="Delete">\u2715</button></div>'
-             + '<textarea class="st-narea" onchange="storyNoteEdit(\'' + sc.id + '\',\'' + e.id + '\',this.value)" placeholder="Write the note">' + esc(e.body || '') + '</textarea></div>';
-        });
-        h += '<button class="st-add" onclick="storyAdd(\'note\',\'' + sc.id + '\')">Add a note</button></div>';
+        h += storyNotesHtml('scene', sc.id, sc);
+        h += '</div>';
       });
       h += '<button class="st-add" onclick="storyAdd(\'scene\',\'' + se.id + '\')">Add a scene</button></div>';
     });
@@ -2331,6 +2401,12 @@ var _prevOnMessage = window.onmessage;
 window.onmessage = function(ev){
   if (_prevOnMessage) try { _prevOnMessage(ev); } catch(e){}
   var d = ev && ev.data;
+  if (d && d.type === 'THREADSPIRE_ROLE_HINT'){
+    if (!S.roleReady && (d.role === 'lm' || d.role === 'player')){
+      S.role = d.role; document.body.classList.remove('roleboot'); render();
+    }
+    return;
+  }
   if (d && d.type === 'THREADSPIRE_CONTEXT'){
     /* the page decided role by entry-point hint and confirmed it by ownership; we trust it */
     if (d.role === 'lm' || d.role === 'player'){ S.role = d.role; S.roleReady = true; document.body.classList.remove('roleboot'); }
@@ -2391,7 +2467,7 @@ if (tsEmbedded()){
   };
   if (tsEmbedded() && !S.roleReady){
     document.body.classList.add('roleboot');
-    setTimeout(function(){ document.body.classList.remove('roleboot'); }, 4000);
+    setTimeout(function(){ document.body.classList.remove('roleboot'); }, 15000);
   }
   try { var _lp = localStorage.getItem('ts_lm_portrait'); if (_lp){ S.lm = S.lm || {}; S.lm.portrait = _lp; } } catch(e){}
   charBackend = { load: function(id){ return tsAsk('TS_CHAR_LOAD', { charId:id }); }, saveMeta: function(patch){ return tsAsk('TS_CHAR_SAVEMETA', { charId:S.characterId, name:patch.name, portrait:patch.portrait }); }, list: function(){ return tsAsk('TS_CHAR_LIST', {}); } };
