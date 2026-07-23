@@ -3,7 +3,7 @@
 // Feeds the character-first view: the player's character card, the party at their
 // location, revealed nodes, quest-board goals, world issues, and map art.
 import { threadspirePublicChar, listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter, threadspireSaveMeta } from 'backend/characters.web.js';
-import { getLmPortrait, saveLmPortrait, getForgePools, getForgeLibrary } from 'backend/fatewell.web.js';
+import { getLmPortrait, saveLmPortrait, getForgePools, getForgeLibrary, listMyCampaigns, submitAct, submitItem, deleteAsset, listGlossary } from 'backend/fatewell.web.js';
 import { getFoePack } from 'backend/forge.web.js';
 import { listQuests, listDiscovered, getWorldMeta, saveAsset, listAssets, getCampaignPlayers, getClueCards } from 'backend/fatewell.web.js';
 import { getCombatForChar, saveCombatDeclare, syncCombatPlayer } from 'backend/combat.web.js';
@@ -163,7 +163,26 @@ $w.onReady(function () {
           try { pools = await getForgePools(); } catch (e) {}
           try { pack = await getFoePack(); } catch (e) {}
           try { acts = await getForgeLibrary(); } catch (e) { acts = []; }
-          reply(true, { pools: pools, pack: pack, acts: acts });
+          let camps = [], gloss = [];
+          try { camps = await listMyCampaigns(); } catch (e) { camps = []; }
+          try { gloss = await listGlossary(); } catch (e) { gloss = []; }
+          reply(true, { pools: pools, pack: pack, acts: acts, campaigns: camps, glossary: gloss });
+        } else if (msg.type === 'TS_FORGE_ACT') {
+          let ok = false;
+          try { const r = await submitAct(msg.act || {}); ok = !!(r && r.ok); } catch (e) { ok = false; }
+          let acts = [];
+          try { acts = await getForgeLibrary(); } catch (e) { acts = []; }
+          reply(ok, acts);
+        } else if (msg.type === 'TS_FORGE_ITEM') {
+          let ok = false;
+          try { const r = await submitItem(msg.item || {}); ok = !!(r && r.ok); } catch (e) { ok = false; }
+          let pools = { infusions: [], augmentations: [], items: [] };
+          try { pools = await getForgePools(); } catch (e) {}
+          reply(ok, pools);
+        } else if (msg.type === 'TS_ASSET_DELETE') {
+          let ok = false;
+          try { const r = await deleteAsset(msg.assetId); ok = !!(r && r.ok); } catch (e) { ok = false; }
+          reply(ok);
         } else if (msg.type === 'TS_LM_PORTRAIT_GET') {
           let por = '';
           try { const r = await getLmPortrait(campaignId); por = (r && r.portrait) || ''; } catch (e) { por = ''; }

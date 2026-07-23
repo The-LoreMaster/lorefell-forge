@@ -296,6 +296,9 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .vcard-corner{ position:absolute; top:8px; right:8px; z-index:2; display:flex; gap:6px; }
 .card-x{ width:28px; height:28px; border-radius:8px; cursor:pointer; background:rgba(10,14,26,.72); border:1px solid var(--line2,#2a3552); color:var(--silver); font-size:.8rem; line-height:1; }
 .card-x:hover{ border-color:var(--danger,#8d3b3b); color:var(--danger,#8d3b3b); }
+.fw-dmg{ display:flex; align-items:baseline; gap:8px; margin:2px 0 4px; }
+.fw-dmg-n{ font-family:Cinzel,serif; font-size:1.05rem; color:var(--gold); letter-spacing:.04em; text-transform:uppercase; }
+.fw-dmg-acc{ font-size:.74rem; color:var(--muted,#7e8a99); }
 .chips.pick{ display:flex; flex-wrap:wrap; gap:5px; margin:4px 0 6px; }
 .chip{ display:inline-flex; align-items:center; gap:4px; padding:3px 5px 3px 9px; border:1px solid var(--line2,#2a3552); border-radius:12px; background:rgba(10,16,32,.5); color:var(--ice,#b8ccd8); font-family:Cinzel,serif; font-size:.6rem; letter-spacing:.08em; text-transform:uppercase; }
 .chip .chip-lb{ cursor:pointer; }
@@ -1513,13 +1516,15 @@ function rosterRemove(sceneId, kind, id){
 
 /* ---- roster member sheet: name, art and stats, the same fields FateWell edits ---- */
 function rosterReopenAfter(){ if (window._rosterScene) rosterWindow(window._rosterScene); else tsCloseModal(); }
-var FORGE = { pools:{ infusions:[], augmentations:[], items:[] }, pack:{ builds:[], stances:[], afflictions:[] }, acts:[], loaded:false };
+var FORGE = { pools:{ infusions:[], augmentations:[], items:[] }, pack:{ builds:[], stances:[], afflictions:[] }, acts:[], campaigns:[], glossary:[], loaded:false };
 function forgeLoad(){
   return tsAsk('TS_FORGE_DATA', {}).then(function(r){
     if (r){
       if (r.pools) FORGE.pools = { infusions:r.pools.infusions||[], augmentations:r.pools.augmentations||[], items:r.pools.items||[] };
       if (r.pack) FORGE.pack = { builds:r.pack.builds||[], stances:r.pack.stances||[], afflictions:r.pack.afflictions||[] };
       if (r.acts) FORGE.acts = r.acts.map(normAct).filter(function(a){ return a.name; });
+      if (r.campaigns) FORGE.campaigns = r.campaigns;
+      if (r.glossary) FORGE.glossary = r.glossary;
     }
     FORGE.loaded = true; return FORGE;
   }).catch(function(){ FORGE.loaded = true; return FORGE; });
@@ -1546,12 +1551,13 @@ function sheetActs(){
     var cur = foeActAtTier(f, tier);
     var pool = actsForTier(tier);
     h += '<label class="tsm-lbl">Tier ' + tier + '</label>'
-      + '<select class="tsm-inp" onchange="sheetPickAct(' + tier + ',this.value)">'
+      + '<select class="tsm-inp" onchange="sheetActPick(' + tier + ',this.value)">'
       + '<option value="">No Act</option>'
       + pool.map(function(a){
           return '<option value="' + esc(a.id) + '"' + (cur && cur.name === a.name ? ' selected' : '') + '>'
             + esc(a.name) + (a.source === 'mine' ? ' (yours)' : '') + '</option>';
         }).join('')
+      + '<option value="__custom">Forge a custom Act...</option>'
       + '</select>';
     if (cur) h += '<p class="tsm-note">' + esc(cur.effect || cur.desc || 'No text on this Act.') + '</p>';
     else if (!pool.length) h += '<p class="tsm-note">No tier ' + tier + ' Acts forged yet. SigilForge fills this shelf.</p>';
@@ -1640,6 +1646,87 @@ function sheetAddRelic(v){
 }
 function sheetDelRelic(i){ var t = curSheet(); if (!t) return; (t.obj.inv || []).splice(i, 1); sheetLiveSave(); sheetReopen(); }
 function sheetLiveSave(){ var t = curSheet(); if (t){ sheetSync(t); storySave(); } }
+var FW_WEAPON_BONUS = { 1:1, 2:1, 3:3, 4:3, 5:6, 6:6, 7:10, 8:10, 9:15, 10:15 };
+var FW_BASE_INF  = { Brutal:'Power', Sharp:'Precision', Potent:'Magic' };
+var FW_BONUS_INF = { Mauling:'Power', Wounding:'Precision', Blighting:'Magic' };
+function weaponBonus(apl){ return FW_WEAPON_BONUS[Math.max(1, Math.min(10, apl | 0))] || 1; }
+function atkType(attrs, foe){
+  var p = (attrs && attrs.Power) || 0, m = (attrs && attrs.Magic) || 0;
+  if (p > 0 && p === m && foe && (foe.atkPref === 'phys' || foe.atkPref === 'magic')) return foe.atkPref;
+  return m > p ? 'magic' : 'phys';
+}
+function isTie(attrs){ var p = (attrs && attrs.Power) || 0, m = (attrs && attrs.Magic) || 0; return p > 0 && p === m; }
+function foeDamage(f, attrs){
+  attrs = attrs || f.attrs || blankAttrs();
+  var t = atkType(attrs, f);
+  var base = 1 + ((t === 'magic' ? attrs.Magic : attrs.Power) || 0);
+  var bonus = weaponBonus(partyLevel());
+  (f.infusions || []).forEach(function(n){
+    if (FW_BASE_INF[n]) base += attrs[FW_BASE_INF[n]] || 0;
+    if (FW_BONUS_INF[n]) bonus += attrs[FW_BONUS_INF[n]] || 0;
+  });
+  return { type:t, base:base, bonus:bonus,
+           acc: t === 'magic' ? ('1d6 + Magic ' + (attrs.Magic || 0)) : ('1d6 + Precision ' + (attrs.Precision || 0)),
+           text: base + ' + ' + bonus + ' ' + (t === 'magic' ? 'magical' : 'physical') };
+}
+function sheetSetAtkPref(v){ sheetSetField('atkPref', v); }
+/* Forge an Act or a relic from the table. Both land in the same shelves the forges fill. */
+function forgeCustomAct(tier){
+  window._actTier = tier;
+  tsModal('<h3 class="tsm-title">Forge an Act</h3>'
+    + '<label class="tsm-lbl">Name</label><input class="tsm-inp" id="faName">'
+    + '<label class="tsm-lbl">Tier</label><input class="tsm-inp rs-anum" id="faTier" type="number" min="1" max="3" value="' + (tier || 1) + '">'
+    + '<label class="tsm-lbl">What it does</label><textarea class="tsm-inp tsm-ta" id="faText"></textarea>'
+    + '<p class="tsm-note">Saved as yours, and it appears wherever Acts are offered.</p>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="sheetActs()">Cancel</button>'
+    + '<button class="tsm-btn" onclick="forgeActSave()">Forge</button></div>');
+}
+function forgeActSave(){
+  var nm = ((document.getElementById('faName') || {}).value || '').replace(/^\s+|\s+$/g,'');
+  if (!nm) return;
+  var tier = Math.max(1, Math.min(3, Number((document.getElementById('faTier') || {}).value) || 1));
+  var tx = (document.getElementById('faText') || {}).value || '';
+  tsModal('<h3 class="tsm-title">Forging...</h3>');
+  tsAsk('TS_FORGE_ACT', { act:{ title:nm, tier:tier, effect:tx, use:'Act', source:'mine' } }).then(function(acts){
+    if (acts) FORGE.acts = acts.map(normAct).filter(function(a){ return a.name; });
+    var made = null;
+    FORGE.acts.forEach(function(a){ if (a.name === nm) made = a; });
+    if (made) sheetPickAct(tier, made.id); else sheetActs();
+  }).catch(function(){ sheetActs(); });
+}
+function forgeCustomRelic(){
+  tsModal('<h3 class="tsm-title">Forge a relic</h3>'
+    + '<label class="tsm-lbl">Name</label><input class="tsm-inp" id="frName">'
+    + '<label class="tsm-lbl">What it does</label><textarea class="tsm-inp tsm-ta" id="frText"></textarea>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="sheetReopen()">Cancel</button>'
+    + '<button class="tsm-btn" onclick="forgeRelicSave()">Forge</button></div>');
+}
+function forgeRelicSave(){
+  var nm = ((document.getElementById('frName') || {}).value || '').replace(/^\s+|\s+$/g,'');
+  if (!nm) return;
+  var rl = (document.getElementById('frText') || {}).value || '';
+  tsModal('<h3 class="tsm-title">Forging...</h3>');
+  tsAsk('TS_FORGE_ITEM', { item:{ name:nm, rule:rl, source:'mine' } }).then(function(pools){
+    if (pools) FORGE.pools = { infusions:pools.infusions||[], augmentations:pools.augmentations||[], items:pools.items||[] };
+    sheetAddRelic(nm);
+  }).catch(function(){ sheetReopen(); });
+}
+function sheetRelicPick(v){ if (v === '__custom') forgeCustomRelic(); else sheetAddRelic(v); }
+function sheetActPick(tier, v){ if (v === '__custom') forgeCustomAct(tier); else sheetPickAct(tier, v); }
+/* Which adventure a figure belongs to. Untied, it sits on every shelf. */
+function sheetSetCampaignByName(nm){
+  var id = '';
+  (FORGE.campaigns || []).forEach(function(c){ if ((c.title || c.name) === nm) id = c._id || c.id || ''; });
+  sheetSetCampaign(id);
+}
+function sheetSetCampaign(v){
+  var t = curSheet(); if (!t) return;
+  t.obj.campaignId = v || '';
+  var nm = '';
+  (FORGE.campaigns || []).forEach(function(c){ if (sameId(c._id || c.id, v)) nm = c.title || c.name || ''; });
+  t.obj.campaignName = nm;
+  sheetLiveSave(); sheetReopen();
+}
 function partyLevel(){
   var l = (S.scene && S.scene.fell) || [];
   if (!l.length) return 1;
@@ -1697,9 +1784,16 @@ function entrySheet(src, sceneId, kind, id){
     + '<label class="tsm-lbl">Name</label><input class="tsm-inp" id="rsName" value="' + esc(e.name || '') + '">'
     + '<label class="tsm-lbl">Description</label><textarea class="tsm-inp tsm-ta short" id="rsDesc">' + esc(e.desc || '') + '</textarea>';
   if (isFoe){
-    h += '<p class="tsm-note">' + esc(sr) + ' \u00b7 ' + (e.maxVit || foeVitality(sr, apl)) + ' vit</p>'
+    var dmg = foeDamage(e, e.attrs);
+    h += sheetChoice('Campaign', e.campaignId || '', (FORGE.campaigns || []).map(function(c){ return c.title || c.name || ''; }), 'sheetSetCampaignByName', 'Any campaign', '')
+      + '<p class="tsm-note">Tie it to an adventure to keep it off the shelf in your others.</p>'
+      + '<p class="tsm-note">' + esc(sr) + ' \u00b7 ' + (e.maxVit || foeVitality(sr, apl)) + ' vit</p>'
       + '<div class="tsm-lbl">As it stands against this party</div>'
       + '<p class="lc-p">' + esc(attrLine(e.attrs) || 'No attributes set') + '</p>'
+      + '<div class="tsm-lbl">Standard attack</div>'
+      + '<div class="fw-dmg"><span class="fw-dmg-n">' + esc(dmg.text) + '</span><span class="fw-dmg-acc">' + esc(dmg.acc) + ' to hit</span></div>'
+      + '<p class="tsm-note">Base always lands. Bonus meets ' + (dmg.type === 'magic' ? 'Resistance' : 'Durability') + '. Landing it charges the first tier.</p>'
+      + (isTie(e.attrs) ? sheetChoice('On a tie it strikes', e.atkPref || '', ['phys','magic'], 'sheetSetAtkPref', 'Physical', '') : '')
       + '<div class="tsm-lbl">Default rating in scenes</div>'
       + '<select class="tsm-inp" id="rsSR" onchange="sheetSRChange()">'
       + ['Minion','Elite','Champion','Epic','Forsaken'].map(function(x){ return '<option value="' + x + '"' + (sr === x ? ' selected' : '') + '>' + x + '</option>'; }).join('')
@@ -1730,8 +1824,9 @@ function entrySheet(src, sceneId, kind, id){
       }).join('');
     } else h += '<p class="tsm-note">Carries nothing.</p>';
     var relics = poolNames('items').filter(function(x){ return (e.inv || []).indexOf(x) < 0; });
-    h += '<select class="tsm-inp" onchange="sheetAddRelic(this.value)"><option value="">Add a relic</option>'
-      + relics.map(function(x){ return '<option value="' + esc(x) + '">' + esc(x) + '</option>'; }).join('') + '</select>';
+    h += '<select class="tsm-inp" onchange="sheetRelicPick(this.value)"><option value="">Add a relic</option>'
+      + relics.map(function(x){ return '<option value="' + esc(x) + '">' + esc(x) + '</option>'; }).join('')
+      + '<option value="__custom">Forge a custom relic...</option></select>';
     if (!relics.length) h += '<p class="tsm-note">No relics forged yet. RelicForge fills this shelf.</p>';
   } else {
     h += '<label class="tsm-lbl">Inventory</label><textarea class="tsm-inp tsm-ta short" id="rsInv" placeholder="One per line">' + esc((e.inv || []).join('\n')) + '</textarea>';
