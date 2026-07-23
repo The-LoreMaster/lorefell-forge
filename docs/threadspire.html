@@ -296,6 +296,10 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .vcard-corner{ position:absolute; top:8px; right:8px; z-index:2; display:flex; gap:6px; }
 .card-x{ width:28px; height:28px; border-radius:8px; cursor:pointer; background:rgba(10,14,26,.72); border:1px solid var(--line2,#2a3552); color:var(--silver); font-size:.8rem; line-height:1; }
 .card-x:hover{ border-color:var(--danger,#8d3b3b); color:var(--danger,#8d3b3b); }
+.bt-decl{ font-size:.78rem; color:var(--ice,#b8ccd8); }
+.bt-strike{ font-family:Cinzel,serif; font-size:.58rem; letter-spacing:.1em; text-transform:uppercase; color:var(--danger,#8d3b3b); }
+.bt-in{ width:58px; padding:2px 5px; font-size:.72rem; }
+.bt-sel{ width:auto; padding:2px 4px; font-size:.68rem; }
 .bt-live{ margin:6px 0; padding:6px 8px; background:rgba(10,16,32,.45); border:1px solid rgba(201,168,76,.2); border-radius:8px; }
 .bt-row{ display:flex; align-items:center; gap:5px; margin:3px 0; }
 .bt-row.wrap{ flex-wrap:wrap; }
@@ -2605,6 +2609,7 @@ function lmPhaseControls(){
          + '<button class="lmbtn" onclick="lmBeginCombat()">Begin combat</button>';
   if (S.scene.combatPhase === 'commit')
     return '<button class="lmbtn gold" onclick="lmLockActs()">Lock acts into Spotlights</button>'
+         + '<button class="lmbtn" onclick="declaresLoad()">Read declares</button>'
          + '<button class="lmbtn" onclick="lmEndCombat()">End combat</button>';
   return '<button class="lmbtn' + (S.scene.spotMode==='auto'?' gold':'') + '" onclick="lmSpotMode(\'auto\')">Auto</button>'
        + '<button class="lmbtn' + (S.scene.spotMode==='manual'?' gold':'') + '" onclick="lmSpotMode(\'manual\')">Manual</button>'
@@ -2771,6 +2776,7 @@ function fellTabBody(p, tab){
   if (tab === 'about'){
     return '<div class="lmc-sd">Fell \u00b7 Level ' + (p.level||1) + '</div>'
       + '<div class="lmc-vit">' + p.curVit + ' / ' + p.maxVit + chargePips(p, 'fell') + '</div>'
+      + fellDeclareHtml(p)
       + actLine(p, 'fell')
       + (p.react ? '<div class="lmc-reactspent">React \u00b7 ' + esc(p.react) + '</div>'
                  : '<div class="lmc-ropts">Reacts on hand \u00b7 ' + (p.reacts||[]).map(esc).join(' \u00b7 ') + '</div>');
@@ -2849,6 +2855,90 @@ function foeAffDrop(id, name){
   var f = foeById(id); if (!f) return;
   f.affs = (f.affs || []).filter(function(x){ return x !== name; });
   combatPublish(); applyRemoteState({ scene:S.scene }); paintLmStrip();
+}
+/* A Fell's declare as it came off their sheet, and the LoreMaster's answer to it. */
+function fellDeclareHtml(p){
+  if (!inBattle()) return '';
+  var dcl = declareFor(p.charId || p.id);
+  var h = '<div class="bt-live">';
+  if (dcl && (dcl.act || dcl.roll)){
+    var tgt = '';
+    ((S.scene && S.scene.foes) || []).forEach(function(f){ if (sameId(f.id, dcl.target) || f.name === dcl.target) tgt = f.name; });
+    h += '<div class="bt-row wrap"><span class="bt-lbl">Declared</span>'
+      + '<span class="bt-decl">' + esc(dcl.act || 'an act') + (tgt ? ' on ' + esc(tgt) : '') + '</span></div>';
+    if (dcl.roll) h += '<div class="bt-row"><span class="bt-lbl">Rolled</span><span class="bt-n">' + dcl.roll + (dcl.acc ? ' vs ' + dcl.acc : '') + '</span>'
+      + (dcl.fellstrike ? '<span class="bt-strike">Fellstrike</span>' : '') + '</div>';
+    if (dcl.dmg) h += '<div class="bt-row"><span class="bt-lbl">Damage</span><span class="bt-n">' + (dcl.base || 0) + ' + ' + Math.max(0, (dcl.dmg || 0) - (dcl.base || 0)) + '</span>'
+      + '<button class="bt-b" onclick="resolveOnFoe(\'' + esc(p.charId || p.id) + '\')">Land it</button></div>';
+  } else {
+    h += '<div class="bt-row"><span class="bt-lbl">Declared</span><span class="tsm-note">Nothing yet.</span></div>';
+  }
+  h += '<div class="bt-row"><span class="bt-lbl">Strike</span>'
+    + '<input class="tsm-inp bt-in" id="dmgB_' + esc(p.charId || p.id) + '" type="number" placeholder="base" value="">'
+    + '<input class="tsm-inp bt-in" id="dmgN_' + esc(p.charId || p.id) + '" type="number" placeholder="bonus" value="">'
+    + '<select class="tsm-inp bt-sel" id="dmgT_' + esc(p.charId || p.id) + '"><option value="phys">physical</option><option value="magic">magical</option></select>'
+    + '<button class="bt-b" onclick="strikeFell(\'' + esc(p.charId || p.id) + '\')">Send</button></div>'
+  + '<div class="bt-row"><span class="bt-lbl">Charges</span>'
+    + [0,1,2,3].map(function(n){ return '<button class="bt-pip' + ((p.charge || 0) >= n && n > 0 ? ' on' : '') + '" onclick="chargeFell(\'' + esc(p.charId || p.id) + '\',' + n + ')">' + (n === 0 ? '\u2013' : n) + '</button>'; }).join('')
+    + '</div>'
+  + '<div class="bt-row wrap"><span class="bt-lbl">Upon them</span>'
+    + ((p.affs || []).map(function(a){ return '<span class="chip on">' + esc(a) + '</span>'; }).join('') || '<span class="tsm-note">Nothing.</span>')
+    + '<button class="bt-b" onclick="affFell(\'' + esc(p.charId || p.id) + '\')">Apply</button></div>'
+  + '</div>';
+  return h;
+}
+function fellByCharId(id){
+  var hit = null;
+  ((S.scene && S.scene.fell) || []).forEach(function(p){ if (sameId(p.charId, id) || sameId(p.id, id)) hit = p; });
+  return hit;
+}
+/* the Fell's declared damage, landed on the foe they aimed at */
+function resolveOnFoe(charId){
+  var dcl = declareFor(charId); if (!dcl) return;
+  var p = fellByCharId(charId);
+  var f = null;
+  ((S.scene && S.scene.foes) || []).forEach(function(x){ if (sameId(x.id, dcl.target) || x.name === dcl.target) f = x; });
+  if (!f){ pushLog({ kind:'sys', html:'No foe named on that declare.' }); applyRemoteState({ log:S.log }); return; }
+  var total = Math.max(0, dcl.dmg || 0);
+  f.curVit = Math.max(0, (f.curVit || 0) - total);
+  pushLog({ kind:'sys', html:'<b>' + esc((p && p.name) || 'A Fell') + '</b> lands ' + total + ' on <b>' + esc(f.name) + '</b>, now ' + f.curVit + '/' + f.maxVit + '.' });
+  combatPublish(); applyRemoteState({ scene:S.scene, log:S.log }); paintLmStrip(); paintHud();
+}
+function strikeFell(charId){
+  var b = Number((document.getElementById('dmgB_' + charId) || {}).value) || 0;
+  var n = Number((document.getElementById('dmgN_' + charId) || {}).value) || 0;
+  var t = (document.getElementById('dmgT_' + charId) || {}).value || 'phys';
+  if (!b && !n) return;
+  lmDealDamage(charId, b, n, t);
+  var p = fellByCharId(charId);
+  pushLog({ kind:'sys', html:'<b>' + esc((p && p.name) || 'A Fell') + '</b> is struck for ' + b + ' + ' + n + '.' });
+  applyRemoteState({ log:S.log });
+  ['dmgB_','dmgN_'].forEach(function(k){ var e = document.getElementById(k + charId); if (e) e.value = ''; });
+}
+function chargeFell(charId, v){
+  var p = fellByCharId(charId); if (p) p.charge = v;
+  lmSetCharge(charId, v);
+  applyRemoteState({ scene:S.scene }); paintLmStrip();
+}
+function affFell(charId){
+  var p = fellByCharId(charId); if (!p) return;
+  var opts = TS_EFFECTS.filter(function(e){ return (p.affs || []).indexOf(e) < 0; });
+  window._affFell = charId;
+  tsModal('<h3 class="tsm-title">What takes hold</h3>'
+    + '<select class="tsm-inp" id="afPick">' + opts.map(function(e){ return '<option value="' + esc(e) + '">' + esc(e) + '</option>'; }).join('') + '</select>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button>'
+    + '<button class="tsm-btn" onclick="affFellSave()">Apply</button></div>');
+}
+function affFellSave(){
+  var charId = window._affFell; var p = fellByCharId(charId); if (!p){ tsCloseModal(); return; }
+  var v = (document.getElementById('afPick') || {}).value;
+  if (v){
+    p.affs = p.affs || [];
+    if (p.affs.indexOf(v) < 0) p.affs.push(v);
+    lmApplyEffects(charId, p.affs, { msg:v + ' takes hold.', at:Date.now() });
+    pushLog({ kind:'sys', html:esc(v) + ' takes hold of <b>' + esc(p.name) + '</b>.' });
+  }
+  tsCloseModal(); applyRemoteState({ scene:S.scene, log:S.log }); paintLmStrip();
 }
 function foeLiveHtml(f){
   if (!inBattle()) return '';
@@ -4112,11 +4202,11 @@ function lmMapFilePicked(input){
   img.src = url;
   input.value = '';
 }
-function lmBeginCombat(){ S.scene.combatPhase = 'commit'; applyRemoteState({ mode:'combat', scene:S.scene }); }
-function lmEndCombat(){ S.scene.combatPhase = null; S.scene.foes.concat(S.scene.fell).forEach(function(c){ c.act=''; c.locked=false; c.spot=null; }); applyRemoteState({ mode:'explore', scene:S.scene }); }
+function lmBeginCombat(){ S.scene.combatPhase = 'commit'; applyRemoteState({ mode:'combat', scene:S.scene }); combatPublish(); declaresLoad(); }
+function lmEndCombat(){ S.declares = null; S.scene.combatPhase = null; S.scene.foes.concat(S.scene.fell).forEach(function(c){ c.act=''; c.locked=false; c.spot=null; }); applyRemoteState({ mode:'explore', scene:S.scene });  combatPublish(); }
 function lmLockActs(){ S.scene.combatPhase = 'resolve'; S.scene.foes.concat(S.scene.fell).forEach(function(c){ if(c.act) c.locked = true; }); applyRemoteState({ scene:S.scene }); }
 function lmUnlock(){ S.scene.combatPhase = 'commit'; S.scene.foes.concat(S.scene.fell).forEach(function(c){ c.locked=false; c.spot=null; }); applyRemoteState({ scene:S.scene }); }
-function lmNextRound(){ S.scene.combatPhase = 'commit'; S.scene.foes.concat(S.scene.fell).forEach(function(c){ c.act=''; c.locked=false; c.spot=null; c._roll=null; }); applyRemoteState({ round:S.round+1, scene:S.scene }); }
+function lmNextRound(){ setTimeout(function(){ S.declares = null; combatPublish(); declaresLoad(); }, 60); S.scene.combatPhase = 'commit'; S.scene.foes.concat(S.scene.fell).forEach(function(c){ c.act=''; c.locked=false; c.spot=null; c._roll=null; }); applyRemoteState({ round:S.round+1, scene:S.scene }); }
 function lmResolveSpot(id){ var c = findC(id); if(c){ c.spot = c.spot === 'done' ? null : 'done'; applyRemoteState({ scene:S.scene }); } }
 function lmSpotMode(m){ S.scene.spotMode = m; S.scene.spotOrder = []; applyRemoteState({ scene:S.scene }); }
 function lmToggleManual(key){ S.scene.manual[key] = !S.scene.manual[key]; S.scene.spotOrder = []; applyRemoteState({ scene:S.scene }); }
