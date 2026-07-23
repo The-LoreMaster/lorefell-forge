@@ -1,3 +1,7 @@
+## ThreadSpire: a quest beat posts from the runner
+
+- A quest written into a scene stays prep until it is offered. Running that beat gives the LoreMaster a press to post it, which puts it on the board the players read and marks the beat as posted so it cannot go up twice. Taking the quest down again releases the beat, so it can be offered later.
+
 ## ThreadSpire: a foe's kit derives again, and the catalogue appears
 
 - Attributes and vitality derive from a foe's build and rating against the party it faces, rather than sitting at zero, and there is a press on the card to derive them. Infusions and augmentations now offer the whole canon catalogue with anything forged since, because the foe pack was only handing over three of its kinds and keeping the rest, including the rating offsets the derivation reads. Numbers on the sheet gained plus and minus alongside the field. A quest now leaves the window the moment it is taken down.
