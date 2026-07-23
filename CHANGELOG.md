@@ -1,3 +1,7 @@
+## ThreadSpire: beats match the FateWell editor
+
+- Beats now carry what FateWell gives them. A dialogue beat picks its speaker from the cast at the table, and that speaker's portrait, colour, and stats attach to the beat wherever it appears; running the beat also swaps the LoreMaster's identity portrait and name to whoever is talking. Clue beats carry a handle, the short tag a Lore Check references to reveal them. Any beat can carry an image. All of it shows in the scene runner.
+
 ## ThreadSpire: beat speakers and reordering
 
 - A dialogue beat can now name its speaker. The field appears when you pick Dialogue and suggests the foes and library figures already at the table, and the speaker shows on the beat card and in the scene runner. Beats can also be moved up and down within their scene, so the order you run them in is the order you set.

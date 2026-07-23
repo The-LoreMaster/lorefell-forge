@@ -269,6 +269,13 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .tsm-btn.danger{ background:var(--danger,#8d3b3b); border-color:var(--danger,#8d3b3b); color:#fff; }
 .stb-card{ display:flex; align-items:center; gap:7px; margin:4px 0; padding:5px 8px; border-left:3px solid var(--gold); border-radius:0 6px 6px 0; background:rgba(10,16,32,.34); cursor:pointer; }
 .stb-card:hover{ background:rgba(20,30,54,.5); }
+.dlg-head{ display:flex; align-items:center; gap:6px; margin:4px 0 2px; font-family:Cinzel,serif; font-size:.72rem; letter-spacing:.06em; }
+.dlg-av{ width:22px; height:22px; border-radius:50%; object-fit:cover; flex:none; }
+.dlg-ph{ display:inline-block; opacity:.7; }
+.dlg-stat{ font-family:'Crimson Pro',serif; font-size:.66rem; letter-spacing:0; color:var(--muted,#7e8a99); }
+.lmc-img{ width:100%; border-radius:6px; margin:6px 0; }
+.bt-handle{ font-style:normal; font-family:'Crimson Pro',serif; font-size:.62rem; color:var(--gold); }
+.tsm-note{ margin:4px 0 0; font-size:.66rem; color:var(--muted,#7e8a99); }
 .stb-main{ display:flex; align-items:center; gap:7px; flex:1; min-width:0; cursor:pointer; }
 .stb-ord{ display:flex; flex-direction:column; gap:0; flex:none; }
 .stb-ord .st-b{ line-height:.8; padding:0 2px; font-size:.66rem; }
@@ -981,7 +988,9 @@ function storyBeatsHtml(sc){
     h += '<div class="stb-card" style="border-left-color:' + m[1] + '">'
       + '<span class="stb-main" onclick="storyBeatOpen(\'' + sc.id + '\',' + i + ')">'
       + '<span class="stb-tag" style="color:' + m[1] + '">' + m[0] + '</span>'
-      + '<span class="stb-title">' + esc(b.title || 'Beat') + (b.speaker ? ' <em class="stb-spk">' + esc(b.speaker) + '</em>' : '') + '</span></span>'
+      + '<span class="stb-title">' + esc(b.title || 'Beat')
+      + (function(){ var s = beatSpeaker(b); return s ? ' <em class="stb-spk" style="color:' + s.color + '">' + esc(s.name) + '</em>' : ''; })()
+      + (b.handle ? ' <em class="bt-handle">#' + esc(b.handle) + '</em>' : '') + '</span></span>'
       + '<span class="stb-ord">'
       + '<button class="st-b" onclick="storyBeatMove(\'' + sc.id + '\',' + i + ',-1)"' + (i === 0 ? ' disabled' : '') + ' title="Move up">\u25b4</button>'
       + '<button class="st-b" onclick="storyBeatMove(\'' + sc.id + '\',' + i + ',1)"' + (i === n - 1 ? ' disabled' : '') + ' title="Move down">\u25be</button>'
@@ -1002,7 +1011,7 @@ function storyBeatAdd(sceneId){ tsBeatModal(sceneId, -1); }
 function storyBeatOpen(sceneId, idx){ tsBeatModal(sceneId, idx); }
 function tsBeatModal(sceneId, idx){
   var f = storyFind('scene', sceneId); if (!f) return;
-  var b = idx >= 0 ? (f.scene.beats || [])[idx] : { kind:'general', title:'', body:'' };
+  var b = idx >= 0 ? (f.scene.beats || [])[idx] : { kind:'readaloud', title:'', body:'', speaker:'', handle:'', img:'' };
   if (!b) return;
   window._beatCtx = { sceneId:sceneId, idx:idx };
   var opts = '';
@@ -1013,10 +1022,15 @@ function tsBeatModal(sceneId, idx){
     + '<label class="tsm-lbl">Type</label><select class="tsm-inp" id="tsmKind" onchange="tsBeatKindChange()">' + opts + '</select>'
     + '<div id="tsmSpkRow"' + (b.kind === 'dialogue' ? '' : ' style="display:none"') + '>'
     + '<label class="tsm-lbl">Speaker</label>'
-    + '<input class="tsm-inp" id="tsmSpk" list="tsmSpkList" value="' + esc(b.speaker || '') + '" placeholder="Who is speaking">'
-    + '<datalist id="tsmSpkList">' + tsSpeakerOpts() + '</datalist></div>'
+    + '<select class="tsm-inp" id="tsmSpk"><option value="">No speaker</option>' + tsSpeakerOpts(b.speaker) + '</select>'
+    + '<p class="tsm-note">Their portrait and colour attach to the beat.</p></div>'
+    + '<div id="tsmHandleRow"' + (b.kind === 'clue' ? '' : ' style="display:none"') + '>'
+    + '<label class="tsm-lbl">Clue handle</label>'
+    + '<input class="tsm-inp" id="tsmHandle" value="' + esc(b.handle || '') + '" placeholder="torn-page">'
+    + '<p class="tsm-note">A short tag. Reference it from a Lore Check as #torn-page to reveal it.</p></div>'
     + '<label class="tsm-lbl">Title</label><input class="tsm-inp" id="tsmName" value="' + esc(b.title || '') + '">'
     + '<label class="tsm-lbl">Body</label><textarea class="tsm-inp tsm-ta" id="tsmBody">' + esc(b.body || '') + '</textarea>'
+    + '<label class="tsm-lbl">Image (optional)</label><input class="tsm-inp" id="tsmImg" value="' + esc(b.img || '') + '" placeholder="Image URL">'
     + '<div class="tsm-row">' + (idx >= 0 ? '<button class="tsm-btn danger" onclick="tsBeatDelete()">Delete</button>' : '')
     + '<button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button>'
     + '<button class="tsm-btn" onclick="tsBeatSave()">Save</button></div>');
@@ -1024,14 +1038,13 @@ function tsBeatModal(sceneId, idx){
 }
 function tsBeatKindChange(){
   var k = (document.getElementById('tsmKind') || {}).value;
-  var row = document.getElementById('tsmSpkRow');
-  if (row) row.style.display = (k === 'dialogue') ? '' : 'none';
+  var sr = document.getElementById('tsmSpkRow'); if (sr) sr.style.display = (k === 'dialogue') ? '' : 'none';
+  var hr = document.getElementById('tsmHandleRow'); if (hr) hr.style.display = (k === 'clue') ? '' : 'none';
 }
-function tsSpeakerOpts(){
-  var seen = {}, out = '';
-  ((S.scene && S.scene.foes) || []).forEach(function(f){ if (f.name && !seen[f.name]){ seen[f.name] = 1; out += '<option value="' + esc(f.name) + '">'; } });
-  ((S.library || [])).forEach(function(e){ if (e && e.name && !seen[e.name] && (e.type === 'npc' || e.type === 'monster')){ seen[e.name] = 1; out += '<option value="' + esc(e.name) + '">'; } });
-  return out;
+function tsSpeakerOpts(sel){
+  return castList().map(function(c){
+    return '<option value="' + esc(c.id) + '"' + (c.id === sel ? ' selected' : '') + '>' + esc(c.name) + '</option>';
+  }).join('');
 }
 function tsBeatSave(){
   var c = window._beatCtx; if (!c) return;
@@ -1039,10 +1052,12 @@ function tsBeatSave(){
   var kind = (document.getElementById('tsmKind') || {}).value || 'general';
   var title = ((document.getElementById('tsmName') || {}).value || '').replace(/^\s+|\s+$/g,'');
   var body = (document.getElementById('tsmBody') || {}).value || '';
-  var spk = (kind === 'dialogue') ? (((document.getElementById('tsmSpk') || {}).value) || '').replace(/^\s+|\s+$/g,'') : '';
+  var spk = (kind === 'dialogue') ? (((document.getElementById('tsmSpk') || {}).value) || '') : '';
+  var handle = (kind === 'clue') ? (((document.getElementById('tsmHandle') || {}).value) || '').replace(/^\s+|\s+$/g,'') : '';
+  var img = ((document.getElementById('tsmImg') || {}).value) || '';
   f.scene.beats = f.scene.beats || [];
-  if (c.idx >= 0){ var b = f.scene.beats[c.idx]; if (b){ b.kind = kind; b.title = title; b.body = body; b.speaker = spk; } }
-  else f.scene.beats.push({ id:mkId(), kind:kind, title:title, body:body, speaker:spk });
+  if (c.idx >= 0){ var b = f.scene.beats[c.idx]; if (b){ b.kind = kind; b.title = title; b.body = body; b.speaker = spk; b.handle = handle; b.img = img; } }
+  else f.scene.beats.push({ id:mkId(), kind:kind, title:title, body:body, speaker:spk, handle:handle, img:img, pinned:false, open:false });
   tsCloseModal(); storySave(); refreshWinBody();
   if (typeof paintLmStrip === 'function' && isLM()) paintLmStrip();
 }
@@ -1203,6 +1218,40 @@ var BEAT_TYPES = {
   read:['Read-aloud','#6fc7c0'], check:['Lore Check','#9aa8e0'], choice:['Beat','#b18fd0']
 };
 function beatMeta(kind){ return BEAT_TYPES[kind] || ['Note','#8fa0b3']; }
+var SPEAKER_COLORS = ['#7fb3d5','#86c79b','#b18fd0','#e0a86b','#d98a8a','#6fc7c0','#c9b06a','#9aa8e0','#d49ac0','#8fc16a'];
+function speakerColor(name){
+  var key = String(name || '').toLowerCase().replace(/\s+\d+$/,'').replace(/^\s+|\s+$/g,'');
+  var h = 0;
+  for (var i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+  return SPEAKER_COLORS[h % SPEAKER_COLORS.length];
+}
+/* everyone at the table who can speak: the scene's NPCs and foes */
+function castList(){
+  var sc = S.scene || {}, out = [];
+  (sc.npcs || []).forEach(function(n){ out.push({ id:n.id, name:n.name, img:n.img || n.portrait || '', kind:'npc', ref:n }); });
+  (sc.foes || []).forEach(function(f){ out.push({ id:f.id, name:f.name, img:f.img || f.portrait || '', kind:'foe', ref:f }); });
+  return out;
+}
+function castGet(id){
+  if (!id) return null;
+  var l = castList();
+  for (var i = 0; i < l.length; i++) if (l[i].id === id || l[i].name === id) return l[i];
+  return null;
+}
+/* a beat's speaker, resolved to name, colour, portrait and any stats it carries */
+function beatSpeaker(b){
+  if (!b || b.kind !== 'dialogue' || !b.speaker) return null;
+  var c = castGet(b.speaker);
+  var name = c ? c.name : b.speaker;
+  return { name:name, color:speakerColor(name), img:(c && c.img) || '', ref:(c && c.ref) || null, kind:(c && c.kind) || '' };
+}
+function speakerHead(sp){
+  if (!sp) return '';
+  var av = sp.img ? '<img class="dlg-av" src="' + esc(sp.img) + '" alt="">' : '<span class="dlg-av dlg-ph" style="background:' + sp.color + '"></span>';
+  var stat = '';
+  if (sp.ref && sp.ref.curVit !== undefined) stat = '<span class="dlg-stat">' + sp.ref.curVit + '/' + sp.ref.maxVit + (sp.ref.sr ? ' \u00b7 ' + esc(sp.ref.sr) : '') + '</span>';
+  return '<div class="dlg-head" style="color:' + sp.color + '">' + av + '<b>' + esc(sp.name) + '</b>' + stat + '</div>';
+}
 function notesBody(){
   var h = '<div class="win-note">The adventure\u2019s notes: its scenes and their beats. FateWell edits them.</div>';
   h += '<div class="nb-scene">' + esc(S.scene.name) + '</div>';
@@ -1744,9 +1793,13 @@ function lmPhaseControls(){
 
 function beatCard(b){
   var _m = beatMeta(b.kind);
+  var sp = beatSpeaker(b);
+  if (sp && typeof lmSetSpeaker === 'function' && isLM()) lmSetSpeaker(sp.name, sp.img);
   return '<div class="lmcard beat ' + b.kind + '">'
-    + '<div class="lmc-tag" style="color:' + _m[1] + '">' + _m[0] + '</div>'
+    + '<div class="lmc-tag" style="color:' + _m[1] + '">' + _m[0] + (b.handle ? ' <span class="bt-handle">#' + esc(b.handle) + '</span>' : '') + '</div>'
+    + speakerHead(sp)
     + '<div class="lmc-title">' + esc(b.title) + '</div>'
+    + (b.img ? '<img class="lmc-img" src="' + esc(b.img) + '" alt="">' : '')
     + '<div class="lmc-body">' + esc(b.body) + '</div></div>';
 }
 
