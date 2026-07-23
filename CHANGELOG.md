@@ -1,3 +1,7 @@
+## Canon: the foe pack is generated, not kept by hand
+
+- The foe pack lived in three places at once and had drifted apart: the pack's own copies of the infusion and augmentation text had fallen behind the collections that own them, and the two tools spelled the same field differently from canon. It is now baked into both tools from the seeds by the generator, taking each part from whatever collection owns it. The bake reproduces what was already live exactly, so nothing at the table changes; what changes is that the next edit lands everywhere at once.
+
 ## ThreadSpire: the rules show on infusions and augmentations
 
 - What an infusion or augmentation does now reads under it. The text was in the collections all along, recorded as the effect, while the tool was only looking for a rule. It now takes either, so anything the forges write shows wherever the pick appears.
