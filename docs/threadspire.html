@@ -269,6 +269,15 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .tsm-btn.danger{ background:var(--danger,#8d3b3b); border-color:var(--danger,#8d3b3b); color:#fff; }
 .stb-card{ display:flex; align-items:center; gap:7px; margin:4px 0; padding:5px 8px; border-left:3px solid var(--gold); border-radius:0 6px 6px 0; background:rgba(10,16,32,.34); cursor:pointer; }
 .stb-card:hover{ background:rgba(20,30,54,.5); }
+.st-sub{ font-family:Cinzel,serif; font-size:.62rem; letter-spacing:.14em; text-transform:uppercase; color:var(--muted,#7e8a99); margin:8px 0 4px; }
+.rs-row{ display:flex; align-items:center; gap:6px; padding:3px 2px; }
+.rs-row.out .rs-name{ opacity:.45; text-decoration:line-through; }
+.rs-name{ flex:1; font-size:.8rem; color:var(--silver); }
+.rs-kind{ font-family:Cinzel,serif; font-size:.56rem; letter-spacing:.1em; color:var(--muted,#7e8a99); }
+.rs-pill{ background:transparent; border:1px solid var(--line2,#2a3552); border-radius:10px; color:var(--ice,#b8ccd8); font:inherit; font-size:.64rem; padding:1px 9px; cursor:pointer; }
+.rs-row.out .rs-pill{ border-color:var(--danger,#8d3b3b); color:var(--danger,#8d3b3b); }
+.rs-adds{ display:flex; gap:6px; }
+.rs-adds .st-add{ flex:1; text-align:center; }
 .dlg-head{ display:flex; align-items:center; gap:6px; margin:4px 0 2px; font-family:Cinzel,serif; font-size:.72rem; letter-spacing:.06em; }
 .dlg-av{ width:22px; height:22px; border-radius:50%; object-fit:cover; flex:none; }
 .dlg-ph{ display:inline-block; opacity:.7; }
@@ -989,7 +998,7 @@ function storyBeatsHtml(sc){
       + '<span class="stb-main" onclick="storyBeatOpen(\'' + sc.id + '\',' + i + ')">'
       + '<span class="stb-tag" style="color:' + m[1] + '">' + m[0] + '</span>'
       + '<span class="stb-title">' + esc(b.title || 'Beat')
-      + (function(){ var s = beatSpeaker(b); return s ? ' <em class="stb-spk" style="color:' + s.color + '">' + esc(s.name) + '</em>' : ''; })()
+      + (function(){ var s = beatSpeaker(b, sc); return s ? ' <em class="stb-spk" style="color:' + s.color + '">' + esc(s.name) + '</em>' : ''; })()
       + (b.handle ? ' <em class="bt-handle">#' + esc(b.handle) + '</em>' : '') + '</span></span>'
       + '<span class="stb-ord">'
       + '<button class="st-b" onclick="storyBeatMove(\'' + sc.id + '\',' + i + ',-1)"' + (i === 0 ? ' disabled' : '') + ' title="Move up">\u25b4</button>'
@@ -1022,7 +1031,7 @@ function tsBeatModal(sceneId, idx){
     + '<label class="tsm-lbl">Type</label><select class="tsm-inp" id="tsmKind" onchange="tsBeatKindChange()">' + opts + '</select>'
     + '<div id="tsmSpkRow"' + (b.kind === 'dialogue' ? '' : ' style="display:none"') + '>'
     + '<label class="tsm-lbl">Speaker</label>'
-    + '<select class="tsm-inp" id="tsmSpk"><option value="">No speaker</option>' + tsSpeakerOpts(b.speaker) + '</select>'
+    + '<select class="tsm-inp" id="tsmSpk"><option value="">No speaker</option>' + tsSpeakerOpts(b.speaker, f.scene) + '</select>'
     + '<p class="tsm-note">Their portrait and colour attach to the beat.</p></div>'
     + '<div id="tsmHandleRow"' + (b.kind === 'clue' ? '' : ' style="display:none"') + '>'
     + '<label class="tsm-lbl">Clue handle</label>'
@@ -1041,8 +1050,8 @@ function tsBeatKindChange(){
   var sr = document.getElementById('tsmSpkRow'); if (sr) sr.style.display = (k === 'dialogue') ? '' : 'none';
   var hr = document.getElementById('tsmHandleRow'); if (hr) hr.style.display = (k === 'clue') ? '' : 'none';
 }
-function tsSpeakerOpts(sel){
-  return castList().map(function(c){
+function tsSpeakerOpts(sel, sc){
+  return castList(sc).map(function(c){
     return '<option value="' + esc(c.id) + '"' + (c.id === sel ? ' selected' : '') + '>' + esc(c.name) + '</option>';
   }).join('');
 }
@@ -1097,6 +1106,7 @@ function storyBody(){
            + '<button class="st-b" onclick="storyDelete(\'scene\',\'' + sc.id + '\')" title="Delete">\u2715</button></div>';
         if (!co) return;
         h += '<div class="st-kids">';
+        h += storyRosterHtml(sc);
         h += storyBeatsHtml(sc);
         h += '</div>';
       });
@@ -1226,22 +1236,72 @@ function speakerColor(name){
   return SPEAKER_COLORS[h % SPEAKER_COLORS.length];
 }
 /* everyone at the table who can speak: the scene's NPCs and foes */
-function castList(){
-  var sc = S.scene || {}, out = [];
+function castList(sc){
+  sc = sc || S.scene || {};
+  var out = [];
   (sc.npcs || []).forEach(function(n){ out.push({ id:n.id, name:n.name, img:n.img || n.portrait || '', kind:'npc', ref:n }); });
   (sc.foes || []).forEach(function(f){ out.push({ id:f.id, name:f.name, img:f.img || f.portrait || '', kind:'foe', ref:f }); });
   return out;
 }
-function castGet(id){
+/* the players at this scene. Everyone is in unless the LoreMaster marks them out. */
+function scenePlayers(sc){
+  sc = sc || S.scene || {};
+  var roster = (sc.fell && sc.fell.length) ? sc.fell : ((S.scene && S.scene.fell) || []);
+  return roster.map(function(p){ return { id:p.id, name:p.name, level:p.level, out:!!(sc.out && sc.out[p.id]), ref:p }; });
+}
+function togglePlayerOut(sceneId, pid){
+  var f = storyFind('scene', sceneId); if (!f) return;
+  f.scene.out = f.scene.out || {};
+  if (f.scene.out[pid]) delete f.scene.out[pid]; else f.scene.out[pid] = true;
+  storySave(); refreshWinBody(); render();
+}
+function rosterAdd(sceneId, kind){
+  var f = storyFind('scene', sceneId); if (!f) return;
+  tsAsk2({ title: kind === 'npc' ? 'Add an NPC' : 'Add a foe', label:'Name', cta:'Add', onSave:function(n){
+    if (!n) return;
+    if (kind === 'npc'){
+      f.scene.npcs = f.scene.npcs || [];
+      f.scene.npcs.push({ id:mkId(), name:n, img:'' });
+    } else {
+      f.scene.foes = f.scene.foes || [];
+      f.scene.foes.push({ id:mkId(), name:n, sr:'', side:'foe', curVit:0, maxVit:0, charge:0, img:'' });
+    }
+    storySave(); refreshWinBody(); render();
+  }});
+}
+function rosterRemove(sceneId, kind, id){
+  var f = storyFind('scene', sceneId); if (!f) return;
+  var key = kind === 'npc' ? 'npcs' : 'foes';
+  f.scene[key] = (f.scene[key] || []).filter(function(x){ return x.id !== id; });
+  storySave(); refreshWinBody(); render();
+}
+function storyRosterHtml(sc){
+  var h = '<div class="st-sub">Roster</div>';
+  scenePlayers(sc).forEach(function(p){
+    h += '<div class="rs-row' + (p.out ? ' out' : '') + '">'
+      + '<span class="rs-name">' + esc(p.name || 'Fell') + '</span>'
+      + '<button class="rs-pill" onclick="togglePlayerOut(\'' + sc.id + '\',\'' + p.id + '\')">' + (p.out ? 'Out' : 'In') + '</button></div>';
+  });
+  castList(sc).forEach(function(c){
+    h += '<div class="rs-row"><span class="rs-name">' + esc(c.name) + '</span>'
+      + '<span class="rs-kind">' + (c.kind === 'npc' ? 'NPC' : 'Foe') + '</span>'
+      + '<button class="st-b" onclick="rosterRemove(\'' + sc.id + '\',\'' + c.kind + '\',\'' + c.id + '\')" title="Remove">\u2715</button></div>';
+  });
+  h += '<div class="rs-adds"><button class="st-add" onclick="rosterAdd(\'' + sc.id + '\',\'npc\')">Add an NPC</button>'
+    + '<button class="st-add" onclick="rosterAdd(\'' + sc.id + '\',\'foe\')">Add a foe</button></div>'
+    + '<div class="st-sub">Beats</div>';
+  return h;
+}
+function castGet(id, sc){
   if (!id) return null;
-  var l = castList();
+  var l = castList(sc);
   for (var i = 0; i < l.length; i++) if (l[i].id === id || l[i].name === id) return l[i];
   return null;
 }
 /* a beat's speaker, resolved to name, colour, portrait and any stats it carries */
-function beatSpeaker(b){
+function beatSpeaker(b, sc){
   if (!b || b.kind !== 'dialogue' || !b.speaker) return null;
-  var c = castGet(b.speaker);
+  var c = castGet(b.speaker, sc);
   var name = c ? c.name : b.speaker;
   return { name:name, color:speakerColor(name), img:(c && c.img) || '', ref:(c && c.ref) || null, kind:(c && c.kind) || '' };
 }
