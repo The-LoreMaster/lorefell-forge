@@ -1643,10 +1643,26 @@ function deriveKit(foe, sr){
 function applyKit(){
   var t = curSheet(); if (!t) return;
   var e = t.obj;
-  var kit = deriveKit(e, e.sr || 'Elite');
+  var sr = (document.getElementById('rsSR') || {}).value || e.sr || 'Elite';
+  var why = kitBlocker(e, sr);
+  if (why){ tsModal('<h3 class="tsm-title">Cannot derive yet</h3><p class="lc-p">' + esc(why) + '</p>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="sheetReopen()">Back</button></div>'); return; }
+  e.sr = sr;
+  var kit = deriveKit(e, sr);
   e.attrs = kit.attrs; e.maxVit = kit.maxVit;
   if (e.curVit === undefined || e.curVit > e.maxVit) e.curVit = e.maxVit;
   sheetLiveSave(); sheetReopen();
+}
+/* Why a kit will not derive, in the words of what is missing. */
+function kitBlocker(foe, sr){
+  if (!(FORGE.pack.tiers || []).length)
+    return 'The foe pack has no ratings loaded, so there is nothing to scale by. The ratings live in the CanonFoePack collection as a tiers row.';
+  if (!(FORGE.pack.builds || []).length)
+    return 'The foe pack has no builds loaded, so there is nothing to say which attributes this foe leans on.';
+  var b = foeBuild(foe.build || ((FORGE.pack.builds[0] || {}).name));
+  if (!b) return 'Give this foe a build first. The build decides which attributes it carries.';
+  if (!foeTier(sr)) return 'The pack has no rating called ' + sr + '.';
+  return '';
 }
 /* the catalogue a foe picks from: canon first, then anything forged since */
 function infusionNames(){
@@ -1687,7 +1703,14 @@ function forgeInfo(name, bucket){
     + '<p class="lc-p">' + esc(forgeTip(name, bucket) || 'No description recorded for this yet.') + '</p>'
     + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="sheetReopen()">Back</button></div>');
 }
-function sheetReopen(){ var s = window._sheet; if (s) entrySheet(s.src, s.sceneId, s.kind, s.id); else tsCloseModal(); }
+function sheetScroll(){ var e = document.querySelector('#tsModal .rs-edit'); return e ? e.scrollTop : 0; }
+function sheetReopen(){
+  var s = window._sheet, y = sheetScroll();
+  if (!s){ tsCloseModal(); return; }
+  entrySheet(s.src, s.sceneId, s.kind, s.id);
+  var e = document.querySelector('#tsModal .rs-edit');
+  if (e && y) e.scrollTop = y;
+}
 function sheetChips(bucket, chosen, fn){
   var on = chosen || [];
   var names = bucket === 'infusions' ? infusionNames() : augmentNames();
@@ -3676,6 +3699,7 @@ window.onmessage = function(ev){
     if (d.role === 'lm' || d.role === 'player'){
       S.role = d.role; S.roleReady = true; document.body.classList.remove('roleboot');
       if (d.role === 'lm' && typeof libLoad === 'function') libLoad();
+      if (d.role === 'lm' && typeof forgeLoad === 'function') forgeLoad();
       if (d.role === 'lm' && lmBackend.getPortrait){
         lmBackend.getPortrait().then(function(p){ if (p){ S.lm = S.lm || {}; S.lm.portrait = p; paintHud(); } }).catch(function(){});
       }
@@ -3957,14 +3981,16 @@ function lmFellBody(){
 }
 /* A quest is raised in a scene and posted to the board the players read. */
 function sceneQuests(sc){ return (sc.quests || []); }
+/* A quest is written into the scene as a beat. It reaches the board only when the
+   LoreMaster offers it, from the runner. */
 function questAdd(sceneId){
   var f = storyFind('scene', sceneId); if (!f) return;
-  tsAsk2({ title:'Post a quest', label:'Title', body:'', cta:'Post', onSave:function(t, b){
+  tsAsk2({ title:'Write a quest', label:'Title', body:'', cta:'Write', onSave:function(t, b){
     if (!t) return;
-    f.scene.quests = f.scene.quests || [];
-    var q = { entryId:mkId(), title:t, body:b || '', status:'open' };
-    f.scene.quests.push(q);
-    questPush(q); storySave(); questRefresh();
+    f.scene.beats = f.scene.beats || [];
+    f.scene.beats.push({ id:mkId(), kind:'quest', title:t, body:b || '', speaker:'', handle:'', img:'', posted:false });
+    storySave(); questRefresh();
+    if (typeof paintLmStrip === 'function') paintLmStrip();
   }});
 }
 function questEdit(sceneId, entryId){
@@ -3997,7 +4023,17 @@ function questRefresh(){
 function questPush(q){ tsAsk('TS_QUEST_SAVE', { quest:q }).catch(function(){}); }
 function storyQuestsHtml(sc){
   var list = sceneQuests(sc);
+  var waiting = ((sc.beats || []).filter(function(b){ return b.kind === 'quest' && !b.posted; }));
   var h = '';
+  if (!list.length) h += '<p class="tsm-note">Nothing on the board from this scene. A quest goes up when you offer it in the runner.</p>';
+  if (waiting.length){
+    h += '<div class="st-sub">Written, not yet offered</div>';
+    waiting.forEach(function(b){
+      h += '<div class="qs-row"><span class="qs-tick">\u25cb</span><span class="qs-main"><span class="qs-title">' + esc(b.title) + '</span>'
+        + (b.body ? '<span class="qs-body">' + esc(b.body) + '</span>' : '') + '</span></div>';
+    });
+    h += '<div class="st-sub">On the board</div>';
+  }
   list.forEach(function(q){
     h += '<div class="qs-row' + (q.status === 'done' ? ' done' : '') + '">'
       + '<button class="qs-tick" onclick="questStatus(\'' + sc.id + '\',\'' + q.entryId + '\')" title="Mark">' + (q.status === 'done' ? '\u2713' : '\u25cb') + '</button>'
@@ -4005,7 +4041,7 @@ function storyQuestsHtml(sc){
       + (q.body ? '<span class="qs-body">' + esc(q.body) + '</span>' : '') + '</span>'
       + '<button class="st-b" onclick="questRemove(\'' + sc.id + '\',\'' + q.entryId + '\')" title="Take down">\u2715</button></div>';
   });
-  h += '<button class="st-add" onclick="questAdd(\'' + sc.id + '\')">Post a quest</button>';
+  h += '<button class="st-add" onclick="questAdd(\'' + sc.id + '\')">Write a quest into this scene</button>';
   return h;
 }
 function partyLoad(){

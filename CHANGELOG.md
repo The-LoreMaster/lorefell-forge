@@ -1,3 +1,7 @@
+## ThreadSpire: quests are written as beats, and deriving explains itself
+
+- A quest raised from the Quests window is now written into the scene as a beat rather than posted, and the window shows what is written but not yet offered separately from what is on the board. Only running the beat puts it up. Deriving a foe's kit now says what it is waiting on when it cannot, instead of appearing to do nothing, and reopening a sheet holds its place rather than jumping to the top. The forge data is fetched as soon as the LoreMaster is known, so a card opens without a wait.
+
 ## ThreadSpire: a quest beat posts from the runner
 
 - A quest written into a scene stays prep until it is offered. Running that beat gives the LoreMaster a press to post it, which puts it on the board the players read and marks the beat as posted so it cannot go up twice. Taking the quest down again releases the beat, so it can be offered later.
