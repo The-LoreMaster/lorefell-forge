@@ -1,3 +1,11 @@
+## 2026-07-24 — ThreadSpire: the maps were never gone
+
+Stages was not fetching the shelf. The account's maps were only ever collected when the Maps shelf itself was opened, so on a fresh load every stage looked as though its maps had vanished, when in truth they had never been asked for. Opening Stages now brings the shelf with it, and when the shelf arrives the stage cards, the picker and the table all repaint, instead of waiting for something else to redraw them.
+
+Nothing was deleted. Open Stages after a refresh and the maps are on their cards again.
+
+Open it now opens. The switch was sending the browser to a route guessed at rather than the page it is actually on, so the button did nothing at all. It reopens the current page instead, whatever its address.
+
 ## 2026-07-24 — ThreadSpire: five things were asking a question nobody set
 
 Five parts of the table checked a flag that was never given a value anywhere in the file, so all five quietly did nothing: the adventure list, the published copy, the party list, the combat state going out to the players' sheets, and the declares coming back. They now ask whether ThreadSpire is running inside the site, which is the thing they were trying to establish in the first place.
