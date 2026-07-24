@@ -518,6 +518,13 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .mp-thumb.mp-up span{ color:var(--gold); font-size:1.6rem; }
 .mp-name{ font-family:Cinzel,serif; font-size:.76rem; color:var(--silver); }
 .mp-meta{ font-size:.66rem; color:var(--muted); margin-top:2px; }
+.mp-face{ font-size:.64rem; color:var(--ice); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+/* the faces of the map on the table, LoreMaster only, sitting under the frame */
+#mapFaces{ position:fixed; left:50%; transform:translateX(-50%); bottom:96px; z-index:34; display:none; gap:6px; flex-wrap:wrap; justify-content:center; max-width:min(560px,88vw); padding:5px 7px; border-radius:9px; background:rgba(8,12,24,.82); border:1px solid var(--line); }
+.mf-chip{ font-family:Cinzel,serif; font-size:.66rem; letter-spacing:.06em; text-transform:uppercase; color:var(--ice); background:var(--navy2,#0e1526); border:1px solid var(--line); border-radius:6px; padding:5px 9px; cursor:pointer; }
+.mf-chip:hover{ border-color:var(--gold); }
+.mf-chip.on{ color:#fff; border-color:var(--gold); background:#16233f; }
+body.winopen #mapFaces{ display:none !important; }
 .mp-upload{ border-style:dashed; }
 .mp-upload.drag{ border-color:var(--gold); background:rgba(201,168,76,.1); }
 /* the token palette */
@@ -3407,6 +3414,7 @@ function stageRestore(b){
   S.map = { w: b.mapW || 2400, h: b.mapH || 1600 };
   applyRemoteState({ scene:S.scene, tokens:S.tokens, grid:S.grid, map:S.map, instance:S.instance });
   paintMapArt();
+  if (typeof paintMapFaces === 'function') paintMapFaces();
 }
 /* the switcher lists the stages bound to the current scene */
 /* The Lobby is the table before a map is laid down: the blue parchment, no tokens. */
@@ -4644,6 +4652,103 @@ function lmFolderDrop(name){
     + '<button class="tsm-btn danger" onclick="tsConfirmYes()">Remove the folder</button></div>');
 }
 function mapById(id){ var m = null; (S.scene.maps || []).forEach(function(x){ if (sameId(x.id, id)) m = x; }); return m; }
+
+/* ---- map variants ----
+   One place, several faces: a bridge, the same bridge broken, the same bridge under
+   fog. The family lives on the map, because a face authored once should be available
+   to every stage that lays that map down. Which face is showing lives on the stage,
+   in stage.mapId, because that is what is happening rather than what a thing is.
+   Swapping a face therefore leaves tokens, grid and map size untouched. */
+function mapBaseId(m){ return m ? (m.variantOf || m.id) : null; }
+function mapFamily(id){
+  var m = mapById(id); if (!m) return [];
+  var base = mapBaseId(m);
+  return (S.scene.maps || []).filter(function(x){ return sameId(mapBaseId(x), base); });
+}
+function mapFaceName(m){
+  if (!m) return '';
+  if (m.variantLabel) return m.variantLabel;
+  return m.variantOf ? m.name : 'Base';
+}
+function mapIsBase(m){ return !!m && !m.variantOf; }
+function mapSaveRow(m){
+  if (!m || !m.assetId || !assetBackend.save) return;
+  assetBackend.save({ assetId:m.assetId, kind:'map', name:m.name, image:m.url, w:m.w, h:m.h,
+                      folder:m.folder || '', variantOf:m.variantOf || '', variantLabel:m.variantLabel || '' }).catch(function(){});
+}
+/* File a map as another map's face. The LoreMaster names the face; nothing is inferred
+   from the file name. Sizes must agree, or every token shifts against the art the
+   moment the face changes, which is the one thing this feature exists to avoid. */
+function lmVariantPick(id){
+  var m = mapById(id); if (!m) return;
+  var others = (S.scene.maps || []).filter(function(x){
+    return !sameId(x.id, id) && mapIsBase(x) && x.w === m.w && x.h === m.h;
+  });
+  var opts = '<option value="">Its own map, no family</option>'
+    + others.map(function(x){
+        return '<option value="' + esc(x.id) + '"' + (sameId(x.id, m.variantOf) ? ' selected' : '') + '>' + esc(x.name) + '</option>';
+      }).join('');
+  var warn = others.length ? ''
+    : '<p class="tsm-note">No other map on the shelf matches ' + m.w + ' by ' + m.h + '. Faces of one place have to be the same size, or the tokens will not line up.</p>';
+  tsModal('<h3 class="tsm-title">' + esc(m.name) + ' as a face</h3>'
+    + '<p class="tsm-note">Pick the map this is a face of, then name the face. The name is yours: Intact, Broken, Fog, Burning, whatever the table needs.</p>'
+    + '<label class="tsm-lbl">A face of</label>'
+    + '<select class="tsm-inp" id="mvBase">' + opts + '</select>'
+    + '<label class="tsm-lbl">Call this face</label>'
+    + '<input class="tsm-inp" id="mvLabel" value="' + esc(m.variantLabel || '') + '" placeholder="Broken">'
+    + warn
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button>'
+    + '<button class="tsm-btn" onclick="lmVariantSave(\'' + id + '\')">Save</button></div>');
+}
+function lmVariantSave(id){
+  var m = mapById(id); if (!m) return;
+  var base = ((document.getElementById('mvBase') || {}).value || '');
+  var label = ((document.getElementById('mvLabel') || {}).value || '').replace(/^\s+|\s+$/g, '');
+  if (base){
+    var b = mapById(base);
+    if (!b || b.w !== m.w || b.h !== m.h){
+      tsModal('<h3 class="tsm-title">Those two are different sizes</h3>'
+        + '<p class="lc-p">Faces of one place share a size, or the tokens slide against the art when the face changes. Export them at matching dimensions and try again.</p>'
+        + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
+      return;
+    }
+    /* a face of a face is still a face of the base */
+    m.variantOf = mapBaseId(b);
+    m.variantLabel = label || m.name;
+  } else {
+    m.variantOf = '';
+    m.variantLabel = label;
+  }
+  mapSaveRow(m);
+  tsCloseModal(); applyRemoteState({ scene:S.scene }); paintMapPicker(); paintMapFaces();
+}
+/* Change the face on the table. The stage keeps everything else it holds. */
+function lmSetFace(id){
+  var m = mapById(id); if (!m) return;
+  if (sameId(S.scene.background, id)) return;
+  S.scene.background = id;
+  S.map = { w:m.w, h:m.h };
+  applyRemoteState({ scene:S.scene, map:S.map });
+  paintMapArt(); paintMapFaces();
+  lmSaveCurrentStage();
+  pushLog({ kind:'sys', html:esc(mapFaceName(m)) + ': the table changes.' });
+  applyRemoteState({ log:S.log });
+}
+/* The strip of faces, shown only when the map on the table has more than one and only
+   to the LoreMaster. Players see the art change, not the switch. */
+function paintMapFaces(){
+  var el = document.getElementById('mapFaces');
+  if (!el){ el = document.createElement('div'); el.id = 'mapFaces'; document.body.appendChild(el); }
+  var fam = isLM() ? mapFamily(S.scene.background) : [];
+  if (fam.length < 2){ el.style.display = 'none'; el.innerHTML = ''; return; }
+  fam.sort(function(a, b){ return (a.variantOf ? 1 : 0) - (b.variantOf ? 1 : 0); });
+  el.style.display = 'flex';
+  el.innerHTML = fam.map(function(m){
+    var on = sameId(m.id, S.scene.background);
+    return '<button type="button" class="mf-chip' + (on ? ' on' : '') + '" onclick="lmSetFace(\'' + m.id + '\')">'
+      + esc(mapFaceName(m)) + '</button>';
+  }).join('');
+}
 function lmRenameMap(id){
   var m = mapById(id); if (!m) return;
   tsAsk2({ title:'Rename the map', label:'Name', value:m.name, onSave:function(n){
@@ -4673,7 +4778,7 @@ function lmDeleteMap(id){
 }
 function lmSetMap(id){
   var m = null; S.scene.maps.forEach(function(x){ if(x.id===id) m=x; });
-  if (m){ S.scene.background = id; S.map = { w:m.w, h:m.h }; applyRemoteState({ scene:S.scene, map:S.map }); paintMapArt(); lmSaveCurrentStage(); }
+  if (m){ S.scene.background = id; S.map = { w:m.w, h:m.h }; applyRemoteState({ scene:S.scene, map:S.map }); paintMapArt(); paintMapFaces(); lmSaveCurrentStage(); }
   lmCloseMaps();
 }
 /* pull the account's stored maps into the scene list once, so they show in the
@@ -4685,9 +4790,9 @@ function loadAccountAssets(){
   assetBackend.list('map').then(function(rows){
     rows.forEach(function(r){
       if (!S.scene.maps.some(function(m){ return m.id === r.assetId; }))
-        S.scene.maps.push({ id:r.assetId, assetId:r.assetId, folder:r.folder || '', name:r.name, url:r.image, w:r.w||2400, h:r.h||1600, source:'account' });
+        S.scene.maps.push({ id:r.assetId, assetId:r.assetId, folder:r.folder || '', name:r.name, url:r.image, w:r.w||2400, h:r.h||1600, source:'account', variantOf:r.variantOf || '', variantLabel:r.variantLabel || '' });
     });
-    if (rows.length) paintMapPicker();
+    if (rows.length){ paintMapPicker(); paintMapFaces(); }
   }).catch(function(){});
   assetBackend.list('token').then(function(rows){
     S.assets = rows;
@@ -4710,6 +4815,9 @@ function paintMapArt(){
   var m = activeMap();
   if (m && m.url){ art.style.backgroundImage = 'url(' + m.url + ')'; art.style.backgroundSize = 'cover'; }
   /* null url keeps the CSS placeholder gradient */
+  /* the strip follows the art, so every path that changes the map keeps it honest,
+     including a background arriving from the table rather than from this seat */
+  if (typeof paintMapFaces === 'function') paintMapFaces();
 }
 function paintMapPicker(){
   var el = document.getElementById('mapPicker');
@@ -4724,9 +4832,12 @@ function paintMapPicker(){
     return '<div class="mp-card' + (on?' on':'') + '" draggable="true" ondragstart="folderDragStart(event,\'map\',\'' + m.id + '\')">'
       + '<button class="mp-main" onclick="lmSetMap(\'' + m.id + '\')">' + thumb
       + '<div class="mp-name">' + esc(m.name) + '</div>'
-      + '<div class="mp-meta">' + m.w + ' \u00d7 ' + m.h + ' \u00b7 ' + esc(m.source) + (m.local?' \u00b7 not yet saved':'') + '</div></button>'
+      + '<div class="mp-meta">' + m.w + ' \u00d7 ' + m.h + ' \u00b7 ' + esc(m.source) + (m.local?' \u00b7 not yet saved':'') + '</div>'
+      + (m.variantOf ? '<div class="mp-face">' + esc(mapFaceName(m)) + ' of ' + esc((mapById(m.variantOf)||{}).name || 'another map') + '</div>' : '')
+      + '</button>'
       + '<span class="mp-acts">'
       + '<button class="st-b" onclick="event.stopPropagation();lmRenameMap(\'' + m.id + '\')" title="Rename">\u270e</button>'
+      + '<button class="st-b" onclick="event.stopPropagation();lmVariantPick(\'' + m.id + '\')" title="Make it a face of another map">\u25d1</button>'
       + '<button class="st-b" onclick="event.stopPropagation();lmFolderPick(\'' + m.id + '\')" title="Folder">\u2630</button>'
       + '<button class="st-b" onclick="event.stopPropagation();lmDeleteMap(\'' + m.id + '\')" title="Remove">\u2715</button></span></div>';
   }
