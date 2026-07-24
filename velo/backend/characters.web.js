@@ -237,16 +237,27 @@ export const lmRemoveFromAdventure = webMethod(Permissions.Anyone, async (campai
       return { ok: false, error: 'the loremaster cannot be removed from their own adventure' };
     }
   } catch (e) {}
+  // Removing a Fell the adventure keeps is not removing a member, so no member is given
+  // and this guard is only for a real seat.
   if (targetMemberId && targetMemberId === me) return { ok: false, error: 'you cannot remove yourself' };
   let released = false, deleted = false;
   if (charId) {
     const row = await wixData.get(COLLECTION, charId, { suppressAuth: true }).catch(() => null);
     if (row && String(row.campaignId || '') === String(campaignId)) {
-      if (row.ownerMemberId) {
+      // A Fell whose record the adventure's own account holds belongs to the table, so
+      // removing it removes it. One with a player behind it is theirs and is released.
+      let heldByTable = !row.ownerMemberId;
+      if (!heldByTable) {
+        try {
+          const camp = await wixData.get('Campaigns', campaignId, { suppressAuth: true }).catch(() => null);
+          heldByTable = !!(camp && camp.ownerMemberId && camp.ownerMemberId === row.ownerMemberId);
+        } catch (e) {}
+      }
+      if (heldByTable) {
+        try { await wixData.remove(COLLECTION, charId, { suppressAuth: true }); deleted = true; } catch (e) {}
+      } else {
         row.campaignId = ''; row.campaign = '';
         try { await wixData.update(COLLECTION, row, { suppressAuth: true }); released = true; } catch (e) {}
-      } else {
-        try { await wixData.remove(COLLECTION, charId, { suppressAuth: true }); deleted = true; } catch (e) {}
       }
     }
   }
