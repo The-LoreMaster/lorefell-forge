@@ -188,6 +188,78 @@ async function lmMayTouch(charId) {
   return { ok: false, error: 'not your adventure' };
 }
 
+// Whether the caller runs this adventure. Used where there is no character to ask,
+// such as making a new one for someone at the table.
+async function lmMayRun(campaignId) {
+  const me = await memberId();
+  if (!me || !campaignId) return false;
+  try {
+    const camp = await wixData.get('Campaigns', campaignId, { suppressAuth: true }).catch(() => null);
+    if (camp && camp.ownerMemberId === me) return true;
+  } catch (e) {}
+  try {
+    const r = await wixData.query('AdventureMembers')
+      .eq('campaignId', campaignId).eq('memberId', me).limit(1).find({ suppressAuth: true });
+    const role = r.items.length ? r.items[0].role : '';
+    return role === 'loremaster' || role === 'lorekeeper';
+  } catch (e) {}
+  return false;
+}
+
+// A Fell for someone at the table who is not on a device. It is a real character row
+// with a real sheet, owned by nobody: the adventure governs it, so the LoreMaster and
+// any lorekeeper can fill it in through the same gate as everyone else's. Offline-ness
+// lives in the sheet data, not in a new column, so no collection has to change.
+export const lmCreateOfflineFell = webMethod(Permissions.Anyone, async (campaignId, name) => {
+  if (!campaignId) return { ok: false, error: 'no adventure' };
+  if (!(await lmMayRun(campaignId))) return { ok: false, error: 'not your adventure' };
+  const nm = String(name || '').trim().slice(0, 80) || 'Unnamed Fell';
+  const data = { offline: true, identity: { name: nm, campaignId: campaignId } };
+  try {
+    const saved = await wixData.insert(COLLECTION, {
+      ownerMemberId: '', charName: nm, level: 1,
+      campaignId: campaignId, data: JSON.stringify(data)
+    }, { suppressAuth: true });
+    return { ok: true, id: saved._id, name: nm };
+  } catch (e) { return { ok: false, error: (e && e.message) ? e.message : String(e) }; }
+});
+
+// Take someone off the adventure. A member loses their seat and their Fell is released
+// rather than destroyed, because the Fell is theirs. A Fell with no member behind it is
+// one the table made, so that one goes.
+export const lmRemoveFromAdventure = webMethod(Permissions.Anyone, async (campaignId, targetMemberId, charId) => {
+  if (!campaignId) return { ok: false, error: 'no adventure' };
+  if (!(await lmMayRun(campaignId))) return { ok: false, error: 'not your adventure' };
+  const me = await memberId();
+  try {
+    const camp = await wixData.get('Campaigns', campaignId, { suppressAuth: true }).catch(() => null);
+    if (camp && targetMemberId && camp.ownerMemberId === targetMemberId) {
+      return { ok: false, error: 'the loremaster cannot be removed from their own adventure' };
+    }
+  } catch (e) {}
+  if (targetMemberId && targetMemberId === me) return { ok: false, error: 'you cannot remove yourself' };
+  let released = false, deleted = false;
+  if (charId) {
+    const row = await wixData.get(COLLECTION, charId, { suppressAuth: true }).catch(() => null);
+    if (row && String(row.campaignId || '') === String(campaignId)) {
+      if (row.ownerMemberId) {
+        row.campaignId = ''; row.campaign = '';
+        try { await wixData.update(COLLECTION, row, { suppressAuth: true }); released = true; } catch (e) {}
+      } else {
+        try { await wixData.remove(COLLECTION, charId, { suppressAuth: true }); deleted = true; } catch (e) {}
+      }
+    }
+  }
+  if (targetMemberId) {
+    try {
+      const r = await wixData.query('AdventureMembers')
+        .eq('campaignId', campaignId).eq('memberId', targetMemberId).limit(5).find({ suppressAuth: true });
+      for (const it of r.items) { await wixData.remove('AdventureMembers', it._id, { suppressAuth: true }); }
+    } catch (e) {}
+  }
+  return { ok: true, released: released, deleted: deleted };
+});
+
 export const lmLoadCharacter = webMethod(Permissions.Anyone, async (charId) => {
   if (!charId) return null;
   const gate = await lmMayTouch(charId);
