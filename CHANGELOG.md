@@ -1,3 +1,9 @@
+## 2026-07-24 — ThreadSpire: say why the adventure list is empty
+
+An empty list of adventures and a page that never answered looked exactly the same: This is the only adventure you run. Settings now tells them apart. While it is asking it says so, and if the page does not answer it says the page is out of date, names the file to paste, and offers to try again.
+
+Story's link now reads Change adventure rather than Change, because the word on its own did not say what it changed.
+
 ## 2026-07-24 — ThreadSpire: change adventures without leaving the table
 
 Settings, on the fellmark gem, now lists every adventure you run and opens any of them. The one you are in sits at the top. Story carries the adventure's name at its head with a quiet Change beside it, so the window that tells you what you are running points at the one place that changes it.
