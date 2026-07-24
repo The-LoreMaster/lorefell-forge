@@ -1,3 +1,11 @@
+## 2026-07-24 — ThreadSpire: folders that nest, and a shelf that shuts
+
+A folder made on the map shelf now appears. It was being made all along and then skipped at the paint, because a folder with nothing in it was not drawn, so there was nowhere to drop the first map and the New folder button looked dead.
+
+Folders hold folders. Valoria can hold The Bridge, and the shelf reads the tree off the paths themselves rather than keeping a second record of what contains what. Each heading folds away with its whole branch, carries a count of everything beneath it, and has a plus for making a folder inside it. Renaming a folder moves the branch with it. Removing one drops what was inside into the folder above rather than all the way out to the shelf.
+
+Tapping the dark outside the map shelf puts it away.
+
 ## 2026-07-24 — ThreadSpire: one place, several faces
 
 A map can now be filed as a face of another map. A bridge, the same bridge broken, the same bridge under fog: one place on the shelf, several faces, and the LoreMaster names each face. Nothing is inferred from a file name.
