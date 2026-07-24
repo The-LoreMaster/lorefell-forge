@@ -1282,7 +1282,7 @@ function scenesBody(){
   /* Story says which adventure this is; Settings is where it changes. One place to
      look, one place to act, rather than the answer living in two windows. */
   var h = '<div class="av-head">' + esc(advName())
-    + '<button type="button" class="av-swap" onclick="openWin(\'settings\')">Change</button></div>'
+    + '<button type="button" class="av-swap" onclick="openWin(\'settings\')" title="Open another adventure, in Settings">Change adventure</button></div>'
     + '<div class="win-note">The adventure\u2019s spine. Pick the scene you are running. Each scene keeps its own stages.</div>';
   (S.adventure.acts||[]).forEach(function(a){
     h += '<div class="nb-scene">' + esc(a.name) + '</div>';
@@ -3776,15 +3776,29 @@ function applySheet(){
    the journal, the party, the stages. Changing it is a fresh start rather than a swap
    in place, so the switch asks the page to reopen ThreadSpire on the other adventure.
    The current stage is saved first, and a scene in combat is left alone. */
-function advList(){
-  if (S._advList) return;
-  S._advList = [];
-  if (!window._tsAsk) return;
+/* Three states, told apart on purpose: not asked yet, asked and answered, asked and
+   the page never replied. An empty answer and a bridge that is not there used to look
+   the same, which reads as a missing feature rather than a page waiting to be pasted. */
+function advList(force){
+  if (S._advState === 'loading') return;
+  if (S._advState && !force) return;
+  if (!window._tsAsk || !tsEmbedded()){ S._advState = 'nobridge'; return; }
+  S._advState = 'loading';
+  var late = setTimeout(function(){
+    if (S._advState === 'loading'){ S._advState = 'nobridge'; if (S.openSection === 'settings') refreshWinBody(); }
+  }, 6000);
   tsAsk('TS_CAMPAIGN_LIST', {}).then(function(rows){
-    S._advList = rows || [];
+    clearTimeout(late);
+    S._advList = rows || []; S._advState = 'ready';
     if (S.openSection === 'settings') refreshWinBody();
-  }).catch(function(){ S._advList = []; });
+    if (S.openSection === 'story') refreshWinBody();
+  }).catch(function(){
+    clearTimeout(late);
+    S._advState = 'failed';
+    if (S.openSection === 'settings') refreshWinBody();
+  });
 }
+function advRetry(){ advList(true); if (S.openSection === 'settings') refreshWinBody(); }
 function advSwitch(id){
   if (!id || sameId(id, S.campaignId)) return;
   if (S.mode === 'combat'){
@@ -3812,22 +3826,32 @@ function advSwitch(id){
 }
 function advName(){
   var n = '';
-  (S._advList || []).forEach(function(c){ if (sameId(c.id, S.campaignId)) n = c.name || ''; });
+  (Array.isArray(S._advList) ? S._advList : []).forEach(function(c){ if (sameId(c.id, S.campaignId)) n = c.name || ''; });
   return n || (S.adventure && S.adventure.name) || 'This adventure';
 }
 function settingsBody(){
   if (!S.published) { S.published = []; publishLoad(); }
   advList();
-  var others = (S._advList || []).filter(function(c){ return !sameId(c.id, S.campaignId); });
+  var list = Array.isArray(S._advList) ? S._advList : [];
+  var others = list.filter(function(c){ return !sameId(c.id, S.campaignId); });
   var h = '<div class="nb-scene">Adventure</div>'
     + '<div class="lb-row"><span class="lb-name">' + esc(advName()) + '</span><span class="lb-meta">Open now</span></div>';
   if (others.length){
-    h += others.map(function(c){
-      return '<div class="lb-row av-row" onclick="advSwitch(\'' + esc(c.id) + '\')">'
-        + '<span class="lb-name">' + esc(c.name || 'Adventure') + '</span>'
-        + '<span class="lb-meta">' + (c.role === 'lorekeeper' ? 'Lorekeeper' : 'Loremaster') + '</span></div>';
-    }).join('');
-  } else if (S._advList && S._advList.length <= 1){
+    h += '<div class="win-note">Open another. This table saves and closes, and anyone sitting at it follows you across.</div>'
+      + others.map(function(c){
+        return '<div class="lb-row av-row" onclick="advSwitch(\'' + esc(c.id) + '\')">'
+          + '<span class="lb-name">' + esc(c.name || 'Adventure') + '</span>'
+          + '<span class="lb-meta">' + (c.role === 'lorekeeper' ? 'Lorekeeper' : 'Loremaster') + ' \u203a</span></div>';
+      }).join('');
+  } else if (S._advState === 'loading'){
+    h += '<div class="win-note">Looking for your other adventures.</div>';
+  } else if (S._advState === 'nobridge'){
+    h += '<div class="win-note">The page did not answer. ThreadSpire asks the site for your adventures, and that part of the page is out of date. Paste velo/page-threadspire.js into the ThreadSpire page and publish, then try again.</div>'
+      + '<button class="st-add" onclick="advRetry()">Try again</button>';
+  } else if (S._advState === 'failed'){
+    h += '<div class="win-note">Your adventures could not be read just now.</div>'
+      + '<button class="st-add" onclick="advRetry()">Try again</button>';
+  } else {
     h += '<div class="win-note">This is the only adventure you run. FateWell is where a new one is written.</div>';
   }
   h += '<div class="nb-scene">Published</div>'
