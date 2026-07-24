@@ -1,3 +1,13 @@
+## 2026-07-24 — ThreadSpire: someone at the table, and a roster that answers
+
+The bar over an opened Fell leads with Lore where the name used to sit, since the name is already on the sheet, and Arsenal is called Weapons, which is what it holds.
+
+A player with no device can be given a Fell here. It is a real Fell with a real sheet, kept by the adventure rather than owned by anyone, so the LoreMaster fills it in and runs it through the same sheet everyone else uses. Invite a player is now Add a player, and asks which of the two you mean.
+
+The mark beside a Fell opens on something now. It did nothing for a Fell made at the table, because it went looking for a member who was never there. It finds the Fell instead, and offers to open it, to hand the lorekeeper's keys to a player or take them back, to release a Fell from the adventure, and to remove someone from the adventure altogether.
+
+Removing a player takes their seat and lets their Fell go rather than destroying it, because the Fell is theirs. A Fell made at the table has nobody to give it back to, so that one goes with them. The loremaster of an adventure cannot be removed from it.
+
 ## 2026-07-24 — ThreadSpire: the LoreMaster's hand on a Fell
 
 Open a Fell from the Fell tab and it opens as its own sheet, the same one the player uses, with the locks off. Attributes, Skills, Arsenal, Lorebounds, Armor, Inventory and Lore are all there as tabs, and a Fell button at the left goes back to the party. Closing the window puts the Fell down.

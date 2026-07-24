@@ -2,7 +2,7 @@
 // Paste into the ThreadSpire page. Set the embed element ID to match EMBED.
 // Feeds the character-first view: the player's character card, the party at their
 // location, revealed nodes, quest-board goals, world issues, and map art.
-import { threadspirePublicChar, listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter, threadspireSaveMeta, lmLoadCharacter, lmSaveCharacter } from 'backend/characters.web.js';
+import { threadspirePublicChar, listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter, threadspireSaveMeta, lmLoadCharacter, lmSaveCharacter, lmCreateOfflineFell, lmRemoveFromAdventure } from 'backend/characters.web.js';
 import { getLmPortrait, saveLmPortrait, getForgePools, getForgeLibrary, listMyCampaigns, saveCampaign, submitAct, submitItem, deleteAsset, listGlossary , setMemberRole, detachCharacter } from 'backend/fatewell.web.js';
 import { createInvite, revokeInvite } from 'backend/invites.web.js';
 import { publishAdventure, unpublishAdventure, myPublishedAdventures } from 'backend/published.web.js';
@@ -209,6 +209,12 @@ $w.onReady(function () {
               reply(true, { ok: true });
             }
           } catch (e) { reply(false, null, String(e)); }
+        } else if (msg.type === 'TS_OFFLINE_FELL') {
+          try { const r = await lmCreateOfflineFell(campaignId, msg.name || ''); reply(!!(r && r.ok), r, r && r.error); }
+          catch (e) { reply(false, null, String(e)); }
+        } else if (msg.type === 'TS_PARTY_REMOVE') {
+          try { const r = await lmRemoveFromAdventure(campaignId, msg.memberId || '', msg.charId || ''); reply(!!(r && r.ok), r, r && r.error); }
+          catch (e) { reply(false, null, String(e)); }
         } else if (msg.type === 'TS_GOD_SHEET_CLOSE') {
           godCharId = '';
           reply(true, { ok: true });
