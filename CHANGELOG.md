@@ -1,3 +1,13 @@
+## 2026-07-24 — ThreadSpire: a stage holds its own maps
+
+A stage keeps a row of maps on its card in the Stages window, with a plus on the end. Add the bridge whole, the bridge broken, the bridge under fog. Tap one to lay it down. Every token stays exactly where it stands, and so does the grid and the size of the table.
+
+The maps belong to the stage. There is no name to type and no shared record to keep in step, so putting a face on one stage cannot touch another stage that shows the same place. That was the problem with the last two attempts at this: both of them linked maps through something outside the stage, which meant a slip could rewrite the arrangement everywhere at once.
+
+Adding a map offers what is already on your shelf, or takes an upload straight onto the stage without changing what the party is currently looking at. Taking one off a stage leaves it on the shelf. The map groups added yesterday are gone, along with the strip of faces under the frame, since the stage card is where this belongs.
+
+Stages carry a new field for the list. The schema was backed up first.
+
 ## 2026-07-24 — ThreadSpire: map groups
 
 Maps that are faces of one place now share a group. The group is a name you type on the map, The Bridge or The Bailey Gate or whatever the place is called, and every map carrying that name is a face of it. Folders stay what they were, a way to tidy the shelf.
