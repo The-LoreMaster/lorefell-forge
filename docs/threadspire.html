@@ -529,6 +529,10 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .mp-zone{ grid-column:1/-1; border:1px solid transparent; border-radius:9px; padding:2px 4px 6px; transition:background .12s, border-color .12s; }
 .mp-zone.drop{ background:rgba(201,168,76,.12); border-color:var(--gold); border-style:dashed; }
 .mp-inner{ display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; }
+.pt-open{ flex:1; min-width:0; display:flex; flex-direction:column; align-items:flex-start; gap:1px; background:none; border:none; padding:0; cursor:pointer; text-align:left; }
+.pt-open:hover .pt-name{ color:var(--gold); }
+.subtab.godback{ color:var(--gold); }
+.godwho{ font-family:Cinzel,serif; font-size:.62rem; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); align-self:center; padding:0 6px 0 2px; white-space:nowrap; }
 .mp-bad{ font-size:.62rem; color:var(--danger); margin-top:3px; }
 .mp-empty{ grid-column:1/-1; font-size:.7rem; color:var(--muted); padding:6px 4px 10px; }
 /* the faces of the map on the table, LoreMaster only, sitting under the frame */
@@ -2651,7 +2655,12 @@ function openWin(key){
   var win = document.getElementById('win');
   win.style.height = ''; win.style.bottom = '';
   var panel = (!isLM() && SHEET_PANELS[key]);
-  if (panel){
+  if (key === 'fell' && isLM() && S.godChar){
+    ensureSheet();
+    win.classList.add('sheeting'); win.classList.add('arsenal');
+    paintGodBar(); sheetGoto(S.godPanel || 'attributes');
+  }
+  else if (panel){
     ensureSheet(); win.classList.add('sheeting');
     if (key === 'arsenal'){ win.classList.add('arsenal'); renderSheetSub('weapons'); sheetGoto('weapons'); }
     else { win.classList.remove('arsenal'); sheetGoto(panel); }
@@ -2664,6 +2673,12 @@ function openWin(key){
   if (typeof paintLmStrip === 'function' && isLM()) paintLmStrip();
 }
 function closeWin(){
+  if (S.godChar){
+    S.godChar = null; S.godPanel = null;
+    try { tsAsk('TS_GOD_SHEET_CLOSE', {}); } catch(e){}
+    var _gf = document.getElementById('sheetFrame');
+    if (_gf && _gf.contentWindow) _gf.contentWindow.postMessage({ type:'ts-god', on:false }, '*');
+  }
   S.openSection = null;
   document.body.classList.remove('winopen');
   if (window._lmPrevMin !== undefined){ lmMin = window._lmPrevMin; window._lmPrevMin = undefined; }
@@ -4642,8 +4657,9 @@ function lmPortraitPicked(inp){
 }
 function lmSetSpeaker(name, portrait){ S.lm = S.lm || {}; S.lm.speaker = name ? { name:name, portrait:portrait||'' } : null; paintHud(); }
 function lmFellBody(){
+  /* the sheet is shown in the frame, not here, so the body is only ever the list */
   if (!S.party) { S.party = []; partyLoad(); }
-  var h = '<div class="win-note">Who is at this adventure, what they play, and what they may do.</div>';
+  var h = '<div class="win-note">Who is at this adventure, what they play, and what they may do. Open a Fell to work on it directly.</div>';
   var list = S.party || [];
   if (!list.length) h += '<div class="win-note">No one has joined yet. Share an invite and they will appear here.</div>';
   list.forEach(function(p){
@@ -4651,9 +4667,13 @@ function lmFellBody(){
     var vit = (p.curVit !== undefined && p.maxVit) ? (p.curVit + ' / ' + p.maxVit) : '';
     h += '<div class="pt-row">'
       + (p.img ? '<img class="rs-av" src="' + esc(p.img) + '" alt="">' : '<span class="rs-av lib-ph"></span>')
-      + '<span class="pt-main"><span class="pt-name">' + esc(p.charName || p.name || 'Unnamed') + '</span>'
-      + '<span class="pt-meta">' + esc(p.name || '') + (vit ? ' \u00b7 ' + vit : '') + '</span></span>'
+      + (p.charId
+          ? '<button class="pt-main pt-open" onclick="lmOpenFell(\'' + esc(p.charId) + '\')"><span class="pt-name">' + esc(p.charName || p.name || 'Unnamed') + '</span>'
+            + '<span class="pt-meta">' + esc(p.name || '') + (vit ? ' \u00b7 ' + vit : '') + '</span></button>'
+          : '<span class="pt-main"><span class="pt-name">' + esc(p.charName || p.name || 'Unnamed') + '</span>'
+            + '<span class="pt-meta">' + esc(p.name || '') + (vit ? ' \u00b7 ' + vit : '') + '</span></span>')
       + '<span class="pt-role rl-' + esc(role) + '">' + esc(role) + '</span>'
+      + (p.charId ? '<button class="st-b" onclick="lmOpenFell(\'' + esc(p.charId) + '\')" title="Open this Fell">\u25b8</button>' : '')
       + '<button class="st-b" onclick="partyMenu(\'' + esc(p.memberId || '') + '\')" title="Options">\u22ef</button></div>';
   });
   h += '<div class="rs-adds"><button class="st-add" onclick="partyInvite()">Invite a player</button>'
@@ -4855,6 +4875,45 @@ function toggleClean(){ document.body.classList.toggle('clean'); if (S.openSecti
 /* the player's full sheet, the real FellGlass, hosted here. Its bridge is relayed up to the
    page, which answers from the one Characters record. Loaded once, shown on demand. */
 var SHEET_PANELS = { attributes:'attributes', skills:'skills', inventory:'inventory', arsenal:'weapons', lore:'lore', battle:'battle' };
+/* ---- the LoreMaster's hand on a Fell ----
+   The same sheet the player uses, opened on their Fell with the locks off. Nothing is
+   reimplemented here: the panels are FellGlass's own, reached the way the player
+   reaches them, so a change to the sheet is a change to this. What the LoreMaster may
+   do is decided by the site against the adventure, not by this list of tabs. */
+var GOD_TABS = [['attributes','Attributes'],['skills','Skills'],['weapons','Arsenal'],
+                ['lorebounds','Lorebounds'],['armor','Armor'],['inventory','Inventory'],['lore','Lore']];
+function lmOpenFell(charId){
+  if (!charId || !isLM()) return;
+  var who = (S.party || []).filter(function(p){ return sameId(p.charId, charId); })[0] || {};
+  S.godChar = { id:charId, name: who.name || who.charName || 'this Fell' };
+  S.godPanel = 'attributes';
+  ensureSheet();
+  openWin('fell');
+  tsAsk('TS_GOD_SHEET', { charId:charId }).catch(function(){
+    S.godChar = null;
+    openWin('fell');
+    tsModal('<h3 class="tsm-title">That Fell did not open</h3>'
+      + '<p class="lc-p">It may belong to another adventure. A Fell can only be worked on from the adventure it is in.</p>'
+      + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
+  });
+}
+function lmCloseFell(){
+  S.godChar = null; S.godPanel = null;
+  tsAsk('TS_GOD_SHEET_CLOSE', {}).catch(function(){});
+  var f = document.getElementById('sheetFrame');
+  if (f && f.contentWindow) f.contentWindow.postMessage({ type:'ts-god', on:false }, '*');
+  openWin('fell');
+}
+function godGoto(panel){ S.godPanel = panel; sheetGoto(panel); paintGodBar(); }
+function paintGodBar(){
+  var el = document.getElementById('sheetSub'); if (!el) return;
+  var who = (S.godChar && S.godChar.name) || '';
+  el.innerHTML = '<button class="subtab godback" onclick="lmCloseFell()" title="Back to the Fell">\u2039 Fell</button>'
+    + '<span class="godwho">' + esc(who) + '</span>'
+    + GOD_TABS.map(function(t){
+        return '<button class="subtab' + (t[0] === S.godPanel ? ' on' : '') + '" onclick="godGoto(\'' + t[0] + '\')">' + t[1] + '</button>';
+      }).join('');
+}
 var _sheetLoaded = false;
 function ensureSheet(){ var f = document.getElementById('sheetFrame'); if (f && !_sheetLoaded){ f.src = 'fellglass.html?host=threadspire'; _sheetLoaded = true; } }
 function sheetGoto(panel){ S.sheetPanel = panel; var f = document.getElementById('sheetFrame'); if (f && f.contentWindow) f.contentWindow.postMessage({ type:'goto-panel', panel:panel }, '*'); }
@@ -4882,6 +4941,9 @@ window.addEventListener('message', function(ev){
   if (ev.data && ev.data.type === 'TS_TOOL_DOWN' && ev.data.tool === 'fellglass'){
     if (f && f.contentWindow) f.contentWindow.postMessage(ev.data.msg, '*');
     var m = ev.data.msg || {};
+    /* a Fell the LoreMaster opened is somebody else's; it goes to the frame and no
+       further, or the LoreMaster's own identity would be replaced by the player's */
+    if (m.type === 'init' && m.character && S.godChar){ return; }
     if (m.type === 'init' && m.character){ S.sheet = m.character; if (m.charId) S.characterId = m.charId; S.charReady = true; if (typeof applySheet === 'function') applySheet(); render(); }
     else if (m.type === 'saved' && m.charId){ S.characterId = m.charId; S._charList = null; if (typeof warmCharList === 'function') warmCharList(); }
   }
