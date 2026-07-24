@@ -1,3 +1,9 @@
+## 2026-07-24 — ThreadSpire: the seams are visible
+
+Every failure in the shared state pipeline was silent, which is why a broken link could only be found by guessing at it, one wrong guess per round. Both ends are now instrumented and there is a panel to read them: Show the seams, in Settings for the LoreMaster and in the menu for a player. It says the role, the adventure, the last push and whether it was taken, the last pull and what it brought, the map and its picture, the tokens. When two tables disagree, open it on both and compare lines: the wrong number names the broken side, and nobody has to guess.
+
+A push the site refuses is also said in the log now, once every thirty seconds at most: the table did not take that change, and the players may not be seeing what you see. Quiet splitting is the worst kind.
+
 ## 2026-07-24 — ThreadSpire: the map the LoreMaster sets is a map the players are given
 
 The map never reached anyone because it was never sent. Setting a map wrote it onto the LoreMaster's own screen through the one function that means this is now true of the table, and that function drew the screen and stopped there. Only tokens and the log ever left for the server. So every fix to how a player receives a map was a fix to a road nothing travelled. The function says it outward now, for the LoreMaster, coalesced so a flurry of small changes is one message rather than a storm.
