@@ -188,6 +188,59 @@ async function lmMayTouch(charId) {
   return { ok: false, error: 'not your adventure' };
 }
 
+// Which adventure a Fell belongs to. The record is the truth: a player arrives at the
+// table by way of their Fell, and the table used to learn the adventure only from the
+// address bar, so anyone who came in without it sat at an adventure of nobody and
+// received nothing. Readable by the Fell's owner and by whoever runs the adventure.
+export const charAdventure = webMethod(Permissions.Anyone, async (charId) => {
+  if (!charId) return null;
+  const me = await memberId();
+  if (!me) return null;
+  const row = await wixData.get(COLLECTION, charId, { suppressAuth: true }).catch(() => null);
+  if (!row) return null;
+  const cid = row.campaignId || '';
+  if (row.ownerMemberId && row.ownerMemberId === me) return { campaignId: cid, campaign: row.campaign || '' };
+  if (!cid) return null;
+  try {
+    const camp = await wixData.get('Campaigns', cid, { suppressAuth: true }).catch(() => null);
+    if (camp && camp.ownerMemberId === me) return { campaignId: cid, campaign: row.campaign || '' };
+  } catch (e) {}
+  try {
+    const r = await wixData.query('AdventureMembers')
+      .eq('campaignId', cid).eq('memberId', me).limit(1).find({ suppressAuth: true });
+    if (r.items.length) return { campaignId: cid, campaign: row.campaign || '' };
+  } catch (e) {}
+  return null;
+});
+
+// A player stepping away from an adventure. Their Fell is theirs, so it is unlinked
+// rather than given up.
+export const leaveAdventure = webMethod(Permissions.Anyone, async (charId) => {
+  if (!charId) return { ok: false, error: 'no Fell given' };
+  const me = await memberId();
+  if (!me) return { ok: false, error: 'not signed in' };
+  const row = await wixData.get(COLLECTION, charId, { suppressAuth: true }).catch(() => null);
+  if (!row) return { ok: false, error: 'not found' };
+  if (!row.ownerMemberId || row.ownerMemberId !== me) return { ok: false, error: 'not your Fell' };
+  const cid = row.campaignId || '';
+  row.campaignId = ''; row.campaign = '';
+  try {
+    let data = {};
+    try { data = row.data ? JSON.parse(row.data) : {}; } catch (e) { data = {}; }
+    if (data && data.identity) { data.identity.campaignId = ''; data.identity.campaign = ''; }
+    row.data = JSON.stringify(data);
+    await wixData.update(COLLECTION, row, { suppressAuth: true });
+  } catch (e) { return { ok: false, error: 'could not leave' }; }
+  if (cid) {
+    try {
+      const r = await wixData.query('AdventureMembers')
+        .eq('campaignId', cid).eq('memberId', me).limit(5).find({ suppressAuth: true });
+      for (const it of r.items) { await wixData.remove('AdventureMembers', it._id, { suppressAuth: true }); }
+    } catch (e) {}
+  }
+  return { ok: true };
+});
+
 // Whether the caller runs this adventure. Used where there is no character to ask,
 // such as making a new one for someone at the table.
 async function lmMayRun(campaignId) {

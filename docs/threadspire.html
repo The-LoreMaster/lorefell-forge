@@ -486,6 +486,8 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 /* the clear zone each side control needs: HUD is 200 + 16 inset, plus a gap.
    A centered card is capped so its half never crosses into that zone. */
 .lmcard{ background:var(--panel); border:1px solid var(--line); border-radius:11px; padding:13px 15px; box-shadow:0 6px 24px rgba(0,0,0,.5); }
+/* the beat reads through to the table, like the bar above it */
+.lmcard.beat{ background:rgba(10,14,26,.9); backdrop-filter:blur(2px); }
 /* Scene beat card. A fixed height rather than a shrinking one, so the bar above it
    sits at the same line whatever the beat says, and long read-aloud is scrolled inside
    the card instead of pushing the runner about. Half the page is the ceiling. */
@@ -579,6 +581,8 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .av-now-name{ font-family:Cinzel,serif; font-size:.95rem; color:#fff; }
 /* the veil while the page changes adventure */
 /* the edge of the world burns when battle takes the table */
+#godWait{ display:none; position:absolute; inset:0; z-index:6; align-items:center; justify-content:center; background:rgba(10,14,26,.82); border-radius:10px; }
+.gw-t{ font-family:Cinzel,serif; font-size:.72rem; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); }
 #tsGlow{ position:fixed; inset:0; z-index:190; pointer-events:none; opacity:0; transition:opacity .5s ease; }
 #tsGlow.on{ opacity:1; animation:tsGlowPulse 1.2s ease-in-out 2; }
 @keyframes tsGlowPulse{ 0%,100%{ opacity:.55; } 50%{ opacity:1; } }
@@ -2777,6 +2781,7 @@ function openWin(key){
 }
 function closeWin(){
   if (S.godChar){
+    godWait(false);
     S.godChar = null; S.godPanel = null;
     try { tsAsk('TS_GOD_SHEET_CLOSE', {}); } catch(e){}
     var _gf = document.getElementById('sheetFrame');
@@ -5160,7 +5165,11 @@ function lmOpenFell(charId){
   S.godPanel = 'lore';
   ensureSheet();
   openWin('fell');
-  tsAsk('TS_GOD_SHEET', { charId:charId }).catch(function(){
+  /* the record has to be fetched, so say whose is coming rather than leaving the last
+     Fell on screen looking like this one */
+  godWait(true);
+  tsAsk('TS_GOD_SHEET', { charId:charId }).then(function(){ godWait(false); }).catch(function(){
+    godWait(false);
     S.godChar = null;
     openWin('fell');
     tsModal('<h3 class="tsm-title">That Fell did not open</h3>'
@@ -5169,6 +5178,7 @@ function lmOpenFell(charId){
   });
 }
 function lmCloseFell(){
+  godWait(false);
   S.godChar = null; S.godPanel = null;
   tsAsk('TS_GOD_SHEET_CLOSE', {}).catch(function(){});
   var f = document.getElementById('sheetFrame');
@@ -5176,6 +5186,13 @@ function lmCloseFell(){
   openWin('fell');
 }
 function godGoto(panel){ S.godPanel = panel; sheetGoto(panel); paintGodBar(); }
+function godWait(on){
+  var w = document.getElementById('win'); if (!w) return;
+  var el = document.getElementById('godWait');
+  if (!el){ el = document.createElement('div'); el.id = 'godWait'; w.appendChild(el); }
+  el.innerHTML = on ? '<span class="gw-t">Opening ' + esc((S.godChar && S.godChar.name) || 'the Fell') + '</span>' : '';
+  el.style.display = on ? 'flex' : 'none';
+}
 function paintGodBar(){
   var el = document.getElementById('sheetSub'); if (!el) return;
   /* the Fell's name is on the sheet itself; the bar is for getting about */

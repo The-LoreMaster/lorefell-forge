@@ -44,6 +44,11 @@ header{position:sticky;top:0;z-index:50;background:rgba(10,14,26,.96);backdrop-f
 #headName{font-family:var(--head);font-size:14px;letter-spacing:.06em;color:var(--silver);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #headLevel{font-family:var(--head);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--silver-dim)}
 #headCampaign{font-size:11px;font-style:italic;color:var(--gold);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.advname{padding:7px 9px;border:1px solid var(--line,#22304d);border-radius:7px;background:rgba(10,14,26,.5);color:var(--ice,#b8ccd8);font-size:13px}
+.advname.none{color:var(--muted,#7e8a99);font-style:italic}
+.advhint{margin-top:5px;font-size:11px;color:var(--muted,#7e8a99)}
+.advleave{margin-top:6px;background:none;border:1px solid var(--line,#22304d);border-radius:6px;color:var(--muted,#7e8a99);font-size:11px;padding:4px 9px;cursor:pointer}
+.advleave:hover{color:var(--danger,#c96a5a);border-color:var(--danger,#c96a5a)}
 .hd-btns{display:flex;flex-direction:column;align-items:stretch;gap:4px;flex:0 0 auto}
 #godBtn,#lvlUpBtn{font-family:var(--head);font-size:10px;letter-spacing:.14em;text-transform:uppercase;border:1px solid var(--line);border-radius:14px;padding:6px 11px;color:var(--silver-dim);transition:all .2s;white-space:nowrap;text-align:center}
 #godBtn.on{border-color:var(--gold);color:var(--gold);box-shadow:0 0 10px rgba(201,168,76,.25)}
@@ -743,7 +748,7 @@ body.in-combat{ padding-top:var(--cbn-h,46px); }
       <div><label class="fld">Origin</label><select id="f-origin"></select></div>
     </div>
     <div style="margin-top:10px"><label class="fld">Motivation</label><select id="f-motivation"></select></div>
-    <div style="margin-top:10px"><label class="fld">Campaign</label><select id="f-campaign"><option value="">No campaign</option></select><div id="tsSpireLink"></div></div>
+    <div style="margin-top:10px"><label class="fld">Adventure</label><div id="f-advname" class="advname">No adventure</div><div id="f-advact"></div><div id="tsSpireLink"></div></div>
     <p class="note" style="margin-top:6px" id="grantNote"></p>
     <div id="motivationCard" style="margin-top:12px"></div>
     <div style="margin-top:10px">
@@ -2470,8 +2475,10 @@ function syncIdentityLock(){
   renderCampaignOptions();
 }
 let ADVS=[];
+/* The adventure a Fell is in is set when the LoreMaster brings it into one. It is shown
+   here and not chosen here: a Fell that says it is somewhere its record does not agree
+   with is a Fell that receives nothing at the table. */
 function renderCampaignOptions(){
-  var sel=$("f-campaign"); if(!sel) return;
   var curId=C.identity.campaignId||"", curName=C.identity.campaign||"";
   (function tsLink(){
     var host=$("tsSpireLink"); if(!host) return;
@@ -2480,27 +2487,29 @@ function renderCampaignOptions(){
     if(wid){ host.innerHTML='<a class="ts-link" target="_top" href="/the-threadspire?world='+encodeURIComponent(wid)+'&campaign='+encodeURIComponent(curId)+'">See this saga in the Sphere</a>'; }
     else { host.innerHTML=''; }
   })();
-  var html='<option value="">No campaign</option>', matched=false;
-  ADVS.forEach(function(a){
-    var on=(curId&&a.id===curId)||(!curId&&curName&&a.name===curName);
-    if(on)matched=true;
-    html+='<option value="'+csEsc(a.id)+'"'+(on?" selected":"")+'>'+csEsc(a.name)+'</option>';
-  });
-  if(curName&&!matched){ html+='<option value="__keep__" selected>'+csEsc(curName)+'</option>'; }
-  sel.innerHTML=html;
-  // a single joined adventure auto-fills when nothing is set yet
-  if(!curName&&!curId&&ADVS.length===1){ sel.value=ADVS[0].id; C.identity.campaign=ADVS[0].name; C.identity.campaignId=ADVS[0].id; }
   // keep the id linked when only a legacy name was stored
-  if(!curId&&curName){ var m=ADVS.find(function(a){return a.name===curName;}); if(m)C.identity.campaignId=m.id; }
-  $("headCampaign").textContent=(C.identity.campaign||"No campaign");
+  if(!curId&&curName){ var m=ADVS.find(function(a){return a.name===curName;}); if(m){ C.identity.campaignId=m.id; curId=m.id; } }
+  var nm=$("f-advname");
+  if(nm){
+    nm.textContent = curName || (function(){ var a=ADVS.find(function(x){return x.id===curId;}); return a?a.name:""; })() || "No adventure";
+    nm.classList.toggle("none", !(curName||curId));
+  }
+  var act=$("f-advact");
+  if(act){
+    act.innerHTML = (curName||curId)
+      ? '<button type="button" class="advleave" onclick="advLeave()">Leave adventure</button>'
+      : '<div class="advhint">Your LoreMaster brings you into one.</div>';
+  }
+  $("headCampaign").textContent=(C.identity.campaign||"No adventure");
 }
-$("f-campaign").addEventListener("change",function(e){
-  var v=e.target.value;
-  if(v==="__keep__")return;
-  if(!v){ C.identity.campaign=""; C.identity.campaignId=""; }
-  else { var a=ADVS.find(function(x){return x.id===v;}); if(a){ C.identity.campaign=a.name; C.identity.campaignId=a.id; C.identity.worldId=a.worldId||""; } }
-  $("headCampaign").textContent=C.identity.campaign||"No campaign";
-});
+function advLeave(){
+  if(!CUR_WIX_ID){ alert("Save this Fell first."); return; }
+  if(!confirm("Leave "+(C.identity.campaign||"this adventure")+"? Your Fell stays yours, and your LoreMaster can bring you back.")) return;
+  C.identity.campaign=""; C.identity.campaignId=""; C.identity.worldId="";
+  renderCampaignOptions();
+  scheduleSave();
+  postToVelo({type:"leave-adventure",charId:CUR_WIX_ID});
+}
 function ensureOption(sel,val){
   if(!val)return;
   if(![...sel.options].some(o=>o.value===val)){

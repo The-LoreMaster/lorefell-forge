@@ -1,3 +1,13 @@
+## 2026-07-24 — ThreadSpire: a player arrives at the adventure their Fell is in
+
+The map was reaching nobody because the players were sitting at no adventure at all. A player comes to the table through their Fell, and the table learned which adventure it was in only from the address, which the way in does not carry. So the table asked the site for the state of nothing, and nothing is what it got: no map, no scene, no battle. It asks the Fell now, and the Fell's record has always known.
+
+The adventure is shown on the sheet and no longer chosen there. It is set when the LoreMaster brings a Fell into an adventure, which is the only place that ever meant anything, and a Fell that claimed to be somewhere its record disagreed with was a Fell that received nothing. Campaign is called Adventure throughout. Leaving is its own choice, under the name: the Fell stays yours and the LoreMaster can bring you back.
+
+The beat reads through to the table now, like the bar above it.
+
+Opening one Fell after another says whose is coming instead of leaving the last one on screen looking like the new one.
+
 ## 2026-07-24 — ThreadSpire: the map reaches the table
 
 A map set by the LoreMaster now appears on everyone's table. It was being sent as a name from the LoreMaster's own shelf, and nobody else has that shelf, so every player was handed the name of a picture they had no way to find. The picture's address travels with the name, and a player's table keeps it so the ordinary painter can find it like any other map.

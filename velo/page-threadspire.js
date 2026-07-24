@@ -2,7 +2,7 @@
 // Paste into the ThreadSpire page. Set the embed element ID to match EMBED.
 // Feeds the character-first view: the player's character card, the party at their
 // location, revealed nodes, quest-board goals, world issues, and map art.
-import { threadspirePublicChar, listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter, threadspireSaveMeta, lmLoadCharacter, lmSaveCharacter, lmCreateOfflineFell, lmRemoveFromAdventure } from 'backend/characters.web.js';
+import { threadspirePublicChar, listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter, threadspireSaveMeta, lmLoadCharacter, lmSaveCharacter, lmCreateOfflineFell, lmRemoveFromAdventure, charAdventure, leaveAdventure } from 'backend/characters.web.js';
 import { getLmPortrait, saveLmPortrait, getForgePools, getForgeLibrary, listMyCampaigns, saveCampaign, submitAct, submitItem, deleteAsset, listGlossary , setMemberRole, detachCharacter } from 'backend/fatewell.web.js';
 import { createInvite, revokeInvite } from 'backend/invites.web.js';
 import { publishAdventure, unpublishAdventure, myPublishedAdventures } from 'backend/published.web.js';
@@ -28,7 +28,7 @@ function toHttps(u) {
 
 const EMBED = '#html1';
 
-$w.onReady(function () {
+$w.onReady(async function () {
   const embed = $w(EMBED);
   if (!embed || !embed.onMessage) return;
 
@@ -40,6 +40,12 @@ $w.onReady(function () {
   let campaignId = q.campaign || q.campaignId || '';
   // the player Fell the LoreMaster currently has open, if any
   let godCharId = '';
+  // A player reaches the table through their Fell, often with nothing in the address
+  // but the Fell itself. The Fell's record says which adventure it is in, so ask it
+  // rather than sitting at an adventure of nobody and receiving nothing.
+  if (!campaignId && characterId) {
+    try { const a = await charAdventure(characterId); if (a && a.campaignId) campaignId = a.campaignId; } catch (e) {}
+  }
   // The character sheet, FellGlass, runs inside ThreadSpire now. Its bridge is relayed
   // here so the embedded sheet reads and writes the same Characters record its own page
   // would. One tool, one record, shown in the rail.
@@ -74,6 +80,9 @@ $w.onReady(function () {
     } else if (m.type === 'quests-request') {
       let qr = null; try { qr = await listQuests(m.campaignId || ''); } catch (e) { qr = null; }
       reply({ type: 'quests', ok: !(qr && qr.ok === false), quests: (qr && qr.quests) || [] });
+    } else if (m.type === 'leave-adventure') {
+      // the sheet is inside ThreadSpire here, so the same message arrives on this bridge
+      try { await leaveAdventure(m.charId || fgCharId); } catch (e) {}
     } else if (m.type === 'combat-request') {
       let state = null; try { state = await getCombatForChar(m.charId || fgCharId); } catch (e) { state = null; }
       reply({ type: 'combat-state', state: state });

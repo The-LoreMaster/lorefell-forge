@@ -3,7 +3,7 @@
 // EMBED to its element ID. The character to show is taken from the page URL query
 // charId, which your character list page sets when a player taps a character.
 
-import { listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter } from 'backend/characters.web.js';
+import { listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter, leaveAdventure} from 'backend/characters.web.js';
 import { getClueCards, listQuests } from 'backend/fatewell.web.js';
 import { getCombatForChar, saveCombatDeclare, syncCombatPlayer } from 'backend/combat.web.js';
 import { getLibraries } from 'backend/libraries.web.js';
@@ -58,6 +58,8 @@ $w.onReady(() => {
       charId = msg.charId || '';
       await openCharacter(charId);
       sendCharacters(charId);
+    } else if (msg.type === 'leave-adventure') {
+      try { await leaveAdventure(msg.charId || charId); } catch (e) {}
     } else if (msg.type === 'threadspire-open') {
       const c = encodeURIComponent(msg.charId || '');
       const cp = msg.campaignId ? '&campaign=' + encodeURIComponent(msg.campaignId) : '';
