@@ -3902,9 +3902,24 @@ function stubSaveJournal(entries){ _journalStore = (entries||[]).slice(); return
 var journalBackend = { get:stubGetJournal, save:stubSaveJournal };
 /* the shared slice two clients agree on: the board, the active scene and stage, the phase.
    Coarse for now, deltas can come later without moving the seam. */
+/* A picture held only on this device is a wall of encoded bytes, and one of them in a
+   token was enough to put the whole snapshot over what the site will carry. WDE0109,
+   every push refused, no state row ever written, and two tables that never met. Only
+   stored addresses travel; a local picture stays home and the token shows its letters
+   until its art is on the account. */
+function slimTokens(list){
+  return (list || []).map(function(t){
+    var img = String(t.img || '');
+    if (img.indexOf('data:') === 0 || img.indexOf('blob:') === 0) img = '';
+    return Object.assign({}, t, { img: img });
+  });
+}
+/* the adventure rides only when it has changed since the last push the site accepted;
+   it is the biggest single thing in the bag and it rarely changes mid-session */
+var _advPushedRev = -1;
 function sharedSnapshot(){
   return {
-    tokens: S.tokens, grid: S.grid, map: S.map,
+    tokens: slimTokens(S.tokens), grid: S.grid, map: S.map,
     background: S.scene.background,
     /* The background is an id from the loremaster's own shelf, and nobody else has that
        shelf to look it up in, so the map arrived at every player's table as a name for
@@ -3914,12 +3929,14 @@ function sharedSnapshot(){
     activeSceneId: S.adventure ? S.adventure.activeSceneId : S.scene.id,
     activeStageId: (function(){ try { return activeStageId(); } catch(e){ return null; } })(),
     combatPhase: S.scene.combatPhase, mode: S.mode, round: S.round,
-    log: (S.log || []).slice(-80),
-    adventure: S.adventure,
+    log: (S.log || []).slice(-40),
+    adventure: (S.advRev || 0) !== _advPushedRev ? S.adventure : undefined,
     advRev: S.advRev || 0,
     instance: (function(){
       /* every scene ever opened was leaving an empty binding behind */
-      var out = { stages: (S.instance && S.instance.stages) || [], bindings: {}, gone: stageGoneList() };
+      var out = { stages: ((S.instance && S.instance.stages) || []).map(function(st){
+        return Object.assign({}, st, { tokens: slimTokens(st.tokens || []) });
+      }), bindings: {}, gone: stageGoneList() };
       var b = (S.instance && S.instance.bindings) || {};
       Object.keys(b).forEach(function(k){
         var v = b[k];
@@ -3940,9 +3957,11 @@ function pushState(){
      That is the worst bug this file can have, so the gate is absolute. */
   if (_advSwitching) return;
   try {
-    stateBackend.push(sharedSnapshot()).then(function(r){
+    var snap = sharedSnapshot();
+    try { SEAM.pushKB = Math.round(JSON.stringify(snap).length / 1024); } catch(e){ SEAM.pushKB = 0; }
+    stateBackend.push(snap).then(function(r){
       SEAM.pushAt = Date.now();
-      if (r && r.version){ _stateSeen = Math.max(_stateSeen, r.version); SEAM.pushV = r.version; SEAM.pushOk = true; SEAM.pushWhy = ''; }
+      if (r && r.version){ _stateSeen = Math.max(_stateSeen, r.version); SEAM.pushV = r.version; SEAM.pushOk = true; SEAM.pushWhy = ''; _advPushedRev = S.advRev || 0; }
       else { SEAM.pushOk = false; SEAM.pushWhy = (r && r.error) || 'the site said no'; seamWarn(); }
       seamPaint();
     }).catch(function(e){
@@ -4210,7 +4229,7 @@ function seamsBody(){
     ['Role', S.role === 'lm' ? 'LoreMaster' : 'Player'],
     ['Adventure', S.campaignId ? String(S.campaignId).slice(0,12) : 'NONE, and nothing can sync without one'],
     ['Fell', S.characterId ? String(S.characterId).slice(0,12) : 'none'],
-    ['Last push', SEAM.pushAt ? ('v' + SEAM.pushV + ' \u00b7 ' + age(SEAM.pushAt) + (SEAM.pushOk === false ? ' \u00b7 FAILED: ' + SEAM.pushWhy : ' \u00b7 ok')) : (isLM() ? 'never, nothing has been sent yet' : 'not this side\u2019s job')],
+    ['Last push', SEAM.pushAt ? ('v' + SEAM.pushV + ' \u00b7 ' + (SEAM.pushKB || 0) + 'KB \u00b7 ' + age(SEAM.pushAt) + (SEAM.pushOk === false ? ' \u00b7 FAILED: ' + SEAM.pushWhy : ' \u00b7 ok')) : (isLM() ? 'never, nothing has been sent yet' : 'not this side\u2019s job')],
     ['Last pull', SEAM.pullAt ? (age(SEAM.pullAt) + ' \u00b7 ' + (SEAM.pullGot || '')) : 'never, the feed has not run'],
     ['Pulls made', String(SEAM.pulls)],
     ['Highest seen', 'v' + _stateSeen],
