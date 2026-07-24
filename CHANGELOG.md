@@ -1,3 +1,11 @@
+## 2026-07-24 — ThreadSpire: five things were asking a question nobody set
+
+Five parts of the table checked a flag that was never given a value anywhere in the file, so all five quietly did nothing: the adventure list, the published copy, the party list, the combat state going out to the players' sheets, and the declares coming back. They now ask whether ThreadSpire is running inside the site, which is the thing they were trying to establish in the first place.
+
+The adventure switcher was the visible symptom. It said the page had not answered, when in truth it had never been asked.
+
+Battle should be watched after this. The state going out to players and the declares coming back have not run before now, so the loop is live for the first time rather than merely wired.
+
 ## 2026-07-24 — ThreadSpire: say why the adventure list is empty
 
 An empty list of adventures and a page that never answered looked exactly the same: This is the only adventure you run. Settings now tells them apart. While it is asking it says so, and if the page does not answer it says the page is out of date, names the file to paste, and offers to try again.
