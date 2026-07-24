@@ -1,3 +1,11 @@
+## 2026-07-24 — ThreadSpire: change adventures without leaving the table
+
+Settings, on the fellmark gem, now lists every adventure you run and opens any of them. The one you are in sits at the top. Story carries the adventure's name at its head with a quiet Change beside it, so the window that tells you what you are running points at the one place that changes it.
+
+Changing adventure is a fresh start rather than a swap in place. The current stage is saved, then ThreadSpire reopens on the other adventure, which is the only honest way to do it: the adventure is read once at the door and the party, the journal, the stages and the live table all hang off it. Anyone at the table follows across.
+
+A battle in progress blocks the change and says why. Ending a round in a table nobody is at helps no one.
+
 ## 2026-07-24 — ThreadSpire: upload a handful, find one quickly
 
 Choosing maps for a stage now shows them under the folders they are filed in, and there is a search above the list. Searching looks across every folder at once, and matches the folder name as well as the map name, so you can find the bridge without remembering where you put it.
