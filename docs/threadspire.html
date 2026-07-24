@@ -535,6 +535,8 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .sm-face:hover{ border-color:var(--ice); }
 .sm-face.sm-blank{ background-image:linear-gradient(135deg,#33496b,#1a2740); }
 .sm-cell.on .sm-face{ border-color:var(--gold); box-shadow:0 0 0 1px var(--gold), 0 0 12px rgba(201,168,76,.3); }
+.sm-cell.bad .sm-face{ border-color:var(--danger); border-style:dashed; }
+.sm-flag{ position:absolute; top:0; left:0; right:0; padding:2px 4px; font-size:.52rem; letter-spacing:.08em; text-transform:uppercase; color:var(--danger); background:rgba(4,7,14,.8); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .sm-cap{ position:absolute; left:0; right:0; bottom:0; padding:2px 4px; font-size:.54rem; letter-spacing:.04em; color:var(--silver); background:linear-gradient(to top,rgba(4,7,14,.92),rgba(4,7,14,0)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:left; }
 .sm-cell.on .sm-cap{ color:#fff; }
 .sm-off{ position:absolute; top:-6px; right:-6px; width:17px; height:17px; line-height:15px; font-size:.6rem; padding:0; border-radius:50%; border:1px solid var(--line); background:var(--navy,#0a0e1a); color:var(--muted); cursor:pointer; opacity:0; transition:opacity .12s; }
@@ -1391,10 +1393,14 @@ function stageMapStrip(st){
     var art = (m && m.url)
       ? ' style="background-image:url(' + m.url + ')"'
       : '';
-    return '<span class="sm-cell' + (on ? ' on' : '') + '">'
+    /* three different nothings, told apart: no such map, a map that never saved, and
+       a map whose picture is gone. A black square said none of them. */
+    var flag = !m ? 'Not on the shelf' : (m.unsaved ? 'Not saved' : (!m.url ? 'No picture' : ''));
+    return '<span class="sm-cell' + (on ? ' on' : '') + (flag ? ' bad' : '') + '">'
       + '<button type="button" class="sm-face' + (m && m.url ? '' : ' sm-blank') + '"' + art
-      + ' title="' + esc(nm) + '"'
+      + ' title="' + esc(flag ? nm + ': ' + flag : nm) + '"'
       + ' onclick="event.stopPropagation();event.preventDefault();lmStageFace(\'' + st.stageId + '\',\'' + id + '\')">'
+      + (flag ? '<span class="sm-flag">' + esc(flag) + '</span>' : '')
       + '<span class="sm-cap">' + esc(m ? m.name : 'Missing') + '</span></button>'
       + '<button type="button" class="sm-off" onclick="event.stopPropagation();event.preventDefault();lmStageDropMap(\'' + st.stageId + '\',\'' + id + '\')" title="Take ' + esc(nm) + ' off this stage">\u2715</button></span>';
   }).join('');
@@ -5088,8 +5094,24 @@ function loadAccountAssets(){
   _assetsLoaded = true;
   assetBackend.list('map').then(function(rows){
     rows.forEach(function(r){
-      if (!S.scene.maps.some(function(m){ return m.id === r.assetId; }))
+      var have = null;
+      S.scene.maps.forEach(function(m){ if (m.id === r.assetId) have = m; });
+      if (!have){
         S.scene.maps.push({ id:r.assetId, assetId:r.assetId, folder:r.folder || '', name:r.name, url:r.image, w:r.w||2400, h:r.h||1600, source:'account' });
+        return;
+      }
+      /* the account is the record. Skipping a row we already had a copy of let a
+         dead blob address outlive the real one it was replaced by. */
+      have.url = r.image || have.url;
+      have.name = r.name || have.name;
+      have.folder = r.folder || '';
+      have.w = r.w || have.w; have.h = r.h || have.h;
+      have.local = false; have.unsaved = false;
+    });
+    /* An address of this shape was made by a page that has since gone. It can never
+       load again, so stop pretending it is a picture. */
+    (S.scene.maps || []).forEach(function(m){
+      if (String(m.url || '').indexOf('blob:') === 0 && !m.local) m.url = '';
     });
     /* the shelf arrives after the window is already drawn, so repaint whatever is
        looking at it. Without this a stage showed its maps as missing until something
@@ -5227,14 +5249,22 @@ function mapReadOne(file, seq, done){
     var w = img.naturalWidth || 2400, h = img.naturalHeight || 1600;
     var m = { id:id, assetId:id, folder:'', name:nm, url:url, w:w, h:h, source:'account', local:true };
     S.scene.maps.push(m);
+    var stored = '';
     assetBackend.upload(file, nm).then(function(imgRef){
+      stored = imgRef || '';
       return assetBackend.save({ assetId:id, kind:'map', name:nm, image:imgRef, w:w, h:h });
     }).then(function(){
-      m.local = false;
-      paintMapPicker();
+      /* Take the stored address. The local one is a blob, which belongs to this page
+         and dies with it, so a map left holding one is blank the moment anything
+         reloads and there is nothing on screen to say why. */
+      if (stored){ m.url = stored; try { URL.revokeObjectURL(url); } catch(e){} }
+      m.local = false; m.unsaved = false;
+      paintMapPicker(); refreshStagesWin(); paintMapArt();
     }).catch(function(){
-      pushLog({ kind:'sys', html:'<b>' + esc(nm) + '</b> is on your shelf but did not save to the account.' });
+      m.unsaved = true;
+      pushLog({ kind:'sys', html:'<b>' + esc(nm) + '</b> did not save to your account. It is on the table for now and will be gone when you reload.' });
       applyRemoteState({ log:S.log });
+      paintMapPicker(); refreshStagesWin();
     });
     done(m);
   };

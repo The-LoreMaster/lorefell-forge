@@ -1,3 +1,12 @@
+## 2026-07-24 — ThreadSpire: an uploaded map keeps the address it was stored at
+
+An uploaded map was saved to the account correctly and then went on using the address it had while it was still only a file on the device. That address belongs to the page that made it and dies with the page, so the picture was there all session and gone the moment anything reloaded, with a black square where it had been and nothing to say why.
+
+The map now takes the stored address the moment the account has it. The shelf, the stage cards and the table all repaint when it arrives.
+
+The account is also the record when the two disagree. A map already in hand was skipped when its row came back, which is how a dead address outlived the real one that had replaced it. The row wins now, and an address of the dead shape is retired on sight rather than left to pretend.
+
+A map that will not draw says which kind of nothing it is: not on the shelf, never saved, or saved without a picture. A map that failed to save says so plainly at the time, and warns that it will not survive a reload.
 ## 2026-07-24 — ThreadSpire: stages belong to one adventure
 
 Stages from other adventures were turning up on the deck. Two reasons, both fixed. The list of stages was fetched with whatever adventure the page happened to know, and when it knew none it fetched every stage the account owns rather than none. And the Lobby used one id for every adventure, so there was only ever one Lobby row and opening a second adventure wrote over the first one's. The adventure now travels with every stage call, is checked again on the way back, and each adventure keeps its own Lobby.
