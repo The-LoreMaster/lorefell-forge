@@ -273,12 +273,16 @@ export const getCampaignPlayers = webMethod(Permissions.Anyone, async (campaignI
     } catch (e) {}
     const mid = it.ownerMemberId || '';
     withChar[mid] = true;
-    out.push({ id: mid, memberId: mid, memberName: nameOf[mid] || '', charId: it._id, name: it.charName || '', level: lvl, maxVit: maxVit, role: roleAt(mid) });
+    // Whether this Fell's record is kept by the adventure's own account. Such a Fell is
+    // one the table holds for someone, not a player with a role, and saying otherwise
+    // reported the loremaster's own role once for every Fell they keep.
+    const kept = !mid || (!!ownerId && mid === ownerId);
+    out.push({ id: mid, memberId: mid, memberName: nameOf[mid] || '', charId: it._id, name: it.charName || '', level: lvl, maxVit: maxVit, role: roleAt(mid), kept: kept });
   });
   // joined members who have not attached a character yet
   members.forEach((m) => {
     if (m.memberId && !withChar[m.memberId]) {
-      out.push({ id: m.memberId, memberId: m.memberId, memberName: m.name || '', charId: null, name: m.name || 'Player', level: 1, maxVit: 0, role: roleAt(m.memberId) });
+      out.push({ id: m.memberId, memberId: m.memberId, memberName: m.name || '', charId: null, name: m.name || 'Player', level: 1, maxVit: 0, role: roleAt(m.memberId), kept: false });
     }
   });
   return out.filter((p) => p.name || p.charId);

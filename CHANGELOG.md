@@ -1,3 +1,11 @@
+## 2026-07-24 — ThreadSpire: a Fell the table keeps is not a loremaster
+
+Every Fell whose record the adventure's own account holds was wearing the loremaster's badge, because a roster line took its role from whoever owns the record rather than from a player sitting at the table. There is no player behind those Fell, so there was no role to show and nothing to promote. Setting one to player appeared to work and the badge went back the moment the list was fetched again, since the owner test won every time.
+
+Such a Fell now says it is at the table, and is not offered a role, because the account it would have changed is the loremaster's own.
+
+Removing one of them removes the Fell, which is what it means when the table is holding it for someone. A Fell with a player behind it is still released rather than destroyed.
+
 ## 2026-07-24 — ThreadSpire: someone at the table, and a roster that answers
 
 The bar over an opened Fell leads with Lore where the name used to sit, since the name is already on the sheet, and Arsenal is called Weapons, which is what it holds.

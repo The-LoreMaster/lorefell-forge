@@ -531,6 +531,7 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .mp-inner{ display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; }
 .pt-open{ flex:1; min-width:0; display:flex; flex-direction:column; align-items:flex-start; gap:1px; background:none; border:none; padding:0; cursor:pointer; text-align:left; }
 .pt-open:hover .pt-name{ color:var(--gold); }
+.pt-role.rl-kept{ color:var(--muted); border-color:var(--line); }
 .subtab.godback{ color:var(--gold); }
 .mp-bad{ font-size:.62rem; color:var(--danger); margin-top:3px; }
 .mp-empty{ grid-column:1/-1; font-size:.7rem; color:var(--muted); padding:6px 4px 10px; }
@@ -4671,7 +4672,9 @@ function lmFellBody(){
             + '<span class="pt-meta">' + esc(p.name || '') + (vit ? ' \u00b7 ' + vit : '') + '</span></button>'
           : '<span class="pt-main"><span class="pt-name">' + esc(p.charName || p.name || 'Unnamed') + '</span>'
             + '<span class="pt-meta">' + esc(p.name || '') + (vit ? ' \u00b7 ' + vit : '') + '</span></span>')
-      + '<span class="pt-role rl-' + esc(role) + '">' + esc(role) + '</span>'
+      + (p.kept
+          ? '<span class="pt-role rl-kept">at the table</span>'
+          : '<span class="pt-role rl-' + esc(role) + '">' + esc(role) + '</span>')
       + (p.charId ? '<button class="st-b" onclick="lmOpenFell(\'' + esc(p.charId) + '\')" title="Open this Fell">\u25b8</button>' : '')
       + '<button class="st-b" onclick="partyMenu(\'' + esc(p.memberId || '') + '\',\'' + esc(p.charId || '') + '\')" title="Options">\u22ef</button></div>';
   });
@@ -4773,25 +4776,31 @@ function partyMenu(memberId, charId){
   var role = p.role || 'player';
   var mid = p.memberId || '';
   var cid = p.charId || '';
-  var atTable = !mid;
+  var atTable = !!p.kept;
   var h = '<h3 class="tsm-title">' + esc(who) + '</h3>'
-    + (atTable ? '<p class="tsm-note">At the table, not on a device. Their Fell is kept by the adventure.</p>' : '')
+    + (atTable ? '<p class="tsm-note">At the table, not on a device. This Fell is kept by the adventure, so there is no account to give a role to.</p>' : '')
     + '<div class="menu-list">';
   if (cid) h += '<button class="tsm-btn ghost wide" onclick="tsCloseModal();lmOpenFell(\'' + esc(cid) + '\')">Open their Fell</button>';
-  if (mid){
+  /* A Fell the adventure keeps has no player behind it to promote. Offering it anyway
+     aimed the role change at the loremaster's own account, which is why the roster read
+     loremaster for every such Fell and put the label straight back on refresh. */
+  if (mid && !p.kept){
     if (role !== 'loremaster') h += '<button class="tsm-btn ghost wide" onclick="partySetRole(\'' + esc(mid) + '\',\'loremaster\')">Make loremaster</button>';
     if (role !== 'lorekeeper') h += '<button class="tsm-btn ghost wide" onclick="partySetRole(\'' + esc(mid) + '\',\'lorekeeper\')">Make lorekeeper</button>';
     if (role !== 'player') h += '<button class="tsm-btn ghost wide" onclick="partySetRole(\'' + esc(mid) + '\',\'player\')">Make player</button>';
   }
-  if (cid && mid) h += '<button class="tsm-btn ghost wide" onclick="partyDetach(\'' + esc(cid) + '\')">Release their Fell from this adventure</button>';
-  if (role !== 'loremaster') h += '<button class="tsm-btn danger wide" onclick="partyRemove(\'' + esc(mid) + '\',\'' + esc(cid) + '\')">Remove from the adventure</button>';
+  if (cid && mid && !p.kept) h += '<button class="tsm-btn ghost wide" onclick="partyDetach(\'' + esc(cid) + '\')">Release their Fell from this adventure</button>';
+  if (p.kept || role !== 'loremaster'){
+    h += '<button class="tsm-btn danger wide" onclick="partyRemove(\'' + esc(p.kept ? '' : mid) + '\',\'' + esc(cid) + '\')">'
+      + (p.kept ? 'Remove this Fell' : 'Remove from the adventure') + '</button>';
+  }
   h += '</div><div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>';
   tsModal(h);
 }
 function partyRemove(memberId, charId){
   var p = partyFind(memberId, charId);
   var who = (p && (p.charName || p.name)) || 'them';
-  var atTable = !(p && p.memberId);
+  var atTable = !!(p && p.kept);
   window._tsYes = function(){
     tsCloseModal();
     tsAsk('TS_PARTY_REMOVE', { memberId:memberId || '', charId:charId || '' }).then(function(){
