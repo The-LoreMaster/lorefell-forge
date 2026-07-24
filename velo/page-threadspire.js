@@ -3,7 +3,7 @@
 // Feeds the character-first view: the player's character card, the party at their
 // location, revealed nodes, quest-board goals, world issues, and map art.
 import { threadspirePublicChar, listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter, threadspireSaveMeta } from 'backend/characters.web.js';
-import { getLmPortrait, saveLmPortrait, getForgePools, getForgeLibrary, listMyCampaigns, submitAct, submitItem, deleteAsset, listGlossary , setMemberRole, detachCharacter } from 'backend/fatewell.web.js';
+import { getLmPortrait, saveLmPortrait, getForgePools, getForgeLibrary, listMyCampaigns, saveCampaign, submitAct, submitItem, deleteAsset, listGlossary , setMemberRole, detachCharacter } from 'backend/fatewell.web.js';
 import { createInvite, revokeInvite } from 'backend/invites.web.js';
 import { publishAdventure, unpublishAdventure, myPublishedAdventures } from 'backend/published.web.js';
 import { getFoePack } from 'backend/forge.web.js';
@@ -172,6 +172,26 @@ $w.onReady(function () {
             wixLocation.to(here + '?role=lm&campaign=' + encodeURIComponent(msg.campaignId || '')
               + '&t=' + Date.now());
             reply(true, { ok: true });
+          } catch (e) { reply(false, null, String(e)); }
+        } else if (msg.type === 'TS_ADVENTURE_CREATE') {
+          // Make the adventure here and open it. saveCampaign with no id inserts and
+          // hands back the new id; the spine is the smallest FateWell can still open.
+          try {
+            const nm = String(msg.name || 'New adventure').slice(0, 120);
+            const now = Date.now();
+            const spine = {
+              name: nm,
+              acts: [{
+                id: 'act-' + now, name: 'Act I',
+                sessions: [{
+                  id: 'ses-' + now, name: 'Session 1',
+                  scenes: [{ id: 'sc-' + now, name: 'Opening scene', beats: [], foes: [], npcs: [], maps: [] }]
+                }]
+              }]
+            };
+            const r = await saveCampaign('', { campaign: spine }, nm);
+            if (r && r.ok && r.id) reply(true, { id: r.id, name: nm });
+            else reply(false, null, (r && r.error) || 'the adventure was not created');
           } catch (e) { reply(false, null, String(e)); }
         } else if (msg.type === 'TS_NEW_ADVENTURE') {
           // FateWell authors adventures; ThreadSpire runs them. The route is the one
