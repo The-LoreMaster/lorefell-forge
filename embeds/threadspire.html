@@ -525,6 +525,7 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .mp-name{ font-family:Cinzel,serif; font-size:.76rem; color:var(--silver); }
 .mp-meta{ font-size:.66rem; color:var(--muted); margin-top:2px; }
 .mp-face{ font-size:.64rem; color:var(--ice); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.mp-bad{ font-size:.62rem; color:var(--danger); margin-top:3px; }
 .mp-empty{ grid-column:1/-1; font-size:.7rem; color:var(--muted); padding:6px 4px 10px; }
 /* the faces of the map on the table, LoreMaster only, sitting under the frame */
 /* The faces a stage can lay down. This row is the card's picture: the one on the
@@ -3865,13 +3866,52 @@ function advGoing(name){
   if (!el){ el = document.createElement('div'); el.id = 'advGo'; document.body.appendChild(el); }
   el.innerHTML = '<div class="ag-in"><div class="ag-mark"></div>'
     + '<div class="ag-name">' + esc(name) + '</div>'
-    + '<div class="ag-sub">Opening the table</div></div>';
+    + '<div class="ag-sub">Traversing the Sphere</div></div>';
   el.style.display = 'flex';
 }
 function advGoingStop(){ var el = document.getElementById('advGo'); if (el){ el.style.display = 'none'; el.innerHTML = ''; } }
 /* the dropdown's own choice, applied on Switch rather than on every flick of the list */
 /* FateWell is where an adventure is written. ThreadSpire runs one; it does not author
    one, so this hands over rather than growing a second authoring surface. */
+/* Make the adventure at the table. It gets a name, one act, one session and one scene,
+   which is the least FateWell can still open and enough to start running. Anything
+   richer is authoring, and authoring is FateWell's job. */
+function advCreate(){
+  var nm = ((document.getElementById('advNewName') || {}).value || '').replace(/^\s+|\s+$/g, '');
+  if (!nm){
+    var el = document.getElementById('advNewName');
+    if (el) el.focus();
+    return;
+  }
+  tsCloseModal();
+  advGoing(nm);
+  tsAsk('TS_ADVENTURE_CREATE', { name:nm }).then(function(r){
+    if (!r || !r.id) throw new Error('no id');
+    return tsAsk('TS_CAMPAIGN_SET', { campaignId:r.id });
+  }).catch(function(){
+    advGoingStop();
+    tsModal('<h3 class="tsm-title">It was not made</h3>'
+      + '<p class="lc-p">The adventure could not be created. Nothing here has changed.</p>'
+      + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
+  });
+  setTimeout(function(){
+    if (!document.getElementById('advGo')) return;
+    advGoingStop();
+    tsModal('<h3 class="tsm-title">Still here</h3>'
+      + '<p class="lc-p">The adventure may have been made, but the page did not move. Open Settings and look for it in the list.</p>'
+      + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
+  }, 12000);
+}
+function advNewHere(){
+  window._tsYes = null;
+  tsModal('<h3 class="tsm-title">A new adventure</h3>'
+    + '<p class="tsm-note">It opens here with one scene, ready to run. Write it out properly in FateWell whenever you like.</p>'
+    + '<label class="tsm-lbl">Call it</label>'
+    + '<input class="tsm-inp" id="advNewName" placeholder="The Sundering of Sarn" autocomplete="off">'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button>'
+    + '<button class="tsm-btn" onclick="advCreate()">Make it and open it</button></div>');
+  setTimeout(function(){ var el = document.getElementById('advNewName'); if (el) el.focus(); }, 60);
+}
 function advNew(){
   window._tsYes = function(){
     try { lmSaveCurrentStage(); } catch(e){}
@@ -3936,7 +3976,9 @@ function settingsBody(){
   } else {
     h += '<div class="win-note">This is the only adventure you run.</div>';
   }
-  h += '<div class="rs-adds"><button class="st-add" onclick="advNew()">Write a new adventure in FateWell</button></div>';
+  h += '<div class="nb-scene">A new adventure</div>'
+    + '<div class="rs-adds"><button class="st-add" onclick="advNewHere()">Make one here</button>'
+    + '<button class="st-add" onclick="advNew()">Write one in FateWell</button></div>';
   h += '<div class="nb-scene">Published</div>'
     + '<div class="win-note">This adventure, and the shelf it is published to.</div>';
   var mine = (S.published || []).filter(function(p){ return sameId(p.campaignId, S.campaignId); })[0];
@@ -5184,6 +5226,7 @@ function paintMapPicker(){
       + '<button class="mp-main" onclick="lmSetMap(\'' + m.id + '\')">' + thumb
       + '<div class="mp-name">' + esc(m.name) + '</div>'
       + '<div class="mp-meta">' + m.w + ' \u00d7 ' + m.h + ' \u00b7 ' + esc(m.source) + (m.local?' \u00b7 not yet saved':'') + '</div>'
+      + (!m.url ? '<div class="mp-bad">No picture stored' + (m.why ? ': ' + esc(m.why) : '') + '. Upload it again.</div>' : '')
       + '</button>'
       + '<span class="mp-acts">'
       + '<button class="st-b" onclick="event.stopPropagation();lmRenameMap(\'' + m.id + '\')" title="Rename">\u270e</button>'
@@ -5278,8 +5321,13 @@ function mapReadOne(file, seq, done){
     S.scene.maps.push(m);
     var stored = '';
     assetBackend.upload(file, nm).then(function(imgRef){
-      stored = imgRef || '';
-      return assetBackend.save({ assetId:id, kind:'map', name:nm, image:imgRef, w:w, h:h });
+      stored = String(imgRef || '');
+      /* Refuse to file a map the account cannot show. An empty answer, or the local
+         address handed straight back, both save a row that looks fine in the list and
+         is a blank square forever after. Fail here, loudly, instead of there. */
+      if (!stored) throw new Error('the upload returned no address');
+      if (stored.indexOf('blob:') === 0) throw new Error('the upload returned a local address');
+      return assetBackend.save({ assetId:id, kind:'map', name:nm, image:stored, w:w, h:h });
     }).then(function(){
       /* Take the stored address. The local one is a blob, which belongs to this page
          and dies with it, so a map left holding one is blank the moment anything
@@ -5287,9 +5335,10 @@ function mapReadOne(file, seq, done){
       if (stored){ m.url = stored; try { URL.revokeObjectURL(url); } catch(e){} }
       m.local = false; m.unsaved = false;
       paintMapPicker(); refreshStagesWin(); paintMapArt();
-    }).catch(function(){
+    }).catch(function(err){
       m.unsaved = true;
-      pushLog({ kind:'sys', html:'<b>' + esc(nm) + '</b> did not save to your account. It is on the table for now and will be gone when you reload.' });
+      m.why = (err && err.message) ? String(err.message) : 'the account refused it';
+      pushLog({ kind:'sys', html:'<b>' + esc(nm) + '</b> did not save: ' + esc(m.why) + '. It is on the table for now and will be gone when you reload.' });
       applyRemoteState({ log:S.log });
       paintMapPicker(); refreshStagesWin();
     });

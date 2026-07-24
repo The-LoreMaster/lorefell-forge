@@ -1,3 +1,11 @@
+## 2026-07-24 — ThreadSpire: make an adventure at the table
+
+A new adventure can be made from Settings without leaving. Give it a name and it opens here with one scene, ready to run. FateWell is still there for writing it out properly, and the button for that sits beside it.
+
+The veil now says Traversing the Sphere, which is what is actually happening.
+
+A map that cannot be shown is no longer filed as though it were. If the account hands back nothing, or hands back the address the picture only has on this device, the map is refused at that moment and says why, instead of sitting on the shelf as a name over an empty square. Any map already on the shelf without a picture says so on its card and asks to be uploaded again.
+
 ## 2026-07-24 — ThreadSpire: write a new adventure from the table
 
 Settings can send you to FateWell to write a new adventure. ThreadSpire runs an adventure and does not author one, so it hands over rather than growing a second place to do the same job. The table saves on the way out, and the new adventure is waiting in the list when you come back.
