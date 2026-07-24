@@ -1,3 +1,13 @@
+## 2026-07-24 — ThreadSpire: stages belong to one adventure
+
+Stages from other adventures were turning up on the deck. Two reasons, both fixed. The list of stages was fetched with whatever adventure the page happened to know, and when it knew none it fetched every stage the account owns rather than none. And the Lobby used one id for every adventure, so there was only ever one Lobby row and opening a second adventure wrote over the first one's. The adventure now travels with every stage call, is checked again on the way back, and each adventure keeps its own Lobby.
+
+Settings leads with the adventure you are running, said plainly, and offers the rest as a list to choose from and open.
+
+Changing adventure now shows that it is happening. The table is veiled, the adventure is named, and it stays that way until the other one opens. If the page does not move, it says so instead of leaving a veil up.
+
+The switch also works every time rather than most of the time. Asking a page to go to the same address with a different question sometimes did not move it at all.
+
 ## 2026-07-24 — Two checks and a page of facts
 
 ThreadSpire was never contract checked. It was missing from the list, so the tool with the most bridge calls in the project had nothing watching whether the page and the embed still agreed. It is on the list now, and the check learned a new trick along the way: a tool that hosts another tool in an iframe talks downward to it, and that is a contract too. ThreadSpire's three messages to the FellGlass sheet are now checked against FellGlass rather than against the page, which was never going to answer them.

@@ -18,20 +18,27 @@ async function memberId() {
 export const listStages = webMethod(Permissions.Anyone, async (campaignId) => {
   const mid = await memberId();
   if (!mid) return [];
+  // Fail closed. This used to skip the filter when no adventure was given, which
+  // handed back every stage the member owns and put other adventures' tables on the
+  // deck. A stage belongs to one adventure; no adventure means no stages.
+  if (!campaignId) return [];
   try {
-    let q = wixData.query(COLLECTION).eq('ownerMemberId', mid);
-    if (campaignId) q = q.eq('campaignId', String(campaignId));
-    const r = await q.limit(1000).find({ suppressAuth: true });
+    const r = await wixData.query(COLLECTION)
+      .eq('ownerMemberId', mid).eq('campaignId', String(campaignId))
+      .limit(1000).find({ suppressAuth: true });
     return r.items;
   } catch (e) { return []; }
 });
 
 export const saveStage = webMethod(Permissions.Anyone, async (stage) => {
   const mid = await memberId(); if (!mid || !stage || !stage.stageId) return { ok: false };
+  // Without the adventure the row is unfindable, since listStages filters on it.
+  if (!stage.campaignId) return { ok: false, error: 'no adventure on the stage' };
   const row = Object.assign({}, stage, { ownerMemberId: mid });
   try {
     const ex = await wixData.query(COLLECTION)
       .eq('ownerMemberId', mid).eq('stageId', String(stage.stageId))
+      .eq('campaignId', String(stage.campaignId))
       .limit(1).find({ suppressAuth: true });
     if (ex.items.length) {
       const merged = Object.assign({}, ex.items[0], row);
