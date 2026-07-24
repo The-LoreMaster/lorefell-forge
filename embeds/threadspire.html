@@ -544,7 +544,10 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .sm-add:hover{ color:var(--gold); border-color:var(--gold); }
 .sm-plus{ font-size:.95rem; line-height:1; }
 .sm-addlbl{ font-family:Cinzel,serif; font-size:.5rem; letter-spacing:.1em; text-transform:uppercase; }
-.sm-pick{ display:grid; grid-template-columns:repeat(auto-fill,minmax(132px,1fr)); gap:8px; max-height:46vh; overflow-y:auto; margin:8px 0; }
+.sm-find{ margin:2px 0 6px; }
+.sm-fold{ font-family:Cinzel,serif; font-size:.6rem; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); margin:9px 0 4px; }
+.sm-pick{ display:grid; grid-template-columns:repeat(auto-fill,minmax(132px,1fr)); gap:8px; }
+#smPickWrap{ max-height:44vh; overflow-y:auto; margin:4px 0 2px; }
 .sm-opt{ display:flex; flex-direction:column; gap:4px; padding:6px; border:1px solid var(--line); border-radius:7px; background:var(--navy2,#0e1526); cursor:pointer; text-align:left; }
 .sm-opt:hover{ border-color:var(--gold); }
 .sm-thumb{ display:block; width:100%; height:56px; border-radius:4px; background-size:cover; background-position:center; }
@@ -718,7 +721,7 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
     <div id="mapLayer">
       <div id="mapArt"></div>
       <div id="gridInf"></div>
-  <input type="file" id="mapFileInput" accept="image/*" style="display:none" onchange="lmMapFilePicked(this)">
+  <input type="file" id="mapFileInput" accept="image/*" multiple style="display:none" onchange="lmMapFilePicked(this)">
   <input type="file" id="tokFileInput" accept="image/*" style="display:none" onchange="lmTokenFilePicked(this)">
     </div>
   </div>
@@ -4814,21 +4817,54 @@ function lmStageFace(stageId, mapId){
 function lmStageAddMap(stageId){
   var st = stageById(stageId); if (!st) return;
   loadAccountAssets();
+  window._stagePicking = stageId;
+  tsModal('<h3 class="tsm-title">Add a map to ' + esc(st.name) + '</h3>'
+    + '<p class="tsm-note">Maps on a stage are faces of one place. Swap between them at any time and every token stays where it stands.</p>'
+    + '<input class="tsm-inp sm-find" id="smFind" placeholder="Search your maps" oninput="stagePickPaint()" autocomplete="off">'
+    + '<div id="smPickWrap"></div>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button>'
+    + '<button class="tsm-btn" onclick="lmStageUpload(\'' + stageId + '\')">Upload images</button></div>');
+  stagePickPaint();
+}
+/* The shelf, as the stage sees it: what is already on this stage is out, the rest
+   arrives under the folder it lives in. Searching looks across every folder at once,
+   because when you are hunting for the bridge you do not want to remember where you
+   filed it. */
+function stagePickPaint(){
+  var stageId = window._stagePicking;
+  var wrap = document.getElementById('smPickWrap');
+  if (!wrap || !stageId) return;
+  var st = stageById(stageId); if (!st) return;
+  var q = ((document.getElementById('smFind') || {}).value || '').toLowerCase().replace(/^\s+|\s+$/g, '');
   var have = stageMapIds(st);
   var pool = (S.scene.maps || []).filter(function(m){ return have.indexOf(m.id) < 0; });
-  var body = pool.length
-    ? '<div class="sm-pick">' + pool.map(function(m){
-        return '<button type="button" class="sm-opt" onclick="lmStageMapAdd(\'' + stageId + '\',\'' + m.id + '\')">'
-          + (m.url ? '<span class="sm-thumb" style="background-image:url(' + m.url + ')"></span>' : '<span class="sm-thumb sd-ph"></span>')
-          + '<span class="sm-oname">' + esc(m.name) + '</span>'
-          + '<span class="sm-osize">' + m.w + ' \u00d7 ' + m.h + '</span></button>';
-      }).join('') + '</div>'
-    : '<p class="tsm-note">Every map on your shelf is already on this stage.</p>';
-  tsModal('<h3 class="tsm-title">Add a map to ' + esc(st.name) + '</h3>'
-    + '<p class="tsm-note">Maps on a stage are faces of the one place. Swap between them at any time and every token stays where it stands.</p>'
-    + body
-    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button>'
-    + '<button class="tsm-btn" onclick="lmStageUpload(\'' + stageId + '\')">Upload an image</button></div>');
+  var hits = q ? pool.filter(function(m){
+    return String(m.name || '').toLowerCase().indexOf(q) >= 0
+        || String(m.folder || '').toLowerCase().indexOf(q) >= 0;
+  }) : pool;
+  function opt(m){
+    return '<button type="button" class="sm-opt" onclick="lmStageMapAdd(\'' + stageId + '\',\'' + m.id + '\')">'
+      + (m.url ? '<span class="sm-thumb" style="background-image:url(' + m.url + ')"></span>' : '<span class="sm-thumb sd-ph"></span>')
+      + '<span class="sm-oname">' + esc(m.name) + '</span>'
+      + '<span class="sm-osize">' + m.w + ' \u00d7 ' + m.h + '</span></button>';
+  }
+  if (!pool.length){ wrap.innerHTML = '<p class="tsm-note">Every map on your shelf is already on this stage.</p>'; return; }
+  if (!hits.length){ wrap.innerHTML = '<p class="tsm-note">No map matches that. Try part of its name, or the folder it sits in.</p>'; return; }
+  if (q){ wrap.innerHTML = '<div class="sm-pick">' + hits.map(opt).join('') + '</div>'; return; }
+  var html = '', seen = {};
+  assetFolders(hits).forEach(function(f){
+    var inIt = hits.filter(function(m){ return (m.folder || '') === f; });
+    if (!inIt.length) return;
+    inIt.forEach(function(m){ seen[m.id] = 1; });
+    html += '<div class="sm-fold">' + esc(f) + ' <span class="tsm-count">' + inIt.length + '</span></div>'
+      + '<div class="sm-pick">' + inIt.map(opt).join('') + '</div>';
+  });
+  var loose = hits.filter(function(m){ return !seen[m.id]; });
+  if (loose.length){
+    if (html) html += '<div class="sm-fold">Loose <span class="tsm-count">' + loose.length + '</span></div>';
+    html += '<div class="sm-pick">' + loose.map(opt).join('') + '</div>';
+  }
+  wrap.innerHTML = html;
 }
 function lmStageMapAdd(stageId, mapId){
   var st = stageById(stageId); if (!st) return;
@@ -4996,52 +5032,91 @@ function lmMapUploadStub(){ document.getElementById('mapFileInput').click(); }
 function lmMapDrop(e){
   e.preventDefault();
   var el = e.currentTarget; if(el) el.classList.remove('drag');
-  var file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-  if (!file) return;
-  var fake = { files:[file], value:'' };
-  lmMapFilePicked(fake);
+  var dropped = (e.dataTransfer && e.dataTransfer.files) || [];
+  if (!dropped.length) return;
+  /* dropping a handful works the same as choosing a handful */
+  lmMapFilePicked({ files:dropped, value:'' });
 }
 function lmMapFilePicked(input){
-  var file = input.files && input.files[0];
-  if (!file) return;
-  if (!/^image\//.test(file.type)){ pushLog({ kind:'sys', html:'That file is not an image.' }); applyRemoteState({ log:S.log }); return; }
+  var files = [];
+  for (var i = 0; i < (input.files ? input.files.length : 0); i++) files.push(input.files[i]);
+  input.value = '';
+  if (!files.length) return;
+  var bad = files.filter(function(f){ return !/^image\//.test(f.type); }).length;
+  files = files.filter(function(f){ return /^image\//.test(f.type); });
+  if (bad){
+    pushLog({ kind:'sys', html: bad === 1 ? 'One file was not an image and was left out.'
+      : bad + ' files were not images and were left out.' });
+    applyRemoteState({ log:S.log });
+  }
+  if (!files.length) return;
+  /* several at once, read one after another so the ids stay distinct and the log
+     reads in the order they were chosen */
+  var waiting = window._stageAwaitingMap; window._stageAwaitingMap = null;
+  if (waiting) lmCloseMaps();
+  var added = [];
+  function next(k){
+    if (k >= files.length){ mapUploadsDone(waiting, added); return; }
+    mapReadOne(files[k], k, function(m){ if (m) added.push(m); next(k + 1); });
+  }
+  next(0);
+}
+/* one file: measure it, put it on the shelf, then send it to the account */
+function mapReadOne(file, seq, done){
   var url = URL.createObjectURL(file);
   var img = new Image();
   img.onload = function(){
-    var id = 'up-' + Date.now();
+    var id = 'up-' + Date.now() + '-' + seq;
     var nm = file.name.replace(/\.[^.]+$/, '');
-    var w = img.naturalWidth||2400, h = img.naturalHeight||1600;
+    var w = img.naturalWidth || 2400, h = img.naturalHeight || 1600;
     var m = { id:id, assetId:id, folder:'', name:nm, url:url, w:w, h:h, source:'account', local:true };
     S.scene.maps.push(m);
-    /* an upload asked for by a stage joins that stage rather than taking over the
-       table, so adding a face from prep does not change what the party is looking at */
-    var waiting = window._stageAwaitingMap; window._stageAwaitingMap = null;
-    if (waiting){
-      lmCloseMaps();
-      lmStageMapAdd(waiting, id);
-      paintMapPicker();
-    } else {
-      S.scene.background = id;
-      S.map = { w:w, h:h };
-      applyRemoteState({ scene:S.scene, map:S.map });
-      paintMapArt();
-      lmCloseMaps();
-    }
-    /* save to the account through the seam */
     assetBackend.upload(file, nm).then(function(imgRef){
       return assetBackend.save({ assetId:id, kind:'map', name:nm, image:imgRef, w:w, h:h });
     }).then(function(){
       m.local = false;
-      pushLog({ kind:'sys', html:'Map <b>' + esc(nm) + '</b> saved to your account.' });
-      applyRemoteState({ log:S.log });
+      paintMapPicker();
     }).catch(function(){
-      pushLog({ kind:'sys', html:'Map <b>' + esc(nm) + '</b> is on the map but did not save.' });
+      pushLog({ kind:'sys', html:'<b>' + esc(nm) + '</b> is on your shelf but did not save to the account.' });
       applyRemoteState({ log:S.log });
     });
+    done(m);
   };
-  img.onerror = function(){ pushLog({ kind:'sys', html:'That image could not be read.' }); applyRemoteState({ log:S.log }); };
+  img.onerror = function(){
+    pushLog({ kind:'sys', html:'<b>' + esc(file.name) + '</b> could not be read.' });
+    applyRemoteState({ log:S.log });
+    done(null);
+  };
   img.src = url;
-  input.value = '';
+}
+/* where the batch lands: onto the stage that asked for it, or on the table if the
+   shelf was opened on its own and a single map was chosen */
+function mapUploadsDone(waiting, added){
+  if (!added.length) return;
+  if (waiting){
+    var st = stageById(waiting);
+    if (st){
+      stageTouch();
+      var ids = stageMapIds(st);
+      added.forEach(function(m){ if (ids.indexOf(m.id) < 0) ids.push(m.id); });
+      st.mapIds = ids;
+      if (!st.mapId){ tsCloseModal(); lmStageFace(waiting, added[0].id); }
+      else { stageBackend.save(st); applyRemoteState({ instance:S.instance }); refreshStagesWin(); }
+    }
+  } else if (added.length === 1){
+    var m = added[0];
+    S.scene.background = m.id;
+    S.map = { w:m.w, h:m.h };
+    applyRemoteState({ scene:S.scene, map:S.map });
+    paintMapArt();
+    lmCloseMaps();
+  }
+  paintMapPicker();
+  if (typeof stagePickPaint === 'function') stagePickPaint();
+  pushLog({ kind:'sys', html: added.length === 1
+    ? 'Map <b>' + esc(added[0].name) + '</b> added to your shelf.'
+    : added.length + ' maps added to your shelf.' });
+  applyRemoteState({ log:S.log });
 }
 function lmBeginCombat(){ S.scene.combatPhase = 'commit'; applyRemoteState({ mode:'combat', scene:S.scene }); combatPublish(); declaresLoad(); }
 function lmEndCombat(){ S.declares = null; S.scene.combatPhase = null; S.scene.foes.concat(S.scene.fell).forEach(function(c){ c.act=''; c.locked=false; c.spot=null; }); applyRemoteState({ mode:'explore', scene:S.scene });  combatPublish(); }
