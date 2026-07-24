@@ -31,14 +31,18 @@ export const saveCampaignState = webMethod(Permissions.Anyone, async (campaignId
     const ex = await wixData.query(CV).eq('campaignId', String(campaignId)).limit(1).find({ suppressAuth: true });
     const cur = ex.items[0];
     const version = (cur ? (cur.version || 0) : 0) + 1;
-    // The adventure is the heaviest thing in the snapshot, so the table only sends it
-    // when it has changed. The row must not forget it in between: a push without one
-    // keeps the one already here, or a player joining late would never receive the spine.
+    // Absent means keep. The table sends heavy things apart from light ones, so a push
+    // carries only what it is about, and the row remembers everything else it was ever
+    // given. To clear a thing, send it empty; to leave it alone, do not send it.
     let body = snap || null;
-    if (body && body.adventure === undefined && cur && cur.snapshot) {
+    if (body && cur && cur.snapshot) {
       try {
         const prev = JSON.parse(cur.snapshot);
-        if (prev && prev.adventure) body = Object.assign({}, body, { adventure: prev.adventure });
+        if (prev) {
+          const merged = Object.assign({}, body);
+          Object.keys(prev).forEach((k) => { if (merged[k] === undefined) merged[k] = prev[k]; });
+          body = merged;
+        }
       } catch (e) {}
     }
     const base = cur ? Object.assign({}, cur) : {};

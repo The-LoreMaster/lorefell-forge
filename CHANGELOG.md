@@ -1,3 +1,11 @@
+## 2026-07-24 — ThreadSpire: the story travels alone
+
+The first push always carried the whole written adventure, because nothing had ever been marked delivered. If the story alone is over what the site will carry, every push fails on its account, the marker never sets, and the table is exactly where it was: nothing syncs, forever, with the story to blame and no one saying so.
+
+The story travels by itself now. The frequent push carries only the light state: map, tokens, log, mode. The story goes separately, once per change, after a light push has proven the door works. The site keeps whatever it was last given, so a push about one thing no longer erases the others. And a story too large to carry blocks only itself, says so in the log with its size, and lets the map, tokens and log keep travelling.
+
+The seams gained a Story push line: delivered, waiting, or too large, with the weight in KB.
+
 ## 2026-07-24 — ThreadSpire: the snapshot fits through the door
 
 The seams named it on their first reading: every push the LoreMaster ever made was refused for size, so the shared state row was never written at all, and the players pulled faithfully from a row that did not exist. Nothing was wrong with the pipeline. The bag was too big for the door.

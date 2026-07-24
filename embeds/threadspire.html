@@ -3930,7 +3930,6 @@ function sharedSnapshot(){
     activeStageId: (function(){ try { return activeStageId(); } catch(e){ return null; } })(),
     combatPhase: S.scene.combatPhase, mode: S.mode, round: S.round,
     log: (S.log || []).slice(-40),
-    adventure: (S.advRev || 0) !== _advPushedRev ? S.adventure : undefined,
     advRev: S.advRev || 0,
     instance: (function(){
       /* every scene ever opened was leaving an empty binding behind */
@@ -3950,6 +3949,30 @@ function sharedSnapshot(){
    pulls our own writes back and clobbers a live interaction. */
 var _advSwitching = false;
 var _pushWarnAt = 0;
+var _advTooBig = false;
+/* The spine travels alone. It is the heaviest single thing the table shares and it
+   rarely changes, so it does not ride with every token nudge, and a spine too large
+   for the site to carry blocks only itself, said plainly, instead of silently taking
+   the map, the tokens and the log down with it. */
+function pushAdventure(){
+  if (_advSwitching || !isLM() || !S.adventure) return;
+  if ((S.advRev || 0) === _advPushedRev || _advTooBig) return;
+  var body = { adventure: S.adventure, advRev: S.advRev || 0 };
+  try { SEAM.advKB = Math.round(JSON.stringify(body).length / 1024); } catch(e){ SEAM.advKB = 0; }
+  stateBackend.push(body).then(function(r){
+    if (r && r.version){ _stateSeen = Math.max(_stateSeen, r.version); _advPushedRev = S.advRev || 0; SEAM.advSent = 'delivered rev ' + _advPushedRev; }
+    else {
+      SEAM.advSent = 'refused: ' + ((r && r.error) || 'unknown');
+      if (String((r && r.error) || '').indexOf('WDE0109') >= 0){
+        _advTooBig = true;
+        SEAM.advSent = 'too large (' + SEAM.advKB + 'KB), not travelling';
+        pushLog({ kind:'sys', html:'This adventure\u2019s story is too large to share with the table (' + SEAM.advKB + 'KB). The map, tokens and log still travel; the players will not receive the written scenes.' });
+        render();
+      }
+    }
+    seamPaint();
+  }).catch(function(e){ SEAM.advSent = 'failed: ' + String(e && e.message || e).slice(0,60); seamPaint(); });
+}
 function pushState(){
   /* While the table is between adventures nothing here is true of anywhere. A push in
      that window writes the freshly emptied state over the new adventure's stored one
@@ -3961,7 +3984,7 @@ function pushState(){
     try { SEAM.pushKB = Math.round(JSON.stringify(snap).length / 1024); } catch(e){ SEAM.pushKB = 0; }
     stateBackend.push(snap).then(function(r){
       SEAM.pushAt = Date.now();
-      if (r && r.version){ _stateSeen = Math.max(_stateSeen, r.version); SEAM.pushV = r.version; SEAM.pushOk = true; SEAM.pushWhy = ''; _advPushedRev = S.advRev || 0; }
+      if (r && r.version){ _stateSeen = Math.max(_stateSeen, r.version); SEAM.pushV = r.version; SEAM.pushOk = true; SEAM.pushWhy = ''; pushAdventure(); }
       else { SEAM.pushOk = false; SEAM.pushWhy = (r && r.error) || 'the site said no'; seamWarn(); }
       seamPaint();
     }).catch(function(e){
@@ -4124,6 +4147,7 @@ function advSwitch(id){
    here shows up on the new table wearing the old one's face. */
 function advReset(nextId){
   _advSwitching = true;
+  _advPushedRev = -1; _advTooBig = false; SEAM.advSent = '';
   if (_logPushT){ clearTimeout(_logPushT); _logPushT = null; }
   S.campaignId = nextId || S.campaignId;
   advBlank();
@@ -4233,6 +4257,7 @@ function seamsBody(){
     ['Last pull', SEAM.pullAt ? (age(SEAM.pullAt) + ' \u00b7 ' + (SEAM.pullGot || '')) : 'never, the feed has not run'],
     ['Pulls made', String(SEAM.pulls)],
     ['Highest seen', 'v' + _stateSeen],
+    ['Story push', isLM() ? (SEAM.advSent || ((S.advRev || 0) === _advPushedRev ? 'delivered' : 'waiting on a light push to succeed first')) : 'not this side\u2019s job'],
     ['Map on scene', S.scene && S.scene.background ? String(S.scene.background).slice(0,12) : 'none'],
     ['Map picture', (function(){ var m = (typeof activeMap === 'function') ? activeMap() : null;
         if (m && m.url) return 'held (' + (m.url.indexOf('blob:') === 0 ? 'LOCAL ONLY, dies on reload' : 'stored') + ')';
