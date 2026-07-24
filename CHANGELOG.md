@@ -1,3 +1,11 @@
+## 2026-07-24 — ThreadSpire: the adventure changes without the page moving
+
+Asking the site to go to the page it is already on does nothing, which is why the veil came up, the Sphere was traversed, and the same adventure was still sitting there afterwards. The page now rebinds instead of reloading. It takes the new adventure, tells the table, and every call after that reads the new one.
+
+The table puts down what belonged to the adventure it is leaving: its stages, its scenes, its journal, its library, its log, the tokens on the map. Anything kept would arrive at the new table wearing the old one's face.
+
+A folder on the map shelf takes a drop anywhere in it now, over the maps as well as the name. Aiming at a strip of text was a game of darts.
+
 ## 2026-07-24 — ThreadSpire: make an adventure at the table
 
 A new adventure can be made from Settings without leaving. Give it a name and it opens here with one scene, ready to run. FateWell is still there for writing it out properly, and the button for that sits beside it.
