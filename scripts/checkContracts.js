@@ -11,12 +11,23 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
-const TOOLS = ['fatewell', 'foeforge', 'sigilforge', 'bondforge', 'relicforge', 'brandforge', 'shardforge', 'fellforge', 'fellglass', 'join', 'loreforge', 'the_hearth'];
+const TOOLS = ['fatewell', 'foeforge', 'sigilforge', 'bondforge', 'relicforge', 'brandforge', 'shardforge', 'fellforge', 'fellglass', 'join', 'loreforge', 'the_hearth', 'threadspire'];
 
 // genuine one-way messages handled outside the paired bridge
 const ALLOW = {
   '*': ['LOREFELL_FEEDBACK_SUBMIT'],
-  fellglass: ['init', 'new', 'libraries']   // also driven by the FellForge handoff
+  fellglass: ['init', 'new', 'libraries'],  // also driven by the FellForge handoff
+  // The page answers THREADSPIRE_WANT_LORE for the older build under threadspire/app
+  // and threadspire/dist. docs/threadspire.html never asks, so the reply lands nowhere
+  // in the live tool. Kept because the older build still reads it.
+  threadspire: ['THREADSPIRE_LORE']
+};
+
+// Some tools host another tool in an iframe and talk downward to it. Those types are
+// not the page bridge's business, but they are still a contract: if the child stops
+// handling one, the parent goes quiet with no error. Checked against the child instead.
+const CHILD = {
+  threadspire: { tool: 'fellglass', types: ['ts-god', 'ts-new', 'goto-panel'] }
 };
 // one-way ping families: resize and readiness pings a bridge may legitimately ignore
 const PING = /(?:HEIGHT|READY)$/i;
@@ -38,8 +49,10 @@ function handles(s) {
     matchAll(/\bcase\s+['"]([^'"]+)['"]\s*:/g, s)
   ));
 }
+function childTypes(tool) { return (CHILD[tool] && CHILD[tool].types) || []; }
 function allowed(tool, t) {
   if (PING.test(t) || t === 'ready') return true;
+  if (childTypes(tool).includes(t)) return true;
   return (ALLOW['*'] || []).includes(t) || (ALLOW[tool] || []).includes(t);
 }
 
@@ -62,6 +75,26 @@ TOOLS.forEach((tool) => {
     recvUnsent.forEach((t) => console.log('  bridge emits "' + t + '" but the tool does not handle it'));
   } else {
     console.log('ok ' + tool);
+  }
+});
+
+// the downward contracts: a hosting tool and the tool it embeds
+Object.keys(CHILD).forEach((parent) => {
+  const spec = CHILD[parent];
+  const parentSrc = read(path.join(ROOT, 'docs', parent + '.html'));
+  const childSrc = read(path.join(ROOT, 'docs', spec.tool + '.html'));
+  if (!parentSrc || !childSrc) { console.log('skip ' + parent + ' -> ' + spec.tool + ' (missing source)'); return; }
+  const childHandles = handles(childSrc);
+  const parentEmits = emits(parentSrc);
+  const deaf = spec.types.filter((t) => !childHandles.includes(t));
+  const silent = spec.types.filter((t) => !parentEmits.includes(t));
+  if (deaf.length || silent.length) {
+    problems += deaf.length + silent.length;
+    console.log('\n' + parent + ' -> ' + spec.tool + ':');
+    deaf.forEach((t) => console.log('  ' + parent + ' sends "' + t + '" but ' + spec.tool + ' does not handle it'));
+    silent.forEach((t) => console.log('  "' + t + '" is declared for ' + spec.tool + ' but ' + parent + ' never sends it'));
+  } else {
+    console.log('ok ' + parent + ' -> ' + spec.tool);
   }
 });
 

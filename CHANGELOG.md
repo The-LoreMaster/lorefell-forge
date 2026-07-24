@@ -1,3 +1,11 @@
+## 2026-07-24 — Two checks and a page of facts
+
+ThreadSpire was never contract checked. It was missing from the list, so the tool with the most bridge calls in the project had nothing watching whether the page and the embed still agreed. It is on the list now, and the check learned a new trick along the way: a tool that hosts another tool in an iframe talks downward to it, and that is a contract too. ThreadSpire's three messages to the FellGlass sheet are now checked against FellGlass rather than against the page, which was never going to answer them.
+
+A second check looks for a global that is read and never given a value. That is the shape of the bug that had five parts of ThreadSpire silently doing nothing all day: the combat state, the declares, the party, the published copy and the adventure list all asked a question of a flag nobody had ever set. It found one more on its first honest run, in FellGlass: an error message that would have thrown instead of appearing, on the path where you open ThreadSpire before saving a Fell.
+
+FACTS.md holds the handful of values that cannot be worked out by reading the code and that cost real time when guessed. Page routes, where each Velo file goes, which paths write to the live CMS. It is not an architecture document on purpose; those go stale and then mislead, which is the lesson CANON_SOURCES.md already teaches.
+
 ## 2026-07-24 — ThreadSpire: the maps were never gone
 
 Stages was not fetching the shelf. The account's maps were only ever collected when the Maps shelf itself was opened, so on a fresh load every stage looked as though its maps had vanished, when in truth they had never been asked for. Opening Stages now brings the shelf with it, and when the shelf arrives the stage cards, the picker and the table all repaint, instead of waiting for something else to redraw them.
