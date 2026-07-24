@@ -1,3 +1,11 @@
+## 2026-07-24 — ThreadSpire: the LoreMaster's hand on a Fell
+
+Open a Fell from the Fell tab and it opens as its own sheet, the same one the player uses, with the locks off. Attributes, Skills, Arsenal, Lorebounds, Armor, Inventory and Lore are all there as tabs, and a Fell button at the left goes back to the party. Closing the window puts the Fell down.
+
+Nothing is reimplemented. The panels are FellGlass's own, reached the way the player reaches them, so what the sheet learns the LoreMaster inherits.
+
+Whether a LoreMaster may touch a Fell is decided by the site, not by the tool. The Fell's own record says which adventure it belongs to, and the site checks the caller runs that adventure before handing anything over or writing anything back. A Fell from another table cannot be opened, whatever the tool asks for. The owner and the adventure on a Fell stay the player's; the LoreMaster changes what is on the sheet, not whose it is.
+
 ## 2026-07-24 — ThreadSpire: an answer about the adventure you left is not news
 
 The table asks the site for the state of the adventure every second and a half. A question asked just before changing adventure comes back just after it, holding the old adventure, and the table believed it. That is where the other adventure's stages kept coming from, and why a second Lobby appeared beside the first: the old one arrived as truth, and the new adventure went and made its own.

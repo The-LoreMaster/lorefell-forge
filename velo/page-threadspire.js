@@ -2,7 +2,7 @@
 // Paste into the ThreadSpire page. Set the embed element ID to match EMBED.
 // Feeds the character-first view: the player's character card, the party at their
 // location, revealed nodes, quest-board goals, world issues, and map art.
-import { threadspirePublicChar, listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter, threadspireSaveMeta } from 'backend/characters.web.js';
+import { threadspirePublicChar, listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter, threadspireSaveMeta, lmLoadCharacter, lmSaveCharacter } from 'backend/characters.web.js';
 import { getLmPortrait, saveLmPortrait, getForgePools, getForgeLibrary, listMyCampaigns, saveCampaign, submitAct, submitItem, deleteAsset, listGlossary , setMemberRole, detachCharacter } from 'backend/fatewell.web.js';
 import { createInvite, revokeInvite } from 'backend/invites.web.js';
 import { publishAdventure, unpublishAdventure, myPublishedAdventures } from 'backend/published.web.js';
@@ -38,6 +38,8 @@ $w.onReady(function () {
   // Wix to navigate to the page it is already on does nothing at all, so the switch
   // simply never happened.
   let campaignId = q.campaign || q.campaignId || '';
+  // the player Fell the LoreMaster currently has open, if any
+  let godCharId = '';
   // The character sheet, FellGlass, runs inside ThreadSpire now. Its bridge is relayed
   // here so the embedded sheet reads and writes the same Characters record its own page
   // would. One tool, one record, shown in the rail.
@@ -84,7 +86,14 @@ $w.onReady(function () {
       reply({ type: 'combat-declare-ack', ok: ok, reqId: m.reqId || 0 });
     } else if (m.type === 'save') {
       const cid = m.charId || '';
-      try { const r = await saveCharacter(cid, m.character || {}); if (r && r.ok && r.id && !cid) { fgCharId = r.id; reply({ type: 'saved', localId: m.localId || '', charId: r.id }); await sendCharacters(r.id); } } catch (e) {}
+      // While the LoreMaster has a player's Fell open, the sheet's own autosave is
+      // writing to someone else's record. It goes through the gated method, which
+      // checks the role against the adventure rather than taking the page's word.
+      if (godCharId && cid && cid === godCharId) {
+        try { await lmSaveCharacter(cid, m.character || {}); } catch (e) {}
+      } else {
+        try { const r = await saveCharacter(cid, m.character || {}); if (r && r.ok && r.id && !cid) { fgCharId = r.id; reply({ type: 'saved', localId: m.localId || '', charId: r.id }); await sendCharacters(r.id); } } catch (e) {}
+      }
     } else if (m.type === 'delete-character') {
       const cid = m.charId || fgCharId; let res = { ok: false }; try { res = await deleteCharacter(cid); } catch (e) { res = { ok: false }; }
       const list = await listChars(); const nextId = list.length ? list[0].id : ''; fgCharId = nextId;
@@ -181,6 +190,28 @@ $w.onReady(function () {
               reply(true, { ok: true, campaignId: campaignId });
             }
           } catch (e) { reply(false, null, String(e)); }
+        } else if (msg.type === 'TS_GOD_SHEET') {
+          // Hand a player's Fell to the sheet frame. Refused unless the caller runs the
+          // adventure that Fell belongs to.
+          try {
+            const rec = await lmLoadCharacter(msg.charId || '');
+            if (!rec) { reply(false, null, 'that Fell is not yours to open'); }
+            else {
+              godCharId = msg.charId || '';
+              let libraries = {}; try { libraries = await getLibraries(); } catch (e) { libraries = {}; }
+              // down the existing relay, as the sheet's own init. Same road the player's
+              // own sheet travels, so there is one way in and one thing to keep working.
+              embed.postMessage({ type: 'TS_TOOL_DOWN', tool: 'fellglass',
+                msg: { type: 'init', charId: godCharId,
+                       character: rec.forged ? (rec.seed || {}) : (rec.character || {}),
+                       libraries: libraries } });
+              embed.postMessage({ type: 'TS_TOOL_DOWN', tool: 'fellglass', msg: { type: 'ts-god', on: true } });
+              reply(true, { ok: true });
+            }
+          } catch (e) { reply(false, null, String(e)); }
+        } else if (msg.type === 'TS_GOD_SHEET_CLOSE') {
+          godCharId = '';
+          reply(true, { ok: true });
         } else if (msg.type === 'TS_ADVENTURE_CREATE') {
           // Make the adventure here and open it. saveCampaign with no id inserts and
           // hands back the new id; the spine is the smallest FateWell can still open.

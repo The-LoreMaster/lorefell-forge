@@ -161,6 +161,60 @@ export const saveCharacter = webMethod(Permissions.Anyone, async (charId, charac
   return { ok: true, id: saved._id };
 });
 
+// ---- the LoreMaster's hand on a player's sheet ----
+// loadCharacter and saveCharacter refuse anything that is not yours, which is right for
+// a player. A LoreMaster running the adventure the Fell belongs to is the one exception,
+// and it is decided here rather than trusted from the page: the caller's role is read
+// from AdventureMembers against the campaign stamped on the character's own row, so
+// nothing the browser sends can widen it.
+async function lmMayTouch(charId) {
+  const me = await memberId();
+  if (!me) return { ok: false, error: 'not signed in' };
+  const row = await wixData.get(COLLECTION, charId, { suppressAuth: true }).catch(() => null);
+  if (!row) return { ok: false, error: 'not found' };
+  if (row.ownerMemberId && row.ownerMemberId === me) return { ok: true, row: row };
+  const cid = row.campaignId || '';
+  if (!cid) return { ok: false, error: 'that Fell is not in an adventure' };
+  try {
+    const r = await wixData.query('AdventureMembers')
+      .eq('campaignId', cid).eq('memberId', me).limit(1).find({ suppressAuth: true });
+    const role = r.items.length ? r.items[0].role : '';
+    if (role === 'loremaster' || role === 'lorekeeper') return { ok: true, row: row };
+  } catch (e) {}
+  try {
+    const camp = await wixData.get('Campaigns', cid, { suppressAuth: true }).catch(() => null);
+    if (camp && camp.ownerMemberId === me) return { ok: true, row: row };
+  } catch (e) {}
+  return { ok: false, error: 'not your adventure' };
+}
+
+export const lmLoadCharacter = webMethod(Permissions.Anyone, async (charId) => {
+  if (!charId) return null;
+  const gate = await lmMayTouch(charId);
+  if (!gate.ok) return null;
+  const r = gate.row;
+  if (!r.data && r.forgeSeed) {
+    let seed = {}; try { seed = JSON.parse(r.forgeSeed); } catch (e) { seed = {}; }
+    return { forged: true, seed: seed };
+  }
+  let data = {}; try { data = r.data ? JSON.parse(r.data) : {}; } catch (e) { data = {}; }
+  return { forged: false, character: data };
+});
+
+export const lmSaveCharacter = webMethod(Permissions.Anyone, async (charId, character) => {
+  if (!charId) return { ok: false, error: 'no Fell given' };
+  const gate = await lmMayTouch(charId);
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const row = gate.row;
+  const c = character || {};
+  row.data = JSON.stringify(c);
+  row.charName = (c.identity && c.identity.name) || row.charName || 'Unnamed Fell';
+  row.level = (c.lore && c.lore.level) || row.level || 1;
+  // the owner and the adventure are the player's to change, never the LoreMaster's
+  const saved = await wixData.save(COLLECTION, row, { suppressAuth: true });
+  return { ok: true, id: saved._id };
+});
+
 export const threadspireSaveMeta = webMethod(Permissions.Anyone, async (charId, patch) => {
   try {
     if (!charId) return { ok: false };
