@@ -486,9 +486,16 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 /* the clear zone each side control needs: HUD is 200 + 16 inset, plus a gap.
    A centered card is capped so its half never crosses into that zone. */
 .lmcard{ background:var(--panel); border:1px solid var(--line); border-radius:11px; padding:13px 15px; box-shadow:0 6px 24px rgba(0,0,0,.5); }
-/* scene beat card: compact, hard-capped so it never leaves the screen; body scrolls within */
-.lmcard.beat{ width:min(94vw, 560px); min-width:0; max-width:none; padding:10px 13px; height:min(20vh, 150px); display:flex; flex-direction:column; box-sizing:border-box; }
-.lmcard.beat .lmc-body{ max-height:none; flex:1 1 auto; min-height:0; overflow-y:auto; font-size:.85rem; line-height:1.5; }
+/* Scene beat card. A fixed height rather than a shrinking one, so the bar above it
+   sits at the same line whatever the beat says, and long read-aloud is scrolled inside
+   the card instead of pushing the runner about. Half the page is the ceiling. */
+.lmcard.beat{ width:min(94vw, 560px); min-width:0; max-width:none; padding:10px 13px; height:min(50vh, 420px); display:flex; flex-direction:column; box-sizing:border-box; }
+.lmcard.beat .lmc-body{ max-height:none; flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; font-size:.85rem; line-height:1.5; padding-right:4px; }
+/* something to take hold of when there is more text than card */
+.lmcard.beat .lmc-body::-webkit-scrollbar{ width:8px; }
+.lmcard.beat .lmc-body::-webkit-scrollbar-thumb{ background:var(--line2, #2c3d5e); border-radius:4px; }
+.lmcard.beat .lmc-body::-webkit-scrollbar-track{ background:transparent; }
+.lmcard.beat .lmc-body{ scrollbar-width:thin; scrollbar-color:var(--line2, #2c3d5e) transparent; }
 /* foe combat card, compact by default like the FateWell strip, expands on click */
 .lmcard.foe, .lmcard.fell{ width:172px; cursor:pointer; }
 .lmcard.foe.expanded, .lmcard.fell.expanded{ width:min(340px, calc(100vw - 160px)); max-height:44vh; overflow-y:auto; cursor:default; }
@@ -3873,6 +3880,11 @@ function sharedSnapshot(){
   return {
     tokens: S.tokens, grid: S.grid, map: S.map,
     background: S.scene.background,
+    /* The background is an id from the loremaster's own shelf, and nobody else has that
+       shelf to look it up in, so the map arrived at every player's table as a name for
+       a picture they could not find. The address travels with it. */
+    backgroundUrl: (function(){ try { var m = activeMap(); return (m && m.url) || ''; } catch(e){ return ''; } })(),
+    mapName: (function(){ try { var m = activeMap(); return (m && m.name) || ''; } catch(e){ return ''; } })(),
     activeSceneId: S.adventure ? S.adventure.activeSceneId : S.scene.id,
     activeStageId: (function(){ try { return activeStageId(); } catch(e){ return null; } })(),
     combatPhase: S.scene.combatPhase, mode: S.mode, round: S.round,
@@ -3922,7 +3934,6 @@ function applyRemoteSnapshot(snap){
   if (snap.tokens) S.tokens = snap.tokens;
   if (snap.grid) S.grid = snap.grid;
   if (snap.map) S.map = snap.map;
-  if (snap.background !== undefined) S.scene.background = snap.background;
   if (snap.combatPhase !== undefined) S.scene.combatPhase = snap.combatPhase;
   var _wasBattle = S.mode === 'combat';
   if (snap.mode) S.mode = snap.mode;
@@ -3935,6 +3946,18 @@ function applyRemoteSnapshot(snap){
   if (snap.activeSceneId && S.adventure && snap.activeSceneId !== S.scene.id){
     var hit = (typeof tsSceneById === 'function') ? tsSceneById(snap.activeSceneId) : null;
     if (hit){ S.scene = hit.scene; S.adventure.activeSceneId = snap.activeSceneId; }
+  }
+  /* after the scene is settled, or the map is written onto the scene being left */
+  if (snap.background !== undefined) S.scene.background = snap.background;
+  if (snap.backgroundUrl !== undefined) S.remoteMapUrl = snap.backgroundUrl || '';
+  if (!isLM() && snap.backgroundUrl && snap.background){
+    /* keep it on the shelf this table can see, so the ordinary painter finds it */
+    S.scene.maps = S.scene.maps || [];
+    var have = null;
+    S.scene.maps.forEach(function(m){ if (m.id === snap.background) have = m; });
+    if (!have) S.scene.maps.push({ id:snap.background, name:snap.mapName || 'Map', url:snap.backgroundUrl,
+                                   w:(snap.map && snap.map.w) || 2400, h:(snap.map && snap.map.h) || 1600, source:'table' });
+    else if (have.url !== snap.backgroundUrl) have.url = snap.backgroundUrl;
   }
   if (snap.instance && snap.instance.bindings && !(S._advTouch && Date.now() - S._advTouch < 8000)){
     S.instance = S.instance || {};
@@ -4741,6 +4764,11 @@ function loadForAdventure(){
   try { if (typeof loadAccountAssets === 'function') loadAccountAssets(); } catch(e){}
 }
 setTimeout(function(){ try { loadForAdventure(); startStateFeed(); if (tsEmbedded()) window.parent.postMessage({ type:'THREADSPIRE_READY' }, '*'); } catch(e){} }, 0);
+/* The sheet is a whole tool in a frame and it was not fetched until the first time
+   somebody asked for it, which is the pause when a Fell is opened. It is invisible
+   until then, so it costs nothing to have it waiting, and the wait is put after the
+   things the table needs to draw itself. */
+setTimeout(function(){ try { if (typeof ensureSheet === 'function') ensureSheet(); } catch(e){} }, 1500);
 /* the testing panel is scaffolding, not part of a real table: hidden when embedded,
    summoned with the backtick key when you need it while testing */
 (function(){
@@ -5595,7 +5623,9 @@ function paintMapArt(){
   if (!art) return;
   art.style.width = S.map.w + 'px'; art.style.height = S.map.h + 'px';
   var m = activeMap();
-  if (m && m.url){ art.style.backgroundImage = 'url(' + m.url + ')'; art.style.backgroundSize = 'cover'; }
+  var url = (m && m.url) || (!isLM() ? (S.remoteMapUrl || '') : '');
+  if (url){ art.style.backgroundImage = 'url(' + url + ')'; art.style.backgroundSize = 'cover'; }
+  else { art.style.backgroundImage = ''; }
   /* null url keeps the CSS placeholder gradient */
 }
 function paintMapPicker(){

@@ -1,3 +1,13 @@
+## 2026-07-24 — ThreadSpire: the map reaches the table
+
+A map set by the LoreMaster now appears on everyone's table. It was being sent as a name from the LoreMaster's own shelf, and nobody else has that shelf, so every player was handed the name of a picture they had no way to find. The picture's address travels with the name, and a player's table keeps it so the ordinary painter can find it like any other map.
+
+A map arriving at the same moment as a change of scene was also being written onto the scene being left, and went with it. It waits for the scene to settle now.
+
+The scene runner holds still. The reader is a fixed height, up to half the page, so the bar above it sits on the same line whatever the beat says, and long read-aloud scrolls inside the card rather than moving the runner about. The scrollbar is visible enough to take hold of.
+
+The pause when a Fell is first opened is gone. The sheet is a whole tool in a frame and it was not fetched until the moment it was wanted. It waits out of sight from a second or so after the table opens.
+
 ## 2026-07-24 — ThreadSpire: battle takes the table again
 
 When battle begins, every player at the adventure is pulled into it, the way FateWell always did it. The edge of their screen burns red and the battle is put in front of them, wherever they were and whatever they had open. Their sheet then loads, finds its own name among the fighters, and takes over with its declares. When the battle ends, the edge glows gold and the table is theirs again.
