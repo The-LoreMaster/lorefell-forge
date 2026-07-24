@@ -145,10 +145,13 @@ $w.onReady(function () {
         } else if (msg.type === 'TS_STAGE_SAVE') {
           // Stamp the adventure on the way in: listStages filters by it, so a stage
           // saved without one could never be found again.
-          const r = await saveStage(Object.assign({ campaignId: campaignId }, msg.stage));
+          const r = await saveStage(Object.assign({}, msg.stage, { campaignId: msg.campaignId || campaignId }));
           reply(!!(r && r.ok), r, r && r.error);
         } else if (msg.type === 'TS_STAGE_LIST') {
-          const rows = await listStages(msg.campaignId || campaignId);
+          // The embed's own adventure wins, so a stale page constant cannot widen the
+          // scope. No adventure at all returns nothing rather than everything.
+          const cid = msg.campaignId || campaignId;
+          const rows = cid ? await listStages(cid) : [];
           reply(true, rows || []);
         } else if (msg.type === 'TS_CAMPAIGN_LIST') {
           // Every adventure this member runs, loremaster or lorekeeper. The embed only
@@ -164,7 +167,10 @@ $w.onReady(function () {
             // Reopen this page, whatever its slug is. Hardcoding a guess at the route
             // sent the browser nowhere and the button looked dead.
             const here = '/' + ((wixLocation.path || []).join('/'));
-            wixLocation.to(here + '?role=lm&campaign=' + encodeURIComponent(msg.campaignId || ''));
+            // Same page, different query, sometimes does not reload at all, which is why
+            // the switch worked only some of the time. A changing value forces it.
+            wixLocation.to(here + '?role=lm&campaign=' + encodeURIComponent(msg.campaignId || '')
+              + '&t=' + Date.now());
             reply(true, { ok: true });
           } catch (e) { reply(false, null, String(e)); }
         } else if (msg.type === 'TS_STAGE_DELETE') {
