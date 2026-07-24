@@ -551,6 +551,9 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .vcard.picked{ border-color:var(--gold); box-shadow:0 0 0 1px var(--gold); }
 .card-tick{ position:absolute; top:6px; right:6px; width:20px; height:20px; line-height:18px; text-align:center; border-radius:50%; border:1px solid var(--line); background:rgba(4,7,14,.8); color:var(--gold); font-size:.7rem; }
 .vcard.picked .card-tick{ border-color:var(--gold); background:var(--gold); color:var(--navy,#0a0e1a); }
+.seam-row{ display:flex; justify-content:space-between; gap:12px; padding:7px 4px; border-bottom:1px solid var(--line,#22304d); }
+.seam-k{ font-size:.66rem; letter-spacing:.1em; text-transform:uppercase; color:var(--muted,#7e8a99); white-space:nowrap; }
+.seam-v{ font-size:.78rem; color:var(--ice,#b8ccd8); text-align:right; word-break:break-word; }
 .pt-role.rl-kept{ color:var(--muted); border-color:var(--line); }
 .subtab.godback{ color:var(--gold); }
 .mp-bad{ font-size:.62rem; color:var(--danger); margin-top:3px; }
@@ -1434,6 +1437,7 @@ var SECTIONS = {
   journal:   { title:'Journal' },
   scenes:    { title:'Scenes' },
   library:   { title:'Library' },
+  seams:     { title:'The Seams' },
   stages:    { title:'Stages' },
   search:    { title:'Search' },
   settings:  { title:'Settings' },
@@ -2547,6 +2551,7 @@ function sectionBody(key){
       + '<button onclick="toggleFull()" style="' + sBtn + '">Full screen (F)</button>';
   }
   if (key === 'battle') return battleBody();
+  if (key === 'seams') return seamsBody();
   if (key === 'log') return chatRow('chatWin') + '<div class="logstream" aria-live="polite"></div>';
   return '<p style="color:var(--ice)">Placeholder for the ' + SECTIONS[key].title
     + ' section. Phase two ports the FellGlass content here, rendering only, engine untouched.</p>' + stubs(6);
@@ -3927,6 +3932,7 @@ function sharedSnapshot(){
 /* relay our state outward. On acknowledgement we mark the version seen, so the feed never
    pulls our own writes back and clobbers a live interaction. */
 var _advSwitching = false;
+var _pushWarnAt = 0;
 function pushState(){
   /* While the table is between adventures nothing here is true of anywhere. A push in
      that window writes the freshly emptied state over the new adventure's stored one
@@ -3934,8 +3940,23 @@ function pushState(){
      That is the worst bug this file can have, so the gate is absolute. */
   if (_advSwitching) return;
   try {
-    stateBackend.push(sharedSnapshot()).then(function(r){ if (r && r.version) _stateSeen = Math.max(_stateSeen, r.version); }).catch(function(){});
+    stateBackend.push(sharedSnapshot()).then(function(r){
+      SEAM.pushAt = Date.now();
+      if (r && r.version){ _stateSeen = Math.max(_stateSeen, r.version); SEAM.pushV = r.version; SEAM.pushOk = true; SEAM.pushWhy = ''; }
+      else { SEAM.pushOk = false; SEAM.pushWhy = (r && r.error) || 'the site said no'; seamWarn(); }
+      seamPaint();
+    }).catch(function(e){
+      SEAM.pushAt = Date.now(); SEAM.pushOk = false; SEAM.pushWhy = String(e && e.message || e).slice(0,60); seamWarn(); seamPaint();
+    });
   } catch(e){}
+}
+/* a failed push means the table and the players have quietly split; say it, throttled */
+function seamWarn(){
+  if (!isLM()) return;
+  if (Date.now() - _pushWarnAt < 30000) return;
+  _pushWarnAt = Date.now();
+  pushLog({ kind:'sys', html:'The table did not take that change (' + esc(SEAM.pushWhy || 'unknown') + '). The players may not be seeing what you see.' });
+  render();
 }
 /* apply a remote snapshot as truth */
 function applyRemoteSnapshot(snap){
@@ -4179,6 +4200,31 @@ function advCreate(){
       + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
   }, 12000);
 }
+/* ---- the seams ----
+   The living state of the pipeline, on any table. When two tables disagree, open this
+   on both and compare: whichever number is wrong names the broken side, and nobody has
+   to guess. */
+function seamsBody(){
+  var age = function(t){ return t ? Math.round((Date.now() - t) / 1000) + 's ago' : 'never'; };
+  var rows = [
+    ['Role', S.role === 'lm' ? 'LoreMaster' : 'Player'],
+    ['Adventure', S.campaignId ? String(S.campaignId).slice(0,12) : 'NONE, and nothing can sync without one'],
+    ['Fell', S.characterId ? String(S.characterId).slice(0,12) : 'none'],
+    ['Last push', SEAM.pushAt ? ('v' + SEAM.pushV + ' \u00b7 ' + age(SEAM.pushAt) + (SEAM.pushOk === false ? ' \u00b7 FAILED: ' + SEAM.pushWhy : ' \u00b7 ok')) : (isLM() ? 'never, nothing has been sent yet' : 'not this side\u2019s job')],
+    ['Last pull', SEAM.pullAt ? (age(SEAM.pullAt) + ' \u00b7 ' + (SEAM.pullGot || '')) : 'never, the feed has not run'],
+    ['Pulls made', String(SEAM.pulls)],
+    ['Highest seen', 'v' + _stateSeen],
+    ['Map on scene', S.scene && S.scene.background ? String(S.scene.background).slice(0,12) : 'none'],
+    ['Map picture', (function(){ var m = (typeof activeMap === 'function') ? activeMap() : null;
+        if (m && m.url) return 'held (' + (m.url.indexOf('blob:') === 0 ? 'LOCAL ONLY, dies on reload' : 'stored') + ')';
+        return S.remoteMapUrl ? 'from the table' : 'NONE'; })()],
+    ['Tokens', String((S.tokens || []).length)],
+    ['Between adventures', _advSwitching ? 'YES, pushes are gated' : 'no']
+  ];
+  return '<div class="win-note">The table\u2019s working parts, live. When two tables disagree, open this on both and compare lines: the wrong number names the broken side.</div>'
+    + rows.map(function(r){ return '<div class="seam-row"><span class="seam-k">' + r[0] + '</span><span class="seam-v">' + esc(r[1]) + '</span></div>'; }).join('');
+}
+function seamPaint(){ if (S.openSection === 'seams') { var b = document.getElementById('winBody'); if (b) b.innerHTML = seamsBody(); } }
 function advNewHere(){
   window._tsYes = null;
   tsModal('<h3 class="tsm-title">A new adventure</h3>'
@@ -4253,6 +4299,8 @@ function settingsBody(){
   } else {
     h += '<div class="win-note">This is the only adventure you run.</div>';
   }
+  h += '<div class="nb-scene">Under the hood</div>'
+    + '<div class="rs-adds"><button class="st-add" onclick="openWin(\'seams\')">Show the seams</button></div>';
   h += '<div class="nb-scene">A new adventure</div>'
     + '<div class="rs-adds"><button class="st-add" onclick="advNewHere()">Make one here</button>'
     + '<button class="st-add" onclick="advNew()">Write one in FateWell</button></div>';
@@ -4314,6 +4362,7 @@ function menuBody(){
   h += '<div class="win-note" style="margin-top:14px">Settings</div>';
   h += '<div class="lb-row" style="cursor:pointer" onclick="toggleGodMode()"><span class="lb-name">LoreMaster Mode</span><span class="lb-meta">' + (S.godMode?'On':'Off') + '</span></div>';
   h += '<div class="lb-row"><span class="lb-name">Dice skins</span><span class="lb-meta">Soon</span></div>';
+  h += '<div class="lb-row" style="cursor:pointer" onclick="openWin(\'seams\')"><span class="lb-name">Show the seams</span><span class="lb-meta">Live</span></div>';
   setTimeout(loadCharList, 30);
   return h;
 }
@@ -4472,16 +4521,24 @@ function loadAdventureSpine(spine){
   var hit = (typeof tsSceneById === 'function') ? tsSceneById(activeId) : null;
   if (hit) S.scene = hit.scene;
 }
+/* What actually happened at the seam, kept so the seams panel can say it. Every failure
+   in this pipeline used to be swallowed, which is why a broken link could only be found
+   by guessing at it. */
+var SEAM = { pushAt:0, pushV:0, pushOk:null, pushWhy:'', pullAt:0, pullV:0, pullGot:'', pulls:0 };
 function startStateFeed(){
   if (!tsEmbedded() || _stateFeedTimer) return;
   function pullOnce(){
     if (pan || pinch) return;
     stateBackend.pull(_stateSeen).then(function(res){
-      if (!res) return;
+      SEAM.pullAt = Date.now(); SEAM.pulls++;
+      if (!res){ SEAM.pullGot = 'nothing'; seamPaint(); return; }
       /* an answer about the adventure we just left is not news, it is the past */
-      if (res.campaignId && S.campaignId && !sameId(res.campaignId, S.campaignId)) return;
-      if (res.version > _stateSeen){ _stateSeen = res.version; applyRemoteSnapshot(res.snap); }
-    }).catch(function(){});
+      if (res.campaignId && S.campaignId && !sameId(res.campaignId, S.campaignId)){ SEAM.pullGot = 'other adventure (' + String(res.campaignId).slice(0,8) + ')'; seamPaint(); return; }
+      if (res.version === undefined){ SEAM.pullGot = 'no row yet'; seamPaint(); return; }
+      if (res.version > _stateSeen){ _stateSeen = res.version; SEAM.pullV = res.version; SEAM.pullGot = 'new state v' + res.version; applyRemoteSnapshot(res.snap); }
+      else { SEAM.pullGot = 'nothing newer than v' + _stateSeen; }
+      seamPaint();
+    }).catch(function(e){ SEAM.pullAt = Date.now(); SEAM.pullGot = 'failed: ' + String(e && e.message || e).slice(0,60); seamPaint(); });
   }
   pullOnce();                                  /* land on the real adventure right away */
   _stateFeedTimer = setInterval(pullOnce, 1500);

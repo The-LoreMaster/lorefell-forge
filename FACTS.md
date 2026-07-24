@@ -90,6 +90,22 @@ because updating a workflow file needs a token with `workflow` scope. Adding it 
 lines: a `- 'scripts/checkGlobals.js'` path entry under both triggers, and a
 `- run: node scripts/checkGlobals.js` step after the contracts step.
 
+## When two tables disagree
+
+The sync-bug protocol, learned the slow way. Do these in order and do not skip to fixing:
+
+1. **Trace from the write, not the read.** Find where the value is *set* and follow it
+   outward. The map bug survived four read-side fixes because the write side never sent
+   anything: `applyRemoteState` drew the screen and stopped. The shelf bug and the slug
+   bug were the same shape. Where is it set, who sends it, who stores it, who fetches
+   it, who paints it, in that order.
+2. **Open the seams on both tables** (Settings > Show the seams, or the player menu) and
+   compare lines. The wrong number names the broken side: an empty Adventure line means
+   nothing can sync for that table; a FAILED push means the loremaster's changes are not
+   leaving; `nothing newer than vN` on one side while the other pushed vN+3 means the
+   pull side; `other adventure` means a scoping leak.
+3. Only then patch, on the side the numbers indict.
+
 **None of these catch a function that exists but is never called.** `stagesBody` needed
 the map shelf and never asked for it, so every stage looked mapless, and nothing flagged
 it because every symbol resolved. Before editing a function, grep its name to see who
