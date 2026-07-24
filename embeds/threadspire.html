@@ -867,13 +867,7 @@ var S = {
      a scene to the stages it uses, many to many, and remember which stage is active. An
      exported adventure carries the scene and its map pack, never anything in here, so one
      table's boards can never reach another LoreMaster. */
-  instance: {
-    stages: [
-      { stageId:'st-beacon',     name:'The Silent Beacon', mapId:'m-beacon',     tokens:null, grid:null, mapW:2400, mapH:1600 },
-      { stageId:'st-undercroft', name:'The Undercroft',    mapId:'m-undercroft', tokens:[],   grid:null, mapW:2000, mapH:2000 }
-    ],
-    bindings: { 'sc-beacon': { stageIds:['st-beacon','st-undercroft'], activeStageId:'st-beacon' } }
-  },
+  instance: { stages: [], bindings: {} },
   /* The LoreMaster runtime. This is the scene FateWell authored, handed over as
      remote truth. ThreadSpire renders these cards, it owns none of the math. The
      phase drives which face the cards wear: run cards in a scene, foe cards in
@@ -1042,6 +1036,24 @@ S.adventure = {
 /* each scene keeps its own private binding, so its stages come back when you return */
 S.instance.bindings['sc-approach']   = S.instance.bindings['sc-approach']   || { stageIds:[], activeStageId:null };
 S.instance.bindings['sc-undercroft'] = S.instance.bindings['sc-undercroft'] || { stageIds:['st-undercroft'], activeStageId:'st-undercroft' };
+
+/* The table with nothing on it. One empty scene in one empty act, which is the least
+   the carousel and the spine walkers can hold without a null check in every one of
+   them. Used while an adventure is on its way. */
+function advBlank(){
+  var sc = { id:'sc-default', name:'Lobby', combatPhase:null, background:null, maps:[],
+             spotMode:'auto', manual:{}, spotOrder:[], activeSpot:0,
+             beats:[], foes:[], fell:[], npcs:[], accountTokens:[] };
+  S.scene = sc;
+  S.adventure = { name:'', activeSceneId:sc.id,
+    acts:[{ id:'act-0', name:'', sessions:[{ id:'ses-0', name:'', scenes:[sc] }] }] };
+  S.instance = { stages: [], bindings: {} };
+  S.instance.bindings[sc.id] = { stageIds:[], activeStageId:null };
+}
+/* Inside the site the demo above is one flash of someone else's adventure before the
+   real one lands, and one push away from being written over it. Standalone keeps the
+   demo, because standalone is the prototype bench. */
+if (tsEmbedded()) advBlank();
 
 function tsScenes(){
   var out=[];
@@ -3729,7 +3741,13 @@ function sharedSnapshot(){
 }
 /* relay our state outward. On acknowledgement we mark the version seen, so the feed never
    pulls our own writes back and clobbers a live interaction. */
+var _advSwitching = false;
 function pushState(){
+  /* While the table is between adventures nothing here is true of anywhere. A push in
+     that window writes the freshly emptied state over the new adventure's stored one
+     and marks the version seen, so the real state is both destroyed and never pulled.
+     That is the worst bug this file can have, so the gate is absolute. */
+  if (_advSwitching) return;
   try {
     stateBackend.push(sharedSnapshot()).then(function(r){ if (r && r.version) _stateSeen = Math.max(_stateSeen, r.version); }).catch(function(){});
   } catch(e){}
@@ -3737,6 +3755,7 @@ function pushState(){
 /* apply a remote snapshot as truth */
 function applyRemoteSnapshot(snap){
   if (!snap) return;
+  if (_advSwitching){ _advSwitching = false; advGoingStop(); }
   if (snap.adventure && snap.adventure.acts){
     var _rr = snap.advRev || 0, _lr = S.advRev || 0;
     var _fresh = S._advTouch && Date.now() - S._advTouch < 6000;
@@ -3868,19 +3887,29 @@ function advSwitch(id){
 /* Put down everything that belonged to the adventure being left. Anything not cleared
    here shows up on the new table wearing the old one's face. */
 function advReset(nextId){
+  _advSwitching = true;
+  if (_logPushT){ clearTimeout(_logPushT); _logPushT = null; }
   S.campaignId = nextId || S.campaignId;
-  S.instance = { stages: [], bindings: {} };
-  S.adventure = null; S._advRemote = false; S.advRev = 0; S._advTouch = 0;
+  advBlank();
+  S._advRemote = false; S.advRev = 0; S._advTouch = 0;
   S.journal = null; S.quests = null; S.library = null; S.published = null;
   S.declares = null; S.mode = 'explore'; S.round = 0;
   S.tokens = []; S.log = [];
-  S.scene = { id:'sc-default', name:'Lobby', background:null, foes:[], npcs:[], fell:[], beats:[], maps:[], accountTokens:[] };
   _stageGone = {};
   _assetsLoaded = false;
   _stateSeen = 0;
   try { localStorage.removeItem('ts_stages_gone'); } catch(e){}
   if (typeof closeWin === 'function' && S.openSection) closeWin();
-  advGoingStop();
+  /* the veil stays. The next thing shown is the other adventure, not this one's
+     emptied shell. It lifts when the new table's state has actually arrived, or after
+     a bounded wait for an adventure so new it has no state yet to arrive. */
+  if (!document.getElementById('advGo') || (document.getElementById('advGo').style.display !== 'flex')){
+    advGoing('');
+  }
+  setTimeout(function(){
+    if (_advSwitching){ _advSwitching = false; advGoingStop(); }
+  }, 8000);
+  render();
 }
 function advGoing(name){
   var el = document.getElementById('advGo');
@@ -3916,7 +3945,9 @@ function advCreate(){
       + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
   });
   setTimeout(function(){
-    if (!document.getElementById('advGo')) return;
+    var v = document.getElementById('advGo');
+    /* the veil element outlives its use; only a veil still showing means stuck */
+    if (!v || v.style.display !== 'flex') return;
     advGoingStop();
     tsModal('<h3 class="tsm-title">Still here</h3>'
       + '<p class="lc-p">The adventure may have been made, but the page did not move. Open Settings and look for it in the list.</p>'

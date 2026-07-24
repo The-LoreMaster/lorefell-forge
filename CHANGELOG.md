@@ -1,3 +1,13 @@
+## 2026-07-24 — ThreadSpire: nothing between adventures
+
+The scene that flashed at the start, The Silent Beacon with its notes and its foe, is the demo baked into the tool for working on it outside the site. Inside the site it was one flash of an adventure nobody wrote before the real one landed, and one push away from being written over the real one. Inside the site the table now boots empty and stays behind the veil until the true adventure arrives. The demo remains for the workbench, where it belongs.
+
+The push that could destroy a table is gated. Between adventures nothing the table holds is true of anywhere, and a push in that window wrote the emptied state over the new adventure's stored one and then marked it as already seen, so the real state was both gone and never fetched. That is why the switch landed on a default scene instead of the prepped one. No push leaves the table while it is between adventures, and a pending one from the moment before the switch is cancelled.
+
+The veil lifts when the new adventure's state has actually arrived, not before, so there is no glimpse of an emptied table on the way. An adventure so new it has no state yet lifts the veil after a short wait instead.
+
+Still here no longer appears after a switch that worked. It was checking for the veil's frame, which outlives the veil.
+
 ## 2026-07-24 — ThreadSpire: the adventure changes without the page moving
 
 Asking the site to go to the page it is already on does nothing, which is why the veil came up, the Sphere was traversed, and the same adventure was still sitting there afterwards. The page now rebinds instead of reloading. It takes the new adventure, tells the table, and every call after that reads the new one.
