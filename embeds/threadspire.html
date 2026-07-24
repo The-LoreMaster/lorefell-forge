@@ -3857,32 +3857,27 @@ function advSwitch(id){
   }
   var name = 'that adventure';
   (Array.isArray(S._advList) ? S._advList : []).forEach(function(c){ if (sameId(c.id, id)) name = c.name || name; });
-  window._tsYes = function(){
-    try { lmSaveCurrentStage(); } catch(e){}
-    tsCloseModal();
-    /* The page navigates, which takes a moment and looks like nothing happening.
-       Cover the table and say what is going on, and keep it covered: the next thing
-       the LoreMaster should see is the other adventure. */
-    advGoing(name);
-    tsAsk('TS_CAMPAIGN_SET', { campaignId:id }).catch(function(){
-      advGoingStop();
-      tsModal('<h3 class="tsm-title">That adventure did not open</h3>'
-        + '<p class="lc-p">The page did not take the request. Nothing here has changed.</p>'
-        + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
-    });
-    /* if the page never navigates, do not leave the LoreMaster staring at a veil */
-    setTimeout(function(){
-      if (!document.getElementById('advGo')) return;
-      advGoingStop();
-      tsModal('<h3 class="tsm-title">Still here</h3>'
-        + '<p class="lc-p">The page did not move. If this keeps happening, the ThreadSpire page code may be out of date.</p>'
-        + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
-    }, 9000);
-  };
-  tsModal('<h3 class="tsm-title">Open ' + esc(name) + '?</h3>'
-    + '<p class="tsm-note">This table saves and closes, and anyone sitting at it follows you across.</p>'
-    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Stay here</button>'
-    + '<button class="tsm-btn" onclick="tsConfirmYes()">Open it</button></div>');
+  /* No confirmation. Choosing from the list and then pressing the button is already
+     two deliberate acts, and nothing is lost by arriving somewhere: the table saves on
+     the way out and the one being left is still there to come back to. */
+  try { lmSaveCurrentStage(); } catch(e){}
+  tsCloseModal();
+  advGoing(name);
+  tsAsk('TS_CAMPAIGN_SET', { campaignId:id }).catch(function(){
+    _advSwitching = false;
+    advGoingStop();
+    tsModal('<h3 class="tsm-title">That adventure did not open</h3>'
+      + '<p class="lc-p">The page did not take the request. Nothing here has changed.</p>'
+      + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
+  });
+  setTimeout(function(){
+    if (!advVeiled()) return;
+    _advSwitching = false;
+    advGoingStop();
+    tsModal('<h3 class="tsm-title">Still here</h3>'
+      + '<p class="lc-p">The page did not move. If this keeps happening, the ThreadSpire page code may be out of date.</p>'
+      + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
+  }, 9000);
 }
 /* Put down everything that belonged to the adventure being left. Anything not cleared
    here shows up on the new table wearing the old one's face. */
@@ -3903,9 +3898,7 @@ function advReset(nextId){
   /* the veil stays. The next thing shown is the other adventure, not this one's
      emptied shell. It lifts when the new table's state has actually arrived, or after
      a bounded wait for an adventure so new it has no state yet to arrive. */
-  if (!document.getElementById('advGo') || (document.getElementById('advGo').style.display !== 'flex')){
-    advGoing('');
-  }
+  if (!advVeiled()) advGoing('');
   setTimeout(function(){
     if (_advSwitching){ _advSwitching = false; advGoingStop(); }
   }, 8000);
@@ -3920,6 +3913,13 @@ function advGoing(name){
   el.style.display = 'flex';
 }
 function advGoingStop(){ var el = document.getElementById('advGo'); if (el){ el.style.display = 'none'; el.innerHTML = ''; } }
+/* The veil's frame is built once and reused, so asking whether it exists answers yes
+   forever and every stuck-check fired on a switch that had worked perfectly. Ask
+   whether it is showing. */
+function advVeiled(){
+  var el = document.getElementById('advGo');
+  return !!el && el.style.display === 'flex';
+}
 /* the dropdown's own choice, applied on Switch rather than on every flick of the list */
 /* FateWell is where an adventure is written. ThreadSpire runs one; it does not author
    one, so this hands over rather than growing a second authoring surface. */
@@ -3945,9 +3945,7 @@ function advCreate(){
       + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
   });
   setTimeout(function(){
-    var v = document.getElementById('advGo');
-    /* the veil element outlives its use; only a veil still showing means stuck */
-    if (!v || v.style.display !== 'flex') return;
+    if (!advVeiled()) return;
     advGoingStop();
     tsModal('<h3 class="tsm-title">Still here</h3>'
       + '<p class="lc-p">The adventure may have been made, but the page did not move. Open Settings and look for it in the list.</p>'
@@ -3976,7 +3974,7 @@ function advNew(){
         + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
     });
     setTimeout(function(){
-      if (!document.getElementById('advGo')) return;
+      if (!advVeiled()) return;
       advGoingStop();
       tsModal('<h3 class="tsm-title">Still here</h3>'
         + '<p class="lc-p">The page did not move. The ThreadSpire page code may be out of date.</p>'
