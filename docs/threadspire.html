@@ -522,6 +522,7 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .mp-empty{ grid-column:1/-1; font-size:.7rem; color:var(--muted); padding:6px 4px 10px; }
 /* the faces of the map on the table, LoreMaster only, sitting under the frame */
 #mapFaces{ position:fixed; left:50%; transform:translateX(-50%); bottom:96px; z-index:34; display:none; gap:6px; flex-wrap:wrap; justify-content:center; max-width:min(560px,88vw); padding:5px 7px; border-radius:9px; background:rgba(8,12,24,.82); border:1px solid var(--line); }
+.mf-lbl{ font-family:Cinzel,serif; font-size:.6rem; letter-spacing:.14em; text-transform:uppercase; color:var(--gold); align-self:center; padding-right:4px; }
 .mf-chip{ font-family:Cinzel,serif; font-size:.66rem; letter-spacing:.06em; text-transform:uppercase; color:var(--ice); background:var(--navy2,#0e1526); border:1px solid var(--line); border-radius:6px; padding:5px 9px; cursor:pointer; }
 .mf-chip:hover{ border-color:var(--gold); }
 .mf-chip.on{ color:#fff; border-color:var(--gold); background:#16233f; }
@@ -4709,72 +4710,64 @@ function lmFolderDrop(name){
 }
 function mapById(id){ var m = null; (S.scene.maps || []).forEach(function(x){ if (sameId(x.id, id)) m = x; }); return m; }
 
-/* ---- map variants ----
+/* ---- map groups ----
    One place, several faces: a bridge, the same bridge broken, the same bridge under
-   fog. The family lives on the map, because a face authored once should be available
-   to every stage that lays that map down. Which face is showing lives on the stage,
+   fog. A group is a name the LoreMaster types, carried on every map in it, so the
+   maps are peers rather than one being the original and the rest its dependents.
+   Renaming or removing any single map leaves the rest of the group intact.
+
+   The group lives on the map, because a face authored once should be available to
+   every stage that lays that place down. Which face is showing lives on the stage,
    in stage.mapId, because that is what is happening rather than what a thing is.
-   Swapping a face therefore leaves tokens, grid and map size untouched. */
-function mapBaseId(m){ return m ? (m.variantOf || m.id) : null; }
+   Swapping a face therefore leaves tokens, grid and table size untouched, which is
+   the whole reason the split is drawn here. */
+function mapGroup(m){ return m ? String(m.variantOf || '') : ''; }
+function mapGroups(){
+  var seen = {}, out = [];
+  (S.scene.maps || []).forEach(function(m){ var g = mapGroup(m); if (g && !seen[g]){ seen[g] = 1; out.push(g); } });
+  out.sort();
+  return out;
+}
+function mapsInGroup(g){
+  if (!g) return [];
+  return (S.scene.maps || []).filter(function(m){ return mapGroup(m) === g; });
+}
 function mapFamily(id){
   var m = mapById(id); if (!m) return [];
-  var base = mapBaseId(m);
-  return (S.scene.maps || []).filter(function(x){ return sameId(mapBaseId(x), base); });
+  var g = mapGroup(m);
+  return g ? mapsInGroup(g) : [];
 }
-function mapFaceName(m){
-  if (!m) return '';
-  if (m.variantLabel) return m.variantLabel;
-  return m.variantOf ? m.name : 'Base';
-}
-function mapIsBase(m){ return !!m && !m.variantOf; }
+function mapFaceName(m){ return m ? (m.variantLabel || m.name) : ''; }
 function mapSaveRow(m){
   if (!m || !m.assetId || !assetBackend.save) return;
   assetBackend.save({ assetId:m.assetId, kind:'map', name:m.name, image:m.url, w:m.w, h:m.h,
                       folder:m.folder || '', variantOf:m.variantOf || '', variantLabel:m.variantLabel || '' }).catch(function(){});
 }
-/* File a map as another map's face. The LoreMaster names the face; nothing is inferred
-   from the file name. Sizes must agree, or every token shifts against the art the
-   moment the face changes, which is the one thing this feature exists to avoid. */
-function lmVariantPick(id){
+/* Put a map in a group and name its face. Both names are the LoreMaster's; nothing is
+   inferred from a file name, and an existing group is offered rather than demanded. */
+function lmGroupPick(id){
   var m = mapById(id); if (!m) return;
-  var others = (S.scene.maps || []).filter(function(x){
-    return !sameId(x.id, id) && mapIsBase(x) && x.w === m.w && x.h === m.h;
-  });
-  var opts = '<option value="">Its own map, no family</option>'
-    + others.map(function(x){
-        return '<option value="' + esc(x.id) + '"' + (sameId(x.id, m.variantOf) ? ' selected' : '') + '>' + esc(x.name) + '</option>';
-      }).join('');
-  var warn = others.length ? ''
-    : '<p class="tsm-note">No other map on the shelf matches ' + m.w + ' by ' + m.h + '. Faces of one place have to be the same size, or the tokens will not line up.</p>';
-  tsModal('<h3 class="tsm-title">' + esc(m.name) + ' as a face</h3>'
-    + '<p class="tsm-note">Pick the map this is a face of, then name the face. The name is yours: Intact, Broken, Fog, Burning, whatever the table needs.</p>'
-    + '<label class="tsm-lbl">A face of</label>'
-    + '<select class="tsm-inp" id="mvBase">' + opts + '</select>'
+  var groups = mapGroups();
+  var list = groups.map(function(g){ return '<option value="' + esc(g) + '">'; }).join('');
+  var sizes = {};
+  mapsInGroup(mapGroup(m)).forEach(function(x){ sizes[x.w + 'x' + x.h] = 1; });
+  tsModal('<h3 class="tsm-title">' + esc(m.name) + '</h3>'
+    + '<p class="tsm-note">Maps sharing a group are faces of one place. Lay any of them on a stage and the rest are a tap away, with every token where it stood.</p>'
+    + '<label class="tsm-lbl">Group</label>'
+    + '<input class="tsm-inp" id="mgGroup" list="mgGroups" value="' + esc(mapGroup(m)) + '" placeholder="The Bridge, or leave it empty to stand alone">'
+    + '<datalist id="mgGroups">' + list + '</datalist>'
     + '<label class="tsm-lbl">Call this face</label>'
-    + '<input class="tsm-inp" id="mvLabel" value="' + esc(m.variantLabel || '') + '" placeholder="Broken">'
-    + warn
+    + '<input class="tsm-inp" id="mgLabel" value="' + esc(m.variantLabel || '') + '" placeholder="Broken">'
+    + '<p class="tsm-note">This map is ' + m.w + ' by ' + m.h + '. Faces that do not match will still group, but the tokens will sit differently against the art when you swap.</p>'
     + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button>'
-    + '<button class="tsm-btn" onclick="lmVariantSave(\'' + id + '\')">Save</button></div>');
+    + '<button class="tsm-btn" onclick="lmGroupSave(\'' + id + '\')">Save</button></div>');
 }
-function lmVariantSave(id){
+function lmGroupSave(id){
   var m = mapById(id); if (!m) return;
-  var base = ((document.getElementById('mvBase') || {}).value || '');
-  var label = ((document.getElementById('mvLabel') || {}).value || '').replace(/^\s+|\s+$/g, '');
-  if (base){
-    var b = mapById(base);
-    if (!b || b.w !== m.w || b.h !== m.h){
-      tsModal('<h3 class="tsm-title">Those two are different sizes</h3>'
-        + '<p class="lc-p">Faces of one place share a size, or the tokens slide against the art when the face changes. Export them at matching dimensions and try again.</p>'
-        + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
-      return;
-    }
-    /* a face of a face is still a face of the base */
-    m.variantOf = mapBaseId(b);
-    m.variantLabel = label || m.name;
-  } else {
-    m.variantOf = '';
-    m.variantLabel = label;
-  }
+  var g = ((document.getElementById('mgGroup') || {}).value || '').replace(/^\s+|\s+$/g, '');
+  var label = ((document.getElementById('mgLabel') || {}).value || '').replace(/^\s+|\s+$/g, '');
+  m.variantOf = g;
+  m.variantLabel = g ? (label || m.name) : '';
   mapSaveRow(m);
   tsCloseModal(); applyRemoteState({ scene:S.scene }); paintMapPicker(); paintMapFaces();
 }
@@ -4790,20 +4783,24 @@ function lmSetFace(id){
   pushLog({ kind:'sys', html:esc(mapFaceName(m)) + ': the table changes.' });
   applyRemoteState({ log:S.log });
 }
-/* The strip of faces, shown only when the map on the table has more than one and only
-   to the LoreMaster. Players see the art change, not the switch. */
+/* The strip of faces, shown only when the map on the table belongs to a group and
+   only to the LoreMaster. Players see the art change, not the switch. */
 function paintMapFaces(){
   var el = document.getElementById('mapFaces');
   if (!el){ el = document.createElement('div'); el.id = 'mapFaces'; document.body.appendChild(el); }
   var fam = isLM() ? mapFamily(S.scene.background) : [];
   if (fam.length < 2){ el.style.display = 'none'; el.innerHTML = ''; return; }
-  fam.sort(function(a, b){ return (a.variantOf ? 1 : 0) - (b.variantOf ? 1 : 0); });
+  var cur = mapById(S.scene.background);
+  fam.sort(function(a, b){ return String(mapFaceName(a)).localeCompare(String(mapFaceName(b))); });
   el.style.display = 'flex';
-  el.innerHTML = fam.map(function(m){
-    var on = sameId(m.id, S.scene.background);
-    return '<button type="button" class="mf-chip' + (on ? ' on' : '') + '" onclick="lmSetFace(\'' + m.id + '\')">'
-      + esc(mapFaceName(m)) + '</button>';
-  }).join('');
+  el.innerHTML = '<span class="mf-lbl">' + esc(mapGroup(cur)) + '</span>'
+    + fam.map(function(m){
+        var on = sameId(m.id, S.scene.background);
+        var off = (cur && (m.w !== cur.w || m.h !== cur.h))
+          ? ' title="' + m.w + ' by ' + m.h + ', a different size to the one on the table"' : '';
+        return '<button type="button" class="mf-chip' + (on ? ' on' : '') + '"' + off
+          + ' onclick="lmSetFace(\'' + m.id + '\')">' + esc(mapFaceName(m)) + '</button>';
+      }).join('');
 }
 function lmRenameMap(id){
   var m = mapById(id); if (!m) return;
@@ -4875,6 +4872,32 @@ function paintMapArt(){
      including a background arriving from the table rather than from this seat */
   if (typeof paintMapFaces === 'function') paintMapFaces();
 }
+/* Choosing a map means choosing a place, so a group shows as one card and the faces
+   are a tap away at the table. Turning this off lays every face out separately, which
+   is how you rename or refile one of them. */
+function mapGroupsFolded(){
+  try { return localStorage.getItem('ts_mapgroups') !== 'open'; } catch(e){ return true; }
+}
+function mapGroupsFlip(){
+  try { localStorage.setItem('ts_mapgroups', mapGroupsFolded() ? 'open' : 'fold'); } catch(e){}
+  paintMapPicker();
+}
+function mapCollapse(list){
+  if (!mapGroupsFolded()) return list;
+  var seen = {}, out = [];
+  (list || []).forEach(function(m){
+    var g = mapGroup(m);
+    if (!g){ out.push(m); return; }
+    /* the face on the table represents its group, so the shelf shows what is down */
+    if (seen[g]){
+      if (sameId(m.id, S.scene.background)) out[seen[g].at] = m;
+      return;
+    }
+    seen[g] = { at: out.length };
+    out.push(m);
+  });
+  return out;
+}
 function paintMapPicker(){
   var el = document.getElementById('mapPicker');
   if (!el){ el = document.createElement('div'); el.id = 'mapPicker'; document.body.appendChild(el); }
@@ -4889,11 +4912,16 @@ function paintMapPicker(){
       + '<button class="mp-main" onclick="lmSetMap(\'' + m.id + '\')">' + thumb
       + '<div class="mp-name">' + esc(m.name) + '</div>'
       + '<div class="mp-meta">' + m.w + ' \u00d7 ' + m.h + ' \u00b7 ' + esc(m.source) + (m.local?' \u00b7 not yet saved':'') + '</div>'
-      + (m.variantOf ? '<div class="mp-face">' + esc(mapFaceName(m)) + ' of ' + esc((mapById(m.variantOf)||{}).name || 'another map') + '</div>' : '')
+      + (mapGroup(m)
+          ? '<div class="mp-face">' + esc(mapGroup(m)) + ' \u00b7 ' + esc(mapFaceName(m))
+            + (mapGroupsFolded() && mapsInGroup(mapGroup(m)).length > 1
+                ? ' <span class="tsm-count">' + mapsInGroup(mapGroup(m)).length + ' faces</span>' : '')
+            + '</div>'
+          : '')
       + '</button>'
       + '<span class="mp-acts">'
       + '<button class="st-b" onclick="event.stopPropagation();lmRenameMap(\'' + m.id + '\')" title="Rename">\u270e</button>'
-      + '<button class="st-b" onclick="event.stopPropagation();lmVariantPick(\'' + m.id + '\')" title="Make it a face of another map">\u25d1</button>'
+      + '<button class="st-b" onclick="event.stopPropagation();lmGroupPick(\'' + m.id + '\')" title="Put it in a group of faces">\u25d1</button>'
       + '<button class="st-b" onclick="event.stopPropagation();lmFolderPick(\'' + m.id + '\')" title="Folder">\u2630</button>'
       + '<button class="st-b" onclick="event.stopPropagation();lmDeleteMap(\'' + m.id + '\')" title="Remove">\u2715</button></span></div>';
   }
@@ -4915,10 +4943,11 @@ function paintMapPicker(){
       + '<button class="st-b" onclick="lmFolderRename(\'' + esf + '\')" title="Rename">\u270e</button>'
       + '<button class="st-b" onclick="lmFolderDrop(\'' + esf + '\')" title="Remove the folder">\u2715</button></div>';
     if (shut) return;
-    cards += inIt.length ? inIt.map(mapCard).join('')
+    var showIn = mapCollapse(inIt);
+    cards += showIn.length ? showIn.map(mapCard).join('')
       : '<div class="mp-empty">Drop a map here, or upload one and file it.</div>';
   });
-  var loose = all.filter(function(m){ return !(m.folder || ''); });
+  var loose = mapCollapse(all.filter(function(m){ return !(m.folder || ''); }));
   if (mapFolders().length) cards += '<div class="mp-folder" ondragover="folderDragOver(event,this)" ondragleave="folderDragLeave(this)" ondrop="folderDrop(event,this,\'\')"><span class="mp-fname">Loose</span></div>';
   cards += loose.map(mapCard).join('');
   var upload = '<button class="mp-card mp-upload" onclick="lmMapUploadStub()" '
@@ -4932,6 +4961,8 @@ function paintMapPicker(){
      with a window. The box itself swallows the click so a miss inside it does nothing. */
   el.onclick = function(ev){ if (ev.target === el) lmCloseMaps(); };
   el.innerHTML = '<div class="mp-box"><div class="mp-head"><span>Choose a map</span>'
+    + '<button class="tsm-btn ghost mp-newf" onclick="mapGroupsFlip()">'
+    + (mapGroupsFolded() ? 'Show every face' : 'Fold groups') + '</button>'
     + '<button class="tsm-btn ghost mp-newf" onclick="newFolder(\'map\')">+ New folder</button>'
     + '<button class="lm-minbtn" onclick="lmCloseMaps()">\u00d7</button></div>'
     + '<div class="mp-grid">' + cards + upload + '</div></div>';

@@ -1,3 +1,15 @@
+## 2026-07-24 — ThreadSpire: map groups
+
+Maps that are faces of one place now share a group. The group is a name you type on the map, The Bridge or The Bailey Gate or whatever the place is called, and every map carrying that name is a face of it. Folders stay what they were, a way to tidy the shelf.
+
+There is no original and no copies. The maps in a group are peers, so renaming one, refiling one or removing one leaves the rest of the group standing.
+
+The shelf shows a group as one card, because choosing a map means choosing a place. Show every face lays them all out again when you want to rename or refile one.
+
+Lay any face of a group on a stage and the group appears as a strip under the frame, named, with a chip for each face. One tap changes what everyone at the table is looking at. The stage keeps its tokens, its grid and its size, which is the point of the whole thing.
+
+Faces of a different size to the one on the table still group, and say so when you hover them, rather than being refused.
+
 ## 2026-07-24 — ThreadSpire: folders that nest, and a shelf that shuts
 
 A folder made on the map shelf now appears. It was being made all along and then skipped at the paint, because a folder with nothing in it was not drawn, so there was nowhere to drop the first map and the New folder button looked dead.
