@@ -1,3 +1,11 @@
+## 2026-07-24 — ThreadSpire: upload a handful, find one quickly
+
+Choosing maps for a stage now shows them under the folders they are filed in, and there is a search above the list. Searching looks across every folder at once, and matches the folder name as well as the map name, so you can find the bridge without remembering where you put it.
+
+Maps upload several at a time. Choose a handful or drop a handful; anything that is not an image is left out and said so. When a stage asked for the upload, all of them join that stage, and the table only changes if the stage had no map to begin with.
+
+The log says what landed rather than narrating each file.
+
 ## 2026-07-24 — ThreadSpire: the stage card, rebuilt
 
 The card was one horizontal row, and the strip of maps was dropped into it as another item in that row. The title lost the fight for width and came out a word per line, the meta line broke apart, and the thumbnails landed wherever there was room.
