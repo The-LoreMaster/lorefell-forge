@@ -1,3 +1,11 @@
+## 2026-07-24 — ThreadSpire: fetch the new adventure's things when you arrive
+
+The library came up empty after changing adventure. The table put the library down on the way out, as it should, but kept the note saying the library had already been fetched, so nothing ever went back for it. The tab was reading an empty hand.
+
+The stages went the same way, for a plainer reason: everything an adventure needs was fetched once when the page opened, which was right while changing adventure meant opening the page again. It has not meant that since the switch started happening in place, so the new adventure arrived and nobody went to get its stages, its journal or its quests.
+
+Arriving at an adventure now fetches its things, the same way opening the page does.
+
 ## 2026-07-24 — ThreadSpire: one asking is enough
 
 Choosing an adventure from the list and pressing the button opens it. The confirmation after that asked the same question a second time and protected nothing: the table saves on the way out and the one you left is still there to come back to.
