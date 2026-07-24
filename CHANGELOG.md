@@ -1,3 +1,11 @@
+## 2026-07-24 — ThreadSpire: battle takes the table again
+
+When battle begins, every player at the adventure is pulled into it, the way FateWell always did it. The edge of their screen burns red and the battle is put in front of them, wherever they were and whatever they had open. Their sheet then loads, finds its own name among the fighters, and takes over with its declares. When the battle ends, the edge glows gold and the table is theirs again.
+
+Two things had broken this. The sheet refuses a battle whose fighters list does not name its own Fell, and the table was publishing no fighters at all, so every sheet that asked was told the fight had nothing to do with them. And inside ThreadSpire a player's sheet does not exist until they open it, so nothing was even asking. The table itself now watches for the battle in the state it already receives, and the published state names every fighter: every foe at the scene, and every player at the adventure.
+
+The published state also carries the scene's name and the recent log, so the sheet's combat panel has words in it rather than blanks.
+
 ## 2026-07-24 — ThreadSpire: choosing several, and a pill that holds its words
 
 An opened Fell lands on Lore, which is where you look first.

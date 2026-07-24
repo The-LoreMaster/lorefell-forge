@@ -571,6 +571,11 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .av-now-lbl{ font-size:.58rem; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); }
 .av-now-name{ font-family:Cinzel,serif; font-size:.95rem; color:#fff; }
 /* the veil while the page changes adventure */
+/* the edge of the world burns when battle takes the table */
+#tsGlow{ position:fixed; inset:0; z-index:190; pointer-events:none; opacity:0; transition:opacity .5s ease; }
+#tsGlow.on{ opacity:1; animation:tsGlowPulse 1.2s ease-in-out 2; }
+@keyframes tsGlowPulse{ 0%,100%{ opacity:.55; } 50%{ opacity:1; } }
+@media (prefers-reduced-motion: reduce){ #tsGlow.on{ animation:none; opacity:.8; } }
 #advGo{ position:fixed; inset:0; z-index:200; display:none; align-items:center; justify-content:center; background:rgba(4,7,14,.93); }
 .ag-in{ text-align:center; }
 .ag-mark{ width:38px; height:38px; margin:0 auto 12px; border:2px solid var(--gold); border-radius:6px; transform:rotate(45deg); animation:agPulse 1.4s ease-in-out infinite; }
@@ -3380,10 +3385,39 @@ function foeLiveHtml(f){
     + '</div>';
 }
 /* the table's combat state, so the players' sheets follow it */
+/* Who is in the fight. The sheet refuses a battle whose fighters list does not name
+   its own Fell, so every player at the adventure is named: the party carries anyone
+   who has joined, and the scene carries anyone placed at it. Publishing without them
+   is why nobody's screen ever went red. */
+function combatFighters(){
+  var out = [], seen = {};
+  (S.scene && S.scene.foes || []).forEach(function(f){
+    out.push({ key:'m:' + f.id, name:f.name || 'A foe', side:'monster' });
+  });
+  function fell(charId, name){
+    if (!charId || seen[charId]) return;
+    seen[charId] = true;
+    out.push({ key:'p:' + charId, name:name || 'A Fell', side:'fell', charId:charId });
+  }
+  (S.party || []).forEach(function(p){ fell(p.charId, p.charName || p.name); });
+  (S.scene && S.scene.fell || []).forEach(function(p){ fell(p.charId || '', p.name); });
+  return out;
+}
 function combatPublish(){
   if (!isLM() || !tsEmbedded()) return;
+  /* the party is the fighters list, so it cannot be an afterthought */
+  if (!S.party){ S.party = []; partyLoad(); }
+  var logOut = (S.log || []).slice(-30).reverse().map(function(e){
+    var t = e.text || String(e.html || '').replace(/<[^>]*>/g, '');
+    return { side: e.kind === 'say' ? 'fell' : 'system', text: t };
+  }).filter(function(e){ return e.text; });
   tsAsk('TS_COMBAT_PUBLISH', { state:{ active: inBattle(), round: S.round || 0,
-    phase: (S.scene && S.scene.combatPhase) || '', sceneId: (S.scene && S.scene.id) || '' } }).catch(function(){});
+    phase: (S.scene && S.scene.combatPhase) || '',
+    sceneId: (S.scene && S.scene.id) || '',
+    sceneName: (S.scene && S.scene.name) || '',
+    fighters: combatFighters(),
+    spotlightChars: [],
+    log: logOut } }).catch(function(){});
 }
 /* what the players have declared this round */
 function declaresLoad(){
@@ -3890,7 +3924,12 @@ function applyRemoteSnapshot(snap){
   if (snap.map) S.map = snap.map;
   if (snap.background !== undefined) S.scene.background = snap.background;
   if (snap.combatPhase !== undefined) S.scene.combatPhase = snap.combatPhase;
+  var _wasBattle = S.mode === 'combat';
   if (snap.mode) S.mode = snap.mode;
+  if (!isLM()){
+    if (!_wasBattle && S.mode === 'combat') playerBattleStart();
+    else if (_wasBattle && S.mode !== 'combat') playerBattleEnd();
+  }
   if (isLM() && S.mode === 'combat' && !S.declares) declaresLoad();
   if (typeof snap.round === 'number') S.round = snap.round;
   if (snap.activeSceneId && S.adventure && snap.activeSceneId !== S.scene.id){
@@ -4025,6 +4064,28 @@ function advReset(nextId){
     if (_advSwitching){ _advSwitching = false; advGoingStop(); }
   }, 8000);
   render();
+}
+/* ---- being pulled into the fight ----
+   In the FateWell days a player's whole screen went red the moment battle began,
+   wherever they were and whatever they were doing. The table does the same: the edge
+   burns, and the battle is put in front of them. Their sheet then loads, sees its own
+   name among the fighters, and takes over with its declares. */
+function tsEdgeGlow(color){
+  var el = document.getElementById('tsGlow');
+  if (!el){ el = document.createElement('div'); el.id = 'tsGlow'; document.body.appendChild(el); }
+  el.style.boxShadow = 'inset 0 0 120px 24px ' + (color || 'rgba(201,106,90,.85)');
+  el.classList.remove('on');
+  void el.offsetWidth;
+  el.classList.add('on');
+  clearTimeout(el._t);
+  el._t = setTimeout(function(){ el.classList.remove('on'); }, 2400);
+}
+function playerBattleStart(){
+  tsEdgeGlow('rgba(201,106,90,.85)');
+  if (S.characterId && S.openSection !== 'battle') openWin('battle');
+}
+function playerBattleEnd(){
+  tsEdgeGlow('rgba(201,168,76,.7)');
 }
 function advGoing(name){
   var el = document.getElementById('advGo');
@@ -4849,6 +4910,9 @@ function partyLoad(){
   tsAsk('TS_PARTY_LIST', {}).then(function(list){
     S.party = list || [];
     if (S.openSection === 'fell') refreshWinBody();
+    /* if the roster lands while a battle is running, the fighters list was published
+       without it; say it again with everyone named */
+    if (isLM() && inBattle()) combatPublish();
   }).catch(function(){ S.party = []; });
 }
 function partyRefresh(){ S.party = null; refreshWinBody(); partyLoad(); }
