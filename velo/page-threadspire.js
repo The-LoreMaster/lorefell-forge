@@ -161,7 +161,10 @@ $w.onReady(function () {
           // from the query once and every subsystem hangs off it. Navigating rebuilds the
           // page against the new adventure with no half-torn-down state feed.
           try {
-            wixLocation.to('/threadspire?role=lm&campaign=' + encodeURIComponent(msg.campaignId || ''));
+            // Reopen this page, whatever its slug is. Hardcoding a guess at the route
+            // sent the browser nowhere and the button looked dead.
+            const here = '/' + ((wixLocation.path || []).join('/'));
+            wixLocation.to(here + '?role=lm&campaign=' + encodeURIComponent(msg.campaignId || ''));
             reply(true, { ok: true });
           } catch (e) { reply(false, null, String(e)); }
         } else if (msg.type === 'TS_STAGE_DELETE') {
