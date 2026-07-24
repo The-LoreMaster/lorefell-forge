@@ -3528,7 +3528,7 @@ function stageRestore(b){
 function ensureLobby(){
   var bd = sceneBinding(); if (!bd) return;
   var stages = instanceStages();
-  var lobby = stages.filter(function(s){ return String(s.name || '').toLowerCase() === 'lobby'; })[0];
+  var lobby = lobbyStage();
   if (!lobby){
     /* one id for every adventure meant one row: opening another adventure's Lobby
        overwrote the first one's, because the save matches on stage id */
@@ -3617,9 +3617,15 @@ function lmNewStage(){
   applyRemoteState({ instance:S.instance });
   refreshStagesWin();
 }
+/* The Lobby is one particular stage, not every stage that happens to be called Lobby.
+   Matching on the name protected duplicates too, so a second one that arrived by
+   accident could never be removed. The first is the adventure's; the rest are not. */
+function lobbyStage(){
+  return instanceStages().filter(function(s){ return String(s.name || '').toLowerCase() === 'lobby'; })[0] || null;
+}
 function isLobby(id){
-  var st = stageById(id);
-  return !!(st && String(st.name || '').toLowerCase() === 'lobby');
+  var lob = lobbyStage();
+  return !!(lob && sameId(lob.stageId, id));
 }
 function stageDragStart(ev, id){
   window._dragStage = id;
@@ -4254,7 +4260,10 @@ function startStateFeed(){
   function pullOnce(){
     if (pan || pinch) return;
     stateBackend.pull(_stateSeen).then(function(res){
-      if (res && res.version > _stateSeen){ _stateSeen = res.version; applyRemoteSnapshot(res.snap); }
+      if (!res) return;
+      /* an answer about the adventure we just left is not news, it is the past */
+      if (res.campaignId && S.campaignId && !sameId(res.campaignId, S.campaignId)) return;
+      if (res.version > _stateSeen){ _stateSeen = res.version; applyRemoteSnapshot(res.snap); }
     }).catch(function(){});
   }
   pullOnce();                                  /* land on the real adventure right away */
@@ -4363,9 +4372,9 @@ if (tsEmbedded()){
     },
     list: function(){ return tsAsk('TS_STAGE_LIST', { campaignId:S.campaignId || '' }).then(function(rows){
       return (rows||[]).filter(function(r){
-        /* trust nothing on the way back either: a row without this adventure's stamp
-           is another table and does not belong on this deck */
-        return !S.campaignId || !r.campaignId || sameId(r.campaignId, S.campaignId);
+        /* the stamp has to match. Letting an unstamped row through was meant to spare
+           old rows and instead put one adventure's tables on every other adventure. */
+        return !S.campaignId || sameId(r.campaignId, S.campaignId);
       }).map(function(r){
         var t=[], g={}, mi=[];
         try { t = JSON.parse(r.tokens||'[]'); } catch(e){ t=[]; }
@@ -4377,8 +4386,10 @@ if (tsEmbedded()){
     remove: function(id){ return tsAsk('TS_STAGE_DELETE', { stageId:id }); }
   };
   stateBackend = {
-    push: function(snap){ return tsAsk('TS_STATE_PUSH', { snap:snap }); },
-    pull: function(since){ return tsAsk('TS_STATE_PULL', { since:since }); }
+    /* both directions name the adventure they are about, so a message that crossed a
+       switch is discarded rather than believed */
+    push: function(snap){ return tsAsk('TS_STATE_PUSH', { snap:snap, campaignId:S.campaignId || '' }); },
+    pull: function(since){ return tsAsk('TS_STATE_PULL', { since:since, campaignId:S.campaignId || '' }); }
   };
   lmBackend = {
     getPortrait: function(){ return tsAsk('TS_LM_PORTRAIT_GET', {}); },

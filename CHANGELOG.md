@@ -1,3 +1,13 @@
+## 2026-07-24 — ThreadSpire: an answer about the adventure you left is not news
+
+The table asks the site for the state of the adventure every second and a half. A question asked just before changing adventure comes back just after it, holding the old adventure, and the table believed it. That is where the other adventure's stages kept coming from, and why a second Lobby appeared beside the first: the old one arrived as truth, and the new adventure went and made its own.
+
+Both directions now name the adventure they are about. An answer about the one you left is dropped, and a write sent before the change is refused rather than landing on the new adventure.
+
+A stage has to carry this adventure's mark to be dealt onto the deck. Letting an unmarked one through was meant to be kind to older rows and instead put one adventure's tables on every other adventure.
+
+The Lobby is one particular stage now, not any stage that happens to be called Lobby. That is why two of them could not be removed: both answered to the name, so both were protected. The adventure's own Lobby stays; a duplicate can be sent away like anything else.
+
 ## 2026-07-24 — ThreadSpire: fetch the new adventure's things when you arrive
 
 The library came up empty after changing adventure. The table put the library down on the way out, as it should, but kept the note saying the library had already been fetched, so nothing ever went back for it. The tab was reading an empty hand.
