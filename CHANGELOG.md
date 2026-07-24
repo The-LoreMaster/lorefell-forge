@@ -1,3 +1,9 @@
+## 2026-07-24 — ThreadSpire: the map the LoreMaster sets is a map the players are given
+
+The map never reached anyone because it was never sent. Setting a map wrote it onto the LoreMaster's own screen through the one function that means this is now true of the table, and that function drew the screen and stopped there. Only tokens and the log ever left for the server. So every fix to how a player receives a map was a fix to a road nothing travelled. The function says it outward now, for the LoreMaster, coalesced so a flurry of small changes is one message rather than a storm.
+
+Opening one Fell after another is quick now. The record is kept from the first time it is opened, so coming back to a Fell lights the sheet from memory at once and checks for changes quietly behind it. Only a Fell not yet seen this session waits, and only that one shows the label.
+
 ## 2026-07-24 — ThreadSpire: a player arrives at the adventure their Fell is in
 
 The map was reaching nobody because the players were sitting at no adventure at all. A player comes to the table through their Fell, and the table learned which adventure it was in only from the address, which the way in does not carry. So the table asked the site for the state of nothing, and nothing is what it got: no map, no scene, no battle. It asks the Fell now, and the Fell's record has always known.

@@ -215,7 +215,9 @@ $w.onReady(async function () {
                        character: rec.forged ? (rec.seed || {}) : (rec.character || {}),
                        libraries: libraries } });
               embed.postMessage({ type: 'TS_TOOL_DOWN', tool: 'fellglass', msg: { type: 'ts-god', on: true } });
-              reply(true, { ok: true });
+              // hand the record back too, so the tool can keep it and reopen this Fell
+              // with no round trip next time
+              reply(true, { ok: true, charId: godCharId, record: rec.forged ? (rec.seed || {}) : (rec.character || {}) });
             }
           } catch (e) { reply(false, null, String(e)); }
         } else if (msg.type === 'TS_OFFLINE_FELL') {

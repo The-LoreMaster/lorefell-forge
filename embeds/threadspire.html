@@ -1369,6 +1369,20 @@ function applyRemoteState(patch){
     /* the readout spells out your own maths only, everyone else gets a name tag */
     if (last.who === S.character.name) flourish(last);
   }
+  /* This is the loremaster saying a thing is now true of the table: the map, the scene,
+     the stage laid out. It updated this screen and went no further, because the only
+     things that ever reached the server were tokens and the log. Say it outward, so the
+     map the loremaster sets is a map the players are given. Never while between
+     adventures, when nothing here is true of anywhere yet. */
+  if (isLM() && !_advSwitching) schedulePush();
+}
+/* Many applyRemoteState calls can land in one turn (a token move touches it several
+   times, a scene change touches scene and log). Coalesce them into a single push on
+   the next tick, so the map still syncs but the backend is not stormed. */
+var _pushT = null;
+function schedulePush(){
+  if (_pushT) return;
+  _pushT = setTimeout(function(){ _pushT = null; try { pushState(); } catch(e){} }, 120);
 }
 function send(evt){
   /* stub transport, echoes shared state back as remote truth. Latency varies by
@@ -1397,7 +1411,9 @@ function send(evt){
     if (evt.type === 'declare'){ pushLog({ kind:'sys', html:'<b>' + esc(S.character.name) + '</b> declares ' + esc(evt.act) + '.' }); }
     if (evt.type === 'say'){ pushLog({ kind:'say', who:S.character.name, text:evt.text }); }
     if (evt.type === 'roll'){ pushLog(stubResolve(evt.rollType, evt.n)); }
-    pushState();
+    /* applyRemoteState above already schedules the push for the loremaster; a player
+       moving their own token still needs to send it */
+    if (!isLM()) { try { pushState(); } catch(e){} }
   }, live ? 0 : 120);
 }
 
@@ -5158,6 +5174,7 @@ var SHEET_PANELS = { attributes:'attributes', skills:'skills', inventory:'invent
    do is decided by the site against the adventure, not by this list of tabs. */
 var GOD_TABS = [['lore','Lore'],['attributes','Attributes'],['skills','Skills'],['weapons','Weapons'],
                 ['lorebounds','Lorebounds'],['armor','Armor'],['inventory','Inventory']];
+var _godCache = {};   /* charId -> the record, so a second look is instant */
 function lmOpenFell(charId){
   if (!charId || !isLM()) return;
   var who = (S.party || []).filter(function(p){ return sameId(p.charId, charId); })[0] || {};
@@ -5165,10 +5182,23 @@ function lmOpenFell(charId){
   S.godPanel = 'lore';
   ensureSheet();
   openWin('fell');
-  /* the record has to be fetched, so say whose is coming rather than leaving the last
-     Fell on screen looking like this one */
+  /* Seen once, shown at once. The record is kept from the first open, so coming back
+     to a Fell is immediate: the frame is re-lit from memory and the fetch happens
+     quietly behind it to catch any change. Only a Fell never seen this session waits,
+     and only that Fell shows the label. */
+  if (_godCache[charId]){
+    godShow(charId, _godCache[charId]);
+    tsAsk('TS_GOD_SHEET', { charId:charId }).then(function(res){
+      if (res && res.record && res.charId){ _godCache[res.charId] = res.record;
+        if (sameId(S.godChar && S.godChar.id, res.charId)) godShow(res.charId, res.record); }
+    }).catch(function(){});
+    return;
+  }
   godWait(true);
-  tsAsk('TS_GOD_SHEET', { charId:charId }).then(function(){ godWait(false); }).catch(function(){
+  tsAsk('TS_GOD_SHEET', { charId:charId }).then(function(res){
+    if (res && res.record && res.charId) _godCache[res.charId] = res.record;
+    godWait(false);
+  }).catch(function(){
     godWait(false);
     S.godChar = null;
     openWin('fell');
@@ -5176,6 +5206,15 @@ function lmOpenFell(charId){
       + '<p class="lc-p">It may belong to another adventure. A Fell can only be worked on from the adventure it is in.</p>'
       + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
   });
+}
+/* re-light the frame on a cached record without touching the network */
+function godShow(charId, rec){
+  var f = document.getElementById('sheetFrame');
+  if (!f || !f.contentWindow) return;
+  godWait(false);
+  f.contentWindow.postMessage({ type:'init', charId:charId, character: rec }, '*');
+  f.contentWindow.postMessage({ type:'ts-god', on:true }, '*');
+  paintGodBar(); sheetGoto(S.godPanel || 'lore');
 }
 function lmCloseFell(){
   godWait(false);
