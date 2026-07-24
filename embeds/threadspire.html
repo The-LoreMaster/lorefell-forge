@@ -521,12 +521,22 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .mp-face{ font-size:.64rem; color:var(--ice); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .mp-empty{ grid-column:1/-1; font-size:.7rem; color:var(--muted); padding:6px 4px 10px; }
 /* the faces of the map on the table, LoreMaster only, sitting under the frame */
-#mapFaces{ position:fixed; left:50%; transform:translateX(-50%); bottom:96px; z-index:34; display:none; gap:6px; flex-wrap:wrap; justify-content:center; max-width:min(560px,88vw); padding:5px 7px; border-radius:9px; background:rgba(8,12,24,.82); border:1px solid var(--line); }
-.mf-lbl{ font-family:Cinzel,serif; font-size:.6rem; letter-spacing:.14em; text-transform:uppercase; color:var(--gold); align-self:center; padding-right:4px; }
-.mf-chip{ font-family:Cinzel,serif; font-size:.66rem; letter-spacing:.06em; text-transform:uppercase; color:var(--ice); background:var(--navy2,#0e1526); border:1px solid var(--line); border-radius:6px; padding:5px 9px; cursor:pointer; }
-.mf-chip:hover{ border-color:var(--gold); }
-.mf-chip.on{ color:#fff; border-color:var(--gold); background:#16233f; }
-body.winopen #mapFaces{ display:none !important; }
+/* the faces a stage can lay down, on its card in the Stages window */
+.sm-strip{ display:flex; flex-wrap:wrap; align-items:center; gap:5px; width:100%; margin-top:7px; padding-top:7px; border-top:1px solid var(--line); }
+.sm-cell{ position:relative; display:inline-flex; }
+.sm-face{ display:block; padding:0; border:1px solid var(--line); border-radius:5px; background:none; cursor:pointer; overflow:hidden; }
+.sm-cell.on .sm-face{ border-color:var(--gold); box-shadow:0 0 0 1px var(--gold); }
+.sm-thumb{ display:block; width:46px; height:32px; background-size:cover; background-position:center; }
+.sm-off{ position:absolute; top:-5px; right:-5px; width:15px; height:15px; line-height:13px; font-size:.6rem; padding:0; border-radius:50%; border:1px solid var(--line); background:var(--navy,#0a0e1a); color:var(--muted); cursor:pointer; }
+.sm-off:hover{ color:var(--danger); border-color:var(--danger); }
+.sm-add{ width:46px; height:32px; border:1px dashed var(--line2,#2a3550); border-radius:5px; background:none; color:var(--muted); font-size:1rem; line-height:1; cursor:pointer; }
+.sm-add:hover{ color:var(--gold); border-color:var(--gold); }
+.sm-pick{ display:grid; grid-template-columns:repeat(auto-fill,minmax(132px,1fr)); gap:8px; max-height:46vh; overflow-y:auto; margin:8px 0; }
+.sm-opt{ display:flex; flex-direction:column; gap:4px; padding:6px; border:1px solid var(--line); border-radius:7px; background:var(--navy2,#0e1526); cursor:pointer; text-align:left; }
+.sm-opt:hover{ border-color:var(--gold); }
+.sm-opt .sm-thumb{ width:100%; height:56px; border-radius:4px; }
+.sm-oname{ font-family:Cinzel,serif; font-size:.72rem; color:var(--silver); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sm-osize{ font-size:.62rem; color:var(--muted); }
 .mp-upload{ border-style:dashed; }
 .mp-upload.drag{ border-color:var(--gold); background:rgba(201,168,76,.1); }
 /* the token palette */
@@ -1329,6 +1339,26 @@ var RAIL_PLAYER = ['inventory','skills','arsenal','attributes','lore'];
 var RAIL_LM     = ['journal','fell','library','stages','story'];
 function railKeys(){ return S.role === 'lm' ? RAIL_LM : RAIL_PLAYER; }
 
+/* The faces this stage can lay down, in a row with a plus on the end. Tapping one
+   lays it down. This is the whole of the feature: a stage holds its own maps, so
+   nothing here reaches outside the stage and nothing else can be overwritten. */
+function stageMapStrip(st){
+  var ids = stageMapIds(st);
+  var cur = st.mapId;
+  var cells = ids.map(function(id){
+    var m = mapById(id);
+    var on = sameId(id, cur);
+    var thumb = (m && m.url)
+      ? '<span class="sm-thumb" style="background-image:url(' + m.url + ')"></span>'
+      : '<span class="sm-thumb sd-ph"></span>';
+    var nm = m ? m.name : 'a map not on the shelf';
+    return '<span class="sm-cell' + (on ? ' on' : '') + '" title="' + esc(nm) + '">'
+      + '<button type="button" class="sm-face" onclick="event.stopPropagation();event.preventDefault();lmStageFace(\'' + st.stageId + '\',\'' + id + '\')">' + thumb + '</button>'
+      + '<button type="button" class="sm-off" onclick="event.stopPropagation();event.preventDefault();lmStageDropMap(\'' + st.stageId + '\',\'' + id + '\')" title="Take it off this stage">\u2715</button></span>';
+  }).join('');
+  return '<div class="sm-strip">' + cells
+    + '<button type="button" class="sm-add" onclick="event.stopPropagation();event.preventDefault();lmStageAddMap(\'' + st.stageId + '\')" title="Add a map to this stage">+</button></div>';
+}
 function stagesBody(){
   ensureLobby();
   /* Every stage this account holds for the adventure. Binding them to a single
@@ -1352,8 +1382,9 @@ function stagesBody(){
       + '<span class="sd-meta">' + (mp?esc(mp.name):'no map') + ' \u00b7 ' + count + ' tokens</span></span></button>'
       + '<span class="sd-acts">'
       + '<button type="button" class="st-b" onclick="event.stopPropagation();event.preventDefault();lmRenameStage(\''+b.stageId+'\')" title="Rename">\u270e</button>'
-      + '<button type="button" class="st-b" onclick="event.stopPropagation();event.preventDefault();lmStageMap(\''+b.stageId+'\')" title="Choose its map">\u25a6</button>'
-      + '<button type="button" class="st-b" onclick="event.stopPropagation();event.preventDefault();lmDeleteStage(\''+b.stageId+'\')" title="Delete stage">\u2715</button></span></div>';
+      + '<button type="button" class="st-b" onclick="event.stopPropagation();event.preventDefault();lmDeleteStage(\''+b.stageId+'\')" title="Delete stage">\u2715</button></span>'
+      + stageMapStrip(b)
+      + '</div>';
   }).join('');
   return '<div class="win-note">Stages are saved tables: a map and where every token stands. Switching keeps each as you left it.</div>'
     + '<div class="sd-list">' + cards + '</div>'
@@ -3402,6 +3433,9 @@ function stageSnapshot(){
     stageId: active || ('st-' + Date.now()),
     name: (known && known.name) || S.scene.name,
     mapId: S.scene.background || null,
+    /* the maps this stage can lay down. It belongs to the stage, so nothing outside
+       the stage changes when one is added or taken away. */
+    mapIds: stageMapIds(known),
     tokens: S.tokens.map(function(t){ return { id:t.id, kind:t.kind, label:t.label, name:t.name, img:t.img, x:t.x, y:t.y, cells:t.cells, mine:t.mine, refId:t.refId }; }),
     grid: Object.assign({}, S.grid),
     mapW: S.map.w, mapH: S.map.h
@@ -3416,7 +3450,6 @@ function stageRestore(b){
   S.map = { w: b.mapW || 2400, h: b.mapH || 1600 };
   applyRemoteState({ scene:S.scene, tokens:S.tokens, grid:S.grid, map:S.map, instance:S.instance });
   paintMapArt();
-  if (typeof paintMapFaces === 'function') paintMapFaces();
 }
 /* the switcher lists the stages bound to the current scene */
 /* The Lobby is the table before a map is laid down: the blue parchment, no tokens. */
@@ -4021,15 +4054,16 @@ if (tsEmbedded()){
   };
   stageBackend = {
     save: function(stage){
-      var row = Object.assign({}, stage, { tokens: JSON.stringify(stage.tokens||[]), grid: JSON.stringify(stage.grid||{}) });
+      var row = Object.assign({}, stage, { tokens: JSON.stringify(stage.tokens||[]), grid: JSON.stringify(stage.grid||{}), mapIds: JSON.stringify(stage.mapIds||[]) });
       return tsAsk('TS_STAGE_SAVE', { stage:row });
     },
     list: function(){ return tsAsk('TS_STAGE_LIST', {}).then(function(rows){
       return (rows||[]).map(function(r){
-        var t=[], g={};
+        var t=[], g={}, mi=[];
         try { t = JSON.parse(r.tokens||'[]'); } catch(e){ t=[]; }
         try { g = JSON.parse(r.grid||'{}'); } catch(e){ g={}; }
-        return { stageId:r.stageId, name:r.name || 'Untitled stage', mapId:r.mapId, tokens:t, grid:g, mapW:r.mapW, mapH:r.mapH };
+        try { mi = JSON.parse(r.mapIds||'[]'); } catch(e){ mi=[]; }
+        return { stageId:r.stageId, name:r.name || 'Untitled stage', mapId:r.mapId, tokens:t, grid:g, mapW:r.mapW, mapH:r.mapH, mapIds:mi };
       });
     }); },
     remove: function(id){ return tsAsk('TS_STAGE_DELETE', { stageId:id }); }
@@ -4710,97 +4744,105 @@ function lmFolderDrop(name){
 }
 function mapById(id){ var m = null; (S.scene.maps || []).forEach(function(x){ if (sameId(x.id, id)) m = x; }); return m; }
 
-/* ---- map groups ----
-   One place, several faces: a bridge, the same bridge broken, the same bridge under
-   fog. A group is a name the LoreMaster types, carried on every map in it, so the
-   maps are peers rather than one being the original and the rest its dependents.
-   Renaming or removing any single map leaves the rest of the group intact.
-
-   The group lives on the map, because a face authored once should be available to
-   every stage that lays that place down. Which face is showing lives on the stage,
-   in stage.mapId, because that is what is happening rather than what a thing is.
-   Swapping a face therefore leaves tokens, grid and table size untouched, which is
-   the whole reason the split is drawn here. */
-function mapGroup(m){ return m ? String(m.variantOf || '') : ''; }
-function mapGroups(){
-  var seen = {}, out = [];
-  (S.scene.maps || []).forEach(function(m){ var g = mapGroup(m); if (g && !seen[g]){ seen[g] = 1; out.push(g); } });
-  out.sort();
-  return out;
-}
-function mapsInGroup(g){
-  if (!g) return [];
-  return (S.scene.maps || []).filter(function(m){ return mapGroup(m) === g; });
-}
-function mapFamily(id){
-  var m = mapById(id); if (!m) return [];
-  var g = mapGroup(m);
-  return g ? mapsInGroup(g) : [];
-}
-function mapFaceName(m){ return m ? (m.variantLabel || m.name) : ''; }
+/* Write a map's row back whole, so a change to one field never drops another. */
 function mapSaveRow(m){
   if (!m || !m.assetId || !assetBackend.save) return;
-  assetBackend.save({ assetId:m.assetId, kind:'map', name:m.name, image:m.url, w:m.w, h:m.h,
-                      folder:m.folder || '', variantOf:m.variantOf || '', variantLabel:m.variantLabel || '' }).catch(function(){});
+  assetBackend.save({ assetId:m.assetId, kind:'map', name:m.name, image:m.url,
+                      w:m.w, h:m.h, folder:m.folder || '' }).catch(function(){});
 }
-/* Put a map in a group and name its face. Both names are the LoreMaster's; nothing is
-   inferred from a file name, and an existing group is offered rather than demanded. */
-function lmGroupPick(id){
-  var m = mapById(id); if (!m) return;
-  var groups = mapGroups();
-  var list = groups.map(function(g){ return '<option value="' + esc(g) + '">'; }).join('');
-  var sizes = {};
-  mapsInGroup(mapGroup(m)).forEach(function(x){ sizes[x.w + 'x' + x.h] = 1; });
-  tsModal('<h3 class="tsm-title">' + esc(m.name) + '</h3>'
-    + '<p class="tsm-note">Maps sharing a group are faces of one place. Lay any of them on a stage and the rest are a tap away, with every token where it stood.</p>'
-    + '<label class="tsm-lbl">Group</label>'
-    + '<input class="tsm-inp" id="mgGroup" list="mgGroups" value="' + esc(mapGroup(m)) + '" placeholder="The Bridge, or leave it empty to stand alone">'
-    + '<datalist id="mgGroups">' + list + '</datalist>'
-    + '<label class="tsm-lbl">Call this face</label>'
-    + '<input class="tsm-inp" id="mgLabel" value="' + esc(m.variantLabel || '') + '" placeholder="Broken">'
-    + '<p class="tsm-note">This map is ' + m.w + ' by ' + m.h + '. Faces that do not match will still group, but the tokens will sit differently against the art when you swap.</p>'
-    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button>'
-    + '<button class="tsm-btn" onclick="lmGroupSave(\'' + id + '\')">Save</button></div>');
+
+/* ---- a stage's maps ----
+   A place with several faces, a bridge whole, broken, under fog, is a list of maps
+   held by the stage. Membership is the link: there is no name to type and no record
+   outside the stage to keep in step, so adding a face to one stage cannot disturb
+   another stage that shows the same bridge.
+
+   The list is what the stage can lay down. stage.mapId is what is down now. Swapping
+   writes only the background and the table size, so tokens and grid stay exactly
+   where they were, which is the entire reason for doing it this way. */
+function stageMapIds(st){
+  if (!st) return [];
+  var out = (st.mapIds || []).slice();
+  /* a stage made before the list existed still has its one map */
+  if (st.mapId && out.indexOf(st.mapId) < 0) out.unshift(st.mapId);
+  return out;
 }
-function lmGroupSave(id){
-  var m = mapById(id); if (!m) return;
-  var g = ((document.getElementById('mgGroup') || {}).value || '').replace(/^\s+|\s+$/g, '');
-  var label = ((document.getElementById('mgLabel') || {}).value || '').replace(/^\s+|\s+$/g, '');
-  m.variantOf = g;
-  m.variantLabel = g ? (label || m.name) : '';
-  mapSaveRow(m);
-  tsCloseModal(); applyRemoteState({ scene:S.scene }); paintMapPicker(); paintMapFaces();
+function stageMaps(st){
+  return stageMapIds(st).map(mapById).filter(Boolean);
 }
-/* Change the face on the table. The stage keeps everything else it holds. */
-function lmSetFace(id){
-  var m = mapById(id); if (!m) return;
-  if (sameId(S.scene.background, id)) return;
-  S.scene.background = id;
-  S.map = { w:m.w, h:m.h };
-  applyRemoteState({ scene:S.scene, map:S.map });
-  paintMapArt(); paintMapFaces();
-  lmSaveCurrentStage();
-  pushLog({ kind:'sys', html:esc(mapFaceName(m)) + ': the table changes.' });
-  applyRemoteState({ log:S.log });
+/* Lay one of the stage's maps down. On the stage being run this changes the table
+   for everyone; on any other stage it just sets what that stage will open with. */
+function lmStageFace(stageId, mapId){
+  var st = stageById(stageId); if (!st) return;
+  var m = mapById(mapId); if (!m) return;
+  stageTouch();
+  st.mapId = mapId; st.mapW = m.w; st.mapH = m.h;
+  if (stageMapIds(st).indexOf(mapId) < 0) st.mapIds = stageMapIds(st).concat([mapId]);
+  stageBackend.save(st);
+  if (sameId(activeStageId(), stageId)){
+    S.scene.background = mapId;
+    S.map = { w:m.w, h:m.h };
+    applyRemoteState({ scene:S.scene, map:S.map });
+    paintMapArt();
+    pushLog({ kind:'sys', html:esc(m.name) + ': the table changes.' });
+    applyRemoteState({ log:S.log });
+  }
+  applyRemoteState({ instance:S.instance });
+  refreshStagesWin();
 }
-/* The strip of faces, shown only when the map on the table belongs to a group and
-   only to the LoreMaster. Players see the art change, not the switch. */
-function paintMapFaces(){
-  var el = document.getElementById('mapFaces');
-  if (!el){ el = document.createElement('div'); el.id = 'mapFaces'; document.body.appendChild(el); }
-  var fam = isLM() ? mapFamily(S.scene.background) : [];
-  if (fam.length < 2){ el.style.display = 'none'; el.innerHTML = ''; return; }
-  var cur = mapById(S.scene.background);
-  fam.sort(function(a, b){ return String(mapFaceName(a)).localeCompare(String(mapFaceName(b))); });
-  el.style.display = 'flex';
-  el.innerHTML = '<span class="mf-lbl">' + esc(mapGroup(cur)) + '</span>'
-    + fam.map(function(m){
-        var on = sameId(m.id, S.scene.background);
-        var off = (cur && (m.w !== cur.w || m.h !== cur.h))
-          ? ' title="' + m.w + ' by ' + m.h + ', a different size to the one on the table"' : '';
-        return '<button type="button" class="mf-chip' + (on ? ' on' : '') + '"' + off
-          + ' onclick="lmSetFace(\'' + m.id + '\')">' + esc(mapFaceName(m)) + '</button>';
-      }).join('');
+/* Add a map to this stage, from the shelf or straight off the device. */
+function lmStageAddMap(stageId){
+  var st = stageById(stageId); if (!st) return;
+  loadAccountAssets();
+  var have = stageMapIds(st);
+  var pool = (S.scene.maps || []).filter(function(m){ return have.indexOf(m.id) < 0; });
+  var body = pool.length
+    ? '<div class="sm-pick">' + pool.map(function(m){
+        return '<button type="button" class="sm-opt" onclick="lmStageMapAdd(\'' + stageId + '\',\'' + m.id + '\')">'
+          + (m.url ? '<span class="sm-thumb" style="background-image:url(' + m.url + ')"></span>' : '<span class="sm-thumb sd-ph"></span>')
+          + '<span class="sm-oname">' + esc(m.name) + '</span>'
+          + '<span class="sm-osize">' + m.w + ' \u00d7 ' + m.h + '</span></button>';
+      }).join('') + '</div>'
+    : '<p class="tsm-note">Every map on your shelf is already on this stage.</p>';
+  tsModal('<h3 class="tsm-title">Add a map to ' + esc(st.name) + '</h3>'
+    + '<p class="tsm-note">Maps on a stage are faces of the one place. Swap between them at any time and every token stays where it stands.</p>'
+    + body
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button>'
+    + '<button class="tsm-btn" onclick="lmStageUpload(\'' + stageId + '\')">Upload an image</button></div>');
+}
+function lmStageMapAdd(stageId, mapId){
+  var st = stageById(stageId); if (!st) return;
+  stageTouch();
+  if (stageMapIds(st).indexOf(mapId) < 0) st.mapIds = stageMapIds(st).concat([mapId]);
+  if (!st.mapId) { tsCloseModal(); lmStageFace(stageId, mapId); return; }
+  stageBackend.save(st);
+  tsCloseModal();
+  applyRemoteState({ instance:S.instance }); refreshStagesWin();
+}
+/* an upload lands on the shelf as always, and joins this stage when it arrives */
+function lmStageUpload(stageId){
+  window._stageAwaitingMap = stageId;
+  tsCloseModal();
+  document.getElementById('mapFileInput').click();
+}
+function lmStageDropMap(stageId, mapId){
+  var st = stageById(stageId); if (!st) return;
+  stageTouch();
+  st.mapIds = stageMapIds(st).filter(function(x){ return !sameId(x, mapId); });
+  if (sameId(st.mapId, mapId)){
+    var nx = st.mapIds[0] || null;
+    st.mapId = nx;
+    var m = nx ? mapById(nx) : null;
+    if (m){ st.mapW = m.w; st.mapH = m.h; }
+    if (sameId(activeStageId(), stageId)){
+      S.scene.background = nx;
+      if (m) S.map = { w:m.w, h:m.h };
+      applyRemoteState({ scene:S.scene, map:S.map });
+      paintMapArt();
+    }
+  }
+  stageBackend.save(st);
+  applyRemoteState({ instance:S.instance }); refreshStagesWin();
 }
 function lmRenameMap(id){
   var m = mapById(id); if (!m) return;
@@ -4831,7 +4873,6 @@ function lmDeleteMap(id){
 }
 function lmSetMap(id){
   var m = null; S.scene.maps.forEach(function(x){ if(x.id===id) m=x; });
-  if (m){ S.scene.background = id; S.map = { w:m.w, h:m.h }; applyRemoteState({ scene:S.scene, map:S.map }); paintMapArt(); paintMapFaces(); lmSaveCurrentStage(); }
   lmCloseMaps();
 }
 /* pull the account's stored maps into the scene list once, so they show in the
@@ -4845,7 +4886,6 @@ function loadAccountAssets(){
       if (!S.scene.maps.some(function(m){ return m.id === r.assetId; }))
         S.scene.maps.push({ id:r.assetId, assetId:r.assetId, folder:r.folder || '', name:r.name, url:r.image, w:r.w||2400, h:r.h||1600, source:'account', variantOf:r.variantOf || '', variantLabel:r.variantLabel || '' });
     });
-    if (rows.length){ paintMapPicker(); paintMapFaces(); }
   }).catch(function(){});
   assetBackend.list('token').then(function(rows){
     S.assets = rows;
@@ -4868,35 +4908,6 @@ function paintMapArt(){
   var m = activeMap();
   if (m && m.url){ art.style.backgroundImage = 'url(' + m.url + ')'; art.style.backgroundSize = 'cover'; }
   /* null url keeps the CSS placeholder gradient */
-  /* the strip follows the art, so every path that changes the map keeps it honest,
-     including a background arriving from the table rather than from this seat */
-  if (typeof paintMapFaces === 'function') paintMapFaces();
-}
-/* Choosing a map means choosing a place, so a group shows as one card and the faces
-   are a tap away at the table. Turning this off lays every face out separately, which
-   is how you rename or refile one of them. */
-function mapGroupsFolded(){
-  try { return localStorage.getItem('ts_mapgroups') !== 'open'; } catch(e){ return true; }
-}
-function mapGroupsFlip(){
-  try { localStorage.setItem('ts_mapgroups', mapGroupsFolded() ? 'open' : 'fold'); } catch(e){}
-  paintMapPicker();
-}
-function mapCollapse(list){
-  if (!mapGroupsFolded()) return list;
-  var seen = {}, out = [];
-  (list || []).forEach(function(m){
-    var g = mapGroup(m);
-    if (!g){ out.push(m); return; }
-    /* the face on the table represents its group, so the shelf shows what is down */
-    if (seen[g]){
-      if (sameId(m.id, S.scene.background)) out[seen[g].at] = m;
-      return;
-    }
-    seen[g] = { at: out.length };
-    out.push(m);
-  });
-  return out;
 }
 function paintMapPicker(){
   var el = document.getElementById('mapPicker');
@@ -4912,16 +4923,9 @@ function paintMapPicker(){
       + '<button class="mp-main" onclick="lmSetMap(\'' + m.id + '\')">' + thumb
       + '<div class="mp-name">' + esc(m.name) + '</div>'
       + '<div class="mp-meta">' + m.w + ' \u00d7 ' + m.h + ' \u00b7 ' + esc(m.source) + (m.local?' \u00b7 not yet saved':'') + '</div>'
-      + (mapGroup(m)
-          ? '<div class="mp-face">' + esc(mapGroup(m)) + ' \u00b7 ' + esc(mapFaceName(m))
-            + (mapGroupsFolded() && mapsInGroup(mapGroup(m)).length > 1
-                ? ' <span class="tsm-count">' + mapsInGroup(mapGroup(m)).length + ' faces</span>' : '')
-            + '</div>'
-          : '')
       + '</button>'
       + '<span class="mp-acts">'
       + '<button class="st-b" onclick="event.stopPropagation();lmRenameMap(\'' + m.id + '\')" title="Rename">\u270e</button>'
-      + '<button class="st-b" onclick="event.stopPropagation();lmGroupPick(\'' + m.id + '\')" title="Put it in a group of faces">\u25d1</button>'
       + '<button class="st-b" onclick="event.stopPropagation();lmFolderPick(\'' + m.id + '\')" title="Folder">\u2630</button>'
       + '<button class="st-b" onclick="event.stopPropagation();lmDeleteMap(\'' + m.id + '\')" title="Remove">\u2715</button></span></div>';
   }
@@ -4943,11 +4947,10 @@ function paintMapPicker(){
       + '<button class="st-b" onclick="lmFolderRename(\'' + esf + '\')" title="Rename">\u270e</button>'
       + '<button class="st-b" onclick="lmFolderDrop(\'' + esf + '\')" title="Remove the folder">\u2715</button></div>';
     if (shut) return;
-    var showIn = mapCollapse(inIt);
-    cards += showIn.length ? showIn.map(mapCard).join('')
+    cards += inIt.length ? inIt.map(mapCard).join('')
       : '<div class="mp-empty">Drop a map here, or upload one and file it.</div>';
   });
-  var loose = mapCollapse(all.filter(function(m){ return !(m.folder || ''); }));
+  var loose = all.filter(function(m){ return !(m.folder || ''); });
   if (mapFolders().length) cards += '<div class="mp-folder" ondragover="folderDragOver(event,this)" ondragleave="folderDragLeave(this)" ondrop="folderDrop(event,this,\'\')"><span class="mp-fname">Loose</span></div>';
   cards += loose.map(mapCard).join('');
   var upload = '<button class="mp-card mp-upload" onclick="lmMapUploadStub()" '
@@ -4961,8 +4964,6 @@ function paintMapPicker(){
      with a window. The box itself swallows the click so a miss inside it does nothing. */
   el.onclick = function(ev){ if (ev.target === el) lmCloseMaps(); };
   el.innerHTML = '<div class="mp-box"><div class="mp-head"><span>Choose a map</span>'
-    + '<button class="tsm-btn ghost mp-newf" onclick="mapGroupsFlip()">'
-    + (mapGroupsFolded() ? 'Show every face' : 'Fold groups') + '</button>'
     + '<button class="tsm-btn ghost mp-newf" onclick="newFolder(\'map\')">+ New folder</button>'
     + '<button class="lm-minbtn" onclick="lmCloseMaps()">\u00d7</button></div>'
     + '<div class="mp-grid">' + cards + upload + '</div></div>';
@@ -4992,11 +4993,20 @@ function lmMapFilePicked(input){
     var w = img.naturalWidth||2400, h = img.naturalHeight||1600;
     var m = { id:id, assetId:id, folder:'', name:nm, url:url, w:w, h:h, source:'account', local:true };
     S.scene.maps.push(m);
-    S.scene.background = id;
-    S.map = { w:w, h:h };
-    applyRemoteState({ scene:S.scene, map:S.map });
-    paintMapArt();
-    lmCloseMaps();
+    /* an upload asked for by a stage joins that stage rather than taking over the
+       table, so adding a face from prep does not change what the party is looking at */
+    var waiting = window._stageAwaitingMap; window._stageAwaitingMap = null;
+    if (waiting){
+      lmCloseMaps();
+      lmStageMapAdd(waiting, id);
+      paintMapPicker();
+    } else {
+      S.scene.background = id;
+      S.map = { w:w, h:h };
+      applyRemoteState({ scene:S.scene, map:S.map });
+      paintMapArt();
+      lmCloseMaps();
+    }
     /* save to the account through the seam */
     assetBackend.upload(file, nm).then(function(imgRef){
       return assetBackend.save({ assetId:id, kind:'map', name:nm, image:imgRef, w:w, h:h });
