@@ -1,3 +1,15 @@
+## 2026-07-24 — ThreadSpire: one place, several faces
+
+A map can now be filed as a face of another map. A bridge, the same bridge broken, the same bridge under fog: one place on the shelf, several faces, and the LoreMaster names each face. Nothing is inferred from a file name.
+
+The family belongs to the map, so a face authored once is available to every stage that lays that map down. Which face is showing belongs to the stage. Changing the face leaves the tokens, the grid and the size of the table exactly as they were, which is the whole point of it.
+
+When the map on the table has more than one face, a strip of them sits under the frame for the LoreMaster. One tap changes what everyone is looking at, and the log says so, because art that changes in silence reads as a fault.
+
+Faces of one place have to share a size. A mismatch is refused when the face is filed, with the reason, rather than discovered mid scene when every token has slid against the art.
+
+Assets carries two new fields, variantOf and variantLabel. The schema was backed up first.
+
 ## 2026-07-23 — ThreadSpire: a removed stage stays removed through a reload, and the table closes a window
 
 The X removes a stage outright now. The confirmation step is gone; the button is the decision.
