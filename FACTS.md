@@ -16,14 +16,30 @@ first, and if it is not here, grep for it and then add it.
 The route a tool lives at is not derivable from its filename. `threadspire.html` does
 not live at `/threadspire`.
 
-| Tool | Route | Evidence |
-|---|---|---|
-| FellGlass | `/the-fellglass` | `velo/page-threadspire.js`, the OPEN_SHEET handler |
-| ThreadSpire | `/the-threadspire` | `velo/page-fellglass.js`, two navigations |
+Every route is `the-` followed by the tool name. The full set is the Hearth's own
+routing table, `CROWN`, `BENCH` and `WALL` in `docs/the_hearth.html`, which is where to
+look first and where to correct any of these.
 
-Routes for the other tools are not recorded here because nothing in the repo proves
-them. Do not add one from memory. Add it when a navigation in `velo/**` shows it, and
-cite that line.
+| Tool | Route |
+|---|---|
+| FellGlass | `/the-fellglass` |
+| FateWell | `/the-fatewell` |
+| FellForge | `/the-fellforge` |
+| SigilForge | `/the-sigilforge` |
+| ShardForge | `/the-shardforge` |
+| BondForge | `/the-bondforge` |
+| BrandForge | `/the-brandforge` |
+| LoreForge | `/the-loreforge` |
+| FoeForge | `/the-foeforge` |
+| RelicForge | `/the-relicforge` |
+| SagaForge | `/the-sagaforge` |
+| ThreadSpire | `/the-threadspire` |
+
+ThreadSpire is not in the Hearth table; its route comes from two navigations in
+`velo/page-fellglass.js`. The Hearth table is the source for the rest.
+
+Site pages seen on the live site: `/the-hearth`, `/for-loremasters`, `/lore`, `/fell`,
+`/worlds`, `/membersportal`, `/about`, `/press-kit`.
 
 **Better than knowing the route:** do not navigate to a literal. Rebuild the current
 page from `wixLocation.path`, the way `TS_CAMPAIGN_SET` does. A guessed route sends the

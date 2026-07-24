@@ -1,3 +1,9 @@
+## 2026-07-24 — ThreadSpire: write a new adventure from the table
+
+Settings can send you to FateWell to write a new adventure. ThreadSpire runs an adventure and does not author one, so it hands over rather than growing a second place to do the same job. The table saves on the way out, and the new adventure is waiting in the list when you come back.
+
+The address of every tool was in the Hearth's own routing table the whole time. It is written down now, so the next thing that needs to send someone to FateWell or SagaForge can look it up instead of guessing.
+
 ## 2026-07-24 — ThreadSpire: an uploaded map keeps the address it was stored at
 
 An uploaded map was saved to the account correctly and then went on using the address it had while it was still only a file on the device. That address belongs to the page that made it and dies with the page, so the picture was there all session and gone the moment anything reloaded, with a black square where it had been and nothing to say why.

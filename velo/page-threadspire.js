@@ -173,6 +173,11 @@ $w.onReady(function () {
               + '&t=' + Date.now());
             reply(true, { ok: true });
           } catch (e) { reply(false, null, String(e)); }
+        } else if (msg.type === 'TS_NEW_ADVENTURE') {
+          // FateWell authors adventures; ThreadSpire runs them. The route is the one
+          // the Hearth uses, in docs/the_hearth.html.
+          try { wixLocation.to('/the-fatewell'); reply(true, { ok: true }); }
+          catch (e) { reply(false, null, String(e)); }
         } else if (msg.type === 'TS_STAGE_DELETE') {
           const r = await deleteStage(msg.stageId);
           reply(!!(r && r.ok), r, r && r.error);
