@@ -3893,6 +3893,10 @@ function advReset(nextId){
   _stageGone = {};
   _assetsLoaded = false;
   _stateSeen = 0;
+  /* the load-once flags belong to the adventure being left as much as the data does.
+     Clearing the library without clearing the flag that says it was loaded left the
+     tab reading an empty hand and never asking again. */
+  S.libLoaded = false;
   try { localStorage.removeItem('ts_stages_gone'); } catch(e){}
   if (typeof closeWin === 'function' && S.openSection) closeWin();
   /* the veil stays. The next thing shown is the other adventure, not this one's
@@ -4281,7 +4285,8 @@ window.onmessage = function(ev){
     /* A context carrying a different adventure is a change of table, not a correction
        of this one. Everything held here belongs to the adventure that was open, so it
        is put down before the new one is picked up. */
-    if (d.switched || (d.campaignId && S.campaignId && !sameId(d.campaignId, S.campaignId))) advReset(d.campaignId);
+    var _switched = d.switched || (d.campaignId && S.campaignId && !sameId(d.campaignId, S.campaignId));
+    if (_switched) advReset(d.campaignId);
     if (d.role === 'lm' || d.role === 'player'){
       S.role = d.role; S.roleReady = true; document.body.classList.remove('roleboot');
       if (d.role === 'lm' && typeof libLoad === 'function') libLoad();
@@ -4297,7 +4302,10 @@ window.onmessage = function(ev){
     else if (d.character && d.character.id) S.characterId = d.character.id;
     if (d.character){ S.character = S.character || {}; if (d.character.name){ S.character.name = d.character.name; S.charReady = true; } if (d.character.image) S.character.portrait = d.character.image; }
     render();
-    if (isLM()) loadJournal();
+    /* a change of adventure sends everything back out for the new one, rather than
+       waiting on a page load that no longer happens */
+    if (_switched && typeof loadForAdventure === 'function') loadForAdventure();
+    else if (isLM()) loadJournal();
     if (!isLM()) loadMyChar();
     return;
   }
@@ -4538,7 +4546,17 @@ S.characterId = S.characterId || '';
 S.sheet = S.sheet || null;
 S.charReady = S.charReady || false;
 S.sheetMsg = S.sheetMsg || 'Loading your sheet...';
-setTimeout(function(){ try { loadAccountStages(); startStateFeed(); loadJournal(); if (tsEmbedded()) window.parent.postMessage({ type:'THREADSPIRE_READY' }, '*'); } catch(e){} }, 0);
+/* Everything an adventure needs fetched. This ran once at boot, which was fine while
+   changing adventure meant reloading the page. It does not any more, so the new
+   adventure arrived and nothing went to fetch its stages, its journal or its quests. */
+function loadForAdventure(){
+  try { loadAccountStages(); } catch(e){}
+  try { loadJournal(); } catch(e){}
+  try { if (isLM() && typeof libLoad === 'function') libLoad(true); } catch(e){}
+  try { if (isLM() && typeof forgeLoad === 'function') forgeLoad(); } catch(e){}
+  try { if (typeof loadAccountAssets === 'function') loadAccountAssets(); } catch(e){}
+}
+setTimeout(function(){ try { loadForAdventure(); startStateFeed(); if (tsEmbedded()) window.parent.postMessage({ type:'THREADSPIRE_READY' }, '*'); } catch(e){} }, 0);
 /* the testing panel is scaffolding, not part of a real table: hidden when embedded,
    summoned with the backtick key when you need it while testing */
 (function(){
