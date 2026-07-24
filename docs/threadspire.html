@@ -505,8 +505,9 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .lm-minidie .lmc-die{ width:24px; height:24px; font-size:.74rem; }
 .lm-minidie .lmc-dieout{ font-size:.64rem; }
 /* the minimized pill */
-.lm-pill{ background:rgba(10,14,26,.94); border:1px solid var(--gold); border-radius:20px; color:var(--gold); font-family:Cinzel,serif; font-size:.66rem; letter-spacing:.1em; text-transform:uppercase; padding:8px 16px; cursor:pointer; box-shadow:0 4px 16px rgba(0,0,0,.5); }
-.lm-pill-arrow{ margin-left:6px; }
+.lm-pill{ display:inline-flex; align-items:center; gap:8px; max-width:min(520px,86vw); background:rgba(10,14,26,.94); border:1px solid var(--gold); border-radius:20px; color:var(--gold); font-family:Cinzel,serif; font-size:.66rem; letter-spacing:.1em; text-transform:uppercase; padding:8px 16px; cursor:pointer; box-shadow:0 4px 16px rgba(0,0,0,.5); }
+.lm-pill-t{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.lm-pill-arrow{ flex:none; }
 .lm-minbtn{ background:none; border:1px solid var(--line); border-radius:5px; color:var(--ice); width:22px; height:22px; line-height:1; cursor:pointer; font-size:.9rem; padding:0; }
 .lm-minbtn:active{ background:var(--navy3); }
 /* the map picker overlay */
@@ -531,6 +532,16 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .mp-inner{ display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; }
 .pt-open{ flex:1; min-width:0; display:flex; flex-direction:column; align-items:flex-start; gap:1px; background:none; border:none; padding:0; cursor:pointer; text-align:left; }
 .pt-open:hover .pt-name{ color:var(--gold); }
+/* choosing several at once on the shelf */
+.lib-bar{ display:flex; align-items:center; gap:7px; flex-wrap:wrap; margin:8px 0 4px; }
+.lib-bar .tsm-btn{ margin:0; }
+.lib-bar .tsm-btn[disabled]{ opacity:.4; cursor:default; }
+.lib-count{ font-size:.62rem; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); margin-left:auto; }
+.vcard.picking{ cursor:pointer; }
+.vcard.picking .vcard-main{ cursor:pointer; }
+.vcard.picked{ border-color:var(--gold); box-shadow:0 0 0 1px var(--gold); }
+.card-tick{ position:absolute; top:6px; right:6px; width:20px; height:20px; line-height:18px; text-align:center; border-radius:50%; border:1px solid var(--line); background:rgba(4,7,14,.8); color:var(--gold); font-size:.7rem; }
+.vcard.picked .card-tick{ border-color:var(--gold); background:var(--gold); color:var(--navy,#0a0e1a); }
 .pt-role.rl-kept{ color:var(--muted); border-color:var(--line); }
 .subtab.godback{ color:var(--gold); }
 .mp-bad{ font-size:.62rem; color:var(--danger); margin-top:3px; }
@@ -1539,7 +1550,7 @@ var TYPE_LABEL = { monster:'Foe', npc:'NPC', item:'Item' };
    both draw with this, so an NPC looks the same wherever you meet them. */
 function tsVCard(o){
   var hasImg = o.img && o.img.length;
-  return '<div class="vcard libcard' + (hasImg ? ' has-cover' : '') + '">'
+  return '<div class="vcard libcard' + (hasImg ? ' has-cover' : '') + (o.cls ? ' ' + o.cls : '') + '">'
     + '<button class="vcard-main" onclick="' + o.openFn + '">'
     + (hasImg ? '<div class="vcard-cover"><img src="' + esc(o.img) + '" alt=""></div>' : '')
     + '<div class="vcard-body">'
@@ -1587,6 +1598,13 @@ function libDelete(id){
 }
 function libSearch(q){
   S.libQuery = q || '';
+  if (libSelOn()){
+    /* while choosing, the list is rebuilt so All means what is left after the search */
+    refreshWinBody();
+    var el = document.getElementById('libFind');
+    if (el){ el.focus(); try { el.setSelectionRange(el.value.length, el.value.length); } catch(e){} }
+    return;
+  }
   var rows = document.querySelectorAll('#winBody .vcard.libcard');
   var t = S.libQuery.toLowerCase();
   for (var i = 0; i < rows.length; i++){
@@ -1594,7 +1612,59 @@ function libSearch(q){
     rows[i].style.display = (!t || nm.toLowerCase().indexOf(t) >= 0) ? '' : 'none';
   }
 }
-function libToggleScope(){ S.libAll = !S.libAll; refreshWinBody(); }
+function libToggleScope(){ S.libAll = !S.libAll; libSelClear(); refreshWinBody(); }
+/* ---- choosing several at once ----
+   Select turns the shelf into a chooser. All takes exactly what is on screen, which is
+   whatever the scope and the search have left, so it can never reach into the other
+   scope and take something you cannot see. */
+function libSelOn(){ return !!S.libSel; }
+function libSelClear(){ S.libSel = null; }
+function libSelToggleMode(){ S.libSel = S.libSel ? null : {}; refreshWinBody(); }
+function libSelCount(){ return S.libSel ? Object.keys(S.libSel).length : 0; }
+function libShown(){
+  var q = String(S.libQuery || '').toLowerCase();
+  return libScoped().filter(function(e){ return !q || String(e.name || '').toLowerCase().indexOf(q) >= 0; });
+}
+function libSelPick(id){
+  if (!S.libSel) return;
+  if (S.libSel[id]) delete S.libSel[id]; else S.libSel[id] = true;
+  refreshWinBody();
+}
+function libSelAll(){
+  if (!S.libSel) return;
+  var shown = libShown();
+  var every = shown.length && shown.every(function(e){ return S.libSel[e.id]; });
+  S.libSel = {};
+  if (!every) shown.forEach(function(e){ S.libSel[e.id] = true; });
+  refreshWinBody();
+}
+function libSelDelete(){
+  var ids = S.libSel ? Object.keys(S.libSel) : [];
+  if (!ids.length) return;
+  var names = ids.map(function(id){ var e = libGet(id); return e ? e.name : ''; }).filter(Boolean);
+  window._tsYes = function(){
+    tsCloseModal();
+    var left = ids.length, failed = 0;
+    ids.forEach(function(id){
+      tsAsk('TS_ASSET_DELETE', { assetId:id }).then(function(){
+        S.library = (S.library || []).filter(function(x){ return !sameId(x.id, id); });
+      }).catch(function(){ failed++; }).then(function(){
+        left--;
+        if (left) return;
+        libSelClear(); refreshWinBody();
+        pushLog({ kind:'sys', html: failed
+          ? (ids.length - failed) + ' removed from the library, ' + failed + ' would not go.'
+          : ids.length + ' removed from the library.' });
+        applyRemoteState({ log:S.log });
+      });
+    });
+  };
+  tsModal('<h3 class="tsm-title">Delete ' + ids.length + (ids.length === 1 ? ' entry?' : ' entries?') + '</h3>'
+    + '<p class="tsm-note">' + esc(names.slice(0, 6).join(', ')) + (names.length > 6 ? ' and ' + (names.length - 6) + ' more' : '') + '.</p>'
+    + '<p class="tsm-note">They leave the shelf everywhere. Scenes already holding them keep what they have.</p>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button>'
+    + '<button class="tsm-btn danger" onclick="tsConfirmYes()">Delete</button></div>');
+}
 /* Build a scene combatant from a library entry, keeping the link so stats and art stay shared. */
 function libMakeCombatant(e, name){
   var isFoe = e.type === 'monster';
@@ -2339,19 +2409,40 @@ function libraryBody(){
   var h = '<div class="win-note">The library: everything the adventure brings to the table.</div>'
     + '<input class="tsm-inp lib-find" id="libFind" placeholder="Search by name" value="' + esc(S.libQuery || '') + '" oninput="libSearch(this.value)">'
     + '<button class="tsm-btn ghost lib-scope" onclick="libToggleScope()">' + (S.libAll ? 'Showing: saved collection' : 'Showing: this adventure') + '</button>';
-  var lib = libScoped();
+  var lib = libSelOn() ? libShown() : libScoped();
+  if (S.libLoaded){
+    var shown = libShown();
+    var picked = libSelCount();
+    var allOn = shown.length && shown.every(function(e){ return S.libSel && S.libSel[e.id]; });
+    h += '<div class="lib-bar">'
+      + '<button class="tsm-btn ghost" onclick="libSelToggleMode()">' + (libSelOn() ? 'Done' : 'Select') + '</button>';
+    if (libSelOn()){
+      h += '<button class="tsm-btn ghost" onclick="libSelAll()">' + (allOn ? 'None' : 'All') + '</button>'
+        + '<span class="lib-count">' + picked + ' of ' + shown.length + ' chosen</span>'
+        + '<button class="tsm-btn danger" onclick="libSelDelete()"' + (picked ? '' : ' disabled') + '>Delete</button>';
+    }
+    h += '</div>';
+  }
   if (S.libLoaded && lib.length){
     ['monster','npc','item'].forEach(function(t){
       var rows = lib.filter(function(e){ return e.type === t; });
       if (!rows.length) return;
       h += '<div class="nb-scene">' + (t === 'monster' ? 'Foes' : t === 'npc' ? 'NPCs' : 'Items') + '</div>';
       rows.forEach(function(e){
+        var on = !!(S.libSel && S.libSel[e.id]);
         h += tsVCard({ img:e.img, badge:TYPE_LABEL[e.type] || '', title:e.name, sub:entrySub(e),
                        origin: e.campaignName || (e.origin ? 'From ' + e.origin : ''),
-                       openFn: 'entrySheet(\'lib\',\'\',\'\',\'' + e.id + '\')',
-                       corner: '<button class="card-x" title="Delete" onclick="event.stopPropagation();libDelete(\'' + e.id + '\')">\u2715</button>' });
+                       cls: libSelOn() ? (on ? 'picking picked' : 'picking') : '',
+                       openFn: libSelOn()
+                         ? ('libSelPick(\'' + e.id + '\')')
+                         : ('entrySheet(\'lib\',\'\',\'\',\'' + e.id + '\')'),
+                       corner: libSelOn()
+                         ? '<span class="card-tick">' + (on ? '\u2713' : '') + '</span>'
+                         : '<button class="card-x" title="Delete" onclick="event.stopPropagation();libDelete(\'' + e.id + '\')">\u2715</button>' });
       });
     });
+  } else if (S.libLoaded && libSelOn()){
+    h += '<div class="win-note">Nothing here matches. Clear the search, or change what is shown.</div>';
   } else {
     h += '<div class="win-note">Nothing in the library yet. FateWell authors it.</div>';
   }
@@ -2658,7 +2749,7 @@ function openWin(key){
   if (key === 'fell' && isLM() && S.godChar){
     ensureSheet();
     win.classList.add('sheeting'); win.classList.add('arsenal');
-    paintGodBar(); sheetGoto(S.godPanel || 'attributes');
+    paintGodBar(); sheetGoto(S.godPanel || 'lore');
   }
   else if (panel){
     ensureSheet(); win.classList.add('sheeting');
@@ -2793,8 +2884,14 @@ function lmStripHtml(){
     return '<span class="lm-dot' + (i === focus ? ' on' : '') + '" onclick="lmGoTo(' + i + ')"></span>';
   }).join('') + '</div>' : '';
   if (lmMin){
-    return '<button class="lm-pill" onclick="lmRestore()">' + head
-      + ' <span class="lm-pill-arrow">\u25b4</span></button>';
+    /* head is a button while a scene is running, and a button inside a button is not
+       allowed: the parser closes the pill early, which left an empty round button with
+       the scene name spilled out underneath it. The pill takes plain words. */
+    var pillText = f === 'scene' ? sceneLabel
+      : (f === 'resolve' ? ('Round ' + S.round + ' \u00b7 Spotlights')
+      : ('Round ' + S.round + ' \u00b7 Commit'));
+    return '<button class="lm-pill" onclick="lmRestore()"><span class="lm-pill-t">' + esc(pillText) + '</span>'
+      + '<span class="lm-pill-arrow">\u25b4</span></button>';
   }
   var prev = deck.length > 1 ? '<button class="lm-nav l" onclick="lmStep(-1)" aria-label="Previous">\u2039</button>' : '<span class="lm-nav-sp"></span>';
   var next = deck.length > 1 ? '<button class="lm-nav r" onclick="lmStep(1)" aria-label="Next">\u203a</button>' : '<span class="lm-nav-sp"></span>';
@@ -4968,7 +5065,7 @@ function lmOpenFell(charId){
   if (!charId || !isLM()) return;
   var who = (S.party || []).filter(function(p){ return sameId(p.charId, charId); })[0] || {};
   S.godChar = { id:charId, name: who.name || who.charName || 'this Fell' };
-  S.godPanel = 'attributes';
+  S.godPanel = 'lore';
   ensureSheet();
   openWin('fell');
   tsAsk('TS_GOD_SHEET', { charId:charId }).catch(function(){

@@ -1,3 +1,11 @@
+## 2026-07-24 — ThreadSpire: choosing several, and a pill that holds its words
+
+An opened Fell lands on Lore, which is where you look first.
+
+The library can be worked in handfuls. Select turns the shelf into a chooser, All takes exactly what is on screen and nothing behind it, and Delete takes the lot at once with the names read back before it happens. Because All means what is on screen, narrowing by search or changing between this adventure and the saved collection narrows what All will take.
+
+The minimized runner is a pill again. Its label was a button, and a button inside a button is not allowed, so the browser closed the pill early and left a bare circle with the scene name spilled out beneath it. The pill takes plain words now, and a long scene name is cut short rather than breaking the shape.
+
 ## 2026-07-24 — ThreadSpire: a Fell the table keeps is not a loremaster
 
 Every Fell whose record the adventure's own account holds was wearing the loremaster's badge, because a roster line took its role from whoever owns the record rather than from a player sitting at the table. There is no player behind those Fell, so there was no role to show and nothing to promote. Setting one to player appeared to work and the badge went back the moment the list was fetched again, since the owner test won every time.
