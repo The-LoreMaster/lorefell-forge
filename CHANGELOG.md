@@ -1,3 +1,13 @@
+## 2026-07-24 — ThreadSpire: the stage card, rebuilt
+
+The card was one horizontal row, and the strip of maps was dropped into it as another item in that row. The title lost the fight for width and came out a word per line, the meta line broke apart, and the thumbnails landed wherever there was room.
+
+The card now reads top to bottom. A line for the stage: its name, whether it is the table in front of the party, and what is standing on it. Then the faces it can wear, as a proper row of thumbnails, each captioned with the map's name, the one on the table wearing a gold rim. The old lone thumbnail is gone, because the faces are the picture now and two pictures of the same map on one card is one too many.
+
+Taking a map off a stage is a small mark that appears on the thumbnail you are pointing at, rather than a button sitting over the artwork at all times.
+
+An empty stage says so plainly and offers Add a map rather than a bare plus.
+
 ## 2026-07-24 — ThreadSpire: a stage holds its own maps
 
 A stage keeps a row of maps on its card in the Stages window, with a plus on the end. Add the bridge whole, the bridge broken, the bridge under fog. Tap one to lay it down. Every token stays exactly where it stands, and so does the grid and the size of the table.
