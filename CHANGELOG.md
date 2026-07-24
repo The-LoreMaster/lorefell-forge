@@ -1,3 +1,11 @@
+## 2026-07-24 — ThreadSpire: the snapshot fits through the door
+
+The seams named it on their first reading: every push the LoreMaster ever made was refused for size, so the shared state row was never written at all, and the players pulled faithfully from a row that did not exist. Nothing was wrong with the pipeline. The bag was too big for the door.
+
+Three things made it heavy and all three are lighter. A picture held only on this device rode as a wall of encoded bytes inside its token; only stored addresses travel now, and such a token shows its letters at the table until its art is on the account. The whole adventure rode on every push; it rides only when it has changed, and the site keeps the last one it was given so a player joining late still receives it. The log rides shorter.
+
+The seams now show the size of each push beside its fate, so the next time something oversized creeps in it is a number on a panel rather than a mystery.
+
 ## 2026-07-24 — ThreadSpire: the seams are visible
 
 Every failure in the shared state pipeline was silent, which is why a broken link could only be found by guessing at it, one wrong guess per round. Both ends are now instrumented and there is a panel to read them: Show the seams, in Settings for the LoreMaster and in the menu for a player. It says the role, the adventure, the last push and whether it was taken, the last pull and what it brought, the map and its picture, the tokens. When two tables disagree, open it on both and compare lines: the wrong number names the broken side, and nobody has to guess.

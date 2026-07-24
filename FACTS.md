@@ -106,6 +106,12 @@ The sync-bug protocol, learned the slow way. Do these in order and do not skip t
    pull side; `other adventure` means a scoping leak.
 3. Only then patch, on the side the numbers indict.
 
+Known refusals: `WDE0109: Payload is too large` on the push means the snapshot is over
+Wix's size ceiling and no state row is being written at all. The seams panel shows the
+snapshot size next to the push; if it climbs toward hundreds of KB, something oversized
+has crept in, and the usual culprit is a picture riding as encoded bytes instead of a
+stored address.
+
 **None of these catch a function that exists but is never called.** `stagesBody` needed
 the map shelf and never asked for it, so every stage looked mapless, and nothing flagged
 it because every symbol resolved. Before editing a function, grep its name to see who

@@ -31,8 +31,18 @@ export const saveCampaignState = webMethod(Permissions.Anyone, async (campaignId
     const ex = await wixData.query(CV).eq('campaignId', String(campaignId)).limit(1).find({ suppressAuth: true });
     const cur = ex.items[0];
     const version = (cur ? (cur.version || 0) : 0) + 1;
+    // The adventure is the heaviest thing in the snapshot, so the table only sends it
+    // when it has changed. The row must not forget it in between: a push without one
+    // keeps the one already here, or a player joining late would never receive the spine.
+    let body = snap || null;
+    if (body && body.adventure === undefined && cur && cur.snapshot) {
+      try {
+        const prev = JSON.parse(cur.snapshot);
+        if (prev && prev.adventure) body = Object.assign({}, body, { adventure: prev.adventure });
+      } catch (e) {}
+    }
     const base = cur ? Object.assign({}, cur) : {};
-    const row = Object.assign(base, { campaignId: String(campaignId), version: version, snapshot: JSON.stringify(snap || null), updatedBy: mid });
+    const row = Object.assign(base, { campaignId: String(campaignId), version: version, snapshot: JSON.stringify(body), updatedBy: mid });
     if (cur) { row._id = cur._id; await wixData.update(CV, row, { suppressAuth: true }); }
     else { await wixData.insert(CV, row, { suppressAuth: true }); }
     return { ok: true, version: version };
