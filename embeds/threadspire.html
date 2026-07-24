@@ -519,6 +519,7 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .mp-name{ font-family:Cinzel,serif; font-size:.76rem; color:var(--silver); }
 .mp-meta{ font-size:.66rem; color:var(--muted); margin-top:2px; }
 .mp-face{ font-size:.64rem; color:var(--ice); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.mp-empty{ grid-column:1/-1; font-size:.7rem; color:var(--muted); padding:6px 4px 10px; }
 /* the faces of the map on the table, LoreMaster only, sitting under the frame */
 #mapFaces{ position:fixed; left:50%; transform:translateX(-50%); bottom:96px; z-index:34; display:none; gap:6px; flex-wrap:wrap; justify-content:center; max-width:min(560px,88vw); padding:5px 7px; border-radius:9px; background:rgba(8,12,24,.82); border:1px solid var(--line); }
 .mf-chip{ font-family:Cinzel,serif; font-size:.66rem; letter-spacing:.06em; text-transform:uppercase; color:var(--ice); background:var(--navy2,#0e1526); border:1px solid var(--line); border-radius:6px; padding:5px 9px; cursor:pointer; }
@@ -4547,13 +4548,41 @@ function unnameFolder(n){
   var list = namedFolders().filter(function(x){ return x !== n; });
   try { localStorage.setItem('ts_folders', JSON.stringify(list)); } catch(e){}
 }
-/* Folders on the shelf: the ones something sits in, plus any made and still empty. */
+/* A folder is a path. One slash makes a folder inside a folder, so Valoria/The Bridge
+   sits under Valoria, and the shelf builds the tree from the paths themselves rather
+   than keeping a second record of what contains what. */
+function folderParts(p){ return String(p || '').split('/').filter(Boolean); }
+function folderDepth(p){ return folderParts(p).length - 1; }
+function folderLeaf(p){ var a = folderParts(p); return a[a.length - 1] || ''; }
+function folderParent(p){ var a = folderParts(p); a.pop(); return a.join('/'); }
+function folderUnder(child, parent){
+  if (!parent) return true;
+  return child === parent || String(child || '').indexOf(parent + '/') === 0;
+}
+/* Folders on the shelf: the ones something sits in, any made and still empty, and
+   every step on the way down to them, so a branch is never missing its trunk. */
 function assetFolders(list){
   var seen = {}, out = [];
-  (list || []).forEach(function(m){ var f = m.folder || ''; if (f && !seen[f]){ seen[f] = 1; out.push(f); } });
-  namedFolders().forEach(function(f){ if (!seen[f]){ seen[f] = 1; out.push(f); } });
+  function addFolder(p){
+    if (!p || seen[p]) return;
+    var up = folderParent(p);
+    if (up) addFolder(up);
+    if (seen[p]) return;
+    seen[p] = 1; out.push(p);
+  }
+  (list || []).forEach(function(m){ addFolder(m.folder || ''); });
+  namedFolders().forEach(addFolder);
   out.sort();
   return out;
+}
+/* A folded parent takes its whole branch with it. */
+function folderHidden(p){
+  var a = folderParts(p), path = '';
+  for (var i = 0; i < a.length - 1; i++){
+    path = path ? path + '/' + a[i] : a[i];
+    if (folderShut(path)) return true;
+  }
+  return false;
 }
 function mapFolders(){ return assetFolders(S.scene.maps); }
 function folderShut(name){
@@ -4567,12 +4596,27 @@ function folderToggle(name){
   try { localStorage.setItem('ts_folds', JSON.stringify(list)); } catch(e){}
   paintTokenPalette(); paintMapPicker();
 }
-function newFolder(kind){
-  tsAsk2({ title:'New folder', label:'Name', cta:'Make it', onSave:function(n){
-    if (!n) return;
-    nameFolder(n); tsCloseModal();
-    if (kind === 'token') paintTokenPalette(); else paintMapPicker();
-  }});
+function newFolder(kind, parent){
+  var here = (kind === 'token') ? assetFolders(S.assets || []) : mapFolders();
+  var opts = '<option value="">The top of the shelf</option>'
+    + here.map(function(f){
+        return '<option value="' + esc(f) + '"' + (f === parent ? ' selected' : '') + '>' + esc(f) + '</option>';
+      }).join('');
+  tsModal('<h3 class="tsm-title">New folder</h3>'
+    + '<label class="tsm-lbl">Inside</label>'
+    + '<select class="tsm-inp" id="nfParent">' + opts + '</select>'
+    + '<label class="tsm-lbl">Name</label>'
+    + '<input class="tsm-inp" id="nfName" placeholder="The Bridge">'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button>'
+    + '<button class="tsm-btn" onclick="newFolderSave(\'' + kind + '\')">Make it</button></div>');
+}
+function newFolderSave(kind){
+  var up = ((document.getElementById('nfParent') || {}).value || '');
+  var nm = ((document.getElementById('nfName') || {}).value || '').replace(/^\s+|\s+$/g, '').replace(/\//g, ' ');
+  if (!nm) return;
+  nameFolder(up ? up + '/' + nm : nm);
+  tsCloseModal();
+  if (kind === 'token') paintTokenPalette(); else paintMapPicker();
 }
 /* Dropping an image onto a folder heading files it there. */
 function folderDragStart(ev, kind, id){
@@ -4622,32 +4666,44 @@ function lmFolderSave(id){
   if (m.assetId && assetBackend.save) assetBackend.save({ assetId:m.assetId, kind:'map', name:m.name, image:m.url, w:m.w, h:m.h, folder:m.folder }).catch(function(){});
   tsCloseModal(); applyRemoteState({ scene:S.scene }); paintMapPicker();
 }
+/* Renaming a folder moves its whole branch. The children carry the path, so every
+   one of them is rewritten, or they would be orphaned under a name nothing holds. */
+function folderRepath(from, to){
+  var each = function(old){ return to + String(old).slice(from.length); };
+  namedFolders().forEach(function(f){ if (folderUnder(f, from)){ unnameFolder(f); nameFolder(each(f)); } });
+  (S.assets || []).forEach(function(a){ if (folderUnder(a.folder || '', from)) tokenSetFolder(a.assetId, each(a.folder || '')); });
+  (S.scene.maps || []).forEach(function(m){
+    if (!folderUnder(m.folder || '', from)) return;
+    m.folder = each(m.folder || '');
+    mapSaveRow(m);
+  });
+}
 function lmFolderRename(from){
-  tsAsk2({ title:'Rename the folder', label:'Name', value:from, onSave:function(n){
+  tsAsk2({ title:'Rename the folder', label:'Name', value:folderLeaf(from), onSave:function(n){
     if (!n) return;
-    unnameFolder(from); nameFolder(n);
-    (S.assets || []).forEach(function(a){ if ((a.folder || '') === from) tokenSetFolder(a.assetId, n); });
-    (S.scene.maps || []).forEach(function(m){
-      if ((m.folder || '') !== from) return;
-      m.folder = n;
-      if (m.assetId && assetBackend.save) assetBackend.save({ assetId:m.assetId, kind:'map', name:m.name, image:m.url, w:m.w, h:m.h, folder:n }).catch(function(){});
-    });
-    applyRemoteState({ scene:S.scene }); paintMapPicker();
+    n = n.replace(/\//g, ' ');
+    var up = folderParent(from);
+    folderRepath(from, up ? up + '/' + n : n);
+    applyRemoteState({ scene:S.scene }); paintMapPicker(); paintTokenPalette();
   }});
 }
+/* Removing a folder empties the branch out to where the folder sat, so a nested
+   folder's images fall to its parent rather than all the way to the shelf. */
 function lmFolderDrop(name){
-  unnameFolder(name);
+  var up = folderParent(name);
   window._tsYes = function(){
-    (S.assets || []).forEach(function(a){ if ((a.folder || '') === name) tokenSetFolder(a.assetId, ''); });
+    namedFolders().forEach(function(f){ if (folderUnder(f, name)) unnameFolder(f); });
+    (S.assets || []).forEach(function(a){ if (folderUnder(a.folder || '', name)) tokenSetFolder(a.assetId, up); });
     (S.scene.maps || []).forEach(function(m){
-      if ((m.folder || '') !== name) return;
-      m.folder = '';
-      if (m.assetId && assetBackend.save) assetBackend.save({ assetId:m.assetId, kind:'map', name:m.name, image:m.url, w:m.w, h:m.h, folder:'' }).catch(function(){});
+      if (!folderUnder(m.folder || '', name)) return;
+      m.folder = up;
+      mapSaveRow(m);
     });
-    tsCloseModal(); applyRemoteState({ scene:S.scene }); paintMapPicker();
+    tsCloseModal(); applyRemoteState({ scene:S.scene }); paintMapPicker(); paintTokenPalette();
   };
-  tsModal('<h3 class="tsm-title">Remove the folder ' + esc(name) + '?</h3>'
-    + '<p class="tsm-note">The maps in it stay on your shelf; they simply come back out loose.</p>'
+  tsModal('<h3 class="tsm-title">Remove the folder ' + esc(folderLeaf(name)) + '?</h3>'
+    + '<p class="tsm-note">Everything in it stays on your shelf. It comes back out '
+    + (up ? 'into ' + esc(folderLeaf(up)) + '.' : 'loose.') + '</p>'
     + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button>'
     + '<button class="tsm-btn danger" onclick="tsConfirmYes()">Remove the folder</button></div>');
 }
@@ -4844,12 +4900,23 @@ function paintMapPicker(){
   var all = S.scene.maps || [];
   var cards = '';
   mapFolders().forEach(function(f){
+    /* an empty folder still draws. It used to be skipped, so a folder just made had
+       nowhere to appear and nothing could be dropped into it, which read as the New
+       folder button doing nothing at all. */
+    if (folderHidden(f)) return;
     var inIt = all.filter(function(m){ return (m.folder || '') === f; });
-    if (!inIt.length) return;
-    cards += '<div class="mp-folder" ondragover="folderDragOver(event,this)" ondragleave="folderDragLeave(this)" ondrop="folderDrop(event,this,\'' + f.replace(/'/g, "\\'") + '\')"><span class="mp-fname">' + esc(f) + '</span>'
-      + '<button class="st-b" onclick="lmFolderRename(\'' + f.replace(/'/g, "\\'") + '\')" title="Rename">\u270e</button>'
-      + '<button class="st-b" onclick="lmFolderDrop(\'' + f.replace(/'/g, "\\'") + '\')" title="Remove the folder">\u2715</button></div>'
-      + inIt.map(mapCard).join('');
+    var esf = f.replace(/'/g, "\\'");
+    var shut = folderShut(f);
+    var deep = all.filter(function(m){ return folderUnder(m.folder || '', f); }).length;
+    cards += '<div class="mp-folder" style="margin-left:' + (folderDepth(f) * 16) + 'px" ondragover="folderDragOver(event,this)" ondragleave="folderDragLeave(this)" ondrop="folderDrop(event,this,\'' + esf + '\')">'
+      + '<button class="st-b" onclick="folderToggle(\'' + esf + '\')" title="' + (shut ? 'Open' : 'Fold away') + '">' + (shut ? '\u25b8' : '\u25be') + '</button>'
+      + '<span class="mp-fname">' + esc(folderLeaf(f)) + ' <span class="tsm-count">' + deep + '</span></span>'
+      + '<button class="st-b" onclick="newFolder(\'map\',\'' + esf + '\')" title="A folder inside this one">+</button>'
+      + '<button class="st-b" onclick="lmFolderRename(\'' + esf + '\')" title="Rename">\u270e</button>'
+      + '<button class="st-b" onclick="lmFolderDrop(\'' + esf + '\')" title="Remove the folder">\u2715</button></div>';
+    if (shut) return;
+    cards += inIt.length ? inIt.map(mapCard).join('')
+      : '<div class="mp-empty">Drop a map here, or upload one and file it.</div>';
   });
   var loose = all.filter(function(m){ return !(m.folder || ''); });
   if (mapFolders().length) cards += '<div class="mp-folder" ondragover="folderDragOver(event,this)" ondragleave="folderDragLeave(this)" ondrop="folderDrop(event,this,\'\')"><span class="mp-fname">Loose</span></div>';
@@ -4861,6 +4928,9 @@ function paintMapPicker(){
     + '<div class="mp-thumb mp-up"><span>+</span></div>'
     + '<div class="mp-name">Upload a map</div>'
     + '<div class="mp-meta">drop an image or click</div></button>';
+  /* tapping the dark outside the box puts the shelf away, the same as the table does
+     with a window. The box itself swallows the click so a miss inside it does nothing. */
+  el.onclick = function(ev){ if (ev.target === el) lmCloseMaps(); };
   el.innerHTML = '<div class="mp-box"><div class="mp-head"><span>Choose a map</span>'
     + '<button class="tsm-btn ghost mp-newf" onclick="newFolder(\'map\')">+ New folder</button>'
     + '<button class="lm-minbtn" onclick="lmCloseMaps()">\u00d7</button></div>'
