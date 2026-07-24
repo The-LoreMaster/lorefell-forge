@@ -210,10 +210,17 @@ $w.onReady(function () {
           const r = await deleteStage(msg.stageId);
           reply(!!(r && r.ok), r, r && r.error);
         } else if (msg.type === 'TS_STATE_PUSH') {
-          try { const r = await saveCampaignState(campaignId, msg.snap); reply(!!(r && r.ok), r, r && r.error); }
-          catch (e) { reply(false, null, String(e)); }
+          // Refuse a write meant for a different adventure. One sent before the switch
+          // and arriving after it would land the old table on the new adventure.
+          if (msg.campaignId && msg.campaignId !== campaignId) { reply(false, null, 'stale adventure'); }
+          else {
+            try { const r = await saveCampaignState(campaignId, msg.snap); reply(!!(r && r.ok), r, r && r.error); }
+            catch (e) { reply(false, null, String(e)); }
+          }
         } else if (msg.type === 'TS_STATE_PULL') {
-          try { const r = await getCampaignState(campaignId, msg.since); reply(true, r); }
+          // Say which adventure the answer is for. A pull in flight across a switch
+          // comes back holding the old one, and it used to be believed.
+          try { const r = await getCampaignState(campaignId, msg.since); reply(true, Object.assign({ campaignId: campaignId }, r || {})); }
           catch (e) { reply(true, null); }
         } else if (msg.type === 'TS_JOURNAL_GET') {
           try { const j = await getJournal(campaignId); reply(true, j || []); }
