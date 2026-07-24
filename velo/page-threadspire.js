@@ -34,7 +34,10 @@ $w.onReady(function () {
 
   const q = wixLocation.query || {};
   const characterId = q.character || '';
-  const campaignId = q.campaign || q.campaignId || '';
+  // Not const: changing adventure rebinds this page rather than reloading it. Asking
+  // Wix to navigate to the page it is already on does nothing at all, so the switch
+  // simply never happened.
+  let campaignId = q.campaign || q.campaignId || '';
   // The character sheet, FellGlass, runs inside ThreadSpire now. Its bridge is relayed
   // here so the embedded sheet reads and writes the same Characters record its own page
   // would. One tool, one record, shown in the rail.
@@ -160,18 +163,23 @@ $w.onReady(function () {
           try { list = await listMyCampaigns(); } catch (e) { list = []; }
           reply(true, (list || []).map((c) => ({ id: c.id, name: c.name, role: c.role })));
         } else if (msg.type === 'TS_CAMPAIGN_SET') {
-          // Changing adventure is a fresh start, not a swap in place: campaignId is read
-          // from the query once and every subsystem hangs off it. Navigating rebuilds the
-          // page against the new adventure with no half-torn-down state feed.
+          // Rebind in place. Every handler below reads campaignId when it runs, so
+          // changing it here is enough: the state feed, the journal, the stages and
+          // the party all follow on their next call. The embed resets itself when the
+          // context arrives with a different adventure on it.
           try {
-            // Reopen this page, whatever its slug is. Hardcoding a guess at the route
-            // sent the browser nowhere and the button looked dead.
-            const here = '/' + ((wixLocation.path || []).join('/'));
-            // Same page, different query, sometimes does not reload at all, which is why
-            // the switch worked only some of the time. A changing value forces it.
-            wixLocation.to(here + '?role=lm&campaign=' + encodeURIComponent(msg.campaignId || '')
-              + '&t=' + Date.now());
-            reply(true, { ok: true });
+            const next = String(msg.campaignId || '');
+            if (!next) { reply(false, null, 'no adventure given'); }
+            else {
+              campaignId = next;
+              // keep the address honest so a refresh lands on the same adventure
+              try { wixLocation.queryParams.add({ campaign: next, role: 'lm' }); } catch (e) {}
+              const ctx = await buildContext(characterId, campaignId);
+              let role = 'player';
+              try { const ar = await myAdventureRole(campaignId); if (ar === 'loremaster' || ar === 'lorekeeper') role = 'lm'; } catch (e) {}
+              embed.postMessage(Object.assign({ type: 'THREADSPIRE_CONTEXT', role: role, campaignId: campaignId, characterId: characterId, switched: true }, ctx));
+              reply(true, { ok: true, campaignId: campaignId });
+            }
           } catch (e) { reply(false, null, String(e)); }
         } else if (msg.type === 'TS_ADVENTURE_CREATE') {
           // Make the adventure here and open it. saveCampaign with no id inserts and

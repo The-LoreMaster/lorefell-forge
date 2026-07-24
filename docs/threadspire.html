@@ -281,7 +281,7 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .sd-grip:active{ cursor:grabbing; }
 .sd-card.drop{ outline:1px dashed var(--gold); outline-offset:-2px; }
 
-.mp-folder.drop, .tp-fold.drop{ background:rgba(201,168,76,.2); outline:1px dashed var(--gold); }
+.tp-fold.drop{ background:rgba(201,168,76,.2); outline:1px dashed var(--gold); }
 .mp-newf, .tp-newf{ font-size:.6rem; padding:3px 8px; margin-left:auto; }
 .tp-fold{ display:flex; align-items:center; gap:4px; font-family:Cinzel,serif; font-size:.6rem; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); margin:6px 0 3px; padding:2px 4px; border-radius:5px; }
 .tp-fname{ flex:1; }
@@ -525,6 +525,10 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .mp-name{ font-family:Cinzel,serif; font-size:.76rem; color:var(--silver); }
 .mp-meta{ font-size:.66rem; color:var(--muted); margin-top:2px; }
 .mp-face{ font-size:.64rem; color:var(--ice); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+/* a folder is a region you can drop into, headline and contents together */
+.mp-zone{ grid-column:1/-1; border:1px solid transparent; border-radius:9px; padding:2px 4px 6px; transition:background .12s, border-color .12s; }
+.mp-zone.drop{ background:rgba(201,168,76,.12); border-color:var(--gold); border-style:dashed; }
+.mp-inner{ display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; }
 .mp-bad{ font-size:.62rem; color:var(--danger); margin-top:3px; }
 .mp-empty{ grid-column:1/-1; font-size:.7rem; color:var(--muted); padding:6px 4px 10px; }
 /* the faces of the map on the table, LoreMaster only, sitting under the frame */
@@ -3861,6 +3865,23 @@ function advSwitch(id){
     + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Stay here</button>'
     + '<button class="tsm-btn" onclick="tsConfirmYes()">Open it</button></div>');
 }
+/* Put down everything that belonged to the adventure being left. Anything not cleared
+   here shows up on the new table wearing the old one's face. */
+function advReset(nextId){
+  S.campaignId = nextId || S.campaignId;
+  S.instance = { stages: [], bindings: {} };
+  S.adventure = null; S._advRemote = false; S.advRev = 0; S._advTouch = 0;
+  S.journal = null; S.quests = null; S.library = null; S.published = null;
+  S.declares = null; S.mode = 'explore'; S.round = 0;
+  S.tokens = []; S.log = [];
+  S.scene = { id:'sc-default', name:'Lobby', background:null, foes:[], npcs:[], fell:[], beats:[], maps:[], accountTokens:[] };
+  _stageGone = {};
+  _assetsLoaded = false;
+  _stateSeen = 0;
+  try { localStorage.removeItem('ts_stages_gone'); } catch(e){}
+  if (typeof closeWin === 'function' && S.openSection) closeWin();
+  advGoingStop();
+}
 function advGoing(name){
   var el = document.getElementById('advGo');
   if (!el){ el = document.createElement('div'); el.id = 'advGo'; document.body.appendChild(el); }
@@ -4228,7 +4249,10 @@ window.onmessage = function(ev){
     return;
   }
   if (d && d.type === 'THREADSPIRE_CONTEXT'){
-    /* the page decided role by entry-point hint and confirmed it by ownership; we trust it */
+    /* A context carrying a different adventure is a change of table, not a correction
+       of this one. Everything held here belongs to the adventure that was open, so it
+       is put down before the new one is picked up. */
+    if (d.switched || (d.campaignId && S.campaignId && !sameId(d.campaignId, S.campaignId))) advReset(d.campaignId);
     if (d.role === 'lm' || d.role === 'player'){
       S.role = d.role; S.roleReady = true; document.body.classList.remove('roleboot');
       if (d.role === 'lm' && typeof libLoad === 'function') libLoad();
@@ -5244,19 +5268,29 @@ function paintMapPicker(){
     var esf = f.replace(/'/g, "\\'");
     var shut = folderShut(f);
     var deep = all.filter(function(m){ return folderUnder(m.folder || '', f); }).length;
-    cards += '<div class="mp-folder" style="margin-left:' + (folderDepth(f) * 16) + 'px" ondragover="folderDragOver(event,this)" ondragleave="folderDragLeave(this)" ondrop="folderDrop(event,this,\'' + esf + '\')">'
+    /* the whole folder takes a drop, not just its title. Aiming at a strip of text to
+       file a map was a game of darts. */
+    cards += '<div class="mp-zone" style="margin-left:' + (folderDepth(f) * 16) + 'px" ondragover="folderDragOver(event,this)" ondragleave="folderDragLeave(this)" ondrop="folderDrop(event,this,\'' + esf + '\')">'
+      + '<div class="mp-folder">'
       + '<button class="st-b" onclick="folderToggle(\'' + esf + '\')" title="' + (shut ? 'Open' : 'Fold away') + '">' + (shut ? '\u25b8' : '\u25be') + '</button>'
       + '<span class="mp-fname">' + esc(folderLeaf(f)) + ' <span class="tsm-count">' + deep + '</span></span>'
       + '<button class="st-b" onclick="newFolder(\'map\',\'' + esf + '\')" title="A folder inside this one">+</button>'
       + '<button class="st-b" onclick="lmFolderRename(\'' + esf + '\')" title="Rename">\u270e</button>'
-      + '<button class="st-b" onclick="lmFolderDrop(\'' + esf + '\')" title="Remove the folder">\u2715</button></div>';
-    if (shut) return;
-    cards += inIt.length ? inIt.map(mapCard).join('')
-      : '<div class="mp-empty">Drop a map here, or upload one and file it.</div>';
+      + '<button class="st-b" onclick="lmFolderDrop(\'' + esf + '\')" title="Remove the folder">\u2715</button></div>'
+      + (shut ? ''
+        : '<div class="mp-inner">' + (inIt.length ? inIt.map(mapCard).join('')
+            : '<div class="mp-empty">Drop a map here, or upload one and file it.</div>') + '</div>')
+      + '</div>';
   });
   var loose = all.filter(function(m){ return !(m.folder || ''); });
-  if (mapFolders().length) cards += '<div class="mp-folder" ondragover="folderDragOver(event,this)" ondragleave="folderDragLeave(this)" ondrop="folderDrop(event,this,\'\')"><span class="mp-fname">Loose</span></div>';
-  cards += loose.map(mapCard).join('');
+  if (mapFolders().length){
+    cards += '<div class="mp-zone" ondragover="folderDragOver(event,this)" ondragleave="folderDragLeave(this)" ondrop="folderDrop(event,this,\'\')">'
+      + '<div class="mp-folder"><span class="mp-fname">Loose</span></div>'
+      + '<div class="mp-inner">' + (loose.length ? loose.map(mapCard).join('')
+          : '<div class="mp-empty">Drop a map here to take it out of its folder.</div>') + '</div></div>';
+  } else {
+    cards += loose.map(mapCard).join('');
+  }
   var upload = '<button class="mp-card mp-upload" onclick="lmMapUploadStub()" '
     + 'ondragover="event.preventDefault();this.classList.add(\'drag\')" '
     + 'ondragleave="this.classList.remove(\'drag\')" '
