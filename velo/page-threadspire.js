@@ -150,6 +150,20 @@ $w.onReady(function () {
         } else if (msg.type === 'TS_STAGE_LIST') {
           const rows = await listStages(msg.campaignId || campaignId);
           reply(true, rows || []);
+        } else if (msg.type === 'TS_CAMPAIGN_LIST') {
+          // Every adventure this member runs, loremaster or lorekeeper. The embed only
+          // needs the id, the name and which one is open.
+          let list = [];
+          try { list = await listMyCampaigns(); } catch (e) { list = []; }
+          reply(true, (list || []).map((c) => ({ id: c.id, name: c.name, role: c.role })));
+        } else if (msg.type === 'TS_CAMPAIGN_SET') {
+          // Changing adventure is a fresh start, not a swap in place: campaignId is read
+          // from the query once and every subsystem hangs off it. Navigating rebuilds the
+          // page against the new adventure with no half-torn-down state feed.
+          try {
+            wixLocation.to('/threadspire?role=lm&campaign=' + encodeURIComponent(msg.campaignId || ''));
+            reply(true, { ok: true });
+          } catch (e) { reply(false, null, String(e)); }
         } else if (msg.type === 'TS_STAGE_DELETE') {
           const r = await deleteStage(msg.stageId);
           reply(!!(r && r.ok), r, r && r.error);

@@ -544,6 +544,11 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .sm-add:hover{ color:var(--gold); border-color:var(--gold); }
 .sm-plus{ font-size:.95rem; line-height:1; }
 .sm-addlbl{ font-family:Cinzel,serif; font-size:.5rem; letter-spacing:.1em; text-transform:uppercase; }
+.av-head{ display:flex; align-items:baseline; gap:8px; font-family:Cinzel,serif; font-size:.9rem; color:var(--gold); letter-spacing:.03em; margin-bottom:6px; }
+.av-swap{ margin-left:auto; background:none; border:none; padding:0; font-family:Cinzel,serif; font-size:.58rem; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); cursor:pointer; }
+.av-swap:hover{ color:var(--gold); }
+.av-row{ cursor:pointer; }
+.av-row:hover .lb-name{ color:var(--gold); }
 .sm-find{ margin:2px 0 6px; }
 .sm-fold{ font-family:Cinzel,serif; font-size:.6rem; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); margin:9px 0 4px; }
 .sm-pick{ display:grid; grid-template-columns:repeat(auto-fill,minmax(132px,1fr)); gap:8px; }
@@ -1273,7 +1278,12 @@ function storyBody(){
   return h;
 }
 function scenesBody(){
-  var h = '<div class="win-note">The adventure\u2019s spine. Pick the scene you are running. Each scene keeps its own stages.</div>';
+  advList();
+  /* Story says which adventure this is; Settings is where it changes. One place to
+     look, one place to act, rather than the answer living in two windows. */
+  var h = '<div class="av-head">' + esc(advName())
+    + '<button type="button" class="av-swap" onclick="openWin(\'settings\')">Change</button></div>'
+    + '<div class="win-note">The adventure\u2019s spine. Pick the scene you are running. Each scene keeps its own stages.</div>';
   (S.adventure.acts||[]).forEach(function(a){
     h += '<div class="nb-scene">' + esc(a.name) + '</div>';
     (a.sessions||[]).forEach(function(se){
@@ -3761,9 +3771,67 @@ function applySheet(){
   if (sh.portrait) S.character.portrait = sh.portrait;
   if (typeof paintHud === 'function') paintHud();
 }
+/* ---- which adventure this table is running ----
+   campaignId arrives once from the page and everything hangs off it: the state feed,
+   the journal, the party, the stages. Changing it is a fresh start rather than a swap
+   in place, so the switch asks the page to reopen ThreadSpire on the other adventure.
+   The current stage is saved first, and a scene in combat is left alone. */
+function advList(){
+  if (S._advList) return;
+  S._advList = [];
+  if (!window._tsAsk) return;
+  tsAsk('TS_CAMPAIGN_LIST', {}).then(function(rows){
+    S._advList = rows || [];
+    if (S.openSection === 'settings') refreshWinBody();
+  }).catch(function(){ S._advList = []; });
+}
+function advSwitch(id){
+  if (!id || sameId(id, S.campaignId)) return;
+  if (S.mode === 'combat'){
+    tsModal('<h3 class="tsm-title">A battle is running</h3>'
+      + '<p class="lc-p">End the battle before you change adventures. Leaving now would strand the round for everyone still at the table.</p>'
+      + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
+    return;
+  }
+  var name = 'that adventure';
+  (S._advList || []).forEach(function(c){ if (sameId(c.id, id)) name = c.name || name; });
+  window._tsYes = function(){
+    try { lmSaveCurrentStage(); } catch(e){}
+    tsCloseModal();
+    pushLog({ kind:'sys', html:'Opening <b>' + esc(name) + '</b>.' });
+    applyRemoteState({ log:S.log });
+    tsAsk('TS_CAMPAIGN_SET', { campaignId:id }).catch(function(){
+      pushLog({ kind:'sys', html:'That adventure could not be opened.' });
+      applyRemoteState({ log:S.log });
+    });
+  };
+  tsModal('<h3 class="tsm-title">Open ' + esc(name) + '?</h3>'
+    + '<p class="tsm-note">This table closes and that one opens. Everything here is saved first, and anyone at this table follows you across.</p>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Stay here</button>'
+    + '<button class="tsm-btn" onclick="tsConfirmYes()">Open it</button></div>');
+}
+function advName(){
+  var n = '';
+  (S._advList || []).forEach(function(c){ if (sameId(c.id, S.campaignId)) n = c.name || ''; });
+  return n || (S.adventure && S.adventure.name) || 'This adventure';
+}
 function settingsBody(){
   if (!S.published) { S.published = []; publishLoad(); }
-  var h = '<div class="win-note">This adventure, and the shelf it is published to.</div>';
+  advList();
+  var others = (S._advList || []).filter(function(c){ return !sameId(c.id, S.campaignId); });
+  var h = '<div class="nb-scene">Adventure</div>'
+    + '<div class="lb-row"><span class="lb-name">' + esc(advName()) + '</span><span class="lb-meta">Open now</span></div>';
+  if (others.length){
+    h += others.map(function(c){
+      return '<div class="lb-row av-row" onclick="advSwitch(\'' + esc(c.id) + '\')">'
+        + '<span class="lb-name">' + esc(c.name || 'Adventure') + '</span>'
+        + '<span class="lb-meta">' + (c.role === 'lorekeeper' ? 'Lorekeeper' : 'Loremaster') + '</span></div>';
+    }).join('');
+  } else if (S._advList && S._advList.length <= 1){
+    h += '<div class="win-note">This is the only adventure you run. FateWell is where a new one is written.</div>';
+  }
+  h += '<div class="nb-scene">Published</div>'
+    + '<div class="win-note">This adventure, and the shelf it is published to.</div>';
   var mine = (S.published || []).filter(function(p){ return sameId(p.campaignId, S.campaignId); })[0];
   if (mine){
     h += '<div class="pt-row"><span class="pt-main"><span class="pt-name">' + esc(mine.title || 'Published') + '</span>'
