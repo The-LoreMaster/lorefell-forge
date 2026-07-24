@@ -1,3 +1,9 @@
+## 2026-07-24 — ThreadSpire: one asking is enough
+
+Choosing an adventure from the list and pressing the button opens it. The confirmation after that asked the same question a second time and protected nothing: the table saves on the way out and the one you left is still there to come back to.
+
+Still here has stopped appearing after switches that worked. It was asking whether the veil existed rather than whether it was showing, and the veil is built once and reused, so the answer was always yes.
+
 ## 2026-07-24 — ThreadSpire: nothing between adventures
 
 The scene that flashed at the start, The Silent Beacon with its notes and its foe, is the demo baked into the tool for working on it outside the site. Inside the site it was one flash of an adventure nobody wrote before the real one landed, and one push away from being written over the real one. Inside the site the table now boots empty and stays behind the veil until the true adventure arrives. The demo remains for the workbench, where it belongs.
