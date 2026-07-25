@@ -1,3 +1,9 @@
+## 2026-07-25 — A player at the table is one Fell, wherever you add them
+
+FateWell and the table each kept their own list of the players sitting at the table without a device, so one added in either place was invisible in the other. There is one record now and both tools work on it. Add someone in FateWell and they are at the table; add them at the table and they appear on FateWell's roster, named the same, at the same level, with the same vitality. Remove them in either and they are gone from both, and their Fell goes with them, since the table made it and no player owns it.
+
+FateWell run on its own still keeps such a player to itself, as it must, and hands them over the next time it is open on the site.
+
 ## 2026-07-25 — ThreadSpire: tokens drawn at the size they are seen
 
 A token's face no longer softens as the table pulls back. Tokens were being drawn on the same layer as the map, which the board scales as a whole: each token was painted once at its size on the board and then that painting was shrunk along with everything else, so what reached the eye was a small copy of a large picture rather than a small picture. Sharpening the source could not help, because the loss happened after.
