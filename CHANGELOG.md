@@ -1,3 +1,9 @@
+## 2026-07-25 — ThreadSpire: tokens drawn at the size they are seen
+
+A token's face no longer softens as the table pulls back. Tokens were being drawn on the same layer as the map, which the board scales as a whole: each token was painted once at its size on the board and then that painting was shrunk along with everything else, so what reached the eye was a small copy of a large picture rather than a small picture. Sharpening the source could not help, because the loss happened after.
+
+Tokens now sit on a layer the board never scales, laid out at the size they are actually seen and positioned by the camera. Each is painted once, at that size, and stays sharp at any distance. Their names sharpen with them.
+
 ## 2026-07-25 — ThreadSpire: settings in the corner, and faces that stay sharp
 
 The grid's nudges are gone. It begins at the map's own corner and a token sits in the middle of its cell, so the two are always in step and there is nothing to line up by hand. What remains is cell size, fade and inset, under a panel now called Settings, moved to the top left corner with a mark to close it, and reached from the runner bar or from Settings.
