@@ -1,3 +1,11 @@
+## 2026-07-25 — Shelves belong to the member, not to one browser
+
+How you keep your maps and tokens follows you now. The folders and the order they sit in were held in whichever browser made them, so the same account met different shelves on a phone and on a desktop. They belong to the member, like the art they file: read when the table opens, written whenever a folder is made, renamed, removed or moved.
+
+The browser's own copy is kept as the quick one, so a shelf still draws at once and still works with nothing behind it. The account is what settles a disagreement. An account with nothing saved yet is given whatever this browser already knew, so nobody's shelves are lost on the way in.
+
+They stay at the account and not on the adventure, because the maps and tokens are the account's too: an adventure that carried its own folders would meet its own art filed nowhere. When an adventure is exported it can carry a copy of the arrangement with it, which is the right place for that to happen.
+
 ## 2026-07-25 — Cards read across, tokens keep their own folders, Settings opens finished
 
 A foe or an NPC in the Library shows its picture square at the left of its name, rather than as a band across the top of the card. More of them fit on a screen and the name is the first thing read.

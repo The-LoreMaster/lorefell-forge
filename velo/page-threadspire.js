@@ -7,7 +7,7 @@ import { getLmPortrait, saveLmPortrait, getForgePools, getForgeLibrary, listMyCa
 import { createInvite, revokeInvite } from 'backend/invites.web.js';
 import { publishAdventure, unpublishAdventure, myPublishedAdventures } from 'backend/published.web.js';
 import { getFoePack } from 'backend/forge.web.js';
-import { listQuests, listDiscovered, getWorldMeta, saveAsset, listAssets, getCampaignPlayers, getClueCards, upsertQuest } from 'backend/fatewell.web.js';
+import { listQuests, listDiscovered, getWorldMeta, saveAsset, listAssets, getCampaignPlayers, getClueCards, upsertQuest, getShelves, saveShelves } from 'backend/fatewell.web.js';
 import { getCombatForChar, saveCombatDeclare, syncCombatPlayer, publishCombatState, applyCombatToChar, dealDamageToChar, setCombatCharge, getCombatDeclares } from 'backend/combat.web.js';
 import { getLibraries } from 'backend/libraries.web.js';
 import { listSphereArt } from 'backend/sphereart.web.js';
@@ -148,6 +148,12 @@ $w.onReady(async function () {
           reply(true, toHttps(ref));
         } else if (msg.type === 'TS_ASSET_SAVE') {
           const r = await saveAsset(msg.asset);
+          reply(!!(r && r.ok), r, r && r.error);
+        } else if (msg.type === 'TS_SHELVES_GET') {
+          const sh = await getShelves();
+          reply(true, sh);
+        } else if (msg.type === 'TS_SHELVES_SET') {
+          const r = await saveShelves(msg.shelves);
           reply(!!(r && r.ok), r, r && r.error);
         } else if (msg.type === 'TS_ASSET_LIST') {
           const rows = await listAssets();

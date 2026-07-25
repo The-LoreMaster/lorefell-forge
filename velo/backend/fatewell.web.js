@@ -526,6 +526,34 @@ async function getMyForgeFoes(mid) {
   return items.map((it) => mapFoeRow(it, 'mine')).filter((f) => f.name);
 }
 
+// How a member keeps their shelves: which folders exist for maps and for tokens, and the
+// order they sit in. This lived in one browser's own store, so the same account saw
+// different shelves on a phone and a desktop. It belongs to the member, like the art it
+// files. One row each, a single JSON field, since it is small and read whole.
+export const getShelves = webMethod(Permissions.Anyone, async () => {
+  const mid = await memberId(); if (!mid) return null;
+  try {
+    const r = await wixData.query('MemberShelves').eq('memberId', mid).limit(1).find({ suppressAuth: true });
+    if (!r.items.length) return null;
+    try { return JSON.parse(r.items[0].shelves || 'null'); } catch (e) { return null; }
+  } catch (e) { return null; }
+});
+
+export const saveShelves = webMethod(Permissions.Anyone, async (shelves) => {
+  const mid = await memberId(); if (!mid) return { ok: false };
+  const body = JSON.stringify(shelves || {});
+  try {
+    const r = await wixData.query('MemberShelves').eq('memberId', mid).limit(1).find({ suppressAuth: true });
+    if (r.items.length) {
+      const row = Object.assign({}, r.items[0], { shelves: body });
+      await wixData.update('MemberShelves', row, { suppressAuth: true });
+    } else {
+      await wixData.insert('MemberShelves', { memberId: mid, shelves: body }, { suppressAuth: true });
+    }
+    return { ok: true };
+  } catch (e) { return { ok: false, error: String(e) }; }
+});
+
 export const listAssets = webMethod(Permissions.Anyone, async () => {
   const mid = await memberId();
   let owned = [];
