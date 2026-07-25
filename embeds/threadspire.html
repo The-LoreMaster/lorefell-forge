@@ -4983,6 +4983,7 @@ function paintTokenPalette(){
        since its name and life belong to its own record */
     var tools = t.assetId
       ? '<span class="tp-tools">'
+        + '<button class="st-b" onclick="event.stopPropagation();fileInto(\'token\',\''+t.assetId+'\')" title="Put it in a folder">\u21b3</button>'
         + '<button class="st-b" onclick="event.stopPropagation();lmRenameToken(\''+t.assetId+'\')" title="Rename">\u270e</button>'
         + '<button class="st-b" onclick="event.stopPropagation();lmDeleteToken(\''+t.assetId+'\')" title="Remove">\u2715</button></span>'
       : '';
@@ -5002,6 +5003,8 @@ function paintTokenPalette(){
       out += '<div class="tp-fold" style="margin-left:' + (depth * 16) + 'px" ondragover="folderDragOver(event,this)" ondragleave="folderDragLeave(this)" ondrop="folderDrop(event,this,\''+esf+'\')">'
         + '<button class="st-b" onclick="folderToggle(\''+esf+'\')" title="' + (shut ? 'Open' : 'Fold away') + '">' + (shut ? '\u25b8' : '\u25be') + '</button>'
         + '<span class="tp-fname">'+esc(folderLeaf(f))+' <span class="tsm-count">'+inIt.length+'</span></span>'
+        + '<button class="st-b" onclick="folderMove(\'token\',\''+esf+'\',-1)" title="Up">\u2191</button>'
+        + '<button class="st-b" onclick="folderMove(\'token\',\''+esf+'\',1)" title="Down">\u2193</button>'
         + '<button class="st-b" onclick="newFolder(\'token\',\''+esf+'\')" title="A folder inside this one">+</button>'
         + '<button class="st-b" onclick="lmFolderRename(\''+esf+'\')" title="Rename">\u270e</button>'
         + '<button class="st-b" onclick="lmFolderDrop(\''+esf+'\')" title="Remove the folder">\u2715</button></div>'
@@ -5633,6 +5636,65 @@ function folderUnder(child, parent){
 }
 /* Folders on the shelf: the ones something sits in, any made and still empty, and
    every step on the way down to them, so a branch is never missing its trunk. */
+/* The order folders are kept in, by hand. Without it they fell alphabetically, which is
+   no use when the bridge should come before the barrow. Siblings are arranged among
+   themselves and a child still follows its parent, or the shelf would indent nothing
+   under anything. */
+function folderRank(){
+  try { return JSON.parse(localStorage.getItem('ts_forder') || '[]'); } catch(e){ return []; }
+}
+function folderRankSave(list){
+  try { localStorage.setItem('ts_forder', JSON.stringify(list)); } catch(e){}
+}
+function folderSiblings(paths, parent){
+  var rank = folderRank();
+  return paths.filter(function(p){ return folderParent(p) === parent; }).sort(function(a, b){
+    var ia = rank.indexOf(a), ib = rank.indexOf(b);
+    if (ia < 0 && ib < 0) return a.localeCompare(b);
+    if (ia < 0) return 1;
+    if (ib < 0) return -1;
+    return ia - ib;
+  });
+}
+function folderSort(paths){
+  var out = [];
+  (function walk(parent){
+    folderSiblings(paths, parent).forEach(function(p){ out.push(p); walk(p); });
+  })('');
+  /* anything whose parent is missing would otherwise be lost, so sweep it up */
+  paths.forEach(function(p){ if (out.indexOf(p) < 0) out.push(p); });
+  return out;
+}
+function folderMove(kind, path, dir){
+  var all = (kind === 'token') ? assetFolders(S.scene.accountTokens || []) : mapFolders();
+  var sibs = folderSiblings(all, folderParent(path));
+  var i = sibs.indexOf(path);
+  var j = i + (dir < 0 ? -1 : 1);
+  if (i < 0 || j < 0 || j >= sibs.length) return;
+  sibs.splice(j, 0, sibs.splice(i, 1)[0]);
+  /* keep every other folder's place and write this row of siblings in its new order */
+  var rank = folderRank().filter(function(x){ return sibs.indexOf(x) < 0; });
+  folderRankSave(rank.concat(sibs));
+  if (kind === 'token') paintTokenPalette(); else paintMapPicker();
+}
+/* Filing without dragging, since aiming a card at a strip of text is no fun on a phone */
+function fileInto(kind, id){
+  var folders = (kind === 'token') ? assetFolders(S.scene.accountTokens || []) : mapFolders();
+  var cur = '';
+  if (kind === 'token') (S.scene.accountTokens || []).forEach(function(t){ if (sameId(t.assetId, id)) cur = t.folder || ''; });
+  else (S.scene.maps || []).forEach(function(m){ if (sameId(m.id, id)) cur = m.folder || ''; });
+  var opts = '<option value=""' + (cur ? '' : ' selected') + '>Loose, on the shelf itself</option>'
+    + folders.map(function(f){ return '<option value="' + esc(f) + '"' + (f === cur ? ' selected' : '') + '>' + esc(f) + '</option>'; }).join('');
+  tsModal('<h3 class="tsm-title">Where does it live?</h3>'
+    + '<select class="tsm-inp" id="fiWhere">' + opts + '</select>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button>'
+    + '<button class="tsm-btn" onclick="fileIntoSave(\'' + kind + '\',\'' + id + '\')">Put it there</button></div>');
+}
+function fileIntoSave(kind, id){
+  var where = ((document.getElementById('fiWhere') || {}).value || '');
+  tsCloseModal();
+  if (kind === 'token') tokenSetFolder(id, where); else mapSetFolder(id, where);
+}
 function assetFolders(list){
   var seen = {}, out = [];
   function addFolder(p){
@@ -5644,8 +5706,7 @@ function assetFolders(list){
   }
   (list || []).forEach(function(m){ addFolder(m.folder || ''); });
   namedFolders().forEach(addFolder);
-  out.sort();
-  return out;
+  return folderSort(out);
 }
 /* A folded parent takes its whole branch with it. */
 function folderHidden(p){
@@ -5833,10 +5894,10 @@ function lmStageAddMap(stageId){
   loadAccountAssets();
   window._stagePicking = stageId;
   tsModal('<h3 class="tsm-title">Add a map to ' + esc(st.name) + '</h3>'
-    + '<p class="tsm-note">Maps on a stage are faces of one place. Swap between them at any time and every token stays where it stands.</p>'
+    + '<p class="tsm-note">Maps on a stage are faces of one place. Take as many as you like, one after another, and swap between them at any time; every token stays where it stands.</p>'
     + '<input class="tsm-inp sm-find" id="smFind" placeholder="Search your maps" oninput="stagePickPaint()" autocomplete="off">'
     + '<div id="smPickWrap"></div>'
-    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Done</button>'
     + '<button class="tsm-btn" onclick="lmStageUpload(\'' + stageId + '\')">Upload images</button></div>');
   stagePickPaint();
 }
@@ -5883,11 +5944,16 @@ function stagePickPaint(){
 function lmStageMapAdd(stageId, mapId){
   var st = stageById(stageId); if (!st) return;
   stageTouch();
+  var firstFace = !st.mapId;
   if (stageMapIds(st).indexOf(mapId) < 0) st.mapIds = stageMapIds(st).concat([mapId]);
-  if (!st.mapId) { tsCloseModal(); lmStageFace(stageId, mapId); return; }
-  stageBackend.save(st);
-  tsCloseModal();
-  applyRemoteState({ instance:S.instance }); refreshStagesWin();
+  /* The shelf stays open so a stage can be given several faces in one go. Each map taken
+     drops out of the list, which is answer enough that it landed; closing after every
+     one meant opening the shelf again for each face of the same place. */
+  if (firstFace) lmStageFace(stageId, mapId);
+  else stageBackend.save(st);
+  applyRemoteState({ instance:S.instance });
+  refreshStagesWin();
+  if (window._stagePicking === stageId) stagePickPaint();
 }
 /* an upload lands on the shelf as always, and joins this stage when it arrives */
 function lmStageUpload(stageId){
@@ -6093,6 +6159,7 @@ function paintMapPicker(){
       + (!m.url ? '<div class="mp-bad">No picture stored' + (m.why ? ': ' + esc(m.why) : '') + '. Upload it again.</div>' : '')
       + '</button>'
       + '<span class="mp-acts">'
+      + '<button class="st-b" onclick="event.stopPropagation();fileInto(\'map\',\'' + m.id + '\')" title="Put it in a folder">\u21b3</button>'
       + '<button class="st-b" onclick="event.stopPropagation();lmRenameMap(\'' + m.id + '\')" title="Rename">\u270e</button>'
       + '<button class="st-b" onclick="event.stopPropagation();lmFolderPick(\'' + m.id + '\')" title="Folder">\u2630</button>'
       + '<button class="st-b" onclick="event.stopPropagation();lmDeleteMap(\'' + m.id + '\')" title="Remove">\u2715</button></span></div>';
@@ -6114,6 +6181,8 @@ function paintMapPicker(){
       + '<div class="mp-folder">'
       + '<button class="st-b" onclick="folderToggle(\'' + esf + '\')" title="' + (shut ? 'Open' : 'Fold away') + '">' + (shut ? '\u25b8' : '\u25be') + '</button>'
       + '<span class="mp-fname">' + esc(folderLeaf(f)) + ' <span class="tsm-count">' + deep + '</span></span>'
+      + '<button class="st-b" onclick="folderMove(\'map\',\'' + esf + '\',-1)" title="Up">\u2191</button>'
+      + '<button class="st-b" onclick="folderMove(\'map\',\'' + esf + '\',1)" title="Down">\u2193</button>'
       + '<button class="st-b" onclick="newFolder(\'map\',\'' + esf + '\')" title="A folder inside this one">+</button>'
       + '<button class="st-b" onclick="lmFolderRename(\'' + esf + '\')" title="Rename">\u270e</button>'
       + '<button class="st-b" onclick="lmFolderDrop(\'' + esf + '\')" title="Remove the folder">\u2715</button></div>'

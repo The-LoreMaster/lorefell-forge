@@ -1,3 +1,11 @@
+## 2026-07-25 — Shelves you can arrange, and a stage given several faces at once
+
+Folders can be put in the order you want them. They had fallen alphabetically, which is no help when the bridge should come before the barrow. Arrows on each folder move it among the folders beside it, a folder inside a folder stays inside it however its neighbours are arranged, and the order is remembered. Maps and tokens both.
+
+A map or token can be filed without dragging. Aiming a card at a strip of text is a game of darts on a phone, so each one now carries a mark that asks where it should live and puts it there. Dragging still works for anyone who prefers it.
+
+A stage can be given several maps in one go. The shelf stays open and each map taken drops out of the list, rather than closing after every single one and making you open it again for the next face of the same place.
+
 ## 2026-07-25 — A map or token knows which adventure it was made for
 
 Art made while an adventure is open is stamped with that adventure, the way a foe already is. It is stamped at the single place every save passes through, so no part of the tool has to remember and none can forget, and it is carried back on the shelves so the stamp can be seen rather than assumed. The seams say how much of the saved art bears it.
