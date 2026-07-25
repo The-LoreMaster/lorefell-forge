@@ -3401,10 +3401,16 @@ function renderFatigue(){
   $("fatigueEffect").textContent=(FATIGUE_FX[_ef]||"")+((typeof cbHasAug==="function"&&cbHasAug("Unbowed")&&(C.fatigue||0)>0)?"  (Unbowed: one rank lower)":"");
   renderStrip();
 }
+/* Mobility's number was written only when its button was pressed, so a loaded Fell kept
+   the placeholder 5 until someone nudged it. renderAll refreshes it now, like the rest. */
+function renderMobility(){
+  var mv=$("mobVal"); if(mv) mv.textContent=C.mobility;
+  var mf=$("mobFormula"); if(mf) mf.textContent="1d6 + "+C.mobility;
+}
 document.querySelectorAll("[data-mob]").forEach(b=>b.addEventListener("click",()=>{
   if(!god)return;
   C.mobility=Math.max(0,C.mobility+(b.dataset.mob==="+"?1:-1));
-  $("mobVal").textContent=C.mobility;$("mobFormula").textContent="1d6 + "+C.mobility;renderStrip();
+  renderMobility();renderStrip();
 }));
 
 /* ---------- battle rolls ---------- */
@@ -3842,8 +3848,21 @@ function counter(label,get,set,after){
   plus.addEventListener("click",()=>{set(get()+1);v.textContent=get();if(after)after();});
   ctl.append(minus,v,plus);d.appendChild(ctl);return d;
 }
-AURUM.forEach(([k,label,rate])=>$("aurumGrid").appendChild(counter(`${label} ×${rate}`,()=>C.aurum[k],x=>C.aurum[k]=x,updateAurum)));
+/* The grid was built once at boot and never again, so its counters kept the value they
+   were born with. A Fell loaded afterwards changed C.aurum underneath them and the
+   displayed numbers stood still: the coins were saved and loaded correctly, the sheet
+   just never redrew them, so they looked lost until a tab change happened to rebuild the
+   grid. renderAll calls this now, the same as every other section, so what is on the
+   record is what is on the screen. */
+function renderAurum(){
+  const grid=$("aurumGrid"); if(!grid) return;
+  grid.innerHTML="";
+  AURUM.forEach(([k,label,rate])=>grid.appendChild(
+    counter(`${label} ×${rate}`,()=>C.aurum[k],x=>C.aurum[k]=x,updateAurum)));
+  updateAurum();
+}
 function updateAurum(){$("aurumTotal").textContent=AURUM.reduce((s,[k,,r])=>s+C.aurum[k]*r,0);}
+renderAurum();
 
 /* ---------- battle: acts/reacts/passives + dmg ---------- */
 function arEntry(src,nm,d,dim){return `<div class="ar-entry"${dim?' style="opacity:.45"':""}><div class="ar-head"><span class="src">${src}</span><span class="nm">${nm}</span></div>${d?`<div class="d">${d}</div>`:""}</div>`;}
@@ -4228,7 +4247,7 @@ function postToVelo(msg){
 }
 function renderAll(){
   grantSummary();renderLore();renderDials();renderVit();renderWeapons();
-  renderArmor();renderLorebounds();renderSkills();updateAurum();renderStatus();
+  renderArmor();renderLorebounds();renderSkills();renderAurum();renderFatigue();renderMobility();renderStatus();
   renderBattle();renderCharges();renderStrip();["quests","characters","notes"].forEach(renderRecords);renderMotivation();syncIdentityLock();
   wireTips();
 }
