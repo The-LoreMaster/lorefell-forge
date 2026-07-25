@@ -1,3 +1,9 @@
+## 2026-07-25 — What the LoreMaster changes, the player sees
+
+A Fell worked on from the LoreMaster's side now reaches the player's own sheet. Their sheet was holding the copy it loaded and had no reason to ask for another, so anything given or taken sat unseen until they opened it again. The table already carries word between the two every second, so the change is announced there: a mark against that Fell, and the player's own table tells their sheet to fetch itself anew. Their log says the LoreMaster has changed their Fell, so nothing shifts under their hands unexplained.
+
+A window opens from nothing every time. One left showing a sheet kept showing it, and whatever was written into the body afterwards was written out of sight, so a section could be opened and appear to do nothing at all.
+
 ## 2026-07-25 — Walking away from a Fell puts it down
 
 The Fell tab opens on the list again. Leaving that tab by any other plaque left the Fell still held, so coming back showed the sheet frame instead of the roster, and the frame had nothing in it. The tab looked dead until something else shook it loose. Going anywhere else now sets the Fell down properly.
