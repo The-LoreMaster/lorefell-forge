@@ -254,7 +254,9 @@ body.clean .artlayer{ display:none; }
 #flourish.strike .fnote{ color:#f09595; }
 
 #drawer{ display:none; }
-#lmstrip{ position:fixed; left:0; right:0; bottom:18px; z-index:55; pointer-events:none; display:flex; flex-direction:column; align-items:center; }
+#lmstrip{ position:fixed; left:0; right:0; bottom:18px; z-index:55; pointer-events:none; display:flex; flex-direction:column; align-items:center; touch-action:none; }
+/* the reader is the one place a drag is allowed to move anything, and only its own text */
+.lmcard.beat .lmc-body{ touch-action:pan-y; }
 #cleanExit{ display:none; position:fixed; top:10px; left:10px; z-index:200; background:rgba(10,14,26,.5); border:1px solid rgba(201,168,76,.4); color:var(--gold); font-family:Cinzel,serif; font-size:.58rem; letter-spacing:.12em; text-transform:uppercase; border-radius:6px; padding:4px 9px; cursor:pointer; opacity:.45; }
 #cleanExit:hover{ opacity:1; }
 body.clean #cleanExit{ display:block; }
@@ -455,6 +457,9 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .lm-scenebtn{ font-family:Cinzel,serif; letter-spacing:.1em; font-size:.68rem; color:var(--gold); text-transform:uppercase; background:none; border:none; cursor:pointer; padding:2px 4px; }
 .lm-scenebtn:hover{ text-shadow:0 0 8px rgba(201,168,76,.6); }
 .lm-chev{ font-size:.6rem; }
+.lm-nav.ready{ color:var(--gold); border-color:var(--gold); animation:navReady 1.9s ease-in-out infinite; }
+@keyframes navReady{ 0%,100%{ box-shadow:0 0 0 0 rgba(201,168,76,0); } 50%{ box-shadow:0 0 12px 2px rgba(201,168,76,.55); } }
+@media (prefers-reduced-motion: reduce){ .lm-nav.ready{ animation:none; box-shadow:0 0 10px 1px rgba(201,168,76,.5); } }
 .sd-list{ display:flex; flex-direction:column; gap:7px; margin-bottom:10px; }
 .nb-scene{ font-family:Cinzel,serif; font-size:.86rem; color:var(--gold); letter-spacing:.06em; margin:12px 0 7px; }
 .nb-beat{ border:1px solid var(--line); border-left-width:3px; border-radius:8px; padding:8px 11px; margin-bottom:7px; background:var(--navy2,#0e1526); }
@@ -2976,7 +2981,19 @@ function lmStripHtml(){
       + '<span class="lm-pill-arrow">\u25b4</span></button>';
   }
   var prev = deck.length > 1 ? '<button class="lm-nav l" onclick="lmStep(-1)" aria-label="Previous">\u2039</button>' : '<span class="lm-nav-sp"></span>';
-  var next = deck.length > 1 ? '<button class="lm-nav r" onclick="lmStep(1)" aria-label="Next">\u203a</button>' : '<span class="lm-nav-sp"></span>';
+  /* The end of a scene is not the end of the road: once the last beat is read the arrow
+     takes the light and leads on to whatever comes next, the next scene of this session
+     or the first of the one after it. */
+  var onward = (f === 'scene' && focus >= deck.length - 1) ? nextSceneAfter() : null;
+  var next;
+  if (onward){
+    next = '<button class="lm-nav r ready" onclick="lmOnward()" aria-label="On to ' + esc(onward.scene.name) + '"'
+      + ' title="On to ' + esc(onward.scene.name) + '">\u203a</button>';
+  } else if (deck.length > 1){
+    next = '<button class="lm-nav r" onclick="lmStep(1)" aria-label="Next">\u203a</button>';
+  } else {
+    next = '<span class="lm-nav-sp"></span>';
+  }
   return '<div class="lm-topbar">' + prev
     + '<span class="lm-head">' + head + '</span>' + lmPhaseControls()
     + '<button class="lm-minbtn" onclick="lmMinimize()" title="Minimize">\u2013</button>'
@@ -3059,6 +3076,21 @@ function cardFor(item){
   if (item.kind === 'fell') return fellCard(item.data);
   if (item.kind === 'spotgroup') return spotGroupCard(item.data);
   return '';
+}
+function nextSceneAfter(){
+  try {
+    var all = tsScenes(); if (!all.length) return null;
+    var i = -1;
+    all.forEach(function(x, n){ if (x.scene.id === S.scene.id) i = n; });
+    if (i < 0 || i + 1 >= all.length) return null;
+    return all[i + 1];
+  } catch(e){ return null; }
+}
+function lmOnward(){
+  var nx = nextSceneAfter(); if (!nx) return;
+  lmFocus['scene'] = 0;
+  setActiveScene(nx.scene.id);
+  paintLmStrip();
 }
 function lmStep(d){
   var f = lmFace(), deck = lmDeck();
