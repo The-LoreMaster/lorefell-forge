@@ -1,3 +1,9 @@
+## 2026-07-25 — Room under the pills, and one Foxfire too many
+
+A row of pills no longer has the next heading resting on its shoulders.
+
+Foxfire is gone from the utilities seed and from the RelicForge shelf, leaving Foxfire Gem to stand alone. The row already written to the site is not removed by this, since seeding adds and amends but never deletes; that one is a deletion by hand.
+
 ## 2026-07-25 — Utilities are the real ones
 
 The Utilities card draws from the shelf the RelicForge fills. It had four placeholders written into the sheet itself, so a Fell could only ever carry things that do not exist in the game; there are fifty eight real ones. They are called utilities, by that name, and one not yet identified still shows as unknown until the LoreMaster reveals it.
