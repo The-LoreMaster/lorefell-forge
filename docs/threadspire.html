@@ -722,7 +722,9 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .lmc-step:active{ background:var(--gold); color:var(--navy); }
 .lmc-nocharge{ font-size:.68rem; color:var(--muted); }
 .lm-empty{ color:var(--muted); font-size:.86rem; padding:16px; background:rgba(10,14,26,.82); border-radius:9px; }
-#lmbar{ position:fixed; left:16px; top:288px; z-index:60; width:212px; background:rgba(10,14,26,.94); border:1px solid var(--line); border-radius:8px; padding:9px 11px; }
+#lmbar{ position:fixed; left:22px; top:22px; z-index:80; width:212px; background:rgba(10,14,26,.94); border:1px solid var(--line); border-radius:8px; padding:9px 11px; }
+#lmbar .lmx{ float:right; background:none; border:none; color:var(--muted,#7e8a99); font-size:.8rem; line-height:1; cursor:pointer; padding:0 0 0 8px; }
+#lmbar .lmx:hover{ color:var(--gold); }
 #lmbar.hidden{ display:none; }
 #lmbar .lmh{ font-family:Cinzel,serif; font-size:.66rem; letter-spacing:.14em; color:var(--gold); margin-bottom:7px; }
 #lmbar .lmrow{ display:flex; align-items:center; gap:7px; margin:5px 0; font-size:.68rem; color:var(--ice); }
@@ -850,10 +852,8 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
     <button id="tmDelete" class="tm-del">Remove from the map</button>
   </div>
   <div id="lmbar" class="hidden">
-    <div class="lmh">MAP</div>
+    <div class="lmh">SETTINGS<button class="lmx" onclick="lmToggleGrid()" title="Close">&#10005;</button></div>
     <div class="lmrow"><label>Cell</label><input type="range" id="gSize" min="20" max="220" step="2"><span id="gSizeV"></span></div>
-    <div class="lmrow"><label>Off X</label><input type="range" id="gOffX" min="0" max="219" step="1"><span id="gOffXV"></span></div>
-    <div class="lmrow"><label>Off Y</label><input type="range" id="gOffY" min="0" max="219" step="1"><span id="gOffYV"></span></div>
     <div class="lmrow"><label>Fade</label><input type="range" id="gOpac" min="0" max="100" step="1"><span id="gOpacV"></span></div>
     <div class="lmrow"><label>Inset</label><input type="range" id="gInset" min="60" max="100" step="1"><span id="gInsetV"></span></div>
   </div>
@@ -2936,7 +2936,7 @@ function lmStripHtml(){
   var f = lmFace();
   var sceneLabel = esc(S.scene.name);
   var head = f === 'scene'
-    ? ('<button class="lm-scenebtn" onclick="lmToggleGrid()" title="Grid and map">Map <span class="lm-chev">\u25be</span></button>')
+    ? ('<button class="lm-scenebtn" onclick="lmToggleGrid()" title="Grid and map">Settings <span class="lm-chev">\u25be</span></button>')
     : (f === 'resolve' ? ('Round ' + S.round + ' \u00b7 Spotlights')
     : ('Round ' + S.round + ' \u00b7 Commit'));
   var deck = lmDeck();
@@ -4073,7 +4073,7 @@ function applyRemoteSnapshot(snap){
   }
   if (snap.tokens) S.tokens = snap.tokens;
   try { harvestFoeArt(); } catch(e){}
-  if (snap.grid) S.grid = snap.grid;
+  if (snap.grid){ S.grid = snap.grid; S.grid.offX = 0; S.grid.offY = 0; }
   if (snap.map) S.map = snap.map;
   if (snap.combatPhase !== undefined) S.scene.combatPhase = snap.combatPhase;
   var _wasBattle = S.mode === 'combat';
@@ -4332,6 +4332,11 @@ function seamsBody(){
         return (t.name || t.label || '?') + ' \u00b7 ' + how;
       })()],
     ['Portraits known', String(Object.keys(_portraits || {}).length) + ' fell, ' + String(Object.keys(_foeArt || {}).length) + ' foe'],
+    ['Token art', (function(){
+        var made = Object.keys(_thumbs || {}).length, tried = Object.keys(_thumbTried || {}).length;
+        if (!tried) return 'none drawn yet';
+        return made + ' of ' + tried + ' sharpened' + (made < tried ? ', the rest shown as they came' : '');
+      })()],
     ['Active stage', (function(){ try { var a = activeStageId(); if (!a) return 'none'; var st = stageById(a); return (st && st.name) || a; } catch(e){ return 'error'; } })()],
     ['Between adventures', _advSwitching ? 'YES, pushes are gated' : 'no']
   ];
@@ -6261,6 +6266,35 @@ function tokenName(t){
   }
   return t.name || t.label || '';
 }
+var _thumbs = {};      /* url -> a cleanly reduced square, kept for drawing only */
+var _thumbTried = {};
+var THUMB_PX = 256;
+function tokenThumb(url){
+  if (!url) return '';
+  if (_thumbs[url]) return _thumbs[url];
+  if (_thumbTried[url]) return url;             /* asked once already, use what we have */
+  _thumbTried[url] = true;
+  var img = new Image();
+  /* a picture from elsewhere cannot be read back off a canvas unless it is offered
+     freely, so ask, and if it is refused keep the original */
+  if (url.indexOf('data:') !== 0) img.crossOrigin = 'anonymous';
+  img.onload = function(){
+    try {
+      var n = THUMB_PX;
+      var c = document.createElement('canvas'); c.width = n; c.height = n;
+      var x = c.getContext('2d');
+      x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high';
+      /* cover: take the middle square of the picture so a face is not squashed */
+      var sw = img.naturalWidth, sh = img.naturalHeight;
+      var side = Math.min(sw, sh);
+      x.drawImage(img, (sw - side) / 2, (sh - side) / 2, side, side, 0, 0, n, n);
+      _thumbs[url] = c.toDataURL('image/png');
+      renderTokens();
+    } catch(e){ /* refused: the original still shows */ }
+  };
+  img.src = url;
+  return url;
+}
 function tokenArt(t){
   var cid = t.charId || (t.kind === 'p' ? t.refId : '');
   if (cid){
@@ -6286,7 +6320,7 @@ function renderTokens(){
   S.tokens.forEach(function(t){
     var el = document.createElement('div');
     var draggable = t.mine || S.role === 'lm';
-    var art = tokenArt(t);
+    var art = tokenThumb(tokenArt(t));
     el.className = 'token ' + t.kind + (t.mine ? ' mine' : '') + (draggable && !t.mine ? ' lm-drag' : '')
       + (sel === t.id ? ' sel' : '') + (art ? ' hasimg' : '') + (_flashToken === t.id ? ' justplaced' : '');
     var full = tokenName(t);
@@ -6466,10 +6500,10 @@ function mid(a, b){ return { x:(a.x + b.x) / 2, y:(a.y + b.y) / 2 }; }
 })();
 
 /* ---- the LoreMaster's map knobs ---- */
+/* The grid begins at the map's own corner and a token sits in the middle of its cell,
+   so there is nothing to nudge: the offsets are gone and the two are always in step. */
 var GRID_CTL = [
   ['gSize',  'size',    function(v){ return +v; },       function(v){ return v; }],
-  ['gOffX',  'offX',    function(v){ return +v; },       function(v){ return v; }],
-  ['gOffY',  'offY',    function(v){ return +v; },       function(v){ return v; }],
   ['gOpac',  'opacity', function(v){ return +v / 100; }, function(v){ return Math.round(v * 100); }]
 ];
 function paintLmbar(){
@@ -6487,7 +6521,7 @@ function paintLmbar(){
 (function wireLmbar(){
   GRID_CTL.forEach(function(c){
     document.getElementById(c[0]).addEventListener('input', function(){
-      var g = { size:S.grid.size, offX:S.grid.offX, offY:S.grid.offY, opacity:S.grid.opacity };
+      var g = { size:S.grid.size, offX:0, offY:0, opacity:S.grid.opacity };
       g[c[1]] = c[2](this.value);
       send({ type:'grid', grid:g });
     });
