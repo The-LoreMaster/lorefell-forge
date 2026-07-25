@@ -1,3 +1,11 @@
+## 2026-07-25 — Cards read across, tokens keep their own folders, Settings opens finished
+
+A foe or an NPC in the Library shows its picture square at the left of its name, rather than as a band across the top of the card. More of them fit on a screen and the name is the first thing read.
+
+The token shelf keeps its own folders. One list of folder names served both shelves, so every folder made for maps stood empty among the tokens, which is the clutter nobody had added. The folders already made are handed to the maps, since that is what their names were for, and a folder holding tokens still shows among the tokens because that is read from the tokens themselves.
+
+Settings opens on its finished face. It had asked the site for your other adventures on the way in and put up a line about looking for them, then replaced itself when they arrived, which read as one screen flashing past another. The asking happens when the table opens instead.
+
 ## 2026-07-25 — A stage keeps its place, and the Fell list shows faces
 
 Reordering the stages holds through a reload. Their order had lived only in the open tool, so the shelf came back in whatever order the account happened to hand the stages over. A stage now carries its own place and is put back in it. A stage that has never been moved keeps its name's order, so nothing shuffles on the first load after this.
