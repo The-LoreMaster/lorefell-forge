@@ -1,3 +1,9 @@
+## 2026-07-25 — Weapon ranges set to the 5, 10, 15 scale
+
+Every weapon's range now sits on one scale. Melee and the first rung of each tree reach 5. Spear, Rod, Amulet and Scroll reach 10. Crossbow, Staff, Orb and Grimoire reach 15. Twenty two of the twenty seven changed, and the bows came down hardest, from ten, twenty and thirty to five, ten and fifteen.
+
+The figures were kept in four places that nothing held together: the nested source the sheet is baked from, the flattened seed the site's collection is filled from, the sheet's own baked block, and a table inside SigilForge that the canon gate did not know about. All four are set from one list, and SigilForge is now named in the gate's weapons entry, so the next hand that changes one of them will be told about the rest.
+
 ## 2026-07-25 — ThreadSpire: the runner holds still, and the road goes on
 
 Dragging the scene runner no longer drags the page with it, in any direction. The beat's own words still scroll inside their card, which is the one place a drag is meant to move anything.
