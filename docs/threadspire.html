@@ -32,6 +32,8 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
   justify-content:center; font-family:Cinzel,serif; color:#fff; user-select:none; touch-action:none; }
 .token.mine{ border-color:var(--gold); box-shadow:0 0 10px rgba(201,168,76,.6); cursor:grab; }
 .token.sel{ box-shadow:0 0 0 3px rgba(255,255,255,.85), 0 0 22px 7px rgba(201,168,76,.65); z-index:5; }
+.token.justplaced{ animation:tokDrop .5s ease 2; z-index:40; }
+@keyframes tokDrop{ 0%{ box-shadow:0 0 0 0 var(--gold); } 50%{ box-shadow:0 0 0 7px rgba(201,168,76,.55); } 100%{ box-shadow:0 0 0 0 rgba(201,168,76,0); } }
 #tokmenu{ position:fixed; z-index:58; width:184px; background:rgba(10,14,26,.96); border:1.5px solid var(--gold); border-radius:8px; padding:9px; display:none; }
 #tokmenu.open{ display:block; }
 #tokmenu .tmh{ font-family:Cinzel,serif; font-size:.62rem; letter-spacing:.14em; color:var(--gold); margin-bottom:7px; }
@@ -3984,7 +3986,7 @@ function pushState(){
     try { SEAM.pushKB = Math.round(JSON.stringify(snap).length / 1024); } catch(e){ SEAM.pushKB = 0; }
     stateBackend.push(snap).then(function(r){
       SEAM.pushAt = Date.now();
-      if (r && r.version){ _stateSeen = Math.max(_stateSeen, r.version); SEAM.pushV = r.version; SEAM.pushOk = true; SEAM.pushWhy = ''; pushAdventure(); }
+      if (r && r.version){ _stateSeen = Math.max(_stateSeen, r.version); SEAM.pushV = r.version; SEAM.pushOk = true; SEAM.pushWhy = ''; pushAdventure(); nudgePull(); }
       else { SEAM.pushOk = false; SEAM.pushWhy = (r && r.error) || 'the site said no'; seamWarn(); }
       seamPaint();
     }).catch(function(e){
@@ -4585,8 +4587,13 @@ function startStateFeed(){
     }).catch(function(e){ SEAM.pullAt = Date.now(); SEAM.pullGot = 'failed: ' + String(e && e.message || e).slice(0,60); seamPaint(); });
   }
   pullOnce();                                  /* land on the real adventure right away */
-  _stateFeedTimer = setInterval(pullOnce, 1500);
+  _stateFeedTimer = setInterval(pullOnce, 1100);
+  _pullNow = pullOnce;                          /* let a fresh push trigger an early pull */
 }
+var _pullNow = null;
+/* after the loremaster's push is accepted, pull once straight away rather than waiting
+   for the next beat, so what they did shows on the players' side almost at once */
+function nudgePull(){ if (_pullNow) setTimeout(function(){ try { _pullNow(); } catch(e){} }, 80); }
 
 var _tsReq = 0, _tsPending = {};
 function tsEmbedded(){ try { return window.parent && window.parent !== window; } catch(e){ return false; } }
@@ -4782,6 +4789,11 @@ function lmPlaceToken(kind, refId){
   pushLog({ kind:'sys', html:'Placed <b>' + esc(t.name) + '</b> on the map.' });
   applyRemoteState({ log:S.log });
   renderTokens();
+  /* the palette covers the whole map, so a token dropped behind it was placed with no
+     sign it worked. Close the shelf and let the new token announce itself. */
+  lmCloseTokens();
+  _flashToken = id; renderTokens();
+  setTimeout(function(){ if (_flashToken === id){ _flashToken = null; renderTokens(); } }, 1400);
 }
 function paintTokenPalette(){
   var el = document.getElementById('tokPalette');
@@ -4848,16 +4860,28 @@ function lmTokenFilePicked(input){
     x:Math.round(S.map.w/2), y:Math.round(S.map.h/2), cells:1, mine:false, local:true, refId:aid });
   applyRemoteState({ tokens:S.tokens });
   renderTokens(); lmCloseTokens();
+  _flashToken = id; renderTokens();
+  setTimeout(function(){ if (_flashToken === id){ _flashToken = null; renderTokens(); } }, 1400);
   input.value='';
-  /* save the token asset so it joins the palette next time */
+  /* The picture is local until it is stored, and a local picture cannot travel: the
+     player would receive a token with a blob address from a device that is not theirs.
+     Save it, then swap the placed token's picture for the stored one and push again,
+     so the token that reached the table as letters becomes the picture once it can. */
+  var stored = '';
   assetBackend.upload(file, nm).then(function(imgRef){
+    stored = imgRef || '';
     return assetBackend.save({ assetId:aid, kind:'token', name:nm, image:imgRef, w:0, h:0 });
   }).then(function(){
-    S.scene.accountTokens = (S.scene.accountTokens||[]).concat([{ kind:'asset', label:initials(nm), name:nm, img:url, cells:1, refId:aid, source:'account' }]);
+    if (stored){
+      S.tokens.forEach(function(tk){ if (tk.id === id || tk.refId === aid) { tk.img = stored; tk.local = false; } });
+      renderTokens();
+      applyRemoteState({ tokens:S.tokens });
+    }
+    S.scene.accountTokens = (S.scene.accountTokens||[]).concat([{ kind:'asset', label:initials(nm), name:nm, img:stored || url, cells:1, refId:aid, source:'account' }]);
     pushLog({ kind:'sys', html:'Token <b>' + esc(nm) + '</b> saved to your account.' });
     applyRemoteState({ scene:S.scene, log:S.log });
   }).catch(function(){
-    pushLog({ kind:'sys', html:'Token <b>' + esc(nm) + '</b> is placed but did not save.' });
+    pushLog({ kind:'sys', html:'Token <b>' + esc(nm) + '</b> is placed but did not save, so the players will see its letters, not its picture.' });
     applyRemoteState({ log:S.log });
   });
 }
@@ -5724,6 +5748,17 @@ function lmDeleteMap(id){
 }
 function lmSetMap(id){
   var m = null; S.scene.maps.forEach(function(x){ if(x.id===id) m=x; });
+  if (!m){ lmCloseMaps(); return; }
+  /* set the scene's background and size to this map, then say it outward. This is what
+     a stage face already did and the shelf never did, which is why the Maps button
+     looked dead while stages worked. */
+  S.scene.background = m.id;
+  if (m.w) S.map.w = m.w;
+  if (m.h) S.map.h = m.h;
+  applyRemoteState({ scene:S.scene, map:S.map });
+  paintMapArt();
+  pushLog({ kind:'sys', html:'The table is now <b>' + esc(m.name || 'a map') + '</b>.' });
+  applyRemoteState({ log:S.log });
   lmCloseMaps();
 }
 /* pull the account's stored maps into the scene list once, so they show in the
@@ -6022,6 +6057,7 @@ function place(el, t){
   el.style.fontSize = Math.max(8, px * 0.26) + 'px';
   el.style.borderWidth = Math.max(2, px * 0.055) + 'px';
 }
+var _flashToken = null;
 function renderTokens(){
   var layer = document.getElementById('mapLayer');
   layer.querySelectorAll('.token').forEach(function(n){ n.remove(); });
