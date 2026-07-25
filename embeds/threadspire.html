@@ -24,6 +24,12 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 #map{ position:absolute; inset:0; background:var(--navy) url(assets/table-bg.png) center/cover no-repeat; overflow:hidden; touch-action:none; cursor:grab; }
 #map.panning{ cursor:grabbing; }
 #mapLayer{ position:absolute; left:0; top:0; transform-origin:0 0; will-change:transform; }
+/* Tokens are drawn here, on a layer that is never scaled. Inside the scaled layer the
+   browser drew each token once at its board size and then shrank that picture with
+   everything else, so a face turned to mush as the table pulled back. Here each token is
+   laid out at the size it is actually seen, and the picture is drawn once, sharp. */
+#tokenLayer{ position:absolute; inset:0; pointer-events:none; z-index:2; }
+#tokenLayer .token{ pointer-events:auto; }
 #mapArt{ position:absolute; left:0; top:0; background:transparent; }
 #mapArt video{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
 #grid{ display:none; }
@@ -790,6 +796,7 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
   <input type="file" id="mapFileInput" accept="image/*" multiple style="display:none" onchange="lmMapFilePicked(this)">
   <input type="file" id="tokFileInput" accept="image/*" style="display:none" onchange="lmTokenFilePicked(this)">
     </div>
+    <div id="tokenLayer"></div>
   </div>
   <div class="frame"></div>
   <img id="winArt" class="artlayer" src="assets/win-art.png" alt="">
@@ -1025,6 +1032,7 @@ function paintGridOverlay(){ drawGrid(); return;
 function applyCam(){
   document.getElementById('mapLayer').style.transform =
     'translate(' + cam.x + 'px,' + cam.y + 'px) scale(' + cam.zoom + ')';
+  if (typeof placeTokens === 'function') placeTokens();
   if (typeof placeTokMenu === 'function') placeTokMenu();
 }
 function clampCam(){
@@ -6211,12 +6219,23 @@ function toggleDrawer(up){
    only air, so the grid stays visible and neighbours do not fuse. */
 function tokenPx(t){ return S.grid.size * (t.cells || 1) * S.inset; }
 function place(el, t){
-  var px = tokenPx(t);
+  /* board size becomes seen size, and the camera puts it where the map would have */
+  var px = tokenPx(t) * cam.zoom;
   el.style.width = el.style.height = px + 'px';
-  el.style.left = (t.x - px / 2) + 'px';
-  el.style.top  = (t.y - px / 2) + 'px';
+  el.style.left = (cam.x + t.x * cam.zoom - px / 2) + 'px';
+  el.style.top  = (cam.y + t.y * cam.zoom - px / 2) + 'px';
   el.style.fontSize = Math.max(8, px * 0.26) + 'px';
-  el.style.borderWidth = Math.max(2, px * 0.055) + 'px';
+  el.style.borderWidth = Math.max(1, px * 0.055) + 'px';
+}
+/* the camera moved, so every token is put back in its place. Cheaper than building them
+   again, and it keeps a token being dragged in hand. */
+function placeTokens(){
+  var layer = document.getElementById('tokenLayer'); if (!layer) return;
+  var byId = {}; (S.tokens || []).forEach(function(t){ byId[t.id] = t; });
+  layer.querySelectorAll('.token').forEach(function(el){
+    var t = byId[el.getAttribute('data-tok')];
+    if (t) place(el, t);
+  });
 }
 var _flashToken = null;
 /* A token's picture found on this side rather than carried to it. A Fell's portrait
@@ -6315,7 +6334,8 @@ function tokenArt(t){
   return img;
 }
 function renderTokens(){
-  var layer = document.getElementById('mapLayer');
+  var layer = document.getElementById('tokenLayer');
+  if (!layer) return;
   layer.querySelectorAll('.token').forEach(function(n){ n.remove(); });
   S.tokens.forEach(function(t){
     var el = document.createElement('div');
@@ -6323,6 +6343,7 @@ function renderTokens(){
     var art = tokenThumb(tokenArt(t));
     el.className = 'token ' + t.kind + (t.mine ? ' mine' : '') + (draggable && !t.mine ? ' lm-drag' : '')
       + (sel === t.id ? ' sel' : '') + (art ? ' hasimg' : '') + (_flashToken === t.id ? ' justplaced' : '');
+    el.setAttribute('data-tok', t.id);
     var full = tokenName(t);
     var face = art ? '' : esc(initials(full));
     if (art) el.style.backgroundImage = 'url(' + art + ')';
