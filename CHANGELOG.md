@@ -1,3 +1,7 @@
+## 2026-07-25 — Watching the sheet speak
+
+Five attempts at making a change on one side reach the other have missed, which means a guess about where a save travels is wrong somewhere. The seams now count what the sheet actually says to the table and what the table does with it: how many messages have come from the sheet at all, whether any of them were saves, who the last one was marked for, and which marks the table is holding. One reading settles it.
+
 ## 2026-07-25 — A Fell can be emptied and begun again
 
 A Fell written over with another Fell's life can be put right. The mark beside it offers to empty it: attributes, skills, weapons, armour, bonds and pack all go, and the name and the adventure stay. Nothing else could undo it, because the wrong life was not only shown on the sheet, it was written to the record while it sat there.
