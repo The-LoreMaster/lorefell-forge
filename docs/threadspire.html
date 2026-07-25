@@ -5127,6 +5127,7 @@ function loadForAdventure(){
      way in, so the panel showed a line about looking for adventures and then replaced
      itself, which read as one screen flashing past another. */
   try { if (isLM() && typeof advList === 'function') advList(); } catch(e){}
+  try { if (typeof shelvesLoad === 'function') shelvesLoad(); } catch(e){}
 }
 setTimeout(function(){ try { loadForAdventure(); startStateFeed(); if (tsEmbedded()) window.parent.postMessage({ type:'THREADSPIRE_READY' }, '*'); } catch(e){} }, 0);
 /* The sheet is a whole tool in a frame and it was not fetched until the first time
@@ -5647,6 +5648,38 @@ function lmCloseMaps(){ lmMapsOpen = false; paintMapPicker(); }
    list is handed to the maps, since that is what its names were for; a folder holding
    tokens still shows on the token shelf, because that is read from the tokens. */
 function folderKey(kind){ return kind === 'token' ? 'ts_folders_token' : 'ts_folders_map'; }
+/* The shelves belong to the member, not to one browser. The local store is kept as the
+   quick copy, so a shelf draws at once and still works with no site behind it, and the
+   account is the truth: read once when the table opens, written whenever a folder is
+   made, renamed, removed or moved. */
+var _shelvesReady = false, _shelvesT = null;
+function shelvesSave(){
+  if (!_shelvesReady || !tsEmbedded()) return;
+  /* a nudge at a time: renaming a branch touches many folders in one breath */
+  if (_shelvesT) clearTimeout(_shelvesT);
+  _shelvesT = setTimeout(function(){
+    _shelvesT = null;
+    tsAsk('TS_SHELVES_SET', { shelves:{
+      mapNames:namedFolders('map'), tokenNames:namedFolders('token'), order:folderRank()
+    } }).catch(function(){});
+  }, 400);
+}
+function shelvesLoad(){
+  if (!tsEmbedded()){ _shelvesReady = true; return; }
+  tsAsk('TS_SHELVES_GET', {}).then(function(sh){
+    if (sh){
+      try {
+        if (Array.isArray(sh.mapNames)) localStorage.setItem('ts_folders_map', JSON.stringify(sh.mapNames));
+        if (Array.isArray(sh.tokenNames)) localStorage.setItem('ts_folders_token', JSON.stringify(sh.tokenNames));
+        if (Array.isArray(sh.order)) localStorage.setItem('ts_forder', JSON.stringify(sh.order));
+      } catch(e){}
+      paintMapPicker(); paintTokenPalette();
+    }
+    _shelvesReady = true;
+    /* nothing on the account yet, so give it what this browser already knows */
+    if (!sh) shelvesSave();
+  }).catch(function(){ _shelvesReady = true; });
+}
 (function migrateFolders(){
   try {
     var old = localStorage.getItem('ts_folders');
@@ -5660,11 +5693,12 @@ function namedFolders(kind){
 }
 function nameFolder(kind, n){
   var list = namedFolders(kind);
-  if (list.indexOf(n) < 0){ list.push(n); try { localStorage.setItem(folderKey(kind), JSON.stringify(list)); } catch(e){} }
+  if (list.indexOf(n) < 0){ list.push(n); try { localStorage.setItem(folderKey(kind), JSON.stringify(list)); } catch(e){} shelvesSave(); }
 }
 function unnameFolder(kind, n){
   var list = namedFolders(kind).filter(function(x){ return x !== n; });
   try { localStorage.setItem(folderKey(kind), JSON.stringify(list)); } catch(e){}
+  shelvesSave();
 }
 /* A folder is a path. One slash makes a folder inside a folder, so Valoria/The Bridge
    sits under Valoria, and the shelf builds the tree from the paths themselves rather
@@ -5688,6 +5722,7 @@ function folderRank(){
 }
 function folderRankSave(list){
   try { localStorage.setItem('ts_forder', JSON.stringify(list)); } catch(e){}
+  shelvesSave();
 }
 function folderSiblings(paths, parent){
   var rank = folderRank();
