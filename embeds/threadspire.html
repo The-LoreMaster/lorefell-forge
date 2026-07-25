@@ -318,9 +318,11 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .lib-nm{ flex:1; font-size:.82rem; }
 .lib-meta{ font-size:.66rem; color:var(--muted,#7e8a99); }
 .vcard{ position:relative; background:var(--navy2,#10162a); border:1px solid var(--line,#22304d); border-radius:12px; margin-bottom:9px; overflow:hidden; display:flex; align-items:stretch; min-height:56px; }
-.vcard.has-cover{ flex-direction:column; }
-.vcard-main{ flex:1; min-width:0; text-align:left; background:none; border:none; color:inherit; font:inherit; cursor:pointer; padding:0; display:flex; flex-direction:column; }
-.vcard-cover{ width:100%; height:112px; overflow:hidden; background:var(--navy3,#0b1020); }
+/* the picture stands beside the words, square, rather than as a band across the top */
+.vcard.has-cover{ flex-direction:row; }
+.vcard-main{ flex:1; min-width:0; text-align:left; background:none; border:none; color:inherit; font:inherit; cursor:pointer; padding:0; display:flex; flex-direction:row; align-items:center; }
+.vcard-main .vcard-body{ flex:1; min-width:0; }
+.vcard-cover{ width:76px; height:76px; flex:none; align-self:center; margin:8px 0 8px 8px; border-radius:8px; overflow:hidden; background:var(--navy3,#0b1020); }
 .vcard-cover img{ width:100%; height:100%; object-fit:cover; display:block; }
 .vcard-body{ padding:10px 12px; }
 .vcard-badge{ font-family:Cinzel,serif; font-size:.58rem; letter-spacing:.14em; text-transform:uppercase; color:var(--gold); margin-bottom:3px; }
@@ -5016,7 +5018,7 @@ function paintTokenPalette(){
       + face + '<span class="tp-name">'+esc(t.name)+'</span></button>' + tools + '</div>';
   }
   function foldered(list){
-    var folders = assetFolders(list);
+    var folders = assetFolders(list, 'token');
     if (!folders.length) return '<div class="tp-row">' + list.map(chip).join('') + '</div>';
     var out = '';
     folders.forEach(function(f){
@@ -5121,6 +5123,10 @@ function loadForAdventure(){
   try { if (isLM() && typeof libLoad === 'function') libLoad(true); } catch(e){}
   try { if (isLM() && typeof forgeLoad === 'function') forgeLoad(); } catch(e){}
   try { if (typeof loadAccountAssets === 'function') loadAccountAssets(); } catch(e){}
+  /* asked for now so Settings opens on its finished face. It used to be asked for on the
+     way in, so the panel showed a line about looking for adventures and then replaced
+     itself, which read as one screen flashing past another. */
+  try { if (isLM() && typeof advList === 'function') advList(); } catch(e){}
 }
 setTimeout(function(){ try { loadForAdventure(); startStateFeed(); if (tsEmbedded()) window.parent.postMessage({ type:'THREADSPIRE_READY' }, '*'); } catch(e){} }, 0);
 /* The sheet is a whole tool in a frame and it was not fetched until the first time
@@ -5636,16 +5642,29 @@ function lmOpenMaps(){ loadAccountAssets(); lmMapsOpen = true; paintMapPicker();
 function lmCloseMaps(){ lmMapsOpen = false; paintMapPicker(); }
 /* The shelf is account wide. Folders are just a name carried on each image, so a
    folder exists exactly as long as something sits in it. */
-function namedFolders(){
-  try { return JSON.parse(localStorage.getItem('ts_folders') || '[]'); } catch(e){ return []; }
+/* Maps and tokens keep their own folders. One list served both, so every folder made for
+   maps stood empty on the token shelf as clutter nobody had asked for. The old shared
+   list is handed to the maps, since that is what its names were for; a folder holding
+   tokens still shows on the token shelf, because that is read from the tokens. */
+function folderKey(kind){ return kind === 'token' ? 'ts_folders_token' : 'ts_folders_map'; }
+(function migrateFolders(){
+  try {
+    var old = localStorage.getItem('ts_folders');
+    if (old === null) return;
+    if (localStorage.getItem('ts_folders_map') === null) localStorage.setItem('ts_folders_map', old);
+    localStorage.removeItem('ts_folders');
+  } catch(e){}
+})();
+function namedFolders(kind){
+  try { return JSON.parse(localStorage.getItem(folderKey(kind)) || '[]'); } catch(e){ return []; }
 }
-function nameFolder(n){
-  var list = namedFolders();
-  if (list.indexOf(n) < 0){ list.push(n); try { localStorage.setItem('ts_folders', JSON.stringify(list)); } catch(e){} }
+function nameFolder(kind, n){
+  var list = namedFolders(kind);
+  if (list.indexOf(n) < 0){ list.push(n); try { localStorage.setItem(folderKey(kind), JSON.stringify(list)); } catch(e){} }
 }
-function unnameFolder(n){
-  var list = namedFolders().filter(function(x){ return x !== n; });
-  try { localStorage.setItem('ts_folders', JSON.stringify(list)); } catch(e){}
+function unnameFolder(kind, n){
+  var list = namedFolders(kind).filter(function(x){ return x !== n; });
+  try { localStorage.setItem(folderKey(kind), JSON.stringify(list)); } catch(e){}
 }
 /* A folder is a path. One slash makes a folder inside a folder, so Valoria/The Bridge
    sits under Valoria, and the shelf builds the tree from the paths themselves rather
@@ -5690,7 +5709,7 @@ function folderSort(paths){
   return out;
 }
 function folderMove(kind, path, dir){
-  var all = (kind === 'token') ? assetFolders(S.scene.accountTokens || []) : mapFolders();
+  var all = (kind === 'token') ? assetFolders(S.scene.accountTokens || [], 'token') : mapFolders();
   var sibs = folderSiblings(all, folderParent(path));
   var i = sibs.indexOf(path);
   var j = i + (dir < 0 ? -1 : 1);
@@ -5703,7 +5722,7 @@ function folderMove(kind, path, dir){
 }
 /* Filing without dragging, since aiming a card at a strip of text is no fun on a phone */
 function fileInto(kind, id){
-  var folders = (kind === 'token') ? assetFolders(S.scene.accountTokens || []) : mapFolders();
+  var folders = (kind === 'token') ? assetFolders(S.scene.accountTokens || [], 'token') : mapFolders();
   var cur = '';
   if (kind === 'token') (S.scene.accountTokens || []).forEach(function(t){ if (sameId(t.assetId, id)) cur = t.folder || ''; });
   else (S.scene.maps || []).forEach(function(m){ if (sameId(m.id, id)) cur = m.folder || ''; });
@@ -5719,7 +5738,7 @@ function fileIntoSave(kind, id){
   tsCloseModal();
   if (kind === 'token') tokenSetFolder(id, where); else mapSetFolder(id, where);
 }
-function assetFolders(list){
+function assetFolders(list, kind){
   var seen = {}, out = [];
   function addFolder(p){
     if (!p || seen[p]) return;
@@ -5729,7 +5748,7 @@ function assetFolders(list){
     seen[p] = 1; out.push(p);
   }
   (list || []).forEach(function(m){ addFolder(m.folder || ''); });
-  namedFolders().forEach(addFolder);
+  namedFolders(kind || 'map').forEach(addFolder);
   return folderSort(out);
 }
 /* A folded parent takes its whole branch with it. */
@@ -5741,7 +5760,7 @@ function folderHidden(p){
   }
   return false;
 }
-function mapFolders(){ return assetFolders(S.scene.maps); }
+function mapFolders(){ return assetFolders(S.scene.maps, 'map'); }
 function folderShut(name){
   try { return (JSON.parse(localStorage.getItem('ts_folds') || '[]')).indexOf(name) >= 0; } catch(e){ return false; }
 }
@@ -5754,7 +5773,7 @@ function folderToggle(name){
   paintTokenPalette(); paintMapPicker();
 }
 function newFolder(kind, parent){
-  var here = (kind === 'token') ? assetFolders(S.assets || []) : mapFolders();
+  var here = (kind === 'token') ? assetFolders(S.assets || [], 'token') : mapFolders();
   var opts = '<option value="">The top of the shelf</option>'
     + here.map(function(f){
         return '<option value="' + esc(f) + '"' + (f === parent ? ' selected' : '') + '>' + esc(f) + '</option>';
@@ -5771,7 +5790,7 @@ function newFolderSave(kind){
   var up = ((document.getElementById('nfParent') || {}).value || '');
   var nm = ((document.getElementById('nfName') || {}).value || '').replace(/^\s+|\s+$/g, '').replace(/\//g, ' ');
   if (!nm) return;
-  nameFolder(up ? up + '/' + nm : nm);
+  nameFolder(kind, up ? up + '/' + nm : nm);
   tsCloseModal();
   if (kind === 'token') paintTokenPalette(); else paintMapPicker();
 }
@@ -5827,7 +5846,9 @@ function lmFolderSave(id){
    one of them is rewritten, or they would be orphaned under a name nothing holds. */
 function folderRepath(from, to){
   var each = function(old){ return to + String(old).slice(from.length); };
-  namedFolders().forEach(function(f){ if (folderUnder(f, from)){ unnameFolder(f); nameFolder(each(f)); } });
+  ['map','token'].forEach(function(k){
+    namedFolders(k).forEach(function(f){ if (folderUnder(f, from)){ unnameFolder(k, f); nameFolder(k, each(f)); } });
+  });
   (S.assets || []).forEach(function(a){ if (folderUnder(a.folder || '', from)) tokenSetFolder(a.assetId, each(a.folder || '')); });
   (S.scene.maps || []).forEach(function(m){
     if (!folderUnder(m.folder || '', from)) return;
@@ -5849,7 +5870,9 @@ function lmFolderRename(from){
 function lmFolderDrop(name){
   var up = folderParent(name);
   window._tsYes = function(){
-    namedFolders().forEach(function(f){ if (folderUnder(f, name)) unnameFolder(f); });
+    ['map','token'].forEach(function(k){
+      namedFolders(k).forEach(function(f){ if (folderUnder(f, name)) unnameFolder(k, f); });
+    });
     (S.assets || []).forEach(function(a){ if (folderUnder(a.folder || '', name)) tokenSetFolder(a.assetId, up); });
     (S.scene.maps || []).forEach(function(m){
       if (!folderUnder(m.folder || '', name)) return;
@@ -5951,7 +5974,7 @@ function stagePickPaint(){
   if (!hits.length){ wrap.innerHTML = '<p class="tsm-note">No map matches that. Try part of its name, or the folder it sits in.</p>'; return; }
   if (q){ wrap.innerHTML = '<div class="sm-pick">' + hits.map(opt).join('') + '</div>'; return; }
   var html = '', seen = {};
-  assetFolders(hits).forEach(function(f){
+  assetFolders(hits, 'map').forEach(function(f){
     var inIt = hits.filter(function(m){ return (m.folder || '') === f; });
     if (!inIt.length) return;
     inIt.forEach(function(m){ seen[m.id] = 1; });
