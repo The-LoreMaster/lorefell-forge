@@ -1,3 +1,7 @@
+## 2026-07-25 — ThreadSpire: the map covers the frame, whatever its shape
+
+No blue shows around the map now. The table was carrying a made-up size for every map, a wide default, so a tall picture was treated as though it were wide and left bare at its sides. The board reads the picture's true shape from the picture itself when it is laid down, so the fill fits a tall map and a wide one alike, and the map always covers the open table. What runs off an edge is behind the menu art, out of sight, not blue on the felt.
+
 ## 2026-07-25 — ThreadSpire: token polish and a map that stays in its frame
 
 A token on the map wears its whole name now, read from the sheet the tables hold, so it is the Fell's name and not a single letter, and it stays right if the Fell is renamed. A saved token can be renamed or removed from the shelf, from the token itself; a foe or Fell chip cannot, since its name and life are its record's to keep. Clicking the dim area around the token shelf or the map shelf closes it, the same as tapping the map already did.
