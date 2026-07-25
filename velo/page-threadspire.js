@@ -15,6 +15,7 @@ import { uploadRune } from 'backend/loreforge.web.js';
 import { listStages, saveStage, deleteStage } from 'backend/threadspire.web.js';
 import { getCampaignState, saveCampaignState, getJournal, saveJournal } from 'backend/campaignview.web.js';
 import { myAdventureRole } from 'backend/fatewell.web.js';
+import { handleSheetMessage } from 'backend/fgSheetBridge.js';
 import wixLocation from 'wix-location';
 
 // uploadRune hands back a wix:image:// descriptor, which a plain <img> cannot load.
@@ -50,75 +51,24 @@ $w.onReady(async function () {
   // here so the embedded sheet reads and writes the same Characters record its own page
   // would. One tool, one record, shown in the rail.
   let fgCharId = characterId || '';
+  // The FellGlass sheet's bridge is shared with its own page; the one copy lives in
+  // backend/fgSheetBridge.js. Here it is handed the LoreMaster's extra hand: godCharId,
+  // set while a player's Fell is held open, routes that Fell's saves through the gated
+  // method. ThreadSpire shows whatever a record holds, forged or not, so it does not ask
+  // for the created flag the standalone page waits on.
+  const fgApi = {
+    listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter,
+    leaveAdventure, getClueCards, listQuests, getCombatForChar, saveCombatDeclare,
+    syncCombatPlayer, getLibraries, lmSaveCharacter
+  };
   async function fgBridge(m, reply) {
-    async function listChars() { try { return await listMyCharacters(); } catch (e) { return []; } }
-    async function sendCharacters(curId) { const list = await listChars(); reply({ type: 'characters', list: list, currentId: curId || '' }); }
-    async function openCharacter(id, libraries) {
-      if (libraries === undefined) { try { libraries = await getLibraries(); } catch (e) { libraries = {}; } }
-      if (!id) { reply({ type: 'new', libraries: libraries, charId: '' }); return; }
-      let res = null; try { res = await loadCharacter(id); } catch (e) { res = null; }
-      if (res && res.forged) reply({ type: 'new', forge: res.seed || {}, libraries: libraries, charId: id });
-      else if (res && res.character) reply({ type: 'init', character: res.character, libraries: libraries, charId: id });
-      else reply({ type: 'new', libraries: libraries, charId: id });
-    }
-    if (m.type === 'ready') {
-      if (m.charId) fgCharId = m.charId;
-      let libraries = {}; try { libraries = await getLibraries(); } catch (e) { libraries = {}; }
-      if (!fgCharId) { const list = await listChars(); if (list.length) fgCharId = list[0].id; }
-      await sendCharacters(fgCharId);
-      let adventures = []; try { adventures = await myAdventures(); } catch (e) { adventures = []; }
-      reply({ type: 'adventures', list: adventures });
-      await openCharacter(fgCharId, libraries);
-    } else if (m.type === 'select-character') {
-      fgCharId = m.charId || ''; await openCharacter(fgCharId); await sendCharacters(fgCharId);
-    } else if (m.type === 'add-character') {
-      fgCharId = ''; let libraries = {}; try { libraries = await getLibraries(); } catch (e) { libraries = {}; }
-      reply({ type: 'new', libraries: libraries, charId: '' }); await sendCharacters('');
-    } else if (m.type === 'clues-request') {
-      let clues = []; try { clues = await getClueCards(m.charId || fgCharId); } catch (e) { clues = []; }
-      reply({ type: 'clues', clues: clues });
-    } else if (m.type === 'quests-request') {
-      let qr = null; try { qr = await listQuests(m.campaignId || ''); } catch (e) { qr = null; }
-      reply({ type: 'quests', ok: !(qr && qr.ok === false), quests: (qr && qr.quests) || [] });
-    } else if (m.type === 'leave-adventure') {
-      // the sheet is inside ThreadSpire here, so the same message arrives on this bridge
-      try { await leaveAdventure(m.charId || fgCharId); } catch (e) {}
-    } else if (m.type === 'combat-request') {
-      let state = null; try { state = await getCombatForChar(m.charId || fgCharId); } catch (e) { state = null; }
-      reply({ type: 'combat-state', state: state });
-    } else if (m.type === 'combat-sync') {
-      let ok = true; try { await syncCombatPlayer(m.charId || fgCharId, { curVit: m.curVit, maxVit: m.maxVit, charge: m.charge, affs: m.affs, defEva: m.defEva, plog: m.plog, gear: m.gear }); } catch (e) { ok = false; }
-      reply({ type: 'combat-sync-ack', ok: ok });
-    } else if (m.type === 'combat-declare') {
-      let ok = true;
-      try { await saveCombatDeclare(m.charId || fgCharId, { act: m.act, react: m.react, target: m.target, round: m.round, dmg: m.dmg, base: m.base, dt: m.dt, fellmark: m.fellmark, doubleFell: m.doubleFell, pierce: m.pierce, applies: m.applies, actTier: m.actTier, acc: m.acc, roll: m.roll, kind: m.kind, fellstrike: m.fellstrike, charge: m.charge, curVit: m.curVit, maxVit: m.maxVit, affs: m.affs }); } catch (e) { ok = false; }
-      reply({ type: 'combat-declare-ack', ok: ok, reqId: m.reqId || 0 });
-    } else if (m.type === 'save') {
-      const cid = m.charId || '';
-      // Every save is answered, pass or fail, carrying the number the sheet sent. The
-      // sheet used to be told only about a brand-new record, so a write that was refused
-      // or that threw looked exactly like a write that worked and the Fell came back
-      // empty on the next load with nothing having said a word.
-      const ack = (ok, id, error) => reply({ type: 'saved', ok: ok, saveSeq: m.saveSeq, localId: m.localId || '', charId: id || cid, error: error || '' });
-      // While the LoreMaster has a player's Fell open, the sheet's own autosave is
-      // writing to someone else's record. It goes through the gated method, which
-      // checks the role against the adventure rather than taking the page's word.
-      if (godCharId && cid && cid === godCharId) {
-        try { const r = await lmSaveCharacter(cid, m.character || {}); ack(!!(r && r.ok), cid, r && r.error); }
-        catch (e) { ack(false, cid, String((e && e.message) || e)); }
-      } else {
-        try {
-          const r = await saveCharacter(cid, m.character || {});
-          if (r && r.ok && r.id && !cid) { fgCharId = r.id; ack(true, r.id); await sendCharacters(r.id); }
-          else ack(!!(r && r.ok), (r && r.id) || cid, r && r.error);
-        } catch (e) { ack(false, cid, String((e && e.message) || e)); }
-      }
-    } else if (m.type === 'delete-character') {
-      const cid = m.charId || fgCharId; let res = { ok: false }; try { res = await deleteCharacter(cid); } catch (e) { res = { ok: false }; }
-      const list = await listChars(); const nextId = list.length ? list[0].id : ''; fgCharId = nextId;
-      reply({ type: 'char-deleted', ok: !!(res && res.ok), remaining: list.length, leftCampaign: !!(res && res.leftCampaign) });
-      reply({ type: 'characters', list: list, currentId: nextId }); await openCharacter(nextId);
-    }
+    await handleSheetMessage(m, {
+      reply: reply,
+      getCharId: () => fgCharId,
+      setCharId: (id) => { fgCharId = id; },
+      api: fgApi,
+      godCharId: godCharId
+    });
   }
 
   embed.onMessage(async (event) => {
