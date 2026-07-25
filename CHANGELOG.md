@@ -1,3 +1,9 @@
+## 2026-07-25 — ThreadSpire: token polish and a map that stays in its frame
+
+A token on the map wears its whole name now, read from the sheet the tables hold, so it is the Fell's name and not a single letter, and it stays right if the Fell is renamed. A saved token can be renamed or removed from the shelf, from the token itself; a foe or Fell chip cannot, since its name and life are its record's to keep. Clicking the dim area around the token shelf or the map shelf closes it, the same as tapping the map already did.
+
+The map holds its frame. It zooms out only as far as it still fills the open table, by width or by height, whichever fills first, so the blue never shows around a shrunken image. It can be dragged up and down and side to side, but not past its own edges. The open table ends where the right menu begins, so the map fills to there and no longer hides beneath the ornate rail. All of this follows the window as it resizes and the stage as it lays a new map.
+
 ## 2026-07-25 — FellGlass: a portrait is stored, not baked
 
 A Fell's portrait was kept in the record as the picture itself, encoded, which is why it was too heavy to share with the table and could not travel to another device. It is uploaded once to stored media on save now and kept as a plain address from then on, exactly as a foe's art, a lorebound's, a relic's and every other picture in the forge already is. The first time a Fell is saved, its portrait is converted and never carried as bytes again.
