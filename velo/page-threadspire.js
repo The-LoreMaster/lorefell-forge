@@ -2,7 +2,7 @@
 // Paste into the ThreadSpire page. Set the embed element ID to match EMBED.
 // Feeds the character-first view: the player's character card, the party at their
 // location, revealed nodes, quest-board goals, world issues, and map art.
-import { threadspirePublicChar, listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter, threadspireSaveMeta, lmLoadCharacter, lmSaveCharacter, lmCreateOfflineFell, lmRemoveFromAdventure, charAdventure, leaveAdventure } from 'backend/characters.web.js';
+import { threadspirePublicChar, listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter, threadspireSaveMeta, lmLoadCharacter, lmSaveCharacter, lmCreateOfflineFell, lmRemoveFromAdventure, charAdventure, leaveAdventure, lmWipeFell } from 'backend/characters.web.js';
 import { getLmPortrait, saveLmPortrait, getForgePools, getForgeLibrary, listMyCampaigns, saveCampaign, submitAct, submitItem, deleteAsset, listGlossary , setMemberRole, detachCharacter } from 'backend/fatewell.web.js';
 import { createInvite, revokeInvite } from 'backend/invites.web.js';
 import { publishAdventure, unpublishAdventure, myPublishedAdventures } from 'backend/published.web.js';
@@ -220,12 +220,19 @@ $w.onReady(async function () {
               embed.postMessage({ type: 'TS_TOOL_DOWN', tool: 'fellglass',
                 msg: { type: 'init', charId: godCharId,
                        character: rec.forged ? (rec.seed || {}) : (rec.character || {}),
+                       blank: !(rec.character && Object.keys(rec.character).length),
                        libraries: libraries } });
               embed.postMessage({ type: 'TS_TOOL_DOWN', tool: 'fellglass', msg: { type: 'ts-god', on: true } });
               // hand the record back too, so the tool can keep it and reopen this Fell
               // with no round trip next time
               reply(true, { ok: true, charId: godCharId, record: rec.forged ? (rec.seed || {}) : (rec.character || {}) });
             }
+          } catch (e) { reply(false, null, String(e)); }
+        } else if (msg.type === 'TS_FELL_WIPE') {
+          try {
+            const r = await lmWipeFell(msg.charId || '');
+            if (r && r.ok && godCharId === msg.charId) godCharId = '';
+            reply(!!(r && r.ok), r, r && r.error);
           } catch (e) { reply(false, null, String(e)); }
         } else if (msg.type === 'TS_OFFLINE_FELL') {
           try { const r = await lmCreateOfflineFell(campaignId, msg.name || ''); reply(!!(r && r.ok), r, r && r.error); }

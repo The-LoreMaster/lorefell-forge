@@ -4181,7 +4181,13 @@ function applyRemoteSnapshot(snap){
     if (held && held > (_godRevSeen || 0)){
       var firstHeld = !_godRevSeen;
       _godRevSeen = held;
-      if (!firstHeld){ _godCache[S.godChar.id] = null; lmOpenFell(S.godChar.id); }
+      if (!firstHeld){
+        delete _godCache[S.godChar.id];
+        /* quietly: fetch it again and re-light the frame, leaving the window as it is */
+        tsAsk('TS_GOD_SHEET', { charId:S.godChar.id }).then(function(res){
+          if (res && res.charId && res.record && Object.keys(res.record).length) _godCache[res.charId] = res.record;
+        }).catch(function(){});
+      }
     }
   }
   if (snap.sheetRev && !isLM() && S.characterId){
@@ -5389,12 +5395,37 @@ function partyMenu(memberId, charId){
     if (role !== 'player') h += '<button class="tsm-btn ghost wide" onclick="partySetRole(\'' + esc(mid) + '\',\'player\')">Make player</button>';
   }
   if (cid && mid && !p.kept) h += '<button class="tsm-btn ghost wide" onclick="partyDetach(\'' + esc(cid) + '\')">Release their Fell from this adventure</button>';
+  if (cid) h += '<button class="tsm-btn ghost wide" onclick="fellWipe(\'' + esc(cid) + '\')">Empty this Fell and start it over</button>';
   if (p.kept || role !== 'loremaster'){
     h += '<button class="tsm-btn danger wide" onclick="partyRemove(\'' + esc(p.kept ? '' : mid) + '\',\'' + esc(cid) + '\')">'
       + (p.kept ? 'Remove this Fell' : 'Remove from the adventure') + '</button>';
   }
   h += '</div><div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>';
   tsModal(h);
+}
+/* A Fell that was written over with another's life needs a way back to nothing. This
+   empties it: no attributes, no skills, no pack, only its name. */
+function fellWipe(charId){
+  var p = partyFind('', charId);
+  var who = (p && (p.charName || p.name)) || 'this Fell';
+  window._tsYes = function(){
+    tsCloseModal();
+    delete _godCache[charId];
+    tsAsk('TS_FELL_WIPE', { charId:charId }).then(function(){
+      pushLog({ kind:'sys', html:'<b>' + esc(who) + '</b> was emptied and begun again.' });
+      applyRemoteState({ log:S.log });
+      partyRefresh();
+      if (S.godChar && sameId(S.godChar.id, charId)) lmOpenFell(charId);
+    }).catch(function(){
+      tsModal('<h3 class="tsm-title">It could not be emptied</h3>'
+        + '<p class="lc-p">Nothing was changed.</p>'
+        + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
+    });
+  };
+  tsModal('<h3 class="tsm-title">Empty ' + esc(who) + '?</h3>'
+    + '<p class="tsm-note">Everything on the sheet goes: attributes, skills, weapons, armour, bonds and pack. The name stays and the Fell stays at this adventure.</p>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Keep it</button>'
+    + '<button class="tsm-btn danger" onclick="tsConfirmYes()">Empty it</button></div>');
 }
 function partyRemove(memberId, charId){
   var p = partyFind(memberId, charId);
@@ -5583,14 +5614,14 @@ function lmOpenFell(charId){
   if (_godCache[charId]){
     godShow(charId, _godCache[charId]);
     tsAsk('TS_GOD_SHEET', { charId:charId }).then(function(res){
-      if (res && res.record && res.charId){ _godCache[res.charId] = res.record;
+      if (res && res.charId && res.record && Object.keys(res.record).length){ _godCache[res.charId] = res.record;
         if (sameId(S.godChar && S.godChar.id, res.charId)) godShow(res.charId, res.record); }
     }).catch(function(){});
     return;
   }
   godWait(true);
   tsAsk('TS_GOD_SHEET', { charId:charId }).then(function(res){
-    if (res && res.record && res.charId) _godCache[res.charId] = res.record;
+    if (res && res.charId && res.record && Object.keys(res.record).length) _godCache[res.charId] = res.record;
     godWait(false);
   }).catch(function(){
     godWait(false);
