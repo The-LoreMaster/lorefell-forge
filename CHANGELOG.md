@@ -1,3 +1,13 @@
+## 2026-07-25 — ThreadSpire: the map button works, and a placed token shows itself
+
+Choosing a map from the Maps shelf sets it now. It found the map and then did nothing with it, which is why the shelf looked dead while stage faces worked: the stage path set the scene's background and the shelf never did. It sets it, sizes the table to it, and sends it out, the same as a stage face.
+
+Placing a token used to happen behind the palette, which covers the whole map, so there was no sign it worked until the palette was closed. Placing now closes the palette and the new token flashes where it landed.
+
+A token uploaded at the table now reaches the players as its picture. It is a local picture until it is stored, and a local picture cannot travel to another device, so the token first arrives as its letters and becomes the picture the moment the upload is saved.
+
+The table syncs a little quicker: the feed runs a touch more often, and an accepted push pulls once straight after rather than waiting for the next beat.
+
 ## 2026-07-24 — ThreadSpire: the story travels alone
 
 The first push always carried the whole written adventure, because nothing had ever been marked delivered. If the story alone is over what the site will carry, every push fails on its account, the marker never sets, and the table is exactly where it was: nothing syncs, forever, with the story to blame and no one saying so.
