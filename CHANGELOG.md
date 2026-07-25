@@ -1,3 +1,13 @@
+## 2026-07-25 — ThreadSpire: portraits kept where the roster cannot wipe them
+
+The pictures vanished on reload because the only place they lived was the roster, and the roster is rebuilt constantly and carries no pictures. Every refresh, the boot load brought the portraits, and the first roster refresh wrote over them with rows that had none.
+
+Portraits and foe art now live in their own keeping, filled by every source that has a picture and cleared by nothing. A Fell's portrait is found there by its charId on whichever side is painting, a foe's art by its id, so a token shows its face on both tables and keeps it through a reload. The written adventure now drops only the heavy per-Fell portraits it can shed safely, since the far side finds those for itself; foe art stays, because there are few foes and the players have no other way to see them.
+
+The seams show what is known: how many Fell portraits and foe pictures are held, and whether the first token found its art or fell back to letters.
+
+The lasting fix is still to upload portraits to stored addresses in FellGlass rather than bake them into the record, which would let a picture travel anywhere without being found again on each side. This makes them work now, and correctly, without waiting for that.
+
 ## 2026-07-25 — ThreadSpire: portraits found, not carried
 
 The seams named both of the last faults at once. A Fell reached the players as its letters because its portrait was a picture baked into the record as encoded bytes, which cannot travel to another device and was stripped in transit. And the story would not push at all, refused for size, because those same baked-in pictures, one per foe and speaker, put it over the ceiling.
