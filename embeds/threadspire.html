@@ -571,6 +571,17 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .card-tick{ position:absolute; top:6px; right:6px; width:20px; height:20px; line-height:18px; text-align:center; border-radius:50%; border:1px solid var(--line); background:rgba(4,7,14,.8); color:var(--gold); font-size:.7rem; }
 .vcard.picked .card-tick{ border-color:var(--gold); background:var(--gold); color:var(--navy,#0a0e1a); }
 .seam-row{ display:flex; justify-content:space-between; gap:12px; padding:7px 4px; border-bottom:1px solid var(--line,#22304d); }
+.slw-list{ max-height:56vh; overflow-y:auto; margin:4px 0; }
+.slw-row{ padding:8px 4px; border-bottom:1px solid var(--line,#22304d); font-size:.8rem; }
+.slw-time{ color:var(--muted,#7e8a99); font-variant-numeric:tabular-nums; margin-right:8px; }
+.slw-who{ font-size:.62rem; letter-spacing:.08em; text-transform:uppercase; padding:1px 6px; border-radius:4px; margin-right:8px; }
+.slw-who.slw-lm{ background:rgba(201,168,76,.18); color:#e6c76a; }
+.slw-who.slw-pl{ background:rgba(96,150,220,.18); color:#9fc3ff; }
+.slw-char{ color:var(--ice,#b8ccd8); font-weight:600; }
+.slw-change{ margin-top:4px; display:flex; flex-wrap:wrap; gap:8px; align-items:baseline; }
+.slw-field{ color:var(--gold,#c9a84c); font-family:var(--mono,monospace); font-size:.74rem; }
+.slw-arrow{ color:var(--ice,#b8ccd8); word-break:break-word; }
+.slw-none{ color:var(--muted,#7e8a99); font-style:italic; }
 .seam-k{ font-size:.66rem; letter-spacing:.1em; text-transform:uppercase; color:var(--muted,#7e8a99); white-space:nowrap; }
 .seam-v{ font-size:.78rem; color:var(--ice,#b8ccd8); text-align:right; word-break:break-word; }
 .pt-role.rl-kept{ color:var(--muted); border-color:var(--line); }
@@ -903,6 +914,70 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
    frame all write to it, and all three run before that line used to. */
 var SEAM = { pushAt:0, pushV:0, pushOk:null, pushWhy:'', pullAt:0, pullV:0, pullGot:'', pulls:0,
              partyAt:0, partyWhy:'', sheetHeld:0, sheetFlushed:'', lastSectionErr:'' };
+
+/* The sheet change log. Every edit to a Fell's sheet, from either side, recorded with
+   what changed, who changed it, and when. Two people can hold the same Fell open, the
+   player on their device and the LoreMaster from the rail, and until now a change one
+   made was invisible to the other except as a number quietly moving. This is the record
+   of who did what, kept so the two can be compared when they disagree.
+   Newest first. Capped, because a long session is a lot of small saves. */
+var _sheetLog = [];
+var SHEETLOG_MAX = 200;
+/* the last full record seen per Fell, so the next save can be read as a diff against it
+   rather than a wall of unchanged fields */
+var _sheetLogPrev = {};
+function sheetLogPush(entry){
+  _sheetLog.unshift(entry);
+  if (_sheetLog.length > SHEETLOG_MAX) _sheetLog.length = SHEETLOG_MAX;
+  if (S.openSection === 'seams') seamPaint();
+}
+/* Walk two records and name every leaf that changed. Nested objects are followed;
+   arrays and anything that is not a plain object are compared whole, as a value, since
+   a Fell's pack or weapon list reads better as "the pack changed" than as forty index
+   diffs. Paths come out dotted, so "aurum.oro" and "vitality.current" say where. */
+function sheetDiffPaths(before, after, prefix, out){
+  out = out || [];
+  prefix = prefix || '';
+  var isObj = function(v){ return v && typeof v === 'object' && !Array.isArray(v); };
+  var keys = {};
+  if (isObj(before)) Object.keys(before).forEach(function(k){ keys[k] = 1; });
+  if (isObj(after)) Object.keys(after).forEach(function(k){ keys[k] = 1; });
+  Object.keys(keys).forEach(function(k){
+    var b = isObj(before) ? before[k] : undefined;
+    var a = isObj(after) ? after[k] : undefined;
+    var path = prefix ? prefix + '.' + k : k;
+    if (isObj(b) && isObj(a)){ sheetDiffPaths(b, a, path, out); return; }
+    var bs = JSON.stringify(b), as = JSON.stringify(a);
+    if (bs !== as) out.push({ field: path, from: b, to: a });
+  });
+  return out;
+}
+/* Read a save as changes and record them. who is 'player' or 'loremaster', charId and
+   charName say whose sheet. The first sight of a Fell is its baseline, not a change, so
+   nothing is logged then: there is nothing to compare it to yet. */
+function sheetLogChanges(charId, charName, record, who){
+  if (!charId || !record) return;
+  var prev = _sheetLogPrev[charId];
+  _sheetLogPrev[charId] = JSON.parse(JSON.stringify(record));
+  if (prev === undefined) return;                 /* baseline, not a change */
+  var diffs = sheetDiffPaths(prev, record);
+  if (!diffs.length) return;
+  var ts = Date.now();
+  /* one entry per changed field, so the log reads as a list of small honest facts */
+  diffs.forEach(function(d){
+    sheetLogPush({ ts: ts, who: who, charId: charId, charName: charName || '',
+                   field: d.field, from: d.from, to: d.to });
+  });
+}
+/* A change the other side made, learned from a mark on the state feed rather than seen
+   directly. We do not have the field-level diff yet (their record is fetched right
+   after), so this is a placeholder the fetch fills in. It still stands as a timestamped
+   fact: at this moment, that side wrote to this Fell. */
+function sheetLogRemoteMark(charId, charName, who, ts){
+  sheetLogPush({ ts: ts || Date.now(), who: who, charId: charId, charName: charName || '',
+                 field: '(their edit)', from: undefined, to: undefined, remote: true });
+}
+
 var S = {
   role: 'player',
   /* the LoreMaster's identity rail. lp and ss come from the adventure, dp from
@@ -4221,10 +4296,17 @@ function applyRemoteSnapshot(snap){
       var firstHeld = !_godRevSeen;
       _godRevSeen = held;
       if (!firstHeld){
+        /* the player edited the Fell the LoreMaster is holding open. The fetch below
+           brings the fresh record, so what changed is logged from a real diff rather
+           than a placeholder. */
         delete _godCache[S.godChar.id];
         /* quietly: fetch it again and re-light the frame, leaving the window as it is */
         tsAsk('TS_GOD_SHEET', { charId:S.godChar.id }).then(function(res){
-          if (res && res.charId && res.record && Object.keys(res.record).length) _godCache[res.charId] = res.record;
+          if (res && res.charId && res.record && Object.keys(res.record).length){
+            _godCache[res.charId] = res.record;
+            /* now we can say what the player actually changed */
+            try { sheetLogChanges(res.charId, (S.godChar && S.godChar.name) || '', res.record, 'player'); } catch(e){}
+          }
         }).catch(function(){});
       }
     }
@@ -4234,8 +4316,13 @@ function applyRemoteSnapshot(snap){
     if (mine && mine > (_sheetRevSeen || 0)){
       var first = !_sheetRevSeen;
       _sheetRevSeen = mine;
-      /* not on the first sight of it, or every arrival would reload the sheet once */
-      if (!first) sheetReload();
+      /* the LoreMaster edited this player's Fell. Record it; the reload repaints the
+         sheet, and the diff is filled from the record the reload brings in. */
+      if (!first){
+        var _myNm = ((S.party || []).filter(function(p){ return sameId(p.charId, S.characterId); })[0] || {}).charName || '';
+        try { sheetLogRemoteMark(S.characterId, _myNm, 'loremaster', mine); } catch(e){}
+        sheetReload();
+      }
     }
   }
   var _wasBattle = S.mode === 'combat';
@@ -4532,10 +4619,57 @@ function seamsBody(){
     ['Fell held open', S.godChar ? ((S.godChar.name || '?') + ' \u00b7 ' + String(S.godChar.id).slice(0,8)) : 'none'],
     ['Last section error', SEAM.lastSectionErr || 'none']
   ];
+  /* The change log is its own window, because it is a list that grows. This row is the
+     door to it: it says how many changes are on record and opens the timeline. */
+  var _logLine = '<div class="seam-row" style="cursor:pointer" onclick="openSheetLog()">'
+    + '<span class="seam-k">Sheet changes</span>'
+    + '<span class="seam-v" style="color:var(--gold,#c9a84c)">'
+    + (_sheetLog.length ? (_sheetLog.length + ' recorded \u00b7 tap to open') : 'none yet')
+    + '</span></div>';
   return '<div class="win-note">The table\u2019s working parts, live. When two tables disagree, open this on both and compare lines: the wrong number names the broken side.</div>'
-    + rows.map(function(r){ return '<div class="seam-row"><span class="seam-k">' + r[0] + '</span><span class="seam-v">' + esc(r[1]) + '</span></div>'; }).join('');
+    + rows.map(function(r){ return '<div class="seam-row"><span class="seam-k">' + r[0] + '</span><span class="seam-v">' + esc(r[1]) + '</span></div>'; }).join('')
+    + _logLine;
 }
 function seamPaint(){ if (S.openSection === 'seams') { var b = document.getElementById('winBody'); if (b) b.innerHTML = seamsBody(); } }
+/* the change log as a readable timeline. Newest first, grouped by nothing, because the
+   thing being asked of it is "what happened, and in what order", which is the plain list.
+   Each line: when, who, whose Fell, and the field with its before and after. */
+function sheetLogBody(){
+  if (!_sheetLog.length){
+    return '<div class="tsm-note">No sheet changes recorded yet. Once a Fell is edited, from either side, every change lands here with who made it and when.</div>';
+  }
+  var whoLabel = function(w){ return w === 'loremaster' ? 'LoreMaster' : (w === 'player' ? 'Player' : w || '?'); };
+  var whoClass = function(w){ return w === 'loremaster' ? 'slw-lm' : 'slw-pl'; };
+  var val = function(v){
+    if (v === undefined) return '<span class="slw-none">unset</span>';
+    if (v === null) return '<span class="slw-none">null</span>';
+    if (typeof v === 'object') return esc(JSON.stringify(v)).slice(0, 80);
+    return esc(String(v));
+  };
+  var when = function(ts){
+    var d = new Date(ts), p = function(n){ return (n<10?'0':'')+n; };
+    return p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+  };
+  var rows = _sheetLog.map(function(e){
+    var head = '<span class="slw-time">' + when(e.ts) + '</span>'
+      + '<span class="slw-who ' + whoClass(e.who) + '">' + whoLabel(e.who) + '</span>'
+      + '<span class="slw-char">' + esc(e.charName || String(e.charId).slice(0,8)) + '</span>';
+    var body;
+    if (e.remote){
+      body = '<span class="slw-field">' + esc(e.field) + '</span>';
+    } else {
+      body = '<span class="slw-field">' + esc(e.field) + '</span>'
+        + '<span class="slw-arrow">' + val(e.from) + ' \\u2192 ' + val(e.to) + '</span>';
+    }
+    return '<div class="slw-row">' + head + '<div class="slw-change">' + body + '</div></div>';
+  }).join('');
+  return '<div class="tsm-note">Every edit to a Fell\\u2019s sheet, newest first. Who made it, whose Fell, and what changed. Open this on both tables to see who wrote what.</div>'
+    + '<div class="slw-list">' + rows + '</div>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="clearSheetLog()">Clear the log</button>'
+    + '<button class="tsm-btn" onclick="tsCloseModal()">Close</button></div>';
+}
+function openSheetLog(){ tsModal('<h3 class="tsm-title">Sheet changes</h3>' + sheetLogBody()); }
+function clearSheetLog(){ _sheetLog = []; _sheetLogPrev = {}; tsCloseModal(); if (S.openSection === 'seams') seamPaint(); }
 function advNewHere(){
   window._tsYes = null;
   tsModal('<h3 class="tsm-title">A new adventure</h3>'
@@ -5820,6 +5954,13 @@ window.addEventListener('message', function(ev){
       var whose = (isLM() && S.godChar && S.godChar.id) ? S.godChar.id : (!isLM() ? S.characterId : '');
       SEAM.savedFor = whose || 'nobody';
       if (whose){
+        /* record what changed before anything else touches the record. The side holding
+           the sheet is the one making the edit: the LoreMaster when a Fell is held open,
+           the player on their own sheet. */
+        var _who = (isLM() && S.godChar && S.godChar.id) ? 'loremaster' : 'player';
+        var _nm = (isLM() && S.godChar) ? (S.godChar.name || '') :
+                  ((S.party || []).filter(function(p){ return sameId(p.charId, whose); })[0] || {}).charName || '';
+        try { sheetLogChanges(whose, _nm, ev.data.character, _who); } catch(e){}
         S.sheetRev = S.sheetRev || {};
         S.sheetRev[whose] = Date.now();
         _sheetRevSeen = S.sheetRev[whose];      /* our own writing is not news to us */
