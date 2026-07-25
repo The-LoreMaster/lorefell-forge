@@ -365,6 +365,41 @@ export const lmSaveOfflineFell = webMethod(Permissions.Anyone, async (charId, pa
   catch (e) { return { ok: false, error: (e && e.message) ? e.message : String(e) }; }
 });
 
+// Empty a Fell back to nothing but its name. For a sheet that was written over with
+// another Fell's life, which is a thing that happened, and which nothing else can undo.
+export const lmWipeFell = webMethod(Permissions.Anyone, async (charId) => {
+  if (!charId) return { ok: false, error: 'no Fell given' };
+  const row = await wixData.get(COLLECTION, charId, { suppressAuth: true }).catch(() => null);
+  if (!row) return { ok: false, error: 'not found' };
+  if (!(await lmMayRun(row.campaignId))) return { ok: false, error: 'not your adventure' };
+  let old = {};
+  try { old = row.data ? JSON.parse(row.data) : {}; } catch (e) { old = {}; }
+  const idn = old.identity || {};
+  const data = {
+    offline: !!old.offline,
+    identity: { name: row.charName || idn.name || 'Unnamed Fell', campaignId: row.campaignId || '',
+                campaign: row.campaign || '', desc: '', lineage: '', origin: '', motivation: '' },
+    grants: { skills: {}, attrs: {} },
+    created: false,
+    portrait: '',
+    titles: [],
+    attrs: {},
+    lore: { level: 1, lorePoints: 0, skyvaultShards: 0, paragonPoints: 0 },
+    vitality: { max: 5, current: 5, temp: 0 },
+    aurum: { oro: 0, arca: 0, atla: 0, zurith: 0 },
+    fatigue: 0, mobility: 5, charge: 0,
+    skills: {}, weapons: [],
+    armor: { level: 0, augs: [null, null], active: null },
+    lorebounds: [], inventory: [], afflictions: [], impairments: [],
+    effects: [], boons: [], banes: [],
+    records: { quests: [], characters: [], notes: [] }
+  };
+  row.level = 1;
+  row.data = JSON.stringify(data);
+  try { await wixData.update(COLLECTION, row, { suppressAuth: true }); return { ok: true }; }
+  catch (e) { return { ok: false, error: (e && e.message) ? e.message : String(e) }; }
+});
+
 // Take someone off the adventure. A member loses their seat and their Fell is released
 // rather than destroyed, because the Fell is theirs. A Fell with no member behind it is
 // one the table made, so that one goes.

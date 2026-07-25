@@ -1,3 +1,11 @@
+## 2026-07-25 — A Fell can be emptied and begun again
+
+A Fell written over with another Fell's life can be put right. The mark beside it offers to empty it: attributes, skills, weapons, armour, bonds and pack all go, and the name and the adventure stay. Nothing else could undo it, because the wrong life was not only shown on the sheet, it was written to the record while it sat there.
+
+An empty record is no longer kept in hand between openings. Holding one meant the next opening laid an empty sheet down from memory before the true one could arrive.
+
+A Fell fetched again after its player writes to it no longer throws the window open. It is fetched quietly and the sheet is re-lit where it stands.
+
 ## 2026-07-25 — A Fell opens as itself
 
 A Fell that had not been through the forging was answered with nothing at all, on the grounds that there was nothing to show. The sheet, told nothing, kept the Fell before it and wore that one's whole life: its attributes, its skills, its pack. Every Fell made for someone at the table is unforged, so every one of them arrived wearing the last Fell looked at. A Fell that exists is now opened as itself, forged or not, and a sheet handed nothing starts empty rather than keeping what it had.
