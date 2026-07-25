@@ -2857,6 +2857,10 @@ function openWin(key){
   document.getElementById('winTitle').textContent = SECTIONS[key].title.toUpperCase();
   var win = document.getElementById('win');
   win.style.height = ''; win.style.bottom = '';
+  /* start from nothing every time. A window left in sheet mode shows the frame and hides
+     the body, so whatever is written into the body afterwards is written out of sight,
+     and the section reads as though it never opened. */
+  win.classList.remove('sheeting'); win.classList.remove('arsenal');
   var panel = (!isLM() && SHEET_PANELS[key]);
   if (key === 'fell' && isLM() && S.godChar){
     ensureSheet();
@@ -4051,6 +4055,7 @@ function sharedSnapshot(){
     activeSceneId: S.adventure ? S.adventure.activeSceneId : S.scene.id,
     activeStageId: (function(){ try { return activeStageId(); } catch(e){ return null; } })(),
     combatPhase: S.scene.combatPhase, mode: S.mode, round: S.round,
+    sheetRev: S.sheetRev || {},
     log: (S.log || []).slice(-40),
     advRev: S.advRev || 0,
     instance: (function(){
@@ -4167,6 +4172,15 @@ function applyRemoteSnapshot(snap){
   if (snap.grid){ S.grid = snap.grid; S.grid.offX = 0; S.grid.offY = 0; }
   if (snap.map) S.map = snap.map;
   if (snap.combatPhase !== undefined) S.scene.combatPhase = snap.combatPhase;
+  if (snap.sheetRev && !isLM() && S.characterId){
+    var mine = snap.sheetRev[S.characterId];
+    if (mine && mine > (_sheetRevSeen || 0)){
+      var first = !_sheetRevSeen;
+      _sheetRevSeen = mine;
+      /* not on the first sight of it, or every arrival would reload the sheet once */
+      if (!first) sheetReload();
+    }
+  }
   var _wasBattle = S.mode === 'combat';
   if (snap.mode) S.mode = snap.mode;
   if (!isLM()){
@@ -5639,6 +5653,11 @@ window.addEventListener('message', function(ev){
     var m = ev.data.msg || {};
     /* a Fell the LoreMaster opened is somebody else's; it goes to the frame and no
        further, or the LoreMaster's own identity would be replaced by the player's */
+    if (m.type === 'save' && S.godChar && S.godChar.id){
+      S.sheetRev = S.sheetRev || {};
+      S.sheetRev[S.godChar.id] = Date.now();
+      if (isLM()) schedulePush();
+    }
     if (m.type === 'init' && m.character && S.godChar){ return; }
     if (m.type === 'init' && m.character){ S.sheet = m.character; if (m.charId) S.characterId = m.charId; S.charReady = true; if (typeof applySheet === 'function') applySheet(); render(); }
     else if (m.type === 'saved' && m.charId){ S.characterId = m.charId; S._charList = null; if (typeof warmCharList === 'function') warmCharList(); }
@@ -6511,6 +6530,16 @@ function paintSnapBtn(){
   b.classList.toggle('on', snapOn);
 }
 function artOr(u){ var v = String(u || ''); return v || DEFAULT_ART; }
+var _sheetRevSeen = 0;
+/* ask the page for this Fell again; the sheet is replaced wholesale by the answer */
+function sheetReload(){
+  if (!S.characterId) return;
+  var f = document.getElementById('sheetFrame');
+  if (!f || !f.contentWindow) return;
+  if (tsEmbedded()) window.parent.postMessage({ type:'TS_TOOL_UP', tool:'fellglass', msg:{ type:'select-character', charId:S.characterId } }, '*');
+  pushLog({ kind:'sys', html:'The LoreMaster has changed your Fell.' });
+  render();
+}
 var _flashToken = null;
 /* A token's picture found on this side rather than carried to it. A Fell's portrait
    lives in the party sheet both tables already hold, and a foe's art in the scene, so
