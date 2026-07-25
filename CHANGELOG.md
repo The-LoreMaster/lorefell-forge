@@ -1,3 +1,9 @@
+## 2026-07-25 — Walking away from a Fell puts it down
+
+The Fell tab opens on the list again. Leaving that tab by any other plaque left the Fell still held, so coming back showed the sheet frame instead of the roster, and the frame had nothing in it. The tab looked dead until something else shook it loose. Going anywhere else now sets the Fell down properly.
+
+A utility whose entry has left the library says so and can be put down, rather than being reached into and stopping the whole list from drawing. That is what made a handful of them appear at once and then behave after they were removed.
+
 ## 2026-07-25 — A utility keeps its secret unless it says otherwise
 
 Being known on sight is something a utility now states outright. Reading silence as openness meant that the moment the veiled lines failed to reach the sheet, every utility in the game lay bare and the Discovered button had nothing left to do. Silence keeps the secret instead, and a utility whose veil has not arrived shows three question marks and a line saying it is something you have not seen before. The Skyvault Shard says it is open, and is the only one that does.
