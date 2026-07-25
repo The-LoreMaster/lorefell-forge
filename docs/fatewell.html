@@ -3390,9 +3390,15 @@ function persistLocalCampaigns(){
 function mergePool(c){
   S.wixPlayers.forEach(function(wp){
     var mid = wp.memberId || wp.id;
+    /* no member behind it means the adventure keeps this Fell for someone at the table */
+    var atTable = !!wp.charId && (wp.kept || !wp.memberId);
     var found = null;
     c.players.forEach(function(p){
-      if (found || p.offline) return;
+      /* an at-the-table Fell may match a local offline entry, by its record or by name */
+      if (found) return;
+      if (atTable && wp.charId && p.charId === wp.charId){ found = p; return; }
+      if (atTable && p.offline && !p.charId && String(p.name||'').toLowerCase() === String(wp.name||'').toLowerCase()){ found = p; return; }
+      if (p.offline) return;
       if (wp.charId){ if (p.charId===wp.charId) found = p; }
       else if (!p.charId && (p.memberId===mid || (p.wixId && p.wixId===wp.id))) found = p;
     });
@@ -3400,19 +3406,25 @@ function mergePool(c){
       c.players.forEach(function(p){ if (!found && !p.charId && !p.offline && p.name.toLowerCase()===String(wp.name||'').toLowerCase()) found = p; });
     }
     if (found){
-      found.wixId = wp.id; found.memberId = mid; found.memberName = wp.memberName || wp.name;
+      found.wixId = wp.id; found.memberId = atTable ? null : mid; found.memberName = atTable ? '' : (wp.memberName || wp.name);
       found.charId = wp.charId || null;
+      found.offline = atTable ? true : found.offline;
       if (wp.charId) found.name = wp.name;
       if (wp.level) found.level = wp.level;
       if (wp.maxVit) found.maxVit = wp.maxVit;
     } else {
-      c.players.push({ id:uid(), wixId:wp.id, memberId:mid, memberName:wp.memberName||wp.name, charId:wp.charId||null, name:wp.name, level:wp.level||1, maxVit:wp.maxVit||0 });
+      c.players.push({ id:uid(), wixId:wp.id, memberId: atTable ? null : mid, memberName: atTable ? '' : (wp.memberName||wp.name),
+        charId:wp.charId||null, name:wp.name, level:wp.level||1, maxVit:wp.maxVit||0,
+        offline: atTable || false, abilities: atTable ? [] : undefined });
     }
   });
 }
 
 function prunePool(c){
   c.players = c.players.filter(function(p){
+    if (p.offline && p.charId){
+      return S.wixPlayers.some(function(wp){ return wp.charId === p.charId; });
+    }
     if (p.offline || !p.wixId) return true;
     return S.wixPlayers.some(function(wp){
       var mid = wp.memberId || wp.id;
@@ -3604,6 +3616,14 @@ window.addEventListener('message', function(ev){
       body += ' The server saw your member id as: '+esc(m.memberId||'(none, you may not be signed in on this site)')+'.';
       advNote(failed?'Sync finished with errors':'Saved to your account', body);
     }
+  }
+  if (m.type === 'lmtool-offline-done'){
+    if (m.ok && m.localId && m.charId){
+      var cc = curC();
+      if (cc) cc.players.forEach(function(p){ if (p.id === m.localId){ p.charId = m.charId; p.offline = true; } });
+      save();
+    }
+    return;
   }
   if (m.type === 'lmtool-players'){
     WIX.connected = true;
@@ -5071,8 +5091,21 @@ function savePlayer(id){
   if (!name) return;
   var c = curC();
   var mv = parseInt((document.getElementById('pMaxVit')||{}).value,10) || 0;
+  var localId = id;
   if (id){ c.players.forEach(function(p){ if(p.id===id){ p.name=name; p.level=lvl; p.maxVit=mv; } }); }
-  else { c.players.push({ id:uid(), offline:true, wixId:null, charId:null, name:name, level:lvl, maxVit:mv, abilities:[] }); }
+  else { localId = uid(); c.players.push({ id:localId, offline:true, wixId:null, charId:null, name:name, level:lvl, maxVit:mv, abilities:[] }); }
+  /* A player at the table is one Fell the adventure keeps, so it is written where the
+     table can see it as well. Kept local when FateWell is running on its own; it joins
+     the account the next time this is saved from the site. */
+  if (WIX.hosted){
+    var here = null;
+    c.players.forEach(function(p){ if (p.id === localId) here = p; });
+    if (here && here.charId){
+      postToWix({ type:'lmtool-offline-save', campaignId: WIX.campaignId || c.id, charId: here.charId, name:name, level:lvl, maxVit:mv });
+    } else {
+      postToWix({ type:'lmtool-offline-add', campaignId: WIX.campaignId || c.id, localId: localId, name:name, level:lvl, maxVit:mv });
+    }
+  }
   closeModal(); save(); render();
 }
 function roleLabel(r){ return r==='loremaster' ? 'Loremaster' : (r==='lorekeeper' ? 'Lorekeeper' : 'Player'); }
@@ -5089,9 +5122,12 @@ function promoteLoremaster(memberId, label){
 function editPlayer(id){ var c=curC(),p; c.players.forEach(function(x){ if(x.id===id) p=x; }); playerModal(p); }
 function deletePlayer(id){
   var c=curC(); var p=null; c.players.forEach(function(x){ if(x.id===id) p=x; }); if(!p) return;
-  var msg = p.charId ? 'Remove this character from the adventure? It is unlinked so it can join another.' : 'Remove this player from the roster?';
+  var msg = p.offline
+    ? 'Remove this player from the table? Their Fell was made here and goes with them.'
+    : (p.charId ? 'Remove this character from the adventure? It is unlinked so it can join another.' : 'Remove this player from the roster?');
   askConfirm(msg, function(){
-    if (p.charId) postToWix({ type:'lmtool-detach', charId:p.charId });
+    if (p.offline && p.charId) postToWix({ type:'lmtool-offline-remove', campaignId: WIX.campaignId || c.id, charId:p.charId });
+    else if (p.charId) postToWix({ type:'lmtool-detach', charId:p.charId });
     var cc=curC(); cc.players = cc.players.filter(function(x){ return x.id!==id; });
     save(); render();
   }, 'Remove');

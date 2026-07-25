@@ -5,6 +5,7 @@
 // answered from canon Creations, an owner-scoped Assets collection, and a Glossary collection.
 
 import { loadCampaign, saveCampaign, deleteCampaign, listMyCampaigns, getSealed, getForgeLibrary, listAssets, saveAsset, deleteAsset, listGlossary, getCampaignPlayers, detachCharacter, assignClue, upsertQuest, setMemberRole, myAdventureRole, revealNodes, getForgePools, submitAct, submitItem } from 'backend/fatewell.web.js';
+import { lmCreateOfflineFell, lmSaveOfflineFell, lmRemoveFromAdventure } from 'backend/characters.web.js';
 import { getFoePack } from 'backend/forge.web.js';
 import { publishCombatState, applyCombatToChar, getCombatDeclares, dealDamageToChar, setCombatCharge } from 'backend/combat.web.js';
 import { publishAdventure, myPublishedAdventures, unpublishAdventure, getPublishedPack } from 'backend/published.web.js';
@@ -107,6 +108,21 @@ $w.onReady(() => {
     } else if (m.type === 'lmtool-players-request') {
       const cid = m.campaignId || campaignId;
       if (!cid) return;
+      let players = [];
+      try { players = await getCampaignPlayers(cid, ''); } catch (e) { players = []; }
+      embed.postMessage({ type: 'lmtool-players', campaignId: cid, players: players });
+    } else if (m.type === 'lmtool-offline-add' || m.type === 'lmtool-offline-save' || m.type === 'lmtool-offline-remove') {
+      // A player at the table with no device is one Fell kept by the adventure, so both
+      // tools work on the same record instead of each holding a list of its own.
+      const cid = m.campaignId || campaignId;
+      let res = null;
+      try {
+        if (m.type === 'lmtool-offline-add') res = await lmCreateOfflineFell(cid, m.name, m.level, m.maxVit);
+        else if (m.type === 'lmtool-offline-save') res = await lmSaveOfflineFell(m.charId, { name: m.name, level: m.level, maxVit: m.maxVit });
+        else res = await lmRemoveFromAdventure(cid, '', m.charId);
+      } catch (e) { res = null; }
+      embed.postMessage({ type: 'lmtool-offline-done', what: m.type, ok: !!(res && res.ok),
+        localId: m.localId || '', charId: (res && res.id) || m.charId || '', error: (res && res.error) || '' });
       let players = [];
       try { players = await getCampaignPlayers(cid, ''); } catch (e) { players = []; }
       embed.postMessage({ type: 'lmtool-players', campaignId: cid, players: players });

@@ -293,18 +293,62 @@ async function lmMayRun(campaignId) {
 // with a real sheet, owned by nobody: the adventure governs it, so the LoreMaster and
 // any lorekeeper can fill it in through the same gate as everyone else's. Offline-ness
 // lives in the sheet data, not in a new column, so no collection has to change.
-export const lmCreateOfflineFell = webMethod(Permissions.Anyone, async (campaignId, name) => {
+export const lmCreateOfflineFell = webMethod(Permissions.Anyone, async (campaignId, name, level, maxVit) => {
   if (!campaignId) return { ok: false, error: 'no adventure' };
   if (!(await lmMayRun(campaignId))) return { ok: false, error: 'not your adventure' };
   const nm = String(name || '').trim().slice(0, 80) || 'Unnamed Fell';
-  const data = { offline: true, identity: { name: nm, campaignId: campaignId } };
+  const lvl = Number(level) || 1;
+  const mv = Number(maxVit) || 0;
+  // The same fields the roster reads for any Fell, so one of these reads identically in
+  // FateWell and at the table: level from lore, vitality from its own place.
+  const data = {
+    offline: true,
+    identity: { name: nm, campaignId: campaignId },
+    lore: { level: lvl },
+    vitality: { max: mv, current: mv }
+  };
   try {
     const saved = await wixData.insert(COLLECTION, {
-      ownerMemberId: '', charName: nm, level: 1,
+      ownerMemberId: '', charName: nm, level: lvl,
       campaignId: campaignId, data: JSON.stringify(data)
     }, { suppressAuth: true });
     return { ok: true, id: saved._id, name: nm };
   } catch (e) { return { ok: false, error: (e && e.message) ? e.message : String(e) }; }
+});
+
+// Change one of the table's own Fell. Only a Fell nobody owns can be edited this way:
+// a player's Fell is theirs and goes through their own sheet.
+export const lmSaveOfflineFell = webMethod(Permissions.Anyone, async (charId, patch) => {
+  if (!charId) return { ok: false, error: 'no Fell given' };
+  const row = await wixData.get(COLLECTION, charId, { suppressAuth: true }).catch(() => null);
+  if (!row) return { ok: false, error: 'not found' };
+  if (row.ownerMemberId) return { ok: false, error: 'that Fell belongs to a player' };
+  if (!(await lmMayRun(row.campaignId))) return { ok: false, error: 'not your adventure' };
+  const p = patch || {};
+  let data = {};
+  try { data = row.data ? JSON.parse(row.data) : {}; } catch (e) { data = {}; }
+  if (p.name !== undefined) {
+    const nm = String(p.name).trim().slice(0, 80) || 'Unnamed Fell';
+    row.charName = nm;
+    data.identity = data.identity || {};
+    data.identity.name = nm;
+  }
+  if (p.level !== undefined) {
+    const lvl = Number(p.level) || 1;
+    row.level = lvl;
+    data.lore = data.lore || {};
+    data.lore.level = lvl;
+  }
+  if (p.maxVit !== undefined) {
+    const mv = Number(p.maxVit) || 0;
+    data.vitality = data.vitality || {};
+    data.vitality.max = mv;
+    if (!data.vitality.current) data.vitality.current = mv;
+  }
+  data.offline = true;
+  row.data = JSON.stringify(data);
+  try { await wixData.update(COLLECTION, row, { suppressAuth: true }); return { ok: true, id: charId }; }
+  catch (e) { return { ok: false, error: (e && e.message) ? e.message : String(e) }; }
 });
 
 // Take someone off the adventure. A member loses their seat and their Fell is released
