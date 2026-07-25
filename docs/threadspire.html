@@ -640,8 +640,10 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .tp-row{ display:flex; flex-wrap:wrap; gap:8px; }
 .tp-empty{ font-size:.74rem; color:var(--muted); }
 .tp-chipwrap{ position:relative; }
-.tp-chipwrap .tp-tools{ position:absolute; top:2px; right:2px; display:none; gap:2px; }
-.tp-chipwrap:hover .tp-tools{ display:flex; }
+/* always shown: hiding these until a pointer hovers meant they did not exist at all on
+   a phone, which is where most of this is used */
+.tp-chipwrap .tp-tools{ position:absolute; top:2px; right:2px; display:flex; gap:2px; opacity:.55; }
+.tp-chipwrap:hover .tp-tools, .tp-tools:focus-within{ opacity:1; }
 .tp-tools .st-b{ background:rgba(4,7,14,.85); border:1px solid var(--line); border-radius:5px; width:20px; height:20px; line-height:18px; font-size:.66rem; padding:0; }
 .tp-chip{ display:flex; flex-direction:column; align-items:center; gap:5px; width:74px; padding:7px 5px; border:1px solid var(--line); border-radius:9px; background:var(--navy2,#0e1526); cursor:pointer; }
 .tp-chip:hover{ border-color:var(--ice); }
@@ -3907,12 +3909,19 @@ function stageDrop(ev, el, overId){
   if (el) el.classList.remove('drop');
   var from = window._dragStage; window._dragStage = null;
   if (!from || sameId(from, overId)) return;
-  var bd = sceneBinding(); if (!bd) return;
-  var ids = (bd.stageIds || []).slice();
-  var i = ids.indexOf(from), j = ids.indexOf(overId);
+  /* Stages belong to the adventure, not to a scene, so their order lives with them.
+     This used to reorder the scene's own list, which nothing has read since stages
+     were set loose: the drag worked and moved a thing nobody was looking at. */
+  var arr = (S.instance && S.instance.stages) || [];
+  var i = -1, j = -1;
+  arr.forEach(function(b, n){
+    if (sameId(b.stageId, from)) i = n;
+    if (sameId(b.stageId, overId)) j = n;
+  });
   if (i < 0 || j < 0) return;
-  ids.splice(i, 1); ids.splice(j, 0, from);
-  bd.stageIds = ids;
+  var moved = arr.splice(i, 1)[0];
+  arr.splice(j, 0, moved);
+  S.instance.stages = arr;
   stageTouch();
   applyRemoteState({ instance:S.instance });
   refreshStagesWin();
@@ -5035,7 +5044,8 @@ function lmTokenFilePicked(input){
       renderTokens();
       applyRemoteState({ tokens:S.tokens });
     }
-    S.scene.accountTokens = (S.scene.accountTokens||[]).concat([{ kind:'asset', label:initials(nm), name:nm, img:stored || url, cells:1, refId:aid, source:'account' }]);
+    S.scene.accountTokens = (S.scene.accountTokens||[]).concat([{ kind:'asset', label:initials(nm), name:nm,
+      img:stored || url, cells:1, refId:aid, assetId:aid, folder:'', source:'account' }]);
     pushLog({ kind:'sys', html:'Token <b>' + esc(nm) + '</b> saved to your account.' });
     applyRemoteState({ scene:S.scene, log:S.log });
   }).catch(function(){

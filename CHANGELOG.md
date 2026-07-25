@@ -1,3 +1,9 @@
+## 2026-07-25 — Saved tokens can be named and removed, and stages hold their order
+
+The rename and remove marks on a saved token are always there now. They had been waiting for a pointer to hover over them, which on a phone never happens, so on the device most of this is used they did not exist. A token just uploaded also knows its own record at once, rather than only after the shelf is loaded again, so it can be named or removed the moment it arrives.
+
+Dragging a stage reorders the shelf. The drag had been working all along and rearranging the scene's own list of stages, which nothing has read since stages were set loose from scenes. It moves the stage where the shelf actually looks.
+
 ## 2026-07-25 — Tokens: names back, squares true, and a Fell's token in its player's hand
 
 The names are back under the tokens. Keeping the picture inside the circle had been done by clipping everything outside it, and the name hangs below the circle, so it was clipped away with the rest. The round rim keeps the picture in on its own.
