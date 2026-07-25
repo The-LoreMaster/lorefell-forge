@@ -52,11 +52,14 @@ function emits(s) {
 function withImportedBridges(pageSrc) {
   if (!pageSrc) return pageSrc;
   let out = pageSrc;
-  const re = /from\s+['"]backend\/([A-Za-z0-9_.-]+\.js)['"]/g;
+  // A page shares client-side code from public/; it may only import web-modules from
+  // backend/. Either can hold a bridge, so follow both. The folder in the import path
+  // is where the file actually lives, so read from there rather than guessing.
+  const re = /from\s+['"](backend|public)\/([A-Za-z0-9_.-]+\.js)['"]/g;
   let m;
   while ((m = re.exec(pageSrc))) {
-    if (!/bridge/i.test(m[1])) continue;   // only shared bridge modules, not every backend
-    const extra = read(path.join(ROOT, 'velo', 'backend', m[1]));
+    if (!/bridge/i.test(m[2])) continue;   // only shared bridge modules, not every helper
+    const extra = read(path.join(ROOT, 'velo', m[1], m[2]));
     if (extra) out += '\n' + extra;
   }
   return out;

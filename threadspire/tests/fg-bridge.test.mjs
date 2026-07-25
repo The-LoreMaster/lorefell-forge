@@ -2,7 +2,7 @@
    embedded in ThreadSpire's rail. These two used to be hand-copied and drift; this
    proves the one handler routes saves, opens Fells, and reaches host hooks the same
    way for both hosts.\n\n     node threadspire/tests/fg-bridge.test.mjs */
-import { handleSheetMessage } from '../../velo/backend/fgSheetBridge.js';
+import { handleSheetMessage } from '../../velo/public/fgSheetBridge.js';
 import { fileURLToPath } from 'url';
 
 let pass=0, fail=0;

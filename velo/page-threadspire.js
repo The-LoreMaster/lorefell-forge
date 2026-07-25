@@ -15,7 +15,7 @@ import { uploadRune } from 'backend/loreforge.web.js';
 import { listStages, saveStage, deleteStage } from 'backend/threadspire.web.js';
 import { getCampaignState, saveCampaignState, getJournal, saveJournal } from 'backend/campaignview.web.js';
 import { myAdventureRole } from 'backend/fatewell.web.js';
-import { handleSheetMessage } from 'backend/fgSheetBridge.js';
+import { handleSheetMessage } from 'public/fgSheetBridge.js';
 import wixLocation from 'wix-location';
 
 // uploadRune hands back a wix:image:// descriptor, which a plain <img> cannot load.
@@ -52,7 +52,7 @@ $w.onReady(async function () {
   // would. One tool, one record, shown in the rail.
   let fgCharId = characterId || '';
   // The FellGlass sheet's bridge is shared with its own page; the one copy lives in
-  // backend/fgSheetBridge.js. Here it is handed the LoreMaster's extra hand: godCharId,
+  // public/fgSheetBridge.js. Here it is handed the LoreMaster's extra hand: godCharId,
   // set while a player's Fell is held open, routes that Fell's saves through the gated
   // method. ThreadSpire shows whatever a record holds, forged or not, so it does not ask
   // for the created flag the standalone page waits on.

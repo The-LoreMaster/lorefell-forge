@@ -1,4 +1,4 @@
-// backend/fgSheetBridge.js
+// public/fgSheetBridge.js
 //
 // One handler for the FellGlass character sheet, wherever it runs. The sheet is
 // embedded both on its own page and inside ThreadSpire's rail, and each host used to
@@ -7,9 +7,12 @@
 // on whether an uncreated Fell opens the forge, and only one knew how to hand a Fell
 // back to ThreadSpire. This is the single copy. Each host passes what only it knows.
 //
-// This is a plain module, not a .web.js: it exposes no callable endpoint. It runs on
-// the page side and calls the web methods the host hands it, the same way
-// backend/rules.js is a plain helper pulled into the backend.
+// This lives in public/, not backend/, on purpose. It is page-side logic: it calls
+// reply() to talk to the sheet frame and tracks which Fell is open, neither of which
+// can cross a backend web-module boundary. Wix page code can import from public/ but
+// may only import web-modules (.web.js) from backend/, so a plain backend helper here
+// would be denied at publish. It imports nothing itself; the host injects the web
+// methods it needs through api.
 //
 // The host supplies a context:
 //   reply(obj)              send a message down to the sheet frame
