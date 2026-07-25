@@ -1052,6 +1052,11 @@ function zoomAt(sx, sy, factor){
   cam.zoom = z;
   clampCam(); applyCam();
 }
+function coverCam(){
+  var floor = camFloor();
+  if (cam.zoom < floor - 0.0001) cam.zoom = floor;
+  clampCam(); applyCam();
+}
 function fitCam(){
   var v = viewBox();
   cam.zoom = clamp(Math.max(v.w / S.map.w, v.h / S.map.h), camFloor(), ZMAX);
@@ -3669,7 +3674,8 @@ function instanceStages(){
 }
 function stageById(id){ var r=null; instanceStages().forEach(function(x){ if(x.stageId===id) r=x; }); return r; }
 function sceneStages(){ return (sceneBinding().stageIds||[]).map(stageById).filter(Boolean); }
-function activeStageId(){ return sceneBinding().activeStageId; }
+function activeStageId(){ return (S.instance && S.instance.activeStageId) || null; }
+function setActiveStage(id){ if (S.instance) S.instance.activeStageId = id || null; }
 /* Stage work counts as a local edit: without this stamp an in-flight snapshot
    lands a moment later and puts the old deck back. */
 function stageTouch(){ S._advTouch = Date.now(); }
@@ -3732,7 +3738,7 @@ function stageSnapshot(){
 }
 /* restore a stage onto the live table, through the seam so it syncs */
 function stageRestore(b){
-  sceneBinding().activeStageId = b.stageId;
+  setActiveStage(b.stageId);
   S.scene.background = b.mapId;
   S.tokens = (b.tokens||[]).map(function(t){ return Object.assign({}, t); });
   S.grid = Object.assign({}, b.grid || S.grid);
@@ -3743,27 +3749,19 @@ function stageRestore(b){
 }
 /* the switcher lists the stages bound to the current scene */
 /* The Lobby is the table before a map is laid down: the blue parchment, no tokens. */
-function ensureLobby(){
-  var bd = sceneBinding(); if (!bd) return;
-  var stages = instanceStages();
-  var lobby = lobbyStage();
-  if (!lobby){
-    /* one id for every adventure meant one row: opening another adventure's Lobby
-       overwrote the first one's, because the save matches on stage id */
-    lobby = { stageId:'st-lobby-' + (S.campaignId || 'solo'), name:'Lobby', mapId:null, tokens:[], grid:S.grid, mapW:S.map.w, mapH:S.map.h };
-    S.instance.stages = stages.concat([lobby]);
-    if (stageBackend && stageBackend.save) stageBackend.save(lobby);
-  }
-  bd.stageIds = bd.stageIds || [];
-  if (bd.stageIds.indexOf(lobby.stageId) < 0) bd.stageIds.unshift(lobby.stageId);
-  if (!bd.activeStageId) bd.activeStageId = lobby.stageId;
-}
-function stageDeck(){ return sceneStages(); }
+/* A scene no longer conjures a stage. The shelf begins empty and the LoreMaster lays
+   the first stage down when they want one; visiting scenes leaves no trace behind. */
+function ensureLobby(){ /* stages are made by hand now, not summoned by a scene */ }
+/* Stages stand on their own, apart from scenes. The deck is every stage the adventure
+   has, and the LoreMaster makes one deliberately; a scene no longer conjures its own.
+   The active stage is the adventure's, kept in one place rather than per scene. */
+function stageDeck(){ return instanceStages(); }
 function lmSaveCurrentStage(){
+  /* only save a stage that already exists; the table no longer invents one to hold a
+     stray change, which is what filled the shelf with copies */
+  if (!activeStageId()) return;
   var b = stageSnapshot();
-  var bd = sceneBinding();
-  bd.activeStageId = b.stageId;
-  bindStageToScene(b.stageId);
+  setActiveStage(b.stageId);
   stageUpsert(b);
   stageBackend.save(b);
   applyRemoteState({ instance:S.instance });
@@ -3829,7 +3827,6 @@ function lmNewStage(){
   var id='st-'+Date.now();
   var b={ stageId:id, name:'Stage ' + (instanceStages().length + 1), mapId:null, tokens:[], grid:Object.assign({},S.grid), mapW:2400, mapH:1600 };
   stageUpsert(b);
-  bindStageToScene(id);
   stageBackend.save(b);
   stageRestore(b);
   applyRemoteState({ instance:S.instance });
@@ -5876,7 +5873,13 @@ function lmSetMap(id){
      left a background the stage system did not know about, and the next stage save or
      restore wiped it, which is the stage that vanished. Lay it on the current stage,
      keeping the tokens, and if there is no stage yet, this makes it one. */
-  ensureLobby();
+  /* a map lives on a stage. If one is active, lay it there; if none exists yet, make a
+     single stage to hold it, rather than one per scene. */
+  if (!activeStageId()){
+    var nid = 'st-' + Date.now();
+    var nb = { stageId:nid, name:'Stage ' + (instanceStages().length + 1), mapId:m.id, tokens:[], grid:Object.assign({},S.grid), mapW:m.w||2400, mapH:m.h||1600 };
+    stageUpsert(nb); setActiveStage(nid);
+  }
   S.scene.background = m.id;
   if (m.w) S.map.w = m.w;
   if (m.h) S.map.h = m.h;
@@ -5947,8 +5950,7 @@ function paintMapArt(){
   if (url){
     art.style.backgroundImage = 'url(' + url + ')'; art.style.backgroundSize = 'cover';
     /* the stored size of a map is often wrong, so read the picture's true shape once and
-       set the board to it. Cover zoom then fills the frame for any ratio, tall or wide,
-       and no blue shows at an edge. */
+       set the board to it. Cover zoom then fills the frame for any ratio, tall or wide. */
     if (_measuredMap !== url){
       _measuredMap = url;
       var probe = new Image();
@@ -5958,11 +5960,13 @@ function paintMapArt(){
           S.map = { w:w, h:h };
           if (m){ m.w = w; m.h = h; }
           art.style.width = w + 'px'; art.style.height = h + 'px';
-          try { clampCam(); applyCam(); drawGrid(); renderTokens(); } catch(e){}
         }
+        try { coverCam(); drawGrid(); renderTokens(); } catch(e){}
       };
       probe.src = url;
     }
+    /* enforce cover now as well, so a plain load lands filled and not below the floor */
+    try { coverCam(); } catch(e){}
   } else { art.style.backgroundImage = ''; }
   /* null url keeps the CSS placeholder gradient */
 }
@@ -6566,7 +6570,7 @@ window.addEventListener('resize', function(){ clampCam(); applyCam(); });
   ['fellmark','fellmarkM'].forEach(function(id){ var el = document.getElementById(id); if (el) el.innerHTML = svg; });
 })();
 buildCube(); booted = true; paintTypePicker(); setRollType(S.rollType);
-render(); fitCam();
+render(); coverCam();
 /* seeded as if it arrived from the LoreMaster */
 applyRemoteState({ log:S.log });
 </script>
