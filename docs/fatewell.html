@@ -3420,9 +3420,31 @@ function mergePool(c){
   });
 }
 
+/* which of ours are already on their way, so none is offered twice */
+var _offPush = {};
+function shareOfflinePlayers(c){
+  if (!WIX.hosted || !c) return;
+  var cid = WIX.campaignId || c.id;
+  if (!cid) return;
+  (c.players || []).forEach(function(p){
+    if (!p.offline || p.charId || _offPush[p.id]) return;
+    _offPush[p.id] = 1;
+    postToWix({ type:'lmtool-offline-add', campaignId:cid, localId:p.id,
+                name:p.name || 'Unnamed Fell', level:p.level || 1, maxVit:p.maxVit || 0 });
+  });
+}
+/* Records the account has confirmed at least once. A freshly made Fell may not be in the
+   next roster we happen to read, and taking that silence for a removal would throw away
+   the player we just added. Only something once seen and now gone has truly gone. */
+var _seenChar = {};
+function rememberSeenChars(){
+  (S.wixPlayers || []).forEach(function(wp){ if (wp.charId) _seenChar[wp.charId] = 1; });
+}
 function prunePool(c){
+  rememberSeenChars();
   c.players = c.players.filter(function(p){
     if (p.offline && p.charId){
+      if (!_seenChar[p.charId]) return true;             /* not confirmed yet, keep it */
       return S.wixPlayers.some(function(wp){ return wp.charId === p.charId; });
     }
     if (p.offline || !p.wixId) return true;
@@ -3445,6 +3467,9 @@ function autoMergePlayers(campaignId){
   }
   targets.forEach(mergePool);
   targets.forEach(prunePool);
+  /* after matching, anything still without a record is ours alone: give it one so the
+     table can see it too */
+  targets.forEach(shareOfflinePlayers);
 }
 
 function syncPlayersNow(){ var c=curC(); if (WIX.hub && c) postToWix({ type:'lmtool-players-request', campaignId:c.id }); mergePool(c); save(); render(); }
@@ -3618,6 +3643,7 @@ window.addEventListener('message', function(ev){
     }
   }
   if (m.type === 'lmtool-offline-done'){
+    if (m.localId) delete _offPush[m.localId];
     if (m.ok && m.localId && m.charId){
       var cc = curC();
       if (cc) cc.players.forEach(function(p){ if (p.id === m.localId){ p.charId = m.charId; p.offline = true; } });

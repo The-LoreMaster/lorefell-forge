@@ -1,3 +1,11 @@
+## 2026-07-25 — ThreadSpire: the runner holds still, and the road goes on
+
+Dragging the scene runner no longer drags the page with it, in any direction. The beat's own words still scroll inside their card, which is the one place a drag is meant to move anything.
+
+At the last beat of a scene the forward arrow takes the light and leads on, to the next scene of this session or the first of the session after it. It appears even for a scene of a single beat, where before there was no arrow at all and no way onward but the Story tab.
+
+The players sitting at the table without a device, added in FateWell before there was a record for them to share, are handed over now. Anything the table already knows is matched first, so nobody is made twice, and a player is only dropped from FateWell's roster once the account has confirmed them and then lost them, never on a moment's silence.
+
 ## 2026-07-25 — A player at the table is one Fell, wherever you add them
 
 FateWell and the table each kept their own list of the players sitting at the table without a device, so one added in either place was invisible in the other. There is one record now and both tools work on it. Add someone in FateWell and they are at the table; add them at the table and they appear on FateWell's roster, named the same, at the same level, with the same vitality. Remove them in either and they are gone from both, and their Fell goes with them, since the table made it and no player owns it.
