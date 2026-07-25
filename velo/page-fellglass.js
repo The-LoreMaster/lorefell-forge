@@ -100,15 +100,21 @@ $w.onReady(() => {
       // The sheet tells us which row it is editing. An empty id means a brand-new sheet,
       // so it inserts a new row rather than overwriting the last one. We tell the sheet
       // the new id so its next save updates the same row.
+      // Answered every time, pass or fail, carrying the number the sheet sent. The same
+      // ack the ThreadSpire-hosted bridge sends, so one sheet behaves one way wherever
+      // it is running.
       const cid = msg.charId || '';
+      const ack = (ok, id, error) => embed.postMessage({ type: 'saved', ok: ok, saveSeq: msg.saveSeq, localId: msg.localId || '', charId: id || cid, error: error || '' });
       try {
         const r = await saveCharacter(cid, msg.character || {});
         if (r && r.ok && r.id && !cid) {
           charId = r.id;
-          embed.postMessage({ type: 'saved', localId: msg.localId || '', charId: r.id });
+          ack(true, r.id);
           sendCharacters(r.id);
+        } else {
+          ack(!!(r && r.ok), (r && r.id) || cid, r && r.error);
         }
-      } catch (e) {}
+      } catch (e) { ack(false, cid, String((e && e.message) || e)); }
     } else if (msg.type === 'delete-character') {
       const cid = msg.charId || charId;
       let res = { ok: false };

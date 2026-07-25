@@ -390,6 +390,7 @@ h3{font-family:var(--head);font-weight:500;font-size:12px;letter-spacing:.12em;t
 .addline select,.addline input{flex:1;min-width:90px}
 .savebar{display:flex;gap:10px;justify-content:flex-end;margin-top:4px;align-items:center;flex-wrap:wrap}
 #saveState{font-size:14px;color:var(--silver-dim);font-style:italic;margin-right:auto}
+#saveState.bad{color:#e8837a;font-style:normal;font-weight:600}
 
 /* ---------- desktop ---------- */
 @media(min-width:880px){
@@ -2055,9 +2056,15 @@ body.in-combat{ padding-top:var(--cbn-h,46px); }
 /* =====================================================================
    MOCK CMS DATA — (placeholder) = awaiting canon
 ===================================================================== */
-let LINEAGES=["Lineage A (placeholder)","Lineage B (placeholder)","Lineage C (placeholder)"];
-let ORIGINS=["Origin A (placeholder)","Origin B (placeholder)","Origin C (placeholder)"];
-let MOTIVATIONS=["Motivation A (placeholder)","Motivation B (placeholder)","Motivation C (placeholder)"];
+/* The identity panel fills its three dropdowns from these flat lists, while the Fell
+   Forging reads the full definitions below. They were written out separately and never
+   tied together, so the forging offered the eight real Origins and the eight real
+   Motivations and the sheet's own dropdowns offered "Origin A (placeholder)". Same
+   canon, two lists, one of them fiction. They are derived from the definitions now, so
+   they cannot say different things again, and the CMS still replaces both together. */
+let LINEAGES=[];
+let ORIGINS=[];
+let MOTIVATIONS=[];
 /* Pre-generated Origin bundles (placeholders; the real library lives in CMS).
    Each defines attribute focus, crystal placement, and starting skills. */
 let PREGEN_ORIGINS=[
@@ -2103,6 +2110,13 @@ let LINEAGE_DEFS=[
   {name:"Lineage B (placeholder)",bonus:{type:"attr",name:"evasion"}},
   {name:"Lineage C (placeholder)",bonus:{type:"skill",name:"Spirit"}}
 ];
+/* one place the names come from, whether they came from canon or from the CMS */
+function syncLibraryNames(){
+  LINEAGES=LINEAGE_DEFS.map(d=>d.name);
+  ORIGINS=PREGEN_ORIGINS.map(d=>d.name);
+  MOTIVATIONS=MOTIVATION_DEFS.map(d=>d.name);
+}
+syncLibraryNames();
 /* Canon starting weapons; forms II/III placeholder except Bow.
    Reforging (level 4/8 choice) advances formIdx; it never happens on the sheet. */
 /* CANON:weapons start. Baked from data/Weapons.canon.json (+ schemas/seed/CanonWeapons.json) by genCanon, disabled in CI for now. Change weapons here and you MUST update those seeds too, or add [canon-skip: weapons]. */
@@ -4021,7 +4035,28 @@ function renderRecords(cat){
    window.parent.postMessage, and $w("#html1").onMessage writes it to the
    Characters collection, replying with a confirmation message. */
 let saveTimer=null;
+/* LOADING shuts the autosave while a Fell is being written into the fields, so a load
+   cannot be mistaken for the player typing. It used to be a plain flag set by hand in
+   four places and cleared in two, and any path that missed the clear left the sheet
+   awake, taking edits and writing none of them, with the save line still reading
+   Autosaved from whenever it last worked. Silent, and the shape of every "it did not
+   save" at the table. It clears itself now: nothing holds it longer than the watchdog. */
 let LOADING=false;
+let _loadWatchdog=null;
+const LOAD_MAX_MS=8000;
+function setLoading(on,why){
+  clearTimeout(_loadWatchdog); _loadWatchdog=null;
+  LOADING=!!on;
+  if(!on) return;
+  window._loadWhy=why||"";
+  _loadWatchdog=setTimeout(function(){
+    /* whatever we were waiting for never came. Better to take edits again and say the
+       Fell may be stale than to sit here throwing them away. */
+    LOADING=false; _loadWatchdog=null;
+    try{ cbPing("The sheet waited on the table and heard nothing back. Your changes are being saved again, but reload if this Fell looks wrong.", true); }catch(e){}
+    try{ renderSaveState(); }catch(e){}
+  },LOAD_MAX_MS);
+}
 let lastAutosaveAt=null;
 let lastBridgeAt=0;
 let offline=false;
@@ -4037,24 +4072,66 @@ function armOfflineCheck(){
     if(window.parent!==window && lastBridgeAt<postedAt){ offline=true; renderSaveState(); }
   },OFFLINE_MS);
 }
+/* A save is not saved until the site says it is. This used to read Autosaved the moment
+   the message left the sheet, so a write that never landed and a write that landed
+   perfectly looked exactly the same, and the first anyone knew of it was a Fell coming
+   back empty after a reload. Every save now carries a number and waits to hear that
+   number back. */
+let SAVE_SEQ=0;
+let savePending=null;         /* {seq, at, charId} of the save still waiting */
+let saveAckTimer=null;
+let saveFailWhy="";
+const SAVE_ACK_MS=12000;
 function renderSaveState(){
   var el=$("saveState"); if(!el) return;
+  el.classList.remove("bad");
+  if(saveFailWhy){
+    el.classList.add("bad");
+    el.textContent="Not saved \u00b7 "+saveFailWhy;
+    return;
+  }
+  if(savePending){ el.textContent="Saving\u2026"; return; }
   if(!lastAutosaveAt){ el.textContent=offline?"Offline, will sync":"Autosave on. Every change saves automatically."; return; }
   var t=new Date(lastAutosaveAt), hh=String(t.getHours()).padStart(2,"0"), mm=String(t.getMinutes()).padStart(2,"0");
   el.textContent=`Autosaved \u00b7 ${hh}:${mm}`+(offline?" \u00b7 offline, will sync":"");
 }
+function saveAwait(seq,charId){
+  savePending={seq:seq,at:Date.now(),charId:charId};
+  saveFailWhy="";
+  clearTimeout(saveAckTimer);
+  saveAckTimer=setTimeout(function(){
+    if(savePending&&savePending.seq===seq){
+      savePending=null;
+      saveFailWhy=(window.parent===window)?"no site behind this sheet":"the table never answered";
+      renderSaveState();
+    }
+  },SAVE_ACK_MS);
+  renderSaveState();
+}
+function saveAck(d){
+  /* an older ack arriving late is not news; only the save still outstanding matters */
+  if(!savePending) return;
+  if(d.saveSeq!==undefined&&d.saveSeq!==savePending.seq) return;
+  clearTimeout(saveAckTimer); saveAckTimer=null;
+  savePending=null;
+  if(d.ok===false){ saveFailWhy=String(d.error||"the table refused it").slice(0,70); }
+  else { saveFailWhy=""; lastAutosaveAt=Date.now(); if(offline){ offline=false; } }
+  renderSaveState();
+}
 function scheduleSave(){
   if(LOADING) return;            // never save while a character is loading in
   clearTimeout(saveTimer);
+  saveFailWhy="";
+  $("saveState").classList.remove("bad");
   $("saveState").textContent="Saving\u2026";
   saveTimer=setTimeout(doSave,600);
 }
 function doSave(){
   clearTimeout(saveTimer); saveTimer=null;
   if(LOADING) return;            // a load is mid-flight, do not write
-  lastAutosaveAt=Date.now();
-  renderSaveState();
-  postToVelo({type:"save",charId:CUR_WIX_ID,localId:CUR_LOCAL_ID,character:C});
+  var seq=++SAVE_SEQ;
+  postToVelo({type:"save",charId:CUR_WIX_ID,localId:CUR_LOCAL_ID,saveSeq:seq,character:C});
+  saveAwait(seq,CUR_WIX_ID);
   armOfflineCheck();
   combatSyncPush();
 }
@@ -4245,17 +4322,17 @@ function loadLibraries(lib){
       return {name:F(r,"name","title"),desc:F(r,"description"),
         bonus:{type,name:type==="attr"?lc(F(r,"bonusName")):cap(F(r,"bonusName"))}};
     }).filter(d=>d.name);
-    if(mapped.length){LINEAGE_DEFS=mapped;LINEAGES=LINEAGE_DEFS.map(d=>d.name);}
+    if(mapped.length){LINEAGE_DEFS=mapped;}
   }
   if(has(lib.motivations)){
     const mapped=lib.motivations.map(r=>({name:F(r,"name"),attr:lc(F(r,"attr")),title:F(r,"titleEarned","motivationTitle")}))
       .filter(m=>m.name&&m.attr&&SKILLS[m.attr]);
-    if(mapped.length){MOTIVATION_DEFS=mapped;MOTIVATIONS=MOTIVATION_DEFS.map(d=>d.name);}
+    if(mapped.length){MOTIVATION_DEFS=mapped;}
   }
   if(has(lib.origins)){
     const mapped=lib.origins.map(r=>({name:F(r,"name"),attr:lc(F(r,"attr")),desc:F(r,"description")}))
       .filter(o=>o.name&&o.attr&&SKILLS[o.attr]);
-    if(mapped.length){PREGEN_ORIGINS=mapped;ORIGINS=PREGEN_ORIGINS.map(d=>d.name);}
+    if(mapped.length){PREGEN_ORIGINS=mapped;}
   }
   if(has(lib.loreboundTypes)){
     LOREBOUND_TYPES=lib.loreboundTypes.map(r=>F(r,"name","title"));
@@ -4301,6 +4378,8 @@ function loadLibraries(lib){
     if(Object.keys(db).length)WEAPON_DB=db;
   }
 
+  /* whichever definitions the CMS replaced, the names follow from them */
+  syncLibraryNames();
   /* identity dropdowns rebuild from the fresh lists, keeping current values */
   fillSelect($("f-lineage"),LINEAGES);
   fillSelect($("f-origin"),ORIGINS);
@@ -4312,8 +4391,10 @@ function loadLibraries(lib){
   if(CC)ccRender(); /* live wizard picks up the real lists */
 }
 function loadCharacter(rec){
-  if(!rec||typeof rec!=="object")return;
-  LOADING=true;
+  /* the early return used to jump straight past the clear below, so a Fell that came
+     back as null left the sheet loading for the rest of the session */
+  if(!rec||typeof rec!=="object"){ setLoading(false); return; }
+  setLoading(true,"loadCharacter");
   clearTimeout(saveTimer); saveTimer=null;   // drop any save queued for the previous character
   C=seedSheet(rec);
   $("f-name").value=(C.identity&&C.identity.name)||"";
@@ -4322,7 +4403,7 @@ function loadCharacter(rec){
   showPortrait(C.portrait || DEFAULT_PORTRAIT);
   renderAll();
   // release the guard after this tick, once all programmatic field writes have settled
-  setTimeout(function(){ LOADING=false; },0);
+  setTimeout(function(){ setLoading(false); },0);
 }
 /* A new character opens the forging immediately, but only once we know it
    IS new: either Velo says so, or no bridge message arrives at all
@@ -4350,7 +4431,7 @@ function renderCharSwitch(){
   sel.addEventListener("change",function(){
     var v=sel.value;
     if(v==="__add__"){ postToVelo({type:"add-character"}); }
-    else if(v && v!==CUR_SEL){ LOADING=true; clearTimeout(saveTimer); saveTimer=null; postToVelo({type:"select-character",charId:v}); }
+    else if(v && v!==CUR_SEL){ setLoading(true,"select-character"); clearTimeout(saveTimer); saveTimer=null; postToVelo({type:"select-character",charId:v}); }
     else { renderCharSwitch(); }
   });
   var del=$("csDel"); if(del) del.addEventListener("click",csDeleteCharacter);
@@ -5549,16 +5630,16 @@ window.onmessage=ev=>{
   if(d.type==="init"||d.type==="new")hideCover();
   if(d.type==="new"&&!d.character){
     /* nothing was handed over, so nothing is kept. Whatever Fell was here goes. */
-    LOADING=true; clearTimeout(saveTimer); saveTimer=null;
+    setLoading(true,"new"); clearTimeout(saveTimer); saveTimer=null;
     CUR_WIX_ID=d.charId||""; CUR_LOCAL_ID=uid();
     loadCharacter(seedSheet({}));
-    setTimeout(function(){ LOADING=false; },0);
+    setTimeout(function(){ setLoading(false); },0);
   }
   lastBridgeAt=Date.now();
   if(offline){ offline=false; renderSaveState(); }
   if(d.libraries)loadLibraries(d.libraries);
   if(d.type==="init"&&d.character){
-    LOADING=true; clearTimeout(saveTimer); saveTimer=null;
+    setLoading(true,"init"); clearTimeout(saveTimer); saveTimer=null;
     // wipe the previous character's combat so nothing bleeds across the switch
     clearInterval(_combatPoll); _combatPoll=null; _combatSig=""; COMBAT=null;
     window._reactUsed=false; window._reactSent=null; window._declPayload=null; window._cbRoll=null;
@@ -5580,7 +5661,7 @@ window.onmessage=ev=>{
   }
   else if(d.type==="combat-state"){ if(d.state===null||d.state===undefined){ if(!(COMBAT&&COMBAT.active)) setCombatState(null); } else setCombatState(d.state); }
   else if(d.type==="new"){ if(d.forge){ccOpenForge(d.forge);} else {ccOpen();} CUR_WIX_ID=d.charId||""; CUR_LOCAL_ID=uid(); }
-  else if(d.type==="saved"){ if(d.localId&&d.localId===CUR_LOCAL_ID&&d.charId) CUR_WIX_ID=d.charId; }
+  else if(d.type==="saved"){ if(d.localId&&d.localId===CUR_LOCAL_ID&&d.charId) CUR_WIX_ID=d.charId; saveAck(d); }
   else if(d.type==="characters"){ CHARS=Array.isArray(d.list)?d.list:[]; CUR_SEL=d.currentId||""; renderCharSwitch(); }
   else if(d.type==="adventures"){ ADVS=Array.isArray(d.list)?d.list:[]; renderCampaignOptions(); }
   else if(d.type==="char-deleted"){ if(d.remaining===0){ if(confirm("You have no characters left. Create a new one?")) postToVelo({type:"add-character"}); } }

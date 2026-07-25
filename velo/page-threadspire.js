@@ -95,13 +95,23 @@ $w.onReady(async function () {
       reply({ type: 'combat-declare-ack', ok: ok, reqId: m.reqId || 0 });
     } else if (m.type === 'save') {
       const cid = m.charId || '';
+      // Every save is answered, pass or fail, carrying the number the sheet sent. The
+      // sheet used to be told only about a brand-new record, so a write that was refused
+      // or that threw looked exactly like a write that worked and the Fell came back
+      // empty on the next load with nothing having said a word.
+      const ack = (ok, id, error) => reply({ type: 'saved', ok: ok, saveSeq: m.saveSeq, localId: m.localId || '', charId: id || cid, error: error || '' });
       // While the LoreMaster has a player's Fell open, the sheet's own autosave is
       // writing to someone else's record. It goes through the gated method, which
       // checks the role against the adventure rather than taking the page's word.
       if (godCharId && cid && cid === godCharId) {
-        try { await lmSaveCharacter(cid, m.character || {}); } catch (e) {}
+        try { const r = await lmSaveCharacter(cid, m.character || {}); ack(!!(r && r.ok), cid, r && r.error); }
+        catch (e) { ack(false, cid, String((e && e.message) || e)); }
       } else {
-        try { const r = await saveCharacter(cid, m.character || {}); if (r && r.ok && r.id && !cid) { fgCharId = r.id; reply({ type: 'saved', localId: m.localId || '', charId: r.id }); await sendCharacters(r.id); } } catch (e) {}
+        try {
+          const r = await saveCharacter(cid, m.character || {});
+          if (r && r.ok && r.id && !cid) { fgCharId = r.id; ack(true, r.id); await sendCharacters(r.id); }
+          else ack(!!(r && r.ok), (r && r.id) || cid, r && r.error);
+        } catch (e) { ack(false, cid, String((e && e.message) || e)); }
       }
     } else if (m.type === 'delete-character') {
       const cid = m.charId || fgCharId; let res = { ok: false }; try { res = await deleteCharacter(cid); } catch (e) { res = { ok: false }; }
