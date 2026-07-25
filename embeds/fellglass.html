@@ -4285,7 +4285,36 @@ function renderMotivation(){
     wrap.appendChild(claim);
     wrap.appendChild(el("p","note","Claiming grants +3 "+m.attr+" and opens the choice of a new Motivation."));
   }else{
+    /* A vow holds once chosen, but a player is not shackled to it forever. Abandoning it
+       hands back the +1 the choosing granted, so it cannot be farmed by picking and
+       dropping, and frees the slot to take up a different pursuit. The Title path is
+       untouched: only a completed vow pays out, and only a completed vow keeps its
+       reward. */
+    if(!god){
+      const drop=el("button","btn small ghost",`Abandon this vow`);
+      drop.style.marginTop="6px";
+      drop.title="Give up "+m.name+". You lose the +1 "+m.attr+" it granted, and may choose a new Motivation.";
+      drop.addEventListener("click",()=>abandonMotivation());
+      wrap.appendChild(drop);
+      wrap.appendChild(el("p","note","Abandoning returns the +1 "+m.attr+" and opens the choice of a new Motivation."));
+    }
   }
+}
+/* Give up the current vow before its Title is earned. The +1 the choosing granted is
+   handed back, clamped so a sheet that somehow never held it cannot go negative, and
+   the slot opens for a new Motivation. Kept apart from the change handler so the LM can
+   reach it too, and so nothing here can be mistaken for claiming a Title. */
+function abandonMotivation(){
+  const cur=C.identity.motivation||"";
+  if(!cur) return;
+  const nd=motByName(cur);
+  if(nd){ C.grants.attrs[nd.attr]=Math.max(0,(C.grants.attrs[nd.attr]||0)-1); }
+  C.identity.motivation="";
+  const sel=$("f-motivation"); if(sel) sel.value="";
+  window._motivationJustClaimed=false;
+  renderMotivation();renderDials();renderWeapons();renderBattle();renderStrip();
+  syncIdentityLock();
+  scheduleSave();
 }
 
 /* =====================================================================
