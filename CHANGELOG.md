@@ -1,3 +1,13 @@
+## 2026-07-25 — A thin sheet no longer breaks the sheet
+
+Opening a Fell replaced the whole sheet with whatever was stored, and the attributes, skills and counters were only ever laid onto the sheet the page started with. A Fell saved thin, as one made for someone at the table was, arrived with no attributes at all, so drawing the dials reached into nothing and stopped. Everything after it in the same breath was abandoned, which is why the attributes were missing, why the crystals read as nonsense, and why the mark on a card did nothing when pressed: the wiring never ran. Every sheet is now given its full shape on the way in, whatever was stored, and a Fell made for the table is written out in full to begin with.
+
+The mark is round, and pressing it opens the words in a window rather than trusting a class to reach the right paragraph.
+
+The explanations on the Invested Lore counters are behind that mark now, along with the rest. The hint about tapping the circle for a portrait is gone, as is the line spelling out what the vow asks: the mark is what those were for.
+
+Two are deliberately still spoken aloud. The skills card explains itself, because that one is worth reading while playing. And with no weapon in hand, how a weapon is taken up is the only useful thing the card can say, so it says it, and steps back behind the mark once there is a weapon to look at.
+
 ## 2026-07-25 — The sheet says less and answers when asked
 
 Every card's explanation is folded behind its own name. A mark beside the title tells a desktop what the card is for on hover and opens it for anything else, on every tab: invested lore, attributes, mobility, vitality, the dice, acts and reacts, weapons, armor, stances, bonds, skills and inventory. The sheet is for playing from, and the rules now wait until they are wanted.
