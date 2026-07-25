@@ -46,6 +46,14 @@ header{position:sticky;top:0;z-index:50;background:rgba(10,14,26,.96);backdrop-f
 /* An explanation is kept behind the card's own title. Hovering the mark tells a desktop
    what the card is for; tapping the title or the mark tells anything else. The sheet is
    for playing from, not for reading, so the rules wait until wanted. */
+/* A pill names a thing and tells the rest when asked. Used for stance tiers, and for the
+   weapon and bond parts that are granted rather than chosen. */
+.pillrow{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.pill{background:rgba(10,14,26,.55);border:1px solid var(--line,#22304d);color:var(--ice,#b8ccd8);border-radius:999px;
+  font-family:"Cinzel",serif;font-size:10px;letter-spacing:.08em;text-transform:uppercase;padding:4px 10px;cursor:pointer}
+.pill:hover{border-color:var(--gold,#c9a84c);color:var(--gold,#c9a84c)}
+.pill.locked{opacity:.45}
+.pill.empty{font-style:italic;text-transform:none;letter-spacing:0}
 .tip{display:none}
 .tip.shown{display:block}
 .tipb{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;background:none;border:1px solid var(--line,#22304d);color:var(--muted,#7e8a99);border-radius:999px;width:19px;min-width:19px;height:19px;font-size:11px;font-family:var(--body,serif);padding:0;margin-left:7px;cursor:pointer;vertical-align:middle;flex:none;line-height:1}
@@ -794,7 +802,7 @@ body.in-combat{ padding-top:var(--cbn-h,46px); }
   </section>
   <section class="card">
     <h2><span class="orn">❖</span> Mobility</h2>
-    <div class="counter god-lock"><span class="nm">Mobility<small>Spaces to move</small></span>
+    <div class="counter god-lock"><span class="nm">Mobility</span>
       <span class="ctl"><button data-mob="-">−</button><span class="v" id="mobVal">5</span><button data-mob="+">+</button></span>
     </div>
     <p class="note tip" style="margin-top:8px">Fixed at 5. Changes only in rare circumstances (LM mode).</p>
@@ -927,7 +935,7 @@ body.in-combat{ padding-top:var(--cbn-h,46px); }
 <div class="panel" id="panel-skills">
   <section class="card">
     <h2><span class="orn">❋</span> Skills</h2>
-    <p class="note" style="margin-bottom:10px">Tap a circle to set rank. Gold circles come from your lineage, origin, or motivation and cannot be cleared. At five filled circles a skill can be mastered: ranks return to 0, a mastery diamond is earned, and identity circles fall away. First mastery in a skill grants a talent.</p>
+    <p class="note tip" style="margin-bottom:10px">Tap a circle to set rank. Gold circles come from your lineage, origin, or motivation and cannot be cleared. At five filled circles a skill can be mastered: ranks return to 0, a mastery diamond is earned, and identity circles fall away. First mastery in a skill grants a talent.</p>
     <div class="skills-cols" id="skillsWrap"></div>
   </section>
 </div>
@@ -2230,7 +2238,7 @@ const ITEMS_LIB=[
 ];
 let LOREBOUND_TYPES=["The Aerostrix","The Alkagoo","The Aquafin","The Boreal","The Cawmarch","The Drakelith","The Felionis","The Grimgrit","The Hexarach","The Lumitoad","The Mordel","The Runesteed","The Slipfang","The Solmera","The Thistlewing","The Vixel","The Worgar","The Xenophis"];
 const LB_FORMS=[
-  {name:"Familiar",desc:"Can move, pick up, or use items."},
+  {name:"Familiar",desc:"Can move, pick up, or use items."},   /* shown on hover, not printed */
   {name:"Companion",desc:"Can imprint loot and attempt skill rolls (draft text)."},
   {name:"Corsair",desc:"A mountable form that carries you using its Mobility (draft text)."}
 ];
@@ -2586,7 +2594,9 @@ function grantSummary(){
   const parts=[];
   Object.entries(C.grants.skills).forEach(([k,n])=>{if(n)parts.push(`+${n} ${k}`);});
   Object.entries(C.grants.attrs).forEach(([k,n])=>{if(n)parts.push(`+${n} ${k}`);});
-  $("grantNote").textContent=parts.length?("Creation bonuses: "+parts.join(", ")+". Skill bonuses fall away once that skill is mastered."):"";
+  /* the bonuses are already shown on the dials and the circles themselves; saying them
+     again in a sentence was noise */
+  $("grantNote").textContent="";
 }
 $("f-lineage").addEventListener("change",e=>{C.identity.lineage=e.target.value;});
 $("f-origin").addEventListener("change",e=>{C.identity.origin=e.target.value;});
@@ -2624,7 +2634,9 @@ function fgTell(title, html){
     w.addEventListener('click', function(ev){ if (ev.target === w) fgTellClose(); });
   }
   document.getElementById('fgtTitle').textContent = title || '';
-  document.getElementById('fgtBody').innerHTML = html || '';
+  var body = document.getElementById('fgtBody');
+  if (html && html.nodeType){ body.innerHTML = ''; body.appendChild(html); }
+  else { body.innerHTML = html || ''; }
   w.classList.add('open');
 }
 function fgTellClose(){ var w = document.getElementById('fgTell'); if (w) w.classList.remove('open'); }
@@ -3274,6 +3286,12 @@ function renderDials(){
     list.forEach(([a,use])=>{
       const d=C.attrs[a],grant=attrGrant(a),stance=stanceBonus(a),tot=d.base+d.mod+grant+stance;
       const dial=el("div","dial"+((d.mod||grant||stance)?" modded":""));
+      dial.title=a+": "+use;
+      dial.addEventListener("click",function(ev){
+        /* a tap on the dial's face, not on its steppers, says what the attribute is for */
+        if(ev.target.closest(".steps")||ev.target.closest("button"))return;
+        fgTell(a,"<p>"+use+"</p>");
+      });
       const pct=Math.max(0,Math.min(1,tot/MAXSHOW));
       const chips=[];
       if(d.mod)chips.push((d.mod>0?"+":"")+d.mod);
@@ -3288,15 +3306,14 @@ function renderDials(){
           </svg>
           <div class="num"><span class="v">${tot}</span><span class="m">${chips.join(" · ")}</span></div>
         </div>
-        <div class="nm">${a}</div>
-        <div class="use">${use}</div>`;
+        <div class="nm" title="${use}">${a}</div>`;
       const steps=el("div","steps");
       const mk=(s,fn)=>{const b=el("button",null,s);b.addEventListener("click",fn);return b;};
       steps.appendChild(mk("−",()=>{d.mod--;renderDials();renderWeapons();}));
       steps.appendChild(mk("+",()=>{d.mod++;renderDials();renderWeapons();}));
       dial.appendChild(steps);
       if(god){
-        const baseRow=el("button","note",`base ${d.base} · tap to raise (LM)`);
+        const baseRow=el("button","note tip",`base ${d.base} · tap to raise`);
         baseRow.style.color="var(--gold)";
         baseRow.addEventListener("click",()=>{d.base++;renderDials();renderWeapons();});
         dial.appendChild(baseRow);
@@ -3382,6 +3399,36 @@ document.querySelectorAll("[data-roll]").forEach(b=>b.addEventListener("click",(
 }));
 
 /* ---------- shared controls ---------- */
+function slotPill(options,current,onPick,descFn,emptyLabel){
+  const found=(options||[]).find(o=>o.name===current)||null;
+  const wrap=el("div","pillrow");
+  const pill=el("button","pill"+(found?"":" empty"),found?found.name:(emptyLabel||"Not yet granted"));
+  pill.type="button";
+  if(found&&descFn){ const t=el("div",null,descFn(found)); pill.title=(t.textContent||"").trim(); }
+  pill.addEventListener("click",()=>{
+    const box=el("div");
+    if(found&&descFn) box.appendChild(el("p",null,descFn(found)));
+    else box.appendChild(el("p","note","Granted when the weapon is taken up, on leveling, or at the Fell Forging."));
+    if(god){
+      box.appendChild(el("p","note","LoreMaster"));
+      const row=el("div","pillrow");
+      const clear=el("button","pill empty","Clear");
+      clear.type="button";
+      clear.addEventListener("click",()=>{onPick(null);fgTellClose();});
+      row.appendChild(clear);
+      (options||[]).forEach(o=>{
+        const b=el("button","pill"+(o.name===current?" locked":""),o.name);
+        b.type="button";
+        b.addEventListener("click",()=>{onPick(o.name);fgTellClose();});
+        row.appendChild(b);
+      });
+      box.appendChild(row);
+    }
+    fgTell(found?found.name:"Not yet granted",box);
+  });
+  wrap.appendChild(pill);
+  return wrap;
+}
 function slotSelect(options,current,onPick,descFn,emptyLabel){
   const wrap=el("div");
   const row=el("div","row");
@@ -3450,12 +3497,10 @@ function renderWeapons(){
         const rf=el("button","btn small gold",`Reforge \u2192 ${db.forms[w.formIdx+1]} (LM)`);
         rf.addEventListener("click",()=>{w.formIdx++;renderWeapons();});
         slot.appendChild(rf);
-        slot.appendChild(el("p","note","Reforging normally happens only through leveling (L4 and L8). Earned abilities remain."));
       }
     }
 
     slot.appendChild(lvlControl(()=>w.level,x=>{w.level=x;renderWeapons();},10));
-    if(w.level<10)slot.appendChild(el("p","note",`Next \u00b7 L${w.level+1}: ${WEAPON_LEVELS[w.level]}`));
 
     if(w.tree){
       const attr=WEAPON_DB[w.tree].category;
@@ -3479,18 +3524,16 @@ function renderWeapons(){
     slot.appendChild(el("div","comp-desc", _wa?`Innate \u00b7 ${_wa}`:"Innate affliction set by your weapon."));
     for(let i=1;i<3;i++){
       if(w.level>=AFFLICTION_UNLOCK[i]){
-        slot.appendChild(slotSelect(AFFLICTIONS,w.afflictions[i],v=>{w.afflictions[i]=v;renderWeapons();},f=>`${f.skill} \u2014 ${f.desc}`));
+        slot.appendChild(slotPill(AFFLICTIONS,w.afflictions[i],v=>{w.afflictions[i]=v;renderWeapons();},f=>`${f.skill} \u2014 ${f.desc}`));
       }else{
-        slot.appendChild(el("div","comp-desc",`Slot ${i+1} unlocks at weapon level ${AFFLICTION_UNLOCK[i]}.`));
       }
     }
     slot.appendChild(el("h3",null,"Infusions"));
     for(let i=0;i<3;i++){
       if(w.level>=INFUSION_UNLOCK[i]){
         const ipool=god?INFUSIONS:INFUSIONS.filter(x=>x.weaponCat===WEAPON_DB[w.tree].category);
-        slot.appendChild(slotSelect(ipool,w.infusions[i],v=>{w.infusions[i]=v;renderWeapons();},f=>`<span class="use-tag">${f.use}</span> ${f.desc}`));
+        slot.appendChild(slotPill(ipool,w.infusions[i],v=>{w.infusions[i]=v;renderWeapons();},f=>`<span class="use-tag">${f.use}</span> ${f.desc}`));
       }else{
-        slot.appendChild(el("div","comp-desc",`Slot ${i+1} unlocks at weapon level ${INFUSION_UNLOCK[i]}.`));
       }
     }
     /* abilities: slot N is tier N (L2/L6/L10); pool spans every form in the chain */
@@ -3498,11 +3541,10 @@ function renderWeapons(){
     for(let i=0;i<3;i++){
       const tier=i+1;
       if(w.level<ABILITY_UNLOCK[i]){
-        slot.appendChild(el("div","comp-desc",`Tier ${tier} ability unlocks at weapon level ${ABILITY_UNLOCK[i]}.`));
         continue;
       }
       const pool=god?ABILITIES:ABILITIES.filter(ab=>ab.tree===w.tree&&ab.tier===tier);
-      slot.appendChild(slotSelect(pool,w.abilities[i],v=>{w.abilities[i]=v;renderWeapons();},f=>`<span class="use-tag">${f.use}</span> Tier ${f.tier} \u00b7 ${f.tree}`));
+      slot.appendChild(slotPill(pool,w.abilities[i],v=>{w.abilities[i]=v;renderWeapons();},f=>`<span class="use-tag">${f.use}</span> Tier ${f.tier} \u00b7 ${f.tree}`));
     }
     if(god)slot.appendChild(el("p","note","LM mode: ability filter lifted. Cross-tree replacement allowed."));
     wrap.appendChild(slot);
@@ -3523,17 +3565,25 @@ document.querySelectorAll("[data-lvl]").forEach(b=>b.addEventListener("click",()
 }));
 function renderArmor(){
   const owned=C.armor.level>0;
-  $("armorEmpty").style.display=(owned||god)?"none":"";
-  $("armorBody").style.display=(owned||god)?"":"none";
+  $("armorEmpty").style.display=owned?"none":"";
+  $("armorBody").style.display=owned?"":"none";
+  var grant=$("armorGrant");
+  if(!grant&&!owned){
+    grant=el("button","pill","Grant armor");
+    grant.id="armorGrant"; grant.type="button";
+    grant.style.marginTop="8px";
+    grant.addEventListener("click",()=>{C.armor.level=1;renderArmor();renderDials();renderBattle();scheduleSave();});
+    $("armorEmpty").parentNode.insertBefore(grant,$("armorEmpty").nextSibling);
+  }
+  if(grant) grant.style.display=(!owned&&god)?"":"none";
   $("ar-level").textContent=C.armor.level;
   const teaser=$("ar-level-teaser");
-  if(teaser)teaser.textContent=C.armor.level===0?"No armor yet. Invest a defensive attribute during a rest to gain it (LM view).":(C.armor.level<10?`Next · L${C.armor.level+1}: ${ARMOR_LEVELS[C.armor.level]}`:"");
+  if(teaser)teaser.textContent="";
   const aug=$("ar-augs");aug.innerHTML="";
   for(let i=0;i<2;i++){
     if(C.armor.level>=AUG_UNLOCK[i]){
-      aug.appendChild(slotSelect(AUGMENTATIONS,C.armor.augs[i],v=>{C.armor.augs[i]=v;renderArmor();renderBattle();},f=>`<span class="use-tag">${f.use}</span> ${f.category} — ${f.desc}`));
+      aug.appendChild(slotPill(AUGMENTATIONS,C.armor.augs[i],v=>{C.armor.augs[i]=v;renderArmor();renderBattle();},f=>`<span class="use-tag">${f.use}</span> ${f.category} · ${f.desc}`));
     }else{
-      aug.appendChild(el("div","comp-desc",`Slot ${i+1} unlocks at armor level ${AUG_UNLOCK[i]}.`));
     }
   }
   const st=$("ar-stances");st.innerHTML="";
@@ -3541,15 +3591,25 @@ function renderArmor(){
     const db=STANCE_DB[sn];
     const card=el("div","stance"+(C.armor.active===sn?" active":""));
     const top=el("div","top");
-    top.appendChild(el("span","nm",sn));
+    const nm=el("span","nm",sn);
+    nm.title=db.desc;
+    nm.style.cursor="pointer";
+    nm.addEventListener("click",()=>fgTell(sn,"<p>"+db.desc+"</p>"));
+    top.appendChild(nm);
     const adopt=el("button","adopt",C.armor.active===sn?"Active":"Adopt");
     adopt.addEventListener("click",()=>{C.armor.active=(C.armor.active===sn)?null:sn;renderArmor();renderDials();renderWeapons();renderBattle();});
     top.appendChild(adopt);card.appendChild(top);
-    card.appendChild(el("p","note",db.desc));
+    /* each tier is a pill that says what it does when asked, rather than a wall of lines */
+    const tiers=el("div","pillrow");
     db.tiers.forEach((txt,i)=>{
       const unlocked=C.armor.level>=STANCE_TIER_UNLOCK[i];
-      card.appendChild(el("div","tierline"+(unlocked?"":" locked"),`<span class="t">T${i+1}</span><span class="d">${txt}</span>`));
+      const pill=el("button","pill"+(unlocked?"":" locked"),`T${i+1}`);
+      pill.title=unlocked?txt:("Unlocks at armor level "+STANCE_TIER_UNLOCK[i]+". "+txt);
+      pill.addEventListener("click",()=>fgTell(sn+" \u00b7 Tier "+(i+1),
+        (unlocked?"":"<p class=\"note\">Unlocks at armor level "+STANCE_TIER_UNLOCK[i]+".</p>")+"<p>"+txt+"</p>"));
+      tiers.appendChild(pill);
     });
+    card.appendChild(tiers);
     st.appendChild(card);
   });
 }
@@ -3579,20 +3639,28 @@ function renderLorebounds(){
     /* form derives from level: Familiar 1-3, Companion 4-6, Corsair 7-10 */
     const form=LB_FORMS[lbFormIdx(lb.level)];
     const meta=el("div","wmeta");
-    meta.appendChild(el("span","tag",`Form <b>${form.name}</b>`));
+    const ftag=el("span","tag",`Form <b>${form.name}</b>`);
+    ftag.title=form.desc;
+    ftag.style.cursor="pointer";
+    ftag.addEventListener("click",()=>fgTell(form.name,"<p>"+form.desc+"</p>"));
+    meta.appendChild(ftag);
     slot.appendChild(meta);
-    slot.appendChild(el("div","comp-desc",form.desc));
 
     slot.appendChild(lvlControl(()=>lb.level,x=>{lb.level=x;renderLorebounds();renderBattle();},10));
-    if(lb.level<10)slot.appendChild(el("p","note",`Next · L${lb.level+1}: ${LOREBOUND_LEVELS[lb.level]}`));
 
     slot.appendChild(el("h3",null,"Aspect"));
     const asp=aspectOf(lb.type);
     if(!asp){
       slot.appendChild(el("div","comp-desc","Choose a lorebound type to reveal its Aspect."));
     }else{
-      slot.appendChild(el("div",null,`<b style="color:var(--ice)">${asp.name}</b> <span style="color:var(--muted)">${asp.lorebound}</span>`));
-      slot.appendChild(el("div","comp-desc",`Initial · ${asp.initial}`));
+      const arow=el("div","pillrow");
+      const apill=el("button","pill",asp.name);
+      apill.type="button";
+      apill.title=asp.initial;
+      apill.addEventListener("click",()=>fgTell(asp.name,
+        '<p class="note">'+asp.lorebound+'</p><p>'+asp.initial+'</p>'));
+      arow.appendChild(apill);
+      slot.appendChild(arow);
       lb.branchPick=(typeof lb.branchPick==="number")?lb.branchPick:null;
       lb.crownPick=(typeof lb.crownPick==="number")?lb.crownPick:null;
       if(typeof lb.branchPick==="number" && asp.branch[lb.branchPick]!==undefined){
@@ -3609,7 +3677,6 @@ function renderLorebounds(){
           slot.appendChild(b);
         });
       }else{
-        slot.appendChild(el("div","comp-desc",`Branching Aspect chosen at Companion form, level ${ASPECT_FORM.branch}.`));
       }
       if(typeof lb.crownPick==="number" && asp.crown[lb.crownPick]!==undefined){
         slot.appendChild(el("div","comp-desc",`Crown \u00b7 ${asp.crown[lb.crownPick]}`));
