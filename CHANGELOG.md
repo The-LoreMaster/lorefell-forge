@@ -1,3 +1,13 @@
+## 2026-07-25 — The sheet stops explaining itself in the margins
+
+The line reciting your creation bonuses is gone; the dials and the circles already show them. What an attribute is for is on the dial itself, on hover or a tap, rather than printed under every one, and the base value no longer announces itself. Mobility says Mobility.
+
+Gone from the weapons: the reforging rule, the next level teaser, and the three lines about which slot unlocks when. Gone from bonds: the next level teaser and the two lines about when the Branch and Crown are chosen. Gone from armour: its next level teaser and the augmentation slot lines. The skills explanation is back behind the card's mark.
+
+A part that is granted rather than chosen is a pill now, not a dropdown, because it was never the player's to pick from a list: afflictions, infusions, abilities, augmentations, a bond's Aspect and its Form, and each armour stance tier. Pressing one says what it does. The LoreMaster can still set it from the same window, since somebody has to be able to put it right.
+
+With no armour there is nothing on the card but how armour is come by. The LoreMaster keeps one way to grant it, which is better than hiding the card from the only person who can fix it.
+
 ## 2026-07-25 — A thin sheet no longer breaks the sheet
 
 Opening a Fell replaced the whole sheet with whatever was stored, and the attributes, skills and counters were only ever laid onto the sheet the page started with. A Fell saved thin, as one made for someone at the table was, arrived with no attributes at all, so drawing the dials reached into nothing and stopped. Everything after it in the same breath was abandoned, which is why the attributes were missing, why the crystals read as nonsense, and why the mark on a card did nothing when pressed: the wiring never ran. Every sheet is now given its full shape on the way in, whatever was stored, and a Fell made for the table is written out in full to begin with.
