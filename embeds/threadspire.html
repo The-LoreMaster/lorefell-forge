@@ -396,7 +396,7 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .rs-attrs{ display:grid; grid-template-columns:1fr 1fr; gap:5px 8px; }
 .rs-attr{ display:flex; align-items:center; justify-content:space-between; gap:6px; font-size:.72rem; color:var(--ice,#b8ccd8); }
 .rs-attr .rs-anum{ width:52px; }
-.rs-av{ width:20px; height:20px; border-radius:50%; object-fit:cover; flex:none; }
+.rs-av{ width:30px; height:30px; border-radius:50%; object-fit:cover; flex:none; border:1px solid rgba(201,168,76,.35); background:var(--navy2,#10162a); }
 .rs-stat{ font-style:normal; font-size:.64rem; color:var(--muted,#7e8a99); }
 .st-sub{ font-family:Cinzel,serif; font-size:.62rem; letter-spacing:.14em; text-transform:uppercase; color:var(--muted,#7e8a99); margin:8px 0 4px; }
 .rs-row{ display:flex; align-items:center; gap:6px; padding:3px 2px; }
@@ -3881,7 +3881,7 @@ function lmNewStage(){
   stageTouch();
   lmSaveCurrentStage();
   var id='st-'+Date.now();
-  var b={ stageId:id, name:'Stage ' + (instanceStages().length + 1), mapId:null, tokens:[], grid:Object.assign({},S.grid), mapW:2400, mapH:1600 };
+  var b={ stageId:id, name:'Stage ' + (instanceStages().length + 1), mapId:null, tokens:[], grid:Object.assign({},S.grid), mapW:2400, mapH:1600, order:instanceStages().length };
   stageUpsert(b);
   stageBackend.save(b);
   stageRestore(b);
@@ -3904,6 +3904,17 @@ function stageDragStart(ev, id){
 }
 function stageDragOver(ev, el){ ev.preventDefault(); if (el) el.classList.add('drop'); }
 function stageDragLeave(el){ if (el) el.classList.remove('drop'); }
+/* A stage's place in the shelf is its own, kept with the stage, or a reload would set
+   them back in whatever order the account happened to hand them over. */
+function renumberStages(){
+  var arr = (S.instance && S.instance.stages) || [];
+  arr.forEach(function(b, i){
+    if (b.order !== i){
+      b.order = i;
+      if (stageBackend && stageBackend.save) stageBackend.save(b);
+    }
+  });
+}
 function stageDrop(ev, el, overId){
   ev.preventDefault();
   if (el) el.classList.remove('drop');
@@ -3922,6 +3933,7 @@ function stageDrop(ev, el, overId){
   var moved = arr.splice(i, 1)[0];
   arr.splice(j, 0, moved);
   S.instance.stages = arr;
+  renumberStages();
   stageTouch();
   applyRemoteState({ instance:S.instance });
   refreshStagesWin();
@@ -4873,7 +4885,11 @@ if (tsEmbedded()){
         try { t = JSON.parse(r.tokens||'[]'); } catch(e){ t=[]; }
         try { g = JSON.parse(r.grid||'{}'); } catch(e){ g={}; }
         try { mi = JSON.parse(r.mapIds||'[]'); } catch(e){ mi=[]; }
-        return { stageId:r.stageId, name:r.name || 'Untitled stage', mapId:r.mapId, tokens:t, grid:g, mapW:r.mapW, mapH:r.mapH, mapIds:mi, campaignId:r.campaignId || '' };
+        /* order rides along: reshaping a row and forgetting a field is how a saved thing
+           quietly stops arriving, and the place in the shelf is one such thing */
+        return { stageId:r.stageId, name:r.name || 'Untitled stage', mapId:r.mapId, tokens:t, grid:g,
+                 mapW:r.mapW, mapH:r.mapH, mapIds:mi, campaignId:r.campaignId || '',
+                 order:(r.order === undefined || r.order === null) ? undefined : Number(r.order) };
       });
     }); },
     remove: function(id){ return tsAsk('TS_STAGE_DELETE', { stageId:id }); }
@@ -4917,6 +4933,14 @@ function loadAccountStages(){
       stageUpsert(b);
       /* the table state carries the bindings now; only adopt a stage the deck has not heard of */
       if (known.indexOf(b.stageId) < 0) bindStageToScene(b.stageId);
+    });
+    /* back into the order they were left in; anything without a place keeps its name's */
+    var arr = (S.instance && S.instance.stages) || [];
+    arr.sort(function(a, b){
+      var ao = (a.order === undefined || a.order === null) ? 9999 : a.order;
+      var bo = (b.order === undefined || b.order === null) ? 9999 : b.order;
+      if (ao !== bo) return ao - bo;
+      return String(a.name || '').localeCompare(String(b.name || ''));
     });
     if (typeof refreshStagesWin === 'function') refreshStagesWin();
     applyRemoteState({ instance:S.instance });
@@ -5187,7 +5211,7 @@ function lmFellBody(){
     var role = p.role || 'player';
     var vit = (p.curVit !== undefined && p.maxVit) ? (p.curVit + ' / ' + p.maxVit) : '';
     h += '<div class="pt-row">'
-      + (p.img ? '<img class="rs-av" src="' + esc(p.img) + '" alt="">' : '<span class="rs-av lib-ph"></span>')
+      + '<img class="rs-av" src="' + esc(p.img || portraitFor(p.charId) || DEFAULT_ART) + '" alt="">'
       + (p.charId
           ? '<button class="pt-main pt-open" onclick="lmOpenFell(\'' + esc(p.charId) + '\')"><span class="pt-name">' + esc(p.charName || p.name || 'Unnamed') + '</span>'
             + '<span class="pt-meta">' + esc(p.name || '') + (vit ? ' \u00b7 ' + vit : '') + '</span></button>'
