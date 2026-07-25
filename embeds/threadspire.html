@@ -3913,6 +3913,8 @@ function slimTokens(list){
   return (list || []).map(function(t){
     var img = String(t.img || '');
     if (img.indexOf('data:') === 0 || img.indexOf('blob:') === 0) img = '';
+    /* keep charId and refId: they are how the far side finds the portrait we could
+       not send, so a stripped picture still shows as art there */
     return Object.assign({}, t, { img: img });
   });
 }
@@ -3956,10 +3958,32 @@ var _advTooBig = false;
    rarely changes, so it does not ride with every token nudge, and a spine too large
    for the site to carry blocks only itself, said plainly, instead of silently taking
    the map, the tokens and the log down with it. */
+/* A picture baked into the story as encoded bytes is what put the spine over the site's
+   ceiling: a single portrait is hundreds of KB of text, and the story carries one per
+   foe and speaker. Strip them for travel, the same as tokens; the players resolve a
+   foe's art and a Fell's portrait from the records they already hold. A deep walk, since
+   the bytes hide several layers down in acts and scenes and beats. */
+function stripInlineImages(v){
+  if (!v || typeof v !== 'object') return v;
+  if (Array.isArray(v)) return v.map(stripInlineImages);
+  var out = {};
+  Object.keys(v).forEach(function(k){
+    var val = v[k];
+    if ((k === 'img' || k === 'image' || k === 'portrait') && typeof val === 'string'
+        && (val.indexOf('data:') === 0 || val.indexOf('blob:') === 0)){
+      out[k] = '';
+    } else if (val && typeof val === 'object'){
+      out[k] = stripInlineImages(val);
+    } else {
+      out[k] = val;
+    }
+  });
+  return out;
+}
 function pushAdventure(){
   if (_advSwitching || !isLM() || !S.adventure) return;
   if ((S.advRev || 0) === _advPushedRev || _advTooBig) return;
-  var body = { adventure: S.adventure, advRev: S.advRev || 0 };
+  var body = { adventure: stripInlineImages(S.adventure), advRev: S.advRev || 0 };
   try { SEAM.advKB = Math.round(JSON.stringify(body).length / 1024); } catch(e){ SEAM.advKB = 0; }
   stateBackend.push(body).then(function(r){
     if (r && r.version){ _stateSeen = Math.max(_stateSeen, r.version); _advPushedRev = S.advRev || 0; SEAM.advSent = 'delivered rev ' + _advPushedRev; }
@@ -4796,6 +4820,7 @@ function lmPlaceToken(kind, refId){
   if (!t) return;
   var id = 'tok-' + Date.now();
   S.tokens.push({ id:id, kind:t.kind, label:t.label, name:t.name, img:t.img,
+    charId: t.charId || (t.kind === 'p' ? t.refId : ''),
     x:Math.round(S.map.w/2), y:Math.round(S.map.h/2), cells:t.cells, mine:false, refId:t.refId });
   applyRemoteState({ tokens:S.tokens });
   pushLog({ kind:'sys', html:'Placed <b>' + esc(t.name) + '</b> on the map.' });
@@ -6075,16 +6100,36 @@ function place(el, t){
   el.style.borderWidth = Math.max(2, px * 0.055) + 'px';
 }
 var _flashToken = null;
+/* A token's picture found on this side rather than carried to it. A Fell's portrait
+   lives in the party sheet both tables already hold, and a foe's art in the scene, so
+   the token needs to bring only a name, not a wall of encoded bytes that cannot travel
+   anyway. This is why a Fell reached the players as its letters: its portrait was a
+   local data url, stripped in transit; now each side paints the portrait it can see. */
+function tokenArt(t){
+  if (t.kind === 'p' || t.charId || (t.refId && String(t.refId).indexOf('e') === 0)){
+    var byChar = {}; (S.party || []).forEach(function(sh){ if (sh && sh.charId) byChar[sh.charId] = sh; });
+    var sh = byChar[t.charId] || byChar[t.refId];
+    if (sh && sh.image) return sh.image;
+  }
+  if (t.kind === 'foe' || t.kind === 'monster'){
+    var f = (S.scene.foes || []).filter(function(x){ return sameId(x.id, t.refId); })[0];
+    if (f && f.img) return f.img;
+  }
+  var img = String(t.img || '');
+  if (img.indexOf('blob:') === 0 || img.indexOf('data:') === 0) return '';   /* local, cannot be shown elsewhere */
+  return img;
+}
 function renderTokens(){
   var layer = document.getElementById('mapLayer');
   layer.querySelectorAll('.token').forEach(function(n){ n.remove(); });
   S.tokens.forEach(function(t){
     var el = document.createElement('div');
     var draggable = t.mine || S.role === 'lm';
+    var art = tokenArt(t);
     el.className = 'token ' + t.kind + (t.mine ? ' mine' : '') + (draggable && !t.mine ? ' lm-drag' : '')
-      + (sel === t.id ? ' sel' : '') + (t.img ? ' hasimg' : '');
-    var face = t.img ? '' : esc(initials(t.name || t.label || '?'));
-    if (t.img) el.style.backgroundImage = 'url(' + t.img + ')';
+      + (sel === t.id ? ' sel' : '') + (art ? ' hasimg' : '') + (_flashToken === t.id ? ' justplaced' : '');
+    var face = art ? '' : esc(initials(t.name || t.label || '?'));
+    if (art) el.style.backgroundImage = 'url(' + art + ')';
     el.innerHTML = '<span class="tok-face">' + face + '</span>'
       + (t.label ? '<span class="tok-label">' + esc(t.label) + '</span>' : '');
     place(el, t);
