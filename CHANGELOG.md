@@ -1,3 +1,9 @@
+## 2026-07-25 — A utility keeps its secret unless it says otherwise
+
+Being known on sight is something a utility now states outright. Reading silence as openness meant that the moment the veiled lines failed to reach the sheet, every utility in the game lay bare and the Discovered button had nothing left to do. Silence keeps the secret instead, and a utility whose veil has not arrived shows three question marks and a line saying it is something you have not seen before. The Skyvault Shard says it is open, and is the only one that does.
+
+The Remnant button is gone. A remnant is a kind of utility, not a state one is in.
+
 ## 2026-07-25 — A Skyvault Shard is known on sight
 
 Some things need no introduction. A utility carrying no veiled line has nothing to hide, so it shows its own name whether or not it has been identified. The Skyvault Shard is the first of them. A Darkshard is still a black shard that takes the light, and stays that way until somebody says otherwise.
