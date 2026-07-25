@@ -5206,11 +5206,25 @@ function tokenPalette(){
   var npcs = (S.scene.npcs||[]).map(function(n){
     return { kind:'npc', label:initials(n.name), name:n.name, img:n.img||null, cells:1, refId:n.id, source:'adventure' };
   });
+  /* The palette used to offer only the Fell already written into this scene, so a Fell
+     that was in the roster but had never been placed anywhere, which is every Fell after
+     an adventure is reimported with fresh scenes, could not be found here at all. The
+     roster is the truth about who is at the table, so it is the source: every Fell in the
+     party is offered, and the scene's own entry is preferred when it exists so a placed
+     Fell keeps its scene id. */
+  var fellSeen = {};
   var fell = (S.scene.fell||[]).map(function(p){
+    if (p.charId) fellSeen[p.charId] = 1;
     /* charId, not the scene entry's own id: it is the only thing that says whose Fell
        this is, and without it a player's token could never be known as theirs */
     return { kind:'p', label:initials(p.name), name:p.name, img:p.img||null, cells:1,
              refId:p.id, charId:p.charId || '', source:'fellglass' };
+  });
+  (S.party||[]).forEach(function(p){
+    if (!p || !p.charId || fellSeen[p.charId]) return;   /* already offered from the scene */
+    var nm = p.charName || p.name || 'Fell';
+    fell.push({ kind:'p', label:initials(nm), name:nm, img:p.img || portraitFor(p.charId) || null,
+                cells:1, refId:p.charId, charId:p.charId, source:'roster' });
   });
   var account = (S.scene.accountTokens||[]).slice();
   return { foes:foes, npcs:npcs, fell:fell, account:account };

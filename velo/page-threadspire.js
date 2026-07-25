@@ -47,6 +47,36 @@ $w.onReady(async function () {
   if (!campaignId && characterId) {
     try { const a = await charAdventure(characterId); if (a && a.campaignId) campaignId = a.campaignId; } catch (e) {}
   }
+  // A LoreMaster who deletes an adventure and reimports it gets a new id, but the old
+  // one is still in the address bar from before. The page then opened a campaign that no
+  // longer exists: no story, and after nine seconds, "Still here". So the id from the
+  // address is checked against the ones they actually run. If it is not one of theirs,
+  // the Fell's record is asked next, and failing that the most recent adventure they
+  // own, so a stale link lands on something real.
+  //
+  // This only ever acts for someone who runs adventures. A plain player owns none, so
+  // listMyCampaigns is empty for them and this leaves their campaignId exactly as it
+  // arrived: a player reaches the table through their Fell, and that path is untouched.
+  async function resolveCampaign(want) {
+    let mine = [];
+    try { mine = await listMyCampaigns(); } catch (e) { mine = []; }
+    if (!mine.length) return want;                      // not a LoreMaster; do not touch it
+    const has = (id) => id && mine.some((c) => String(c.id) === String(id));
+    if (has(want)) return want;                         // the address is still valid
+    // theirs to run, but this id is not among them: deleted, reimported, or never ours.
+    if (characterId) {
+      try { const a = await charAdventure(characterId); if (a && a.campaignId && has(a.campaignId)) return a.campaignId; } catch (e) {}
+    }
+    return mine[0].id;                                  // one they own, so the table opens on something real
+  }
+  if (campaignId || characterId) {
+    const resolved = await resolveCampaign(campaignId);
+    // Resolve in memory only. The address is left as it is on purpose: rewriting the
+    // query during onReady is the one thing that has caused a reload here before, and
+    // the resolver runs again on the next load anyway, so a stale address costs nothing
+    // but a moment's indirection, and never a loop.
+    if (resolved) campaignId = resolved;
+  }
   // The character sheet, FellGlass, runs inside ThreadSpire now. Its bridge is relayed
   // here so the embedded sheet reads and writes the same Characters record its own page
   // would. One tool, one record, shown in the rail.
