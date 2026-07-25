@@ -898,6 +898,11 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
    view, and send is the only sender of player intent outward. Polling feeds these now, a
    live transport later replaces the feed and touches nothing else. */
 
+/* Every seam the table can fail at, reported live in the Seams window. It lives here
+   rather than down beside the state feed because openWin, the roster and the sheet
+   frame all write to it, and all three run before that line used to. */
+var SEAM = { pushAt:0, pushV:0, pushOk:null, pushWhy:'', pullAt:0, pullV:0, pullGot:'', pulls:0,
+             partyAt:0, partyWhy:'', sheetHeld:0, sheetFlushed:'', lastSectionErr:'' };
 var S = {
   role: 'player',
   /* the LoreMaster's identity rail. lp and ss come from the adventure, dp from
@@ -912,8 +917,13 @@ var S = {
   log: [],
   character: { name:'Acantha', level:12, vit:70, maxVit:70, lp:9,
     diceSkins: { attack:'emberglass', evade:'frostvein', skill:'loamcut', generic:'plainstone' } },
-  /* the rest of the party, as the engine would hand them over */
-  party: { Kaelo: { diceSkins: { attack:'boneash', evade:'boneash', skill:'boneash', generic:'boneash' } } },
+  /* The roster, as the site hands it over: a list, always. It was seeded here as a
+     shelf keyed by name, for the prototype's dice colours, while every other reader in
+     this file treats it as a list. Drawing the Fell called forEach on an object and
+     threw, which took the window down with it before it could open, and left the tab
+     dead until the real roster arrived and quietly changed the shape underneath.
+     The prototype's Kaelo now rolls plainstone. That is the whole cost. */
+  party: [],
   /* map space. The art is the truth, the grid is an overlay onto it. */
   map: { w:2400, h:1600 },
   /* the LoreMaster owns all three knobs. Cell size and offset are the coordinate
@@ -2654,12 +2664,27 @@ var DICE_SKINS = {
   plainstone: { bg:'linear-gradient(160deg,#1b2440,#0b101f)', pip:'#dce8ef' },
   boneash:    { bg:'linear-gradient(160deg,#2a2622,#14110e)', pip:'#c9a84c' }
 };
+/* The roster is a list, not a shelf keyed by name, so looking a player up by name on
+   it always found nothing and every die at the table rolled plainstone. */
+function partyByName(who){
+  if (!who) return null;
+  var hit = null;
+  (S.party || []).forEach(function(p){
+    if (hit) return;
+    if (p && (p.charName === who || p.name === who)) hit = p;
+  });
+  return hit;
+}
+function skinOwner(who){
+  if (!who || (S.character && who === S.character.name)) return S.character;
+  return partyByName(who);
+}
 function skinFor(type, who){
-  var owner = (!who || who === S.character.name) ? S.character : (S.party || {})[who];
+  var owner = skinOwner(who);
   return DICE_SKINS[((owner || {}).diceSkins || {})[type]] || DICE_SKINS.plainstone;
 }
 function skinKey(type, who){
-  var owner = (!who || who === S.character.name) ? S.character : (S.party || {})[who];
+  var owner = skinOwner(who);
   return ((owner || {}).diceSkins || {})[type] || 'plainstone';
 }
 var spins = 0, tumbleEnds = 0;
@@ -2848,8 +2873,7 @@ function openWin(key){
     godWait(false);
     S.godChar = null; S.godPanel = null;
     try { tsAsk('TS_GOD_SHEET_CLOSE', {}); } catch(e){}
-    var _gf0 = document.getElementById('sheetFrame');
-    if (_gf0 && _gf0.contentWindow) _gf0.contentWindow.postMessage({ type:'ts-god', on:false }, '*');
+    sheet.postMessage({ type:'ts-god', on:false });
   }
   S.openSection = key;
   lmExpanded = null;
@@ -2872,7 +2896,23 @@ function openWin(key){
     if (key === 'arsenal'){ win.classList.add('arsenal'); renderSheetSub('weapons'); sheetGoto('weapons'); }
     else { win.classList.remove('arsenal'); sheetGoto(panel); }
   }
-  else { win.classList.remove('sheeting'); win.classList.remove('arsenal'); document.getElementById('winBody').innerHTML = sectionBody(key); }
+  else {
+    win.classList.remove('sheeting'); win.classList.remove('arsenal');
+    /* The window used to be shown only after the body was built, so a section that threw
+       on the way in left the table with openSection set and nothing on screen: the next
+       tap read as already here and closed it, and the one after opened it and threw
+       again. Two taps for nothing, forever. The window opens first and a section that
+       cannot build says so where it would have been. */
+    var _b = document.getElementById('winBody');
+    try { _b.innerHTML = sectionBody(key); }
+    catch (err){
+      SEAM.lastSectionErr = key + ': ' + String((err && err.message) || err).slice(0, 120);
+      _b.innerHTML = '<div class="win-note bad">This section could not be drawn.</div>'
+        + '<div class="win-note">' + esc(SEAM.lastSectionErr) + '</div>'
+        + '<button class="st-add" onclick="refreshWinBody()">Try again</button>';
+      try { console.error('[threadspire] section ' + key + ' failed', err); } catch(e){}
+    }
+  }
   win.classList.add('open');
   var _wa=document.getElementById('winArt'); if(_wa) _wa.style.display='block';
   var _wx=document.getElementById('winX'); if(_wx) _wx.style.display='flex';
@@ -2884,8 +2924,7 @@ function closeWin(){
     godWait(false);
     S.godChar = null; S.godPanel = null;
     try { tsAsk('TS_GOD_SHEET_CLOSE', {}); } catch(e){}
-    var _gf = document.getElementById('sheetFrame');
-    if (_gf && _gf.contentWindow) _gf.contentWindow.postMessage({ type:'ts-god', on:false }, '*');
+    sheet.postMessage({ type:'ts-god', on:false });
   }
   S.openSection = null;
   document.body.classList.remove('winopen');
@@ -3555,7 +3594,7 @@ function combatFighters(){
 function combatPublish(){
   if (!isLM() || !tsEmbedded()) return;
   /* the party is the fighters list, so it cannot be an afterthought */
-  if (!S.party){ S.party = []; partyLoad(); }
+  if (!_partyLoaded) partyLoad();
   var logOut = (S.log || []).slice(-30).reverse().map(function(e){
     var t = e.text || String(e.html || '').replace(/<[^>]*>/g, '');
     return { side: e.kind === 'say' ? 'fell' : 'system', text: t };
@@ -4482,7 +4521,16 @@ function seamsBody(){
         return made + ' of ' + tried + ' sharpened' + (made < tried ? ', the rest shown as they came' : '');
       })()],
     ['Active stage', (function(){ try { var a = activeStageId(); if (!a) return 'none'; var st = stageById(a); return (st && st.name) || a; } catch(e){ return 'error'; } })()],
-    ['Between adventures', _advSwitching ? 'YES, pushes are gated' : 'no']
+    ['Between adventures', _advSwitching ? 'YES, pushes are gated' : 'no'],
+    /* The roster and the sheet frame are the two seams that used to fail without saying
+       anything: an empty Fell list read the same whether nobody had joined or the
+       question never left, and a sheet handed a Fell before it could listen sat blank
+       with no sign anything had been sent. Both say so here now. */
+    ['Roster', (_partyLoading ? 'asking\u2026' : (!_partyLoaded ? 'never asked' : ((S.party || []).length + ' held \u00b7 ' + (SEAM.partyWhy || '') + ' \u00b7 ' + age(SEAM.partyAt))))],
+    ['Sheet frame', (!_sheetLoaded ? 'not loaded' : (sheet.ready ? 'listening' : 'loading, nothing can reach it yet'))],
+    ['Sheet backlog', (SEAM.sheetHeld ? SEAM.sheetHeld + ' message(s) held for the frame' : (SEAM.sheetFlushed || 'nothing waiting'))],
+    ['Fell held open', S.godChar ? ((S.godChar.name || '?') + ' \u00b7 ' + String(S.godChar.id).slice(0,8)) : 'none'],
+    ['Last section error', SEAM.lastSectionErr || 'none']
   ];
   return '<div class="win-note">The table\u2019s working parts, live. When two tables disagree, open this on both and compare lines: the wrong number names the broken side.</div>'
     + rows.map(function(r){ return '<div class="seam-row"><span class="seam-k">' + r[0] + '</span><span class="seam-v">' + esc(r[1]) + '</span></div>'; }).join('');
@@ -4636,7 +4684,7 @@ function menuBody(){
   setTimeout(loadCharList, 30);
   return h;
 }
-function sendGod(){ var f=document.getElementById('sheetFrame'); if(f&&f.contentWindow) f.contentWindow.postMessage({type:'ts-god',on:!!S.godMode},'*'); }
+function sendGod(){ sheet.postMessage({ type:'ts-god', on:!!S.godMode }); }
 function toggleGodMode(){ S.godMode = !S.godMode; sendGod(); refreshWinBody(); }
 function charactersBody(){
   setTimeout(loadCharList, 30);
@@ -4674,8 +4722,9 @@ function buildNewFell(){
   var win = document.getElementById('win'); win.classList.add('sheeting'); win.classList.remove('arsenal');
   document.getElementById('winTitle').textContent = 'NEW FELL';
   S.openSection = 'lore'; sheetGoto('lore'); win.classList.add('open');
-  var f = document.getElementById('sheetFrame');
-  if (f && f.contentWindow) setTimeout(function(){ f.contentWindow.postMessage({ type:'ts-new' }, '*'); }, 120);
+  /* this used to be a guess at how long the frame needed. It is held now and said the
+     moment the sheet answers, so a slow load no longer swallows the new Fell. */
+  sheet.postMessage({ type:'ts-new' });
   paintRails();
 }
 function loadMyChar(){
@@ -4691,7 +4740,17 @@ function loadMyChar(){
     render(); refreshWinBody();
   }).catch(function(){ S.sheetMsg = 'Your sheet did not answer. If this is the live table, make sure the ThreadSpire page code is pasted, then reload.'; render(); refreshWinBody(); });
 }
-function refreshWinBody(){ if (S.openSection){ var b = document.getElementById('winBody'); if (b) b.innerHTML = sectionBody(S.openSection); } }
+function refreshWinBody(){
+  if (!S.openSection) return;
+  var b = document.getElementById('winBody'); if (!b) return;
+  try { b.innerHTML = sectionBody(S.openSection); }
+  catch (err){
+    SEAM.lastSectionErr = S.openSection + ': ' + String((err && err.message) || err).slice(0, 120);
+    b.innerHTML = '<div class="win-note bad">This section could not be drawn.</div>'
+      + '<div class="win-note">' + esc(SEAM.lastSectionErr) + '</div>';
+    try { console.error('[threadspire] section ' + S.openSection + ' failed', err); } catch(e){}
+  }
+}
 function attributesBody(){
   if (!S.sheet) return sheetLoading();
   var a = S.sheet.attrs || {};
@@ -4795,7 +4854,10 @@ function loadAdventureSpine(spine){
 /* What actually happened at the seam, kept so the seams panel can say it. Every failure
    in this pipeline used to be swallowed, which is why a broken link could only be found
    by guessing at it. */
-var SEAM = { pushAt:0, pushV:0, pushOk:null, pushWhy:'', pullAt:0, pullV:0, pullGot:'', pulls:0 };
+/* declared up with the state it describes; this line only fills in the counters, so a
+   seam written to before the feed starts is not writing to undefined */
+SEAM.pushAt=0; SEAM.pushV=0; SEAM.pushOk=null; SEAM.pushWhy='';
+SEAM.pullAt=0; SEAM.pullV=0; SEAM.pullGot=''; SEAM.pulls=0;
 function startStateFeed(){
   if (!tsEmbedded() || _stateFeedTimer) return;
   function pullOnce(){
@@ -4856,7 +4918,7 @@ window.onmessage = function(ev){
     }
     if (d.campaignId) S.campaignId = d.campaignId;
     if (d.memberName) S.memberName = d.memberName;
-    if (d.party) { S.party = d.party; harvestPortraits(d.party); mergeFellSheets(); try { renderTokens(); } catch(e){} }
+    if (d.party) { S.party = d.party; _partyLoaded = true; SEAM.partyAt = Date.now(); SEAM.partyWhy = 'arrived on the state feed'; harvestPortraits(d.party); mergeFellSheets(); try { renderTokens(); } catch(e){} if (S.openSection === 'fell') refreshWinBody(); }
     if (d.character && d.character.id) { rememberPortrait(d.character.id, d.character.image); try { renderTokens(); } catch(e){} }
     if (d.characterId) S.characterId = d.characterId;
     else if (d.character && d.character.id) S.characterId = d.character.id;
@@ -5160,7 +5222,13 @@ function lmTokenDrop(e){
    prototype stubs it. */
 S.memberName = S.memberName || 'Nate';
 S.journal = S.journal || [];
+/* The roster is an array, so `if (!S.party)` was false the moment this line ran and
+   partyLoad never fired from opening the Fell. Whether it has been fetched is its own
+   fact, kept apart from whether it happens to be empty: an adventure with nobody in it
+   and an adventure nobody has asked about look the same otherwise. */
 S.party = S.party || [];
+var _partyLoaded = false;    /* the answer has come back at least once */
+var _partyLoading = false;   /* a request is in flight, do not stack another */
 S.characterId = S.characterId || '';
 S.sheet = S.sheet || null;
 S.charReady = S.charReady || false;
@@ -5270,10 +5338,17 @@ function lmPortraitPicked(inp){
 function lmSetSpeaker(name, portrait){ S.lm = S.lm || {}; S.lm.speaker = name ? { name:name, portrait:portrait||'' } : null; paintHud(); }
 function lmFellBody(){
   /* the sheet is shown in the frame, not here, so the body is only ever the list */
-  if (!S.party) { S.party = []; partyLoad(); }
+  if (!_partyLoaded) partyLoad();
   var h = '<div class="win-note">Who is at this adventure, what they play, and what they may do. Open a Fell to work on it directly.</div>';
   var list = S.party || [];
-  if (!list.length) h += '<div class="win-note">No one has joined yet. Send an invite, or add someone who is at the table without a device.</div>';
+  /* Three different nothings, told apart, the same way the stage shelf tells them apart:
+     still asking, asked and nobody is here, and asked and the question never landed. */
+  if (!list.length){
+    if (!_partyLoaded) h += '<div class="win-note">Reading the roster\u2026</div>';
+    else if (String(SEAM.partyWhy || '').indexOf('failed') === 0)
+      h += '<div class="win-note bad">The roster did not arrive (' + esc(String(SEAM.partyWhy).slice(8)) + '). Refresh to ask again.</div>';
+    else h += '<div class="win-note">No one has joined yet. Send an invite, or add someone who is at the table without a device.</div>';
+  }
   list.forEach(function(p){
     var role = p.role || 'player';
     var vit = (p.curVit !== undefined && p.maxVit) ? (p.curVit + ' / ' + p.maxVit) : '';
@@ -5360,18 +5435,32 @@ function storyQuestsHtml(sc){
   return h;
 }
 function partyLoad(){
-  if (!tsEmbedded()) return;
+  if (!tsEmbedded()){ _partyLoaded = true; SEAM.partyWhy = 'not embedded, there is no site to ask'; return; }
+  if (_partyLoading) return;
+  _partyLoading = true;
+  SEAM.partyWhy = 'asking';
   tsAsk('TS_PARTY_LIST', {}).then(function(list){
+    _partyLoading = false; _partyLoaded = true;
     harvestPortraits(list);
     S.party = list || [];
+    SEAM.partyAt = Date.now();
+    SEAM.partyWhy = S.party.length ? (S.party.length + ' at the table') : 'the adventure answered with nobody';
     if (S.openSection === 'fell') refreshWinBody();
     try { renderTokens(); } catch(e){}
     /* if the roster lands while a battle is running, the fighters list was published
        without it; say it again with everyone named */
     if (isLM() && inBattle()) combatPublish();
-  }).catch(function(){ S.party = []; });
+  }).catch(function(e){
+    /* A roster that failed to arrive is not an empty roster. Saying so out loud is the
+       difference between an adventure with nobody in it and a bridge that fell over. */
+    _partyLoading = false; _partyLoaded = true;
+    SEAM.partyAt = Date.now();
+    SEAM.partyWhy = 'failed: ' + String((e && e.message) || e).slice(0, 60);
+    S.party = [];
+    if (S.openSection === 'fell') refreshWinBody();
+  });
 }
-function partyRefresh(){ S.party = null; refreshWinBody(); partyLoad(); }
+function partyRefresh(){ _partyLoaded = false; _partyLoading = false; S.party = []; refreshWinBody(); partyLoad(); }
 function partyGet(memberId){
   var hit = null;
   (S.party || []).forEach(function(p){ if (sameId(p.memberId, memberId)) hit = p; });
@@ -5649,18 +5738,17 @@ function godShow(charId, rec){
   if (rec && (rec.portrait || (rec.identity && rec.identity.image))) rememberPortrait(charId, rec.portrait || rec.identity.image);
   try { renderTokens(); } catch(e){}
   var f = document.getElementById('sheetFrame');
-  if (!f || !f.contentWindow) return;
+  if (!f) return;
   godWait(false);
-  f.contentWindow.postMessage({ type:'init', charId:charId, character: rec }, '*');
-  f.contentWindow.postMessage({ type:'ts-god', on:true }, '*');
+  sheet.postMessage({ type:'init', charId:charId, character: rec });
+  sheet.postMessage({ type:'ts-god', on:true });
   paintGodBar(); sheetGoto(S.godPanel || 'lore');
 }
 function lmCloseFell(){
   godWait(false);
   S.godChar = null; S.godPanel = null;
   tsAsk('TS_GOD_SHEET_CLOSE', {}).catch(function(){});
-  var f = document.getElementById('sheetFrame');
-  if (f && f.contentWindow) f.contentWindow.postMessage({ type:'ts-god', on:false }, '*');
+  sheet.postMessage({ type:'ts-god', on:false });
   openWin('fell');
 }
 function godGoto(panel){ S.godPanel = panel; sheetGoto(panel); paintGodBar(); }
@@ -5681,7 +5769,36 @@ function paintGodBar(){
 }
 var _sheetLoaded = false;
 function ensureSheet(){ var f = document.getElementById('sheetFrame'); if (f && !_sheetLoaded){ f.src = 'fellglass.html?host=threadspire'; _sheetLoaded = true; } }
-function sheetGoto(panel){ S.sheetPanel = panel; var f = document.getElementById('sheetFrame'); if (f && f.contentWindow) f.contentWindow.postMessage({ type:'goto-panel', panel:panel }, '*'); }
+/* The sheet frame, spoken to as if it were a window, because from everywhere else in
+   this file it may as well be. The frame used to be told to load and spoken to in the
+   same breath, so the first Fell of a session was handed over before the sheet had its
+   listener up and the record went nowhere: a blank sheet, and the only way out was
+   opening a second Fell and coming back. Words said too early are kept and said again
+   the moment it answers. An init supersedes any earlier init, since only the Fell being
+   opened now matters. */
+var sheet = {
+  ready: false,        /* it has announced itself and is listening */
+  queue: [],           /* what was said to it before it could hear */
+  win: function(){ var f = document.getElementById('sheetFrame'); return (f && f.contentWindow) || null; },
+  postMessage: function(msg){
+    if (!msg || !msg.type) return;
+    var w = this.win();
+    if (this.ready && w){ w.postMessage(msg, '*'); return; }
+    if (msg.type === 'init' || msg.type === 'new'){
+      this.queue = this.queue.filter(function(m){ return m.type !== 'init' && m.type !== 'new'; });
+    }
+    this.queue.push(msg);
+    SEAM.sheetHeld = this.queue.length;
+  },
+  flush: function(){
+    var w = this.win(); if (!w) return;
+    var q = this.queue; this.queue = [];
+    SEAM.sheetHeld = 0;
+    q.forEach(function(m){ try { w.postMessage(m, '*'); } catch(e){} });
+    if (q.length) SEAM.sheetFlushed = q.length + ' held message' + (q.length === 1 ? '' : 's') + ' said again';
+  }
+};
+function sheetGoto(panel){ S.sheetPanel = panel; sheet.postMessage({ type:'goto-panel', panel:panel }); }
 var ARSENAL_TABS = [['weapons','Weapons'],['lorebounds','Lorebounds'],['armor','Armor']];
 function renderSheetSub(active){
   var el = document.getElementById('sheetSub'); if (!el) return;
@@ -5709,8 +5826,16 @@ window.addEventListener('message', function(ev){
         if (isLM()) schedulePush(); else { try { pushState(); } catch(e){} }
       }
     }
-    if (ev.data.type === 'ready' && S.sheetPanel && f.contentWindow) f.contentWindow.postMessage({ type:'goto-panel', panel:S.sheetPanel }, '*');
-    if (ev.data.type === 'ready' && S.godMode && f.contentWindow) f.contentWindow.postMessage({ type:'ts-god', on:true }, '*');
+    if (ev.data.type === 'ready'){
+      /* the sheet is listening now, so anything held back goes across before anything else */
+      sheet.ready = true;
+      sheet.flush();
+      if (S.sheetPanel) sheet.postMessage({ type:'goto-panel', panel:S.sheetPanel });
+      /* godMode is the LoreMaster's own switch; godChar is a player's Fell being held
+         open. Only the first was re-sent, so a Fell opened from a cold frame came back
+         without the LoreMaster's hand on it. */
+      if (S.godMode || S.godChar) sheet.postMessage({ type:'ts-god', on:true });
+    }
     if (tsEmbedded()){
       var out = ev.data;
       if (ev.data.type === 'ready' && S.characterId) out = { type:'ready', charId: S.characterId };
@@ -5719,7 +5844,9 @@ window.addEventListener('message', function(ev){
     return;
   }
   if (ev.data && ev.data.type === 'TS_TOOL_DOWN' && ev.data.tool === 'fellglass'){
-    if (f && f.contentWindow) f.contentWindow.postMessage(ev.data.msg, '*');
+    /* the site can answer faster than the frame can load, and an init that arrives
+       first used to be dropped on the floor */
+    sheet.postMessage(ev.data.msg);
     var m = ev.data.msg || {};
     /* a Fell the LoreMaster opened is somebody else's; it goes to the frame and no
        further, or the LoreMaster's own identity would be replaced by the player's */
