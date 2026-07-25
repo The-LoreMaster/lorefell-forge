@@ -1,3 +1,7 @@
+## 2026-07-25 — The veiled lines say what the things actually look like
+
+Thirty three of the utilities now wear the description their maker gave them rather than the one guessed from their name. Filcher's Band is a ring cut with runes. Haulers are steel gloves. The Skeleton Key is bone white with its bow carved as a skull. The Wispin Coin is a blue gem with a symbol on one face and a grinning bogle merchant on its back.
+
 ## 2026-07-25 — A utility you have not identified still shows itself
 
 An unknown utility says what it looks like in the hand instead of nothing at all. A pitted stone, warm in the hand. A key filed down to bare teeth. A coin struck on one side only. You can see what you are holding and still not know what it does, which is the whole of the tension.
