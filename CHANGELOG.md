@@ -1,3 +1,9 @@
+## 2026-07-25 — A map or token knows which adventure it was made for
+
+Art made while an adventure is open is stamped with that adventure, the way a foe already is. It is stamped at the single place every save passes through, so no part of the tool has to remember and none can forget, and it is carried back on the shelves so the stamp can be seen rather than assumed. The seams say how much of the saved art bears it.
+
+Nothing is hidden by this. A map or token still belongs to the account and still appears on every shelf; it simply also knows where it came from. That is what an export needs in order to take the right things with it.
+
 ## 2026-07-25 — The token shelf reads like the map shelf
 
 A folder inside a folder is shown as one, sitting under its parent and wearing its own name, instead of every folder spelling out its whole descent along the top of the shelf. Two rows reading Kwuhara and Kwuhara/Sarn Bridge were one folder and the folder inside it all along. The map shelf has always drawn them this way; the token shelf now does the same, and gains the same mark for making a folder within a folder.

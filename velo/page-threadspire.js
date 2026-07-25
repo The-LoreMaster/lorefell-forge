@@ -157,7 +157,8 @@ $w.onReady(async function () {
           if (msg.kind === 'map' || msg.kind === 'token') {
             mine = mine.map((a) => ({
               assetId: a.assetId, kind: a.kind, name: a.name,
-              image: toHttps(a.image), w: a.w || 0, h: a.h || 0, folder: a.folder || ''
+              image: toHttps(a.image), w: a.w || 0, h: a.h || 0, folder: a.folder || '',
+              campaignId: a.campaignId || ''
             }));
           } else {
             mine = mine.map((a) => Object.assign({}, a, { image: toHttps(a.image) }));

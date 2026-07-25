@@ -4402,6 +4402,15 @@ function seamsBody(){
         return (t.name || t.label || '?') + ' \u00b7 ' + how;
       })()],
     ['Portraits known', String(Object.keys(_portraits || {}).length) + ' fell, ' + String(Object.keys(_foeArt || {}).length) + ' foe'],
+    ['Art on this adventure', (function(){
+        /* whether the stamp is sticking. If saved art keeps reading none, the field is
+           not being kept and no export will find it. */
+        var all = (S.scene.maps || []).filter(function(m){ return m.assetId; })
+                  .concat((S.scene.accountTokens || []).filter(function(t){ return t.assetId; }));
+        if (!all.length) return 'nothing saved yet';
+        var mine = all.filter(function(a){ return a.campaignId && sameId(a.campaignId, S.campaignId); }).length;
+        return mine + ' of ' + all.length + ' stamped';
+      })()],
     ['Token art', (function(){
         var made = Object.keys(_thumbs || {}).length, tried = Object.keys(_thumbTried || {}).length;
         if (!tried) return 'none drawn yet';
@@ -4836,7 +4845,14 @@ if (tsEmbedded()){
       if (typeof fileOrUrl === 'string') return Promise.resolve(fileOrUrl);
       return shrinkImage(fileOrUrl, 1600).then(function(b64){ return tsAsk('TS_ASSET_UPLOAD', { base64:b64, name:name }); });
     },
-    save: function(asset){ return tsAsk('TS_ASSET_SAVE', { asset:asset }); },
+    save: function(asset){
+      /* A map or token made while running an adventure belongs to that adventure as well
+         as to the account, the way a foe already does. Stamped here, where every save
+         passes, so no caller has to remember and none can forget. */
+      var a = Object.assign({}, asset);
+      if (!a.campaignId && S.campaignId) a.campaignId = S.campaignId;
+      return tsAsk('TS_ASSET_SAVE', { asset:a });
+    },
     list: function(kind){ return tsAsk('TS_ASSET_LIST', { kind:kind }); }
   };
   stageBackend = {
@@ -5990,7 +6006,7 @@ function loadAccountAssets(){
       var have = null;
       S.scene.maps.forEach(function(m){ if (m.id === r.assetId) have = m; });
       if (!have){
-        S.scene.maps.push({ id:r.assetId, assetId:r.assetId, folder:r.folder || '', name:r.name, url:r.image, w:r.w||2400, h:r.h||1600, source:'account' });
+        S.scene.maps.push({ id:r.assetId, assetId:r.assetId, folder:r.folder || '', name:r.name, url:r.image, w:r.w||2400, h:r.h||1600, campaignId:r.campaignId || '', source:'account' });
         return;
       }
       /* the account is the record. Skipping a row we already had a copy of let a
@@ -6018,7 +6034,8 @@ function loadAccountAssets(){
     S.assets = rows;
     S.scene.accountTokens = rows.map(function(r){
       return { kind:'asset', label:initials(r.name), name:r.name, img:r.image, cells:1, refId:r.assetId,
-               assetId:r.assetId, folder:r.folder || '', w:r.w||0, h:r.h||0, source:'account' };
+               assetId:r.assetId, folder:r.folder || '', w:r.w||0, h:r.h||0,
+               campaignId:r.campaignId || '', source:'account' };
     });
     if (rows.length) paintTokenPalette();
   });
