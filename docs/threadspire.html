@@ -4264,7 +4264,19 @@ function seamsBody(){
     ['Map picture', (function(){ var m = (typeof activeMap === 'function') ? activeMap() : null;
         if (m && m.url) return 'held (' + (m.url.indexOf('blob:') === 0 ? 'LOCAL ONLY, dies on reload' : 'stored') + ')';
         return S.remoteMapUrl ? 'from the table' : 'NONE'; })()],
-    ['Tokens', String((S.tokens || []).length)],
+    ['Tokens', (function(){
+        var ts = S.tokens || [];
+        var withImg = ts.filter(function(t){ return t.img; }).length;
+        var local = ts.filter(function(t){ var i = String(t.img||''); return i.indexOf('blob:')===0 || i.indexOf('data:')===0; }).length;
+        return ts.length + ' (' + withImg + ' with art' + (local ? ', ' + local + ' LOCAL ONLY' : '') + ')';
+      })()],
+    ['First token', (function(){
+        var t = (S.tokens || [])[0]; if (!t) return 'none';
+        var i = String(t.img || '');
+        var kind = !i ? 'letters' : (i.indexOf('blob:')===0 || i.indexOf('data:')===0 ? 'LOCAL, will not travel' : 'stored url');
+        return (t.name || t.label || '?') + ' \u00b7 ' + kind;
+      })()],
+    ['Active stage', (function(){ try { var a = activeStageId(); if (!a) return 'none'; var st = stageById(a); return (st && st.name) || a; } catch(e){ return 'error'; } })()],
     ['Between adventures', _advSwitching ? 'YES, pushes are gated' : 'no']
   ];
   return '<div class="win-note">The table\u2019s working parts, live. When two tables disagree, open this on both and compare lines: the wrong number names the broken side.</div>'
@@ -5749,13 +5761,18 @@ function lmDeleteMap(id){
 function lmSetMap(id){
   var m = null; S.scene.maps.forEach(function(x){ if(x.id===id) m=x; });
   if (!m){ lmCloseMaps(); return; }
-  /* set the scene's background and size to this map, then say it outward. This is what
-     a stage face already did and the shelf never did, which is why the Maps button
-     looked dead while stages worked. */
+  /* A stage is a map and the tokens on it. Picking a map is therefore changing the
+     face of the stage you are on, not laying a bare map beside it: doing the latter
+     left a background the stage system did not know about, and the next stage save or
+     restore wiped it, which is the stage that vanished. Lay it on the current stage,
+     keeping the tokens, and if there is no stage yet, this makes it one. */
+  ensureLobby();
   S.scene.background = m.id;
   if (m.w) S.map.w = m.w;
   if (m.h) S.map.h = m.h;
-  applyRemoteState({ scene:S.scene, map:S.map });
+  /* the change belongs to the stage, so record it there before it is shared */
+  lmSaveCurrentStage();
+  applyRemoteState({ scene:S.scene, map:S.map, tokens:S.tokens, instance:S.instance });
   paintMapArt();
   pushLog({ kind:'sys', html:'The table is now <b>' + esc(m.name || 'a map') + '</b>.' });
   applyRemoteState({ log:S.log });
