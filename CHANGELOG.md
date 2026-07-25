@@ -1,3 +1,9 @@
+## 2026-07-25 — The token shelf reads like the map shelf
+
+A folder inside a folder is shown as one, sitting under its parent and wearing its own name, instead of every folder spelling out its whole descent along the top of the shelf. Two rows reading Kwuhara and Kwuhara/Sarn Bridge were one folder and the folder inside it all along. The map shelf has always drawn them this way; the token shelf now does the same, and gains the same mark for making a folder within a folder.
+
+The rename and remove marks on a saved token sit proud of its corner in gold, at a size a thumb can find. They had been small, faint, and laid over the picture itself.
+
 ## 2026-07-25 — Saved tokens can be named and removed, and stages hold their order
 
 The rename and remove marks on a saved token are always there now. They had been waiting for a pointer to hover over them, which on a phone never happens, so on the device most of this is used they did not exist. A token just uploaded also knows its own record at once, rather than only after the shelf is loaded again, so it can be named or removed the moment it arrives.
