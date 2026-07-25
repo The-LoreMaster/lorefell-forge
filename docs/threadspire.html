@@ -3969,7 +3969,10 @@ function stripInlineImages(v){
   var out = {};
   Object.keys(v).forEach(function(k){
     var val = v[k];
-    if ((k === 'img' || k === 'image' || k === 'portrait') && typeof val === 'string'
+    /* portrait is the heavy, resolvable one: a per-Fell data url the far side can find
+       for itself. Foe art (img) stays, because there are few foes and the player has no
+       other way to see them. Only a data url is dropped; a stored url is small and kept. */
+    if (k === 'portrait' && typeof val === 'string'
         && (val.indexOf('data:') === 0 || val.indexOf('blob:') === 0)){
       out[k] = '';
     } else if (val && typeof val === 'object'){
@@ -4042,6 +4045,7 @@ function applyRemoteSnapshot(snap){
     }
   }
   if (snap.tokens) S.tokens = snap.tokens;
+  try { harvestFoeArt(); } catch(e){}
   if (snap.grid) S.grid = snap.grid;
   if (snap.map) S.map = snap.map;
   if (snap.combatPhase !== undefined) S.scene.combatPhase = snap.combatPhase;
@@ -4106,7 +4110,7 @@ function applySheet(){
   if (sh.vitality){ if (sh.vitality.current !== undefined) S.character.vit = sh.vitality.current; if (sh.vitality.max !== undefined) S.character.maxVit = sh.vitality.max; if (sh.vitality.temp !== undefined) S.character.tempVit = sh.vitality.temp; }
   if (sh.charge !== undefined) S.character.charge = sh.charge;
   if (sh.fatigue !== undefined) S.character.fatigue = sh.fatigue;
-  if (sh.portrait) S.character.portrait = sh.portrait;
+  if (sh.portrait) { S.character.portrait = sh.portrait; if (S.characterId) rememberPortrait(S.characterId, sh.portrait); }
   if (typeof paintHud === 'function') paintHud();
 }
 /* ---- which adventure this table is running ----
@@ -4296,10 +4300,11 @@ function seamsBody(){
       })()],
     ['First token', (function(){
         var t = (S.tokens || [])[0]; if (!t) return 'none';
-        var i = String(t.img || '');
-        var kind = !i ? 'letters' : (i.indexOf('blob:')===0 || i.indexOf('data:')===0 ? 'LOCAL, will not travel' : 'stored url');
-        return (t.name || t.label || '?') + ' \u00b7 ' + kind;
+        var art = (typeof tokenArt === 'function') ? tokenArt(t) : '';
+        var how = !art ? 'letters (no art found)' : (art.indexOf('data:')===0 ? 'portrait found (inline)' : 'portrait found (stored)');
+        return (t.name || t.label || '?') + ' \u00b7 ' + how;
       })()],
+    ['Portraits known', String(Object.keys(_portraits || {}).length) + ' fell, ' + String(Object.keys(_foeArt || {}).length) + ' foe'],
     ['Active stage', (function(){ try { var a = activeStageId(); if (!a) return 'none'; var st = stageById(a); return (st && st.name) || a; } catch(e){ return 'error'; } })()],
     ['Between adventures', _advSwitching ? 'YES, pushes are gated' : 'no']
   ];
@@ -4554,6 +4559,7 @@ function loreBody(){
 function mergeFellSheets(){
   if (!S.party || !S.party.length) return;
   var byChar = {}; S.party.forEach(function(sh){ if (sh && sh.charId) byChar[sh.charId] = sh; });
+  harvestPortraits(S.party);
   function enrich(list){
     (list||[]).forEach(function(p){
       var sh = p && p.charId ? byChar[p.charId] : null;
@@ -4667,7 +4673,8 @@ window.onmessage = function(ev){
     }
     if (d.campaignId) S.campaignId = d.campaignId;
     if (d.memberName) S.memberName = d.memberName;
-    if (d.party) { S.party = d.party; mergeFellSheets(); }
+    if (d.party) { S.party = d.party; harvestPortraits(d.party); mergeFellSheets(); try { renderTokens(); } catch(e){} }
+    if (d.character && d.character.id) { rememberPortrait(d.character.id, d.character.image); try { renderTokens(); } catch(e){} }
     if (d.characterId) S.characterId = d.characterId;
     else if (d.character && d.character.id) S.characterId = d.character.id;
     if (d.character){ S.character = S.character || {}; if (d.character.name){ S.character.name = d.character.name; S.charReady = true; } if (d.character.image) S.character.portrait = d.character.image; }
@@ -5119,8 +5126,10 @@ function storyQuestsHtml(sc){
 function partyLoad(){
   if (!tsEmbedded()) return;
   tsAsk('TS_PARTY_LIST', {}).then(function(list){
+    harvestPortraits(list);
     S.party = list || [];
     if (S.openSection === 'fell') refreshWinBody();
+    try { renderTokens(); } catch(e){}
     /* if the roster lands while a battle is running, the fighters list was published
        without it; say it again with everyone named */
     if (isLM() && inBattle()) combatPublish();
@@ -5371,6 +5380,8 @@ function lmOpenFell(charId){
 }
 /* re-light the frame on a cached record without touching the network */
 function godShow(charId, rec){
+  if (rec && (rec.portrait || (rec.identity && rec.identity.image))) rememberPortrait(charId, rec.portrait || rec.identity.image);
+  try { renderTokens(); } catch(e){}
   var f = document.getElementById('sheetFrame');
   if (!f || !f.contentWindow) return;
   godWait(false);
@@ -6105,18 +6116,52 @@ var _flashToken = null;
    the token needs to bring only a name, not a wall of encoded bytes that cannot travel
    anyway. This is why a Fell reached the players as its letters: its portrait was a
    local data url, stripped in transit; now each side paints the portrait it can see. */
+/* Portraits, kept apart from the roster so a roster refresh cannot wipe them. The party
+   list is rebuilt often and carries no pictures; the portrait of a Fell belongs here,
+   where it is only ever added, never cleared, and found by charId on whichever side is
+   painting. This is why the pictures vanished on reload: the roster kept overwriting the
+   only place they lived. */
+var _portraits = {};
+function rememberPortrait(charId, img){
+  if (!charId || !img) return;
+  var i = String(img);
+  /* a blob url dies on reload and cannot travel, so it is never worth remembering */
+  if (i.indexOf('blob:') === 0) return;
+  _portraits[charId] = img;
+}
+function harvestPortraits(list){
+  (list || []).forEach(function(sh){
+    if (sh && sh.charId) rememberPortrait(sh.charId, sh.image || sh.img);
+  });
+}
+function portraitFor(charId){ return charId ? (_portraits[charId] || '') : ''; }
+var _foeArt = {};
+function harvestFoeArt(){
+  ((S.scene && S.scene.foes) || []).forEach(function(f){
+    if (f && f.id && f.img){
+      var i = String(f.img);
+      if (i.indexOf('blob:') !== 0) _foeArt[f.id] = f.img;
+    }
+  });
+}
+function foeArtFor(id){ return id ? (_foeArt[id] || '') : ''; }
 function tokenArt(t){
-  if (t.kind === 'p' || t.charId || (t.refId && String(t.refId).indexOf('e') === 0)){
-    var byChar = {}; (S.party || []).forEach(function(sh){ if (sh && sh.charId) byChar[sh.charId] = sh; });
-    var sh = byChar[t.charId] || byChar[t.refId];
-    if (sh && sh.image) return sh.image;
+  var cid = t.charId || (t.kind === 'p' ? t.refId : '');
+  if (cid){
+    var p = portraitFor(cid);
+    if (p) return p;
   }
   if (t.kind === 'foe' || t.kind === 'monster'){
+    var fa = foeArtFor(t.refId);
+    if (fa) return fa;
     var f = (S.scene.foes || []).filter(function(x){ return sameId(x.id, t.refId); })[0];
-    if (f && f.img) return f.img;
+    if (f && f.img){
+      var fi = String(f.img);
+      if (fi.indexOf('blob:') !== 0) return f.img;
+    }
   }
   var img = String(t.img || '');
-  if (img.indexOf('blob:') === 0 || img.indexOf('data:') === 0) return '';   /* local, cannot be shown elsewhere */
+  if (img.indexOf('blob:') === 0 || img.indexOf('data:') === 0) return '';
   return img;
 }
 function renderTokens(){
