@@ -1,3 +1,11 @@
+## 2026-07-25 — A stage keeps its place, and the Fell list shows faces
+
+Reordering the stages holds through a reload. Their order had lived only in the open tool, so the shelf came back in whatever order the account happened to hand the stages over. A stage now carries its own place and is put back in it. A stage that has never been moved keeps its name's order, so nothing shuffles on the first load after this.
+
+Along the way, the same old trap: the row a stage arrives in was being rebuilt field by field, and a field left out of that rebuilding is a field that quietly stops arriving. The place in the shelf was one such field.
+
+The Fell list shows each Fell's face, half again as large, ringed in gold. The rows carry no picture of their own, so the faces are found where a token finds them, and the hooded figure stands in for a Fell that has none.
+
 ## 2026-07-25 — Shelves you can arrange, and a stage given several faces at once
 
 Folders can be put in the order you want them. They had fallen alphabetically, which is no help when the bridge should come before the barrow. Arrows on each folder move it among the folders beside it, a folder inside a folder stays inside it however its neighbours are arranged, and the order is remembered. Maps and tokens both.
