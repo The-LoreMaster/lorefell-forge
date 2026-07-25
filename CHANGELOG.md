@@ -1,3 +1,11 @@
+## 2026-07-25 — A Fell opens as itself
+
+A Fell that had not been through the forging was answered with nothing at all, on the grounds that there was nothing to show. The sheet, told nothing, kept the Fell before it and wore that one's whole life: its attributes, its skills, its pack. Every Fell made for someone at the table is unforged, so every one of them arrived wearing the last Fell looked at. A Fell that exists is now opened as itself, forged or not, and a sheet handed nothing starts empty rather than keeping what it had.
+
+Changes now travel between the LoreMaster and the Fell in both directions. The mark that says a Fell has been written to was being set on the road going down to the sheet, and a save only ever travels up, so nothing was ever announced. It is set where saves actually pass, by either hand, and whoever holds the older copy fetches it again.
+
+The Fell plaque leads to the roster. Holding a Fell open, it read as already being where you were and shut the window instead, which looked like nothing happening. Closing is what the cross is for.
+
 ## 2026-07-25 — What the LoreMaster changes, the player sees
 
 A Fell worked on from the LoreMaster's side now reaches the player's own sheet. Their sheet was holding the copy it loaded and had no reason to ask for another, so anything given or taken sat unseen until they opened it again. The table already carries word between the two every second, so the change is announced there: a mark against that Fell, and the player's own table tells their sheet to fetch itself anew. Their log says the LoreMaster has changed their Fell, so nothing shifts under their hands unexplained.

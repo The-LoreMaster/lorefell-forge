@@ -58,7 +58,7 @@ $w.onReady(async function () {
       if (!id) { reply({ type: 'new', libraries: libraries, charId: '' }); return; }
       let res = null; try { res = await loadCharacter(id); } catch (e) { res = null; }
       if (res && res.forged) reply({ type: 'new', forge: res.seed || {}, libraries: libraries, charId: id });
-      else if (res && res.character && res.character.created) reply({ type: 'init', character: res.character, libraries: libraries, charId: id });
+      else if (res && res.character) reply({ type: 'init', character: res.character, libraries: libraries, charId: id });
       else reply({ type: 'new', libraries: libraries, charId: id });
     }
     if (m.type === 'ready') {

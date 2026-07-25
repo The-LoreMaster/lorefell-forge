@@ -2912,6 +2912,10 @@ document.addEventListener('pointerdown', winOutsideClose, true);
 
 /* ---- rails ---- */
 function railClick(k){
+  /* With a Fell held open, the Fell plaque was reading as already here and shutting the
+     window instead of going back to the list, so it looked like the tab did nothing.
+     The plaque always leads to the roster; closing is what the cross is for. */
+  if (k === 'fell' && S.openSection === 'fell' && S.godChar){ lmCloseFell(); return; }
   (S.openSection === k) ? closeWin() : openWin(k);
 }
 function refreshStagesWin(){ if (S.openSection === 'stages') openWin('stages'); }
@@ -4055,7 +4059,7 @@ function sharedSnapshot(){
     activeSceneId: S.adventure ? S.adventure.activeSceneId : S.scene.id,
     activeStageId: (function(){ try { return activeStageId(); } catch(e){ return null; } })(),
     combatPhase: S.scene.combatPhase, mode: S.mode, round: S.round,
-    sheetRev: S.sheetRev || {},
+    sheetRev: S.sheetRev || {},   /* who has been written to, and when */
     log: (S.log || []).slice(-40),
     advRev: S.advRev || 0,
     instance: (function(){
@@ -4172,6 +4176,14 @@ function applyRemoteSnapshot(snap){
   if (snap.grid){ S.grid = snap.grid; S.grid.offX = 0; S.grid.offY = 0; }
   if (snap.map) S.map = snap.map;
   if (snap.combatPhase !== undefined) S.scene.combatPhase = snap.combatPhase;
+  if (snap.sheetRev && isLM() && S.godChar && S.godChar.id){
+    var held = snap.sheetRev[S.godChar.id];
+    if (held && held > (_godRevSeen || 0)){
+      var firstHeld = !_godRevSeen;
+      _godRevSeen = held;
+      if (!firstHeld){ _godCache[S.godChar.id] = null; lmOpenFell(S.godChar.id); }
+    }
+  }
   if (snap.sheetRev && !isLM() && S.characterId){
     var mine = snap.sheetRev[S.characterId];
     if (mine && mine > (_sheetRevSeen || 0)){
@@ -5639,6 +5651,17 @@ window.addEventListener('message', function(ev){
   if (f && ev.source === f.contentWindow && ev.data && ev.data.type){
     if (ev.data.type === 'sheet-height'){ sheetSetHeight(ev.data.h); return; }
     if (ev.data.type === 'save' && ev.data.character){ S.sheet = ev.data.character; S.charReady = true; if (typeof applySheet === 'function') applySheet(); render(); }
+    /* A Fell written to from this side is a Fell somebody else is holding an older copy
+       of. Mark it, and the mark travels with the table's state to whoever it belongs to. */
+    if (ev.data.type === 'save'){
+      var whose = (isLM() && S.godChar && S.godChar.id) ? S.godChar.id : (!isLM() ? S.characterId : '');
+      if (whose){
+        S.sheetRev = S.sheetRev || {};
+        S.sheetRev[whose] = Date.now();
+        _sheetRevSeen = S.sheetRev[whose];      /* our own writing is not news to us */
+        if (isLM()) schedulePush(); else { try { pushState(); } catch(e){} }
+      }
+    }
     if (ev.data.type === 'ready' && S.sheetPanel && f.contentWindow) f.contentWindow.postMessage({ type:'goto-panel', panel:S.sheetPanel }, '*');
     if (ev.data.type === 'ready' && S.godMode && f.contentWindow) f.contentWindow.postMessage({ type:'ts-god', on:true }, '*');
     if (tsEmbedded()){
@@ -5653,11 +5676,6 @@ window.addEventListener('message', function(ev){
     var m = ev.data.msg || {};
     /* a Fell the LoreMaster opened is somebody else's; it goes to the frame and no
        further, or the LoreMaster's own identity would be replaced by the player's */
-    if (m.type === 'save' && S.godChar && S.godChar.id){
-      S.sheetRev = S.sheetRev || {};
-      S.sheetRev[S.godChar.id] = Date.now();
-      if (isLM()) schedulePush();
-    }
     if (m.type === 'init' && m.character && S.godChar){ return; }
     if (m.type === 'init' && m.character){ S.sheet = m.character; if (m.charId) S.characterId = m.charId; S.charReady = true; if (typeof applySheet === 'function') applySheet(); render(); }
     else if (m.type === 'saved' && m.charId){ S.characterId = m.charId; S._charList = null; if (typeof warmCharList === 'function') warmCharList(); }
@@ -6530,7 +6548,7 @@ function paintSnapBtn(){
   b.classList.toggle('on', snapOn);
 }
 function artOr(u){ var v = String(u || ''); return v || DEFAULT_ART; }
-var _sheetRevSeen = 0;
+var _sheetRevSeen = 0, _godRevSeen = 0;
 /* ask the page for this Fell again; the sheet is replaced wholesale by the answer */
 function sheetReload(){
   if (!S.characterId) return;
