@@ -3,7 +3,7 @@
 // EMBED to its element ID. The character to show is taken from the page URL query
 // charId, which your character list page sets when a player taps a character.
 //
-// The sheet's bridge lives in backend/fgSheetBridge.js and is shared with ThreadSpire,
+// The sheet's bridge lives in public/fgSheetBridge.js and is shared with ThreadSpire,
 // which embeds the same sheet in its rail. This page supplies only what is particular
 // to running the sheet on its own: it tracks charId, it opens the forge for an unbuilt
 // Fell (initNeedsCreated), it bounces an entry that already has a character to the
@@ -13,7 +13,7 @@ import { listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCha
 import { getClueCards, listQuests } from 'backend/fatewell.web.js';
 import { getCombatForChar, saveCombatDeclare, syncCombatPlayer } from 'backend/combat.web.js';
 import { getLibraries } from 'backend/libraries.web.js';
-import { handleSheetMessage } from 'backend/fgSheetBridge.js';
+import { handleSheetMessage } from 'public/fgSheetBridge.js';
 import wixLocation from 'wix-location';
 
 const EMBED = '#html1';   // change to your Embed a Site element ID
