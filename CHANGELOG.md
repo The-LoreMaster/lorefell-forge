@@ -1,3 +1,11 @@
+## 2026-07-25 — The hooded figure stands in until a face is given
+
+Nothing shows up blank and nothing wears the last face looked at. A token, a foe, a name speaking in the story and the LoreMaster all default to the hooded figure until given a portrait of their own, and the LoreMaster can replace any of them whenever they like.
+
+The borrowed face was a real fault, not only an empty one. Opening a Fell repainted the portrait when there was one to paint and did nothing when there was not, so the Fell opened before it stayed on screen and passed for this one's face. A new Fell was the same story. The portrait is painted every time now, the figure when there is nothing else, so what is on screen is always this Fell's own.
+
+Only the screen defaults. A Fell with no portrait still has no portrait in its record, so the day it gets one, nothing has to be undone.
+
 ## 2026-07-25 — Weapon ranges set to the 5, 10, 15 scale
 
 Every weapon's range now sits on one scale. Melee and the first rung of each tree reach 5. Spear, Rod, Amulet and Scroll reach 10. Crossbow, Staff, Orb and Grimoire reach 15. Twenty two of the twenty seven changed, and the bows came down hardest, from ten, twenty and thirty to five, ten and fifteen.
