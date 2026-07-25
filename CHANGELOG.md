@@ -1,3 +1,9 @@
+## 2026-07-25 — FellGlass: a portrait is stored, not baked
+
+A Fell's portrait was kept in the record as the picture itself, encoded, which is why it was too heavy to share with the table and could not travel to another device. It is uploaded once to stored media on save now and kept as a plain address from then on, exactly as a foe's art, a lorebound's, a relic's and every other picture in the forge already is. The first time a Fell is saved, its portrait is converted and never carried as bytes again.
+
+This is the lasting fix beneath the earlier one. The registry that finds a portrait on each side still stands for any Fell not yet saved since the change, and quietly stops mattering as each is saved and its picture becomes an address that travels on its own.
+
 ## 2026-07-25 — ThreadSpire: portraits kept where the roster cannot wipe them
 
 The pictures vanished on reload because the only place they lived was the roster, and the roster is rebuilt constantly and carries no pictures. Every refresh, the boot load brought the portraits, and the first roster refresh wrote over them with rows that had none.
