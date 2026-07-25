@@ -47,8 +47,8 @@ header{position:sticky;top:0;z-index:50;background:rgba(10,14,26,.96);backdrop-f
    what the card is for; tapping the title or the mark tells anything else. The sheet is
    for playing from, not for reading, so the rules wait until wanted. */
 .tip{display:none}
-.card.tips .tip{display:block}
-.tipb{background:none;border:1px solid var(--line,#22304d);color:var(--muted,#7e8a99);border-radius:50%;width:18px;height:18px;line-height:15px;font-size:11px;padding:0;margin-left:7px;cursor:pointer;vertical-align:middle;flex:none}
+.tip.shown{display:block}
+.tipb{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;background:none;border:1px solid var(--line,#22304d);color:var(--muted,#7e8a99);border-radius:999px;width:19px;min-width:19px;height:19px;font-size:11px;font-family:var(--body,serif);padding:0;margin-left:7px;cursor:pointer;vertical-align:middle;flex:none;line-height:1}
 .tipb:hover,.card.tips .tipb{color:var(--gold);border-color:var(--gold)}
 .card h2.tipable{cursor:pointer}
 #fgTell{display:none;position:fixed;inset:0;z-index:400;background:rgba(4,7,14,.72);align-items:center;justify-content:center;padding:18px}
@@ -757,7 +757,6 @@ body.in-combat{ padding-top:var(--cbn-h,46px); }
       </label>
       <div style="flex:1">
         <label class="fld">Name</label><input id="f-name" placeholder="Character name">
-        <p class="portrait-hint" style="margin-top:6px">Tap the circle to set a portrait.</p>
         <button class="btn small gold" id="ccBtn" style="margin-top:8px">Fell Forging</button>
       </div>
     </div>
@@ -890,7 +889,7 @@ body.in-combat{ padding-top:var(--cbn-h,46px); }
 <div class="panel" id="panel-weapons">
   <section class="card">
     <h2><span class="orn">⚔</span> Weapons</h2>
-    <p class="note tip" style="margin-bottom:10px">Weapons are taken up at the Fell Forging or by investing an offensive attribute during a rest, up to three. Reforging happens during leveling, never here.</p>
+    <p class="note tip" id="wpNone" style="margin-bottom:10px">Weapons are taken up at the Fell Forging or by investing an offensive attribute during a rest, up to three. Reforging happens during leveling, never here.</p>
     <div class="wgrid" id="weaponsWrap"></div>
   </section>
 </div>
@@ -928,7 +927,7 @@ body.in-combat{ padding-top:var(--cbn-h,46px); }
 <div class="panel" id="panel-skills">
   <section class="card">
     <h2><span class="orn">❋</span> Skills</h2>
-    <p class="note tip" style="margin-bottom:10px">Tap a circle to set rank. Gold circles come from your lineage, origin, or motivation and cannot be cleared. At five filled circles a skill can be mastered: ranks return to 0, a mastery diamond is earned, and identity circles fall away. First mastery in a skill grants a talent.</p>
+    <p class="note" style="margin-bottom:10px">Tap a circle to set rank. Gold circles come from your lineage, origin, or motivation and cannot be cleared. At five filled circles a skill can be mastered: ranks return to 0, a mastery diamond is earned, and identity circles fall away. First mastery in a skill grants a talent.</p>
     <div class="skills-cols" id="skillsWrap"></div>
   </section>
 </div>
@@ -2300,8 +2299,46 @@ let C={
   inventory:[],afflictions:[],impairments:[],effects:[],boons:[],banes:[],
   records:{quests:[],characters:[],notes:[]}
 };
-ATTRS.forEach(([,list])=>list.forEach(([a])=>C.attrs[a]={base:0,mod:0}));
-Object.values(SKILLS).flat().forEach(([n])=>C.skills[n]={rank:0,mastery:0,talent:null});
+function seedSheet(c){
+  c=c||{};
+  var num=function(o,k,d){ if(typeof o[k]!=="number"||!isFinite(o[k])) o[k]=d; };
+  c.identity=c.identity||{};
+  ["name","desc","lineage","origin","motivation","motivationPurpose","lineageDesc","campaign","campaignId","worldId"]
+    .forEach(function(k){ if(typeof c.identity[k]!=="string") c.identity[k]=""; });
+  c.grants=c.grants||{}; c.grants.skills=c.grants.skills||{}; c.grants.attrs=c.grants.attrs||{};
+  c.attrs=c.attrs||{};
+  ATTRS.forEach(function(g){ g[1].forEach(function(a){
+    var k=a[0];
+    if(!c.attrs[k]||typeof c.attrs[k]!=="object") c.attrs[k]={base:0,mod:0};
+    num(c.attrs[k],"base",0); num(c.attrs[k],"mod",0);
+  }); });
+  c.skills=c.skills||{};
+  Object.values(SKILLS).flat().forEach(function(sk){
+    var n=sk[0];
+    if(!c.skills[n]||typeof c.skills[n]!=="object") c.skills[n]={rank:0,mastery:0,talent:null};
+    num(c.skills[n],"rank",0); num(c.skills[n],"mastery",0);
+    if(c.skills[n].talent===undefined) c.skills[n].talent=null;
+  });
+  c.lore=c.lore||{};
+  num(c.lore,"level",1); num(c.lore,"lorePoints",0); num(c.lore,"skyvaultShards",0); num(c.lore,"paragonPoints",0);
+  c.vitality=c.vitality||{};
+  num(c.vitality,"max",5); num(c.vitality,"current",c.vitality.max||5); num(c.vitality,"temp",0);
+  c.aurum=c.aurum||{};
+  ["oro","arca","atla","zurith"].forEach(function(k){ num(c.aurum,k,0); });
+  num(c,"fatigue",0); num(c,"mobility",5); num(c,"charge",0);
+  c.armor=c.armor||{level:0,augs:[null,null],active:null};
+  num(c.armor,"level",0);
+  if(!Array.isArray(c.armor.augs)) c.armor.augs=[null,null];
+  if(c.armor.active===undefined) c.armor.active=null;
+  ["weapons","lorebounds","inventory","afflictions","impairments","effects","boons","banes","titles"]
+    .forEach(function(k){ if(!Array.isArray(c[k])) c[k]=[]; });
+  c.records=c.records||{};
+  ["quests","characters","notes"].forEach(function(k){ if(!Array.isArray(c.records[k])) c.records[k]=[]; });
+  if(typeof c.portrait!=="string") c.portrait="";
+  c.created=!!c.created;
+  return c;
+}
+seedSheet(C);
 function newWeapon(){return {tree:"",formIdx:0,level:1,misc:0,afflictions:[null,null,null],infusions:[null,null,null],abilities:[null,null,null]};}
 C.weapons=[]; /* nothing by default; weapons arrive only through creation or leveling */
 const weaponName=w=>w.tree?WEAPON_DB[w.tree].forms[w.formIdx]:"";
@@ -2319,7 +2356,11 @@ const stanceBonus=a=>{
   return STANCE_DB[C.armor.active].attr===a?2:0;
 };
 const attrTotal=a=>C.attrs[a].base+C.attrs[a].mod+attrGrant(a)+stanceBonus(a);
-const crystals=()=>Math.floor(C.lore.lorePoints/(C.lore.level+1));
+const crystals=()=>{
+  var lp=Number(C.lore&&C.lore.lorePoints)||0, lv=Number(C.lore&&C.lore.level)||1;
+  var n=Math.floor(lp/(lv+1));
+  return isFinite(n)&&n>0?n:0;
+};
 function skillGrant(name){
   if(C.skills[name].mastery>0)return 0; /* grants fall away once mastered */
   return C.grants.skills[name]||0;
@@ -2604,11 +2645,15 @@ function wireTips(){
     h.classList.add('tipable');
     h.title = b.title;
     h.appendChild(b);
-    (function(c){
-      function toggle(ev){ ev.preventDefault(); ev.stopPropagation(); c.classList.toggle('tips'); }
-      b.addEventListener('click', toggle);
-      h.addEventListener('click', function(ev){ if (ev.target !== b) toggle(ev); });
-    })(card);
+    (function(name, words){
+      /* not named open: shadowing window.open inside a handler is a trap for later */
+      function tell(ev){
+        ev.preventDefault(); ev.stopPropagation();
+        fgTell(name, words.map(function(w){ return '<p>' + w + '</p>'; }).join(''));
+      }
+      b.addEventListener('click', tell);
+      h.addEventListener('click', function(ev){ if (ev.target !== b) tell(ev); });
+    })((h.textContent || '').replace(/\u2139/g,'').replace(/\u2756/g,'').trim(), words);
   }
 }
 function showPortrait(src){
@@ -2639,14 +2684,20 @@ function renderLore(){
   /* level (display + stepper for review) */
   const rows=[
     ["level","Level","",false],
-    ["lorePoints","Lore Points","Level + 1 = one Ascension Crystal",false],
-    ["__crystals","Ascension Crystals","Computed from Lore Points. Spend to level up",true],
-    ["skyvaultShards","Skyvault Shards","Heal, imprint, slag, use",false],
-    ["paragonPoints","Paragon Points","Cheat. Consult your LoreMaster",false]
+    ["lorePoints","Lore Points","Lore Points: level + 1 of them make one Ascension Crystal.",false],
+    ["__crystals","Ascension Crystals","Ascension Crystals: counted from your Lore Points and spent to level up.",true],
+    ["skyvaultShards","Skyvault Shards","Skyvault Shards: heal, imprint, slag or use.",false],
+    ["paragonPoints","Paragon Points","Paragon Points: the LoreMaster's to give.",false]
   ];
+  /* the meanings ride along as tips so the card's own mark can tell them */
+  const tips=rows.map(r=>r[2]).filter(Boolean);
+  if(tips.length){
+    const hold=el("div",null,tips.map(t=>`<p class="note tip">${t}</p>`).join(""));
+    g.appendChild(hold);
+  }
   rows.forEach(([k,label,sub,derived])=>{
     const d=el("div","counter"+(derived?" derived":""));
-    d.innerHTML=`<span class="nm">${label}${sub?`<small>${sub}</small>`:""}</span>`;
+    d.innerHTML=`<span class="nm">${label}</span>`;
     const ctl=el("span","ctl");
     if(derived){
       ctl.appendChild(el("span","v",crystals()));
@@ -3355,6 +3406,9 @@ function lvlControl(get,set,max){
 
 function renderWeapons(){
   const wrap=$("weaponsWrap");wrap.innerHTML="";
+  /* with no weapon to look at, how one is taken up is the only thing worth saying, so it
+     shows itself; once there is a weapon it goes back behind the card's mark */
+  const wn=$("wpNone"); if(wn) wn.classList.toggle("shown",!C.weapons.length);
   if(!C.weapons.length)wrap.appendChild(el("p","note","No weapon yet. Invest an offensive attribute during a rest to take one up."));
   C.weapons.forEach((w,idx)=>{
     const slot=el("div","wslot");
@@ -4082,7 +4136,6 @@ function renderMotivation(){
     wrap.appendChild(claim);
     wrap.appendChild(el("p","note","Claiming grants +3 "+m.attr+" and opens the choice of a new Motivation."));
   }else{
-    wrap.appendChild(el("p","note","All three skills at four masteries earn the Title and +3 "+m.attr+"."));
   }
 }
 
@@ -4176,9 +4229,7 @@ function loadCharacter(rec){
   if(!rec||typeof rec!=="object")return;
   LOADING=true;
   clearTimeout(saveTimer); saveTimer=null;   // drop any save queued for the previous character
-  C=rec;
-  C.grants=C.grants||{skills:{},attrs:{}};
-  C.created=!!C.created;
+  C=seedSheet(rec);
   $("f-name").value=(C.identity&&C.identity.name)||"";
   $("f-desc").value=(C.identity&&C.identity.desc)||"";
   $("headName").textContent=(C.identity&&C.identity.name)||"Unnamed Wanderer";

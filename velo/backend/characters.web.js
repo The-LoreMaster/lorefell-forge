@@ -301,11 +301,25 @@ export const lmCreateOfflineFell = webMethod(Permissions.Anyone, async (campaign
   const mv = Number(maxVit) || 0;
   // The same fields the roster reads for any Fell, so one of these reads identically in
   // FateWell and at the table: level from lore, vitality from its own place.
+  // Thin is not the same as blank. A sheet without attributes is a sheet the reader
+  // reaches into and finds nothing, so the shape is written out even where it is empty.
   const data = {
     offline: true,
-    identity: { name: nm, campaignId: campaignId },
-    lore: { level: lvl },
-    vitality: { max: mv, current: mv }
+    identity: { name: nm, campaignId: campaignId, desc: '', lineage: '', origin: '', motivation: '' },
+    grants: { skills: {}, attrs: {} },
+    created: false,
+    portrait: '',
+    titles: [],
+    attrs: {},
+    lore: { level: lvl, lorePoints: 0, skyvaultShards: 0, paragonPoints: 0 },
+    vitality: { max: mv, current: mv, temp: 0 },
+    aurum: { oro: 0, arca: 0, atla: 0, zurith: 0 },
+    fatigue: 0, mobility: 5, charge: 0,
+    skills: {}, weapons: [],
+    armor: { level: 0, augs: [null, null], active: null },
+    lorebounds: [], inventory: [], afflictions: [], impairments: [],
+    effects: [], boons: [], banes: [],
+    records: { quests: [], characters: [], notes: [] }
   };
   try {
     const saved = await wixData.insert(COLLECTION, {
