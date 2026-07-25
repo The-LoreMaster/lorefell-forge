@@ -1,3 +1,15 @@
+## 2026-07-25 — The sheet says less and answers when asked
+
+Every card's explanation is folded behind its own name. A mark beside the title tells a desktop what the card is for on hover and opens it for anything else, on every tab: invested lore, attributes, mobility, vitality, the dice, acts and reacts, weapons, armor, stances, bonds, skills and inventory. The sheet is for playing from, and the rules now wait until they are wanted.
+
+The living notes are untouched. A line that reports how much lore is banked, or that there is no armor yet, is not an explanation and still says so plainly.
+
+The vow keeps its name on the sheet and hands over the rest when asked: which three skills it wants, how far each has come, and what claiming the Title grants. Character Level is simply Level. Titles keep out of sight until one is earned, and now that they are shown at all they are filled from what has actually been claimed.
+
+Feedback is a quiet line at the foot of the sheet with a small mark beside it, rather than a slab across the width of it.
+
+The flash on opening Settings is gone. The art behind the table is chosen by which plaque on the rail is lit, and Settings is on no plaque, so it fell through to the plain table and had to fetch it. A place with no art of its own keeps whatever is already showing.
+
 ## 2026-07-25 — Shelves belong to the member, not to one browser
 
 How you keep your maps and tokens follows you now. The folders and the order they sit in were held in whichever browser made them, so the same account met different shelves on a phone and on a desktop. They belong to the member, like the art they file: read when the table opens, written whenever a folder is made, renamed, removed or moved.
