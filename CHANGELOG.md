@@ -1,3 +1,13 @@
+## 2026-07-25 — Tokens: names back, squares true, and a Fell's token in its player's hand
+
+The names are back under the tokens. Keeping the picture inside the circle had been done by clipping everything outside it, and the name hangs below the circle, so it was clipped away with the rest. The round rim keeps the picture in on its own.
+
+Tokens sit in the middle of a square at any cell size now. The grid is drawn on a sheet that begins far above and left of the map so it can run past every edge, and its lines were counted from there rather than from the map's own corner. They only fell where a token snaps when the cell size happened to divide that distance evenly, which at a hundred it does and at ninety it does not. The lines now start at the map's corner, where the snapping always thought they were.
+
+Snap can be turned off. Under Settings it reads To the grid or Anywhere, and the choice is remembered.
+
+A Fell's token is its player's to move. The token was carrying the scene's own note of that Fell rather than the Fell's record, so nothing on the player's table could recognise it as theirs and clicking it did nothing at all. It carries the record now, and a token laid down before this is still known by its name.
+
 ## 2026-07-25 — Tokens: their own names, their own squares, their own players
 
 The name box on a token holds the name. It was showing the single letter a faceless token wears in place of a face, which is not a name and was never meant to be typed over.

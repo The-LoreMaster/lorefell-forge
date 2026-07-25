@@ -54,7 +54,9 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 .token.p{ background:#37548d; } .token.foe{ background:var(--danger); } .token.npc{ background:#5f5e5a; } .token.asset{ background:#3d6b58; }
 /* no-repeat is the point: without it the picture tiled around itself inside the circle.
    padding-box keeps it inside the dark rim rather than running under it. */
-.token.hasimg{ background-size:cover; background-position:center; background-repeat:no-repeat; background-origin:padding-box; background-clip:padding-box; overflow:hidden; }
+/* no overflow hidden here: the name sits below the circle and was being cut off by it.
+   The round rim already keeps the picture inside. */
+.token.hasimg{ background-size:cover; background-position:center; background-repeat:no-repeat; background-origin:padding-box; background-clip:padding-box; }
 .token .tok-face{ display:flex; align-items:center; justify-content:center; width:100%; height:100%; }
 .token.hasimg .tok-face{ visibility:hidden; }
 .token .tok-label{ position:absolute; top:100%; left:50%; transform:translateX(-50%); margin-top:3px; white-space:nowrap; font-family:Cinzel,serif; font-size:.62rem; letter-spacing:.04em; color:var(--silver); background:rgba(10,14,26,.82); border:1px solid rgba(220,232,239,.2); border-radius:4px; padding:1px 6px; pointer-events:none; }
@@ -736,6 +738,8 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .lmc-nocharge{ font-size:.68rem; color:var(--muted); }
 .lm-empty{ color:var(--muted); font-size:.86rem; padding:16px; background:rgba(10,14,26,.82); border-radius:9px; }
 #lmbar{ position:fixed; left:22px; top:22px; z-index:80; width:212px; background:rgba(10,14,26,.94); border:1px solid var(--line); border-radius:8px; padding:9px 11px; }
+#lmbar .lmtog{ flex:1; background:none; border:1px solid var(--line); border-radius:5px; color:var(--muted,#7e8a99); font-family:Cinzel,serif; font-size:.6rem; letter-spacing:.1em; text-transform:uppercase; padding:4px 8px; cursor:pointer; }
+#lmbar .lmtog.on{ color:var(--gold); border-color:var(--gold); }
 #lmbar .lmx{ float:right; background:none; border:none; color:var(--muted,#7e8a99); font-size:.8rem; line-height:1; cursor:pointer; padding:0 0 0 8px; }
 #lmbar .lmx:hover{ color:var(--gold); }
 #lmbar.hidden{ display:none; }
@@ -870,6 +874,7 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
     <div class="lmrow"><label>Cell</label><input type="range" id="gSize" min="20" max="220" step="2"><span id="gSizeV"></span></div>
     <div class="lmrow"><label>Fade</label><input type="range" id="gOpac" min="0" max="100" step="1"><span id="gOpacV"></span></div>
     <div class="lmrow"><label>Inset</label><input type="range" id="gInset" min="60" max="100" step="1"><span id="gInsetV"></span></div>
+    <div class="lmrow"><label>Snap</label><button class="lmtog" id="gSnap" onclick="toggleSnap()"></button></div>
   </div>
   <div id="lmstrip" class="hidden"></div>
 
@@ -4904,7 +4909,10 @@ function tokenPalette(){
     return { kind:'npc', label:initials(n.name), name:n.name, img:n.img||null, cells:1, refId:n.id, source:'adventure' };
   });
   var fell = (S.scene.fell||[]).map(function(p){
-    return { kind:'p', label:initials(p.name), name:p.name, img:p.img||null, cells:1, refId:p.id, source:'fellglass' };
+    /* charId, not the scene entry's own id: it is the only thing that says whose Fell
+       this is, and without it a player's token could never be known as theirs */
+    return { kind:'p', label:initials(p.name), name:p.name, img:p.img||null, cells:1,
+             refId:p.id, charId:p.charId || '', source:'fellglass' };
   });
   var account = (S.scene.accountTokens||[]).slice();
   return { foes:foes, npcs:npcs, fell:fell, account:account };
@@ -4922,7 +4930,7 @@ function lmPlaceToken(kind, refId){
   if (!t) return;
   var id = 'tok-' + Date.now();
   S.tokens.push({ id:id, kind:t.kind, label:t.label, name:t.name, img:t.img,
-    charId: t.charId || (t.kind === 'p' ? t.refId : ''),
+    charId: t.charId || '',
     x:snapAxis(Math.round(S.map.w/2), S.grid.offX, t.cells || 1),
     y:snapAxis(Math.round(S.map.h/2), S.grid.offY, t.cells || 1), cells:t.cells, mine:false, refId:t.refId });
   applyRemoteState({ tokens:S.tokens });
@@ -6291,6 +6299,21 @@ function placeTokens(){
    a foe, a name in the story and the LoreMaster all wear it until given a face of their
    own, so nothing shows up blank and nothing inherits the last one looked at. */
 var DEFAULT_ART = 'assets/default-portrait.jpg';
+/* Whether a token finds the middle of a square when let go. On by default, because a
+   grid is for standing on; off when the LoreMaster wants a thing placed just so. */
+var snapOn = true;
+try { var _sn = localStorage.getItem('ts_snap'); if (_sn !== null) snapOn = _sn === '1'; } catch(e){}
+function toggleSnap(){
+  snapOn = !snapOn;
+  try { localStorage.setItem('ts_snap', snapOn ? '1' : '0'); } catch(e){}
+  paintSnapBtn();
+  if (snapOn && isLM()) resnapTokens();
+}
+function paintSnapBtn(){
+  var b = document.getElementById('gSnap'); if (!b) return;
+  b.textContent = snapOn ? 'To the grid' : 'Anywhere';
+  b.classList.toggle('on', snapOn);
+}
 function artOr(u){ var v = String(u || ''); return v || DEFAULT_ART; }
 var _flashToken = null;
 /* A token's picture found on this side rather than carried to it. A Fell's portrait
@@ -6327,6 +6350,20 @@ function harvestFoeArt(){
   });
 }
 function foeArtFor(id){ return id ? (_foeArt[id] || '') : ''; }
+/* Whether this token is the one this table's own Fell answers to. By its record where it
+   has one, and by name where it does not, since tokens laid down before a token carried
+   a record still ought to obey their player. */
+function tokenIsMine(t){
+  if (!S.characterId) return false;
+  if (t.mine) return true;
+  if (t.charId && sameId(t.charId, S.characterId)) return true;
+  if (t.kind !== 'p') return false;
+  var myName = '';
+  (S.party || []).forEach(function(sh){ if (sh && sameId(sh.charId, S.characterId)) myName = sh.name || sh.charName || ''; });
+  if (!myName && S.character && S.character.name) myName = S.character.name;
+  var tn = String(t.name || t.label || '');
+  return !!myName && tn.toLowerCase() === String(myName).toLowerCase();
+}
 function tokenName(t){
   var cid = t.charId || (t.kind === 'p' ? t.refId : '');
   if (cid){
@@ -6395,7 +6432,7 @@ function renderTokens(){
   S.tokens.forEach(function(t){
     var el = document.createElement('div');
     /* a Fell's token is the player's to move, found by the record it carries */
-    var ownFell = !!(S.characterId && (sameId(t.charId, S.characterId) || (t.kind === 'p' && sameId(t.refId, S.characterId))));
+    var ownFell = tokenIsMine(t);
     var draggable = t.mine || ownFell || S.role === 'lm';
     var art = tokenThumb(tokenArt(t));
     /* a Fell's own token wears the gold rim on that Fell's table, so its player can see
@@ -6445,8 +6482,12 @@ function wireDrag(el, t){
       el.removeEventListener('pointermove', mv); el.removeEventListener('pointerup', upfn);
       if (!moved){ selectToken(t.id); return; }
       var c = t.cells || 1;
-      t.x = clamp(snapAxis(t.x, S.grid.offX, c), 0, S.map.w);
-      t.y = clamp(snapAxis(t.y, S.grid.offY, c), 0, S.map.h);
+      if (snapOn){
+        t.x = clamp(snapAxis(t.x, S.grid.offX, c), 0, S.map.w);
+        t.y = clamp(snapAxis(t.y, S.grid.offY, c), 0, S.map.h);
+      } else {
+        t.x = clamp(t.x, 0, S.map.w); t.y = clamp(t.y, 0, S.map.h);
+      }
       place(el, t);
       send({ type:'token-move', id:t.id, x:t.x, y:t.y });
     }
@@ -6462,6 +6503,12 @@ function drawGrid(){
     var g = S.grid || {}; var op = (g.opacity !== undefined) ? g.opacity : 0.45; var sz = g.size || 60;
     gi.style.backgroundImage = 'linear-gradient(rgba(255,255,255,' + op + ') 1px, transparent 1px),linear-gradient(90deg, rgba(255,255,255,' + op + ') 1px, transparent 1px)';
     gi.style.backgroundSize = sz + 'px ' + sz + 'px';
+    /* This sheet begins 20000px above and left of the map so the grid can run past every
+       edge, which means its lines tiled from there and not from the map's own corner.
+       They only agreed with where a token snaps when the cell size happened to divide
+       20000. Shift the pattern so a line falls exactly on the map's corner. */
+    var off = ((20000 % sz) + sz) % sz;
+    gi.style.backgroundPosition = off + 'px ' + off + 'px';
   }
   var ma = document.getElementById('mapArt'); if (ma){ ma.style.width = S.map.w + 'px'; ma.style.height = S.map.h + 'px'; }
 }
@@ -6610,6 +6657,7 @@ function paintLmbar(){
   var i = document.getElementById('gInset');
   i.value = Math.round(S.inset * 100);
   document.getElementById('gInsetV').textContent = i.value;
+  paintSnapBtn();
 }
 (function wireLmbar(){
   GRID_CTL.forEach(function(c){
