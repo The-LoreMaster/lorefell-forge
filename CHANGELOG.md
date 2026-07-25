@@ -1,3 +1,9 @@
+## 2026-07-25 — Utilities are the real ones
+
+The Utilities card draws from the shelf the RelicForge fills. It had four placeholders written into the sheet itself, so a Fell could only ever carry things that do not exist in the game; there are fifty eight real ones. They are called utilities, by that name, and one not yet identified still shows as unknown until the LoreMaster reveals it.
+
+Three more lines gone: the note about an innate affliction on a weapon nobody has chosen yet, the aside about the ability filter being lifted for the LoreMaster, and the Crown Aspect line, which was left behind when its Branch twin went.
+
 ## 2026-07-25 — The sheet stops explaining itself in the margins
 
 The line reciting your creation bonuses is gone; the dials and the circles already show them. What an attribute is for is on the dial itself, on hover or a tap, rather than printed under every one, and the base value no longer announces itself. Mobility says Mobility.

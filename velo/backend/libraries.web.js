@@ -38,6 +38,22 @@ export const getLibraries = webMethod(Permissions.Anyone, async () => {
   } catch (e) {}
   if (components.length) out.components = components;
 
+  // Utilities: the shelf the RelicForge fills. The sheet had four placeholders written into
+  // it, so a Fell could carry nothing that actually exists in the game.
+  try {
+    const ru = await wixData.query('Relics').ascending('displayOrder').limit(500).find({ suppressAuth: true });
+    const utilities = ru.items.map((it) => ({
+      id: it._id,
+      name: it.name || '',
+      use: it.use || 'Out of Combat',
+      description: it.description || '',
+      group: it.group || '',
+      rarity: it.rarity || '',
+      uses: it.uses || ''
+    })).filter((u) => u.name);
+    if (utilities.length) out.utilities = utilities;
+  } catch (e) {}
+
   // The weapon trees. Each form carries its own Fellmark Affliction, its grip, and its range,
   // so the sheet reads three of each rather than one for the whole tree.
   try {

@@ -943,8 +943,8 @@ body.in-combat{ padding-top:var(--cbn-h,46px); }
 <!-- ============ INVENTORY ============ -->
 <div class="panel" id="panel-inventory">
   <section class="card">
-    <h2><span class="orn">⛨</span> Utility Items</h2>
-    <p class="note tip" style="margin-bottom:8px">Tools, relics, and consumables. Each is an Act, React, Passive, or Out of Combat use. Undiscovered items show as ??? until revealed by the LoreMaster.</p>
+    <h2><span class="orn">⛨</span> Utilities</h2>
+    <p class="note tip" style="margin-bottom:8px">Tools, relics and consumables. Each is an Act, a React, a Passive or an Out of Combat use. A utility you have not yet identified shows as ??? until the LoreMaster reveals it.</p>
     <div id="itemsWrap"></div>
     <div class="addline">
       <select id="itemPick"></select>
@@ -2230,7 +2230,7 @@ let IMPAIRMENTS=[
   {name:"Cracked Ribs (placeholder)",temp:"Penalty to Might while active.",perm:"If untreated, Bearing suffers permanently."},
   {name:"Shaken Mind (placeholder)",temp:"Penalty to Resolve while active.",perm:"If untreated, Conviction suffers permanently."}
 ];
-const ITEMS_LIB=[
+let ITEMS_LIB=[
   {id:"i1",name:"Waxed Rope (placeholder)",use:"Out of Combat",desc:"Fifty feet, treated against rot."},
   {id:"i2",name:"Ashen Tonic (placeholder)",use:"Act",desc:"Restores a measure of vitality."},
   {id:"i3",name:"Sealed Letter (placeholder)",use:"Out of Combat",desc:"Contents unknown to you."},
@@ -3521,7 +3521,7 @@ function renderWeapons(){
     /* afflictions: slot 1 innate, slots 2/3 unlock at L4/L8 */
     slot.appendChild(el("h3",null,"Afflictions"));
     var _wa=w.tree?weaponAff(w):"";
-    slot.appendChild(el("div","comp-desc", _wa?`Innate \u00b7 ${_wa}`:"Innate affliction set by your weapon."));
+    if(_wa) slot.appendChild(el("div","comp-desc",`Innate \u00b7 ${_wa}`));
     for(let i=1;i<3;i++){
       if(w.level>=AFFLICTION_UNLOCK[i]){
         slot.appendChild(slotPill(AFFLICTIONS,w.afflictions[i],v=>{w.afflictions[i]=v;renderWeapons();},f=>`${f.skill} \u2014 ${f.desc}`));
@@ -3546,7 +3546,6 @@ function renderWeapons(){
       const pool=god?ABILITIES:ABILITIES.filter(ab=>ab.tree===w.tree&&ab.tier===tier);
       slot.appendChild(slotPill(pool,w.abilities[i],v=>{w.abilities[i]=v;renderWeapons();},f=>`<span class="use-tag">${f.use}</span> Tier ${f.tier} \u00b7 ${f.tree}`));
     }
-    if(god)slot.appendChild(el("p","note","LM mode: ability filter lifted. Cross-tree replacement allowed."));
     wrap.appendChild(slot);
   });
   if(god&&C.weapons.length<3){
@@ -3692,7 +3691,6 @@ function renderLorebounds(){
           slot.appendChild(b);
         });
       }else{
-        slot.appendChild(el("div","comp-desc",`Crown Aspect chosen at Corsair form, level ${ASPECT_FORM.crown}.`));
       }
       if(lb.level>=ASPECT_FORM.everpresent){
         slot.appendChild(el("div","comp-desc","Everpresent Bond, the Aspect resolves in full regardless of charge."));
@@ -3779,7 +3777,7 @@ function renderSkills(){
 /* ---------- inventory ---------- */
 function renderItems(){
   const w=$("itemsWrap");w.innerHTML="";
-  if(!C.inventory.length)w.appendChild(el("p","note","No items yet. Your pack is light."));
+  if(!C.inventory.length)w.appendChild(el("p","note","No utilities yet. Your pack is light."));
   C.inventory.forEach((it,idx)=>{
     const lib=ITEMS_LIB.find(x=>x.id===it.itemId);
     const row=el("div","item-row");
@@ -4220,6 +4218,19 @@ function loadLibraries(lib){
   const lc=v=>String(v||"").trim().toLowerCase();           /* attribute IDs, kinds, categories */
   const cap=v=>{const t=String(v||"").trim();return t?t.charAt(0).toUpperCase()+t.slice(1).toLowerCase():t;};
 
+  if(has(lib.utilities)){
+    /* the same shelf the RelicForge fills. Until it answers, the placeholders stand. */
+    const mapped=lib.utilities.map(r=>({
+      id:F(r,"id","_id","name"),
+      name:F(r,"name"),
+      use:F(r,"use")||"Out of Combat",
+      desc:F(r,"description","desc"),
+      group:F(r,"group"),
+      rarity:F(r,"rarity"),
+      uses:F(r,"uses")
+    })).filter(u=>u.name);
+    if(mapped.length){ ITEMS_LIB=mapped; if(typeof renderItems==="function") renderItems(); }
+  }
   if(has(lib.lineages)){
     const mapped=lib.lineages.map(r=>{
       const type=lc(F(r,"bonusType"))==="attr"?"attr":"skill";
