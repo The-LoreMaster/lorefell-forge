@@ -1,3 +1,9 @@
+## 2026-07-25 — ThreadSpire: the runner bar carries the map, not the scene's name
+
+The scene's name is gone from the runner bar. Scenes are chosen in Story, and naming the same scene twice on one screen was the waste. In its place is the map itself: cell size, offsets, fade and inset, where a LoreMaster reaches for them while running the table.
+
+Those controls had not been lost, only orphaned. The panel holding the only way to open them was unreachable code: a newer settings body answered first, so the older one sat there looking alive while nothing could ever run it. The orphan is gone and the controls are reached from the runner bar and from Settings under The map. The clean view and full screen the same panel promised are back beside them, having lived only on the H and F keys.
+
 ## 2026-07-25 — ThreadSpire: the map covers the whole frame
 
 The map now fills the table edge to edge. Holding the play area short of the right menu meant the picture only had to reach as far as the menu began, so the felt showed in the strip between the two. Blue hidden behind the menu art is no matter; blue on the table is. The map covers the frame entirely, and what runs past an edge is out of sight rather than short of it.
