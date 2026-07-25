@@ -1,3 +1,9 @@
+## 2026-07-25 — ThreadSpire: settings in the corner, and faces that stay sharp
+
+The grid's nudges are gone. It begins at the map's own corner and a token sits in the middle of its cell, so the two are always in step and there is nothing to line up by hand. What remains is cell size, fade and inset, under a panel now called Settings, moved to the top left corner with a mark to close it, and reached from the runner bar or from Settings.
+
+A token's face no longer turns to mush as it shrinks. A portrait is many times larger than the circle it is drawn in, and the picture was being squeezed into the circle and then shrunk again with the whole board, two reductions in a row. Each picture is now drawn down once, cleanly, to a size a token can use, and that is what the table shows. The seams say how many were sharpened, since a picture served without leave to read it back has to be shown as it came.
+
 ## 2026-07-25 — ThreadSpire: the runner bar carries the map, not the scene's name
 
 The scene's name is gone from the runner bar. Scenes are chosen in Story, and naming the same scene twice on one screen was the waste. In its place is the map itself: cell size, offsets, fade and inset, where a LoreMaster reaches for them while running the table.
