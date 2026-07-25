@@ -52,7 +52,9 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 #tokmenu .tm-del:active{ background:rgba(201,106,90,.25); }
 .token.lm-drag{ cursor:grab; }
 .token.p{ background:#37548d; } .token.foe{ background:var(--danger); } .token.npc{ background:#5f5e5a; } .token.asset{ background:#3d6b58; }
-.token.hasimg{ background-size:cover; background-position:center; }
+/* no-repeat is the point: without it the picture tiled around itself inside the circle.
+   padding-box keeps it inside the dark rim rather than running under it. */
+.token.hasimg{ background-size:cover; background-position:center; background-repeat:no-repeat; background-origin:padding-box; background-clip:padding-box; overflow:hidden; }
 .token .tok-face{ display:flex; align-items:center; justify-content:center; width:100%; height:100%; }
 .token.hasimg .tok-face{ visibility:hidden; }
 .token .tok-label{ position:absolute; top:100%; left:50%; transform:translateX(-50%); margin-top:3px; white-space:nowrap; font-family:Cinzel,serif; font-size:.62rem; letter-spacing:.04em; color:var(--silver); background:rgba(10,14,26,.82); border:1px solid rgba(220,232,239,.2); border-radius:4px; padding:1px 6px; pointer-events:none; }
@@ -1446,7 +1448,7 @@ function schedulePush(){
 function send(evt){
   /* stub transport, echoes shared state back as remote truth. Latency varies by
      kind for the same reason a real one would, a slider cannot wait on a round trip. */
-  var live = evt.type === 'grid' || evt.type === 'inset' || evt.type === 'token-label';
+  var live = evt.type === 'grid' || evt.type === 'inset' || evt.type === 'token-label' || evt.type === 'token-name';
   setTimeout(function(){
     if (evt.type === 'token-move'){
       S.tokens.forEach(function(t){ if (t.id === evt.id){ t.x = evt.x; t.y = evt.y; } });
@@ -1460,12 +1462,20 @@ function send(evt){
       S.tokens.forEach(function(t){ if (t.id === evt.id){ t.label = evt.label; } });
       applyRemoteState({ tokens: S.tokens });
     }
+    if (evt.type === 'token-name'){
+      S.tokens.forEach(function(t){ if (t.id === evt.id){ t.name = evt.name; t.label = initials(evt.name); } });
+      applyRemoteState({ tokens: S.tokens });
+    }
     if (evt.type === 'token-remove'){
       S.tokens = S.tokens.filter(function(t){ return t.id !== evt.id; });
       applyRemoteState({ tokens: S.tokens });
       if (typeof lmSaveCurrentStage === 'function' && isLM()) lmSaveCurrentStage();
     }
-    if (evt.type === 'grid'){ applyRemoteState({ grid: evt.grid }); }
+    if (evt.type === 'grid'){
+      applyRemoteState({ grid: evt.grid });
+      /* the squares changed shape, so every token finds the middle of its new one */
+      resnapTokens();
+    }
     if (evt.type === 'inset'){ applyRemoteState({ inset: evt.inset }); }
     if (evt.type === 'declare'){ pushLog({ kind:'sys', html:'<b>' + esc(S.character.name) + '</b> declares ' + esc(evt.act) + '.' }); }
     if (evt.type === 'say'){ pushLog({ kind:'say', who:S.character.name, text:evt.text }); }
@@ -3100,6 +3110,12 @@ function lmStep(d){
 function lmGoTo(i){ lmFocus[lmFace()] = i; paintLmStrip(); }
 window.addEventListener('keydown', function(e){
   if (!isLM()) return;
+  if ((e.key === 'Delete' || e.key === 'Backspace') && sel && !/^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement||{}).tagName || '')){
+    e.preventDefault();
+    send({ type:'token-remove', id:sel });
+    sel = null; paintTokMenu(); renderTokens();
+    return;
+  }
   if (e.key === 'ArrowLeft') lmStep(-1);
   if (e.key === 'ArrowRight') lmStep(1);
 });
@@ -4907,7 +4923,8 @@ function lmPlaceToken(kind, refId){
   var id = 'tok-' + Date.now();
   S.tokens.push({ id:id, kind:t.kind, label:t.label, name:t.name, img:t.img,
     charId: t.charId || (t.kind === 'p' ? t.refId : ''),
-    x:Math.round(S.map.w/2), y:Math.round(S.map.h/2), cells:t.cells, mine:false, refId:t.refId });
+    x:snapAxis(Math.round(S.map.w/2), S.grid.offX, t.cells || 1),
+    y:snapAxis(Math.round(S.map.h/2), S.grid.offY, t.cells || 1), cells:t.cells, mine:false, refId:t.refId });
   applyRemoteState({ tokens:S.tokens });
   pushLog({ kind:'sys', html:'Placed <b>' + esc(t.name) + '</b> on the map.' });
   applyRemoteState({ log:S.log });
@@ -4989,7 +5006,8 @@ function lmTokenFilePicked(input){
   var nm = file.name.replace(/\.[^.]+$/, '');
   var aid = 'ta-' + Date.now();
   S.tokens.push({ id:id, kind:'asset', label:initials(nm), name:nm, img:url,
-    x:Math.round(S.map.w/2), y:Math.round(S.map.h/2), cells:1, mine:false, local:true, refId:aid });
+    x:snapAxis(Math.round(S.map.w/2), S.grid.offX, 1),
+    y:snapAxis(Math.round(S.map.h/2), S.grid.offY, 1), cells:1, mine:false, local:true, refId:aid });
   applyRemoteState({ tokens:S.tokens });
   renderTokens(); lmCloseTokens();
   _flashToken = id; renderTokens();
@@ -6376,9 +6394,14 @@ function renderTokens(){
   layer.querySelectorAll('.token').forEach(function(n){ n.remove(); });
   S.tokens.forEach(function(t){
     var el = document.createElement('div');
-    var draggable = t.mine || S.role === 'lm';
+    /* a Fell's token is the player's to move, found by the record it carries */
+    var ownFell = !!(S.characterId && (sameId(t.charId, S.characterId) || (t.kind === 'p' && sameId(t.refId, S.characterId))));
+    var draggable = t.mine || ownFell || S.role === 'lm';
     var art = tokenThumb(tokenArt(t));
-    el.className = 'token ' + t.kind + (t.mine ? ' mine' : '') + (draggable && !t.mine ? ' lm-drag' : '')
+    /* a Fell's own token wears the gold rim on that Fell's table, so its player can see
+       at a glance which one answers to them */
+    var isMine = t.mine || ownFell;
+    el.className = 'token ' + t.kind + (isMine ? ' mine' : '') + (draggable && !isMine ? ' lm-drag' : '')
       + (sel === t.id ? ' sel' : '') + (art ? ' hasimg' : '') + (_flashToken === t.id ? ' justplaced' : '');
     el.setAttribute('data-tok', t.id);
     var full = tokenName(t);
@@ -6393,6 +6416,17 @@ function renderTokens(){
 }
 /* Odd footprints centre on a cell, even footprints centre on an intersection,
    otherwise a 2x2 straddles four half cells and covers none of them. */
+/* Put every token back in the middle of a square. Called when the grid changes size,
+   because a token left at the pixel it held is no longer centred on anything. */
+function resnapTokens(){
+  (S.tokens || []).forEach(function(t){
+    var c = t.cells || 1;
+    t.x = clamp(snapAxis(t.x, S.grid.offX, c), 0, S.map.w);
+    t.y = clamp(snapAxis(t.y, S.grid.offY, c), 0, S.map.h);
+  });
+  renderTokens();
+  if (isLM()) applyRemoteState({ tokens:S.tokens });
+}
 function snapAxis(v, off, cells){
   var g = S.grid.size, half = (cells % 2) ? g / 2 : 0;
   return Math.round((v - off - half) / g) * g + off + half;
@@ -6457,7 +6491,8 @@ function paintTokMenu(){
   m.classList.toggle('open', show);
   if (!show) return;
   var lab = document.getElementById('tmLabel');
-  if (document.activeElement !== lab) lab.value = t.label;
+  /* the letters are only what a faceless token wears; the box is for the name itself */
+  if (document.activeElement !== lab) lab.value = tokenName(t);
   var sz = document.getElementById('tmSize');
   sz.innerHTML = '';
   [1, 2, 3].forEach(function(c){
@@ -6476,7 +6511,7 @@ function paintTokMenu(){
     sel = null; paintTokMenu();
   });
   document.getElementById('tmLabel').addEventListener('input', function(){
-    if (sel) send({ type:'token-label', id:sel, label:this.value });
+    if (sel) send({ type:'token-name', id:sel, name:this.value });
   });
 })();
 

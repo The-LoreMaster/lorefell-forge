@@ -1,3 +1,15 @@
+## 2026-07-25 — Tokens: their own names, their own squares, their own players
+
+The name box on a token holds the name. It was showing the single letter a faceless token wears in place of a face, which is not a name and was never meant to be typed over.
+
+A token sits in the middle of a square, and stays there when the squares change size. One laid down lands in the middle of a square too, rather than at whatever pixel the map's centre happens to be.
+
+The LoreMaster can press Delete on a chosen token.
+
+A Fell's own token answers to its own player now. It carries the gold rim on that player's table so they can see which one is theirs, and they can move it. A token the table itself owns, a foe or anything the LoreMaster set out, stays the LoreMaster's alone.
+
+The picture fills the circle once. It had been tiling around itself, because nothing told it not to repeat, and it ran under the dark rim rather than stopping at it. The rim stays; it was the one part that looked right.
+
 ## 2026-07-25 — The hooded figure stands in until a face is given
 
 Nothing shows up blank and nothing wears the last face looked at. A token, a foe, a name speaking in the story and the LoreMaster all default to the hooded figure until given a portrait of their own, and the LoreMaster can replace any of them whenever they like.
