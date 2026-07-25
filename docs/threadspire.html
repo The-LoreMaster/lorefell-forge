@@ -5937,14 +5937,33 @@ function activeMap(){
 }
 /* paint the chosen map into #mapArt. A real url shows the image; null keeps the
    placeholder so the prototype still reads. The nominal box drives sizing. */
+var _measuredMap = '';
 function paintMapArt(){
   var art = document.getElementById('mapArt');
   if (!art) return;
   art.style.width = S.map.w + 'px'; art.style.height = S.map.h + 'px';
   var m = activeMap();
   var url = (m && m.url) || (!isLM() ? (S.remoteMapUrl || '') : '');
-  if (url){ art.style.backgroundImage = 'url(' + url + ')'; art.style.backgroundSize = 'cover'; }
-  else { art.style.backgroundImage = ''; }
+  if (url){
+    art.style.backgroundImage = 'url(' + url + ')'; art.style.backgroundSize = 'cover';
+    /* the stored size of a map is often wrong, so read the picture's true shape once and
+       set the board to it. Cover zoom then fills the frame for any ratio, tall or wide,
+       and no blue shows at an edge. */
+    if (_measuredMap !== url){
+      _measuredMap = url;
+      var probe = new Image();
+      probe.onload = function(){
+        var w = probe.naturalWidth || 0, h = probe.naturalHeight || 0;
+        if (w && h && (w !== S.map.w || h !== S.map.h)){
+          S.map = { w:w, h:h };
+          if (m){ m.w = w; m.h = h; }
+          art.style.width = w + 'px'; art.style.height = h + 'px';
+          try { clampCam(); applyCam(); drawGrid(); renderTokens(); } catch(e){}
+        }
+      };
+      probe.src = url;
+    }
+  } else { art.style.backgroundImage = ''; }
   /* null url keeps the CSS placeholder gradient */
 }
 function paintMapPicker(){
