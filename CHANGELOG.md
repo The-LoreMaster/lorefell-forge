@@ -1,3 +1,9 @@
+## 2026-07-25 — A utility you have not identified still shows itself
+
+An unknown utility says what it looks like in the hand instead of nothing at all. A pitted stone, warm in the hand. A key filed down to bare teeth. A coin struck on one side only. You can see what you are holding and still not know what it does, which is the whole of the tension.
+
+Every utility carries its own veiled line, written for it rather than worked out from its name, and it says nothing of what the thing is for or which shelf it came from. The three question marks stay above it.
+
 ## 2026-07-25 — Room under the pills, and one Foxfire too many
 
 A row of pills no longer has the next heading resting on its shoulders.

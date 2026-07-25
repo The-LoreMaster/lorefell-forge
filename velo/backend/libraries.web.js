@@ -47,6 +47,7 @@ export const getLibraries = webMethod(Permissions.Anyone, async () => {
       name: it.name || '',
       use: it.use || 'Out of Combat',
       description: it.description || '',
+      veiled: it.veiled || '',
       group: it.group || '',
       rarity: it.rarity || '',
       uses: it.uses || ''
