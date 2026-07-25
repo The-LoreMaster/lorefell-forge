@@ -1,3 +1,9 @@
+## 2026-07-25 — A Skyvault Shard is known on sight
+
+Some things need no introduction. A utility carrying no veiled line has nothing to hide, so it shows its own name whether or not it has been identified. The Skyvault Shard is the first of them. A Darkshard is still a black shard that takes the light, and stays that way until somebody says otherwise.
+
+The lute is worked with silver.
+
 ## 2026-07-25 — The veiled lines say what the things actually look like
 
 Thirty three of the utilities now wear the description their maker gave them rather than the one guessed from their name. Filcher's Band is a ring cut with runes. Haulers are steel gloves. The Skeleton Key is bone white with its bow carved as a skull. The Wispin Coin is a blue gem with a symbol on one face and a grinning bogle merchant on its back.
