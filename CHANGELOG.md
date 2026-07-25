@@ -1,3 +1,11 @@
+## 2026-07-25 — ThreadSpire: portraits found, not carried
+
+The seams named both of the last faults at once. A Fell reached the players as its letters because its portrait was a picture baked into the record as encoded bytes, which cannot travel to another device and was stripped in transit. And the story would not push at all, refused for size, because those same baked-in pictures, one per foe and speaker, put it over the ceiling.
+
+Both are the same mistake, and the fix is the same. A picture is found on each side rather than sent to it. A Fell token shows the portrait from the party sheet both tables already hold; a foe token shows the art from the scene. The token carries only a name and a reference, and the story travels with its pictures stripped, so it fits through the door and the players receive the scenes, the stages and the names that were missing.
+
+The seams already showed this, in the words LOCAL, will not travel and the failed story push. That is what the panel is for.
+
 ## 2026-07-25 — ThreadSpire: a map lands on the stage, not beside it
 
 Picking a map from the shelf changes the face of the stage you are on now, and keeps its tokens, instead of laying a bare map the stage system did not know about. That bare map is why the stage vanished: the next stage save or restore wrote over a background nothing was tracking. A map now belongs to the stage that holds it, the way it always should have, and if there is no stage yet, choosing a map makes one.
