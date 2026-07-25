@@ -40,8 +40,26 @@ function emits(s) {
   return uniq([].concat(
     matchAll(/post(?:ToWix|Message)?\s*\(\s*\{\s*type\s*:\s*['"]([^'"]+)['"]/g, s),
     matchAll(/\bpost\s*\(\s*\{\s*type\s*:\s*['"]([^'"]+)['"]/g, s),
-    matchAll(/\.postMessage\s*\(\s*\{\s*type\s*:\s*['"]([^'"]+)['"]/g, s)
+    matchAll(/\.postMessage\s*\(\s*\{\s*type\s*:\s*['"]([^'"]+)['"]/g, s),
+    // A page may hand its sheet bridge to a shared module and send down through an
+    // injected reply(...). Reading only the page would miss every send, so the check
+    // would pass by going blind. reply({ type: '...' }) is a send too.
+    matchAll(/\breply\s*\(\s*\{\s*type\s*:\s*['"]([^'"]+)['"]/g, s)
   ));
+}
+// A page that imports a shared bridge module keeps its contract in that module. Fold the
+// module's source in so the send and handle scan sees through the delegation.
+function withImportedBridges(pageSrc) {
+  if (!pageSrc) return pageSrc;
+  let out = pageSrc;
+  const re = /from\s+['"]backend\/([A-Za-z0-9_.-]+\.js)['"]/g;
+  let m;
+  while ((m = re.exec(pageSrc))) {
+    if (!/bridge/i.test(m[1])) continue;   // only shared bridge modules, not every backend
+    const extra = read(path.join(ROOT, 'velo', 'backend', m[1]));
+    if (extra) out += '\n' + extra;
+  }
+  return out;
 }
 function handles(s) {
   return uniq([].concat(
@@ -59,7 +77,13 @@ function allowed(tool, t) {
 let problems = 0;
 TOOLS.forEach((tool) => {
   const toolSrc = read(path.join(ROOT, 'docs', tool + '.html'));
-  const bridgeSrc = read(path.join(ROOT, 'velo', 'page-' + tool + '.js'));
+  // The FellGlass sheet's bridge is shared, and its sends are a contract with the
+  // fellglass sheet no matter which page hosts it. ThreadSpire relays those same sends
+  // to the fellglass iframe wrapped in TS_TOOL_DOWN, so they are not threadspire.html's
+  // to handle: fold the shared module in for fellglass only.
+  const bridgeSrc = tool === 'fellglass'
+    ? withImportedBridges(read(path.join(ROOT, 'velo', 'page-' + tool + '.js')))
+    : read(path.join(ROOT, 'velo', 'page-' + tool + '.js'));
   if (!toolSrc || !bridgeSrc) { console.log('skip ' + tool + ' (missing tool or bridge)'); return; }
 
   const toolEmits = emits(toolSrc), toolHandles = handles(toolSrc);
