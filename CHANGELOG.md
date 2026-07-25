@@ -1,3 +1,7 @@
+## 2026-07-25 — ThreadSpire: the map covers the whole frame
+
+The map now fills the table edge to edge. Holding the play area short of the right menu meant the picture only had to reach as far as the menu began, so the felt showed in the strip between the two. Blue hidden behind the menu art is no matter; blue on the table is. The map covers the frame entirely, and what runs past an edge is out of sight rather than short of it.
+
 ## 2026-07-25 — ThreadSpire: stages stand alone, and the map fills the frame
 
 Stages are no longer summoned by scenes. Visiting a scene used to conjure a stage to go with it, which is why the shelf filled with copies of the same place. A stage is the LoreMaster's to make now, deliberately, and the deck shows every stage the adventure holds rather than only the ones a scene had gathered. The active stage is the adventure's, kept in one place. Old duplicates already saved can be removed from the shelf and will not come back.
