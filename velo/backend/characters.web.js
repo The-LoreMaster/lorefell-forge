@@ -6,6 +6,7 @@
 
 import { Permissions, webMethod } from 'wix-web-module';
 import wixData from 'wix-data';
+import { uploadRune } from 'backend/loreforge.web.js';
 import { currentMember, members } from 'wix-members-backend';
 
 const COLLECTION = 'Characters';
@@ -141,6 +142,34 @@ export const deleteCharacter = webMethod(Permissions.Anyone, async (charId) => {
   return { ok: true, id: charId, leftCampaign: leftCampaign };
 });
 
+// A portrait used to be baked into the record as a data url: a wall of encoded bytes,
+// too heavy to share with the table and unable to travel to another device at all. It
+// is uploaded once to stored media and kept as a plain address from then on, the same
+// as every other picture in the forge already is. Runs on save, so a portrait converts
+// the first time its Fell is saved and is never carried as bytes again.
+function toHttpsImage(u) {
+  if (typeof u !== 'string') return '';
+  const m = u.match(/^wix:image:\/\/v1\/([^/]+)/);
+  if (m) return 'https://static.wixstatic.com/media/' + m[1];
+  return u;
+}
+async function storePortrait(character) {
+  try {
+    const idn = (character && character.identity) || {};
+    const p = (character && character.portrait) || idn.portrait || '';
+    if (typeof p !== 'string' || p.indexOf('data:') !== 0) return character;
+    const comma = p.indexOf(',');
+    const b64 = comma >= 0 ? p.slice(comma + 1) : '';
+    if (!b64) return character;
+    const ref = await uploadRune(b64, 'fell-portrait-' + Date.now());
+    const url = toHttpsImage(ref);
+    if (!url) return character;
+    if (character.portrait !== undefined) character.portrait = url;
+    if (character.identity) character.identity.image = url;
+    return character;
+  } catch (e) { return character; }
+}
+
 export const saveCharacter = webMethod(Permissions.Anyone, async (charId, character) => {
   const id = await memberId();
   const c = character || {};
@@ -152,6 +181,7 @@ export const saveCharacter = webMethod(Permissions.Anyone, async (charId, charac
   } else {
     row = { ownerMemberId: id };
   }
+  await storePortrait(c);
   row.data = JSON.stringify(c);
   row.charName = (c.identity && c.identity.name) || row.charName || 'Unnamed Fell';
   row.level = (c.lore && c.lore.level) || 1;
@@ -343,6 +373,7 @@ export const lmSaveCharacter = webMethod(Permissions.Anyone, async (charId, char
   if (!gate.ok) return { ok: false, error: gate.error };
   const row = gate.row;
   const c = character || {};
+  await storePortrait(c);
   row.data = JSON.stringify(c);
   row.charName = (c.identity && c.identity.name) || row.charName || 'Unnamed Fell';
   row.level = (c.lore && c.lore.level) || row.level || 1;
