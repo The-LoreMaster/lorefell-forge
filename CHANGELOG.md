@@ -1,3 +1,9 @@
+## 2026-07-25 — ThreadSpire: a map lands on the stage, not beside it
+
+Picking a map from the shelf changes the face of the stage you are on now, and keeps its tokens, instead of laying a bare map the stage system did not know about. That bare map is why the stage vanished: the next stage save or restore wrote over a background nothing was tracking. A map now belongs to the stage that holds it, the way it always should have, and if there is no stage yet, choosing a map makes one.
+
+The seams say more about tokens now, so a token that is not reaching the players can be read rather than guessed: how many are on the table, how many carry a real stored picture, and how many hold a picture that lives only on this device and cannot travel. The first token is named with which of those it is, and the active stage is shown.
+
 ## 2026-07-25 — ThreadSpire: the map button works, and a placed token shows itself
 
 Choosing a map from the Maps shelf sets it now. It found the map and then did nothing with it, which is why the shelf looked dead while stage faces worked: the stage path set the scene's background and the shelf never did. It sets it, sizes the table to it, and sends it out, the same as a stage face.
