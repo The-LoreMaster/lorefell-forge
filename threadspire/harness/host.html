@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ThreadSpire tabletop harness</title>
+<!--
+  A mock Wix parent for docs/threadspire.html.
+
+  ThreadSpire is not a standalone page. tsEmbedded() is `window.parent && window.parent
+  !== window`, and everything it needs, its role, its adventure, its sync, arrives by
+  postMessage from the page that embeds it. Opened directly it falls back to a demo
+  bench with no role and no sync, which is useless for two-sided testing. So this file's
+  whole job is to be a convincing parent frame.
+
+  It stands in for velo/page-threadspire.js. Where the real page calls a Wix backend,
+  this answers from memory. The message contract is copied from the real page, not
+  invented: THREADSPIRE_READY in, ROLE_HINT then CONTEXT out, and every TS_* request
+  answered by a TS_RESULT carrying the same reqId.
+
+  Two iframes on one page, one shared store, so the LoreMaster's writes and the player's
+  reads meet in the same place a real adventure's state row would.
+-->
+<style>
+  html, body { margin:0; height:100%; background:#14110e; color:#e8dfd2;
+               font:13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  #frames { display:flex; height:100%; }
+  .slot { flex:1 1 50%; display:flex; flex-direction:column; border-right:1px solid #3a3128; }
+  .slot:last-child { border-right:0; }
+  .slot > h2 { margin:0; padding:4px 8px; font-size:11px; letter-spacing:.08em;
+               text-transform:uppercase; background:#241f19; color:#c9a84c; font-weight:600; }
+  .slot > iframe { flex:1 1 auto; width:100%; border:0; background:#0d0b09; }
+  .slot.idle > iframe { display:none; }
+</style>
+</head>
+<body>
+<div id="frames">
+  <div class="slot idle" id="slot-lm"><h2>LoreMaster</h2><iframe name="ts-lm" id="if-lm" title="LoreMaster"></iframe></div>
+  <div class="slot idle" id="slot-player"><h2>Player</h2><iframe name="ts-player" id="if-player" title="Player"></iframe></div>
+</div>
+
+<script src="./fixtures.js"></script>
+<script>
+'use strict';
+(function () {
+
+/* ------------------------------------------------------------------ the store ----
+ * One row per adventure, which is what the real feed is: a single shared state row
+ * per campaign that the LoreMaster writes and everyone at the table reads.
+ *
+ * The version gate is the point. If a puller can read a write that has not landed, or
+ * can read the same version twice as though it were news, the harness hides exactly the
+ * sync bugs it exists to catch. So: version rises only on an accepted push, and a pull
+ * carries a snapshot ONLY when the row is strictly newer than what the caller has seen.
+ * Anything else is recorded as a violation rather than quietly tolerated.
+ */
+var store = Object.create(null);          /* campaignId -> { version, snap } */
+
+function row(campaignId) {
+  if (!store[campaignId]) store[campaignId] = { version: 0, snap: null };
+  return store[campaignId];
+}
+
+/* A snapshot crossing the seam is serialised, the way a real backend round trip would
+ * serialise it. Handing the player a live reference to the LoreMaster's object would
+ * make them share one mutable state and every sync test would pass for the wrong
+ * reason. */
+function clone(v) {
+  try { return v === undefined ? undefined : JSON.parse(JSON.stringify(v)); }
+  catch (e) { return null; }
+}
+
+/* --------------------------------------------------------------- the record ----
+ * Everything that crossed the seam, so a spec can assert on ordering rather than only
+ * on end state. B5 ("sync is not instant-but-wrong") is an ordering claim: the read
+ * that produced a value must come after the write that created it.
+ */
+var TSH = {
+  fixtures: (typeof window !== 'undefined' && window.TS_FIXTURES) || null,
+  frames: Object.create(null),   /* name -> binding */
+  log: [],                       /* every message in and out */
+  unhandled: [],                 /* TS_* types answered only by the catch-all */
+  violations: [],                /* the harness caught itself being dishonest */
+  stats: { pushes: 0, pushRefused: 0, pulls: 0, snapsServed: 0 },
+  store: store
+};
+window.TSH = TSH;
+
+function note(entry) {
+  entry.t = Date.now();
+  entry.seq = TSH.log.length;
+  TSH.log.push(entry);
+  return entry;
+}
+
+/* ------------------------------------------------------------------ bindings ----
+ * One per iframe, standing in for the per-page variables in page-threadspire.js:
+ * its role, the adventure it is currently bound to, and the Fell it arrived with.
+ * campaignId is deliberately mutable: TS_CAMPAIGN_SET rebinds the page in place
+ * rather than navigating, and that in-place rebind is what S2 exercises.
+ */
+function binding(name) { return TSH.frames[name]; }
+
+function frameEl(name) { return document.getElementById(name === 'lm' ? 'if-lm' : 'if-player'); }
+
+function sourceName(win) {
+  var names = Object.keys(TSH.frames);
+  for (var i = 0; i < names.length; i++) {
+    var el = frameEl(names[i]);
+    if (el && el.contentWindow === win) return names[i];
+  }
+  return null;
+}
+
+function post(name, msg) {
+  var el = frameEl(name);
+  if (!el || !el.contentWindow) return;
+  note({ dir: 'out', frame: name, type: msg.type, reqId: msg.reqId || null,
+         version: msg.data && msg.data.version });
+  el.contentWindow.postMessage(msg, '*');
+}
+
+function reply(name, reqId, ok, data, error) {
+  post(name, { type: 'TS_RESULT', reqId: reqId, ok: !!ok, data: data, error: error });
+}
+
+/* ------------------------------------------------------------- the context ----
+ * buildContext() in the real page, reduced to what it can answer from memory. The
+ * load-bearing field is rawCampaign: since "the adventure is its own record", the
+ * campaign travels ON the context, and ThreadSpire builds its spine from it. That is
+ * what makes an adventure open with its story on first load and on a switch, with no
+ * push from FateWell.
+ */
+function buildContext(b) {
+  var f = TSH.fixtures;
+  return {
+    character: b.character || null,
+    party: clone(b.party || []),
+    discovered: [],
+    worldUnlocked: false,
+    goals: [],
+    worldIssues: [],
+    art: {},
+    nodes: [],
+    rawCampaign: clone(b.rawCampaign !== undefined ? b.rawCampaign : (f ? f.byId(b.campaignId) : null))
+  };
+}
+
+function sendContext(name, extra) {
+  var b = binding(name);
+  var ctx = buildContext(b);
+  var msg = Object.assign({
+    type: 'THREADSPIRE_CONTEXT',
+    role: b.role,
+    campaignId: b.campaignId,
+    characterId: b.characterId || ''
+  }, ctx, extra || {});
+  post(name, msg);
+}
+
+/* ------------------------------------------------------------ the state feed ----
+ * Mirrors velo/page-threadspire.js exactly, including the two guards that exist because
+ * they were once missing:
+ *
+ *  - PUSH refuses a write whose campaignId is not the one this frame is bound to. A push
+ *    sent before a switch and arriving after it would otherwise land the old table on the
+ *    new adventure.
+ *  - PULL stamps the answer with the campaign THIS FRAME is bound to, not the one the
+ *    request asked for. A pull in flight across a switch really does come back holding
+ *    the old adventure, and the embed's job is to notice and discard it. Stamping the
+ *    requested id instead would paper over that, and requirement B6 would never fail.
+ */
+function handleStatePush(name, msg) {
+  var b = binding(name);
+  if (msg.campaignId && msg.campaignId !== b.campaignId) {
+    TSH.stats.pushRefused++;
+    note({ dir: 'store', frame: name, type: 'PUSH_REFUSED', asked: msg.campaignId, bound: b.campaignId });
+    reply(name, msg.reqId, false, null, 'stale adventure');
+    return;
+  }
+  var r = row(b.campaignId);
+  r.version += 1;
+  r.snap = clone(msg.snap);
+  TSH.stats.pushes++;
+  note({ dir: 'store', frame: name, type: 'PUSH_COMMIT', campaignId: b.campaignId, version: r.version });
+  /* The version goes back on the ack. pushState() treats a reply without one as a
+   * refusal ("the site said no") and marks the seam FAILED, so this field is not
+   * decoration. */
+  reply(name, msg.reqId, true, { ok: true, version: r.version });
+}
+
+function handleStatePull(name, msg) {
+  var b = binding(name);
+  var r = row(b.campaignId);
+  var since = Number(msg.since || 0);
+  TSH.stats.pulls++;
+
+  var out = { campaignId: b.campaignId };
+  if (r.version > 0) {
+    out.version = r.version;
+    if (r.version > since) {
+      out.snap = clone(r.snap);
+      TSH.stats.snapsServed++;
+    }
+  }
+  /* Self-check. If this ever fires the harness is lying to the reader and every sync
+   * assertion downstream is worthless, so it is recorded loudly rather than swallowed. */
+  if (out.snap !== undefined && !(r.version > since)) {
+    TSH.violations.push({ what: 'served a snapshot that was not newer than the caller had seen',
+                          frame: name, since: since, version: r.version });
+  }
+  note({ dir: 'store', frame: name, type: 'PULL', campaignId: b.campaignId,
+         since: since, version: r.version, served: out.snap !== undefined });
+  reply(name, msg.reqId, true, out);
+}
+
+/* ------------------------------------------------------- the rest of the bridge ----
+ * Tier 1 is answered properly. Everything else gets a benign, correctly-SHAPED reply:
+ * a list request that receives null instead of [] does not hang, it throws inside the
+ * embed, which is a different and more confusing failure. Unknown types are logged so a
+ * scenario's real reach is visible rather than assumed.
+ */
+var EMPTY_LIST = {
+  TS_CHAR_LIST: 1, TS_STAGE_LIST: 1, TS_ASSET_LIST: 1, TS_PARTY_LIST: 1,
+  TS_JOURNAL_GET: 1, TS_QUEST_LIST: 1, TS_PUBLISH_LIST: 1, TS_COMBAT_DECLARES: 1,
+  TS_CAMPAIGN_LIST: 1
+};
+
+function handleRequest(name, msg) {
+  var b = binding(name);
+  var f = TSH.fixtures;
+  var type = msg.type;
+
+  switch (type) {
+    case 'TS_STATE_PUSH':  return handleStatePush(name, msg);
+    case 'TS_STATE_PULL':  return handleStatePull(name, msg);
+
+    case 'TS_PARTY_LIST':
+      return reply(name, msg.reqId, true, clone(b.party || []));
+
+    case 'TS_CHAR_LIST':
+      return reply(name, msg.reqId, true, clone(b.characters || []));
+
+    case 'TS_CHAR_LOAD': {
+      var want = msg.charId || b.characterId;
+      var hit = (b.characters || []).filter(function (c) { return c && c.id === want; })[0];
+      return reply(name, msg.reqId, true, clone(hit || null));
+    }
+
+    case 'TS_CAMPAIGN_LIST':
+      return reply(name, msg.reqId, true, clone(b.campaignList || (f ? f.CAMPAIGN_LIST : [])));
+
+    /* Switch in place, exactly as the real page does it: rebind this frame, build a
+     * fresh context for the new adventure, and send it marked `switched`. The embed's
+     * advReset() puts down everything belonging to the adventure being left, then the
+     * spine on the new context stands the new story up. No navigation, no FateWell. */
+    case 'TS_CAMPAIGN_SET': {
+      var next = String(msg.campaignId || '');
+      if (!next) return reply(name, msg.reqId, false, null, 'no adventure given');
+      b.campaignId = next;
+      if (f) b.rawCampaign = f.byId(next);
+      sendContext(name, { switched: true });
+      return reply(name, msg.reqId, true, { ok: true, campaignId: next });
+    }
+
+    case 'TS_STAGE_LIST':
+      return reply(name, msg.reqId, true, clone(b.stages || []));
+
+    case 'TS_STAGE_SAVE': {
+      b.stages = b.stages || [];
+      var stage = Object.assign({}, msg.stage, { campaignId: msg.campaignId || b.campaignId });
+      var at = -1;
+      b.stages.forEach(function (s, i) { if (s.stageId === stage.stageId) at = i; });
+      if (at >= 0) b.stages[at] = stage; else b.stages.push(stage);
+      return reply(name, msg.reqId, true, { ok: true });
+    }
+
+    case 'TS_STAGE_DELETE':
+      b.stages = (b.stages || []).filter(function (s) { return s.stageId !== msg.stageId; });
+      return reply(name, msg.reqId, true, { ok: true });
+
+    case 'TS_JOURNAL_GET':
+      return reply(name, msg.reqId, true, clone(b.journal || []));
+
+    case 'TS_JOURNAL_SAVE':
+      b.journal = clone(msg.entries || []);
+      return reply(name, msg.reqId, true, { ok: true });
+
+    case 'TS_LM_PORTRAIT_GET':
+      return reply(name, msg.reqId, true, b.portrait || '');
+
+    case 'TS_LM_PORTRAIT_SAVE':
+      b.portrait = msg.portrait || '';
+      return reply(name, msg.reqId, true, { ok: true });
+
+    case 'TS_FORGE_DATA':
+      return reply(name, msg.reqId, true, {
+        pools: { infusions: [], augmentations: [], items: [] },
+        pack: null, acts: [],
+        campaigns: clone(b.campaignList || (f ? f.CAMPAIGN_LIST : [])),
+        glossary: []
+      });
+
+    case 'TS_SHELVES_GET':
+      return reply(name, msg.reqId, true, clone(b.shelves || {}));
+
+    case 'TS_SHELVES_SET':
+      b.shelves = clone(msg.shelves || {});
+      return reply(name, msg.reqId, true, { ok: true });
+
+    default:
+      /* Tier 3. Benign, correctly shaped, and recorded. */
+      if (TSH.unhandled.indexOf(type) < 0) TSH.unhandled.push(type);
+      return reply(name, msg.reqId, true, EMPTY_LIST[type] ? [] : { ok: true });
+  }
+}
+
+/* --------------------------------------------------------------- the listener ---- */
+window.addEventListener('message', function (ev) {
+  var msg = ev && ev.data;
+  if (!msg || !msg.type) return;
+  var name = sourceName(ev.source);
+  if (!name) return;                      /* not one of ours */
+
+  note({ dir: 'in', frame: name, type: msg.type, reqId: msg.reqId || null });
+
+  if (msg.type === 'THREADSPIRE_READY') {
+    var b = binding(name);
+    b.ready = true;
+    /* Paint the right side straight away, then let the confirmed context correct it.
+     * Same two-step the real page uses. */
+    post(name, { type: 'THREADSPIRE_ROLE_HINT', role: b.role });
+    sendContext(name);
+    return;
+  }
+
+  /* The FellGlass relay. Recorded, not answered: the sheet bridge is its own tier and
+   * nothing waits on a TS_RESULT for it, so leaving it unanswered stalls nothing. */
+  if (msg.type === 'TS_TOOL_UP') return;
+
+  if (msg.reqId && String(msg.type).indexOf('TS_') === 0) handleRequest(name, msg);
+});
+
+/* ------------------------------------------------------------------ the API ----
+ * Specs drive the harness through this. Mounting is explicit rather than automatic so
+ * a spec can arrange the whole table, both sides and the store, BEFORE either frame
+ * loads. A frame that boots before its binding exists would get the wrong context or
+ * none, and the resulting flake would look like a product bug.
+ */
+TSH.mount = function (cfg) {
+  cfg = cfg || {};
+  var names = [];
+  ['lm', 'player'].forEach(function (name) {
+    var c = cfg[name];
+    if (!c) return;
+    TSH.frames[name] = {
+      role: c.role || (name === 'lm' ? 'lm' : 'player'),
+      campaignId: c.campaignId || '',
+      characterId: c.characterId || '',
+      character: c.character || null,
+      party: c.party || [],
+      characters: c.characters || [],
+      campaignList: c.campaignList || null,
+      rawCampaign: c.rawCampaign,      /* undefined means "look it up in the fixtures" */
+      stages: c.stages || [],
+      journal: c.journal || [],
+      ready: false
+    };
+    names.push(name);
+  });
+  names.forEach(function (name) {
+    document.getElementById(name === 'lm' ? 'slot-lm' : 'slot-player').classList.remove('idle');
+    frameEl(name).src = cfg.src || '/docs/threadspire.html';
+  });
+  return names;
+};
+
+/* Has this frame taken its context? Boot is a two-step handshake and a spec that starts
+ * asserting after only the role hint is racing the page. */
+TSH.booted = function (name) {
+  var b = binding(name);
+  if (!b || !b.ready) return false;
+  return TSH.log.some(function (e) {
+    return e.dir === 'out' && e.frame === name && e.type === 'THREADSPIRE_CONTEXT';
+  });
+};
+
+TSH.versionOf = function (campaignId) { return (store[campaignId] || { version: 0 }).version; };
+
+/* Every pull this frame made that actually carried a snapshot, in order. The evidence
+ * for "the read came after the write". */
+TSH.servedPulls = function (name) {
+  return TSH.log.filter(function (e) {
+    return e.dir === 'store' && e.type === 'PULL' && e.frame === name && e.served;
+  });
+};
+
+TSH.commits = function () {
+  return TSH.log.filter(function (e) { return e.dir === 'store' && e.type === 'PUSH_COMMIT'; });
+};
+
+TSH.reset = function () {
+  Object.keys(store).forEach(function (k) { delete store[k]; });
+  TSH.frames = Object.create(null);
+  TSH.log = [];
+  TSH.unhandled = [];
+  TSH.violations = [];
+  TSH.stats = { pushes: 0, pushRefused: 0, pulls: 0, snapsServed: 0 };
+};
+
+})();
+</script>
+</body>
+</html>
