@@ -1,29 +1,20 @@
-# Aurum weights — to add to the FellGuide
+# Aurum weights — confirmed, already canon
 
-The denominations live in the tool (`docs/fellglass.html`, `const AURUM`) but not
-yet in the vault. This makes the vault canonical for them, so a test can assert
-against the rulebook rather than against a tool constant. Paste the block below
-into the FellGuide's **Aurum** note (in the `lorefell-fellguide` vault).
+Checked the FellGuide vault: the Aurum note already carries the weights, and they
+match the tool exactly. No change to the vault was needed.
 
----
+| Coin   | Worth (in Oro) | Source          |
+|--------|----------------|-----------------|
+| Oro    | 1              | vault + tool ✓  |
+| Arca   | 10             | vault + tool ✓  |
+| Atla   | 50             | vault + tool ✓  |
+| Zurith | 100            | vault + tool ✓  |
 
-## Denominations
+Vault: `The FellGuide/.../The Currency/Definitions/Aurum.md` (the "Value" column).
+Tool: `docs/fellglass.html`, `const AURUM`.
 
-Aurum is counted in four coins. Each is worth a fixed number of the base coin,
-Oro.
+## For the aurum test (D2)
 
-| Coin   | Worth (in Oro) |
-|--------|----------------|
-| Oro    | 1              |
-| Arca   | 10             |
-| Atla   | 50             |
-| Zurith | 100            |
-
-A Fell's total worth is the sum of every coin converted to Oro. For example, 3
-Oro, 2 Arca, 1 Atla, and 1 Zurith is worth `3 + 20 + 50 + 100 = 173` Oro.
-
----
-
-*Once this is in the vault, the harness's aurum check (D2) asserts against the
-rulebook. If the vault ever states different weights than the tool, that
-disagreement is a bug to reconcile, not to silence.*
+The oracle is the **vault** — the weights are canon there. Assert: 3 Oro, 2 Arca,
+1 Atla, 1 Zurith on a sheet reads `3 + 20 + 50 + 100 = 173` Oro. Tool and vault
+agree, so this is a straight rulebook-backed assertion, not a tool constant.
