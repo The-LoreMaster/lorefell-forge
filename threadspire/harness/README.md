@@ -19,8 +19,10 @@ page calls a Wix backend.
 | `host.html` | The mock parent. Two iframes, one shared state store, the `TSH` API specs drive. |
 | `fixtures.js` | The adventures, roster and campaign list. Loaded both as a `<script>` and as a CommonJS module, so specs derive expected counts from the same data the harness serves. |
 | `specs/_table.js` | Shared helpers. Underscored so Playwright does not collect it as a spec. |
-| `specs/s1-fell-joins.spec.js` | S1 — a Fell joins, both sides agree. |
-| `specs/s2-open-adventure.spec.js` | S2 — the LoreMaster opens the chosen adventure. |
+| `specs/s1-fell-joins.spec.js` | S1 — a Fell joins, both sides agree. Requirements B1, B5. |
+| `specs/s2-open-adventure.spec.js` | S2 — the LoreMaster opens the chosen adventure. Requirements A1, A2. |
+| `specs/b6-other-adventure.spec.js` | The wrong adventure's state never bleeds in. Requirement B6. |
+| `specs/s5-persistence.spec.js` | Does the table remember? Requirements C1, C3, C5. |
 | `../tabletop.config.js` | Playwright config. Separate from `playwright.config.js`, which is the Fellwake zoom explorer and is left alone. |
 
 ## Running it
@@ -97,11 +99,28 @@ served, there must be an earlier commit of that version.
 
 ## What is not built yet
 
-S3 (a Beat of combat, both sides), S4 (the LoreMaster edits a player's Fell), S5 (reload
-persistence) and S6 (invalid and boundary input) are not here. Neither is the FellGlass
-sheet bridge: `TS_TOOL_UP` is recorded and left unanswered, which stalls nothing because
-nothing waits on a `TS_RESULT` for it, but it means sheet-level scenarios need that relay
-implemented first.
+S3 (a Beat of combat, both sides), S4 (the LoreMaster edits a player's Fell) and S6
+(invalid and boundary input) are not here. Neither is the FellGlass sheet bridge:
+`TS_TOOL_UP` is recorded and left unanswered, which stalls nothing because nothing waits
+on a `TS_RESULT` for it, but it means sheet-level scenarios need that relay implemented
+first.
+
+S3 onward is also where the FellGuide finally becomes the oracle — the Act/React economy,
+foe stat rungs, aurum weights. Those assertions need the rule read and the number derived
+first, not a plausible-looking constant.
+
+**C2 (each scene keeps its own board) is a known gap.** `applyRemoteSnapshot` ignores
+`snap.instance.bindings` while `S._advTouch` is within 8 seconds, which it always is
+immediately after a spine loads from a context. So a bindings assertion after a reload
+either sleeps past that window or races it. It wants a test built deliberately around the
+gate rather than one that happens to sleep long enough, so it is left out rather than
+written flaky.
+
+**Mobile is not really mobile yet.** The mobile project runs the same flows at an iPhone
+viewport, but `selectOption` sets a `<select>` value programmatically and never opens the
+native picker. That means requirement F4 (dropdowns open on Android, the SigilForge bug)
+is *not* covered by the mobile project passing. Real F4 coverage needs a tap-driven
+interaction and belongs with S6.
 
 Unhandled `TS_*` types get a benign, correctly-shaped reply and are collected in
 `TSH.unhandled`, so what a scenario actually exercised is visible rather than assumed.

@@ -194,7 +194,11 @@ function handleStatePull(name, msg) {
   var since = Number(msg.since || 0);
   TSH.stats.pulls++;
 
-  var out = { campaignId: b.campaignId };
+  /* Fault injection for requirement B6. A pull that left before a switch and lands after
+   * it really does come back stamped with the adventure the table has just left, and the
+   * embed is supposed to notice and discard it. That race is near impossible to hit on
+   * purpose, so a spec can ask for the stamp directly. Off unless a spec sets it. */
+  var out = { campaignId: b.stampPullsAs || b.campaignId };
   if (r.version > 0) {
     out.version = r.version;
     if (r.version > since) {
@@ -382,6 +386,38 @@ TSH.booted = function (name) {
   return TSH.log.some(function (e) {
     return e.dir === 'out' && e.frame === name && e.type === 'THREADSPIRE_CONTEXT';
   });
+};
+
+/* Reload one side, leaving the shared store standing. This is what "reload the page"
+ * means for a table: the browser throws away everything the embed held in memory, and
+ * whatever comes back has to come back from the store. Anything that does not is a
+ * thing the table forgot. */
+TSH.reload = function (name) {
+  var b = binding(name);
+  if (!b) return;
+  b.ready = false;
+  /* Drop the boot record for this frame so TSH.booted waits for the NEW context rather
+   * than reporting the one from before the reload. */
+  TSH.log = TSH.log.filter(function (e) {
+    return !(e.frame === name && e.type === 'THREADSPIRE_CONTEXT');
+  });
+  frameEl(name).contentWindow.location.reload();
+};
+
+/* Rebind a frame without telling the embed, so its next push carries the adventure it
+ * still believes it is on. That is the push half of B6: the parent must refuse a write
+ * meant for somewhere else rather than landing it on the new adventure. */
+TSH.rebind = function (name, campaignId) {
+  var b = binding(name);
+  if (!b) return;
+  b.campaignId = campaignId;
+  if (TSH.fixtures) b.rawCampaign = TSH.fixtures.byId(campaignId);
+};
+
+/* See handleStatePull. Pass null to stop. */
+TSH.stampPullsAs = function (name, campaignId) {
+  var b = binding(name);
+  if (b) b.stampPullsAs = campaignId || null;
 };
 
 TSH.versionOf = function (campaignId) { return (store[campaignId] || { version: 0 }).version; };

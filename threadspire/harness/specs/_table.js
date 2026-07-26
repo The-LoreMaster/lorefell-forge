@@ -42,6 +42,64 @@ async function openTableAndBoot(page, cfg) {
   return out;
 }
 
+/* Reload one side and wait for it to come back up. The shared store survives, so
+ * whatever the table shows afterwards had to come back from the store rather than from
+ * anything the embed was holding in memory. Re-acquires the frame: the handle from
+ * before the reload points at a document that no longer exists. */
+async function reloadSide(page, which) {
+  await page.evaluate((w) => window.TSH.reload(w), which);
+  await page.waitForFunction((w) => window.TSH.booted(w), which);
+  const frame = await frameFor(page, which);
+  await frame.waitForFunction(() => !!window.S && window.S.roleReady === true);
+  return frame;
+}
+
+/* Wait for the shared row to move past a version.
+ *
+ * This proves only that SOME commit landed after `version`. It does not prove that the
+ * write you just made is the one that landed, and using it that way is a trap I fell
+ * into: applyRemoteState coalesces through schedulePush on a 120ms timer, and boot-time
+ * pushes are often still in flight when the caller reads its baseline. The helper then
+ * returns on somebody else's commit and the test races ahead of its own write.
+ *
+ * Correct for "the feed is moving" — which is what B5 and B6 need. For "my change is
+ * saved", use waitForCommittedSnap below. */
+async function waitForCommitPast(page, campaignId, version) {
+  await page.waitForFunction(
+    ({ c, v }) => window.TSH.versionOf(c) > v,
+    { c: campaignId, v: version }
+  );
+  return page.evaluate((c) => window.TSH.versionOf(c), campaignId);
+}
+
+/* Wait until the COMMITTED snapshot actually contains the change you made.
+ *
+ * This is the honest wait for a persistence test. The question a persistence test asks
+ * is "did this survive", and the only way that question is meaningful is if the thing
+ * genuinely reached the store first. A version counter cannot answer it; the snapshot's
+ * contents can.
+ *
+ * `match` is a plain object so it survives the hop into the page:
+ *   { tokenCharId }    a token for that Fell is on the stored board
+ *   { activeSceneId }  the stored board is on that scene
+ */
+async function waitForCommittedSnap(page, campaignId, match) {
+  await page.waitForFunction(
+    ({ c, m }) => {
+      const row = window.TSH.store[c];
+      if (!row || !row.snap) return false;
+      const snap = row.snap;
+      if (m.tokenCharId) {
+        return (snap.tokens || []).some((t) => t && t.charId === m.tokenCharId);
+      }
+      if (m.activeSceneId) return snap.activeSceneId === m.activeSceneId;
+      return false;
+    },
+    { c: campaignId, m: match }
+  );
+  return page.evaluate((c) => window.TSH.versionOf(c), campaignId);
+}
+
 /* Open a rail window inside a frame and wait for its body to render. */
 async function openWindow(frame, key) {
   await frame.evaluate((k) => window.openWin(k), key);
@@ -105,6 +163,9 @@ module.exports = {
   openTableAndBoot,
   frameFor,
   waitBooted,
+  reloadSide,
+  waitForCommitPast,
+  waitForCommittedSnap,
   openWindow,
   seams,
   parseStoryHere,
