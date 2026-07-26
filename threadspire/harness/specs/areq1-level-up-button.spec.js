@@ -39,6 +39,11 @@ const CHAR_ID = 'chr-maerwen-0001';
  * every record through seedSheet, so a partial record like this is filled out with
  * defaults rather than needing every field spelled here. */
 const FELL_WITH_ONE_CRYSTAL = {
+  /* Already forged. fellglass.html:4461 opens the creation wizard 2.5s after load for
+   * any non-tsembed record whose `created` is falsy, which would cover the header on a
+   * slow run. These tests are quick enough to have beaten that timer so far, which makes
+   * it latent flake rather than a bug we have seen. Named here so it stays fixed. */
+  created: true,
   identity: { name: 'Maerwen Ash' },
   lore: { level: 1, lorePoints: 2 },
   attrs: { vigor: { base: 2, mod: 0 }, power: { base: 1, mod: 0 } },

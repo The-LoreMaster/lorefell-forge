@@ -92,11 +92,34 @@ window.addEventListener('message', function (ev) {
   }
 
   if (m.type === 'save') {
+    /* Read the incoming record DIRECTLY, before any copying, so what the sheet actually
+     * sent is on the record separately from what this mock managed to keep. When a
+     * persistence test fails, the first question is which of those two went wrong, and
+     * a store that only reports its own end state cannot answer it. */
+    var raw = m.character;
+    FSH.lastSaveRaw = {
+      keys: raw && typeof raw === 'object' ? Object.keys(raw).length : null,
+      loreLevel: raw && raw.lore ? raw.lore.level : null,
+      weaponLevel: raw && raw.weapons && raw.weapons[0] ? raw.weapons[0].level : null
+    };
+
     /* The store takes the whole record, as saveCharacter does. Held by value: keeping
      * the sheet's own object would make every later mutation appear to have been saved,
-     * and a persistence test would pass without anything ever being written. */
-    FSH.record = clone(m.character) || {};
-    FSH.saves.push({ seq: m.saveSeq, charId: m.charId || '', at: Date.now() });
+     * and a persistence test would pass without anything ever being written.
+     *
+     * structuredClone, not JSON. postMessage delivered this object through the structured
+     * clone algorithm, which carries cycles and Maps that JSON.stringify throws on.
+     *
+     * TEMPORARY: deliberately still the JSON round trip, so diag-save-path fails on the
+     * real mechanism and names the culprit from evidence rather than from an argument.
+     * Swap to structuredClone once the diagnostic has spoken. */
+    var copied = null, why = '';
+    try {
+      copied = JSON.parse(JSON.stringify(raw));
+    } catch (e) { copied = null; why = String((e && e.message) || e); }
+    FSH.lastCloneError = why;
+    FSH.record = copied || {};
+    FSH.saves.push({ seq: m.saveSeq, charId: m.charId || '', at: Date.now(), kept: !!copied, why: why });
     /* Answered pass or fail, carrying the number the sheet sent. An unanswered save
      * leaves the sheet showing "Not saved" forever. */
     post({ type: 'saved', ok: true, saveSeq: m.saveSeq, localId: m.localId || '', charId: m.charId || FSH.charId });
