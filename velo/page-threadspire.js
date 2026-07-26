@@ -49,10 +49,11 @@ $w.onReady(async function () {
   }
   // A LoreMaster who deletes an adventure and reimports it gets a new id, but the old
   // one is still in the address bar from before. The page then opened a campaign that no
-  // longer exists: no story, and after nine seconds, "Still here". So the id from the
-  // address is checked against the ones they actually run. If it is not one of theirs,
-  // the Fell's record is asked next, and failing that the most recent adventure they
-  // own, so a stale link lands on something real.
+  // longer exists: no story, and after nine seconds, "Still here". So a stale id is
+  // recovered, but carefully: the only thing it is ever swapped for is an adventure we
+  // can positively confirm is the right one, the campaign the Fell itself is in. It is
+  // never swapped for whichever adventure happens to be first in the list, because that
+  // is how a good link to one adventure quietly opens a different one instead.
   //
   // This only ever acts for someone who runs adventures. A plain player owns none, so
   // listMyCampaigns is empty for them and this leaves their campaignId exactly as it
@@ -62,12 +63,19 @@ $w.onReady(async function () {
     try { mine = await listMyCampaigns(); } catch (e) { mine = []; }
     if (!mine.length) return want;                      // not a LoreMaster; do not touch it
     const has = (id) => id && mine.some((c) => String(c.id) === String(id));
-    if (has(want)) return want;                         // the address is still valid
-    // theirs to run, but this id is not among them: deleted, reimported, or never ours.
+    if (has(want)) return want;                         // the address is still valid, keep it
+    // the id in the address is not one they run: deleted, reimported, or never theirs.
+    // The Fell knows which adventure it is in, so ask it, and take that only if it too is
+    // one they run. This is the sure swap: same table, right id.
     if (characterId) {
       try { const a = await charAdventure(characterId); if (a && a.campaignId && has(a.campaignId)) return a.campaignId; } catch (e) {}
     }
-    return mine[0].id;                                  // one they own, so the table opens on something real
+    // Nothing could be confirmed. If there is exactly one adventure they run, it is the
+    // only thing they could have meant, so open it. If there are several, do not guess:
+    // keep the id from the address so the table can say plainly that it found no story
+    // there, rather than silently opening the wrong adventure.
+    if (mine.length === 1) return mine[0].id;
+    return want;
   }
   if (campaignId || characterId) {
     const resolved = await resolveCampaign(campaignId);
