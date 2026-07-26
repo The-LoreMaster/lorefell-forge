@@ -4568,7 +4568,25 @@ function seamsBody(){
   var age = function(t){ return t ? Math.round((Date.now() - t) / 1000) + 's ago' : 'never'; };
   var rows = [
     ['Role', S.role === 'lm' ? 'LoreMaster' : 'Player'],
-    ['Adventure', S.campaignId ? String(S.campaignId).slice(0,12) : 'NONE, and nothing can sync without one'],
+    ['Adventure', (function(){
+        if (!S.campaignId) return 'NONE, and nothing can sync without one';
+        /* the name, not just the id, so a wrong adventure is obvious at a glance: if this
+           says one campaign while you meant another, the link opened the wrong one */
+        var nm = '';
+        (Array.isArray(S._advList) ? S._advList : []).forEach(function(c){ if (sameId(c.id, S.campaignId)) nm = c.name || ''; });
+        if (!nm && S.adventure && S.adventure.name) nm = S.adventure.name;
+        return (nm ? nm + ' \\u00b7 ' : '') + String(S.campaignId).slice(0,12);
+      })()],
+    ['Story here', (function(){
+        /* whether the spine actually arrived for this campaign. An adventure that opens to
+           an empty table has a campaign but no story: it was never mirrored from FateWell
+           into this campaign, or it is under a different id. This says which. */
+        var acts = (S.adventure && S.adventure.acts) || [];
+        if (!acts.length) return 'no story loaded, open it once in FateWell to mirror it here';
+        var scenes = 0;
+        acts.forEach(function(a){ (a.sessions||[]).forEach(function(se){ scenes += (se.scenes||[]).length; }); });
+        return acts.length + ' act' + (acts.length===1?'':'s') + ', ' + scenes + ' scene' + (scenes===1?'':'s');
+      })()],
     ['Fell', S.characterId ? String(S.characterId).slice(0,12) : 'none'],
     ['Last push', SEAM.pushAt ? ('v' + SEAM.pushV + ' \u00b7 ' + (SEAM.pushKB || 0) + 'KB \u00b7 ' + age(SEAM.pushAt) + (SEAM.pushOk === false ? ' \u00b7 FAILED: ' + SEAM.pushWhy : ' \u00b7 ok')) : (isLM() ? 'never, nothing has been sent yet' : 'not this side\u2019s job')],
     ['Last pull', SEAM.pullAt ? (age(SEAM.pullAt) + ' \u00b7 ' + (SEAM.pullGot || '')) : 'never, the feed has not run'],
