@@ -10,6 +10,11 @@ const launchOptions = { executablePath: '/tmp/chromium', args };
 
 module.exports = defineConfig({
   testDir: './tests',
+  // tests/ also holds the jsdom unit tests, which are plain node scripts run by
+  // `npm run checks` from the repo root. Playwright's default testMatch collects
+  // *.test.js as well as *.spec.js, so without this it picks those up and fails
+  // each one with "no tests found in file". Only the .spec.js files are Playwright's.
+  testMatch: '**/*.spec.js',
   timeout: 30000,
   retries: 0,
   globalSetup: require.resolve('./global-setup.js'),
