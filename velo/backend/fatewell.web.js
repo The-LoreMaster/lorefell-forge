@@ -6,8 +6,27 @@
 import { Permissions, webMethod } from 'wix-web-module';
 import wixData from 'wix-data';
 import { currentMember } from 'wix-members-backend';
+import { gunzipSync } from 'zlib';
 
 const COLLECTION = 'Campaigns';
+
+// The tool stores a campaign either as a plain object or, when large, as a base64 gzip
+// under { campaignGz }. FateWell's own page decompresses that on load; the paths
+// ThreadSpire relies on go through loadCampaign, so it must do the same, or the reader
+// gets { campaignGz } with no acts and stands up an empty table.
+function unpackCampaignData(data) {
+  if (!data || typeof data !== 'object') return data || {};
+  if (typeof data.campaignGz === 'string' && data.campaignGz) {
+    try {
+      const buf = Buffer.from(data.campaignGz, 'base64');
+      const json = gunzipSync(buf).toString('utf8');
+      return JSON.parse(json);
+    } catch (e) {
+      return {}; // unreadable compressed payload: an empty campaign is safer than a crash
+    }
+  }
+  return data;
+}
 
 async function memberId() {
   try { const m = await currentMember.getMember(); return m ? m._id : ''; }
@@ -25,6 +44,7 @@ export const loadCampaign = webMethod(Permissions.Anyone, async (campaignId) => 
     if (role !== 'loremaster' && role !== 'lorekeeper') return null; // not a keeper of this adventure
   }
   let data = {}; try { data = r.data ? JSON.parse(r.data) : {}; } catch (e) { data = {}; }
+  data = unpackCampaignData(data);
   return { title: r.name || 'Campaign', data: data, role: role };
 });
 
@@ -36,7 +56,7 @@ export const listMyCampaigns = webMethod(Permissions.Anyone, async () => {
     const r = await wixData.query(COLLECTION).eq('ownerMemberId', id).limit(50).find({ suppressAuth: true });
     r.items.forEach((it) => {
       seen[it._id] = 1;
-      let data = {}; try { data = it.data ? JSON.parse(it.data) : {}; } catch (e) { data = {}; }
+      let data = {}; try { data = it.data ? unpackCampaignData(JSON.parse(it.data)) : {}; } catch (e) { data = {}; }
       out.push({ id: it._id, name: it.name || 'Adventure', data: data, role: 'loremaster' });
     });
   } catch (e) {}
@@ -47,7 +67,7 @@ export const listMyCampaigns = webMethod(Permissions.Anyone, async () => {
       const c = await wixData.get(COLLECTION, m.campaignId, { suppressAuth: true }).catch(() => null);
       if (!c) continue;
       seen[m.campaignId] = 1;
-      let data = {}; try { data = c.data ? JSON.parse(c.data) : {}; } catch (e) { data = {}; }
+      let data = {}; try { data = c.data ? unpackCampaignData(JSON.parse(c.data)) : {}; } catch (e) { data = {}; }
       out.push({ id: c._id, name: c.name || 'Adventure', data: data, role: m.role || 'lorekeeper' });
     }
   } catch (e) {}
