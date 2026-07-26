@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>FellGlass sheet harness</title>
+<!--
+  A mock Velo parent for docs/fellglass.html.
+
+  The sheet is its own tool with its own bridge, separate from the ThreadSpire state
+  feed. It announces itself with {type:"ready"}, the page answers with {type:"init",
+  character}, and every autosave arrives as {type:"save", character} and must be
+  answered with {type:"saved"} carrying the same saveSeq. That contract is
+  velo/public/fgSheetBridge.js, and this stands in for it.
+
+  The record is held here, the way the Characters collection holds it. A reload
+  re-serves what was SAVED, never what the sheet had in memory, which is the only way
+  to tell a level-up that persisted from one that merely repainted.
+
+  The sheet has two homes: its own page, and ThreadSpire's rail, which loads it as
+  fellglass.html?host=threadspire and so puts body.tsembed on it. Both are mountable
+  here, because the difference between them is exactly what some of these tests are
+  about.
+-->
+<style>
+  html, body { margin:0; height:100%; background:#14110e; color:#e8dfd2;
+               font:13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  #wrap { display:flex; flex-direction:column; height:100%; }
+  #wrap > h2 { margin:0; padding:4px 8px; font-size:11px; letter-spacing:.08em;
+               text-transform:uppercase; background:#241f19; color:#c9a84c; font-weight:600; }
+  #fg { flex:1 1 auto; width:100%; border:0; background:#0d0b09; }
+</style>
+</head>
+<body>
+<div id="wrap"><h2 id="homeLabel">FellGlass</h2><iframe name="fg" id="fg" title="FellGlass"></iframe></div>
+
+<script>
+'use strict';
+(function () {
+
+function clone(v) {
+  try { return v === undefined ? undefined : JSON.parse(JSON.stringify(v)); }
+  catch (e) { return null; }
+}
+
+var FSH = {
+  record: null,      /* what the store holds, as the collection would */
+  charId: '',
+  home: 'standalone',
+  saves: [],         /* every save that arrived, in order */
+  log: [],
+  ready: false
+};
+window.FSH = FSH;
+
+function note(e) { e.t = Date.now(); e.seq = FSH.log.length; FSH.log.push(e); return e; }
+
+function frameWin() {
+  var f = document.getElementById('fg');
+  return (f && f.contentWindow) || null;
+}
+
+function post(msg) {
+  var w = frameWin();
+  if (!w) return;
+  note({ dir: 'out', type: msg.type });
+  w.postMessage(msg, '*');
+}
+
+/* What the page sends once the sheet says it is listening. Mirrors the init the real
+ * bridge builds from the Characters record. */
+function sendInit() {
+  post({
+    type: 'init',
+    charId: FSH.charId,
+    character: clone(FSH.record) || {},
+    blank: false,
+    libraries: {}
+  });
+}
+
+window.addEventListener('message', function (ev) {
+  var m = ev && ev.data;
+  if (!m || typeof m !== 'object' || !m.type) return;
+  if (frameWin() && ev.source !== frameWin()) return;
+
+  note({ dir: 'in', type: m.type, saveSeq: m.saveSeq });
+
+  if (m.type === 'ready') {
+    FSH.ready = true;
+    if (FSH.record) sendInit();
+    return;
+  }
+
+  if (m.type === 'save') {
+    /* The store takes the whole record, as saveCharacter does. Held by value: keeping
+     * the sheet's own object would make every later mutation appear to have been saved,
+     * and a persistence test would pass without anything ever being written. */
+    FSH.record = clone(m.character) || {};
+    FSH.saves.push({ seq: m.saveSeq, charId: m.charId || '', at: Date.now() });
+    /* Answered pass or fail, carrying the number the sheet sent. An unanswered save
+     * leaves the sheet showing "Not saved" forever. */
+    post({ type: 'saved', ok: true, saveSeq: m.saveSeq, localId: m.localId || '', charId: m.charId || FSH.charId });
+    return;
+  }
+
+  /* combat-sync, combat-declare and the rest are recorded and left alone; nothing in
+   * the sheet blocks on them for the leveling paths. */
+});
+
+/* ------------------------------------------------------------------ the API ---- */
+
+/* cfg: { record, charId, home }  home is 'standalone' or 'threadspire'.
+ * 'threadspire' loads the sheet exactly as ensureSheet() does, with ?host=threadspire,
+ * which is what puts body.tsembed on it. */
+FSH.mount = function (cfg) {
+  cfg = cfg || {};
+  FSH.record = clone(cfg.record) || {};
+  FSH.charId = cfg.charId || 'chr-harness-0001';
+  FSH.home = cfg.home === 'threadspire' ? 'threadspire' : 'standalone';
+  FSH.ready = false;
+  FSH.saves = [];
+  FSH.log = [];
+  document.getElementById('homeLabel').textContent = 'FellGlass · ' + FSH.home;
+  document.getElementById('fg').src =
+    '/docs/fellglass.html' + (FSH.home === 'threadspire' ? '?host=threadspire' : '');
+};
+
+/* Throw the sheet away and bring it back. Whatever shows afterwards came out of the
+ * store, because nothing else survived. */
+FSH.reload = function () {
+  FSH.ready = false;
+  frameWin().location.reload();
+};
+
+FSH.stored = function () { return clone(FSH.record); };
+FSH.saveCount = function () { return FSH.saves.length; };
+
+})();
+</script>
+</body>
+</html>
