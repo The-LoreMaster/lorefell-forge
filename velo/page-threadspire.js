@@ -186,22 +186,22 @@ $w.onReady(async function () {
           try { list = await listMyCampaigns(); } catch (e) { list = []; }
           reply(true, (list || []).map((c) => ({ id: c.id, name: c.name, role: c.role })));
         } else if (msg.type === 'TS_CAMPAIGN_SET') {
-          // Rebind in place. Every handler below reads campaignId when it runs, so
-          // changing it here is enough: the state feed, the journal, the stages and
-          // the party all follow on their next call. The embed resets itself when the
-          // context arrives with a different adventure on it.
+          // Open the chosen adventure by navigating to it, the same path FateWell uses to
+          // launch. The in-place rebind this used to do carried over the roster and goals
+          // but never the story: the adventure spine lives in the campaign's saved state,
+          // which FateWell writes when it launches a table, and a rebind that only swaps
+          // the id has nothing to load it from. So switching inside ThreadSpire opened a
+          // table with no story and hung on "Still here". A real navigation runs the whole
+          // load again for the new id: it resolves the campaign, pulls its state, and
+          // brings the spine across, which is why opening from FateWell always worked.
           try {
             const next = String(msg.campaignId || '');
             if (!next) { reply(false, null, 'no adventure given'); }
             else {
-              campaignId = next;
-              // keep the address honest so a refresh lands on the same adventure
-              try { wixLocation.queryParams.add({ campaign: next, role: 'lm' }); } catch (e) {}
-              const ctx = await buildContext(characterId, campaignId);
-              let role = 'player';
-              try { const ar = await myAdventureRole(campaignId); if (ar === 'loremaster' || ar === 'lorekeeper') role = 'lm'; } catch (e) {}
-              embed.postMessage(Object.assign({ type: 'THREADSPIRE_CONTEXT', role: role, campaignId: campaignId, characterId: characterId, switched: true }, ctx));
-              reply(true, { ok: true, campaignId: campaignId });
+              reply(true, { ok: true, campaignId: next, navigating: true });
+              const cid = characterId ? ('&character=' + encodeURIComponent(characterId)) : '';
+              try { wixLocation.to('/the-threadspire?campaign=' + encodeURIComponent(next) + '&role=lm' + cid); }
+              catch (e) { reply(false, null, 'navigation refused'); }
             }
           } catch (e) { reply(false, null, String(e)); }
         } else if (msg.type === 'TS_GOD_SHEET') {
