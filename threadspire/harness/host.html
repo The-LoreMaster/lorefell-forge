@@ -179,7 +179,20 @@ function handleStatePush(name, msg) {
   }
   var r = row(b.campaignId);
   r.version += 1;
-  r.snap = clone(msg.snap);
+  /* MERGE, not replace. saveCampaignState keeps every key the incoming push did not
+   * mention: "a push carries only what it is about, and the row remembers everything
+   * else it was ever given". This mock replaced the row wholesale, which is not what
+   * production does, and the difference was not cosmetic. pushAdventure sends only
+   * { adventure, advRev }, so under replace semantics the next ordinary pushState
+   * appeared to wipe the stored story. That is a fault this harness invented. It made a
+   * live-LoreMaster handover look unwinnable and forced a1-player-lands-on-a-real-scene
+   * to seed the row instead of racing one.
+   *
+   * Clearing still works, because the keys that mean to clear are sent explicitly empty
+   * rather than omitted: sharedSnapshot always carries tokens, so an empty board really
+   * does empty the stored board. Omission means "no news", not "delete". */
+  var incoming = clone(msg.snap);
+  r.snap = Object.assign({}, r.snap || {}, incoming || {});
   TSH.stats.pushes++;
   note({ dir: 'store', frame: name, type: 'PUSH_COMMIT', campaignId: b.campaignId, version: r.version });
   /* The version goes back on the ack. pushState() treats a reply without one as a
@@ -414,18 +427,21 @@ TSH.rebind = function (name, campaignId) {
   if (TSH.fixtures) b.rawCampaign = TSH.fixtures.byId(campaignId);
 };
 
-/* Write a snapshot into the shared row as though a LoreMaster had pushed it, and return
- * the version it landed at.
+/* Put the shared row into a known state directly, and return the version it landed at.
  *
- * A player never builds an adventure from rawCampaign; that path is gated to the
- * LoreMaster. The story reaches a player only as snap.adventure on the state feed, which
- * pushAdventure sends. Driving a real LoreMaster to produce that is racy, because the
- * very next ordinary push replaces the row and the adventure key with it, so a player
- * booting a moment later may never see one. Seeding puts the row in a known state and
- * lets the assertion be about the player's handling of it, which is the thing under test.
+ * This REPLACES the row rather than merging into it, unlike a real push. That is
+ * deliberate: it is a setup primitive, and a test arranging a precondition wants the row
+ * to hold exactly what it says and nothing left over. Use handleStatePush, by driving an
+ * actual LoreMaster, whenever the merge behaviour is part of what is under test.
  *
- * It goes through the same version machinery as a real push, so the reader still has to
- * earn it through the ordinary since/version handshake. */
+ * Useful because a player never builds an adventure from rawCampaign; that path is gated
+ * to the LoreMaster, so the story reaches a player only as snap.adventure on the feed.
+ * Seeding lets a spec put a specific adventure in front of a player, including one
+ * carrying a deliberately bad activeSceneId, without standing up a second frame to
+ * produce it.
+ *
+ * It still goes through the version machinery, so the reader has to earn it through the
+ * ordinary since/version handshake rather than being handed it. */
 TSH.seedStore = function (campaignId, snap) {
   var r = row(campaignId);
   r.version += 1;

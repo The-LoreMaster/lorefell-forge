@@ -82,6 +82,14 @@ catch. So it mirrors what the real feed does:
 - Version rises **only** on an accepted push, and the acknowledgement carries it.
   `pushState()` treats an ack without a version as a refusal and writes "FAILED" into
   the Seams panel, so this is contract, not decoration.
+- A push **merges** into the stored row; it does not replace it. `saveCampaignState`
+  keeps every key the incoming push did not mention — *"a push carries only what it is
+  about, and the row remembers everything else it was ever given"*. This matters because
+  `pushAdventure` sends only `{ adventure, advRev }`: under replace semantics an ordinary
+  `pushState` would appear to wipe the stored story. Clearing still works, because keys
+  that mean to clear are sent explicitly empty rather than omitted — `sharedSnapshot`
+  always carries `tokens`, so an empty board really does empty the stored board. Omission
+  means "no news", not "delete".
 - A pull carries a snapshot **only** when the row is strictly newer than the caller's
   `since`. Otherwise it carries the version alone.
 - A push whose `campaignId` is not the one the frame is bound to is refused as `stale
@@ -109,12 +117,20 @@ S3 onward is also where the FellGuide finally becomes the oracle — the Act/Rea
 foe stat rungs, aurum weights. Those assertions need the rule read and the number derived
 first, not a plausible-looking constant.
 
-**C2 (each scene keeps its own board) is a known gap.** `applyRemoteSnapshot` ignores
-`snap.instance.bindings` while `S._advTouch` is within 8 seconds, which it always is
-immediately after a spine loads from a context. So a bindings assertion after a reload
-either sleeps past that window or races it. It wants a test built deliberately around the
-gate rather than one that happens to sleep long enough, so it is left out rather than
-written flaky.
+**C2 (each scene keeps its own board) is partly open.** Two different obstacles, worth
+keeping apart:
+
+- *Within one session* — place boards on scene A, move to B, return to A — nothing blocks
+  it. `S._advTouch` is only set when a spine loads from a context, so a test that never
+  reloads never meets the gate. This is writable today.
+- *Across a reload* — `applyRemoteSnapshot` ignores `snap.instance.bindings` while
+  `S._advTouch` is within 8 seconds, which it always is immediately after a spine loads
+  from a context. A bindings assertion after a reload either sleeps past that window or
+  races it, so it wants a test built deliberately around the gate rather than one that
+  happens to sleep long enough.
+
+The push-merge correction does **not** change the second case. That gate is in
+`applyRemoteSnapshot` and is about timing, not about what the row stores.
 
 **Mobile is not really mobile yet.** The mobile project runs the same flows at an iPhone
 viewport, but `selectOption` sets a `<select>` value programmatically and never opens the

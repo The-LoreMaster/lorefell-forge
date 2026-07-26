@@ -23,11 +23,18 @@
  * the bad id came from. So this spec asserts the general property, not just the Lobby
  * case: a reimported adventure's leftover scene id has to recover the same way.
  *
- * A player is booted alone here. The story reaches a player only as snap.adventure on
- * the state feed, and driving a live LoreMaster to produce that is racy, since the next
- * ordinary push replaces the row and drops the adventure key with it. The spine is built
- * by the page's OWN spineFromRawCampaign, so the fixture data takes exactly the shape a
- * LoreMaster would have published, and only the activeSceneId is forged.
+ * A player is booted alone here, and seeded with the adventure rather than handed it by
+ * a live LoreMaster. That is for determinism, not necessity: the point of these three
+ * cases is what the PLAYER does with a given activeSceneId, so the id wants to be chosen
+ * rather than whatever a second frame happened to publish. The spine is built by the
+ * page's OWN spineFromRawCampaign, so the data takes exactly the shape a LoreMaster
+ * would have published, and only the activeSceneId is forged.
+ *
+ * An earlier version of this comment claimed a live LoreMaster was unworkable because an
+ * ordinary push would replace the row and drop the adventure key. That was wrong, and it
+ * was the harness's fault, not the product's: saveCampaignState merges, keeping keys a
+ * push does not mention, and the mock replaced instead. The mock now merges too, so a
+ * live-LoreMaster handover is a perfectly good scenario and worth writing as its own.
  */
 const { test, expect } = require('@playwright/test');
 const T = require('./_table.js');
