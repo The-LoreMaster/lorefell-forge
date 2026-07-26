@@ -4996,6 +4996,54 @@ function tsSceneFromSpine(sc){
     fell: (sc.fell || []).map(function(p){ return Object.assign({ act:'', target:'', locked:false, spot:null, react:'' }, p); }),
     npcs: sc.npcs || [] };
 }
+/* Build the play spine from the adventure as it was authored. FateWell used to shape this
+   and hand it over; ThreadSpire shapes it itself now, from the same campaign record read
+   straight from the account, so opening an adventure by link or by switch brings its story
+   without the other tool breathing it across first. The foe's numbers come from
+   ThreadSpire's own foeDamage, the same calc the table runs live, so nothing is duplicated
+   in a way that can drift. */
+function tsCastFoe(cb){
+  var attrs = cb.attrs || {};
+  var d = {}; try { d = foeDamage(cb, attrs); } catch(e){ d = {}; }
+  return {
+    id: cb.id || ('f-' + (cb.libId || Math.random().toString(36).slice(2))),
+    name: cb.name || 'Foe', sr: cb.sr || 'Elite', side: 'foe',
+    curVit: (cb.curVit !== undefined ? cb.curVit : cb.maxVit) || 0, maxVit: cb.maxVit || 0, charge: cb.charge || 0,
+    attrs: attrs,
+    dmg: { base: d.base || 0, bonus: d.bonus || 0, type: (d.type === 'magic' ? 'magical' : 'physical'), acc: d.acc || '' },
+    acts: (cb.abilities || []).map(function(a){ return { name: a.name || '', tier: a.tier || 0, effect: a.effect || '' }; }),
+    infusions: (cb.infusions || []).slice(), augments: (cb.augments || []).slice(),
+    stance: cb.stance || '', sig: cb.sig || '',
+    reacts: (cb.reacts && cb.reacts.length) ? cb.reacts.slice() : ['Skill', 'Movement']
+  };
+}
+function tsCastNpc(cb){ return { id: cb.id || ('n-' + Math.random().toString(36).slice(2)), name: cb.name || 'NPC' }; }
+function tsCastFell(pl){ return { id: pl.id || ('p-' + Math.random().toString(36).slice(2)), charId: pl.charId || null, name: pl.name || 'Fell', level: pl.level || 1, curVit: pl.maxVit || 0, maxVit: pl.maxVit || 0, charge: 0 }; }
+function tsSpineScene(sc, c){
+  var foes = [], npcs = [];
+  (sc.combatants || []).forEach(function(cb){
+    if (!cb) return;
+    if (cb.type === 'npc' || cb.side === 'npc') npcs.push(tsCastNpc(cb));
+    else foes.push(tsCastFoe(cb));
+  });
+  return {
+    id: sc.id, name: sc.name,
+    beats: (sc.entries || []).map(function(e){ return { kind: e.type || 'general', title: e.title || '', body: e.body || '' }; }),
+    foes: foes, npcs: npcs, fell: (c.players || []).map(tsCastFell)
+  };
+}
+function spineFromRawCampaign(c, activeSceneId){
+  if (!c || !Array.isArray(c.acts)) return null;
+  return {
+    name: c.name || 'Adventure',
+    activeSceneId: activeSceneId || null,
+    acts: c.acts.map(function(a){
+      return { id:a.id, name:a.name, sessions:(a.sessions||[]).map(function(se){
+        return { id:se.id, name:se.name, scenes:(se.scenes||[]).map(function(sc){ return tsSpineScene(sc, c); }) };
+      }) };
+    })
+  };
+}
 function loadAdventureSpine(spine){
   var acts = (spine.acts||[]).map(function(a){
     return { id:a.id, name:a.name, sessions:(a.sessions||[]).map(function(se){
@@ -5086,6 +5134,20 @@ window.onmessage = function(ev){
     if (d.characterId) S.characterId = d.characterId;
     else if (d.character && d.character.id) S.characterId = d.character.id;
     if (d.character){ S.character = S.character || {}; if (d.character.name){ S.character.name = d.character.name; S.charReady = true; } if (d.character.image) S.character.portrait = d.character.image; }
+    /* The adventure came with the context, read straight from the account. Build its spine
+       and stand it up, unless a live table push has already put a fresher one in place.
+       This is what makes an adventure open with its story on the first load and on a
+       switch, rather than waiting for FateWell to send it across. */
+    if (d.rawCampaign && isLM()){
+      try {
+        var _spine = spineFromRawCampaign(d.rawCampaign, (S.adventure && S.adventure.activeSceneId) || null);
+        if (_spine && _spine.acts && _spine.acts.length && !S._advRemote){
+          loadAdventureSpine(_spine);
+          S._advTouch = Date.now();       /* mine now; a slower remote will not overwrite it */
+          if (_advSwitching){ _advSwitching = false; advGoingStop(); }
+        }
+      } catch(e){}
+    }
     render();
     /* a change of adventure sends everything back out for the new one, rather than
        waiting on a page load that no longer happens */

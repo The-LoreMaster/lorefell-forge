@@ -3,7 +3,7 @@
 // Feeds the character-first view: the player's character card, the party at their
 // location, revealed nodes, quest-board goals, world issues, and map art.
 import { threadspirePublicChar, listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter, threadspireSaveMeta, lmLoadCharacter, lmSaveCharacter, lmCreateOfflineFell, lmRemoveFromAdventure, charAdventure, leaveAdventure, lmWipeFell } from 'backend/characters.web.js';
-import { getLmPortrait, saveLmPortrait, getForgePools, getForgeLibrary, listMyCampaigns, saveCampaign, submitAct, submitItem, deleteAsset, listGlossary , setMemberRole, detachCharacter } from 'backend/fatewell.web.js';
+import { getLmPortrait, saveLmPortrait, getForgePools, getForgeLibrary, listMyCampaigns, saveCampaign, submitAct, submitItem, deleteAsset, listGlossary , setMemberRole, detachCharacter, loadCampaign } from 'backend/fatewell.web.js';
 import { createInvite, revokeInvite } from 'backend/invites.web.js';
 import { publishAdventure, unpublishAdventure, myPublishedAdventures } from 'backend/published.web.js';
 import { getFoePack } from 'backend/forge.web.js';
@@ -186,22 +186,20 @@ $w.onReady(async function () {
           try { list = await listMyCampaigns(); } catch (e) { list = []; }
           reply(true, (list || []).map((c) => ({ id: c.id, name: c.name, role: c.role })));
         } else if (msg.type === 'TS_CAMPAIGN_SET') {
-          // Open the chosen adventure by navigating to it, the same path FateWell uses to
-          // launch. The in-place rebind this used to do carried over the roster and goals
-          // but never the story: the adventure spine lives in the campaign's saved state,
-          // which FateWell writes when it launches a table, and a rebind that only swaps
-          // the id has nothing to load it from. So switching inside ThreadSpire opened a
-          // table with no story and hung on "Still here". A real navigation runs the whole
-          // load again for the new id: it resolves the campaign, pulls its state, and
-          // brings the spine across, which is why opening from FateWell always worked.
+          // Switch in place. The context now carries the adventure itself, read from the
+          // account by buildContext, so rebinding and sending a fresh context brings the
+          // new story with it. No navigation, no push from FateWell, no empty table: the
+          // switched context has the spine on it, and the play surface stands it up.
           try {
             const next = String(msg.campaignId || '');
             if (!next) { reply(false, null, 'no adventure given'); }
             else {
-              reply(true, { ok: true, campaignId: next, navigating: true });
-              const cid = characterId ? ('&character=' + encodeURIComponent(characterId)) : '';
-              try { wixLocation.to('/the-threadspire?campaign=' + encodeURIComponent(next) + '&role=lm' + cid); }
-              catch (e) { reply(false, null, 'navigation refused'); }
+              campaignId = next;
+              const ctx = await buildContext(characterId, campaignId);
+              let role = 'player';
+              try { const ar = await myAdventureRole(campaignId); if (ar === 'loremaster' || ar === 'lorekeeper') role = 'lm'; } catch (e) {}
+              embed.postMessage(Object.assign({ type: 'THREADSPIRE_CONTEXT', role: role, campaignId: campaignId, characterId: characterId, switched: true }, ctx));
+              reply(true, { ok: true, campaignId: campaignId });
             }
           } catch (e) { reply(false, null, String(e)); }
         } else if (msg.type === 'TS_GOD_SHEET') {
@@ -407,7 +405,19 @@ $w.onReady(async function () {
 });
 
 async function buildContext(characterId, campaignId) {
-  const out = { character: null, party: [], discovered: [], worldUnlocked: false, goals: [], worldIssues: [], art: {}, nodes: [] };
+  const out = { character: null, party: [], discovered: [], worldUnlocked: false, goals: [], worldIssues: [], art: {}, nodes: [], rawCampaign: null };
+
+  // The adventure is its own thing, stored once and read by whoever opens it. ThreadSpire
+  // reads it here rather than waiting for FateWell to hand it over: loadCampaign returns
+  // the whole authored campaign, acts and scenes and all, and only to a keeper of it. The
+  // play surface builds its spine from this, so opening an adventure by link or by switch
+  // brings its story every time, with no push from the other tool.
+  if (campaignId) {
+    try {
+      const blob = await loadCampaign(campaignId);
+      if (blob && blob.data) out.rawCampaign = blob.data;
+    } catch (e) {}
+  }
 
   if (characterId) {
     try { out.character = await threadspirePublicChar(characterId); } catch (e) {}
