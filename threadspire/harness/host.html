@@ -414,6 +414,26 @@ TSH.rebind = function (name, campaignId) {
   if (TSH.fixtures) b.rawCampaign = TSH.fixtures.byId(campaignId);
 };
 
+/* Write a snapshot into the shared row as though a LoreMaster had pushed it, and return
+ * the version it landed at.
+ *
+ * A player never builds an adventure from rawCampaign; that path is gated to the
+ * LoreMaster. The story reaches a player only as snap.adventure on the state feed, which
+ * pushAdventure sends. Driving a real LoreMaster to produce that is racy, because the
+ * very next ordinary push replaces the row and the adventure key with it, so a player
+ * booting a moment later may never see one. Seeding puts the row in a known state and
+ * lets the assertion be about the player's handling of it, which is the thing under test.
+ *
+ * It goes through the same version machinery as a real push, so the reader still has to
+ * earn it through the ordinary since/version handshake. */
+TSH.seedStore = function (campaignId, snap) {
+  var r = row(campaignId);
+  r.version += 1;
+  r.snap = clone(snap);
+  note({ dir: 'store', type: 'SEED', campaignId: campaignId, version: r.version });
+  return r.version;
+};
+
 /* See handleStatePull. Pass null to stop. */
 TSH.stampPullsAs = function (name, campaignId) {
   var b = binding(name);
