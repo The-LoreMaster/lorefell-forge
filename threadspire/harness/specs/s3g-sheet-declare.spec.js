@@ -138,6 +138,52 @@ test.describe('S3g the sheet decides whether a declare goes out', () => {
     expect(await sentOut(page)).toEqual([]);
   });
 
+  /* A Fell carrying two weapons has two Acts called "Basic attack", and they are not the
+     same deed: the damage differs, and Afflicted, Merciless, Powerful and Ethereal are all
+     read off the weapon. The sheet used to resolve on the name alone and always built the
+     first weapon's, so a player tapping the bow's card swung the sword. The row now says
+     which one, and the sheet honours it. */
+  test('two weapons offering the same Act are not the same Act', async ({ page }) => {
+    const frame = await inCombat(page, 3);
+
+    const w = await frame.evaluate(() => {
+      const second = newWeapon();
+      second.tree = 'Bow';
+      second.level = 1;                            /* a weaker one, so the damage differs */
+      C.weapons = [C.weapons[0], second];
+      renderBattle();
+      const acts = (window.COMBAT_ACTS || []).filter((a) => a.nm === 'Basic attack');
+      return { names: acts.map((a) => a.src), dmg: acts.map((a) => a.dmg) };
+    });
+    expect(w.names, 'two cards, one per weapon').toHaveLength(2);
+    expect(w.dmg[0], 'and they hit for different amounts').not.toBe(w.dmg[1]);
+
+    /* declare the SECOND one, which is not the one a name-only lookup would find */
+    await declare(page, frame, { type: 'ts-declare', act: 'Basic attack', src: w.names[1],
+                                 target: 'm:cb-1', round: 3, roll: 4 });
+    await page.waitForFunction(() => window.FSH.declaresOut.length > 0);
+
+    const out = (await sentOut(page))[0];
+    expect(out.dmg, 'the weapon that was tapped is the weapon that swings').toBe(w.dmg[1]);
+  });
+
+  test('a declare with no weapon named still takes the first, as it always did', async ({ page }) => {
+    const frame = await inCombat(page, 3);
+    const dmg = await frame.evaluate(() => {
+      const second = newWeapon();
+      second.tree = 'Bow'; second.level = 1;
+      C.weapons = [C.weapons[0], second];
+      renderBattle();
+      return (window.COMBAT_ACTS || []).filter((a) => a.nm === 'Basic attack').map((a) => a.dmg);
+    });
+
+    /* the sheet's own dropdown has no way to say which, and must keep working */
+    await declare(page, frame, { type: 'ts-declare', act: 'Basic attack', target: 'm:cb-1', round: 3, roll: 4 });
+    await page.waitForFunction(() => window.FSH.declaresOut.length > 0);
+
+    expect((await sentOut(page))[0].dmg).toBe(dmg[0]);
+  });
+
   test('the sheet hands the row a fresh hand after a declare', async ({ page }) => {
     const frame = await inCombat(page, 3);
     await page.evaluate(() => { window.FSH.hands = []; });

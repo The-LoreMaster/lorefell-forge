@@ -5410,7 +5410,23 @@ function openDeclare(){
   window._editDecl=true; window._cbSheetView=false;
   applyCombatMode();
 }
-function cbActEntry(nm){ return (window.COMBAT_ACTS||[]).filter(function(a){return a.nm===nm;})[0]||null; }
+/* An Act by name, and by which weapon offers it when that is known. A Fell carrying two
+   trees has two Acts called "Basic attack", one per weapon, and they are not the same
+   deed: the damage differs, and so do Afflicted, Merciless, Powerful and Ethereal, every
+   one of which is read off e.src further down. Resolving on the name alone always
+   returned the first weapon's, so tapping the bow's card declared the sword.
+
+   src is a preference, not a requirement. Every caller that has no idea which weapon,
+   including the sheet's own dropdown, passes nothing and gets the first match exactly as
+   before. */
+function cbActEntry(nm, src){
+  var L=(window.COMBAT_ACTS||[]);
+  if(src){
+    var exact=L.filter(function(a){return a.nm===nm && a.src===src;})[0];
+    if(exact) return exact;
+  }
+  return L.filter(function(a){return a.nm===nm;})[0]||null;
+}
 function cbHasAff(name){ return (C.afflictions||[]).some(function(a){return a.name===name;}); }
 function cbHasAug(name){ return ((C.armor&&C.armor.augs)||[]).indexOf(name)>=0; }
 function cbHasInfusion(name){ return (C.weapons||[]).some(function(w){ return w.tree && (w.infusions||[]).indexOf(name)>=0; }); }
@@ -5435,7 +5451,7 @@ function cbOutDmg(e){
   if(e.dt==="magic" && cbHasAff("Vitiated")) d=Math.floor(d/2);
   return d;
 }
-function cbActDmg(nm){ return cbOutDmg(cbActEntry(nm)); }
+function cbActDmg(nm, src){ return cbOutDmg(cbActEntry(nm, src)); }
 function cbAspectHint(){
   var sel=document.getElementById("cbReact"), hint=document.getElementById("cbAspectHint"); if(!hint) return;
   var nm = sel?sel.value:"";
@@ -5816,13 +5832,18 @@ function cbDeclare(){
   if(!CUR_WIX_ID) return;
   var _actEl=cbCtl("cbAct");
   var act=_actEl?_actEl.value:"";
+  /* Which weapon's version of that Act, when the caller knows. The card row does, because
+     its cards are one per weapon; the sheet's own dropdown does not, and there is no
+     element by this name, so cbCtl hands back null and this stays empty. */
+  var _srcEl=cbCtl("cbActSrc");
+  var actSrc=_srcEl?_srcEl.value:"";
   var react="";
   var _tgtEl=cbCtl("cbFocus");
   var target=_tgtEl?_tgtEl.value:"";
   var affs=[].concat((C.afflictions||[]).map(function(a){return {name:a.name,kind:"affliction"};}),
                      (C.effects||[]).map(function(e){return {name:e.name,kind:"effect"};}));
   var round=(COMBAT&&COMBAT.round)||1;
-  var e=cbActEntry(act), dmg=cbActDmg(act);
+  var e=cbActEntry(act, actSrc), dmg=cbOutDmg(e);
   var roll=window._cbRoll||0;
   if(dmg>0 && !roll){ cbPing("Roll your accuracy before you send."); return; }
   var fell=(roll===6);
@@ -5932,7 +5953,9 @@ window.onmessage=ev=>{
       }
       var now=(COMBAT&&COMBAT.round)||0;
       if(typeof d.round!=="number" || d.round!==now) return { ok:false, reason:"stale-round", round:now };
-      var e=cbActEntry(d.act);
+      /* the row says which weapon's Act it is, and the checks below have to be made
+         against that one rather than whichever shares its name */
+      var e=cbActEntry(d.act, d.src||"");
       if(!e) return { ok:false, reason:"unknown-act" };
       if(typeof e.tier==="number" && e.tier>0 && e.tier>(C.charge||0)) return { ok:false, reason:"locked" };
       /* the opening is the enemy's, or this Fell is not in it: no Act either way */
@@ -5943,8 +5966,8 @@ window.onmessage=ev=>{
       }
       var g=(typeof cbGates==="function")?cbGates():{noAct:false};
       if(g.noAct) return { ok:false, reason:"barred" };
-      if(cbActDmg(d.act)>0 && !d.roll) return { ok:false, reason:"needs-roll" };
-      window._cbCtlOverride={ cbAct:d.act||"", cbFocus:d.target||"",
+      if(cbOutDmg(e)>0 && !d.roll) return { ok:false, reason:"needs-roll" };
+      window._cbCtlOverride={ cbAct:d.act||"", cbActSrc:d.src||"", cbFocus:d.target||"",
                               cbSkillSel:d.skill||"", cbItemSel:d.item||"",
                               cbStanceSel:d.stance||"", cbAfflictedSel:d.applies||"" };
       if(typeof d.roll==="number") window._cbRoll=d.roll;

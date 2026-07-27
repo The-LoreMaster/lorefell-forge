@@ -711,6 +711,11 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
   color:var(--gold); margin-right:2px;
 }
 .hp-opt.locked{ opacity:.45; border-style:dashed; }
+/* which weapon this one is, quieter than the Act's own name */
+.hp-src{
+  font-family:Cinzel,serif; font-size:.46rem; letter-spacing:.08em; text-transform:uppercase;
+  color:var(--ice); opacity:.62; margin-left:6px;
+}
 .hp-lock{
   font-family:Cinzel,serif; font-size:.46rem; letter-spacing:.08em; text-transform:uppercase;
   color:var(--gold); margin-left:6px;
@@ -6588,6 +6593,9 @@ var armed = null;
 /* Which group the row is showing. The player's own choice, so it is not reset by a hand
    arriving; only an empty group sends it back to the Acts. */
 var handTab = 'act';
+/* Which tab the row was last painted with, so a repaint can tell "the same row again",
+   where the scroll position is worth keeping, from "the other tab". */
+var _handDrawnTab = '';
 /* What this Fell has declared this round, once it has landed. Held so the row can stamp
    the card and the board can mark the target, and cleared when the round moves on. */
 var declaredAs = null;
@@ -6632,16 +6640,42 @@ function handSpent(group){
   if (!hand) return false;
   return group === 'act' ? !!hand.declared : !!hand.reactUsed;
 }
-function handArm(nm, group){
+/* ---- telling apart two cards that share a name ----
+   A Fell holding a sword and a bow has two cards called Basic attack, and the name does
+   not tell them apart. Taking one up lit both, and declaring one stamped both, so the
+   row could not answer the only question a player asks of it: which weapon am I
+   swinging. A card is therefore identified by where it came from and where it sits, and
+   the name is only what it says on the front.
+
+   Arming still accepts a bare name. Most Fell have no duplicates at all, a name reads
+   far better than a key from a test or the console, and where there is a duplicate the
+   name lands on the first of them, which is the old behaviour rather than a new
+   surprise. */
+function handKey(e, i){
+  return (e && e.src ? e.src : '?') + '·' + ((e && e.nm) || '') + '·' + i;
+}
+function handFind(list, id){
+  list = list || [];
+  var i;
+  for (i = 0; i < list.length; i++){
+    if (handKey(list[i], i) === id) return { e: list[i], i: i, key: id };
+  }
+  for (i = 0; i < list.length; i++){
+    if (list[i].nm === id) return { e: list[i], i: i, key: handKey(list[i], i) };
+  }
+  return null;
+}
+function handArm(id, group){
   if (!hand) return;
   var list = group === 'react' ? (hand.reacts || []) : (hand.acts || []);
-  var e = list.filter(function(x){ return x.nm === nm; })[0];
-  if (!e || e.locked) return;                 /* a charge away is still no */
-  if (handBarred(e, group)) return;
+  var hit = handFind(list, id);
+  if (!hit || hit.e.locked) return;           /* a charge away is still no */
+  if (handBarred(hit.e, group)) return;
   if (handSpent(group)) return;
   handClearNote();     /* taking a card up is the player moving on from whatever it said */
-  if (armed && armed.group === group && armed.entry.nm === nm){ handDisarm(); return; }
-  armed = { entry: e, group: group, need: handNeeds(e), skill: '', item: '', stance: '' };
+  if (armed && armed.group === group && armed.key === hit.key){ handDisarm(); return; }
+  armed = { entry: hit.e, key: hit.key, group: group, need: handNeeds(hit.e),
+            skill: '', item: '', stance: '' };
   renderHand();
 }
 function handDisarm(){ armed = null; renderHand(); }
@@ -6770,13 +6804,14 @@ function handPickKind(kind){
 }
 /* Take the chosen option up as though it had been tapped on the row, keep the target that
    opened this, and go straight to the roll. */
-function handPickTake(nm, skill){
+function handPickTake(id, skill){
   if (!_handPick) return;
-  var acts = (hand && hand.acts) || [];
-  var e = acts.filter(function(a){ return a.nm === nm; })[0];
-  if (!e || e.locked) return;
+  var hit = handFind((hand && hand.acts) || [], id);
+  if (!hit || hit.e.locked) return;
+  var e = hit.e;
   if (handBarred(e, 'act')) return;
-  armed = { entry: e, group:'act', need:handNeeds(e), skill: skill || '', item:'', stance:'' };
+  armed = { entry: e, key: hit.key, group:'act', need:handNeeds(e),
+            skill: skill || '', item:'', stance:'' };
   armed.target = _handPick.target;
   armed.targetName = _handPick.targetName;
   armed.awaitingRoll = true;
@@ -6794,19 +6829,24 @@ function handPickMenu(){
     h += '<button type="button" class="hp-opt" data-pkind="attack">Attack</button>'
       +  '<button type="button" class="hp-opt" data-pkind="skill">Skill</button>';
   } else if (_handPick.kind === 'attack'){
-    acts.forEach(function(a){
+    /* named by weapon as well, since two weapons can offer the same Act and a menu that
+       lists Basic attack twice with nothing to choose between them is worse than one
+       that lists it once */
+    acts.forEach(function(a, i){
       if (a.kind !== 'weapon') return;
       var lk = !!a.locked;
       h += '<button type="button" class="hp-opt' + (lk ? ' locked' : '') + '"'
-        + (lk ? ' aria-disabled="true"' : ' data-ptake="' + esc(a.nm) + '"') + '>'
-        + esc(a.nm) + (lk ? '<span class="hp-lock">Charge ' + a.tier + '</span>' : '') + '</button>';
+        + (lk ? ' aria-disabled="true"' : ' data-ptake="' + esc(handKey(a, i)) + '"') + '>'
+        + esc(a.nm) + (a.src ? '<span class="hp-src">' + esc(a.src) + '</span>' : '')
+        + (lk ? '<span class="hp-lock">Charge ' + a.tier + '</span>' : '') + '</button>';
     });
   } else {
     var skills = (hand && hand.skills) || {};
-    var anySkill = acts.filter(function(a){ return a.src === 'skills'; })[0];
-    if (!anySkill){ h += '<span class="hc-desc">No skill Act available.</span>'; }
+    var skillKey = '';
+    acts.forEach(function(a, i){ if (!skillKey && a.src === 'skills') skillKey = handKey(a, i); });
+    if (!skillKey){ h += '<span class="hc-desc">No skill Act available.</span>'; }
     else Object.keys(skills).forEach(function(n){
-      h += '<button type="button" class="hp-opt" data-ptake="' + esc(anySkill.nm) + '"'
+      h += '<button type="button" class="hp-opt" data-ptake="' + esc(skillKey) + '"'
         + ' data-pskill="' + esc(n) + '">' + esc(n) + ' +' + (skills[n] || 0) + '</button>';
     });
   }
@@ -6854,6 +6894,10 @@ function handDeclare(){
        rides on the one already made and goes out through the sheet's React path */
     group: armed.group || 'act',
     act: armed.entry.nm,
+    /* which weapon's version of it, because two weapons can offer an Act by the same name
+       and they are not the same deed: different damage, and different infusions read off
+       the source. The name alone always resolved to the first one on the sheet. */
+    src: armed.entry.src || '',
     skill: armed.skill || '', item: armed.item || '', stance: armed.stance || '',
     target: armed.target || '',
     /* read off the hand, never worked out here */
@@ -6869,7 +6913,8 @@ function handDeclareResult(res){
     /* What went, and at whom. The card stamps rather than simply vanishing, because a
        declaration you cannot see is one you will make twice. Cleared by the round tick
        when the sheet sends a hand for a round this does not belong to. */
-    declaredAs = { act: armed ? armed.entry.nm : '', target: armed ? armed.target : '',
+    declaredAs = { act: armed ? armed.entry.nm : '', key: armed ? armed.key : '',
+                   target: armed ? armed.target : '',
                    targetName: armed ? armed.targetName : '', round: res.round || (hand && hand.round) || 0 };
     armed = null;
     renderHand();
@@ -6930,11 +6975,12 @@ function handPicker(){
   }
   return h + '</div>';
 }
-function handCard(e, charge, group){
+function handCard(e, charge, group, i){
+  var key = handKey(e, i);
   var locked = !!e.locked;
   var barred = locked ? '' : handBarred(e, group);
   var spent = !locked && !barred && handSpent(group);
-  var isArmed = !!(armed && armed.group === group && armed.entry.nm === e.nm);
+  var isArmed = !!(armed && armed.group === group && armed.key === key);
   var bits = '';
   if (e.dmg > 0){
     var base = e.base || 0, bonus = Math.max(0, (e.dmg || 0) - base);
@@ -6956,7 +7002,9 @@ function handCard(e, charge, group){
     bits += '<span class="hc-target">→ ' + esc(armed.targetName) + '</span>';
   }
   /* the card this Fell actually declared, stamped so it can be seen at a glance */
-  var isDeclared = !!(declaredAs && group === 'act' && declaredAs.act === e.nm);
+  /* the card that was declared, not every card wearing its name */
+  var isDeclared = !!(declaredAs && group === 'act'
+    && (declaredAs.key ? declaredAs.key === key : declaredAs.act === e.nm));
   if (isDeclared){
     bits += '<span class="hc-declared">Declared'
          + (declaredAs.targetName ? ' at ' + esc(declaredAs.targetName) : '') + '</span>';
@@ -6966,7 +7014,8 @@ function handCard(e, charge, group){
   return '<button type="button" class="' + cls + '"'
     + ((locked || barred || spent) ? ' aria-disabled="true"' : '')
     + ' aria-pressed="' + (isArmed ? 'true' : 'false') + '"'
-    + ' data-act="' + esc(e.nm) + '" data-group="' + group + '">'
+    /* the name is what it says; the key is which one it is */
+    + ' data-act="' + esc(e.nm) + '" data-key="' + esc(key) + '" data-group="' + group + '">'
     + handRail(charge)
     + '<span class="hc-kick">' + handKicker(e) + '</span>'
     + '<span class="hc-name">' + esc(e.nm) + '</span>'
@@ -7015,9 +7064,10 @@ function renderHand(){
   /* a card chosen last round is not a card this round; the sheet clears its own state
      on the round tick and the row follows it rather than keeping a stale hold */
   if (armed){
-    var still = (armed.group === 'react' ? reacts : acts)
-      .filter(function(x){ return x.nm === armed.entry.nm && !x.locked; })[0];
-    if (!still) armed = null; else armed.entry = still;
+    var mine = (armed.group === 'react' ? reacts : acts);
+    var still = handFind(mine, armed.key) || handFind(mine, armed.entry.nm);
+    if (!still || still.e.locked) armed = null;
+    else { armed.entry = still.e; armed.key = still.key; }
   }
 
   var note = _handNote ? '<div class="hand-note">' + esc(_handNote) + '</div>' : '';
@@ -7068,8 +7118,19 @@ function renderHand(){
     + '</div>';
 
   var cards = group.length
-    ? group.map(function(e){ return handCard(e, charge, handTab); }).join('')
+    ? group.map(function(e, i){ return handCard(e, charge, handTab, i); }).join('')
     : '<div class="hand-empty">Nothing here this round.</div>';
+
+  /* Where the row was scrolled to, kept across the repaint. The row is rebuilt whole on
+     every choice, and rebuilding it used to send it back to the first card: a player who
+     paged right to find their bow tapped it and watched the row snap back to the sword,
+     with the card they had just taken up now off-screen. The one thing they most need to
+     see after choosing is the card they chose. */
+  var was = el.querySelector('.hand-scroll');
+  /* only within the same tab: Acts and Reacts are different rows of different lengths,
+     and carrying one's scroll into the other lands somewhere arbitrary */
+  var keepLeft = (was && _handDrawnTab === handTab) ? was.scrollLeft : 0;
+  _handDrawnTab = handTab;
 
   el.innerHTML = note + handRollPrompt() + handPickMenu() + send + handPicker() + tabs
     + '<div class="hand-wrap">'
@@ -7078,10 +7139,16 @@ function renderHand(){
     +   '<button type="button" class="hand-pager right gone" data-page="1" aria-label="More cards">›</button>'
     + '</div>';
 
-  /* the arrows can only be decided once the row has been laid out and measured */
-  handPagers();
   var sc = el.querySelector('.hand-scroll');
-  if (sc) sc.addEventListener('scroll', handPagers, { passive:true });
+  if (sc){
+    /* the browser clamps this to the new content on its own, so a row that got shorter
+       lands at its end rather than past it */
+    if (keepLeft) sc.scrollLeft = keepLeft;
+    sc.addEventListener('scroll', handPagers, { passive:true });
+  }
+  /* the arrows can only be decided once the row has been laid out, measured and put back
+     where it was */
+  handPagers();
 }
 /* Which arrows are worth drawing. Recomputed after every render, on every scroll, and on
    resize, because all three change the answer: a spent charge can add or remove a card,
@@ -7145,7 +7212,9 @@ function handSetTab(t){
     var opt = ev.target.closest && ev.target.closest('.hp-opt');
     if (opt){ handPick(opt.getAttribute('data-pick'), opt.getAttribute('data-val')); return; }
     var card = ev.target.closest && ev.target.closest('.hcard');
-    if (card) handArm(card.getAttribute('data-act'), card.getAttribute('data-group'));
+    /* by key, so tapping one of two cards with the same name takes up the one tapped */
+    if (card) handArm(card.getAttribute('data-key') || card.getAttribute('data-act'),
+                      card.getAttribute('data-group'));
   });
   /* Escape puts the card back down. The row is reachable by keyboard, so the way out
      has to be too. */
