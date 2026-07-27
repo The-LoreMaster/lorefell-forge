@@ -198,3 +198,51 @@ and the contract unchecked. Not done, and not to be done.
 
 The two entries above, applied in one edit. Until then `npm run contracts` reports one
 gap per row in that table, and those gaps are expected rather than new.
+
+---
+
+## F4 — The harness decides a declare's adventure differently from production
+
+**Status:** a known limit of the mock, not a defect in either. Recorded so nothing is
+believed to be covered that is not.
+**Opened:** 2026-07-26, building the declare relay for S3e.
+**Files:** `threadspire/harness/host.html`, `velo/backend/combat.web.js`
+
+### The difference
+
+`saveCombatDeclare` does not take a campaign from its caller. It looks one up from the
+character:
+
+```js
+const campaignId = await charCampaign(charId);   // reads the Characters row
+```
+
+So in production the adventure a declare belongs to is a property of the **Fell**, and a
+declare is filed wherever that Fell's record says it belongs, no matter which page sent
+it.
+
+The harness has no Characters collection to ask, so `takeDeclare` files the declare under
+the **sending frame's** binding instead.
+
+### What that means for what the specs can prove
+
+For every arrangement the scenarios actually set up, the two agree: the fixture Fell
+belongs to the adventure their frame is bound to, so both routes reach the same row. S3e
+is sound for what it claims.
+
+They come apart in exactly one case, and it is a case the harness therefore cannot catch:
+a Fell whose record points at adventure A sitting in a frame bound to adventure B.
+Production files that declare under A and the LoreMaster running B never sees it, which
+would read at the table as "my declare did not go through" with nothing wrong on either
+screen. The harness would file it under B and the round would appear to work.
+
+This is the same family as B6, which guards the board against another adventure bleeding
+in. There is no equivalent guard on the declare path, in the harness or in a spec.
+
+### What would settle it
+
+Give the harness a character-to-adventure map, resolve `takeDeclare` through it rather
+than through the frame binding, and add the mismatched case as its own scenario: a Fell
+bound elsewhere declares, and the LoreMaster of the frame's adventure must NOT see it.
+That is a harness change plus one spec, and until it exists the declare path is only
+proven for Fell who are where they say they are.

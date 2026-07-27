@@ -238,9 +238,99 @@ function handleStatePull(name, msg) {
  */
 var EMPTY_LIST = {
   TS_CHAR_LIST: 1, TS_STAGE_LIST: 1, TS_ASSET_LIST: 1, TS_PARTY_LIST: 1,
-  TS_JOURNAL_GET: 1, TS_QUEST_LIST: 1, TS_PUBLISH_LIST: 1, TS_COMBAT_DECLARES: 1,
+  TS_JOURNAL_GET: 1, TS_QUEST_LIST: 1, TS_PUBLISH_LIST: 1,
   TS_CAMPAIGN_LIST: 1
 };
+
+/* ------------------------------------------------------------- the declares ----
+ * CombatPlayer, as far as the two frames can tell. One row per campaign and character,
+ * holding what a Fell declared for the round, written by the player's sheet and read by
+ * the LoreMaster's board.
+ *
+ * This mirrors backend/combat.web.js on purpose, field for field, because a mock that is
+ * merely close is worse than none: it makes the sync look proven while a real mismatch
+ * goes on existing. saveCombatDeclare overwrites the declaration fields and leaves
+ * everything the LoreMaster has landed on that Fell alone, so a declare and an applied
+ * condition never clobber each other; that merge is reproduced rather than a whole-row
+ * replace.
+ *
+ * ONE DELIBERATE SIMPLIFICATION, and it is a real gap in what this can catch. Production
+ * resolves which campaign a declare belongs to from the CHARACTER record, via
+ * charCampaign(charId), not from whoever sent it. Here it is resolved from the sending
+ * frame's binding, because the harness has no Characters collection to ask. So a Fell
+ * whose record points at a different adventure than the frame they are sitting in would
+ * be caught in production and cannot be caught here. Written down rather than papered
+ * over: see FINDINGS.md.
+ */
+var declares = Object.create(null);      /* campaignId -> charId -> row */
+
+function declareRows(campaignId) {
+  if (!declares[campaignId]) declares[campaignId] = Object.create(null);
+  return declares[campaignId];
+}
+/* What saveCombatDeclare writes. Same defaults, so a field the sheet omits reads the
+ * same here as it would from the collection. */
+function takeDeclare(frameName, m) {
+  var b = binding(frameName);
+  var campaignId = b && b.campaignId;
+  var charId = m.charId || (b && b.characterId) || '';
+  if (!campaignId || !charId) {
+    note({ dir: 'store', type: 'DECLARE_REFUSED', frame: frameName, why: !campaignId ? 'no campaign' : 'no charId' });
+    post(frameName, { type: 'TS_TOOL_DOWN', tool: 'fellglass',
+                      msg: { type: 'combat-declare-ack', ok: false, reqId: m.reqId || 0 } });
+    return;
+  }
+  var rows = declareRows(campaignId);
+  var row = rows[charId] || { campaignId: campaignId, charId: charId };
+  row.act = m.act || '';
+  row.react = m.react || '';
+  row.target = m.target || '';
+  row.round = typeof m.round === 'number' ? m.round : 0;
+  row.dmg = typeof m.dmg === 'number' ? m.dmg : 0;
+  row.base = typeof m.base === 'number' ? m.base : 0;
+  row.dt = m.dt || '';
+  row.fellmark = !!m.fellmark;
+  row.applies = m.applies || '';
+  row.doubleFell = !!m.doubleFell;
+  row.pierce = typeof m.pierce === 'number' ? m.pierce : 0;
+  row.actTier = (typeof m.actTier === 'number') ? m.actTier : -1;
+  row.acc = typeof m.acc === 'number' ? m.acc : 0;
+  row.roll = typeof m.roll === 'number' ? m.roll : 0;
+  row.kind = m.kind || '';
+  row.fellstrike = !!m.fellstrike;
+  row.charge = typeof m.charge === 'number' ? m.charge : 0;
+  row.curVit = typeof m.curVit === 'number' ? m.curVit : 0;
+  row.maxVit = typeof m.maxVit === 'number' ? m.maxVit : 0;
+  row.affs = clone(m.affs) || [];
+  row.updatedAt = Date.now();
+  rows[charId] = row;
+
+  note({ dir: 'store', type: 'DECLARE_SAVED', frame: frameName, campaignId: campaignId,
+         charId: charId, act: row.act, target: row.target, round: row.round });
+
+  /* answered pass or fail, the way fgSheetBridge answers, and carrying the same reqId:
+   * an unanswered declare leaves the sheet believing it never landed */
+  post(frameName, { type: 'TS_TOOL_DOWN', tool: 'fellglass',
+                    msg: { type: 'combat-declare-ack', ok: true, reqId: m.reqId || 0 } });
+}
+/* What getCombatDeclares hands back. */
+function serveDeclares(campaignId) {
+  var rows = declareRows(campaignId);
+  return Object.keys(rows).map(function (k) {
+    var it = rows[k];
+    return {
+      charId: it.charId || '',
+      act: it.act || '', react: it.react || '', target: it.target || '',
+      round: it.round || 0, dmg: it.dmg || 0, base: it.base || 0, dt: it.dt || '',
+      fellmark: !!it.fellmark, doubleFell: !!it.doubleFell, pierce: it.pierce || 0,
+      applies: it.applies || '', actTier: (typeof it.actTier === 'number') ? it.actTier : -1,
+      acc: it.acc || 0, roll: it.roll || 0, kind: it.kind || '', fellstrike: !!it.fellstrike,
+      defEva: [], plog: [],
+      charge: it.charge || 0, curVit: it.curVit || 0, maxVit: it.maxVit || 0,
+      affs: clone(it.affs) || [], gear: null
+    };
+  });
+}
 
 function handleRequest(name, msg) {
   var b = binding(name);
@@ -250,6 +340,12 @@ function handleRequest(name, msg) {
   switch (type) {
     case 'TS_STATE_PUSH':  return handleStatePush(name, msg);
     case 'TS_STATE_PULL':  return handleStatePull(name, msg);
+
+    /* The LoreMaster's half of the Beat: what everyone declared, for the adventure this
+     * frame is bound to. Scoped by campaign, so another table's declares cannot arrive
+     * here any more than another table's board can. */
+    case 'TS_COMBAT_DECLARES':
+      return reply(name, msg.reqId, true, serveDeclares(b.campaignId));
 
     case 'TS_PARTY_LIST':
       return reply(name, msg.reqId, true, clone(b.party || []));
@@ -350,9 +446,18 @@ window.addEventListener('message', function (ev) {
     return;
   }
 
-  /* The FellGlass relay. Recorded, not answered: the sheet bridge is its own tier and
-   * nothing waits on a TS_RESULT for it, so leaving it unanswered stalls nothing. */
-  if (msg.type === 'TS_TOOL_UP') return;
+  /* The FellGlass relay. Mostly recorded and not answered: the sheet bridge is its own
+   * tier and nothing waits on a TS_RESULT for it, so leaving it unanswered stalls
+   * nothing.
+   *
+   * A declare is the exception, because it is the one sheet message the OTHER frame has
+   * to see. It is the whole player-to-LoreMaster half of a Beat, and with it unanswered
+   * the two-frame table cannot carry a round at all. */
+  if (msg.type === 'TS_TOOL_UP') {
+    var inner = msg.msg;
+    if (inner && inner.type === 'combat-declare') takeDeclare(name, inner);
+    return;
+  }
 
   if (msg.reqId && String(msg.type).indexOf('TS_') === 0) handleRequest(name, msg);
 });
@@ -470,8 +575,14 @@ TSH.commits = function () {
   return TSH.log.filter(function (e) { return e.dir === 'store' && e.type === 'PUSH_COMMIT'; });
 };
 
+/* What CombatPlayer holds for an adventure, as the LoreMaster's board would read it.
+ * Specs assert on this to tell a declare that genuinely reached the store from one that
+ * merely left the sheet. */
+TSH.declares = function (campaignId) { return clone(serveDeclares(campaignId)); };
+
 TSH.reset = function () {
   Object.keys(store).forEach(function (k) { delete store[k]; });
+  Object.keys(declares).forEach(function (k) { delete declares[k]; });
   TSH.frames = Object.create(null);
   TSH.log = [];
   TSH.unhandled = [];
