@@ -4233,15 +4233,33 @@ function pushAdventure(){
     if (r && r.version){ _stateSeen = Math.max(_stateSeen, r.version); _advPushedRev = S.advRev || 0; SEAM.advSent = 'delivered rev ' + _advPushedRev; }
     else {
       SEAM.advSent = 'refused: ' + ((r && r.error) || 'unknown');
-      if (String((r && r.error) || '').indexOf('WDE0109') >= 0){
+      if (String((r && r.error) || '').indexOf('WDE0009') >= 0 || String((r && r.error) || '').indexOf('too large') >= 0){
         _advTooBig = true;
         SEAM.advSent = 'too large (' + SEAM.advKB + 'KB), not travelling';
         pushLog({ kind:'sys', html:'This adventure\u2019s story is too large to share with the table (' + SEAM.advKB + 'KB). The map, tokens and log still travel; the players will not receive the written scenes.' });
+        if (_advSwitching){ _advSwitching = false; advGoingStop(); }
         render();
       }
     }
     seamPaint();
-  }).catch(function(e){ SEAM.advSent = 'failed: ' + String(e && e.message || e).slice(0,60); seamPaint(); });
+  }).catch(function(e){
+    var msg = String((e && e.message) || e);
+    /* Wix throws this rather than returning it when the row is over the size cap. A big
+       adventure loads fine on this side (it was read whole from the record); it just
+       cannot ride the one shared state row to the players. Treat it as the same
+       "too large" case: stop retrying, say so once, and do not leave the table veiled,
+       the story is already standing here. */
+    if (msg.indexOf('WDE0009') >= 0 || msg.indexOf('too large') >= 0){
+      _advTooBig = true;
+      SEAM.advSent = 'too large (' + SEAM.advKB + 'KB), not travelling';
+      pushLog({ kind:'sys', html:'This adventure\\u2019s story is too large to share with the table (' + SEAM.advKB + 'KB). The map, tokens and log still travel; the players will not receive the written scenes yet.' });
+      if (_advSwitching){ _advSwitching = false; advGoingStop(); }
+      render();
+    } else {
+      SEAM.advSent = 'failed: ' + msg.slice(0,60);
+    }
+    seamPaint();
+  });
 }
 function pushState(){
   /* While the table is between adventures nothing here is true of anywhere. A push in
