@@ -112,3 +112,59 @@ the card-row UI and the right-click-token desktop shortcut, describes the
 player<->LM round-trip for a declared Beat, folds in F2/F4/F5/F3/F8, and sequences
 the build so each piece is testable in the harness against the FellGuide. Then
 build in that order.
+
+
+## ADDENDUM — designer rulings on the open questions (v3, authoritative)
+
+These answer the plan's Q1/Q2/Q3 and, importantly, REVERSE the plan's F10
+assumption about magic attacks. Build to these. Where the FellGuide does not
+already say this, the vault is wrong and must be corrected first, before the code
+is built to match, so there is one true rule to build and test against.
+
+**Q1 — Spell ties go to the caster.** A tie (cast result == Difficulty) lands,
+consistent with F4's tie-to-attacker. Confirmed.
+
+**Q2 — Each spell (weapon ability) is tied to a SPECIFIC magic skill, per spell,
+not chosen at cast time.** Check the FellGuide for the per-spell skill mapping and
+use it. If the mapping is missing or incomplete in the vault, that is a vault gap
+to fill first; report which spells lack a named skill so it can be corrected in
+lorefell-fellguide. Do not fall back to letting the player pick the skill.
+
+**Q3 — Ambush grants a free opening Act to EACH PARTICIPATING Fell, and not every
+Fell necessarily participates.** It is per-participant, not a blanket party-wide
+Act. The ambush contest determines who participates; only participants get the
+opening Act. Model participation explicitly rather than granting to the whole
+party.
+
+**F10 (REVERSED from the plan) — ALL attacks made with a magic weapon are Spell
+Attacks.** The plan assumed a magic weapon's standard swing is a Magical Attack vs
+Evasion and only abilities are Spell Attacks. That is WRONG for LoreFell. The
+correct rule:
+  - A **physical weapon** attack is a Physical Attack: Precision vs Evasion.
+  - A **magic weapon** attack is ALWAYS a Spell Attack: it resolves vs Difficulty
+    (1d6 + Magic skill + Mastery vs the LM's 1d6 + Difficulty), NOT vs Evasion,
+    for its standard swing as well as its abilities.
+  - The difference between a magic weapon's **standard attack** and its **ability**
+    is CHARGES, not contest type: a standard Spell Attack costs no charge; an
+    ability Spell Attack requires charges (the existing tier/charge gate).
+  So the contest branch is decided purely by weapon category
+  (WEAPON_DB[w.tree].category === 'magic' → Difficulty contest; else Evasion), and
+  the charge gate decides standard vs ability, not the contest.
+
+  This is a larger change than the plan's F3: it is not an edge case for named
+  abilities, it is every magic-weapon attack. sendDeclare currently computes
+  acc = roll + Precision for everything with no magic branch; that branch must be
+  added, and the LM's incoming resolution (cbIncoming) must roll Difficulty rather
+  than Evasion whenever the attacker's weapon is magic.
+
+  **Vault check required before building F10/F3:** the plan's F10 finding already
+  flags that the vault contradicts itself (Weapon Abilities.md vs CANON.md /
+  Spell Attack.md). The designer's ruling above is now the canon. Reconcile the
+  FellGuide to it first, report the exact pages that disagree, get them corrected
+  in lorefell-fellguide, and only then build the code to the corrected rule.
+
+**Sequencing impact.** Step 0 (the F2 display fix, F5 movement text, F4
+confirmation) is unaffected by any of this and can proceed immediately. The F10/F3
+magic-attack work now depends on the vault being reconciled first, so it stays
+sequenced last and gains an explicit "confirm/fix the vault" gate ahead of the
+code.
