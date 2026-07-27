@@ -6298,6 +6298,69 @@ function handKicker(e){
   if (typeof e.tier !== 'number') return esc(src);
   return esc(src) + (e.tier === 0 ? ' · Always ready' : ' · Tier ' + e.tier);
 }
+/* ---- which fighter a token is ----
+   The board and the fight name their people differently, and this is the one place that
+   is reconciled. Getting it wrong does not fail loudly: it aims a real attack at the
+   wrong creature and the table finds out a round later. So nothing here constructs a key
+   and trusts it. Every answer is checked against the fighters the LoreMaster actually
+   published, and anything that does not resolve comes back null, which means the token
+   cannot be aimed at rather than that it maps to something nearby.
+
+   How the two sides line up:
+
+   - A FOE or NPC token carries refId, which is the scene foe's id. That id came from
+     FateWell's own combatant through tsSpineScene and tsCastFoe, and it is the same id
+     combatFighters builds 'm:<id>' from. So 'm:' + refId is the candidate.
+
+   - A FELL token cannot use refId at all. There are two kinds: one built from the scene,
+     whose refId is the LoreMaster's player id, and one built from the roster, whose
+     refId is the CHARACTER id. Those are different values for the same Fell, and
+     'p:' + refId is right for the first and quietly wrong for the second. charId is the
+     only thing both carry and the only thing that says whose Fell it is, so a Fell is
+     matched on the charId the fighter itself publishes.
+
+   - Anything else on the board, scenery and account art, is not a fighter and never
+     resolves. */
+function handFighters(){ return (hand && hand.fighters) || []; }
+function handFighterByKey(key){
+  var list = handFighters();
+  for (var i = 0; i < list.length; i++) if (list[i].key === key) return list[i];
+  return null;
+}
+/* The fighter a token stands for, or null. Null is a real answer and the common one:
+   out of combat, before the LoreMaster has published a board, for a piece of scenery,
+   or for a foe token left over from a scene that is no longer the fight. */
+function tokenFighter(t){
+  if (!t) return null;
+  /* No fight, no targets. The row is not up either, and the two agree deliberately:
+     whether there is a battle on is the LoreMaster's to say, and it reaches here the
+     same way it reaches the row. */
+  if (!hand || hand.active === false) return null;
+  if (!handFighters().length) return null;
+
+  if (t.kind === 'p'){
+    var cid = t.charId || '';
+    if (!cid) return null;                       /* a Fell token with no Fell behind it */
+    var list = handFighters();
+    for (var i = 0; i < list.length; i++){
+      if (list[i].charId && sameId(list[i].charId, cid)) return list[i];
+    }
+    return null;
+  }
+  if (t.kind === 'foe' || t.kind === 'npc'){
+    if (!t.refId) return null;
+    return handFighterByKey('m:' + t.refId);     /* checked, never assumed */
+  }
+  return null;                                    /* scenery is not a combatant */
+}
+function tokenTargetKey(t){
+  var f = tokenFighter(t);
+  return f ? f.key : null;
+}
+/* Can this token be aimed at right now. Kept apart from tokenFighter so the reason a
+   token is inert stays answerable: not a fighter at all, or no fight on. */
+function tokenTargetable(t){ return !!tokenTargetKey(t); }
+
 /* ---- choosing a card ----
    One slot, because the gesture is choose-then-aim and you can only aim one thing. It
    holds the entry, whether it came from the Acts or the Reacts, and whatever the card
