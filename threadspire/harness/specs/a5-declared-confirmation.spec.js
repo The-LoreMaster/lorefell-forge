@@ -63,9 +63,12 @@ async function seat(frame, round) {
   }, { acts: ACTS, myCharId: F.FELL_CHAR_ID, r: round || 1 });
 }
 
+/* Targeting opens a roll and the roll commits (A9), so a declaration is three steps now:
+ * take the card up, aim it, roll. */
 const declare = (frame, act, tokenId) => frame.evaluate(({ a, id }) => {
   window.handArm(a, 'act');
   window.handAimByTap(window.S.tokens.find((t) => t.id === id));
+  window.handRollDo(4);
 }, { a: act, id: tokenId });
 
 const cardText = (frame, nm) => frame.evaluate((n) => {

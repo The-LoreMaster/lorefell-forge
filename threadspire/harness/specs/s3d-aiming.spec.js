@@ -199,7 +199,12 @@ test.describe('S3d aiming never takes the roll picker away', () => {
    * because nothing held is not nothing meant. What has not changed, and is what this
    * case is really guarding, is that the gesture is still taken from the picker only
    * when it lands on a real fighter during a real fight. */
-  test('inside combat with no card held, right-click a fighter is a standard attack', async ({ page }) => {
+  /* Superseded twice. It first answered an empty hand with "choose an Act", then with a
+   * standard attack; the ruling now is that it opens the choice of what to do and the
+   * roll commits, which A9 covers in full. What this case is really guarding, and what
+   * has never changed, is that the gesture is taken from the picker ONLY when it lands
+   * on a real fighter during a real fight. */
+  test('inside combat with no card held, right-click a fighter is aiming\'s, not the picker\'s', async ({ page }) => {
     const player = await T.frameFor(page, 'player');
     await T.waitBooted(page, player, 'player');
     await loadActs(player);
@@ -209,12 +214,9 @@ test.describe('S3d aiming never takes the roll picker away', () => {
     expect(await player.evaluate(() => window.armed), 'nothing held to begin with').toBe(null);
     await rightClickToken(player, 'tkFoe');
 
-    const held = await player.evaluate(() =>
-      window.armed ? { act: window.armed.entry.nm, target: window.armed.target } : null);
-    expect(held, 'the shortcut picked something up on the player\'s behalf').toBeTruthy();
-    expect(held.act).toBe('Basic attack');
-    expect(held.target).toBe('m:cb-erasure');
-    expect(await pickerOpen(player), 'and it is aiming\'s gesture, not the picker\'s').toBe(false);
+    expect(await player.evaluate(() => !!document.querySelector('#hand .hand-pickmenu')),
+      'it offers the choice rather than assuming one').toBe(true);
+    expect(await pickerOpen(player), 'and the roll picker stays out of it').toBe(false);
   });
 
   /* ---- tapping, the primary path -------------------------------------------------- */

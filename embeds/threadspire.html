@@ -665,6 +665,63 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
   color:var(--muted);
 }
 .hs-hint{ font-family:Cinzel,serif; font-size:.58rem; letter-spacing:.06em; color:rgba(201,168,76,.85); }
+/* ---- the roll that commits ----
+   Targeting picks who; this commits. Kept in the row's own band rather than over the map
+   so the cards stay readable behind the decision, and it always offers a way out. */
+.hand-roll{
+  pointer-events:auto; margin:0 var(--hand-right-clear) 6px 108px;
+  display:flex; align-items:center; gap:9px; flex-wrap:wrap;
+  padding:7px 11px; border-radius:10px;
+  background:rgba(10,14,26,.95); border:1px solid var(--gold);
+}
+.hr-what{ font-family:Cinzel,serif; font-size:.68rem; color:var(--gold); letter-spacing:.02em; }
+.hr-die{
+  font-family:Cinzel,serif; font-size:.62rem; letter-spacing:.08em; text-transform:uppercase;
+  border:1px solid var(--gold); border-radius:8px; padding:5px 14px;
+  background:rgba(43,36,16,.94); color:var(--gold);
+}
+.hr-die:hover{ background:rgba(58,48,20,.96); }
+.hr-faces{ display:flex; gap:4px; }
+.hr-face{
+  width:24px; height:24px; border-radius:6px; border:1px solid var(--line);
+  background:rgba(20,27,51,.9); color:var(--ice); font-size:.7rem;
+  font-variant-numeric:tabular-nums;
+}
+.hr-face:hover{ border-color:rgba(201,168,76,.6); }
+.hr-face.fell{ border-color:rgba(201,168,76,.5); color:var(--gold); }
+.hr-face.strike{ border-color:rgba(217,138,138,.5); color:#d98a8a; }
+.hr-legend{ font-size:.6rem; color:var(--muted); }
+.hr-cancel{
+  font-family:Cinzel,serif; font-size:.58rem; letter-spacing:.06em;
+  border:1px solid var(--line); border-radius:8px; padding:4px 11px;
+  background:rgba(20,27,51,.9); color:var(--ice); margin-left:auto;
+}
+.hr-cancel:hover{ border-color:rgba(217,138,138,.55); color:#d98a8a; }
+.hr-die:focus-visible, .hr-face:focus-visible, .hr-cancel:focus-visible{ outline:2px solid var(--gold); outline-offset:2px; }
+/* ---- choosing what to do to a target already picked ---- */
+.hand-pickmenu{
+  pointer-events:auto; margin:0 var(--hand-right-clear) 6px 108px;
+  display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+  padding:7px 9px; border-radius:10px;
+  background:rgba(10,14,26,.95); border:1px solid rgba(201,168,76,.4);
+  max-height:33vh; overflow-y:auto;
+}
+.hand-pickmenu .hp-lab{
+  font-family:Cinzel,serif; font-size:.52rem; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--gold); margin-right:2px;
+}
+.hp-opt.locked{ opacity:.45; border-style:dashed; }
+.hp-lock{
+  font-family:Cinzel,serif; font-size:.46rem; letter-spacing:.08em; text-transform:uppercase;
+  color:var(--gold); margin-left:6px;
+}
+.hp-cancel{
+  font-family:Cinzel,serif; font-size:.56rem; border:1px solid var(--line); border-radius:999px;
+  padding:3px 10px; background:rgba(20,27,51,.9); color:var(--ice); margin-left:auto;
+}
+@media (max-width:700px){
+  .hand-roll, .hand-pickmenu{ margin-left:76px; margin-right:14px; }
+}
 @media (max-width:700px){ .hand-send{ margin-left:76px; margin-right:14px; } }
 .hc-lock{
   font-family:Cinzel,serif; font-size:.5rem; letter-spacing:.1em; text-transform:uppercase;
@@ -6623,23 +6680,61 @@ function handStandardAttack(){
   }
   return null;
 }
-/* Aim the held card and commit it. The tap on the target IS the send: there is no second
-   step, because a Beat is one Act and a button between choosing and doing was one more
-   thing to forget at the table. Returns false when there is nothing to aim or nothing to
-   aim it at, so the caller can fall through to whatever else wanted the gesture. */
+/* Aim the held card at a fighter and ask for the roll. Targeting does NOT declare: it
+   used to commit the moment a token was touched, with no roll and nothing to undo, so a
+   misclick was a spent Act. Choosing the target and committing to it are two steps now,
+   and the roll is the one that commits. Returns false when there is nothing to aim or
+   nothing to aim it at, so the caller can fall through. */
 function handAim(t){
   if (!armed) return false;
   var f = tokenFighter(t);
   if (!f) return false;
+  if (!handReady({ ignoreTarget:true })){
+    handSay(armed.need && !armed[armed.need]
+      ? ('Choose a ' + armed.need + ' first.') : 'That card is not ready.');
+    return true;
+  }
   armed.target = f.key;
   armed.targetName = f.name || '';
-  /* Show the target taken BEFORE trying to send it. The send may be refused, or simply
-     take a moment, and until A4 removed the button this repaint happened on the way to
-     it; without it the card sits there naming nobody while the player waits to find out
-     whether anything happened. */
+  armed.awaitingRoll = true;
   renderHand();
-  handDeclare();
   return true;
+}
+/* Back out. The card stays in hand and the target is forgotten, so a wrong token costs a
+   tap rather than the round's Act. */
+function handRollCancel(){
+  if (!armed) return;
+  armed.awaitingRoll = false;
+  armed.target = ''; armed.targetName = '';
+  renderHand();
+}
+/* The roll commits. A face may be given, for a player rolling real dice at the table and
+   entering what came up, or left out to roll here. */
+function handRollDo(face){
+  if (!armed || !armed.awaitingRoll) return;
+  var n = (face >= 1 && face <= 6) ? face : (1 + Math.floor(Math.random() * 6));
+  armed.roll = n;
+  armed.awaitingRoll = false;
+  handDeclare();
+}
+/* The prompt itself: what is about to be rolled, at whom, and the two ways out. */
+function handRollPrompt(){
+  if (!armed || !armed.awaitingRoll) return '';
+  var what = esc(armed.entry.nm)
+    + (armed.need && armed[armed.need] ? ' · ' + esc(armed[armed.need]) : '')
+    + (armed.targetName ? ' → ' + esc(armed.targetName) : '');
+  var faces = '';
+  for (var i = 1; i <= 6; i++){
+    faces += '<button type="button" class="hr-face' + (i === 6 ? ' fell' : (i === 1 ? ' strike' : ''))
+          + '" data-face="' + i + '">' + i + '</button>';
+  }
+  return '<div class="hand-roll">'
+    + '<span class="hr-what">' + what + '</span>'
+    + '<button type="button" class="hr-die" data-roll-die="1" aria-label="Roll the die">Roll</button>'
+    + '<span class="hr-faces">' + faces + '</span>'
+    + '<span class="hr-legend">1 Fellstrike · 6 Fellmark</span>'
+    + '<button type="button" class="hr-cancel" data-roll-cancel="1">Cancel</button>'
+    + '</div>';
 }
 /* A tap on a token. Only takes the tap when a card is actually held, so tapping a token
    to look at it goes on working the way it always has. */
@@ -6650,16 +6745,73 @@ function handAimByTap(t){ return handAim(t); }
    the one case where it consumes the click without aiming. */
 function handAimByMenu(t){
   if (!hand || hand.active === false) return false;    /* no fight: the picker's */
-  if (!tokenFighter(t)) return false;                  /* not a fighter: the picker's */
-  /* Nothing held is not nothing meant. Right-clicking a foe with an empty hand is the
-     ordinary thing a player wants to do to it, so it is a standard attack rather than a
-     scolding. If they have no standard attack to make, say so instead of failing quietly. */
+  var f = tokenFighter(t);
+  if (!f) return false;                                /* not a fighter: the picker's */
+  /* Nothing held is not nothing meant. Right-clicking a foe with an empty hand opens the
+     choice of what to do to it rather than assuming a standard attack: the player still
+     picks, and still rolls, so nothing is committed behind their back. */
   if (!armed){
-    var std = handStandardAttack();
-    if (!std){ handSay('No standard attack to make right now.'); return true; }
-    armed = { entry: std, group:'act', need:handNeeds(std), skill:'', item:'', stance:'' };
+    _handPick = { target: f.key, targetName: f.name || '', kind: '' };
+    renderHand();
+    return true;
   }
   return handAim(t);
+}
+/* ---- choosing an Act for a target already picked ----
+   The other way round from the card row: the target came first, so this offers what can
+   be done to it. Attacks and skills, and the specific option within either, then the same
+   roll prompt everything else uses. */
+var _handPick = null;
+function handPickCancel(){ _handPick = null; renderHand(); }
+function handPickKind(kind){
+  if (!_handPick) return;
+  _handPick.kind = kind;
+  renderHand();
+}
+/* Take the chosen option up as though it had been tapped on the row, keep the target that
+   opened this, and go straight to the roll. */
+function handPickTake(nm, skill){
+  if (!_handPick) return;
+  var acts = (hand && hand.acts) || [];
+  var e = acts.filter(function(a){ return a.nm === nm; })[0];
+  if (!e || e.locked) return;
+  if (handBarred(e, 'act')) return;
+  armed = { entry: e, group:'act', need:handNeeds(e), skill: skill || '', item:'', stance:'' };
+  armed.target = _handPick.target;
+  armed.targetName = _handPick.targetName;
+  armed.awaitingRoll = true;
+  _handPick = null;
+  renderHand();
+}
+/* Attacks the Fell can make, locked ones included: F9 applies here exactly as it does on
+   the row, so a player sees what a charge would buy rather than a shorter list. */
+function handPickMenu(){
+  if (!_handPick) return '';
+  var acts = (hand && hand.acts) || [];
+  var h = '<div class="hand-pickmenu"><span class="hp-lab">'
+        + esc(_handPick.targetName || 'Target') + '</span>';
+  if (!_handPick.kind){
+    h += '<button type="button" class="hp-opt" data-pkind="attack">Attack</button>'
+      +  '<button type="button" class="hp-opt" data-pkind="skill">Skill</button>';
+  } else if (_handPick.kind === 'attack'){
+    acts.forEach(function(a){
+      if (a.kind !== 'weapon') return;
+      var lk = !!a.locked;
+      h += '<button type="button" class="hp-opt' + (lk ? ' locked' : '') + '"'
+        + (lk ? ' aria-disabled="true"' : ' data-ptake="' + esc(a.nm) + '"') + '>'
+        + esc(a.nm) + (lk ? '<span class="hp-lock">Charge ' + a.tier + '</span>' : '') + '</button>';
+    });
+  } else {
+    var skills = (hand && hand.skills) || {};
+    var anySkill = acts.filter(function(a){ return a.src === 'skills'; })[0];
+    if (!anySkill){ h += '<span class="hc-desc">No skill Act available.</span>'; }
+    else Object.keys(skills).forEach(function(n){
+      h += '<button type="button" class="hp-opt" data-ptake="' + esc(anySkill.nm) + '"'
+        + ' data-pskill="' + esc(n) + '">' + esc(n) + ' +' + (skills[n] || 0) + '</button>';
+    });
+  }
+  h += '<button type="button" class="hp-cancel" data-pcancel="1">Cancel</button>';
+  return h + '</div>';
 }
 /* ---- sending it ----
    The row does not build a declaration. It says what the player chose and lets the sheet
@@ -6672,13 +6824,16 @@ function handAimByMenu(t){
    running, so a guessed round does not arrive wrong, it silently fails to arrive; the
    sheet checks the one we send against its own and refuses out loud if the fight has
    moved on. */
+/* Whether this Act's declare will be refused without a roll. The sheet is the authority
+   and refuses on its own; this is only so the prompt can say what it is asking for. */
 function handNeedsRoll(){
   return !!(armed && armed.entry && (armed.entry.dmg || 0) > 0);
 }
-function handReady(){
+function handReady(opts){
   if (!armed) return false;
   if (armed.need && !armed[armed.need]) return false;      /* a category with nothing chosen */
   if (armed.need === 'stance') return true;                /* a stance is aimed at nobody */
+  if (opts && opts.ignoreTarget) return true;              /* asked before the target is set */
   return !!armed.target;
 }
 function handDeclare(){
@@ -6703,8 +6858,9 @@ function handDeclare(){
     target: armed.target || '',
     /* read off the hand, never worked out here */
     round: hand.round || 0,
-    /* an attack needs a roll before it can be sent; the sheet refuses one without */
-    roll: handNeedsRoll() ? (1 + Math.floor(Math.random() * 6)) : 0
+    /* the roll the player actually made, at the prompt. Never invented here: the roll is
+       what commits a declare, so it comes from the step that commits it. */
+    roll: armed.roll || 0
   });
 }
 function handDeclareResult(res){
@@ -6876,7 +7032,9 @@ function renderHand(){
      thing and a first way to forget to. */
   var pn = handPhaseNote();
   var hint = '';
-  if (armed){
+  /* silent while the roll prompt is up: it is already saying what happens next, and two
+     instructions at once is one too many */
+  if (armed && !armed.awaitingRoll){
     hint = (armed.need && !armed[armed.need])
       ? ('Choose a ' + armed.need + ', then tap your target')
       : 'Tap your target';
@@ -6913,7 +7071,7 @@ function renderHand(){
     ? group.map(function(e){ return handCard(e, charge, handTab); }).join('')
     : '<div class="hand-empty">Nothing here this round.</div>';
 
-  el.innerHTML = note + send + handPicker() + tabs
+  el.innerHTML = note + handRollPrompt() + handPickMenu() + send + handPicker() + tabs
     + '<div class="hand-wrap">'
     +   '<button type="button" class="hand-pager left gone" data-page="-1" aria-label="Earlier cards">‹</button>'
     +   '<div class="hand-scroll">' + cards + '</div>'
@@ -6969,6 +7127,17 @@ function handSetTab(t){
   var el = document.getElementById('hand');
   if (!el) return;
   el.addEventListener('click', function(ev){
+    /* the roll prompt and the target-first menu come before everything else: while one
+       is up it is the only thing the row is asking about */
+    if (ev.target.closest && ev.target.closest('[data-roll-cancel]')){ handRollCancel(); return; }
+    if (ev.target.closest && ev.target.closest('[data-roll-die]')){ handRollDo(); return; }
+    var face = ev.target.closest && ev.target.closest('[data-face]');
+    if (face){ handRollDo(Number(face.getAttribute('data-face')) || 0); return; }
+    if (ev.target.closest && ev.target.closest('[data-pcancel]')){ handPickCancel(); return; }
+    var pk = ev.target.closest && ev.target.closest('[data-pkind]');
+    if (pk){ handPickKind(pk.getAttribute('data-pkind')); return; }
+    var take = ev.target.closest && ev.target.closest('[data-ptake]');
+    if (take){ handPickTake(take.getAttribute('data-ptake'), take.getAttribute('data-pskill') || ''); return; }
     var tab = ev.target.closest && ev.target.closest('[data-tab]');
     if (tab){ handSetTab(tab.getAttribute('data-tab')); return; }
     var pg = ev.target.closest && ev.target.closest('[data-page]');
@@ -6981,7 +7150,11 @@ function handSetTab(t){
   /* Escape puts the card back down. The row is reachable by keyboard, so the way out
      has to be too. */
   document.addEventListener('keydown', function(ev){
-    if (ev.key === 'Escape' && armed) handDisarm();
+    if (ev.key !== 'Escape') return;
+    /* out of the innermost thing first: the roll, then the target menu, then the card */
+    if (armed && armed.awaitingRoll){ handRollCancel(); return; }
+    if (_handPick){ handPickCancel(); return; }
+    if (armed) handDisarm();
   });
   var mo = document.getElementById('moreOpt');
   if (mo) mo.addEventListener('click', handMoreOptions);

@@ -232,7 +232,8 @@ test.describe('S3f the row declares and the board sees it', () => {
 
     await arm(frames.player, 'Basic attack');
     await aim(frames.player);
-    await send(frames.player);
+    /* the roll is the commit now (A9), and it is what puts the face on the wire */
+    await frames.player.evaluate(() => window.handRollDo());
 
     const sent = await frames.player.evaluate(() => window.__sent);
     expect(sent[0].roll).toBeGreaterThanOrEqual(1);
