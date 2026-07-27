@@ -560,6 +560,15 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .hp-opt.on{ border-color:var(--gold); color:var(--gold); }
 .hp-opt:focus-visible{ outline:2px solid var(--gold); outline-offset:2px; }
 .hc-pick{ font-size:.6rem; color:var(--gold); }
+.hc-target{ font-size:.64rem; color:var(--gold); font-family:Cinzel,serif; letter-spacing:.02em; }
+/* A word back to the player when a gesture was taken but could not be acted on. Sits
+   with the row so it is read where the hand is, not across the table. */
+.hand-note{
+  pointer-events:auto; margin:0 108px 6px; padding:6px 11px; border-radius:9px;
+  background:rgba(10,14,26,.92); border:1px solid rgba(201,168,76,.35);
+  font-size:.7rem; color:var(--ice); width:fit-content;
+}
+@media (max-width:700px){ .hand-note{ margin-left:76px; margin-right:14px; } }
 .hc-lock{
   font-family:Cinzel,serif; font-size:.5rem; letter-spacing:.1em; text-transform:uppercase;
   color:var(--gold); border:1px solid rgba(201,168,76,.4); border-radius:999px;
@@ -6403,6 +6412,53 @@ function handArm(nm, group){
   renderHand();
 }
 function handDisarm(){ armed = null; renderHand(); }
+
+/* ---- aiming a held card at a fighter ----
+   Two ways in, and both end here. Tapping a target is the primary one and works the same
+   on a phone and a desktop; right-clicking a token is a shortcut for people who have a
+   mouse and expect one.
+
+   What matters more than either is what these do NOT take. Right-click already opens the
+   roll picker anywhere on the table, and rolling an attack or a skill outside a fight is
+   a whole feature of the tool, not a combat convenience. So aiming never replaces that
+   picker, it only ever declines to run and lets it through. Every one of these returns
+   false unless it is certain, and false means the picker opens exactly as it always did. */
+var _handNote = '';
+function handSay(msg){
+  _handNote = msg || '';
+  renderHand();
+  clearTimeout(window._handNoteT);
+  window._handNoteT = setTimeout(function(){ _handNote = ''; try { renderHand(); } catch(e){} }, 2600);
+}
+/* Aim the held card. Returns false when there is nothing to aim or nothing to aim it at,
+   so the caller can fall through. */
+function handAim(t){
+  if (!armed) return false;
+  var f = tokenFighter(t);
+  if (!f) return false;
+  armed.target = f.key;
+  armed.targetName = f.name || '';
+  renderHand();
+  return true;
+}
+/* A tap on a token. Only takes the tap when a card is actually held, so tapping a token
+   to look at it goes on working the way it always has. */
+function handAimByTap(t){ return handAim(t); }
+/* A right-click on a token. Takes it only inside a fight and only on a token that
+   resolves to a fighter; anything else is the picker's. With a fighter under the cursor
+   and no card held it says so rather than swallowing the gesture in silence, which is
+   the one case where it consumes the click without aiming. */
+function handAimByMenu(t){
+  if (!hand || hand.active === false) return false;    /* no fight: the picker's */
+  if (!tokenFighter(t)) return false;                  /* not a fighter: the picker's */
+  if (!armed){ handSay('Choose an Act or React first, then pick your target.'); return true; }
+  return handAim(t);
+}
+function handClearTarget(){
+  if (!armed) return;
+  armed.target = ''; armed.targetName = '';
+  renderHand();
+}
 function handPick(kind, value){
   if (!armed) return;
   armed[kind] = (armed[kind] === value) ? '' : value;
@@ -6460,6 +6516,10 @@ function handCard(e, charge, group){
     var chosen = armed[armed.need];
     bits += '<span class="hc-pick">' + (chosen ? esc(chosen) : 'Choose ' + armed.need + ' above') + '</span>';
   }
+  /* and who it is pointed at, once it is pointed at anyone */
+  if (isArmed && armed.targetName){
+    bits += '<span class="hc-target">→ ' + esc(armed.targetName) + '</span>';
+  }
   var cls = 'hcard' + (locked ? ' locked' : '') + (barred ? ' barred' : '')
           + (isArmed ? ' armed' : '');
   return '<button type="button" class="' + cls + '"'
@@ -6499,7 +6559,8 @@ function renderHand(){
     if (!still) armed = null; else armed.entry = still;
   }
 
-  var h = handPicker() + '<div class="hand-scroll">';
+  var note = _handNote ? '<div class="hand-note">' + esc(_handNote) + '</div>' : '';
+  var h = note + handPicker() + '<div class="hand-scroll">';
   if (acts.length){
     h += '<span class="hand-lab">Acts</span>';
     acts.forEach(function(a){ h += handCard(a, charge, 'act'); });
@@ -7632,7 +7693,10 @@ function wireDrag(el, t){
     }
     function upfn(){
       el.removeEventListener('pointermove', mv); el.removeEventListener('pointerup', upfn);
-      if (!moved){ selectToken(t.id); return; }
+      /* A tap, not a drag: wireDrag already tells them apart, which is what makes the
+         two-tap flow safe to put here. A held card aims at this token; with no card
+         held the tap selects, the way it always has. */
+      if (!moved){ if (!handAimByTap(t)) selectToken(t.id); return; }
       var c = t.cells || 1;
       if (snapOn){
         t.x = clamp(snapAxis(t.x, S.grid.offX, c), 0, S.map.w);
@@ -7726,6 +7790,17 @@ function mid(a, b){ return { x:(a.x + b.x) / 2, y:(a.y + b.y) / 2 }; }
   var m = mapEl();
   m.addEventListener('contextmenu', function(e){
     e.preventDefault();
+    /* Aiming is additive and never takes this gesture away from the roll picker. The
+       picker is the default everywhere, in a fight and out of one, on a token and on
+       bare table, because rolling an attack or a skill is not a combat-only thing. Only
+       one case is intercepted: a fight is on AND the token under the cursor is a fighter
+       the LoreMaster published. Everything else, including a token that resolves to
+       nothing, falls straight through to the picker exactly as before. */
+    var tokEl = e.target.closest && e.target.closest('.token');
+    if (tokEl && typeof handAimByMenu === 'function'){
+      var t = tokById(tokEl.getAttribute('data-tok'));
+      if (t && handAimByMenu(t)) return;
+    }
     tpAtCursor(e.clientX, e.clientY);
   });
   document.addEventListener('pointerdown', function(e){
