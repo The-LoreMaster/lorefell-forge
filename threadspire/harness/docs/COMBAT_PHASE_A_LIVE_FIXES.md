@@ -54,14 +54,26 @@ stronger/redder drop-shadow, or a layered red glow, using the existing --danger
 (#a32d2d). No new asset from the artist; this is CSS on the art that is already
 there.
 
-## 7. Use a Utility as an Act option, filtered two ways
-"Use a Utility" appears as an Act, greyed until a utility is equipped (F9), lighting
-up when one is. BUT only utilities usable in battle appear: filter on the existing
-`use` field (utilities are "Act", "React", "Passive" or "Out of Combat"). The combat
-Act picker shows only equipped utilities whose use === "Act". A "React" utility
-belongs to the React picker (resolution), a "Passive" is never a chosen Act, and an
-"Out of Combat" utility (rest, treasure, etc.) never appears as a combat Act even
-when equipped. cbUtilities already reads `use`, so the data is there.
+## 7. Use a Utility as an Act option — category first, then availability
+Two filters at two layers, which resolves an earlier apparent contradiction (an
+earlier turn said "keep out-of-combat utilities listed-but-tagged per F9"; that was
+about availability, this is about category — they are different questions, and the
+designer confirmed category filtering here):
+
+  - CATEGORY (is this a combat Act at all?): the combat Act picker shows only
+    utilities whose `use === "Act"`. A "React" utility belongs to the React picker
+    (resolution), a "Passive" is never a chosen Act, and an "Out of Combat" utility
+    (rest, treasure, etc.) never appears in the combat Act picker even when equipped
+    — it is not an Act by nature, so showing it in combat is clutter with no path to
+    use it. Its "Out of Combat" tag still shows in the sheet's Utility tab, just not
+    in the combat picker.
+  - AVAILABILITY (can I use this Act now?): among the use==="Act" utilities, "Use a
+    Utility" is greyed until one is equipped (F9), lighting up when one is. This is
+    the F9 listed-but-greyed behaviour, applied within the category that can be an
+    Act at all.
+
+So: combat Act picker = equipped utilities where use==="Act", with the option greyed
+when none is equipped. cbUtilities already reads `use`, so the data is there.
 
 ## Order
 1 (targeting) and 3 (undo) first, then deploy so the player can actually play a
