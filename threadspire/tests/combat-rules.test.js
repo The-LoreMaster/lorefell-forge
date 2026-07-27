@@ -81,11 +81,35 @@ async function boot(file) {
     offenders.length === 0, 'offenders=' + JSON.stringify(offenders));
 
   /* The damage side must NOT have moved: Base Damage on a magic build is 1 + Magic and
-   * always was. A fix that flattened both would pass the check above and be wrong. */
+   * always was. A fix that flattened the roll and the damage together would pass the
+   * check above and still be wrong.
+   *
+   * FoeForge cannot be booted to ask it directly. Standalone, its built-in pack holds
+   * afflictions as plain strings while the page sorts them by .name, so `const state`
+   * throws on load and every function below it is unreachable. That is a real bug and
+   * an old one, but it is not this one's to fix, so the block that builds the standard
+   * attack line is lifted out of the source and RUN instead. It reads nothing but b and
+   * s, so it runs honestly with those two supplied: real code, real output, and no
+   * dependence on how the source happens to be spaced. */
   const foeforge = fs.readFileSync(path.join(DOCS, 'foeforge.html'), 'utf8');
-  check('FoeForge still sends a spell build to Magic for damage',
-    /castsSpells\?"Magic":"Power"/.test(foeforge),
-    'the damage label no longer follows the build');
+  const block = foeforge.match(/const castsSpells=[\s\S]*?const std=[^\n]*;/);
+  check('FoeForge still builds a standard attack line', !!block,
+    'the block that builds it was not found; the shape of renderScaled changed');
+
+  if (block) {
+    const stdLine = new Function('b', 's', block[0] + ' return { std:std, accLabel:accLabel, dmgLabel:dmgLabel };');
+    const caster = stdLine({ accuracy: ['spell'] }, { attrs: { Magic: 5, Precision: 2, Power: 1 } });
+    const fighter = stdLine({ accuracy: ['weapon'] }, { attrs: { Magic: 0, Precision: 4, Power: 6 } });
+
+    check('a caster rolls Precision to land, not Magic',
+      caster.accLabel === 'Precision' && /1d6 \+ 2 Precision to land/.test(caster.std), JSON.stringify(caster));
+    check('a fighter rolls Precision to land',
+      fighter.accLabel === 'Precision' && /1d6 \+ 4 Precision to land/.test(fighter.std), JSON.stringify(fighter));
+    check('a caster still takes its Base Damage from Magic',
+      caster.dmgLabel === 'Magic' && /Base Damage 6 \(1 \+ Magic\)/.test(caster.std), JSON.stringify(caster));
+    check('a fighter still takes its Base Damage from Power',
+      fighter.dmgLabel === 'Power' && /Base Damage 7 \(1 \+ Power\)/.test(fighter.std), JSON.stringify(fighter));
+  }
 
   /* ---------------------------------------------------------------- F4 ---- */
   console.log('\nF4 a tie goes to the attacker');
