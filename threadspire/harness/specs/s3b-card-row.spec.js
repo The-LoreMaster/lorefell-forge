@@ -1,0 +1,229 @@
+/* S3b — the card row draws the hand.
+ *
+ * S3a proved the hand crosses the frame with the right contents. This is the other half:
+ * given a hand, what the player sees along the bottom of the map.
+ *
+ * The hand is injected here rather than pumped through a live sheet. That is deliberate
+ * and it is the seam S3a already covers: this spec is about the ROW, and a real sheet
+ * would only make the input harder to control without testing anything S3a does not.
+ * The two together cover sheet-to-row; neither claims to on its own.
+ *
+ * Oracle is the FellGuide by way of the brief:
+ *   F9  A locked act is visible, not absent, so a player can see what a charge buys.
+ *   F3  Only a charged magic-weapon ability casts against Difficulty, and the card has
+ *       to say so, because it is a different roll from every other card on the row.
+ */
+const { test, expect } = require('@playwright/test');
+const T = require('./_table.js');
+
+const F = T.FIXTURES;
+
+function playerOnly() {
+  return {
+    player: {
+      role: 'player',
+      campaignId: F.CAMPAIGN_A,
+      characterId: F.FELL_CHAR_ID,
+      character: F.CHARACTER_A,
+      characters: [F.CHARACTER_A],
+      party: F.PARTY_A
+    }
+  };
+}
+
+/* A hand shaped exactly as tsHandPayload builds one. Written out rather than derived so
+ * a change to the payload shape shows up here as a failure and not as a silent pass. */
+function handAt(charge) {
+  const lock = (tier) => typeof tier === 'number' && tier > 0 && tier > charge;
+  const acts = [
+    { src: 'Wand', nm: 'Basic attack', desc: 'Tier 0 · standard strike', dmg: 7, base: 4, dt: 'magic',
+      aff: '', tier: 0, kind: 'weapon', contest: 'evasion', castSkill: '' },
+    { src: 'Wand', nm: 'Razorwind', desc: 'Cast. On a success, deal Standard Damage.', dmg: 7, base: 4,
+      dt: 'magic', aff: '', tier: 1, kind: 'weapon', contest: 'difficulty', castSkill: 'Weaving' },
+    { src: 'Wand', nm: 'Worldspire', desc: 'Cast at three targets.', dmg: 9, base: 4, dt: 'magic',
+      aff: '', tier: 3, kind: 'weapon', contest: 'difficulty', castSkill: 'Weaving' },
+    { src: 'skills', nm: 'Any skill', desc: 'All 24 skills may be attempted as an Act.', dmg: 0, base: 0,
+      dt: null, aff: '', tier: null, kind: 'standard', contest: 'evasion', castSkill: '' }
+  ].map((a) => Object.assign(a, { locked: lock(a.tier) }));
+  const reacts = [
+    { src: 'movement', nm: 'Move', desc: 'Movement is a React. It spends your entire React and is never part of an Act. Once per round.', tier: null, kind: 'standard', locked: false },
+    { src: 'The Aerostrix', nm: 'Augury', desc: 'When a Fell makes an attack, that attack is a Lucky Roll.', tier: 1, kind: 'lorebound', locked: lock(1) }
+  ];
+  return { charge, gates: { noAct: false, noReact: false, notes: [] }, acts, reacts,
+           skills: {}, items: [], stances: ['Shrouded', 'Stalwart', 'Vestments'], worn: null,
+           round: 1, active: true, declared: false, reactUsed: false };
+}
+
+/* Put the table in a fight and hand the row something to draw. */
+async function dealHand(frame, charge) {
+  await frame.evaluate((h) => {
+    window.S.role = 'player';
+    window.S.mode = 'combat';
+    window.tsHandTake(h);
+    window.render();
+  }, handAt(charge));
+}
+
+const cardNames = (frame) => frame.evaluate(() =>
+  Array.from(document.querySelectorAll('#hand .hcard')).map((c) => c.getAttribute('data-act')));
+
+const cardByName = (frame, nm) => frame.evaluate((n) => {
+  const c = Array.from(document.querySelectorAll('#hand .hcard')).find((x) => x.getAttribute('data-act') === n);
+  if (!c) return null;
+  return {
+    locked: c.classList.contains('locked'),
+    ariaDisabled: c.getAttribute('aria-disabled'),
+    text: c.textContent,
+    lit: c.querySelectorAll('.hc-pip.on').length
+  };
+}, nm);
+
+const rowHidden = (frame) => frame.evaluate(() =>
+  document.getElementById('hand').classList.contains('hidden'));
+
+test.describe('S3b the card row draws the hand', () => {
+
+  test('the row keeps out of the way until there is a fight', async ({ page }) => {
+    await T.openTable(page, playerOnly());
+    const player = await T.frameFor(page, 'player');
+    await T.waitBooted(page, player, 'player');
+
+    expect(await rowHidden(player), 'no fight, no row').toBe(true);
+
+    await dealHand(player, 0);
+    expect(await rowHidden(player), 'a fight, and the row is up').toBe(false);
+
+    await player.evaluate(() => { window.S.mode = 'roleplay'; window.render(); });
+    expect(await rowHidden(player), 'the fight ends and the row goes away').toBe(true);
+  });
+
+  test('the row belongs to the player, never the LoreMaster', async ({ page }) => {
+    await T.openTable(page, playerOnly());
+    const player = await T.frameFor(page, 'player');
+    await T.waitBooted(page, player, 'player');
+
+    await dealHand(player, 0);
+    expect(await rowHidden(player)).toBe(false);
+
+    /* the LoreMaster has their own strip in this band; two would fight over it */
+    await player.evaluate(() => { window.S.role = 'lm'; window.render(); });
+    expect(await rowHidden(player), 'the LoreMaster gets no card row').toBe(true);
+  });
+
+  test('every Act and React the hand carries gets a card', async ({ page }) => {
+    await T.openTable(page, playerOnly());
+    const player = await T.frameFor(page, 'player');
+    await T.waitBooted(page, player, 'player');
+    await dealHand(player, 0);
+
+    const names = await cardNames(player);
+    expect(names).toEqual(['Basic attack', 'Razorwind', 'Worldspire', 'Any skill', 'Move', 'Augury']);
+  });
+
+  test('F9 a locked act is on the row, greyed and priced, not missing', async ({ page }) => {
+    await T.openTable(page, playerOnly());
+    const player = await T.frameFor(page, 'player');
+    await T.waitBooted(page, player, 'player');
+    await dealHand(player, 0);
+
+    const t3 = await cardByName(player, 'Worldspire');
+    expect(t3, 'the tier 3 act is drawn at charge 0').toBeTruthy();
+    expect(t3.locked, 'and it reads as locked').toBe(true);
+    expect(t3.ariaDisabled, 'and says so to a screen reader').toBe('true');
+    expect(t3.text, 'and names the charge that would buy it').toContain('Charge 3');
+
+    const basic = await cardByName(player, 'Basic attack');
+    expect(basic.locked, 'a tier 0 act is always in reach').toBe(false);
+    expect(basic.text).not.toContain('Charge');
+  });
+
+  test('F9 a charge unlocks the card in place', async ({ page }) => {
+    await T.openTable(page, playerOnly());
+    const player = await T.frameFor(page, 'player');
+    await T.waitBooted(page, player, 'player');
+
+    await dealHand(player, 0);
+    expect((await cardByName(player, 'Razorwind')).locked).toBe(true);
+    expect((await cardByName(player, 'Razorwind')).lit, 'no gems lit at charge 0').toBe(0);
+
+    await dealHand(player, 1);
+    const after = await cardByName(player, 'Razorwind');
+    expect(after.locked, 'tier 1 is in reach at charge 1').toBe(false);
+    expect(after.lit, 'and one gem is lit').toBe(1);
+    expect((await cardByName(player, 'Worldspire')).locked, 'tier 3 still is not').toBe(true);
+
+    /* the card did not move, it changed: the row is the same six either way */
+    expect(await cardNames(player)).toHaveLength(6);
+  });
+
+  test('F3 a spell says what it casts on, and a standard attack does not', async ({ page }) => {
+    await T.openTable(page, playerOnly());
+    const player = await T.frameFor(page, 'player');
+    await T.waitBooted(page, player, 'player');
+    await dealHand(player, 3);
+
+    const spell = await cardByName(player, 'Razorwind');
+    expect(spell.text, 'a charged magic ability names its skill and its contest')
+      .toContain('Casts on Weaving vs Difficulty');
+
+    const basic = await cardByName(player, 'Basic attack');
+    expect(basic.text, 'a standard attack rolls the ordinary way and says nothing about casting')
+      .not.toContain('Casts on');
+  });
+
+  test('an attack shows what it would do, against the right defence', async ({ page }) => {
+    await T.openTable(page, playerOnly());
+    const player = await T.frameFor(page, 'player');
+    await T.waitBooted(page, player, 'player');
+    await dealHand(player, 3);
+
+    const basic = await cardByName(player, 'Basic attack');
+    expect(basic.text).toContain('4');            /* base, straight to Vitality */
+    expect(basic.text).toContain('3');            /* bonus, 7 total less 4 base */
+    expect(basic.text, 'a magic weapon is blocked by Resistance').toContain('Resistance');
+    expect(basic.text).not.toContain('Durability');
+
+    const skill = await cardByName(player, 'Any skill');
+    expect(skill.text, 'an act with no damage claims none').not.toContain('to Vitality');
+  });
+
+  test('a hand with nothing in it says so rather than drawing an empty row', async ({ page }) => {
+    await T.openTable(page, playerOnly());
+    const player = await T.frameFor(page, 'player');
+    await T.waitBooted(page, player, 'player');
+
+    await player.evaluate(() => {
+      window.S.role = 'player';
+      window.S.mode = 'combat';
+      window.tsHandTake({ charge: 0, acts: [], reacts: [], active: true });
+      window.render();
+    });
+
+    expect(await rowHidden(player)).toBe(false);
+    expect(await cardNames(player)).toHaveLength(0);
+    const note = await player.evaluate(() => {
+      const n = document.querySelector('#hand .hand-empty');
+      return n ? n.textContent : null;
+    });
+    expect(note, 'and it explains itself').toContain('No Acts');
+  });
+
+  test('a name carrying markup is drawn as text, not as markup', async ({ page }) => {
+    await T.openTable(page, playerOnly());
+    const player = await T.frameFor(page, 'player');
+    await T.waitBooted(page, player, 'player');
+
+    await player.evaluate(() => {
+      window.S.role = 'player';
+      window.S.mode = 'combat';
+      window.tsHandTake({ charge: 0, active: true, reacts: [],
+        acts: [{ src: 'Wand', nm: '<img src=x onerror=alert(1)>', desc: 'x', dmg: 0, base: 0,
+                 dt: null, tier: 0, kind: 'weapon', contest: 'evasion', castSkill: '', locked: false }] });
+      window.render();
+    });
+
+    const injected = await player.evaluate(() => document.querySelectorAll('#hand img').length);
+    expect(injected, 'a card name cannot smuggle an element onto the table').toBe(0);
+    expect((await cardNames(player))[0]).toBe('<img src=x onerror=alert(1)>');
+  });
+});
