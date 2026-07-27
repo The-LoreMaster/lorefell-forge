@@ -318,3 +318,52 @@ script block and reports any name declared more than once. That is a small scrip
 mechanical, and it would have caught both of these at the moment they were introduced. It
 belongs beside checkContracts and checkGlobals, which means `scripts/`, a denied path, so
 it is written down here rather than added.
+
+---
+
+## F6 — The sheet's own Act dropdown cannot tell two weapons apart
+
+**Status:** real, reproduced, deliberately not fixed. It bites only when the sheet is
+used on its own; ThreadSpire's card row, which is the surface at the table, resolves this
+correctly now.
+**Found:** 2026-07-27, building per-card selection for the card row.
+**Files:** `docs/fellglass.html`
+
+### What is wrong
+
+`renderBattle` puts one Act per weapon, so a Fell carrying two trees has two entries
+named "Basic attack", differing only in `src`. They are not the same deed: the damage
+differs, and `Afflicted`, `Merciless`, `Powerful` and `Ethereal` are all read off
+`e.src` inside `cbDeclare`.
+
+The declare UI carries the Act as a bare name. `cbArOptions` gives both entries the same
+option value, `cbHandPick(nm)` sets the select by name, and `cbActEntry` returns the
+first match. So a player looking at two identical "Basic attack" options picks one, has
+no way to tell which, and always gets the first weapon's.
+
+### What is already fixed, and why that is not this
+
+The row identifies a card by source and position, sends `src` with the declare, and
+`cbActEntry(nm, src)` prefers the weapon named. `src` is a preference: a caller that
+passes nothing gets the first match exactly as before, which is what keeps this dropdown
+working rather than newly broken. Proven in `s3g`, against the real sheet, both ways
+round.
+
+That fix stops at the wire. It cannot reach the dropdown, because the dropdown never
+knows which weapon in the first place.
+
+### Why it is not being fixed here
+
+The option value would have to stop being the Act's name and start being an identity,
+and four places read it as a name: `cbHandPick`, `cbKindOf`, `cbHandSeg` and
+`cbDmgHint`. That is a refactor of the sheet's declare UI, and the sheet's declare UI is
+retired while ThreadSpire is hosting: on the table this code does not run. It is off-table
+solo use that still reaches it.
+
+### What would settle it
+
+Give each Act a stable key in `renderBattle`, value the options by it, and take the four
+readers through a lookup instead of a name. Then `cbActEntry`'s `src` argument becomes
+belt and braces rather than the only thing standing between a player and the wrong
+weapon. One spec: two weapons, pick the second in the sheet's own dropdown, assert the
+damage that goes out is the second one's.
