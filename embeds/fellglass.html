@@ -3416,6 +3416,10 @@ function renderCharges(){
     C.charge===2?"T2 charged. Land a T2 ability to charge T3.":
     "T3 charged. Using a T3 ability clears all charges.";
   renderStrip();
+  /* A charge moves acts between locked and reachable, and the LoreMaster can set one
+     from their side without the hand itself being rebuilt, so the card row is told here
+     as well as from renderBattle. */
+  try{ tsSendHand(); }catch(e){}
 }
 
 /* ---------- fatigue / mobility ---------- */
@@ -3895,12 +3899,28 @@ function updateAurum(){$("aurumTotal").textContent=AURUM.reduce((s,[k,,r])=>s+C.
 renderAurum();
 
 /* ---------- battle: acts/reacts/passives + dmg ---------- */
+/* Which Magic skill a spell casts on is a property of the weapon's TREE, not of the
+   individual spell: every ability on a Foci weapon casts on Weaving, on an Artifact
+   weapon on Spirit, on the Cards/Scroll/Grimoire tree on Creation. Source is the
+   FellGuide, "Magic Weapons" (the Spell Skill column) and "Spell Attack". The three
+   physical trees never cast, so they are absent rather than empty.
+
+   Grimoire and Tome are the same tree under two names. The vault calls it the Tome
+   Tree; this tool and schemas/seed/CanonWeapons.json both key it "Grimoire", after its
+   third form. w.tree carries the tool's key, so Grimoire is the one that matches today.
+   Tome is kept beside it so a seed regenerated to the vault's name still casts rather
+   than silently falling back to an Evasion roll. */
+const SPELL_SKILL_BY_TREE={ Foci:"Weaving", Artifact:"Spirit", Grimoire:"Creation", Tome:"Creation" };
 function arEntry(src,nm,d,dim){return `<div class="ar-entry"${dim?' style="opacity:.45"':""}><div class="ar-head"><span class="src">${src}</span><span class="nm">${nm}</span></div>${d?`<div class="d">${d}</div>`:""}</div>`;}
 function renderBattle(){
   /* every component carries a use type (Act / React / Passive); buckets fill from that */
   const buckets={Act:"",React:"",Passive:""};
   const arNames={Act:[],React:[],Passive:[]};
-  const put=(use,src,nm,d,tier,kind)=>{if(buckets[use]!==undefined){buckets[use]+=arEntry(src,nm,d);arNames[use].push({src:src,nm:nm,tier:(tier===undefined?null:tier),kind:kind||"standard"});}};
+  /* The description used to reach the printed list and stop there, so COMBAT_ACTS and
+     COMBAT_REACTS carried a name and nothing that explained it. ThreadSpire's card row
+     reads this feed, and a card with no words on it is not a card, so the text travels
+     with the entry now. */
+  const put=(use,src,nm,d,tier,kind)=>{if(buckets[use]!==undefined){buckets[use]+=arEntry(src,nm,d);arNames[use].push({src:src,nm:nm,desc:d||"",tier:(tier===undefined?null:tier),kind:kind||"standard"});}};
   C.weapons.forEach(w=>{
     const src=weaponName(w)||"weapon";
     if(w.tree) put("Act",src,"Basic attack","Tier 0 \u00b7 standard strike",0,"weapon");
@@ -3941,7 +3961,7 @@ function renderBattle(){
   put("Act","skills","Any skill","All 24 skills may be attempted as an Act.",undefined,"standard");
   if((C.inventory||[]).length) put("Act","items","Use an item","Spend your Act to use a carried item.",undefined,"standard");
   put("React","ally","Assist an ally","Add your competency or half your attribute to an adjacent ally's roll. To clear an Affliction, you both roll and either Fellmark removes it.",undefined,"standard");
-  put("React","movement","Move","Movement occurs as part of an Act or React, once per round.",undefined,"standard");
+  put("React","movement","Move","Movement is a React. It spends your entire React and is never part of an Act. Once per round.",undefined,"standard");
   put("React","skills","Any skill","All 24 skills may be attempted as a React, such as a defensive move or countering a threat.",undefined,"standard");
   const acts=buckets.Act,reacts=buckets.React,passives=buckets.Passive;
   $("actsList").innerHTML=acts||'<p class="note">Choose weapon abilities to populate your Acts.</p>';
@@ -3951,11 +3971,25 @@ function renderBattle(){
   C.weapons.filter(function(w){return w.tree;}).forEach(function(w){
     var cat=WEAPON_DB[w.tree].category, d=cbWeaponDmg(w);
     var aff=weaponAff(w);
-    _wInfo[weaponName(w)]={dmg:d.base+d.bonus, base:d.base, dt:(cat==='magic'?'magic':'phys'), aff:aff};
+    _wInfo[weaponName(w)]={dmg:d.base+d.bonus, base:d.base, dt:(cat==='magic'?'magic':'phys'), aff:aff, tree:w.tree, cat:cat};
   });
   if(!C.weapons.some(function(w){return w.tree;})){ var _up=1+Math.max(0,attrTotal("power")); _wInfo["Unarmed"]={dmg:_up, base:_up, dt:"phys", aff:""}; }
-  window.COMBAT_ACTS=arNames.Act.map(function(a){ var i=_wInfo[a.src]; return {src:a.src,nm:a.nm,dmg:i?i.dmg:0,base:i?i.base:0,dt:i?i.dt:null,aff:i?i.aff:'',tier:(typeof a.tier==='number'?a.tier:null),kind:a.kind}; });
+  window.COMBAT_ACTS=arNames.Act.map(function(a){
+    var i=_wInfo[a.src], t=(typeof a.tier==='number'?a.tier:null);
+    /* What contest an attack rolls is set by standard-versus-ability, never by the
+       weapon's family. A standard swing is Precision against Evasion for every weapon,
+       magic included, and costs no charge. Only a CHARGED ability on a magic weapon is
+       a Spell Attack, and it rolls its tree's Magic skill against the LoreMaster's
+       Difficulty instead of Evasion. An infusion carries no tier and is not an ability,
+       so a null tier stays on the Evasion path. */
+    var spell = !!(i && i.cat==='magic' && a.kind==='weapon' && t!==null && t>=1);
+    return {src:a.src,nm:a.nm,desc:a.desc||'',dmg:i?i.dmg:0,base:i?i.base:0,dt:i?i.dt:null,aff:i?i.aff:'',
+            tier:t,kind:a.kind,
+            contest:(spell?'difficulty':'evasion'),
+            castSkill:(spell?(SPELL_SKILL_BY_TREE[i.tree]||''):'')};
+  });
   window.COMBAT_REACTS=arNames.React;
+  tsSendHand();
   let dmg="";
   C.weapons.filter(w=>w.tree).forEach(w=>{
     const d=cbWeaponDmg(w);
@@ -3965,6 +3999,61 @@ function renderBattle(){
   dmg+=`<div class="roll-row"><span class="nm">Durability</span><span class="formula">Blocks Physical</span><span class="result">${attrTotal("durability")}</span></div>`;
   dmg+=`<div class="roll-row"><span class="nm">Resistance</span><span class="formula">Blocks Magical</span><span class="result">${attrTotal("resistance")}</span></div>`;
   $("battleDmg").innerHTML=dmg;
+}
+
+/* ---------- the hand, handed outward ----------
+   ThreadSpire draws the player's Acts and Reacts as cards under the map, and the hand it
+   draws is THIS one. Nothing is recomputed over there: the sheet owns what a Fell can do,
+   because the sheet is where the arsenal, the inventory, the talents and the charge live.
+   This is the whole of that seam, a payload and a way to ask for it.
+
+   Locked is decided here rather than filtered here, which is the one place this differs
+   from the sheet's own hand. cbDealAttacks drops an act it cannot afford; the card row
+   has to SHOW it, greyed, so a player can see what the next charge would buy them. So
+   every entry travels and carries whether it is reachable. */
+function tsHandLocked(tier, charge){
+  return (typeof tier==='number' && tier>0 && tier>(charge||0));
+}
+function tsHandPayload(){
+  var ch=C.charge||0;
+  var g=(typeof cbGates==='function')?cbGates():{noAct:false,noReact:false,notes:[]};
+  var skills={};
+  Object.keys(C.skills||{}).forEach(function(n){ skills[n]=(typeof cbSkillBonus==='function')?cbSkillBonus(n):0; });
+  var round=(typeof COMBAT!=='undefined' && COMBAT && COMBAT.round)||0;
+  return {
+    charge: ch,
+    gates: g,
+    acts: (window.COMBAT_ACTS||[]).map(function(a){
+      return Object.assign({}, a, { locked: tsHandLocked(a.tier, ch) });
+    }),
+    reacts: (window.COMBAT_REACTS||[]).map(function(r){
+      return { src:r.src, nm:r.nm, desc:r.desc||'', tier:(typeof r.tier==='number'?r.tier:null),
+               kind:r.kind, locked: tsHandLocked(r.tier, ch) };
+    }),
+    skills: skills,
+    items: (C.inventory||[]).map(function(x){
+      var nm=(x&&x.name)?x.name:String(x||"");
+      return { name:nm, qty:(x&&x.qty)||1 };
+    }).filter(function(x){ return !!x.name; }),
+    stances: ['Shrouded','Stalwart','Vestments'],
+    worn: (C.armor&&C.armor.active)||null,
+    round: round,
+    declared: !!(window._declaredRound && round && window._declaredRound===round),
+    reactUsed: !!window._reactUsed
+  };
+}
+/* Sent on every rebuild of the hand and on every charge change, since a charge is what
+   moves an act between locked and reachable. Signed so an unchanged hand does not cross
+   the frame boundary on every repaint, the same guard publishCombat uses on the board. */
+function tsSendHand(){
+  if(window.parent===window) return;
+  var p;
+  try{ p=tsHandPayload(); }catch(e){ return; }
+  var sig;
+  try{ sig=JSON.stringify(p); }catch(e){ return; }
+  if(sig===window._tsHandSig) return;
+  window._tsHandSig=sig;
+  try{ window.parent.postMessage({ type:"ts-hand", hand:p }, "*"); }catch(e){}
 }
 
 /* ---------- status ---------- */
@@ -5706,6 +5795,10 @@ window.onmessage=ev=>{
   const d=ev&&ev.data;
   if(!d||typeof d!=="object"||!d.type)return;
   if(d.type==="goto-panel"){ if(d.panel){ window._tsPanel=d.panel; switchPanel(d.panel); } return; }
+  /* ThreadSpire asking for the hand outright, for the first paint of the card row or
+     after its frame reloads. Forced past the signature guard: the asker has nothing, so
+     "unchanged" is the wrong answer to give it. */
+  if(d.type==="ts-hand-request"){ window._tsHandSig=null; try{ tsSendHand(); }catch(e){} return; }
   if(d.type==="ts-new"){ postToVelo({type:"add-character"}); return; }
   if(d.type==="ts-god"){ god=!!d.on; document.body.classList.toggle("god",god); var gb=$("godBtn"); if(gb) gb.classList.toggle("on",god); try{renderWeapons();renderDials();renderArmor();renderLorebounds();renderCampaignOptions();renderMotivation();syncIdentityLock();}catch(e){} return; }
   bridged=true;

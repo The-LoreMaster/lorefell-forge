@@ -6856,7 +6856,11 @@ function fwFoeDamage(f, attrs){
     if (FW_BASE_INF[n]) base += attrs[FW_BASE_INF[n]] || 0;
     if (FW_BONUS_INF[n]) bonus += attrs[FW_BONUS_INF[n]] || 0;
   });
-  var acc = t==='magic' ? ('1d6 + Magic '+(attrs.Magic||0)) : ('1d6 + Precision '+(attrs.Precision||0));
+  /* A standard attack resolves on Precision against Evasion whether the weapon is
+     physical or magic; Magic only ever sets Base Damage. This line read out Magic for
+     a magic build, so the card told the loremaster to roll one thing while
+     cbRollFoeAcc rolled another. The roll was always right, only the label lied. */
+  var acc = '1d6 + Precision '+(attrs.Precision||0);
   return { type:t, base:base, bonus:bonus, acc:acc,
     text: base + (bonus ? ' + ' + bonus : ' + 0') + ' ' + (t==='magic' ? 'magical' : 'physical') };
 }
@@ -9066,6 +9070,7 @@ function cbResolveSpot(){
       if(n.ref.target && n.ref.target.indexOf('p:')===0){
         var _pst=pState(n.ref.target.slice(2)), _acc=(n.ref._acc&&n.ref._acc.total)||0, _eva=null;
         (_pst.defEva||[]).forEach(function(e){ if(e.foe===('m:'+n.ref.id)) _eva=e.total; });
+        /* Ties land, so a tied swing is a confirmed hit and does advance the charge. */
         if(_eva!=null){ _known=true; _landed=(_acc>=_eva); }
       }
       if(_known && _landed){ var _fc=n.ref.charge||0, _fnv=(_T===3?0:(_T===_fc?Math.min(3,_T+1):_fc)); if(_fnv!==_fc){ n.ref.charge=_fnv; cbLog('system', n.ref.name+' charge now '+_fnv+'.'); } }
@@ -9289,6 +9294,8 @@ function cbIncoming(n){
       rows+='<div class="cb-incoming">'+head+'<span class="cb-inc-dice"><span class="cb-inc-elbl">'+esc(n.name)+' Evasion</span>'+(pk?strip:die)+'</span></div>';
       return;
     }
+    /* A tie goes to the attacker. Canon says the higher result hits and the ruling is
+       that equal totals land, so >= is the rule here and not a slipped comparison. */
     var hit=(st.acc>=ev.total);
     rows+='<div class="cb-incoming"><div class="cb-inc-res">'+head
       +'<div class="cb-inc-line">Accuracy '+st.acc+' vs Evasion '+ev.total+' ('+ev.r+'+'+ev.bonus+')'+cbLuckDice(ev)+(ev.luck?(' \u00b7 '+ev.luck):'')+' \u00b7 <b class="'+(hit?'cb-hit':'cb-miss')+'">'+(hit?'Hit':'Evaded')+'</b></div>'
@@ -9364,6 +9371,7 @@ function cbFoeAcc(n){
   if(!c._acc) return '<div class="cb-foeacc"><button class="fw-die big" onclick="fwSpinDie(this,function(){cbRollFoeAcc(\''+c.id+'\')})" aria-label="Roll accuracy">?</button> '+strip+' <span class="fw-dielbl">Roll the accuracy, tap the die.</span></div>';
   var acc=c._acc.total, pid=c.target.slice(2), st=pState(pid), eva=null;
   (st.defEva||[]).forEach(function(e){ if(e.foe===('m:'+c.id)) eva=e.total; });
+  /* Same tie rule as the incoming row: equal totals hit, the attacker takes the tie. */
   var res = (eva!=null) ? (' \u00b7 vs Evasion '+eva+' \u00b7 <b class="'+(acc>=eva?'cb-hit':'cb-miss')+'">'+(acc>=eva?'Hit':'Evaded')+'</b>') : ' \u00b7 <span class="cb-wait">waiting for evasion</span>';
   return '<div class="cb-foeacc">Accuracy '+acc+' ('+c._acc.r+'+'+c._acc.bonus+')'+cbLuckDice(c._acc)+(c._acc.luck?(' \u00b7 '+c._acc.luck):'')+res+' <button class="cb-link" onclick="cbRollFoeAcc(\''+c.id+'\')">Reroll</button></div>';
 }
@@ -9659,6 +9667,7 @@ function fwEvaRow(n){
   if(!c._acc) return '<div class="cb-foeacc"><span class="cb-wait">Accuracy not set.</span> <button class="cb-link" onclick="setPhase(\'commit\')">Open Commit</button></div>';
   var acc=c._acc.total;
   if(eva===null) return '<div class="cb-foeacc">Evasion \u00b7 <span class="cb-wait">waiting for '+esc(pn)+' (accuracy '+acc+')</span></div>';
+  /* Same tie rule as every other hit test on the board: equal totals hit. */
   return '<div class="cb-foeacc">Evasion '+eva+' vs accuracy '+acc+' \u00b7 <b class="'+(acc>=eva?'cb-hit':'cb-miss')+'">'+(acc>=eva?'Hit':'Evaded')+'</b></div>';
 }
 function fwFoeReact(n){

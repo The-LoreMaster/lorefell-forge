@@ -2229,8 +2229,12 @@ function foeDamage(f, attrs){
     if (FW_BASE_INF[n]) base += attrs[FW_BASE_INF[n]] || 0;
     if (FW_BONUS_INF[n]) bonus += attrs[FW_BONUS_INF[n]] || 0;
   });
+  /* A standard attack resolves on Precision against Evasion whatever the foe fights
+     with; Magic sets Base Damage and never the roll to land. The same line in
+     FateWell's fwFoeDamage read out Magic for a magic build, and this is its twin, so
+     it carried the same wrong instruction to whoever read this card. */
   return { type:t, base:base, bonus:bonus,
-           acc: t === 'magic' ? ('1d6 + Magic ' + (attrs.Magic || 0)) : ('1d6 + Precision ' + (attrs.Precision || 0)),
+           acc: '1d6 + Precision ' + (attrs.Precision || 0),
            text: base + ' + ' + bonus + ' ' + (t === 'magic' ? 'magical' : 'physical') };
 }
 function sheetSetAtkPref(v){ sheetSetField('atkPref', v); }
@@ -6120,10 +6124,33 @@ function renderSheetSub(active){
 }
 function sheetSubGoto(panel){ sheetGoto(panel); renderSheetSub(panel); }
 function sheetSetHeight(h){ /* fixed 610x940 window for now; auto-size disabled */ }
+/* ---- the player's hand ----
+   What this Fell can do this round: their Acts, their Reacts, what a charge has locked
+   and what it has opened. It is derived in FellGlass, from the arsenal, inventory,
+   talents and charge the sheet already holds, and handed here. Nothing about a hand is
+   worked out on this side, so there is one answer to "what can I do" and the sheet owns
+   it. Held outside S: it is this viewer's own hand, never part of the shared board, and
+   applyRemoteState must not be able to reach it, the same wall the camera sits behind. */
+var hand = null;
+var _handSeen = 0;
+function tsHandTake(h){
+  if (!h || typeof h !== 'object') return;
+  hand = h;
+  _handSeen = Date.now();
+  /* the row that draws this does not exist yet; when it does it repaints from here */
+  if (typeof renderHand === 'function') renderHand();
+}
+/* Ask outright. The sheet volunteers its hand whenever the hand changes, but a frame
+   that has just come up has missed every one of those, so the row asks on open. */
+function tsHandRequest(){ sheet.postMessage({ type:'ts-hand-request' }); }
 window.addEventListener('message', function(ev){
   var f = document.getElementById('sheetFrame');
   if (f && ev.source === f.contentWindow && ev.data && ev.data.type){
     if (ev.data.type === 'sheet-height'){ sheetSetHeight(ev.data.h); return; }
+    /* The player's Acts and Reacts, as the sheet derives them. Kept between this frame
+       and the sheet and deliberately not relayed onward: the site has no use for it and
+       the board never travels a hand. Returns before the TS_TOOL_UP relay below. */
+    if (ev.data.type === 'ts-hand'){ tsHandTake(ev.data.hand); return; }
     if (ev.data.type === 'save' && ev.data.character){ S.sheet = ev.data.character; S.charReady = true; if (typeof applySheet === 'function') applySheet(); render(); }
     /* A Fell written to from this side is a Fell somebody else is holding an older copy
        of. Mark it, and the mark travels with the table's state to whoever it belongs to. */
@@ -6156,6 +6183,9 @@ window.addEventListener('message', function(ev){
          open. Only the first was re-sent, so a Fell opened from a cold frame came back
          without the LoreMaster's hand on it. */
       if (S.godMode || S.godChar) sheet.postMessage({ type:'ts-god', on:true });
+      /* the hand belongs to whoever's sheet this frame is showing, so a Fell the
+         LoreMaster is holding open does not hand its Acts to this table's card row */
+      if (!S.godChar) tsHandRequest();
     }
     if (tsEmbedded()){
       var out = ev.data;
