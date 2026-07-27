@@ -461,6 +461,20 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
    stay on top of them, since those are how a player leaves the row. */
 #hand{ position:fixed; left:0; right:0; bottom:18px; z-index:58; pointer-events:none; }
 #hand.hidden{ display:none; }
+/* ---- what the right-hand end of the band is reserved for ----
+   The Fellmark gem sits at left:93.169% width:3.322%, in viewport percentages, so
+   anything that has to clear it must be expressed the same way or the two disagree at
+   every width but the one they were checked at. The pill is parked against the gem's
+   left edge, and the row reserves the pill's own width beyond that, from the same
+   numbers. Change one and the other follows.
+
+   --hand-gem-gap   from the right edge of the viewport to the gem's left edge
+   --hand-pill-w    the pill's width, fixed so the reservation can be exact */
+:root{
+  --hand-gem-gap: 6.831%;
+  --hand-pill-w: 128px;
+  --hand-right-clear: calc(var(--hand-gem-gap) + 12px + var(--hand-pill-w) + 14px);
+}
 /* Both ends of this band are already spoken for: the die tray in the bottom-left corner,
    and the portrait, level and Fellmark down the right, which reach to within a few pixels
    of the bottom. So the cards start and stop clear of them and scroll between. The
@@ -468,9 +482,37 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .hand-scroll{
   display:flex; align-items:stretch; gap:9px;
   overflow-x:auto; overflow-y:hidden; scroll-snap-type:x proximity;
-  padding:6px 188px calc(6px + env(safe-area-inset-bottom, 0px)) 108px;
+  padding:6px var(--hand-right-clear) calc(6px + env(safe-area-inset-bottom, 0px)) 108px;
   pointer-events:auto; overscroll-behavior-x:contain;
 }
+/* ---- the More Options pill ----
+   A reminder that the sheet is still there, sitting against the Fellmark gem with its
+   arrow pointing at it. Deliberately quiet: this is a signpost a player should be able
+   to ignore for a whole fight, not a call to action competing with their own cards. The
+   prototype drew it in alarm red; the brief asks for subtle, and subtle wins. */
+#moreOpt{
+  position:fixed; z-index:58;
+  right:calc(var(--hand-gem-gap) + 12px);
+  top:89.351%; height:7.027%;
+  width:var(--hand-pill-w);
+  display:flex; align-items:center; justify-content:center; gap:7px;
+  font-family:Cinzel,serif; font-size:.55rem; letter-spacing:.09em; text-transform:uppercase;
+  color:rgba(201,168,76,.72);
+  background:rgba(10,14,26,.42);
+  border:1px solid rgba(201,168,76,.28);
+  border-radius:999px;
+  backdrop-filter:blur(2px);
+  cursor:pointer; transition:opacity .18s ease, border-color .18s ease, color .18s ease;
+  opacity:.78;
+}
+#moreOpt:hover{ opacity:1; color:var(--gold); border-color:rgba(201,168,76,.55); }
+#moreOpt:focus-visible{ outline:2px solid var(--gold); outline-offset:2px; }
+#moreOpt.hidden{ display:none; }
+#moreOpt .mo-arrow{ font-size:.6rem; color:rgba(201,168,76,.6); }
+/* On a phone the side HUD and its gem are gone entirely and the bottom rail is the way
+   into the sheet, already labelled. A pill pointing at a gem that is not there would be
+   pointing at nothing, so it stays off. */
+@media (max-width:700px){ #moreOpt{ display:none !important; } }
 .hand-lab{
   flex:0 0 auto; align-self:center; font-family:Cinzel,serif; font-size:.52rem;
   letter-spacing:.16em; text-transform:uppercase; color:var(--muted);
@@ -1055,6 +1097,7 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
   </div>
   <div id="lmstrip" class="hidden"></div>
   <div id="hand" class="hidden" aria-label="Your Acts and Reacts"></div>
+  <button type="button" id="moreOpt" class="hidden" title="Your Inventory, Skills, Lore and Arsenal">More Options<span class="mo-arrow" aria-hidden="true">▶</span></button>
 
   <div id="devbar">
     <div class="dvh">Testing</div>
@@ -6654,6 +6697,10 @@ function renderHand(){
   if (!el) return;
   var show = !isLM() && S.mode === 'combat' && !!hand && hand.active !== false;
   el.classList.toggle('hidden', !show);
+  /* the pill belongs to the combat surface and comes and goes with it: out of a fight
+     the sheet is reachable the ordinary ways and needs no reminder */
+  var mo = document.getElementById('moreOpt');
+  if (mo) mo.classList.toggle('hidden', !show);
   if (!show){ el.innerHTML = ''; return; }
 
   var charge = hand.charge || 0;
@@ -6720,6 +6767,8 @@ function renderHand(){
   document.addEventListener('keydown', function(ev){
     if (ev.key === 'Escape' && armed) handDisarm();
   });
+  var mo = document.getElementById('moreOpt');
+  if (mo) mo.addEventListener('click', function(){ try { openWin('fell'); } catch(e){} });
 })();
 window.addEventListener('message', function(ev){
   var f = document.getElementById('sheetFrame');
