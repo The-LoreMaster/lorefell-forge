@@ -67,12 +67,23 @@ const targetable = (frame, tokenId) => frame.evaluate((id) => {
   return window.tokenTargetable(t);
 }, tokenId);
 
+/* These cases set S.tokens and S.mode locally and then assert on what the page did
+ * with them. The shared-store poll writes both of those from the feed, so a poll landing
+ * mid-test replaces the very state under test and the case fails for a reason that has
+ * nothing to do with what it is asking. That is correct product behaviour, the LoreMaster
+ * owns the board, and it makes the feed the wrong thing to leave running while measuring
+ * local rendering. Pinned after boot; the specs that are ABOUT sync leave it alone. */
+async function pinFeed(frame) {
+  await frame.evaluate(() => { window.applyRemoteSnapshot = function () {}; });
+}
+
 test.describe('S3c a token resolves to the fighter it is, or to nothing', () => {
 
   test('a foe token resolves to its combatant', async ({ page }) => {
     await T.openTable(page, playerOnly());
     const player = await T.frameFor(page, 'player');
     await T.waitBooted(page, player, 'player');
+    await pinFeed(player);
 
     await seat(player, { tokens: [
       { id: 'tk1', kind: 'foe', refId: 'cb-erasure', name: 'The Erasure' },
@@ -87,6 +98,7 @@ test.describe('S3c a token resolves to the fighter it is, or to nothing', () => 
     await T.openTable(page, playerOnly());
     const player = await T.frameFor(page, 'player');
     await T.waitBooted(page, player, 'player');
+    await pinFeed(player);
 
     /* the case that matters: two copies of one library foe, same name, different
        combatants. Hitting "the other one" is invisible until someone dies wrong. */
@@ -112,6 +124,7 @@ test.describe('S3c a token resolves to the fighter it is, or to nothing', () => 
     await T.openTable(page, playerOnly());
     const player = await T.frameFor(page, 'player');
     await T.waitBooted(page, player, 'player');
+    await pinFeed(player);
 
     await seat(player, { tokens: [{ id: 'tk3', kind: 'npc', refId: 'cb-herald', name: 'The Herald' }] });
     expect(await keyOf(player, 'tk3')).toBe('m:cb-herald');
@@ -121,6 +134,7 @@ test.describe('S3c a token resolves to the fighter it is, or to nothing', () => 
     await T.openTable(page, playerOnly());
     const player = await T.frameFor(page, 'player');
     await T.waitBooted(page, player, 'player');
+    await pinFeed(player);
 
     /* the scene-built token carries the LoreMaster's player id in refId, the
        roster-built one carries the character id. Both are the same Fell and both must
@@ -141,6 +155,7 @@ test.describe('S3c a token resolves to the fighter it is, or to nothing', () => 
     await T.openTable(page, playerOnly());
     const player = await T.frameFor(page, 'player');
     await T.waitBooted(page, player, 'player');
+    await pinFeed(player);
 
     await seat(player, { tokens: [{ id: 'tkGhost', kind: 'foe', refId: 'cb-not-here', name: 'Leftover' }] });
 
@@ -152,6 +167,7 @@ test.describe('S3c a token resolves to the fighter it is, or to nothing', () => 
     await T.openTable(page, playerOnly());
     const player = await T.frameFor(page, 'player');
     await T.waitBooted(page, player, 'player');
+    await pinFeed(player);
 
     await seat(player, { tokens: [{ id: 'tkAnon', kind: 'p', refId: 'pl-7', charId: '', name: 'Someone' }] });
 
@@ -165,6 +181,7 @@ test.describe('S3c a token resolves to the fighter it is, or to nothing', () => 
     await T.openTable(page, playerOnly());
     const player = await T.frameFor(page, 'player');
     await T.waitBooted(page, player, 'player');
+    await pinFeed(player);
 
     await seat(player, { tokens: [
       { id: 'tkArt', kind: 'asset', refId: 'cb-erasure', name: 'A brazier' }
@@ -178,6 +195,7 @@ test.describe('S3c a token resolves to the fighter it is, or to nothing', () => 
     await T.openTable(page, playerOnly());
     const player = await T.frameFor(page, 'player');
     await T.waitBooted(page, player, 'player');
+    await pinFeed(player);
 
     const tokens = [{ id: 'tk1', kind: 'foe', refId: 'cb-erasure', name: 'The Erasure' }];
 
@@ -195,6 +213,7 @@ test.describe('S3c a token resolves to the fighter it is, or to nothing', () => 
     await T.openTable(page, playerOnly());
     const player = await T.frameFor(page, 'player');
     await T.waitBooted(page, player, 'player');
+    await pinFeed(player);
 
     await seat(player, { fighters: [], tokens: [{ id: 'tk1', kind: 'foe', refId: 'cb-erasure' }] });
     expect(await keyOf(player, 'tk1')).toBe(null);
@@ -204,6 +223,7 @@ test.describe('S3c a token resolves to the fighter it is, or to nothing', () => 
     await T.openTable(page, playerOnly());
     const player = await T.frameFor(page, 'player');
     await T.waitBooted(page, player, 'player');
+    await pinFeed(player);
 
     const r = await player.evaluate(() => {
       window.S.tokens = [{ id: 'tk1', kind: 'foe', refId: 'cb-erasure' }];
@@ -223,6 +243,7 @@ test.describe('S3c a token resolves to the fighter it is, or to nothing', () => 
     await T.openTable(page, playerOnly());
     const player = await T.frameFor(page, 'player');
     await T.waitBooted(page, player, 'player');
+    await pinFeed(player);
 
     /* The whole mapping rests on one claim: that the refId on a foe token is the same id
      * FateWell built 'm:<id>' from. Everything above assumes it. This proves it, by

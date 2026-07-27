@@ -42,6 +42,11 @@ function hand(nActs, nReacts) {
 }
 
 async function deal(frame, h) {
+  /* The shared-store poll writes S.mode and S.tokens from the feed, which is exactly the
+     state these cases set and then measure. A poll landing mid-test replaces it and the case
+     fails for a reason unrelated to what it asks. Correct product behaviour, wrong thing to
+     leave running while measuring local rendering. */
+    await frame.evaluate(() => { window.applyRemoteSnapshot = function () {}; });
   await frame.evaluate((x) => {
     window.S.role = 'player'; window.S.mode = 'combat';
     window.tsHandTake(x); window.render();

@@ -116,12 +116,23 @@ const pickerLabel = (frame) => frame.evaluate(() => {
   return p ? p.textContent : null;
 });
 
+/* These cases set S.tokens and S.mode locally and then assert on what the page did
+ * with them. The shared-store poll writes both of those from the feed, so a poll landing
+ * mid-test replaces the very state under test and the case fails for a reason that has
+ * nothing to do with what it is asking. That is correct product behaviour, the LoreMaster
+ * owns the board, and it makes the feed the wrong thing to leave running while measuring
+ * local rendering. Pinned after boot; the specs that are ABOUT sync leave it alone. */
+async function pinFeed(frame) {
+  await frame.evaluate(() => { window.applyRemoteSnapshot = function () {}; });
+}
+
 test.describe('S3b the card row draws the hand', () => {
 
   test('the row keeps out of the way until there is a fight', async ({ page }) => {
     await T.openTable(page, playerOnly());
     const player = await T.frameFor(page, 'player');
     await T.waitBooted(page, player, 'player');
+    await pinFeed(player);
 
     expect(await rowHidden(player), 'no fight, no row').toBe(true);
 
@@ -136,6 +147,7 @@ test.describe('S3b the card row draws the hand', () => {
     await T.openTable(page, playerOnly());
     const player = await T.frameFor(page, 'player');
     await T.waitBooted(page, player, 'player');
+    await pinFeed(player);
 
     await dealHand(player, 0);
     expect(await rowHidden(player)).toBe(false);
@@ -149,6 +161,7 @@ test.describe('S3b the card row draws the hand', () => {
     await T.openTable(page, playerOnly());
     const player = await T.frameFor(page, 'player');
     await T.waitBooted(page, player, 'player');
+    await pinFeed(player);
     await dealHand(player, 0);
 
     /* one group at a time since A3, so this is two looks rather than one */
@@ -161,6 +174,7 @@ test.describe('S3b the card row draws the hand', () => {
     await T.openTable(page, playerOnly());
     const player = await T.frameFor(page, 'player');
     await T.waitBooted(page, player, 'player');
+    await pinFeed(player);
     await dealHand(player, 0);
 
     const t3 = await cardByName(player, 'Worldspire');
@@ -178,6 +192,7 @@ test.describe('S3b the card row draws the hand', () => {
     await T.openTable(page, playerOnly());
     const player = await T.frameFor(page, 'player');
     await T.waitBooted(page, player, 'player');
+    await pinFeed(player);
 
     await dealHand(player, 0);
     expect((await cardByName(player, 'Razorwind')).locked).toBe(true);
@@ -198,6 +213,7 @@ test.describe('S3b the card row draws the hand', () => {
     await T.openTable(page, playerOnly());
     const player = await T.frameFor(page, 'player');
     await T.waitBooted(page, player, 'player');
+    await pinFeed(player);
     await dealHand(player, 3);
 
     const spell = await cardByName(player, 'Razorwind');
@@ -213,6 +229,7 @@ test.describe('S3b the card row draws the hand', () => {
     await T.openTable(page, playerOnly());
     const player = await T.frameFor(page, 'player');
     await T.waitBooted(page, player, 'player');
+    await pinFeed(player);
     await dealHand(player, 3);
 
     const basic = await cardByName(player, 'Basic attack');
@@ -229,6 +246,7 @@ test.describe('S3b the card row draws the hand', () => {
     await T.openTable(page, playerOnly());
     const player = await T.frameFor(page, 'player');
     await T.waitBooted(page, player, 'player');
+    await pinFeed(player);
 
     await player.evaluate(() => {
       window.S.role = 'player';
@@ -252,6 +270,7 @@ test.describe('S3b the card row draws the hand', () => {
     await T.openTable(page, playerOnly());
     const player = await T.frameFor(page, 'player');
     await T.waitBooted(page, player, 'player');
+    await pinFeed(player);
     await dealHand(player, 3);
 
     expect(await armedNames(player), 'nothing is held to begin with').toEqual([]);
@@ -268,6 +287,7 @@ test.describe('S3b the card row draws the hand', () => {
     await T.openTable(page, playerOnly());
     const player = await T.frameFor(page, 'player');
     await T.waitBooted(page, player, 'player');
+    await pinFeed(player);
     await dealHand(player, 3);
 
     await tapCard(player, 'Razorwind');
@@ -284,6 +304,7 @@ test.describe('S3b the card row draws the hand', () => {
     await T.openTable(page, playerOnly());
     const player = await T.frameFor(page, 'player');
     await T.waitBooted(page, player, 'player');
+    await pinFeed(player);
     await dealHand(player, 0);
 
     await tapCard(player, 'Worldspire');
@@ -298,6 +319,7 @@ test.describe('S3b the card row draws the hand', () => {
     await T.openTable(page, playerOnly());
     const player = await T.frameFor(page, 'player');
     await T.waitBooted(page, player, 'player');
+    await pinFeed(player);
     await dealHand(player, 3);
 
     expect(await pickerLabel(player), 'nothing to choose until a card is held').toBe(null);
@@ -315,6 +337,7 @@ test.describe('S3b the card row draws the hand', () => {
     await T.openTable(page, playerOnly());
     const player = await T.frameFor(page, 'player');
     await T.waitBooted(page, player, 'player');
+    await pinFeed(player);
     await dealHand(player, 3);
 
     await tapCard(player, 'Basic attack');
@@ -325,6 +348,7 @@ test.describe('S3b the card row draws the hand', () => {
     await T.openTable(page, playerOnly());
     const player = await T.frameFor(page, 'player');
     await T.waitBooted(page, player, 'player');
+    await pinFeed(player);
 
     await player.evaluate((h) => {
       h.declared = true;
@@ -348,6 +372,7 @@ test.describe('S3b the card row draws the hand', () => {
     await T.openTable(page, playerOnly());
     const player = await T.frameFor(page, 'player');
     await T.waitBooted(page, player, 'player');
+    await pinFeed(player);
 
     await player.evaluate((h) => {
       h.gates = { noAct: true, noReact: false, notes: [{ name: 'Ensnared', rule: 'You may not utilize Acts.' }] };
@@ -369,6 +394,7 @@ test.describe('S3b the card row draws the hand', () => {
     await T.openTable(page, playerOnly());
     const player = await T.frameFor(page, 'player');
     await T.waitBooted(page, player, 'player');
+    await pinFeed(player);
 
     await dealHand(player, 3);
     await tapCard(player, 'Worldspire');
@@ -385,6 +411,7 @@ test.describe('S3b the card row draws the hand', () => {
     await T.openTable(page, playerOnly());
     const player = await T.frameFor(page, 'player');
     await T.waitBooted(page, player, 'player');
+    await pinFeed(player);
 
     await player.evaluate(() => {
       window.S.role = 'player';

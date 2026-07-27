@@ -46,6 +46,12 @@ const ACTS = [
  * separately; what is under test here is the row, the round it stamps, and the road out. */
 async function seatPlayer(frame, opts) {
   opts = opts || {};
+  /* Both frames are up here, so the LoreMaster publishes mode 'explore' and this player
+   * adopts it, hiding the row and with it the note some of these cases read. That is
+   * correct product behaviour and it is not what this spec is asking about. Pinning only
+   * the snapshot: the declare road under test runs through TS_TOOL_UP and the host store,
+   * neither of which this touches. */
+  await frame.evaluate(() => { window.applyRemoteSnapshot = function () {}; });
   await frame.evaluate(({ round, phase, acts, fighters, sheetRound }) => {
     window.S.role = 'player';
     window.S.mode = 'combat';
@@ -242,6 +248,12 @@ test.describe('S3f the row declares and the board sees it', () => {
     await send(frames.player);
 
     expect(await frames.player.evaluate(() => window.armed)).toBe(null);
-    expect(await note(frames.player)).toContain('Sent');
+    /* A5 replaced the moment's "Sent" note with a stamp that stays on the card: a
+       confirmation that disappears is one a player can miss and then declare twice. */
+    const stamped = await frames.player.evaluate(() => {
+      const c = document.querySelector('#hand .hcard.declared');
+      return c ? c.textContent : null;
+    });
+    expect(stamped, 'the card says it went, and keeps saying it').toContain('Declared');
   });
 });

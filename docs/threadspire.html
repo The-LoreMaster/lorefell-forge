@@ -633,6 +633,18 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .hp-opt:focus-visible{ outline:2px solid var(--gold); outline-offset:2px; }
 .hc-pick{ font-size:.6rem; color:var(--gold); }
 .hc-target{ font-size:.64rem; color:var(--gold); font-family:Cinzel,serif; letter-spacing:.02em; }
+/* A declaration that landed. Quieter than a held card, because it is done rather than
+   pending: the player needs to see it went, not to keep looking at it. */
+.hcard.declared{ border-color:rgba(134,199,155,.55); }
+.hc-declared{
+  font-family:Cinzel,serif; font-size:.52rem; letter-spacing:.08em; text-transform:uppercase;
+  color:#86c79b; border:1px solid rgba(134,199,155,.4); border-radius:999px;
+  padding:1px 7px; align-self:flex-start; margin-top:1px;
+}
+/* the token a declaration is pointed at, on the declaring player's own table */
+.token.aimed{ box-shadow:0 0 0 2px rgba(201,168,76,.9), 0 0 16px 4px rgba(201,168,76,.45); }
+/* a Fell the LoreMaster can see is locked in */
+.token.declared{ box-shadow:0 0 0 2px rgba(134,199,155,.85), 0 0 14px 3px rgba(134,199,155,.35); }
 /* A word back to the player when a gesture was taken but could not be acted on. Sits
    with the row so it is read where the hand is, not across the table. */
 .hand-note{
@@ -646,14 +658,7 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
   font-family:Cinzel,serif; font-size:.52rem; letter-spacing:.12em; text-transform:uppercase;
   color:var(--muted);
 }
-.hs-btn{
-  font-family:Cinzel,serif; font-size:.66rem; letter-spacing:.08em;
-  border:1px solid var(--line); border-radius:8px; padding:5px 13px;
-  background:rgba(20,27,51,.94); color:var(--muted);
-}
-.hs-btn.on{ border-color:var(--gold); color:var(--gold); background:rgba(43,36,16,.94); }
-.hs-btn.on:hover{ background:rgba(58,48,20,.96); }
-.hs-btn:focus-visible{ outline:2px solid var(--gold); outline-offset:2px; }
+.hs-hint{ font-family:Cinzel,serif; font-size:.58rem; letter-spacing:.06em; color:rgba(201,168,76,.85); }
 @media (max-width:700px){ .hand-send{ margin-left:76px; margin-right:14px; } }
 .hc-lock{
   font-family:Cinzel,serif; font-size:.5rem; letter-spacing:.1em; text-transform:uppercase;
@@ -3935,6 +3940,9 @@ function declaresLoad(){
   tsAsk('TS_COMBAT_DECLARES', {}).then(function(list){
     S.declares = list || [];
     if (typeof paintLmStrip === 'function') paintLmStrip();
+    /* the board carries the same answer as the strip: which Fell are locked in. Without
+       this the marks only appeared whenever something else happened to repaint. */
+    try { renderTokens(); } catch(e){}
   }).catch(function(){});
 }
 function declareFor(charId){
@@ -6485,6 +6493,9 @@ var armed = null;
 /* Which group the row is showing. The player's own choice, so it is not reset by a hand
    arriving; only an empty group sends it back to the Acts. */
 var handTab = 'act';
+/* What this Fell has declared this round, once it has landed. Held so the row can stamp
+   the card and the board can mark the target, and cleared when the round moves on. */
+var declaredAs = null;
 /* Some Acts are a category rather than a deed. "Any skill" is not an Act until it is a
    skill, and an item Act is not one until it is an item, so the card asks before it can
    be aimed at anything. */
@@ -6556,15 +6567,33 @@ function handSay(msg){
   clearTimeout(window._handNoteT);
   window._handNoteT = setTimeout(function(){ _handNote = ''; try { renderHand(); } catch(e){} }, 2600);
 }
-/* Aim the held card. Returns false when there is nothing to aim or nothing to aim it at,
-   so the caller can fall through. */
+/* The Fell's own tier 0 strike: what "attack" means when nothing has been chosen. Used
+   by the right-click shortcut, which is a way of saying "hit that" without first saying
+   what with. */
+function handStandardAttack(){
+  var acts = (hand && hand.acts) || [];
+  for (var i = 0; i < acts.length; i++){
+    var a = acts[i];
+    if (a.kind === 'weapon' && a.tier === 0 && !a.locked && !handBarred(a, 'act')) return a;
+  }
+  return null;
+}
+/* Aim the held card and commit it. The tap on the target IS the send: there is no second
+   step, because a Beat is one Act and a button between choosing and doing was one more
+   thing to forget at the table. Returns false when there is nothing to aim or nothing to
+   aim it at, so the caller can fall through to whatever else wanted the gesture. */
 function handAim(t){
   if (!armed) return false;
   var f = tokenFighter(t);
   if (!f) return false;
   armed.target = f.key;
   armed.targetName = f.name || '';
+  /* Show the target taken BEFORE trying to send it. The send may be refused, or simply
+     take a moment, and until A4 removed the button this repaint happened on the way to
+     it; without it the card sits there naming nobody while the player waits to find out
+     whether anything happened. */
   renderHand();
+  handDeclare();
   return true;
 }
 /* A tap on a token. Only takes the tap when a card is actually held, so tapping a token
@@ -6577,7 +6606,14 @@ function handAimByTap(t){ return handAim(t); }
 function handAimByMenu(t){
   if (!hand || hand.active === false) return false;    /* no fight: the picker's */
   if (!tokenFighter(t)) return false;                  /* not a fighter: the picker's */
-  if (!armed){ handSay('Choose an Act or React first, then pick your target.'); return true; }
+  /* Nothing held is not nothing meant. Right-clicking a foe with an empty hand is the
+     ordinary thing a player wants to do to it, so it is a standard attack rather than a
+     scolding. If they have no standard attack to make, say so instead of failing quietly. */
+  if (!armed){
+    var std = handStandardAttack();
+    if (!std){ handSay('No standard attack to make right now.'); return true; }
+    armed = { entry: std, group:'act', need:handNeeds(std), skill:'', item:'', stance:'' };
+  }
   return handAim(t);
 }
 /* ---- sending it ----
@@ -6626,8 +6662,14 @@ function handDeclare(){
 function handDeclareResult(res){
   res = res || {};
   if (res.ok){
+    /* What went, and at whom. The card stamps rather than simply vanishing, because a
+       declaration you cannot see is one you will make twice. Cleared by the round tick
+       when the sheet sends a hand for a round this does not belong to. */
+    declaredAs = { act: armed ? armed.entry.nm : '', target: armed ? armed.target : '',
+                   targetName: armed ? armed.targetName : '', round: res.round || (hand && hand.round) || 0 };
     armed = null;
-    handSay('Sent to the LoreMaster.');
+    renderHand();
+    try { renderTokens(); } catch(e){}
     return;
   }
   var why = {
@@ -6708,8 +6750,14 @@ function handCard(e, charge, group){
   if (isArmed && armed.targetName){
     bits += '<span class="hc-target">→ ' + esc(armed.targetName) + '</span>';
   }
+  /* the card this Fell actually declared, stamped so it can be seen at a glance */
+  var isDeclared = !!(declaredAs && group === 'act' && declaredAs.act === e.nm);
+  if (isDeclared){
+    bits += '<span class="hc-declared">Declared'
+         + (declaredAs.targetName ? ' at ' + esc(declaredAs.targetName) : '') + '</span>';
+  }
   var cls = 'hcard' + (locked ? ' locked' : '') + (barred ? ' barred' : '')
-          + (isArmed ? ' armed' : '');
+          + (isArmed ? ' armed' : '') + (isDeclared ? ' declared' : '');
   return '<button type="button" class="' + cls + '"'
     + ((locked || barred || spent) ? ' aria-disabled="true"' : '')
     + ' aria-pressed="' + (isArmed ? 'true' : 'false') + '"'
@@ -6743,6 +6791,10 @@ function renderHand(){
     el.innerHTML = '<div class="hand-empty">No Acts on this Fell yet. Take a weapon and they appear here.</div>';
     return;
   }
+  /* a declaration belongs to the round it was made in; when the round moves on the stamp
+     goes with it, the same tick that frees the Act again */
+  if (declaredAs && hand.round && declaredAs.round !== hand.round) declaredAs = null;
+
   /* a card chosen last round is not a card this round; the sheet clears its own state
      on the round tick and the row follows it rather than keeping a stale hold */
   if (armed){
@@ -6758,20 +6810,22 @@ function renderHand(){
      different moments: a player who cannot hold a card at all, sitting out an opening, is
      exactly the one who most needs telling why, and hanging the explanation off the send
      button meant they were the only one who never saw it. */
+  /* What is happening, and what the held card is still waiting for. No Send control:
+     tapping the target commits, so a button here would be a second way to do the same
+     thing and a first way to forget to. */
   var pn = handPhaseNote();
+  var hint = '';
+  if (armed){
+    hint = (armed.need && !armed[armed.need])
+      ? ('Choose a ' + armed.need + ', then tap your target')
+      : 'Tap your target';
+  }
   var send = '';
-  if (pn || armed){
-    var btn = '';
-    if (armed){
-      var ready = handReady();
-      var lbl = ready ? ('Send' + (armed.targetName ? ' at ' + armed.targetName : ''))
-                      : (armed.need && !armed[armed.need] ? ('Choose a ' + armed.need)
-                                                          : 'Tap a target');
-      btn = '<button type="button" class="hs-btn' + (ready ? ' on' : '') + '" data-send="1">' + esc(lbl) + '</button>';
-    }
+  if (pn || hint){
     send = '<div class="hand-send">'
       + (pn ? '<span class="hs-phase">' + esc(pn) + '</span>' : '')
-      + btn + '</div>';
+      + (hint ? '<span class="hs-hint">' + esc(hint) + '</span>' : '')
+      + '</div>';
   }
   /* One group at a time, chosen by the tabs. Showing both at once is what made the row
      long enough to need paging in the first place, and it buried the Reacts off the
@@ -6838,7 +6892,6 @@ function handSetTab(t){
     if (tab){ handSetTab(tab.getAttribute('data-tab')); return; }
     var pg = ev.target.closest && ev.target.closest('[data-page]');
     if (pg){ handPage(Number(pg.getAttribute('data-page')) || 0); return; }
-    if (ev.target.closest && ev.target.closest('[data-send]')){ handDeclare(); return; }
     var opt = ev.target.closest && ev.target.closest('.hp-opt');
     if (opt){ handPick(opt.getAttribute('data-pick'), opt.getAttribute('data-val')); return; }
     var card = ev.target.closest && ev.target.closest('.hcard');
@@ -7965,8 +8018,15 @@ function renderTokens(){
     /* a Fell's own token wears the gold rim on that Fell's table, so its player can see
        at a glance which one answers to them */
     var isMine = t.mine || ownFell;
+    /* Two marks the board carries during a fight, one for each side of a declaration.
+       The player sees a ring on what they aimed at; the LoreMaster sees a ring on every
+       Fell who has locked in, which is the same question asked from the other chair:
+       who is committed, and who am I still waiting on. */
+    var aimedAt = !isLM() && declaredAs && declaredAs.target && tokenTargetKey(t) === declaredAs.target;
+    var lmLocked = isLM() && t.kind === 'p' && t.charId && declareFor(t.charId) && (declareFor(t.charId).act || '');
     el.className = 'token ' + t.kind + (isMine ? ' mine' : '') + (draggable && !isMine ? ' lm-drag' : '')
-      + (sel === t.id ? ' sel' : '') + (art ? ' hasimg' : '') + (_flashToken === t.id ? ' justplaced' : '');
+      + (sel === t.id ? ' sel' : '') + (art ? ' hasimg' : '') + (_flashToken === t.id ? ' justplaced' : '')
+      + (aimedAt ? ' aimed' : '') + (lmLocked ? ' declared' : '');
     el.setAttribute('data-tok', t.id);
     var full = tokenName(t);
     var face = art ? '' : esc(initials(full));

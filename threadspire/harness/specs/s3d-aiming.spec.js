@@ -49,6 +49,11 @@ const ACTS = [
 
 /* Two tokens: one that is a fighter, one that is not. Both are real tokens on the board. */
 async function seat(frame, opts) {
+  /* The shared-store poll writes S.mode and S.tokens from the feed, which is exactly the
+     state these cases set and then measure. A poll landing mid-test replaces it and the case
+     fails for a reason unrelated to what it asks. Correct product behaviour, wrong thing to
+     leave running while measuring local rendering. */
+    await frame.evaluate(() => { window.applyRemoteSnapshot = function () {}; });
   opts = opts || {};
   await frame.evaluate(({ active, fighters, myCharId }) => {
     window.S.role = 'player';
@@ -189,21 +194,27 @@ test.describe('S3d aiming never takes the roll picker away', () => {
     expect(await pickerOpen(player)).toBe(true);
   });
 
-  test('inside combat with no card held, right-click a fighter says so rather than doing nothing', async ({ page }) => {
+  /* Superseded by A4. This used to answer an empty hand with "choose an Act first"; the
+   * ruling is now that right-clicking a foe with nothing held IS the standard attack,
+   * because nothing held is not nothing meant. What has not changed, and is what this
+   * case is really guarding, is that the gesture is still taken from the picker only
+   * when it lands on a real fighter during a real fight. */
+  test('inside combat with no card held, right-click a fighter is a standard attack', async ({ page }) => {
     const player = await T.frameFor(page, 'player');
     await T.waitBooted(page, player, 'player');
     await loadActs(player);
     await seat(player, { active: true });
     await closePicker(player);
 
+    expect(await player.evaluate(() => window.armed), 'nothing held to begin with').toBe(null);
     await rightClickToken(player, 'tkFoe');
 
-    const note = await player.evaluate(() => {
-      const n = document.querySelector('#hand .hand-note');
-      return n ? n.textContent : null;
-    });
-    expect(note, 'it answers the gesture').toContain('Choose an Act');
-    expect(await pickerOpen(player), 'and having answered, it does not also open the picker').toBe(false);
+    const held = await player.evaluate(() =>
+      window.armed ? { act: window.armed.entry.nm, target: window.armed.target } : null);
+    expect(held, 'the shortcut picked something up on the player\'s behalf').toBeTruthy();
+    expect(held.act).toBe('Basic attack');
+    expect(held.target).toBe('m:cb-erasure');
+    expect(await pickerOpen(player), 'and it is aiming\'s gesture, not the picker\'s').toBe(false);
   });
 
   /* ---- tapping, the primary path -------------------------------------------------- */
