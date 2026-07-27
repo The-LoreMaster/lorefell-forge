@@ -4042,6 +4042,9 @@ function tsHandPayload(){
        gates on this rather than guessing from the round number, since round survives a
        battle ending and a hand with no fight around it is just a list. */
     active: !!(typeof COMBAT!=='undefined' && COMBAT && COMBAT.active),
+    /* what the board is doing, so the row can say the LoreMaster is already resolving
+       rather than leaving a player wondering why their Act did not take */
+    phase: (typeof COMBAT!=='undefined' && COMBAT && COMBAT.phase) || '',
     /* Who is actually on the field, as the LoreMaster published them. This is the ONLY
        list of legal targets: a key that is not in here is not a fighter, whatever a
        token on the board happens to be called. The card row resolves against it rather
@@ -5338,7 +5341,7 @@ function cbDeclareFormHtml(){
     +'<div class="cb-row">'+(declared?'<button class="btn small" id="cbCancelEdit">Keep current</button>':'')+'<button class="btn small gold" id="cbSend">Send to LoreMaster</button></div>';
 }
 function cbDeclareFormInit(){
-  var s=document.getElementById("cbSend"); if(s) s.addEventListener("click",sendDeclare);
+  var s=document.getElementById("cbSend"); if(s) s.addEventListener("click",cbDeclare);
   var ce=document.getElementById("cbCancelEdit"); if(ce) ce.addEventListener("click",function(){ window._editDecl=false; applyCombatMode(); });
   cbDmgHint(); cbInitFellBonus(); cbInitRollPick();
   var g=cbGates(), gate=document.getElementById("cbGate");
@@ -5726,11 +5729,40 @@ function sendReact(){
   cbPing(stancePick?("Stance shifted to "+stancePick+"."):isMove?("Movement spends your React. Your Act is still free."):("React declared \u00b7 "+val+"."), true);
   applyCombatMode();
 }
-function sendDeclare(){
+/* Build the declaration from what the player has chosen, then hand it to sendDeclare to
+   go out. These were BOTH called sendDeclare, at the top level of one script, so the
+   later declaration quietly replaced the earlier one everywhere. Three things followed
+   from that and none of them announced itself:
+
+     - the line at the end of this function, meant to hand the finished payload to the
+       transport, called this function again instead. A declare with any damage on it
+       recursed until the stack gave out, so the Act never left the sheet at all.
+     - the transport's reqId, its pending table and its seven second retry became
+       unreachable, which also left the combat-declare-ack handler matching against a
+       table nothing was ever put into.
+     - cbResetSelf's call, which passes a payload and means the transport, came here
+       instead and threw its argument away.
+
+   Renaming the builder fixes all three: the two callers that pass a payload now reach
+   the transport they always meant, and this one keeps the name it is called by. */
+/* Where cbDeclare reads its choices from.
+   Normally the declare form's own controls. When ThreadSpire's card row is driving, that
+   form may never have been rendered, so the row supplies the same values through here
+   instead. One function still assembles the payload, with all of the rules that live in
+   it, whichever surface the player used; the alternative was a second copy of Ignited,
+   the stance revert, Merciless, Vitiated, Afflicted and pierce, which would drift. */
+function cbCtl(id){
+  var o=window._cbCtlOverride;
+  if(o && Object.prototype.hasOwnProperty.call(o,id)) return { value:o[id] };
+  return document.getElementById(id);
+}
+function cbDeclare(){
   if(!CUR_WIX_ID) return;
-  var act=document.getElementById("cbAct")?document.getElementById("cbAct").value:"";
+  var _actEl=cbCtl("cbAct");
+  var act=_actEl?_actEl.value:"";
   var react="";
-  var target=document.getElementById("cbFocus")?document.getElementById("cbFocus").value:"";
+  var _tgtEl=cbCtl("cbFocus");
+  var target=_tgtEl?_tgtEl.value:"";
   var affs=[].concat((C.afflictions||[]).map(function(a){return {name:a.name,kind:"affliction"};}),
                      (C.effects||[]).map(function(e){return {name:e.name,kind:"effect"};}));
   var round=(COMBAT&&COMBAT.round)||1;
@@ -5741,7 +5773,7 @@ function sendDeclare(){
   var acc=roll?(roll+Math.max(0,attrTotal("precision"))):0;
   var foeFocus = target && target.indexOf("m:")===0;
   var afflicted = !!(e && cbWeaponHasInf(e.src,'Afflicted'));
-  var afSel = document.getElementById("cbAfflictedSel");
+  var afSel = cbCtl("cbAfflictedSel");
   var chosenAff = (afflicted && afSel) ? afSel.value : "";
   var applies = (fell && foeFocus && e) ? (afflicted ? chosenAff : (e.aff||"")) : "";
   var merc = !!(e && cbWeaponHasInf(e.src,'Merciless'));
@@ -5758,15 +5790,15 @@ function sendDeclare(){
   if(window._stanceRound!==round){ window._stanceRound=round; window._stanceBase=(C.armor&&C.armor.active)||null; window._stanceApplied=false; }
   window._skillFell=null;
   if(e && e.src==="items"){
-    var _iSel=document.getElementById("cbItemSel"); var _in=_iSel?_iSel.value:"";
+    var _iSel=cbCtl("cbItemSel"); var _in=_iSel?_iSel.value:"";
     if(_in) act=act+" \u00b7 "+_in;
   }
   if(e && e.src==="skills"){
-    var _kSel=document.getElementById("cbSkillSel"); var _kn=_kSel?_kSel.value:"";
+    var _kSel=cbCtl("cbSkillSel"); var _kn=_kSel?_kSel.value:"";
     if(_kn){ act=act+" \u00b7 "+_kn; if(roll) acc=roll+cbSkillBonus(_kn); if(roll===6) window._skillFell={round:round, skill:_kn}; }
   }
   if(e && e.src==="armor"){
-    var _sSel=document.getElementById("cbStanceSel");
+    var _sSel=cbCtl("cbStanceSel");
     var _sv=(_sSel&&_sSel.value)||(C.armor&&C.armor.active)||"";
     if(_sv && C.armor.active!==_sv) cbApplyStancePick(_sv);
     if(_sv){ act=act+" \u00b7 "+_sv; window._stanceApplied=true; }
@@ -5812,6 +5844,44 @@ window.onmessage=ev=>{
      after its frame reloads. Forced past the signature guard: the asker has nothing, so
      "unchanged" is the wrong answer to give it. */
   if(d.type==="ts-hand-request"){ window._tsHandSig=null; try{ tsSendHand(); }catch(e){} return; }
+  /* ThreadSpire's card row declaring on the player's behalf. Everything it sends is
+     checked here rather than trusted, because the row is a second surface onto the same
+     Beat and the sheet is the one that knows the rules.
+
+     The round is the first check and the important one. mergeDeclares on the board
+     CLEARS any declare whose round is not the round it is currently running, so a
+     declare stamped with a stale round does not arrive wrong, it silently does not
+     arrive at all. The row therefore sends back the round it read off the hand rather
+     than letting anything guess, and if the fight has moved on since, this refuses and
+     says why instead of posting something that will be thrown away in silence. */
+  if(d.type==="ts-declare"){
+    var res=(function(){
+      if(!CUR_WIX_ID) return { ok:false, reason:"no-character" };
+      if(!(COMBAT&&COMBAT.active)) return { ok:false, reason:"no-combat" };
+      var now=(COMBAT&&COMBAT.round)||0;
+      if(typeof d.round!=="number" || d.round!==now) return { ok:false, reason:"stale-round", round:now };
+      var e=cbActEntry(d.act);
+      if(!e) return { ok:false, reason:"unknown-act" };
+      if(typeof e.tier==="number" && e.tier>0 && e.tier>(C.charge||0)) return { ok:false, reason:"locked" };
+      var g=(typeof cbGates==="function")?cbGates():{noAct:false};
+      if(g.noAct) return { ok:false, reason:"barred" };
+      if(cbActDmg(d.act)>0 && !d.roll) return { ok:false, reason:"needs-roll" };
+      window._cbCtlOverride={ cbAct:d.act||"", cbFocus:d.target||"",
+                              cbSkillSel:d.skill||"", cbItemSel:d.item||"",
+                              cbStanceSel:d.stance||"", cbAfflictedSel:d.applies||"" };
+      if(typeof d.roll==="number") window._cbRoll=d.roll;
+      if(typeof d.fellBonus==="number") window._fellBonus=d.fellBonus;
+      try{ cbDeclare(); }
+      catch(err){ return { ok:false, reason:"threw", detail:String(err&&err.message||err) }; }
+      finally{ window._cbCtlOverride=null; }
+      /* cbDeclare stamps this only once it has actually built and sent a payload */
+      if(window._declaredRound!==d.round) return { ok:false, reason:"not-sent" };
+      return { ok:true, round:d.round };
+    })();
+    try{ window.parent.postMessage({ type:"ts-declare-result", result:res }, "*"); }catch(e){}
+    try{ tsSendHand(); }catch(e){}
+    return;
+  }
   if(d.type==="ts-new"){ postToVelo({type:"add-character"}); return; }
   if(d.type==="ts-god"){ god=!!d.on; document.body.classList.toggle("god",god); var gb=$("godBtn"); if(gb) gb.classList.toggle("on",god); try{renderWeapons();renderDials();renderArmor();renderLorebounds();renderCampaignOptions();renderMotivation();syncIdentityLock();}catch(e){} return; }
   bridged=true;

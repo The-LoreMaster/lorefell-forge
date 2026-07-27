@@ -175,14 +175,31 @@ one pass by someone who can edit the file.
 | Type | Direction | Entry it needs |
 | --- | --- | --- |
 | `ts-hand` | FellGlass → ThreadSpire | `ALLOW.fellglass` += `'ts-hand'` |
+| `ts-declare-result` | FellGlass → ThreadSpire | `ALLOW.fellglass` += `'ts-declare-result'` |
 | `ts-hand-request` | ThreadSpire → FellGlass | `CHILD.threadspire.types` += `'ts-hand-request'` |
+| `ts-declare` | ThreadSpire → FellGlass | `CHILD.threadspire.types` += `'ts-declare'` |
 
 Applied, that is:
 
 ```js
-fellglass: ['init', 'new', 'libraries', 'ts-hand'],   // ts-hand is handled by docs/threadspire.html, not the page bridge
-CHILD = { threadspire: { tool: 'fellglass', types: ['ts-god', 'ts-new', 'goto-panel', 'ts-hand-request'] } };
+fellglass: ['init', 'new', 'libraries', 'ts-hand', 'ts-declare-result'],   // handled by docs/threadspire.html, not the page bridge
+CHILD = { threadspire: { tool: 'fellglass',
+          types: ['ts-god', 'ts-new', 'goto-panel', 'ts-hand-request', 'ts-declare'] } };
 ```
+
+### A blind spot worth knowing about while applying these
+
+`emits()` only recognises a type it can see inline in the call:
+
+```js
+matchAll(/\.postMessage\s*\(\s*\{\s*type\s*:\s*['"]([^'"]+)['"]/g, s)
+```
+
+A payload assembled into a variable first and posted afterwards is invisible to it, so
+the gap count understates the real contract surface rather than overstating it. `ts-declare`
+was written that way at first and the checker did not see it at all; it is now posted as a
+literal so the gate can check it. Worth remembering when reading a green result: green
+means nothing unregistered was *detected*, not that nothing unregistered exists.
 
 ### The rule this register follows
 

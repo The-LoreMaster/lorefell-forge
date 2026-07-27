@@ -569,6 +569,20 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
   font-size:.7rem; color:var(--ice); width:fit-content;
 }
 @media (max-width:700px){ .hand-note{ margin-left:76px; margin-right:14px; } }
+.hand-send{ pointer-events:auto; margin:0 108px 6px; display:flex; align-items:center; gap:9px; }
+.hs-phase{
+  font-family:Cinzel,serif; font-size:.52rem; letter-spacing:.12em; text-transform:uppercase;
+  color:var(--muted);
+}
+.hs-btn{
+  font-family:Cinzel,serif; font-size:.66rem; letter-spacing:.08em;
+  border:1px solid var(--line); border-radius:8px; padding:5px 13px;
+  background:rgba(20,27,51,.94); color:var(--muted);
+}
+.hs-btn.on{ border-color:var(--gold); color:var(--gold); background:rgba(43,36,16,.94); }
+.hs-btn.on:hover{ background:rgba(58,48,20,.96); }
+.hs-btn:focus-visible{ outline:2px solid var(--gold); outline-offset:2px; }
+@media (max-width:700px){ .hand-send{ margin-left:76px; margin-right:14px; } }
 .hc-lock{
   font-family:Cinzel,serif; font-size:.5rem; letter-spacing:.1em; text-transform:uppercase;
   color:var(--gold); border:1px solid rgba(201,168,76,.4); border-radius:999px;
@@ -6454,6 +6468,67 @@ function handAimByMenu(t){
   if (!armed){ handSay('Choose an Act or React first, then pick your target.'); return true; }
   return handAim(t);
 }
+/* ---- sending it ----
+   The row does not build a declaration. It says what the player chose and lets the sheet
+   assemble it, because every rule that shapes a declare, Ignited, the stance revert,
+   Merciless, Vitiated, pierce, the Fellmark affliction, lives there and belongs in one
+   place. What travels is a choice, not a payload.
+
+   The round travels with it, taken from the hand the row is currently drawing rather
+   than worked out here. The board clears any declare whose round is not the one it is
+   running, so a guessed round does not arrive wrong, it silently fails to arrive; the
+   sheet checks the one we send against its own and refuses out loud if the fight has
+   moved on. */
+function handNeedsRoll(){
+  return !!(armed && armed.entry && (armed.entry.dmg || 0) > 0);
+}
+function handReady(){
+  if (!armed) return false;
+  if (armed.need && !armed[armed.need]) return false;      /* a category with nothing chosen */
+  if (armed.need === 'stance') return true;                /* a stance is aimed at nobody */
+  return !!armed.target;
+}
+function handDeclare(){
+  if (!armed || !hand) return;
+  if (!handReady()){
+    handSay(armed.need && !armed[armed.need]
+      ? ('Choose which ' + armed.need + ' first.')
+      : 'Pick your target first: tap a token.');
+    return;
+  }
+  /* Posted as a literal rather than assembled into a variable first, deliberately:
+     checkContracts only recognises a message type it can see inline in the postMessage
+     call, so a payload built up beforehand is a contract the gate cannot check. Being
+     visible to the tooling is worth more than the tidier local. */
+  sheet.postMessage({
+    type: 'ts-declare',
+    act: armed.entry.nm,
+    skill: armed.skill || '', item: armed.item || '', stance: armed.stance || '',
+    target: armed.target || '',
+    /* read off the hand, never worked out here */
+    round: hand.round || 0,
+    /* an attack needs a roll before it can be sent; the sheet refuses one without */
+    roll: handNeedsRoll() ? (1 + Math.floor(Math.random() * 6)) : 0
+  });
+}
+function handDeclareResult(res){
+  res = res || {};
+  if (res.ok){
+    armed = null;
+    handSay('Sent to the LoreMaster.');
+    return;
+  }
+  var why = {
+    'stale-round': 'The round moved on before that landed. Your hand has been refreshed, declare again.',
+    'no-combat': 'The fight is over.',
+    'locked': 'That needs more charge than you have.',
+    'barred': 'Something on you forbids an Act this round.',
+    'needs-roll': 'That Act needs a roll.',
+    'unknown-act': 'The sheet does not know that Act.',
+    'no-character': 'No Fell is loaded.'
+  }[res.reason] || 'The sheet refused that declare.';
+  handSay(why);
+}
 function handClearTarget(){
   if (!armed) return;
   armed.target = ''; armed.targetName = '';
@@ -6560,7 +6635,20 @@ function renderHand(){
   }
 
   var note = _handNote ? '<div class="hand-note">' + esc(_handNote) + '</div>' : '';
-  var h = note + handPicker() + '<div class="hand-scroll">';
+  /* The one control on the row. It only appears with a card in hand, and it says what is
+     still missing rather than sitting there greyed with no reason given. */
+  var send = '';
+  if (armed){
+    var ready = handReady();
+    var lbl = ready ? ('Send' + (armed.targetName ? ' at ' + armed.targetName : ''))
+                    : (armed.need && !armed[armed.need] ? ('Choose a ' + armed.need)
+                                                        : 'Tap a target');
+    send = '<div class="hand-send">'
+      + (hand.phase === 'resolve' ? '<span class="hs-phase">The LoreMaster is resolving</span>' : '')
+      + '<button type="button" class="hs-btn' + (ready ? ' on' : '') + '" data-send="1">' + esc(lbl) + '</button>'
+      + '</div>';
+  }
+  var h = note + send + handPicker() + '<div class="hand-scroll">';
   if (acts.length){
     h += '<span class="hand-lab">Acts</span>';
     acts.forEach(function(a){ h += handCard(a, charge, 'act'); });
@@ -6577,6 +6665,7 @@ function renderHand(){
   var el = document.getElementById('hand');
   if (!el) return;
   el.addEventListener('click', function(ev){
+    if (ev.target.closest && ev.target.closest('[data-send]')){ handDeclare(); return; }
     var opt = ev.target.closest && ev.target.closest('.hp-opt');
     if (opt){ handPick(opt.getAttribute('data-pick'), opt.getAttribute('data-val')); return; }
     var card = ev.target.closest && ev.target.closest('.hcard');
@@ -6596,6 +6685,7 @@ window.addEventListener('message', function(ev){
        and the sheet and deliberately not relayed onward: the site has no use for it and
        the board never travels a hand. Returns before the TS_TOOL_UP relay below. */
     if (ev.data.type === 'ts-hand'){ tsHandTake(ev.data.hand); return; }
+    if (ev.data.type === 'ts-declare-result'){ handDeclareResult(ev.data.result); return; }
     if (ev.data.type === 'save' && ev.data.character){ S.sheet = ev.data.character; S.charReady = true; if (typeof applySheet === 'function') applySheet(); render(); }
     /* A Fell written to from this side is a Fell somebody else is holding an older copy
        of. Mark it, and the mark travels with the table's state to whoever it belongs to. */
