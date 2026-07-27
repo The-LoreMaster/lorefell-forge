@@ -495,7 +495,16 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 }
 .hand-scroll{
   display:flex; align-items:stretch; gap:9px; flex:1 1 auto; min-width:0;
-  overflow-x:auto; overflow-y:hidden; scroll-snap-type:x proximity;
+  /* Centred between the dice tray and the pill when the cards fit, and hard against the
+     left when they do not. `safe` is what makes the second half true: a plain `center`
+     on an overflowing flex row pushes the first card off the left-hand end where no
+     amount of scrolling can reach it. Declared twice on purpose - a browser that does
+     not know the keyword drops the second line and keeps the left-aligned row, which is
+     the old behaviour rather than an unreachable one. */
+  justify-content:flex-start;
+  justify-content:safe center;
+  /* a card is either on the row or it is not; the row does not rest half way through one */
+  overflow-x:auto; overflow-y:hidden; scroll-snap-type:x mandatory;
   padding:6px 2px;
   pointer-events:auto; overscroll-behavior-x:contain;
   scrollbar-width:none;
@@ -514,6 +523,9 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .hand-pager:focus-visible{ outline:2px solid var(--gold); outline-offset:2px; }
 .hand-pager.gone{ visibility:hidden; pointer-events:none; }
 /* Acts / Reacts, above the row. One group shows at a time. */
+/* The left margin is set in script, not here: the tab sits over the first card, and where
+   that card starts depends on whether the row is centred or scrolling. 108px is the
+   starting point and the floor, matching the row's own clearance of the dice tray. */
 .hand-tabs{
   display:flex; gap:6px; margin:0 var(--hand-right-clear) 6px 108px;
   pointer-events:auto;
@@ -555,7 +567,7 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
    pointing at nothing, so it stays off. */
 @media (max-width:700px){ #moreOpt{ display:none !important; } }
 .hcard{
-  flex:0 0 152px; scroll-snap-align:center; text-align:left;
+  flex:0 0 152px; scroll-snap-align:start; text-align:left;
   display:flex; flex-direction:column; gap:3px;
   background:linear-gradient(180deg, rgba(20,27,51,.92), rgba(10,14,26,.92));
   border:1px solid var(--line); border-radius:10px; padding:7px 9px 8px;
@@ -6874,7 +6886,8 @@ function handPickMenu(){
       var lk = !!a.locked;
       h += '<button type="button" class="hp-opt' + (lk ? ' locked' : '') + '"'
         + (lk ? ' aria-disabled="true"' : ' data-ptake="' + esc(handKey(a, i)) + '"') + '>'
-        + esc(a.nm) + (a.src ? '<span class="hp-src">' + esc(a.src) + '</span>' : '')
+        + '<span class="hp-name">' + esc(a.nm) + '</span>'
+        + (a.src ? '<span class="hp-src">' + esc(a.src) + '</span>' : '')
         + (lk ? '<span class="hp-lock">Charge ' + a.tier + '</span>' : '') + '</button>';
     });
   } else {
@@ -7186,18 +7199,43 @@ function renderHand(){
 
   var sc = el.querySelector('.hand-scroll');
   if (sc){
-    /* the browser clamps this to the new content on its own, so a row that got shorter
-       lands at its end rather than past it */
-    if (keepLeft) sc.scrollLeft = keepLeft;
-    sc.addEventListener('scroll', function(){ handPagers(); handPickPlace(); }, { passive:true });
+    /* Back to the card it was resting on. The browser clamps to the new content on its
+       own, so a row that got shorter lands at its end rather than past it, and handRest
+       makes sure what we put back is a place the row will actually stay. */
+    if (keepLeft) sc.scrollLeft = handRest(sc, keepLeft);
+    sc.addEventListener('scroll', function(){ handPagers(); handTabsAlign(); handPickPlace(); }, { passive:true });
   }
   /* after the scroll is back where it was, so the drop-up lands over the card as the
      player is actually seeing it */
   handShowArmed();
+  handTabsAlign();
   handPickPlace();
   /* the arrows can only be decided once the row has been laid out, measured and put back
      where it was */
   handPagers();
+}
+/* The Acts tab stands over the first card rather than over the row's own left edge. They
+   are different places: the pagers hold their width either side even while hidden, so
+   there is always a gap between where the row begins and where the cards begin, and when
+   the cards fit they are centred and the gap is larger still. The tab was landing in that
+   gap, labelling nothing.
+
+   Measured rather than derived, because it depends on the pager width, the centring, and
+   how many cards there are, and any formula would be a copy of the layout that could
+   drift from it. */
+function handTabsAlign(){
+  var el = document.getElementById('hand');
+  if (!el) return;
+  var tabs = el.querySelector('.hand-tabs');
+  var sc = el.querySelector('.hand-scroll');
+  if (!tabs || !sc) return;
+  var host = el.getBoundingClientRect();
+  var first = sc.querySelector('.hcard') || sc.firstElementChild;
+  /* while the row is scrolling, the first card is wherever it has been scrolled to and is
+     the wrong thing to point at; the cards then begin at the row's own left edge */
+  var fits = sc.scrollWidth <= sc.clientWidth + 1;
+  var left = (first && fits) ? first.getBoundingClientRect().left : sc.getBoundingClientRect().left;
+  tabs.style.marginLeft = Math.max(0, Math.round(left - host.left)) + 'px';
 }
 /* The card in hand has to be on screen. Not the same thing as snapping the row back to
    the start, which is what this row used to do and must not: this moves by the least it
@@ -7266,15 +7304,41 @@ function handPagers(){
   var rgt = el.querySelector('.hand-pager.right');
   if (!sc || !lft || !rgt) return;
   var max = sc.scrollWidth - sc.clientWidth;
-  lft.classList.toggle('gone', sc.scrollLeft <= 1);
+  /* The start of the row is not scrollLeft 0. A card snaps its edge to the content box,
+     which begins after the row's own padding, so a row sitting at its very beginning
+     reads a couple of pixels in - and the left arrow was appearing on a row with nothing
+     to its left. Taken from the padding rather than a number typed here, so changing one
+     does not quietly break the other. */
+  var pad = parseFloat((window.getComputedStyle(sc) || {}).paddingLeft) || 0;
+  lft.classList.toggle('gone', sc.scrollLeft <= pad + 1);
   rgt.classList.toggle('gone', max <= 1 || sc.scrollLeft >= max - 1);
+}
+/* The nearest resting place to a given offset. The row rests with a whole card against
+   its left edge and never half way through one, so these are the only places it stops.
+
+   It is worth being explicit about this rather than leaving it to the browser's snap
+   alone. The row is rebuilt on every choice and its scroll put back afterwards, and an
+   offset that is not a resting place gets quietly corrected a few pixels on the next
+   frame - a twitch under the player's hand every time they take a card up. Landing on
+   one deliberately means the position we restore is one the row will keep. */
+function handRest(sc, want){
+  var cards = sc.querySelectorAll('.hcard');
+  if (!cards.length) return want;
+  var zero = cards[0].offsetLeft;
+  var best = want, gap = Infinity, i, at;
+  for (i = 0; i < cards.length; i++){
+    at = cards[i].offsetLeft - zero;
+    if (Math.abs(at - want) < gap){ gap = Math.abs(at - want); best = at; }
+  }
+  /* never past the end, which is a resting place of its own */
+  return Math.min(best, Math.max(0, sc.scrollWidth - sc.clientWidth));
 }
 function handPage(dir){
   var sc = document.querySelector('#hand .hand-scroll');
   if (!sc) return;
-  /* a shade under a full width, so the card at the edge stays visible as an anchor
-     rather than the row jumping to somewhere with no landmark in it */
-  sc.scrollLeft += dir * Math.max(120, sc.clientWidth * 0.8);
+  /* A shade under a full width, so the card at the edge stays visible as an anchor rather
+     than the row jumping to somewhere with no landmark in it. */
+  sc.scrollLeft = handRest(sc, sc.scrollLeft + dir * Math.max(120, sc.clientWidth * 0.8));
   handPagers();
 }
 /* Reacts are a resolution thing. The board declares in Commit and resolves in Resolve,
@@ -7335,6 +7399,7 @@ function handSetTab(t){
   /* a narrower table can turn a row that fitted into one that pages */
   window.addEventListener('resize', function(){
     try { handPagers(); } catch(e){}
+    try { handTabsAlign(); } catch(e){}
     try { handPickPlace(); } catch(e){}
   });
 })();

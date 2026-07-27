@@ -206,26 +206,56 @@ test.describe('A10 the card you tapped, and the row you left', () => {
     await T.waitBooted(page, player, 'player');
     await seat(player, manyActs());
 
-    /* page well along the row, short of the end so nothing is being clamped */
-    const scrolled = await player.evaluate(() => {
-      const sc = document.querySelector('#hand .hand-scroll');
-      sc.scrollLeft = Math.round((sc.scrollWidth - sc.clientWidth) / 2);
-      return sc.scrollLeft;
+    /* Scrolled the way a player scrolls it, rather than by assignment. It matters here:
+       the row rests on card edges now (A13), and a gesture settles on one, while a
+       number written straight into scrollLeft can leave it between two - somewhere it
+       would never be left in play, and somewhere it will not be given back because the
+       next repaint snaps it. What has to be preserved is where a player can actually
+       leave the row. */
+    const box = await page.locator('#if-player').boundingBox();
+    const at = await player.evaluate(() => {
+      const r = document.querySelector('#hand .hand-scroll').getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
     });
+    await page.mouse.move(box.x + at.x, box.y + at.y);
+    await page.mouse.wheel(340, 0);
+    await page.waitForTimeout(400);
+
+    /* which card the row is resting on, which is what a player would say about where it
+       is - the exact pixel is the browser's business and it moves it by two or three of
+       them as it settles */
+    const restingOn = () => player.evaluate(() => {
+      const sc = document.querySelector('#hand .hand-scroll');
+      const b = sc.getBoundingClientRect();
+      const c = Array.from(sc.querySelectorAll('.hcard'))
+        .filter((x) => x.getBoundingClientRect().left >= b.left - 3)[0];
+      return c ? c.getAttribute('data-act') : null;
+    });
+
+    const scrolled = await player.evaluate(() =>
+      document.querySelector('#hand .hand-scroll').scrollLeft);
     expect(scrolled, 'the row is long enough to scroll at all').toBeGreaterThan(0);
+    const wasOn = await restingOn();
 
     /* take up a card that is in view from there */
     const chose = await player.evaluate(() => {
       const sc = document.querySelector('#hand .hand-scroll');
-      const mid = sc.scrollLeft + sc.clientWidth / 2;
-      const c = Array.from(sc.querySelectorAll('.hcard'))
-        .filter((x) => x.offsetLeft >= sc.scrollLeft && x.offsetLeft < mid).pop();
+      const b = sc.getBoundingClientRect();
+      /* whole cards only, measured where they actually are: a card half off the edge
+         would be scrolled into view and move the row for a reason that is not this one */
+      const c = Array.from(sc.querySelectorAll('.hcard')).filter((x) => {
+        const r = x.getBoundingClientRect();
+        return r.left >= b.left - 1 && r.right <= b.right + 1;
+      })[0];
       c.click();
       return c.getAttribute('data-act');
     });
 
     const after = await player.evaluate(() => document.querySelector('#hand .hand-scroll').scrollLeft);
-    expect(after, 'the card you just chose has to still be on screen').toBe(scrolled);
+    expect(await restingOn(), 'the row is still on the card it was on').toBe(wasOn);
+    expect(Math.abs(after - scrolled), 'and has not gone travelling to get there')
+      .toBeLessThanOrEqual(4);
+    expect(after, 'certainly not back to the first card').toBeGreaterThan(scrolled / 2);
     expect((await cards(player)).filter((x) => x.armed).map((x) => x.act)).toEqual([chose]);
   });
 
@@ -245,11 +275,18 @@ test.describe('A10 the card you tapped, and the row you left', () => {
     });
     await player.evaluate(() => window.handSetTab('react'));
 
-    expect(await player.evaluate(() => document.querySelector('#hand .hand-scroll').scrollLeft),
-      'a short Reacts row does not inherit where the Acts row was').toBe(0);
+    /* "At its beginning" rather than "at zero": a card snaps its edge to the content box,
+       which starts after the row's own padding, so the beginning is a pixel or two in */
+    const atStart = () => player.evaluate(() => {
+      const sc = document.querySelector('#hand .hand-scroll');
+      const pad = parseFloat(getComputedStyle(sc).paddingLeft) || 0;
+      return sc.scrollLeft <= pad + 1;
+    });
+
+    expect(await atStart(), 'a short Reacts row does not inherit where the Acts row was').toBe(true);
 
     /* and coming back does not pretend to remember a position it cannot have kept */
     await player.evaluate(() => window.handSetTab('act'));
-    expect(await player.evaluate(() => document.querySelector('#hand .hand-scroll').scrollLeft)).toBe(0);
+    expect(await atStart()).toBe(true);
   });
 });

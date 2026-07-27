@@ -75,6 +75,9 @@ const promptText = (frame) => frame.evaluate(() => {
 const menuOpts = (frame) => frame.evaluate(() =>
   Array.from(document.querySelectorAll('#hand .hand-pickmenu .hp-opt')).map((b) => ({
     text: b.textContent.replace(/\s+/g, ' ').trim(),
+    /* the Act alone. The option also names the weapon and the charge that would unlock
+       it, both of which belong on it and neither of which is its name. */
+    act: (b.querySelector('.hp-name') || {}).textContent || '',
     kind: b.getAttribute('data-pkind'), take: b.getAttribute('data-ptake'),
     locked: b.classList.contains('locked')
   })));
@@ -191,11 +194,11 @@ test.describe('A9 targeting asks, the roll commits', () => {
     await click(player, '#hand .hp-opt[data-pkind="attack"]');
 
     const opts = await menuOpts(player);
-    const names = opts.map((o) => o.text.replace(/Charge \d/, '').trim());
+    const names = opts.map((o) => o.act);
     expect(names, 'the standard strike is always there').toContain('Basic attack');
     expect(names, 'and the locked ability is still shown').toContain('Rend');
 
-    const rend = opts.find((o) => o.text.indexOf('Rend') === 0);
+    const rend = opts.find((o) => o.act === 'Rend');
     expect(rend.locked, 'greyed rather than hidden').toBe(true);
     expect(rend.text, 'wearing what would unlock it').toContain('Charge 2');
     expect(rend.take, 'and not takeable').toBeFalsy();
@@ -209,7 +212,9 @@ test.describe('A9 targeting asks, the roll commits', () => {
 
     await rightClick(player);
     await click(player, '#hand .hp-opt[data-pkind="attack"]');
-    await click(player, '#hand .hp-opt[data-ptake="Basic attack"]');
+    /* by what it says: what identifies it on the wire is which weapon offers it */
+    const basic = (await menuOpts(player)).find((o) => o.act === 'Basic attack');
+    await click(player, '#hand .hp-opt[data-ptake="' + basic.take + '"]');
 
     expect(await promptUp(player)).toBe(true);
     expect(await sent(player), 'still not committed').toHaveLength(0);
