@@ -263,3 +263,58 @@ than through the frame binding, and add the mismatched case as its own scenario:
 bound elsewhere declares, and the LoreMaster of the frame's adventure must NOT see it.
 That is a harness change plus one spec, and until it exists the declare path is only
 proven for Fell who are where they say they are.
+
+---
+
+## F5 — Two functions sharing a name at the top level of one script, twice now
+
+**Status:** both instances fixed. Recorded because it is a pattern, not an incident, and
+because nothing in the toolchain catches it.
+**Found:** 2026-07-26, building the combat round trip.
+**Files:** `docs/fellglass.html`, `docs/threadspire.html`
+
+### What happened, twice
+
+A classic script hoists every top-level `function` declaration onto one object, so a
+second declaration of the same name silently replaces the first EVERYWHERE, including at
+call sites written before it. No error, no warning, nothing at load.
+
+**`sendDeclare`, in fellglass.html.** The transport at 4636 and a builder added later by
+22482d5. The builder won, so its own last line handed its payload to itself and recursed
+until the stack gave out, and the reqId, the pending table and the seven second retry
+became unreachable. A declare carrying damage never left the sheet. Verified in a browser:
+RangeError, zero messages posted.
+
+**`lmSetCharge`, in threadspire.html.** The remote push at 3869 and the strip's charge pip
+toggle, `lmSetCharge(side, id, tier)`, at 7530. The pip toggle won, so `chargeFell`'s call
+arrived with a charId where a side belongs and a value where an id does. `findC` could not
+resolve it, so it did nothing and reported nothing: a charge a Fell had earned never left
+the LoreMaster's board and their sheet went on showing the old meter.
+
+### Why neither was noticed
+
+Both failures are silent in the way that matters. The first threw, but inside a click
+handler where the exception went to the console and the button simply appeared to do
+nothing. The second did not even throw. Neither is visible by reading the calling code,
+which is the trap: at both call sites the name meant the right thing and resolved to the
+wrong function.
+
+Both were caught the same way, and it is worth naming. A test was written against the
+function that had been READ, and it failed against the function that actually RUNS. The
+test did not know it was looking for this; it simply asserted an outcome and did not get
+it. An assertion that the effect happened, rather than that the call was made, is what
+made either of them findable.
+
+### What is NOT established
+
+Whether there are more. Two were found by tripping over them, not by looking. Nothing in
+`npm run checks` looks for duplicate top-level declarations, and `checkGlobals` is about
+globals READ without being SET, which is a different question and would not see this.
+
+### What would settle it
+
+A check over each tool's HTML that collects `^function NAME` at the top level of every
+script block and reports any name declared more than once. That is a small script, it is
+mechanical, and it would have caught both of these at the moment they were introduced. It
+belongs beside checkContracts and checkGlobals, which means `scripts/`, a denied path, so
+it is written down here rather than added.

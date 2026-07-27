@@ -313,6 +313,69 @@ function takeDeclare(frameName, m) {
   post(frameName, { type: 'TS_TOOL_DOWN', tool: 'fellglass',
                     msg: { type: 'combat-declare-ack', ok: true, reqId: m.reqId || 0 } });
 }
+/* ---------------------------------------------------------- the return leg ----
+ * CombatState, and the half of CombatPlayer the LoreMaster writes.
+ *
+ * The outward half of a Beat was already here; this is the answer coming back. The
+ * LoreMaster resolves and writes three separate things at a Fell, and the sheet reads all
+ * of them off one combat-state:
+ *
+ *   applyCombatToChar  conditions landed, and a recap line
+ *   dealDamageToChar   damage QUEUED for the player to confirm, never applied to them
+ *   setCombatCharge    the charge their strike earned
+ *
+ * Each carries its own timestamp because that is how the sheet tells a new one from the
+ * same one polled again: it compares .at against what it last saw and does nothing if
+ * they match. Reproducing the stamps matters more than it looks. Without them a poll
+ * every fifteen seconds would re-apply the same damage forever, and a mock that omitted
+ * them would make that bug invisible rather than impossible.
+ */
+var combatState = Object.create(null);   /* campaignId -> published state */
+
+function takeCombatState(campaignId, s) {
+  s = s || {};
+  combatState[campaignId] = {
+    active: !!s.active, round: s.round || 0, phase: s.phase || '',
+    sceneId: s.sceneId || '', sceneName: s.sceneName || '',
+    fighters: clone(s.fighters) || [], spotlightChars: clone(s.spotlightChars) || [],
+    log: clone(s.log) || []
+  };
+}
+/* The LoreMaster's writes land on the same row a declare does, and must not disturb it:
+ * a Fell who has declared and then been hit still has their declaration. */
+function lmWrite(campaignId, charId, fn) {
+  if (!campaignId || !charId) return false;
+  var rows = declareRows(campaignId);
+  var row = rows[charId] || { campaignId: campaignId, charId: charId };
+  fn(row);
+  row.updatedAt = Date.now();
+  rows[charId] = row;
+  return true;
+}
+/* What getCombatForChar hands the sheet. Returns {active:false} when there is no fight,
+ * exactly as the real one does, since the sheet keys a good deal of behaviour off that. */
+function serveCombatForChar(campaignId, charId) {
+  var st = combatState[campaignId];
+  if (!st || !st.active) return { active: false };
+  var pr = declareRows(campaignId)[charId] || null;
+  return {
+    active: true,
+    round: st.round || 0, phase: st.phase || '',
+    sceneId: st.sceneId || '', sceneName: st.sceneName || '',
+    fighters: clone(st.fighters) || [],
+    spotlightChars: clone(st.spotlightChars) || [],
+    log: clone(st.log) || [],
+    you: pr ? { act: pr.act || '', react: pr.react || '', target: pr.target || '' } : {},
+    applied: pr ? (clone(pr.appliedByLm) || []) : [],
+    recap: pr ? { msg: pr.recapMsg || '', at: pr.recapAt || 0 } : { msg: '', at: 0 },
+    pendingHit: pr ? { base: pr.pendBase || 0, bonus: pr.pendBonus || 0,
+                       dt: pr.pendDt || 'phys', at: pr.pendingHitAt || 0 }
+                   : { base: 0, bonus: 0, dt: 'phys', at: 0 },
+    chargeSet: pr ? { value: pr.chargeSet || 0, at: pr.chargeSetAt || 0 }
+                  : { value: 0, at: 0 }
+  };
+}
+
 /* What getCombatDeclares hands back. */
 function serveDeclares(campaignId) {
   var rows = declareRows(campaignId);
@@ -346,6 +409,33 @@ function handleRequest(name, msg) {
      * here any more than another table's board can. */
     case 'TS_COMBAT_DECLARES':
       return reply(name, msg.reqId, true, serveDeclares(b.campaignId));
+
+    /* the board the LoreMaster is running, which is what makes a fight exist at all */
+    case 'TS_COMBAT_PUBLISH':
+      takeCombatState(b.campaignId, msg.state);
+      return reply(name, msg.reqId, true, { ok: true });
+
+    /* the three things the LoreMaster lands on a Fell, each stamped so the sheet can
+     * tell a new one from the same one polled again */
+    case 'TS_COMBAT_APPLY':
+      return reply(name, msg.reqId, lmWrite(b.campaignId, msg.charId, function (row) {
+        row.appliedByLm = clone(msg.applied) || [];
+        if (msg.recap && msg.recap.at) { row.recapMsg = msg.recap.msg || ''; row.recapAt = msg.recap.at; }
+      }), { ok: true });
+
+    case 'TS_COMBAT_DAMAGE':
+      return reply(name, msg.reqId, lmWrite(b.campaignId, msg.charId, function (row) {
+        row.pendBase = Math.max(0, Number(msg.base) || 0);
+        row.pendBonus = Math.max(0, Number(msg.bonus) || 0);
+        row.pendDt = msg.dt || 'phys';
+        row.pendingHitAt = Date.now();
+      }), { ok: true });
+
+    case 'TS_COMBAT_CHARGE':
+      return reply(name, msg.reqId, lmWrite(b.campaignId, msg.charId, function (row) {
+        row.chargeSet = Math.max(0, Math.min(3, Number(msg.value) || 0));
+        row.chargeSetAt = Date.now();
+      }), { ok: true });
 
     case 'TS_PARTY_LIST':
       return reply(name, msg.reqId, true, clone(b.party || []));
@@ -455,7 +545,20 @@ window.addEventListener('message', function (ev) {
    * the two-frame table cannot carry a round at all. */
   if (msg.type === 'TS_TOOL_UP') {
     var inner = msg.msg;
-    if (inner && inner.type === 'combat-declare') takeDeclare(name, inner);
+    if (inner && inner.type === 'combat-declare') { takeDeclare(name, inner); return; }
+    /* The sheet asking what has happened to it. This is the whole return leg from the
+     * player's side: conditions, the recap, damage waiting to be confirmed and the charge
+     * their strike earned all arrive on this one answer, which is why it is answered here
+     * rather than left to the catch-all. */
+    if (inner && inner.type === 'combat-request') {
+      var pb = binding(name);
+      var pcid = inner.charId || (pb && pb.characterId) || '';
+      post(name, { type: 'TS_TOOL_DOWN', tool: 'fellglass', msg: {
+        type: 'combat-state',
+        state: (pb && pb.campaignId && pcid) ? serveCombatForChar(pb.campaignId, pcid) : null
+      } });
+      return;
+    }
     return;
   }
 
@@ -580,9 +683,15 @@ TSH.commits = function () {
  * merely left the sheet. */
 TSH.declares = function (campaignId) { return clone(serveDeclares(campaignId)); };
 
+/* What a Fell's own sheet would be handed: the LoreMaster's answer coming back. Specs
+ * read this to tell a resolution that genuinely reached the store from one that only
+ * ever happened on the board. */
+TSH.combatFor = function (campaignId, charId) { return clone(serveCombatForChar(campaignId, charId)); };
+
 TSH.reset = function () {
   Object.keys(store).forEach(function (k) { delete store[k]; });
   Object.keys(declares).forEach(function (k) { delete declares[k]; });
+  Object.keys(combatState).forEach(function (k) { delete combatState[k]; });
   TSH.frames = Object.create(null);
   TSH.log = [];
   TSH.unhandled = [];
