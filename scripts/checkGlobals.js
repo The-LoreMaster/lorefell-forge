@@ -101,4 +101,41 @@ if (problems) {
   console.error('Either assign it, or use the condition it was standing in for.');
   process.exit(1);
 }
+
+/* Duplicate top-level function declarations. Two `function NAME(){}` at the top level of
+ * one script block silently replace the first with the second everywhere, for the whole
+ * block. This is how sendDeclare (a builder shadowed the transport, recursion, the Act
+ * never posted) and lmSetCharge (the pip toggle shadowed the remote push, an earned charge
+ * never reached the sheet) both shipped: valid JavaScript, syntax check passes, a test
+ * written against the function that was read passes against the function that runs, and the
+ * failure is a wrong function silently winning. So: within each <script> block, collect
+ * top-level `function NAME`, and report any NAME declared more than once. Run with the
+ * same npm run globals. */
+var dupProblems = 0;
+files.forEach(function (f) {
+  var src = texts[f];
+  if (!src) return;
+  var blocks = /\.html$/.test(f)
+    ? (src.match(/<script\b[^>]*>([\s\S]*?)<\/script>/g) || [])
+    : [src];
+  blocks.forEach(function (block) {
+    var body = block.replace(/^<script\b[^>]*>/, '').replace(/<\/script>$/, '');
+    var counts = {};
+    var re = /(?:^|\n)function\s+([A-Za-z_$][\w$]*)\s*\(/g, m;
+    while ((m = re.exec(body))) counts[m[1]] = (counts[m[1]] || 0) + 1;
+    Object.keys(counts).forEach(function (name) {
+      if (counts[name] > 1) {
+        dupProblems++;
+        console.log('\n' + path.relative(ROOT, f) + ':');
+        console.log('  function ' + name + ' declared ' + counts[name] + ' times at top level in one script block \u2014 the later one silently wins');
+      }
+    });
+  });
+});
+if (dupProblems) {
+  console.error('\n' + dupProblems + ' duplicate top-level function declaration(s)');
+  console.error('Rename one, or the second silently replaces the first everywhere it is called.');
+  process.exit(1);
+}
+console.log('no duplicate top-level function declarations');
 console.log('no globals are read without being set');
