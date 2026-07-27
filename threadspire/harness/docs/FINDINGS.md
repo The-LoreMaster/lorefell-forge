@@ -178,6 +178,8 @@ one pass by someone who can edit the file.
 | `ts-declare-result` | FellGlass → ThreadSpire | `ALLOW.fellglass` += `'ts-declare-result'` |
 | `ts-hand-request` | ThreadSpire → FellGlass | `CHILD.threadspire.types` += `'ts-hand-request'` |
 | `ts-declare` | ThreadSpire → FellGlass | `CHILD.threadspire.types` += `'ts-declare'` |
+| `ts-undo` | ThreadSpire → FellGlass | `CHILD.threadspire.types` += `'ts-undo'` |
+| `ts-undo-result` | FellGlass → ThreadSpire | `ALLOW.fellglass` += `'ts-undo-result'` |
 
 Applied, that is:
 

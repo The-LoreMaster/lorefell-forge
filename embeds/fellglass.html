@@ -6158,6 +6158,46 @@ window.onmessage=ev=>{
     try{ tsSendHand(); }catch(e){}
     return;
   }
+  /* Taking it back. A declaration stands until the LoreMaster starts resolving, and until
+     then a player who chose the wrong thing should not have to ask anyone to undo it.
+
+     What closes the window is the LoreMaster moving to resolution, not a timer and not
+     the player's own second thoughts: once the board is being resolved the declaration is
+     being acted on and is no longer theirs to pull back.
+
+     The retraction travels as an ordinary declare with nothing in it. saveCombatDeclare
+     writes act, target and damage straight from what it is sent, so an empty one clears
+     the row it had written - no new backend method, no schema change, and the board reads
+     an empty act as nobody having declared, which is exactly what it now is. */
+  if(d.type==="ts-undo"){
+    var ures=(function(){
+      if(!CUR_WIX_ID) return { ok:false, reason:"no-character" };
+      if(!(COMBAT&&COMBAT.active)) return { ok:false, reason:"no-combat" };
+      var now=(COMBAT&&COMBAT.round)||0;
+      if(typeof d.round!=="number" || d.round!==now) return { ok:false, reason:"stale-round", round:now };
+      if(String((COMBAT&&COMBAT.phase)||"")==="resolve") return { ok:false, reason:"resolving" };
+      if(window._declaredRound!==now) return { ok:false, reason:"nothing-declared" };
+      try{
+        sendDeclare({ type:"combat-declare", charId:CUR_WIX_ID, act:"", react:"", target:"",
+                      round:now, dmg:0, base:0, dt:"", fellmark:false, applies:"", actTier:-1,
+                      doubleFell:false, fellBonus:0, pierce:0, roll:0, acc:0, fellstrike:false,
+                      kind:"", charge:C.charge||0, curVit:C.vitality.current,
+                      maxVit:C.vitality.max, affs:[] });
+      }catch(err){ return { ok:false, reason:"threw", detail:String(err&&err.message||err) }; }
+      window._declaredRound=null;
+      window._cbRoll=null;
+      window._declPayload=null;
+      window._sentDmg=null;
+      window._editDecl=true;
+      if(COMBAT) COMBAT.you={};
+      try{ applyCombatMode(); }catch(err){}
+      cbLogSelf("fell", meName()+" takes the declaration back.");
+      return { ok:true, round:now };
+    })();
+    try{ window.parent.postMessage({ type:"ts-undo-result", result:ures }, "*"); }catch(e){}
+    try{ tsSendHand(); }catch(e){}
+    return;
+  }
   if(d.type==="ts-new"){ postToVelo({type:"add-character"}); return; }
   if(d.type==="ts-god"){ god=!!d.on; document.body.classList.toggle("god",god); var gb=$("godBtn"); if(gb) gb.classList.toggle("on",god); try{renderWeapons();renderDials();renderArmor();renderLorebounds();renderCampaignOptions();renderMotivation();syncIdentityLock();}catch(e){} return; }
   bridged=true;

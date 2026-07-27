@@ -199,4 +199,79 @@ test.describe('S3g the sheet decides whether a declare goes out', () => {
     const hand = await page.evaluate(() => window.FSH.lastHand);
     expect(hand.declared, 'so the row can grey the Act it has just spent').toBe(true);
   });
+
+  /* Taking it back. The retraction travels as an ordinary declare with nothing in it,
+     because saveCombatDeclare writes act, target and damage straight from what it is
+     sent - so an empty one clears the row it had written, and the board reads an empty
+     act as nobody having declared. No new backend method, no schema change. */
+  const undo = (frame, round) => frame.evaluate((r) => {
+    window.onmessage({ data: { type: 'ts-undo', round: r } });
+  }, round);
+
+  test('an undo clears the declaration on the board', async ({ page }) => {
+    const frame = await inCombat(page, 3);
+    await declare(page, frame, { type: 'ts-declare', act: 'Basic attack', target: 'm:cb-1', round: 3, roll: 4 });
+    await page.waitForFunction(() => window.FSH.declaresOut.length > 0);
+
+    await undo(frame, 3);
+    await page.waitForFunction(() => window.FSH.lastUndoResult !== null);
+    expect((await page.evaluate(() => window.FSH.lastUndoResult)).ok).toBe(true);
+
+    await page.waitForFunction(() => window.FSH.declaresOut.length > 1);
+    const out = (await sentOut(page)).slice(-1)[0];
+    expect(out.act, 'an empty act is how the board is told').toBe('');
+    expect(out.target).toBe('');
+    expect(out.dmg).toBe(0);
+    expect(out.round, 'for the round being retracted, not a guessed one').toBe(3);
+  });
+
+  test('after an undo the Fell may declare again', async ({ page }) => {
+    const frame = await inCombat(page, 3);
+    await declare(page, frame, { type: 'ts-declare', act: 'Basic attack', target: 'm:cb-1', round: 3, roll: 4 });
+    await page.waitForFunction(() => window.FSH.declaresOut.length > 0);
+    await undo(frame, 3);
+    await page.waitForFunction(() => window.FSH.lastUndoResult !== null);
+
+    /* the hand that follows says the Act is free again, so the row puts the cards back */
+    expect((await page.evaluate(() => window.FSH.lastHand)).declared).toBe(false);
+
+    await declare(page, frame, { type: 'ts-declare', act: 'Basic attack', target: 'm:cb-1', round: 3, roll: 2 });
+    await page.waitForFunction(() => window.FSH.declaresOut.length > 2);
+    expect((await sentOut(page)).slice(-1)[0].roll, 'the second attempt is a real one').toBe(2);
+  });
+
+  test('the LoreMaster resolving closes the window', async ({ page }) => {
+    const frame = await inCombat(page, 3);
+    await declare(page, frame, { type: 'ts-declare', act: 'Basic attack', target: 'm:cb-1', round: 3, roll: 4 });
+    await page.waitForFunction(() => window.FSH.declaresOut.length > 0);
+
+    await frame.evaluate(() => { COMBAT.phase = 'resolve'; });
+    await undo(frame, 3);
+    await page.waitForFunction(() => window.FSH.lastUndoResult !== null);
+
+    const r = await page.evaluate(() => window.FSH.lastUndoResult);
+    expect(r.ok).toBe(false);
+    expect(r.reason, 'what is being acted on is no longer theirs to pull back').toBe('resolving');
+    expect(await sentOut(page), 'and nothing went out').toHaveLength(1);
+  });
+
+  test('an undo for a round that has passed is refused', async ({ page }) => {
+    const frame = await inCombat(page, 3);
+    await declare(page, frame, { type: 'ts-declare', act: 'Basic attack', target: 'm:cb-1', round: 3, roll: 4 });
+    await page.waitForFunction(() => window.FSH.declaresOut.length > 0);
+
+    await undo(frame, 2);
+    await page.waitForFunction(() => window.FSH.lastUndoResult !== null);
+    expect((await page.evaluate(() => window.FSH.lastUndoResult)).reason).toBe('stale-round');
+  });
+
+  test('an undo with nothing declared sends nothing at all', async ({ page }) => {
+    const frame = await inCombat(page, 3);
+    await undo(frame, 3);
+    await page.waitForFunction(() => window.FSH.lastUndoResult !== null);
+
+    expect((await page.evaluate(() => window.FSH.lastUndoResult)).reason).toBe('nothing-declared');
+    /* an empty declare with nothing behind it would clear a row the player never wrote */
+    expect(await sentOut(page)).toHaveLength(0);
+  });
 });

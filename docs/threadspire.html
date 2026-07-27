@@ -530,6 +530,28 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
   display:flex; gap:6px; margin:0 var(--hand-right-clear) 6px 108px;
   pointer-events:auto;
 }
+/* What the row shows once the Act is in: what was declared, and the way back out of it
+   while there still is one. */
+.hand-done{
+  pointer-events:auto; display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+  /* where the cards were, since it is what replaced them: a centred row giving way to
+     something pinned to the left reads as a glitch rather than a change of state */
+  margin-left:auto; margin-right:auto;
+  padding:9px 14px; border-radius:12px;
+  background:rgba(10,14,26,.92); border:1px solid rgba(134,199,155,.45);
+  box-shadow:0 6px 18px rgba(0,0,0,.45);
+}
+.hd-lab{
+  font-family:Cinzel,serif; font-size:.55rem; letter-spacing:.14em; text-transform:uppercase;
+  color:rgba(134,199,155,.95);
+}
+.hd-what{ font-size:.78rem; color:var(--silver); }
+.hd-undo{
+  font-family:Cinzel,serif; font-size:.58rem; letter-spacing:.1em; text-transform:uppercase;
+  border:1px solid var(--line); border-radius:999px; padding:4px 14px;
+  background:rgba(20,27,51,.9); color:var(--ice); margin-left:auto;
+}
+.hd-undo:hover{ border-color:rgba(201,168,76,.5); color:var(--gold); }
 .hand-tab{
   font-family:Cinzel,serif; font-size:.55rem; letter-spacing:.1em; text-transform:uppercase;
   color:var(--muted); border:1px solid var(--line); border-radius:6px;
@@ -7119,6 +7141,24 @@ function renderHand(){
      goes with it, the same tick that frees the Act again */
   if (declaredAs && hand.round && declaredAs.round !== hand.round) declaredAs = null;
 
+  /* ---- declared, and still takeable back ----
+     Where the player is looking after they commit is the map, not the sheet, so the way
+     out of a mistake belongs here rather than three taps away. The cards give way to what
+     was declared and the one thing still worth doing to it.
+
+     The window closes when the LoreMaster starts resolving. That is the right hinge: a
+     declaration being acted on is no longer the player's to pull back, and it means the
+     player never has to wonder how long they have - they can see the board move. */
+  if (handUndoOpen()){
+    el.innerHTML = (_handNote ? '<div class="hand-note">' + esc(_handNote) + '</div>' : '')
+      + '<div class="hand-wrap"><div class="hand-done">'
+      +   '<span class="hd-lab">Act declared</span>'
+      +   '<span class="hd-what">' + esc(handDeclaredWhat()) + '</span>'
+      +   '<button type="button" class="hd-undo" data-undo="1">Undo</button>'
+      + '</div></div>';
+    return;
+  }
+
   /* a card chosen last round is not a card this round; the sheet clears its own state
      on the round tick and the row follows it rather than keeping a stale hold */
   if (armed){
@@ -7341,6 +7381,43 @@ function handPage(dir){
   sc.scrollLeft = handRest(sc, sc.scrollLeft + dir * Math.max(120, sc.clientWidth * 0.8));
   handPagers();
 }
+/* Whether the row is showing a declaration that can still be taken back. The sheet is the
+   authority on both halves - whether this Fell has declared, and what the board is doing -
+   and both travel on the hand, so the row does not have to guess at either. */
+function handUndoOpen(){
+  if (!hand) return false;
+  if (!hand.declared) return false;
+  if (hand.phase === 'resolve') return false;
+  if (hand.opening) return false;      /* the opening is one free Act and is not undone */
+  return true;
+}
+/* What was declared, in the player's words. Falls back to naming nothing rather than
+   naming it wrongly: the stamp is local and a reload loses it, while the fact of having
+   declared comes from the sheet and survives. */
+function handDeclaredWhat(){
+  if (!declaredAs || !declaredAs.act) return 'Waiting on the LoreMaster';
+  return declaredAs.act + (declaredAs.targetName ? ' → ' + declaredAs.targetName : '');
+}
+function handUndo(){
+  if (!hand || !handUndoOpen()) return;
+  sheet.postMessage({ type:'ts-undo', round: hand.round || 0 });
+}
+function handUndoResult(res){
+  res = res || {};
+  if (res.ok){
+    declaredAs = null;
+    armed = null;
+    renderHand();
+    try { renderTokens(); } catch(e){}
+    return;
+  }
+  handSay({
+    'resolving': 'The LoreMaster is already resolving. That one has gone.',
+    'stale-round': 'The round moved on. Your hand has been refreshed.',
+    'nothing-declared': 'Nothing to take back.',
+    'no-combat': 'The fight is over.'
+  }[res.reason] || 'That could not be taken back.');
+}
 /* Reacts are a resolution thing. The board declares in Commit and resolves in Resolve,
    and a React is spent during the second at a moment the player picks; during the ambush
    opening nobody Reacts at all, on canon. So the tab exists only while resolving. */
@@ -7365,6 +7442,7 @@ function handSetTab(t){
   el.addEventListener('click', function(ev){
     /* the roll prompt and the target-first menu come before everything else: while one
        is up it is the only thing the row is asking about */
+    if (ev.target.closest && ev.target.closest('[data-undo]')){ handUndo(); return; }
     if (ev.target.closest && ev.target.closest('[data-roll-cancel]')){ handRollCancel(); return; }
     if (ev.target.closest && ev.target.closest('[data-roll-die]')){ handRollDo(); return; }
     var face = ev.target.closest && ev.target.closest('[data-face]');
@@ -7412,6 +7490,7 @@ window.addEventListener('message', function(ev){
        the board never travels a hand. Returns before the TS_TOOL_UP relay below. */
     if (ev.data.type === 'ts-hand'){ tsHandTake(ev.data.hand); return; }
     if (ev.data.type === 'ts-declare-result'){ handDeclareResult(ev.data.result); return; }
+    if (ev.data.type === 'ts-undo-result'){ handUndoResult(ev.data.result); return; }
     if (ev.data.type === 'save' && ev.data.character){ S.sheet = ev.data.character; S.charReady = true; if (typeof applySheet === 'function') applySheet(); render(); }
     /* A Fell written to from this side is a Fell somebody else is holding an older copy
        of. Mark it, and the mark travels with the table's state to whoever it belongs to. */
@@ -8530,7 +8609,8 @@ function renderTokens(){
     el.innerHTML = '<span class="tok-face">' + face + '</span>'
       + (full ? '<span class="tok-label">' + esc(full) + '</span>' : '');
     place(el, t);
-    if (draggable) wireDrag(el, t);
+    /* moved OR aimed at: a foe is the second without ever being the first */
+    if (draggable || tokenTargetable(t)) wireToken(el, t, draggable);
     layer.appendChild(el);
   });
 }
@@ -8551,22 +8631,41 @@ function snapAxis(v, off, cells){
   var g = S.grid.size, half = (cells % 2) ? g / 2 : 0;
   return Math.round((v - off - half) / g) * g + off + half;
 }
-function wireDrag(el, t){
+/* ---- what a tap does, and what a drag does ----
+   These were one thing, and they are two permissions.
+
+   The tap-to-aim handler lived inside the drag wiring, and the drag wiring was attached
+   only to tokens a player may MOVE - their own Fell. A foe is nobody's to move, so a foe
+   got no pointer handler at all and there was nothing to aim at. The one thing a player
+   needs to do to a foe was the one thing they could not do, which made combat
+   unplayable.
+
+   So: every token that can be TARGETED gets the tap. Only tokens the player owns get the
+   drag. One function decides what a tap means, so the two cannot drift apart again. */
+function wireToken(el, t, draggable){
   el.addEventListener('pointerdown', function(e){
     e.preventDefault(); e.stopPropagation();
+    /* captured either way, so the pointerup still arrives when the finger slides off the
+       token it started on - a tap that ends a few pixels outside is still a tap */
     el.setPointerCapture(e.pointerId);
     var m = toMap(e.clientX, e.clientY), ox = t.x - m.x, oy = t.y - m.y, moved = false;
+    var sx = e.clientX, sy = e.clientY;
     function mv(ev){
+      if (!draggable){
+        /* a finger that wandered is not a tap, even on something that cannot be moved */
+        if (Math.abs(ev.clientX - sx) > 6 || Math.abs(ev.clientY - sy) > 6) moved = true;
+        return;
+      }
       var p = toMap(ev.clientX, ev.clientY);
       t.x = clamp(p.x + ox, 0, S.map.w); t.y = clamp(p.y + oy, 0, S.map.h);
       moved = true; place(el, t);
     }
     function upfn(){
       el.removeEventListener('pointermove', mv); el.removeEventListener('pointerup', upfn);
-      /* A tap, not a drag: wireDrag already tells them apart, which is what makes the
-         two-tap flow safe to put here. A held card aims at this token; with no card
-         held the tap selects, the way it always has. */
+      /* A tap, not a drag. A held card aims at this token; with no card held the tap
+         selects, the way it always has. */
       if (!moved){ if (!handAimByTap(t)) selectToken(t.id); return; }
+      if (!draggable) return;                 /* it never moved; there is nothing to send */
       var c = t.cells || 1;
       if (snapOn){
         t.x = clamp(snapAxis(t.x, S.grid.offX, c), 0, S.map.w);
