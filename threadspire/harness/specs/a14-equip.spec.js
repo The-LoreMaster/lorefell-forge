@@ -228,14 +228,21 @@ test.describe('A14 what a Fell carries', () => {
     expect(await pickerNames(frame), 'setting one down takes it off the row').toEqual(['Utility 3']);
   });
 
-  test('the utility Act is there only while something is carried', async ({ page }) => {
+  /* The card exists while the Fell OWNS something that could be spent as an Act, and is
+     greyed while none of it is carried - F9, and A17's subject. What decides whether it
+     exists at all is ownership, which is this one's question. */
+  test('the utility Act greys while nothing is carried, and goes when none is owned', async ({ page }) => {
     const frame = await packed(page, 1, 2);
-    const hasAct = () => frame.evaluate(() => {
+    const act = () => frame.evaluate(() => {
       renderBattle();
-      return (window.COMBAT_ACTS || []).some((a) => a.src === 'utility');
+      return (window.COMBAT_ACTS || []).filter((a) => a.src === 'utility')[0] || null;
     });
-    expect(await hasAct(), 'an empty pack offers nothing to spend an Act on').toBe(false);
+
+    expect((await act()).bar, 'owned but not carried: there, and saying why').toBe('Nothing carried');
     await takeUtil(frame, 0);
-    expect(await hasAct()).toBe(true);
+    expect((await act()).bar, 'carried: live').toBe('');
+
+    await frame.evaluate(() => { C.inventory = []; });
+    expect(await act(), 'owning none at all, the card would be noise').toBeNull();
   });
 });

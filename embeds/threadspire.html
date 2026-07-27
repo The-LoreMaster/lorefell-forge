@@ -113,7 +113,25 @@ body.roleboot #hud, body.roleboot #rail, body.roleboot #tray, body.roleboot #lms
 .hFell img{ width:52%; height:52%; object-fit:contain; opacity:.92; }
 .hFell:hover img{ opacity:1; }
 .hFell.combat{ animation:fellpulse 1.15s ease-in-out infinite; }
-.hFell.combat img{ filter:drop-shadow(0 0 6px var(--danger)); }
+/* The gem is where combat lives now, so it has to read as lit from across the table
+   rather than merely tinted. Layered shadows: a tight red core so the silhouette itself
+   goes red, then a wider bloom for the glow, then saturate to push the art's own colour
+   the same way - one filter chain on the art that is already there, no new asset. */
+.hFell.combat img{
+  filter:drop-shadow(0 0 3px var(--danger))
+         drop-shadow(0 0 9px var(--danger))
+         drop-shadow(0 0 18px rgba(163,45,45,.75))
+         saturate(1.35);
+  opacity:1;
+}
+/* and a breath of red behind it, so the gem's setting reads hot too */
+.hFell.combat::before{
+  content:''; position:absolute; inset:-14%; border-radius:50%; pointer-events:none;
+  background:radial-gradient(circle, rgba(163,45,45,.42) 0%, rgba(163,45,45,.14) 55%, transparent 72%);
+}
+@media (prefers-reduced-motion:reduce){
+  .hFell.combat{ animation:none; }
+}
 @keyframes fellpulse{ 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.12); } }
 .artlayer{ position:fixed; inset:0; width:100%; height:100%; object-fit:fill; pointer-events:none; }
 #frameArt, #uiArt{ position:absolute; }
@@ -473,12 +491,22 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 :root{
   --hand-gem-gap: 6.831%;
   --hand-pill-w: 128px;
-  /* From the right edge of the table to the RIGHT edge of the pill. Parked against the
-     gem this sat at about 6.8% and overlapped the ornate rail down that side, which
-     begins near 14% and carries the Inventory/Skills tabs at 1151px of 1280. A
-     percentage rather than pixels because that art is a full-bleed image scaled to the
-     frame, so its edge moves with the width. */
-  --hand-pill-right: 14.4%;
+  /* From the right edge of the table to the RIGHT edge of the pill.
+
+     Parked hard against the gem at 6.8% it collided with it. Pushed to 14.4% it cleared
+     everything and read as belonging to nothing - a control for the gem, sitting a
+     hundred pixels away from it. This is the middle: the pill's right edge stops a
+     comfortable gap short of the gem's left edge at 6.83%, near enough to read as its
+     neighbour and clear enough not to touch.
+
+     What constrains it is not the gem but the ornate column those tabs sit on: the
+     Inventory/Skills tabs and the portrait panel below them share a left edge at 1151px
+     of 1280, which is 10.08% in, and the portrait reaches down into this very band. 8.6%
+     put the pill's right end under it by nineteen pixels. This stops a few pixels short
+     of that edge - as near the gem as the art allows, which is the whole of what "closer
+     to the gem" can mean here. A percentage rather than pixels because the art is a
+     full-bleed image scaled to the frame, so its edge moves with the width. */
+  --hand-pill-right: 10.5%;
   --hand-right-clear: calc(var(--hand-pill-right) + var(--hand-pill-w) + 14px);
 }
 /* Both ends of this band are already spoken for: the die tray in the bottom-left corner,
@@ -6684,6 +6712,11 @@ function handNeeds(e){
    says so on the card itself; this is the harder no. */
 function handBarred(e, group){
   var g = (hand && hand.gates) || {};
+  /* A reason carried by the card itself. The gates below are about the Fell - no Act at
+     all, no React at all - while this is about the one card: "Use a utility" with nothing
+     carried is the case it was added for, greyed and wearing why, per F9, rather than
+     disappearing and leaving a player to wonder whether utilities exist. */
+  if (e && e.bar) return e.bar;
   /* The ambush opening, before either side has declared anything. Nobody Reacts in it,
      on canon, and only the Fell who are actually in the opening take an Act. A Fell left
      out of it, and every Fell when the enemy is the one who caught them, simply waits. */
@@ -6793,7 +6826,7 @@ function handStandardAttack(){
 function handAim(t){
   if (!armed) return false;
   var f = tokenFighter(t);
-  if (!f) return false;
+  if (!f){ handAimMiss(t); return false; }
   if (!handReady({ ignoreTarget:true })){
     handSay(armed.need && !armed[armed.need]
       ? ('Choose a ' + handNeedWord(armed.need) + ' first.') : 'That card is not ready.');
@@ -6848,10 +6881,26 @@ function handAimByTap(t){ return handAim(t); }
    resolves to a fighter; anything else is the picker's. With a fighter under the cursor
    and no card held it says so rather than swallowing the gesture in silence, which is
    the one case where it consumes the click without aiming. */
+/* Why a gesture on a token did nothing, said once, to the console.
+   The fall-through itself is deliberate and stays: a token that resolves to nothing
+   belongs to the roll picker, in a fight or out of one. But the two reasons look
+   identical from the table - a foe you cannot aim at and a rock you should not be able to
+   aim at both open the dice - and live play could only report "targeting is broken"
+   without being able to say which. This costs nothing and turns the next such evening
+   into evidence. */
+function handAimMiss(t){
+  if (!hand || hand.active === false) return;
+  if (!t || (t.kind !== 'foe' && t.kind !== 'npc' && t.kind !== 'p')) return;
+  try {
+    console.info('[hand] no fighter for token', t.id, t.name || '',
+      'refId=' + (t.refId || '(none)'), 'charId=' + (t.charId || '(none)'),
+      '— published fighters:', handFighters().map(function(f){ return f.key; }));
+  } catch(e){}
+}
 function handAimByMenu(t){
   if (!hand || hand.active === false) return false;    /* no fight: the picker's */
   var f = tokenFighter(t);
-  if (!f) return false;                                /* not a fighter: the picker's */
+  if (!f){ handAimMiss(t); return false; }             /* not a fighter: the picker's */
   /* Nothing held is not nothing meant. Right-clicking a foe with an empty hand opens the
      choice of what to do to it rather than assuming a standard attack: the player still
      picks, and still rolls, so nothing is committed behind their back. */

@@ -58,7 +58,9 @@ test.describe('A12 the utilities travel by name, not by [object Object]', () => 
     const names = items.map((i) => i.name);
     expect(names, 'nothing stringified an object on the way out').not.toContain('[object Object]');
     expect(names).toContain('Ashen Tonic');
-    expect(names).toContain('Waxed Rope');
+    /* the rope is carried and known, but it is not an Act, and this hand is the combat
+       Act picker. Category is A17's question; this one is about names surviving the trip */
+    expect(names).toContain('Torch');
   });
 
   test('the count comes off the row it is written on', async ({ page }) => {
@@ -75,8 +77,12 @@ test.describe('A12 the utilities travel by name, not by [object Object]', () => 
     await frame.evaluate(() => { window._tsHandSig = null; tsSendHand(); });
     await page.waitForFunction(() => window.FSH.lastHand !== null);
 
-    const rope = (await handItems(page)).filter((i) => i.name === 'Waxed Rope')[0];
-    expect(rope.use, 'so the row can say which are not meant for a fight').toBe('Out of Combat');
+    const tonic = (await handItems(page)).filter((i) => i.name === 'Ashen Tonic')[0];
+    expect(tonic.use, 'the row is told what each one is for').toBe('Act');
+    /* and the use is read off the library rather than guessed, which is what lets the
+       category filter work at all */
+    const pack = await frame.evaluate(() => cbUtilities().map((u) => u.name + ':' + u.use));
+    expect(pack).toContain('Waxed Rope:Out of Combat');
   });
 
   test('a utility nobody has identified is not offered by name', async ({ page }) => {
@@ -96,7 +102,8 @@ test.describe('A12 the utilities travel by name, not by [object Object]', () => 
     await page.waitForFunction(() => window.FSH.lastHand !== null);
 
     const items = await handItems(page);
-    expect(items).toHaveLength(3);
+    expect(items, 'the tonic and the torch: the rope is no Act, the idol is unidentified')
+      .toHaveLength(2);
     items.forEach((i) => expect(i.name && i.name.length, 'no empty names either').toBeTruthy());
   });
 
@@ -107,7 +114,7 @@ test.describe('A12 the utilities travel by name, not by [object Object]', () => 
 
     /* the same resolver feeds both, so a Fell cannot see one list on the sheet and a
        different one on the table */
-    const fromSheet = await frame.evaluate(() => cbUtilities().map((u) => u.name));
+    const fromSheet = await frame.evaluate(() => cbActUtilities().map((u) => u.name));
     const fromHand = (await handItems(page)).map((i) => i.name);
     expect(fromHand).toEqual(fromSheet);
   });

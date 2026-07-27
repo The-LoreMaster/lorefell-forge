@@ -3953,7 +3953,7 @@ function renderBattle(){
      COMBAT_REACTS carried a name and nothing that explained it. ThreadSpire's card row
      reads this feed, and a card with no words on it is not a card, so the text travels
      with the entry now. */
-  const put=(use,src,nm,d,tier,kind)=>{if(buckets[use]!==undefined){buckets[use]+=arEntry(src,nm,d);arNames[use].push({src:src,nm:nm,desc:d||"",tier:(tier===undefined?null:tier),kind:kind||"standard"});}};
+  const put=(use,src,nm,d,tier,kind,bar)=>{if(buckets[use]!==undefined){buckets[use]+=arEntry(src,nm,d,!!bar);arNames[use].push({src:src,nm:nm,desc:d||"",tier:(tier===undefined?null:tier),kind:kind||"standard",bar:bar||""});}};
   /* Only what is in hand. A Fell owning three weapons is not a Fell holding three, and
      the row showing three Basic attacks was that confusion made visible. */
   C.weapons.filter(w=>w.equipped).forEach(w=>{
@@ -3998,7 +3998,10 @@ function renderBattle(){
      whole Act to do something they should be able to do while still striking. */
   put("React","armor","Change Armor Stance","Shift your armour stance. Spends your React.",undefined,"standard");
   put("Act","skills","Any skill","All 24 skills may be attempted as an Act.",undefined,"standard");
-  if(cbUtilities().length) put("Act","utility","Use a utility","Spend your Act on a utility you carry.",undefined,"standard");
+  /* F9 on the row: the card is there wearing its condition rather than vanishing, so a
+     player can see that taking a utility up is a thing they could do. */
+  if(cbOwnsActUtility()) put("Act","utility","Use a utility","Spend your Act on a utility you carry.",undefined,"standard",
+                            cbActUtilities().length?"":"Nothing carried");
   put("React","ally","Assist an ally","Add your competency or half your attribute to an adjacent ally's roll. To clear an Affliction, you both roll and either Fellmark removes it.",undefined,"standard");
   put("React","movement","Move","Movement is a React. It spends your entire React and is never part of an Act. Once per round.",undefined,"standard");
   put("React","skills","Any skill","All 24 skills may be attempted as a React, such as a defensive move or countering a threat.",undefined,"standard");
@@ -4024,6 +4027,9 @@ function renderBattle(){
     var spell = !!(i && i.cat==='magic' && a.kind==='weapon' && t!==null && t>=1);
     return {src:a.src,nm:a.nm,desc:a.desc||'',dmg:i?i.dmg:0,base:i?i.base:0,dt:i?i.dt:null,aff:i?i.aff:'',
             tier:t,kind:a.kind,
+            /* a reason this one card cannot be taken up, carried through rather than
+               dropped here: the row greys it and prints this, per F9 */
+            bar:a.bar||'',
             contest:(spell?'difficulty':'evasion'),
             castSkill:(spell?(SPELL_SKILL_BY_TREE[i.tree]||''):'')};
   });
@@ -4067,12 +4073,12 @@ function tsHandPayload(){
     }),
     reacts: (window.COMBAT_REACTS||[]).map(function(r){
       return { src:r.src, nm:r.nm, desc:r.desc||'', tier:(typeof r.tier==='number'?r.tier:null),
-               kind:r.kind, locked: tsHandLocked(r.tier, ch) };
+               kind:r.kind, bar:r.bar||'', locked: tsHandLocked(r.tier, ch) };
     }),
     skills: skills,
     /* the same resolver the sheet's own picker uses, so the row and the sheet cannot
        disagree about what this Fell is carrying */
-    items: cbUtilities().map(function(x){
+    items: cbActUtilities().map(function(x){
       return { name:x.name, qty:x.qty, use:x.use||'' };
     }),
     stances: ['Shrouded','Stalwart','Vestments'],
@@ -5141,9 +5147,24 @@ function applyCombatMode(){
 
   cbCaptureDraft();
   bn.className="cb-stage"; bn.style.display="flex";
-  document.body.classList.add("cbs-full");
-  if(!window._cbsFullPrev){ try{window.scrollTo(0,0);}catch(e){} }
-  window._cbsFullPrev=true;
+  /* On the table the sheet is a reference surface and nothing else. cbs-full blanks the
+     whole body behind the banner, so binding it to a fight bound it to every tab: a
+     player who had locked in and went looking for their Inventory, Skills, Arsenal,
+     Attributes or Lore found the combat panel in all five.
+
+     That was right when the sheet carried the declare builder - the builder deserved the
+     room. It is wrong now the map carries it. The combat surface belongs to the map and
+     the Fellmark gem; the banner still shows in every state, it simply stops covering
+     what the player came to read. Standalone, with no map to declare from, this is
+     untouched. */
+  if(!cbOnTable()){
+    document.body.classList.add("cbs-full");
+    if(!window._cbsFullPrev){ try{window.scrollTo(0,0);}catch(e){} }
+    window._cbsFullPrev=true;
+  } else {
+    document.body.classList.remove("cbs-full");
+    window._cbsFullPrev=false;
+  }
   var dec=COMBAT.you||{};
 
   var snooze = (sh && window._hitSnooze===sh.at)
@@ -5191,9 +5212,8 @@ function applyCombatMode(){
   }
 
   /* The declare builder was what justified taking the whole slideout. With the table
-     carrying it, this state is a signpost and a couple of lines, so it gives the height
-     back and the reference tabs underneath stay reachable. */
-  if(mode==="table"){ document.body.classList.remove("cbs-full"); window._cbsFullPrev=false; }
+     carrying it, no state on the table needs the height - see above, where cbs-full is
+     now decided by whether there is a map at all rather than by which card is showing. */
 
   var opt=cbInfusionTriggers()+cbInfusionReminders()+cbAugReminders();
   var optHtml = opt ? '<details class="cbs-opt"'+(window._cbOptOpen?' open':'')+'><summary>Your options <span>\u25be</span></summary><div class="cbs-opt-in">'+opt+'</div></details>' : '';
@@ -5431,7 +5451,7 @@ function cbDealItems(){
   var selEl=document.getElementById("cbItemSel");
   var pick=(selEl&&selEl.value)||cbDraft("item","");
   var h='';
-  cbUtilities().forEach(function(x){
+  cbActUtilities().forEach(function(x){
     var nm=x.name;
     var q=(x.qty>1)?(' \u00d7'+x.qty):"";
     var d=x.desc||"";
@@ -5453,7 +5473,7 @@ function cbHandHtml(){
   var kind=window._handKind||cbKindOf(cur);
   function pill(k,l){ return '<button type="button" class="'+(kind===k?'on':'')+'" onclick="cbHandSeg(\''+k+'\')">'+l+'</button>'; }
   var seg='<div class="cbc-seg">'+pill('attack','Attack')+pill('skill','Use a skill')
-    +(cbUtilities().length?pill('item','Use a utility'):'')+'</div>';
+    +(cbActUtilities().length?pill('item','Use a utility'):'')+'</div>';
   var body='';
   if(kind==='attack') body=cbDealAttacks(cur);
   else if(kind==='item') body=cbDealItems();
@@ -5891,7 +5911,25 @@ function cbReactOptions(sel){
    actually asking, which is what can be used, not what is in the pack. A utility nobody
    has identified yet cannot be chosen by name, so it is not offered; the ones that are
    known on sight are, per the Utilities note on the sheet. */
-function cbUtilities(){
+/* Two questions, and they are not the same one.
+
+   CATEGORY: is this an Act at all? A utility's `use` says whether it is an Act, a React,
+   a Passive or an Out of Combat thing. Only an Act can be chosen as an Act, so only those
+   reach the combat Act picker - a rope for climbing is not a worse option in a fight, it
+   is not an option in a fight, and listing it is clutter with no path to use it. Its
+   "Out of Combat" tag still shows in the sheet's own Utility tab, where it means
+   something.
+
+   AVAILABILITY: can this be used right now? That is F9's question, and F9's answer is
+   greyed rather than hidden - which is why "Use a utility" stays on the row wearing its
+   condition when the pack is empty, instead of the card vanishing.
+
+   Category filters the list; availability greys the card. Passing a `use` narrows to a
+   category; passing nothing gives the whole pack, which is what the sheet's own tab
+   wants. */
+/* Every utility the Fell has that is worth naming, carried or not. The one place that
+   turns an inventory row into a thing with a name, a use and a count. */
+function cbPack(){
   var lib=(typeof ITEMS_LIB!=="undefined"&&ITEMS_LIB)||[];
   return (C.inventory||[]).map(function(it){
     if(!it) return null;
@@ -5899,18 +5937,30 @@ function cbUtilities(){
     if(!e||!e.name) return null;
     var known=it.discovered||String(e.veiled||"").toLowerCase()==="open";
     if(!known) return null;
-    /* and it has to be on you: what a Fell carries is a choice against their Wit, not
-       everything they own */
-    if(!it.equipped) return null;
     /* the sheet counts in `quantity`; qty is accepted so a row from anywhere else still
        reads rather than silently becoming one */
     var q=(typeof it.quantity==="number")?it.quantity:((typeof it.qty==="number")?it.qty:1);
     if(q<=0) return null;
-    return { name:e.name, qty:q, use:e.use||"", desc:e.desc||"" };
+    return { name:e.name, qty:q, use:e.use||"", desc:e.desc||"", equipped:!!it.equipped };
   }).filter(Boolean);
 }
+/* What is actually on you, optionally of one kind. */
+function cbUtilities(useOnly){
+  return cbPack().filter(function(u){
+    if(!u.equipped) return false;    /* carried is a choice against Wit, not everything owned */
+    return useOnly ? (u.use===useOnly) : true;
+  });
+}
+/* What the combat Act picker may offer: carried, and an Act by nature. */
+function cbActUtilities(){ return cbUtilities("Act"); }
+/* Whether the Fell owns anything that could ever be spent as an Act. Separate from
+   whether they are carrying one: the first decides if the card exists, the second decides
+   whether it is greyed, which is the F9 shape. */
+function cbOwnsActUtility(){
+  return cbPack().some(function(u){ return u.use==="Act"; });
+}
 function cbItemOptions(sel){
-  return cbUtilities().map(function(x){
+  return cbActUtilities().map(function(x){
     var q=(x.qty>1)?(' \u00d7'+x.qty):"";
     return '<option value="'+cbEsc(x.name)+'"'+(sel===x.name?' selected':'')+'>'+cbEsc(x.name)+q+'</option>';
   }).join('');
