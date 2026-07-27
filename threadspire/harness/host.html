@@ -545,6 +545,21 @@ window.addEventListener('message', function (ev) {
    * the two-frame table cannot carry a round at all. */
   if (msg.type === 'TS_TOOL_UP') {
     var inner = msg.msg;
+    /* The sheet announcing itself. The real page answers this with the player's own
+     * record, and until it does the sheet has no CUR_WIX_ID: it cannot poll for combat,
+     * cannot know a fight is on, and cannot hand out a live hand. This went unanswered
+     * here, which is why every card-row scenario had to inject a hand rather than let
+     * the sheet derive one. Answered now, the way fgSheetBridge answers it. */
+    if (inner && inner.type === 'ready') {
+      var rb = binding(name);
+      if (rb && rb.characterId) {
+        post(name, { type: 'TS_TOOL_DOWN', tool: 'fellglass', msg: {
+          type: 'init', charId: rb.characterId,
+          character: clone(rb.character) || {}, blank: false, libraries: {}
+        } });
+      }
+      return;
+    }
     if (inner && inner.type === 'combat-declare') { takeDeclare(name, inner); return; }
     /* The sheet asking what has happened to it. This is the whole return leg from the
      * player's side: conditions, the recap, damage waiting to be confirmed and the charge
@@ -698,6 +713,37 @@ TSH.reset = function () {
   TSH.violations = [];
   TSH.stats = { pushes: 0, pushRefused: 0, pulls: 0, snapsServed: 0 };
 };
+
+/* ------------------------------------------------------------- driving by hand ----
+ * Specs always mount explicitly, because a scenario needs to arrange the table before
+ * either frame boots. That leaves this page useless when opened in a browser: two empty
+ * slots and no way in. ?play mounts the same fixtures the scenarios use so the table can
+ * be driven by hand.
+ *
+ *   ?play           both sides, split down the middle
+ *   ?play=player    the player alone, full width
+ *   ?play=lm        the LoreMaster alone, full width
+ *
+ * One side at a time is worth having: split in half, each frame is half the window, and
+ * below 700px the layout switches to its phone rules. To see the desktop card row you
+ * want a frame wider than that.
+ */
+(function () {
+  var m = /[?&]play(?:=([a-z]+))?/.exec(location.search);
+  if (!m) return;
+  var which = m[1] || 'both';
+  var F = window.TS_FIXTURES;
+  if (!F) return;
+  var cfg = {};
+  if (which === 'both' || which === 'lm') {
+    cfg.lm = { role: 'lm', campaignId: F.CAMPAIGN_A, rawCampaign: F.BEACONS, party: F.PARTY_A };
+  }
+  if (which === 'both' || which === 'player') {
+    cfg.player = { role: 'player', campaignId: F.CAMPAIGN_A, characterId: F.FELL_CHAR_ID,
+                   character: F.CHARACTER_A, characters: [F.CHARACTER_A], party: F.PARTY_A };
+  }
+  try { TSH.mount(cfg); } catch (e) {}
+})();
 
 })();
 </script>
