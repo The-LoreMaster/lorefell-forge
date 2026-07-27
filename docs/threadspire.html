@@ -497,10 +497,69 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .hc-dmg{ font-size:.62rem; color:var(--ice); opacity:.9; font-variant-numeric:tabular-nums; }
 .hc-dmg b{ color:var(--gold); font-weight:600; }
 .hc-cast{ font-size:.6rem; color:#9aa8e0; letter-spacing:.02em; }
+/* The chosen card. Gold, and moving, because a still highlight on a dark row at arm's
+   length reads as nothing at all. The pulse is lvlglow and gempulse from the sheet at the
+   same 2.4s, so the Level Up control, the charge gems and a chosen Act all breathe
+   together; the sweep is the only thing new, and it is what says "held" rather than
+   merely "on". */
+@keyframes handglow{
+  0%,100%{ box-shadow:0 0 7px rgba(201,168,76,.28); }
+  50%{ box-shadow:0 0 20px rgba(201,168,76,.62); }
+}
+@keyframes handsweep{
+  0%{ transform:translateX(-120%); }
+  60%,100%{ transform:translateX(220%); }
+}
+.hcard.armed{
+  border-color:var(--gold); transform:scale(1.045); z-index:1;
+  background:linear-gradient(180deg, rgba(43,36,16,.96), rgba(16,20,34,.96));
+  animation:handglow 2.4s ease-in-out infinite;
+  position:relative; overflow:hidden;
+}
+.hcard.armed .hc-name{ color:var(--gold); }
+.hcard.armed::after{
+  content:''; position:absolute; top:0; bottom:0; left:0; width:38%;
+  background:linear-gradient(100deg, transparent, rgba(232,210,138,.16), transparent);
+  animation:handsweep 2.9s ease-in-out infinite; pointer-events:none;
+}
 /* Locked reads as locked at a glance, in weight as well as words, and stays on the row
    so a player can see what the next charge would buy them. */
 .hcard.locked{ opacity:.44; border-style:dashed; }
 .hcard.locked .hc-name{ color:var(--ice); }
+/* Barred is not locked. Locked is a charge away; barred is an affliction or fatigue
+   saying no this round, so it wears the reason rather than a price. */
+.hcard.barred{ opacity:.5; }
+.hcard.barred .hc-name{ color:var(--ice); }
+.hc-bar{
+  font-family:Cinzel,serif; font-size:.5rem; letter-spacing:.1em; text-transform:uppercase;
+  color:#d98a8a; border:1px solid rgba(217,138,138,.45); border-radius:999px;
+  padding:1px 6px; align-self:flex-start; margin-top:1px;
+}
+/* Spent says the Beat has already had this from you: one Act and one React a round. */
+.hc-spent{
+  font-family:Cinzel,serif; font-size:.5rem; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--muted); border:1px solid var(--line); border-radius:999px;
+  padding:1px 6px; align-self:flex-start; margin-top:1px;
+}
+/* What a chosen card still needs before it can be aimed: which skill, which item, which
+   stance. Sits above the row so the cards stay put underneath it. */
+.hand-pick{
+  pointer-events:auto; margin:0 108px 6px; padding:7px 9px; border-radius:10px;
+  background:rgba(10,14,26,.95); border:1px solid rgba(201,168,76,.4);
+  display:flex; flex-wrap:wrap; align-items:center; gap:6px; max-height:33vh; overflow-y:auto;
+}
+.hand-pick .hp-lab{
+  font-family:Cinzel,serif; font-size:.52rem; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--gold); margin-right:2px;
+}
+.hp-opt{
+  border:1px solid var(--line); border-radius:999px; padding:3px 9px;
+  font-size:.7rem; color:var(--ice); background:rgba(20,27,51,.9);
+}
+.hp-opt:hover{ border-color:rgba(201,168,76,.5); }
+.hp-opt.on{ border-color:var(--gold); color:var(--gold); }
+.hp-opt:focus-visible{ outline:2px solid var(--gold); outline-offset:2px; }
+.hc-pick{ font-size:.6rem; color:var(--gold); }
 .hc-lock{
   font-family:Cinzel,serif; font-size:.5rem; letter-spacing:.1em; text-transform:uppercase;
   color:var(--gold); border:1px solid rgba(201,168,76,.4); border-radius:999px;
@@ -518,8 +577,13 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
   .hand-scroll{ padding-left:76px; padding-right:14px; }
 }
 @media (max-width:520px){ .hcard{ flex-basis:138px; } }
+/* Reduced motion keeps the meaning and drops the movement: a chosen card is still gold
+   and still stands proud of the row, it simply stops breathing and the sweep goes away.
+   The state must never depend on the animation to be visible. */
 @media (prefers-reduced-motion: reduce){
   .hcard{ transition:none; }
+  .hcard.armed{ animation:none; box-shadow:0 0 0 2px var(--gold); }
+  .hcard.armed::after{ display:none; }
 }
 #lmstrip > *{ pointer-events:auto; }
 .lm-topbar{ display:flex; align-items:center; gap:9px; margin-bottom:10px; background:rgba(10,14,26,.9); border:1px solid var(--line); border-radius:10px; padding:6px 10px; }
@@ -6234,8 +6298,89 @@ function handKicker(e){
   if (typeof e.tier !== 'number') return esc(src);
   return esc(src) + (e.tier === 0 ? ' · Always ready' : ' · Tier ' + e.tier);
 }
-function handCard(e, charge){
+/* ---- choosing a card ----
+   One slot, because the gesture is choose-then-aim and you can only aim one thing. It
+   holds the entry, whether it came from the Acts or the Reacts, and whatever the card
+   still needs before it can be aimed. Local to this viewer like the camera and the
+   selection: what a player has picked up is not board state until they declare it. */
+var armed = null;
+/* Some Acts are a category rather than a deed. "Any skill" is not an Act until it is a
+   skill, and an item Act is not one until it is an item, so the card asks before it can
+   be aimed at anything. */
+function handNeeds(e){
+  if (!e) return null;
+  if (e.src === 'skills') return 'skill';
+  if (e.src === 'items' || e.kind === 'item') return 'item';
+  if (e.src === 'armor' && /stance/i.test(e.nm || '')) return 'stance';
+  return null;
+}
+/* Why a card cannot be taken this round, or empty if it can. Locked is a charge away and
+   says so on the card itself; this is the harder no. */
+function handBarred(e, group){
+  var g = (hand && hand.gates) || {};
+  if (group === 'act' && g.noAct) return 'No Act';
+  if (group === 'react' && g.noReact) return 'No React';
+  return '';
+}
+/* The Beat allows one Act and one React. Once the Act is declared for this round the
+   Act cards read as spent, and the same for a React that has been used. */
+function handSpent(group){
+  if (!hand) return false;
+  return group === 'act' ? !!hand.declared : !!hand.reactUsed;
+}
+function handArm(nm, group){
+  if (!hand) return;
+  var list = group === 'react' ? (hand.reacts || []) : (hand.acts || []);
+  var e = list.filter(function(x){ return x.nm === nm; })[0];
+  if (!e || e.locked) return;                 /* a charge away is still no */
+  if (handBarred(e, group)) return;
+  if (handSpent(group)) return;
+  if (armed && armed.group === group && armed.entry.nm === nm){ handDisarm(); return; }
+  armed = { entry: e, group: group, need: handNeeds(e), skill: '', item: '', stance: '' };
+  renderHand();
+}
+function handDisarm(){ armed = null; renderHand(); }
+function handPick(kind, value){
+  if (!armed) return;
+  armed[kind] = (armed[kind] === value) ? '' : value;
+  renderHand();
+}
+/* What the chosen card still wants, as a strip above the row. */
+function handPicker(){
+  if (!armed || !armed.need) return '';
+  var h = '<div class="hand-pick">';
+  if (armed.need === 'skill'){
+    var skills = (hand && hand.skills) || {};
+    h += '<span class="hp-lab">Which skill</span>';
+    Object.keys(skills).forEach(function(n){
+      h += '<button type="button" class="hp-opt' + (armed.skill === n ? ' on' : '') + '"'
+        + ' data-pick="skill" data-val="' + esc(n) + '">' + esc(n) + ' +' + (skills[n] || 0) + '</button>';
+    });
+  } else if (armed.need === 'item'){
+    var items = (hand && hand.items) || [];
+    h += '<span class="hp-lab">Which item</span>';
+    if (!items.length) h += '<span class="hc-desc">Your pack is empty.</span>';
+    items.forEach(function(it){
+      h += '<button type="button" class="hp-opt' + (armed.item === it.name ? ' on' : '') + '"'
+        + ' data-pick="item" data-val="' + esc(it.name) + '">' + esc(it.name)
+        + (it.qty > 1 ? ' ×' + it.qty : '') + '</button>';
+    });
+  } else if (armed.need === 'stance'){
+    var stances = (hand && hand.stances) || [];
+    h += '<span class="hp-lab">Which stance</span>';
+    stances.forEach(function(sn){
+      var worn = hand && hand.worn === sn;
+      h += '<button type="button" class="hp-opt' + (armed.stance === sn ? ' on' : '') + '"'
+        + ' data-pick="stance" data-val="' + esc(sn) + '">' + esc(sn) + (worn ? ' · worn' : '') + '</button>';
+    });
+  }
+  return h + '</div>';
+}
+function handCard(e, charge, group){
   var locked = !!e.locked;
+  var barred = locked ? '' : handBarred(e, group);
+  var spent = !locked && !barred && handSpent(group);
+  var isArmed = !!(armed && armed.group === group && armed.entry.nm === e.nm);
   var bits = '';
   if (e.dmg > 0){
     var base = e.base || 0, bonus = Math.max(0, (e.dmg || 0) - base);
@@ -6247,15 +6392,25 @@ function handCard(e, charge){
   if (e.contest === 'difficulty' && e.castSkill){
     bits += '<span class="hc-cast">Casts on ' + esc(e.castSkill) + ' vs Difficulty</span>';
   }
-  return '<button type="button" class="hcard' + (locked ? ' locked' : '') + '"'
-    + (locked ? ' aria-disabled="true"' : '')
-    + ' data-act="' + esc(e.nm) + '">'
+  /* once chosen, the card shows the choice it was carrying */
+  if (isArmed && armed.need){
+    var chosen = armed[armed.need];
+    bits += '<span class="hc-pick">' + (chosen ? esc(chosen) : 'Choose ' + armed.need + ' above') + '</span>';
+  }
+  var cls = 'hcard' + (locked ? ' locked' : '') + (barred ? ' barred' : '')
+          + (isArmed ? ' armed' : '');
+  return '<button type="button" class="' + cls + '"'
+    + ((locked || barred || spent) ? ' aria-disabled="true"' : '')
+    + ' aria-pressed="' + (isArmed ? 'true' : 'false') + '"'
+    + ' data-act="' + esc(e.nm) + '" data-group="' + group + '">'
     + handRail(charge)
     + '<span class="hc-kick">' + handKicker(e) + '</span>'
     + '<span class="hc-name">' + esc(e.nm) + '</span>'
     + (e.desc ? '<span class="hc-desc">' + esc(e.desc) + '</span>' : '')
     + bits
     + (locked ? '<span class="hc-lock">Charge ' + e.tier + '</span>' : '')
+    + (barred ? '<span class="hc-bar">' + esc(barred) + '</span>' : '')
+    + (spent ? '<span class="hc-spent">' + (group === 'act' ? 'Act declared' : 'React spent') + '</span>' : '')
     + '</button>';
 }
 /* The row itself. Shown to a player in a fight and to nobody else: the LoreMaster has
@@ -6273,17 +6428,42 @@ function renderHand(){
     el.innerHTML = '<div class="hand-empty">No Acts on this Fell yet. Take a weapon and they appear here.</div>';
     return;
   }
-  var h = '<div class="hand-scroll">';
+  /* a card chosen last round is not a card this round; the sheet clears its own state
+     on the round tick and the row follows it rather than keeping a stale hold */
+  if (armed){
+    var still = (armed.group === 'react' ? reacts : acts)
+      .filter(function(x){ return x.nm === armed.entry.nm && !x.locked; })[0];
+    if (!still) armed = null; else armed.entry = still;
+  }
+
+  var h = handPicker() + '<div class="hand-scroll">';
   if (acts.length){
     h += '<span class="hand-lab">Acts</span>';
-    acts.forEach(function(a){ h += handCard(a, charge); });
+    acts.forEach(function(a){ h += handCard(a, charge, 'act'); });
   }
   if (reacts.length){
     h += '<span class="hand-lab">Reacts</span>';
-    reacts.forEach(function(r){ h += handCard(r, charge); });
+    reacts.forEach(function(r){ h += handCard(r, charge, 'react'); });
   }
   el.innerHTML = h + '</div>';
 }
+/* One listener on the row rather than a handler per card, since the row is rebuilt on
+   every charge and every hand. */
+(function wireHand(){
+  var el = document.getElementById('hand');
+  if (!el) return;
+  el.addEventListener('click', function(ev){
+    var opt = ev.target.closest && ev.target.closest('.hp-opt');
+    if (opt){ handPick(opt.getAttribute('data-pick'), opt.getAttribute('data-val')); return; }
+    var card = ev.target.closest && ev.target.closest('.hcard');
+    if (card) handArm(card.getAttribute('data-act'), card.getAttribute('data-group'));
+  });
+  /* Escape puts the card back down. The row is reachable by keyboard, so the way out
+     has to be too. */
+  document.addEventListener('keydown', function(ev){
+    if (ev.key === 'Escape' && armed) handDisarm();
+  });
+})();
 window.addEventListener('message', function(ev){
   var f = document.getElementById('sheetFrame');
   if (f && ev.source === f.contentWindow && ev.data && ev.data.type){

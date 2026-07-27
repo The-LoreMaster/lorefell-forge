@@ -50,7 +50,9 @@ function handAt(charge) {
     { src: 'The Aerostrix', nm: 'Augury', desc: 'When a Fell makes an attack, that attack is a Lucky Roll.', tier: 1, kind: 'lorebound', locked: lock(1) }
   ];
   return { charge, gates: { noAct: false, noReact: false, notes: [] }, acts, reacts,
-           skills: {}, items: [], stances: ['Shrouded', 'Stalwart', 'Vestments'], worn: null,
+           skills: { Guard: 3, Might: 1, Vigilance: 2 },
+           items: [{ name: 'Emberdraught', qty: 2 }],
+           stances: ['Shrouded', 'Stalwart', 'Vestments'], worn: 'Stalwart',
            round: 1, active: true, declared: false, reactUsed: false };
 }
 
@@ -72,7 +74,10 @@ const cardByName = (frame, nm) => frame.evaluate((n) => {
   if (!c) return null;
   return {
     locked: c.classList.contains('locked'),
+    barred: c.classList.contains('barred'),
+    armed: c.classList.contains('armed'),
     ariaDisabled: c.getAttribute('aria-disabled'),
+    ariaPressed: c.getAttribute('aria-pressed'),
     text: c.textContent,
     lit: c.querySelectorAll('.hc-pip.on').length
   };
@@ -80,6 +85,27 @@ const cardByName = (frame, nm) => frame.evaluate((n) => {
 
 const rowHidden = (frame) => frame.evaluate(() =>
   document.getElementById('hand').classList.contains('hidden'));
+
+/* Tap a card the way a finger does, through the row's own listener. */
+const tapCard = (frame, nm) => frame.evaluate((n) => {
+  const c = Array.from(document.querySelectorAll('#hand .hcard')).find((x) => x.getAttribute('data-act') === n);
+  if (!c) throw new Error('no card named ' + n);
+  c.click();
+}, nm);
+
+const tapOption = (frame, val) => frame.evaluate((v) => {
+  const o = Array.from(document.querySelectorAll('#hand .hp-opt')).find((x) => x.getAttribute('data-val') === v);
+  if (!o) throw new Error('no option named ' + v);
+  o.click();
+}, val);
+
+const armedNames = (frame) => frame.evaluate(() =>
+  Array.from(document.querySelectorAll('#hand .hcard.armed')).map((c) => c.getAttribute('data-act')));
+
+const pickerLabel = (frame) => frame.evaluate(() => {
+  const p = document.querySelector('#hand .hand-pick .hp-lab');
+  return p ? p.textContent : null;
+});
 
 test.describe('S3b the card row draws the hand', () => {
 
@@ -206,6 +232,141 @@ test.describe('S3b the card row draws the hand', () => {
       return n ? n.textContent : null;
     });
     expect(note, 'and it explains itself').toContain('No Acts');
+  });
+
+  /* ---- choosing a card ---------------------------------------------------------- */
+
+  test('tapping a card takes it up, tapping it again puts it down', async ({ page }) => {
+    await T.openTable(page, playerOnly());
+    const player = await T.frameFor(page, 'player');
+    await T.waitBooted(page, player, 'player');
+    await dealHand(player, 3);
+
+    expect(await armedNames(player), 'nothing is held to begin with').toEqual([]);
+
+    await tapCard(player, 'Razorwind');
+    expect(await armedNames(player)).toEqual(['Razorwind']);
+    expect((await cardByName(player, 'Razorwind')).ariaPressed, 'and says so to a screen reader').toBe('true');
+
+    await tapCard(player, 'Razorwind');
+    expect(await armedNames(player), 'the same card again puts it down').toEqual([]);
+  });
+
+  test('only one card is held at a time', async ({ page }) => {
+    await T.openTable(page, playerOnly());
+    const player = await T.frameFor(page, 'player');
+    await T.waitBooted(page, player, 'player');
+    await dealHand(player, 3);
+
+    await tapCard(player, 'Razorwind');
+    await tapCard(player, 'Basic attack');
+    expect(await armedNames(player), 'the second card replaces the first').toEqual(['Basic attack']);
+
+    /* a React is a different slot in the Beat but the same hand: you can still only be
+       aiming one thing */
+    await tapCard(player, 'Move');
+    expect(await armedNames(player)).toEqual(['Move']);
+  });
+
+  test('F9 a locked card cannot be taken up', async ({ page }) => {
+    await T.openTable(page, playerOnly());
+    const player = await T.frameFor(page, 'player');
+    await T.waitBooted(page, player, 'player');
+    await dealHand(player, 0);
+
+    await tapCard(player, 'Worldspire');
+    expect(await armedNames(player), 'a charge away is still no').toEqual([]);
+
+    await dealHand(player, 3);
+    await tapCard(player, 'Worldspire');
+    expect(await armedNames(player), 'and yes once the charge is there').toEqual(['Worldspire']);
+  });
+
+  test('an act that is a category asks which one before it is anything', async ({ page }) => {
+    await T.openTable(page, playerOnly());
+    const player = await T.frameFor(page, 'player');
+    await T.waitBooted(page, player, 'player');
+    await dealHand(player, 3);
+
+    expect(await pickerLabel(player), 'nothing to choose until a card is held').toBe(null);
+
+    await tapCard(player, 'Any skill');
+    expect(await pickerLabel(player)).toBe('Which skill');
+    expect((await cardByName(player, 'Any skill')).text).toContain('Choose skill above');
+
+    await tapOption(player, 'Guard');
+    expect((await cardByName(player, 'Any skill')).text, 'the card carries the choice').toContain('Guard');
+    expect(await armedNames(player), 'and is still the held card').toEqual(['Any skill']);
+  });
+
+  test('a plain act asks nothing', async ({ page }) => {
+    await T.openTable(page, playerOnly());
+    const player = await T.frameFor(page, 'player');
+    await T.waitBooted(page, player, 'player');
+    await dealHand(player, 3);
+
+    await tapCard(player, 'Basic attack');
+    expect(await pickerLabel(player), 'an attack is already the whole Act').toBe(null);
+  });
+
+  test('D1 the Beat allows one Act and one React, and the row says which are gone', async ({ page }) => {
+    await T.openTable(page, playerOnly());
+    const player = await T.frameFor(page, 'player');
+    await T.waitBooted(page, player, 'player');
+
+    await player.evaluate((h) => {
+      h.declared = true;
+      window.S.role = 'player'; window.S.mode = 'combat';
+      window.tsHandTake(h); window.render();
+    }, handAt(3));
+
+    const act = await cardByName(player, 'Basic attack');
+    expect(act.text, 'the Act for this round is already spent').toContain('Act declared');
+    await tapCard(player, 'Basic attack');
+    expect(await armedNames(player), 'and cannot be taken up again').toEqual([]);
+
+    /* the React is a separate allowance and is still there */
+    const react = await cardByName(player, 'Move');
+    expect(react.text).not.toContain('React spent');
+    await tapCard(player, 'Move');
+    expect(await armedNames(player)).toEqual(['Move']);
+  });
+
+  test('an affliction that forbids an Act bars the Act cards and says why', async ({ page }) => {
+    await T.openTable(page, playerOnly());
+    const player = await T.frameFor(page, 'player');
+    await T.waitBooted(page, player, 'player');
+
+    await player.evaluate((h) => {
+      h.gates = { noAct: true, noReact: false, notes: [{ name: 'Ensnared', rule: 'You may not utilize Acts.' }] };
+      window.S.role = 'player'; window.S.mode = 'combat';
+      window.tsHandTake(h); window.render();
+    }, handAt(3));
+
+    const act = await cardByName(player, 'Basic attack');
+    expect(act.text, 'barred, and it is not a charge problem').toContain('No Act');
+    expect(act.text).not.toContain('Charge');
+    await tapCard(player, 'Basic attack');
+    expect(await armedNames(player)).toEqual([]);
+
+    await tapCard(player, 'Move');
+    expect(await armedNames(player), 'the React is untouched by an Act gate').toEqual(['Move']);
+  });
+
+  test('a card put down by the round tick does not stay held', async ({ page }) => {
+    await T.openTable(page, playerOnly());
+    const player = await T.frameFor(page, 'player');
+    await T.waitBooted(page, player, 'player');
+
+    await dealHand(player, 3);
+    await tapCard(player, 'Worldspire');
+    expect(await armedNames(player)).toEqual(['Worldspire']);
+
+    /* the tier 3 act fires and the meter drops to nothing; what was held is out of
+       reach now and must not still be held */
+    await dealHand(player, 0);
+    expect(await armedNames(player)).toEqual([]);
+    expect((await cardByName(player, 'Worldspire')).locked).toBe(true);
   });
 
   test('a name carrying markup is drawn as text, not as markup', async ({ page }) => {
