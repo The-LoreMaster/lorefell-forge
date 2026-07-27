@@ -183,10 +183,14 @@ test.describe('S3i the ambush opening', () => {
     await T.waitBooted(page, player, 'player');
     await rowInOpening(player, { side: 'fell', inIt: true });
 
-    const react = await card(player, 'Move');
-    expect(react.barred, 'canon is explicit: no React during the opening').toBe(true);
-    expect(react.text).toContain('No React');
-    expect(await armed(player, 'Move', 'react')).toBe(false);
+    /* A8 made this stronger than it was. Reacts used to be shown and barred during the
+       opening; now they are not offered at all, because Reacts belong to resolution and
+       canon forbids them here besides. Either way nobody Reacts; this is the tighter
+       form of the same rule. */
+    const tabs = await player.evaluate(() =>
+      Array.from(document.querySelectorAll('#hand .hand-tab')).map((t) => t.getAttribute('data-tab')));
+    expect(tabs, 'no React to reach for at all').toEqual(['act']);
+    expect(await armed(player, 'Move', 'react'), 'and none can be taken up').toBe(false);
   });
 
   test('a Fell left out of the opening takes no Act in it', async ({ page }) => {
@@ -209,7 +213,7 @@ test.describe('S3i the ambush opening', () => {
     await rowInOpening(player, { side: 'foes', inIt: false });
 
     expect((await card(player, 'Basic attack')).barred).toBe(true);
-    expect((await card(player, 'Move')).barred).toBe(true);
+    expect(await armed(player, 'Move', 'react'), 'and no React either').toBe(false);
     expect(await phaseNote(player)).toContain('They caught you');
   });
 
@@ -224,6 +228,10 @@ test.describe('S3i the ambush opening', () => {
     await rowInOpening(player, { side: '' });      /* phase back to commit */
     expect((await card(player, 'Basic attack')).barred,
       'a Fell who sat out the opening is in the round like everyone else').toBe(false);
-    expect((await card(player, 'Move')).barred).toBe(false);
+    /* Reacts stay away because the board is taking declarations now, not because of the
+       opening: A8's rule, and a different reason from the one that just lifted */
+    const tabs = await player.evaluate(() =>
+      Array.from(document.querySelectorAll('#hand .hand-tab')).map((t) => t.getAttribute('data-tab')));
+    expect(tabs).toEqual(['act']);
   });
 });

@@ -37,7 +37,9 @@ function hand(nActs, nReacts) {
     reacts: Array.from({ length: nReacts }, (_, i) => mk('React', i)),
     skills: {}, items: [], stances: [],
     gates: { noAct: false, noReact: false, notes: [] },
-    active: true, round: 1, phase: 'commit', fighters: []
+    /* resolve, so both tabs exist: Reacts are hidden while declaring (A8) and this
+       spec is about the tabs themselves */
+    active: true, round: 1, phase: 'resolve', fighters: []
   };
 }
 

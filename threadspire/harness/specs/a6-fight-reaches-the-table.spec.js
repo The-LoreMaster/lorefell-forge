@@ -93,7 +93,9 @@ test.describe('A6 a fight reaches the table', () => {
 
     expect(row.shown, 'the row is up').toBe(true);
     expect(row.cards, 'with the Fell\'s own Acts on it, derived rather than injected').toBeGreaterThan(0);
-    expect(row.tabs).toEqual(['act', 'react']);
+    /* Acts only: a fight that has just begun is taking declarations, and Reacts do not
+       appear until the board is resolving (A8). */
+    expect(row.tabs).toEqual(['act']);
     expect(row.pill, 'and the reminder pill with it').toBe(true);
   });
 

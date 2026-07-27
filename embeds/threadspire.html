@@ -4831,8 +4831,11 @@ function tsEdgeGlow(color){
   el._t = setTimeout(function(){ el.classList.remove('on'); }, 2400);
 }
 function playerBattleStart(){
+  /* A fight announces itself and then gets out of the way. This used to throw the old
+     combat tracker open over the table the moment a battle began, which is the other
+     half of that tracker competing with the card row: the row is the combat surface, so
+     nothing opens on top of it uninvited, and a slideout open would hide it anyway. */
   tsEdgeGlow('rgba(201,106,90,.85)');
-  if (S.characterId && S.openSection !== 'battle') openWin('battle');
 }
 function playerBattleEnd(){
   tsEdgeGlow('rgba(201,168,76,.7)');
@@ -6579,6 +6582,7 @@ function handArm(nm, group){
   if (!e || e.locked) return;                 /* a charge away is still no */
   if (handBarred(e, group)) return;
   if (handSpent(group)) return;
+  handClearNote();     /* taking a card up is the player moving on from whatever it said */
   if (armed && armed.group === group && armed.entry.nm === nm){ handDisarm(); return; }
   armed = { entry: e, group: group, need: handNeeds(e), skill: '', item: '', stance: '' };
   renderHand();
@@ -6595,12 +6599,18 @@ function handDisarm(){ armed = null; renderHand(); }
    a whole feature of the tool, not a combat convenience. So aiming never replaces that
    picker, it only ever declines to run and lets it through. Every one of these returns
    false unless it is certain, and false means the picker opens exactly as it always did. */
+/* A word back to the player when a gesture could not be acted on. It stays until they do
+   something else, rather than dissolving on a timer: a player who looked away for three
+   seconds should not have to guess why nothing happened, and a message that may or may
+   not still be there by the time anyone reads it cannot be relied on by them or tested. */
 var _handNote = '';
 function handSay(msg){
   _handNote = msg || '';
   renderHand();
-  clearTimeout(window._handNoteT);
-  window._handNoteT = setTimeout(function(){ _handNote = ''; try { renderHand(); } catch(e){} }, 2600);
+}
+function handClearNote(){
+  if (!_handNote) return;
+  _handNote = '';
 }
 /* The Fell's own tier 0 strike: what "attack" means when nothing has been chosen. Used
    by the right-click shortcut, which is a way of saying "hit that" without first saying
@@ -6685,6 +6695,9 @@ function handDeclare(){
      visible to the tooling is worth more than the tidier local. */
   sheet.postMessage({
     type: 'ts-declare',
+    /* which half of the Beat this is: an Act is built and sent as a declaration, a React
+       rides on the one already made and goes out through the sheet's React path */
+    group: armed.group || 'act',
     act: armed.entry.nm,
     skill: armed.skill || '', item: armed.item || '', stance: armed.stance || '',
     target: armed.target || '',
@@ -6714,6 +6727,7 @@ function handDeclareResult(res){
     'barred': 'Something on you forbids an Act this round.',
     'needs-roll': 'That Act needs a roll.',
     'not-in-opening': 'You are not in this opening.',
+    'declare-first': 'Declare your Act before spending your React.',
     'unknown-act': 'The sheet does not know that Act.',
     'no-character': 'No Fell is loaded.'
   }[res.reason] || 'The sheet refused that declare.';
@@ -6876,13 +6890,23 @@ function renderHand(){
   }
   /* One group at a time, chosen by the tabs. Showing both at once is what made the row
      long enough to need paging in the first place, and it buried the Reacts off the
-     right-hand end where nobody found them. */
+     right-hand end where nobody found them.
+
+     And during declaration there is only one group. A Beat is declared as an Act; the
+     React answers what happens afterwards and is spent during resolution, at whatever
+     moment the player chooses. With both tabs up while declaring, players were picking a
+     React and never declaring an Act at all, so the Reacts tab is simply not there until
+     the board is resolving. */
+  var reactsOpen = handReactsOpen();
+  if (!reactsOpen && handTab === 'react') handTab = 'act';
   var group = (handTab === 'react') ? reacts : acts;
   var tabs = '<div class="hand-tabs">'
     + '<button type="button" class="hand-tab' + (handTab === 'act' ? ' on' : '') + '" data-tab="act">'
       + 'Acts<span class="ht-n">' + acts.length + '</span></button>'
-    + '<button type="button" class="hand-tab' + (handTab === 'react' ? ' on' : '') + '" data-tab="react">'
-      + 'Reacts<span class="ht-n">' + reacts.length + '</span></button>'
+    + (reactsOpen
+        ? '<button type="button" class="hand-tab' + (handTab === 'react' ? ' on' : '') + '" data-tab="react">'
+          + 'Reacts<span class="ht-n">' + reacts.length + '</span></button>'
+        : '')
     + '</div>';
 
   var cards = group.length
@@ -6923,9 +6947,19 @@ function handPage(dir){
   sc.scrollLeft += dir * Math.max(120, sc.clientWidth * 0.8);
   handPagers();
 }
+/* Reacts are a resolution thing. The board declares in Commit and resolves in Resolve,
+   and a React is spent during the second at a moment the player picks; during the ambush
+   opening nobody Reacts at all, on canon. So the tab exists only while resolving. */
+function handReactsOpen(){
+  if (!hand) return false;
+  if (hand.opening) return false;
+  return hand.phase === 'resolve';
+}
 function handSetTab(t){
   var next = (t === 'react') ? 'react' : 'act';
+  if (next === 'react' && !handReactsOpen()) return;
   if (next === handTab) return;
+  handClearNote();     /* and so is changing tabs */
   handTab = next;
   renderHand();
 }

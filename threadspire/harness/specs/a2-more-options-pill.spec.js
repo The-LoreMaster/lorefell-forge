@@ -209,6 +209,9 @@ test.describe('A2 the More Options pill', () => {
     expect(await hidden(), 'shown once the fight is on').toBe(false);
 
     await player.evaluate(() => document.getElementById('moreOpt').click());
+    /* the click opens the gem's slideout, which hides the whole row while it is up (A7),
+       so close it before asking whether the reminder itself is spent */
+    await player.evaluate(() => window.closeWin());
     expect(await hidden(), 'and gone once it has done its job').toBe(true);
 
     /* it stays gone for the rest of the battle, through repaints */

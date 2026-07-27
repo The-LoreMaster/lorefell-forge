@@ -53,7 +53,9 @@ function handAt(charge) {
            skills: { Guard: 3, Might: 1, Vigilance: 2 },
            items: [{ name: 'Emberdraught', qty: 2 }],
            stances: ['Shrouded', 'Stalwart', 'Vestments'], worn: 'Stalwart',
-           round: 1, active: true, declared: false, reactUsed: false };
+           round: 1, phase: 'resolve', active: true, declared: false, reactUsed: false };
+  /* phase resolve because this spec reaches React cards, and Reacts only exist while the
+     board is resolving (A8). What it is testing is the row, not the phase rule. */
 }
 
 /* Put the table in a fight and hand the row something to draw. */

@@ -3957,7 +3957,9 @@ function renderBattle(){
       }
     });
   }
-  put("Act","armor","Change Armor Stance","Requires an Act during combat.",undefined,"standard");
+  /* Changing stance is a React, not an Act. It sat in the Acts and cost a player their
+     whole Act to do something they should be able to do while still striking. */
+  put("React","armor","Change Armor Stance","Shift your armour stance. Spends your React.",undefined,"standard");
   put("Act","skills","Any skill","All 24 skills may be attempted as an Act.",undefined,"standard");
   if((C.inventory||[]).length) put("Act","items","Use an item","Spend your Act to use a carried item.",undefined,"standard");
   put("React","ally","Assist an ally","Add your competency or half your attribute to an adjacent ally's roll. To clear an Affliction, you both roll and either Fellmark removes it.",undefined,"standard");
@@ -5747,7 +5749,9 @@ function cbResetSelf(){
 }
 function sendReact(){
   var p=window._declPayload;
-  var sel=document.getElementById("cbReact"), val=sel?sel.value:"";
+  /* read through cbCtl, so the table's card row can supply the choice the same way it
+     supplies an Act's; see the note on cbCtl */
+  var sel=cbCtl("cbReact"), val=sel?sel.value:"";
   if(!val){ cbPing("Choose a React first."); return; }
   if(!p){ cbPing("Declare your Act before the React."); return; }
   var aspSel=document.getElementById("cbAspTarget");
@@ -5910,6 +5914,22 @@ window.onmessage=ev=>{
     var res=(function(){
       if(!CUR_WIX_ID) return { ok:false, reason:"no-character" };
       if(!(COMBAT&&COMBAT.active)) return { ok:false, reason:"no-combat" };
+      /* A React rides on the declaration it answers, so it goes out through sendReact
+         rather than being built as an Act. The stance card is the one that needs
+         translating: the row calls it "Change Armor Stance" and carries which stance
+         separately, while sendReact recognises the "Change Stance: X" form its own
+         dropdown uses. One name on the table, one on the wire. */
+      if(d.group==="react"){
+        var rv=d.act||"";
+        if(d.stance) rv="Change Stance: "+d.stance;
+        if(!window._declPayload) return { ok:false, reason:"declare-first" };
+        window._cbCtlOverride={ cbReact:rv };
+        try{ sendReact(); }
+        catch(err){ return { ok:false, reason:"threw", detail:String(err&&err.message||err) }; }
+        finally{ window._cbCtlOverride=null; }
+        return window._reactSent ? { ok:true, round:(COMBAT&&COMBAT.round)||0 }
+                                 : { ok:false, reason:"not-sent" };
+      }
       var now=(COMBAT&&COMBAT.round)||0;
       if(typeof d.round!=="number" || d.round!==now) return { ok:false, reason:"stale-round", round:now };
       var e=cbActEntry(d.act);
