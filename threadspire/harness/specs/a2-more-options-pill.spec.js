@@ -159,15 +159,85 @@ test.describe('A2 the More Options pill', () => {
     expect(slop, 'the cards scroll inside their own row, never the table').toBeLessThanOrEqual(0);
   });
 
-  test('it opens the sheet', async ({ page }) => {
+  /* It is a reminder to tap the Fellmark gem, so it does whatever the gem does, by
+   * clicking the gem rather than naming a destination. The gem's own action CHANGES in
+   * a fight, so anything hard-coded would be right half the time. */
+  test('it goes wherever the gem goes', async ({ page }) => {
+    await T.openTable(page, playerOnly());
+    const player = await T.frameFor(page, 'player');
+    await T.waitBooted(page, player, 'player');
+    await deal(player);
+
+    const viaPill = await player.evaluate(() => {
+      document.getElementById('moreOpt').click();
+      return window.S.openSection;
+    });
+    /* and the gem itself, from the same starting point */
+    const viaGem = await player.evaluate(() => {
+      window.closeWin();
+      document.querySelector('.hFell').click();
+      return window.S.openSection;
+    });
+
+    expect(viaPill, 'the pill leads somewhere').toBeTruthy();
+    expect(viaPill, 'and it is exactly where the gem leads').toBe(viaGem);
+  });
+
+  test('it never opens the LoreMaster\'s roster at a player', async ({ page }) => {
     await T.openTable(page, playerOnly());
     const player = await T.frameFor(page, 'player');
     await T.waitBooted(page, player, 'player');
     await deal(player);
 
     await player.evaluate(() => document.getElementById('moreOpt').click());
+
+    /* 'fell' is a LOREMASTER rail key and is not in SHEET_PANELS, so for a player
+       openWin('fell') falls through to sectionBody('fell') and draws the whole party's
+       roster on their table. This pill used to do exactly that. */
     expect(await player.evaluate(() => window.S.openSection),
-      'the reminder actually takes you there').toBe('fell');
+      'a player must never be shown the LoreMaster\'s all-players view').not.toBe('fell');
+  });
+
+  test('it is a one-shot reminder, not a control', async ({ page }) => {
+    await T.openTable(page, playerOnly());
+    const player = await T.frameFor(page, 'player');
+    await T.waitBooted(page, player, 'player');
+    await deal(player);
+
+    const hidden = () => player.evaluate(() =>
+      document.getElementById('moreOpt').classList.contains('hidden'));
+    expect(await hidden(), 'shown once the fight is on').toBe(false);
+
+    await player.evaluate(() => document.getElementById('moreOpt').click());
+    expect(await hidden(), 'and gone once it has done its job').toBe(true);
+
+    /* it stays gone for the rest of the battle, through repaints */
+    await deal(player);
+    expect(await hidden(), 'a reminder repeated is nagging').toBe(true);
+
+    /* but the next battle reminds them again */
+    await player.evaluate(() => { window.S.mode = 'roleplay'; window.render(); });
+    await deal(player);
+    expect(await hidden(), 'a new fight, a new reminder').toBe(false);
+  });
+
+  test('it clears the art rail down the right-hand side', async ({ page }) => {
+    await T.openTable(page, playerOnly());
+    const player = await T.frameFor(page, 'player');
+    await T.waitBooted(page, player, 'player');
+
+    for (const pageWidth of [2200, 1900, 1600]) {
+      await page.setViewportSize({ width: pageWidth, height: 860 });
+      await deal(player);
+      const g = await player.evaluate(() => {
+        const r = (s) => { const e = document.querySelector(s); if (!e) return null;
+          const b = e.getBoundingClientRect(); return { l: b.left, r: b.right }; };
+        return { pill: r('#moreOpt'), railTab: r('#rail > *'), vw: document.documentElement.clientWidth };
+      });
+      /* the Inventory/Skills tabs sit on that rail; the ornate art runs a little left of
+         them again, so ending before the tabs is the measurable form of clearing it */
+      expect(g.pill.r, `pill clears the rail at ${g.vw}px`).toBeLessThan(g.railTab.l);
+    }
   });
 
   test('on a phone, where there is no gem, it stays away', async ({ page }) => {

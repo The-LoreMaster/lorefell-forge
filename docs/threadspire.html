@@ -473,7 +473,13 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 :root{
   --hand-gem-gap: 6.831%;
   --hand-pill-w: 128px;
-  --hand-right-clear: calc(var(--hand-gem-gap) + 12px + var(--hand-pill-w) + 14px);
+  /* From the right edge of the table to the RIGHT edge of the pill. Parked against the
+     gem this sat at about 6.8% and overlapped the ornate rail down that side, which
+     begins near 14% and carries the Inventory/Skills tabs at 1151px of 1280. A
+     percentage rather than pixels because that art is a full-bleed image scaled to the
+     frame, so its edge moves with the width. */
+  --hand-pill-right: 14.4%;
+  --hand-right-clear: calc(var(--hand-pill-right) + var(--hand-pill-w) + 14px);
 }
 /* Both ends of this band are already spoken for: the die tray in the bottom-left corner,
    and the portrait, level and Fellmark down the right, which reach to within a few pixels
@@ -527,7 +533,7 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
    prototype drew it in alarm red; the brief asks for subtle, and subtle wins. */
 #moreOpt{
   position:fixed; z-index:58;
-  right:calc(var(--hand-gem-gap) + 12px);
+  right:var(--hand-pill-right);
   top:89.351%; height:7.027%;
   width:var(--hand-pill-w);
   display:flex; align-items:center; justify-content:center; gap:7px;
@@ -6407,6 +6413,27 @@ function tsHandTake(h){
    that has just come up has missed every one of those, so the row asks on open. */
 function tsHandRequest(){ sheet.postMessage({ type:'ts-hand-request' }); }
 
+/* ---- the More Options reminder ----
+   It points at the Fellmark gem and it does what the gem does, by clicking the gem
+   itself rather than naming a destination. That matters: the gem's own action CHANGES
+   during a fight (railClick('battle') rather than 'menu'), so anything that hard-coded
+   where it goes would be right half the time.
+
+   It was wired to openWin('fell'), which is a LOREMASTER rail key and is not in
+   SHEET_PANELS, so for a player it fell through to sectionBody('fell') and drew the
+   LoreMaster's whole-party roster on a player's table. That was mine, from A2.
+
+   One shot. It is a reminder, not a control: once the player has been shown where the
+   gem is they do not need telling again, so it goes for the rest of the battle and
+   comes back only for the next one. */
+var _moreOptSpent = false;
+function handMoreOptions(){
+  _moreOptSpent = true;
+  renderHand();
+  var gem = document.getElementById('hudFell');
+  if (gem) gem.click();          /* whatever the gem does now, this does */
+}
+
 /* The three charge gems, as the sheet lights them. Drawn on every card because what a
    card costs and what the Fell has are the same question, and a player should not have
    to look away from the card to answer it. */
@@ -6780,9 +6807,11 @@ function renderHand(){
   var show = !isLM() && S.mode === 'combat' && !!hand && hand.active !== false;
   el.classList.toggle('hidden', !show);
   /* the pill belongs to the combat surface and comes and goes with it: out of a fight
-     the sheet is reachable the ordinary ways and needs no reminder */
+     the sheet is reachable the ordinary ways and needs no reminder. Spent once used,
+     and unspent again when the battle ends, so the next fight reminds a player once. */
+  if (!show) _moreOptSpent = false;
   var mo = document.getElementById('moreOpt');
-  if (mo) mo.classList.toggle('hidden', !show);
+  if (mo) mo.classList.toggle('hidden', !show || _moreOptSpent);
   if (!show){ el.innerHTML = ''; return; }
 
   var charge = hand.charge || 0;
@@ -6903,7 +6932,7 @@ function handSetTab(t){
     if (ev.key === 'Escape' && armed) handDisarm();
   });
   var mo = document.getElementById('moreOpt');
-  if (mo) mo.addEventListener('click', function(){ try { openWin('fell'); } catch(e){} });
+  if (mo) mo.addEventListener('click', handMoreOptions);
   /* a narrower table can turn a row that fitted into one that pages */
   window.addEventListener('resize', function(){ try { handPagers(); } catch(e){} });
 })();
