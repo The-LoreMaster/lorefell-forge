@@ -4946,6 +4946,12 @@ function cbDockAfter(){
   if(c){ requestAnimationFrame(function(){ c.style.width=pct+"%"; if(g) setTimeout(function(){ g.style.width=pct+"%"; },120); }); }
   window._dockPct=pct;
 }
+/* Is this sheet sitting inside ThreadSpire, with a map and a card row in front of the
+   player? The embed stamps body.tsembed at load from ?host=threadspire. Standalone there
+   is no table, so the sheet remains the whole of combat for that player. */
+function cbOnTable(){
+  try{ return document.body.classList.contains("tsembed"); }catch(e){ return false; }
+}
 function applyCombatMode(){
   var on=!!(COMBAT&&COMBAT.active);
   document.body.classList.toggle("in-combat",on);
@@ -4990,7 +4996,23 @@ function applyCombatMode(){
   var card="", mode="";
   if(sh && window._hitSnooze!==sh.at){ card=cbHitCardHtml(sh); mode="hit"; }
   else if(foesAtk.length && !evaSent){ card=snooze+cbEvaCardHtml(foesAtk); mode="eva"; }
-  else if(!declared || window._editDecl){ card=snooze+'<div class="cb-card cbs-card'+(window._editDecl&&declared?'':' cbs-hot')+'">'+cbDeclareFormHtml()+'</div>'; mode="declare"; }
+  else if(!declared || window._editDecl){
+    /* Where the player declares depends on whether they have a table in front of them.
+       Inside ThreadSpire the card row under the map IS the declare surface, so the sheet
+       does not offer a second one: two builders for one Beat is how a declaration gets
+       made twice or made in the place nobody is looking. Standalone there is no map, so
+       the form is still the only way to declare and it stays exactly as it was.
+       The transport and the derivation are untouched either way; the row uses both. */
+    if(cbOnTable()){
+      card=snooze+'<div class="cb-card cbs-card">'
+        +'<div class="cbs-eyebrow">On the table</div>'
+        +'<div class="cb-h">Declare from the map</div>'
+        +'<p class="cb-sub">Your Acts and Reacts are on the row beneath the map. Tap a card, then tap your target. This sheet is here for your Inventory, Skills, Lore and Arsenal.</p>'
+        +'</div>'; mode="table";
+    } else {
+      card=snooze+'<div class="cb-card cbs-card'+(window._editDecl&&declared?'':' cbs-hot')+'">'+cbDeclareFormHtml()+'</div>'; mode="declare";
+    }
+  }
   else if(resolving){
     card=snooze+'<div class="cb-card cbs-card'+(youUp?' hit':'')+'">'
       +'<div class="cbs-eyebrow'+(youUp?' foe':'')+'">'+(youUp?'The Spotlight finds you':'Resolve')+'</div>'
@@ -5012,6 +5034,11 @@ function applyCombatMode(){
       +'<div class="cb-row"><button class="btn small" id="cbEdit">Edit declaration</button></div>'
       +'</div>'; mode="locked";
   }
+
+  /* The declare builder was what justified taking the whole slideout. With the table
+     carrying it, this state is a signpost and a couple of lines, so it gives the height
+     back and the reference tabs underneath stay reachable. */
+  if(mode==="table"){ document.body.classList.remove("cbs-full"); window._cbsFullPrev=false; }
 
   var opt=cbInfusionTriggers()+cbInfusionReminders()+cbAugReminders();
   var optHtml = opt ? '<details class="cbs-opt"'+(window._cbOptOpen?' open':'')+'><summary>Your options <span>\u25be</span></summary><div class="cbs-opt-in">'+opt+'</div></details>' : '';
