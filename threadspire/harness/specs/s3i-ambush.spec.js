@@ -75,10 +75,17 @@ async function rowInOpening(frame, opts) {
   }, { side: opts.side || '', inIt: !!opts.inIt, acts: ACTS, reacts: REACTS });
 }
 
-const card = (frame, nm) => frame.evaluate((n) => {
-  const c = Array.from(document.querySelectorAll('#hand .hcard')).find((x) => x.getAttribute('data-act') === n);
-  return c ? { barred: c.classList.contains('barred'), text: c.textContent } : null;
-}, nm);
+/* One group shows at a time since A3, so reach the card's own tab before reading it. */
+const card = async (frame, nm) => {
+  await frame.evaluate((n) => {
+    const inActs = ((window.hand && window.hand.acts) || []).some((a) => a.nm === n);
+    window.handSetTab(inActs ? 'act' : 'react');
+  }, nm);
+  return frame.evaluate((n) => {
+    const c = Array.from(document.querySelectorAll('#hand .hcard')).find((x) => x.getAttribute('data-act') === n);
+    return c ? { barred: c.classList.contains('barred'), text: c.textContent } : null;
+  }, nm);
+};
 
 const phaseNote = (frame) => frame.evaluate(() => {
   const n = document.querySelector('#hand .hs-phase');

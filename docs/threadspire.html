@@ -479,12 +479,47 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
    and the portrait, level and Fellmark down the right, which reach to within a few pixels
    of the bottom. So the cards start and stop clear of them and scroll between. The
    LoreMaster's strip escapes this by centring; a row that scrolls from the left cannot. */
-.hand-scroll{
-  display:flex; align-items:stretch; gap:9px;
-  overflow-x:auto; overflow-y:hidden; scroll-snap-type:x proximity;
-  padding:6px var(--hand-right-clear) calc(6px + env(safe-area-inset-bottom, 0px)) 108px;
-  pointer-events:auto; overscroll-behavior-x:contain;
+/* The row proper: pagers outside the scroller, and the two clearances (the die tray on
+   the left, the pill on the right) carried by the wrapper, so the arrows sit inside them
+   rather than on top of either. */
+.hand-wrap{
+  display:flex; align-items:center; gap:6px;
+  padding:0 var(--hand-right-clear) calc(4px + env(safe-area-inset-bottom, 0px)) 108px;
+  pointer-events:none;
 }
+.hand-scroll{
+  display:flex; align-items:stretch; gap:9px; flex:1 1 auto; min-width:0;
+  overflow-x:auto; overflow-y:hidden; scroll-snap-type:x proximity;
+  padding:6px 2px;
+  pointer-events:auto; overscroll-behavior-x:contain;
+  scrollbar-width:none;
+}
+.hand-scroll::-webkit-scrollbar{ display:none; }
+/* An arrow is drawn only when it would do something: nothing to the left until you have
+   paged right of the first card, nothing to the right until cards run past the edge.
+   Hidden rather than removed, so the row does not jump sideways as they come and go. */
+.hand-pager{
+  flex:0 0 32px; width:32px; height:32px; border-radius:50%;
+  border:1px solid var(--line); background:rgba(10,14,26,.9); color:var(--gold);
+  display:flex; align-items:center; justify-content:center; font-size:1.05rem; line-height:1;
+  pointer-events:auto;
+}
+.hand-pager:hover{ border-color:rgba(201,168,76,.55); }
+.hand-pager:focus-visible{ outline:2px solid var(--gold); outline-offset:2px; }
+.hand-pager.gone{ visibility:hidden; pointer-events:none; }
+/* Acts / Reacts, above the row. One group shows at a time. */
+.hand-tabs{
+  display:flex; gap:6px; margin:0 var(--hand-right-clear) 6px 108px;
+  pointer-events:auto;
+}
+.hand-tab{
+  font-family:Cinzel,serif; font-size:.55rem; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--muted); border:1px solid var(--line); border-radius:6px;
+  padding:4px 12px; background:rgba(10,14,26,.8);
+}
+.hand-tab.on{ color:var(--gold); border-color:var(--gold); }
+.hand-tab:focus-visible{ outline:2px solid var(--gold); outline-offset:2px; }
+.hand-tab .ht-n{ opacity:.6; margin-left:5px; }
 /* ---- the More Options pill ----
    A reminder that the sheet is still there, sitting against the Fellmark gem with its
    arrow pointing at it. Deliberately quiet: this is a signpost a player should be able
@@ -513,11 +548,6 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
    into the sheet, already labelled. A pill pointing at a gem that is not there would be
    pointing at nothing, so it stays off. */
 @media (max-width:700px){ #moreOpt{ display:none !important; } }
-.hand-lab{
-  flex:0 0 auto; align-self:center; font-family:Cinzel,serif; font-size:.52rem;
-  letter-spacing:.16em; text-transform:uppercase; color:var(--muted);
-  writing-mode:vertical-rl; transform:rotate(180deg); padding:2px 0; opacity:.8;
-}
 .hcard{
   flex:0 0 152px; scroll-snap-align:center; text-align:left;
   display:flex; flex-direction:column; gap:3px;
@@ -639,7 +669,8 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
    owns the last 60px and the die tray sits just above it. The row clears both. */
 @media (max-width:700px){
   #hand{ bottom:68px; }
-  .hand-scroll{ padding-left:76px; padding-right:14px; }
+  .hand-wrap{ padding-left:76px; padding-right:14px; }
+  .hand-tabs{ margin-left:76px; margin-right:14px; }
 }
 @media (max-width:520px){ .hcard{ flex-basis:138px; } }
 /* Reduced motion keeps the meaning and drops the movement: a chosen card is still gold
@@ -6451,6 +6482,9 @@ function tokenTargetable(t){ return !!tokenTargetKey(t); }
    still needs before it can be aimed. Local to this viewer like the camera and the
    selection: what a player has picked up is not board state until they declare it. */
 var armed = null;
+/* Which group the row is showing. The player's own choice, so it is not reset by a hand
+   arriving; only an empty group sends it back to the Acts. */
+var handTab = 'act';
 /* Some Acts are a category rather than a deed. "Any skill" is not an Act until it is a
    skill, and an item Act is not one until it is an item, so the card asks before it can
    be aimed at anything. */
@@ -6739,16 +6773,60 @@ function renderHand(){
       + (pn ? '<span class="hs-phase">' + esc(pn) + '</span>' : '')
       + btn + '</div>';
   }
-  var h = note + send + handPicker() + '<div class="hand-scroll">';
-  if (acts.length){
-    h += '<span class="hand-lab">Acts</span>';
-    acts.forEach(function(a){ h += handCard(a, charge, 'act'); });
-  }
-  if (reacts.length){
-    h += '<span class="hand-lab">Reacts</span>';
-    reacts.forEach(function(r){ h += handCard(r, charge, 'react'); });
-  }
-  el.innerHTML = h + '</div>';
+  /* One group at a time, chosen by the tabs. Showing both at once is what made the row
+     long enough to need paging in the first place, and it buried the Reacts off the
+     right-hand end where nobody found them. */
+  var group = (handTab === 'react') ? reacts : acts;
+  var tabs = '<div class="hand-tabs">'
+    + '<button type="button" class="hand-tab' + (handTab === 'act' ? ' on' : '') + '" data-tab="act">'
+      + 'Acts<span class="ht-n">' + acts.length + '</span></button>'
+    + '<button type="button" class="hand-tab' + (handTab === 'react' ? ' on' : '') + '" data-tab="react">'
+      + 'Reacts<span class="ht-n">' + reacts.length + '</span></button>'
+    + '</div>';
+
+  var cards = group.length
+    ? group.map(function(e){ return handCard(e, charge, handTab); }).join('')
+    : '<div class="hand-empty">Nothing here this round.</div>';
+
+  el.innerHTML = note + send + handPicker() + tabs
+    + '<div class="hand-wrap">'
+    +   '<button type="button" class="hand-pager left gone" data-page="-1" aria-label="Earlier cards">‹</button>'
+    +   '<div class="hand-scroll">' + cards + '</div>'
+    +   '<button type="button" class="hand-pager right gone" data-page="1" aria-label="More cards">›</button>'
+    + '</div>';
+
+  /* the arrows can only be decided once the row has been laid out and measured */
+  handPagers();
+  var sc = el.querySelector('.hand-scroll');
+  if (sc) sc.addEventListener('scroll', handPagers, { passive:true });
+}
+/* Which arrows are worth drawing. Recomputed after every render, on every scroll, and on
+   resize, because all three change the answer: a spent charge can add or remove a card,
+   and a narrower table can turn a row that fitted into one that does not. */
+function handPagers(){
+  var el = document.getElementById('hand');
+  if (!el) return;
+  var sc = el.querySelector('.hand-scroll');
+  var lft = el.querySelector('.hand-pager.left');
+  var rgt = el.querySelector('.hand-pager.right');
+  if (!sc || !lft || !rgt) return;
+  var max = sc.scrollWidth - sc.clientWidth;
+  lft.classList.toggle('gone', sc.scrollLeft <= 1);
+  rgt.classList.toggle('gone', max <= 1 || sc.scrollLeft >= max - 1);
+}
+function handPage(dir){
+  var sc = document.querySelector('#hand .hand-scroll');
+  if (!sc) return;
+  /* a shade under a full width, so the card at the edge stays visible as an anchor
+     rather than the row jumping to somewhere with no landmark in it */
+  sc.scrollLeft += dir * Math.max(120, sc.clientWidth * 0.8);
+  handPagers();
+}
+function handSetTab(t){
+  var next = (t === 'react') ? 'react' : 'act';
+  if (next === handTab) return;
+  handTab = next;
+  renderHand();
 }
 /* One listener on the row rather than a handler per card, since the row is rebuilt on
    every charge and every hand. */
@@ -6756,6 +6834,10 @@ function renderHand(){
   var el = document.getElementById('hand');
   if (!el) return;
   el.addEventListener('click', function(ev){
+    var tab = ev.target.closest && ev.target.closest('[data-tab]');
+    if (tab){ handSetTab(tab.getAttribute('data-tab')); return; }
+    var pg = ev.target.closest && ev.target.closest('[data-page]');
+    if (pg){ handPage(Number(pg.getAttribute('data-page')) || 0); return; }
     if (ev.target.closest && ev.target.closest('[data-send]')){ handDeclare(); return; }
     var opt = ev.target.closest && ev.target.closest('.hp-opt');
     if (opt){ handPick(opt.getAttribute('data-pick'), opt.getAttribute('data-val')); return; }
@@ -6769,6 +6851,8 @@ function renderHand(){
   });
   var mo = document.getElementById('moreOpt');
   if (mo) mo.addEventListener('click', function(){ try { openWin('fell'); } catch(e){} });
+  /* a narrower table can turn a row that fitted into one that pages */
+  window.addEventListener('resize', function(){ try { handPagers(); } catch(e){} });
 })();
 window.addEventListener('message', function(ev){
   var f = document.getElementById('sheetFrame');

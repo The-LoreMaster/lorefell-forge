@@ -69,7 +69,15 @@ async function dealHand(frame, charge) {
 const cardNames = (frame) => frame.evaluate(() =>
   Array.from(document.querySelectorAll('#hand .hcard')).map((c) => c.getAttribute('data-act')));
 
-const cardByName = (frame, nm) => frame.evaluate((n) => {
+/* The row shows one group at a time now (A3), so a card may be behind the other tab. A
+ * player reaches it by tapping the tab, and so do these helpers: what is under test here
+ * is the card, not which tab happened to be open. */
+const reveal = (frame, nm) => frame.evaluate((n) => {
+  const inActs = ((window.hand && window.hand.acts) || []).some((a) => a.nm === n);
+  window.handSetTab(inActs ? 'act' : 'react');
+}, nm);
+
+const cardByName = async (frame, nm) => { await reveal(frame, nm); return frame.evaluate((n) => {
   const c = Array.from(document.querySelectorAll('#hand .hcard')).find((x) => x.getAttribute('data-act') === n);
   if (!c) return null;
   return {
@@ -81,17 +89,18 @@ const cardByName = (frame, nm) => frame.evaluate((n) => {
     text: c.textContent,
     lit: c.querySelectorAll('.hc-pip.on').length
   };
-}, nm);
+}, nm); };
 
 const rowHidden = (frame) => frame.evaluate(() =>
   document.getElementById('hand').classList.contains('hidden'));
 
-/* Tap a card the way a finger does, through the row's own listener. */
-const tapCard = (frame, nm) => frame.evaluate((n) => {
+/* Tap a card the way a finger does, through the row's own listener, reaching its tab
+ * first if it is behind the other one. */
+const tapCard = async (frame, nm) => { await reveal(frame, nm); return frame.evaluate((n) => {
   const c = Array.from(document.querySelectorAll('#hand .hcard')).find((x) => x.getAttribute('data-act') === n);
   if (!c) throw new Error('no card named ' + n);
   c.click();
-}, nm);
+}, nm); };
 
 const tapOption = (frame, val) => frame.evaluate((v) => {
   const o = Array.from(document.querySelectorAll('#hand .hp-opt')).find((x) => x.getAttribute('data-val') === v);
@@ -142,8 +151,10 @@ test.describe('S3b the card row draws the hand', () => {
     await T.waitBooted(page, player, 'player');
     await dealHand(player, 0);
 
-    const names = await cardNames(player);
-    expect(names).toEqual(['Basic attack', 'Razorwind', 'Worldspire', 'Any skill', 'Move', 'Augury']);
+    /* one group at a time since A3, so this is two looks rather than one */
+    expect(await cardNames(player), 'the Acts').toEqual(['Basic attack', 'Razorwind', 'Worldspire', 'Any skill']);
+    await player.evaluate(() => window.handSetTab('react'));
+    expect(await cardNames(player), 'and the Reacts behind their tab').toEqual(['Move', 'Augury']);
   });
 
   test('F9 a locked act is on the row, greyed and priced, not missing', async ({ page }) => {
@@ -178,8 +189,9 @@ test.describe('S3b the card row draws the hand', () => {
     expect(after.lit, 'and one gem is lit').toBe(1);
     expect((await cardByName(player, 'Worldspire')).locked, 'tier 3 still is not').toBe(true);
 
-    /* the card did not move, it changed: the row is the same six either way */
-    expect(await cardNames(player)).toHaveLength(6);
+    /* the card did not move, it changed: the Acts are the same four either way */
+    await player.evaluate(() => window.handSetTab('act'));
+    expect(await cardNames(player)).toHaveLength(4);
   });
 
   test('F3 a spell says what it casts on, and a standard attack does not', async ({ page }) => {
