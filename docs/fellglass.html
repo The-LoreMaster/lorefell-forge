@@ -4045,6 +4045,24 @@ function tsHandPayload(){
     /* what the board is doing, so the row can say the LoreMaster is already resolving
        rather than leaving a player wondering why their Act did not take */
     phase: (typeof COMBAT!=='undefined' && COMBAT && COMBAT.phase) || '',
+    /* The ambush opening. Three separate facts, because the row treats them differently:
+       whether an opening is running at all, whose it is, and whether THIS Fell is in it.
+       A Fell who is not in the opening takes no Act in it, which is the whole point of
+       the opening being per participant rather than a gift to the party. */
+    opening: (function(){
+      var p=(typeof COMBAT!=='undefined' && COMBAT && COMBAT.phase)||'';
+      return p.indexOf('ambush')===0;
+    })(),
+    openingSide: (function(){
+      var p=(typeof COMBAT!=='undefined' && COMBAT && COMBAT.phase)||'';
+      return p.indexOf('ambush')===0 ? (p.split(':')[1]||'fell') : '';
+    })(),
+    inOpening: (function(){
+      var p=(typeof COMBAT!=='undefined' && COMBAT && COMBAT.phase)||'';
+      if(p.indexOf('ambush')!==0 || (p.split(':')[1]||'fell')!=='fell') return false;
+      var sc=(COMBAT && COMBAT.spotlightChars)||[];
+      return sc.indexOf(CUR_WIX_ID)>=0;
+    })(),
     /* Who is actually on the field, as the LoreMaster published them. This is the ONLY
        list of legal targets: a key that is not in here is not a fighter, whatever a
        token on the board happens to be called. The card row resolves against it rather
@@ -5863,6 +5881,12 @@ window.onmessage=ev=>{
       var e=cbActEntry(d.act);
       if(!e) return { ok:false, reason:"unknown-act" };
       if(typeof e.tier==="number" && e.tier>0 && e.tier>(C.charge||0)) return { ok:false, reason:"locked" };
+      /* the opening is the enemy's, or this Fell is not in it: no Act either way */
+      var _ph=(COMBAT&&COMBAT.phase)||"";
+      if(_ph.indexOf("ambush")===0){
+        if((_ph.split(":")[1]||"fell")!=="fell") return { ok:false, reason:"not-in-opening" };
+        if(((COMBAT&&COMBAT.spotlightChars)||[]).indexOf(CUR_WIX_ID)<0) return { ok:false, reason:"not-in-opening" };
+      }
       var g=(typeof cbGates==="function")?cbGates():{noAct:false};
       if(g.noAct) return { ok:false, reason:"barred" };
       if(cbActDmg(d.act)>0 && !d.roll) return { ok:false, reason:"needs-roll" };

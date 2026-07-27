@@ -3846,7 +3846,13 @@ function combatPublish(){
     sceneId: (S.scene && S.scene.id) || '',
     sceneName: (S.scene && S.scene.name) || '',
     fighters: combatFighters(),
-    spotlightChars: [],
+    /* During an opening these are the Fell who are in it. Canon resolves the opening AS
+       a Spotlight, so this is the field for it rather than an overload of one, and it
+       costs no schema change. Empty at every other moment, as before. */
+    spotlightChars: (function(){
+      var a = S.scene && S.scene.ambush;
+      return (a && lmAmbushSide() === 'fell') ? (a.participants || []).slice() : [];
+    })(),
     log: logOut } }).catch(function(){});
 }
 /* what the players have declared this round */
@@ -6416,9 +6422,26 @@ function handNeeds(e){
    says so on the card itself; this is the harder no. */
 function handBarred(e, group){
   var g = (hand && hand.gates) || {};
+  /* The ambush opening, before either side has declared anything. Nobody Reacts in it,
+     on canon, and only the Fell who are actually in the opening take an Act. A Fell left
+     out of it, and every Fell when the enemy is the one who caught them, simply waits. */
+  if (hand && hand.opening){
+    if (group === 'react') return 'No React';
+    if (!hand.inOpening) return 'Not in it';
+  }
   if (group === 'act' && g.noAct) return 'No Act';
   if (group === 'react' && g.noReact) return 'No React';
   return '';
+}
+/* What the row says is happening, above the cards. */
+function handPhaseNote(){
+  if (!hand) return '';
+  if (hand.opening){
+    if (hand.openingSide === 'foes') return 'They caught you. The enemy has the opening.';
+    return hand.inOpening ? 'The opening. One free Act, and no React.'
+                          : 'The opening. You are not in this one.';
+  }
+  return hand.phase === 'resolve' ? 'The LoreMaster is resolving' : '';
 }
 /* The Beat allows one Act and one React. Once the Act is declared for this round the
    Act cards read as spent, and the same for a React that has been used. */
@@ -6536,6 +6559,7 @@ function handDeclareResult(res){
     'locked': 'That needs more charge than you have.',
     'barred': 'Something on you forbids an Act this round.',
     'needs-roll': 'That Act needs a roll.',
+    'not-in-opening': 'You are not in this opening.',
     'unknown-act': 'The sheet does not know that Act.',
     'no-character': 'No Fell is loaded.'
   }[res.reason] || 'The sheet refused that declare.';
@@ -6649,16 +6673,24 @@ function renderHand(){
   var note = _handNote ? '<div class="hand-note">' + esc(_handNote) + '</div>' : '';
   /* The one control on the row. It only appears with a card in hand, and it says what is
      still missing rather than sitting there greyed with no reason given. */
+  /* What is happening, and the one control. These are separate because they are needed at
+     different moments: a player who cannot hold a card at all, sitting out an opening, is
+     exactly the one who most needs telling why, and hanging the explanation off the send
+     button meant they were the only one who never saw it. */
+  var pn = handPhaseNote();
   var send = '';
-  if (armed){
-    var ready = handReady();
-    var lbl = ready ? ('Send' + (armed.targetName ? ' at ' + armed.targetName : ''))
-                    : (armed.need && !armed[armed.need] ? ('Choose a ' + armed.need)
-                                                        : 'Tap a target');
+  if (pn || armed){
+    var btn = '';
+    if (armed){
+      var ready = handReady();
+      var lbl = ready ? ('Send' + (armed.targetName ? ' at ' + armed.targetName : ''))
+                      : (armed.need && !armed[armed.need] ? ('Choose a ' + armed.need)
+                                                          : 'Tap a target');
+      btn = '<button type="button" class="hs-btn' + (ready ? ' on' : '') + '" data-send="1">' + esc(lbl) + '</button>';
+    }
     send = '<div class="hand-send">'
-      + (hand.phase === 'resolve' ? '<span class="hs-phase">The LoreMaster is resolving</span>' : '')
-      + '<button type="button" class="hs-btn' + (ready ? ' on' : '') + '" data-send="1">' + esc(lbl) + '</button>'
-      + '</div>';
+      + (pn ? '<span class="hs-phase">' + esc(pn) + '</span>' : '')
+      + btn + '</div>';
   }
   var h = note + send + handPicker() + '<div class="hand-scroll">';
   if (acts.length){
@@ -7529,6 +7561,53 @@ function mapUploadsDone(waiting, added){
     ? 'Map <b>' + esc(added[0].name) + '</b> added to your shelf.'
     : added.length + ' maps added to your shelf.' });
   applyRemoteState({ log:S.log });
+}
+/* ---- the ambush opening ----
+   A fight does not always start level. When the Fell move on an enemy undetected they
+   roll Presence against its Vigilance, and those who succeed take a free opening Act
+   each, resolved as a Spotlight, BEFORE the first Commit. Enemies take no React during
+   it. The reverse holds: enemies who catch the Fell unaware get the same opening.
+
+   Participation is per Fell and explicit, not a blanket grant to the party. Not everyone
+   is necessarily in it, and only those who are get the opening Act, so who is in it is
+   recorded rather than assumed.
+
+   The contest itself is rolled where every other player roll is rolled: on the player's
+   own sheet, read at the table. This board records the OUTCOME, which is the only part
+   it can know. That is why participation is a toggle here and not a die.
+
+   Two phases rather than a phase and a flag, so a table joining late can read the whole
+   situation off the published phase alone:
+     ambush:fell   the Fell have the opening
+     ambush:foes   the enemy caught them, and no Fell acts in it */
+function lmBeginAmbush(side){
+  var s = (side === 'foes') ? 'foes' : 'fell';
+  S.scene.ambush = { side: s, participants: [] };
+  S.scene.combatPhase = 'ambush:' + s;
+  S.round = S.round || 1;
+  applyRemoteState({ mode:'combat', scene:S.scene });
+  combatPublish(); declaresLoad();
+}
+/* Who caught whom, or '' when there is no opening running. */
+function lmAmbushSide(){
+  var p = (S.scene && S.scene.combatPhase) || '';
+  return p.indexOf('ambush') === 0 ? (p.split(':')[1] || 'fell') : '';
+}
+function lmAmbushToggle(charId){
+  var a = S.scene.ambush;
+  if (!a || lmAmbushSide() !== 'fell') return;      /* nobody participates in the enemy's opening */
+  var i = a.participants.indexOf(charId);
+  if (i >= 0) a.participants.splice(i, 1); else a.participants.push(charId);
+  applyRemoteState({ scene:S.scene });
+  combatPublish();
+}
+/* The opening is over; the round proper begins at step one. */
+function lmAmbushResolve(){
+  if (!lmAmbushSide()) return;
+  S.scene.ambush = null;
+  S.scene.combatPhase = 'commit';
+  applyRemoteState({ scene:S.scene });
+  combatPublish(); declaresLoad();
 }
 function lmBeginCombat(){ S.scene.combatPhase = 'commit'; applyRemoteState({ mode:'combat', scene:S.scene }); combatPublish(); declaresLoad(); }
 function lmEndCombat(){ S.declares = null; S.scene.combatPhase = null; S.scene.foes.concat(S.scene.fell).forEach(function(c){ c.act=''; c.locked=false; c.spot=null; }); applyRemoteState({ mode:'explore', scene:S.scene });  combatPublish(); }
