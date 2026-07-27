@@ -4224,10 +4224,40 @@ function stripInlineImages(v){
   });
   return out;
 }
+/* What a player needs at the table is not the whole authored adventure, sixty-nine
+   scenes of the loremaster's prep, but the one scene in front of them: its board, its
+   foes, its beats. So only the active scene travels, wrapped as a one-scene adventure the
+   player can stand up exactly as before. A six-act story that was 690KB whole rides the
+   shared row in a few KB this way, and the players get precisely what the map and combat
+   need. When the loremaster moves to another scene, that scene goes next. */
+function activeSceneSpine(){
+  if (!S.adventure) return null;
+  var activeId = S.adventure.activeSceneId;
+  var found = null, foundAct = null, foundSes = null;
+  (S.adventure.acts||[]).forEach(function(a){ (a.sessions||[]).forEach(function(se){ (se.scenes||[]).forEach(function(sc){
+    if (!found && sc && sc.id === activeId){ found = sc; foundAct = a; foundSes = se; }
+  }); }); });
+  /* fall back to the first scene if the active id does not resolve, so a player is never
+     left with nothing to render */
+  if (!found){
+    (S.adventure.acts||[]).forEach(function(a){ (a.sessions||[]).forEach(function(se){ (se.scenes||[]).forEach(function(sc){
+      if (!found && sc){ found = sc; foundAct = a; foundSes = se; }
+    }); }); });
+  }
+  if (!found) return null;
+  return {
+    name: S.adventure.name || 'Adventure',
+    activeSceneId: found.id,
+    acts: [{ id: (foundAct&&foundAct.id)||'act-0', name: (foundAct&&foundAct.name)||'',
+      sessions: [{ id: (foundSes&&foundSes.id)||'ses-0', name: (foundSes&&foundSes.name)||'',
+        scenes: [ found ] }] }]
+  };
+}
 function pushAdventure(){
   if (_advSwitching || !isLM() || !S.adventure) return;
   if ((S.advRev || 0) === _advPushedRev || _advTooBig) return;
-  var body = { adventure: stripInlineImages(S.adventure), advRev: S.advRev || 0 };
+  var _lean = activeSceneSpine();
+  var body = { adventure: stripInlineImages(_lean || S.adventure), advRev: S.advRev || 0 };
   try { SEAM.advKB = Math.round(JSON.stringify(body).length / 1024); } catch(e){ SEAM.advKB = 0; }
   stateBackend.push(body).then(function(r){
     if (r && r.version){ _stateSeen = Math.max(_stateSeen, r.version); _advPushedRev = S.advRev || 0; SEAM.advSent = 'delivered rev ' + _advPushedRev; }
