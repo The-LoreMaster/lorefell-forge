@@ -78,3 +78,27 @@ Not code fixes, but things to verify in the running site before calling them don
   - Brother's SigilForge dropdowns after a hard cache-clear (the `?v=` bump fix).
   - The lean-scene player delivery end to end on two real devices (confirmed once
     already; worth a second look as combat lands).
+
+---
+
+## C5 — Add a duplicate-top-level-function gate to checkGlobals/checkContracts
+
+**Why deferred:** the check belongs in `scripts/` (the denied CMS zone), so it
+gets added in the same careful pass as C1.
+
+**Why it matters:** the combat build surfaced TWO live, pre-existing bugs of one
+family, a second top-level `function` with the same name silently replacing the
+first for the whole script. `sendDeclare` (a builder shadowed the transport →
+recursion, the player's Act never posted) and `lmSetCharge` (the pip toggle
+shadowed the remote push → an earned charge never reached the Fell's sheet). Both
+were invisible to reading and to a test written against the function that was read
+rather than the one that ran; only executing the real path revealed them. Tools
+that combat does not exercise may hide more.
+
+**How to do it:** collect `^function NAME` per script block and report any NAME
+declared more than once at top level in the same block. FINDINGS F5 has the
+detail. Add it alongside the C1 contract-registration pass, since both edit
+denied-path scripts.
+
+Done when: the gate runs in `npm run checks` and the codebase passes it (or the
+remaining duplicates are deliberately triaged).
