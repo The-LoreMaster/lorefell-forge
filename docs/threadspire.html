@@ -6631,13 +6631,18 @@ var _handDrawnTab = '';
 /* What this Fell has declared this round, once it has landed. Held so the row can stamp
    the card and the board can mark the target, and cleared when the round moves on. */
 var declaredAs = null;
+/* What a player calls the thing a card is still waiting for. The internal name is the
+   wire's, and the wire has always said item; the table says utility, which is what the
+   sheet's own Utilities section has called them all along. One place to translate rather
+   than a rename that would have to travel the message and the sheet with it. */
+function handNeedWord(n){ return n === 'item' ? 'utility' : n; }
 /* Some Acts are a category rather than a deed. "Any skill" is not an Act until it is a
-   skill, and an item Act is not one until it is an item, so the card asks before it can
-   be aimed at anything. */
+   skill, and a utility Act is not one until it is a utility, so the card asks before it
+   can be aimed at anything. */
 function handNeeds(e){
   if (!e) return null;
   if (e.src === 'skills') return 'skill';
-  if (e.src === 'items' || e.kind === 'item') return 'item';
+  if (e.src === 'utility' || e.kind === 'item') return 'item';
   if (e.src === 'armor' && /stance/i.test(e.nm || '')) return 'stance';
   return null;
 }
@@ -6757,7 +6762,7 @@ function handAim(t){
   if (!f) return false;
   if (!handReady({ ignoreTarget:true })){
     handSay(armed.need && !armed[armed.need]
-      ? ('Choose a ' + armed.need + ' first.') : 'That card is not ready.');
+      ? ('Choose a ' + handNeedWord(armed.need) + ' first.') : 'That card is not ready.');
     return true;
   }
   armed.target = f.key;
@@ -6912,7 +6917,7 @@ function handDeclare(){
   if (!armed || !hand) return;
   if (!handReady()){
     handSay(armed.need && !armed[armed.need]
-      ? ('Choose which ' + armed.need + ' first.')
+      ? ('Choose which ' + handNeedWord(armed.need) + ' first.')
       : 'Pick your target first: tap a token.');
     return;
   }
@@ -6992,12 +6997,17 @@ function handPicker(){
     });
   } else if (armed.need === 'item'){
     var items = (hand && hand.items) || [];
-    h += '<span class="hp-lab">Which item</span><div class="hp-list">';
+    h += '<span class="hp-lab">Which utility</span><div class="hp-list">';
     if (!items.length) h += '<span class="hc-desc">Your pack is empty.</span>';
     items.forEach(function(it){
+      /* what it is for, when that is not simply "your Act". A utility meant for out of
+         combat is still offered, because whether it can be used here is the LoreMaster's
+         call and not this row's, but a player should not have to remember which is which */
+      var use = (it.use && it.use !== 'Act') ? (' · ' + it.use) : '';
       h += '<button type="button" class="hp-opt' + (armed.item === it.name ? ' on' : '') + '"'
         + ' data-pick="item" data-val="' + esc(it.name) + '">' + esc(it.name)
-        + (it.qty > 1 ? ' ×' + it.qty : '') + '</button>';
+        + (it.qty > 1 ? ' ×' + it.qty : '') + (use ? '<span class="hp-src">' + esc(it.use) + '</span>' : '')
+        + '</button>';
     });
   } else if (armed.need === 'stance'){
     var stances = (hand && hand.stances) || [];
@@ -7030,7 +7040,7 @@ function handCard(e, charge, group, i){
   /* once chosen, the card shows the choice it was carrying */
   if (isArmed && armed.need){
     var chosen = armed[armed.need];
-    bits += '<span class="hc-pick">' + (chosen ? esc(chosen) : 'Choose ' + armed.need + ' above') + '</span>';
+    bits += '<span class="hc-pick">' + (chosen ? esc(chosen) : 'Choose a ' + handNeedWord(armed.need) + ' above') + '</span>';
   }
   /* and who it is pointed at, once it is pointed at anyone */
   if (isArmed && armed.targetName){
@@ -7121,7 +7131,7 @@ function renderHand(){
      instructions at once is one too many */
   if (armed && !armed.awaitingRoll){
     hint = (armed.need && !armed[armed.need])
-      ? ('Choose a ' + armed.need + ', then tap your target')
+      ? ('Choose a ' + handNeedWord(armed.need) +', then tap your target')
       : 'Tap your target';
   }
   var send = '';

@@ -3961,7 +3961,7 @@ function renderBattle(){
      whole Act to do something they should be able to do while still striking. */
   put("React","armor","Change Armor Stance","Shift your armour stance. Spends your React.",undefined,"standard");
   put("Act","skills","Any skill","All 24 skills may be attempted as an Act.",undefined,"standard");
-  if((C.inventory||[]).length) put("Act","items","Use an item","Spend your Act to use a carried item.",undefined,"standard");
+  if(cbUtilities().length) put("Act","utility","Use a utility","Spend your Act on a utility you carry.",undefined,"standard");
   put("React","ally","Assist an ally","Add your competency or half your attribute to an adjacent ally's roll. To clear an Affliction, you both roll and either Fellmark removes it.",undefined,"standard");
   put("React","movement","Move","Movement is a React. It spends your entire React and is never part of an Act. Once per round.",undefined,"standard");
   put("React","skills","Any skill","All 24 skills may be attempted as a React, such as a defensive move or countering a threat.",undefined,"standard");
@@ -4033,10 +4033,11 @@ function tsHandPayload(){
                kind:r.kind, locked: tsHandLocked(r.tier, ch) };
     }),
     skills: skills,
-    items: (C.inventory||[]).map(function(x){
-      var nm=(x&&x.name)?x.name:String(x||"");
-      return { name:nm, qty:(x&&x.qty)||1 };
-    }).filter(function(x){ return !!x.name; }),
+    /* the same resolver the sheet's own picker uses, so the row and the sheet cannot
+       disagree about what this Fell is carrying */
+    items: cbUtilities().map(function(x){
+      return { name:x.name, qty:x.qty, use:x.use||'' };
+    }),
     stances: ['Shrouded','Stalwart','Vestments'],
     worn: (C.armor&&C.armor.active)||null,
     round: round,
@@ -5219,7 +5220,7 @@ function cbKindOf(nm){
   var e=cbActEntry(nm); if(!e) return "";
   if(e.src==="armor") return "stance";
   if(e.src==="skills") return "skill";
-  if(e.kind==="item"||e.src==="items") return "item";
+  if(e.kind==="item"||e.src==="utility") return "item";
   return "attack";
 }
 function cbcRail(tier){
@@ -5285,15 +5286,15 @@ function cbDealItems(){
   var selEl=document.getElementById("cbItemSel");
   var pick=(selEl&&selEl.value)||cbDraft("item","");
   var h='';
-  (C.inventory||[]).forEach(function(x){
-    var nm=(x&&x.name)?x.name:String(x||""); if(!nm) return;
-    var q=(x&&x.qty&&x.qty>1)?(' \u00d7'+x.qty):"";
-    var d=(x&&(x.desc||x.note))||"";
+  cbUtilities().forEach(function(x){
+    var nm=x.name;
+    var q=(x.qty>1)?(' \u00d7'+x.qty):"";
+    var d=x.desc||"";
     var picked=(pick===nm);
     h+='<button type="button" class="cbc-card'+(picked?' picked':'')+'" onclick="cbHandItem(\''+cbEsc(nm).replace(/'/g,"\\'")+'\')">'
       +cbcRail(0)
       +'<span class="cbc-in">'+cbcArt(x&&x.img)
-      +'<span class="cbc-kick">Item'+q+'</span>'
+      +'<span class="cbc-kick">Utility'+q+'</span>'
       +'<span class="cbc-name">'+cbEsc(nm)+'</span>'
       +(d?('<span class="cbc-body">'+cbEsc(d)+'</span>'):'<span class="cbc-body"></span>')
       +'<span class="cbc-foot">'+(picked?'<span class="good">Declared.</span> ':'')+'Spends the item as your Act.</span>'
@@ -5307,7 +5308,7 @@ function cbHandHtml(){
   var kind=window._handKind||cbKindOf(cur);
   function pill(k,l){ return '<button type="button" class="'+(kind===k?'on':'')+'" onclick="cbHandSeg(\''+k+'\')">'+l+'</button>'; }
   var seg='<div class="cbc-seg">'+pill('attack','Attack')+pill('skill','Use a skill')
-    +((C.inventory&&C.inventory.length)?pill('item','Use an item'):'')+'</div>';
+    +(cbUtilities().length?pill('item','Use a utility'):'')+'</div>';
   var body='';
   if(kind==='attack') body=cbDealAttacks(cur);
   else if(kind==='item') body=cbDealItems();
@@ -5334,7 +5335,7 @@ function cbHandSeg(k){
   var umb=null;
   if(window._handKind==='stance') umb=(window.COMBAT_ACTS||[]).filter(function(a){return a.src==="armor";})[0];
   else if(window._handKind==='skill') umb=(window.COMBAT_ACTS||[]).filter(function(a){return a.src==="skills";})[0];
-  else if(window._handKind==='item') umb=(window.COMBAT_ACTS||[]).filter(function(a){return a.src==="items";})[0];
+  else if(window._handKind==='item') umb=(window.COMBAT_ACTS||[]).filter(function(a){return a.src==="utility";})[0];
   if(window._handKind==='attack'||window._handKind===null){
     if(cbKindOf(sel.value)!=="attack") sel.value="";
   } else if(umb){ sel.value=umb.nm; }
@@ -5371,7 +5372,7 @@ function cbDeclareFormHtml(){
     +'<label class="cb-l">Your Act</label><div id="cbHand"></div>'
     +'<div class="cb-dmghint" id="cbDmgHint"></div>'
     +'<div id="cbSkillWrap" style="display:none"><label class="cb-l">Skill</label><select id="cbSkillSel" class="cb-sel" onchange="cbRenderRoll()">'+cbSkillOptions(cbDraft("skill", decSub))+'</select></div>'
-    +'<div id="cbItemWrap" style="display:none"><label class="cb-l">Item</label><select id="cbItemSel" class="cb-sel">'+cbItemOptions(cbDraft("item", decSub))+'</select></div>'
+    +'<div id="cbItemWrap" style="display:none"><label class="cb-l">Utility</label><select id="cbItemSel" class="cb-sel">'+cbItemOptions(cbDraft("item", decSub))+'</select></div>'
     +'<div id="cbTargetWrap"><label class="cb-l">Target</label><select id="cbFocus" class="cb-sel" onchange="cbDmgHint()">'+cbFocusOptions(cbDraft("focus", dec.target))+'</select></div>'
     +'<div id="cbStanceWrap" style="display:none"><label class="cb-l">Armor stance</label><select id="cbStanceSel" class="cb-sel" onchange="cbStanceNote()">'
       +['Shrouded','Stalwart','Vestments'].map(function(sn){ return '<option value="'+sn+'"'+(cbDraft("stance",(C.armor&&C.armor.active))===sn?' selected':'')+'>'+sn+'</option>'; }).join('')
@@ -5664,7 +5665,7 @@ function cbDmgHint(){
 function cbActUiSync(e){
   var st = !!(e && e.src==="armor");
   var sk = !!(e && e.src==="skills");
-  var im = !!(e && e.src==="items");
+  var im = !!(e && e.src==="utility");
   var tw=document.getElementById("cbTargetWrap"), sw=document.getElementById("cbStanceWrap"), rw=document.getElementById("cbRollWrap"), kw=document.getElementById("cbSkillWrap"), iw=document.getElementById("cbItemWrap");
   if(tw) tw.style.display = st?"none":"";
   if(rw) rw.style.display = st?"none":"";
@@ -5732,12 +5733,38 @@ function cbReactOptions(sel){
   });
   return h;
 }
+/* ---- the utilities a Fell can actually reach for ----
+   An inventory row is a pointer, not a thing: {itemId, quantity, discovered, equipped}.
+   The name, the use and the description all live on the library entry it points at.
+
+   Three places read a name straight off the row, got undefined, and fell back to
+   String(row), which is how the literal "[object Object]" reached the table: the fallback
+   then passed the truthiness check that was supposed to drop empties, so it was offered
+   as something a player could spend their Act on.
+
+   One resolver for all three, and it answers the question the combat surfaces are
+   actually asking, which is what can be used, not what is in the pack. A utility nobody
+   has identified yet cannot be chosen by name, so it is not offered; the ones that are
+   known on sight are, per the Utilities note on the sheet. */
+function cbUtilities(){
+  var lib=(typeof ITEMS_LIB!=="undefined"&&ITEMS_LIB)||[];
+  return (C.inventory||[]).map(function(it){
+    if(!it) return null;
+    var e=lib.filter(function(l){ return l.id===it.itemId; })[0];
+    if(!e||!e.name) return null;
+    var known=it.discovered||String(e.veiled||"").toLowerCase()==="open";
+    if(!known) return null;
+    /* the sheet counts in `quantity`; qty is accepted so a row from anywhere else still
+       reads rather than silently becoming one */
+    var q=(typeof it.quantity==="number")?it.quantity:((typeof it.qty==="number")?it.qty:1);
+    if(q<=0) return null;
+    return { name:e.name, qty:q, use:e.use||"", desc:e.desc||"" };
+  }).filter(Boolean);
+}
 function cbItemOptions(sel){
-  return (C.inventory||[]).map(function(x){
-    var nm=(x&&x.name)?x.name:String(x||"");
-    if(!nm) return "";
-    var q=(x&&x.qty&&x.qty>1)?(' \u00d7'+x.qty):"";
-    return '<option value="'+cbEsc(nm)+'"'+(sel===nm?' selected':'')+'>'+cbEsc(nm)+q+'</option>';
+  return cbUtilities().map(function(x){
+    var q=(x.qty>1)?(' \u00d7'+x.qty):"";
+    return '<option value="'+cbEsc(x.name)+'"'+(sel===x.name?' selected':'')+'>'+cbEsc(x.name)+q+'</option>';
   }).join('');
 }
 function cbSkillOptions(sel){
@@ -5866,7 +5893,7 @@ function cbDeclare(){
   if(act && cbHasAff("Ignited") && window._ignitedRound!==round){ window._ignitedRound=round; var ir=1+Math.floor(Math.random()*6); cbSelfDamage(ir); cbPing("Ignited: your Act burns you for "+ir+"."); cbLogSelf("foe", meName()+": Ignited burns for "+ir+"."); }
   if(window._stanceRound!==round){ window._stanceRound=round; window._stanceBase=(C.armor&&C.armor.active)||null; window._stanceApplied=false; }
   window._skillFell=null;
-  if(e && e.src==="items"){
+  if(e && e.src==="utility"){
     var _iSel=cbCtl("cbItemSel"); var _in=_iSel?_iSel.value:"";
     if(_in) act=act+" \u00b7 "+_in;
   }

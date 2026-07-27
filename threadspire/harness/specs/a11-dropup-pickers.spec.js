@@ -37,7 +37,7 @@ const ACTS = [
   weapon('Basic attack'), weapon('Rend'), weapon('Cleave'), weapon('Sunder'), weapon('Riposte'),
   { src: 'skills', nm: 'Any skill', desc: 'All 24 skills may be attempted as an Act.', dmg: 0,
     base: 0, dt: null, tier: null, kind: 'standard', contest: 'evasion', castSkill: '', locked: false },
-  { src: 'items', nm: 'Use an item', desc: 'Spend your Act to use a carried item.', dmg: 0,
+  { src: 'utility', nm: 'Use a utility', desc: 'Spend your Act on a utility you carry.', dmg: 0,
     base: 0, dt: null, tier: null, kind: 'standard', contest: 'evasion', castSkill: '', locked: false }
 ];
 
@@ -149,7 +149,7 @@ test.describe('A11 the pickers drop up out of the card', () => {
     await seat(player);
 
     /* the last card, which is where a block centred on it would run off the right */
-    await arm(player, 'Use an item');
+    await arm(player, 'Use a utility');
     let g = await geom(player);
     expect(g.pick.l, 'not into the dice tray').toBeGreaterThanOrEqual(g.band.l - 1);
     expect(g.pick.r, 'not under the sheet rail').toBeLessThanOrEqual(g.band.r + 1);
@@ -220,10 +220,39 @@ test.describe('A11 the pickers drop up out of the card', () => {
 
     /* two utilities. The notch used to count as overflow and raise a scrollbar over a
        list with four items in it. */
-    await arm(player, 'Use an item');
+    await arm(player, 'Use a utility');
     const g = await geom(player);
     expect(g.opts).toBe(2);
     expect(g.listScrolls, 'nothing is hidden, so nothing suggests it is').toBe(false);
+  });
+
+  /* "Items" was the tool's word for them; the sheet's own section has called them
+     Utilities all along, and so does the table now. The wire still says item, which is
+     fine - the player never reads the wire. */
+  test('the row says utility, never item', async ({ page }) => {
+    await T.openTable(page, playerOnly());
+    const player = await T.frameFor(page, 'player');
+    await T.waitBooted(page, player, 'player');
+    await seat(player);
+    await arm(player, 'Use a utility');
+
+    const words = await player.evaluate(() => {
+      const el = document.getElementById('hand');
+      const t = (s) => { const n = el.querySelector(s); return n ? n.textContent : ''; };
+      return {
+        label: t('.hand-pick .hp-lab'),
+        hint: t('.hs-hint'),
+        card: t('.hcard.armed .hc-pick'),
+        kicker: t('.hcard.armed .hc-kick')
+      };
+    });
+    expect(words.label).toBe('Which utility');
+    expect(words.hint).toContain('utility');
+    expect(words.card).toContain('utility');
+    expect(words.kicker, 'including the word on the card itself').toContain('Utility');
+    Object.keys(words).forEach((k) => {
+      expect(words[k].toLowerCase(), k + ' still says item').not.toContain('item');
+    });
   });
 
   test('choosing from it still arms the card with the choice', async ({ page }) => {
