@@ -621,14 +621,46 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 }
 /* What a chosen card still needs before it can be aimed: which skill, which item, which
    stance. Sits above the row so the cards stay put underneath it. */
+/* ---- the drop-up ----
+   What this used to be: a band the full width of the table, two rows deep, floating
+   above the row with nothing tying it to the card that asked for it. Twenty-four skills
+   laid out across a metre of table is a list to read rather than a choice to make, and
+   at that width it ran out past the sheet rail.
+
+   So it is a small block that opens UPWARD out of its own card, no wider than a couple
+   of cards, and it wears a notch pointing back down at the card it belongs to. Placed
+   in script rather than in CSS, because it has to follow a card that scrolls: see
+   handPickPlace. Left at 0 until then, so a frame drawn before measuring does not flash
+   in the wrong place. */
 .hand-pick{
-  pointer-events:auto; margin:0 108px 6px; padding:7px 9px; border-radius:10px;
-  background:rgba(10,14,26,.95); border:1px solid rgba(201,168,76,.4);
-  display:flex; flex-wrap:wrap; align-items:center; gap:6px; max-height:33vh; overflow-y:auto;
+  pointer-events:auto; position:absolute; left:0; bottom:0; z-index:2;
+  padding:7px 8px; border-radius:10px;
+  background:rgba(10,14,26,.97); border:1px solid rgba(201,168,76,.45);
+  box-shadow:0 8px 22px rgba(0,0,0,.55);
+  display:flex; flex-direction:column; align-items:flex-start; gap:3px;
+  /* the cap the placement narrows further when the table is narrower than this */
+  width:max-content; max-width:340px;
 }
+.hp-list{
+  display:flex; flex-wrap:wrap; align-content:flex-start; gap:4px;
+  max-height:34vh;
+  /* a long list scrolls; it never scrolls sideways. Naming both axes is the point: with
+     one axis auto and the other left alone the other computes to auto as well, which is
+     where the stray horizontal bar along the bottom came from. */
+  overflow-y:auto; overflow-x:hidden;
+  scrollbar-width:thin;
+}
+/* the notch, sitting on the card's centre. --pick-tail is set with the placement. */
+.hand-pick::after{
+  content:''; position:absolute; top:100%; left:var(--pick-tail, 24px); margin-left:-6px;
+  border:6px solid transparent; border-top-color:rgba(201,168,76,.45);
+}
+.hand-pick .hp-opt{ font-size:.66rem; padding:3px 8px; }
 .hand-pick .hp-lab{
   font-family:Cinzel,serif; font-size:.52rem; letter-spacing:.14em; text-transform:uppercase;
   color:var(--gold); margin-right:2px;
+  /* its own line, so the options below it read as a block rather than a sentence */
+  flex:0 0 100%; margin-bottom:2px;
 }
 .hp-opt{
   border:1px solid var(--line); border-radius:999px; padding:3px 9px;
@@ -6944,20 +6976,23 @@ function handPick(kind, value){
   armed[kind] = (armed[kind] === value) ? '' : value;
   renderHand();
 }
-/* What the chosen card still wants, as a strip above the row. */
+/* What the chosen card still wants, opening upward out of the card itself.
+   The heading sits outside the scrolling part, so it stays put while a long list moves
+   under it, and so the notch that points back at the card is not counted as overflow by
+   the scroller and does not summon a scrollbar over a list that fits. */
 function handPicker(){
   if (!armed || !armed.need) return '';
   var h = '<div class="hand-pick">';
   if (armed.need === 'skill'){
     var skills = (hand && hand.skills) || {};
-    h += '<span class="hp-lab">Which skill</span>';
+    h += '<span class="hp-lab">Which skill</span><div class="hp-list">';
     Object.keys(skills).forEach(function(n){
       h += '<button type="button" class="hp-opt' + (armed.skill === n ? ' on' : '') + '"'
         + ' data-pick="skill" data-val="' + esc(n) + '">' + esc(n) + ' +' + (skills[n] || 0) + '</button>';
     });
   } else if (armed.need === 'item'){
     var items = (hand && hand.items) || [];
-    h += '<span class="hp-lab">Which item</span>';
+    h += '<span class="hp-lab">Which item</span><div class="hp-list">';
     if (!items.length) h += '<span class="hc-desc">Your pack is empty.</span>';
     items.forEach(function(it){
       h += '<button type="button" class="hp-opt' + (armed.item === it.name ? ' on' : '') + '"'
@@ -6966,14 +7001,14 @@ function handPicker(){
     });
   } else if (armed.need === 'stance'){
     var stances = (hand && hand.stances) || [];
-    h += '<span class="hp-lab">Which stance</span>';
+    h += '<span class="hp-lab">Which stance</span><div class="hp-list">';
     stances.forEach(function(sn){
       var worn = hand && hand.worn === sn;
       h += '<button type="button" class="hp-opt' + (armed.stance === sn ? ' on' : '') + '"'
         + ' data-pick="stance" data-val="' + esc(sn) + '">' + esc(sn) + (worn ? ' · worn' : '') + '</button>';
     });
   }
-  return h + '</div>';
+  return h + '</div></div>';
 }
 function handCard(e, charge, group, i){
   var key = handKey(e, i);
@@ -7144,11 +7179,71 @@ function renderHand(){
     /* the browser clamps this to the new content on its own, so a row that got shorter
        lands at its end rather than past it */
     if (keepLeft) sc.scrollLeft = keepLeft;
-    sc.addEventListener('scroll', handPagers, { passive:true });
+    sc.addEventListener('scroll', function(){ handPagers(); handPickPlace(); }, { passive:true });
   }
+  /* after the scroll is back where it was, so the drop-up lands over the card as the
+     player is actually seeing it */
+  handShowArmed();
+  handPickPlace();
   /* the arrows can only be decided once the row has been laid out, measured and put back
      where it was */
   handPagers();
+}
+/* The card in hand has to be on screen. Not the same thing as snapping the row back to
+   the start, which is what this row used to do and must not: this moves by the least it
+   can, and by nothing at all when the card is already in view, so a player who scrolled
+   somewhere stays there. It matters most for the drop-up, which would otherwise open
+   over a card that cannot be seen. */
+function handShowArmed(){
+  var el = document.getElementById('hand');
+  if (!el) return;
+  var sc = el.querySelector('.hand-scroll');
+  var card = el.querySelector('.hcard.armed');
+  if (!sc || !card) return;
+  var b = sc.getBoundingClientRect(), c = card.getBoundingClientRect();
+  var pad = 8;
+  if (c.left < b.left + pad) sc.scrollLeft -= (b.left + pad - c.left);
+  else if (c.right > b.right - pad) sc.scrollLeft += (c.right - (b.right - pad));
+}
+/* Where the drop-up sits: over the card that asked for it, opening upward, kept inside
+   the same band the cards themselves are allowed to use so it never runs under the dice
+   tray on the left or the sheet rail on the right.
+
+   This cannot be done in CSS. The card it belongs to scrolls, so its position is only
+   known once the row has been laid out and scrolled to wherever the player left it, and
+   it changes again on every scroll and every resize. */
+function handPickPlace(){
+  var el = document.getElementById('hand');
+  if (!el) return;
+  var pk = el.querySelector('.hand-pick');
+  if (!pk) return;
+  var card = el.querySelector('.hcard.armed');
+  var sc = el.querySelector('.hand-scroll');
+  if (!card || !sc) return;
+  var host = el.getBoundingClientRect();
+  var band = sc.getBoundingClientRect();      /* the row's own clearances, reused */
+  var cr = card.getBoundingClientRect();
+  /* Never wider than the space the cards themselves get. On a phone, or in a frame
+     sharing the screen with another, that is a good deal less than the block would
+     otherwise take, and a drop-up that overhangs the table is the thing this replaced. */
+  pk.style.maxWidth = Math.floor(Math.min(340, band.width)) + 'px';
+  /* the measured width, not the rounded one: offsetWidth is a whole number and the box
+     is not, and rounding up here is what put its right edge a fraction past the band */
+  var w = pk.getBoundingClientRect().width;
+  var lo = band.left - host.left;
+  var hi = Math.max(lo, band.right - host.left - w);
+  var want = (cr.left - host.left) + (cr.width - w) / 2;      /* centred over the card */
+  var left = Math.max(lo, Math.min(want, hi));
+  /* down, never up: a fraction further inside the band is always safe */
+  left = Math.floor(left);
+  pk.style.left = left + 'px';
+  /* the card's top edge, plus a little air */
+  pk.style.bottom = Math.round(host.bottom - cr.top + 8) + 'px';
+  /* the notch keeps pointing at the card even when the block has been pushed sideways
+     to stay on the table */
+  var tail = (cr.left - host.left) + cr.width / 2 - left;
+  pk.style.setProperty('--pick-tail',
+    Math.round(Math.max(12, Math.min(Math.max(12, w - 12), tail))) + 'px');
 }
 /* Which arrows are worth drawing. Recomputed after every render, on every scroll, and on
    resize, because all three change the answer: a spent charge can add or remove a card,
@@ -7228,7 +7323,10 @@ function handSetTab(t){
   var mo = document.getElementById('moreOpt');
   if (mo) mo.addEventListener('click', handMoreOptions);
   /* a narrower table can turn a row that fitted into one that pages */
-  window.addEventListener('resize', function(){ try { handPagers(); } catch(e){} });
+  window.addEventListener('resize', function(){
+    try { handPagers(); } catch(e){}
+    try { handPickPlace(); } catch(e){}
+  });
 })();
 window.addEventListener('message', function(ev){
   var f = document.getElementById('sheetFrame');
