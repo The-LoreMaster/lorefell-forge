@@ -80,8 +80,12 @@ Fix the current bug where right-clicking a foe after selecting a card auto-sets 
 target as declared with no roll and no way to undo. There must be a roll step, and a
 way to back out before committing.
 
-For the dice menu's ability/spell list: show only the ability/spell options the Fell
-currently has the charge for. A charge-locked ability is not listed (clutter). This
-matches the row's "usable only" principle. Standard attack is always available
-(Precision vs Evasion; a magic weapon's standard swing is still Precision vs Evasion,
-only a charged ability is a Spell Attack vs Difficulty, per canon).
+For the dice menu's ability/spell list: show charge-locked abilities the SAME way the
+row does, per F9 — visible but greyed, wearing the charge that would unlock them, not
+hidden. (An earlier draft of this brief wrongly said to hide them "to match the row's
+usable-only principle"; that was wrong. F9 is locked and tested: the row keeps locked
+acts visible so a player sees what a charge would buy, and the dice menu follows the
+same rule so there is one behaviour, not two. The designer confirmed locked-but-greyed
+everywhere.) Standard attack is always available (Precision vs Evasion; a magic
+weapon's standard swing is still Precision vs Evasion, only a charged ability is a
+Spell Attack vs Difficulty, per canon).
