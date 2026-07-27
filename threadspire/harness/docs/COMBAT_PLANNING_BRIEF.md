@@ -136,32 +136,30 @@ Act. The ambush contest determines who participates; only participants get the
 opening Act. Model participation explicitly rather than granting to the whole
 party.
 
-**F10 (REVERSED from the plan) — ALL attacks made with a magic weapon are Spell
-Attacks.** The plan assumed a magic weapon's standard swing is a Magical Attack vs
-Evasion and only abilities are Spell Attacks. That is WRONG for LoreFell. The
-correct rule:
-  - A **physical weapon** attack is a Physical Attack: Precision vs Evasion.
-  - A **magic weapon** attack is ALWAYS a Spell Attack: it resolves vs Difficulty
-    (1d6 + Magic skill + Mastery vs the LM's 1d6 + Difficulty), NOT vs Evasion,
-    for its standard swing as well as its abilities.
-  - The difference between a magic weapon's **standard attack** and its **ability**
-    is CHARGES, not contest type: a standard Spell Attack costs no charge; an
-    ability Spell Attack requires charges (the existing tier/charge gate).
-  So the contest branch is decided purely by weapon category
-  (WEAPON_DB[w.tree].category === 'magic' → Difficulty contest; else Evasion), and
-  the charge gate decides standard vs ability, not the contest.
+**F10 (CORRECTED — supersedes the earlier reversal in this addendum) — contest
+type is decided by standard-vs-ability, NOT by weapon category.** An earlier draft
+of this addendum wrongly said all magic-weapon attacks are Spell Attacks. That is
+withdrawn. The correct rule:
+  - **Physical weapon, standard attack** → Precision vs Evasion.
+  - **Magic weapon, standard attack** (a regular target, requiring no charge) →
+    STILL Precision vs Evasion. A magic weapon's basic swing resolves exactly like
+    a physical one.
+  - **Magic weapon, ABILITY** (the charged one) → Spell Attack: 1d6 + Magic skill +
+    Mastery vs the LM's 1d6 + Difficulty, no Evasion roll.
+  So the Spell Attack contest is reserved for magic-weapon ABILITIES (which require
+  charges). Standard attacks, physical or magic, stay Precision vs Evasion. The
+  gate is: is this a charged ability on a magic weapon? Yes → Difficulty contest.
+  No → Evasion contest.
 
-  This is a larger change than the plan's F3: it is not an edge case for named
-  abilities, it is every magic-weapon attack. sendDeclare currently computes
-  acc = roll + Precision for everything with no magic branch; that branch must be
-  added, and the LM's incoming resolution (cbIncoming) must roll Difficulty rather
-  than Evasion whenever the attacker's weapon is magic.
+  This matches the plan's original F3 reading and is a SMALLER change than the
+  earlier (withdrawn) reversal: sendDeclare keeps Precision vs Evasion for every
+  standard attack, and only a magic-weapon ability branches to the Difficulty
+  contest. cbIncoming rolls Difficulty instead of Evasion only for those abilities.
 
-  **Vault check required before building F10/F3:** the plan's F10 finding already
-  flags that the vault contradicts itself (Weapon Abilities.md vs CANON.md /
-  Spell Attack.md). The designer's ruling above is now the canon. Reconcile the
-  FellGuide to it first, report the exact pages that disagree, get them corrected
-  in lorefell-fellguide, and only then build the code to the corrected rule.
+  **Vault check still required:** the plan's F10 finding flags that the vault
+  contradicts itself (Weapon Abilities.md vs CANON.md / Spell Attack.md). The
+  corrected ruling above is the canon. Reconcile the FellGuide to it, report which
+  pages disagree, get them fixed in lorefell-fellguide, then build the code.
 
 **Sequencing impact.** Step 0 (the F2 display fix, F5 movement text, F4
 confirmation) is unaffected by any of this and can proceed immediately. The F10/F3
