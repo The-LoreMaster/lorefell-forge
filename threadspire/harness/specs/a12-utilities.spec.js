@@ -28,12 +28,15 @@ async function withPack(page) {
         veiled: 'a cold weight wrapped in cloth' },
       { id: 'u4', name: 'Torch', use: 'Act', desc: 'Light, and a poor weapon.', veiled: 'open' }
     ];
+    /* Wit enough to carry the lot, since what this is about is what the names are and
+       not how many fit - that is A14's question */
+    C.attrs.wit.base = 5; C.attrs.wit.mod = 0;
     C.inventory = [
-      { itemId: 'u1', quantity: 2, discovered: true },
-      { itemId: 'u2', quantity: 1, discovered: true },
-      { itemId: 'u3', quantity: 1, discovered: false },   /* not identified yet */
-      { itemId: 'u4', quantity: 1, discovered: false },   /* known on sight */
-      { itemId: 'gone', quantity: 1, discovered: true }   /* no longer on the shelf */
+      { itemId: 'u1', quantity: 2, discovered: true, equipped: true },
+      { itemId: 'u2', quantity: 1, discovered: true, equipped: true },
+      { itemId: 'u3', quantity: 1, discovered: false, equipped: true },  /* not identified yet */
+      { itemId: 'u4', quantity: 1, discovered: false, equipped: true },  /* known on sight */
+      { itemId: 'gone', quantity: 1, discovered: true, equipped: true }  /* not on the shelf */
     ];
     CUR_WIX_ID = 'chr-harness-0001';
     COMBAT = { active: true, round: 1, phase: 'commit', fighters: [], you: {} };

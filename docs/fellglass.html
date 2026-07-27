@@ -383,6 +383,12 @@ h3{font-family:var(--head);font-weight:500;font-size:12px;letter-spacing:.12em;t
 .qty .v{font-family:var(--head);min-width:22px;text-align:center}
 .flagbtn{font-family:var(--head);font-size:9px;letter-spacing:.08em;text-transform:uppercase;border:1px solid var(--line);border-radius:10px;padding:4px 8px;color:var(--silver-dim);transition:all .15s}
 .flagbtn.on{color:var(--gold);border-color:rgba(201,168,76,.45)}
+/* A refusal is red on the button that refused and says why beside it, rather than
+   swallowing the tap and leaving the player to work out that nothing happened. */
+.flagbtn.refused{color:#e8a0a0;border-color:rgba(200,90,90,.65)}
+.equip-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 0 2px}
+.equip-free{font-family:var(--head);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--silver-dim)}
+.equip-warn{flex:0 0 100%;font-size:11px;line-height:1.35;color:#e8a0a0;margin-top:2px}
 
 /* ---------- status ---------- */
 .status-entry{background:var(--navy-3);border:1px solid var(--line);border-radius:6px;padding:9px 11px;margin-bottom:8px;position:relative}
@@ -3510,6 +3516,7 @@ function lvlControl(get,set,max){
 /* ---------- weapons ---------- */
 
 function renderWeapons(){
+  try{ equipSeed(); }catch(e){}
   const wrap=$("weaponsWrap");wrap.innerHTML="";
   /* with no weapon to look at, how one is taken up is the only thing worth saying, so it
      shows itself; once there is a weapon it goes back behind the card's mark */
@@ -3551,6 +3558,17 @@ function renderWeapons(){
       meta.appendChild(el("span","tag",`Grip <b>${gv===1?"One-hand":gv===2?"Two-hand":gv}</b>`));
       meta.appendChild(el("span","tag",`Range <b>${rv}</b>`));
       slot.appendChild(meta);
+      /* In hand or on the rack. Only what is in hand reaches the card row, which is the
+         whole point of counting hands at all. */
+      const eq=el("div","equip-row");
+      const eb=el("button","flagbtn"+(w.equipped?" on":"")+(equipWarnFor("weapon",idx)?" refused":""),
+                  w.equipped?"In hand":"Take up");
+      eb.addEventListener("click",()=>toggleWeaponEquip(idx));
+      eq.appendChild(eb);
+      eq.appendChild(el("span","equip-free",`${GRIP_HANDS-gripSpent()} of ${GRIP_HANDS} hands free`));
+      const warn=equipWarnFor("weapon",idx);
+      if(warn) eq.appendChild(el("div","equip-warn",warn));
+      slot.appendChild(eq);
       if(god&&w.formIdx<2){
         const rf=el("button","btn small gold",`Reforge \u2192 ${db.forms[w.formIdx+1]} (LM)`);
         rf.addEventListener("click",()=>{w.formIdx++;renderWeapons();});
@@ -3834,8 +3852,11 @@ function renderSkills(){
 
 /* ---------- inventory ---------- */
 function renderItems(){
+  try{ equipSeed(); }catch(e){}
   const w=$("itemsWrap");w.innerHTML="";
   if(!C.inventory.length)w.appendChild(el("p","note","No utilities yet. Your pack is light."));
+  /* what the pack will hold, said once at the top rather than only when it refuses */
+  else w.appendChild(el("p","note",`Carrying ${utilityWorn(-1)} of ${utilityCap()} — one, and one more for every point of Wit.`));
   C.inventory.forEach((it,idx)=>{
     const lib=ITEMS_LIB.find(x=>x.id===it.itemId);
     const row=el("div","item-row");
@@ -3853,12 +3874,19 @@ function renderItems(){
     qty.append(minus,v,plus);
     const flags=el("div",null);
     [["equipped","Equipped"],["discovered","Discovered"]].forEach(([k,label])=>{
-      const f=el("button","flagbtn"+(it[k]?" on":""),label);
+      const f=el("button","flagbtn"+(it[k]?" on":"")+((k==="equipped"&&equipWarnFor("utility",idx))?" refused":""),label);
       if(k==="discovered")f.title="LM action in the live build";
-      f.addEventListener("click",()=>{it[k]=!it[k];renderItems();scheduleSave();});
+      /* Equipping is not a free flag any more: a Fell carries one utility and one more
+         for every point of Wit, and the pack refuses past that rather than quietly
+         taking it. Discovered stays as it was, being the LoreMaster's business. */
+      if(k==="equipped") f.addEventListener("click",()=>toggleUtilityEquip(idx));
+      else f.addEventListener("click",()=>{it[k]=!it[k];renderItems();scheduleSave();});
       f.style.marginLeft="4px";flags.appendChild(f);
     });
-    row.append(nm,qty,flags);w.appendChild(row);
+    row.append(nm,qty,flags);
+    const uw=equipWarnFor("utility",idx);
+    if(uw) row.appendChild(el("div","equip-warn",uw));
+    w.appendChild(row);
   });
   const pick=$("itemPick");pick.innerHTML="";
   const p=el("option",null,"—");p.value="";pick.appendChild(p);
@@ -3913,6 +3941,11 @@ renderAurum();
 const SPELL_SKILL_BY_TREE={ Foci:"Weaving", Artifact:"Spirit", Grimoire:"Creation", Tome:"Creation" };
 function arEntry(src,nm,d,dim){return `<div class="ar-entry"${dim?' style="opacity:.45"':""}><div class="ar-head"><span class="src">${src}</span><span class="nm">${nm}</span></div>${d?`<div class="d">${d}</div>`:""}</div>`;}
 function renderBattle(){
+  /* Before anything is derived from what is in hand, make sure the question has been
+     answered. Seeding only from renderAll left every other path - and there are several,
+     since a charge, an equip and a level all re-derive on their own - able to run against
+     a character who had never been asked. It is idempotent and it is cheap. */
+  try{ equipSeed(); }catch(e){}
   /* every component carries a use type (Act / React / Passive); buckets fill from that */
   const buckets={Act:"",React:"",Passive:""};
   const arNames={Act:[],React:[],Passive:[]};
@@ -3921,7 +3954,9 @@ function renderBattle(){
      reads this feed, and a card with no words on it is not a card, so the text travels
      with the entry now. */
   const put=(use,src,nm,d,tier,kind)=>{if(buckets[use]!==undefined){buckets[use]+=arEntry(src,nm,d);arNames[use].push({src:src,nm:nm,desc:d||"",tier:(tier===undefined?null:tier),kind:kind||"standard"});}};
-  C.weapons.forEach(w=>{
+  /* Only what is in hand. A Fell owning three weapons is not a Fell holding three, and
+     the row showing three Basic attacks was that confusion made visible. */
+  C.weapons.filter(w=>w.equipped).forEach(w=>{
     const src=weaponName(w)||"weapon";
     if(w.tree) put("Act",src,"Basic attack","Tier 0 \u00b7 standard strike",0,"weapon");
     w.abilities.filter(Boolean).forEach(a=>{
@@ -3933,8 +3968,10 @@ function renderBattle(){
       if(f)put(f.use,src,n,f.desc,undefined,"weapon");
     });
   });
-  if(!C.weapons.some(function(w){return w.tree;})) put("Act","Unarmed","Basic attack","Tier 0 \u00b7 Power +1 base damage",0,"weapon");
-  C.inventory.filter(it=>it.discovered).forEach(it=>{
+  /* empty-handed, which is now about what is held rather than what is owned: a Fell who
+     has set everything down still has fists */
+  if(!C.weapons.some(function(w){return w.tree&&w.equipped;})) put("Act","Unarmed","Basic attack","Tier 0 \u00b7 Power +1 base damage",0,"weapon");
+  C.inventory.filter(it=>it.discovered&&it.equipped).forEach(it=>{
     const lib=ITEMS_LIB.find(x=>x.id===it.itemId);
     if(lib)put(lib.use,"item",lib.name,lib.desc,undefined,"item");
   });
@@ -4401,7 +4438,115 @@ window.addEventListener("beforeunload",flushSave);
 function postToVelo(msg){
   try{window.parent.postMessage(msg,"*");}catch(e){}
 }
+/* ---------- what a Fell has to hand ----------
+   The card row was showing three Basic attacks because every weapon a Fell owned fed it,
+   and a Fell owning three weapons is not a Fell holding three weapons. Two hands is the
+   whole rule: a form's grip is 1 or 2, taken from WEAPON_DB, and what is equipped may
+   total 2.
+
+   Utilities are carried rather than held, so they cost no grip. What limits them is Wit,
+   which is what Wit has said it does on the Attributes card all along: shards found,
+   items equipped. One, plus Wit. */
+const GRIP_HANDS=2;
+function weaponGrip(w){
+  var db=w&&w.tree&&WEAPON_DB[w.tree];
+  if(!db) return 0;
+  var g=(db.grips&&db.grips[w.formIdx]);
+  if(!g) g=(db.meta&&db.meta.grip)||WEAPON_META.grip;
+  return Number(g)||1;
+}
+function gripSpent(skip){
+  return (C.weapons||[]).reduce(function(n,w,i){
+    return (i===skip||!w.equipped||!w.tree) ? n : n+weaponGrip(w);
+  },0);
+}
+/* Why this weapon cannot be taken up, or "" if it can. Named for what it is: the answer
+   the player is owed when the button refuses them. */
+function gripRefusal(idx){
+  var w=(C.weapons||[])[idx];
+  if(!w||!w.tree) return "Choose a weapon first.";
+  var need=weaponGrip(w), free=GRIP_HANDS-gripSpent(idx);
+  if(need<=free) return "";
+  var held=[];
+  (C.weapons||[]).forEach(function(x,i){
+    if(i===idx||!x.equipped||!x.tree) return;
+    held.push(weaponName(x)+(weaponGrip(x)===2?" takes both hands":" is in one hand"));
+  });
+  return (need===2?"This needs both hands.":"No hand free.")
+       + (held.length?(" "+held.join(", ")+". Set "+(held.length===1?"it":"one")+" down first."):"");
+}
+function utilityCap(){ return 1+Math.max(0,attrTotal("wit")); }
+function utilityWorn(skip){
+  return (C.inventory||[]).filter(function(it,i){ return i!==skip && it && it.equipped; }).length;
+}
+function utilityRefusal(idx){
+  var cap=utilityCap();
+  if(utilityWorn(idx)+1<=cap) return "";
+  return "Wit "+Math.max(0,attrTotal("wit"))+" carries "+cap+" "+(cap===1?"utility":"utilities")
+       + ". Set one down first.";
+}
+/* A Fell from before hands were counted has no answer written down either way, and an
+   empty combat row would be a worse greeting than a guess. So the first time we look at
+   one, take up what fits, in the order they are listed, and leave it visible on the cards
+   for the player to change. Only when NOTHING has been decided: one deliberate false is
+   a decision and is left alone. */
+function equipSeed(){
+  var ws=(C.weapons||[]).filter(function(w){ return w&&w.tree; });
+  if(ws.length && !ws.some(function(w){ return typeof w.equipped==="boolean"; })){
+    var free=GRIP_HANDS;
+    (C.weapons||[]).forEach(function(w){
+      if(!w||!w.tree){ return; }
+      var g=weaponGrip(w);
+      w.equipped=(g<=free);
+      if(w.equipped) free-=g;
+    });
+  }
+  var inv=(C.inventory||[]);
+  if(inv.length && !inv.some(function(it){ return it && typeof it.equipped==="boolean"; })){
+    var cap=utilityCap(), n=0;
+    inv.forEach(function(it){
+      if(!it) return;
+      it.equipped=(n<cap);
+      if(it.equipped) n++;
+    });
+  }
+}
+/* What the last refusal was, and whose card it belongs on. Held rather than shouted,
+   because it belongs beside the button that refused rather than in a corner of the
+   screen, and it goes as soon as anything else happens. */
+var _equipWarn=null;
+function equipSay(kind,idx,msg){ _equipWarn=msg?{kind:kind,idx:idx,msg:msg}:null; }
+function equipWarnFor(kind,idx){
+  return (_equipWarn&&_equipWarn.kind===kind&&_equipWarn.idx===idx)?_equipWarn.msg:"";
+}
+function toggleWeaponEquip(idx){
+  var w=(C.weapons||[])[idx];
+  if(!w) return;
+  if(w.equipped){ w.equipped=false; equipSay(); }
+  else {
+    var no=gripRefusal(idx);
+    if(no){ equipSay("weapon",idx,no); renderWeapons(); return; }
+    w.equipped=true; equipSay();
+  }
+  renderWeapons();
+  try{ renderBattle(); }catch(e){}
+  scheduleSave();
+}
+function toggleUtilityEquip(idx){
+  var it=(C.inventory||[])[idx];
+  if(!it) return;
+  if(it.equipped){ it.equipped=false; equipSay(); }
+  else {
+    var no=utilityRefusal(idx);
+    if(no){ equipSay("utility",idx,no); renderItems(); return; }
+    it.equipped=true; equipSay();
+  }
+  renderItems();
+  try{ renderBattle(); }catch(e){}
+  scheduleSave();
+}
 function renderAll(){
+  equipSeed();
   grantSummary();renderLore();renderDials();renderVit();renderWeapons();
   renderArmor();renderLorebounds();renderSkills();renderAurum();renderFatigue();renderMobility();renderStatus();
   renderBattle();renderCharges();renderStrip();["quests","characters","notes"].forEach(renderRecords);renderMotivation();syncIdentityLock();
@@ -5754,6 +5899,9 @@ function cbUtilities(){
     if(!e||!e.name) return null;
     var known=it.discovered||String(e.veiled||"").toLowerCase()==="open";
     if(!known) return null;
+    /* and it has to be on you: what a Fell carries is a choice against their Wit, not
+       everything they own */
+    if(!it.equipped) return null;
     /* the sheet counts in `quantity`; qty is accepted so a row from anywhere else still
        reads rather than silently becoming one */
     var q=(typeof it.quantity==="number")?it.quantity:((typeof it.qty==="number")?it.qty:1);

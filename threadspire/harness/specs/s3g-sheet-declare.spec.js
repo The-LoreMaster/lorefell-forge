@@ -147,9 +147,13 @@ test.describe('S3g the sheet decides whether a declare goes out', () => {
     const frame = await inCombat(page, 3);
 
     const w = await frame.evaluate(() => {
+      /* a Mace, because a Fell has two hands: a dagger and a mace can both be held,
+         while a dagger and a bow cannot, and a weapon nobody is holding offers no Acts */
       const second = newWeapon();
-      second.tree = 'Bow';
+      second.tree = 'Bludgeon';
       second.level = 1;                            /* a weaker one, so the damage differs */
+      second.equipped = true;
+      C.weapons[0].equipped = true;
       C.weapons = [C.weapons[0], second];
       renderBattle();
       const acts = (window.COMBAT_ACTS || []).filter((a) => a.nm === 'Basic attack');
@@ -171,7 +175,8 @@ test.describe('S3g the sheet decides whether a declare goes out', () => {
     const frame = await inCombat(page, 3);
     const dmg = await frame.evaluate(() => {
       const second = newWeapon();
-      second.tree = 'Bow'; second.level = 1;
+      second.tree = 'Bludgeon'; second.level = 1; second.equipped = true;
+      C.weapons[0].equipped = true;
       C.weapons = [C.weapons[0], second];
       renderBattle();
       return (window.COMBAT_ACTS || []).filter((a) => a.nm === 'Basic attack').map((a) => a.dmg);
