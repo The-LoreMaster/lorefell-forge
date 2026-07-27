@@ -3243,6 +3243,8 @@ function openWin(key){
   win.classList.add('open');
   var _wa=document.getElementById('winArt'); if(_wa) _wa.style.display='block';
   var _wx=document.getElementById('winX'); if(_wx) _wx.style.display='flex';
+  /* the cards step aside for whatever just opened over them */
+  try { renderHand(); } catch(e){}
   paintRails(); renderLog(); paintSelectArt();
   if (typeof paintLmStrip === 'function' && isLM()) paintLmStrip();
 }
@@ -3260,6 +3262,8 @@ function closeWin(){
   var _wa=document.getElementById('winArt'); if(_wa) _wa.style.display='none';
   var _wx=document.getElementById('winX'); if(_wx) _wx.style.display='none';
   paintRails(); paintSelectArt();
+  /* the cards come back the moment the slideout is out of their way */
+  try { renderHand(); } catch(e){}
   if (typeof paintLmStrip === 'function' && isLM()) paintLmStrip();
 }
 
@@ -6279,7 +6283,11 @@ function lmToggleGrid(){
 function toggleClean(){ document.body.classList.toggle('clean'); if (S.openSection) closeWin(); }
 /* the player's full sheet, the real FellGlass, hosted here. Its bridge is relayed up to the
    page, which answers from the one Characters record. Loaded once, shown on demand. */
-var SHEET_PANELS = { attributes:'attributes', skills:'skills', inventory:'inventory', arsenal:'weapons', lore:'lore', battle:'battle' };
+/* The sheet's panels a player can open from the table. 'battle' is deliberately absent:
+   that was the sheet's own combat tracker, and the card row under the map is the player's
+   combat surface now. Two surfaces for one Beat is how a player declares in the place
+   nobody is looking, and it is what was competing with the row. */
+var SHEET_PANELS = { attributes:'attributes', skills:'skills', inventory:'inventory', arsenal:'weapons', lore:'lore' };
 /* ---- the LoreMaster's hand on a Fell ----
    The same sheet the player uses, opened on their Fell with the locks off. Nothing is
    reimplemented here: the panels are FellGlass's own, reached the way the player
@@ -6804,12 +6812,22 @@ function handCard(e, charge, group){
 function renderHand(){
   var el = document.getElementById('hand');
   if (!el) return;
-  var show = !isLM() && S.mode === 'combat' && !!hand && hand.active !== false;
+  /* A slideout and the cards are never both open. A player in a fight has to be able to
+     read their Inventory, Skills, Arsenal, Lore and Attributes, and the gem, and the row
+     sits across the bottom of exactly that space; the LoreMaster's side already yields
+     its scene runner the same way. The row steps aside while a slideout is open and
+     comes straight back when it closes, which is why closeWin has to repaint. */
+  /* Two different questions. Whether there is a fight on decides whether the reminder
+     has been spent; whether a slideout is open decides only whether the row is in the
+     way right now. Conflating them meant opening a slideout counted as the battle
+     ending and the reminder came back. */
+  var inFight = !isLM() && S.mode === 'combat' && !!hand && hand.active !== false;
+  var show = inFight && !S.openSection;
   el.classList.toggle('hidden', !show);
   /* the pill belongs to the combat surface and comes and goes with it: out of a fight
      the sheet is reachable the ordinary ways and needs no reminder. Spent once used,
      and unspent again when the battle ends, so the next fight reminds a player once. */
-  if (!show) _moreOptSpent = false;
+  if (!inFight) _moreOptSpent = false;
   var mo = document.getElementById('moreOpt');
   if (mo) mo.classList.toggle('hidden', !show || _moreOptSpent);
   if (!show){ el.innerHTML = ''; return; }
@@ -8363,7 +8381,10 @@ function render(){
     if (isLM()){ hf.classList.remove('combat'); hf.onclick = function(){ railClick('settings'); }; }
     else {
       hf.classList.toggle('combat', combat);
-      hf.onclick = combat ? function(){ railClick('battle'); } : function(){ railClick('menu'); };
+      /* The gem used to lead to the sheet's combat tracker during a fight. That tracker
+         is gone, and a player in a fight wants the same thing from the gem they always
+         did: their menu. It is also what More Options points at, so the two agree. */
+      hf.onclick = function(){ railClick('menu'); };
     }
   }
   if (!combat){
