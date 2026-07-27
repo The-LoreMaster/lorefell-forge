@@ -733,7 +733,6 @@ body.in-combat{ padding-top:var(--cbn-h,46px); }
       <div id="headCampaign">No campaign</div>
     </div>
     <div class="hd-btns">
-      <button id="godBtn" title="LoreMaster god mode (role-gated in the live build)">⟡ LM Mode</button>
       <button id="lvlUpBtn">⬥ Level Up</button>
     </div>
     <button id="hubBtn" aria-label="Open section hub"><span class="gl">✦</span><span class="hb-l">Sections</span></button>
@@ -781,10 +780,10 @@ body.in-combat{ padding-top:var(--cbn-h,46px); }
       <div><label class="fld">Lineage</label><select id="f-lineage"></select></div>
       <div><label class="fld">Origin</label><select id="f-origin"></select></div>
     </div>
-    <div style="margin-top:10px"><label class="fld">Motivation</label><select id="f-motivation"></select></div>
-    <div style="margin-top:10px"><label class="fld">Adventure</label><div id="f-advname" class="advname">No adventure</div><div id="f-advact"></div><div id="tsSpireLink"></div></div>
+    <div style="margin-top:10px" id="f-motivation-wrap"><label class="fld">Motivation</label><select id="f-motivation"></select></div>
     <p class="note" style="margin-top:6px" id="grantNote"></p>
     <div id="motivationCard" style="margin-top:12px"></div>
+    <div style="margin-top:10px"><label class="fld">Adventure</label><div id="f-advname" class="advname">No adventure</div><div id="f-advact"></div><div id="tsSpireLink"></div></div>
     <div style="margin-top:10px" id="titlesWrap" hidden>
       <label class="fld">Titles</label>
       <input id="f-titles" readonly>
@@ -2526,12 +2525,18 @@ function renderStrip(){
 }
 
 /* ---------- god mode ---------- */
-$("godBtn").addEventListener("click",()=>{
-  god=!god;
-  document.body.classList.toggle("god",god);
-  $("godBtn").classList.toggle("on",god);
-  renderWeapons();renderDials();renderArmor();renderLorebounds();syncIdentityLock();
-});
+/* LM Mode is gone: the LoreMaster reaches a player's Fell through the table now, so the
+   manual toggle is unnecessary. The god flag still arrives over the ts-god message; only
+   the button that used to flip it by hand has been removed. The listener is kept guarded
+   in case an older embed still carries the button. */
+(function(){ var gb=$("godBtn"); if(!gb) return;
+  gb.addEventListener("click",()=>{
+    god=!god;
+    document.body.classList.toggle("god",god);
+    gb.classList.toggle("on",god);
+    renderWeapons();renderDials();renderArmor();renderLorebounds();syncIdentityLock();
+  });
+})();
 
 /* ---------- identity ---------- */
 $("f-name").addEventListener("input",e=>{C.identity.name=e.target.value;$("headName").textContent=e.target.value||"Unnamed Wanderer";});
@@ -2585,15 +2590,24 @@ function renderCampaignOptions(){
   }
   var act=$("f-advact");
   if(act){
+    /* The player leaves their own adventure; the LoreMaster, looking at a player's Fell,
+       removes that player from it. Same underlying action, different words for who is
+       doing it to whom. */
+    var _leaveLabel = god ? "Kick Player" : "Leave adventure";
     act.innerHTML = (curName||curId)
-      ? '<button type="button" class="advleave" onclick="advLeave()">Leave adventure</button>'
-      : '<div class="advhint">Your LoreMaster brings you into one.</div>';
+      ? '<button type="button" class="advleave" onclick="advLeave()">' + _leaveLabel + '</button>'
+      : (god ? '<div class="advhint">This player is not in an adventure.</div>'
+             : '<div class="advhint">Your LoreMaster brings you into one.</div>');
   }
   $("headCampaign").textContent=(C.identity.campaign||"No adventure");
 }
 function advLeave(){
   if(!CUR_WIX_ID){ alert("Save this Fell first."); return; }
-  if(!confirm("Leave "+(C.identity.campaign||"this adventure")+"? Your Fell stays yours, and your LoreMaster can bring you back.")) return;
+  var _adv = C.identity.campaign || "this adventure";
+  var _msg = god
+    ? "Remove this player from "+_adv+"? Their Fell stays theirs, and you can bring them back."
+    : "Leave "+_adv+"? Your Fell stays yours, and your LoreMaster can bring you back.";
+  if(!confirm(_msg)) return;
   C.identity.campaign=""; C.identity.campaignId=""; C.identity.worldId="";
   renderCampaignOptions();
   scheduleSave();
@@ -4271,6 +4285,10 @@ function renderMotivation(){
   const wrap=$("motivationCard");if(!wrap)return;
   wrap.innerHTML="";
   const m=motByName(C.identity.motivation);
+  /* Once a motivation is chosen, the picker has done its job and only clutters the card,
+     so it hides. It comes back if the motivation is cleared or abandoned, which is when a
+     new one is actually pickable again. */
+  var _mw=$("f-motivation-wrap"); if(_mw){ _mw.style.display = m ? "none" : ""; }
   /* the titles line shows itself only once something has been earned to put on it */
   const tw=$("titlesWrap"), tf=$("f-titles");
   if(tw&&tf){
@@ -5689,7 +5707,7 @@ window.onmessage=ev=>{
   if(!d||typeof d!=="object"||!d.type)return;
   if(d.type==="goto-panel"){ if(d.panel){ window._tsPanel=d.panel; switchPanel(d.panel); } return; }
   if(d.type==="ts-new"){ postToVelo({type:"add-character"}); return; }
-  if(d.type==="ts-god"){ god=!!d.on; document.body.classList.toggle("god",god); var gb=$("godBtn"); if(gb) gb.classList.toggle("on",god); try{renderWeapons();renderDials();renderArmor();renderLorebounds();syncIdentityLock();}catch(e){} return; }
+  if(d.type==="ts-god"){ god=!!d.on; document.body.classList.toggle("god",god); var gb=$("godBtn"); if(gb) gb.classList.toggle("on",god); try{renderWeapons();renderDials();renderArmor();renderLorebounds();renderCampaignOptions();renderMotivation();syncIdentityLock();}catch(e){} return; }
   bridged=true;
   if(d.type==="init"||d.type==="new")hideCover();
   if(d.type==="new"&&!d.character){
