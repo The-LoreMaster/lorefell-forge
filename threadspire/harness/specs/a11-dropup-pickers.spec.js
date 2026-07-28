@@ -256,11 +256,21 @@ test.describe('A11 the pickers drop up out of the card', () => {
     });
     expect(words.label).toBe('Which utility');
     expect(words.hint).toContain('utility');
-    expect(words.card).toContain('utility');
     expect(words.kicker, 'including the word on the card itself').toContain('Utility');
+    /* the card names nothing while the list is up - one fact at a time, A19 - so what the
+       card says is checked once it carries the answer */
+    expect(words.card, 'nothing on the card yet').toBe('');
     Object.keys(words).forEach((k) => {
       expect(words[k].toLowerCase(), k + ' still says item').not.toContain('item');
     });
+
+    await player.evaluate(() => { document.querySelector('#hand .hand-pick .hp-opt').click(); });
+    const chosen = await player.evaluate(() => {
+      const n = document.querySelector('#hand .hcard.armed .hc-pick');
+      return n ? n.textContent : '';
+    });
+    expect(chosen, 'and it does carry one').not.toBe('');
+    expect(chosen.toLowerCase(), 'without ever saying item').not.toContain('item');
   });
 
   test('choosing from it still arms the card with the choice', async ({ page }) => {

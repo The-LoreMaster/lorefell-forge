@@ -336,7 +336,8 @@ test.describe('S3b the card row draws the hand', () => {
 
     await tapCard(player, 'Any skill');
     expect(await pickerLabel(player)).toBe('Which skill');
-    expect((await cardByName(player, 'Any skill')).text).toContain('Choose a skill above');
+    /* the card names nothing while the list is open above it: one fact at a time, A19 */
+    expect((await cardByName(player, 'Any skill')).text).not.toContain('Choose a skill');
 
     await tapOption(player, 'Guard');
     expect((await cardByName(player, 'Any skill')).text, 'the card carries the choice').toContain('Guard');

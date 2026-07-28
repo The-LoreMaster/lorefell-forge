@@ -793,13 +793,20 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .hr-cancel:hover{ border-color:rgba(217,138,138,.55); color:#d98a8a; }
 .hr-die:focus-visible, .hr-face:focus-visible, .hr-cancel:focus-visible{ outline:2px solid var(--gold); outline-offset:2px; }
 /* ---- choosing what to do to a target already picked ---- */
+/* The target-first menu. Same block as the drop-up rather than a bar the width of the
+   table: it is a short list of things to do to one foe, and drawn full width it read as a
+   window stacked over the row rather than as part of it. No card to hang off - the tap
+   that opened it was on a token - so it sits at the row's own left edge. */
 .hand-pickmenu{
   pointer-events:auto; margin:0 var(--hand-right-clear) 6px 108px;
-  display:flex; align-items:center; gap:6px; flex-wrap:wrap;
-  padding:7px 9px; border-radius:10px;
-  background:rgba(10,14,26,.95); border:1px solid rgba(201,168,76,.4);
-  max-height:33vh; overflow-y:auto;
+  display:flex; align-items:flex-start; gap:4px; flex-wrap:wrap;
+  padding:7px 8px; border-radius:10px;
+  background:rgba(10,14,26,.97); border:1px solid rgba(201,168,76,.45);
+  box-shadow:0 8px 22px rgba(0,0,0,.55);
+  width:max-content; max-width:min(360px, 84vw);
+  max-height:34vh; overflow-y:auto; overflow-x:hidden; scrollbar-width:thin;
 }
+.hand-pickmenu .hp-opt{ font-size:.66rem; padding:3px 8px; }
 .hand-pickmenu .hp-lab{
   font-family:Cinzel,serif; font-size:.52rem; letter-spacing:.14em; text-transform:uppercase;
   color:var(--gold); margin-right:2px;
@@ -6805,9 +6812,18 @@ function handArm(id, group){
   if (handBarred(hit.e, group)) return;
   if (handSpent(group)) return;
   handClearNote();     /* taking a card up is the player moving on from whatever it said */
-  if (armed && armed.group === group && armed.key === hit.key){ handDisarm(); return; }
+  if (armed && armed.group === group && armed.key === hit.key){
+    /* Changing your mind about WHICH utility is far commoner than putting the card back,
+       so the first tap on a held card that wants a choice re-opens the choice. The second
+       one, with the list already open, puts it down. */
+    if (armed.need && !armed.picking){ armed.picking = true; renderHand(); return; }
+    handDisarm(); return;
+  }
   armed = { entry: hit.e, key: hit.key, group: group, need: handNeeds(hit.e),
             skill: '', item: '', stance: '' };
+  /* a card that still wants a choice asks for it now - opened BY the tap, and closed
+     again the moment it is answered */
+  armed.picking = !!armed.need;
   renderHand();
 }
 function handDisarm(){ armed = null; renderHand(); }
@@ -7090,7 +7106,11 @@ function handClearTarget(){
 }
 function handPick(kind, value){
   if (!armed) return;
-  armed[kind] = (armed[kind] === value) ? '' : value;
+  var was = armed[kind];
+  armed[kind] = (was === value) ? '' : value;
+  /* answered, so the list has done its job and gets out of the way. Un-choosing leaves
+     it open, because that is a player still deciding rather than one who has decided. */
+  armed.picking = !armed[kind];
   renderHand();
 }
 /* What the chosen card still wants, opening upward out of the card itself.
@@ -7098,7 +7118,7 @@ function handPick(kind, value){
    under it, and so the notch that points back at the card is not counted as overflow by
    the scroller and does not summon a scrollbar over a list that fits. */
 function handPicker(){
-  if (!armed || !armed.need) return '';
+  if (!armed || !armed.need || !armed.picking) return '';
   var h = '<div class="hand-pick">';
   if (armed.need === 'skill'){
     var skills = (hand && hand.skills) || {};
@@ -7150,9 +7170,12 @@ function handCard(e, charge, group, i){
     bits += '<span class="hc-cast">Casts on ' + esc(e.castSkill) + ' vs Difficulty</span>';
   }
   /* once chosen, the card shows the choice it was carrying */
-  if (isArmed && armed.need){
+  /* One thing at a time. The card used to name the chosen utility in gold WHILE the list
+     of utilities was still open above it, which is the same fact twice and neither of
+     them clearly the live one. The list closes on the answer, and the card carries it. */
+  if (isArmed && armed.need && !armed.picking){
     var chosen = armed[armed.need];
-    bits += '<span class="hc-pick">' + (chosen ? esc(chosen) : 'Choose a ' + handNeedWord(armed.need) + ' above') + '</span>';
+    bits += '<span class="hc-pick">' + (chosen ? esc(chosen) : 'Choose a ' + handNeedWord(armed.need)) + '</span>';
   }
   /* and who it is pointed at, once it is pointed at anyone */
   if (isArmed && armed.targetName){
