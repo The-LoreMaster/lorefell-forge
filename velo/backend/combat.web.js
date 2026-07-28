@@ -81,7 +81,7 @@ export const getCombatDeclares = webMethod(Permissions.Anyone, async (campaignId
   const r = await wixData.query('CombatPlayer').eq('campaignId', campaignId).limit(50).find({ suppressAuth: true });
   return r.items.map((it) => ({
     charId: it.charId || '',
-    act: it.act || '', react: it.react || '', target: it.target || '',
+    act: it.act || '', react: it.react || '', target: it.target || '', places: jparse(it.places, []),
     round: it.round || 0, dmg: it.dmg || 0, base: it.base || 0, dt: it.dt || '', fellmark: !!it.fellmark, doubleFell: !!it.doubleFell, pierce: it.pierce || 0, applies: it.applies || '', actTier: (typeof it.actTier === 'number') ? it.actTier : -1,
     acc: it.acc || 0, roll: it.roll || 0, kind: it.kind || '', fellstrike: !!it.fellstrike, defEva: jparse(it.defEva, []), plog: jparse(it.plog, []),
     charge: it.charge || 0, curVit: it.curVit || 0, maxVit: it.maxVit || 0,
@@ -138,7 +138,7 @@ export const getCombatForChar = webMethod(Permissions.Anyone, async (charId) => 
     fighters: jparse(st.fighters, []),
     spotlightChars: jparse(st.spotlightChars, []),
     log: jparse(st.log, []),
-    you: pr ? { act: pr.act || '', react: pr.react || '', target: pr.target || '' } : {},
+    you: pr ? { act: pr.act || '', react: pr.react || '', target: pr.target || '', places: jparse(pr.places, []) } : {},
     applied: pr ? jparse(pr.appliedByLm, []) : [],
     recap: pr ? { msg: pr.recapMsg || '', at: pr.recapAt || 0 } : { msg: '', at: 0 },
     pendingHit: pr ? { base: pr.pendBase || 0, bonus: pr.pendBonus || 0, dt: pr.pendDt || 'phys', at: pr.pendingHitAt || 0 } : { base: 0, bonus: 0, dt: 'phys', at: 0 },
@@ -181,6 +181,7 @@ export const saveCombatDeclare = webMethod(Permissions.Anyone, async (charId, de
   row.act = d.act || '';
   row.react = d.react || '';
   row.target = d.target || '';
+  row.places = JSON.stringify(Array.isArray(d.places) ? d.places : []);
   row.round = typeof d.round === 'number' ? d.round : 0;
   row.dmg = typeof d.dmg === 'number' ? d.dmg : 0;
   row.base = typeof d.base === 'number' ? d.base : 0;
