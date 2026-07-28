@@ -145,3 +145,37 @@ resolve equals the old batch aggregate). Then C on top of B2. Each phase: harnes
 against the real files, docs→embeds mirror, canon gate, FellGuide as the rules oracle,
 new message types recorded in FINDINGS F3. Push per step so it can be verified against
 canon as it lands.
+
+---
+
+## Phase B addition — the urgent-alert corner (top-left, always on)
+
+Decided during Phase A live testing. When the combat panel moved to the Fellmark gem
+(#4), urgent prompts that used to ride the banner across every tab (roll Evasion,
+incoming hit, your React is needed) became gem-only and so missable if a player is
+heads-down in a reference tab. The resting panel belongs on the gem; an urgent, time-
+sensitive prompt does not.
+
+The answer is a dedicated urgent-alert zone in the TOP-LEFT corner (the LM log is top-
+right at ~88.8% left, so top-left is clear):
+  - Fixed to the corner, z-index above everything — slideouts, the gem, the cards. No
+    tab, panel or slideout can cover it.
+  - Shows regardless of what the player is looking at. Deep in Inventory or not, an
+    urgent prompt is right there.
+  - Pulsing and obvious, urgent styling, respecting prefers-reduced-motion.
+  - Only when needed: appears for a live urgent prompt and is hidden otherwise, never
+    persistent clutter.
+  - Tappable — taking the player to the action (roll / the gem / the React).
+  - Clears when the player responds or the prompt is no longer live.
+
+Scope of "urgent": time-sensitive things that cost the player if missed — roll
+Evasion against an incoming attack, a React that is needed now, "you are up". NOT the
+resting state (the hand, the declared card, charge) which stays on the gem and the
+row. The corner is strictly "respond now or lose the chance".
+
+Why it belongs in Phase B, not A: the prompts it surfaces are fired by the resolution
+phase (per-interaction resolution in B, Lorebound React prompts in C). In Phase A
+there is nothing urgent to surface, so the zone would be built empty. Build the corner
+WITH the prompts that populate it, so it is designed around the real prompts rather
+than guessed ones. Player-facing for now; an LM version (e.g. "all declared, ready to
+resolve") can be considered when the lockout lands, but is not required.
