@@ -45,6 +45,67 @@ export function get_embed(request) {
           parts.sort((a, b) => a.n - b.n);
           const headHtml = dec(item);
 
+          // GET ...&sample=3        the stored value of part 3, examined rather than summed
+          // GET ...&sample=head     the head row
+          //
+          // Lengths took us as far as they can. Two rows decode and five do not, and the
+          // five are exactly the chunks whose SOURCE contains non-ASCII characters - which
+          // should be irrelevant, because base64 output is ASCII whatever went into it. So
+          // the next thing to look at is the characters themselves.
+          //
+          // This reports the first character that is not in the standard base64 alphabet,
+          // with its position and code, and the text either side of it. One character is
+          // all it takes: '-' or '_' means the value was written base64URL, which node's
+          // Buffer.from accepts and atob rejects - and would explain a seed verifying
+          // against disk while this endpoint serves the raw string. A space means
+          // something turned '+' into one. Anything else names its own cause.
+          if (request.query && request.query.sample) {
+            const which = String(request.query.sample);
+            const row = (which === 'head' || which === '1') ? item
+                      : (parts.filter((p) => String(p.n) === which)[0] || {}).row;
+            if (!row) {
+              return ok({ headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-cache' },
+                          body: 'no row ' + which + ' for ' + slug + '\n' });
+            }
+            const raw = String(row.html || '');
+            let rep = 'slug ' + slug + ' sample ' + which + '\n';
+            rep += 'id=' + (row._id || '?') + ' enc=' + (row.enc || 'PLAIN') + ' stored=' + raw.length + '\n';
+            /* the standard alphabet, and nothing else - padding only at the very end */
+            let bad = -1;
+            for (let i = 0; i < raw.length; i++) {
+              const c = raw.charAt(i);
+              const okChar = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
+                          || (c >= '0' && c <= '9') || c === '+' || c === '/' || c === '=';
+              if (!okChar) { bad = i; break; }
+            }
+            if (bad < 0) {
+              rep += 'every character is in the standard base64 alphabet.\n';
+              rep += 'length % 4 = ' + (raw.length % 4) + '   (must be 0)\n';
+              const pad = (raw.match(/=+$/) || [''])[0].length;
+              rep += 'trailing padding = ' + pad + '\n';
+              const eq = (raw.match(/=/g) || []).length;
+              rep += 'total "=" anywhere = ' + eq + (eq > pad ? '   <-- padding INSIDE the value' : '') + '\n';
+            } else {
+              const c = raw.charCodeAt(bad);
+              rep += 'FIRST INVALID CHARACTER at index ' + bad + '\n';
+              rep += '  char  = ' + JSON.stringify(raw.charAt(bad)) + '\n';
+              rep += '  code  = ' + c + ' (0x' + c.toString(16) + ')\n';
+              rep += '  before: ' + JSON.stringify(raw.slice(Math.max(0, bad - 24), bad)) + '\n';
+              rep += '  after : ' + JSON.stringify(raw.slice(bad + 1, bad + 25)) + '\n';
+              const dash = (raw.match(/-/g) || []).length, und = (raw.match(/_/g) || []).length;
+              const sp = (raw.match(/ /g) || []).length;
+              rep += 'counts across the whole value: "-"=' + dash + '  "_"=' + und + '  " "=' + sp + '\n';
+              if (dash || und) {
+                rep += '\nNOTE: "-" and "_" are the base64URL alphabet. Buffer.from accepts'
+                     + ' them and atob does not, which is exactly a seed that verifies'
+                     + ' against disk and an endpoint that serves the raw string.\n';
+              }
+            }
+            rep += '\nfirst 120 characters as stored:\n' + JSON.stringify(raw.slice(0, 120)) + '\n';
+            rep += 'last 120 characters as stored:\n' + JSON.stringify(raw.slice(-120)) + '\n';
+            return ok({ headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-cache' }, body: rep });
+          }
+
           if (request.query && request.query.info) {
             const line = (label, row) => {
               const raw = String((row && row.html) || '');
