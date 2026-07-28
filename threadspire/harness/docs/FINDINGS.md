@@ -424,3 +424,89 @@ That a placement's squares survive to the LoreMaster on the live site. The velo 
 pasted; until a real round trip is seen, the LoreMaster-side materialisation is not being
 built against the harness alone.
 
+
+---
+
+## F8 — The seed reported success while the site served a truncated tool
+
+Three round-3 fixes were verified, committed, merged, deployed and green, and none of
+them were on the live site. Two of the three were in `threadspire.html`; the third was
+in `fellglass.html`. Everything that could be checked from the repo said they had
+shipped: the full suite passed, the gate passed, GitHub Pages served both files with
+every change present, `embeds/` carried them, and Seed Embeds ran green for both
+commits.
+
+### The chain nobody was watching
+
+The live site does not serve from Pages at all. It serves from the `SiteEmbeds` CMS
+collection through `GET /_functions/embed?slug=<tool>`, seeded from `embeds/**` by
+`scripts/seedEmbeds.js`. Pages being green is not evidence about the live site, and for
+this whole session it had been read as if it were.
+
+A tool too large for one Wix item is split across part rows - the head at `slug`, the
+rest at `slug#2`, `slug#3` - and each chunk is stored base64 encoded. Nate's `?info=1`
+readout showed threadspire reassembling to ~505,000 characters against 550,487 on disk:
+seven parts present, none missing, but two of them holding 90,000 base64 characters
+where they should have held 120,000.
+
+### What the numbers say, and what they do not
+
+90,000 base64 characters decode to exactly 67,500 bytes - three quarters. A chunk sized
+at 90,000 characters of plain HTML inflates to 120,000 once base64 encoded, so a field
+whose maxLength was set back when a chunk WAS 90,000 plain characters would keep exactly
+the first 90,000 of the encoded value and drop the rest. The history fits: `CHUNK` was
+360,000, then 90,000, and base64 arrived later still, in a commit whose message says the
+schema had already been formalized.
+
+What that theory does NOT explain is why only two of the six full-size rows were short
+rather than all of them, and the collection schema cannot be read from the repo. So the
+cause is a strong candidate, not a proven one - which is why the fix below does not
+depend on it being right.
+
+### The actual defect
+
+`seedEmbeds.js` asked every write whether it returned 2xx, and every write did. A 2xx on
+a write is not evidence that the bytes landed: a store can accept a value and keep less
+of it. The script had no read-back, so it could not tell "stored" from "accepted", and
+reported success for a collection that would serve a tool with a hole in it.
+
+This is F5's shape again, and A6's, and the one this file keeps recording: a green signal
+measuring something adjacent to the thing that matters. The suite proved the code was
+right. Nothing proved the code was *served*.
+
+### The fix
+
+The run now reads back every row it wrote, decodes it exactly as `get_embed` does,
+reassembles head + parts in order, and compares the result to the file on disk character
+for character. A mismatch fails the run. The claim is no longer "the writes were
+accepted" but "the site will serve the file we have".
+
+Because a truncating field is invisible from outside, a mismatch is also repaired rather
+than only reported: the read-back says how much the field actually kept, and four base64
+characters carry three bytes, so the chunk size is recomputed and rewritten in one step.
+A cap nobody can see becomes a cap that is measured.
+
+Three smaller things were closed on the way, each the same silence one layer over:
+
+- Chunks are now budgeted in BYTES, not characters. The limit sits on the encoded string,
+  base64 is a function of bytes, and 90,000 characters of one tool is 90,048 bytes and of
+  another exactly 90,000 - so a character budget lands on a different encoded length for
+  every file and cannot be reasoned about.
+- The split walks code points instead of slicing by index. `String.slice` cuts on UTF-16
+  units, so a chunk boundary could fall between the halves of a surrogate pair and each
+  half would encode to a replacement character - a document differing from the file by a
+  character nobody could see.
+- `get_embed` collects parts with `.limit(100)` and silently reassembles what it has, so
+  the seeder refuses to write more parts than the reader will ever fetch.
+- The row snapshot is re-read rather than taken once before the run's own inserts. A slug
+  that is not found is INSERTED, and `get_embed` takes the head with `.limit(1)`, so a
+  duplicate row lets the site serve a stale chunk while every write succeeds. Duplicates
+  are now deleted and named.
+
+### What this does not cover
+
+`scripts/` is guard-denied, so the replacement was written and tested against a simulated
+collection and handed over to be applied by hand. The simulation covers a healthy store, a
+field capping at 90,000 and at tighter values, and a row that accepts a write and keeps
+nothing - that last one must fail the run rather than shrink the chunk, since a smaller
+chunk cannot fix a refused write.
