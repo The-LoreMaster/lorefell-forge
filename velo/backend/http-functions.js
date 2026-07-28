@@ -10,12 +10,15 @@ export function get_embed(request) {
   if (!slug) {
     return badRequest({ headers: htmlHeaders(), body: '<!doctype html><meta charset="utf-8"><p>Missing slug.</p>' });
   }
+  // Was .limit(1). Kept at 50 so duplicates can be SEEN; heads[0] is still what is served,
+  // so behaviour is unchanged for every caller that is not asking for the diagnostic.
   return wixData.query('SiteEmbeds')
     .eq('slug', slug)
-    .limit(1)
+    .limit(50)
     .find({ suppressAuth: true })
     .then((res) => {
-      const item = res.items[0];
+      const heads = res.items || [];
+      const item = heads[0];
       if (!item || !item.html) {
         return notFound({ headers: htmlHeaders(), body: '<!doctype html><meta charset="utf-8"><p>No embed for ' + slug + '.</p>' });
       }
@@ -23,8 +26,8 @@ export function get_embed(request) {
       // parts and reassemble in numeric order. Rows may be base64 encoded (enc b64)
       // so Wix TEXT field whitespace trimming cannot corrupt chunk joins.
       const dec = (row) => {
-        const raw = row.html || '';
-        if (row.enc === 'b64') { try { return decodeURIComponent(escape(atob(raw))); } catch (e) { return raw; } }
+        const raw = (row && row.html) || '';
+        if (row && row.enc === 'b64') { try { return decodeURIComponent(escape(atob(raw))); } catch (e) { return raw; } }
         return raw;
       };
       return wixData.query('SiteEmbeds')
@@ -33,31 +36,69 @@ export function get_embed(request) {
         .find({ suppressAuth: true })
         .then((pr) => {
           const parts = [];
-          pr.items.forEach((it) => {
+          (pr.items || []).forEach((it) => {
             const n = parseInt(String(it.slug).split('#')[1], 10);
-            if (n >= 2) parts.push({ n: n, html: dec(it) });
+            /* the row itself is kept now, not only its decoded text, because who a row IS
+               turned out to matter more than how long it is */
+            if (n >= 2) parts.push({ n: n, row: it });
           });
           parts.sort((a, b) => a.n - b.n);
           const headHtml = dec(item);
+
           if (request.query && request.query.info) {
-            let rep = 'slug ' + slug + '\nenc ' + (item.enc || 'plain') + '\nhead ' + headHtml.length + ' chars\n';
-            parts.forEach((x) => { rep += 'part ' + x.n + ' ' + x.html.length + ' chars\n'; });
-            let tot = headHtml.length; parts.forEach((x) => { tot += x.html.length; });
-            rep += 'total ' + tot + ' chars\n';
+            const line = (label, row) => {
+              const raw = String((row && row.html) || '');
+              return label
+                + ' id=' + ((row && row._id) || '?')
+                + ' enc=' + ((row && row.enc) || 'PLAIN')
+                + ' stored=' + raw.length
+                + ' decoded=' + dec(row).length
+                + ' updated=' + ((row && row._updatedDate) || '?')
+                + '\n';
+            };
+            let rep = 'slug ' + slug + '\n';
+            rep += 'rows wearing this exact slug: ' + heads.length
+                 + (heads.length > 1 ? '   <-- DUPLICATE HEADS, only the first is served' : '')
+                 + '\n';
+            heads.forEach((h, i) => { rep += line(i === 0 ? '  head SERVED' : '  head IGNORED', h); });
+
+            /* a part number appearing twice is the same fault one level down, and the
+               reassembly below would append both */
+            const seen = {}, dupes = [];
+            parts.forEach((p) => {
+              if (seen[p.n]) dupes.push(p.n); else seen[p.n] = true;
+            });
+            rep += 'part rows: ' + parts.length
+                 + (dupes.length ? '   <-- DUPLICATE PART NUMBERS: ' + dupes.join(', ') : '')
+                 + '\n';
+            parts.forEach((p) => { rep += line('  part ' + p.n, p.row); });
+
+            /* both totals, because confusing one for the other is what sent us in circles:
+               `stored` is base64 and `decoded` is the document the browser receives */
+            let rawTot = String(item.html || '').length, decTot = headHtml.length;
+            parts.forEach((p) => {
+              rawTot += String(p.row.html || '').length;
+              decTot += dec(p.row).length;
+            });
+            rep += 'total stored (base64 as held): ' + rawTot + '\n';
+            rep += 'total decoded (what is served): ' + decTot + '\n';
+            /* if these are equal, nothing decoded, which means no row carried enc=b64 */
+            if (rawTot === decTot) {
+              rep += '\nNOTE: stored and decoded are identical, so NOTHING was decoded.'
+                   + ' No row here carries enc=b64. Whoever wrote these rows was not the'
+                   + ' seed that writes enc=b64 on every row.\n';
+            }
             return ok({ headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-cache' }, body: rep });
           }
+
           let body = headHtml;
-          parts.forEach((x) => { body += x.html; });
+          parts.forEach((p) => { body += dec(p.row); });
           return ok({ headers: htmlHeaders(), body: body });
         });
     })
     .catch((err) => serverError({ headers: htmlHeaders(), body: '<!doctype html><meta charset="utf-8"><p>' + String(err) + '</p>' }));
 }
 
-// POST /_functions/aiforge
-// Body: { system, messages, max_tokens, model }
-// HTTP functions carry a longer timeout than web methods, so this path avoids
-// the gateway 504 that a slow model call triggers through a webMethod.
 export function get_aiforge(request) {
   // GET returns a version stamp so you can confirm the deployed build in a browser
   return ok({ headers: jsonHeaders(), body: { ok: true, version: 'aiforge-v2-wixfetch-guard', hint: 'POST here with {system,messages,max_tokens,model} to generate' } });
