@@ -75,9 +75,9 @@ const rightClick = (frame) => frame.evaluate(() => {
   el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true,
     clientX: Math.round(r.left + r.width / 2), clientY: Math.round(r.top + r.height / 2) }));
 });
-const promptUp = (frame) => frame.evaluate(() => !!document.querySelector('#hand .hand-roll'));
+const promptUp = (frame) => frame.evaluate(() => document.getElementById('tray').classList.contains('awaiting'));
 const promptText = (frame) => frame.evaluate(() => {
-  const p = document.querySelector('#hand .hand-roll');
+  const p = document.getElementById('rollAsk');
   return p ? p.textContent.replace(/\s+/g, ' ') : null;
 });
 const menuOpts = (frame) => frame.evaluate(() =>
@@ -104,8 +104,14 @@ test.describe('A9 targeting asks, the roll commits', () => {
 
     expect(await sent(player), 'nothing has been declared by touching a token').toHaveLength(0);
     expect(await promptUp(player), 'it asks for the roll').toBe(true);
-    expect(await promptText(player), 'and says what is about to happen to whom')
-      .toContain('The Erasure');
+    /* the die asks for the roll; what is about to happen and to whom is on the card the
+       player is holding, which is where it was already being said */
+    const card = await player.evaluate(() => {
+      const c = document.querySelector('#hand .hcard.armed');
+      return c ? c.textContent.replace(/\s+/g, ' ') : '';
+    });
+    expect(card, 'and says what is about to happen to whom').toContain('The Erasure');
+    expect(card).toContain('Basic attack');
   });
 
   test('the roll is what sends it', async ({ page }) => {
@@ -116,7 +122,7 @@ test.describe('A9 targeting asks, the roll commits', () => {
 
     await arm(player, 'Basic attack');
     await tapToken(player);
-    await click(player, '#hand .hr-die');
+    await player.evaluate(() => window.dieTap());
 
     const out = await sent(player);
     expect(out, 'the roll committed it').toHaveLength(1);
@@ -135,12 +141,13 @@ test.describe('A9 targeting asks, the roll commits', () => {
 
     await arm(player, 'Basic attack');
     await tapToken(player);
-    await click(player, '#hand .hr-face[data-face="6"]');
+    await click(player, '#rollManual');
+    await click(player, '.ra-face[data-face="6"]');
 
     expect((await sent(player))[0].roll, 'the six they actually rolled').toBe(6);
   });
 
-  test('Cancel backs out with the card still in hand', async ({ page }) => {
+  test('tapping the target again backs out, with the card still in hand', async ({ page }) => {
     await T.openTable(page, playerOnly());
     const player = await T.frameFor(page, 'player');
     await T.waitBooted(page, player, 'player');
@@ -148,7 +155,9 @@ test.describe('A9 targeting asks, the roll commits', () => {
 
     await arm(player, 'Basic attack');
     await tapToken(player);
-    await click(player, '#hand .hr-cancel');
+    /* the bar that carried a Cancel is gone with the rest of it (D); the gesture that
+       chose the target un-chooses it, which is a way out that needs no keyboard */
+    await tapToken(player);
 
     expect(await sent(player), 'a wrong token costs a tap, not the round\'s Act').toHaveLength(0);
     expect(await promptUp(player)).toBe(false);
@@ -227,7 +236,7 @@ test.describe('A9 targeting asks, the roll commits', () => {
     expect(await promptUp(player)).toBe(true);
     expect(await sent(player), 'still not committed').toHaveLength(0);
 
-    await click(player, '#hand .hr-die');
+    await player.evaluate(() => window.dieTap());
     const out = await sent(player);
     expect(out).toHaveLength(1);
     expect(out[0].act).toBe('Basic attack');
@@ -247,7 +256,7 @@ test.describe('A9 targeting asks, the roll commits', () => {
     expect(opts.map((o) => o.text.split(' ')[0])).toEqual(['Guard', 'Might']);
 
     await click(player, '#hand .hp-opt[data-pskill="Guard"]');
-    await click(player, '#hand .hr-die');
+    await player.evaluate(() => window.dieTap());
 
     const out = await sent(player);
     expect(out[0].skill, 'the skill they picked travels with it').toBe('Guard');

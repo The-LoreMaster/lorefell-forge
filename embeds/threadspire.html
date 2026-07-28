@@ -204,10 +204,52 @@ body.clean .artlayer{ display:none; }
 .logstream .strike{ color:#f09595; font-family:Cinzel,serif; font-size:.72rem; letter-spacing:.08em; }
 
 #tray{ position:fixed; left:2.141%; bottom:3.8%; z-index:50; display:flex; align-items:flex-end; gap:1vh; }
+/* To the RIGHT of the die, clear of the space the die grows into, which is up and right
+   of its own bottom-left corner. */
+#rollAsk{ position:fixed; left:calc(2.141% + 78px); bottom:calc(3.8% + 6px); z-index:59;
+  display:flex; align-items:center; gap:7px; pointer-events:auto; }
+#rollAsk.hidden{ display:none; }
+.ra-pill{
+  font-family:Cinzel,serif; font-size:.58rem; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--gold); background:rgba(10,14,26,.92); border:1px solid rgba(201,168,76,.55);
+  border-radius:999px; padding:5px 13px; cursor:pointer;
+}
+.ra-pill:hover{ border-color:var(--gold); color:#e6c76a; }
+.ra-faces{ display:flex; gap:4px; }
+.ra-faces.hidden{ display:none; }
+.ra-face{
+  width:26px; height:26px; border-radius:6px; border:1px solid var(--line);
+  background:rgba(20,27,51,.95); color:var(--ice); font-family:Cinzel,serif; font-size:.8rem;
+  cursor:pointer; padding:0;
+}
+.ra-face:hover{ border-color:var(--gold); color:var(--gold); }
 /* the socket the die lives in and returns to. It is the click target, the die
    itself flies and is pointer transparent the whole way. */
 #dieSlot{ width:36px; height:36px; border-radius:6px; border:1.5px dashed transparent; transition:border-color .3s, background .3s; }
 #dieSlot.empty{ border-color:rgba(201,168,76,.45); background:rgba(201,168,76,.05); }
+/* ---- the die IS the roll ----
+   There was a bar over the row carrying a Roll button, six faces and a Cancel: a second
+   place to look at the moment the player had just looked at the map. The die they already
+   roll with does the job, so it grows and calls for the hand instead.
+
+   It grows toward the top-right - origin bottom-left - because it sits in the bottom-left
+   corner and would otherwise expand back behind the frame's border. The pulse is a ring
+   OUTSIDE the die rather than a glow over it: the skin art is the one thing on the die
+   worth looking at and must not be washed out to say "your turn". */
+#tray.awaiting #dieSlot{ transform:scale(1.9); transform-origin:bottom left; transition:transform .18s ease; }
+#tray.awaiting #dieSlot::after{
+  content:''; position:absolute; inset:-9px; border-radius:12px;
+  border:2px solid var(--gold); pointer-events:none;
+  animation:rollcall 1.5s ease-in-out infinite;
+}
+#dieSlot{ position:relative; }
+@keyframes rollcall{
+  0%,100%{ opacity:.35; transform:scale(1); }
+  50%{ opacity:1; transform:scale(1.12); }
+}
+@media (prefers-reduced-motion:reduce){
+  #tray.awaiting #dieSlot::after{ animation:none; opacity:.9; }
+}
 
 .dieflight{ position:fixed; width:64px; height:64px; margin:-32px 0 0 -32px; pointer-events:none; z-index:57; }
 .dieflight.home{ transition:transform 420ms cubic-bezier(.4,0,.6,1), opacity 420ms ease; }
@@ -736,7 +778,13 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
   padding:1px 7px; align-self:flex-start; margin-top:1px;
 }
 /* the token a declaration is pointed at, on the declaring player's own table */
+/* ---- who you are pointed at ----
+   Gold said "this one" and nothing else. Red and green say which one it is: a foe you are
+   about to strike and an ally you are about to help are not the same decision, and at a
+   glance across a table the colour is the whole of what gets read. */
 .token.aimed{ box-shadow:0 0 0 2px rgba(201,168,76,.9), 0 0 16px 4px rgba(201,168,76,.45); }
+.token.aimed-foe{ box-shadow:0 0 0 3px rgba(200,60,60,.95), 0 0 18px 5px rgba(200,60,60,.5); }
+.token.aimed-ally{ box-shadow:0 0 0 3px rgba(90,190,120,.95), 0 0 18px 5px rgba(90,190,120,.45); }
 /* a Fell the LoreMaster can see is locked in */
 .token.declared{ box-shadow:0 0 0 2px rgba(134,199,155,.85), 0 0 14px 3px rgba(134,199,155,.35); }
 /* A word back to the player when a gesture was taken but could not be acted on. Sits
@@ -752,7 +800,14 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
   font-family:Cinzel,serif; font-size:.52rem; letter-spacing:.12em; text-transform:uppercase;
   color:var(--muted);
 }
-.hs-hint{ font-family:Cinzel,serif; font-size:.58rem; letter-spacing:.06em; color:rgba(201,168,76,.85); }
+/* "Tap your target" was six grey words at the far left of a wide table and nobody saw
+   them. It is a pill now, centred over the cards, which is where the eye already is. */
+.hand-send{ justify-content:center; }
+.hs-hint{
+  font-family:Cinzel,serif; font-size:.62rem; letter-spacing:.1em; text-transform:uppercase;
+  color:#cfe0ff; background:rgba(30,63,143,.55); border:1px solid rgba(120,160,220,.65);
+  border-radius:999px; padding:5px 14px; box-shadow:0 3px 12px rgba(0,0,0,.45);
+}
 /* ---- the roll that commits ----
    Targeting picks who; this commits. Kept in the row's own band rather than over the map
    so the cards stay readable behind the decision, and it always offers a way out. */
@@ -1278,6 +1333,12 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
   </div>
   <div id="mrail"></div>
   <div id="flourish"></div>
+  <!-- Beside the die, and only while a roll is owed: for a player rolling real dice at
+       the table who wants to enter what came up rather than have the tool decide. -->
+  <div id="rollAsk" class="hidden">
+    <button type="button" id="rollManual" class="ra-pill">Manual roll</button>
+    <div id="rollFaces" class="ra-faces hidden"></div>
+  </div>
   <div id="tray" onmouseenter="tpShow()" onmouseleave="tpHideSoon()">
     <div id="dieSlot" role="button" aria-label="Roll the die" onclick="dieTap()"><div id="restCube" class="cube"></div></div>
     <div class="tpick" id="typePick" onmouseenter="tpKeep()" onmouseleave="tpHideSoon()"></div>
@@ -3327,7 +3388,12 @@ function setRollType(t){
 }
 function toggleTypePicker(){ document.getElementById('typePick').classList.toggle('open'); }
 function pickAndRoll(t){ setRollType(t); var p=document.getElementById('typePick'); if(p){ p.classList.remove('open'); tpUnpin(p); } rollFromTray(); }
-function dieTap(){ if (isMobile()){ var p=document.getElementById('typePick'); if(p) p.classList.toggle('open'); } else { rollFromTray(); } }
+function dieTap(){
+  /* A roll owed to a declaration is what the die is for at that moment - it grew and
+     started pulsing to say so - and it commits rather than rolling loose into the log. */
+  if (armed && armed.awaitingRoll){ handRollDo(); return; }
+  if (isMobile()){ var p=document.getElementById('typePick'); if(p) p.classList.toggle('open'); } else { rollFromTray(); }
+}
 var _tpHideT = null;
 function tpShow(){ if (isMobile()) return; clearTimeout(_tpHideT); var p=document.getElementById('typePick'); if(!p) return; if(p.classList.contains('atcursor')) return; p.classList.add('open'); }
 function tpKeep(){ clearTimeout(_tpHideT); }
@@ -6826,7 +6892,7 @@ function handArm(id, group){
   armed.picking = !!armed.need;
   renderHand();
 }
-function handDisarm(){ armed = null; renderHand(); }
+function handDisarm(){ armed = null; renderHand(); try { renderTokens(); } catch(e){} }
 
 /* ---- aiming a held card at a fighter ----
    Two ways in, and both end here. Tapping a target is the primary one and works the same
@@ -6876,10 +6942,23 @@ function handAim(t){
       ? ('Choose a ' + handNeedWord(armed.need) + ' first.') : 'That card is not ready.');
     return true;
   }
+  /* Tapping the one you are already pointed at takes the aim back. The bar that used to
+     carry a Cancel is gone with the rest of it (D), and Escape is not a way out for
+     someone using a mouse on a tablet - so the gesture that chose the target un-chooses
+     it. Nothing is spent either way: the roll is still what commits. */
+  if (armed.awaitingRoll && armed.target === f.key){
+    armed.awaitingRoll = false; armed.target = ''; armed.targetName = '';
+    renderHand();
+    try { renderTokens(); } catch(e){}
+    return true;
+  }
   armed.target = f.key;
   armed.targetName = f.name || '';
   armed.awaitingRoll = true;
   renderHand();
+  /* the ring belongs on the token the instant it is chosen, and the token layer is not
+     the row - it has to be told */
+  try { renderTokens(); } catch(e){}
   return true;
 }
 /* Back out. The card stays in hand and the target is forgotten, so a wrong token costs a
@@ -6889,6 +6968,7 @@ function handRollCancel(){
   armed.awaitingRoll = false;
   armed.target = ''; armed.targetName = '';
   renderHand();
+  try { renderTokens(); } catch(e){}    /* and the ring comes off again */
 }
 /* The roll commits. A face may be given, for a player rolling real dice at the table and
    entering what came up, or left out to roll here. */
@@ -6900,24 +6980,35 @@ function handRollDo(face){
   handDeclare();
 }
 /* The prompt itself: what is about to be rolled, at whom, and the two ways out. */
-function handRollPrompt(){
-  if (!armed || !armed.awaitingRoll) return '';
-  var what = esc(armed.entry.nm)
-    + (armed.need && armed[armed.need] ? ' · ' + esc(armed[armed.need]) : '')
-    + (armed.targetName ? ' → ' + esc(armed.targetName) : '');
-  var faces = '';
-  for (var i = 1; i <= 6; i++){
-    faces += '<button type="button" class="hr-face' + (i === 6 ? ' fell' : (i === 1 ? ' strike' : ''))
-          + '" data-face="' + i + '">' + i + '</button>';
-  }
-  return '<div class="hand-roll">'
-    + '<span class="hr-what">' + what + '</span>'
-    + '<button type="button" class="hr-die" data-roll-die="1" aria-label="Roll the die">Roll</button>'
-    + '<span class="hr-faces">' + faces + '</span>'
-    + '<span class="hr-legend">1 Fellstrike · 6 Fellmark</span>'
-    + '<button type="button" class="hr-cancel" data-roll-cancel="1">Cancel</button>'
-    + '</div>';
+/* ---- what asks for the roll ----
+   Nothing in the row does, any more. The bar that used to open here carried a Roll button,
+   six faces and a Cancel, and it appeared over the cards at the moment the player's eye
+   was on the map. The die in the corner is what a player rolls with, so the die is what
+   asks: it grows, it pulses, and tapping it commits. handRollAsk keeps it in step.
+
+   The row still says WHO is being aimed at - that is the card's business and it is on the
+   card - but it no longer draws a second control to do it with. */
+function handRollPrompt(){ return ''; }
+/* The die, the pill beside it and the faces, kept in step with whether a roll is owed. */
+function handRollAsk(){
+  var owed = !!(armed && armed.awaitingRoll);
+  var tray = document.getElementById('tray');
+  if (tray) tray.classList.toggle('awaiting', owed);
+  var ask = document.getElementById('rollAsk');
+  if (ask) ask.classList.toggle('hidden', !owed);
+  var faces = document.getElementById('rollFaces');
+  if (faces && !owed){ faces.classList.add('hidden'); faces.innerHTML = ''; }
 }
+function handManualRoll(){
+  var faces = document.getElementById('rollFaces');
+  if (!faces) return;
+  if (!faces.classList.contains('hidden')){ faces.classList.add('hidden'); return; }
+  var h = '';
+  for (var n = 1; n <= 6; n++) h += '<button type="button" class="ra-face" data-face="' + n + '">' + n + '</button>';
+  faces.innerHTML = h;
+  faces.classList.remove('hidden');
+}
+
 /* A tap on a token. Only takes the tap when a card is actually held, so tapping a token
    to look at it goes on working the way it always has. */
 function handAimByTap(t){ return handAim(t); }
@@ -6981,6 +7072,7 @@ function handPickTake(id, skill){
   armed.awaitingRoll = true;
   _handPick = null;
   renderHand();
+  try { renderTokens(); } catch(e){}
 }
 /* Attacks the Fell can make, locked ones included: F9 applies here exactly as it does on
    the row, so a player sees what a charge would buy rather than a shorter list. */
@@ -7348,7 +7440,7 @@ function renderHand(){
   var keepLeft = (was && _handDrawnTab === handTab) ? was.scrollLeft : 0;
   _handDrawnTab = handTab;
 
-  el.innerHTML = note + handRollPrompt() + handPickMenu() + send + handPicker() + tabs
+  el.innerHTML = note + handPickMenu() + send + handPicker() + tabs
     + '<div class="hand-wrap">'
     +   '<button type="button" class="hand-pager left gone" data-page="-1" aria-label="Earlier cards">‹</button>'
     +   '<div class="hand-scroll">' + cards + '</div>'
@@ -7366,6 +7458,8 @@ function renderHand(){
   /* after the scroll is back where it was, so the drop-up lands over the card as the
      player is actually seeing it */
   /* the width first: everything below measures the band, and the band is what this sets */
+  /* the die in the corner is the roll control now, and it lives outside this row */
+  handRollAsk();
   handFitCards();
   handShowArmed();
   handTabsAlign();
@@ -7625,6 +7719,16 @@ function handSetTab(t){
     if (armed && armed.awaitingRoll){ handRollCancel(); return; }
     if (_handPick){ handPickCancel(); return; }
     if (armed) handDisarm();
+  });
+  /* The manual roll lives beside the die rather than in the row, so it is wired here
+     rather than on the row's own delegate. */
+  var rm = document.getElementById('rollManual');
+  if (rm) rm.addEventListener('click', handManualRoll);
+  var rf = document.getElementById('rollFaces');
+  if (rf) rf.addEventListener('click', function(ev){
+    var b = ev.target.closest && ev.target.closest('[data-face]');
+    if (!b) return;
+    handRollDo(Number(b.getAttribute('data-face')) || 0);
   });
   /* a narrower table can turn a row that fitted into one that pages */
   window.addEventListener('resize', function(){
@@ -8750,11 +8854,23 @@ function renderTokens(){
        The player sees a ring on what they aimed at; the LoreMaster sees a ring on every
        Fell who has locked in, which is the same question asked from the other chair:
        who is committed, and who am I still waiting on. */
-    var aimedAt = !isLM() && declaredAs && declaredAs.target && tokenTargetKey(t) === declaredAs.target;
+    /* Who this player is pointed at, whether they have committed to it or are still
+       deciding: the ring belongs on the token from the moment it is chosen, not only
+       after the roll. Which colour it wears is whose side the token is on. */
+    var myKey = tokenTargetKey(t);
+    var aimedAt = !isLM() && myKey && (
+      (armed && armed.target && armed.target === myKey) ||
+      (declaredAs && declaredAs.target && declaredAs.target === myKey));
+    var aimedSide = '';
+    if (aimedAt){
+      var af = tokenFighter(t);
+      var side = (af && af.side) || (t.kind === 'p' ? 'fell' : 'monster');
+      aimedSide = (side === 'fell') ? ' aimed-ally' : ' aimed-foe';
+    }
     var lmLocked = isLM() && t.kind === 'p' && t.charId && declareFor(t.charId) && (declareFor(t.charId).act || '');
     el.className = 'token ' + t.kind + (isMine ? ' mine' : '') + (draggable && !isMine ? ' lm-drag' : '')
       + (sel === t.id ? ' sel' : '') + (art ? ' hasimg' : '') + (_flashToken === t.id ? ' justplaced' : '')
-      + (aimedAt ? ' aimed' : '') + (lmLocked ? ' declared' : '');
+      + (aimedAt ? ' aimed' + aimedSide : '') + (lmLocked ? ' declared' : '');
     el.setAttribute('data-tok', t.id);
     var full = tokenName(t);
     var face = art ? '' : esc(initials(full));

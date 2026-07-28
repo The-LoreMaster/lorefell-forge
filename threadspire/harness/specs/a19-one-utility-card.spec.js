@@ -173,7 +173,7 @@ test.describe('A19 one card, and it asks before it says', () => {
     expect(await player.evaluate(() => window.__sent), 'nothing resolves at nobody').toHaveLength(0);
 
     await player.evaluate(() => window.handAimByTap(window.S.tokens.find((t) => t.id === 'tkFoe')));
-    expect(await player.evaluate(() => !!document.querySelector('#hand .hand-roll')),
+    expect(await player.evaluate(() => document.getElementById('tray').classList.contains('awaiting')),
       'the same aim step an attack uses').toBe(true);
 
     await player.evaluate(() => window.handRollDo(3));

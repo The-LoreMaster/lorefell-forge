@@ -105,7 +105,7 @@ test.describe('A4 the gestures, and what they must not take', () => {
     await arm(player, 'Any skill');
     await player.evaluate(() => window.handAimByTap(window.S.tokens.find((t) => t.id === 'tkFoe')));
 
-    expect(await player.evaluate(() => !!document.querySelector('#hand .hand-roll')),
+    expect(await player.evaluate(() => document.getElementById('tray').classList.contains('awaiting')),
       'which skill is still unanswered, so there is nothing to roll for').toBe(false);
     expect(await sent(player)).toHaveLength(0);
     const note = await player.evaluate(() => {
@@ -165,7 +165,7 @@ test.describe('A4 the gestures, and what they must not take', () => {
     });
 
     expect(moved.after, 'the drag ran').not.toBe(moved.before);
-    expect(await player.evaluate(() => !!document.querySelector('#hand .hand-roll')),
+    expect(await player.evaluate(() => document.getElementById('tray').classList.contains('awaiting')),
       'moving your own Fell is not aiming at it').toBe(false);
     expect(await sent(player)).toHaveLength(0);
   });

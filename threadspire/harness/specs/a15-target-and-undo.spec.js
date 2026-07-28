@@ -83,7 +83,7 @@ const tap = (frame, id) => frame.evaluate((tid) => {
 }, id);
 
 const arm = (frame, nm) => frame.evaluate((n) => window.handArm(n, 'act'), nm);
-const promptUp = (frame) => frame.evaluate(() => !!document.querySelector('#hand .hand-roll'));
+const promptUp = (frame) => frame.evaluate(() => document.getElementById('tray').classList.contains('awaiting'));
 const sent = (frame) => frame.evaluate(() => window.__sent);
 
 test.describe('A15 targeting a foe', () => {

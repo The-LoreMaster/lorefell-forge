@@ -249,7 +249,7 @@ test.describe('A16 right-clicking a foe with an empty hand', () => {
       b.click();
     });
 
-    expect(await player.evaluate(() => !!document.querySelector('#hand .hand-roll')),
+    expect(await player.evaluate(() => document.getElementById('tray').classList.contains('awaiting')),
       'the same prompt everything else ends at').toBe(true);
     expect(await player.evaluate(() => window.armed.skill)).toBe('Perception');
     expect(await player.evaluate(() => window.__sent), 'and nothing sent yet').toHaveLength(0);

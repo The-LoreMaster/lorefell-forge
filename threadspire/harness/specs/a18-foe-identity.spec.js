@@ -205,7 +205,7 @@ test.describe('A18 a foe keeps its identity across a rebuild', () => {
       const ev = (n) => new PointerEvent(n, { bubbles: true, cancelable: true, pointerId: 1, clientX: x, clientY: y });
       el.dispatchEvent(ev('pointerdown'));
       el.dispatchEvent(ev('pointerup'));
-      const prompt = !!document.querySelector('#hand .hand-roll');
+      const prompt = document.getElementById('tray').classList.contains('awaiting');
       window.handRollDo(4);
       return { prompt: prompt, out: window.__sent };
     }, { fighters: board.fighters, tokens: board.tokens, myCharId: F.FELL_CHAR_ID });
