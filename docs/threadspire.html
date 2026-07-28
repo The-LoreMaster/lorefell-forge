@@ -789,6 +789,28 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .token.aimed{ box-shadow:0 0 0 2px rgba(201,168,76,.9), 0 0 16px 4px rgba(201,168,76,.45); }
 .token.aimed-foe{ box-shadow:0 0 0 3px rgba(200,60,60,.95), 0 0 18px 5px rgba(200,60,60,.5); }
 .token.aimed-ally{ box-shadow:0 0 0 3px rgba(90,190,120,.95), 0 0 18px 5px rgba(90,190,120,.45); }
+/* ---- a placement, before it is real ----
+   Dashed and hollow on purpose: this is a declaration, not a thing on the ground. The
+   LoreMaster makes the marker when they resolve it, and until then an undo leaves no
+   trace because there was never anything to remove. */
+.placemark{
+  position:absolute; width:var(--tok, 46px); height:var(--tok, 46px); border-radius:8px;
+  border:2px dashed var(--gold); background:rgba(201,168,76,.14);
+  display:flex; align-items:center; justify-content:center; pointer-events:none; z-index:3;
+  animation:pmpulse 1.6s ease-in-out infinite;
+}
+.pm-n{ font-family:Cinzel,serif; font-size:.72rem; color:var(--gold); }
+@keyframes pmpulse{ 0%,100%{ opacity:.6; } 50%{ opacity:1; } }
+@media (prefers-reduced-motion:reduce){ .placemark{ animation:none; opacity:.85; } }
+/* how many are still owed, beside the cursor, because a player dropping five of something
+   should not have to count them */
+#placeCount{
+  position:fixed; z-index:70; pointer-events:none; display:none;
+  font-family:Cinzel,serif; font-size:.62rem; letter-spacing:.08em; text-transform:uppercase;
+  color:var(--gold); background:rgba(10,14,26,.92); border:1px solid rgba(201,168,76,.55);
+  border-radius:999px; padding:4px 10px; transform:translate(14px, 14px);
+}
+#placeCount.on{ display:block; }
 /* a Fell the LoreMaster can see is locked in */
 .token.declared{ box-shadow:0 0 0 2px rgba(134,199,155,.85), 0 0 14px 3px rgba(134,199,155,.35); }
 /* A word back to the player when a gesture was taken but could not be acted on. Sits
@@ -1339,6 +1361,8 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
   <div id="flourish"></div>
   <!-- Beside the die, and only while a roll is owed: for a player rolling real dice at
        the table who wants to enter what came up rather than have the tool decide. -->
+  <!-- how many squares are still owed, following the cursor -->
+  <div id="placeCount"></div>
   <div id="rollAsk" class="hidden">
     <button type="button" id="rollManual" class="ra-pill">Manual roll</button>
     <div id="rollFaces" class="ra-faces hidden"></div>
@@ -7009,7 +7033,12 @@ function handRollDo(face){
    card - but it no longer draws a second control to do it with. */
 function handRollPrompt(){ return ''; }
 /* The die, the pill beside it and the faces, kept in step with whether a roll is owed. */
+function handPlaceCountOff(){
+  var el = document.getElementById('placeCount');
+  if (el && (typeof handPlacesLeft !== 'function' || !handPlacesLeft())) el.classList.remove('on');
+}
 function handRollAsk(){
+  handPlaceCountOff();
   var owed = !!(armed && armed.awaitingRoll);
   var tray = document.getElementById('tray');
   if (tray) tray.classList.toggle('awaiting', owed);
@@ -7156,6 +7185,43 @@ function handUtility(){
   }
   return null;
 }
+/* ---- placing one ----
+   Caltrops, Rune, Trap and Darkshard are not aimed at anybody: they go on the ground. The
+   player picks the squares during the declare phase and NOTHING appears on the board yet -
+   a placement is a declaration like any other, and the marker is created by the
+   LoreMaster when they resolve it. That one rule is why this needs no new protocol and no
+   way to un-place: an undone declare places nothing because nothing was ever placed.
+
+   How many squares: Caltrops covers five "adjacent spaces from where they land", the rest
+   take one. */
+function handPlacesWanted(){
+  var u = handUtility();
+  if (!u || u.target !== 'place') return 0;
+  return Math.max(1, u.places || 1);
+}
+function handPlacing(){ return handPlacesWanted() > 0; }
+function handPlacesLeft(){
+  if (!handPlacing()) return 0;
+  return Math.max(0, handPlacesWanted() - ((armed.places || []).length));
+}
+/* A square, taken from wherever the player tapped and snapped to the grid the same way a
+   token is, so a marker and a token that share a square really do share it. */
+function handPlaceAt(mx, my){
+  if (!armed || !handPlacing()) return false;
+  armed.places = armed.places || [];
+  var x = clamp(snapAxis(mx, S.grid.offX, 1), 0, S.map.w);
+  var y = clamp(snapAxis(my, S.grid.offY, 1), 0, S.map.h);
+  /* the same square twice is a slip, not a second caltrop */
+  for (var i = 0; i < armed.places.length; i++){
+    if (armed.places[i].x === x && armed.places[i].y === y) return true;
+  }
+  armed.places.push({ x:x, y:y });
+  renderHand();
+  try { renderTokens(); } catch(e){}
+  /* the last square is the commit, the way the last tap on a target is */
+  if (handPlacesLeft() === 0) handDeclare();
+  return true;
+}
 function handUtilityRoll(){ var u = handUtility(); return u ? (u.roll || 'none') : ''; }
 function handUtilityTarget(){ var u = handUtility(); return u ? (u.target || 'none') : ''; }
 function handNeedsRoll(){
@@ -7167,6 +7233,8 @@ function handReady(opts){
   if (armed.need === 'stance') return true;                /* a stance is aimed at nobody */
   /* and neither is a utility that targets nothing: Revealing Powder is used, not aimed */
   if (handUtilityTarget() === 'none') return true;
+  /* a placement is aimed at the ground: it is ready when its squares are chosen */
+  if (handPlacing()) return handPlacesLeft() === 0;
   if (opts && opts.ignoreTarget) return true;              /* asked before the target is set */
   return !!armed.target;
 }
@@ -7198,7 +7266,10 @@ function handDeclare(){
     round: hand.round || 0,
     /* the roll the player actually made, at the prompt. Never invented here: the roll is
        what commits a declare, so it comes from the step that commits it. */
-    roll: armed.roll || 0
+    roll: armed.roll || 0,
+    /* Where a placed utility is going. Empty for everything else. The marker itself is
+       not made here - the LoreMaster makes it when they resolve this. */
+    places: (armed.places || []).slice()
   });
 }
 function handDeclareResult(res){
@@ -7774,6 +7845,19 @@ function handSetTab(t){
     var b = ev.target.closest && ev.target.closest('[data-face]');
     if (!b) return;
     handRollDo(Number(b.getAttribute('data-face')) || 0);
+  });
+  /* The countdown rides the cursor while squares are owed. Bound once, and cheap: it
+     reads two numbers and moves one element, and does nothing at all the rest of the time,
+     which is almost always. */
+  document.addEventListener('pointermove', function(ev){
+    var el = document.getElementById('placeCount');
+    if (!el) return;
+    var left = (typeof handPlacesLeft === 'function') ? handPlacesLeft() : 0;
+    if (!left){ el.classList.remove('on'); return; }
+    el.textContent = left + (left === 1 ? ' square left' : ' squares left');
+    el.style.left = ev.clientX + 'px';
+    el.style.top = ev.clientY + 'px';
+    el.classList.add('on');
   });
   /* a narrower table can turn a row that fitted into one that pages */
   window.addEventListener('resize', function(){
@@ -8886,6 +8970,20 @@ function renderTokens(){
   var layer = document.getElementById('tokenLayer');
   if (!layer) return;
   layer.querySelectorAll('.token').forEach(function(n){ n.remove(); });
+  /* Squares a placement has been declared on, before anything is really there. These are
+     the declarer's own view of their own declaration - no token exists until the
+     LoreMaster resolves it - so they are drawn here and never travel. */
+  layer.querySelectorAll('.placemark').forEach(function(n){ n.remove(); });
+  if (armed && (armed.places || []).length){
+    armed.places.forEach(function(sq, i){
+      var m = document.createElement('div');
+      m.className = 'placemark';
+      m.setAttribute('data-place', i);
+      m.innerHTML = '<span class="pm-n">' + (i + 1) + '</span>';
+      place(m, { x:sq.x, y:sq.y, cells:1 });
+      layer.appendChild(m);
+    });
+  }
   S.tokens.forEach(function(t){
     var el = document.createElement('div');
     /* a Fell's token is the player's to move, found by the record it carries */
@@ -9135,6 +9233,11 @@ function mid(a, b){ return { x:(a.x + b.x) / 2, y:(a.y + b.y) / 2 }; }
       m.classList.remove('panning');
       /* a click, not a pan, drops the selection and closes the open window */
       if (pan && !pan.moved){
+        /* unless the player is holding something that goes on the ground, in which case
+           this tap is where it goes. Left-tap only, and only with a place-utility in
+           hand: right-click on empty map is the roll picker and stays the roll picker. */
+        var mp = toMap(pan.x, pan.y);
+        if (typeof handPlaceAt === 'function' && handPlaceAt(mp.x, mp.y)){ pan = null; return; }
         if (sel){ sel = null; renderTokens(); paintTokMenu(); }
         if (!isMobile() && S.openSection) closeWin();
       }

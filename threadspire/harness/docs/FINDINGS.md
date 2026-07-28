@@ -369,3 +369,56 @@ readers through a lookup instead of a name. Then `cbActEntry`'s `src` argument b
 belt and braces rather than the only thing standing between a player and the wrong
 weapon. One spec: two weapons, pick the second in the sheet's own dropdown, assert the
 damage that goes out is the second one's.
+
+---
+
+## F7 — A declared placement cannot reach the LoreMaster: the declare row has nowhere to put it
+
+**Status:** a real blocker for placed utilities, and it needs a hand that is not mine.
+**Found:** 2026-07-28, building Caltrops, Rune, Trap and Darkshard.
+**Files:** `velo/backend/combat.web.js` (denied), `threadspire/harness/host.html`
+
+### What is wrong
+
+A placed utility is declared with the squares it is going on: Caltrops covers five, the
+rest take one. The player picks them, the declaration carries them, and the LoreMaster
+materialises the markers on exactly those squares when they resolve it.
+
+`saveCombatDeclare` writes a fixed set of fields onto the declare row:
+
+```
+act react target round dmg base dt fellmark applies doubleFell
+pierce actTier acc roll kind fellstrike charge curVit maxVit affs
+```
+
+There is no field for the squares, and anything not on that list is dropped on the way
+through. So the placement travels from the row to the sheet, and from the sheet to the
+page, and dies at the collection.
+
+### The change it needs, which is one line
+
+In `saveCombatDeclare`, beside its neighbours:
+
+```js
+row.places = Array.isArray(d.places) ? d.places : [];
+```
+
+`velo/` is denied to agents because those files are pasted into Wix by hand, so a silent
+change here would leave the repo and the live site disagreeing. This is written down
+rather than made.
+
+### Until it lands
+
+Everything either side of the gap is built and tested. The player picks squares, the
+preview shows them, the declaration carries them, and the LoreMaster's board knows how to
+materialise from them. The harness store carries `places` so the whole path can be
+exercised end to end - which makes the harness MORE capable than production, exactly the
+hazard F4 describes, so it is named here rather than discovered later. Live, until the
+line above is pasted, a placement arrives at the LoreMaster naming the utility but not the
+squares, and the LoreMaster places the markers where they judge.
+
+### What would settle it
+
+The line, pasted. Then a spec that reads a placement back out of the store and asserts the
+squares survived the round trip, which is the half F4 warns cannot be trusted to the mock
+alone.
