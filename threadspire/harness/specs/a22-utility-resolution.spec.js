@@ -169,3 +169,95 @@ test.describe('A22 using one costs you the thing', () => {
     expect((await pack(frame)).length, 'both still in the pack').toBe(2);
   });
 });
+
+/* ---- the pack and the combat view are the same pack ---- */
+
+test.describe('A22 one answer to what she is carrying', () => {
+
+  /* The bug this closes, live: the LoreMaster saw Astra carrying a Tablet and Ash Salt
+     while Astra's own Inventory showed none, and adding any utility made them all appear.
+     Two filters answered one question - the combat derivation on `discovered && equipped`,
+     cbPack on `discovered || veiled open` - so a utility known ON SIGHT passed one and
+     failed the other. Adding something re-ran equipSeed and reconciled them, which is why
+     the workaround looked like the feature.
+
+     A shelf with one of each kind of "known": one discovered, one known on sight and never
+     discovered, one neither. */
+  const SHELF2 = [
+    { id: 'k-charm', name: 'Warding Charm', use: 'React', desc: 'turn a blow aside' },
+    { id: 'k-open', name: 'Torch', use: 'React', desc: 'known on sight', veiled: 'open' },
+    { id: 'k-dark', name: 'Veiled Idol', use: 'React', desc: 'unidentified', veiled: 'a cold weight' }
+  ];
+
+  async function mixed(page) {
+    const frame = await mountSheet(page, { home: 'threadspire' });
+    await frame.evaluate((shelf) => {
+      ITEMS_LIB = shelf;
+      C.inventory = [
+        { itemId: 'k-charm', quantity: 1, discovered: true,  equipped: true },
+        { itemId: 'k-open',  quantity: 1, discovered: false, equipped: true },
+        { itemId: 'k-dark',  quantity: 1, discovered: false, equipped: true }
+      ];
+      C.attrs.wit.base = 8; C.attrs.wit.mod = 0;
+      C.weapons = [];
+      CUR_WIX_ID = 'chr-harness-0001';
+      COMBAT = { active: true, round: 1, phase: 'commit',
+                 fighters: [{ key: 'p:pl-7', name: 'Maerwen', side: 'fell', charId: 'chr-harness-0001' }],
+                 you: {} };
+      renderItems(); renderBattle();
+    }, SHELF2);
+    return frame;
+  }
+  /* what each side thinks she has: the pack, and what the combat derivation put on a card */
+  const bothViews = (frame) => frame.evaluate(() => ({
+    pack: cbUtilities().map((u) => u.name).sort(),
+    combat: (window.COMBAT_REACTS || []).filter((r) => r.kind === 'item')
+              .map((r) => r.nm).sort()
+  }));
+
+  test('the pack and the combat view name the same utilities', async ({ page }) => {
+    const frame = await mixed(page);
+    const v = await bothViews(frame);
+    expect(v.combat, 'one question, one answer').toEqual(v.pack);
+  });
+
+  test('a utility known on sight is carried by BOTH, not one', async ({ page }) => {
+    const frame = await mixed(page);
+    const v = await bothViews(frame);
+    /* the exact case that diverged: never discovered, but the book says it is known */
+    expect(v.pack, 'the FellGuide says some are known on sight').toContain('Torch');
+    expect(v.combat, 'and the combat view used to miss it').toContain('Torch');
+  });
+
+  test('an unidentified one is carried by NEITHER', async ({ page }) => {
+    const frame = await mixed(page);
+    const v = await bothViews(frame);
+    expect(v.pack).not.toContain('Veiled Idol');
+    expect(v.combat).not.toContain('Veiled Idol');
+  });
+
+  test('they agree after every change, not only after a re-seed', async ({ page }) => {
+    const frame = await mixed(page);
+    /* adding one used to be what reconciled them - so the interesting assertion is that
+       they already agreed BEFORE, and still agree after each step */
+    let v = await bothViews(frame);
+    expect(v.combat).toEqual(v.pack);
+
+    await frame.evaluate(() => {
+      ITEMS_LIB.push({ id: 'k-new', name: 'Smoke Bomb', use: 'React', desc: 'reposition' });
+      C.inventory.push({ itemId: 'k-new', quantity: 1, discovered: true, equipped: true });
+      renderItems(); renderBattle();
+    });
+    v = await bothViews(frame);
+    expect(v.combat, 'adding one changes both together').toEqual(v.pack);
+    expect(v.pack).toContain('Smoke Bomb');
+
+    await frame.evaluate(() => {
+      C.inventory[0].equipped = false;
+      renderItems(); renderBattle();
+    });
+    v = await bothViews(frame);
+    expect(v.combat, 'and setting one down removes it from both').toEqual(v.pack);
+    expect(v.pack).not.toContain('Warding Charm');
+  });
+});

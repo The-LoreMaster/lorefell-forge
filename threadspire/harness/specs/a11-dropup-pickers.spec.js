@@ -78,6 +78,8 @@ const geom = (frame) => frame.evaluate(() => {
   const list = pk.querySelector('.hp-list');
   return {
     pick: r(pk), card: r(card), band: r(sc),
+    /* the instruction the block has to clear, when the row is showing one */
+    say: el.querySelector('.hand-send') ? r(el.querySelector('.hand-send')) : null,
     opts: pk.querySelectorAll('.hp-opt').length,
     tail: pk.style.getPropertyValue('--pick-tail'),
     tailPx: parseFloat(pk.style.getPropertyValue('--pick-tail')) || 0,
@@ -132,7 +134,18 @@ test.describe('A11 the pickers drop up out of the card', () => {
 
     const g = await geom(player);
     expect(g.pick.b, 'its bottom edge sits above the card top').toBeLessThanOrEqual(g.card.t);
-    expect(g.card.t - g.pick.b, 'and close enough to belong to it').toBeLessThan(20);
+    /* "close enough to belong to it" used to mean "within 20px of the card top", and that
+       was only ever a stand-in for the real thing: the block should be the nearest thing
+       above the card, obviously hanging off it. It cannot be measured from the card any
+       more, because A24 gave the instruction pill the right of way and the block now stops
+       above THAT instead. So it is measured from whatever it is actually clearing. The
+       notch, which is what really ties a block to its card, is tested on its own below. */
+    const floor = (g.say && g.say.h > 0) ? Math.min(g.card.t, g.say.t) : g.card.t;
+    expect(floor - g.pick.b, 'and hangs off the lowest thing it must clear').toBeLessThan(20);
+    if (g.say && g.say.h > 0) {
+      expect(g.pick.b, 'which, when the row is instructing, is the instruction')
+        .toBeLessThanOrEqual(g.say.t);
+    }
   });
 
   test('it sits over the card that asked for it', async ({ page }) => {

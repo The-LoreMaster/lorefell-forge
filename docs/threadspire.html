@@ -697,6 +697,15 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
   position:relative; overflow:hidden;
 }
 .hcard.armed .hc-name{ color:var(--gold); }
+/* the cards not being held. Dimmed rather than hidden - a player choosing again wants to
+   see what else is on the row - and still legible enough to read the name off, which is
+   why this is .62 and not the .44 that says "you cannot have this". Their own hover
+   brings them back up, so the row stays alive under the cursor. */
+.hcard.resting{ opacity:.62; filter:saturate(.75); }
+.hcard.resting:hover, .hcard.resting:focus-visible{ opacity:1; filter:none; }
+/* locked and barred already say something quieter; being at rest as well should not
+   stack into invisibility */
+.hcard.resting.locked, .hcard.resting.barred{ filter:none; }
 .hcard.armed::after{
   content:''; position:absolute; top:0; bottom:0; left:0; width:38%;
   background:linear-gradient(100deg, transparent, rgba(232,210,138,.16), transparent);
@@ -7194,6 +7203,36 @@ function handUtility(){
 
    How many squares: Caltrops covers five "adjacent spaces from where they land", the rest
    take one. */
+/* Does this utility need the ground clear? The FellGuide answers it one utility at a
+   time and does not give the same answer twice: Darkshard is "set in an open space",
+   while Caltrops scatter over five spaces and a Rune or a Trap merely marks one. The
+   sheet carries the classification; anything unclassified may go anywhere, because a
+   utility nobody has read should not be refused on a guess. */
+function handPlaceNeedsEmpty(){
+  var u = handUtility();
+  return !!(u && u.space === 'empty');
+}
+/* What is standing on a square. A token holds every square its own footprint covers - a
+   2-cell foe occupies four - and a square already promised to this same placement counts
+   as taken too, since two caltrops on one square was already a slip. */
+function handSquareTaken(x, y){
+  var g = S.grid.size || 100;
+  var list = (S.tokens || []);
+  for (var i = 0; i < list.length; i++){
+    var t = list[i];
+    if (!t) continue;
+    var n = Math.max(1, t.cells || 1);
+    var span = (n * g) / 2;
+    /* centres, so the square is inside the footprint when its centre is */
+    if (Math.abs(t.x - x) < span && Math.abs(t.y - y) < span) return t.name || 'something';
+  }
+  var mine = (armed && armed.places) || [];
+  for (var j = 0; j < mine.length; j++){
+    if (mine[j].x === x && mine[j].y === y) return 'your own';
+  }
+  /* markers the LoreMaster has already put down are tokens too, and are caught above */
+  return '';
+}
 function handPlacesWanted(){
   var u = handUtility();
   if (!u || u.target !== 'place') return 0;
@@ -7214,6 +7253,17 @@ function handPlaceAt(mx, my){
   /* the same square twice is a slip, not a second caltrop */
   for (var i = 0; i < armed.places.length; i++){
     if (armed.places[i].x === x && armed.places[i].y === y) return true;
+  }
+  /* and where the book asks for an open space, an occupied one is refused rather than
+     quietly accepted - the tap is answered, so the player learns the rule from the board
+     instead of from a square that did nothing */
+  if (handPlaceNeedsEmpty()){
+    var taken = handSquareTaken(x, y);
+    if (taken){
+      handSay((handUtility().name || 'It') + ' needs an open space - '
+              + (taken === 'your own' ? 'you have already used that one' : taken + ' is there') + '.');
+      return true;
+    }
   }
   armed.places.push({ x:x, y:y });
   renderHand();
@@ -7404,8 +7454,15 @@ function handCard(e, charge, group, i){
     bits += '<span class="hc-declared">Declared'
          + (declaredAs.targetName ? ' at ' + esc(declaredAs.targetName) : '') + '</span>';
   }
+  /* One card is being read; the rest step back. This is the LoreMaster's rule on their
+     own cards, and the row should not behave differently on the two sides of the table.
+     It is also what makes the open card read as open: a lit card among four equally lit
+     ones is a card with a gold border, while a lit card among four resting ones is the
+     one the player is holding. */
+  var resting = !isArmed && !!(armed && armed.group === group);
   var cls = 'hcard' + (locked ? ' locked' : '') + (barred ? ' barred' : '')
-          + (isArmed ? ' armed' : '') + (isDeclared ? ' declared' : '');
+          + (isArmed ? ' armed' : '') + (resting ? ' resting' : '')
+          + (isDeclared ? ' declared' : '');
   return '<button type="button" class="' + cls + '"'
     + ((locked || barred || spent) ? ' aria-disabled="true"' : '')
     + ' aria-pressed="' + (isArmed ? 'true' : 'false') + '"'
@@ -7503,9 +7560,16 @@ function renderHand(){
   /* silent while the roll prompt is up: it is already saying what happens next, and two
      instructions at once is one too many */
   if (armed && !armed.awaitingRoll){
-    hint = (armed.need && !armed[armed.need])
-      ? ('Choose a ' + handNeedWord(armed.need) +', then tap your target')
-      : 'Tap your target';
+    /* Say the step that is actually next. "Choose a utility, then tap your target" was a
+       promise the row could not keep: a Rune or a Darkshard has no target to tap, and the
+       player was left holding a card and looking for somebody to point it at. The pill is
+       the current instruction, so it names the current instruction and nothing further. */
+    if (armed.need && !armed[armed.need]) hint = 'Choose a ' + handNeedWord(armed.need);
+    else if (handPlacing()){
+      var n = handPlacesLeft();
+      hint = (n === 1) ? 'Choose a space' : 'Choose ' + n + ' spaces';
+    }
+    else hint = 'Tap your target';
   }
   var send = '';
   if (pn || hint){
@@ -7687,13 +7751,48 @@ function handPickPlace(){
   /* down, never up: a fraction further inside the band is always safe */
   left = Math.floor(left);
   pk.style.left = left + 'px';
-  /* the card's top edge, plus a little air */
+  /* the card's top edge, plus a little air - raised again below if the instruction pill
+     is in the way */
   pk.style.bottom = Math.round(host.bottom - cr.top + 8) + 'px';
   /* the notch keeps pointing at the card even when the block has been pushed sideways
      to stay on the table */
   var tail = (cr.left - host.left) + cr.width / 2 - left;
   pk.style.setProperty('--pick-tail',
     Math.round(Math.max(12, Math.min(Math.max(12, w - 12), tail))) + 'px');
+
+  /* ---- and it must not cover the instruction ----
+     The pill above the cards says what to do next - choose a skill, tap your target - and
+     a drop-up that grows over it hides the one line the player needs while they are using
+     the very control that hid it. Twenty-four skills is enough to reach it today; a
+     fuller pack of utilities will reach it tomorrow, so this is a rule about the block
+     rather than a patch for the skill case.
+
+     The pill keeps its place and the block gives way: it is capped to the room between
+     the card and the pill, and scrolls inside whatever it is given. Moving the pill
+     instead would mean the instruction jumping about the screen as lists change length,
+     which is worse than a shorter list. */
+  var say = el.querySelector('.hand-send');
+  var floor = cr.top;                     /* by default the block stops just above the card */
+  if (say){
+    var sr = say.getBoundingClientRect();
+    if (sr.height > 0) floor = Math.min(floor, sr.top);   /* and above the pill when there is one */
+  }
+  pk.style.bottom = Math.round(host.bottom - floor + 8) + 'px';
+  /* Whatever is left above it is all the block gets, and a long list scrolls inside that
+     rather than growing past the top of the table. */
+  var pr = pk.getBoundingClientRect();
+  /* measured against the top of the window, not of #hand: the hand block begins AT the
+     pill, so asking it for the room above the pill is asking the wrong box and leaves
+     eighty pixels for twenty-four skills. The block is free to reach up over the board
+     - that is what a drop-up is for - it just may not run off the top of it. */
+  var room = Math.max(80, pr.bottom - 12);
+  var list = pk.querySelector('.hp-list');
+  if (list){
+    /* the heading and the padding are not the list's to spend */
+    var chrome = Math.max(0, pr.height - list.getBoundingClientRect().height);
+    list.style.maxHeight = Math.floor(Math.max(48, room - chrome)) + 'px';
+    list.style.overflowY = 'auto';
+  }
 }
 /* Which arrows are worth drawing. Recomputed after every render, on every scroll, and on
    resize, because all three change the answer: a spent charge can add or remove a card,

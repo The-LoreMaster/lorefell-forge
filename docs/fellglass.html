@@ -3971,16 +3971,25 @@ function renderBattle(){
   /* empty-handed, which is now about what is held rather than what is owned: a Fell who
      has set everything down still has fists */
   if(!C.weapons.some(function(w){return w.tree&&w.equipped;})) put("Act","Unarmed","Basic attack","Tier 0 \u00b7 Power +1 base damage",0,"weapon");
-  C.inventory.filter(it=>it.discovered&&it.equipped).forEach(it=>{
-    const lib=ITEMS_LIB.find(x=>x.id===it.itemId);
-    if(!lib) return;
+  /* ---- one answer to "what is she carrying" ----
+     This used to filter C.inventory itself, on discovered && equipped, while cbPack - the
+     sheet's own list - counted a utility known if it was discovered OR its library entry
+     is veiled "open", which is how the FellGuide describes the ones known on sight. Two
+     filters, two answers, and a Fell could be carrying a thing on one screen and not on
+     the other. Adding any utility re-ran equipSeed and reconciled them, which is why
+     adding one made them all appear: the bug was hiding behind its own workaround.
+
+     So the derivation reads the pack rather than the rows. cbUtilities IS the resolver -
+     known, in quantity, and actually equipped - and everything that asks what is carried
+     now asks it. */
+  cbUtilities().forEach(function(u){
     /* An Act-use utility is NOT its own card. "Use a utility" is the card, and which one
        is a choice made on it - putting both meant the row carried two entries for one
        deed, the generic one and a Tablet sitting beside it. A React utility is a
        different matter: the Reacts tab IS the React picker, so it belongs there by name,
        and a Passive is never chosen at all. */
-    if(lib.use==="Act") return;
-    put(lib.use,"item",lib.name,lib.desc,undefined,"item");
+    if(u.use==="Act") return;
+    put(u.use,"item",u.name,u.desc,undefined,"item");
   });
   C.lorebounds.forEach((lb,i)=>{
     const src=lb.name||`lorebound ${i+1}`;
@@ -4089,7 +4098,9 @@ function tsHandPayload(){
       return { name:x.name, qty:x.qty, use:x.use||'',
                /* how it resolves, so the row knows whether to ask for a target and
                   whether to open the dice at all - most of them do neither */
-               roll:x.roll, target:x.target, places:x.places||0 };
+               /* and whether the ground it goes on has to be clear - the FellGuide
+                  says this per utility, and only Darkshard demands it */
+               roll:x.roll, target:x.target, places:x.places||0, space:x.space||'any' };
     }),
     stances: ['Shrouded','Stalwart','Vestments'],
     worn: (C.armor&&C.armor.active)||null,
@@ -5976,12 +5987,29 @@ function cbReactOptions(sel){
                     utilities does this today; every one of the fifteen is none or auto.
                     The branch exists so data that needs it later has somewhere to land.
      target  foe | ally | any | self | none | place
+     space   any    a placed utility may go on an occupied square (default)
+             empty  the square must be free of tokens and of markers already laid
 
    Two that read oddly and are right: Rune and Trap are roll:none because PLACING them is
    what costs the Act, and the automatic strike happens later when a target steps in - the
    LoreMaster resolves that, and auto-triggering it from position is Phase B/C work rather
    than this. Aether Lens is a battle-long effect AND a per-round Act; it is spent at the
    END of a battle and never by the per-round use.
+
+   The four placed utilities are NOT one rule, which is the whole reason `space` is per
+   entry. The book, in its own words:
+     Darkshard  "Set it in an OPEN space, opening a 10 space radius." It is a physical
+                thing with Vitality that can be damaged and shattered, and it wants a
+                square of its own. space:"empty".
+     Caltrops   "When thrown, they cover five adjacent spaces from where they land."
+                Nothing about the ground being clear - they scatter over whatever is
+                there, and a foe standing in them is rather the point. space:"any".
+     Rune       "When a target STEPS INTO the marked space, the rune casts the spell."
+     Trap       "When a target STEPS INTO the marked space, the trap strikes."
+                Both mark a square rather than occupy one, and neither asks for it to be
+                empty. Laying one under a foe who is already standing there is a strange
+                thing to do and the book does not forbid it, so it is the LoreMaster's
+                to allow or refuse, not this file's. space:"any".
 
    A library entry may carry its own roll/target one day; if it does, it wins. */
 const UTILITY_MODEL = {
@@ -5995,10 +6023,10 @@ const UTILITY_MODEL = {
   "Revealing Powder": { roll:"none", target:"none"  },
   "Skyvault Shard":   { roll:"none", target:"self"  },
   "Grappling Hook":   { roll:"none", target:"any"   },
-  "Caltrops":         { roll:"none", target:"place", places:5 },
-  "Rune":             { roll:"none", target:"place" },
-  "Trap":             { roll:"none", target:"place" },
-  "Darkshard":        { roll:"none", target:"place" },
+  "Caltrops":         { roll:"none", target:"place", places:5, space:"any"   },
+  "Rune":             { roll:"none", target:"place",           space:"any"   },
+  "Trap":             { roll:"none", target:"place",           space:"any"   },
+  "Darkshard":        { roll:"none", target:"place",           space:"empty" },
   "Aether Lens":      { roll:"none", target:"none", spend:"battle" }
 };
 /* What a utility does, with the library's own word first and the classification behind it.
@@ -6075,6 +6103,7 @@ function cbUtilityModel(e){
     roll:   (e && e.roll)   || known.roll   || "none",
     target: (e && e.target) || known.target || "none",
     places: (e && e.places) || known.places || 0,
+    space:  (e && e.space)  || known.space  || "any",
     spend:  (e && e.spend)  || known.spend  || "use"
   };
 }
@@ -6092,7 +6121,7 @@ function cbPack(){
     if(q<=0) return null;
     var m = cbUtilityModel(e);
     return { name:e.name, qty:q, use:e.use||"", desc:e.desc||"", equipped:!!it.equipped,
-             roll:m.roll, target:m.target, places:m.places, spend:m.spend,
+             roll:m.roll, target:m.target, places:m.places, space:m.space, spend:m.spend,
              /* which inventory row this is, so using it can find the thing to decrement */
              itemId:it.itemId };
   }).filter(Boolean);
