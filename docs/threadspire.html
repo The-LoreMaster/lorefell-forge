@@ -518,6 +518,10 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
    rather than on top of either. */
 .hand-wrap{
   display:flex; align-items:center; gap:6px;
+  /* the cluster sits in the middle of what the row is allowed: the scroller is cut to a
+     whole number of cards (handFitCards), so it is usually narrower than the space, and
+     the arrows belong beside the cards rather than out at the edges of the table */
+  justify-content:center;
   padding:0 var(--hand-right-clear) calc(4px + env(safe-area-inset-bottom, 0px)) 108px;
   pointer-events:none;
 }
@@ -7369,12 +7373,48 @@ function renderHand(){
   }
   /* after the scroll is back where it was, so the drop-up lands over the card as the
      player is actually seeing it */
+  /* the width first: everything below measures the band, and the band is what this sets */
+  handFitCards();
   handShowArmed();
   handTabsAlign();
   handPickPlace();
   /* the arrows can only be decided once the row has been laid out, measured and put back
      where it was */
   handPagers();
+}
+/* ---- whole cards or none ----
+   A row that scrolls shows whatever the edge lands on, and what it landed on was half a
+   card - which reads as a card that is there and is not, and is worse than a card that is
+   plainly absent.
+
+   The scroller is cut to a whole number of cards. Everything else follows from that: with
+   the row resting on card edges (handRest) and the visible width an exact multiple of one
+   card, there is no resting position that can show part of one. The rest are not hidden,
+   they are behind the arrows, which is what the arrows are for.
+
+   Measured rather than derived, because the card width is a flex-basis that changes with
+   the viewport and the gap is a CSS value that may change without this being told. */
+function handFitCards(){
+  var el = document.getElementById('hand');
+  if (!el) return;
+  var sc = el.querySelector('.hand-scroll');
+  if (!sc) return;
+  var cards = sc.querySelectorAll('.hcard');
+  if (!cards.length){ sc.style.width = ''; sc.style.flex = ''; return; }
+
+  /* let it take its natural share again before asking how much that is */
+  sc.style.width = ''; sc.style.flex = '';
+  var cs = window.getComputedStyle(sc);
+  var gap = parseFloat(cs.columnGap || cs.gap) || 0;
+  var padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+  var cw = cards[0].getBoundingClientRect().width;
+  if (!cw) return;
+
+  var avail = sc.getBoundingClientRect().width - padX;
+  var n = Math.max(1, Math.floor((avail + gap) / (cw + gap)));
+  n = Math.min(n, cards.length);
+  sc.style.flex = '0 0 auto';
+  sc.style.width = Math.floor(n * cw + (n - 1) * gap + padX) + 'px';
 }
 /* The Acts tab stands over the first card rather than over the row's own left edge. They
    are different places: the pagers hold their width either side even while hidden, so
@@ -7598,6 +7638,7 @@ function handSetTab(t){
   if (mo) mo.addEventListener('click', handMoreOptions);
   /* a narrower table can turn a row that fitted into one that pages */
   window.addEventListener('resize', function(){
+    try { handFitCards(); } catch(e){}
     try { handPagers(); } catch(e){}
     try { handTabsAlign(); } catch(e){}
     try { handPickPlace(); } catch(e){}
