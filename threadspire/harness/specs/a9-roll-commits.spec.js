@@ -147,6 +147,30 @@ test.describe('A9 targeting asks, the roll commits', () => {
     expect((await sent(player))[0].roll, 'the six they actually rolled').toBe(6);
   });
 
+  /* Two ways out, deliberately. The gesture is quick for someone who knows it; the
+     control is there for everyone who does not, because a way back that cannot be seen is
+     one a player does not know they have. */
+  test('the visible Cancel backs out, with the card still in hand', async ({ page }) => {
+    await T.openTable(page, playerOnly());
+    const player = await T.frameFor(page, 'player');
+    await T.waitBooted(page, player, 'player');
+    await seat(player);
+
+    await arm(player, 'Basic attack');
+    await tapToken(player);
+    expect(await player.evaluate(() =>
+      !document.getElementById('rollAsk').classList.contains('hidden')), 'it is on screen').toBe(true);
+
+    await click(player, '#rollCancel');
+
+    expect(await sent(player), 'nothing spent').toHaveLength(0);
+    expect(await promptUp(player)).toBe(false);
+    const held = await player.evaluate(() =>
+      window.armed ? { act: window.armed.entry.nm, target: window.armed.target } : null);
+    expect(held, 'the card is still held').toBeTruthy();
+    expect(held.target, 'and the target forgotten').toBeFalsy();
+  });
+
   test('tapping the target again backs out, with the card still in hand', async ({ page }) => {
     await T.openTable(page, playerOnly());
     const player = await T.frameFor(page, 'player');
