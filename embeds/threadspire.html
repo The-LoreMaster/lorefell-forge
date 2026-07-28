@@ -6962,6 +6962,17 @@ function handAim(t){
   }
   armed.target = f.key;
   armed.targetName = f.name || '';
+  /* Tablet strikes and Potion casts "automatically, with no accuracy roll", and the
+     FellGuide is explicit that the effect triggers the moment the target is chosen. So for
+     those the target IS the commit, and the dice never come into it. Everything with a
+     roll still waits for one. */
+  var uroll = handUtilityRoll();
+  if (uroll === 'none' || uroll === 'auto'){
+    renderHand();
+    try { renderTokens(); } catch(e){}
+    handDeclare();
+    return true;
+  }
   armed.awaitingRoll = true;
   renderHand();
   /* the ring belongs on the token the instant it is chosen, and the token layer is not
@@ -7131,6 +7142,22 @@ function handPickMenu(){
    moved on. */
 /* Whether this Act's declare will be refused without a roll. The sheet is the authority
    and refuses on its own; this is only so the prompt can say what it is asking for. */
+/* ---- how the utility in hand resolves ----
+   The sheet classified it from the FellGuide and sent it with the hand; the row does not
+   re-decide any of it. What the row does with the answer is the whole of E: whether to ask
+   for a target, and whether to open the dice at all.
+
+   Nothing in the fifteen opens the dice. Rolling to drink a potion was the bug. */
+function handUtility(){
+  if (!armed || armed.need !== 'item' || !armed.item) return null;
+  var list = (hand && hand.items) || [];
+  for (var i = 0; i < list.length; i++){
+    if (list[i] && list[i].name === armed.item) return list[i];
+  }
+  return null;
+}
+function handUtilityRoll(){ var u = handUtility(); return u ? (u.roll || 'none') : ''; }
+function handUtilityTarget(){ var u = handUtility(); return u ? (u.target || 'none') : ''; }
 function handNeedsRoll(){
   return !!(armed && armed.entry && (armed.entry.dmg || 0) > 0);
 }
@@ -7138,6 +7165,8 @@ function handReady(opts){
   if (!armed) return false;
   if (armed.need && !armed[armed.need]) return false;      /* a category with nothing chosen */
   if (armed.need === 'stance') return true;                /* a stance is aimed at nobody */
+  /* and neither is a utility that targets nothing: Revealing Powder is used, not aimed */
+  if (handUtilityTarget() === 'none') return true;
   if (opts && opts.ignoreTarget) return true;              /* asked before the target is set */
   return !!armed.target;
 }
@@ -7212,6 +7241,12 @@ function handPick(kind, value){
      it open, because that is a player still deciding rather than one who has decided. */
   armed.picking = !armed[kind];
   renderHand();
+  /* A utility that targets nothing has now been fully chosen - there is nobody to point
+     it at and no dice to roll - so it goes. Waiting for a target that will never be given
+     is how Revealing Powder became unusable. */
+  if (kind === 'item' && armed[kind] && handUtilityTarget() === 'none'){
+    handDeclare();
+  }
 }
 /* What the chosen card still wants, opening upward out of the card itself.
    The heading sits outside the scrolling part, so it stays put while a long list moves

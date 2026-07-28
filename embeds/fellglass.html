@@ -4086,7 +4086,10 @@ function tsHandPayload(){
     /* the same resolver the sheet's own picker uses, so the row and the sheet cannot
        disagree about what this Fell is carrying */
     items: cbActUtilities().map(function(x){
-      return { name:x.name, qty:x.qty, use:x.use||'' };
+      return { name:x.name, qty:x.qty, use:x.use||'',
+               /* how it resolves, so the row knows whether to ask for a target and
+                  whether to open the dice at all - most of them do neither */
+               roll:x.roll, target:x.target, places:x.places||0 };
     }),
     stances: ['Shrouded','Stalwart','Vestments'],
     worn: (C.armor&&C.armor.active)||null,
@@ -4678,7 +4681,9 @@ function loadLibraries(lib){
       veiled:F(r,"veiled"),
       group:F(r,"group"),
       rarity:F(r,"rarity"),
-      uses:F(r,"uses")
+      uses:F(r,"uses"),
+      /* if the shelf ever carries these itself, they win over the built-in table */
+      roll:F(r,"roll"), target:F(r,"target"), places:Number(F(r,"places"))||0
     })).filter(u=>u.name);
     if(mapped.length){ ITEMS_LIB=mapped; if(typeof renderItems==="function") renderItems(); }
   }
@@ -4975,6 +4980,11 @@ function setCombatState(state){
   var sig=JSON.stringify(state||null); if(sig===_combatSig) return;
   var wasActive=!!(COMBAT&&COMBAT.active);
   _combatSig=sig; COMBAT=state||null;
+  /* A battle ending is a moment nothing was watching for. Most utilities are spent the
+     instant they are used, but the FellGuide has one that is not: the Aether Lens lasts
+     "for the duration of a battle" and is used once per round within it, so the round's
+     use costs nothing and the END is what takes it. This is that end. */
+  if(wasActive && !(COMBAT&&COMBAT.active)){ try{ cbBattleEndSpend(); }catch(err){} }
   var _forceOrd=false;
   try{
     var _mf=((COMBAT&&COMBAT.fighters)||[]).filter(function(x){ return x.charId===CUR_WIX_ID; })[0];
@@ -5949,6 +5959,125 @@ function cbReactOptions(sel){
    wants. */
 /* Every utility the Fell has that is worth naming, carried or not. The one place that
    turns an inventory row into a thing with a name, a use and a count. */
+/* ---- how a utility resolves ----
+   The FellGuide says this per item, in prose, and says it plainly: utilities do NOT all
+   roll. Tablet "strikes automatically with no accuracy roll". Potion "casts automatically
+   with no accuracy or casting roll". Ash Salt breaks an Affliction. Rune and Trap are laid
+   down and go off later when somebody steps on them. Rolling for all of them, which is
+   what this used to do, was a rules bug wearing a UI.
+
+   Nothing structured carried any of this, so here it is, classified from the FellGuide one
+   entry at a time rather than guessed from the wording at runtime:
+
+     roll    none   resolves on use, no dice
+             auto   has a target and strikes or casts automatically the moment it is
+                    chosen - still no dice
+             attack | cast   would roll as a weapon or spell does. NOTHING in the combat
+                    utilities does this today; every one of the fifteen is none or auto.
+                    The branch exists so data that needs it later has somewhere to land.
+     target  foe | ally | any | self | none | place
+
+   Two that read oddly and are right: Rune and Trap are roll:none because PLACING them is
+   what costs the Act, and the automatic strike happens later when a target steps in - the
+   LoreMaster resolves that, and auto-triggering it from position is Phase B/C work rather
+   than this. Aether Lens is a battle-long effect AND a per-round Act; it is spent at the
+   END of a battle and never by the per-round use.
+
+   A library entry may carry its own roll/target one day; if it does, it wins. */
+const UTILITY_MODEL = {
+  "Tablet":           { roll:"auto", target:"foe"   },
+  "Potion":           { roll:"auto", target:"any"   },
+  "Ash Salt":         { roll:"none", target:"any"   },
+  "Uncrossing Oil":   { roll:"none", target:"any"   },
+  "Glyph":            { roll:"none", target:"foe"   },
+  "Kindlestone":      { roll:"none", target:"self"  },
+  "Gloomcowl":        { roll:"none", target:"self"  },
+  "Revealing Powder": { roll:"none", target:"none"  },
+  "Skyvault Shard":   { roll:"none", target:"self"  },
+  "Grappling Hook":   { roll:"none", target:"any"   },
+  "Caltrops":         { roll:"none", target:"place", places:5 },
+  "Rune":             { roll:"none", target:"place" },
+  "Trap":             { roll:"none", target:"place" },
+  "Darkshard":        { roll:"none", target:"place" },
+  "Aether Lens":      { roll:"none", target:"none", spend:"battle" }
+};
+/* What a utility does, with the library's own word first and the classification behind it.
+   An unknown utility resolves on use and asks for nothing: a thing nobody has classified
+   should never block a round, and the LoreMaster settles what it did. */
+/* ---- spending one ----
+   The Uses field is structured and knowable: "1 time use" goes altogether, "3 individual
+   uses" ticks down and goes at zero. Aether Lens is the exception the FellGuide writes
+   plainly - a battle-long effect used once per round - so the per-round use spends nothing
+   and the end of the battle takes it.
+
+   Everything here is logged, because the table cannot see inside a pack. */
+/* What the end of a battle takes: anything held for its duration rather than spent on
+   use. Marked when it was used, removed now, and said aloud so the pack's contents never
+   change without the table hearing why. */
+function cbBattleEndSpend(){
+  var L = (typeof ITEMS_LIB!=="undefined" && ITEMS_LIB) || [];
+  var gone = [];
+  (C.inventory||[]).slice().forEach(function(it){
+    if (!it || !it.battleSpent) return;
+    var e = L.filter(function(l){ return l.id===it.itemId; })[0];
+    var nm = (e && e.name) || "a utility";
+    var i = C.inventory.indexOf(it);
+    if (i >= 0) C.inventory.splice(i, 1);
+    gone.push(nm);
+  });
+  if (!gone.length) return;
+  cbLogSelf("fell", meName() + ": " + gone.join(", ") + (gone.length===1?" is":" are") + " spent as the battle ends.");
+  try{ renderItems(); }catch(err){}
+  try{ renderBattle(); }catch(err){}
+  scheduleSave();
+}
+function cbSpendUtility(name, target){
+  var row = null, lib = null, idx = -1;
+  var L = (typeof ITEMS_LIB!=="undefined" && ITEMS_LIB) || [];
+  (C.inventory||[]).forEach(function(it, i){
+    if (row || !it) return;
+    var e = L.filter(function(l){ return l.id===it.itemId; })[0];
+    if (e && e.name===name){ row = it; lib = e; idx = i; }
+  });
+  if (!row) return null;
+
+  var m = cbUtilityModel(lib);
+  var who = "";
+  try{ who = target ? cbTargetName(target) : ""; }catch(err){ who = ""; }
+  var line = meName() + " used " + name + (who ? " on " + who : "");
+
+  if (m.spend === "battle"){
+    /* held for the battle and spent when it ends; the round's use costs nothing */
+    row.battleSpent = true;
+    cbLogSelf("fell", line + ".");
+    scheduleSave();
+    return { name:name, kept:true };
+  }
+
+  var left = (typeof row.quantity==="number") ? row.quantity
+           : ((typeof row.qty==="number") ? row.qty : 1);
+  left = left - 1;
+  if (typeof row.quantity==="number") row.quantity = left; else row.qty = left;
+  if (left <= 0){
+    C.inventory.splice(idx, 1);
+    cbLogSelf("fell", line + ", and it is spent.");
+  } else {
+    cbLogSelf("fell", line + ". " + left + " left.");
+  }
+  try{ renderItems(); }catch(err){}
+  try{ renderBattle(); }catch(err){}
+  scheduleSave();
+  return { name:name, left:left };
+}
+function cbUtilityModel(e){
+  var known = (e && e.name && UTILITY_MODEL[e.name]) || {};
+  return {
+    roll:   (e && e.roll)   || known.roll   || "none",
+    target: (e && e.target) || known.target || "none",
+    places: (e && e.places) || known.places || 0,
+    spend:  (e && e.spend)  || known.spend  || "use"
+  };
+}
 function cbPack(){
   var lib=(typeof ITEMS_LIB!=="undefined"&&ITEMS_LIB)||[];
   return (C.inventory||[]).map(function(it){
@@ -5961,7 +6090,11 @@ function cbPack(){
        reads rather than silently becoming one */
     var q=(typeof it.quantity==="number")?it.quantity:((typeof it.qty==="number")?it.qty:1);
     if(q<=0) return null;
-    return { name:e.name, qty:q, use:e.use||"", desc:e.desc||"", equipped:!!it.equipped };
+    var m = cbUtilityModel(e);
+    return { name:e.name, qty:q, use:e.use||"", desc:e.desc||"", equipped:!!it.equipped,
+             roll:m.roll, target:m.target, places:m.places, spend:m.spend,
+             /* which inventory row this is, so using it can find the thing to decrement */
+             itemId:it.itemId };
   }).filter(Boolean);
 }
 /* What is actually on you, optionally of one kind. */
@@ -6113,7 +6246,14 @@ function cbDeclare(){
   window._skillFell=null;
   if(e && e.src==="utility"){
     var _iSel=cbCtl("cbItemSel"); var _in=_iSel?_iSel.value:"";
-    if(_in) act=act+" \u00b7 "+_in;
+    if(_in){
+      act=act+" · "+_in;
+      /* Spent HERE, where the declaration is actually built and sent, and nowhere
+         earlier. Choosing the card is not using the thing: a player who takes a Tablet up,
+         thinks better of it and puts it down still has the Tablet, and a declare that is
+         taken back never reaches this line at all. */
+      window._cbUsedUtility = cbSpendUtility(_in, target);
+    }
   }
   if(e && e.src==="skills"){
     var _kSel=cbCtl("cbSkillSel"); var _kn=_kSel?_kSel.value:"";

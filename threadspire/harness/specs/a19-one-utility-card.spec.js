@@ -69,8 +69,11 @@ async function seat(frame) {
       window.handDeclareResult({ ok: true, round: m.round });
     };
     window.tsHandTake({ charge: 1, acts: acts, reacts: [], skills: { Guard: 3, Perception: 4 },
-                        items: [{ name: 'Ashen Tonic', qty: 2, use: 'Act' },
-                                { name: 'Tablet', qty: 1, use: 'Act' }],
+                        /* the sheet classifies these from the FellGuide and sends the
+                           answer with the hand (A22): a tonic is used ON somebody, so it
+                           asks for a target - and never for the dice */
+                        items: [{ name: 'Ashen Tonic', qty: 2, use: 'Act', roll: 'none', target: 'any' },
+                                { name: 'Tablet', qty: 1, use: 'Act', roll: 'auto', target: 'foe' }],
                         stances: [], gates: { noAct: false, noReact: false, notes: [] },
                         active: true, round: 1, phase: 'commit', fighters: fighters });
     window.renderTokens(); window.render();
@@ -158,7 +161,7 @@ test.describe('A19 one card, and it asks before it says', () => {
     expect(await player.evaluate(() => !!window.armed)).toBe(false);
   });
 
-  test('a utility still has to be aimed at somebody', async ({ page }) => {
+  test('a utility still has to be aimed at somebody, and never rolls for it', async ({ page }) => {
     await T.openTable(page, playerOnly());
     const player = await T.frameFor(page, 'player');
     await T.waitBooted(page, player, 'player');
@@ -168,19 +171,21 @@ test.describe('A19 one card, and it asks before it says', () => {
       document.querySelector('#hand .hand-pick .hp-opt[data-val="Ashen Tonic"]').click();
     });
 
-    /* the roll is the commit, and it refuses to run without a target */
+    /* it is used ON somebody, so it will not go without one */
     await player.evaluate(() => window.handDeclare());
     expect(await player.evaluate(() => window.__sent), 'nothing resolves at nobody').toHaveLength(0);
 
+    /* and the target IS the commit: Ash Salt breaks an Affliction, it does not roll to do
+       it, so the dice never come into this at all (A22) */
     await player.evaluate(() => window.handAimByTap(window.S.tokens.find((t) => t.id === 'tkFoe')));
     expect(await player.evaluate(() => document.getElementById('tray').classList.contains('awaiting')),
-      'the same aim step an attack uses').toBe(true);
+      'rolling to use a tonic was the bug').toBe(false);
 
-    await player.evaluate(() => window.handRollDo(3));
     const out = await player.evaluate(() => window.__sent);
-    expect(out).toHaveLength(1);
+    expect(out, 'choosing who was the whole of it').toHaveLength(1);
     expect(out[0].item).toBe('Ashen Tonic');
     expect(out[0].target).toBe('m:cb-erasure');
+    expect(out[0].roll, 'and no face was ever asked for').toBeFalsy();
   });
 
   test('and it can be aimed at an ally, not only a foe', async ({ page }) => {
@@ -193,7 +198,6 @@ test.describe('A19 one card, and it asks before it says', () => {
       document.querySelector('#hand .hand-pick .hp-opt[data-val="Ashen Tonic"]').click();
     });
     await player.evaluate(() => window.handAimByTap(window.S.tokens.find((t) => t.id === 'tkAlly')));
-    await player.evaluate(() => window.handRollDo(3));
 
     const out = await player.evaluate(() => window.__sent);
     expect(out[0].target, 'a tonic is for your friends').toBe('p:pl-9');
