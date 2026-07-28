@@ -53,7 +53,15 @@ async function seat(frame, opts) {
      state these cases set and then measure. A poll landing mid-test replaces it and the case
      fails for a reason unrelated to what it asks. Correct product behaviour, wrong thing to
      leave running while measuring local rendering. */
-    await frame.evaluate(() => { window.applyRemoteSnapshot = function () {}; });
+    await frame.evaluate(() => { window.applyRemoteSnapshot = function () {};
+    /* and the sheet in this frame, which is real and boots on its own clock. When it
+       finishes it posts a hand of its own - inactive, empty - which replaces whatever a
+       spec injected and empties the row, taking any note with it. Whether that lands
+       before or after an assertion moves with machine load, which is what made it look
+       like noise. Specs that drive the REAL sheet do not pin this; specs that inject a
+       hand must. */
+    window.ensureSheet = function () {};
+    var _sf = document.getElementById("sheetFrame"); if (_sf) _sf.remove(); });
   opts = opts || {};
   await frame.evaluate(({ active, fighters, myCharId }) => {
     window.S.role = 'player';

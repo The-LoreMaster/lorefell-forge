@@ -51,7 +51,15 @@ async function seatPlayer(frame, opts) {
    * correct product behaviour and it is not what this spec is asking about. Pinning only
    * the snapshot: the declare road under test runs through TS_TOOL_UP and the host store,
    * neither of which this touches. */
-  await frame.evaluate(() => { window.applyRemoteSnapshot = function () {}; });
+  await frame.evaluate(() => { window.applyRemoteSnapshot = function () {};
+    /* and the sheet in this frame, which is real and boots on its own clock. When it
+       finishes it posts a hand of its own - inactive, empty - which replaces whatever a
+       spec injected and empties the row, taking any note with it. Whether that lands
+       before or after an assertion moves with machine load, which is what made it look
+       like noise. Specs that drive the REAL sheet do not pin this; specs that inject a
+       hand must. */
+    window.ensureSheet = function () {};
+    var _sf = document.getElementById("sheetFrame"); if (_sf) _sf.remove(); });
   await frame.evaluate(({ round, phase, acts, fighters, sheetRound }) => {
     window.S.role = 'player';
     window.S.mode = 'combat';

@@ -80,8 +80,24 @@ test.describe('A18 a foe keeps its identity across a rebuild', () => {
 
   test('a token placed before a rebuild still resolves after it', async ({ page }) => {
     const frames = await T.openTableAndBoot(page, bothSides());
-    await frames.lm.evaluate(() => { window.applyRemoteSnapshot = function () {}; });
-    await frames.player.evaluate(() => { window.applyRemoteSnapshot = function () {}; });
+    await frames.lm.evaluate(() => { window.applyRemoteSnapshot = function () {};
+    /* and the sheet in this frame, which is real and boots on its own clock. When it
+       finishes it posts a hand of its own - inactive, empty - which replaces whatever a
+       spec injected and empties the row, taking any note with it. Whether that lands
+       before or after an assertion moves with machine load, which is what made it look
+       like noise. Specs that drive the REAL sheet do not pin this; specs that inject a
+       hand must. */
+    window.ensureSheet = function () {};
+    var _sf = document.getElementById("sheetFrame"); if (_sf) _sf.remove(); });
+    await frames.player.evaluate(() => { window.applyRemoteSnapshot = function () {};
+    /* and the sheet in this frame, which is real and boots on its own clock. When it
+       finishes it posts a hand of its own - inactive, empty - which replaces whatever a
+       spec injected and empties the row, taking any note with it. Whether that lands
+       before or after an assertion moves with machine load, which is what made it look
+       like noise. Specs that drive the REAL sheet do not pin this; specs that inject a
+       hand must. */
+    window.ensureSheet = function () {};
+    var _sf = document.getElementById("sheetFrame"); if (_sf) _sf.remove(); });
 
     /* the LoreMaster builds the scene, and places a foe the way the palette does */
     const placed = await frames.lm.evaluate((sc) => {
@@ -130,8 +146,24 @@ test.describe('A18 a foe keeps its identity across a rebuild', () => {
 
   test('and can actually be attacked, end to end', async ({ page }) => {
     const frames = await T.openTableAndBoot(page, bothSides());
-    await frames.lm.evaluate(() => { window.applyRemoteSnapshot = function () {}; });
-    await frames.player.evaluate(() => { window.applyRemoteSnapshot = function () {}; });
+    await frames.lm.evaluate(() => { window.applyRemoteSnapshot = function () {};
+    /* and the sheet in this frame, which is real and boots on its own clock. When it
+       finishes it posts a hand of its own - inactive, empty - which replaces whatever a
+       spec injected and empties the row, taking any note with it. Whether that lands
+       before or after an assertion moves with machine load, which is what made it look
+       like noise. Specs that drive the REAL sheet do not pin this; specs that inject a
+       hand must. */
+    window.ensureSheet = function () {};
+    var _sf = document.getElementById("sheetFrame"); if (_sf) _sf.remove(); });
+    await frames.player.evaluate(() => { window.applyRemoteSnapshot = function () {};
+    /* and the sheet in this frame, which is real and boots on its own clock. When it
+       finishes it posts a hand of its own - inactive, empty - which replaces whatever a
+       spec injected and empties the row, taking any note with it. Whether that lands
+       before or after an assertion moves with machine load, which is what made it look
+       like noise. Specs that drive the REAL sheet do not pin this; specs that inject a
+       hand must. */
+    window.ensureSheet = function () {};
+    var _sf = document.getElementById("sheetFrame"); if (_sf) _sf.remove(); });
 
     const board = await frames.lm.evaluate((sc) => {
       window.S.scene = window.tsSpineScene(sc, { players: [] });

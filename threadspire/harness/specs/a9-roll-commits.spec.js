@@ -37,7 +37,15 @@ const ACTS = [
 ];
 
 async function seat(frame) {
-  await frame.evaluate(() => { window.applyRemoteSnapshot = function () {}; });
+  await frame.evaluate(() => { window.applyRemoteSnapshot = function () {};
+    /* and the sheet in this frame, which is real and boots on its own clock. When it
+       finishes it posts a hand of its own - inactive, empty - which replaces whatever a
+       spec injected and empties the row, taking any note with it. Whether that lands
+       before or after an assertion moves with machine load, which is what made it look
+       like noise. Specs that drive the REAL sheet do not pin this; specs that inject a
+       hand must. */
+    window.ensureSheet = function () {};
+    var _sf = document.getElementById("sheetFrame"); if (_sf) _sf.remove(); });
   await frame.evaluate(({ acts, fighters, myCharId }) => {
     window.S.role = 'player'; window.S.mode = 'combat';
     window.S.characterId = myCharId;

@@ -125,7 +125,15 @@ const pickerLabel = (frame) => frame.evaluate(() => {
  * owns the board, and it makes the feed the wrong thing to leave running while measuring
  * local rendering. Pinned after boot; the specs that are ABOUT sync leave it alone. */
 async function pinFeed(frame) {
-  await frame.evaluate(() => { window.applyRemoteSnapshot = function () {}; });
+  await frame.evaluate(() => { window.applyRemoteSnapshot = function () {};
+    /* and the sheet in this frame, which is real and boots on its own clock. When it
+       finishes it posts a hand of its own - inactive, empty - which replaces whatever a
+       spec injected and empties the row, taking any note with it. Whether that lands
+       before or after an assertion moves with machine load, which is what made it look
+       like noise. Specs that drive the REAL sheet do not pin this; specs that inject a
+       hand must. */
+    window.ensureSheet = function () {};
+    var _sf = document.getElementById("sheetFrame"); if (_sf) _sf.remove(); });
 }
 
 test.describe('S3b the card row draws the hand', () => {
