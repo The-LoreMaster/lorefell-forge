@@ -2002,6 +2002,9 @@ var SECTIONS = {
   attributes:{ title:'Attributes' },
   lore:      { title:'Lore' },
   battle:    { title:'Battle' },
+  /* the fight, as the sheet draws it. Reached from the Fellmark gem and from nowhere
+     else: it is not one of the five reference tabs and must not appear inside them. */
+  combat:    { title:'The fight' },
   log:       { title:'Session log' },
   /* the LoreMaster's rail */
   notes:     { title:'Notes' },
@@ -3375,7 +3378,10 @@ function openWin(key){
      the body, so whatever is written into the body afterwards is written out of sight,
      and the section reads as though it never opened. */
   win.classList.remove('sheeting'); win.classList.remove('arsenal');
-  var panel = (!isLM() && SHEET_PANELS[key]);
+  /* The fight is the sheet too, but it is not one of the sheet's tabs - it is the combat
+     banner, which the sheet shows only when this asks for it. Same iframe, same seam, one
+     more thing it can be asked to show. */
+  var panel = (!isLM() && (key === 'combat' ? 'combat' : SHEET_PANELS[key]));
   if (key === 'fell' && isLM() && S.godChar){
     ensureSheet();
     win.classList.add('sheeting'); win.classList.add('arsenal');
@@ -5619,8 +5625,24 @@ function startStateFeed(){
       seamPaint();
     }).catch(function(e){ SEAM.pullAt = Date.now(); SEAM.pullGot = 'failed: ' + String(e && e.message || e).slice(0,60); seamPaint(); });
   }
+  /* ---- and who has locked in ----
+     A declare does not travel on the board state; it is a row of its own that the
+     LoreMaster has to go and read. declaresLoad ran when a fight began, when the round
+     ticked, and when the LoreMaster pressed "Read declares" - and at no other time. So a
+     player declaring changed nothing on the LoreMaster's screen, and the one person who
+     needs to know who they are waiting on was the last to find out.
+
+     It rides the feed that already exists rather than starting a second clock of its own,
+     at a third of the rate, because a Fell locking in is worth knowing within a couple of
+     seconds and not worth a fetch every beat. */
+  var _dTick = 0;
+  function pullDeclares(){
+    if (!isLM() || S.mode !== 'combat') return;
+    if ((++_dTick % 3) !== 0) return;
+    try { declaresLoad(); } catch(e){}
+  }
   pullOnce();                                  /* land on the real adventure right away */
-  _stateFeedTimer = setInterval(pullOnce, 1100);
+  _stateFeedTimer = setInterval(function(){ pullOnce(); pullDeclares(); }, 1100);
   _pullNow = pullOnce;                          /* let a fresh push trigger an early pull */
 }
 var _pullNow = null;
@@ -9029,10 +9051,11 @@ function render(){
     if (isLM()){ hf.classList.remove('combat'); hf.onclick = function(){ railClick('settings'); }; }
     else {
       hf.classList.toggle('combat', combat);
-      /* The gem used to lead to the sheet's combat tracker during a fight. That tracker
-         is gone, and a player in a fight wants the same thing from the gem they always
-         did: their menu. It is also what More Options points at, so the two agree. */
-      hf.onclick = function(){ railClick('menu'); };
+      /* In a fight the gem IS the fight: it is where the combat panel lives, and the only
+       place it lives. The five reference tabs keep their own content, which is what a
+       player opening Inventory mid-round is actually after. Out of a fight the gem is
+       the menu it has always been. */
+      hf.onclick = combat ? function(){ railClick('combat'); } : function(){ railClick('menu'); };
     }
   }
   if (!combat){

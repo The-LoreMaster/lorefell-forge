@@ -19,7 +19,7 @@ const { mountSheet, weaponRecord } = require(path.join(__dirname, '_sheet.js'));
 async function inCombat(page, home) {
   const frame = await mountSheet(page, { home: home });
   const w = await weaponRecord(frame, 'Blade', 5);
-  await frame.evaluate(({ weapon }) => {
+  await frame.evaluate(({ weapon, where }) => {
     C.weapons = [weapon];
     C.charge = 0;
     CUR_WIX_ID = 'chr-harness-0001';
@@ -27,8 +27,12 @@ async function inCombat(page, home) {
                fighters: [{ key: 'm:cb-1', name: 'A foe', side: 'monster', charId: '' }],
                spotlightChars: [], you: {} };
     renderBattle();
+    /* On the table the fight shows on the Fellmark gem and nowhere else (A20), so asking
+       for that panel is what a player opening the gem does. Standalone there is no gem and
+       no table, and the sheet simply IS the combat surface. */
+    if (where === 'threadspire') window._tsPanel = 'combat';
     applyCombatMode();
-  }, { weapon: w });
+  }, { weapon: w, where: home });
   return frame;
 }
 
@@ -60,8 +64,20 @@ test.describe('A1 the declare builder leaves the sheet, and only that', () => {
 
   test('the slideout stops being swallowed by the declare panel', async ({ page }) => {
     const frame = await inCombat(page, 'threadspire');
+    /* Asked for the fight, it takes the room - that slideout was opened for it. What was
+       being swallowed was the REFERENCE tabs, and the fight is not on those at all now
+       (A20), so going to one gives the height back and takes the banner with it. */
     expect(await frame.evaluate(() => document.body.classList.contains('cbs-full')),
-      'the panel that justified the full height is gone, so the height goes back').toBe(false);
+      'the gem panel is the fight').toBe(true);
+
+    await frame.evaluate(() => { window.onmessage({ data: { type: 'goto-panel', panel: 'lore' } }); });
+    const onATab = await frame.evaluate(() => ({
+      full: document.body.classList.contains('cbs-full'),
+      banner: (document.getElementById('combatBanner') || {}).style
+        ? document.getElementById('combatBanner').style.display !== 'none' : false
+    }));
+    expect(onATab.full, 'the panel that justified the full height is not on this tab').toBe(false);
+    expect(onATab.banner, 'nor is the banner').toBe(false);
   });
 
   test('the reference panels still work while a fight is on', async ({ page }) => {

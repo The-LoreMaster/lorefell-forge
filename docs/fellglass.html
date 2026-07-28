@@ -5152,6 +5152,20 @@ function applyCombatMode(){
     return;
   }
 
+  /* ---- where the fight lives on the table ----
+     On the Fellmark gem, and nowhere else. The banner is appended to the body, so with
+     the sheet showing inside a slideout it turned up under Inventory, Skills, Arsenal,
+     Attributes and Lore alike - five reference tabs each wearing a combat panel the
+     player did not ask that tab for.
+
+     Which panel the table has asked for is the whole test. Standalone there is no table
+     and no gem, so the banner is simply the sheet's combat surface, as it always was. */
+  if(cbOnTable() && String(window._tsPanel||"")!=="combat"){
+    bn.className=""; bn.style.display="none"; bn.innerHTML="";
+    document.documentElement.style.setProperty("--cbn-h","0px");
+    document.body.classList.remove("cbs-full"); window._cbsFullPrev=false;
+    return;
+  }
   cbCaptureDraft();
   bn.className="cb-stage"; bn.style.display="flex";
   /* On the table the sheet is a reference surface and nothing else. cbs-full blanks the
@@ -5164,14 +5178,13 @@ function applyCombatMode(){
      the Fellmark gem; the banner still shows in every state, it simply stops covering
      what the player came to read. Standalone, with no map to declare from, this is
      untouched. */
-  if(!cbOnTable()){
-    document.body.classList.add("cbs-full");
-    if(!window._cbsFullPrev){ try{window.scrollTo(0,0);}catch(e){} }
-    window._cbsFullPrev=true;
-  } else {
-    document.body.classList.remove("cbs-full");
-    window._cbsFullPrev=false;
-  }
+  /* Reaching here on the table means the gem was opened and the fight IS what this
+     slideout is showing, so it takes the room - the reference panel underneath would only
+     be a second thing in a window asked for one. Off the table it is the sheet's own
+     combat surface and takes the room for the reason it always did. */
+  document.body.classList.add("cbs-full");
+  if(!window._cbsFullPrev){ try{window.scrollTo(0,0);}catch(e){} }
+  window._cbsFullPrev=true;
   var dec=COMBAT.you||{};
 
   var snooze = (sh && window._hitSnooze===sh.at)
@@ -6148,7 +6161,19 @@ function cbDeclare(){
 window.onmessage=ev=>{
   const d=ev&&ev.data;
   if(!d||typeof d!=="object"||!d.type)return;
-  if(d.type==="goto-panel"){ if(d.panel){ window._tsPanel=d.panel; switchPanel(d.panel); } return; }
+  if(d.type==="goto-panel"){
+    if(d.panel){
+      window._tsPanel=d.panel;
+      /* "combat" is not one of the sheet's own tabs. It is the banner, and asking for it is
+         the table saying the player opened the Fellmark gem. Everything else is a real
+         panel and switches to it. Either way the banner is re-decided, because which of
+         the two the player is looking at is exactly what decides whether it shows. */
+      if(d.panel!=="combat"){ switchPanel(d.panel); }
+      else { window._cbSheetView=false; }
+      try{ applyCombatMode(); }catch(e){}
+    }
+    return;
+  }
   /* ThreadSpire asking for the hand outright, for the first paint of the card row or
      after its frame reloads. Forced past the signature guard: the asker has nothing, so
      "unchanged" is the wrong answer to give it. */

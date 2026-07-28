@@ -67,14 +67,17 @@ test.describe('A7 the tracker goes, the slideouts stay', () => {
     expect(panels, 'the old tracker is not a panel a player can open').not.toContain('battle');
   });
 
-  test('the gem leads to the menu in a fight, not to the tracker', async ({ page }) => {
+  /* The gem led to the menu because the old tracker had been taken off it and nothing
+     replaced it. A20 gave it the combat panel, which is what a gem pulsing red through a
+     fight ought to open. */
+  test('the gem leads to the fight in a fight, not to the old tracker', async ({ page }) => {
     await T.openTable(page, playerOnly());
     const player = await T.frameFor(page, 'player');
     await T.waitBooted(page, player, 'player');
     await deal(player);
 
     await player.evaluate(() => document.querySelector('.hFell').click());
-    expect(await openSection(player), 'the gem is the player\'s menu, in a fight as out of one').toBe('menu');
+    expect(await openSection(player), 'the gem is where the fight is').toBe('combat');
   });
 
   test('and so does More Options, since it follows the gem', async ({ page }) => {
@@ -84,7 +87,7 @@ test.describe('A7 the tracker goes, the slideouts stay', () => {
     await deal(player);
 
     await player.evaluate(() => document.getElementById('moreOpt').click());
-    expect(await openSection(player)).toBe('menu');
+    expect(await openSection(player), 'whatever the gem does, this does').toBe('combat');
   });
 
   test('every reference panel opens during a fight', async ({ page }) => {

@@ -109,6 +109,10 @@ test.describe('A6 a fight reaches the table', () => {
     await frames.player.waitForFunction(() => window.hand && window.hand.active === true,
       { timeout: 45000 });
 
+    /* The fight lives on the Fellmark gem now (A20), so this asks for it the way a player
+       opening the gem does, then reads what the gem shows them. */
+    await sheet.evaluate(() => { window.onmessage({ data: { type: 'goto-panel', panel: 'combat' } }); });
+
     const shown = await sheet.evaluate(() => {
       const bn = document.getElementById('combatBanner');
       return {
@@ -122,6 +126,8 @@ test.describe('A6 a fight reaches the table', () => {
     expect(shown.builder, 'the on-sheet declare builder is gone in a ThreadSpire fight').toBe(false);
     expect(shown.folded, 'and so is its folded-hand prompt').toBe(false);
     expect(shown.text, 'it points at the table instead').toContain('Declare from the map');
-    expect(shown.cbsFull, 'and gives the slideout its height back').toBe(false);
+    /* and it DOES take the room here, because the slideout was opened FOR the fight. The
+       height it used to steal was from the five reference tabs, which no longer see it. */
+    expect(shown.cbsFull, 'the gem panel is the fight and nothing else').toBe(true);
   });
 });

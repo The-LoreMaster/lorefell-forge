@@ -141,13 +141,19 @@ test.describe('A17 the sheet stays a sheet on the table', () => {
     const frame = await packed(page, { tonic: true, declared: true });
     expect(await full(frame), 'this is the one that took over all five tabs').toBe(false);
     expect(await panelsVisible(frame)).toBe(true);
-    expect(await bannerUp(frame), 'the banner still says what is happening').toBe(true);
+    /* nor is the banner on this tab: A20 gave the fight a home on the gem, so a reference
+       tab carries its own content and nothing else at all */
+    expect(await bannerUp(frame), 'a reference tab is only itself').toBe(false);
   });
 
   test('and during resolution too', async ({ page }) => {
     const frame = await packed(page, { tonic: true, declared: true, phase: 'resolve' });
     expect(await full(frame)).toBe(false);
-    expect(await bannerUp(frame)).toBe(true);
+    expect(await bannerUp(frame)).toBe(false);
+
+    /* and the fight is still reachable, on the gem, which is A20's subject */
+    await frame.evaluate(() => { window.onmessage({ data: { type: 'goto-panel', panel: 'combat' } }); });
+    expect(await bannerUp(frame), 'asked for, and there').toBe(true);
   });
 
   test('standalone, with no map to declare from, the panel still takes the room', async ({ page }) => {
