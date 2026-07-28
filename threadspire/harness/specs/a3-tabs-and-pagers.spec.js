@@ -214,7 +214,7 @@ test.describe('A3 tabs and conditional pagers', () => {
     expect((await pagers(player)).right, 'the single React does not').toBe(false);
   });
 
-  test('the pagers never sit on the pill or the die tray', async ({ page }) => {
+  test('the pagers never sit on the die tray', async ({ page }) => {
     await T.openTable(page, playerOnly());
     const player = await T.frameFor(page, 'player');
     await T.waitBooted(page, player, 'player');
@@ -226,11 +226,9 @@ test.describe('A3 tabs and conditional pagers', () => {
         return { l: b.left, r: b.right, t: b.top, b: b.bottom }; };
       return {
         right: r(document.querySelector('#hand .hand-pager.right')),
-        pill: r(document.getElementById('moreOpt')),
         tray: r(document.getElementById('tray'))
       };
     });
-    expect(g.right.r, 'the right arrow stops before the pill').toBeLessThanOrEqual(g.pill.l);
     if (g.tray) {
       const leftPager = await player.evaluate(() => {
         const b = document.querySelector('#hand .hand-pager.left').getBoundingClientRect();

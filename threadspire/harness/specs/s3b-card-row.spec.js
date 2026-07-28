@@ -226,10 +226,14 @@ test.describe('S3b the card row draws the hand', () => {
     await pinFeed(player);
     await dealHand(player, 3);
 
+    /* the detail lives in the OPENED card now: a closed card is one line, so what it
+       casts on is read where a player would read it - on the card they have taken up */
+    await tapCard(player, 'Razorwind');
     const spell = await cardByName(player, 'Razorwind');
     expect(spell.text, 'a charged magic ability names its skill and its contest')
       .toContain('Casts on Weaving vs Difficulty');
 
+    await tapCard(player, 'Basic attack');
     const basic = await cardByName(player, 'Basic attack');
     expect(basic.text, 'a standard attack rolls the ordinary way and says nothing about casting')
       .not.toContain('Casts on');
@@ -242,12 +246,14 @@ test.describe('S3b the card row draws the hand', () => {
     await pinFeed(player);
     await dealHand(player, 3);
 
+    await tapCard(player, 'Basic attack');
     const basic = await cardByName(player, 'Basic attack');
     expect(basic.text).toContain('4');            /* base, straight to Vitality */
     expect(basic.text).toContain('3');            /* bonus, 7 total less 4 base */
     expect(basic.text, 'a magic weapon is blocked by Resistance').toContain('Resistance');
     expect(basic.text).not.toContain('Durability');
 
+    await tapCard(player, 'Any skill');
     const skill = await cardByName(player, 'Any skill');
     expect(skill.text, 'an act with no damage claims none').not.toContain('to Vitality');
   });

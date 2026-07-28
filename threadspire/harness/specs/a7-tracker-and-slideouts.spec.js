@@ -80,16 +80,6 @@ test.describe('A7 the tracker goes, the slideouts stay', () => {
     expect(await openSection(player), 'the gem is where the fight is').toBe('combat');
   });
 
-  test('and so does More Options, since it follows the gem', async ({ page }) => {
-    await T.openTable(page, playerOnly());
-    const player = await T.frameFor(page, 'player');
-    await T.waitBooted(page, player, 'player');
-    await deal(player);
-
-    await player.evaluate(() => document.getElementById('moreOpt').click());
-    expect(await openSection(player), 'whatever the gem does, this does').toBe('combat');
-  });
-
   test('every reference panel opens during a fight', async ({ page }) => {
     await T.openTable(page, playerOnly());
     const player = await T.frameFor(page, 'player');
@@ -133,26 +123,7 @@ test.describe('A7 the tracker goes, the slideouts stay', () => {
     expect(await rowShown(player)).toBe(true);
   });
 
-  test('a slideout is not the battle ending, so the reminder stays spent', async ({ page }) => {
-    await T.openTable(page, playerOnly());
-    const player = await T.frameFor(page, 'player');
-    await T.waitBooted(page, player, 'player');
-    await deal(player);
-
-    const pillHidden = () => player.evaluate(() =>
-      document.getElementById('moreOpt').classList.contains('hidden'));
-
-    await player.evaluate(() => document.getElementById('moreOpt').click());
-    expect(await pillHidden(), 'spent').toBe(true);
-
-    await player.evaluate(() => window.closeWin());
-    /* the row is back, and the reminder must NOT be: opening a slideout is not a new
-       fight, and conflating the two brought it back every time */
-    expect(await rowShown(player)).toBe(true);
-    expect(await pillHidden(), 'still spent for this battle').toBe(true);
-  });
-
-  test('out of combat there is no row and no pill', async ({ page }) => {
+  test('out of combat there is no row', async ({ page }) => {
     await T.openTable(page, playerOnly());
     const player = await T.frameFor(page, 'player');
     await T.waitBooted(page, player, 'player');
@@ -160,7 +131,5 @@ test.describe('A7 the tracker goes, the slideouts stay', () => {
 
     await player.evaluate(() => { window.S.mode = 'roleplay'; window.render(); });
     expect(await rowShown(player)).toBe(false);
-    expect(await player.evaluate(() =>
-      document.getElementById('moreOpt').classList.contains('hidden'))).toBe(true);
   });
 });

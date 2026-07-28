@@ -72,7 +72,7 @@ test.describe('A8 Reacts live in resolution', () => {
     await T.waitBooted(page, player, 'player');
     await deal(player, 'commit');
 
-    expect(await tabs(player), 'one group to choose from while declaring').toEqual(['act']);
+    expect(await tabs(player), 'one group to choose from while declaring').toEqual([]);
     expect(await shownNames(player)).toEqual(['Basic attack']);
   });
 
@@ -82,7 +82,7 @@ test.describe('A8 Reacts live in resolution', () => {
     await T.waitBooted(page, player, 'player');
 
     await deal(player, 'commit');
-    expect(await tabs(player)).toEqual(['act']);
+    expect(await tabs(player)).toEqual([]);
 
     await deal(player, 'resolve');
     expect(await tabs(player), 'the React is spent during resolution').toEqual(['act', 'react']);
@@ -110,7 +110,7 @@ test.describe('A8 Reacts live in resolution', () => {
     /* the next round begins and the board is taking declarations again */
     await deal(player, 'commit');
     expect(await shownNames(player), 'not stranded on a tab that is gone').toEqual(['Basic attack']);
-    expect(await tabs(player)).toEqual(['act']);
+    expect(await tabs(player)).toEqual([]);
   });
 
   test('nobody Reacts in the ambush opening either', async ({ page }) => {
@@ -121,7 +121,7 @@ test.describe('A8 Reacts live in resolution', () => {
     /* the opening resolves as a Spotlight, so phase alone would say Reacts are open;
        canon says no React in it, and that wins */
     await deal(player, 'resolve', { opening: true, inOpening: true });
-    expect(await tabs(player)).toEqual(['act']);
+    expect(await tabs(player)).toEqual([]);
   });
 
   test('Change Armor Stance is a React on the row, not an Act', async ({ page }) => {

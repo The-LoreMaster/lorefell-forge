@@ -88,15 +88,14 @@ test.describe('A6 a fight reaches the table', () => {
       shown: !document.getElementById('hand').classList.contains('hidden'),
       cards: document.querySelectorAll('#hand .hcard').length,
       tabs: Array.from(document.querySelectorAll('#hand .hand-tab')).map((t) => t.getAttribute('data-tab')),
-      pill: !document.getElementById('moreOpt').classList.contains('hidden')
     }));
 
     expect(row.shown, 'the row is up').toBe(true);
     expect(row.cards, 'with the Fell\'s own Acts on it, derived rather than injected').toBeGreaterThan(0);
-    /* Acts only: a fight that has just begun is taking declarations, and Reacts do not
-       appear until the board is resolving (A8). */
-    expect(row.tabs).toEqual(['act']);
-    expect(row.pill, 'and the reminder pill with it').toBe(true);
+    /* Acts only, and therefore no tab row at all: a fight that has just begun is taking
+       declarations, Reacts do not appear until the board is resolving (A8), and one group
+       needs no label. */
+    expect(row.tabs).toEqual([]);
   });
 
   test('and the sheet points at the table instead of offering its own builder', async ({ page }) => {

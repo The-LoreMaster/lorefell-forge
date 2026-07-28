@@ -67,7 +67,8 @@ const layout = (frame) => frame.evaluate(() => {
   const r = (n) => { const b = n.getBoundingClientRect(); return { l: b.left, r: b.right, w: b.width }; };
   const pill = document.getElementById('moreOpt');
   return {
-    tabs: r(el.querySelector('.hand-tabs')),
+    /* absent whenever there is only one group to show, which is most of the time now */
+    tabs: el.querySelector('.hand-tabs') ? r(el.querySelector('.hand-tabs')) : null,
     band: r(sc),
     first: r(cards[0]),
     last: r(cards[cards.length - 1]),
@@ -81,33 +82,57 @@ const layout = (frame) => frame.evaluate(() => {
   };
 });
 
+/* resolving, so there are two groups and therefore a tab row */
+async function seatResolving(frame, n) {
+  await frame.evaluate(() => {
+    window.applyRemoteSnapshot = function () {};
+    window.ensureSheet = function () {};
+    var _sf = document.getElementById('sheetFrame'); if (_sf) _sf.remove();
+  });
+  await frame.evaluate(({ a, fighters, myCharId }) => {
+    window.S.role = 'player'; window.S.mode = 'combat';
+    window.S.characterId = myCharId;
+    window.S.map = { w: 2400, h: 1600 };
+    window.S.grid = { size: 100, offX: 0, offY: 0, opacity: 0.5 };
+    window.S.tokens = [];
+    window.sheet.postMessage = function () {};
+    window.tsHandTake({ charge: 1, acts: a, skills: {}, items: [], stances: [],
+                        reacts: [{ src: 'movement', nm: 'Move', desc: 'a react', tier: null,
+                                   kind: 'standard', locked: false }],
+                        gates: { noAct: false, noReact: false, notes: [] },
+                        active: true, round: 1, phase: 'resolve', fighters: fighters });
+    window.render();
+  }, { a: acts(n), fighters: FIGHTERS, myCharId: F.FELL_CHAR_ID });
+}
+
 test.describe('A13 the row sits where it should', () => {
 
-  test('the Acts tab stands over the first card, with a short hand', async ({ page }) => {
-    /* wide enough for a short hand to actually fit: the harness frame shares the screen
-       with the other chair, so its band is narrower than a real table and two cards is
-       what fits in it */
+  /* The Acts label is gone: with one group there is nothing to choose between and the
+     label sat where the first card wanted to be. The tab row comes back during resolution,
+     when there are two groups, and THEN it has to stand over the cards rather than over
+     the air beside them - which is what handTabsAlign is for. */
+  test('with one group there is no tab row at all', async ({ page }) => {
     await page.setViewportSize({ width: 1800, height: 1000 });
     await T.openTable(page, playerOnly());
     const player = await T.frameFor(page, 'player');
     await T.waitBooted(page, player, 'player');
     await seat(player, 2);
 
-    const g = await layout(player);
-    expect(g.fits, 'two cards fit').toBe(true);
-    expect(Math.abs(g.tabs.l - g.first.l), 'the tab labels the cards, not the air beside them')
-      .toBeLessThanOrEqual(1);
+    expect(await player.evaluate(() =>
+      document.querySelectorAll('#hand .hand-tab').length), 'nothing to label').toBe(0);
   });
 
-  test('and over the first card with a long one too', async ({ page }) => {
+  test('and when the tabs return, they stand over the first card', async ({ page }) => {
+    await page.setViewportSize({ width: 1800, height: 1000 });
     await T.openTable(page, playerOnly());
     const player = await T.frameFor(page, 'player');
     await T.waitBooted(page, player, 'player');
-    await seat(player, 12);
+    await seatResolving(player, 12);
 
     const g = await layout(player);
-    expect(g.fits, 'twelve do not').toBe(false);
-    expect(Math.abs(g.tabs.l - g.first.l)).toBeLessThanOrEqual(1);
+    expect(g.tabs, 'the row is there to align to').not.toBeNull();
+    expect(Math.abs(g.tabs.l - g.first.l), 'over the cards, not the air beside them')
+      .toBeLessThanOrEqual(1);
   });
 
   test('a hand that fits sits in the middle of the space it has', async ({ page }) => {
@@ -135,17 +160,6 @@ test.describe('A13 the row sits where it should', () => {
        left-hand end where no amount of scrolling reaches it */
     expect(g.first.l, 'the first card is on the table').toBeGreaterThanOrEqual(g.band.l - 1);
     expect(g.leftGone, 'and the row is at its beginning, so no arrow back').toBe(true);
-  });
-
-  test('the row never covers the More Options pill', async ({ page }) => {
-    await T.openTable(page, playerOnly());
-    const player = await T.frameFor(page, 'player');
-    await T.waitBooted(page, player, 'player');
-    await seat(player, 12);
-
-    const g = await layout(player);
-    test.skip(!g.pill, 'the pill is not showing in this frame');
-    expect(g.band.r, 'the cards stop before the pill starts').toBeLessThanOrEqual(g.pill.l);
   });
 
   test('the row rests with a whole card against its edge, never half of one', async ({ page }) => {

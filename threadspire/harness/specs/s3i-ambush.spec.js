@@ -197,7 +197,7 @@ test.describe('S3i the ambush opening', () => {
        form of the same rule. */
     const tabs = await player.evaluate(() =>
       Array.from(document.querySelectorAll('#hand .hand-tab')).map((t) => t.getAttribute('data-tab')));
-    expect(tabs, 'no React to reach for at all').toEqual(['act']);
+    expect(tabs, 'no React to reach for at all').toEqual([]);
     expect(await armed(player, 'Move', 'react'), 'and none can be taken up').toBe(false);
   });
 
@@ -240,6 +240,6 @@ test.describe('S3i the ambush opening', () => {
        opening: A8's rule, and a different reason from the one that just lifted */
     const tabs = await player.evaluate(() =>
       Array.from(document.querySelectorAll('#hand .hand-tab')).map((t) => t.getAttribute('data-tab')));
-    expect(tabs).toEqual(['act']);
+    expect(tabs).toEqual([]);
   });
 });
