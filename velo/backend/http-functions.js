@@ -25,10 +25,48 @@ export function get_embed(request) {
       // Large tools split across part rows at slug#2, slug#3... Always look for
       // parts and reassemble in numeric order. Rows may be base64 encoded (enc b64)
       // so Wix TEXT field whitespace trimming cannot corrupt chunk joins.
+      // ---- decoding, and why it was wrong ----
+      // This used to be decodeURIComponent(escape(atob(raw))), and that idiom requires
+      // atob to hand back a BINARY string - one character per byte, every code unit under
+      // 256 - so that escape can turn each byte into %XX and decodeURIComponent can read
+      // the run of them as UTF-8. In this backend atob does not do that. It returns a
+      // string that has ALREADY been decoded as UTF-8.
+      //
+      // For a chunk of pure ASCII that difference does not exist and the idiom round-trips
+      // perfectly. For a chunk holding even one character above 0x7F, escape emits a
+      // single %XX for a whole code point, decodeURIComponent finds a byte that cannot
+      // start a UTF-8 sequence, and throws URIError.
+      //
+      // Which is exactly what the site was showing: of seven part rows, the only two that
+      // decoded were the only two whose source is pure ASCII. The base64 was never
+      // corrupt, the rows were never truncated and the seed was never at fault - every
+      // chunk carrying an en dash or a middle dot simply failed to decode and was served
+      // as base64 text.
+      //
+      // Buffer.from is the decode this environment actually has, and it is the same one
+      // the seeder verifies with, so the two ends now agree by construction rather than
+      // by coincidence.
+      const decodeFailed = [];
       const dec = (row) => {
         const raw = (row && row.html) || '';
-        if (row && row.enc === 'b64') { try { return decodeURIComponent(escape(atob(raw))); } catch (e) { return raw; } }
-        return raw;
+        if (!row || row.enc !== 'b64') return raw;
+        try {
+          const out = Buffer.from(raw, 'base64').toString('utf8');
+          /* a decode that produced nothing from something is a failure wearing a success */
+          if (out || !raw) return out;
+        } catch (e) { /* fall through and be loud about it */ }
+        try {
+          /* if Buffer is ever unavailable here, this is the correct modern equivalent */
+          const bin = atob(raw);
+          const bytes = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+          return new TextDecoder('utf-8').decode(bytes);
+        } catch (e2) { /* nothing left to try */ }
+        // NEVER return the raw base64 as though it were the document. That silent
+        // fallback is what let a broken decode look like a broken deploy for a week: the
+        // page was served, it was the right length, and it was base64. Say so instead.
+        decodeFailed.push((row && row.slug) || '?');
+        return '';
       };
       return wixData.query('SiteEmbeds')
         .startsWith('slug', slug + '#')
@@ -154,6 +192,14 @@ export function get_embed(request) {
 
           let body = headHtml;
           parts.forEach((p) => { body += dec(p.row); });
+          /* A tool with a hole in it is not a tool. Better a page that says which rows
+             would not decode than one that is silently missing a third of itself. */
+          if (decodeFailed.length) {
+            return serverError({ headers: htmlHeaders(),
+              body: '<!doctype html><meta charset="utf-8">'
+                  + '<p>Could not decode ' + decodeFailed.length + ' row(s) of ' + slug
+                  + ': ' + decodeFailed.join(', ') + '</p>' });
+          }
           return ok({ headers: htmlHeaders(), body: body });
         });
     })
