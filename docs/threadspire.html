@@ -4067,7 +4067,7 @@ function foeLiveHtml(f){
 function combatFighters(){
   var out = [], seen = {};
   (S.scene && S.scene.foes || []).forEach(function(f){
-    out.push({ key:'m:' + f.id, name:f.name || 'A foe', side:'monster' });
+    out.push({ key:foeKey(f.id), name:f.name || 'A foe', side:'monster' });
   });
   function fell(charId, name){
     if (!charId || seen[charId]) return;
@@ -5486,11 +5486,36 @@ function tsSceneFromSpine(sc){
    without the other tool breathing it across first. The foe's numbers come from
    ThreadSpire's own foeDamage, the same calc the table runs live, so nothing is duplicated
    in a way that can drift. */
-function tsCastFoe(cb){
+/* ---- what a foe is called, for the rest of its life ----
+   A foe's id is not a label, it is the only thing tying three separate places together:
+   the token on the board carries it as refId, the published fighters list keys on it,
+   and FateWell finds the combatant by it to apply damage. If it ever changes, all three
+   come apart silently - the token stops resolving, the foe goes inert, and a player can
+   see it and not attack it.
+
+   It used to be minted with Math.random when a combatant carried neither an id nor a
+   libId, so every rebuild of the spine renamed that foe. A rebuild happens whenever the
+   campaign arrives again, which is often, and the token placed before it kept the name it
+   was placed under. That is the targeting bug: not a mismatch between sources, but the
+   same source answering differently the second time it was asked.
+
+   So there is no randomness here. The record's own id if it has one; otherwise its
+   library entry and its position in the scene, which are both stable across rebuilds and
+   together unique - the position matters because two foes from one library entry would
+   otherwise share an identity, and damage dealt to one would land on both. */
+function tsFoeId(cb, i){
+  if (cb && cb.id) return cb.id;
+  return 'f-' + ((cb && cb.libId) || 'x') + '-' + (i || 0);
+}
+/* The one place a foe's fighter key is spelled. Both ends call it, so they cannot drift
+   into disagreeing about the punctuation, which is the other way this class of bug
+   arrives. */
+function foeKey(id){ return 'm:' + id; }
+function tsCastFoe(cb, i){
   var attrs = cb.attrs || {};
   var d = {}; try { d = foeDamage(cb, attrs); } catch(e){ d = {}; }
   return {
-    id: cb.id || ('f-' + (cb.libId || Math.random().toString(36).slice(2))),
+    id: tsFoeId(cb, i),
     name: cb.name || 'Foe', sr: cb.sr || 'Elite', side: 'foe',
     curVit: (cb.curVit !== undefined ? cb.curVit : cb.maxVit) || 0, maxVit: cb.maxVit || 0, charge: cb.charge || 0,
     attrs: attrs,
@@ -5501,14 +5526,17 @@ function tsCastFoe(cb){
     reacts: (cb.reacts && cb.reacts.length) ? cb.reacts.slice() : ['Skill', 'Movement']
   };
 }
-function tsCastNpc(cb){ return { id: cb.id || ('n-' + Math.random().toString(36).slice(2)), name: cb.name || 'NPC' }; }
+/* the same rule as a foe, for the same reason: an NPC is targetable too */
+function tsCastNpc(cb, i){ return { id: (cb && cb.id) || ('n-' + ((cb && cb.libId) || 'x') + '-' + (i || 0)), name: (cb && cb.name) || 'NPC' }; }
 function tsCastFell(pl){ return { id: pl.id || ('p-' + Math.random().toString(36).slice(2)), charId: pl.charId || null, name: pl.name || 'Fell', level: pl.level || 1, curVit: pl.maxVit || 0, maxVit: pl.maxVit || 0, charge: 0 }; }
 function tsSpineScene(sc, c){
   var foes = [], npcs = [];
-  (sc.combatants || []).forEach(function(cb){
+  (sc.combatants || []).forEach(function(cb, i){
     if (!cb) return;
-    if (cb.type === 'npc' || cb.side === 'npc') npcs.push(tsCastNpc(cb));
-    else foes.push(tsCastFoe(cb));
+    /* the position in the scene is what makes an id derived from it both stable across
+       rebuilds and unique within the scene */
+    if (cb.type === 'npc' || cb.side === 'npc') npcs.push(tsCastNpc(cb, i));
+    else foes.push(tsCastFoe(cb, i));
   });
   return {
     id: sc.id, name: sc.name,
@@ -6666,7 +6694,7 @@ function tokenFighter(t){
   }
   if (t.kind === 'foe' || t.kind === 'npc'){
     if (!t.refId) return null;
-    return handFighterByKey('m:' + t.refId);     /* checked, never assumed */
+    return handFighterByKey(foeKey(t.refId));    /* checked, never assumed */
   }
   return null;                                    /* scenery is not a combatant */
 }
