@@ -4069,6 +4069,45 @@ function foeAffDrop(id, name){
   f.affs = (f.affs || []).filter(function(x){ return x !== name; });
   combatPublish(); applyRemoteState({ scene:S.scene }); paintLmStrip();
 }
+/* ---- the squares, as they actually arrived ----
+   A READOUT, not a marker. Piece 3 of the placed-utilities pass puts real tokens on the
+   board at resolution, and it is deliberately not being built until this proves the
+   squares survive the whole trip: row -> sheet -> velo -> collection -> LoreMaster. F7
+   was a reminder of why - it was written up as one missing line and turned out to be
+   three sites and a JSON encoding, and a write-only fix would have looked fine here while
+   nothing ever read back.
+
+   So this says which of three things happened, because they have different causes:
+     squares listed     the pipe is whole; piece 3 can be built on it
+     "empty"            the field came back as an array with nothing in it - the write
+                        path or the JSON encoding lost them
+     "not sent"         the field is not on the record at all - the LoreMaster's declare
+                        read is not selecting it
+   Remove or fold into the real declare view once piece 3 lands. */
+function declarePlacesHtml(dcl){
+  if (!dcl || String(dcl.act || '').indexOf('Use a utility') < 0) return '';
+  var what;
+  if (!Object.prototype.hasOwnProperty.call(dcl, 'places') || dcl.places == null){
+    what = '<span class="tsm-note">not sent - the field is not on the record</span>';
+  } else if (!Array.isArray(dcl.places)){
+    /* a JSON string that was never parsed back reads as one - worth seeing verbatim */
+    what = '<span class="tsm-note">unparsed: ' + esc(String(dcl.places)).slice(0, 80) + '</span>';
+  } else if (!dcl.places.length){
+    what = '<span class="tsm-note">empty - the squares did not survive the trip</span>';
+  } else {
+    var g = (S.grid && S.grid.size) || 100;
+    var ox = (S.grid && S.grid.offX) || 0, oy = (S.grid && S.grid.offY) || 0;
+    what = '<span class="bt-n" title="' + esc(JSON.stringify(dcl.places)) + '">'
+         + dcl.places.map(function(pt){
+             if (!pt || typeof pt.x !== 'number' || typeof pt.y !== 'number'){
+               return '[?]';
+             }
+             return '[' + Math.floor((pt.x - ox) / g) + ',' + Math.floor((pt.y - oy) / g) + ']';
+           }).join(' ')
+         + '</span>';
+  }
+  return '<div class="bt-row wrap"><span class="bt-lbl">Ground</span>' + what + '</div>';
+}
 /* A Fell's declare as it came off their sheet, and the LoreMaster's answer to it. */
 function fellDeclareHtml(p){
   if (!inBattle()) return '';
@@ -4079,6 +4118,7 @@ function fellDeclareHtml(p){
     ((S.scene && S.scene.foes) || []).forEach(function(f){ if (sameId(f.id, dcl.target) || f.name === dcl.target) tgt = f.name; });
     h += '<div class="bt-row wrap"><span class="bt-lbl">Declared</span>'
       + '<span class="bt-decl">' + esc(dcl.act || 'an act') + (tgt ? ' on ' + esc(tgt) : '') + '</span></div>';
+    h += declarePlacesHtml(dcl);
     if (dcl.roll) h += '<div class="bt-row"><span class="bt-lbl">Rolled</span><span class="bt-n">' + dcl.roll + (dcl.acc ? ' vs ' + dcl.acc : '') + '</span>'
       + (dcl.fellstrike ? '<span class="bt-strike">Fellstrike</span>' : '') + '</div>';
     if (dcl.dmg) h += '<div class="bt-row"><span class="bt-lbl">Damage</span><span class="bt-n">' + (dcl.base || 0) + ' + ' + Math.max(0, (dcl.dmg || 0) - (dcl.base || 0)) + '</span>'
