@@ -427,7 +427,12 @@ built against the harness alone.
 
 ---
 
-## F8 — The seed reported success while the site served a truncated tool
+## F8 — The seed reported success while the site served a truncated tool (SUPERSEDED by F9)
+
+> **The diagnosis below is wrong.** Nothing was ever truncated and the seed was never at
+> fault. The rows this calls short were the only correctly decoded ones; the rows it calls
+> healthy were serving raw base64. F9 has the real cause. The hardening described here is
+> worth keeping on its own merits, but it fixed nothing, because nothing here was broken.
 
 Three round-3 fixes were verified, committed, merged, deployed and green, and none of
 them were on the live site. Two of the three were in `threadspire.html`; the third was
@@ -510,3 +515,77 @@ collection and handed over to be applied by hand. The simulation covers a health
 field capping at 90,000 and at tighter values, and a row that accepts a write and keeps
 nothing - that last one must fail the run rather than shrink the chunk, since a smaller
 chunk cannot fix a refused write.
+
+---
+
+## F9 — atob does not return what the decode assumed, and the failure was silent
+
+For a week the live ThreadSpire was missing changes that had been verified, committed,
+merged, deployed and seeded green. Three re-seeds changed nothing. The cause was one
+expression in `get_embed`:
+
+```js
+decodeURIComponent(escape(atob(raw)))
+```
+
+That idiom needs `atob` to return a BINARY string - one character per byte, every code
+unit under 256 - so that `escape` can turn each byte into `%XX` and `decodeURIComponent`
+can read the run of them back as UTF-8. In this backend `atob` returns a string that has
+ALREADY been decoded as UTF-8.
+
+For a chunk of pure ASCII the difference does not exist and the idiom round-trips
+perfectly. For a chunk holding even one character above 0x7F, `escape` emits a single
+`%XX` for a whole code point, `decodeURIComponent` finds a byte that cannot begin a UTF-8
+sequence, and throws `URIError`.
+
+And then:
+
+```js
+catch (e) { return raw; }
+```
+
+The raw base64 was served as though it were the document. Right length, right content
+type, 200 OK, and base64 text where the tool should be.
+
+### What made it so hard to see
+
+Of seven part rows, the only two that decoded were the only two whose source is pure
+ASCII. So `?info=1` reported five rows at their base64 length and two at their decoded
+length - and we read it exactly backwards, calling the five healthy and the two truncated.
+Every number after that was interpreted through that inversion. The seed was rewritten
+twice to fix a truncation that never happened.
+
+Nate broke it open by noticing that `decoded == stored` is impossible for base64 that
+decoded: 120,000 base64 characters cannot decode to 120,000 anything. That one
+observation inverted the whole picture and identified the healthy rows as the short ones.
+
+### How it was confirmed
+
+The served page WAS the evidence, because the broken rows were being served as their own
+raw base64. Fetching it and comparing byte for byte against a locally recomputed encode
+showed the stored value was perfect - so nothing was corrupt, and the fault had to be in
+the decode. Substituting a UTF-8-returning `atob` locally then reproduced the live pattern
+exactly: chunks 3 and 4 decode, the other five throw `URIError`. Seven rows, seven
+matches, no exceptions.
+
+### The fix
+
+`Buffer.from(raw, 'base64').toString('utf8')`, which is the decode this environment
+actually has and the same one the seeder verifies with, so the two ends agree by
+construction instead of by coincidence. A `TextDecoder` path is kept behind it in case
+`Buffer` ever goes away.
+
+And the `catch` no longer returns `raw`. A decode that fails now names the rows and the
+endpoint answers 500. A page that is silently missing a third of itself is not a
+degraded success, and dressing it as one cost a week.
+
+### What this says about the rest of it
+
+The lesson is not "use the right decoder". It is that the two ends of this pipe were
+verified with DIFFERENT tools: the seeder checked its work with `Buffer.from`, the site
+served with `atob`, and nothing ever compared them. The seed could pass every check it
+knew how to make while the page it produced was unreadable. F4 is the same shape - the
+harness and production deciding a thing differently - and so is F8, which chased the
+seeder because the seeder was the part we could see.
+
+A verify is only worth what it shares with the thing it is verifying.
