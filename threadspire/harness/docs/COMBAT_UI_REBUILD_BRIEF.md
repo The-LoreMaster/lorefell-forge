@@ -168,14 +168,21 @@ right at ~88.8% left, so top-left is clear):
   - Tappable — taking the player to the action (roll / the gem / the React).
   - Clears when the player responds or the prompt is no longer live.
 
-Scope of "urgent": time-sensitive things that cost the player if missed — roll
-Evasion against an incoming attack, a React that is needed now, "you are up". NOT the
-resting state (the hand, the declared card, charge) which stays on the gem and the
-row. The corner is strictly "respond now or lose the chance".
+Scope of "urgent": time-sensitive things that cost you if missed — roll Evasion
+against an incoming attack, a React that is needed now, "you are up". NOT the resting
+state (the hand, the declared card, charge) which stays on the gem and the row. The
+corner is strictly "respond now or lose the chance".
+
+BOTH SIDES. The corner serves the LoreMaster and the player alike — every urgent
+prompt surfaces there regardless of which side you are and what you are looking at.
+For the player: roll Evasion, React needed, you are up. For the LoreMaster: the
+prompts that belong to running resolution — a Fell is waiting on a ruling, all
+players have declared and the board is ready to resolve, a foe's React is up. Same
+top-left zone, same always-on rule, same "respond now" scope, on each screen.
 
 Why it belongs in Phase B, not A: the prompts it surfaces are fired by the resolution
 phase (per-interaction resolution in B, Lorebound React prompts in C). In Phase A
 there is nothing urgent to surface, so the zone would be built empty. Build the corner
 WITH the prompts that populate it, so it is designed around the real prompts rather
-than guessed ones. Player-facing for now; an LM version (e.g. "all declared, ready to
-resolve") can be considered when the lockout lands, but is not required.
+than guessed ones. It serves both sides from the start (see BOTH SIDES above), so the
+LM's resolution prompts and the player's React prompts share one always-on zone.
