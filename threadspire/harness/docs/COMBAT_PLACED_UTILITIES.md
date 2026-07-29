@@ -49,9 +49,9 @@ Why this is the right shape:
    five squares with the countdown by the cursor.
 3. **Done.** Resolution-time materialisation: the LM's board creates the marker token(s)
    on the chosen squares, LM-owned, carrying the placer.
-4. Consumption + log fire once, at resolution, after materialisation — not per square,
-   not on tap. The LM-side log fires with piece 3. The player's pack getting lighter is
-   the half still to come, and it needs a channel; see below.
+4. **Built, and waiting on velo.** Consumption + log fire once, at resolution, after
+   materialisation — not per square, not on tap. Both sides are written and covered; the
+   channel between them is three velo files that have to be pasted. See below.
 5. **Done.** Marker tokens are inert to targeting: they are not fighters and never resolve
    as one (the tokenFighter path returns null for them), so they cannot be aimed at.
 
@@ -81,25 +81,56 @@ square. Two things in that were nearly wrong in ways that would have shipped loo
 flag kept beside it, so it survives the LoreMaster reloading their own page. The tokens are
 the record.
 
-## What piece 4 still needs, and why it is not free
+## Piece 4: what it turned out to need
 
-The log line fires at resolution now, on the LM's board. The other half — the pack getting
-lighter — lives on the sheet, in `cbSpendUtility`, and today it fires inside `cbDeclare`,
-at declare-build. Moving it to resolution means the LM's resolution has to reach the
-placer's sheet, and there is no channel that carries it:
+The log fires at resolution on both sides now. The pack getting lighter lives on the sheet,
+in `cbSpendUtility`, and it used to fire inside `cbDeclare` at declare-build. It no longer
+does — for a `target:"place"` utility only; a Tablet or an Ash Salt is still spent where it
+always was, because those really do resolve the moment they are chosen.
 
-- The marker reaching the player's ThreadSpire is not enough on its own. ThreadSpire could
-  tell its own sheet, but the sheet would have to remember it had already spent, and every
-  existing "fire once" guard on the sheet (`_lastHitAt`, `_lastRecapAt`, `_lastChargeAt`)
-  is a window variable. A reload mid-battle re-fires them. Re-showing a pending hit is
-  harmless; decrementing an inventory twice is not.
-- So it wants a durable pair: the LM writes the resolution to the `CombatPlayer` row, the
-  sheet spends and writes back an ack, and the condition is `placed.pid !== placedAck`.
-  That is reload-safe on both ends because both ends are in the store.
+### Why this signal is guarded differently from every other one
 
-That is a velo change, which is denied, so it goes to `combat.web.PROPOSED.js` and is not
-live until pasted. Written down here rather than half-built, because a spend that fires
-twice is worse than one that still fires early.
+Three things already travel LM → sheet: a pending hit, a recap, a charge. Each compares an
+`at` stamp against a variable in the sheet's window, and that is good enough for them — a
+reload re-showing a pending hit is harmless, and re-applying a charge is idempotent because
+it is a SET. Taking a utility out of an inventory is a DECREMENT and is neither. A reload
+mid-battle would charge the player twice for the same Caltrops.
+
+So the guard is durable at both ends of the store:
+
+- the board writes `placed = {pid, util, squares, at}` to the Fell's `CombatPlayer` row
+- the sheet spends and writes back `placedAck = pid` through the existing combat-sync
+- the condition is `placed.pid !== placedAck`
+
+The window variable beside it is only the fast half — it stops one poll firing while the
+ack is in flight. Two rules make it hold:
+
+- **The sheet ADOPTS the stored ack the moment combat state arrives**, before anything of
+  its own can push. Without that, a fresh sheet pushes an empty ack over a real one and the
+  placement reads as unspent again.
+- **An empty ack is never written to the row.** Empty means "I have nothing to say", never
+  "forget what I said". Enforced at the velo end as well, so one careless caller cannot
+  erase it.
+
+Both halves of the guard have a case in A29 that fails without them — the durable half was
+probed by deleting it and every case still passed, so the two-copies-of-one-sheet scenario
+was added to make it earn its place.
+
+### What has to be pasted, and in what order
+
+Nothing above is live until three velo files are updated. `velo/**` is denied to agents and
+has no workflow — it is pasted by hand.
+
+1. `combat.web.PROPOSED.js` — whole-file replacement. Adds `resolveCombatPlacement`, serves
+   `placed`/`placedAck`, accepts an ack on sync.
+2. `page-threadspire.PATCH.md` — two edits: one import, one `TS_COMBAT_PLACED` case.
+3. `fgSheetBridge.PROPOSED.js` — whole-file replacement. Passes `placedAck` on sync, **and
+   passes `places` on the declare, which it never has** — see F11. That second one is not
+   part of piece 4; it may be why the squares are not arriving live at all.
+
+And two Text fields on `CombatPlayer`: `placed`, `placedAck`. Wix accepts a write to a
+field that does not exist and keeps nothing, which is F8's shape, so a missing field looks
+exactly like a feature that does not work.
 
 ## The Darkshard argument, named rather than settled
 

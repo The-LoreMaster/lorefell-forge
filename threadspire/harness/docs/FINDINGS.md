@@ -667,3 +667,67 @@ asserts the seed still contains an Act worded some other way, so if the data is 
 normalised the suite says so instead of passing on an empty set. Three of its six cases fail
 against the old exact match; the other three are regression guards and pass either way,
 which is said here rather than left to look like more coverage than it is.
+
+---
+
+## F11 — F7's round trip has a hop above the one F7 fixed, and the repo says the squares die there
+
+**Status:** real in the repo, UNPROVEN live because the live copy cannot be read. Fix
+carried as `fgSheetBridge.PROPOSED.js`.
+**Found:** 2026-07-29, wiring piece 4 and reading the path a declare actually takes.
+**Files:** `velo/public/fgSheetBridge.js` (denied), `velo/backend/combat.web.js`
+
+### What the repo says
+
+A placement's squares travel `places` on the declare. F7 added that field to
+`saveCombatDeclare` and to both of its reads — three sites, and the finding is explicit
+that stopping at the write would have been a write-only fix that looked complete and did
+nothing.
+
+The declare does not reach `saveCombatDeclare` directly. In production it goes:
+
+```
+fellglass sendDeclare  ->  postMessage up
+  ->  page-threadspire.js  TS_TOOL_UP / fellglass
+  ->  public/fgSheetBridge.js  handleSheetMessage, case 'combat-declare'
+  ->  api.saveCombatDeclare(charId, { ...an EXPLICIT field list... })
+```
+
+That field list names twenty fields and `places` is not one of them. A field not named is
+not passed on, so `d.places` arrives `undefined` and `row.places` is written `"[]"` no
+matter how many squares the player tapped. `places` appears nowhere in that file.
+
+So F7 fixed the hop below the one that drops it — which is F7's own lesson, one hop
+further up. The write and both reads are correct and have never been given anything to
+carry.
+
+### What is NOT established, and why that matters here
+
+**That this is what the live site is running.** `velo/**` is pasted into Wix by hand and
+there is no workflow for it (SERVING.md), so the repo copy can be behind what is deployed.
+Piece 3 was begun on the understanding that the round trip is confirmed live; if it is,
+then the pasted copy already carries this line and the repo is simply stale, which is worth
+knowing on its own.
+
+I cannot read the pasted copy, so I am not claiming the feature is broken live. I am
+claiming the repo cannot produce a working one.
+
+### What would settle it, in one look
+
+The Ground row on the LoreMaster's board, on a real declared placement. A25 built it to
+tell exactly these apart:
+
+- **squares listed** — the bridge already carries `places` live and the repo copy is
+  stale. Worth pasting the proposed file anyway so the two agree.
+- **"empty — the squares did not survive the trip"** — this finding is live, and
+  `fgSheetBridge.PROPOSED.js` is the fix.
+- **"not sent"** — a different fault again: the LM's declare read is not selecting it.
+
+### Why the harness could never have caught it
+
+The harness routes `combat-declare` straight into `takeDeclare`, which reads `m.places`.
+It has no model of `fgSheetBridge` at all, so the hop that drops the field does not exist
+there to drop it. That is the same shape as F4 — the harness and production deciding a
+thing differently — and it is not closed by this entry, because reproducing a hand-pasted
+page module in the mock would be pinning the harness to a file nobody can verify. What the
+harness proves stops at velo's edge, which is what A25's readout exists to say out loud.

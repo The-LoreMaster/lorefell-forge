@@ -424,6 +424,12 @@ test.describe('A28 a marker is not a combatant', () => {
       window.S.scene = window.S.scene || {};
       window.S.scene.combatPhase = 'commit';
       window.S.scene.fell = [{ id: 'p1', charId: charId, name: 'Astra', charge: 0, affs: [] }];
+      /* The fight has to be PUBLISHED for the store to serve a sheet anything at all -
+         serveCombatForChar answers {active:false} with no battle on, exactly as
+         getCombatForChar does. Without it the placement assertion at the end would fail
+         for a reason with nothing to do with placements. Published after S.mode is combat,
+         because that is what combatPublish reads to decide the fight is on. */
+      window.combatPublish();
       window.S.declares = null; window.declaresLoad();
     }, F.FELL_CHAR_ID);
     await frames.lm.waitForFunction(() => Array.isArray(window.S.declares) && window.S.declares.length > 0);
@@ -455,6 +461,21 @@ test.describe('A28 a marker is not a combatant', () => {
     expect(await frames.player.evaluate(() =>
       (window.S.tokens || []).filter((t) => t.kind === 'marker')
         .every((t) => window.tokenTargetable(t) === false))).toBe(true);
+
+    /* ---- piece 4's outward leg ----
+       Resolving also writes the placement to the Fell's own row, which is what lets their
+       sheet spend the utility out of their pack. Asserted through the store's own reader,
+       so what is checked here is what a sheet would actually be served rather than what
+       the board believes it sent - the two ends of a pipe, read with the same tool. A29
+       takes it from here and covers the sheet's half. */
+    const served = await page.evaluate(
+      ({ c, ch }) => window.TSH.combatFor(c, ch), { c: F.CAMPAIGN_A, ch: F.FELL_CHAR_ID });
+    expect(served.placed, 'the resolution reached the row').toBeTruthy();
+    expect(served.placed.util).toBe('Caltrops');
+    expect(served.placed.squares, 'and says how many, for the line the sheet shows').toBe(2);
+    expect(served.placed.pid, 'carrying the derived id the ack will be compared against')
+      .toContain('Caltrops');
+    expect(served.placedAck, 'which nothing has answered yet').toBe('');
   });
 
   test('a marker occupies its square, so an open-space utility is refused onto it', async ({ page }) => {
