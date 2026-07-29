@@ -17,7 +17,13 @@ const { test, expect } = require('@playwright/test');
 const path = require('path');
 const { mountSheet } = require(path.join(__dirname, '_sheet.js'));
 
-/* the shelf as the FellGuide describes it, for the ones under test */
+/* The shelf as the FellGuide describes it, for the ones under test.
+ *
+ * `use` is copied VERBATIM from schemas/seed/Relics.json, which is what the live chain
+ * does at every hop: the Relics collection -> libraries.web.js -> ITEMS_LIB -> here. It
+ * used to say 'Act' for a Rune, which the store has never said, and that one invented
+ * value was enough to hide the fact that a Rune could not be used in a fight at all. A
+ * fixture that is merely close is worse than none. */
 const SHELF = [
   { id: 'u-tablet', name: 'Tablet', use: 'Act', desc: 'strikes automatically' },
   { id: 'u-potion', name: 'Potion', use: 'Act', desc: 'casts automatically' },
@@ -25,7 +31,9 @@ const SHELF = [
   { id: 'u-powder', name: 'Revealing Powder', use: 'Act', desc: 'see through Obscured' },
   { id: 'u-lens', name: 'Aether Lens', use: 'Act', desc: 'for the duration of a battle' },
   { id: 'u-caltrops', name: 'Caltrops', use: 'Act', desc: 'five adjacent spaces' },
-  { id: 'u-rune', name: 'Rune', use: 'Act', desc: 'casts when stepped on' },
+  { id: 'u-rune', name: 'Rune', use: 'Act to place', desc: 'casts when stepped on' },
+  { id: 'u-trap', name: 'Trap', use: 'Act to place', desc: 'strikes when stepped on' },
+  { id: 'u-sky', name: 'Skyvault Shard', use: 'Act, or Rest', desc: 'a shard of the Aether' },
   { id: 'u-bracewell', name: 'Bracewell', use: 'React', desc: 'halve one attack' }
 ];
 
@@ -83,7 +91,7 @@ test.describe('A22 how each utility resolves, from the FellGuide', () => {
   });
 
   test('NOT ONE of them opens the dice', async ({ page }) => {
-    const frame = await packed(page, SHELF.filter((e) => e.use === 'Act')
+    const frame = await packed(page, SHELF.filter((e) => /(^|[^A-Za-z])act([^A-Za-z]|$)/i.test(e.use))
       .map((e) => ({ itemId: e.id, quantity: 1, discovered: true, equipped: true })));
     const rolls = await frame.evaluate(() =>
       cbActUtilities().map((u) => ({ name: u.name, roll: u.roll })));

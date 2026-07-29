@@ -3987,8 +3987,13 @@ function renderBattle(){
        is a choice made on it - putting both meant the row carried two entries for one
        deed, the generic one and a Tablet sitting beside it. A React utility is a
        different matter: the Reacts tab IS the React picker, so it belongs there by name,
-       and a Passive is never chosen at all. */
-    if(u.use==="Act") return;
+       and a Passive is never chosen at all.
+
+       Asked through cbUseIsAct rather than by exact match, so a Rune ("Act to place") is
+       skipped here for the same reason a Tablet is: it is now in the Act picker. Before,
+       neither surface would take it - the picker refused it and `put` had no bucket by
+       that name to drop it into. */
+    if(cbUseIsAct(u.use)) return;
     put(u.use,"item",u.name,u.desc,undefined,"item");
   });
   C.lorebounds.forEach((lb,i)=>{
@@ -6141,13 +6146,36 @@ function cbUtilities(useOnly){
     return useOnly ? (u.use===useOnly) : true;
   });
 }
+/* ---- does this Uses field name an Act at all ----
+   This was `u.use === "Act"`, an exact string match, and the Relics collection does not
+   say "Act" every time it means one. Read straight off schemas/seed/Relics.json, which is
+   what libraries.web.js copies verbatim into lib.utilities and the sheet copies verbatim
+   into ITEMS_LIB:
+
+     Rune            "Act to place"
+     Trap            "Act to place"
+     Skyvault Shard  "Act, or Rest"
+
+   All three carry an Act in the FellGuide and none of them could ever be spent as one. The
+   picker never offered them, and renderBattle's reminder list never showed them either,
+   because `put` only buckets Act/React/Passive and "Act to place" is none of those - so
+   they were absent from BOTH surfaces rather than merely misfiled. Two of the four placed
+   utilities were unreachable from the table, which is most of the feature.
+
+   The harness did not catch it because its fixtures hand the sheet `use:'Act'` for a Rune.
+   The mock was a different shape from the store, which is F7's miss and F9's: the two ends
+   of the pipe were checked with different values.
+
+   A word test, not an exact one. "React" must not match, so the check is for the word Act
+   standing on its own - "React" fails on the r before it. */
+function cbUseIsAct(use){ return /(^|[^A-Za-z])act([^A-Za-z]|$)/i.test(String(use||"")); }
 /* What the combat Act picker may offer: carried, and an Act by nature. */
-function cbActUtilities(){ return cbUtilities("Act"); }
+function cbActUtilities(){ return cbUtilities().filter(function(u){ return cbUseIsAct(u.use); }); }
 /* Whether the Fell owns anything that could ever be spent as an Act. Separate from
    whether they are carrying one: the first decides if the card exists, the second decides
    whether it is greyed, which is the F9 shape. */
 function cbOwnsActUtility(){
-  return cbPack().some(function(u){ return u.use==="Act"; });
+  return cbPack().some(function(u){ return cbUseIsAct(u.use); });
 }
 function cbItemOptions(sel){
   return cbActUtilities().map(function(x){

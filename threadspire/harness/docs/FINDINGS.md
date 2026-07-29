@@ -589,3 +589,81 @@ harness and production deciding a thing differently - and so is F8, which chased
 seeder because the seeder was the part we could see.
 
 A verify is only worth what it shares with the thing it is verifying.
+
+---
+
+## F10 — Two of the four placed utilities could never be used, and the harness said otherwise
+
+**Status:** fixed, in `docs/fellglass.html`. Recorded because the way it hid is the third
+instance of one pattern, and the pattern is now the thing worth guarding against.
+**Found:** 2026-07-29, starting piece 3 of the placed utilities.
+**Files:** `docs/fellglass.html`, `schemas/seed/Relics.json`, the harness fixtures
+
+### What was wrong
+
+`cbActUtilities()` was `cbUtilities("Act")`, and that filter is an exact string match on
+the library's `use`. The Relics collection does not say "Act" every time it means one:
+
+| Utility | `use` in `schemas/seed/Relics.json` |
+| --- | --- |
+| Rune | `"Act to place"` |
+| Trap | `"Act to place"` |
+| Skyvault Shard | `"Act, or Rest"` |
+
+All three carry an Act in the FellGuide. None of them could be spent as one. Two of them
+are placed utilities, which is most of the feature `COMBAT_PLACED_UTILITIES.md` describes.
+
+They were not misfiled, they were **absent from both surfaces**. The picker refused them on
+the exact match, and `renderBattle`'s reminder list drops them too, because `put` only has
+buckets named Act, React and Passive and silently ignores a use that is none of the three.
+So a Fell could carry a Rune, equip it, and find it nowhere at all — no error, no greyed
+card, no entry in a list.
+
+### How the pipe was verified, both ends with the same tool
+
+`use` is copied verbatim at every hop and normalised at none of them:
+
+```
+Relics row .use  ->  libraries.web.js:78  use: it.use || 'Out of Combat'
+                 ->  fellglass.html:4698  use:F(r,"use")||"Out of Combat"
+                 ->  cbPack()             use:e.use||""
+                 ->  cbUtilities("Act")   u.use === "Act"
+```
+
+Four hops, one value, one comparison. Nothing in between could have turned "Act to place"
+into "Act".
+
+### Why it survived so long
+
+The harness fixtures hand the sheet `use: 'Act'` for a Rune — `a22`, `a23` and `a24` all
+did. The store has never said that. Every placement spec was green against a value nothing
+in production produces.
+
+That is F9's lesson in different clothes, and F7's, and F4's: **the two ends of the pipe
+were checked with different values.** F9 was a decoder the seeder did not share; F7 was a
+mock holding an array where the collection holds a JSON string; this was a fixture
+inventing a field the collection never emits. Each time the check could stay green while
+the thing it checked was broken, and each time the harness was the more capable of the two
+rather than the more faithful.
+
+### The fix, and what it deliberately does not do
+
+`cbUseIsAct(use)` asks whether the use names an Act as a *word*, so "Act to place" and
+"Act, or Rest" both match and "React" does not — the `r` before it is what keeps every
+React utility out, which would have been the worse fault in the other direction.
+
+It is used at `cbActUtilities`, at `cbOwnsActUtility` (which decides whether the card
+exists at all, a different question from whether it is greyed), and at `renderBattle`'s
+reminder skip so a Rune cannot appear in both places at once.
+
+It does **not** rewrite `Relics.json`. The wording there is the FellGuide's and it is
+telling the truth — a Rune is an Act to place. The reader was the thing that was wrong.
+
+### What guards it now
+
+`a27-act-to-place-reachable.spec.js`, pinned to the seed file rather than to a hand-written
+list, so a value changing in `Relics.json` cannot quietly stop being covered. Its first case
+asserts the seed still contains an Act worded some other way, so if the data is ever
+normalised the suite says so instead of passing on an empty set. Three of its six cases fail
+against the old exact match; the other three are regression guards and pass either way,
+which is said here rather than left to look like more coverage than it is.
