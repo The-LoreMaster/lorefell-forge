@@ -820,6 +820,24 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
   border-radius:999px; padding:4px 10px; transform:translate(14px, 14px);
 }
 #placeCount.on{ display:block; }
+/* ---- a placement, once it is real ----
+   The marker the LoreMaster makes at resolution. Square and flat where a combatant is
+   round, because that difference is the whole of what has to be read at a glance across a
+   table: this is a thing ON the ground, not somebody standing on it. It is also the only
+   token nobody can aim at, and looking unlike a fighter is how a player learns that
+   without being told. Solid rather than dashed, which is what separates it from the
+   pending .placemark above - dashed means declared, solid means it is down. */
+.token.marker{
+  border-radius:6px; background:rgba(28,22,10,.92); border:2px solid var(--gold);
+  box-shadow:0 0 8px rgba(201,168,76,.35); cursor:default;
+}
+.token.marker .tok-face{ color:var(--gold); font-family:Cinzel,serif; font-size:.7rem; letter-spacing:.04em; }
+.token.marker .tok-label{ color:var(--gold); border-color:rgba(201,168,76,.4); }
+/* the LoreMaster made it and the LoreMaster may move it; nobody else gets a handler at all */
+.token.marker.lm-drag{ cursor:grab; }
+/* a placement the LoreMaster has already resolved, said where the button used to be */
+.bt-done{ font-family:Cinzel,serif; font-size:.6rem; letter-spacing:.08em; text-transform:uppercase;
+  color:rgba(134,199,155,.95); border:1px solid rgba(134,199,155,.4); border-radius:999px; padding:2px 8px; }
 /* a Fell the LoreMaster can see is locked in */
 .token.declared{ box-shadow:0 0 0 2px rgba(134,199,155,.85), 0 0 14px 3px rgba(134,199,155,.35); }
 /* A word back to the player when a gesture was taken but could not be acted on. Sits
@@ -4083,8 +4101,10 @@ function foeAffDrop(id, name){
                         path or the JSON encoding lost them
      "not sent"         the field is not on the record at all - the LoreMaster's declare
                         read is not selecting it
-   Remove or fold into the real declare view once piece 3 lands. */
-function declarePlacesHtml(dcl){
+   The pipe is now proven live, so this is no longer only a diagnostic: it is the row the
+   LoreMaster resolves the placement from. The three failure readings are kept, because
+   they are the reason a silent empty row can never be mistaken for "no placement". */
+function declarePlacesHtml(dcl, charId){
   if (!dcl || String(dcl.act || '').indexOf('Use a utility') < 0) return '';
   var what;
   if (!Object.prototype.hasOwnProperty.call(dcl, 'places') || dcl.places == null){
@@ -4106,7 +4126,17 @@ function declarePlacesHtml(dcl){
            }).join(' ')
          + '</span>';
   }
-  return '<div class="bt-row wrap"><span class="bt-lbl">Ground</span>' + what + '</div>';
+  /* Resolve it. Offered only when there is a square to resolve onto, and it says which of
+     the two it is once pressed rather than going quiet: a button that vanishes is
+     indistinguishable from one that did nothing. */
+  var act = '';
+  if (charId && Array.isArray(dcl.places) && dcl.places.length){
+    var pid = placementId(charId, dcl);
+    act = placementResolved(pid)
+      ? '<span class="bt-done">On the board</span>'
+      : '<button class="bt-b" onclick="resolvePlacement(\'' + esc(charId) + '\')">Place it</button>';
+  }
+  return '<div class="bt-row wrap"><span class="bt-lbl">Ground</span>' + what + act + '</div>';
 }
 /* A Fell's declare as it came off their sheet, and the LoreMaster's answer to it. */
 function fellDeclareHtml(p){
@@ -4118,7 +4148,7 @@ function fellDeclareHtml(p){
     ((S.scene && S.scene.foes) || []).forEach(function(f){ if (sameId(f.id, dcl.target) || f.name === dcl.target) tgt = f.name; });
     h += '<div class="bt-row wrap"><span class="bt-lbl">Declared</span>'
       + '<span class="bt-decl">' + esc(dcl.act || 'an act') + (tgt ? ' on ' + esc(tgt) : '') + '</span></div>';
-    h += declarePlacesHtml(dcl);
+    h += declarePlacesHtml(dcl, p.charId || p.id);
     if (dcl.roll) h += '<div class="bt-row"><span class="bt-lbl">Rolled</span><span class="bt-n">' + dcl.roll + (dcl.acc ? ' vs ' + dcl.acc : '') + '</span>'
       + (dcl.fellstrike ? '<span class="bt-strike">Fellstrike</span>' : '') + '</div>';
     if (dcl.dmg) h += '<div class="bt-row"><span class="bt-lbl">Damage</span><span class="bt-n">' + (dcl.base || 0) + ' + ' + Math.max(0, (dcl.dmg || 0) - (dcl.base || 0)) + '</span>'
@@ -4144,6 +4174,90 @@ function fellByCharId(id){
   var hit = null;
   ((S.scene && S.scene.fell) || []).forEach(function(p){ if (sameId(p.charId, id) || sameId(p.id, id)) hit = p; });
   return hit;
+}
+/* ---- piece 3: the marker is made HERE, at resolution ----
+   A placement is a declaration. Nothing is on the ground while the player is choosing, and
+   nothing is on the ground when they commit; the marker is created by the LoreMaster when
+   they resolve that Fell's declaration. That one rule is what makes undo need no protocol
+   (an undone declare placed nothing) and what makes "only the LoreMaster may remove a
+   marker" true by construction rather than by a permission check - the LM owns what the LM
+   made, and the token menu is already LM-only.
+
+   Which utility it was. The declare carries the act as the sheet built it, "Use a utility
+   · Caltrops", because that is the only place the name survives the trip - the wire has no
+   item field on a declare. Read rather than assumed: a declare with no name after the
+   separator resolves as an unnamed marker instead of resolving as the word "utility". */
+function declareUtilityName(dcl){
+  var act = String((dcl && dcl.act) || '');
+  var i = act.indexOf('·');
+  var nm = i >= 0 ? act.slice(i + 1).trim() : '';
+  return nm;
+}
+/* The identity of one placement, derived from the declaration rather than from the clock.
+   A Fell spends one Act a round, so a Fell, a round and a utility name a placement exactly
+   once, and the same id can be worked out on either side of the wire without either side
+   telling the other - which is what piece 4 will need when the sheet has to know whether
+   the thing it is being asked to spend has already been spent.
+
+   Date.now() would have been easier and wrong: it would make the same placement a
+   different placement every time it was read, so nothing could ever recognise a repeat. */
+function placementId(charId, dcl){
+  return 'pl:' + charId + ':' + ((dcl && dcl.round) || 0) + ':' + (declareUtilityName(dcl) || 'utility');
+}
+/* Has this placement already been put on the board? Asked of the board itself rather than
+   of a flag kept beside it, so it survives a reload of the LoreMaster's own page: the
+   tokens are the record. */
+function placementResolved(pid){
+  return (S.tokens || []).some(function(t){ return t && t.kind === 'marker' && t.pid === pid; });
+}
+function resolvePlacement(charId){
+  var dcl = declareFor(charId); if (!dcl) return;
+  var p = fellByCharId(charId);
+  var who = (p && p.name) || 'A Fell';
+  var util = declareUtilityName(dcl) || 'a utility';
+  var pid = placementId(charId, dcl);
+
+  if (placementResolved(pid)){
+    pushLog({ kind:'sys', html:'That placement is already on the board.' });
+    applyRemoteState({ log:S.log }); return;
+  }
+  var places = Array.isArray(dcl.places) ? dcl.places : [];
+  /* A square that arrived without numbers is not placed at a guess. a25 already shows it
+     as [?] in the readout; here it is refused and counted, because a marker put down at
+     0,0 because a field was missing is worse than one square fewer and a line saying so. */
+  var good = places.filter(function(q){ return q && typeof q.x === 'number' && typeof q.y === 'number'; });
+  var bad = places.length - good.length;
+  if (!good.length){
+    pushLog({ kind:'sys', html:'<b>' + esc(who) + '</b> declared ' + esc(util)
+      + ' with no square the board can use.' });
+    applyRemoteState({ log:S.log }); return;
+  }
+  var made = [];
+  good.forEach(function(q, i){
+    var id = 'mk-' + pid.replace(/[^A-Za-z0-9]/g, '') + '-' + i;
+    S.tokens.push({
+      id:id, kind:'marker', name:util, label:initials(util),
+      /* snapped the same way a token is, so a marker and a token that share a square
+         really do share it - the player's tap already snapped, and this agrees with it
+         rather than trusting it */
+      x:clamp(snapAxis(q.x, S.grid.offX, 1), 0, S.map.w),
+      y:clamp(snapAxis(q.y, S.grid.offY, 1), 0, S.map.h),
+      cells:1, mine:false,
+      /* WHO put it there, under its own name. Not charId: tokenIsMine reads charId and
+         would hand the placer a marker they could drag, and tokenArt reads it and would
+         put the placer's portrait on a caltrop. The placer is recorded, not impersonated. */
+      placer:charId, placerName:who, util:util,
+      pid:pid, round:(dcl.round || 0)
+    });
+    made.push(id);
+  });
+  applyRemoteState({ tokens:S.tokens });
+  pushLog({ kind:'sys', html:'<b>' + esc(who) + '</b> placed <b>' + esc(util) + '</b> on '
+    + made.length + (made.length === 1 ? ' square' : ' squares') + '.'
+    + (bad ? ' ' + bad + (bad === 1 ? ' square was' : ' squares were') + ' malformed and left off.' : '') });
+  applyRemoteState({ log:S.log });
+  renderTokens();
+  paintLmStrip();
 }
 /* the Fell's declared damage, landed on the foe they aimed at */
 function resolveOnFoe(charId){
@@ -6831,6 +6945,20 @@ function handFighterByKey(key){
    or for a foe token left over from a scene that is no longer the fight. */
 function tokenFighter(t){
   if (!t) return null;
+  /* A marker is a thing on the ground, not somebody standing on it. Caltrops, a Rune, a
+     Trap and a Darkshard are all laid down and then go off on their own terms, and none of
+     them is ever the target of an Act - so a marker is never a fighter and can never be
+     aimed at. Answered FIRST and by name, before the fight is even consulted, because
+     "there is no battle on" and "that is not a combatant" are different answers to the
+     same question and only one of them stops being true when a fight starts.
+
+     A Darkshard is the one that will argue: the FellGuide gives it a Vitality and says it
+     "shatters when it takes damage equal to its Vitality". That makes it a thing that can
+     be attacked, which this rule says it is not. Deliberate for now - the LoreMaster
+     adjudicates a Darkshard being broken, the same way they adjudicate a Rune going off
+     when somebody steps in it. Both are the same deferred piece of positional resolution,
+     and neither is being guessed at here. */
+  if (t.kind === 'marker') return null;
   /* No fight, no targets. The row is not up either, and the two agree deliberately:
      whether there is a battle on is the LoreMaster's to say, and it reaches here the
      same way it reaches the row. */
@@ -9096,6 +9224,11 @@ function tokenThumb(url){
   return url;
 }
 function tokenArt(t){
+  /* A marker wears no picture. Without this it falls through to DEFAULT_ART at the bottom
+     and a scattering of caltrops comes out wearing the default portrait - a face on the
+     floor. The empty string is a real answer here: renderTokens draws the letters instead,
+     which is what a marker should look like. */
+  if (t.kind === 'marker') return '';
   var cid = t.charId || (t.kind === 'p' ? t.refId : '');
   if (cid){
     var p = portraitFor(cid);

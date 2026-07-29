@@ -46,7 +46,13 @@ async function seatLm(frame, declare) {
   }, { dcl: declare, charId: F.FELL_CHAR_ID });
 }
 
-/* the readout as the LoreMaster would read it, straight off the built html */
+/* The readout as the LoreMaster would read it, straight off the built html.
+ *
+ * The Ground row carries two things now: this readout, and piece 3's control for resolving
+ * the placement ("Place it", or "On the board" once it is down). The control is A28's to
+ * assert; taking its text out here keeps this file asking the one question it was written
+ * to ask - can the LoreMaster tell the four cases apart - so that adding or rewording a
+ * button cannot read as the readout regressing. */
 const ground = (frame) => frame.evaluate(({ charId }) => {
   var html = window.fellDeclareHtml({ charId: charId, id: 'p1', charge: 0, affs: [] });
   var box = document.createElement('div');
@@ -54,10 +60,9 @@ const ground = (frame) => frame.evaluate(({ charId }) => {
   var rows = [...box.querySelectorAll('.bt-row')];
   var row = rows.filter((r) => (r.querySelector('.bt-lbl') || {}).textContent === 'Ground')[0];
   if (!row) return null;
-  return {
-    text: row.textContent.replace('Ground', '').trim(),
-    title: (row.querySelector('[title]') || {}).title || ''
-  };
+  var title = (row.querySelector('[title]') || {}).title || '';
+  row.querySelectorAll('button, .bt-done').forEach(function (n) { n.remove(); });
+  return { text: row.textContent.replace('Ground', '').trim(), title: title };
 }, { charId: T.FIXTURES.FELL_CHAR_ID });
 
 const base = {

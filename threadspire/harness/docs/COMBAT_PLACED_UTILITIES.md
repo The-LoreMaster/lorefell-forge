@@ -42,18 +42,86 @@ Why this is the right shape:
    — auto-triggering is deferred positional-resolution work for Phase B/C, not this.
 
 ## The pieces, in build order
-1. The declaration carries the chosen square(s); the pending preview on the player map.
-   (Rides the declare channel — no immediate-materialise message. If a distinct message
-   is still needed for the LM's resolution-time materialisation, register it in
-   FINDINGS F3.)
-2. The gesture: left-tap an empty square with a place-utility armed; Caltrops' five
-   squares with the countdown by the cursor.
-3. Resolution-time materialisation: the LM's board creates the marker token(s) on the
-   chosen squares, LM-owned, carrying the placer.
+1. **Done.** The declaration carries the chosen square(s); the pending preview on the
+   player map. (Rides the declare channel — no immediate-materialise message, and none
+   turned out to be needed: see piece 3.)
+2. **Done.** The gesture: left-tap an empty square with a place-utility armed; Caltrops'
+   five squares with the countdown by the cursor.
+3. **Done.** Resolution-time materialisation: the LM's board creates the marker token(s)
+   on the chosen squares, LM-owned, carrying the placer.
 4. Consumption + log fire once, at resolution, after materialisation — not per square,
-   not on tap.
-5. Marker tokens are inert to targeting: they are not fighters and never resolve as one
-   (the tokenFighter path returns null for them), so they cannot be aimed at as targets.
+   not on tap. The LM-side log fires with piece 3. The player's pack getting lighter is
+   the half still to come, and it needs a channel; see below.
+5. **Done.** Marker tokens are inert to targeting: they are not fighters and never resolve
+   as one (the tokenFighter path returns null for them), so they cannot be aimed at.
+
+## What piece 3 turned out to be, and the two traps in it
+
+No new message type. The marker is a board TOKEN, and the board already replicates to
+every player through the state feed, so the LM making one is the whole of the transport.
+F3's register needed no new row.
+
+`resolvePlacement(charId)` is on the LM's Ground row, beside the readout A25 built. It
+reads the declare, snaps each square the same way a token snaps, and pushes one marker per
+square. Two things in that were nearly wrong in ways that would have shipped looking right:
+
+- **The placer goes in `placer`, never in `charId`.** `tokenIsMine` reads `charId`, so a
+  marker carrying it would be draggable by the Fell who placed it — a player quietly moving
+  their own caltrops after the fact, which is exactly the ownership the whole design was
+  arranged to avoid. `tokenArt` reads it too and would have put the placer's portrait on
+  the thing. A marker records who placed it; it does not impersonate them.
+- **The placement's id comes from the declaration, not the clock.** `placementId` is
+  `pl:<charId>:<round>:<utility>` — a Fell spends one Act a round, so that names a
+  placement exactly once. A `Date.now()` id would make the same placement a different
+  placement on every read, so nothing could recognise a repeat and "Place it" twice would
+  put down two sets. It also means both sides can derive the same id without telling each
+  other, which is what piece 4 needs.
+
+"Already resolved" is asked of the BOARD (is there a marker with this pid) rather than of a
+flag kept beside it, so it survives the LoreMaster reloading their own page. The tokens are
+the record.
+
+## What piece 4 still needs, and why it is not free
+
+The log line fires at resolution now, on the LM's board. The other half — the pack getting
+lighter — lives on the sheet, in `cbSpendUtility`, and today it fires inside `cbDeclare`,
+at declare-build. Moving it to resolution means the LM's resolution has to reach the
+placer's sheet, and there is no channel that carries it:
+
+- The marker reaching the player's ThreadSpire is not enough on its own. ThreadSpire could
+  tell its own sheet, but the sheet would have to remember it had already spent, and every
+  existing "fire once" guard on the sheet (`_lastHitAt`, `_lastRecapAt`, `_lastChargeAt`)
+  is a window variable. A reload mid-battle re-fires them. Re-showing a pending hit is
+  harmless; decrementing an inventory twice is not.
+- So it wants a durable pair: the LM writes the resolution to the `CombatPlayer` row, the
+  sheet spends and writes back an ack, and the condition is `placed.pid !== placedAck`.
+  That is reload-safe on both ends because both ends are in the store.
+
+That is a velo change, which is denied, so it goes to `combat.web.PROPOSED.js` and is not
+live until pasted. Written down here rather than half-built, because a spend that fires
+twice is worse than one that still fires early.
+
+## The Darkshard argument, named rather than settled
+
+Piece 5 says a marker is never a fighter and can never be aimed at. The FellGuide gives a
+Darkshard a Vitality and says it "shatters when it takes damage equal to its Vitality",
+which makes it a thing that CAN be attacked — so for that one utility the rule and the book
+disagree.
+
+Left as it is on purpose. A Darkshard being broken is the LoreMaster's to adjudicate, the
+same as a Rune going off when somebody steps into its square, and both are the same
+deferred piece of positional resolution. Making one marker targetable and not the others
+would need a shape neither the wire nor the board has today. It is written here so that
+nobody later reads `tokenFighter` returning null for a Darkshard as an oversight.
+
+## Correction on record: Rune and Trap could not be used at all
+
+Found starting piece 3: `cbActUtilities` matched `use === "Act"` exactly, and the Relics
+collection says `"Act to place"` for a Rune and a Trap. Two of the four utilities this
+document is about could be carried, equipped and never spent — they were absent from the
+Act picker AND from the reminder list. Fixed; see F10 in FINDINGS.md. The harness fixtures
+had been handing the sheet `use:'Act'`, a value the store has never produced, which is why
+every placement spec was green over it.
 
 ## Correction on record: Glyph is a real combat Act
 Earlier this was mis-called unreachable. Glyph is use:"Act" in both the FellGuide and
