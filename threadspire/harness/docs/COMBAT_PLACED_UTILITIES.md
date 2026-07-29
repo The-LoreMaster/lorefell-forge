@@ -160,3 +160,41 @@ schemas/seed/Relics.json; its description carries two modes and the in-fight one
 your Act to lay the Affliction onto an enemy") makes it a combat Act. It reaches
 cbActUtilities() and its UTILITY_MODEL entry (none/foe) is doing real work. It must not
 be removed as dead code — that would cost a player a legal option.
+
+## Next work: adjacency, and the visibility fork (for the next session)
+
+Two items came off the table once placement went live. See F12 in FINDINGS.md for the full diagnosis, this is the build brief.
+
+### Decided, so build to it
+
+Nate has ruled on the one open design question. The LoreMaster sees a placement in two moments, in sequence, and nothing in between:
+
+1. On declare, as a readout. The instant the player commits the placement (the last square is the commit, same as the last tap on a target), the LoreMaster sees the squares on the declaration through declarePlacesHtml, which of the grid cells, listed. This already exists and is the row the placement is resolved from.
+2. On resolution, as markers. When the LoreMaster presses "Place it", real tokens appear on the board for everyone and the pack decrements. This is piece 3 and 4, already built.
+
+Do NOT stream the squares to the LoreMaster while the player is still tapping them. That was considered and rejected: it leaks the player's intent mid-decision and it fights the declare-on-last-tap model, which has nothing to send before the final tap anyway. Both moments above, and only those two.
+
+### Item 1: enforce adjacency on the placement gesture
+
+The rules bug. Caltrops in Relics.json: "When thrown, they cover five adjacent spaces from where they land." Rune and Trap are single-square today so adjacency is moot for them, Caltrops is the one that needs a cluster. The gesture in handPlaceAt (docs/threadspire.html) currently allows any square. It needs a spatial constraint driven off the utility model.
+
+The shape to build, staying inside the pattern handPlaceNeedsEmpty and handSquareTaken already set (a tap that breaks a rule is ANSWERED on the board through handSay, never silently dropped):
+
+- The utility model in docs/fellglass.html (near line 6078) needs space to carry the spatial rule, or a new field alongside it. Right now space is only "any" vs "empty" (may the square be occupied). Caltrops wants a third idea: the squares must form an adjacent cluster from a landing point. Propose the field name to Nate before building, do not overload space if it muddies the occupied-vs-open meaning it already carries. A separate contiguous:true or adjacent:true reads cleaner. His call on the name.
+- First tap is the anchor, "where they land". It is always legal (subject to the existing empty check).
+- Each subsequent tap must be adjacent to at least one square already placed. 8-neighbour or 4-neighbour: ASK, the book says "adjacent" and does not distinguish, do not guess. A non-adjacent tap is refused with a handSay line the way an occupied square is, so the player learns the rule from the board.
+- The grid math is already in handSquareTaken and handPlaceAt (snap, cell size S.grid.size). Adjacency is a one-cell delta check against the existing armed.places list. Do not invent new coordinate handling, reuse the snap already there.
+- The fixture and spec for this lives with the other placement specs. F10's lesson applies: the harness fixtures have handed the sheet values the store never produces (use:'Act'), so any new spec must be checked against what Relics.json and UTILITY_MODEL actually carry, not against a convenient fixture. Verify both ends with the same tool (F9).
+
+Watch the cascade space already has: it is read in handPlaceNeedsEmpty, and the picker near line 5358 also lists a "Space" option for the ability forge, a different space, unrelated, do not touch it. Grep before renaming.
+
+### Item 2: the visibility fork, repaste do not recode
+
+The LoreMaster reported seeing no placement. The repo is correct end to end (combat.web.js selects places, fgSheetBridge forwards it, page-threadspire wires the resolve). So this is a stale or partial hand-paste into Wix, and the Ground row on a real declared Caltrops names which file:
+
+- no Ground row: repaste combat.web.js (stale read, predates F7)
+- "empty": repaste fgSheetBridge.js (the F11 hop, drops places)
+- "unparsed": partial paste of the read side
+- "not sent": stale read again (the CMS column now exists)
+
+Get this reading from Nate FIRST. It costs one declared Caltrops and it tells you whether there is any code to write at all. For item 2 there is not, only a repaste. Do not open the velo files to "fix" a bug that is a stale paste, that is the detour F9 warned about, verifying the wrong end.
