@@ -255,7 +255,7 @@ body.clean .artlayer{ display:none; }
   #tray.awaiting #dieSlot::after{ animation:none; opacity:.9; }
 }
 
-.dieflight{ position:fixed; width:64px; height:64px; margin:-32px 0 0 -32px; pointer-events:none; z-index:57; }
+.dieflight{ position:fixed; width:64px; height:64px; margin:-32px 0 0 -32px; pointer-events:none; z-index:60; }
 .dieflight.home{ transition:transform 420ms cubic-bezier(.4,0,.6,1), opacity 420ms ease; }
 .dieshake{ width:100%; height:100%; position:relative; }
 .dieshake.mark{ animation:markrise 1200ms cubic-bezier(.2,.9,.3,1); }
@@ -280,7 +280,7 @@ body.clean .artlayer{ display:none; }
 .diefx.strike i:nth-child(3){ display:none; }
 .diefx.strike b{ background:radial-gradient(circle, rgba(226,75,74,.55) 0%, rgba(226,75,74,.14) 42%, transparent 66%); animation:aura 720ms ease-out forwards; }
 
-#dieField{ position:fixed; inset:0; pointer-events:none; z-index:57; }
+#dieField{ position:fixed; inset:0; pointer-events:none; z-index:60; }
 .cube{ width:36px; height:36px; position:relative; transform-style:preserve-3d; transition:transform 900ms cubic-bezier(.2,.75,.25,1); --pip:#dce8ef; }
 #restCube{ transition:opacity .2s ease; }
 #restCube.away{ opacity:0; }
@@ -305,7 +305,7 @@ body.clean .artlayer{ display:none; }
 .tpick button:hover{ background:var(--panel2); }
 .tpick button.on{ color:#fff; background:#1e3f8f; }
 
-#flourish{ position:fixed; left:50%; bottom:26px; z-index:55; opacity:0; transform:translate(-50%,16px); pointer-events:none;
+#flourish{ position:fixed; left:50%; bottom:26px; z-index:60; opacity:0; transform:translate(-50%,16px); pointer-events:none;
   transition:opacity .3s ease, transform .3s ease; background:rgba(10,14,26,.94); border:1px solid var(--gold); border-radius:9px;
   padding:10px 18px; font-family:Cinzel,serif; font-size:.92rem; letter-spacing:.06em; display:flex; align-items:baseline; gap:9px; white-space:nowrap; }
 #flourish.show{ opacity:1; transform:translate(-50%,0); }
@@ -314,6 +314,9 @@ body.clean .artlayer{ display:none; }
 #flourish .fmod{ font-size:.8rem; color:var(--ice); }
 #flourish .ftot{ font-size:1.5rem; color:var(--gold); }
 #flourish.mark{ border-color:var(--gold); box-shadow:0 0 20px rgba(201,168,76,.45); }
+/* while the card row is up, the readout sits above it rather than fighting it for the
+   same strip of table - the roll it reports was made from those cards */
+body.handup #flourish{ bottom:186px; }
 #flourish.mark .fdie{ color:var(--gold); }
 #flourish.strike{ border-color:#a32d2d; box-shadow:0 0 20px rgba(163,45,45,.4); }
 #flourish.strike .fdie{ color:#f09595; }
@@ -556,7 +559,11 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
   pointer-events:none;
 }
 .hand-scroll{
-  display:flex; align-items:stretch; gap:9px; flex:1 1 auto; min-width:0;
+  /* flex-end, not stretch: stretch made every card grow to the armed one's height, so
+     taking one card up read as the whole row opening. The LoreMaster's cards stay
+     compact around the open one, and the row behaves the same on both sides of the
+     table - resting cards keep their one line and the held card opens upward alone. */
+  display:flex; align-items:flex-end; gap:9px; flex:1 1 auto; min-width:0;
   /* Centred between the dice tray and the pill when the cards fit, and hard against the
      left when they do not. `safe` is what makes the second half true: a plain `center`
      on an overflowing flex row pushes the first card off the left-hand end where no
@@ -1299,6 +1306,7 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
   .cube .f4{ transform:rotateX(-90deg) translateZ(27px); }
   .tpick{ bottom:68px; }
   #flourish{ bottom:132px; left:10px; right:10px; transform:translate(0,16px); white-space:normal; flex-wrap:wrap; padding:8px 12px; font-size:.8rem; gap:7px; }
+  body.handup #flourish{ bottom:236px; }
   #flourish.show{ transform:translate(0,0); }
   #flourish .fdie,#flourish .ftot{ font-size:1.2rem; }
   #win{ top:56px; bottom:60px; left:0; right:0; width:auto; border-left:none; border-right:none; border-radius:0; }
@@ -1700,22 +1708,16 @@ function fitCam(){
 /* the frame changes size with the window; keep the map filling it and inside it */
 window.addEventListener('resize', function(){ try { clampCam(); applyCam(); } catch(e){} });
 
-/* ---- the stub rules engine ----
-   Placeholder only. ThreadSpire never owns this math. The engine resolves a
-   roll and returns the breakdown, the view renders what it is handed. Phase
-   four wires the real bridge and this whole block is deleted, not extended.
-   The numbers below are a fake sheet standing in for the real one. */
-var STUB_MODS = {
-  attack:  [['Precision',3], ['Finesse',2]],
-  evade:   [['Precision',3], ['Movement',1]],
-  skill:   [['Precision',3], ['Trickery',1]],
-  generic: []
-};
-function stubResolve(rollType, n){
-  var mods = (STUB_MODS[rollType] || []).map(function(m){ return { label:m[0], value:m[1] }; });
-  var total = mods.reduce(function(a, m){ return a + m.value; }, n);
-  return { kind:'roll', who:S.character.name, rollType:rollType, n:n, mods:mods, total:total,
-    skin:skinKey(rollType, S.character.name) };
+/* ---- rolls carry their own breakdown ----
+   ThreadSpire never owns this math. A roll event arrives already resolved - the sheet
+   worked out the accuracy when the declare was built, and the result travels ON the
+   event as mods and a total. The view renders what it is handed and adds nothing.
+   A loose roll from the tray carries no mods, because a die thrown at nothing has no
+   sheet behind it, and showing invented modifiers was the bug this replaced. */
+function rollEntry(evt){
+  return { kind:'roll', who:S.character.name, rollType:evt.rollType, n:evt.n,
+    mods:evt.mods || [], total:(typeof evt.total === 'number') ? evt.total : evt.n,
+    skin:skinKey(evt.rollType, S.character.name) };
 }
 
 /* ---- the seam ---- */
@@ -2099,7 +2101,7 @@ function send(evt){
     if (evt.type === 'inset'){ applyRemoteState({ inset: evt.inset }); }
     if (evt.type === 'declare'){ pushLog({ kind:'sys', html:'<b>' + esc(S.character.name) + '</b> declares ' + esc(evt.act) + '.' }); }
     if (evt.type === 'say'){ pushLog({ kind:'say', who:S.character.name, text:evt.text }); }
-    if (evt.type === 'roll'){ pushLog(stubResolve(evt.rollType, evt.n)); }
+    if (evt.type === 'roll'){ pushLog(rollEntry(evt)); }
     /* applyRemoteState above already schedules the push for the loremaster; a player
        moving their own token still needs to send it */
     if (!isLM()) { try { pushState(); } catch(e){} }
@@ -3435,7 +3437,11 @@ function throwFor(e){
   }, FLIGHT + HOLD + HOME);
 }
 function rollFromTray(){
-  send({ type:'roll', rollType:S.rollType, n:1 + Math.floor(Math.random() * 6) });
+  /* the backstop for every path into a loose roll: while a declaration is owed a roll,
+     any way of rolling commits it rather than throwing a die into the log beside it */
+  if (armed && armed.awaitingRoll){ handRollDo(); return; }
+  var n = 1 + Math.floor(Math.random() * 6);
+  send({ type:'roll', rollType:S.rollType, n:n, mods:[], total:n });
 }
 function setRollType(t){
   S.rollType = t;
@@ -3446,7 +3452,11 @@ function setRollType(t){
   paintTypePicker();
 }
 function toggleTypePicker(){ document.getElementById('typePick').classList.toggle('open'); }
-function pickAndRoll(t){ setRollType(t); var p=document.getElementById('typePick'); if(p){ p.classList.remove('open'); tpUnpin(p); } rollFromTray(); }
+function pickAndRoll(t){
+  /* the type of an owed roll is the card's to decide, not the picker's: a tap that lands
+     here while one is owed commits it as-is rather than rolling loose under a new skin */
+  if (armed && armed.awaitingRoll){ var q=document.getElementById('typePick'); if(q){ q.classList.remove('open'); tpUnpin(q); } handRollDo(); return; }
+  setRollType(t); var p=document.getElementById('typePick'); if(p){ p.classList.remove('open'); tpUnpin(p); } rollFromTray(); }
 function dieTap(){
   /* A roll owed to a declaration is what the die is for at that moment - it grew and
      started pulsing to say so - and it commits rather than rolling loose into the log. */
@@ -3454,7 +3464,7 @@ function dieTap(){
   if (isMobile()){ var p=document.getElementById('typePick'); if(p) p.classList.toggle('open'); } else { rollFromTray(); }
 }
 var _tpHideT = null;
-function tpShow(){ if (isMobile()) return; clearTimeout(_tpHideT); var p=document.getElementById('typePick'); if(!p) return; if(p.classList.contains('atcursor')) return; p.classList.add('open'); }
+function tpShow(){ if (isMobile()) return; if (armed && armed.awaitingRoll) return; clearTimeout(_tpHideT); var p=document.getElementById('typePick'); if(!p) return; if(p.classList.contains('atcursor')) return; p.classList.add('open'); }
 function tpKeep(){ clearTimeout(_tpHideT); }
 function tpUnpin(p){ p = p || document.getElementById('typePick'); if(!p) return; p.classList.remove('atcursor'); p.style.left=''; p.style.top=''; }
 function tpAtCursor(x, y){
@@ -7187,11 +7197,25 @@ function handAim(t){
     return true;
   }
   armed.awaitingRoll = true;
+  /* the card decides the die: an attack rolls the attack die, a skill the skill die.
+     Set the moment the roll becomes owed, so the socket already wears the right skin
+     when the player looks down at it. */
+  setRollType(handRollType());
   renderHand();
   /* the ring belongs on the token the instant it is chosen, and the token layer is not
      the row - it has to be told */
   try { renderTokens(); } catch(e){}
   return true;
+}
+/* Which die the held card rolls. A weapon's Act is an attack, the skill card is a skill,
+   and a utility answers for itself through its own model - none of the current fifteen
+   roll at all, so an unclassified one falls to generic rather than guessing harder. */
+function handRollType(){
+  if (!armed || !armed.entry) return 'generic';
+  var e = armed.entry;
+  if (e.src === 'skills' || armed.skill) return 'skill';
+  if (e.kind === 'weapon' || (e.dmg || 0) > 0) return 'attack';
+  return 'generic';
 }
 /* Back out. The card stays in hand and the target is forgotten, so a wrong token costs a
    tap rather than the round's Act. */
@@ -7307,6 +7331,7 @@ function handPickTake(id, skill){
   armed.target = _handPick.target;
   armed.targetName = _handPick.targetName;
   armed.awaitingRoll = true;
+  setRollType(handRollType());
   _handPick = null;
   renderHand();
   try { renderTokens(); } catch(e){}
@@ -7507,6 +7532,15 @@ function handDeclare(){
 function handDeclareResult(res){
   res = res || {};
   if (res.ok){
+    /* The throw, with the sheet's own arithmetic on it. The sheet computed the accuracy
+       when it built the declare - roll plus Precision for an attack, roll plus the skill's
+       bonus for a skill - and hands the breakdown back here, so the readout at the table
+       and the number the LoreMaster receives are the same number by construction. A
+       declare with no roll on it (a utility, a stance) throws nothing. */
+    if (typeof res.roll === 'number' && res.roll > 0){
+      send({ type:'roll', rollType:S.rollType, n:res.roll, mods:res.mods || [],
+             total:(typeof res.acc === 'number' && res.acc) ? res.acc : res.roll });
+    }
     /* What went, and at whom. The card stamps rather than simply vanishing, because a
        declaration you cannot see is one you will make twice. Cleared by the round tick
        when the sheet sends a hand for a round this does not belong to. */
@@ -7695,6 +7729,8 @@ function renderHand(){
   var inFight = !isLM() && S.mode === 'combat' && !!hand && hand.active !== false;
   var show = inFight && !S.openSection;
   el.classList.toggle('hidden', !show);
+  /* the flourish reads this to sit above the row rather than behind it */
+  document.body.classList.toggle('handup', show);
   if (!show){ el.innerHTML = ''; return; }
 
   var charge = hand.charge || 0;
