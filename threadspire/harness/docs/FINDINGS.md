@@ -427,7 +427,12 @@ built against the harness alone.
 
 ---
 
-## F8 — The seed reported success while the site served a truncated tool
+## F8 — The seed reported success while the site served a truncated tool (SUPERSEDED by F9)
+
+> **The diagnosis below is wrong.** Nothing was ever truncated and the seed was never at
+> fault. The rows this calls short were the only correctly decoded ones; the rows it calls
+> healthy were serving raw base64. F9 has the real cause. The hardening described here is
+> worth keeping on its own merits, but it fixed nothing, because nothing here was broken.
 
 Three round-3 fixes were verified, committed, merged, deployed and green, and none of
 them were on the live site. Two of the three were in `threadspire.html`; the third was
@@ -510,3 +515,219 @@ collection and handed over to be applied by hand. The simulation covers a health
 field capping at 90,000 and at tighter values, and a row that accepts a write and keeps
 nothing - that last one must fail the run rather than shrink the chunk, since a smaller
 chunk cannot fix a refused write.
+
+---
+
+## F9 — atob does not return what the decode assumed, and the failure was silent
+
+For a week the live ThreadSpire was missing changes that had been verified, committed,
+merged, deployed and seeded green. Three re-seeds changed nothing. The cause was one
+expression in `get_embed`:
+
+```js
+decodeURIComponent(escape(atob(raw)))
+```
+
+That idiom needs `atob` to return a BINARY string - one character per byte, every code
+unit under 256 - so that `escape` can turn each byte into `%XX` and `decodeURIComponent`
+can read the run of them back as UTF-8. In this backend `atob` returns a string that has
+ALREADY been decoded as UTF-8.
+
+For a chunk of pure ASCII the difference does not exist and the idiom round-trips
+perfectly. For a chunk holding even one character above 0x7F, `escape` emits a single
+`%XX` for a whole code point, `decodeURIComponent` finds a byte that cannot begin a UTF-8
+sequence, and throws `URIError`.
+
+And then:
+
+```js
+catch (e) { return raw; }
+```
+
+The raw base64 was served as though it were the document. Right length, right content
+type, 200 OK, and base64 text where the tool should be.
+
+### What made it so hard to see
+
+Of seven part rows, the only two that decoded were the only two whose source is pure
+ASCII. So `?info=1` reported five rows at their base64 length and two at their decoded
+length - and we read it exactly backwards, calling the five healthy and the two truncated.
+Every number after that was interpreted through that inversion. The seed was rewritten
+twice to fix a truncation that never happened.
+
+Nate broke it open by noticing that `decoded == stored` is impossible for base64 that
+decoded: 120,000 base64 characters cannot decode to 120,000 anything. That one
+observation inverted the whole picture and identified the healthy rows as the short ones.
+
+### How it was confirmed
+
+The served page WAS the evidence, because the broken rows were being served as their own
+raw base64. Fetching it and comparing byte for byte against a locally recomputed encode
+showed the stored value was perfect - so nothing was corrupt, and the fault had to be in
+the decode. Substituting a UTF-8-returning `atob` locally then reproduced the live pattern
+exactly: chunks 3 and 4 decode, the other five throw `URIError`. Seven rows, seven
+matches, no exceptions.
+
+### The fix
+
+`Buffer.from(raw, 'base64').toString('utf8')`, which is the decode this environment
+actually has and the same one the seeder verifies with, so the two ends agree by
+construction instead of by coincidence. A `TextDecoder` path is kept behind it in case
+`Buffer` ever goes away.
+
+And the `catch` no longer returns `raw`. A decode that fails now names the rows and the
+endpoint answers 500. A page that is silently missing a third of itself is not a
+degraded success, and dressing it as one cost a week.
+
+### What this says about the rest of it
+
+The lesson is not "use the right decoder". It is that the two ends of this pipe were
+verified with DIFFERENT tools: the seeder checked its work with `Buffer.from`, the site
+served with `atob`, and nothing ever compared them. The seed could pass every check it
+knew how to make while the page it produced was unreadable. F4 is the same shape - the
+harness and production deciding a thing differently - and so is F8, which chased the
+seeder because the seeder was the part we could see.
+
+A verify is only worth what it shares with the thing it is verifying.
+
+---
+
+## F10 — Two of the four placed utilities could never be used, and the harness said otherwise
+
+**Status:** fixed, in `docs/fellglass.html`. Recorded because the way it hid is the third
+instance of one pattern, and the pattern is now the thing worth guarding against.
+**Found:** 2026-07-29, starting piece 3 of the placed utilities.
+**Files:** `docs/fellglass.html`, `schemas/seed/Relics.json`, the harness fixtures
+
+### What was wrong
+
+`cbActUtilities()` was `cbUtilities("Act")`, and that filter is an exact string match on
+the library's `use`. The Relics collection does not say "Act" every time it means one:
+
+| Utility | `use` in `schemas/seed/Relics.json` |
+| --- | --- |
+| Rune | `"Act to place"` |
+| Trap | `"Act to place"` |
+| Skyvault Shard | `"Act, or Rest"` |
+
+All three carry an Act in the FellGuide. None of them could be spent as one. Two of them
+are placed utilities, which is most of the feature `COMBAT_PLACED_UTILITIES.md` describes.
+
+They were not misfiled, they were **absent from both surfaces**. The picker refused them on
+the exact match, and `renderBattle`'s reminder list drops them too, because `put` only has
+buckets named Act, React and Passive and silently ignores a use that is none of the three.
+So a Fell could carry a Rune, equip it, and find it nowhere at all — no error, no greyed
+card, no entry in a list.
+
+### How the pipe was verified, both ends with the same tool
+
+`use` is copied verbatim at every hop and normalised at none of them:
+
+```
+Relics row .use  ->  libraries.web.js:78  use: it.use || 'Out of Combat'
+                 ->  fellglass.html:4698  use:F(r,"use")||"Out of Combat"
+                 ->  cbPack()             use:e.use||""
+                 ->  cbUtilities("Act")   u.use === "Act"
+```
+
+Four hops, one value, one comparison. Nothing in between could have turned "Act to place"
+into "Act".
+
+### Why it survived so long
+
+The harness fixtures hand the sheet `use: 'Act'` for a Rune — `a22`, `a23` and `a24` all
+did. The store has never said that. Every placement spec was green against a value nothing
+in production produces.
+
+That is F9's lesson in different clothes, and F7's, and F4's: **the two ends of the pipe
+were checked with different values.** F9 was a decoder the seeder did not share; F7 was a
+mock holding an array where the collection holds a JSON string; this was a fixture
+inventing a field the collection never emits. Each time the check could stay green while
+the thing it checked was broken, and each time the harness was the more capable of the two
+rather than the more faithful.
+
+### The fix, and what it deliberately does not do
+
+`cbUseIsAct(use)` asks whether the use names an Act as a *word*, so "Act to place" and
+"Act, or Rest" both match and "React" does not — the `r` before it is what keeps every
+React utility out, which would have been the worse fault in the other direction.
+
+It is used at `cbActUtilities`, at `cbOwnsActUtility` (which decides whether the card
+exists at all, a different question from whether it is greyed), and at `renderBattle`'s
+reminder skip so a Rune cannot appear in both places at once.
+
+It does **not** rewrite `Relics.json`. The wording there is the FellGuide's and it is
+telling the truth — a Rune is an Act to place. The reader was the thing that was wrong.
+
+### What guards it now
+
+`a27-act-to-place-reachable.spec.js`, pinned to the seed file rather than to a hand-written
+list, so a value changing in `Relics.json` cannot quietly stop being covered. Its first case
+asserts the seed still contains an Act worded some other way, so if the data is ever
+normalised the suite says so instead of passing on an empty set. Three of its six cases fail
+against the old exact match; the other three are regression guards and pass either way,
+which is said here rather than left to look like more coverage than it is.
+
+---
+
+## F11 — F7's round trip has a hop above the one F7 fixed, and the repo says the squares die there
+
+**Status:** real in the repo, UNPROVEN live because the live copy cannot be read. Fix
+carried as `fgSheetBridge.PROPOSED.js`.
+**Found:** 2026-07-29, wiring piece 4 and reading the path a declare actually takes.
+**Files:** `velo/public/fgSheetBridge.js` (denied), `velo/backend/combat.web.js`
+
+### What the repo says
+
+A placement's squares travel `places` on the declare. F7 added that field to
+`saveCombatDeclare` and to both of its reads — three sites, and the finding is explicit
+that stopping at the write would have been a write-only fix that looked complete and did
+nothing.
+
+The declare does not reach `saveCombatDeclare` directly. In production it goes:
+
+```
+fellglass sendDeclare  ->  postMessage up
+  ->  page-threadspire.js  TS_TOOL_UP / fellglass
+  ->  public/fgSheetBridge.js  handleSheetMessage, case 'combat-declare'
+  ->  api.saveCombatDeclare(charId, { ...an EXPLICIT field list... })
+```
+
+That field list names twenty fields and `places` is not one of them. A field not named is
+not passed on, so `d.places` arrives `undefined` and `row.places` is written `"[]"` no
+matter how many squares the player tapped. `places` appears nowhere in that file.
+
+So F7 fixed the hop below the one that drops it — which is F7's own lesson, one hop
+further up. The write and both reads are correct and have never been given anything to
+carry.
+
+### What is NOT established, and why that matters here
+
+**That this is what the live site is running.** `velo/**` is pasted into Wix by hand and
+there is no workflow for it (SERVING.md), so the repo copy can be behind what is deployed.
+Piece 3 was begun on the understanding that the round trip is confirmed live; if it is,
+then the pasted copy already carries this line and the repo is simply stale, which is worth
+knowing on its own.
+
+I cannot read the pasted copy, so I am not claiming the feature is broken live. I am
+claiming the repo cannot produce a working one.
+
+### What would settle it, in one look
+
+The Ground row on the LoreMaster's board, on a real declared placement. A25 built it to
+tell exactly these apart:
+
+- **squares listed** — the bridge already carries `places` live and the repo copy is
+  stale. Worth pasting the proposed file anyway so the two agree.
+- **"empty — the squares did not survive the trip"** — this finding is live, and
+  `fgSheetBridge.PROPOSED.js` is the fix.
+- **"not sent"** — a different fault again: the LM's declare read is not selecting it.
+
+### Why the harness could never have caught it
+
+The harness routes `combat-declare` straight into `takeDeclare`, which reads `m.places`.
+It has no model of `fgSheetBridge` at all, so the hop that drops the field does not exist
+there to drop it. That is the same shape as F4 — the harness and production deciding a
+thing differently — and it is not closed by this entry, because reproducing a hand-pasted
+page module in the mock would be pinning the harness to a file nobody can verify. What the
+harness proves stops at velo's edge, which is what A25's readout exists to say out loud.

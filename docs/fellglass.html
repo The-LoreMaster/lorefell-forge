@@ -3987,8 +3987,13 @@ function renderBattle(){
        is a choice made on it - putting both meant the row carried two entries for one
        deed, the generic one and a Tablet sitting beside it. A React utility is a
        different matter: the Reacts tab IS the React picker, so it belongs there by name,
-       and a Passive is never chosen at all. */
-    if(u.use==="Act") return;
+       and a Passive is never chosen at all.
+
+       Asked through cbUseIsAct rather than by exact match, so a Rune ("Act to place") is
+       skipped here for the same reason a Tablet is: it is now in the Act picker. Before,
+       neither surface would take it - the picker refused it and `put` had no bucket by
+       that name to drop it into. */
+    if(cbUseIsAct(u.use)) return;
     put(u.use,"item",u.name,u.desc,undefined,"item");
   });
   C.lorebounds.forEach((lb,i)=>{
@@ -4394,11 +4399,16 @@ function combatSyncPush(){
   if(!(COMBAT&&COMBAT.active&&CUR_WIX_ID)) return;
   var affs=[].concat((C.afflictions||[]).map(function(a){return {name:a.name,kind:"affliction"};}),
                      (C.effects||[]).map(function(e){return {name:e.name,kind:"effect"};}));
-  var snap={curVit:C.vitality.current,maxVit:C.vitality.max,charge:C.charge||0,affs:affs,defEva:(window._defEva||[]),plog:(window._plog||[]),gear:cbGearSnap()};
+  /* placedAck rides the sync rather than getting a message of its own, because it is the
+     same kind of thing as everything else here: the sheet's side of the row. It is IN the
+     signature, so acking a placement is a change that actually pushes - left out of the
+     signature it would be dropped whenever nothing else about the Fell had moved, which
+     is most of the time, and the placement would be re-read and re-spent forever. */
+  var snap={curVit:C.vitality.current,maxVit:C.vitality.max,charge:C.charge||0,affs:affs,defEva:(window._defEva||[]),plog:(window._plog||[]),gear:cbGearSnap(),placedAck:(window._placedSpent||"")};
   var sig=JSON.stringify(snap);
   if(sig===window._combatSyncSig) return;
   window._combatSyncSig=sig;
-  postToVelo({type:"combat-sync",charId:CUR_WIX_ID,curVit:snap.curVit,maxVit:snap.maxVit,charge:snap.charge,affs:snap.affs,defEva:snap.defEva,plog:snap.plog,gear:snap.gear});
+  postToVelo({type:"combat-sync",charId:CUR_WIX_ID,curVit:snap.curVit,maxVit:snap.maxVit,charge:snap.charge,affs:snap.affs,defEva:snap.defEva,plog:snap.plog,gear:snap.gear,placedAck:snap.placedAck});
 }
 function cbCheckEvasion(){
   if(!(COMBAT&&COMBAT.active&&CUR_WIX_ID)) return;
@@ -4999,6 +5009,14 @@ function setCombatState(state){
   var sig=JSON.stringify(state||null); if(sig===_combatSig) return;
   var wasActive=!!(COMBAT&&COMBAT.active);
   _combatSig=sig; COMBAT=state||null;
+  /* Adopt the stored ack before ANYTHING can push. A reload leaves _placedSpent empty
+     while the row still holds the ack, and combatSyncPush sends _placedSpent - so without
+     this line the first push after a reload would write an empty ack over a real one, the
+     placement would look unspent again, and the pack would be charged for it twice. Read
+     first, then push: the row is the record, this variable is only a copy of it.
+     Placed as high as the assignment to COMBAT, because combatSyncPush is reachable from
+     several things that run further down this function. */
+  try{ if(!window._placedSpent && COMBAT && COMBAT.placedAck) window._placedSpent=COMBAT.placedAck; }catch(e){}
   /* A battle ending is a moment nothing was watching for. Most utilities are spent the
      instant they are used, but the FellGuide has one that is not: the Aether Lens lasts
      "for the duration of a battle" and is used once per round within it, so the round's
@@ -5044,6 +5062,32 @@ function setCombatState(state){
     if(ph.at && ph.at!==window._lastHitAt && ((ph.base||0)+(ph.bonus||0))>0){ showPendingHit(ph, ph.at); }
     var cs=COMBAT.chargeSet||{};
     if(cs.at && cs.at!==window._lastChargeAt){ window._lastChargeAt=cs.at; C.charge=Math.max(0,Math.min(3,cs.value|0)); try{renderCharges();}catch(e){} scheduleSave(); cbPing("Your strike lands. Charge "+C.charge+"."); }
+    /* ---- a placement the LoreMaster has resolved ----
+       The marker is on the board, so now the pack gets lighter. This is the one LM->sheet
+       signal that must fire EXACTLY once, which is why it is guarded differently from the
+       three above it. Those compare an `at` against a window variable: re-showing a
+       pending hit after a reload is harmless, and re-applying a charge is idempotent
+       because it is a set rather than a decrement. Taking a utility out of an inventory is
+       neither, and a reload mid-battle would do it twice.
+
+       So the guard is durable at both ends. The LoreMaster writes the placement id, the
+       sheet writes back an ack, and the two live in the same row: `placed.pid` unequal to
+       `placedAck` is the whole condition. The window variable beside it only stops the
+       same poll firing twice while the ack is still in flight - it is the fast half of the
+       guard, not the guard.
+
+       The id is DERIVED (Fell, round, utility), never minted from a clock, so both sides
+       name the same placement without either telling the other. */
+    var pd=COMBAT.placed||null;
+    if(pd && pd.pid && pd.pid!==(COMBAT.placedAck||"") && pd.pid!==window._placedSpent){
+      window._placedSpent=pd.pid;
+      var spent=cbSpendUtility(pd.util||"", "");
+      /* A placement for a utility that is no longer in the pack is not an error worth
+         shouting about - it means the row already went, which is the outcome wanted. The
+         ack still goes, or the same placement is re-read on every poll forever. */
+      if(spent) cbPing((pd.util||"It")+" is placed"+(pd.squares>1?(" on "+pd.squares+" squares"):"")+".");
+      combatSyncPush();
+    }
   }
   if(COMBAT&&COMBAT.active&&!wasActive){ try{edgeGlow("rgba(201,106,90,.85)");}catch(e){} window._plog=[]; window._combatSyncSig=""; combatSyncPush(); openDeclare(); }
   /* Tell the card row. Half of what it draws comes from COMBAT rather than from the
@@ -6141,13 +6185,36 @@ function cbUtilities(useOnly){
     return useOnly ? (u.use===useOnly) : true;
   });
 }
+/* ---- does this Uses field name an Act at all ----
+   This was `u.use === "Act"`, an exact string match, and the Relics collection does not
+   say "Act" every time it means one. Read straight off schemas/seed/Relics.json, which is
+   what libraries.web.js copies verbatim into lib.utilities and the sheet copies verbatim
+   into ITEMS_LIB:
+
+     Rune            "Act to place"
+     Trap            "Act to place"
+     Skyvault Shard  "Act, or Rest"
+
+   All three carry an Act in the FellGuide and none of them could ever be spent as one. The
+   picker never offered them, and renderBattle's reminder list never showed them either,
+   because `put` only buckets Act/React/Passive and "Act to place" is none of those - so
+   they were absent from BOTH surfaces rather than merely misfiled. Two of the four placed
+   utilities were unreachable from the table, which is most of the feature.
+
+   The harness did not catch it because its fixtures hand the sheet `use:'Act'` for a Rune.
+   The mock was a different shape from the store, which is F7's miss and F9's: the two ends
+   of the pipe were checked with different values.
+
+   A word test, not an exact one. "React" must not match, so the check is for the word Act
+   standing on its own - "React" fails on the r before it. */
+function cbUseIsAct(use){ return /(^|[^A-Za-z])act([^A-Za-z]|$)/i.test(String(use||"")); }
 /* What the combat Act picker may offer: carried, and an Act by nature. */
-function cbActUtilities(){ return cbUtilities("Act"); }
+function cbActUtilities(){ return cbUtilities().filter(function(u){ return cbUseIsAct(u.use); }); }
 /* Whether the Fell owns anything that could ever be spent as an Act. Separate from
    whether they are carrying one: the first decides if the card exists, the second decides
    whether it is greyed, which is the F9 shape. */
 function cbOwnsActUtility(){
-  return cbPack().some(function(u){ return u.use==="Act"; });
+  return cbPack().some(function(u){ return cbUseIsAct(u.use); });
 }
 function cbItemOptions(sel){
   return cbActUtilities().map(function(x){
@@ -6288,8 +6355,17 @@ function cbDeclare(){
       /* Spent HERE, where the declaration is actually built and sent, and nowhere
          earlier. Choosing the card is not using the thing: a player who takes a Tablet up,
          thinks better of it and puts it down still has the Tablet, and a declare that is
-         taken back never reaches this line at all. */
-      window._cbUsedUtility = cbSpendUtility(_in, target);
+         taken back never reaches this line at all.
+
+         EXCEPT a placed utility. Caltrops, a Rune, a Trap and a Darkshard are not used
+         when they are declared - they are laid down when the LoreMaster resolves the
+         declaration, and until that happens there is nothing on the ground. Spending here
+         would take the thing out of the pack for a placement that has not been made yet,
+         and an undo would have to put it back. The LoreMaster's resolution spends it, in
+         setCombatState below, keyed on a placement id so it fires exactly once. */
+      var _u = cbPack().filter(function(x){ return x.name===_in; })[0];
+      if(_u && _u.target==="place"){ window._cbUsedUtility = null; }
+      else window._cbUsedUtility = cbSpendUtility(_in, target);
     }
   }
   if(e && e.src==="skills"){
@@ -6415,7 +6491,16 @@ window.onmessage=ev=>{
       finally{ window._cbCtlOverride=null; }
       /* cbDeclare stamps this only once it has actually built and sent a payload */
       if(window._declaredRound!==d.round) return { ok:false, reason:"not-sent" };
-      return { ok:true, round:d.round };
+      /* The arithmetic goes back with the answer. The table shows the player what their
+         roll came to, and it has to be the number THIS sheet computed and sent, never one
+         re-derived over there: roll plus Precision for an attack, roll plus the skill's
+         bonus for a skill. The payload already holds the total, so the breakdown here is
+         only naming its parts. */
+      var pl=window._declPayload||{};
+      var mods=[];
+      if(d.skill){ mods=[{label:d.skill, value:(typeof cbSkillBonus==="function")?cbSkillBonus(d.skill):0}]; }
+      else if((pl.dmg||0)>0){ mods=[{label:"Precision", value:Math.max(0,attrTotal("precision"))}]; }
+      return { ok:true, round:d.round, roll:pl.roll||0, acc:pl.acc||0, mods:mods };
     })();
     try{ window.parent.postMessage({ type:"ts-declare-result", result:res }, "*"); }catch(e){}
     try{ tsSendHand(); }catch(e){}

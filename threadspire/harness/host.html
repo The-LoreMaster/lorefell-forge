@@ -325,6 +325,41 @@ function takeDeclare(frameName, m) {
   post(frameName, { type: 'TS_TOOL_DOWN', tool: 'fellglass',
                     msg: { type: 'combat-declare-ack', ok: true, reqId: m.reqId || 0 } });
 }
+/* The sheet's own half of the row: what a Fell's vitality, charge and conditions have
+ * become mid-fight, and its acknowledgement of a resolved placement.
+ *
+ * This was NOT mocked at all before, which was a hole rather than a simplification: the
+ * sheet has posted combat-sync since the beginning and the harness dropped every one on
+ * the floor, so nothing the sheet wrote back could be observed and nothing that depended
+ * on it could be tested. It matters now because the placement ack travels this way.
+ *
+ * Merged field by field, the way syncCombatPlayer merges, so a sync and a declare never
+ * clobber each other.
+ *
+ * placedAck is only written when it is NON-EMPTY, which is the same rule production needs
+ * and for the same reason. A sheet that has reloaded has no ack in memory yet; if an empty
+ * one were allowed to land it would erase the real one, the placement would read as
+ * unspent, and the Fell would be charged for the same Caltrops twice. Empty means "I have
+ * nothing to say", never "forget what I said".
+ */
+function takeCombatSync(frameName, m) {
+  var b = binding(frameName);
+  var campaignId = b && b.campaignId;
+  var charId = m.charId || (b && b.characterId) || '';
+  if (!campaignId || !charId) return;
+  lmWrite(campaignId, charId, function (row) {
+    if (typeof m.curVit === 'number') row.curVit = m.curVit;
+    if (typeof m.maxVit === 'number') row.maxVit = m.maxVit;
+    if (typeof m.charge === 'number') row.charge = m.charge;
+    if (Array.isArray(m.affs)) row.affs = clone(m.affs);
+    if (Array.isArray(m.defEva)) row.defEva = JSON.stringify(m.defEva);
+    if (Array.isArray(m.plog)) row.plog = JSON.stringify(m.plog);
+    if (m.gear && typeof m.gear === 'object') row.gear = JSON.stringify(m.gear);
+    if (typeof m.placedAck === 'string' && m.placedAck) row.placedAck = m.placedAck;
+  });
+  note({ dir: 'store', type: 'SYNC_SAVED', frame: frameName, charId: charId,
+         placedAck: m.placedAck || '' });
+}
 /* ---------------------------------------------------------- the return leg ----
  * CombatState, and the half of CombatPlayer the LoreMaster writes.
  *
@@ -387,7 +422,16 @@ function serveCombatForChar(campaignId, charId) {
                        dt: pr.pendDt || 'phys', at: pr.pendingHitAt || 0 }
                    : { base: 0, bonus: 0, dt: 'phys', at: 0 },
     chargeSet: pr ? { value: pr.chargeSet || 0, at: pr.chargeSetAt || 0 }
-                  : { value: 0, at: 0 }
+                  : { value: 0, at: 0 },
+    /* A placement the LoreMaster has resolved, and the sheet's own acknowledgement of it.
+       These two are read TOGETHER and that is the whole point of them: the sheet spends
+       the utility when the pid it is told differs from the pid it last acked, and both
+       halves live in the row so the guard survives a reload of the sheet. A mock that
+       served `placed` and forgot `placedAck` would make a double-spend impossible here and
+       leave it possible live, which is the F7 shape. JSON on the way in, parsed on the way
+       out, the way a Wix TEXT field forces. */
+    placed: pr ? jparse(pr.placed, null) : null,
+    placedAck: pr ? (pr.placedAck || '') : ''
   };
 }
 
@@ -412,7 +456,10 @@ function serveDeclares(campaignId) {
          one line velo needs. Carried here so the whole path can be exercised; do not read
          a green run as proof the squares survive live. */
       /* parsed back out, as production's jparse does */
-      places: jparse(it.places, [])
+      places: jparse(it.places, []),
+      /* and whether the LoreMaster has already resolved it, so the board can read its own
+         answer back after a reload rather than only knowing it from the tokens */
+      placed: jparse(it.placed, null)
     };
   });
 }
@@ -457,6 +504,21 @@ function handleRequest(name, msg) {
       return reply(name, msg.reqId, lmWrite(b.campaignId, msg.charId, function (row) {
         row.chargeSet = Math.max(0, Math.min(3, Number(msg.value) || 0));
         row.chargeSetAt = Date.now();
+      }), { ok: true });
+
+    /* A placement the LoreMaster has resolved. Unlike the three above it this does NOT
+     * carry a timestamp for the sheet to compare, and that is deliberate rather than an
+     * omission: a stamp would make the same placement look new on every read, and the one
+     * thing this signal must never do is fire twice. The pid is derived from the
+     * declaration (Fell, round, utility) so it is stable, and stability is what makes it
+     * comparable against the ack the sheet writes back.
+     *
+     * Stored as a JSON string, the way a Wix TEXT field forces and the way places already
+     * is here. An object would make the mock a different shape from the store. */
+    case 'TS_COMBAT_PLACED':
+      return reply(name, msg.reqId, lmWrite(b.campaignId, msg.charId, function (row) {
+        row.placed = JSON.stringify({ pid: msg.pid || '', util: msg.util || '',
+                                      squares: Number(msg.squares) || 0, at: Date.now() });
       }), { ok: true });
 
     case 'TS_PARTY_LIST':
@@ -583,6 +645,7 @@ window.addEventListener('message', function (ev) {
       return;
     }
     if (inner && inner.type === 'combat-declare') { takeDeclare(name, inner); return; }
+    if (inner && inner.type === 'combat-sync') { takeCombatSync(name, inner); return; }
     /* The sheet asking what has happened to it. This is the whole return leg from the
      * player's side: conditions, the recap, damage waiting to be confirmed and the charge
      * their strike earned all arrive on this one answer, which is why it is answered here

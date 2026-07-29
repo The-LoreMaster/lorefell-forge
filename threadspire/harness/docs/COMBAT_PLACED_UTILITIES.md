@@ -42,18 +42,117 @@ Why this is the right shape:
    — auto-triggering is deferred positional-resolution work for Phase B/C, not this.
 
 ## The pieces, in build order
-1. The declaration carries the chosen square(s); the pending preview on the player map.
-   (Rides the declare channel — no immediate-materialise message. If a distinct message
-   is still needed for the LM's resolution-time materialisation, register it in
-   FINDINGS F3.)
-2. The gesture: left-tap an empty square with a place-utility armed; Caltrops' five
-   squares with the countdown by the cursor.
-3. Resolution-time materialisation: the LM's board creates the marker token(s) on the
-   chosen squares, LM-owned, carrying the placer.
-4. Consumption + log fire once, at resolution, after materialisation — not per square,
-   not on tap.
-5. Marker tokens are inert to targeting: they are not fighters and never resolve as one
-   (the tokenFighter path returns null for them), so they cannot be aimed at as targets.
+1. **Done.** The declaration carries the chosen square(s); the pending preview on the
+   player map. (Rides the declare channel — no immediate-materialise message, and none
+   turned out to be needed: see piece 3.)
+2. **Done.** The gesture: left-tap an empty square with a place-utility armed; Caltrops'
+   five squares with the countdown by the cursor.
+3. **Done.** Resolution-time materialisation: the LM's board creates the marker token(s)
+   on the chosen squares, LM-owned, carrying the placer.
+4. **Built, and waiting on velo.** Consumption + log fire once, at resolution, after
+   materialisation — not per square, not on tap. Both sides are written and covered; the
+   channel between them is three velo files that have to be pasted. See below.
+5. **Done.** Marker tokens are inert to targeting: they are not fighters and never resolve
+   as one (the tokenFighter path returns null for them), so they cannot be aimed at.
+
+## What piece 3 turned out to be, and the two traps in it
+
+No new message type. The marker is a board TOKEN, and the board already replicates to
+every player through the state feed, so the LM making one is the whole of the transport.
+F3's register needed no new row.
+
+`resolvePlacement(charId)` is on the LM's Ground row, beside the readout A25 built. It
+reads the declare, snaps each square the same way a token snaps, and pushes one marker per
+square. Two things in that were nearly wrong in ways that would have shipped looking right:
+
+- **The placer goes in `placer`, never in `charId`.** `tokenIsMine` reads `charId`, so a
+  marker carrying it would be draggable by the Fell who placed it — a player quietly moving
+  their own caltrops after the fact, which is exactly the ownership the whole design was
+  arranged to avoid. `tokenArt` reads it too and would have put the placer's portrait on
+  the thing. A marker records who placed it; it does not impersonate them.
+- **The placement's id comes from the declaration, not the clock.** `placementId` is
+  `pl:<charId>:<round>:<utility>` — a Fell spends one Act a round, so that names a
+  placement exactly once. A `Date.now()` id would make the same placement a different
+  placement on every read, so nothing could recognise a repeat and "Place it" twice would
+  put down two sets. It also means both sides can derive the same id without telling each
+  other, which is what piece 4 needs.
+
+"Already resolved" is asked of the BOARD (is there a marker with this pid) rather than of a
+flag kept beside it, so it survives the LoreMaster reloading their own page. The tokens are
+the record.
+
+## Piece 4: what it turned out to need
+
+The log fires at resolution on both sides now. The pack getting lighter lives on the sheet,
+in `cbSpendUtility`, and it used to fire inside `cbDeclare` at declare-build. It no longer
+does — for a `target:"place"` utility only; a Tablet or an Ash Salt is still spent where it
+always was, because those really do resolve the moment they are chosen.
+
+### Why this signal is guarded differently from every other one
+
+Three things already travel LM → sheet: a pending hit, a recap, a charge. Each compares an
+`at` stamp against a variable in the sheet's window, and that is good enough for them — a
+reload re-showing a pending hit is harmless, and re-applying a charge is idempotent because
+it is a SET. Taking a utility out of an inventory is a DECREMENT and is neither. A reload
+mid-battle would charge the player twice for the same Caltrops.
+
+So the guard is durable at both ends of the store:
+
+- the board writes `placed = {pid, util, squares, at}` to the Fell's `CombatPlayer` row
+- the sheet spends and writes back `placedAck = pid` through the existing combat-sync
+- the condition is `placed.pid !== placedAck`
+
+The window variable beside it is only the fast half — it stops one poll firing while the
+ack is in flight. Two rules make it hold:
+
+- **The sheet ADOPTS the stored ack the moment combat state arrives**, before anything of
+  its own can push. Without that, a fresh sheet pushes an empty ack over a real one and the
+  placement reads as unspent again.
+- **An empty ack is never written to the row.** Empty means "I have nothing to say", never
+  "forget what I said". Enforced at the velo end as well, so one careless caller cannot
+  erase it.
+
+Both halves of the guard have a case in A29 that fails without them — the durable half was
+probed by deleting it and every case still passed, so the two-copies-of-one-sheet scenario
+was added to make it earn its place.
+
+### What has to be pasted, and in what order
+
+Nothing above is live until three velo files are updated. `velo/**` is denied to agents and
+has no workflow — it is pasted by hand.
+
+1. `combat.web.PROPOSED.js` — whole-file replacement. Adds `resolveCombatPlacement`, serves
+   `placed`/`placedAck`, accepts an ack on sync.
+2. `page-threadspire.PATCH.md` — two edits: one import, one `TS_COMBAT_PLACED` case.
+3. `fgSheetBridge.PROPOSED.js` — whole-file replacement. Passes `placedAck` on sync, **and
+   passes `places` on the declare, which it never has** — see F11. That second one is not
+   part of piece 4; it may be why the squares are not arriving live at all.
+
+And two Text fields on `CombatPlayer`: `placed`, `placedAck`. Wix accepts a write to a
+field that does not exist and keeps nothing, which is F8's shape, so a missing field looks
+exactly like a feature that does not work.
+
+## The Darkshard argument, named rather than settled
+
+Piece 5 says a marker is never a fighter and can never be aimed at. The FellGuide gives a
+Darkshard a Vitality and says it "shatters when it takes damage equal to its Vitality",
+which makes it a thing that CAN be attacked — so for that one utility the rule and the book
+disagree.
+
+Left as it is on purpose. A Darkshard being broken is the LoreMaster's to adjudicate, the
+same as a Rune going off when somebody steps into its square, and both are the same
+deferred piece of positional resolution. Making one marker targetable and not the others
+would need a shape neither the wire nor the board has today. It is written here so that
+nobody later reads `tokenFighter` returning null for a Darkshard as an oversight.
+
+## Correction on record: Rune and Trap could not be used at all
+
+Found starting piece 3: `cbActUtilities` matched `use === "Act"` exactly, and the Relics
+collection says `"Act to place"` for a Rune and a Trap. Two of the four utilities this
+document is about could be carried, equipped and never spent — they were absent from the
+Act picker AND from the reminder list. Fixed; see F10 in FINDINGS.md. The harness fixtures
+had been handing the sheet `use:'Act'`, a value the store has never produced, which is why
+every placement spec was green over it.
 
 ## Correction on record: Glyph is a real combat Act
 Earlier this was mis-called unreachable. Glyph is use:"Act" in both the FellGuide and
