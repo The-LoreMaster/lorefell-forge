@@ -4136,15 +4136,16 @@ function declarePlacesHtml(dcl, charId){
            }).join(' ')
          + '</span>';
   }
-  /* Resolve it. Offered only when there is a square to resolve onto, and it says which of
-     the two it is once pressed rather than going quiet: a button that vanishes is
-     indistinguishable from one that did nothing. */
+  /* No button. Placement is not a per-Fell act any more: the whole board's worth of
+     declared squares materialises together the instant the LoreMaster swaps to
+     resolution (lmMaterialisePlacements), so it lands as a surprise rather than a row of
+     confirmations. During commit this row is a readout only, telling the LoreMaster what
+     is coming without giving it away to the table. Once resolution has laid them, the
+     markers are on the board and this says so. */
   var act = '';
   if (charId && Array.isArray(dcl.places) && dcl.places.length){
     var pid = placementId(charId, dcl);
-    act = placementResolved(pid)
-      ? '<span class="bt-done">On the board</span>'
-      : '<button class="bt-b" onclick="resolvePlacement(\'' + esc(charId) + '\')">Place it</button>';
+    if (placementResolved(pid)) act = '<span class="bt-done">On the board</span>';
   }
   return '<div class="bt-row wrap"><span class="bt-lbl">Ground</span>' + what + act + '</div>';
 }
@@ -4221,16 +4222,23 @@ function placementResolved(pid){
   return (S.tokens || []).some(function(t){ return t && t.kind === 'marker' && t.pid === pid; });
 }
 function resolvePlacement(charId){
-  var dcl = declareFor(charId); if (!dcl) return;
+  /* Kept as the single-Fell entry, but nothing calls it from a button any more: the phase
+     swap resolves every placement at once (lmMaterialisePlacements). It stays because the
+     phase swap and any future caller both funnel through the same body, and because the
+     idempotency guard below is what makes calling it twice safe. */
+  var dcl = declareFor(charId); if (!dcl) return false;
+  return resolveOnePlacement(charId, dcl, true);
+}
+/* Put one Fell's declared placement on the board. Returns true if it made markers.
+   `announce` logs the placement; the batch caller logs its own one-line summary instead,
+   so it passes false. */
+function resolveOnePlacement(charId, dcl, announce){
   var p = fellByCharId(charId);
   var who = (p && p.name) || 'A Fell';
   var util = declareUtilityName(dcl) || 'a utility';
   var pid = placementId(charId, dcl);
 
-  if (placementResolved(pid)){
-    pushLog({ kind:'sys', html:'That placement is already on the board.' });
-    applyRemoteState({ log:S.log }); return;
-  }
+  if (placementResolved(pid)) return false;
   var places = Array.isArray(dcl.places) ? dcl.places : [];
   /* A square that arrived without numbers is not placed at a guess. a25 already shows it
      as [?] in the readout; here it is refused and counted, because a marker put down at
@@ -4238,9 +4246,12 @@ function resolvePlacement(charId){
   var good = places.filter(function(q){ return q && typeof q.x === 'number' && typeof q.y === 'number'; });
   var bad = places.length - good.length;
   if (!good.length){
-    pushLog({ kind:'sys', html:'<b>' + esc(who) + '</b> declared ' + esc(util)
-      + ' with no square the board can use.' });
-    applyRemoteState({ log:S.log }); return;
+    if (announce){
+      pushLog({ kind:'sys', html:'<b>' + esc(who) + '</b> declared ' + esc(util)
+        + ' with no square the board can use.' });
+      applyRemoteState({ log:S.log });
+    }
+    return false;
   }
   var made = [];
   good.forEach(function(q, i){
@@ -4262,17 +4273,37 @@ function resolvePlacement(charId){
     made.push(id);
   });
   applyRemoteState({ tokens:S.tokens });
-  pushLog({ kind:'sys', html:'<b>' + esc(who) + '</b> placed <b>' + esc(util) + '</b> on '
-    + made.length + (made.length === 1 ? ' square' : ' squares') + '.'
-    + (bad ? ' ' + bad + (bad === 1 ? ' square was' : ' squares were') + ' malformed and left off.' : '') });
-  applyRemoteState({ log:S.log });
+  if (announce){
+    pushLog({ kind:'sys', html:'<b>' + esc(who) + '</b> placed <b>' + esc(util) + '</b> on '
+      + made.length + (made.length === 1 ? ' square' : ' squares') + '.'
+      + (bad ? ' ' + bad + (bad === 1 ? ' square was' : ' squares were') + ' malformed and left off.' : '') });
+    applyRemoteState({ log:S.log });
+  }
   /* Piece 4. The marker is on the board and every screen can see it; the placer's PACK is
      the half that lives on their sheet, and this is what tells it. Sent after the marker
      exists rather than before, so a spend can never happen for a placement that did not.
      Idempotent by pid at the far end, which is why the id is derived and not minted. */
   lmPushPlacement(charId, pid, util, made.length);
-  renderTokens();
-  paintLmStrip();
+  return true;
+}
+/* Every declared placement materialises at once, the instant the LoreMaster swaps to
+   resolution. No per-Fell button: the surprise is the point, for the LoreMaster and the
+   foes both. Called from lmLockActs, after the phase is already set to resolve so a
+   marker landing repaints into the phase it belongs to. */
+function lmMaterialisePlacements(){
+  var placed = 0, fells = 0;
+  ((S.scene && S.scene.fell) || []).forEach(function(p){
+    var dcl = declareFor(p.charId || p.id);
+    if (!dcl || !Array.isArray(dcl.places) || !dcl.places.length) return;
+    if (resolveOnePlacement(p.charId || p.id, dcl, false)){ placed += dcl.places.length; fells++; }
+  });
+  if (placed){
+    pushLog({ kind:'sys', html:'The ground answers: <b>' + placed + '</b> '
+      + (placed === 1 ? 'square is' : 'squares are') + ' laid'
+      + (fells > 1 ? ' across ' + fells + ' Fell' : '') + '.' });
+    applyRemoteState({ tokens:S.tokens, log:S.log });
+    renderTokens();
+  }
 }
 /* Write the resolution to the Fell's own row, so their sheet can spend the utility.
    Named lmPushPlacement, not lmPlacement or setPlacement, for the reason F5 records: the
@@ -7417,6 +7448,28 @@ function handPlaceNeedsEmpty(){
   var u = handUtility();
   return !!(u && u.space === 'empty');
 }
+/* Does this utility's squares have to form one connected cluster? Read off the model's
+   `adjacent` flag, the twin of `space`: `space` answers whether a square may be occupied,
+   `adjacent` answers where it may sit relative to the others. Kept as two fields so
+   neither has to carry the other's meaning. */
+function handPlaceNeedsAdjacent(){
+  var u = handUtility();
+  return !!(u && u.adjacent);
+}
+/* Is x,y an eight-neighbour of a square already placed this turn? One cell in any
+   direction, diagonals included. Measured in cells, not pixels, so it holds at any grid
+   size: two squares touch when they are within one cell on both axes and not the same
+   square. */
+function handSquareAdjacent(x, y){
+  var g = S.grid.size || 100;
+  var mine = (armed && armed.places) || [];
+  for (var i = 0; i < mine.length; i++){
+    var dx = Math.abs(mine[i].x - x) / g;
+    var dy = Math.abs(mine[i].y - y) / g;
+    if (dx <= 1.01 && dy <= 1.01 && !(dx < 0.01 && dy < 0.01)) return true;
+  }
+  return false;
+}
 /* What is standing on a square. A token holds every square its own footprint covers - a
    2-cell foe occupies four - and a square already promised to this same placement counts
    as taken too, since two caltrops on one square was already a slip. */
@@ -7467,6 +7520,19 @@ function handPlaceAt(mx, my){
     if (taken){
       handSay((handUtility().name || 'It') + ' needs an open space - '
               + (taken === 'your own' ? 'you have already used that one' : taken + ' is there') + '.');
+      return true;
+    }
+  }
+  /* Adjacency, for a utility whose squares must land as one cluster (Caltrops: "five
+     adjacent spaces from where they land"). The first square is the anchor - where they
+     land - and is always legal on its own. Every square after it must touch one already
+     placed, so the cluster grows from the anchor and never scatters. Eight-neighbour: a
+     diagonal touch counts, so the spread reads as a rough scatter rather than a rigid
+     plus. A tap that does not touch is refused out loud, the same way an occupied square
+     is, rather than dropped. */
+  if (handPlaceNeedsAdjacent() && armed.places.length){
+    if (!handSquareAdjacent(x, y)){
+      handSay((handUtility().name || 'It') + ' must land next to a square already set.');
       return true;
     }
   }
@@ -9088,7 +9154,7 @@ function lmAmbushResolve(){
 }
 function lmBeginCombat(){ S.scene.combatPhase = 'commit'; applyRemoteState({ mode:'combat', scene:S.scene }); combatPublish(); declaresLoad(); }
 function lmEndCombat(){ S.declares = null; S.scene.combatPhase = null; S.scene.foes.concat(S.scene.fell).forEach(function(c){ c.act=''; c.locked=false; c.spot=null; }); applyRemoteState({ mode:'explore', scene:S.scene });  combatPublish(); }
-function lmLockActs(){ S.scene.combatPhase = 'resolve'; S.scene.foes.concat(S.scene.fell).forEach(function(c){ if(c.act) c.locked = true; }); applyRemoteState({ scene:S.scene }); }
+function lmLockActs(){ S.scene.combatPhase = 'resolve'; S.scene.foes.concat(S.scene.fell).forEach(function(c){ if(c.act) c.locked = true; }); applyRemoteState({ scene:S.scene }); lmMaterialisePlacements(); }
 function lmUnlock(){ S.scene.combatPhase = 'commit'; S.scene.foes.concat(S.scene.fell).forEach(function(c){ c.locked=false; c.spot=null; }); applyRemoteState({ scene:S.scene }); }
 function lmNextRound(){ setTimeout(function(){ S.declares = null; combatPublish(); declaresLoad(); }, 60); S.scene.combatPhase = 'commit'; S.scene.foes.concat(S.scene.fell).forEach(function(c){ c.act=''; c.locked=false; c.spot=null; c._roll=null; }); applyRemoteState({ round:S.round+1, scene:S.scene }); }
 function lmResolveSpot(id){ var c = findC(id); if(c){ c.spot = c.spot === 'done' ? null : 'done'; applyRemoteState({ scene:S.scene }); } }

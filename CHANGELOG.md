@@ -1,3 +1,11 @@
+## 2026-07-29 - Caltrops land as a cluster, and the ground answers all at once
+
+Two changes to how a placed utility works, both from the table.
+
+The five squares of a Caltrops must now form one connected cluster. The first tap is where they land and is free; every tap after it has to touch a square already set, eight-neighbour, so a diagonal counts and the spread reads as a scatter rather than a rigid plus. A tap that does not touch is refused out loud on the board, the way an occupied square already was, rather than quietly dropped. The rule rides on a new `adjacent` flag on the utility model, separate from `space` so neither field carries the other's meaning, and it is forwarded through both hops that reshape the row so it cannot be dropped between the pack and the table. Caltrops still land on any square, occupied or not.
+
+Placement is no longer a per-Fell button. The instant the LoreMaster swaps to resolution, every declared placement on the board materialises at once and every placer's pack spends at once. There is no "Place it" to press. Until that swap nothing is on the ground and nothing is spent, so a player who declares a placement and then takes it back loses nothing, which is what the old per-Fell resolve could not promise: it spent and placed the moment it was pressed, and an undo afterward left the marker down, the pack short, and the placement id burned so it could not be laid again. The surprise of the ground answering is now the LoreMaster's to spring, and the foes', to walk into.
+
 ## 2026-07-29 - The LoreMaster gets the grid the players already had
 
 The grid drew on the side that met the map fresh and not on the side that already held it. drawGrid ran only inside the map probe's first-measure branch, so the players, whose map arrives new at combat, saw their squares, while the LoreMaster, who usually has that same map already measured from laying it down, hit the skip path and got a bare map with no lines. The plain-load path now draws the grid too, so both sides of the table see the same squares. This also gives placement markers the coordinate surface they resolve onto, which was the real reason a placed utility could not be seen on the LoreMaster's board.
