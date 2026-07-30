@@ -1,3 +1,7 @@
+## 2026-07-29 - Placed art loses its frame and stands on a shadow alone
+
+The gold frame and the scrim are gone from art markers. The picture now sits on the map as itself, lifted only by a light shadow that follows its own outline, so a caltrop reads as a caltrop on the ground rather than a picture in a box.
+
 ## 2026-07-29 - Placed art lifts off the map, and stops shouting its own name
 
 The caltrops rendered through their transparency but sank into a busy map, silver on nothing. The art now sits on a soft dark scrim, a radial that is deepest at the centre and fades to nothing before the gold frame, so it grounds the picture without the old filled box, and it carries a drop-shadow that follows the shape's own outline rather than the square, giving it an edge against whatever lies beneath. The repeated name is gone from art markers: five "Caltrops" tags across one cluster was noise, and the picture already says what it is. A marker with no art keeps its label, since letters alone say little.
