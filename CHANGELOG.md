@@ -1,3 +1,7 @@
+## 2026-07-29 - Placed art lifts off the map, and stops shouting its own name
+
+The caltrops rendered through their transparency but sank into a busy map, silver on nothing. The art now sits on a soft dark scrim, a radial that is deepest at the centre and fades to nothing before the gold frame, so it grounds the picture without the old filled box, and it carries a drop-shadow that follows the shape's own outline rather than the square, giving it an edge against whatever lies beneath. The repeated name is gone from art markers: five "Caltrops" tags across one cluster was noise, and the picture already says what it is. A marker with no art keeps its label, since letters alone say little.
+
 ## 2026-07-29 - Placement art shows through, and the Skyvault Shard is wired
 
 The placed-utility art was rendering inside a black box: the dark fill kept for letter markers was showing through the cut-out PNGs. An art marker now drops the fill and the glow and lets the picture stand on its own transparent ground inside the gold frame, sized to contain so the whole shape shows uncropped. Skyvault Shard art is wired alongside the others, on its Relics row and in the board's lookup, ready for whenever its rules place it. Rune and Trap render their art on placement now too; their trigger rules are scoped as a future build and written down so they are not lost.
