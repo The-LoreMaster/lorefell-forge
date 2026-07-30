@@ -1,3 +1,7 @@
+## 2026-07-29 - The caltrops glow gold around their own edge
+
+No box and no fill now: the art sits on the map as itself, and the gold pulses around its actual outline. drop-shadow follows the PNG's shape rather than a square, so the glow traces the spikes. A steady dark shadow underneath holds them legible on a bright map through the whole 2.4s pulse.
+
 ## 2026-07-29 - Placed art breathes a gold pulse
 
 A slow gold glow now pulses behind a placed marker, out and back on a 2.4s heartbeat, layered over the soft dark ground so the still version is one line away if the pulse does not land. A depth shadow rides through the whole cycle, so the marker keeps its footing on the map even at the glow's low point.
