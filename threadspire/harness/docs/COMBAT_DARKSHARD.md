@@ -41,11 +41,11 @@ This is NOT a placement feature. It is a combat-wide status that happens to be s
 
 - A silenced foe's card: does it show only standard attacks, with the rest greyed and a reason ("cut off from the Aether")? The LoreMaster should see WHY a foe is reduced, or it looks like a bug.
 - The check is continuous, so it re-runs whenever a token moves or the shard's radius changes. Where does that hook sit so it is not recomputed on every repaint for nothing?
-- A foe partly in the radius: centre-in-radius is the cleanest rule (a foe's token centre inside the circle is silenced), matching how squares are measured elsewhere. Confirm with Nate before building.
-- Multiple shards, overlapping radii: silence is a boolean (cut off or not), so overlap is just OR. But two shards means two health pools and two placers feeding. Confirm this is allowed before assuming it.
+- A foe partly in the radius: a foe is silenced if its token is ANYWHERE within the radius (any overlap), decided by Nate. Not centre-in.
+- Multiple shards, overlapping radii: silence is a boolean (cut off or not), so overlap is just OR. Two shards means two health pools and two placers feeding, and this is allowed (decided by Nate). Silence is a boolean, so overlap is just OR.
 - Interaction with the abilities the sheet already gates (locked acts, barred acts): silence is another gate on the same list. Find where a foe's act list is built and add silence as one more reason an act is unavailable, rather than a parallel system.
 
-OPEN for Part 2, get Nate's ruling before building: the partial-in-radius rule (centre-in vs any-overlap), and whether multiple simultaneous Darkshards are legal.
+Part 2 rulings (decided, do not re-litigate): a foe is silenced if it is ANYWHERE within the 10 spaces, any overlap of its token with the radius, not centre-in. And multiple simultaneous Darkshards ARE allowed: each has its own Vitality pool and its own placer feeding it, and silence ORs across their radii (a foe in any radius is cut off).
 
 ## Definition of done for Part 1
 
