@@ -1,3 +1,7 @@
+## 2026-07-29 - The gold pulse turned up
+
+The outline glow was too faint to read. Stacked gold drop-shadows now compound into a real halo, with a warm near-white core at the peak, and the dim point of the pulse still carries a clear gold edge.
+
 ## 2026-07-29 - The caltrops glow gold around their own edge
 
 No box and no fill now: the art sits on the map as itself, and the gold pulses around its actual outline. drop-shadow follows the PNG's shape rather than a square, so the glow traces the spikes. A steady dark shadow underneath holds them legible on a bright map through the whole 2.4s pulse.
