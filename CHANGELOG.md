@@ -1,3 +1,7 @@
+## 2026-07-29 - Placement art shows through, and the Skyvault Shard is wired
+
+The placed-utility art was rendering inside a black box: the dark fill kept for letter markers was showing through the cut-out PNGs. An art marker now drops the fill and the glow and lets the picture stand on its own transparent ground inside the gold frame, sized to contain so the whole shape shows uncropped. Skyvault Shard art is wired alongside the others, on its Relics row and in the board's lookup, ready for whenever its rules place it. Rune and Trap render their art on placement now too; their trigger rules are scoped as a future build and written down so they are not lost.
+
 ## 2026-07-29 - Placed utilities wear Joel's art, and the Darkshard rulings are locked
 
 A resolved Caltrops, Rune or Trap now shows its own art on the board instead of gold letters. The art lives on the Relics rows in canon as the record of truth, and threadspire carries a matching lookup keyed by name, because a placement marker is drawn where the declare knows only the utility's name and the board holds no relics catalogue to look it up in. The gold frame and glow stay, so a caltrop reads as itself and still as a placed thing; a utility with no art keeps the letters. Darkshard art is carried too, for when its own build lands, it is not a marker yet.
