@@ -731,3 +731,20 @@ there to drop it. That is the same shape as F4 — the harness and production de
 thing differently — and it is not closed by this entry, because reproducing a hand-pasted
 page module in the mock would be pinning the harness to a file nobody can verify. What the
 harness proves stops at velo's edge, which is what A25's readout exists to say out loud.
+
+## F12: a placed utility accepts any five squares, and the LoreMaster's Ground row is the tell for whether the squares ever arrive
+
+Two things surfaced together at the table once the embeds went live. They have nothing to do with each other beyond both touching a placed Caltrops, so keep them apart.
+
+The squares are not held to the shape the book gives them. Relics.json is explicit for Caltrops: "When thrown, they cover five adjacent spaces from where they land." The placement gesture in handPlaceAt (docs/threadspire.html) enforces two rules and no more: no duplicate square, and an empty square where space is "empty". There is no adjacency constraint anywhere. A player can tap five squares in five corners of the map and every one commits. The UTILITY_MODEL entry carries space "any" for Caltrops, Rune and Trap (docs/fellglass.html, near line 6078), and nothing reads space as a spatial rule. space today means only "may this square be occupied", never "where may this square be relative to the others". So the model has a field that looks like it should shape placement and does not. This is a rules-correctness bug, not a plumbing one. The squares that reach the LoreMaster are exactly the ones the player tapped, they are just the wrong squares to have been allowed.
+
+"The LoreMaster cannot see the placement" is not one bug, it is a fork, and the Ground row already names which branch you are on. declarePlacesHtml renders one of four things under a declared utility, and which one it shows is the whole diagnosis:
+
+- no Ground row at all: the declare arrived but dcl.places is undefined. The LoreMaster's read is not selecting the field. Stale combat.web.js in Wix, the pasted copy predates F7's places jparse in getCombatDeclares. Repaste that file.
+- "not sent": the field is not on the record. Either the same stale read, or the CMS write is dropped because the places column does not exist. The column now exists (Apply CMS added it), so on a current site this points back at the read.
+- "empty": places came back as an array with nothing in it. The sheet sent no squares. This is the fgSheetBridge hop from F11: the bridge rebuilds the combat-declare payload as an explicit field list, and if the pasted copy omits places, the squares die one hop above the collection F7 fixed. Repaste fgSheetBridge.js.
+- "unparsed: ...": the write landed as a JSON string the read never parsed back. Partial paste of the read side.
+
+The repo copies of all three files (combat.web.js, fgSheetBridge.js, page-threadspire.js) are whole and consistent end to end, verified by reading them. So a live failure is a stale or partial paste, and the Ground row says which file to repaste before touching any code. Do not debug this by reading the repo, the repo is correct. Read the Ground row on a real declared Caltrops and let it name the file.
+
+The rule that earned its place here: when a live symptom has more than one cause, find the readout that already distinguishes them before writing a fix. declarePlacesHtml was built as that readout during the piece-3 work and it is doing exactly the job it was built for.
