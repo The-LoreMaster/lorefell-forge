@@ -198,3 +198,18 @@ The LoreMaster reported seeing no placement. The repo is correct end to end (com
 - "not sent": stale read again (the CMS column now exists)
 
 Get this reading from Nate FIRST. It costs one declared Caltrops and it tells you whether there is any code to write at all. For item 2 there is not, only a repaste. Do not open the velo files to "fix" a bug that is a stale paste, that is the detour F9 warned about, verifying the wrong end.
+
+## Not forgotten: Rune and Trap placement, and their trigger (future build)
+
+Rune and Trap are placed today (single square, they materialise on the resolution swap like Caltrops), but their RULES are not built. Both share a shape distinct from Caltrops:
+
+- One marked space, not a cluster. `places` defaults to 1, so `adjacent` does not apply, and the placement gesture already handles a single square.
+- Each carries a BOUND EFFECT chosen when placed: a Rune holds a spell, a Trap holds a physical ability. Canon (Relics.json): "When a target steps into the marked space, the rune casts the spell automatically with no roll" / "the trap strikes automatically with no accuracy roll". The effect fires the instant it is sprung.
+
+What is NOT built, and needs its own pass:
+
+1. Choosing the bound effect at placement. A Rune needs to know WHICH spell, a Trap WHICH ability. That is a second selection layered on the placement act, and the source list is the placer's own spells/abilities. Where that picker lives and how the choice travels in the declare is the design question.
+2. The trigger. "A target steps into the marked space" is a movement-driven auto-fire, the same deferred trigger noted for the placed-utilities pass from the start. It needs: detection that a token entered the square, whose turn resolves it, and the no-roll application of the bound effect to whoever sprang it. This is the hard half and it is shared in shape with how a Darkshard's radius is checked (a positional test on the board), so the two may want to be built with one proximity/entry mechanism rather than two.
+3. Friend or foe. Does a Rune fire on anyone who steps in, or only enemies? Canon says "a target", which is ambiguous. ASK Nate.
+
+Art for both is already wired (Rune and Trap PNGs on the Relics rows and in MARKER_ART), so they render correctly on placement now. Only the rules remain.
