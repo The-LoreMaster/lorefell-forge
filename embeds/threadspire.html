@@ -60,6 +60,7 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 #tokmenu .tmsh-feed{ width:100%; border:1px solid rgba(150,90,220,.6); border-radius:5px; color:#d9b8ff; font-family:Cinzel,serif; font-size:.66rem; letter-spacing:.04em; padding:6px 0; }
 #tokmenu .tmsh-feed:active{ background:rgba(120,50,190,.28); }
 #tokmenu .tmsh-feed:disabled{ opacity:.4; }
+#tokmenu .tmsh-feed.nofeed{ opacity:1; border-color:var(--danger,#c96a5a); color:#e8a0a0; }
 #tokmenu .tmsh-note{ font-size:.64rem; color:var(--muted,#7e8a99); margin-top:5px; min-height:.7rem; }
 .token.lm-drag{ cursor:grab; }
 .token.p{ background:#37548d; } .token.foe{ background:var(--danger); } .token.npc{ background:#5f5e5a; } .token.asset{ background:#3d6b58; }
@@ -9764,9 +9765,17 @@ function paintTokMenu(){
     var note = document.getElementById('tmShardNote');
     var pl = shardPlacerToken(t);
     var inRange = pl && shardInRadius(t, pl);
-    feedBtn.disabled = !inRange;
+    /* The placer's Skyvault Shard count, as their sheet last published it over the sync
+       (shardCountFor reads it off the Fell record). Undefined means the sheet has not said
+       yet, which is not the same as zero: only a known zero greys the control red. */
+    var shards = shardCountFor(t.placer);
+    var noShards = (shards === 0);
+    feedBtn.disabled = !inRange || noShards;
+    feedBtn.classList.toggle('nofeed', noShards);
+    feedBtn.textContent = noShards ? 'No Skyvault Shard to feed' : 'Feed a Skyvault Shard';
     if (!pl) note.textContent = (t.placerName || 'The placer') + ' has no token on the board to feed from.';
     else if (!inRange) note.textContent = (t.placerName || 'The placer') + ' is outside the radius.';
+    else if (noShards) note.textContent = (t.placerName || 'The placer') + ' carries no Skyvault Shard.';
     else note.textContent = '';
   }
   if (!isShard){
@@ -9812,6 +9821,22 @@ function shardPlacerToken(t){
   });
   return out;
 }
+/* The placer's Skyvault Shard count as their sheet last published it, or undefined if the
+   sheet has not said. The count rides the combat sync onto the Fell's record (skyShards);
+   this reads it wherever the board keeps that record. Undefined is honest ignorance, kept
+   distinct from a known zero so the feed control only turns red when it is sure. */
+function shardCountFor(charId){
+  if(!charId) return undefined;
+  var v;
+  (S.party || []).forEach(function(sh){
+    if (sh && sh.charId && sameId(sh.charId, charId) && typeof sh.skyShards === 'number') v = sh.skyShards;
+  });
+  if (v === undefined){
+    var p = fellByCharId(charId);
+    if (p && typeof p.skyShards === 'number') v = p.skyShards;
+  }
+  return v;
+}
 /* Is a token within the shard's radius: a CIRCLE, Euclidean from the shard's centre,
    measured in cells. dist is in board units, so it divides by the cell size to compare
    against the radius in cells. Any overlap is generous here on purpose; the placer being
@@ -9829,17 +9854,33 @@ function feedShard(t){
     pushLog({ kind:'sys', html:'The placer must stand within the radius to feed the shard.' });
     applyRemoteState({ log:S.log }); return;
   }
+  /* The pack is the placer's, on their sheet, and so is the choice. The board asks; it does
+     NOT raise Vitality here. The sheet shows the player an approval card, spends one
+     Skyvault Shard on approval, and acks by a rising feed count; the board raises the
+     shard's Vitality when that ack comes back (applyFeedAck), so the number and the pack
+     move together and a decline moves neither. */
+  lmPushFeed(t.placer, t.pid);
+  pushLog({ kind:'sys', html:'<b>' + esc(t.placerName || 'The placer') + '</b> is asked to feed the <b>'
+    + esc(t.name || 'Darkshard') + '</b> a Skyvault Shard.' });
+  applyRemoteState({ log:S.log });
+  paintTokMenu();
+}
+/* The placer's sheet honoured a feed: raise the matching shard's Vitality by one, once per
+   ack count. Called when a Fell's synced feedAck advances. The count is per placement, so
+   a shard fed twice sees two distinct acks and rises twice. */
+function applyFeedAck(pid, ackCount){
+  if(!pid || typeof ackCount !== 'number') return;
+  window._shardFedAt = window._shardFedAt || {};
+  if((window._shardFedAt[pid] || 0) >= ackCount) return;   /* already applied this feed */
+  window._shardFedAt[pid] = ackCount;
+  var t = null;
+  S.tokens.forEach(function(x){ if(x.kind === 'shard' && x.pid === pid) t = x; });
+  if(!t) return;
   t.vit = (t.vit || 1) + 1;
   var left = t.vit - (t.dmg || 0);
-  pushLog({ kind:'sys', html:'<b>' + esc(t.placerName || 'The placer') + '</b> feeds the <b>'
-    + esc(t.name || 'Darkshard') + '</b> a Skyvault Shard. ' + left + ' Vitality now.' });
+  pushLog({ kind:'sys', html:'The <b>' + esc(t.name || 'Darkshard') + '</b> is fed a Skyvault Shard. '
+    + left + ' Vitality now.' });
   applyRemoteState({ tokens:S.tokens, log:S.log });
-  /* the pack is the sheet's, so the sheet spends it. Its own idempotency is a rising feed
-     count, so a repeated message cannot double-spend. The receiving half (velo backend
-     + the sheet's Skyvault Shard decrement) is a follow-up paste; until it lands, feeding
-     raises Vitality on the board but the pack is not yet drawn down. lmPushFeed sends the
-     message regardless, so the day the backend exists no board change is needed. */
-  lmPushFeed(t.placer, t.pid);
   renderTokens(); paintTokMenu();
 }
 function lmPushFeed(charId, pid){
