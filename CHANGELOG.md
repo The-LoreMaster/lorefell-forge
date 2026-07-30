@@ -1,3 +1,7 @@
+## 2026-07-29 - Placed art breathes a gold pulse
+
+A slow gold glow now pulses behind a placed marker, out and back on a 2.4s heartbeat, layered over the soft dark ground so the still version is one line away if the pulse does not land. A depth shadow rides through the whole cycle, so the marker keeps its footing on the map even at the glow's low point.
+
 ## 2026-07-29 - Placed art gets its dark ground back, softened, and keeps no border
 
 The half-transparent fill returns behind the art at half the darkness of the first version, no border. It grounds the silver against a busy map without the hard black tile, and a light shadow lifts the marker off the terrain.
