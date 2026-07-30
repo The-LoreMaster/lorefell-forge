@@ -1,3 +1,7 @@
+## 2026-07-29 - Placed art gets its dark ground back, softened, and keeps no border
+
+The half-transparent fill returns behind the art at half the darkness of the first version, no border. It grounds the silver against a busy map without the hard black tile, and a light shadow lifts the marker off the terrain.
+
 ## 2026-07-29 - Placed art loses its frame and stands on a shadow alone
 
 The gold frame and the scrim are gone from art markers. The picture now sits on the map as itself, lifted only by a light shadow that follows its own outline, so a caltrop reads as a caltrop on the ground rather than a picture in a box.
