@@ -853,20 +853,24 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
   border:0; background-color:transparent; box-shadow:none;
   background-image:var(--marker-art);
   background-repeat:no-repeat; background-position:center; background-size:contain;
-  /* No box, no fill: the caltrops sit on the map as themselves. The gold pulses around
-     their actual OUTLINE, because drop-shadow follows the PNG's alpha rather than the
-     element's square. A steady dark drop-shadow underneath keeps them legible against a
-     bright map at every point in the pulse. 2.4s, a slow heartbeat. */
-  animation:markerGold 2.4s ease-in-out infinite;
+  /* No box, no fill: the art sits on the map as itself and the glow pulses around its
+     actual OUTLINE, because drop-shadow follows the PNG's alpha rather than the element's
+     square. The colour is per utility, set from a map on the token as --glow (the ring)
+     and --glow-hi (the brighter core at the peak); defaulted to violet here so a marker
+     with no colour still pulses rather than going dark. A steady dark drop-shadow keeps
+     the art legible against a bright map through the whole 2.4s pulse. */
+  --glow:201,168,76;
+  --glow-hi:255,214,110;
+  animation:markerPulse 2.4s ease-in-out infinite;
 }
-@keyframes markerGold{
+@keyframes markerPulse{
   0%,100%{ filter:drop-shadow(0 1px 2px rgba(0,0,0,.7))
-                  drop-shadow(0 0 4px rgba(201,168,76,.95))
-                  drop-shadow(0 0 8px rgba(201,168,76,.7)); }
+                  drop-shadow(0 0 4px rgba(var(--glow),.95))
+                  drop-shadow(0 0 8px rgba(var(--glow),.7)); }
   50%{     filter:drop-shadow(0 1px 2px rgba(0,0,0,.7))
-                  drop-shadow(0 0 6px rgba(255,214,110,1))
-                  drop-shadow(0 0 14px rgba(201,168,76,.95))
-                  drop-shadow(0 0 22px rgba(201,168,76,.7)); }
+                  drop-shadow(0 0 6px rgba(var(--glow-hi),1))
+                  drop-shadow(0 0 14px rgba(var(--glow),.95))
+                  drop-shadow(0 0 22px rgba(var(--glow),.7)); }
 }
 .token.marker .tok-face{ color:var(--gold); font-family:Cinzel,serif; font-size:.7rem; letter-spacing:.04em; }
 .token.marker .tok-label{ color:var(--gold); border-color:rgba(201,168,76,.4); }
@@ -9337,6 +9341,20 @@ var MARKER_ART = {
   'Skyvault Shard': 'https://static.wixstatic.com/media/74f6a7_28c68ca57c5045ff8e2fb27e56f54270~mv2.png'
 };
 function markerArtFor(name){ return name ? (MARKER_ART[name] || '') : ''; }
+/* The colour a placed marker pulses, per utility. Two values each: the ring and the
+   brighter core at the peak, as bare "r,g,b" so the keyframe can wrap them in rgba with
+   its own alpha. Caltrops pulse violet. The rest are wired ahead of their rules so the
+   colour is ready the day each becomes placeable: red for traps, green for runes, white
+   for Skyvault Shards. Darkshard is left out on purpose, it is likely to be a radius
+   rather than an outline glow, so it does not belong in this outline map. A utility with
+   no entry falls back to the violet default in the stylesheet. */
+var MARKER_GLOW = {
+  'Caltrops':       { ring:'168,120,232', hi:'214,180,255' },
+  'Trap':           { ring:'226,75,74',   hi:'255,150,140' },
+  'Rune':           { ring:'110,200,140', hi:'180,240,190' },
+  'Skyvault Shard': { ring:'236,240,248', hi:'255,255,255' }
+};
+function markerGlowFor(name){ return name ? (MARKER_GLOW[name] || null) : null; }
 /* Whether this token is the one this table's own Fell answers to. By its record where it
    has one, and by name where it does not, since tokens laid down before a token carried
    a record still ought to obey their player. */
@@ -9472,7 +9490,14 @@ function renderTokens(){
       /* A marker's art rides a CSS variable, so the stylesheet can layer a grounding
          scrim under it; setting backgroundImage directly here would wipe that layer. Every
          other token still takes the plain single-layer background. */
-      if (t.kind === 'marker') el.style.setProperty('--marker-art', 'url(' + art + ')');
+      if (t.kind === 'marker'){
+        el.style.setProperty('--marker-art', 'url(' + art + ')');
+        var glow = markerGlowFor(t.util || t.name);
+        if (glow){
+          el.style.setProperty('--glow', glow.ring);
+          el.style.setProperty('--glow-hi', glow.hi);
+        }
+      }
       else el.style.backgroundImage = 'url(' + art + ')';
     }
     /* An art marker wears no text label: the picture names it, and five "Caltrops" tags

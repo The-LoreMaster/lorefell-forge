@@ -1,3 +1,7 @@
+## 2026-07-29 - Placed markers pulse in their own colour
+
+The outline glow is now per utility, driven off two colour values set on each marker so the same pulse animation carries any colour. Caltrops pulse violet. Traps (red), runes (green) and Skyvault Shards (white) are wired ahead of their rules, ready the day each becomes placeable. Darkshard is left out of the outline map on purpose, it is headed for a radius rather than an edge glow.
+
 ## 2026-07-29 - The gold pulse turned up
 
 The outline glow was too faint to read. Stacked gold drop-shadows now compound into a real halo, with a warm near-white core at the peak, and the dim point of the pulse still carries a clear gold edge.
