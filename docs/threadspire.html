@@ -6110,7 +6110,7 @@ window.onmessage = function(ev){
     }
     if (d.campaignId) S.campaignId = d.campaignId;
     if (d.memberName) S.memberName = d.memberName;
-    if (d.party) { S.party = d.party; _partyLoaded = true; SEAM.partyAt = Date.now(); SEAM.partyWhy = 'arrived on the state feed'; harvestPortraits(d.party); mergeFellSheets(); try { renderTokens(); } catch(e){} if (S.openSection === 'fell') refreshWinBody(); }
+    if (d.party) { S.party = d.party; _partyLoaded = true; SEAM.partyAt = Date.now(); SEAM.partyWhy = 'arrived on the state feed'; harvestPortraits(d.party); mergeFellSheets(); scanShardFeeds(); try { renderTokens(); } catch(e){} if (S.openSection === 'fell') refreshWinBody(); }
     if (d.character && d.character.id) { rememberPortrait(d.character.id, d.character.image); try { renderTokens(); } catch(e){} }
     if (d.characterId) S.characterId = d.characterId;
     else if (d.character && d.character.id) S.characterId = d.character.id;
@@ -9864,6 +9864,25 @@ function feedShard(t){
     + esc(t.name || 'Darkshard') + '</b> a Skyvault Shard.' });
   applyRemoteState({ log:S.log });
   paintTokMenu();
+}
+/* After a party sync, look at every shard on the board and ask its placer's record whether
+   a feed was honoured. The sheet writes feedAck as the count it last spent for (a string),
+   so a shard whose placer's feedAck is above what this board has applied is a fed shard.
+   Runs off the party feed rather than a message of its own, the same way the sheet reads
+   placement off COMBAT.placed: the ack rides the state that was already crossing. */
+function scanShardFeeds(){
+  var byChar = {};
+  (S.party || []).forEach(function(sh){ if (sh && sh.charId) byChar[sh.charId] = sh; });
+  S.tokens.forEach(function(t){
+    if (t.kind !== 'shard' || !t.placer || !t.pid) return;
+    var sh = byChar[t.placer];
+    if (!sh || !sh.feedAck) return;
+    /* feedAck is "pid:count". Only the shard whose pid matches is raised, so a placer
+       holding two Darkshards feeds the one they were asked about and not the other. */
+    var parts = String(sh.feedAck).split(':');
+    var ackPid = parts[0], ack = parseInt(parts[1], 10);
+    if (ackPid === t.pid && isFinite(ack)) applyFeedAck(t.pid, ack);
+  });
 }
 /* The placer's sheet honoured a feed: raise the matching shard's Vitality by one, once per
    ack count. Called when a Fell's synced feedAck advances. The count is per placement, so
