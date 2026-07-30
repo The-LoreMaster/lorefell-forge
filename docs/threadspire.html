@@ -845,7 +845,21 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
    dropped here too: these PNGs are cut out with a transparent ground, and the fill was
    showing through it as a black box. */
 .token.marker.hasimg .tok-face{ display:none; }
-.token.marker.hasimg{ background-color:transparent; box-shadow:none; border-color:rgba(201,168,76,.55); background-size:contain; background-repeat:no-repeat; }
+/* The art stood on bare transparency and vanished into a busy map. Two things lift it
+   without bringing back the black box: a soft dark scrim UNDER the picture (a radial that
+   is deepest at the centre and fades to nothing before the frame, so it grounds the
+   silver without reading as a filled square), and a drop-shadow that follows the PNG's
+   own outline rather than the element's box, so the shape gets an edge against whatever
+   lies beneath it. background layers the image over the scrim in one declaration. */
+.token.marker.hasimg{
+  box-shadow:none;
+  border-color:rgba(201,168,76,.7);
+  background-repeat:no-repeat, no-repeat;
+  background-position:center, center;
+  background-size:contain, cover;
+  background-image:var(--marker-art), radial-gradient(circle at 50% 45%, rgba(6,9,18,.72) 0%, rgba(6,9,18,.45) 46%, transparent 72%);
+  filter:drop-shadow(0 1px 2px rgba(0,0,0,.85)) drop-shadow(0 0 1px rgba(0,0,0,.9));
+}
 .token.marker .tok-face{ color:var(--gold); font-family:Cinzel,serif; font-size:.7rem; letter-spacing:.04em; }
 .token.marker .tok-label{ color:var(--gold); border-color:rgba(201,168,76,.4); }
 /* the LoreMaster made it and the LoreMaster may move it; nobody else gets a handler at all */
@@ -9446,9 +9460,19 @@ function renderTokens(){
     el.setAttribute('data-tok', t.id);
     var full = tokenName(t);
     var face = art ? '' : esc(initials(full));
-    if (art) el.style.backgroundImage = 'url(' + art + ')';
+    if (art){
+      /* A marker's art rides a CSS variable, so the stylesheet can layer a grounding
+         scrim under it; setting backgroundImage directly here would wipe that layer. Every
+         other token still takes the plain single-layer background. */
+      if (t.kind === 'marker') el.style.setProperty('--marker-art', 'url(' + art + ')');
+      else el.style.backgroundImage = 'url(' + art + ')';
+    }
+    /* An art marker wears no text label: the picture names it, and five "Caltrops" tags
+       across a cluster was noise the map could not carry. A marker WITHOUT art keeps its
+       label, since letters alone do not say much. Every other token keeps its name. */
+    var showLabel = full && !(t.kind === 'marker' && art);
     el.innerHTML = '<span class="tok-face">' + face + '</span>'
-      + (full ? '<span class="tok-label">' + esc(full) + '</span>' : '');
+      + (showLabel ? '<span class="tok-label">' + esc(full) + '</span>' : '');
     place(el, t);
     /* moved OR aimed at: a foe is the second without ever being the first */
     if (draggable || tokenTargetable(t)) wireToken(el, t, draggable);
