@@ -1,3 +1,7 @@
+## 2026-07-29 - The Darkshard takes the field
+
+A Darkshard is now a placed OBJECT, not an inert marker. Set on an open square, it resolves at the resolution swap into a shard the fight can see and strike: it carries its own Vitality, starting at one, and opens a deep violet radius drawn on the ground beneath the tokens, the first visible radius on the board. Its Vitality rides in a corner badge. The LoreMaster can strike it, and when the damage taken reaches its Vitality it shatters and the ring goes with it. A feed control raises its Vitality, gated on the placer standing within the radius, measured as a circle from its centre. This is the board half of Part 1. The feeding pack-decrement, the placer actually spending a Skyvault Shard, is a follow-up that needs a velo paste; until it lands, feeding raises Vitality but does not yet draw the shard from the pack, and the log says as much. The anti-Aether silencing is still its own build, and the shard now exists on the board for it to read.
+
 ## 2026-07-29 - Placed markers pulse in their own colour
 
 The outline glow is now per utility, driven off two colour values set on each marker so the same pulse animation carries any colour. Caltrops pulse violet. Traps (red), runes (green) and Skyvault Shards (white) are wired ahead of their rules, ready the day each becomes placeable. Darkshard is left out of the outline map on purpose, it is headed for a radius rather than an edge glow.

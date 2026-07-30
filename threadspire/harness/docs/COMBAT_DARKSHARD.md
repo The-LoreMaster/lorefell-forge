@@ -50,3 +50,17 @@ Part 2 rulings (decided, do not re-litigate): a foe is silenced if it is ANYWHER
 ## Definition of done for Part 1
 
 Place a Darkshard on an open square. See its ring. On a later round, standing inside the ring, feed it a Skyvault Shard and watch Vitality go to 2 and a Skyvault Shard leave the pack. Step outside the ring and the feed is refused. Have a foe deal damage equal to its Vitality and watch it shatter and the ring vanish. No silencing yet, that is Part 2.
+
+## Part 1 status: board side shipped, feed-decrement is the remaining follow-up
+
+Built and live (board side, no velo):
+- Darkshard resolves to a `shard` token (kind "shard", not "marker") on the resolution swap, via SHARD_SPEC keyed by name so its nature does not ride the declare pipe. Carries vit (starts 1), dmg (0), radius (10), placer.
+- tokenFighter returns a real record for a shard (side "object"), so it is targetable and foes/LM can aim at it.
+- The radius ring draws under the tokens, a deep violet circle from centre, radius in cells x grid size.
+- The shard shows its Vitality in a corner badge; a strike control on its token menu deals damage and it shatters at Vitality, taking the ring with it.
+- A feed control on the token menu, gated on the placer's own token being within the radius (Euclidean, cells). It raises Vitality on the board and sends TS_COMBAT_FEED.
+
+NOT done, the follow-up (needs velo paste, like the placement pipe):
+- The pack decrement. feedShard raises board Vitality and sends TS_COMBAT_FEED { charId, pid, count }, but nothing receives it. Needs: a page-threadspire handler for TS_COMBAT_FEED calling a new backend method, and the sheet spending one Skyvault Shard on receipt. Model it on the placed-spend (cbSpendUtility by name, guarded), but feeding REPEATS, so the guard is the rising `count`/feed number, not a one-shot ack. Until this lands, feeding raises Vitality but the pack is not drawn down; the log and a code comment say so.
+
+Part 2 (anti-Aether silencing) is unchanged and still its own build. The shard now exists on the board for it to read: a foe silenced test is "is this foe token within any shard's radius", and shardInRadius is already written and reusable.

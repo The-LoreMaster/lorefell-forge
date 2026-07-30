@@ -50,6 +50,17 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 #tokmenu .tmsz button.on{ background:#1e3f8f; border-color:#9fc3ff; color:#fff; }
 #tokmenu .tm-del{ width:100%; margin-top:8px; border:1px solid rgba(201,106,90,.6); border-radius:5px; color:#e0b0a4; font-family:Cinzel,serif; font-size:.62rem; letter-spacing:.08em; text-transform:uppercase; padding:6px 0; }
 #tokmenu .tm-del:active{ background:rgba(201,106,90,.25); }
+#tokmenu .tmshard{ margin-top:4px; }
+#tokmenu .tmshl{ font-size:.72rem; color:var(--ice); margin-bottom:6px; }
+#tokmenu .tmshl b{ color:#d9b8ff; }
+#tokmenu .tmshrow{ display:flex; gap:5px; margin-bottom:6px; }
+#tokmenu .tmshrow input{ flex:1; margin:0; }
+#tokmenu .tmshrow button{ border:1px solid rgba(201,106,90,.6); border-radius:5px; color:#e0b0a4; font-family:Cinzel,serif; font-size:.66rem; padding:5px 9px; white-space:nowrap; }
+#tokmenu .tmshrow button:active{ background:rgba(201,106,90,.25); }
+#tokmenu .tmsh-feed{ width:100%; border:1px solid rgba(150,90,220,.6); border-radius:5px; color:#d9b8ff; font-family:Cinzel,serif; font-size:.66rem; letter-spacing:.04em; padding:6px 0; }
+#tokmenu .tmsh-feed:active{ background:rgba(120,50,190,.28); }
+#tokmenu .tmsh-feed:disabled{ opacity:.4; }
+#tokmenu .tmsh-note{ font-size:.64rem; color:var(--muted,#7e8a99); margin-top:5px; min-height:.7rem; }
 .token.lm-drag{ cursor:grab; }
 .token.p{ background:#37548d; } .token.foe{ background:var(--danger); } .token.npc{ background:#5f5e5a; } .token.asset{ background:#3d6b58; }
 /* no-repeat is the point: without it the picture tiled around itself inside the circle.
@@ -874,6 +885,31 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 }
 .token.marker .tok-face{ color:var(--gold); font-family:Cinzel,serif; font-size:.7rem; letter-spacing:.04em; }
 .token.marker .tok-label{ color:var(--gold); border-color:rgba(201,168,76,.4); }
+/* A shard reads as an object, not a person: no round portrait frame, a deep vorpal glow
+   (near-black violet) pulsing around it, and its Vitality shown as a small number so the
+   LoreMaster can watch the feeder and the attacker push it opposite ways. */
+.token.shard{
+  border:0; border-radius:8px; background-color:rgba(10,4,18,.6); overflow:visible;
+  --glow:120,40,180; --glow-hi:180,90,230;
+  animation:markerPulse 2.4s ease-in-out infinite;
+}
+.token.shard.hasimg{ background-color:rgba(10,4,18,.55); background-size:contain; background-repeat:no-repeat; background-position:center; }
+.token.shard .tok-face{ display:none; }
+.token.shard .tok-label{ color:#d9b8ff; border-color:rgba(150,90,220,.5); }
+.token.shard .shard-vit{
+  position:absolute; right:-6px; top:-6px; min-width:16px; height:16px; padding:0 3px;
+  border-radius:9px; background:rgba(10,4,18,.92); border:1px solid rgba(180,90,230,.8);
+  color:#e8d4ff; font-family:var(--body,serif); font-size:11px; line-height:15px;
+  text-align:center; box-shadow:0 0 6px rgba(120,40,180,.7);
+}
+/* the radius: a faint filled circle with a slightly brighter edge, sitting under the
+   tokens. Deep violet, low alpha, so a fight can happen on top of it and still be read. */
+.shard-ring{
+  position:absolute; border-radius:50%; pointer-events:none; z-index:0;
+  background:radial-gradient(circle, rgba(90,30,150,.16) 0%, rgba(90,30,150,.10) 70%, rgba(120,50,190,.22) 96%, transparent 100%);
+  border:1px solid rgba(150,80,220,.35);
+  box-shadow:inset 0 0 40px rgba(70,20,130,.25);
+}
 /* the LoreMaster made it and the LoreMaster may move it; nobody else gets a handler at all */
 .token.marker.lm-drag{ cursor:grab; }
 /* a placement the LoreMaster has already resolved, said where the button used to be */
@@ -1449,6 +1485,15 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
     <div class="tmh">TOKEN</div>
     <input id="tmLabel" maxlength="14" aria-label="Token label">
     <div class="tmsz" id="tmSize"></div>
+    <div class="tmshard" id="tmShard" style="display:none">
+      <div class="tmshl">This shard has <b id="tmShardVit">1</b> Vitality left.</div>
+      <div class="tmshrow">
+        <input id="tmShardDmg" type="number" min="1" inputmode="numeric" placeholder="damage" aria-label="Damage to shard">
+        <button id="tmShardStrike">Strike it</button>
+      </div>
+      <button id="tmShardFeed" class="tmsh-feed">Feed a Skyvault Shard</button>
+      <div class="tmsh-note" id="tmShardNote"></div>
+    </div>
     <button id="tmDelete" class="tm-del">Remove from the map</button>
   </div>
   <div id="lmbar" class="hidden">
@@ -4274,10 +4319,45 @@ function resolveOnePlacement(charId, dcl, announce){
 
   if (placementResolved(pid)) return false;
   var places = Array.isArray(dcl.places) ? dcl.places : [];
+  /* A Darkshard is not a marker: it resolves to one placed OBJECT with Vitality that foes
+     can shatter, opening a radius. Recognised by name on the board (SHARD_SPEC), so its
+     nature never has to survive the declare pipe. It takes the single declared square. */
+  var shardSpec = shardSpecFor(util);
+  if (shardSpec){
+    var sq = places.filter(function(q){ return q && typeof q.x === 'number' && typeof q.y === 'number'; })[0];
+    if (!sq){
+      if (announce){
+        pushLog({ kind:'sys', html:'<b>' + esc(who) + '</b> declared ' + esc(util)
+          + ' with no square the board can use.' });
+        applyRemoteState({ log:S.log });
+      }
+      return false;
+    }
+    var sid = 'sh-' + pid.replace(/[^A-Za-z0-9]/g, '');
+    S.tokens.push({
+      id:sid, kind:'shard', name:util, label:initials(util),
+      x:clamp(snapAxis(sq.x, S.grid.offX, 1), 0, S.map.w),
+      y:clamp(snapAxis(sq.y, S.grid.offY, 1), 0, S.map.h),
+      cells:1, mine:false,
+      placer:charId, placerName:who, util:util,
+      /* Vitality is its health: the feeder raises vit, the attacker raises dmg, it
+         shatters when dmg reaches vit. radius is in CELLS, drawn as a circle from centre. */
+      vit:(shardSpec.vit || 1), dmg:0, radius:(shardSpec.radius || dcl.radius || 10),
+      pid:pid, round:(dcl.round || 0)
+    });
+    applyRemoteState({ tokens:S.tokens });
+    if (announce){
+      pushLog({ kind:'sys', html:'<b>' + esc(who) + '</b> set a <b>' + esc(util)
+        + '</b>, and the ground goes quiet around it.' });
+      applyRemoteState({ log:S.log });
+    }
+    lmPushPlacement(charId, pid, util, 1);
+    return true;
+  }
+  var good = places.filter(function(q){ return q && typeof q.x === 'number' && typeof q.y === 'number'; });
   /* A square that arrived without numbers is not placed at a guess. a25 already shows it
      as [?] in the readout; here it is refused and counted, because a marker put down at
      0,0 because a field was missing is worse than one square fewer and a line saying so. */
-  var good = places.filter(function(q){ return q && typeof q.x === 'number' && typeof q.y === 'number'; });
   var bad = places.length - good.length;
   if (!good.length){
     if (announce){
@@ -7046,6 +7126,15 @@ function tokenFighter(t){
      when somebody steps in it. Both are the same deferred piece of positional resolution,
      and neither is being guessed at here. */
   if (t.kind === 'marker') return null;
+  /* A shard IS a fighter, unlike a marker: a Darkshard can be attacked and shattered. It
+     answers as a lightweight combatant carrying its own Vitality and damage, so an aim
+     lands on it and the strike has somewhere to go. It is not in the published fighter
+     list (it was born on the board, not in FateWell), so it answers from the token
+     itself. side 'object' keeps it out of ally/foe turn logic while still targetable. */
+  if (t.kind === 'shard'){
+    return { key:t.id, name:t.name || 'Darkshard', side:'object', shard:true,
+             vit:(t.vit || 1), dmg:(t.dmg || 0), tokenId:t.id };
+  }
   /* No fight, no targets. The row is not up either, and the two agree deliberately:
      whether there is a battle on is the LoreMaster's to say, and it reaches here the
      same way it reaches the row. */
@@ -9355,6 +9444,15 @@ var MARKER_GLOW = {
   'Skyvault Shard': { ring:'236,240,248', hi:'255,255,255' }
 };
 function markerGlowFor(name){ return name ? (MARKER_GLOW[name] || null) : null; }
+/* Which placed utilities are OBJECTS rather than inert markers, and the radius each opens.
+   Keyed by name and read on the board, so the shard nature does not have to survive the
+   declare pipe: a Darkshard is a Darkshard by its name, the same way its art and glow are.
+   A shard has Vitality foes can shatter and a radius; a name absent here is a plain marker.
+   Vorpal colour for the ring is set where the ring is drawn, not here. */
+var SHARD_SPEC = {
+  'Darkshard': { radius:10, vit:1 }
+};
+function shardSpecFor(name){ return name ? (SHARD_SPEC[name] || null) : null; }
 /* Whether this token is the one this table's own Fell answers to. By its record where it
    has one, and by name where it does not, since tokens laid down before a token carried
    a record still ought to obey their player. */
@@ -9417,6 +9515,7 @@ function tokenArt(t){
      to show its initials, not the default portrait, so a marker never lands wearing a
      face. */
   if (t.kind === 'marker') return markerArtFor(t.util || t.name) || '';
+  if (t.kind === 'shard') return markerArtFor(t.util || t.name) || '';
   var cid = t.charId || (t.kind === 'p' ? t.refId : '');
   if (cid){
     var p = portraitFor(cid);
@@ -9443,6 +9542,23 @@ function renderTokens(){
      the declarer's own view of their own declaration - no token exists until the
      LoreMaster resolves it - so they are drawn here and never travel. */
   layer.querySelectorAll('.placemark').forEach(function(n){ n.remove(); });
+  /* A shard's radius, drawn as a faint circle from its centre, UNDER the tokens so it
+     reads as ground the fight stands on rather than a wall around it. Cleared and redrawn
+     with the tokens, so it follows the shard and the camera. First visible radius on the
+     board. */
+  layer.querySelectorAll('.shard-ring').forEach(function(n){ n.remove(); });
+  S.tokens.forEach(function(t){
+    if (t.kind !== 'shard') return;
+    var g = (S.grid && S.grid.size) || 100;
+    var rCells = t.radius || 10;
+    var rPx = rCells * g * cam.zoom;
+    var ring = document.createElement('div');
+    ring.className = 'shard-ring';
+    ring.style.width = ring.style.height = (rPx * 2) + 'px';
+    ring.style.left = (cam.x + t.x * cam.zoom - rPx) + 'px';
+    ring.style.top  = (cam.y + t.y * cam.zoom - rPx) + 'px';
+    layer.appendChild(ring);
+  });
   if (armed && (armed.places || []).length){
     armed.places.forEach(function(sq, i){
       var m = document.createElement('div');
@@ -9498,14 +9614,19 @@ function renderTokens(){
           el.style.setProperty('--glow-hi', glow.hi);
         }
       }
+      else if (t.kind === 'shard') el.style.setProperty('--marker-art', 'url(' + art + ')');
       else el.style.backgroundImage = 'url(' + art + ')';
     }
     /* An art marker wears no text label: the picture names it, and five "Caltrops" tags
        across a cluster was noise the map could not carry. A marker WITHOUT art keeps its
        label, since letters alone do not say much. Every other token keeps its name. */
     var showLabel = full && !(t.kind === 'marker' && art);
+    /* A shard shows its Vitality in a corner badge, so the LoreMaster reads its health as
+       the feeder raises it and an attacker lowers it - the whole point of the object. */
+    var vitBadge = (t.kind === 'shard')
+      ? '<span class="shard-vit">' + Math.max(0, (t.vit || 1) - (t.dmg || 0)) + '</span>' : '';
     el.innerHTML = '<span class="tok-face">' + face + '</span>'
-      + (showLabel ? '<span class="tok-label">' + esc(full) + '</span>' : '');
+      + (showLabel ? '<span class="tok-label">' + esc(full) + '</span>' : '') + vitBadge;
     place(el, t);
     /* moved OR aimed at: a foe is the second without ever being the first */
     if (draggable || tokenTargetable(t)) wireToken(el, t, draggable);
@@ -9624,6 +9745,31 @@ function paintTokMenu(){
   /* the letters are only what a faceless token wears; the box is for the name itself */
   if (document.activeElement !== lab) lab.value = tokenName(t);
   var sz = document.getElementById('tmSize');
+  var shardBox = document.getElementById('tmShard');
+  /* A shard is an object, not a token you resize: hide the size row, show its Vitality and
+     a strike control instead. Everything else in the menu (name, remove) still applies. */
+  var isShard = t.kind === 'shard';
+  sz.style.display = isShard ? 'none' : '';
+  shardBox.style.display = isShard ? '' : 'none';
+  if (isShard){
+    document.getElementById('tmShardVit').textContent = Math.max(0, (t.vit || 1) - (t.dmg || 0));
+    var dmgIn = document.getElementById('tmShardDmg');
+    if (document.activeElement !== dmgIn) dmgIn.value = '';
+    /* Feeding is the placer's, and only while they stand in the radius. The check is the
+       shard's own measure: the placer's token centre within radius cells of the shard.
+       No placer token on the board (they have not moved a token in) means no way to
+       know they are close, so feeding is refused with a reason rather than allowed on
+       faith. */
+    var feedBtn = document.getElementById('tmShardFeed');
+    var note = document.getElementById('tmShardNote');
+    var pl = shardPlacerToken(t);
+    var inRange = pl && shardInRadius(t, pl);
+    feedBtn.disabled = !inRange;
+    if (!pl) note.textContent = (t.placerName || 'The placer') + ' has no token on the board to feed from.';
+    else if (!inRange) note.textContent = (t.placerName || 'The placer') + ' is outside the radius.';
+    else note.textContent = '';
+  }
+  if (!isShard){
   sz.innerHTML = '';
   [1, 2, 3].forEach(function(c){
     var b = document.createElement('button');
@@ -9632,6 +9778,7 @@ function paintTokMenu(){
     b.onclick = function(){ send({ type:'token-size', id:t.id, cells:c }); };
     sz.appendChild(b);
   });
+  }
   placeTokMenu();
 }
 (function wireTokMenu(){
@@ -9643,7 +9790,84 @@ function paintTokMenu(){
   document.getElementById('tmLabel').addEventListener('input', function(){
     if (sel) send({ type:'token-name', id:sel, name:this.value });
   });
+  document.getElementById('tmShardStrike').addEventListener('click', function(){
+    if (!sel) return;
+    var t = tokById(sel); if (!t || t.kind !== 'shard') return;
+    var d = Number(document.getElementById('tmShardDmg').value) || 0;
+    if (d <= 0) return;
+    strikeShard(t, d);
+  });
+  document.getElementById('tmShardFeed').addEventListener('click', function(){
+    if (!sel) return;
+    var t = tokById(sel); if (!t || t.kind !== 'shard') return;
+    feedShard(t);
+  });
 })();
+/* The placer's own token on the board, or null. A shard remembers who set it (placer =
+   the charId), and a Fell token carries the same charId, so the two are matched on it. */
+function shardPlacerToken(t){
+  var out = null;
+  S.tokens.forEach(function(x){
+    if (x.kind === 'p' && x.charId && t.placer && sameId(x.charId, t.placer)) out = x;
+  });
+  return out;
+}
+/* Is a token within the shard's radius: a CIRCLE, Euclidean from the shard's centre,
+   measured in cells. dist is in board units, so it divides by the cell size to compare
+   against the radius in cells. Any overlap is generous here on purpose; the placer being
+   in the ring at all is the rule. */
+function shardInRadius(t, other){
+  var g = (S.grid && S.grid.size) || 100;
+  return (dist(t, other) / g) <= (t.radius || 10);
+}
+/* Feed the shard a Skyvault Shard: its Vitality rises by one here, and the placer's sheet
+   is told to spend one Skyvault Shard from their pack. The board raises vit at once so the
+   badge answers the tap; the pack decrement travels to the sheet, which owns the pack. */
+function feedShard(t){
+  var pl = shardPlacerToken(t);
+  if (!pl || !shardInRadius(t, pl)){
+    pushLog({ kind:'sys', html:'The placer must stand within the radius to feed the shard.' });
+    applyRemoteState({ log:S.log }); return;
+  }
+  t.vit = (t.vit || 1) + 1;
+  var left = t.vit - (t.dmg || 0);
+  pushLog({ kind:'sys', html:'<b>' + esc(t.placerName || 'The placer') + '</b> feeds the <b>'
+    + esc(t.name || 'Darkshard') + '</b> a Skyvault Shard. ' + left + ' Vitality now.' });
+  applyRemoteState({ tokens:S.tokens, log:S.log });
+  /* the pack is the sheet's, so the sheet spends it. Its own idempotency is a rising feed
+     count, so a repeated message cannot double-spend. The receiving half (velo backend
+     + the sheet's Skyvault Shard decrement) is a follow-up paste; until it lands, feeding
+     raises Vitality on the board but the pack is not yet drawn down. lmPushFeed sends the
+     message regardless, so the day the backend exists no board change is needed. */
+  lmPushFeed(t.placer, t.pid);
+  renderTokens(); paintTokMenu();
+}
+function lmPushFeed(charId, pid){
+  window._shardFeeds = window._shardFeeds || {};
+  window._shardFeeds[pid] = (window._shardFeeds[pid] || 0) + 1;
+  tsAsk('TS_COMBAT_FEED', { charId:charId, pid:pid, count:window._shardFeeds[pid] }).catch(function(){});
+}
+/* Damage lands on the shard's own pool and stays on the board, because a shard has no
+   sheet to send it to. When the damage taken reaches its Vitality it shatters: the token
+   is removed, the ring goes with it, and a line marks it. The feeder raises vit, this
+   raises dmg, and they meet. */
+function strikeShard(t, d){
+  t.dmg = (t.dmg || 0) + d;
+  var who = t.placerName || 'someone';
+  var left = (t.vit || 1) - t.dmg;
+  if (left <= 0){
+    S.tokens = S.tokens.filter(function(x){ return x.id !== t.id; });
+    sel = null;
+    pushLog({ kind:'sys', html:'The <b>' + esc(t.name || 'Darkshard') + '</b> shatters, and the Aether floods back in.' });
+    applyRemoteState({ tokens:S.tokens, log:S.log });
+    renderTokens(); paintTokMenu();
+    return;
+  }
+  pushLog({ kind:'sys', html:'The <b>' + esc(t.name || 'Darkshard') + '</b> takes ' + d
+    + ', ' + left + ' Vitality left.' });
+  applyRemoteState({ tokens:S.tokens, log:S.log });
+  renderTokens(); paintTokMenu();
+}
 
 /* ---- gestures ----
    One finger on empty map pans, one finger on a token you hold moves it, two
