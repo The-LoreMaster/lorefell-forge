@@ -4413,11 +4413,27 @@ function combatSyncPush(){
      signature, so acking a placement is a change that actually pushes - left out of the
      signature it would be dropped whenever nothing else about the Fell had moved, which
      is most of the time, and the placement would be re-read and re-spent forever. */
-  var snap={curVit:C.vitality.current,maxVit:C.vitality.max,charge:C.charge||0,affs:affs,defEva:(window._defEva||[]),plog:(window._plog||[]),gear:cbGearSnap(),placedAck:(window._placedSpent||"")};
+  var snap={curVit:C.vitality.current,maxVit:C.vitality.max,charge:C.charge||0,affs:affs,defEva:(window._defEva||[]),plog:(window._plog||[]),gear:cbGearSnap(),placedAck:(window._placedSpent||""),skyShards:cbCountItem("Skyvault Shard"),feedAck:(window._feedAck||"")};
   var sig=JSON.stringify(snap);
   if(sig===window._combatSyncSig) return;
   window._combatSyncSig=sig;
-  postToVelo({type:"combat-sync",charId:CUR_WIX_ID,curVit:snap.curVit,maxVit:snap.maxVit,charge:snap.charge,affs:snap.affs,defEva:snap.defEva,plog:snap.plog,gear:snap.gear,placedAck:snap.placedAck});
+  postToVelo({type:"combat-sync",charId:CUR_WIX_ID,curVit:snap.curVit,maxVit:snap.maxVit,charge:snap.charge,affs:snap.affs,defEva:snap.defEva,plog:snap.plog,gear:snap.gear,placedAck:snap.placedAck,skyShards:snap.skyShards,feedAck:snap.feedAck});
+}
+/* How many of a named item sit in the pack, counting quantities. Used to publish the
+   Skyvault Shard count so the board can grey the feed control when there are none, and to
+   know whether a feed can be honoured before asking the player to approve one. */
+function cbCountItem(name){
+  var L=(typeof ITEMS_LIB!=="undefined"&&ITEMS_LIB)||[];
+  var n=0;
+  (C.inventory||[]).forEach(function(it){
+    if(!it) return;
+    var e=L.filter(function(l){return l.id===it.itemId;})[0];
+    if(e&&e.name===name){
+      var q=(typeof it.quantity==="number")?it.quantity:((typeof it.qty==="number")?it.qty:1);
+      n+=Math.max(0,q);
+    }
+  });
+  return n;
 }
 function cbCheckEvasion(){
   if(!(COMBAT&&COMBAT.active&&CUR_WIX_ID)) return;
@@ -4880,6 +4896,59 @@ function cbPing(msg, gold){
   p.textContent=msg; p.classList.toggle("gold", !!gold); p.classList.add("on"); clearTimeout(p._t);
   p._t=setTimeout(function(){ p.classList.remove("on"); }, 3200);
 }
+/* The board has asked this Fell to feed their Darkshard a Skyvault Shard. The pack is the
+   sheet's, so the spend and the choice both live here: an in-table card, never a browser
+   popup, asking the player to approve. Approving spends one shard and acks the feed count
+   back over the sync, which is the board's cue to raise the shard's Vitality. Declining
+   leaves the pack untouched and does not ack, so the board's Vitality does not move. A
+   feed with no shard to spend cannot be honoured; it says so and does not ack. */
+function cbAskFeed(fd){
+  var have=cbCountItem("Skyvault Shard");
+  if(have<=0){
+    cbPing("You have no Skyvault Shard to feed the Darkshard.", false);
+    return;
+  }
+  var old=document.getElementById("cbFeedAsk"); if(old) old.remove();
+  var ov=el("div","cb-ovl"); ov.id="cbFeedAsk";
+  ov.innerHTML='<div class="cb-card">'
+    +'<div class="cb-h">Feed the Darkshard?</div>'
+    +'<p class="cb-sub">Spend one Skyvault Shard to raise your Darkshard\u2019s Vitality by 1. You have '+have+'.</p>'
+    +'<div class="cb-row">'
+      +'<button class="btn small" id="cbFeedNo">Not now</button>'
+      +'<button class="btn small gold" id="cbFeedYes">Feed it</button>'
+    +'</div></div>';
+  document.body.appendChild(ov);
+  document.getElementById("cbFeedNo").addEventListener("click",function(){ ov.remove(); });
+  document.getElementById("cbFeedYes").addEventListener("click",function(){
+    ov.remove();
+    var spent=cbSpendSkyvault();
+    if(!spent){ cbPing("The Skyvault Shard was already gone.", false); return; }
+    /* ack the feed by its count, so the board knows this feed was honoured and raises the
+       shard's Vitality. The count, not a boolean, so each feed acks once. */
+    window._feedAck=String(fd.count);
+    cbPing("You feed the Darkshard a Skyvault Shard.", true);
+    try{ renderItems(); }catch(e){}
+    combatSyncPush();
+  });
+}
+/* Spend one Skyvault Shard from the pack, decrementing its quantity. Returns true if one
+   was there to spend. Kept apart from cbSpendUtility because a Skyvault Shard is not an
+   Act-utility being used, it is a resource being consumed to feed something else. */
+function cbSpendSkyvault(){
+  var L=(typeof ITEMS_LIB!=="undefined"&&ITEMS_LIB)||[];
+  for(var i=0;i<(C.inventory||[]).length;i++){
+    var it=C.inventory[i]; if(!it) continue;
+    var e=L.filter(function(l){return l.id===it.itemId;})[0];
+    if(e&&e.name==="Skyvault Shard"){
+      if(typeof it.quantity==="number"){ it.quantity--; if(it.quantity<=0) C.inventory.splice(i,1); }
+      else if(typeof it.qty==="number"){ it.qty--; if(it.qty<=0) C.inventory.splice(i,1); }
+      else { C.inventory.splice(i,1); }
+      scheduleSave();
+      return true;
+    }
+  }
+  return false;
+}
 function applyIncomingConditions(applied){
   if(!Array.isArray(applied) || !applied.length) return;
   window._augUsed = window._augUsed || {};
@@ -5096,6 +5165,17 @@ function setCombatState(state){
          ack still goes, or the same placement is re-read on every poll forever. */
       if(spent) cbPing((pd.util||"It")+" is placed"+(pd.squares>1?(" on "+pd.squares+" squares"):"")+".");
       combatSyncPush();
+    }
+    /* A feed request from the board: the placer is being asked to spend one Skyvault Shard
+       to raise their Darkshard's Vitality. Unlike a placement, feeding REPEATS, so the
+       guard is the rising `count` rather than a one-shot pid: a request whose count is
+       above the last one this sheet honoured is new. Only the placer's own sheet acts, and
+       only with the player's approval, since it is their pack. */
+    var fd=COMBAT.feed||null;
+    if(fd && fd.charId && CUR_WIX_ID && String(fd.charId)===String(CUR_WIX_ID)
+       && typeof fd.count==="number" && fd.count>(window._feedAckCount||0)){
+      window._feedAckCount=fd.count;
+      cbAskFeed(fd);
     }
   }
   if(COMBAT&&COMBAT.active&&!wasActive){ try{edgeGlow("rgba(201,106,90,.85)");}catch(e){} window._plog=[]; window._combatSyncSig=""; combatSyncPush(); openDeclare(); }
