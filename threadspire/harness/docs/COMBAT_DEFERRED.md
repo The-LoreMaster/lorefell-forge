@@ -20,3 +20,7 @@ Tracked here so it's designed, not guessed, when utility resolution is built.
 ## Urgent-alert corner (already captured in COMBAT_UI_REBUILD_BRIEF.md, Phase B)
 Both sides, top-left, always on. Listed here only as a pointer; the spec lives in the
 rebuild brief.
+
+## Darkshard: the targetable placed object with an anti-Aether radius (scoped, ready for a dedicated session)
+
+Fully scoped in COMBAT_DARKSHARD.md. It is not a marker: it is a placed object with Vitality that foes can shatter, opening a 10-space circle that silences every enemy inside it. Rulings are locked (circle radius, placer-only feeding on Skyvault Shards, continuous silence check). Build is split: Part 1 is the object, ring, feeding and shatter, self-contained and testable; Part 2 is the anti-Aether silencing, its own build because it reaches into how every foe's act list is computed. Two Part-2 questions still need Nate before that half starts: the partial-in-radius rule and whether multiple simultaneous Darkshards are legal.
