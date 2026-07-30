@@ -1,3 +1,7 @@
+## 2026-07-29 - The LoreMaster gets the grid the players already had
+
+The grid drew on the side that met the map fresh and not on the side that already held it. drawGrid ran only inside the map probe's first-measure branch, so the players, whose map arrives new at combat, saw their squares, while the LoreMaster, who usually has that same map already measured from laying it down, hit the skip path and got a bare map with no lines. The plain-load path now draws the grid too, so both sides of the table see the same squares. This also gives placement markers the coordinate surface they resolve onto, which was the real reason a placed utility could not be seen on the LoreMaster's board.
+
 ## 2026-07-29 — The CombatPlayer collection gains the ground it forgot
 
 Three fields the placed-utilities feature writes to did not exist on the collection: places, placed and placedAck. Wix keeps nothing when a write names a field the collection does not have, so a declared Caltrops travelled the whole pipe correctly and vanished at the last step, looking exactly like a broken feature. createCollection.js could never have fixed this - it adopts a collection that exists and never touches its fields - so a one-time additive pass reads the live collection, adds only what is missing, writes it back and reads it back to prove the store kept it. It is idempotent: a second run adds nothing. The schema and the script are kept in step by hand. The one line that runs it inside Apply CMS is a workflow edit, which needs a hand with workflow scope, so it is left for that hand.
