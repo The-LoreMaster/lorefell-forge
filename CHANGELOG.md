@@ -1,3 +1,7 @@
+## 2026-07-29 - The CombatPlayer collection learns the feed fields
+
+The Darkshard feed round-trip needs three columns the collection did not have: feed, the board's request; feedAck, the sheet's honoured feed; and skyShards, the placer's Skyvault Shard count. Added to the field script and the schema together, additive, so a push applies them to the live collection without touching the rows already there.
+
 ## 2026-07-29 - The Darkshard feeds from the pack, with the player's blessing
 
 Feeding a Darkshard now spends a real Skyvault Shard from the placer's pack, and only with the player's approval. The board asks; the placer's sheet shows an approval card, spends one Skyvault Shard on yes, and acks the feed; the board raises the shard's Vitality when that ack returns, so the number and the pack move together and a decline moves neither. If the placer carries no Skyvault Shard, the board's Feed control turns red and refuses, and says why. A placer holding more than one Darkshard feeds the one they were asked about, since the ack names its shard. The relay between the two halves is a velo hand-paste, scoped in full in DARKSHARD_FEED_VELO.md; until it is pasted, the approval card does not reach the sheet.

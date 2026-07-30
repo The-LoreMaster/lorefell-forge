@@ -24,10 +24,16 @@ const COLLECTION_ID = "CombatPlayer";
 //   places      JSON array of {x,y} - the declared squares, F7's payload
 //   placed      JSON {pid,util,squares,at} - the marker the LoreMaster resolved
 //   placedAck   the pid the sheet last spent, so a decrement fires exactly once
+//   feed        JSON {pid,count} - the board's feed request for a Darkshard
+//   feedAck     "pid:count" - the feed the sheet honoured, board raises the shard on it
+//   skyShards   NUMBER - the placer's Skyvault Shard count, greys the feed control at zero
 const WANT = [
-  { key: "places",    type: "TEXT", displayName: "Places" },
-  { key: "placed",    type: "TEXT", displayName: "Placed" },
-  { key: "placedAck", type: "TEXT", displayName: "Placed Ack" }
+  { key: "places",    type: "TEXT",   displayName: "Places" },
+  { key: "placed",    type: "TEXT",   displayName: "Placed" },
+  { key: "placedAck", type: "TEXT",   displayName: "Placed Ack" },
+  { key: "feed",      type: "TEXT",   displayName: "Feed" },
+  { key: "feedAck",   type: "TEXT",   displayName: "Feed Ack" },
+  { key: "skyShards", type: "NUMBER", displayName: "Sky Shards" }
 ];
 
 // The update endpoint wants the collection wrapped and keyed on `id`, the same shape
