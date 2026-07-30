@@ -1,3 +1,9 @@
+## 2026-07-29 - Placed utilities wear Joel's art, and the Darkshard rulings are locked
+
+A resolved Caltrops, Rune or Trap now shows its own art on the board instead of gold letters. The art lives on the Relics rows in canon as the record of truth, and threadspire carries a matching lookup keyed by name, because a placement marker is drawn where the declare knows only the utility's name and the board holds no relics catalogue to look it up in. The gold frame and glow stay, so a caltrop reads as itself and still as a placed thing; a utility with no art keeps the letters. Darkshard art is carried too, for when its own build lands, it is not a marker yet.
+
+The two open Darkshard rulings are now decided in the scope doc: a foe is silenced if it is anywhere within the radius, any overlap, not centre-in; and multiple simultaneous Darkshards are allowed, each with its own Vitality and its own placer, silence being a boolean that ORs across their radii.
+
 ## 2026-07-29 - A placement warning lives only as long as the next tap
 
 The line that refused a bad placement square stayed up until something else redrew the row, so it read as outstaying the mistake it named. It now clears the instant the player taps again, good tap or bad, so it lasts exactly as long as the player takes to try once more.
