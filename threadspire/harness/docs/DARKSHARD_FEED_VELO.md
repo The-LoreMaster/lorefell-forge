@@ -68,12 +68,12 @@ Where the page handles board asks (TS_COMBAT_DAMAGE, TS_COMBAT_PLACED, etc), add
     try { await requestShardFeed(m.charId, m.pid, m.count); } catch (e) {}
 ```
 
-And when the board's state is refreshed from CombatPlayer rows, for each Fell whose
-`feedAck` has advanced, call into the board frame so it runs `applyFeedAck(pid, count)`.
-The pid is on the feed object; feedAck is the count the sheet honoured. One clean way: when
-relaying a player's row to the board, include `{ charId, feedAck, feed }`, and have the
-board's message handler call `applyFeedAck(feedObj.pid, Number(feedAck))` when feedAck is a
-number above what the board last applied (applyFeedAck already guards by count per pid).
+And when the board's state is refreshed from CombatPlayer rows, carry each Fell's `feedAck`
+onto the party record the board holds (`sh.feedAck`). The board's `scanShardFeeds` runs on
+every party update and reads it: `feedAck` is the string `"pid:count"`, so the board knows
+both which shard was fed and how many times, and `applyFeedAck` guards by count per pid. No
+call into the board frame is needed beyond getting `feedAck` onto the party record, since
+the scan is already wired to the party feed.
 
 ## Edit 3: fgSheetBridge.js, forward the fields on combat-sync
 
