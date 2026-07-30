@@ -1,3 +1,7 @@
+## 2026-07-29 - A placement warning lives only as long as the next tap
+
+The line that refused a bad placement square stayed up until something else redrew the row, so it read as outstaying the mistake it named. It now clears the instant the player taps again, good tap or bad, so it lasts exactly as long as the player takes to try once more.
+
 ## 2026-07-29 - Caltrops land as a cluster, and the ground answers all at once
 
 Two changes to how a placed utility works, both from the table.
