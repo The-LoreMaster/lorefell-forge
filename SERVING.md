@@ -4,7 +4,18 @@ The one page to read before verifying "is my change live". Twice now, time was l
 verifying GitHub Pages when the live site does not serve from Pages. This records the
 real chain so nobody re-derives it.
 
-## The live site is lorefell.com, served from Wix — NOT from GitHub Pages
+## FIRST: which path does THIS tool use? Look it up in DEPLOY_MANIFEST.md
+
+There are TWO serving paths, and each tool uses exactly one: the PAGES path (Wix component
+points at a github.io URL, deployed by Deploy Pages) or the CMS path (component points at
+/_functions/embed, deployed by Seed Embeds). DEPLOY_MANIFEST.md has the per-tool map and
+is the source of truth. threadspire, fatewell, and fellglass are PAGES tools; for them the
+CMS and this document's CMS chain below DO NOT APPLY, and the fix for a stale one is Deploy
+Pages, not anything CMS. Do not assume the CMS path for a tool without checking the manifest.
+
+The rest of this document describes the CMS path, which applies only to CMS tools.
+
+## The CMS path (only for tools the manifest marks CMS) is served from Wix, NOT GitHub Pages
 
 GitHub Pages (the-loremaster.github.io) exists and deploys on push, but the public
 site does NOT serve from it. A green "Deploy Pages" run tells you nothing about what a
