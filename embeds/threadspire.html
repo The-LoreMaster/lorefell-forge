@@ -1280,6 +1280,8 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .lmc-arow{ display:flex; justify-content:space-between; font-size:.78rem; color:var(--ice); padding:2px 0; border-bottom:1px solid rgba(220,232,239,.08); }
 .lmc-arow b{ color:var(--silver); }
 .lmc-kit{ position:relative; padding:4px 8px; margin:3px 0; border:1px solid var(--line); border-radius:7px; background:var(--navy2,#0e1526); }
+.lmc-kit[onclick]{ cursor:pointer; }
+.lmc-kit[onclick]:hover{ border-color:var(--gold); }
 .lmc-kn{ font-weight:600; color:var(--silver); font-size:.82rem; }
 .lmc-kt{ margin-left:7px; font-size:.68rem; color:var(--ice); }
 .lmc-why{ float:right; font-family:Cinzel,serif; font-size:.54rem; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); }
@@ -3703,6 +3705,7 @@ var lmMin = false;            /* the whole strip collapsed to a pill */
 function lmMinimize(){ lmMin = true; paintLmStrip(); }
 function lmRestore(){ if (S.openSection){ closeWin(); } else { lmMin = false; paintLmStrip(); } }
 var lmTab = 'about';          /* active tab on the expanded card */
+var _lmStripDeferred = false; /* a strip repaint was skipped to protect an open control */
 function lmToggleCard(id){ lmExpanded = (lmExpanded === id) ? null : id; if (lmExpanded && S.openSection) closeWin(); lmTab = 'about'; paintLmStrip(); paintHud(); }
 function lmSetTab(id, tab){ lmExpanded = id; lmTab = tab; paintLmStrip(); paintHud(); }
 function lmFace(){ return S.mode === 'combat' ? (S.scene.combatPhase || 'commit') : 'scene'; }
@@ -3719,7 +3722,38 @@ function paintLmStrip(){
   if (!isLM()){ el.classList.add('hidden'); return; }
   el.classList.remove('hidden');
   el.className = 'lm-' + lmFace();
+  /* If the LoreMaster is mid-interaction with a control inside the open card - a dropdown
+     held open, a number being typed - a repaint from the state feed would tear that control
+     out from under them: the dropdown snaps shut, the field loses focus, and on some
+     browsers the card jumps. So a repaint that arrives while a select or input inside the
+     expanded card holds focus is skipped, and the next beat (about a second later) catches
+     up once the control is released. A manual repaint from the LoreMaster's own action does
+     not go through here mid-interaction, so nothing they do is delayed. */
+  try {
+    var ae = document.activeElement;
+    if (ae && (ae.tagName === 'SELECT' || ae.tagName === 'INPUT') && ae.closest && ae.closest('.lmcard.expanded')){
+      _lmStripDeferred = true;
+      return;
+    }
+  } catch(e){}
+  _lmStripDeferred = false;
+  /* The state feed repaints this strip about once a second. That rebuilds the expanded
+     card's innerHTML, which drops the scroll position back to the top - the reason a foe
+     card jumped up while you were reading it. Capture where the open card was scrolled and
+     put it back after the repaint, so a live update no longer costs you your place. Keyed
+     off the expanded card element, which survives the rebuild by class. */
+  var prevScroll = null;
+  try {
+    var openCard = el.querySelector('.lmcard.expanded');
+    if (openCard) prevScroll = openCard.scrollTop;
+  } catch(e){}
   el.innerHTML = lmStripHtml();
+  if (prevScroll){
+    try {
+      var newCard = el.querySelector('.lmcard.expanded');
+      if (newCard) newCard.scrollTop = prevScroll;
+    } catch(e){}
+  }
   try {
     var _tb = el.querySelector('.lm-topbar');
     var _card = el.querySelector('.lm-slot.center .lmcard.beat');
@@ -3962,7 +3996,7 @@ var TS_RATING = { Minion:{acts:0,inf:0}, Elite:{acts:1,inf:1}, Champion:{acts:2,
 function tsRating(sr){ return TS_RATING[sr] || TS_RATING.Elite; }
 
 /* the foe card. Compact by default, matching the FateWell strip. Click to expand
-   into a tabbed card: About, Attributes, Attack, Acts, Stats. */
+   into a tabbed card: About, Attributes, Acts, Stats. */
 function foeCard(f){ return lmExpanded === f.id ? foeCardOpen(f) : foeCardCompact(f); }
 
 function manualDot(key){
@@ -3985,8 +4019,8 @@ function compactPips(f){
 }
 
 function foeCardOpen(f){
-  var tabs = ['about','attributes','attack','acts','stats'];
-  var labels = { about:'About', attributes:'Attributes', attack:'Attack', acts:'Acts', stats:'Stats' };
+  var tabs = ['about','attributes','acts','stats'];
+  var labels = { about:'About', attributes:'Attributes', acts:'Acts', stats:'Stats' };
   var head = '<div class="lmc-top"><span class="lmc-name">' + esc(f.name) + '</span>'
     + '<button class="lmc-close" onclick="lmToggleCard(\'' + f.id + '\')">\u00d7</button></div>';
   var tabrow = '<div class="lmc-tabs">' + tabs.map(function(t){
@@ -3999,25 +4033,34 @@ function foeCardOpen(f){
 function foeTabBody(f, tab){
   var sr = f.sr || 'Elite', minion = sr === 'Minion', d = f.dmg;
   if (tab === 'about'){
+    /* The roll waits for a target. A die shown before anyone is aimed at is a roll with
+       nothing to resolve against, so foeDiceRow appears only once this foe has both an act
+       and a target. targetName also covers the space and self targets. */
+    var showRoll = !!(f.act && f.target);
     return '<div class="lmc-sd">' + esc(sr) + ' Foe</div>'
       + '<div class="lmc-vit">' + f.curVit + ' / ' + f.maxVit + chargePips(f, 'foe') + '</div>'
       + foeLiveHtml(f)
-      + actLine(f, 'foe') + foeDiceRow(f);
+      + actLine(f, 'foe') + (showRoll ? foeDiceRow(f) : '');
   }
   if (tab === 'attributes'){
     return f.attrs ? attrsGrid(f.attrs) : '<div class="lmc-note">No attributes.</div>';
   }
-  if (tab === 'attack'){
-    return '<div class="lmc-dmg">' + d.base + ' + ' + d.bonus + ' ' + d.type
-      + '<span class="lmc-acc">' + esc(d.acc) + ' to hit</span></div>'
-      + '<div class="lmc-note">Base always lands. Bonus meets ' + (d.type === 'magical' ? 'Resistance' : 'Durability') + '.'
-      + (minion ? '' : ' Landing it charges the first tier.') + '</div>';
-  }
   if (tab === 'acts'){
     var h = '', acts = (f.acts || []).slice().sort(function(a,b){ return (a.tier||0)-(b.tier||0); });
     var ceil = tsRating(sr).acts, ch = f.charge || 0;
+    /* The Standard Attack is an Act too, and the one every foe always has. It led the old
+       Attack tab, which is gone; it belongs here, at tier 0, never grayed. Its numbers are
+       the foe's own damage line, guarded in case a foe carries none. */
+    if (d){
+      h += '<div class="lmc-kit"><span class="lmc-kn">Standard Attack</span>'
+         + '<span class="lmc-kt">Tier 0</span>'
+         + '<div class="lmc-ke">' + (d.base||0) + ' + ' + (d.bonus||0) + ' ' + esc(d.type||'')
+         + ' \u00b7 ' + esc(d.acc||'') + ' to hit. Base always lands; bonus meets '
+         + (d.type === 'magical' ? 'Resistance' : 'Durability') + '.'
+         + (minion ? '' : ' Landing it charges the first tier.') + '</div></div>';
+    }
     if (minion) h += '<div class="lmc-note">A Minion brings only its Standard Attack.</div>';
-    if (!acts.length && !minion) h += '<div class="lmc-note">No Acts forged.</div>';
+    if (!acts.length && !minion) h += '<div class="lmc-note">No other Acts forged.</div>';
     acts.forEach(function(a){
       var t = a.tier || 0, beyond = t > ceil, locked = !beyond && !minion && t > ch;
       var gray = beyond || locked || (minion && t > 0);
@@ -4030,10 +4073,29 @@ function foeTabBody(f, tab){
     return h;
   }
   if (tab === 'stats'){
-    var h = kitChunk('Infusions', f.infusions || [], tsRating(sr).inf)
-          + kitChunk('Augmentations', f.augments || [], tsRating(sr).inf);
-    if (f.stance) h += '<div class="lmc-lbl">Stance</div><div class="lmc-kit"><span class="lmc-kn">' + esc(f.stance) + '</span></div>';
-    if (f.sig) h += '<div class="lmc-lbl">Afflictions</div><div class="lmc-kit"><span class="lmc-kn">' + esc(f.sig) + '</span><span class="lmc-kt">on Fellmark, signature</span></div>';
+    var h = kitChunk('Infusions', f.infusions || [], tsRating(sr).inf, 'infusions')
+          + kitChunk('Augmentations', f.augments || [], tsRating(sr).inf, 'augmentations');
+    /* Every stance shows, so the LoreMaster sees the whole set a foe could hold, with the
+       one it is actually in lit and the rest grayed. Hover or tap any for its rule. The
+       full list is the pack's stances; the foe's own f.stance is the active one. */
+    var allStances = (FORGE.pack.stances || []).map(function(x){ return typeof x === 'string' ? x : (x && x.name) || ''; }).filter(Boolean);
+    if (f.stance && allStances.indexOf(f.stance) < 0) allStances.unshift(f.stance);
+    if (allStances.length){
+      h += '<div class="lmc-lbl">Stances</div>';
+      allStances.forEach(function(nm){
+        var active = (nm === f.stance), tip = forgeTip(nm, 'stances');
+        h += '<div class="lmc-kit' + (active ? '' : ' gray') + '" title="' + esc(tip || nm) + '"'
+           + ' onclick="forgeInfo(\'' + esc(nm).replace(/'/g,"\\'") + '\',\'stances\')">'
+           + '<span class="lmc-kn">' + esc(nm) + '</span>'
+           + (active ? '<span class="lmc-kt">held</span>' : '<span class="lmc-why">not held</span>') + '</div>';
+      });
+    }
+    if (f.sig){
+      var stip = forgeTip(f.sig, 'afflictions');
+      h += '<div class="lmc-lbl">Afflictions</div><div class="lmc-kit" title="' + esc(stip || f.sig) + '"'
+         + ' onclick="forgeInfo(\'' + esc(f.sig).replace(/'/g,"\\'") + '\',\'afflictions\')">'
+         + '<span class="lmc-kn">' + esc(f.sig) + '</span><span class="lmc-kt">on Fellmark, signature</span></div>';
+    }
     if (!h) h = '<div class="lmc-note">Nothing carried.</div>';
     return h;
   }
@@ -4046,12 +4108,16 @@ function attrsGrid(a){
          + '<div class="lmc-arow"><span>' + p[1] + '</span><b>' + (a[p[1]]||0) + '</b></div>';
   }).join('') + '</div>';
 }
-function kitChunk(label, list, revealed){
+function kitChunk(label, list, revealed, bucket){
   if (!list.length) return '';
   var h = '<div class="lmc-lbl">' + label + '</div>';
   list.forEach(function(nm, i){
     var gray = i >= revealed;
-    h += '<div class="lmc-kit' + (gray ? ' gray' : '') + '"><span class="lmc-kn">' + esc(nm) + '</span>'
+    var tip = bucket ? forgeTip(nm, bucket) : '';
+    h += '<div class="lmc-kit' + (gray ? ' gray' : '') + '"'
+       + (tip ? ' title="' + esc(tip) + '"' : '')
+       + (bucket ? ' onclick="forgeInfo(\'' + esc(nm).replace(/'/g,"\\'") + '\',\'' + bucket + '\')"' : '')
+       + '><span class="lmc-kn">' + esc(nm) + '</span>'
        + (gray ? '<span class="lmc-why">beyond rating</span>' : '') + '</div>';
   });
   return h;
@@ -4082,8 +4148,8 @@ function compactPipsFell(p){
   var h=''; for(var t=1;t<=3;t++) h+='<span class="lmc-cpip'+((p.charge||0)>=t?' lit':'')+'"></span>'; return h;
 }
 function fellCardOpen(p){
-  var tabs = ['about','attributes','attack','acts','stats'];
-  var labels = { about:'About', attributes:'Attributes', attack:'Attack', acts:'Acts', stats:'Stats' };
+  var tabs = ['about','attributes','acts','stats'];
+  var labels = { about:'About', attributes:'Attributes', acts:'Acts', stats:'Stats' };
   var head = '<div class="lmc-top"><span class="lmc-name">' + esc(p.name) + '</span>'
     + '<button class="lmc-close" onclick="lmToggleCard(\'' + p.id + '\')">\u00d7</button></div>';
   var tabrow = '<div class="lmc-tabs">' + tabs.map(function(t){
@@ -4103,15 +4169,16 @@ function fellTabBody(p, tab){
                  : '<div class="lmc-ropts">Reacts on hand \u00b7 ' + (p.reacts||[]).map(esc).join(' \u00b7 ') + '</div>');
   }
   if (tab === 'attributes') return p.attrs ? attrsGrid(p.attrs) : '<div class="lmc-note">No attributes.</div>';
-  if (tab === 'attack'){
-    if (!d) return '<div class="lmc-note">No weapon set.</div>';
-    return '<div class="lmc-dmg">' + d.base + ' + ' + d.bonus + ' ' + d.type
-      + '<span class="lmc-acc">' + esc(d.acc) + ' to hit</span></div>'
-      + '<div class="lmc-note">Base always lands. Bonus meets ' + (d.type==='magical'?'Resistance':'Durability') + '.</div>';
-  }
   if (tab === 'acts'){
     var h='', acts=(p.acts||[]).slice().sort(function(a,b){return (a.tier||0)-(b.tier||0);}), ch=p.charge||0;
-    if(!acts.length) h+='<div class="lmc-note">No Acts.</div>';
+    /* The weapon strike is an Act, and always available. It led the removed Attack tab and
+       belongs here at tier 0. */
+    if (d){
+      h += '<div class="lmc-kit"><span class="lmc-kn">Standard Attack</span><span class="lmc-kt">Tier 0</span>'
+         + '<div class="lmc-ke">' + d.base + ' + ' + d.bonus + ' ' + esc(d.type) + ' \u00b7 ' + esc(d.acc) + ' to hit. '
+         + 'Base always lands; bonus meets ' + (d.type==='magical'?'Resistance':'Durability') + '.</div></div>';
+    }
+    if(!acts.length) h+='<div class="lmc-note">No other Acts.</div>';
     acts.forEach(function(a){
       var t=a.tier||0, locked=t>ch;
       h+='<div class="lmc-kit'+(locked?' gray':'')+'"><span class="lmc-kn">'+esc(a.name)+'</span>'
@@ -4487,11 +4554,9 @@ function foeLiveHtml(f){
     + '<span class="bt-n">' + (f.curVit || 0) + ' / ' + (f.maxVit || 0) + '</span>'
     + '<button class="bt-b" onclick="foeVit(\'' + f.id + '\',1)">+1</button>'
     + '<button class="bt-b" onclick="foeVit(\'' + f.id + '\',5)">+5</button></div>'
-    + '<div class="bt-row"><span class="bt-lbl">Charges</span>'
-    + [0,1,2,3].map(function(n){
-        return '<button class="bt-pip' + ((f.charge || 0) >= n && n > 0 ? ' on' : '') + '" onclick="foeCharge(\'' + f.id + '\',' + n + ')">' + (n === 0 ? '\u2013' : n) + '</button>';
-      }).join('')
-    + '</div>'
+    + '<button class="bt-b" onclick="foeVit(\'' + f.id + '\',5)">+5</button></div>'
+    /* the Charges row that sat here is gone: the diamond pips on the Vitality line above
+       are the one charge control on the card now, so this was a second, redundant set. */
     + '<div class="bt-row wrap"><span class="bt-lbl">Upon it</span>' + (affs || '<span class="tsm-note">Nothing.</span>')
     + '<button class="bt-b" onclick="foeAffAdd(\'' + f.id + '\')">Apply</button></div>'
     + '</div>';
@@ -4587,9 +4652,45 @@ function chargePips(c, side){
 
 function targetName(id){
   if (!id) return '';
+  if (id === 'space') return 'a space';
+  if (String(id).indexOf('self:') === 0){
+    var sid = id.slice(5), r = 'itself';
+    S.scene.foes.concat(S.scene.fell).forEach(function(c){ if (c.id === sid) r = c.name + ' (itself)'; });
+    return r;
+  }
   var r = id;
   S.scene.foes.concat(S.scene.fell).forEach(function(c){ if (c.id === id) r = c.name; });
   return r;
+}
+function actOptionsFor(c, side){
+  /* Everything a fighter can take as an Act, in the picker's order. Standard Attack first,
+     always available. Then the fighter's own named Acts: a tier 0 Act is free, a higher
+     tier needs that much charge, and one beyond its charge is offered but marked so the
+     LoreMaster sees it is not yet paid for. Then the generic Acts every fighter may take:
+     a Skill, assisting an ally, and Movement. */
+  var ch = c.charge || 0;
+  var out = [{ v:'Standard Attack', label:'Standard Attack', off:false }];
+  (c.acts || []).forEach(function(a){
+    var t = a.tier || 0;
+    var need = t > ch;
+    out.push({ v:a.name, label:a.name + (t ? ' (tier ' + t + ')' : ''), off:need,
+               why:need ? 'needs charge ' + t : '' });
+  });
+  ['Skill', 'Assist an ally', 'Movement'].forEach(function(g){
+    out.push({ v:g, label:g, off:false });
+  });
+  return out;
+}
+function targetOptionsFor(c, side){
+  /* Who or what an Act can land on: a Fell, another foe, the actor itself, or a space on
+     the ground. Both sides can aim at either side now (a foe may buff a foe, a Fell may
+     strike a Fell), plus self, plus a marker for a placed effect on the map. */
+  var out = [];
+  S.scene.fell.forEach(function(t){ out.push({ v:t.id, label:t.name }); });
+  S.scene.foes.forEach(function(t){ if (t.id !== c.id) out.push({ v:t.id, label:t.name }); });
+  out.push({ v:'self:' + c.id, label:'Itself' });
+  out.push({ v:'space', label:'A space' });
+  return out;
 }
 function actLine(c, side){
   if (S.scene.combatPhase !== 'commit'){
@@ -4598,16 +4699,20 @@ function actLine(c, side){
       + (c.target ? ' <span class="lmc-to">\u2192 ' + esc(targetName(c.target)) + '</span>' : '') + '</div>';
   }
   /* commit: an act picker and a target picker, both real selects */
-  var actOpts = ['', 'Attack'].concat((c.acts || []).map(function(a){ return a.name; }));
-  var targets = (side === 'foe' ? S.scene.fell : S.scene.foes);
+  var acts = actOptionsFor(c, side);
+  var targets = targetOptionsFor(c, side);
   return '<div class="lmc-act commit"><span class="lmc-alab">Act</span>'
     + '<select class="lmc-rsel" onchange="lmSetAct(\'' + side + '\',\'' + c.id + '\',this.value)">'
-    + actOpts.map(function(o){ return '<option' + (o === c.act ? ' selected' : '') + '>' + (o ? esc(o) : '\u2014') + '</option>'; }).join('')
+    + '<option value="">\u2014</option>'
+    + acts.map(function(o){
+        return '<option value="' + esc(o.v) + '"' + (o.v === c.act ? ' selected' : '')
+             + (o.off ? ' disabled' : '') + '>' + esc(o.label) + (o.off && o.why ? ' \u00b7 ' + esc(o.why) : '') + '</option>';
+      }).join('')
     + '</select>'
     + '<span class="lmc-alab">at</span>'
     + '<select class="lmc-rsel" onchange="lmSetTarget(\'' + side + '\',\'' + c.id + '\',this.value)">'
     + '<option value="">\u2014</option>'
-    + targets.map(function(t){ return '<option value="' + t.id + '"' + (t.id === c.target ? ' selected' : '') + '>' + esc(t.name) + '</option>'; }).join('')
+    + targets.map(function(t){ return '<option value="' + esc(t.v) + '"' + (t.v === c.target ? ' selected' : '') + '>' + esc(t.label) + '</option>'; }).join('')
     + '</select></div>';
 }
 function lmSetTarget(side, id, v){ var c = findC(id); if(c){ c.target = v; applyRemoteState({ scene:S.scene }); } }
@@ -9290,8 +9395,8 @@ function lmResolveSpot(id){ var c = findC(id); if(c){ c.spot = c.spot === 'done'
 function lmSpotMode(m){ S.scene.spotMode = m; S.scene.spotOrder = []; applyRemoteState({ scene:S.scene }); }
 function lmToggleManual(key){ S.scene.manual[key] = !S.scene.manual[key]; S.scene.spotOrder = []; applyRemoteState({ scene:S.scene }); }
 function lmSetAct(side, id, v){ var c = findC(id); if(c){ c.act = (v === '\u2014' ? '' : v); applyRemoteState({ scene:S.scene }); } }
-function lmSetCharge(side, id, t){ var c = findC(id); if(c){ c.charge = c.charge === t ? t-1 : t; applyRemoteState({ scene:S.scene }); } }
-function lmStepCharge(side, id, d){ var c = findC(id); if(c){ c.charge = clamp((c.charge||0)+d, 0, 3); applyRemoteState({ scene:S.scene }); } }
+function lmSetCharge(side, id, t){ var c = findC(id); if(c){ c.charge = c.charge === t ? t-1 : t; if(side==='foe'){ try{ combatPublish(); }catch(e){} } applyRemoteState({ scene:S.scene }); } }
+function lmStepCharge(side, id, d){ var c = findC(id); if(c){ c.charge = clamp((c.charge||0)+d, 0, 3); if(side==='foe'){ try{ combatPublish(); }catch(e){} } applyRemoteState({ scene:S.scene }); } }
 function findC(id){ var r=null; S.scene.foes.concat(S.scene.fell).forEach(function(c){ if(c.id===id) r=c; }); return r; }
 
 /* ---- combat ---- */
