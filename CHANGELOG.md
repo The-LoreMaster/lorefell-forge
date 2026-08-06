@@ -1,3 +1,9 @@
+## 2026-07-29 - Card follow-ups, and safeguards so a deploy is never a mystery again
+
+Follow-ups on the foe and Fell cards, from play. The Attack tab is back, with the damage line, and the standard attack no longer doubles into the Acts tab. A kit description on desktop is a hover tooltip now rather than a forced click, while touch still taps to open it, since a finger cannot hover. The Back button from a description no longer drops you onto the library version of the card: it closes the panel and leaves you on the combat card you came from. And the three armor stances carry their rules now, from the FellGuide, all three shown with the held one lit, so a stance is never a bare name.
+
+Safeguards, after a deploy that could not be seen. A new DEPLOY_MANIFEST.md records, per tool, which of the two serving paths it uses, because the whole confusion was verifying the CMS pipe for ThreadSpire, which is served from GitHub Pages. SERVING.md no longer claims every tool serves from Wix; it points at the manifest first. And scripts/deployState.js answers "is main deployed" per tool by checking the right workflow ran green on the exact merge commit, which is the check that was missed.
+
 ## 2026-07-29 - The foe card, made usable in play
 
 A pass over the expanded foe and Fell cards, from playing them.

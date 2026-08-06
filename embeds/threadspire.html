@@ -2732,9 +2732,10 @@ function forgeTip(name, bucket){
   return hit;
 }
 function forgeInfo(name, bucket){
+  var text = (bucket === 'stances') ? stanceDescFor(name) : forgeTip(name, bucket);
   tsModal('<h3 class="tsm-title">' + esc(name) + '</h3>'
-    + '<p class="lc-p">' + esc(forgeTip(name, bucket) || 'No description recorded for this yet.') + '</p>'
-    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="sheetReopen()">Back</button></div>');
+    + '<p class="lc-p">' + esc(text || 'No description recorded for this yet.') + '</p>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Back</button></div>');
 }
 function sheetScroll(){ var e = document.querySelector('#tsModal .rs-edit'); return e ? e.scrollTop : 0; }
 function sheetReopen(){
@@ -4019,8 +4020,8 @@ function compactPips(f){
 }
 
 function foeCardOpen(f){
-  var tabs = ['about','attributes','acts','stats'];
-  var labels = { about:'About', attributes:'Attributes', acts:'Acts', stats:'Stats' };
+  var tabs = ['about','attributes','attack','acts','stats'];
+  var labels = { about:'About', attributes:'Attributes', attack:'Attack', acts:'Acts', stats:'Stats' };
   var head = '<div class="lmc-top"><span class="lmc-name">' + esc(f.name) + '</span>'
     + '<button class="lmc-close" onclick="lmToggleCard(\'' + f.id + '\')">\u00d7</button></div>';
   var tabrow = '<div class="lmc-tabs">' + tabs.map(function(t){
@@ -4045,22 +4046,18 @@ function foeTabBody(f, tab){
   if (tab === 'attributes'){
     return f.attrs ? attrsGrid(f.attrs) : '<div class="lmc-note">No attributes.</div>';
   }
+  if (tab === 'attack'){
+    if (!d) return '<div class="lmc-note">No attack set.</div>';
+    return '<div class="lmc-dmg">' + (d.base||0) + ' + ' + (d.bonus||0) + ' ' + esc(d.type||'')
+      + '<span class="lmc-acc">' + esc(d.acc||'') + ' to hit</span></div>'
+      + '<div class="lmc-note">Base always lands. Bonus meets ' + (d.type === 'magical' ? 'Resistance' : 'Durability') + '.'
+      + (minion ? '' : ' Landing it charges the first tier.') + '</div>';
+  }
   if (tab === 'acts'){
     var h = '', acts = (f.acts || []).slice().sort(function(a,b){ return (a.tier||0)-(b.tier||0); });
     var ceil = tsRating(sr).acts, ch = f.charge || 0;
-    /* The Standard Attack is an Act too, and the one every foe always has. It led the old
-       Attack tab, which is gone; it belongs here, at tier 0, never grayed. Its numbers are
-       the foe's own damage line, guarded in case a foe carries none. */
-    if (d){
-      h += '<div class="lmc-kit"><span class="lmc-kn">Standard Attack</span>'
-         + '<span class="lmc-kt">Tier 0</span>'
-         + '<div class="lmc-ke">' + (d.base||0) + ' + ' + (d.bonus||0) + ' ' + esc(d.type||'')
-         + ' \u00b7 ' + esc(d.acc||'') + ' to hit. Base always lands; bonus meets '
-         + (d.type === 'magical' ? 'Resistance' : 'Durability') + '.'
-         + (minion ? '' : ' Landing it charges the first tier.') + '</div></div>';
-    }
     if (minion) h += '<div class="lmc-note">A Minion brings only its Standard Attack.</div>';
-    if (!acts.length && !minion) h += '<div class="lmc-note">No other Acts forged.</div>';
+    if (!acts.length && !minion) h += '<div class="lmc-note">No Acts forged.</div>';
     acts.forEach(function(a){
       var t = a.tier || 0, beyond = t > ceil, locked = !beyond && !minion && t > ch;
       var gray = beyond || locked || (minion && t > 0);
@@ -4075,26 +4072,26 @@ function foeTabBody(f, tab){
   if (tab === 'stats'){
     var h = kitChunk('Infusions', f.infusions || [], tsRating(sr).inf, 'infusions')
           + kitChunk('Augmentations', f.augments || [], tsRating(sr).inf, 'augmentations');
-    /* Every stance shows, so the LoreMaster sees the whole set a foe could hold, with the
-       one it is actually in lit and the rest grayed. Hover or tap any for its rule. The
-       full list is the pack's stances; the foe's own f.stance is the active one. */
-    var allStances = (FORGE.pack.stances || []).map(function(x){ return typeof x === 'string' ? x : (x && x.name) || ''; }).filter(Boolean);
+    /* All three armor stances show, the one the foe holds lit and the rest grayed, so the
+       LoreMaster sees the whole set and what each does. Names and rules are canon
+       (STANCE_ALL / stanceDescFor); a foe's own stance outside the three is added ahead of
+       them. Desktop gets the rule on hover via title, touch on tap via the modal. */
+    var touch = tsIsTouch();
+    var allStances = STANCE_ALL.slice();
     if (f.stance && allStances.indexOf(f.stance) < 0) allStances.unshift(f.stance);
-    if (allStances.length){
-      h += '<div class="lmc-lbl">Stances</div>';
-      allStances.forEach(function(nm){
-        var active = (nm === f.stance), tip = forgeTip(nm, 'stances');
-        h += '<div class="lmc-kit' + (active ? '' : ' gray') + '" title="' + esc(tip || nm) + '"'
-           + ' onclick="forgeInfo(\'' + esc(nm).replace(/'/g,"\\'") + '\',\'stances\')">'
-           + '<span class="lmc-kn">' + esc(nm) + '</span>'
-           + (active ? '<span class="lmc-kt">held</span>' : '<span class="lmc-why">not held</span>') + '</div>';
-      });
-    }
+    h += '<div class="lmc-lbl">Stances</div>';
+    allStances.forEach(function(nm){
+      var active = (nm === f.stance), tip = stanceDescFor(nm);
+      h += '<div class="lmc-kit' + (active ? '' : ' gray') + '" title="' + esc(tip || nm) + '"'
+         + (touch ? ' onclick="forgeInfo(\'' + esc(nm).replace(/'/g,"\\'") + '\',\'stances\')"' : '')
+         + '><span class="lmc-kn">' + esc(nm) + '</span>'
+         + (active ? '<span class="lmc-kt">held</span>' : '<span class="lmc-why">not held</span>') + '</div>';
+    });
     if (f.sig){
       var stip = forgeTip(f.sig, 'afflictions');
       h += '<div class="lmc-lbl">Afflictions</div><div class="lmc-kit" title="' + esc(stip || f.sig) + '"'
-         + ' onclick="forgeInfo(\'' + esc(f.sig).replace(/'/g,"\\'") + '\',\'afflictions\')">'
-         + '<span class="lmc-kn">' + esc(f.sig) + '</span><span class="lmc-kt">on Fellmark, signature</span></div>';
+         + (touch ? ' onclick="forgeInfo(\'' + esc(f.sig).replace(/'/g,"\\'") + '\',\'afflictions\')"' : '')
+         + '><span class="lmc-kn">' + esc(f.sig) + '</span><span class="lmc-kt">on Fellmark, signature</span></div>';
     }
     if (!h) h = '<div class="lmc-note">Nothing carried.</div>';
     return h;
@@ -4110,13 +4107,16 @@ function attrsGrid(a){
 }
 function kitChunk(label, list, revealed, bucket){
   if (!list.length) return '';
+  var touch = tsIsTouch();
   var h = '<div class="lmc-lbl">' + label + '</div>';
   list.forEach(function(nm, i){
     var gray = i >= revealed;
     var tip = bucket ? forgeTip(nm, bucket) : '';
+    /* Desktop gets the description on hover through title; touch gets it on tap through the
+       modal, since a finger cannot hover. Only one is wired per device. */
     h += '<div class="lmc-kit' + (gray ? ' gray' : '') + '"'
        + (tip ? ' title="' + esc(tip) + '"' : '')
-       + (bucket ? ' onclick="forgeInfo(\'' + esc(nm).replace(/'/g,"\\'") + '\',\'' + bucket + '\')"' : '')
+       + (bucket && touch ? ' onclick="forgeInfo(\'' + esc(nm).replace(/'/g,"\\'") + '\',\'' + bucket + '\')"' : '')
        + '><span class="lmc-kn">' + esc(nm) + '</span>'
        + (gray ? '<span class="lmc-why">beyond rating</span>' : '') + '</div>';
   });
@@ -4148,8 +4148,8 @@ function compactPipsFell(p){
   var h=''; for(var t=1;t<=3;t++) h+='<span class="lmc-cpip'+((p.charge||0)>=t?' lit':'')+'"></span>'; return h;
 }
 function fellCardOpen(p){
-  var tabs = ['about','attributes','acts','stats'];
-  var labels = { about:'About', attributes:'Attributes', acts:'Acts', stats:'Stats' };
+  var tabs = ['about','attributes','attack','acts','stats'];
+  var labels = { about:'About', attributes:'Attributes', attack:'Attack', acts:'Acts', stats:'Stats' };
   var head = '<div class="lmc-top"><span class="lmc-name">' + esc(p.name) + '</span>'
     + '<button class="lmc-close" onclick="lmToggleCard(\'' + p.id + '\')">\u00d7</button></div>';
   var tabrow = '<div class="lmc-tabs">' + tabs.map(function(t){
@@ -4169,16 +4169,15 @@ function fellTabBody(p, tab){
                  : '<div class="lmc-ropts">Reacts on hand \u00b7 ' + (p.reacts||[]).map(esc).join(' \u00b7 ') + '</div>');
   }
   if (tab === 'attributes') return p.attrs ? attrsGrid(p.attrs) : '<div class="lmc-note">No attributes.</div>';
+  if (tab === 'attack'){
+    if (!d) return '<div class="lmc-note">No weapon set.</div>';
+    return '<div class="lmc-dmg">' + (d.base||0) + ' + ' + (d.bonus||0) + ' ' + esc(d.type||'')
+      + '<span class="lmc-acc">' + esc(d.acc||'') + ' to hit</span></div>'
+      + '<div class="lmc-note">Base always lands. Bonus meets ' + (d.type==='magical'?'Resistance':'Durability') + '.</div>';
+  }
   if (tab === 'acts'){
     var h='', acts=(p.acts||[]).slice().sort(function(a,b){return (a.tier||0)-(b.tier||0);}), ch=p.charge||0;
-    /* The weapon strike is an Act, and always available. It led the removed Attack tab and
-       belongs here at tier 0. */
-    if (d){
-      h += '<div class="lmc-kit"><span class="lmc-kn">Standard Attack</span><span class="lmc-kt">Tier 0</span>'
-         + '<div class="lmc-ke">' + d.base + ' + ' + d.bonus + ' ' + esc(d.type) + ' \u00b7 ' + esc(d.acc) + ' to hit. '
-         + 'Base always lands; bonus meets ' + (d.type==='magical'?'Resistance':'Durability') + '.</div></div>';
-    }
-    if(!acts.length) h+='<div class="lmc-note">No other Acts.</div>';
+    if(!acts.length) h+='<div class="lmc-note">No Acts.</div>';
     acts.forEach(function(a){
       var t=a.tier||0, locked=t>ch;
       h+='<div class="lmc-kit'+(locked?' gray':'')+'"><span class="lmc-kn">'+esc(a.name)+'</span>'
@@ -9559,6 +9558,26 @@ var SHARD_SPEC = {
   'Darkshard': { radius:10, vit:1 }
 };
 function shardSpecFor(name){ return name ? (SHARD_SPEC[name] || null) : null; }
+/* A coarse pointer (a finger) has no hover, so a description has to be a tap that opens a
+   panel. A fine pointer (a mouse) does hover, so the native title tooltip is enough and a
+   click would just get in the way. This picks which the kit rows use. */
+function tsIsTouch(){
+  try { return window.matchMedia && window.matchMedia('(pointer: coarse)').matches; } catch(e){ return false; }
+}
+/* The three armor stances and their tier effects, from the FellGuide (Armor Stances). A
+   Fell, and a foe wearing armor, holds one active and could switch to any. The pack often
+   carries only the name, so the rule lives here to fill the gap; if canon ever ships stance
+   rules in the pack, forgeTip finds them first and this stays the fallback. Tier effects
+   scale with charge: T1 at charge 1, T1+T2 at 2, all three at 3. */
+var STANCE_DESC = {
+  'Shrouded': 'Speed and evasion. T1: +2 Evasion. T2: reduce damage taken by your Evasion (base before bonus). T3: unaffected by Fellstrikes you roll.',
+  'Stalwart': 'Endurance and resilience. T1: +2 Durability. T2: reduce damage taken by your Durability (base before bonus). T3: unaffected by Fellmarks rolled against you.',
+  'Vestments': 'Magical warding. T1: +2 Resistance. T2: reduce damage taken by your Resistance (base before bonus). T3: cannot be targeted by enemy spells that pick a specific target.'
+};
+var STANCE_ALL = ['Shrouded', 'Stalwart', 'Vestments'];
+function stanceDescFor(name){
+  return (name && STANCE_DESC[name]) || forgeTip(name, 'stances') || '';
+}
 /* Whether this token is the one this table's own Fell answers to. By its record where it
    has one, and by name where it does not, since tokens laid down before a token carried
    a record still ought to obey their player. */
