@@ -1,3 +1,15 @@
+## 2026-07-29 - The foe card, made usable in play
+
+A pass over the expanded foe and Fell cards, from playing them.
+
+The card no longer jumps to the top while you read it. The state feed repaints the strip about once a second, and that rebuild was throwing away your scroll position and, worse, tearing an open dropdown out from under you. Now the open card's scroll is captured and restored across a repaint, and a repaint that arrives while a dropdown or field inside the card has focus is skipped until you let go, so nothing you are mid-way through is interrupted.
+
+The Attack tab is gone. A standard attack is an Act, so it now leads the Acts tab at tier 0 with its own damage line, and every other Act sits below it whether charged or not, the ones beyond the current charge grayed with the reason. The redundant second Charges row is gone from the card; the diamond pips on the Vitality line are the one charge control, and they now publish to the players the way the old row did.
+
+The Act picker offers the whole vocabulary, not just Attack: the standard attack, the foe's own Acts with the charged ones marked when they are not yet paid for, and Skill, Assist an ally, and Movement. Targets now include a Fell, another foe, the actor itself, or a space. The roll no longer shows until a target is chosen, since a die before a target has nothing to resolve against.
+
+On Stats, infusions, augmentations, stances, and afflictions carry their descriptions now, on hover or a tap. Every stance shows, the held one lit and the rest grayed, so the whole set a foe could take is visible at a glance.
+
 ## 2026-07-29 - The CombatPlayer collection learns the feed fields
 
 The Darkshard feed round-trip needs three columns the collection did not have: feed, the board's request; feedAck, the sheet's honoured feed; and skyShards, the placer's Skyvault Shard count. Added to the field script and the schema together, additive, so a push applies them to the live collection without touching the rows already there.
