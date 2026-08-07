@@ -3474,11 +3474,49 @@ function autoMergePlayers(campaignId){
 
 function syncPlayersNow(){ var c=curC(); if (WIX.hub && c) postToWix({ type:'lmtool-players-request', campaignId:c.id }); mergePool(c); save(); render(); }
 
+/* A small readout of backend call telemetry, so a save's call count and the last-minute total
+   are visible on screen during play. Corner box, dim until the count climbs, red near the
+   quota. Only shows when telemetry arrives, so it is invisible unless a save is happening. */
+function fwTeleBanner(m){
+  var el = document.getElementById('fwTele');
+  if (!el){
+    el = document.createElement('div');
+    el.id = 'fwTele';
+    el.style.cssText = 'position:fixed;right:8px;bottom:8px;z-index:99999;font:11px monospace;'
+      + 'background:rgba(10,14,26,.92);border:1px solid #26314a;border-radius:6px;padding:6px 8px;'
+      + 'color:#9fb0c4;pointer-events:none;max-width:280px;white-space:pre-line;';
+    document.body.appendChild(el);
+  }
+  var t = m.tele || {};
+  var pm = m.perMinute || 0;
+  el.style.color = pm > 120 ? '#e88' : (pm > 60 ? '#e6c07a' : '#7e8a99');
+  el.textContent = 'save: ' + m.where + '\n'
+    + 'calls ' + (t.total || 0) + '  (r ' + ((t.get||0)+(t.query||0)) + ' w ' + ((t.insert||0)+(t.update||0)+(t.remove||0)) + ')\n'
+    + 'last 60s: ' + pm;
+  clearTimeout(window._fwTeleHide);
+  window._fwTeleHide = setTimeout(function(){ if (el) el.style.opacity = '0.25'; }, 8000);
+  el.style.opacity = '1';
+}
 window.addEventListener('message', function(ev){
   var m = ev.data || {};
   /* Any reply proves the bridge is alive, whatever it's about; drop a stale "offline" flag. */
   if (WIX.offline){ WIX.offline = false; renderSavedTag(); }
   if (m.type === 'lmtool-cv-state'){ fwCvApply(m); return; }
+  if (m.type === 'lmtool-telemetry'){
+    // Backend call telemetry for a save. window._tele is readable in devtools; the banner
+    // shows the last-minute call count so a save nearing the quota is visible without the log.
+    window._tele = window._tele || [];
+    window._tele.push({ at: Date.now(), where: m.where, calls: (m.tele && m.tele.total) || 0, perMinute: m.perMinute || 0, tele: m.tele });
+    if (window._tele.length > 50) window._tele.shift();
+    window._teleLastMinute = m.perMinute || 0;
+    try {
+      var warn = (m.perMinute || 0) > 120;
+      console.log('%c[tele] ' + m.where + ' calls=' + ((m.tele && m.tele.total) || 0) + ' last60s=' + (m.perMinute || 0),
+        warn ? 'color:#e66' : 'color:#6a9');
+      fwTeleBanner(m);
+    } catch(e){}
+    return;
+  }
   if (m.type === 'lmtool-journal'){ fwImportJournal(m.entries||[]); return; }
   if (m.type === 'lmtool-viewport' || m.type === 'LOREFELL_VIEWPORT'){
     window._wixVis = { top: Number(m.top)||0, height: Number(m.height)||0 };

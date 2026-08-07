@@ -18,6 +18,27 @@ import wixData from 'wix-data';
 import { currentMember } from 'wix-members-backend';
 import { gunzipSync } from 'zlib';
 
+// TELEMETRY. Every Wix data call goes through this wrapper so we can SEE, per save, how many
+// reads and writes actually happened and against which collection. The quota is a per-minute
+// call count, so knowing the exact tally of a save is the difference between guessing and
+// knowing where a flood comes from. Each webMethod resets the tally at its start and returns
+// TELE in its result; the page logs it to the seams panel. Zero cost beyond a counter.
+var TELE = null;
+function teleReset() { TELE = { get: 0, query: 0, insert: 0, update: 0, remove: 0, total: 0, byColl: {} }; }
+function teleBump(op, coll) {
+  if (!TELE) return;
+  TELE[op] = (TELE[op] || 0) + 1;
+  TELE.total++;
+  TELE.byColl[coll] = (TELE.byColl[coll] || 0) + 1;
+}
+const wd = {
+  get: (c, id, o) => { teleBump('get', c); return wixData.get(c, id, o); },
+  insert: (c, r, o) => { teleBump('insert', c); return wixData.insert(c, r, o); },
+  update: (c, r, o) => { teleBump('update', c); return wixData.update(c, r, o); },
+  remove: (c, id, o) => { teleBump('remove', c); return wixData.remove(c, id, o); },
+  query: (c) => { teleBump('query', c); return wixData.query(c); }
+};
+
 const ADV = 'Adventures';
 const ACTS = 'AdvActs';
 const SES = 'AdvSessions';
@@ -33,7 +54,7 @@ async function memberId() {
 async function roleFor(id, advId, ownerId) {
   if (ownerId && id && ownerId === id) return 'loremaster';
   try {
-    const km = await wixData.query('AdventureMembers').eq('memberId', id).eq('campaignId', advId).limit(1).find({ suppressAuth: true });
+    const km = await wd.query('AdventureMembers').eq('memberId', id).eq('campaignId', advId).limit(1).find({ suppressAuth: true });
     if (km.items.length) return km.items[0].role || 'member';
   } catch (e) {}
   return 'member';
@@ -64,18 +85,19 @@ function ordered(rows, idKey, orderIds) {
 // acts:[{ id,name,..., sessions:[{ id,name, scenes:[ scene ] }] }] }, so neither tool needs a
 // new in-memory model, only a new load/save path.
 export const loadAdventure = webMethod(Permissions.Anyone, async (advId) => {
+  teleReset();
   if (!advId) return null;
   const id = await memberId();
-  const root = await wixData.get(ADV, advId, { suppressAuth: true }).catch(() => null);
+  const root = await wd.get(ADV, advId, { suppressAuth: true }).catch(() => null);
   if (!root) return null;
   if (root.ownerMemberId && id && root.ownerMemberId !== id) {
     if (!(await mayKeep(id, advId, root.ownerMemberId))) return null;
   }
 
   const [actQ, sesQ, scnQ] = await Promise.all([
-    wixData.query(ACTS).eq('advId', advId).limit(200).find({ suppressAuth: true }),
-    wixData.query(SES).eq('advId', advId).limit(500).find({ suppressAuth: true }),
-    wixData.query(SCN).eq('advId', advId).limit(1000).find({ suppressAuth: true })
+    wd.query(ACTS).eq('advId', advId).limit(200).find({ suppressAuth: true }),
+    wd.query(SES).eq('advId', advId).limit(500).find({ suppressAuth: true }),
+    wd.query(SCN).eq('advId', advId).limit(1000).find({ suppressAuth: true })
   ]);
 
   const scenesBySes = {};
@@ -127,7 +149,7 @@ function sceneFromRow(r) {
 export const saveAdventureRoot = webMethod(Permissions.Anyone, async (advId, root) => {
   const id = await memberId();
   if (!advId || !root) return { ok: false, error: 'no adventure' };
-  const existing = await wixData.get(ADV, advId, { suppressAuth: true }).catch(() => null);
+  const existing = await wd.get(ADV, advId, { suppressAuth: true }).catch(() => null);
   if (existing && existing.ownerMemberId && id && existing.ownerMemberId !== id) {
     if (!(await mayKeep(id, advId, existing.ownerMemberId))) return { ok: false, error: 'owned by another member' };
   }
@@ -139,24 +161,24 @@ export const saveAdventureRoot = webMethod(Permissions.Anyone, async (advId, roo
   if (!row.ownerMemberId) row.ownerMemberId = id;
   row.updatedAt = Date.now();
   try {
-    const saved = existing ? await wixData.update(ADV, row, { suppressAuth: true }) : await wixData.insert(ADV, row, { suppressAuth: true });
+    const saved = existing ? await wd.update(ADV, row, { suppressAuth: true }) : await wd.insert(ADV, row, { suppressAuth: true });
     return { ok: true, id: saved._id };
   } catch (e) { return { ok: false, error: (e && e.message) || String(e) }; }
 });
 
 async function saveChild(coll, idKey, advId, keyVal, fields) {
   const id = await memberId();
-  const root = await wixData.get(ADV, advId, { suppressAuth: true }).catch(() => null);
+  const root = await wd.get(ADV, advId, { suppressAuth: true }).catch(() => null);
   if (root && root.ownerMemberId && id && root.ownerMemberId !== id) {
     if (!(await mayKeep(id, advId, root.ownerMemberId))) return { ok: false, error: 'owned by another member' };
   }
-  const q = await wixData.query(coll).eq(idKey, keyVal).eq('advId', advId).limit(1).find({ suppressAuth: true });
+  const q = await wd.query(coll).eq(idKey, keyVal).eq('advId', advId).limit(1).find({ suppressAuth: true });
   const existing = q.items[0] || null;
   const row = existing || Object.assign({ advId: advId }, { [idKey]: keyVal });
   Object.keys(fields).forEach(k => { row[k] = fields[k]; });
   row.updatedAt = Date.now();
   try {
-    const saved = existing ? await wixData.update(coll, row, { suppressAuth: true }) : await wixData.insert(coll, row, { suppressAuth: true });
+    const saved = existing ? await wd.update(coll, row, { suppressAuth: true }) : await wd.insert(coll, row, { suppressAuth: true });
     return { ok: true, id: saved._id };
   } catch (e) { return { ok: false, error: (e && e.message) || String(e) }; }
 }
@@ -205,13 +227,13 @@ export const saveAdvScene = webMethod(Permissions.Anyone, async (advId, actId, s
 
 async function removeChild(coll, idKey, advId, keyVal) {
   const id = await memberId();
-  const root = await wixData.get(ADV, advId, { suppressAuth: true }).catch(() => null);
+  const root = await wd.get(ADV, advId, { suppressAuth: true }).catch(() => null);
   if (root && root.ownerMemberId && id && root.ownerMemberId !== id) {
     if (!(await mayKeep(id, advId, root.ownerMemberId))) return { ok: false, error: 'owned by another member' };
   }
-  const q = await wixData.query(coll).eq(idKey, keyVal).eq('advId', advId).limit(1).find({ suppressAuth: true });
+  const q = await wd.query(coll).eq(idKey, keyVal).eq('advId', advId).limit(1).find({ suppressAuth: true });
   if (!q.items.length) return { ok: true, gone: true };
-  try { await wixData.remove(coll, q.items[0]._id, { suppressAuth: true }); return { ok: true }; }
+  try { await wd.remove(coll, q.items[0]._id, { suppressAuth: true }); return { ok: true }; }
   catch (e) { return { ok: false, error: (e && e.message) || String(e) }; }
 }
 export const removeAdvScene = webMethod(Permissions.Anyone, async (advId, sceneId) => removeChild(SCN, 'sceneId', advId, sceneId));
@@ -235,9 +257,10 @@ function unpackCampaignData(data) {
 // costs nothing. A one scene edit costs one write. That keeps a save within quota and lets
 // FateWell and ThreadSpire share the tree without either flooding the API.
 export const saveAdventureFromCampaign = webMethod(Permissions.Anyone, async (advId, campaign) => {
+  teleReset();
   if (!advId || !campaign) return { ok: false, error: 'no adventure' };
   const id = await memberId();
-  const existingRoot = await wixData.get(ADV, advId, { suppressAuth: true }).catch(() => null);
+  const existingRoot = await wd.get(ADV, advId, { suppressAuth: true }).catch(() => null);
   if (existingRoot && existingRoot.ownerMemberId && id && existingRoot.ownerMemberId !== id) {
     if (!(await mayKeep(id, advId, existingRoot.ownerMemberId))) return { ok: false, error: 'owned by another member' };
   }
@@ -245,9 +268,9 @@ export const saveAdventureFromCampaign = webMethod(Permissions.Anyone, async (ad
 
   // read the current rows once, so the diff needs no per-row lookups
   const [actRows, sesRows, scnRows] = await Promise.all([
-    wixData.query(ACTS).eq('advId', advId).limit(500).find({ suppressAuth: true }).then(r => r.items).catch(() => []),
-    wixData.query(SES).eq('advId', advId).limit(1000).find({ suppressAuth: true }).then(r => r.items).catch(() => []),
-    wixData.query(SCN).eq('advId', advId).limit(2000).find({ suppressAuth: true }).then(r => r.items).catch(() => [])
+    wd.query(ACTS).eq('advId', advId).limit(500).find({ suppressAuth: true }).then(r => r.items).catch(() => []),
+    wd.query(SES).eq('advId', advId).limit(1000).find({ suppressAuth: true }).then(r => r.items).catch(() => []),
+    wd.query(SCN).eq('advId', advId).limit(2000).find({ suppressAuth: true }).then(r => r.items).catch(() => [])
   ]);
   const actBy = index(actRows, 'actId'), sesBy = index(sesRows, 'sesId'), scnBy = index(scnRows, 'sceneId');
   let writes = 0;
@@ -289,11 +312,11 @@ export const saveAdventureFromCampaign = webMethod(Permissions.Anyone, async (ad
   }
 
   // prune rows the campaign dropped, using the already-read lists (no extra queries)
-  for (const row of scnRows) { if (!keepSc[row.sceneId]) { try { await wixData.remove(SCN, row._id, { suppressAuth: true }); writes++; } catch (e) {} } }
-  for (const row of sesRows) { if (!keepSe[row.sesId]) { try { await wixData.remove(SES, row._id, { suppressAuth: true }); writes++; } catch (e) {} } }
-  for (const row of actRows) { if (!keepA[row.actId]) { try { await wixData.remove(ACTS, row._id, { suppressAuth: true }); writes++; } catch (e) {} } }
+  for (const row of scnRows) { if (!keepSc[row.sceneId]) { try { await wd.remove(SCN, row._id, { suppressAuth: true }); writes++; } catch (e) {} } }
+  for (const row of sesRows) { if (!keepSe[row.sesId]) { try { await wd.remove(SES, row._id, { suppressAuth: true }); writes++; } catch (e) {} } }
+  for (const row of actRows) { if (!keepA[row.actId]) { try { await wd.remove(ACTS, row._id, { suppressAuth: true }); writes++; } catch (e) {} } }
 
-  return { ok: true, advId: advId, writes: writes };
+  return { ok: true, advId: advId, writes: writes, tele: TELE };
 });
 
 function index(rows, key) { const m = {}; (rows || []).forEach(r => { m[r[key]] = r; }); return m; }
@@ -325,8 +348,8 @@ function rowChanged(row, fields) {
 }
 async function writeRow(coll, row, fields) {
   const out = Object.assign(row ? { _id: row._id } : {}, fields, { updatedAt: Date.now() });
-  if (row) return wixData.update(coll, out, { suppressAuth: true });
-  return wixData.insert(coll, out, { suppressAuth: true });
+  if (row) return wd.update(coll, out, { suppressAuth: true });
+  return wd.insert(coll, out, { suppressAuth: true });
 }
 async function saveAdventureRootRow(advId, campaign, acts, existing, id) {
   const row = existing || { _id: advId, advId: advId, ownerMemberId: id };
@@ -335,7 +358,7 @@ async function saveAdventureRootRow(advId, campaign, acts, existing, id) {
   row.actOrder = JSON.stringify(acts.map(a => a.id));
   if (!row.ownerMemberId) row.ownerMemberId = id;
   row.updatedAt = Date.now();
-  return existing ? wixData.update(ADV, row, { suppressAuth: true }) : wixData.insert(ADV, row, { suppressAuth: true });
+  return existing ? wd.update(ADV, row, { suppressAuth: true }) : wd.insert(ADV, row, { suppressAuth: true });
 }
 function actFields(advId, a, i) {
   const extra = {}; Object.keys(a).forEach(k => { if (!['id', 'name', 'notes', 'img', 'desc', 'sessions', 'sortIndex', 'sessionOrder'].includes(k)) extra[k] = a[k]; });
@@ -351,9 +374,10 @@ function sceneFields(advId, actId, sesId, sc, i) {
 }
 
 export const migrateCampaign = webMethod(Permissions.Anyone, async (campaignId) => {
+  teleReset();
   if (!campaignId) return { ok: false, error: 'no campaign' };
   const id = await memberId();
-  const camp = await wixData.get(CAMPAIGNS, campaignId, { suppressAuth: true }).catch(() => null);
+  const camp = await wd.get(CAMPAIGNS, campaignId, { suppressAuth: true }).catch(() => null);
   if (!camp) return { ok: false, error: 'campaign not found' };
   if (camp.ownerMemberId && id && camp.ownerMemberId !== id) {
     if (!(await mayKeep(id, campaignId, camp.ownerMemberId))) return { ok: false, error: 'owned by another member' };
@@ -366,10 +390,10 @@ export const migrateCampaign = webMethod(Permissions.Anyone, async (campaignId) 
   const res = await saveAdventureFromCampaign(advId, Object.assign({ name: camp.name || data.name }, data));
 
   // stamp the source so a re-run is a no-op update and we can tell what has moved
-  try { camp.migratedTo = advId; camp.migratedAt = Date.now(); await wixData.update(CAMPAIGNS, camp, { suppressAuth: true }); } catch (e) {}
+  try { camp.migratedTo = advId; camp.migratedAt = Date.now(); await wd.update(CAMPAIGNS, camp, { suppressAuth: true }); } catch (e) {}
 
   const back = await loadAdventure(advId);
   const backScenes = (back && back.acts || []).reduce((n, a) => n + (a.sessions || []).reduce((m, s) => m + (s.scenes || []).length, 0), 0);
   const nScenes = (data.acts || []).reduce((n, a) => n + (a.sessions || []).reduce((m, s) => m + (s.scenes || []).length, 0), 0);
-  return { ok: (res && res.ok) !== false, advId: advId, scenesWritten: nScenes, scenesReadBack: backScenes, clean: nScenes === backScenes };
+  return { ok: (res && res.ok) !== false, advId: advId, scenesWritten: nScenes, scenesReadBack: backScenes, clean: nScenes === backScenes, tele: TELE };
 });

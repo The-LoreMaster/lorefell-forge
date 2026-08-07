@@ -32,12 +32,36 @@ function scheduleDualWriteCompressed(advId) {
   if (_advCompTimers[advId]) return;
   _advCompTimers[advId] = setTimeout(async function () {
     _advCompTimers[advId] = null;
-    try { await migrateCampaign(advId); } catch (e) {}
+    try { const r = await migrateCampaign(advId); teleReport('dualWrite-gz', advId, r && r.tele); } catch (e) { teleReport('dualWrite-gz-fail', advId, { error: String(e) }); }
   }, _ADV_DUAL_MS);
 }
 async function dualWriteTree(advId, camp) {
-  try { await saveAdventureFromCampaign(advId, camp); } catch (e) {}
+  try {
+    const r = await saveAdventureFromCampaign(advId, camp);
+    teleReport('dualWrite', advId, r && r.tele);
+  } catch (e) { teleReport('dualWrite-fail', advId, { error: String(e) }); }
 }
+// TELEMETRY on the page: keep a rolling count of backend data calls in the last minute, so we
+// can see how close a save is to the quota and which operation spent it. Every instrumented
+// backend method returns a tele tally; this folds it into a window total and logs it, and
+// pushes it to the embed's seams panel so the number is visible in the tool, not just the log.
+var _teleWindow = [];
+function teleReport(where, advId, tele) {
+  if (!tele) return;
+  const now = Date.now();
+  const total = tele.total || 0;
+  _teleWindow.push({ t: now, n: total });
+  _teleWindow = _teleWindow.filter(e => now - e.t < 60000);
+  const perMinute = _teleWindow.reduce((s, e) => s + e.n, 0);
+  const line = '[tele] ' + where + ' adv=' + (advId || '?') + ' calls=' + total
+    + ' (get ' + (tele.get || 0) + ' query ' + (tele.query || 0) + ' insert ' + (tele.insert || 0)
+    + ' update ' + (tele.update || 0) + ' remove ' + (tele.remove || 0) + ')'
+    + ' writes=' + (tele.writes !== undefined ? tele.writes : '?')
+    + ' | last60s=' + perMinute;
+  console.log(line);
+  try { if (typeof embed !== 'undefined' && embed) embed.postMessage({ type: 'lmtool-telemetry', where: where, advId: advId, tele: tele, perMinute: perMinute }); } catch (e) {}
+}
+
 function scheduleDualWrite(advId, camp) {
   if (!advId || !camp) return;
   _advDualPending[advId] = camp;
