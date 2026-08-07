@@ -1,3 +1,7 @@
+## 2026-07-29 - Bulk sync saves one adventure at a time, with room to breathe
+
+Saving several adventures in one unbroken burst stacked their calls into the same minute and tripped the quota on the second one, even though each save on its own was small. The member id came through this time, so the flood was milder than before, right at the edge. The Save all path now saves each adventure in turn with a short pause between them, so the per-minute budget has room and a two adventure sync lands cleanly. The tree reconcile is left to its normal throttle rather than forced during the sync, to keep the burst light.
+
 ## 2026-07-29 - An unstorable image no longer blocks the whole save
 
 This was why a save reported success but nothing persisted. Adding a foe with an image makes the save host the image first and defer the rest, expecting to run again once the image is a stored url. If the image is too large to store, it stays a data url, so the next save finds it again and defers again, and the adventure never actually saves. There was no error because each step looked like it worked. Now the save defers for hosting only once per change. If an image is still inline after that, the save proceeds anyway, drops the unstorable image from the stored copy so it neither blocks nor bloats the row, and says plainly that one image was too large and stays on this device. The rest of the edit lands.
