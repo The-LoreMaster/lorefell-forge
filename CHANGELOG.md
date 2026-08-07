@@ -1,3 +1,7 @@
+## 2026-07-29 - Every image saved is a stored url
+
+Inline images and blob addresses have no business in a saved row: a data image bloats the row past Wix's per item limit, and a blob address is local to one browser and dies on reload. FateWell already pushed its images to stored urls on save; ThreadSpire did not on the paths that now write the adventure tree and the stages. It does now. Every adventure save, scene, act, session and root, and every stage save carrying a map or token, walks its payload and replaces any data image with a stored url, converting a wix descriptor to its static address and dropping a blob address that cannot be uploaded from here. So no save from either tool can put anything but a real url into a row.
+
 ## 2026-07-29 - A save writes only what changed
 
 Saving a large adventure through FateWell was flooding Wix past its per-minute quota: every save rewrote every row, so a 69 scene adventure fired a couple of hundred calls at once, and once the quota tripped even the sign-in check failed, which is why the error also said it saw no member id. Now saveAdventureFromCampaign reads the adventure's rows once and writes only the root, acts, sessions and scenes whose content actually changed, and removes the rows a campaign dropped, using the lists it already read. An unchanged scene costs nothing; a one scene edit costs one write. The backend migrate reuses the same diff writer, so opening a large adventure no longer bursts either. ThreadSpire already wrote one scene at a time and was never the culprit.
