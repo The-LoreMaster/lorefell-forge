@@ -228,10 +228,12 @@ function unpackCampaignData(data) {
   return data || {};
 }
 
-// FateWell hands the whole campaign object on each save. Write it into the tree the same way
-// the migration does, so FateWell and ThreadSpire land on the SAME rows. Idempotent: it
-// overwrites the adventure's rows by id and prunes rows for scenes/acts/sessions the campaign
-// no longer contains, so a delete in FateWell reaches the shared source too.
+// FateWell hands the whole campaign object on each save. Writing every row every time blows
+// the per-minute quota on a large adventure (a 69 scene save was ~200 calls). So this diffs:
+// it reads the adventure's rows once, then writes ONLY the root, acts, sessions and scenes
+// whose content actually changed, and removes rows the campaign dropped. An unchanged scene
+// costs nothing. A one scene edit costs one write. That keeps a save within quota and lets
+// FateWell and ThreadSpire share the tree without either flooding the API.
 export const saveAdventureFromCampaign = webMethod(Permissions.Anyone, async (advId, campaign) => {
   if (!advId || !campaign) return { ok: false, error: 'no adventure' };
   const id = await memberId();
@@ -241,41 +243,83 @@ export const saveAdventureFromCampaign = webMethod(Permissions.Anyone, async (ad
   }
   const acts = Array.isArray(campaign.acts) ? campaign.acts : [];
 
-  await saveAdventureRoot(advId, {
-    name: campaign.name || 'Adventure',
-    activeSceneId: campaign.activeSceneId || '',
-    actOrder: acts.map(a => a.id),
-    meta: { source: 'fatewell', savedAt: Date.now() }
-  });
+  // read the current rows once, so the diff needs no per-row lookups
+  const [actRows, sesRows, scnRows] = await Promise.all([
+    wixData.query(ACTS).eq('advId', advId).limit(500).find({ suppressAuth: true }).then(r => r.items).catch(() => []),
+    wixData.query(SES).eq('advId', advId).limit(1000).find({ suppressAuth: true }).then(r => r.items).catch(() => []),
+    wixData.query(SCN).eq('advId', advId).limit(2000).find({ suppressAuth: true }).then(r => r.items).catch(() => [])
+  ]);
+  const actBy = index(actRows, 'actId'), sesBy = index(sesRows, 'sesId'), scnBy = index(scnRows, 'sceneId');
+  let writes = 0;
 
-  const keepActs = {}, keepSes = {}, keepScn = {};
-  for (const a of acts) {
-    keepActs[a.id] = 1;
-    await saveAdvAct(advId, a);
-    for (const se of (a.sessions || [])) {
-      keepSes[se.id] = 1;
-      await saveAdvSession(advId, a.id, se);
-      for (const sc of (se.scenes || [])) {
-        keepScn[sc.id] = 1;
-        await saveAdvScene(advId, a.id, se.id, sc);
+  // root: write only if name, active scene, or act order changed
+  const actOrder = JSON.stringify(acts.map(a => a.id));
+  if (!existingRoot || existingRoot.name !== (campaign.name || 'Adventure') || existingRoot.activeSceneId !== (campaign.activeSceneId || '') || existingRoot.actOrder !== actOrder) {
+    await saveAdventureRootRow(advId, campaign, acts, existingRoot, id); writes++;
+  }
+
+  const keepA = {}, keepSe = {}, keepSc = {};
+  for (let ai = 0; ai < acts.length; ai++) {
+    const a = acts[ai]; keepA[a.id] = 1;
+    const aRow = actBy[a.id];
+    const aFields = actFields(advId, a, ai);
+    if (rowChanged(aRow, aFields)) { await writeRow(ACTS, aRow, aFields); writes++; }
+    const sessions = a.sessions || [];
+    for (let si = 0; si < sessions.length; si++) {
+      const se = sessions[si]; keepSe[se.id] = 1;
+      const sRow = sesBy[se.id];
+      const sFields = sesFields(advId, a.id, se, si);
+      if (rowChanged(sRow, sFields)) { await writeRow(SES, sRow, sFields); writes++; }
+      const scenes = se.scenes || [];
+      for (let ci = 0; ci < scenes.length; ci++) {
+        const sc = scenes[ci]; keepSc[sc.id] = 1;
+        const cRow = scnBy[sc.id];
+        const cFields = sceneFields(advId, a.id, se.id, sc, ci);
+        if (rowChanged(cRow, cFields)) { await writeRow(SCN, cRow, cFields); writes++; }
       }
     }
   }
 
-  await pruneMissing(SCN, 'sceneId', advId, keepScn);
-  await pruneMissing(SES, 'sesId', advId, keepSes);
-  await pruneMissing(ACTS, 'actId', advId, keepActs);
+  // prune rows the campaign dropped, using the already-read lists (no extra queries)
+  for (const row of scnRows) { if (!keepSc[row.sceneId]) { try { await wixData.remove(SCN, row._id, { suppressAuth: true }); writes++; } catch (e) {} } }
+  for (const row of sesRows) { if (!keepSe[row.sesId]) { try { await wixData.remove(SES, row._id, { suppressAuth: true }); writes++; } catch (e) {} } }
+  for (const row of actRows) { if (!keepA[row.actId]) { try { await wixData.remove(ACTS, row._id, { suppressAuth: true }); writes++; } catch (e) {} } }
 
-  return { ok: true, advId: advId };
+  return { ok: true, advId: advId, writes: writes };
 });
 
-async function pruneMissing(coll, idKey, advId, keep) {
-  try {
-    const q = await wixData.query(coll).eq('advId', advId).limit(1000).find({ suppressAuth: true });
-    for (const row of q.items) {
-      if (!keep[row[idKey]]) { try { await wixData.remove(coll, row._id, { suppressAuth: true }); } catch (e) {} }
-    }
-  } catch (e) {}
+function index(rows, key) { const m = {}; (rows || []).forEach(r => { m[r[key]] = r; }); return m; }
+
+// a row needs writing only if one of its stored fields differs from what we would write
+function rowChanged(row, fields) {
+  if (!row) return true;
+  return Object.keys(fields).some(k => String(row[k] === undefined ? '' : row[k]) !== String(fields[k] === undefined ? '' : fields[k]));
+}
+async function writeRow(coll, row, fields) {
+  const out = Object.assign(row ? { _id: row._id } : {}, fields, { updatedAt: Date.now() });
+  if (row) return wixData.update(coll, out, { suppressAuth: true });
+  return wixData.insert(coll, out, { suppressAuth: true });
+}
+async function saveAdventureRootRow(advId, campaign, acts, existing, id) {
+  const row = existing || { _id: advId, advId: advId, ownerMemberId: id };
+  row.name = campaign.name || 'Adventure';
+  row.activeSceneId = campaign.activeSceneId || '';
+  row.actOrder = JSON.stringify(acts.map(a => a.id));
+  if (!row.ownerMemberId) row.ownerMemberId = id;
+  row.updatedAt = Date.now();
+  return existing ? wixData.update(ADV, row, { suppressAuth: true }) : wixData.insert(ADV, row, { suppressAuth: true });
+}
+function actFields(advId, a, i) {
+  const extra = {}; Object.keys(a).forEach(k => { if (!['id', 'name', 'notes', 'img', 'desc', 'sessions', 'sortIndex', 'sessionOrder'].includes(k)) extra[k] = a[k]; });
+  return { advId: advId, actId: a.id, name: a.name || '', notes: a.notes || '', img: a.img || '', desc: a.desc || '', sortIndex: i, sessionOrder: JSON.stringify((a.sessions || []).map(s => s.id)), extra: JSON.stringify(extra) };
+}
+function sesFields(advId, actId, se, i) {
+  const extra = {}; Object.keys(se).forEach(k => { if (!['id', 'name', 'scenes', 'sortIndex', 'sceneOrder'].includes(k)) extra[k] = se[k]; });
+  return { advId: advId, sesId: se.id, actId: actId, name: se.name || '', sortIndex: i, sceneOrder: JSON.stringify((se.scenes || []).map(s => s.id)), extra: JSON.stringify(extra) };
+}
+function sceneFields(advId, actId, sesId, sc, i) {
+  const own = {}; Object.keys(sc).forEach(k => { if (!['id', 'name', 'prep', 'img', 'desc', 'mode', 'status', 'beats', 'combatants', '_row'].includes(k)) own[k] = sc[k]; });
+  return { advId: advId, sceneId: sc.id, actId: actId, sesId: sesId, sortIndex: i, name: sc.name || '', prep: sc.prep || '', img: sc.img || '', desc: sc.desc || '', mode: sc.mode || 'roleplay', status: sc.status || 'active', beats: JSON.stringify(sc.beats || []), combatants: JSON.stringify(sc.combatants || []), sceneData: JSON.stringify(own) };
 }
 
 export const migrateCampaign = webMethod(Permissions.Anyone, async (campaignId) => {
@@ -287,33 +331,17 @@ export const migrateCampaign = webMethod(Permissions.Anyone, async (campaignId) 
     if (!(await mayKeep(id, campaignId, camp.ownerMemberId))) return { ok: false, error: 'owned by another member' };
   }
   const data = unpackCampaignData(jparse(camp.data, {}));
-  const acts = Array.isArray(data.acts) ? data.acts : [];
   const advId = campaignId; // keep the same id so members, players, stages still resolve
 
-  await saveAdventureRoot(advId, {
-    name: camp.name || data.name || 'Adventure',
-    activeSceneId: data.activeSceneId || '',
-    actOrder: acts.map(a => a.id),
-    meta: { migratedFrom: campaignId, migratedAt: Date.now() }
-  });
-
-  let nScenes = 0;
-  for (const a of acts) {
-    await saveAdvAct(advId, a);
-    for (const se of (a.sessions || [])) {
-      await saveAdvSession(advId, a.id, se);
-      for (const sc of (se.scenes || [])) {
-        await saveAdvScene(advId, a.id, se.id, sc);
-        nScenes++;
-      }
-    }
-  }
+  // reuse the diff based writer so migrating a large adventure does not flood the API. On a
+  // fresh adventure every row is new, so all get written; on a re-run only changes write.
+  const res = await saveAdventureFromCampaign(advId, Object.assign({ name: camp.name || data.name }, data));
 
   // stamp the source so a re-run is a no-op update and we can tell what has moved
   try { camp.migratedTo = advId; camp.migratedAt = Date.now(); await wixData.update(CAMPAIGNS, camp, { suppressAuth: true }); } catch (e) {}
 
-  // read it back and count, so the caller can verify the round-trip
   const back = await loadAdventure(advId);
   const backScenes = (back && back.acts || []).reduce((n, a) => n + (a.sessions || []).reduce((m, s) => m + (s.scenes || []).length, 0), 0);
-  return { ok: true, advId: advId, scenesWritten: nScenes, scenesReadBack: backScenes, clean: nScenes === backScenes };
+  const nScenes = (data.acts || []).reduce((n, a) => n + (a.sessions || []).reduce((m, s) => m + (s.scenes || []).length, 0), 0);
+  return { ok: (res && res.ok) !== false, advId: advId, scenesWritten: nScenes, scenesReadBack: backScenes, clean: nScenes === backScenes };
 });
