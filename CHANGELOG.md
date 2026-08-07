@@ -1,3 +1,7 @@
+## 2026-07-29 - FateWell trusts the blob it just wrote
+
+A saved roster change reverted on refresh even though the save succeeded. FateWell was reading the shared tree on load, but it writes the tree on a short delay while the blob is written at once, so a refresh landing in that gap loaded the tree's older copy and lost the edit. FateWell now loads from its own blob first, which is always as fresh as the last save, and falls back to the tree only when there is no blob. The tree stays the channel ThreadSpire reads. The delay before the tree write is shorter now, and the tool asks the page to flush any pending tree write when it is hidden or unloaded, so a refresh cannot outrun it and ThreadSpire still sees the change promptly.
+
 ## 2026-07-29 - Deleting a library foe deletes it everywhere
 
 A library profile could not really be deleted while a scene still used it. The save routine rebuilds the library from scene combatants, so a deleted profile came straight back on the next save. Now deleting a profile from the library also strips it from every scene that references it, matched the same way the save routine resolves a combatant to the library, by id then by name and type, so nothing is left to rebuild from. The confirm says how many scene slots it will clear, so the reach of the delete is not a surprise. Both the single delete and the multi select delete cascade this way.
