@@ -12,7 +12,7 @@ import { publishAdventure, myPublishedAdventures, unpublishAdventure, getPublish
 import { createInvite, revokeInvite } from 'backend/invites.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
 import { getCampaignState, saveCampaignState, getJournal } from 'backend/campaignview.web.js';
-import { loadAdventure, saveAdventureFromCampaign, migrateCampaign } from 'backend/adventures.web.js';
+import { loadAdventure, saveAdventureFromCampaign, saveAdventureFromBlob, migrateCampaign } from 'backend/adventures.web.js';
 import wixLocation from 'wix-location';
 import wixWindow from 'wix-window';
 
@@ -35,7 +35,7 @@ function scheduleDualWriteCompressed(advId) {
   _advCompTimers[advId] = setTimeout(async function () {
     _advCompTimers[advId] = null;
     delete _advCompPending[advId];
-    try { const r = await migrateCampaign(advId); teleReport('dualWrite-gz', advId, r && r.tele); } catch (e) { teleReport('dualWrite-gz-fail', advId, { error: String(e) }); }
+    try { const r = await saveAdventureFromBlob(advId); teleReport('dualWrite-gz', advId, r && r.tele); } catch (e) { teleReport('dualWrite-gz-fail', advId, { error: String(e) }); }
   }, _ADV_DUAL_MS);
 }
 async function dualWriteTree(advId, camp) {
@@ -105,7 +105,7 @@ async function flushDualWrites() {
   for (const advId of Object.keys(_advCompPending)) {
     if (_advCompTimers[advId]) { clearTimeout(_advCompTimers[advId]); _advCompTimers[advId] = null; }
     delete _advCompPending[advId];
-    try { await migrateCampaign(advId); } catch (e) {}
+    try { await saveAdventureFromBlob(advId); } catch (e) {}
   }
 }
 
