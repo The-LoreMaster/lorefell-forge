@@ -228,6 +228,56 @@ function unpackCampaignData(data) {
   return data || {};
 }
 
+// FateWell hands the whole campaign object on each save. Write it into the tree the same way
+// the migration does, so FateWell and ThreadSpire land on the SAME rows. Idempotent: it
+// overwrites the adventure's rows by id and prunes rows for scenes/acts/sessions the campaign
+// no longer contains, so a delete in FateWell reaches the shared source too.
+export const saveAdventureFromCampaign = webMethod(Permissions.Anyone, async (advId, campaign) => {
+  if (!advId || !campaign) return { ok: false, error: 'no adventure' };
+  const id = await memberId();
+  const existingRoot = await wixData.get(ADV, advId, { suppressAuth: true }).catch(() => null);
+  if (existingRoot && existingRoot.ownerMemberId && id && existingRoot.ownerMemberId !== id) {
+    if (!(await mayKeep(id, advId, existingRoot.ownerMemberId))) return { ok: false, error: 'owned by another member' };
+  }
+  const acts = Array.isArray(campaign.acts) ? campaign.acts : [];
+
+  await saveAdventureRoot(advId, {
+    name: campaign.name || 'Adventure',
+    activeSceneId: campaign.activeSceneId || '',
+    actOrder: acts.map(a => a.id),
+    meta: { source: 'fatewell', savedAt: Date.now() }
+  });
+
+  const keepActs = {}, keepSes = {}, keepScn = {};
+  for (const a of acts) {
+    keepActs[a.id] = 1;
+    await saveAdvAct(advId, a);
+    for (const se of (a.sessions || [])) {
+      keepSes[se.id] = 1;
+      await saveAdvSession(advId, a.id, se);
+      for (const sc of (se.scenes || [])) {
+        keepScn[sc.id] = 1;
+        await saveAdvScene(advId, a.id, se.id, sc);
+      }
+    }
+  }
+
+  await pruneMissing(SCN, 'sceneId', advId, keepScn);
+  await pruneMissing(SES, 'sesId', advId, keepSes);
+  await pruneMissing(ACTS, 'actId', advId, keepActs);
+
+  return { ok: true, advId: advId };
+});
+
+async function pruneMissing(coll, idKey, advId, keep) {
+  try {
+    const q = await wixData.query(coll).eq('advId', advId).limit(1000).find({ suppressAuth: true });
+    for (const row of q.items) {
+      if (!keep[row[idKey]]) { try { await wixData.remove(coll, row._id, { suppressAuth: true }); } catch (e) {} }
+    }
+  } catch (e) {}
+}
+
 export const migrateCampaign = webMethod(Permissions.Anyone, async (campaignId) => {
   if (!campaignId) return { ok: false, error: 'no campaign' };
   const id = await memberId();

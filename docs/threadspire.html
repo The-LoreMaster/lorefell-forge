@@ -1929,23 +1929,21 @@ function advPersistTree(){
     });
   }, 900);
 }
-/* the authored scene, without the live-play state that the relay row already carries */
+/* the authored scene in the shared shape. combatants is canonical and both tools read it;
+   the roster keeps it in sync as foes and npcs are added or removed. Live turn state and the
+   board's derived views are stripped so only the stored story is written. */
 function advCleanScene(sc){
   var out = {};
   Object.keys(sc || {}).forEach(function(k){
-    if (['combatPhase','background','maps','spotMode','manual','spotOrder','activeSpot','out'].indexOf(k) >= 0) return;
+    if (['combatPhase','background','maps','spotMode','manual','spotOrder','activeSpot','out','foes','npcs'].indexOf(k) >= 0) return;
     out[k] = sc[k];
   });
-  /* a foe or npc on the board carries live turn state (act, target, locked, spot). That
-     belongs to this table's live relay, not the stored story, so it is stripped before the
-     scene is saved; the authored foe (its identity, stats, kit) is kept. */
   function stripLive(x){
     var c = Object.assign({}, x);
-    ['act','target','locked','spot','reactUsed','react','curVit','charge','dmg'].forEach(function(k){ delete c[k]; });
+    ['act','target','locked','spot','reactUsed','react','curVit','charge','dmg','done'].forEach(function(k){ delete c[k]; });
     return c;
   }
-  if (Array.isArray(out.foes)) out.foes = out.foes.map(stripLive);
-  if (Array.isArray(out.npcs)) out.npcs = out.npcs.map(stripLive);
+  out.combatants = (sc.combatants || []).map(stripLive);
   return out;
 }
 function storyToggle(lvl, id){ storyOpen[lvl][id] = !storyOpen[lvl][id]; refreshWinBody(); }
@@ -2646,7 +2644,12 @@ function libAttach(sceneId, libId){
   var key = isFoe ? 'foes' : 'npcs';
   f.scene[key] = f.scene[key] || [];
   var same = f.scene[key].filter(function(c){ return sameId(c.libId, libId); }).length;
-  f.scene[key].push(libMakeCombatant(e, e.name + (same ? ' ' + (same + 1) : '')));
+  var cb = libMakeCombatant(e, e.name + (same ? ' ' + (same + 1) : ''));
+  f.scene[key].push(cb);
+  /* combatants is the shared store both tools read; keep it in step with the board list so an
+     add here reaches FateWell too. The combatant object is the same one the board holds. */
+  f.scene.combatants = f.scene.combatants || [];
+  f.scene.combatants.push(cb);
   storySave(); rosterReopenAfter(); render();
 }
 function rosterAdd(sceneId, kind){
@@ -2667,6 +2670,11 @@ function rosterRemove(sceneId, kind, id){
   var f = storyFind('scene', sceneId); if (!f){ rosterRefresh(); return; }
   var key = kind === 'npc' ? 'npcs' : 'foes';
   f.scene[key] = (f.scene[key] || []).filter(function(x){ return !sameId(x.id, id); });
+  /* combatants is the shared store; drop the same one there so the removal reaches FateWell.
+     A cast board foe keeps the id its combatant had (tsFoeId), so the ids line up. */
+  f.scene.combatants = (f.scene.combatants || []).filter(function(cb){
+    return !sameId(cb.id, id) && !sameId(tsFoeId(cb, 0), id);
+  });
   storySave(); rosterRefresh(); render();
 }
 
@@ -6155,25 +6163,24 @@ function tsCastFoe(cb, i){
 function tsCastNpc(cb, i){ return { id: (cb && cb.id) || ('n-' + ((cb && cb.libId) || 'x') + '-' + (i || 0)), name: (cb && cb.name) || 'NPC' }; }
 function tsCastFell(pl){ return { id: pl.id || ('p-' + Math.random().toString(36).slice(2)), charId: pl.charId || null, name: pl.name || 'Fell', level: pl.level || 1, curVit: pl.maxVit || 0, maxVit: pl.maxVit || 0, charge: 0 }; }
 function tsSpineScene(sc, c){
-  /* A scene that already carries foes/npcs came from the Adventures tree, where ThreadSpire
-     stored exactly what it edits; keep them as-is. A scene that carries only combatants came
-     from the old blob; derive foes/npcs from it. Either way the whole authored scene is
-     preserved so nothing is lost on the way to the table or back. */
-  var hasLists = Array.isArray(sc.foes) || Array.isArray(sc.npcs);
+  /* Two shapes coexist here on purpose. combatants is the stored, shared shape (FateWell
+     authors it, ThreadSpire preserves it). foes/npcs are the board's working view, cast from
+     combatants for rendering the card and tokens. The cast is kept for the board; combatants
+     is kept untouched for storage, so a save writes the shared shape and the board still has
+     what it needs. When the scene was edited on this surface (a foe added to combatants), the
+     cast is rebuilt from the current combatants so the board reflects the edit. */
+  var source = (Array.isArray(sc.combatants) && sc.combatants.length) ? sc.combatants
+             : (sc.foes || []).concat(sc.npcs || []);
   var foes = [], npcs = [];
-  if (hasLists){
-    foes = sc.foes || []; npcs = sc.npcs || [];
-  } else {
-    (sc.combatants || []).forEach(function(cb, i){
-      if (!cb) return;
-      if (cb.type === 'npc' || cb.side === 'npc') npcs.push(tsCastNpc(cb, i));
-      else foes.push(tsCastFoe(cb, i));
-    });
-  }
+  source.forEach(function(cb, i){
+    if (!cb) return;
+    if (cb.type === 'npc' || cb.side === 'npc') npcs.push(tsCastNpc(cb, i));
+    else foes.push(tsCastFoe(cb, i));
+  });
   return Object.assign({}, sc, {
     id: sc.id, name: sc.name,
     beats: sc.beats || (sc.entries || []).map(function(e){ return { kind: e.type || 'general', title: e.title || '', body: e.body || '' }; }),
-    combatants: sc.combatants || [],
+    combatants: source.slice(),
     foes: foes, npcs: npcs, fell: (c.players || []).map(tsCastFell)
   });
 }
