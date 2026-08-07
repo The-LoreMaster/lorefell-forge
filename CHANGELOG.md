@@ -1,3 +1,7 @@
+## 2026-07-29 - Deleting a library foe deletes it everywhere
+
+A library profile could not really be deleted while a scene still used it. The save routine rebuilds the library from scene combatants, so a deleted profile came straight back on the next save. Now deleting a profile from the library also strips it from every scene that references it, matched the same way the save routine resolves a combatant to the library, by id then by name and type, so nothing is left to rebuild from. The confirm says how many scene slots it will clear, so the reach of the delete is not a surprise. Both the single delete and the multi select delete cascade this way.
+
 ## 2026-07-29 - Telemetry no longer breaks publish
 
 The telemetry reached for the embed from a module level function where that name did not exist, so Wix refused to publish the page with an undefined reference. The embed is now held in a module level variable set when the page wires up, and the telemetry posts through that. Same behaviour, but the reference is real everywhere it is used, so publish passes.
