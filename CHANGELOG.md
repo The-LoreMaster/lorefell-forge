@@ -1,3 +1,7 @@
+## 2026-07-29 - An unstorable image no longer blocks the whole save
+
+This was why a save reported success but nothing persisted. Adding a foe with an image makes the save host the image first and defer the rest, expecting to run again once the image is a stored url. If the image is too large to store, it stays a data url, so the next save finds it again and defers again, and the adventure never actually saves. There was no error because each step looked like it worked. Now the save defers for hosting only once per change. If an image is still inline after that, the save proceeds anyway, drops the unstorable image from the stored copy so it neither blocks nor bloats the row, and says plainly that one image was too large and stays on this device. The rest of the edit lands.
+
 ## 2026-07-29 - The compressed save stops reading the whole tree back
 
 The telemetry named the culprit at last: dualWrite-gz, the tree reconcile on the compressed save path, was firing again and again and stacking toward the quota. It ran through migrateCampaign, which reads the whole tree back to verify and re-stamps the Campaigns row every call. That is migration bookkeeping, not the cost a routine save should pay. A lean path replaces it: read the blob once, decompress, diff-write the tree, and stop. No read-back, no re-stamp. The first-open auto-migration still uses the full verified path, since that runs once, but every autosave after takes the cheap road. Same tree, a fraction of the calls.

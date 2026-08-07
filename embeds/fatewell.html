@@ -3323,17 +3323,36 @@ function flushSave(){
   var c = curC(); if (!c) return;
   var cid = WIX.hub ? c.id : (WIX.campaignId || c.id);
   // Host any data-url images first, sending ONLY the images (not the whole chronicle), so a
-  // large adventure with a new image does not overflow the field on an uncompressed save.
+  // large adventure with a new image does not overflow the field on an uncompressed save. But
+  // an image that cannot be hosted (too large for storage) must not defer the save forever:
+  // without this guard, collectInlineImages keeps finding it, flushSave keeps handing it back
+  // to host, and the adventure never actually saves. So we only defer for hosting ONCE per
+  // change. If images are still inline after that attempt, we save anyway and drop the stuck
+  // images from the stored copy, so the rest of the edit lands. The live board keeps them.
   var inline = collectInlineImages(c);
-  if (inline.length){
+  if (inline.length && !WIX._hostTried){
+    WIX._hostTried = true;
     WIX.dirty = false; WIX.lastSaveAt = Date.now();
     armOfflineCheck();
     postToWix({ type:'lmtool-host-images', campaignId: cid, images: inline });
     return; // the host result applies hosted URLs, then triggers a normal compressed save
   }
+  WIX._hostTried = false; // this save proceeds; the next change starts a fresh host attempt
+  if (inline.length){
+    // images remain inline after a host attempt: they could not be stored. Warn once and keep
+    // them out of the saved copy so they neither block nor bloat the save.
+    advNote('An image could not be stored', 'One image was too large to save to your account, so it stays on this device only. The rest of the adventure saved. Try a smaller image on that foe.');
+  }
   // slim a deep copy for the wire: foes rebuild from the library on load, so the stored
   // campaign stays small even for a large chronicle. The live board keeps full stats.
   var wire = slimCombatantsForSave(JSON.parse(JSON.stringify(c)));
+  // any image still inline here could not be hosted; strip it from the stored copy so it does
+  // not bloat the row or trip the size limit. It remains on the live campaign for this device.
+  (function stripInline(o){
+    if(!o||typeof o!=='object') return;
+    if(typeof o.img==='string' && o.img.indexOf('data:')===0) o.img='';
+    for(var k in o){ if(Object.prototype.hasOwnProperty.call(o,k)){ var v=o[k]; if(v&&typeof v==='object') stripInline(v); } }
+  })(wire);
   WIX.dirty = false; WIX.lastSaveAt = Date.now();
   armOfflineCheck();
   var json = JSON.stringify(wire);
