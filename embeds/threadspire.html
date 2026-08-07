@@ -1879,6 +1879,74 @@ function storySave(){
   S._advTouch = Date.now();
   S.advRev = (S.advRev || 0) + 1;
   try { pushState(); } catch(e){}
+  /* The edit just made lives in memory and on the live relay row; now it is written to the
+     shared Adventures tree, which is the actual home of the story. Only the active scene is
+     pushed, since that is what an edit on this surface touches, and it is debounced so a burst
+     of edits (typing a beat, nudging several foes) becomes one write. This is the write that
+     makes an edit survive a reload. */
+  advPersistActiveScene();
+}
+var _advSaveTimer = null;
+function advPersistActiveScene(){
+  if (!isLM() || !S.adventure) return;
+  var sid = S.adventure.activeSceneId || (S.scene && S.scene.id);
+  if (!sid) return;
+  if (_advSaveTimer) clearTimeout(_advSaveTimer);
+  _advSaveTimer = setTimeout(function(){
+    _advSaveTimer = null;
+    var hit = (typeof tsSceneById === 'function') ? tsSceneById(sid) : null;
+    if (!hit || !hit.scene) return;
+    var actId = (hit.act && hit.act.id) || '';
+    var sesId = (hit.ses && hit.ses.id) || '';
+    /* strip the transient board fields before the scene is stored: they belong to the live
+       relay, not the authored record, and re-saving them would bloat the row and leak one
+       table's live positions into the stored story. */
+    var scene = advCleanScene(hit.scene);
+    tsAsk('TS_ADV_SAVE_SCENE', { actId:actId, sesId:sesId, scene:scene }).catch(function(){});
+  }, 900);
+}
+/* When the SHAPE of the adventure changes, a new act, session or scene, a rename, a
+   reorder, a delete, the whole tree's skeleton is written: the root's act order, each act
+   with its session order, each session with its scene order, and every scene that has not
+   been stored yet. Content edits inside one scene use advPersistActiveScene instead; this is
+   for structure. Debounced, so adding an act and immediately a scene under it is one pass. */
+var _advTreeTimer = null;
+function advPersistTree(){
+  if (!isLM() || !S.adventure) return;
+  if (_advTreeTimer) clearTimeout(_advTreeTimer);
+  _advTreeTimer = setTimeout(function(){
+    _advTreeTimer = null;
+    var A = S.adventure;
+    tsAsk('TS_ADV_SAVE_ROOT', { root:{ name:A.name || 'Adventure', activeSceneId:A.activeSceneId || '', actOrder:(A.acts||[]).map(function(a){ return a.id; }) } }).catch(function(){});
+    (A.acts || []).forEach(function(a){
+      tsAsk('TS_ADV_SAVE_ACT', { act:{ id:a.id, name:a.name||'', notes:a.notes||'', img:a.img||'', desc:a.desc||'', sessions:(a.sessions||[]).map(function(s){ return { id:s.id }; }) } }).catch(function(){});
+      (a.sessions || []).forEach(function(se){
+        tsAsk('TS_ADV_SAVE_SESSION', { actId:a.id, session:{ id:se.id, name:se.name||'', scenes:(se.scenes||[]).map(function(s){ return { id:s.id }; }) } }).catch(function(){});
+        (se.scenes || []).forEach(function(sc){
+          tsAsk('TS_ADV_SAVE_SCENE', { actId:a.id, sesId:se.id, scene:advCleanScene(sc) }).catch(function(){});
+        });
+      });
+    });
+  }, 900);
+}
+/* the authored scene, without the live-play state that the relay row already carries */
+function advCleanScene(sc){
+  var out = {};
+  Object.keys(sc || {}).forEach(function(k){
+    if (['combatPhase','background','maps','spotMode','manual','spotOrder','activeSpot','out'].indexOf(k) >= 0) return;
+    out[k] = sc[k];
+  });
+  /* a foe or npc on the board carries live turn state (act, target, locked, spot). That
+     belongs to this table's live relay, not the stored story, so it is stripped before the
+     scene is saved; the authored foe (its identity, stats, kit) is kept. */
+  function stripLive(x){
+    var c = Object.assign({}, x);
+    ['act','target','locked','spot','reactUsed','react','curVit','charge','dmg'].forEach(function(k){ delete c[k]; });
+    return c;
+  }
+  if (Array.isArray(out.foes)) out.foes = out.foes.map(stripLive);
+  if (Array.isArray(out.npcs)) out.npcs = out.npcs.map(stripLive);
+  return out;
 }
 function storyToggle(lvl, id){ storyOpen[lvl][id] = !storyOpen[lvl][id]; refreshWinBody(); }
 function sameId(a, b){ return String(a) === String(b); }
@@ -1959,20 +2027,31 @@ function storyAdd(kind, parentId){
       fs.ses.scenes.push(storyNewScene(n));
       storyOpen.ses[parentId] = true;
     }
-    storySave(); refreshWinBody(); render();
+    storySave(); advPersistTree(); refreshWinBody(); render();
   }});
 }
 function storyRename(kind, id){
   var t = storyNode(kind, id); if (!t) return;
   tsAsk2({ title:'Rename', label:'Name', value:t.name, onSave:function(n){
-    if (!n) return; t.name = n; storySave(); refreshWinBody(); render();
+    if (!n) return; t.name = n; storySave(); advPersistTree(); refreshWinBody(); render();
   }});
 }
 function storyDelete(kind, id){
   var f = storyFind(kind, id); if (!f) return;
   var t = kind === 'act' ? f.act : kind === 'session' ? f.ses : f.scene;
   tsConfirm('Delete ' + (t.name || 'this') + '?', function(){
-    f.list.splice(f.idx, 1); storySave(); refreshWinBody(); render();
+    var wasKind = kind, wasId = (t && t.id);
+    f.list.splice(f.idx, 1);
+    storySave(); advPersistTree();
+    /* a deletion must also remove the row, not just drop it from the order. The tree persist
+       rewrites the order so the deleted node stops being read, and this removes its row so it
+       does not linger. */
+    if (wasId){
+      var mt = wasKind === 'act' ? 'TS_ADV_REMOVE_ACT' : wasKind === 'session' ? 'TS_ADV_REMOVE_SESSION' : 'TS_ADV_REMOVE_SCENE';
+      var key = wasKind === 'act' ? { actId:wasId } : wasKind === 'session' ? { sesId:wasId } : { sceneId:wasId };
+      tsAsk(mt, key).catch(function(){});
+    }
+    refreshWinBody(); render();
   });
 }
 function storyBeatsHtml(sc){
@@ -6013,13 +6092,18 @@ function mergeFellSheets(){
 }
 function tsSceneFromSpine(sc){
   var seed = S.scene || {};
-  return { name: sc.name || 'Scene', id: sc.id, combatPhase:null, background:null,
+  /* Start from the whole authored scene so every field survives the round trip, then lay the
+     table's live-play defaults over the top. The old version listed the fields to keep and so
+     silently dropped every one it did not name; this keeps all of them and only sets the ones
+     the board needs to run. */
+  return Object.assign({}, sc, {
+    name: sc.name || 'Scene', id: sc.id, combatPhase:null, background:null,
     maps: seed.maps || [], spotMode:'auto', manual:{}, spotOrder:[], activeSpot:0,
     beats: sc.beats || [], entries: sc.entries || [], out: sc.out || {},
     prep: sc.prep || '', desc: sc.desc || '', mode: sc.mode || 'roleplay', status: sc.status || 'active',
     foes: (sc.foes || []).map(function(f){ return Object.assign({ act:'', target:'', locked:false, spot:null, reactUsed:false }, f); }),
     fell: (sc.fell || []).map(function(p){ return Object.assign({ act:'', target:'', locked:false, spot:null, react:'' }, p); }),
-    npcs: sc.npcs || [] };
+    npcs: sc.npcs || [] });
 }
 /* Build the play spine from the adventure as it was authored. FateWell used to shape this
    and hand it over; ThreadSpire shapes it itself now, from the same campaign record read
@@ -6071,19 +6155,27 @@ function tsCastFoe(cb, i){
 function tsCastNpc(cb, i){ return { id: (cb && cb.id) || ('n-' + ((cb && cb.libId) || 'x') + '-' + (i || 0)), name: (cb && cb.name) || 'NPC' }; }
 function tsCastFell(pl){ return { id: pl.id || ('p-' + Math.random().toString(36).slice(2)), charId: pl.charId || null, name: pl.name || 'Fell', level: pl.level || 1, curVit: pl.maxVit || 0, maxVit: pl.maxVit || 0, charge: 0 }; }
 function tsSpineScene(sc, c){
+  /* A scene that already carries foes/npcs came from the Adventures tree, where ThreadSpire
+     stored exactly what it edits; keep them as-is. A scene that carries only combatants came
+     from the old blob; derive foes/npcs from it. Either way the whole authored scene is
+     preserved so nothing is lost on the way to the table or back. */
+  var hasLists = Array.isArray(sc.foes) || Array.isArray(sc.npcs);
   var foes = [], npcs = [];
-  (sc.combatants || []).forEach(function(cb, i){
-    if (!cb) return;
-    /* the position in the scene is what makes an id derived from it both stable across
-       rebuilds and unique within the scene */
-    if (cb.type === 'npc' || cb.side === 'npc') npcs.push(tsCastNpc(cb, i));
-    else foes.push(tsCastFoe(cb, i));
-  });
-  return {
+  if (hasLists){
+    foes = sc.foes || []; npcs = sc.npcs || [];
+  } else {
+    (sc.combatants || []).forEach(function(cb, i){
+      if (!cb) return;
+      if (cb.type === 'npc' || cb.side === 'npc') npcs.push(tsCastNpc(cb, i));
+      else foes.push(tsCastFoe(cb, i));
+    });
+  }
+  return Object.assign({}, sc, {
     id: sc.id, name: sc.name,
-    beats: (sc.entries || []).map(function(e){ return { kind: e.type || 'general', title: e.title || '', body: e.body || '' }; }),
+    beats: sc.beats || (sc.entries || []).map(function(e){ return { kind: e.type || 'general', title: e.title || '', body: e.body || '' }; }),
+    combatants: sc.combatants || [],
     foes: foes, npcs: npcs, fell: (c.players || []).map(tsCastFell)
-  };
+  });
 }
 function spineFromRawCampaign(c, activeSceneId){
   if (!c || !Array.isArray(c.acts)) return null;
