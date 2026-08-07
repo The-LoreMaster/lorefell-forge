@@ -14,6 +14,7 @@ import { listSphereArt } from 'backend/sphereart.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
 import { listStages, saveStage, deleteStage } from 'backend/threadspire.web.js';
 import { getCampaignState, saveCampaignState, getJournal, saveJournal } from 'backend/campaignview.web.js';
+import { loadAdventure, saveAdventureRoot, saveAdvAct, saveAdvSession, saveAdvScene, removeAdvScene, removeAdvSession, removeAdvAct, migrateCampaign } from 'backend/adventures.web.js';
 import { myAdventureRole } from 'backend/fatewell.web.js';
 import { handleSheetMessage } from 'public/fgSheetBridge.js';
 import wixLocation from 'wix-location';
@@ -267,6 +268,29 @@ $w.onReady(async function () {
         } else if (msg.type === 'TS_STAGE_DELETE') {
           const r = await deleteStage(msg.stageId);
           reply(!!(r && r.ok), r, r && r.error);
+        } else if (msg.type === 'TS_ADV_SAVE_SCENE') {
+          // One scene changed (a foe removed, a beat added). Write ONLY that scene's row, so
+          // an edit here never touches another scene. This is the write that ends the lost-edit bug.
+          try { const r = await saveAdvScene(campaignId, msg.actId, msg.sesId, msg.scene); reply(!!(r && r.ok), r, r && r.error); }
+          catch (e) { reply(false, null, String(e)); }
+        } else if (msg.type === 'TS_ADV_SAVE_ACT') {
+          try { const r = await saveAdvAct(campaignId, msg.act); reply(!!(r && r.ok), r, r && r.error); }
+          catch (e) { reply(false, null, String(e)); }
+        } else if (msg.type === 'TS_ADV_SAVE_SESSION') {
+          try { const r = await saveAdvSession(campaignId, msg.actId, msg.session); reply(!!(r && r.ok), r, r && r.error); }
+          catch (e) { reply(false, null, String(e)); }
+        } else if (msg.type === 'TS_ADV_SAVE_ROOT') {
+          try { const r = await saveAdventureRoot(campaignId, msg.root); reply(!!(r && r.ok), r, r && r.error); }
+          catch (e) { reply(false, null, String(e)); }
+        } else if (msg.type === 'TS_ADV_REMOVE_SCENE') {
+          try { const r = await removeAdvScene(campaignId, msg.sceneId); reply(!!(r && r.ok), r, r && r.error); }
+          catch (e) { reply(false, null, String(e)); }
+        } else if (msg.type === 'TS_ADV_REMOVE_SESSION') {
+          try { const r = await removeAdvSession(campaignId, msg.sesId); reply(!!(r && r.ok), r, r && r.error); }
+          catch (e) { reply(false, null, String(e)); }
+        } else if (msg.type === 'TS_ADV_REMOVE_ACT') {
+          try { const r = await removeAdvAct(campaignId, msg.actId); reply(!!(r && r.ok), r, r && r.error); }
+          catch (e) { reply(false, null, String(e)); }
         } else if (msg.type === 'TS_STATE_PUSH') {
           // Refuse a write meant for a different adventure. One sent before the switch
           // and arriving after it would land the old table on the new adventure.
@@ -407,15 +431,24 @@ $w.onReady(async function () {
 async function buildContext(characterId, campaignId) {
   const out = { character: null, party: [], discovered: [], worldUnlocked: false, goals: [], worldIssues: [], art: {}, nodes: [], rawCampaign: null };
 
-  // The adventure is its own thing, stored once and read by whoever opens it. ThreadSpire
-  // reads it here rather than waiting for FateWell to hand it over: loadCampaign returns
-  // the whole authored campaign, acts and scenes and all, and only to a keeper of it. The
-  // play surface builds its spine from this, so opening an adventure by link or by switch
-  // brings its story every time, with no push from the other tool.
+  // The adventure is its own thing now, stored decomposed in the Adventures tree and read by
+  // whoever opens it, FateWell or ThreadSpire alike. Read the whole tree; nothing lossy, no
+  // spine. If this adventure has not been migrated off the old Campaigns blob yet, migrate it
+  // once on first touch, then read the tree. rawCampaign keeps its name for the tool, but it is
+  // now the lossless tree, so the play surface stands up the whole story, not a reduced copy.
   if (campaignId) {
     try {
-      const blob = await loadCampaign(campaignId);
-      if (blob && blob.data) out.rawCampaign = blob.data;
+      let adv = await loadAdventure(campaignId);
+      if (!adv || !adv.acts) {
+        try { await migrateCampaign(campaignId); } catch (e) {}
+        adv = await loadAdventure(campaignId);
+      }
+      if (adv && adv.acts) out.rawCampaign = adv;
+      else {
+        // last resort: the pre-migration blob, so an adventure never fails to open
+        const blob = await loadCampaign(campaignId);
+        if (blob && blob.data) out.rawCampaign = blob.data;
+      }
     } catch (e) {}
   }
 
