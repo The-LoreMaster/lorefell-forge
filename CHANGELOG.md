@@ -1,3 +1,7 @@
+## 2026-07-29 - Migration verification made truthful
+
+The first migration run reported every scene written but zero read back, which read as a failure but is the shape of a Wix Data query lagging its own writes: the count ran off the search index a beat before it caught up. The read-back now settles and retries a few times before trusting a low number, and each scene write is checked for rejection so a genuinely refused write (an oversized beats field, say) is counted and named rather than hidden inside a zero. A rerun is safe and idempotent; this makes the rerun tell the truth.
+
 ## 2026-07-29 - Every adventure migrated into the shared tree
 
 The migration that finishes the move. scripts/migrateCampaigns.js walks every Campaigns blob, decomposes it into the Adventures tree under the same id so members, players and stages still resolve, and verifies each by counting its scenes back. It is idempotent, upserting by id and pruning rows a campaign no longer holds, so it is safe to rerun. It runs in the Apply workflow after the collections exist. The Campaigns blob is not deleted; it stays as a live mirror, since both tools still dual-write it, so there is a costless backup to restore from. The tree is the source both tools read; the blob is the safety net beneath it.

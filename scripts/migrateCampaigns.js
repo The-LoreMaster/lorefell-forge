@@ -113,7 +113,7 @@ async function migrateOne(camp) {
   await upsertRoot(advId, Object.assign({ name: camp.name }, data), camp.ownerMemberId);
 
   const keepA = {}, keepSe = {}, keepSc = {};
-  let nScenes = 0;
+  let nScenes = 0, sceneWriteFails = 0;
   for (let ai = 0; ai < acts.length; ai++) {
     const a = acts[ai];
     keepA[a.id] = 1;
@@ -137,8 +137,8 @@ async function migrateOne(camp) {
       for (let ci = 0; ci < scenes.length; ci++) {
         const sc = scenes[ci];
         keepSc[sc.id] = 1;
-        await upsert(SCN, "sceneId", sc.id, Object.assign({ advId: advId, actId: a.id, sesId: se.id, sortIndex: ci }, cleanScene(sc)));
-        nScenes++;
+        const okScene = await upsert(SCN, "sceneId", sc.id, Object.assign({ advId: advId, actId: a.id, sesId: se.id, sortIndex: ci }, cleanScene(sc)));
+        if (okScene) nScenes++; else sceneWriteFails++;
       }
     }
   }
@@ -147,9 +147,16 @@ async function migrateOne(camp) {
   await pruneMissing(SES, "sesId", advId, keepSe);
   await pruneMissing(ACTS, "actId", advId, keepA);
 
-  // verify round trip: count scenes back
-  const backScenes = (await query(SCN, { advId: advId }, 1000)).length;
-  return { advId: advId, name: camp.name || "Adventure", scenesWritten: nScenes, scenesReadBack: backScenes, clean: nScenes === backScenes };
+  // Wix Data queries run off a search index that lags a write by a moment, so a read-back in
+  // the same breath as the inserts can report zero for rows that are really there. Settle,
+  // then count, and retry the count a few times before trusting a low number.
+  let backScenes = 0;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    await new Promise(function (r) { setTimeout(r, 1500); });
+    backScenes = (await query(SCN, { advId: advId }, 1000)).length;
+    if (backScenes >= nScenes) break;
+  }
+  return { advId: advId, name: camp.name || "Adventure", scenesWritten: nScenes, sceneWriteFails: sceneWriteFails, scenesReadBack: backScenes, clean: nScenes === backScenes && sceneWriteFails === 0 };
 }
 
 (async () => {
@@ -174,7 +181,7 @@ async function migrateOne(camp) {
         const res = await migrateOne(camp);
         if (res.clean) { ok++; } else { dirty++; }
         report.push(res);
-        console.log((res.clean ? "OK   " : "DIFF ") + res.advId + "  " + res.name + "  scenes " + res.scenesWritten + " -> " + res.scenesReadBack);
+        console.log((res.clean ? "OK   " : "DIFF ") + res.advId + "  " + res.name + "  scenes " + res.scenesWritten + " -> " + res.scenesReadBack + (res.sceneWriteFails ? "  (" + res.sceneWriteFails + " writes REJECTED)" : ""));
       } catch (e) {
         failed++;
         console.log("FAIL " + camp._id + "  " + ((e && e.message) || e));
