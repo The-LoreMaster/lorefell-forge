@@ -1,3 +1,7 @@
+## 2026-07-29 - Diagnose why the compressed reconcile re-inserts every scene
+
+The telemetry named the flood: dualWrite-gz spends forty inserts every fire, which means the diff is matching no existing scene rows and re-inserting the whole tree each time. To see why in one screenshot, the reconcile now reports how many scenes the blob holds, how many are stored, how many matched by id, and a sample blob id against a sample stored id. If matched sits far below stored, the ids do not line up and that is the bug to chase. Temporary instrumentation to pinpoint the mismatch, not a fix.
+
 ## 2026-07-29 - Close the sync loop cleanly
 
 Converting the bulk sync to a spaced loop left the old loop's closing brace behind, an extra bracket that a plain syntax check waved through but the publish parser rejected. It closed the message handler early and broke the file. Removed the orphan; the block balances and publishes.
