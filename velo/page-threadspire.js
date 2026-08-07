@@ -28,6 +28,36 @@ function toHttps(u) {
   return u;
 }
 
+// A unique media name so two uploads never collide and overwrite each other.
+function tsUniqName(base) {
+  return String(base || 'img').replace(/[^A-Za-z0-9_-]+/g, '-').slice(0, 40)
+    + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+// Any image saved into an adventure row must be a stored url, never an inline data or blob
+// address: inline images bloat the row past Wix's per item limit (WDE0009) and blob addresses
+// die on reload. Walk whatever is being saved, push each data image to media once, and keep
+// only the static url. blob addresses cannot be uploaded from here (the bytes live in the
+// embed), so they are dropped rather than stored broken. Runs on every adventure save path.
+async function tsInlineImages(node) {
+  if (Array.isArray(node)) {
+    for (let i = 0; i < node.length; i++) node[i] = await tsInlineImages(node[i]);
+    return node;
+  }
+  if (node && typeof node === 'object') {
+    for (const k of Object.keys(node)) node[k] = await tsInlineImages(node[k]);
+    return node;
+  }
+  if (typeof node === 'string') {
+    if (node.indexOf('data:') === 0) {
+      try { const url = await uploadRune(node, tsUniqName('adv')); return toHttps(url); } catch (e) { return ''; }
+    }
+    if (node.indexOf('wix:image://') === 0) return toHttps(node);
+    if (node.indexOf('blob:') === 0) return ''; // a local address that cannot be stored
+  }
+  return node;
+}
+
 const EMBED = '#html1';
 
 $w.onReady(async function () {
@@ -171,8 +201,11 @@ $w.onReady(async function () {
           reply(true, mine);
         } else if (msg.type === 'TS_STAGE_SAVE') {
           // Stamp the adventure on the way in: listStages filters by it, so a stage
-          // saved without one could never be found again.
-          const r = await saveStage(Object.assign({}, msg.stage, { campaignId: msg.campaignId || campaignId }));
+          // saved without one could never be found again. Map and token images are pushed to
+          // stored urls first, so a stage row never carries a data image or a blob address
+          // that would die on reload.
+          const stage = await tsInlineImages(Object.assign({}, msg.stage, { campaignId: msg.campaignId || campaignId }));
+          const r = await saveStage(stage);
           reply(!!(r && r.ok), r, r && r.error);
         } else if (msg.type === 'TS_STAGE_LIST') {
           // The embed's own adventure wins, so a stale page constant cannot widen the
@@ -270,17 +303,18 @@ $w.onReady(async function () {
           reply(!!(r && r.ok), r, r && r.error);
         } else if (msg.type === 'TS_ADV_SAVE_SCENE') {
           // One scene changed (a foe removed, a beat added). Write ONLY that scene's row, so
-          // an edit here never touches another scene. This is the write that ends the lost-edit bug.
-          try { const r = await saveAdvScene(campaignId, msg.actId, msg.sesId, msg.scene); reply(!!(r && r.ok), r, r && r.error); }
+          // an edit here never touches another scene. Images in the scene (beat art, foe
+          // portraits) are pushed to stored urls first, so the row never carries a data image.
+          try { const scene = await tsInlineImages(msg.scene); const r = await saveAdvScene(campaignId, msg.actId, msg.sesId, scene); reply(!!(r && r.ok), r, r && r.error); }
           catch (e) { reply(false, null, String(e)); }
         } else if (msg.type === 'TS_ADV_SAVE_ACT') {
-          try { const r = await saveAdvAct(campaignId, msg.act); reply(!!(r && r.ok), r, r && r.error); }
+          try { const act = await tsInlineImages(msg.act); const r = await saveAdvAct(campaignId, act); reply(!!(r && r.ok), r, r && r.error); }
           catch (e) { reply(false, null, String(e)); }
         } else if (msg.type === 'TS_ADV_SAVE_SESSION') {
-          try { const r = await saveAdvSession(campaignId, msg.actId, msg.session); reply(!!(r && r.ok), r, r && r.error); }
+          try { const session = await tsInlineImages(msg.session); const r = await saveAdvSession(campaignId, msg.actId, session); reply(!!(r && r.ok), r, r && r.error); }
           catch (e) { reply(false, null, String(e)); }
         } else if (msg.type === 'TS_ADV_SAVE_ROOT') {
-          try { const r = await saveAdventureRoot(campaignId, msg.root); reply(!!(r && r.ok), r, r && r.error); }
+          try { const root = await tsInlineImages(msg.root); const r = await saveAdventureRoot(campaignId, root); reply(!!(r && r.ok), r, r && r.error); }
           catch (e) { reply(false, null, String(e)); }
         } else if (msg.type === 'TS_ADV_REMOVE_SCENE') {
           try { const r = await removeAdvScene(campaignId, msg.sceneId); reply(!!(r && r.ok), r, r && r.error); }
