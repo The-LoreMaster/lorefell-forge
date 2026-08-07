@@ -41,22 +41,23 @@ async function query(coll, filter, limit) {
 async function upsert(coll, idField, idVal, fields) {
   // find existing by the natural id field (advId/actId/sesId/sceneId), scoped to the adventure
   const existing = await query(coll, Object.assign({}, fields.advId ? { advId: fields.advId } : {}, { [idField]: idVal }), 1);
-  const dataItem = Object.assign({}, fields);
-  dataItem[idField] = idVal;
-  dataItem.updatedAt = Date.now();
+  const data = Object.assign({}, fields);
+  data[idField] = idVal;
+  data.updatedAt = Date.now();
   if (existing.length) {
-    dataItem._id = existing[0]._id;
-    const r = await req("PUT", "/wix-data/v2/items/" + encodeURIComponent(existing[0]._id), { dataCollectionId: coll, dataItem: dataItem });
+    data._id = existing[0]._id;
+    // Wix v2 wants the fields under dataItem.data, with the id alongside for an update.
+    const r = await req("PUT", "/wix-data/v2/items/" + encodeURIComponent(existing[0]._id), { dataCollectionId: coll, dataItem: { id: existing[0]._id, data: data } });
     return r.ok;
   }
-  const r = await req("POST", "/wix-data/v2/items", { dataCollectionId: coll, dataItem: dataItem });
+  const r = await req("POST", "/wix-data/v2/items", { dataCollectionId: coll, dataItem: { data: data } });
   return r.ok;
 }
 
 async function upsertRoot(advId, camp, ownerMemberId) {
   const acts = Array.isArray(camp.acts) ? camp.acts : [];
   const existing = await query(ADV, { advId: advId }, 1);
-  const dataItem = {
+  const data = {
     advId: advId,
     name: camp.name || "Adventure",
     ownerMemberId: ownerMemberId || "",
@@ -67,15 +68,14 @@ async function upsertRoot(advId, camp, ownerMemberId) {
     updatedAt: Date.now()
   };
   if (existing.length) {
-    dataItem._id = existing[0]._id;
-    // keep an owner already set
-    if (existing[0].ownerMemberId) dataItem.ownerMemberId = existing[0].ownerMemberId;
-    const r = await req("PUT", "/wix-data/v2/items/" + encodeURIComponent(existing[0]._id), { dataCollectionId: ADV, dataItem: dataItem });
+    data._id = existing[0]._id;
+    if (existing[0].ownerMemberId) data.ownerMemberId = existing[0].ownerMemberId;
+    const r = await req("PUT", "/wix-data/v2/items/" + encodeURIComponent(existing[0]._id), { dataCollectionId: ADV, dataItem: { id: existing[0]._id, data: data } });
     return r.ok;
   }
   // the root's own _id is the advId, so both tools resolve it by campaign id
-  dataItem._id = advId;
-  const r = await req("POST", "/wix-data/v2/items", { dataCollectionId: ADV, dataItem: dataItem });
+  data._id = advId;
+  const r = await req("POST", "/wix-data/v2/items", { dataCollectionId: ADV, dataItem: { id: advId, data: data } });
   return r.ok;
 }
 

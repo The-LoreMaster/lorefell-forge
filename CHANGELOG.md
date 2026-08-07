@@ -1,3 +1,7 @@
+## 2026-07-29 - The migration writes where a query can find them
+
+The batch migration reported every scene written and none read back, with nothing rejected, because the raw REST writes were missing the envelope Wix Data v2 wants: fields must sit under dataItem.data, not at the top of dataItem. The writes returned ok and stored nothing queryable, so the read-back found zero. Fixed to wrap every write, insert and update, in the data envelope the working scripts already use, with the id alongside on an update. The tools themselves were never affected; they write through the Velo client, which takes a flat object, so an adventure opened in FateWell or ThreadSpire migrated correctly on first touch. Only the batch script, on its own REST path, wrote into the void. A rerun is idempotent and now lands the rows.
+
 ## 2026-07-29 - Migration verification made truthful
 
 The first migration run reported every scene written but zero read back, which read as a failure but is the shape of a Wix Data query lagging its own writes: the count ran off the search index a beat before it caught up. The read-back now settles and retries a few times before trusting a low number, and each scene write is checked for rejection so a genuinely refused write (an oversized beats field, say) is counted and named rather than hidden inside a zero. A rerun is safe and idempotent; this makes the rerun tell the truth.
