@@ -25,13 +25,16 @@ import wixWindow from 'wix-window';
 // lands. This keeps the tree current for ThreadSpire without a write storm.
 var _advDualTimers = {};
 var _advDualPending = {};
-var _ADV_DUAL_MS = 6000;
+var _advCompPending = {};
+var _ADV_DUAL_MS = 1500;
 var _advCompTimers = {};
 function scheduleDualWriteCompressed(advId) {
   if (!advId) return;
+  _advCompPending[advId] = true;
   if (_advCompTimers[advId]) return;
   _advCompTimers[advId] = setTimeout(async function () {
     _advCompTimers[advId] = null;
+    delete _advCompPending[advId];
     try { const r = await migrateCampaign(advId); teleReport('dualWrite-gz', advId, r && r.tele); } catch (e) { teleReport('dualWrite-gz-fail', advId, { error: String(e) }); }
   }, _ADV_DUAL_MS);
 }
@@ -73,6 +76,23 @@ function scheduleDualWrite(advId, camp) {
     delete _advDualPending[advId];
     if (latest) await dualWriteTree(advId, latest);
   }, _ADV_DUAL_MS);
+}
+// Flush every pending tree write now. The tool sends lmtool-flush when it is about to be
+// hidden or unloaded (a refresh, a tab close). Without this, a refresh landing in the gap
+// between the immediate blob save and the delayed tree write leaves the tree stale, and since
+// FateWell loads from the tree, the next load reverts the edit. The diff keeps this cheap.
+async function flushDualWrites() {
+  for (const advId of Object.keys(_advDualPending)) {
+    if (_advDualTimers[advId]) { clearTimeout(_advDualTimers[advId]); _advDualTimers[advId] = null; }
+    const latest = _advDualPending[advId];
+    delete _advDualPending[advId];
+    if (latest) { try { await saveAdventureFromCampaign(advId, latest); } catch (e) {} }
+  }
+  for (const advId of Object.keys(_advCompPending)) {
+    if (_advCompTimers[advId]) { clearTimeout(_advCompTimers[advId]); _advCompTimers[advId] = null; }
+    delete _advCompPending[advId];
+    try { await migrateCampaign(advId); } catch (e) {}
+  }
 }
 
 const EMBED = '#html1';   // change to your Embed a Site element ID
@@ -124,6 +144,11 @@ $w.onReady(() => {
     const m = event.data;
     if (!m || typeof m !== 'object' || !m.type) return;
 
+    if (m.type === 'lmtool-flush') {
+      await flushDualWrites();
+      try { embed.postMessage({ type: 'lmtool-flush-done' }); } catch (e) {}
+      return;
+    }
     if (m.type === 'lmtool-ready') {
       const importId = (wixLocation.query && wixLocation.query.import) || '';
       if (importId) {
@@ -139,22 +164,24 @@ $w.onReady(() => {
         embed.postMessage({ type: 'lmtool-hosted', campaigns: mine });
         return;
       }
-      // Prefer the shared Adventures tree so FateWell reads whatever ThreadSpire wrote; fall
-      // back to the blob if this adventure has not been migrated yet, migrating it once on
-      // first touch. The tree comes back in the campaign shape (name, activeSceneId, acts), so
-      // it slots straight in where the blob's data used to.
+      // FateWell reads its OWN blob first. The blob is written synchronously on every save, so
+      // it is always at least as fresh as the tree, which FateWell reconciles on a short delay.
+      // Reading the tree first meant a hard refresh landing before that delayed write reverted
+      // the edit to the tree's older copy. The tree stays the shared channel ThreadSpire reads;
+      // FateWell trusts the blob it just wrote. If there is no blob yet (a tree made by
+      // ThreadSpire alone), fall back to the tree.
       let blob = null, campData = null, title = 'Campaign', role = '';
-      try {
-        let adv = await loadAdventure(campaignId);
-        if (!adv || !adv.acts) {
-          try { await migrateCampaign(campaignId); } catch (e) {}
-          adv = await loadAdventure(campaignId);
-        }
-        if (adv && adv.acts) { campData = adv; title = adv.name || 'Campaign'; role = adv.role || 'loremaster'; }
-      } catch (e) {}
+      try { blob = await loadCampaign(campaignId); } catch (e) { blob = null; }
+      if (blob && blob.data) { campData = blob.data; title = blob.title || 'Campaign'; role = blob.role || 'loremaster'; }
       if (!campData) {
-        try { blob = await loadCampaign(campaignId); } catch (e) { blob = null; }
-        if (blob && blob.data) { campData = blob.data; title = blob.title || 'Campaign'; role = blob.role || ''; }
+        try {
+          let adv = await loadAdventure(campaignId);
+          if (!adv || !adv.acts) {
+            try { await migrateCampaign(campaignId); } catch (e) {}
+            adv = await loadAdventure(campaignId);
+          }
+          if (adv && adv.acts) { campData = adv; title = adv.name || 'Campaign'; role = adv.role || 'loremaster'; }
+        } catch (e) {}
       }
       embed.postMessage({
         type: 'lmtool-open',
