@@ -317,7 +317,15 @@ export const saveAdventureFromCampaign = webMethod(Permissions.Anyone, async (ad
   for (const row of sesRows) { if (!keepSe[row.sesId]) { try { await wd.remove(SES, row._id, { suppressAuth: true }); writes++; } catch (e) {} } }
   for (const row of actRows) { if (!keepA[row.actId]) { try { await wd.remove(ACTS, row._id, { suppressAuth: true }); writes++; } catch (e) {} } }
 
-  return { ok: true, advId: advId, writes: writes, tele: TELE };
+  return { ok: true, advId: advId, writes: writes, tele: TELE,
+    diag: {
+      blobScenes: (function(){ let n = 0; acts.forEach(a => (a.sessions||[]).forEach(s => n += (s.scenes||[]).length)); return n; })(),
+      storedScenes: scnRows.length,
+      matched: (function(){ let n = 0; acts.forEach(a => (a.sessions||[]).forEach(s => (s.scenes||[]).forEach(sc => { if (scnBy[sc.id]) n++; }))); return n; })(),
+      sampleBlobId: (acts[0] && acts[0].sessions && acts[0].sessions[0] && acts[0].sessions[0].scenes && acts[0].sessions[0].scenes[0] && acts[0].sessions[0].scenes[0].id) || '(none)',
+      sampleStoredId: (scnRows[0] && scnRows[0].sceneId) || '(none)'
+    }
+  };
 });
 
 function index(rows, key) { const m = {}; (rows || []).forEach(r => { m[r[key]] = r; }); return m; }
@@ -387,7 +395,7 @@ export const saveAdventureFromBlob = webMethod(Permissions.Anyone, async (advId)
   if (!camp) return { ok: false, error: 'no blob' };
   const data = unpackCampaignData(jparse(camp.data, {}));
   const res = await saveAdventureFromCampaign(advId, Object.assign({ name: camp.name || data.name }, data));
-  return { ok: (res && res.ok) !== false, advId: advId, tele: TELE };
+  return { ok: (res && res.ok) !== false, advId: advId, tele: TELE, diag: res && res.diag };
 });
 
 export const migrateCampaign = webMethod(Permissions.Anyone, async (campaignId) => {

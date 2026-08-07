@@ -35,7 +35,7 @@ function scheduleDualWriteCompressed(advId) {
   _advCompTimers[advId] = setTimeout(async function () {
     _advCompTimers[advId] = null;
     delete _advCompPending[advId];
-    try { const r = await saveAdventureFromBlob(advId); teleReport('dualWrite-gz', advId, r && r.tele); } catch (e) { teleReport('dualWrite-gz-fail', advId, { error: String(e) }); }
+    try { const r = await saveAdventureFromBlob(advId); teleReport('dualWrite-gz', advId, r && r.tele); teleDiag('dualWrite-gz', r); } catch (e) { teleReport('dualWrite-gz-fail', advId, { error: String(e) }); }
   }, _ADV_DUAL_MS);
 }
 async function dualWriteTree(advId, camp) {
@@ -64,6 +64,18 @@ function teleReport(where, advId, tele) {
     + ' | last60s=' + perMinute;
   console.log(line);
   try { if (_embed) _embed.postMessage({ type: 'lmtool-telemetry', where: where, advId: advId, tele: tele, perMinute: perMinute }); } catch (e) {}
+}
+// Log the diff match diagnostics: how many scenes the blob has, how many are stored, and how
+// many matched. If matched is far below stored, the diff is not finding existing rows and is
+// re-inserting everything, which is the flood. sampleBlobId vs sampleStoredId shows whether
+// the ids even have the same shape.
+function teleDiag(where, res) {
+  if (!res || !res.diag) return;
+  const d = res.diag;
+  console.log('%c[diag] ' + where + ' blobScenes=' + d.blobScenes + ' storedScenes=' + d.storedScenes
+    + ' matched=' + d.matched + ' | blobId=' + d.sampleBlobId + ' storedId=' + d.sampleStoredId,
+    d.matched < d.storedScenes ? 'color:#e66;font-weight:bold' : 'color:#6a9');
+  try { if (_embed) _embed.postMessage({ type: 'lmtool-telemetry', where: where + ' DIAG', advId: '', tele: { total: 0, diag: d }, perMinute: 0 }); } catch (e) {}
 }
 // The 2-second poll calls this every tick. Its calls always count toward the rolling minute,
 // but it only pushes a display update every 10 seconds, so the readout is not spammed by the
