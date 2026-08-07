@@ -1,3 +1,7 @@
+## 2026-07-29 - The diff stops calling every row changed
+
+The quota flood came back because the diff that was meant to skip unchanged rows was comparing JSON fields by their serialized string. Two equal objects can serialize with different key order, so every scene looked changed and the whole tree wrote on every save, exhausting the per-minute quota again; once tripped, even the sign-in check failed, which is why the error also saw no member id. The diff now compares JSON fields by value, with keys sorted, so an unchanged scene truly writes nothing. And a single save now spends a capped write budget, so even a first save after migration or a broad change lands what it can and lets the next save finish the rest, rather than flooding and landing nothing.
+
 ## 2026-07-29 - Every image saved is a stored url
 
 Inline images and blob addresses have no business in a saved row: a data image bloats the row past Wix's per item limit, and a blob address is local to one browser and dies on reload. FateWell already pushed its images to stored urls on save; ThreadSpire did not on the paths that now write the adventure tree and the stages. It does now. Every adventure save, scene, act, session and root, and every stage save carrying a map or token, walks its payload and replaces any data image with a stored url, converting a wix descriptor to its static address and dropping a blob address that cannot be uploaded from here. So no save from either tool can put anything but a real url into a row.

@@ -259,23 +259,31 @@ export const saveAdventureFromCampaign = webMethod(Permissions.Anyone, async (ad
   }
 
   const keepA = {}, keepSe = {}, keepSc = {};
+  // A single save must not fire so many writes that it trips the per-minute quota (WDE0014).
+  // The diff already skips unchanged rows, so a normal edit is a handful of writes. But a
+  // first save after migration, or a broad change, could still be many. Cap the writes this
+  // call makes; whatever is left over is written by the next save, since the diff will still
+  // see it as changed. Better a save that lands most of the change and finishes than one that
+  // floods and lands none.
+  var WRITE_BUDGET = 40;
+  var budgetLeft = WRITE_BUDGET;
   for (let ai = 0; ai < acts.length; ai++) {
     const a = acts[ai]; keepA[a.id] = 1;
     const aRow = actBy[a.id];
     const aFields = actFields(advId, a, ai);
-    if (rowChanged(aRow, aFields)) { await writeRow(ACTS, aRow, aFields); writes++; }
+    if (budgetLeft > 0 && rowChanged(aRow, aFields)) { await writeRow(ACTS, aRow, aFields); writes++; budgetLeft--; }
     const sessions = a.sessions || [];
     for (let si = 0; si < sessions.length; si++) {
       const se = sessions[si]; keepSe[se.id] = 1;
       const sRow = sesBy[se.id];
       const sFields = sesFields(advId, a.id, se, si);
-      if (rowChanged(sRow, sFields)) { await writeRow(SES, sRow, sFields); writes++; }
+      if (budgetLeft > 0 && rowChanged(sRow, sFields)) { await writeRow(SES, sRow, sFields); writes++; budgetLeft--; }
       const scenes = se.scenes || [];
       for (let ci = 0; ci < scenes.length; ci++) {
         const sc = scenes[ci]; keepSc[sc.id] = 1;
         const cRow = scnBy[sc.id];
         const cFields = sceneFields(advId, a.id, se.id, sc, ci);
-        if (rowChanged(cRow, cFields)) { await writeRow(SCN, cRow, cFields); writes++; }
+        if (budgetLeft > 0 && rowChanged(cRow, cFields)) { await writeRow(SCN, cRow, cFields); writes++; budgetLeft--; }
       }
     }
   }
@@ -290,10 +298,30 @@ export const saveAdventureFromCampaign = webMethod(Permissions.Anyone, async (ad
 
 function index(rows, key) { const m = {}; (rows || []).forEach(r => { m[r[key]] = r; }); return m; }
 
-// a row needs writing only if one of its stored fields differs from what we would write
+// a row needs writing only if one of its stored fields differs from what we would write. The
+// JSON fields (beats, combatants, sceneData, extra, sessionOrder, sceneOrder, actOrder) are
+// compared by VALUE, not by their serialized string: two objects that are equal can serialize
+// with different key order, and a string compare there would call every row changed and write
+// the whole tree every save, which is exactly the flood this diff exists to avoid.
+var JSON_FIELDS = { beats: 1, combatants: 1, sceneData: 1, extra: 1, sessionOrder: 1, sceneOrder: 1, actOrder: 1, meta: 1 };
+function canon(v) {
+  // a stable serialization: sort object keys so equal values serialize identically
+  if (v === null || typeof v !== 'object') return JSON.stringify(v);
+  if (Array.isArray(v)) return '[' + v.map(canon).join(',') + ']';
+  return '{' + Object.keys(v).sort().map(k => JSON.stringify(k) + ':' + canon(v[k])).join(',') + '}';
+}
+function jsonEq(a, b) {
+  var pa, pb;
+  try { pa = typeof a === 'string' ? JSON.parse(a || 'null') : a; } catch (e) { pa = a; }
+  try { pb = typeof b === 'string' ? JSON.parse(b || 'null') : b; } catch (e) { pb = b; }
+  return canon(pa) === canon(pb);
+}
 function rowChanged(row, fields) {
   if (!row) return true;
-  return Object.keys(fields).some(k => String(row[k] === undefined ? '' : row[k]) !== String(fields[k] === undefined ? '' : fields[k]));
+  return Object.keys(fields).some(function (k) {
+    if (JSON_FIELDS[k]) return !jsonEq(row[k], fields[k]);
+    return String(row[k] === undefined ? '' : row[k]) !== String(fields[k] === undefined ? '' : fields[k]);
+  });
 }
 async function writeRow(coll, row, fields) {
   const out = Object.assign(row ? { _id: row._id } : {}, fields, { updatedAt: Date.now() });
