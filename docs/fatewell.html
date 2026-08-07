@@ -3164,6 +3164,31 @@ function slimCombatantsForSave(camp){
 /* A spawned copy is named 'Warden 2'; the library holds 'Warden'. Strip a trailing
    number so name matching finds the source entry. */
 function baseName(n){ return String(n||'').replace(/\s+\d+$/,'').trim(); }
+
+// When a library profile is deleted, every scene combatant that points at it is removed too,
+// or the next save would rebuild the library from those combatants and bring the profile back.
+// Matching mirrors how slimCombatantsForSave resolves a combatant to the library: by libId
+// first, then by name and type, then by base name and type, so an orphaned reference is caught
+// as well. Returns how many combatants were removed, for the confirm feedback.
+function purgeLibFromScenes(entry){
+  if (!entry) return 0;
+  var id = entry.id, nm = String(entry.name||'').trim().toLowerCase(), ty = entry.type;
+  var removed = 0;
+  (S.campaigns||[]).forEach(function(c){
+    (c.acts||[]).forEach(function(a){ (a.sessions||[]).forEach(function(ss){ (ss.scenes||[]).forEach(function(sc){
+      if (!Array.isArray(sc.combatants)) return;
+      sc.combatants = sc.combatants.filter(function(cb){
+        if (cb.type !== ty) return true;
+        var hit = (cb.libId && cb.libId === id)
+          || String(cb.name||'').trim().toLowerCase() === nm
+          || String(baseName(cb.name)||'').trim().toLowerCase() === nm;
+        if (hit) removed++;
+        return !hit;
+      });
+    }); }); });
+  });
+  return removed;
+}
 /* An Act's tier must be a number. The editor once wrote it as a string, which the
    unlock check survived by coercion but the charge advancement did not: a string
    tier read as tier 0 and charged the foe as if it had swung bare handed. */
@@ -5502,11 +5527,28 @@ function saveWizard(type, id){
 
 function editLib(id){ var e=libGet(id); if(e) wizard(e.type, e); }
 function deleteLib(id){
-  askConfirm('Delete this profile from the library? Scenes that already use it keep their copies.', function(){
+  var entry = libGet(id);
+  var uses = entry ? countLibUses(entry) : 0;
+  var warn = 'Delete this profile from the library?';
+  if (uses) warn += ' It is used in ' + uses + ' scene' + (uses===1?'':'s') + ', and will be removed from ' + (uses===1?'it':'them') + ' too.';
+  askConfirm(warn, function(){
+    if (entry) purgeLibFromScenes(entry);
     S.library = S.library.filter(function(e){ return e.id!==id; });
     deleteAsset(id);
     save(); render();
   }, 'Delete');
+}
+// how many scene combatants reference this library entry, for the confirm text
+function countLibUses(entry){
+  if (!entry) return 0;
+  var nm = String(entry.name||'').trim().toLowerCase(), ty = entry.type, id = entry.id, n = 0;
+  (S.campaigns||[]).forEach(function(c){ (c.acts||[]).forEach(function(a){ (a.sessions||[]).forEach(function(ss){ (ss.scenes||[]).forEach(function(sc){
+    (sc.combatants||[]).forEach(function(cb){
+      if (cb.type !== ty) return;
+      if ((cb.libId && cb.libId === id) || String(cb.name||'').trim().toLowerCase() === nm || String(baseName(cb.name)||'').trim().toLowerCase() === nm) n++;
+    });
+  }); }); }); });
+  return n;
 }
 /* Duplicate a library profile as a fresh editable copy. */
 function reforgeLibFoe(id){
@@ -11160,7 +11202,12 @@ function deleteLibSelected(){
   var ids = Object.keys(V.libSel||{}).filter(function(id){ return V.libSel[id]; });
   if (!ids.length) return;
   var n = ids.length;
-  askConfirm('Delete '+n+' profile'+(n===1?'':'s')+' from the library? Scenes that already use them keep their copies.', function(){
+  var entries = ids.map(function(id){ return libGet(id); }).filter(Boolean);
+  var uses = entries.reduce(function(s,e){ return s + countLibUses(e); }, 0);
+  var warn = 'Delete '+n+' profile'+(n===1?'':'s')+' from the library?';
+  if (uses) warn += ' They are used in ' + uses + ' scene slot' + (uses===1?'':'s') + ', and will be removed from those too.';
+  askConfirm(warn, function(){
+    entries.forEach(function(e){ purgeLibFromScenes(e); });
     var kill = {}; ids.forEach(function(id){ kill[id] = true; });
     S.library = S.library.filter(function(e){ return !kill[e.id]; });
     ids.forEach(function(id){ deleteAsset(id); });
