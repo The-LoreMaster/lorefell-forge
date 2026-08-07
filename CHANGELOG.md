@@ -1,3 +1,7 @@
+## 2026-07-29 - Every adventure migrated into the shared tree
+
+The migration that finishes the move. scripts/migrateCampaigns.js walks every Campaigns blob, decomposes it into the Adventures tree under the same id so members, players and stages still resolve, and verifies each by counting its scenes back. It is idempotent, upserting by id and pruning rows a campaign no longer holds, so it is safe to rerun. It runs in the Apply workflow after the collections exist. The Campaigns blob is not deleted; it stays as a live mirror, since both tools still dual-write it, so there is a costless backup to restore from. The tree is the source both tools read; the blob is the safety net beneath it.
+
 ## 2026-07-29 - FateWell reads and writes the shared adventure, and the two tools agree on a scene
 
 FateWell now joins ThreadSpire on the one source. On open it reads the Adventures tree, migrating an old blob once on first touch, so it sees whatever ThreadSpire wrote. On save it still writes the blob for now, and also writes the whole tree, so an edit in FateWell reaches ThreadSpire from the same rows; a compressed save goes through the migrator, which decodes it. A new backend, saveAdventureFromCampaign, decomposes a campaign into the tree and prunes the rows a delete removed.
