@@ -16,6 +16,40 @@ import { loadAdventure, saveAdventureFromCampaign, migrateCampaign } from 'backe
 import wixLocation from 'wix-location';
 import wixWindow from 'wix-window';
 
+// The blob save runs on every autosave and is the immediate persistence. The tree dual-write
+// does NOT need to run that often: the tree is what ThreadSpire reads when it opens an
+// adventure, and it auto-migrates from the blob if it is behind. Running a full tree diff on
+// every autosave, several times as foes are added, is what exhausted the per-minute quota. So
+// the dual-write is throttled per adventure: the latest campaign is remembered, and the tree
+// is reconciled at most once every few seconds, with a final flush so the last edit always
+// lands. This keeps the tree current for ThreadSpire without a write storm.
+var _advDualTimers = {};
+var _advDualPending = {};
+var _ADV_DUAL_MS = 6000;
+var _advCompTimers = {};
+function scheduleDualWriteCompressed(advId) {
+  if (!advId) return;
+  if (_advCompTimers[advId]) return;
+  _advCompTimers[advId] = setTimeout(async function () {
+    _advCompTimers[advId] = null;
+    try { await migrateCampaign(advId); } catch (e) {}
+  }, _ADV_DUAL_MS);
+}
+async function dualWriteTree(advId, camp) {
+  try { await saveAdventureFromCampaign(advId, camp); } catch (e) {}
+}
+function scheduleDualWrite(advId, camp) {
+  if (!advId || !camp) return;
+  _advDualPending[advId] = camp;
+  if (_advDualTimers[advId]) return; // a write is already scheduled; it will pick up the latest
+  _advDualTimers[advId] = setTimeout(async function () {
+    _advDualTimers[advId] = null;
+    const latest = _advDualPending[advId];
+    delete _advDualPending[advId];
+    if (latest) await dualWriteTree(advId, latest);
+  }, _ADV_DUAL_MS);
+}
+
 const EMBED = '#html1';   // change to your Embed a Site element ID
 
 
@@ -115,7 +149,11 @@ $w.onReady(() => {
         try {
           if (it.data && it.data.campaign) it.data.campaign = await inlineCoverImages(it.data.campaign);
           const r = await saveCampaign(it.id, it.data || {}, '');
-          if (r && r.ok) { saved++; owner = r.owner || owner; if (it.data && it.data.campaign) slimmed.push({ id: it.id, campaign: it.data.campaign }); }
+          if (r && r.ok) {
+            saved++; owner = r.owner || owner;
+            if (it.data && it.data.campaign) { slimmed.push({ id: it.id, campaign: it.data.campaign }); scheduleDualWrite(r.id || it.id, it.data.campaign); }
+            else if (it.data && it.data.campaignGz) scheduleDualWriteCompressed(r.id || it.id);
+          }
           else errors.push((r && (r.error || (r.skipped ? 'skipped: no campaign data' : 'not saved'))) || 'not saved');
         } catch (e) { errors.push(String(e)); }
       }
@@ -230,11 +268,13 @@ $w.onReady(() => {
           // migrateCampaign reads it back (it decodes the gzip) and decomposes that. The blob
           // save above stays as the fallback until the blob is retired. A failure here does
           // not fail the save; the next save reconciles the tree.
-          try {
-            const camp = (m.data && m.data.campaign) ? m.data.campaign : null;
-            if (camp) await saveAdventureFromCampaign(r.id || cid, camp);
-            else if (m.data && m.data.campaignGz) await migrateCampaign(r.id || cid);
-          } catch (e) {}
+          // Reconcile the tree, throttled: a plain payload carries the campaign to decompose;
+          // a compressed one is read back from the blob by migrateCampaign. Either way it runs
+          // at most once every few seconds per adventure, so a burst of autosaves is one tree
+          // write, not many.
+          const camp = (m.data && m.data.campaign) ? m.data.campaign : null;
+          if (camp) scheduleDualWrite(r.id || cid, camp);
+          else if (m.data && m.data.campaignGz) scheduleDualWriteCompressed(r.id || cid);
           if (m.data && m.data.campaign) {
             embed.postMessage({ type: 'lmtool-campaigns-slimmed', campaigns: [{ id: cid, campaign: m.data.campaign }] });
           }
