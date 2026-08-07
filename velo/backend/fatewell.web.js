@@ -8,6 +8,22 @@ import wixData from 'wix-data';
 import { currentMember } from 'wix-members-backend';
 import { gunzipSync } from 'zlib';
 
+// TELEMETRY. Same counter as the adventures backend, so a save here reports how many data
+// calls it actually made. This backend was the blind spot: saveCampaign, roleFor and memberId
+// each make calls that never showed in the tree telemetry, so a flood from here was invisible.
+// Now saveCampaign returns its tally and the page folds it into the same rolling per-minute
+// count.
+let TELE_FW = null;
+function fwTeleReset() { TELE_FW = { get: 0, query: 0, insert: 0, update: 0, remove: 0, total: 0, byColl: {} }; }
+function fwTeleBump(op, coll) { if (!TELE_FW) return; TELE_FW[op] = (TELE_FW[op] || 0) + 1; TELE_FW.total++; TELE_FW.byColl[coll] = (TELE_FW.byColl[coll] || 0) + 1; }
+const wd = {
+  get: (c, id, o) => { fwTeleBump('get', c); return wixData.get(c, id, o); },
+  insert: (c, r, o) => { fwTeleBump('insert', c); return wixData.insert(c, r, o); },
+  update: (c, r, o) => { fwTeleBump('update', c); return wixData.update(c, r, o); },
+  remove: (c, id, o) => { fwTeleBump('remove', c); return wixData.remove(c, id, o); },
+  query: (c) => { fwTeleBump('query', c); return wixData.query(c); }
+};
+
 const COLLECTION = 'Campaigns';
 
 // The tool stores a campaign either as a plain object or, when large, as a base64 gzip
@@ -36,7 +52,7 @@ async function memberId() {
 export const loadCampaign = webMethod(Permissions.Anyone, async (campaignId) => {
   if (!campaignId) return null;
   const id = await memberId();
-  const r = await wixData.get(COLLECTION, campaignId, { suppressAuth: true }).catch(() => null);
+  const r = await wd.get(COLLECTION, campaignId, { suppressAuth: true }).catch(() => null);
   if (!r) return null;
   let role = 'loremaster';
   if (r.ownerMemberId && id && r.ownerMemberId !== id) {
@@ -53,7 +69,7 @@ export const listMyCampaigns = webMethod(Permissions.Anyone, async () => {
   if (!id) return [];
   const out = []; const seen = {};
   try {
-    const r = await wixData.query(COLLECTION).eq('ownerMemberId', id).limit(50).find({ suppressAuth: true });
+    const r = await wd.query(COLLECTION).eq('ownerMemberId', id).limit(50).find({ suppressAuth: true });
     r.items.forEach((it) => {
       seen[it._id] = 1;
       let data = {}; try { data = it.data ? unpackCampaignData(JSON.parse(it.data)) : {}; } catch (e) { data = {}; }
@@ -61,10 +77,10 @@ export const listMyCampaigns = webMethod(Permissions.Anyone, async () => {
     });
   } catch (e) {}
   try {
-    const km = await wixData.query('AdventureMembers').eq('memberId', id).hasSome('role', ['loremaster', 'lorekeeper']).limit(100).find({ suppressAuth: true });
+    const km = await wd.query('AdventureMembers').eq('memberId', id).hasSome('role', ['loremaster', 'lorekeeper']).limit(100).find({ suppressAuth: true });
     for (const m of km.items) {
       if (!m.campaignId || seen[m.campaignId]) continue;
-      const c = await wixData.get(COLLECTION, m.campaignId, { suppressAuth: true }).catch(() => null);
+      const c = await wd.get(COLLECTION, m.campaignId, { suppressAuth: true }).catch(() => null);
       if (!c) continue;
       seen[m.campaignId] = 1;
       let data = {}; try { data = c.data ? unpackCampaignData(JSON.parse(c.data)) : {}; } catch (e) { data = {}; }
@@ -75,6 +91,7 @@ export const listMyCampaigns = webMethod(Permissions.Anyone, async () => {
 });
 
 export const saveCampaign = webMethod(Permissions.Anyone, async (campaignId, blob, title) => {
+  fwTeleReset();
   try {
     const id = await memberId();
     // Never create an empty row. A save with no campaign id and no real campaign blob is a
@@ -84,7 +101,7 @@ export const saveCampaign = webMethod(Permissions.Anyone, async (campaignId, blo
 
     let existing = null;
     if (campaignId) {
-      existing = await wixData.get(COLLECTION, campaignId, { suppressAuth: true }).catch(() => null);
+      existing = await wd.get(COLLECTION, campaignId, { suppressAuth: true }).catch(() => null);
       if (existing && existing.ownerMemberId && id && existing.ownerMemberId !== id) {
         const r2 = await roleFor(id, campaignId, existing.ownerMemberId);
         if (r2 !== 'loremaster' && r2 !== 'lorekeeper') return { ok: false, error: 'owned by another member' };
@@ -106,9 +123,9 @@ export const saveCampaign = webMethod(Permissions.Anyone, async (campaignId, blo
     if (!row.ownerMemberId) row.ownerMemberId = id;
 
     const saved = existing
-      ? await wixData.update(COLLECTION, row, { suppressAuth: true })
-      : await wixData.insert(COLLECTION, row, { suppressAuth: true });
-    return { ok: true, id: saved._id, owner: id };
+      ? await wd.update(COLLECTION, row, { suppressAuth: true })
+      : await wd.insert(COLLECTION, row, { suppressAuth: true });
+    return { ok: true, id: saved._id, owner: id, tele: TELE_FW };
   } catch (e) {
     // Surface the real cause to the caller instead of Velo's generic wrapper.
     return { ok: false, error: (e && e.message) ? e.message : String(e) };
@@ -120,12 +137,12 @@ export const deleteCampaign = webMethod(Permissions.Anyone, async (campaignId) =
   try {
     if (!campaignId) return { ok: false, error: 'no id' };
     const id = await memberId();
-    const existing = await wixData.get(COLLECTION, campaignId, { suppressAuth: true }).catch(() => null);
+    const existing = await wd.get(COLLECTION, campaignId, { suppressAuth: true }).catch(() => null);
     if (!existing) return { ok: true, id: campaignId, already: true };
     if (existing.ownerMemberId && id && existing.ownerMemberId !== id) {
       return { ok: false, error: 'owned by another member' };
     }
-    await wixData.remove(COLLECTION, campaignId, { suppressAuth: true });
+    await wd.remove(COLLECTION, campaignId, { suppressAuth: true });
     return { ok: true, id: campaignId };
   } catch (e) {
     return { ok: false, error: (e && e.message) ? e.message : String(e) };
@@ -155,11 +172,11 @@ async function keeperCampaignIds(id) {
   if (!id) return [];
   const set = {};
   try {
-    const owned = await wixData.query(COLLECTION).eq('ownerMemberId', id).limit(200).find({ suppressAuth: true });
+    const owned = await wd.query(COLLECTION).eq('ownerMemberId', id).limit(200).find({ suppressAuth: true });
     owned.items.forEach((it) => { set[it._id] = 1; });
   } catch (e) {}
   try {
-    const kept = await wixData.query('AdventureMembers').eq('memberId', id).hasSome('role', ['loremaster', 'lorekeeper']).limit(200).find({ suppressAuth: true });
+    const kept = await wd.query('AdventureMembers').eq('memberId', id).hasSome('role', ['loremaster', 'lorekeeper']).limit(200).find({ suppressAuth: true });
     kept.items.forEach((m) => { if (m.campaignId) set[m.campaignId] = 1; });
   } catch (e) {}
   return Object.keys(set);
@@ -169,22 +186,22 @@ async function keeperCampaignIds(id) {
 async function roleFor(id, campaignId, ownerId) {
   if (ownerId && id && ownerId === id) return 'loremaster';
   try {
-    const r = await wixData.query('AdventureMembers').eq('campaignId', campaignId).eq('memberId', id).limit(1).find({ suppressAuth: true });
+    const r = await wd.query('AdventureMembers').eq('campaignId', campaignId).eq('memberId', id).limit(1).find({ suppressAuth: true });
     if (r.items.length && r.items[0].role) return r.items[0].role;
   } catch (e) {}
   return 'player';
 }
 async function upsertMemberRole(campaignId, mid, role) {
   try {
-    const r = await wixData.query('AdventureMembers').eq('campaignId', campaignId).eq('memberId', mid).limit(1).find({ suppressAuth: true });
-    if (r.items.length) { const row = r.items[0]; row.role = role; await wixData.update('AdventureMembers', row, { suppressAuth: true }); }
-    else { await wixData.insert('AdventureMembers', { campaignId: campaignId, memberId: mid, role: role, status: 'member', joinedAt: new Date().toISOString() }, { suppressAuth: true }); }
+    const r = await wd.query('AdventureMembers').eq('campaignId', campaignId).eq('memberId', mid).limit(1).find({ suppressAuth: true });
+    if (r.items.length) { const row = r.items[0]; row.role = role; await wd.update('AdventureMembers', row, { suppressAuth: true }); }
+    else { await wd.insert('AdventureMembers', { campaignId: campaignId, memberId: mid, role: role, status: 'member', joinedAt: new Date().toISOString() }, { suppressAuth: true }); }
   } catch (e) {}
 }
 export const myAdventureRole = webMethod(Permissions.Anyone, async (campaignId) => {
   const id = await memberId();
   if (!id || !campaignId) return '';
-  const camp = await wixData.get(COLLECTION, campaignId, { suppressAuth: true }).catch(() => null);
+  const camp = await wd.get(COLLECTION, campaignId, { suppressAuth: true }).catch(() => null);
   if (!camp) return '';
   return await roleFor(id, campaignId, camp.ownerMemberId);
 });
@@ -193,14 +210,14 @@ export const myAdventureRole = webMethod(Permissions.Anyone, async (campaignId) 
 export const setMemberRole = webMethod(Permissions.Anyone, async (campaignId, targetMemberId, role) => {
   const id = await memberId();
   if (!id || !campaignId || !targetMemberId) return { ok: false };
-  const camp = await wixData.get(COLLECTION, campaignId, { suppressAuth: true }).catch(() => null);
+  const camp = await wd.get(COLLECTION, campaignId, { suppressAuth: true }).catch(() => null);
   if (!camp) return { ok: false };
   if (camp.ownerMemberId !== id) return { ok: false, error: 'Only the loremaster can change roles.' };
   role = (['player', 'lorekeeper', 'loremaster'].indexOf(role) !== -1) ? role : 'player';
   if (role === 'loremaster') {
     if (targetMemberId === id) return { ok: true };
     camp.ownerMemberId = targetMemberId;
-    try { await wixData.update(COLLECTION, camp, { suppressAuth: true }); } catch (e) { return { ok: false, error: 'transfer failed' }; }
+    try { await wd.update(COLLECTION, camp, { suppressAuth: true }); } catch (e) { return { ok: false, error: 'transfer failed' }; }
     await upsertMemberRole(campaignId, targetMemberId, 'loremaster');
     await upsertMemberRole(campaignId, id, 'lorekeeper');
     return { ok: true, transferred: true };
@@ -224,15 +241,15 @@ export const getSealed = webMethod(Permissions.Anyone, async (memberIds, names, 
   const seen = (it) => items.some((x) => x._id === it._id);
   try {
     if (cids.length) {
-      const rc = await wixData.query('Characters').hasSome('_id', cids).limit(200).find({ suppressAuth: true });
+      const rc = await wd.query('Characters').hasSome('_id', cids).limit(200).find({ suppressAuth: true });
       rc.items.forEach((it) => { if (!seen(it)) items.push(it); });
     }
     if (ids.length) {
-      const r = await wixData.query('Characters').hasSome('ownerMemberId', ids).limit(200).find({ suppressAuth: true });
+      const r = await wd.query('Characters').hasSome('ownerMemberId', ids).limit(200).find({ suppressAuth: true });
       r.items.forEach((it) => { if (!seen(it)) items.push(it); });
     }
     if (nm.length) {
-      const rn = await wixData.query('Characters').hasSome('charName', nm).limit(200).find({ suppressAuth: true });
+      const rn = await wd.query('Characters').hasSome('charName', nm).limit(200).find({ suppressAuth: true });
       rn.items.forEach((it) => { if (!seen(it)) items.push(it); });
     }
   } catch (e) { items = []; }
@@ -259,13 +276,13 @@ export const getCampaignPlayers = webMethod(Permissions.Anyone, async (campaignI
 
   // owner of this adventure is its loremaster
   let ownerId = '';
-  try { if (cid) { const cc = await wixData.get(COLLECTION, cid, { suppressAuth: true }).catch(() => null); ownerId = (cc && cc.ownerMemberId) || ''; } } catch (e) {}
+  try { if (cid) { const cc = await wd.get(COLLECTION, cid, { suppressAuth: true }).catch(() => null); ownerId = (cc && cc.ownerMemberId) || ''; } } catch (e) {}
 
   // members who joined (so a member with no character yet still shows), with names and roles
   const nameOf = {}; const roleOf = {}; let members = [];
   try {
     if (cid) {
-      const rm = await wixData.query('AdventureMembers').eq('campaignId', cid).limit(500).find({ suppressAuth: true });
+      const rm = await wd.query('AdventureMembers').eq('campaignId', cid).limit(500).find({ suppressAuth: true });
       members = rm.items;
       members.forEach((m) => { if (m.memberId) { nameOf[m.memberId] = m.name || ''; if (m.role) roleOf[m.memberId] = m.role; } });
     }
@@ -275,9 +292,9 @@ export const getCampaignPlayers = webMethod(Permissions.Anyone, async (campaignI
   // characters linked to this adventure, by id with a legacy name fallback
   let chars = [];
   try {
-    if (cid) { const rc = await wixData.query('Characters').eq('campaignId', cid).limit(500).find({ suppressAuth: true }); chars = rc.items; }
+    if (cid) { const rc = await wd.query('Characters').eq('campaignId', cid).limit(500).find({ suppressAuth: true }); chars = rc.items; }
     if (nm) {
-      const rn = await wixData.query('Characters').eq('campaign', nm).limit(500).find({ suppressAuth: true });
+      const rn = await wd.query('Characters').eq('campaign', nm).limit(500).find({ suppressAuth: true });
       rn.items.forEach((it) => { if (!chars.some((x) => x._id === it._id)) chars.push(it); });
     }
   } catch (e) {}
@@ -316,10 +333,10 @@ export const detachCharacter = webMethod(Permissions.Anyone, async (charId) => {
   const id = await memberId();
   const keeperCids = await keeperCampaignIds(id);
   try {
-    const row = await wixData.get('Characters', charId, { suppressAuth: true });
+    const row = await wd.get('Characters', charId, { suppressAuth: true });
     if (!row) return { ok: false };
     if (keeperCids.indexOf(row.campaignId || '') === -1) return { ok: false, error: 'not your adventure' };
-    row.campaignId = ''; await wixData.update('Characters', row, { suppressAuth: true });
+    row.campaignId = ''; await wd.update('Characters', row, { suppressAuth: true });
     return { ok: true };
   } catch (e) { return { ok: false, error: String(e) }; }
 });
@@ -333,7 +350,7 @@ export const getForgeLibrary = webMethod(Permissions.Anyone, async () => {
   const mid = await memberId();
   let canon = [], mine = [];
   try {
-    const r = await wixData.query('Creations')
+    const r = await wd.query('Creations')
       .eq('forgeKey', 'sigilforge').eq('canonStatus', 'canon')
       .limit(500).find({ suppressAuth: true });
     canon = r.items;
@@ -341,7 +358,7 @@ export const getForgeLibrary = webMethod(Permissions.Anyone, async () => {
   // The loremaster's own forged Acts are usable at their own table, canon or not.
   if (mid) {
     try {
-      const r2 = await wixData.query('Creations')
+      const r2 = await wd.query('Creations')
         .eq('forgeKey', 'sigilforge').eq('creatorMemberId', mid).ne('canonStatus', 'canon')
         .limit(500).find({ suppressAuth: true });
       mine = r2.items;
@@ -375,7 +392,7 @@ export const submitAct = webMethod(Permissions.SiteMember, async (act) => {
   const tier = Math.min(3, Math.max(1, Number(act && act.tier) || 1));
   const effect = String((act && act.effect) || '').trim();
   try {
-    const row = await wixData.insert('Creations', {
+    const row = await wd.insert('Creations', {
       forgeKey: 'sigilforge',
       kind: 'act',
       creationName: name,
@@ -397,7 +414,7 @@ export const submitItem = webMethod(Permissions.SiteMember, async (item) => {
   if (!name) return { ok: false, error: 'an item needs a name' };
   const rule = String((item && item.rule) || '').trim();
   try {
-    const row = await wixData.insert('Creations', {
+    const row = await wd.insert('Creations', {
       forgeKey: 'relicforge',
       kind: 'relic',
       creationName: name,
@@ -421,7 +438,7 @@ export const getForgePools = webMethod(Permissions.Anyone, async () => {
 
   // Canon relics live in their own catalog, not in Creations. Read them first.
   try {
-    const r = await wixData.query('Relics').ascending('displayOrder').limit(500).find({ suppressAuth: true });
+    const r = await wd.query('Relics').ascending('displayOrder').limit(500).find({ suppressAuth: true });
     r.items.forEach((row) => {
       if (!row.name) return;
       out.items.push({
@@ -442,14 +459,14 @@ export const getForgePools = webMethod(Permissions.Anyone, async () => {
     const bucket = KEYS[key];
     let rows = [];
     try {
-      const r = await wixData.query('Creations')
+      const r = await wd.query('Creations')
         .eq('forgeKey', key).eq('canonStatus', 'canon')
         .limit(500).find({ suppressAuth: true });
       rows = r.items;
     } catch (e) { rows = []; }
     if (mid) {
       try {
-        const r2 = await wixData.query('Creations')
+        const r2 = await wd.query('Creations')
           .eq('forgeKey', key).eq('creatorMemberId', mid)
           .limit(500).find({ suppressAuth: true });
         rows = rows.concat(r2.items);
@@ -524,7 +541,7 @@ function mapFoeRow(it, source) {
 async function getCanonFoes() {
   let items = [];
   try {
-    const r = await wixData.query('Creations')
+    const r = await wd.query('Creations')
       .eq('forgeKey', 'foeforge').eq('canonStatus', 'canon')
       .limit(200).find({ suppressAuth: true });
     items = r.items;
@@ -538,7 +555,7 @@ async function getMyForgeFoes(mid) {
   if (!mid) return [];
   let items = [];
   try {
-    const r = await wixData.query('Creations')
+    const r = await wd.query('Creations')
       .eq('forgeKey', 'foeforge.private').eq('creatorMemberId', mid)
       .limit(200).find({ suppressAuth: true });
     items = r.items;
@@ -553,7 +570,7 @@ async function getMyForgeFoes(mid) {
 export const getShelves = webMethod(Permissions.Anyone, async () => {
   const mid = await memberId(); if (!mid) return null;
   try {
-    const r = await wixData.query('MemberShelves').eq('memberId', mid).limit(1).find({ suppressAuth: true });
+    const r = await wd.query('MemberShelves').eq('memberId', mid).limit(1).find({ suppressAuth: true });
     if (!r.items.length) return null;
     try { return JSON.parse(r.items[0].shelves || 'null'); } catch (e) { return null; }
   } catch (e) { return null; }
@@ -563,12 +580,12 @@ export const saveShelves = webMethod(Permissions.Anyone, async (shelves) => {
   const mid = await memberId(); if (!mid) return { ok: false };
   const body = JSON.stringify(shelves || {});
   try {
-    const r = await wixData.query('MemberShelves').eq('memberId', mid).limit(1).find({ suppressAuth: true });
+    const r = await wd.query('MemberShelves').eq('memberId', mid).limit(1).find({ suppressAuth: true });
     if (r.items.length) {
       const row = Object.assign({}, r.items[0], { shelves: body });
-      await wixData.update('MemberShelves', row, { suppressAuth: true });
+      await wd.update('MemberShelves', row, { suppressAuth: true });
     } else {
-      await wixData.insert('MemberShelves', { memberId: mid, shelves: body }, { suppressAuth: true });
+      await wd.insert('MemberShelves', { memberId: mid, shelves: body }, { suppressAuth: true });
     }
     return { ok: true };
   } catch (e) { return { ok: false, error: String(e) }; }
@@ -579,7 +596,7 @@ export const listAssets = webMethod(Permissions.Anyone, async () => {
   let owned = [];
   if (mid) {
     try {
-      const r = await wixData.query('Assets').eq('ownerMemberId', mid).limit(1000).find({ suppressAuth: true });
+      const r = await wd.query('Assets').eq('ownerMemberId', mid).limit(1000).find({ suppressAuth: true });
       owned = r.items;
     } catch (e) { owned = []; }
   }
@@ -597,15 +614,15 @@ export const saveAsset = webMethod(Permissions.Anyone, async (asset) => {
   const mid = await memberId(); if (!mid || !asset || !asset.assetId) return { ok: false };
   const row = Object.assign({}, asset, { ownerMemberId: mid });
   try {
-    const ex = await wixData.query('Assets')
+    const ex = await wd.query('Assets')
       .eq('ownerMemberId', mid).eq('assetId', String(asset.assetId))
       .limit(1).find({ suppressAuth: true });
     if (ex.items.length) {
       const merged = Object.assign({}, ex.items[0], row);
-      const u = await wixData.update('Assets', merged, { suppressAuth: true });
+      const u = await wd.update('Assets', merged, { suppressAuth: true });
       return { ok: true, id: u._id };
     }
-    const ins = await wixData.insert('Assets', row, { suppressAuth: true });
+    const ins = await wd.insert('Assets', row, { suppressAuth: true });
     return { ok: true, id: ins._id };
   } catch (e) { return { ok: false, error: String(e) }; }
 });
@@ -613,10 +630,10 @@ export const saveAsset = webMethod(Permissions.Anyone, async (asset) => {
 export const deleteAsset = webMethod(Permissions.Anyone, async (assetId) => {
   const mid = await memberId(); if (!mid || !assetId) return { ok: false };
   try {
-    const ex = await wixData.query('Assets')
+    const ex = await wd.query('Assets')
       .eq('ownerMemberId', mid).eq('assetId', String(assetId))
       .limit(1).find({ suppressAuth: true });
-    if (ex.items.length) await wixData.remove('Assets', ex.items[0]._id, { suppressAuth: true });
+    if (ex.items.length) await wd.remove('Assets', ex.items[0]._id, { suppressAuth: true });
     return { ok: true };
   } catch (e) { return { ok: false, error: String(e) }; }
 });
@@ -624,7 +641,7 @@ export const deleteAsset = webMethod(Permissions.Anyone, async (assetId) => {
 // Canon glossary terms, read by anyone. Empty until rows are added in the CMS.
 export const listGlossary = webMethod(Permissions.Anyone, async () => {
   try {
-    const r = await wixData.query('Glossary').ascending('displayOrder').limit(1000).find({ suppressAuth: true });
+    const r = await wd.query('Glossary').ascending('displayOrder').limit(1000).find({ suppressAuth: true });
     return r.items.map((it) => ({
       id: it._id,
       term: it.term || '',
@@ -647,7 +664,7 @@ export const assignClue = webMethod(Permissions.Anyone, async (campaignId, charI
   for (const cid of charIds) {
     if (!cid) continue;
     try {
-      const ex = await wixData.query('ClueCards')
+      const ex = await wd.query('ClueCards')
         .eq('charId', cid).eq('handle', handle).eq('campaignId', campaignId || '')
         .limit(1).find({ suppressAuth: true });
       const row = {
@@ -655,8 +672,8 @@ export const assignClue = webMethod(Permissions.Anyone, async (campaignId, charI
         clueTitle: (clue && clue.title) || '', clueBody: (clue && clue.body) || '',
         scene: (clue && clue.scene) || '', discoveredAt: Date.now()
       };
-      if (ex.items.length) { row._id = ex.items[0]._id; await wixData.update('ClueCards', row, { suppressAuth: true }); }
-      else { await wixData.insert('ClueCards', row, { suppressAuth: true }); }
+      if (ex.items.length) { row._id = ex.items[0]._id; await wd.update('ClueCards', row, { suppressAuth: true }); }
+      else { await wd.insert('ClueCards', row, { suppressAuth: true }); }
       n++;
     } catch (e) {}
   }
@@ -667,7 +684,7 @@ export const assignClue = webMethod(Permissions.Anyone, async (campaignId, charI
    the full record since a partial update replaces the row. */
 export const upsertQuest = webMethod(Permissions.Anyone, async (campaignId, quest) => {
   if (!campaignId || !quest || !quest.entryId) return { ok: false };
-  const ex = await wixData.query('QuestBoard')
+  const ex = await wd.query('QuestBoard')
     .eq('campaignId', campaignId).eq('entryId', quest.entryId)
     .limit(1).find({ suppressAuth: true });
   const row = {
@@ -677,8 +694,8 @@ export const upsertQuest = webMethod(Permissions.Anyone, async (campaignId, ques
     postedAt: (ex.items[0] && ex.items[0].postedAt) || Date.now()
   };
   try {
-    if (ex.items.length) { await wixData.update('QuestBoard', Object.assign({}, ex.items[0], row), { suppressAuth: true }); }
-    else { await wixData.insert('QuestBoard', row, { suppressAuth: true }); }
+    if (ex.items.length) { await wd.update('QuestBoard', Object.assign({}, ex.items[0], row), { suppressAuth: true }); }
+    else { await wd.insert('QuestBoard', row, { suppressAuth: true }); }
   } catch (e) { return { ok: false }; }
   return { ok: true };
 });
@@ -686,7 +703,7 @@ export const upsertQuest = webMethod(Permissions.Anyone, async (campaignId, ques
 export const listQuests = webMethod(Permissions.Anyone, async (campaignId) => {
   if (!campaignId) return { ok: true, quests: [] };
   try {
-    const r = await wixData.query('QuestBoard').eq('campaignId', campaignId)
+    const r = await wd.query('QuestBoard').eq('campaignId', campaignId)
       .ne('questStatus', 'removed').ascending('postedAt').limit(50)
       .find({ suppressAuth: true });
     const quests = r.items.map(function (q) {
@@ -706,7 +723,7 @@ export const listQuests = webMethod(Permissions.Anyone, async (campaignId) => {
 export const getWorldMeta = webMethod(Permissions.Anyone, async (campaignId) => {
   if (!campaignId) return { ok: true, worldUnlocked: false, worldIssues: [] };
   try {
-    const c = await wixData.get(COLLECTION, campaignId, { suppressAuth: true }).catch(() => null);
+    const c = await wd.get(COLLECTION, campaignId, { suppressAuth: true }).catch(() => null);
     if (!c) return { ok: true, worldUnlocked: false, worldIssues: [] };
     // data is the campaign object itself (saveCampaign stores blob.campaign)
     let unlocked = false, issues = [];
@@ -724,13 +741,13 @@ export const getWorldMeta = webMethod(Permissions.Anyone, async (campaignId) => 
 export const revealNodes = webMethod(Permissions.Anyone, async (campaignId, nodeIds) => {
   if (!campaignId || !Array.isArray(nodeIds) || !nodeIds.length) return { ok: false };
   try {
-    const existing = await wixData.query('ThreadSpireDiscovery')
+    const existing = await wd.query('ThreadSpireDiscovery')
       .eq('campaignId', campaignId).limit(1000).find({ suppressAuth: true });
     const have = {};
     existing.items.forEach((r) => { have[r.nodeId] = true; });
     const inserts = [];
     nodeIds.forEach((nid) => { if (nid && !have[nid]) inserts.push({ campaignId: campaignId, nodeId: nid, revealedAt: Date.now() }); });
-    for (const row of inserts) { await wixData.insert('ThreadSpireDiscovery', row, { suppressAuth: true }); }
+    for (const row of inserts) { await wd.insert('ThreadSpireDiscovery', row, { suppressAuth: true }); }
     return { ok: true, added: inserts.length };
   } catch (e) { return { ok: false, error: 'The reveal could not be saved.' }; }
 });
@@ -738,9 +755,9 @@ export const revealNodes = webMethod(Permissions.Anyone, async (campaignId, node
 export const hideNode = webMethod(Permissions.Anyone, async (campaignId, nodeId) => {
   if (!campaignId || !nodeId) return { ok: false };
   try {
-    const ex = await wixData.query('ThreadSpireDiscovery')
+    const ex = await wd.query('ThreadSpireDiscovery')
       .eq('campaignId', campaignId).eq('nodeId', nodeId).limit(1).find({ suppressAuth: true });
-    if (ex.items.length) await wixData.remove('ThreadSpireDiscovery', ex.items[0]._id, { suppressAuth: true });
+    if (ex.items.length) await wd.remove('ThreadSpireDiscovery', ex.items[0]._id, { suppressAuth: true });
     return { ok: true };
   } catch (e) { return { ok: false }; }
 });
@@ -748,7 +765,7 @@ export const hideNode = webMethod(Permissions.Anyone, async (campaignId, nodeId)
 export const listDiscovered = webMethod(Permissions.Anyone, async (campaignId) => {
   if (!campaignId) return { ok: true, nodes: [] };
   try {
-    const r = await wixData.query('ThreadSpireDiscovery').eq('campaignId', campaignId)
+    const r = await wd.query('ThreadSpireDiscovery').eq('campaignId', campaignId)
       .limit(1000).find({ suppressAuth: true });
     return { ok: true, nodes: r.items.map((x) => x.nodeId) };
   } catch (e) { return { ok: false, nodes: [], error: 'The Sphere could not be reached.' }; }
@@ -758,7 +775,7 @@ export const getClueCards = webMethod(Permissions.Anyone, async (charId) => {
   if (!charId) return [];
   let items = [];
   try {
-    const r = await wixData.query('ClueCards').eq('charId', charId)
+    const r = await wd.query('ClueCards').eq('charId', charId)
       .descending('discoveredAt').limit(200).find({ suppressAuth: true });
     items = r.items;
   } catch (e) { items = []; }
@@ -770,7 +787,7 @@ export const getLmPortrait = webMethod(Permissions.Anyone, async (campaignId) =>
   try {
     const id = await memberId();
     if (!id || !campaignId) return { ok: false, portrait: '' };
-    const r = await wixData.query('AdventureMembers')
+    const r = await wd.query('AdventureMembers')
       .eq('campaignId', campaignId).eq('memberId', id)
       .limit(1).find({ suppressAuth: true });
     const row = r.items[0];
@@ -782,13 +799,13 @@ export const saveLmPortrait = webMethod(Permissions.Anyone, async (campaignId, p
   try {
     const id = await memberId();
     if (!id || !campaignId) return { ok: false };
-    const r = await wixData.query('AdventureMembers')
+    const r = await wd.query('AdventureMembers')
       .eq('campaignId', campaignId).eq('memberId', id)
       .limit(1).find({ suppressAuth: true });
     let row = r.items[0];
     if (!row) row = { campaignId: campaignId, memberId: id, status: 'active', role: 'loremaster', joinedAt: new Date().toISOString() };
     row.portrait = portrait || '';
-    await wixData.save('AdventureMembers', row, { suppressAuth: true });
+    await wd.save('AdventureMembers', row, { suppressAuth: true });
     return { ok: true };
   } catch (e) { return { ok: false, error: String(e) }; }
 });

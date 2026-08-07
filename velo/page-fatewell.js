@@ -65,6 +65,20 @@ function teleReport(where, advId, tele) {
   console.log(line);
   try { if (_embed) _embed.postMessage({ type: 'lmtool-telemetry', where: where, advId: advId, tele: tele, perMinute: perMinute }); } catch (e) {}
 }
+// The 2-second poll calls this every tick. Its calls always count toward the rolling minute,
+// but it only pushes a display update every 10 seconds, so the readout is not spammed by the
+// poll while still reflecting the baseline the poll spends.
+var _pollDisplayAt = 0;
+function teleReportPoll(where, tele) {
+  if (!tele) return;
+  const now = Date.now();
+  _teleWindow.push({ t: now, n: tele.total || 0 });
+  _teleWindow = _teleWindow.filter(e => now - e.t < 60000);
+  if (now - _pollDisplayAt < 10000) return;
+  _pollDisplayAt = now;
+  const perMinute = _teleWindow.reduce((s, e) => s + e.n, 0);
+  try { if (_embed) _embed.postMessage({ type: 'lmtool-telemetry', where: where + ' (baseline)', advId: '', tele: tele, perMinute: perMinute }); } catch (e) {}
+}
 
 function scheduleDualWrite(advId, camp) {
   if (!advId || !camp) return;
@@ -201,6 +215,7 @@ $w.onReady(() => {
         try {
           if (it.data && it.data.campaign) it.data.campaign = await inlineCoverImages(it.data.campaign);
           const r = await saveCampaign(it.id, it.data || {}, '');
+          teleReport('saveCampaign-bulk', it.id, r && r.tele);
           if (r && r.ok) {
             saved++; owner = r.owner || owner;
             if (it.data && it.data.campaign) { slimmed.push({ id: it.id, campaign: it.data.campaign }); scheduleDualWrite(r.id || it.id, it.data.campaign); }
@@ -313,6 +328,7 @@ $w.onReady(() => {
         // their images handled in the tool before compression, so pass them straight through.
         if (m.data && m.data.campaign) m.data.campaign = await inlineCoverImages(m.data.campaign);
         const r = await saveCampaign(cid, m.data || {}, '');
+        teleReport('saveCampaign', cid, r && r.tele);
         if (r && r.ok) {
           // Dual-write: the same campaign also lands in the shared Adventures tree, so
           // ThreadSpire reads FateWell's edits from the one source. A plain payload is
@@ -418,11 +434,11 @@ $w.onReady(() => {
       console.log('FateWell feedback:', JSON.stringify(m.payload || {}));
     } else if (m.type === 'lmtool-cv-push') {
       // ThreadSpire join, opt-in: mirror the running scene into CampaignView
-      try { await saveCampaignState(m.campaignId || campaignId, m.snap); } catch (e) {}
+      try { const r = await saveCampaignState(m.campaignId || campaignId, m.snap); teleReportPoll('cv-push', r && r.tele); } catch (e) {}
     } else if (m.type === 'lmtool-cv-pull') {
       let cv = null;
       try { cv = await getCampaignState(m.campaignId || campaignId, m.since); } catch (e) { cv = null; }
-      if (cv) embed.postMessage(Object.assign({ type: 'lmtool-cv-state' }, cv));
+      if (cv) { teleReportPoll('cv-pull', cv.tele); embed.postMessage(Object.assign({ type: 'lmtool-cv-state' }, cv)); }
     } else if (m.type === 'lmtool-journal-request') {
       let jentries = [];
       try { jentries = await getJournal(m.campaignId || campaignId); } catch (e) { jentries = []; }
