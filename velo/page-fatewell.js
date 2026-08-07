@@ -146,7 +146,6 @@ $w.onReady(() => {
 
     if (m.type === 'lmtool-flush') {
       await flushDualWrites();
-      try { embed.postMessage({ type: 'lmtool-flush-done' }); } catch (e) {}
       return;
     }
     if (m.type === 'lmtool-ready') {

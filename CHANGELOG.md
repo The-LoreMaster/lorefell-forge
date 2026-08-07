@@ -1,3 +1,7 @@
+## 2026-07-29 - Drop an orphaned flush ack
+
+The flush handler posted a done message back to the tool that nothing listened for, which the contract check correctly flags as a page talking into the void. The tool fires the flush on its way out and does not wait for a reply, so the ack served no purpose. Removed it; the contract is clean again.
+
 ## 2026-07-29 - FateWell trusts the blob it just wrote
 
 A saved roster change reverted on refresh even though the save succeeded. FateWell was reading the shared tree on load, but it writes the tree on a short delay while the blob is written at once, so a refresh landing in that gap loaded the tree's older copy and lost the edit. FateWell now loads from its own blob first, which is always as fresh as the last save, and falls back to the tree only when there is no blob. The tree stays the channel ThreadSpire reads. The delay before the tree write is shorter now, and the tool asks the page to flush any pending tree write when it is hidden or unloaded, so a refresh cannot outrun it and ThreadSpire still sees the change promptly.
