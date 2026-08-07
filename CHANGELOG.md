@@ -1,3 +1,9 @@
+## 2026-07-29 - FateWell reads and writes the shared adventure, and the two tools agree on a scene
+
+FateWell now joins ThreadSpire on the one source. On open it reads the Adventures tree, migrating an old blob once on first touch, so it sees whatever ThreadSpire wrote. On save it still writes the blob for now, and also writes the whole tree, so an edit in FateWell reaches ThreadSpire from the same rows; a compressed save goes through the migrator, which decodes it. A new backend, saveAdventureFromCampaign, decomposes a campaign into the tree and prunes the rows a delete removed.
+
+The two tools also agree on what a scene holds. combatants is the shared, stored shape: FateWell authors it directly, and ThreadSpire keeps it in step as foes and npcs are added or removed on its roster, so a foe removed at the table is a foe removed in the record both tools read. The board keeps its own derived view for rendering; only the shared shape is stored.
+
 ## 2026-07-29 - ThreadSpire reads and writes the shared adventure
 
 The step that ends the lost-edit bug. ThreadSpire no longer loads a lossy spine of the active scene and write nothing back. On open it reads the whole adventure tree through loadAdventure, migrating an old Campaigns blob once on first touch, so every act, session and scene arrives with all its content, beat images and prep and the rest included. Every edit now writes through to the shared tree: a change inside a scene saves that one scene's row, debounced; a new act, session or scene, a rename, a reorder or a delete rewrites the tree's skeleton and removes the deleted row. The live relay row still carries real-time play; it no longer carries the story, the Adventures collections do. A foe removed and a beat added survive a reload now, because they are written where the adventure actually lives. The lossless load also means the old spine can never overwrite the scenes it did not hold.

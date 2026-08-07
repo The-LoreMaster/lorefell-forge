@@ -12,6 +12,7 @@ import { publishAdventure, myPublishedAdventures, unpublishAdventure, getPublish
 import { createInvite, revokeInvite } from 'backend/invites.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
 import { getCampaignState, saveCampaignState, getJournal } from 'backend/campaignview.web.js';
+import { loadAdventure, saveAdventureFromCampaign, migrateCampaign } from 'backend/adventures.web.js';
 import wixLocation from 'wix-location';
 import wixWindow from 'wix-window';
 
@@ -78,17 +79,32 @@ $w.onReady(() => {
         embed.postMessage({ type: 'lmtool-hosted', campaigns: mine });
         return;
       }
-      let blob = null;
-      try { blob = await loadCampaign(campaignId); } catch (e) { blob = null; }
+      // Prefer the shared Adventures tree so FateWell reads whatever ThreadSpire wrote; fall
+      // back to the blob if this adventure has not been migrated yet, migrating it once on
+      // first touch. The tree comes back in the campaign shape (name, activeSceneId, acts), so
+      // it slots straight in where the blob's data used to.
+      let blob = null, campData = null, title = 'Campaign', role = '';
+      try {
+        let adv = await loadAdventure(campaignId);
+        if (!adv || !adv.acts) {
+          try { await migrateCampaign(campaignId); } catch (e) {}
+          adv = await loadAdventure(campaignId);
+        }
+        if (adv && adv.acts) { campData = adv; title = adv.name || 'Campaign'; role = adv.role || 'loremaster'; }
+      } catch (e) {}
+      if (!campData) {
+        try { blob = await loadCampaign(campaignId); } catch (e) { blob = null; }
+        if (blob && blob.data) { campData = blob.data; title = blob.title || 'Campaign'; role = blob.role || ''; }
+      }
       embed.postMessage({
         type: 'lmtool-open',
         campaignId: campaignId,
-        title: (blob && blob.title) || 'Campaign',
-        data: (blob && blob.data) ? { campaign: blob.data } : null,
-        role: (blob && blob.role) || ''
+        title: title,
+        data: campData ? { campaign: campData } : null,
+        role: role
       });
       let players = [];
-      try { players = await getCampaignPlayers(campaignId, (blob && blob.title) || ''); } catch (e) { players = []; }
+      try { players = await getCampaignPlayers(campaignId, title); } catch (e) { players = []; }
       if (players.length) embed.postMessage({ type: 'lmtool-players', campaignId: campaignId, players: players });
     } else if (m.type === 'lmtool-sync') {
       const list = Array.isArray(m.campaigns) ? m.campaigns : [];
@@ -208,6 +224,17 @@ $w.onReady(() => {
         if (m.data && m.data.campaign) m.data.campaign = await inlineCoverImages(m.data.campaign);
         const r = await saveCampaign(cid, m.data || {}, '');
         if (r && r.ok) {
+          // Dual-write: the same campaign also lands in the shared Adventures tree, so
+          // ThreadSpire reads FateWell's edits from the one source. A plain payload is
+          // decomposed directly; a compressed one was just written to the Campaigns row, so
+          // migrateCampaign reads it back (it decodes the gzip) and decomposes that. The blob
+          // save above stays as the fallback until the blob is retired. A failure here does
+          // not fail the save; the next save reconciles the tree.
+          try {
+            const camp = (m.data && m.data.campaign) ? m.data.campaign : null;
+            if (camp) await saveAdventureFromCampaign(r.id || cid, camp);
+            else if (m.data && m.data.campaignGz) await migrateCampaign(r.id || cid);
+          } catch (e) {}
           if (m.data && m.data.campaign) {
             embed.postMessage({ type: 'lmtool-campaigns-slimmed', campaigns: [{ id: cid, campaign: m.data.campaign }] });
           }
