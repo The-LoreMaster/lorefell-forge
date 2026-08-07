@@ -1,3 +1,7 @@
+## 2026-07-29 - Telemetry covers the whole save, not just the tree
+
+The tree telemetry was measuring one room while the fire was in another. The FateWell backend, where saveCampaign, roleFor and memberId live, and the campaign-view poll that runs every two seconds were never counted, so a flood from either was invisible. Both are instrumented now, through the same counter, and their tallies fold into the rolling per-minute count on the page. The poll reports a baseline reading at most every ten seconds so it does not spam the readout while still showing what it spends. Now the number on screen is the whole picture: what a save costs, what the Save all button costs, and what the poll costs underneath it all.
+
 ## 2026-07-29 - Drop an orphaned flush ack
 
 The flush handler posted a done message back to the tool that nothing listened for, which the contract check correctly flags as a page talking into the void. The tool fires the flush on its way out and does not wait for a reply, so the ack served no purpose. Removed it; the contract is clean again.

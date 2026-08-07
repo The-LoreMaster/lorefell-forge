@@ -7,6 +7,20 @@ import wixData from 'wix-data';
 import { currentMember } from 'wix-members-backend';
 import { myAdventureRole } from 'backend/fatewell.web.js';
 
+// TELEMETRY. The 2-second table-state poll runs through here, so this is the steady baseline
+// of calls that everything else stacks on top of. Counting it shows how much quota the poll
+// alone spends per minute, which matters because the quota is a per-minute budget.
+let TELE_CV = null;
+function cvTeleReset() { TELE_CV = { get: 0, query: 0, insert: 0, update: 0, remove: 0, total: 0, byColl: {} }; }
+function cvTeleBump(op, coll) { if (!TELE_CV) return; TELE_CV[op] = (TELE_CV[op] || 0) + 1; TELE_CV.total++; TELE_CV.byColl[coll] = (TELE_CV.byColl[coll] || 0) + 1; }
+const wd = {
+  get: (c, id, o) => { cvTeleBump('get', c); return wixData.get(c, id, o); },
+  insert: (c, r, o) => { cvTeleBump('insert', c); return wixData.insert(c, r, o); },
+  update: (c, r, o) => { cvTeleBump('update', c); return wixData.update(c, r, o); },
+  remove: (c, id, o) => { cvTeleBump('remove', c); return wixData.remove(c, id, o); },
+  query: (c) => { cvTeleBump('query', c); return wixData.query(c); }
+};
+
 const CV = 'CampaignView';
 
 async function memberId() {
@@ -15,20 +29,22 @@ async function memberId() {
 }
 
 export const getCampaignState = webMethod(Permissions.Anyone, async (campaignId, since) => {
+  cvTeleReset();
   const mid = await memberId(); if (!mid || !campaignId) return null;
   try {
-    const r = await wixData.query(CV).eq('campaignId', String(campaignId)).limit(1).find({ suppressAuth: true });
+    const r = await wd.query(CV).eq('campaignId', String(campaignId)).limit(1).find({ suppressAuth: true });
     const row = r.items[0]; if (!row) return null;
     if (typeof since === 'number' && (row.version || 0) <= since) return null;
     let snap = null; try { snap = JSON.parse(row.snapshot || 'null'); } catch (e) { snap = null; }
-    return { version: row.version || 0, snap: snap };
+    return { version: row.version || 0, snap: snap, tele: TELE_CV };
   } catch (e) { return null; }
 });
 
 export const saveCampaignState = webMethod(Permissions.Anyone, async (campaignId, snap) => {
+  cvTeleReset();
   const mid = await memberId(); if (!mid || !campaignId) return { ok: false };
   try {
-    const ex = await wixData.query(CV).eq('campaignId', String(campaignId)).limit(1).find({ suppressAuth: true });
+    const ex = await wd.query(CV).eq('campaignId', String(campaignId)).limit(1).find({ suppressAuth: true });
     const cur = ex.items[0];
     const version = (cur ? (cur.version || 0) : 0) + 1;
     // Absent means keep. The table sends heavy things apart from light ones, so a push
@@ -47,9 +63,9 @@ export const saveCampaignState = webMethod(Permissions.Anyone, async (campaignId
     }
     const base = cur ? Object.assign({}, cur) : {};
     const row = Object.assign(base, { campaignId: String(campaignId), version: version, snapshot: JSON.stringify(body), updatedBy: mid });
-    if (cur) { row._id = cur._id; await wixData.update(CV, row, { suppressAuth: true }); }
-    else { await wixData.insert(CV, row, { suppressAuth: true }); }
-    return { ok: true, version: version };
+    if (cur) { row._id = cur._id; await wd.update(CV, row, { suppressAuth: true }); }
+    else { await wd.insert(CV, row, { suppressAuth: true }); }
+    return { ok: true, version: version, tele: TELE_CV };
   } catch (e) { return { ok: false, error: String(e) }; }
 });
 
@@ -61,24 +77,26 @@ async function lmOnly(campaignId) {
 // The LoreMaster's Journal, stored on the same campaign row but read only by the LM, so it
 // never travels to a player. Kept apart from the shared snapshot field.
 export const getJournal = webMethod(Permissions.Anyone, async (campaignId) => {
+  cvTeleReset();
   const mid = await memberId(); if (!mid || !campaignId) return [];
   if (!(await lmOnly(campaignId))) return [];
   try {
-    const r = await wixData.query(CV).eq('campaignId', String(campaignId)).limit(1).find({ suppressAuth: true });
+    const r = await wd.query(CV).eq('campaignId', String(campaignId)).limit(1).find({ suppressAuth: true });
     const row = r.items[0]; if (!row || !row.journal) return [];
     try { return JSON.parse(row.journal); } catch (e) { return []; }
   } catch (e) { return []; }
 });
 
 export const saveJournal = webMethod(Permissions.Anyone, async (campaignId, entries) => {
+  cvTeleReset();
   const mid = await memberId(); if (!mid || !campaignId) return { ok: false };
   if (!(await lmOnly(campaignId))) return { ok: false };
   try {
-    const ex = await wixData.query(CV).eq('campaignId', String(campaignId)).limit(1).find({ suppressAuth: true });
+    const ex = await wd.query(CV).eq('campaignId', String(campaignId)).limit(1).find({ suppressAuth: true });
     const cur = ex.items[0];
     const j = JSON.stringify(Array.isArray(entries) ? entries : []);
-    if (cur) { const row = Object.assign({}, cur, { journal: j }); await wixData.update(CV, row, { suppressAuth: true }); }
-    else { await wixData.insert(CV, { campaignId: String(campaignId), version: 0, snapshot: 'null', journal: j, updatedBy: mid }, { suppressAuth: true }); }
+    if (cur) { const row = Object.assign({}, cur, { journal: j }); await wd.update(CV, row, { suppressAuth: true }); }
+    else { await wd.insert(CV, { campaignId: String(campaignId), version: 0, snapshot: 'null', journal: j, updatedBy: mid }, { suppressAuth: true }); }
     return { ok: true };
   } catch (e) { return { ok: false, error: String(e) }; }
 });
