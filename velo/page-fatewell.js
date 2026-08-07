@@ -46,6 +46,7 @@ async function dualWriteTree(advId, camp) {
 // backend method returns a tele tally; this folds it into a window total and logs it, and
 // pushes it to the embed's seams panel so the number is visible in the tool, not just the log.
 var _teleWindow = [];
+var _embed = null; // set when the page wires up, so module-level telemetry can reach the embed
 function teleReport(where, advId, tele) {
   if (!tele) return;
   const now = Date.now();
@@ -59,7 +60,7 @@ function teleReport(where, advId, tele) {
     + ' writes=' + (tele.writes !== undefined ? tele.writes : '?')
     + ' | last60s=' + perMinute;
   console.log(line);
-  try { if (typeof embed !== 'undefined' && embed) embed.postMessage({ type: 'lmtool-telemetry', where: where, advId: advId, tele: tele, perMinute: perMinute }); } catch (e) {}
+  try { if (_embed) _embed.postMessage({ type: 'lmtool-telemetry', where: where, advId: advId, tele: tele, perMinute: perMinute }); } catch (e) {}
 }
 
 function scheduleDualWrite(advId, camp) {
@@ -116,6 +117,7 @@ async function inlineCoverImages(node) {
 
 $w.onReady(() => {
   const embed = $w(EMBED);
+  _embed = embed;
   const campaignId = (wixLocation.query && wixLocation.query.campaignId) || '';
 
   embed.onMessage(async (event) => {

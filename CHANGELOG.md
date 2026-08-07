@@ -1,3 +1,7 @@
+## 2026-07-29 - Telemetry no longer breaks publish
+
+The telemetry reached for the embed from a module level function where that name did not exist, so Wix refused to publish the page with an undefined reference. The embed is now held in a module level variable set when the page wires up, and the telemetry posts through that. Same behaviour, but the reference is real everywhere it is used, so publish passes.
+
 ## 2026-07-29 - Telemetry on every backend save call
 
 Stop guessing where the quota goes. Every Wix data call in the adventures backend now runs through a counting wrapper, so each save returns a tally: how many gets, queries, inserts, updates and removes it made, and against which collection. The FateWell page folds that into a rolling count of calls in the last sixty seconds and shows it in a small corner readout, dim when low and red near the quota, plus window._tele in devtools for the full history. Now a flood is a number on screen, not a theory. This is instrumentation, not a fix; it tells us which path is spending the calls so the fix lands in the right place.
