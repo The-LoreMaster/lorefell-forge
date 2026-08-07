@@ -1,3 +1,7 @@
+## 2026-07-29 - The compressed save stops reading the whole tree back
+
+The telemetry named the culprit at last: dualWrite-gz, the tree reconcile on the compressed save path, was firing again and again and stacking toward the quota. It ran through migrateCampaign, which reads the whole tree back to verify and re-stamps the Campaigns row every call. That is migration bookkeeping, not the cost a routine save should pay. A lean path replaces it: read the blob once, decompress, diff-write the tree, and stop. No read-back, no re-stamp. The first-open auto-migration still uses the full verified path, since that runs once, but every autosave after takes the cheap road. Same tree, a fraction of the calls.
+
 ## 2026-07-29 - Telemetry covers the whole save, not just the tree
 
 The tree telemetry was measuring one room while the fire was in another. The FateWell backend, where saveCampaign, roleFor and memberId live, and the campaign-view poll that runs every two seconds were never counted, so a flood from either was invisible. Both are instrumented now, through the same counter, and their tallies fold into the rolling per-minute count on the page. The poll reports a baseline reading at most every ten seconds so it does not spam the readout while still showing what it spends. Now the number on screen is the whole picture: what a save costs, what the Save all button costs, and what the poll costs underneath it all.

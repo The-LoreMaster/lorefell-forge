@@ -25,6 +25,7 @@ import { gunzipSync } from 'zlib';
 // TELE in its result; the page logs it to the seams panel. Zero cost beyond a counter.
 var TELE = null;
 function teleReset() { TELE = { get: 0, query: 0, insert: 0, update: 0, remove: 0, total: 0, byColl: {} }; }
+function teleEnter() { if (!TELE) { teleReset(); return true; } return false; } // true if this is the outermost
 function teleBump(op, coll) {
   if (!TELE) return;
   TELE[op] = (TELE[op] || 0) + 1;
@@ -85,7 +86,7 @@ function ordered(rows, idKey, orderIds) {
 // acts:[{ id,name,..., sessions:[{ id,name, scenes:[ scene ] }] }] }, so neither tool needs a
 // new in-memory model, only a new load/save path.
 export const loadAdventure = webMethod(Permissions.Anyone, async (advId) => {
-  teleReset();
+  teleEnter();
   if (!advId) return null;
   const id = await memberId();
   const root = await wd.get(ADV, advId, { suppressAuth: true }).catch(() => null);
@@ -257,7 +258,7 @@ function unpackCampaignData(data) {
 // costs nothing. A one scene edit costs one write. That keeps a save within quota and lets
 // FateWell and ThreadSpire share the tree without either flooding the API.
 export const saveAdventureFromCampaign = webMethod(Permissions.Anyone, async (advId, campaign) => {
-  teleReset();
+  teleEnter();
   if (!advId || !campaign) return { ok: false, error: 'no adventure' };
   const id = await memberId();
   const existingRoot = await wd.get(ADV, advId, { suppressAuth: true }).catch(() => null);
@@ -372,6 +373,22 @@ function sceneFields(advId, actId, sesId, sc, i) {
   const own = {}; Object.keys(sc).forEach(k => { if (!['id', 'name', 'prep', 'img', 'desc', 'mode', 'status', 'beats', 'combatants', '_row'].includes(k)) own[k] = sc[k]; });
   return { advId: advId, sceneId: sc.id, actId: actId, sesId: sesId, sortIndex: i, name: sc.name || '', prep: sc.prep || '', img: sc.img || '', desc: sc.desc || '', mode: sc.mode || 'roleplay', status: sc.status || 'active', beats: JSON.stringify(sc.beats || []), combatants: JSON.stringify(sc.combatants || []), sceneData: JSON.stringify(own) };
 }
+
+// The compressed save path used migrateCampaign to reconcile the tree, but that method also
+// reads the whole tree back to verify and re-stamps the Campaigns row every call, which is
+// migration bookkeeping, not routine save cost. On a hot autosave that verify-read was firing
+// again and again and stacking toward the quota. This does only the write: read the blob once,
+// decompress, diff-write the tree. No read-back, no re-stamp. Same tree result, a fraction of
+// the calls.
+export const saveAdventureFromBlob = webMethod(Permissions.Anyone, async (advId) => {
+  teleReset();
+  if (!advId) return { ok: false, error: 'no adventure' };
+  const camp = await wd.get(CAMPAIGNS, advId, { suppressAuth: true }).catch(() => null);
+  if (!camp) return { ok: false, error: 'no blob' };
+  const data = unpackCampaignData(jparse(camp.data, {}));
+  const res = await saveAdventureFromCampaign(advId, Object.assign({ name: camp.name || data.name }, data));
+  return { ok: (res && res.ok) !== false, advId: advId, tele: TELE };
+});
 
 export const migrateCampaign = webMethod(Permissions.Anyone, async (campaignId) => {
   teleReset();
