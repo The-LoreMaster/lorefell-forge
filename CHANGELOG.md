@@ -1,3 +1,7 @@
+## 2026-07-29 - Close the sync loop cleanly
+
+Converting the bulk sync to a spaced loop left the old loop's closing brace behind, an extra bracket that a plain syntax check waved through but the publish parser rejected. It closed the message handler early and broke the file. Removed the orphan; the block balances and publishes.
+
 ## 2026-07-29 - Bulk sync saves one adventure at a time, with room to breathe
 
 Saving several adventures in one unbroken burst stacked their calls into the same minute and tripped the quota on the second one, even though each save on its own was small. The member id came through this time, so the flood was milder than before, right at the edge. The Save all path now saves each adventure in turn with a short pause between them, so the per-minute budget has room and a two adventure sync lands cleanly. The tree reconcile is left to its normal throttle rather than forced during the sync, to keep the burst light.

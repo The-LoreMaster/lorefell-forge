@@ -230,7 +230,6 @@ $w.onReady(() => {
         } catch (e) { errors.push(String(e)); }
         if (idx < list.length - 1) await new Promise(res => setTimeout(res, 1200));
       }
-      }
       embed.postMessage({ type: 'lmtool-sync-result', saved: saved, failed: list.length - saved, errors: errors.slice(0, 3), memberId: owner });
       if (slimmed.length) embed.postMessage({ type: 'lmtool-campaigns-slimmed', campaigns: slimmed });
     } else if (m.type === 'lmtool-players-request') {
