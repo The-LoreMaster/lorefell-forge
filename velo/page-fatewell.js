@@ -211,7 +211,12 @@ $w.onReady(() => {
       let saved = 0, owner = '';
       const errors = [];
       const slimmed = [];
-      for (const it of list) {
+      // Save the adventures one at a time with a short gap between them. Saving several in an
+      // unbroken burst stacks their calls into the same minute and trips the quota; a small
+      // pause lets the per-minute budget breathe so a two adventure sync lands cleanly. The
+      // tree reconcile is left to the normal throttle, not forced here, to keep this light.
+      for (let idx = 0; idx < list.length; idx++) {
+        const it = list[idx];
         try {
           if (it.data && it.data.campaign) it.data.campaign = await inlineCoverImages(it.data.campaign);
           const r = await saveCampaign(it.id, it.data || {}, '');
@@ -223,6 +228,8 @@ $w.onReady(() => {
           }
           else errors.push((r && (r.error || (r.skipped ? 'skipped: no campaign data' : 'not saved'))) || 'not saved');
         } catch (e) { errors.push(String(e)); }
+        if (idx < list.length - 1) await new Promise(res => setTimeout(res, 1200));
+      }
       }
       embed.postMessage({ type: 'lmtool-sync-result', saved: saved, failed: list.length - saved, errors: errors.slice(0, 3), memberId: owner });
       if (slimmed.length) embed.postMessage({ type: 'lmtool-campaigns-slimmed', campaigns: slimmed });
