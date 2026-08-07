@@ -1,3 +1,7 @@
+## 2026-07-29 - Telemetry on every backend save call
+
+Stop guessing where the quota goes. Every Wix data call in the adventures backend now runs through a counting wrapper, so each save returns a tally: how many gets, queries, inserts, updates and removes it made, and against which collection. The FateWell page folds that into a rolling count of calls in the last sixty seconds and shows it in a small corner readout, dim when low and red near the quota, plus window._tele in devtools for the full history. Now a flood is a number on screen, not a theory. This is instrumentation, not a fix; it tells us which path is spending the calls so the fix lands in the right place.
+
 ## 2026-07-29 - The tree reconciles on a throttle, not every autosave
 
 Saving a foe still tripped the quota through a side door: every autosave, and there are many while adding foes, ran a full tree reconcile, so the reads and writes piled up until the minute's quota was gone and the next thing, the Save all button, had nothing left. The blob save was never the problem; it is small and immediate. The tree dual-write is now throttled per adventure, remembering the latest campaign and reconciling at most once every few seconds, with the last edit always flushed. ThreadSpire reads the tree when it opens and auto-migrates from the blob if it is behind, so the tree does not need to be perfectly current every keystroke, only current soon. Both the single save and the Save all button now schedule the reconcile instead of forcing it inline.
