@@ -3381,6 +3381,15 @@ window.addEventListener('beforeunload', function(){ saveLocal(); flushSave(); fw
    so a stale tree does not revert its edits, but ThreadSpire reads the tree, so flushing on
    the way out keeps the other tool current without waiting for the next open. */
 function fwFlushTree(){ try { if (WIX.hosted) postToWix({ type:'lmtool-flush' }); } catch(e){} }
+/* Run once from the browser console (type fwWipeRemigrate() and press enter) to clear the
+   corrupted adventure collections and rebuild them from the account blobs through the path the
+   tools actually read. Result is announced and left on window._wipeResult. */
+function fwWipeRemigrate(){
+  if (!WIX.hosted){ console.log('not hosted; nothing to do'); return; }
+  console.log('wipe and re-migrate started; this takes a while, watch for the result note');
+  postToWix({ type:'lmtool-wipe-remigrate' });
+}
+window.fwWipeRemigrate = fwWipeRemigrate;
 
 function adoptOneCampaign(w){
   if (!w || !w.id) return Promise.resolve();
@@ -3550,6 +3559,17 @@ window.addEventListener('message', function(ev){
   /* Any reply proves the bridge is alive, whatever it's about; drop a stale "offline" flag. */
   if (WIX.offline){ WIX.offline = false; renderSavedTag(); }
   if (m.type === 'lmtool-cv-state'){ fwCvApply(m); return; }
+  if (m.type === 'lmtool-wipe-remigrate-result'){
+    window._wipeResult = m.result;
+    console.log('%c[WIPE-REMIGRATE RESULT]', 'color:#6a9;font-weight:bold;font-size:13px', m.result);
+    if (m.result && m.result.ok){
+      var rep = (m.result.report||[]).map(function(a){ return a.name + ': ' + a.queryableScenes + '/' + a.blobScenes + (a.ok?' ok':' MISMATCH'); }).join('\n');
+      advNote('Rebuild finished', 'Cleared ' + (m.result.cleared&&m.result.cleared.scenes||0) + ' old scene rows and rebuilt from your blobs.\n\n' + rep);
+    } else {
+      advNote('Rebuild failed', (m.result && m.result.error) || 'unknown error');
+    }
+    return;
+  }
   if (m.type === 'lmtool-telemetry'){
     // Backend call telemetry for a save. window._tele is readable in devtools; the banner
     // shows the last-minute call count so a save nearing the quota is visible without the log.

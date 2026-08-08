@@ -257,7 +257,7 @@ function unpackCampaignData(data) {
 // whose content actually changed, and removes rows the campaign dropped. An unchanged scene
 // costs nothing. A one scene edit costs one write. That keeps a save within quota and lets
 // FateWell and ThreadSpire share the tree without either flooding the API.
-export const saveAdventureFromCampaign = webMethod(Permissions.Anyone, async (advId, campaign) => {
+export const saveAdventureFromCampaign = webMethod(Permissions.Anyone, async (advId, campaign, force) => {
   teleEnter();
   if (!advId || !campaign) return { ok: false, error: 'no adventure' };
   const id = await memberId();
@@ -279,7 +279,7 @@ export const saveAdventureFromCampaign = webMethod(Permissions.Anyone, async (ad
   // Guard: if the diff would insert many rows because it found none, something is wrong (the
   // query failed or the collection is mid-repair). Refuse to bulk-insert rather than flood.
   const blobSceneCount = acts.reduce((n, a) => n + (a.sessions || []).reduce((m, s) => m + (s.scenes || []).length, 0), 0);
-  if (scnRows.length === 0 && blobSceneCount > 5) {
+  if (scnRows.length === 0 && blobSceneCount > 5 && !force) {
     return { ok: false, error: 'reconcile aborted: found no existing scenes for a non-empty adventure, refusing to bulk-insert', advId: advId, blobSceneCount: blobSceneCount, tele: TELE };
   }
   const actBy = index(actRows, 'actId'), sesBy = index(sesRows, 'sesId'), scnBy = index(scnRows, 'sceneId');
@@ -440,6 +440,49 @@ export const purgeAdventureTree = webMethod(Permissions.Anyone, async (advId) =>
   const removedSessions = await purge(SES);
   const removedActs = await purge(ACTS);
   return { ok: true, advId: advId, removedScenes: removedScenes, removedSessions: removedSessions, removedActs: removedActs, tele: TELE };
+});
+
+// WIPE AND RE-MIGRATE, through Velo. The first migration wrote rows via the REST API, and
+// those rows do not answer an .eq('advId') query from Velo, which is how the tools read, so
+// the reconcile never found them and re-inserted forever. Re-migrating through wixData writes
+// rows the tools can actually query. This clears the four collections completely, then rebuilds
+// every adventure from its Campaigns blob. It is heavy by design and meant to be run once, by
+// hand, not on a hot path. Returns a per-adventure count so the result can be verified.
+export const wipeAndRemigrateAll = webMethod(Permissions.Anyone, async () => {
+  teleReset();
+  // 1) clear the four collections by scanning and removing every row (no advId filter, since
+  // that is the query that fails on the old rows).
+  async function clearAll(coll) {
+    let removed = 0;
+    for (let page = 0; page < 2000; page++) {
+      const res = await wd.query(coll).limit(100).find({ suppressAuth: true }).catch(() => null);
+      if (!res || !res.items || !res.items.length) break;
+      for (const row of res.items) { try { await wd.remove(coll, row._id, { suppressAuth: true }); removed++; } catch (e) {} }
+      if (res.items.length < 100) break;
+    }
+    return removed;
+  }
+  const cleared = {
+    scenes: await clearAll(SCN),
+    sessions: await clearAll(SES),
+    acts: await clearAll(ACTS),
+    roots: await clearAll(ADV)
+  };
+
+  // 2) rebuild from every Campaigns blob, writing through wixData so the rows are queryable.
+  const camps = await wd.query(CAMPAIGNS).limit(200).find({ suppressAuth: true }).then(r => r.items).catch(() => []);
+  const report = [];
+  for (const camp of camps) {
+    const advId = camp._id;
+    const data = unpackCampaignData(jparse(camp.data, {}));
+    if (!data || !Array.isArray(data.acts)) { report.push({ advId: advId, name: camp.name, skipped: 'no acts' }); continue; }
+    const res = await saveAdventureFromCampaign(advId, Object.assign({ name: camp.name || data.name }, data), true);
+    // verify by the SAME query the tools use, so we know it is queryable now
+    const check = await wd.query(SCN).eq('advId', advId).limit(1).find({ suppressAuth: true }).then(r => r.totalCount).catch(() => -1);
+    const blobScenes = data.acts.reduce((n, a) => n + (a.sessions || []).reduce((m, s) => m + (s.scenes || []).length, 0), 0);
+    report.push({ advId: advId, name: camp.name, blobScenes: blobScenes, queryableScenes: check, ok: check === blobScenes });
+  }
+  return { ok: true, cleared: cleared, report: report, tele: TELE };
 });
 
 export const migrateCampaign = webMethod(Permissions.Anyone, async (campaignId) => {
