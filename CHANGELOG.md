@@ -1,3 +1,7 @@
+## 2026-08-07 - A chooser on open, for adventures and for Fells
+
+Opening ThreadSpire from a bookmark or a typed address used to drop you into whatever the address bar held, which after a reimport was often the wrong or a stale adventure. Now a bookmark or direct open offers a chooser. The LoreMaster picks the adventure to bring to the table; the player picks which Fell to take up, and the page resolves that Fell's adventure. A cast from FateWell is different on purpose: it carries a cast marker and deep-links straight to the active scene, so the table opens exactly where the session left off with no extra step. The chooser can be dismissed, leaving whatever the address pointed to open, so nothing is forced. This is independent of the tree sync work and stands on its own.
+
 ## 2026-08-07 - One pass populates, and beats survive the load path
 
 The refused second pass told its own story: the write budget of forty left a sixty nine scene adventure a shell, and the continuation pass depended on reading back rows the replica had not caught up to, so the guard rightly refused and the shell stayed. The budget rises to one hundred twenty, enough for a large adventure with its sessions, acts and root in a single pass, so a fresh population never depends on read after write at all. And the tree structure log showed no stored scene carries beats: the blob keeps scene content in entries, the old spine builder mapped entries to beats, and the load path builder did not. It maps them now, the same way, so scene content shows on the board.

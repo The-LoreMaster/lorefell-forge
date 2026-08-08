@@ -358,6 +358,14 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .tsm-ta{ min-height:96px; resize:vertical; }
 .tsm-ta.short{ min-height:56px; }
 .tsm-row{ display:flex; gap:8px; justify-content:flex-end; margin-top:12px; }
+.tsm-pick-list{ display:flex; flex-direction:column; gap:7px; max-height:52vh; overflow-y:auto; margin-top:4px; }
+.tsm-pick{ display:flex; align-items:center; gap:10px; width:100%; text-align:left; padding:11px 13px; border-radius:8px; border:1px solid var(--line2,#2a3552); background:var(--panel,#10162a); color:var(--silver); font-family:Cinzel,serif; font-size:.8rem; letter-spacing:.03em; cursor:pointer; transition:border-color .12s, background .12s; }
+.tsm-pick:hover{ border-color:var(--gold); background:var(--navy2,#141b30); }
+.tsm-pick.on{ border-color:var(--gold); }
+.tsm-pick-name{ flex:1; }
+.tsm-pick-sub{ font-size:.68rem; color:var(--muted,#7e8a99); letter-spacing:.02em; }
+.tsm-pick-cur{ font-size:.62rem; color:var(--gold); letter-spacing:.08em; text-transform:uppercase; }
+.tsm-pick-face{ width:34px; height:34px; border-radius:6px; object-fit:cover; border:1px solid var(--line2,#2a3552); flex:0 0 auto; }
 .tsm-btn{ padding:7px 14px; border-radius:6px; border:1px solid var(--gold); background:var(--gold); color:var(--navy); font-family:Cinzel,serif; font-size:.72rem; letter-spacing:.08em; cursor:pointer; }
 .tsm-btn.ghost{ background:transparent; color:var(--silver); border-color:var(--line2,#2a3552); }
 .tsm-btn.danger{ background:var(--danger,#8d3b3b); border-color:var(--danger,#8d3b3b); color:#fff; }
@@ -5565,6 +5573,87 @@ function advList(force){
   });
 }
 function advRetry(){ advList(true); if (S.openSection === 'settings') refreshWinBody(); }
+/* On a bookmark or a direct open, offer a choice rather than dropping the user wherever the
+   address bar pointed. The LoreMaster picks an adventure; the player picks a Fell, which is
+   how a player enters an adventure. A cast from FateWell skips this and deep-links straight to
+   the active scene. The chooser can be dismissed, in which case the address-bar adventure
+   stays open as before. */
+function tsOpenOnLoadPicker(){
+  if (!tsEmbedded()) return;
+  if (isLM()) tsAdventurePicker();
+  else tsFellPicker();
+}
+function tsAdventurePicker(){
+  var rows = Array.isArray(S._advList) ? S._advList : null;
+  if (!rows){
+    // list not in yet: fetch, then open when it lands
+    advList(true);
+    var waited = 0;
+    var t = setInterval(function(){
+      waited += 200;
+      if (Array.isArray(S._advList)){ clearInterval(t); tsAdventurePicker(); }
+      else if (waited > 6000){ clearInterval(t); }
+    }, 200);
+    return;
+  }
+  if (!rows.length) return; // nothing to choose from; leave the current open
+  var cur = S.campaignId || '';
+  var items = rows.map(function(c){
+    var on = sameId(c.id, cur);
+    return '<button class="tsm-pick' + (on ? ' on' : '') + '" onclick="tsPickAdventure(\'' + esc(c.id) + '\')">'
+      + '<span class="tsm-pick-name">' + esc(c.name || 'Adventure') + '</span>'
+      + (on ? '<span class="tsm-pick-cur">open now</span>' : '')
+      + '</button>';
+  }).join('');
+  tsModal('<h3 class="tsm-title">Open an adventure</h3>'
+    + '<p class="lc-p">Choose the adventure to bring to the table.</p>'
+    + '<div class="tsm-pick-list">' + items + '</div>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Stay here</button></div>');
+}
+function tsPickAdventure(id){
+  tsCloseModal();
+  if (sameId(id, S.campaignId)){
+    // already the open one: just make sure it is fully stood up, no switch needed
+    S._advFullLoaded = false;
+    if (typeof loadForAdventure === 'function') loadForAdventure();
+    return;
+  }
+  advSwitch(id);
+}
+function tsFellPicker(){
+  var render = function(list){
+    if (!Array.isArray(list) || !list.length) return; // no Fells to choose; leave as is
+    if (list.length === 1){ tsPickFell(list[0].id || list[0].charId); return; } // only one, just enter it
+    var cur = S.characterId || '';
+    var items = list.map(function(c){
+      var id = c.id || c.charId || '';
+      var on = sameId(id, cur);
+      return '<button class="tsm-pick' + (on ? ' on' : '') + '" onclick="tsPickFell(\'' + esc(id) + '\')">'
+        + (c.portrait || c.image ? '<img class="tsm-pick-face" src="' + esc(c.portrait || c.image) + '" alt="">' : '')
+        + '<span class="tsm-pick-name">' + esc(c.name || c.charName || 'Fell') + '</span>'
+        + (c.advName || c.campaignName ? '<span class="tsm-pick-sub">' + esc(c.advName || c.campaignName) + '</span>' : '')
+        + '</button>';
+    }).join('');
+    tsModal('<h3 class="tsm-title">Take up your Fell</h3>'
+      + '<p class="lc-p">Choose which Fell you are playing.</p>'
+      + '<div class="tsm-pick-list">' + items + '</div>'
+      + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Stay here</button></div>');
+  };
+  if (charBackend && charBackend.list){
+    charBackend.list().then(render).catch(function(){});
+  }
+}
+function tsPickFell(id){
+  tsCloseModal();
+  if (!id) return;
+  if (sameId(id, S.characterId)) return; // already this Fell
+  // entering a Fell means loading it; the page resolves its adventure from the Fell
+  S.characterId = id;
+  tsAsk('TS_ENTER_FELL', { charId:id }).catch(function(){
+    // fallback: reload with the character in the address so the page resolves the adventure
+    try { var u = new URL(window.location.href); u.searchParams.set('character', id); u.searchParams.delete('cast'); window.location.href = u.toString(); } catch(e){}
+  });
+}
 function advSwitch(id){
   if (!id || sameId(id, S.campaignId)) return;
   if (S.mode === 'combat'){
@@ -6390,6 +6479,7 @@ window.onmessage = function(ev){
       }
     }
     if (d.campaignId) S.campaignId = d.campaignId;
+    S._fromCast = !!d.fromCast; /* a cast deep-links to the active scene; a bookmark or direct open offers a picker */
     if (d.memberName) S.memberName = d.memberName;
     if (d.party) { S.party = d.party; _partyLoaded = true; SEAM.partyAt = Date.now(); SEAM.partyWhy = 'arrived on the state feed'; harvestPortraits(d.party); mergeFellSheets(); scanShardFeeds(); try { renderTokens(); } catch(e){} if (S.openSection === 'fell') refreshWinBody(); }
     if (d.character && d.character.id) { rememberPortrait(d.character.id, d.character.image); try { renderTokens(); } catch(e){} }
@@ -6476,6 +6566,14 @@ window.onmessage = function(ev){
     if (_switched && typeof loadForAdventure === 'function') loadForAdventure();
     else if (isLM()) loadJournal();
     if (!isLM()) loadMyChar();
+    /* On a bookmark or a typed-in open, offer a chooser instead of dropping the user into
+       whatever adventure or Fell the address bar happened to hold. A cast from FateWell sets
+       fromCast, and deep-links straight to the active scene, so it skips this. Offered once
+       per load. */
+    if (!S._fromCast && !S._pickerShown){
+      S._pickerShown = true;
+      setTimeout(function(){ try { tsOpenOnLoadPicker(); } catch(e){} }, 400);
+    }
     return;
   }
   if (!d || d.type !== 'TS_RESULT' || !d.reqId || !_tsPending[d.reqId]) return;
