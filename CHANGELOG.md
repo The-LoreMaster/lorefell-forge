@@ -1,3 +1,7 @@
+## 2026-08-07 - The verdict, and the structure of what the tree holds
+
+The roster probe settled which side the bug is on. The stored combatants for the scene are the old four, and the board derives them faithfully, so the display is honest and the tree data is stale. The tree is a shell from its first population and later FateWell saves are not reaching it. To size the staleness, the context diagnostic now prints the shape of what the account read actually carried: sessions per act, scenes per session, and how many scenes hold beats and combatants. If the shape is collapsed or the beats are absent there, the write side is confirmed for structure as well as roster, and the fix aims at why the reconcile stopped updating.
+
 ## 2026-08-07 - Name which side the stale roster is on
 
 The full adventure loads and paints now, both acts on the panel, forty scenes standing. What remains is the original complaint, the scene roster showing old foes. Two suspects are left and only one probe is needed: when a scene is activated, and once for the scene the load lands on, the console prints what the scene stores against what the board derived from it. Stale names in the stored combatants means the write to the tree never carried the edit. A correct store with wrong foes means the derivation drops it. The next click on the scene answers it.
