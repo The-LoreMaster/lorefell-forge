@@ -1,3 +1,7 @@
+## 2026-07-29 - See why the adventure does not stand up on load
+
+The full adventure still would not load on refresh, so this logs the context as it arrives: whether the raw campaign came with it, how many scenes it held, whether the load flags were already set, and whether the surface thinks it is the LoreMaster. One line in the console, and window._ctxDiag in devtools, says which condition is stopping the full load, so the next fix is aimed rather than guessed.
+
 ## 2026-07-29 - A refresh loads the whole adventure, not one stale scene
 
 On a hard refresh ThreadSpire stood the table up on a single scene, the one the live relay carries, and skipped the full adventure read from the account, because a partial relay snapshot arrived first and set the flag that blocked the full load. That is why a refresh showed one scene and an old roster: the relay snapshot predated the edit. The full tree read now has its own flag and loads whenever it has not run this session, even if a relay snapshot came first, so a refresh stands up the entire adventure from the account and later relay pushes still update live state on top. Together with the roster deriving from the shared combatants, a FateWell edit now shows after a refresh.
