@@ -1,3 +1,7 @@
+## 2026-08-08 - Show the read-failure fields the query fix added
+
+The scene read fix records readErr and sceneReadCapped, but the tool never printed them, so the DIAG line looked identical to the old one and there was no way to tell from the console whether the fix was even running. The DIAG line now prints both. An empty readErr and a false sceneReadCapped mean the reads ran clean; anything else names what went wrong instead of leaving a plausible zero.
+
 ## 2026-08-08 - The scene read asked for more rows than Wix will hand back
 
 Scene rows were written and then could not be found. The reconcile read the tree by advId, got nothing, concluded the adventure was missing and re-inserted all sixty nine scenes, every save, which is what filled the collection with duplicates. An unfiltered scan of the same collection found those rows and they carried the exact advId the filter had asked for, so the field looked broken in a way no schema could explain. It was not the field, and it was not the advId. The scene read asked for two thousand rows. Wix Data returns at most a thousand, so that one query failed on every call, and the catch on it turned the failure into an empty list. An empty list is what a fresh collection looks like, so the diff trusted it and wrote. Every other query in the codebase, across fifteen backend files, sits at a thousand or under; this was the only one over, and it was the only read that came back empty. The neighbouring session and act reads at a thousand were fine all along, which is why only scenes flooded.
