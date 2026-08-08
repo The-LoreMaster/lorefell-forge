@@ -153,7 +153,7 @@ $w.onReady(async function () {
       if (q.role === 'lm' && campaignId) {
         try { const ar = await myAdventureRole(campaignId); if (ar === 'loremaster' || ar === 'lorekeeper') role = 'lm'; } catch (e) {}
       }
-      embed.postMessage(Object.assign({ type: 'THREADSPIRE_CONTEXT', role: role, campaignId: campaignId, characterId: characterId }, ctx));
+      embed.postMessage(Object.assign({ type: 'THREADSPIRE_CONTEXT', role: role, campaignId: campaignId, characterId: characterId, fromCast: (q.cast === '1' || q.cast === 1) }, ctx));
     } else if (msg.type === 'THREADSPIRE_WANT_LORE') {
       let character = null;
       try { character = await threadspirePublicChar(msg.characterId); } catch (e) { character = null; }
@@ -450,6 +450,23 @@ $w.onReady(async function () {
           let list = [];
           try { list = await listMyCharacters(); } catch (e) { list = []; }
           reply(true, list);
+        } else if (msg.type === 'TS_ENTER_FELL') {
+          // The player picked a Fell from the on-load chooser. Resolve the adventure that Fell
+          // is in and send a fresh context for it, so they enter without a page reload.
+          let ok = false;
+          try {
+            const cid = msg.charId;
+            let camp = '';
+            try { const a = await charAdventure(cid); if (a && a.campaignId) camp = a.campaignId; } catch (e) {}
+            if (cid) {
+              characterId = cid;
+              if (camp) campaignId = camp;
+              const ctx = await buildContext(cid, campaignId);
+              embed.postMessage(Object.assign({ type: 'THREADSPIRE_CONTEXT', role: 'player', campaignId: campaignId, characterId: cid, fromCast: true, switched: true }, ctx));
+              ok = true;
+            }
+          } catch (e) { ok = false; }
+          reply(ok);
         } else if (msg.type === 'TS_CHAR_SAVEMETA') {
           let ok = false;
           try { const r = await threadspireSaveMeta(msg.charId || characterId, { name: msg.name, portrait: msg.portrait }); ok = !!(r && r.ok); } catch (e) { ok = false; }
