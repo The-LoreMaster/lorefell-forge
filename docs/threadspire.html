@@ -6526,7 +6526,10 @@ window.onmessage = function(ev){
     if (_switched) advReset(d.campaignId);
     if (d.role === 'lm' || d.role === 'player'){
       S.role = d.role; S.roleReady = true; document.body.classList.remove('roleboot');
-      if (d.role === 'lm' && typeof libLoad === 'function') libLoad();
+      /* Both roles need the library: foes are stored slim and the board rehydrates their
+         image and description from library entries by libId. This was LM only, so players saw
+         every foe as a bare name. */
+      if (typeof libLoad === 'function') libLoad();
       if (d.role === 'lm' && typeof forgeLoad === 'function') forgeLoad();
       if (d.role === 'lm' && lmBackend.getPortrait){
         lmBackend.getPortrait().then(function(p){ if (p){ S.lm = S.lm || {}; S.lm.portrait = p; paintHud(); } }).catch(function(){});
@@ -6586,14 +6589,27 @@ window.onmessage = function(ev){
            paint. So the context load stands the tree up only when nothing fuller is already
            on the table. Either way the flag is set so partial relay snapshots stay barred. */
         if (_spine && _spine.acts && _spine.acts.length && !S._advFullLoaded && _spScenes >= _curScenes){
-          loadAdventureSpine(_spine, 'account context (full)');
-          S._advFullLoaded = true;
-          console.log('%c[CTX-OK] full adventure stood up, fullLoaded set', 'color:#7ae67a;font-weight:bold');
-          S._advRemote = true;
-          S._advTouch = Date.now();       /* mine now; a slower remote will not overwrite it */
-          try { render(); } catch(e){}
-          try { if (typeof refreshWinBody === 'function' && S.openSection) refreshWinBody(); } catch(e){}
-          try { if (S.scene) tsLogSceneRoster('after full load', S.scene); } catch(e){}
+          /* Foes are stored slim: image and description live in the account library keyed by
+             libId, and the spine build rehydrates them from there. Hydration happens once, at
+             build time, so the library must be present BEFORE the spine is built or the foes
+             bake as bare names. Load it first, then build and stand up. It only ever loaded
+             when the LM opened the Library tab, never on standup, which is why a freshly opened
+             adventure always showed stripped foes. */
+          var _standUp = function(){
+            loadAdventureSpine(_spine, 'account context (full)');
+            S._advFullLoaded = true;
+            console.log('%c[CTX-OK] full adventure stood up, fullLoaded set', 'color:#7ae67a;font-weight:bold');
+            S._advRemote = true;
+            S._advTouch = Date.now();
+            try { render(); } catch(e){}
+            try { if (typeof refreshWinBody === 'function' && S.openSection) refreshWinBody(); } catch(e){}
+            try { if (S.scene) tsLogSceneRoster('after full load', S.scene); } catch(e){}
+          };
+          if (typeof libLoad === 'function' && !S.libLoaded){
+            libLoad().then(function(){ _spine = spineFromRawCampaign(d.rawCampaign, (S.adventure && S.adventure.activeSceneId) || null); _standUp(); });
+          } else {
+            _standUp();
+          }
         } else if (_spine && _spine.acts && _spine.acts.length && !S._advFullLoaded){
           S._advFullLoaded = true; /* the loaded adventure is fuller than the tree; keep it and bar partial snapshots */
           console.log('%c[CTX-KEEP] loaded adventure (' + _curScenes + ' scenes) kept over smaller tree (' + _spScenes + ')', 'color:#7ae67a;font-weight:bold');
