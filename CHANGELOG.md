@@ -1,3 +1,7 @@
+## 2026-07-29 - The relay stops feeding a stale adventure over the loaded one
+
+fullLoaded was true, the whole adventure stood up, yet the table still showed one session. The live relay row carries an adventure field from earlier pushes, and it merges and keeps old fields, so it held a stale single-session shape from before the reimport. Every poll read it back and overwrote the full adventure. The relay is for live play state, the active scene, tokens, the log, not the adventure structure, which comes from the account. So once the full adventure has loaded, the relay adventure field is ignored entirely; it is honoured only before the real load, to put something on an empty table. The active scene id from the relay still points into the loaded tree, so the table still follows the LoreMaster from scene to scene.
+
 ## 2026-07-29 - A partial relay snapshot stops overwriting the full adventure
 
 The diagnostic found it: the full adventure did stand up on load, forty scenes, but a live relay snapshot arrived right after carrying far fewer, sometimes one, and overwrote it. That is why a refresh landed on a single stale scene with an old roster. The relay now counts the scenes it carries against what is already loaded and refuses to replace a fuller adventure with a smaller one; it only takes over when nothing real has loaded yet, or when it is genuinely newer and no less complete. The full account read wins, and live pushes still update state on top of it without shrinking the story.
