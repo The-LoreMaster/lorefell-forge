@@ -1,3 +1,7 @@
+## 2026-08-07 - Every path that can replace the adventure now says so
+
+The trace proved the forty scene adventure stands up cleanly and nothing visible replaces it, yet the panel shows one act. Two paths set the adventure directly without going through the traced loader, the blank placeholder and the reset, so they were invisible. Both log now, and the story panel itself logs what it paints from, act and scene counts, at the moment it renders. The next reload shows the full sequence from stand-up to paint, and whichever step drops the story names itself.
+
 ## 2026-08-07 - Trace the stand-up, surface the swallowed error, fix the reset flag
 
 Three changes to end the circling. First, a real bug: advReset cleared the remote flag but not the full-load flag, so after an adventure switch every load path believed the full adventure had already stood up and skipped it. The reset clears it now. Second, the full stand-up from the account runs inside a catch that swallowed its error into a field nobody reads; if any of the forty scenes tripped it, the load died silently and the stale relay adventure stayed. The error prints loudly now, with its stack. Third, every call to loadAdventureSpine logs its caller and how many scenes it carried, so the console shows the exact sequence of what stood up and what replaced it. One reload reads the verdict.
