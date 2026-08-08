@@ -6432,19 +6432,26 @@ window.onmessage = function(ev){
            symptom. Load the full tree whenever it has not been loaded yet this session, even if
            a partial relay snapshot already set _advRemote. _advFullLoaded tracks the full load
            specifically, so a later relay push still updates live state without re-triggering. */
-        if (_spine && _spine.acts && _spine.acts.length && !S._advFullLoaded){
+        var _spScenes = 0; (_spine && _spine.acts || []).forEach(function(a){ (a.sessions||[]).forEach(function(s){ _spScenes += (s.scenes||[]).length; }); });
+        var _curScenes = 0; if (S.adventure && S.adventure.acts) S.adventure.acts.forEach(function(a){ (a.sessions||[]).forEach(function(s){ _curScenes += (s.scenes||[]).length; }); });
+        /* The account tree is authoritative when it is complete, but it can be a shell: a
+           budget capped population that holds forty scenes of sixty nine. Meanwhile a cast
+           from FateWell delivers the full current adventure over the relay. Replacing the
+           fuller loaded adventure with a smaller tree threw away most of the story on the
+           paint. So the context load stands the tree up only when nothing fuller is already
+           on the table. Either way the flag is set so partial relay snapshots stay barred. */
+        if (_spine && _spine.acts && _spine.acts.length && !S._advFullLoaded && _spScenes >= _curScenes){
           loadAdventureSpine(_spine, 'account context (full)');
           S._advFullLoaded = true;
           console.log('%c[CTX-OK] full adventure stood up, fullLoaded set', 'color:#7ae67a;font-weight:bold');
           S._advRemote = true;
           S._advTouch = Date.now();       /* mine now; a slower remote will not overwrite it */
-          /* The relay usually wins the race to the first paint, so the screen is showing its
-             stale single scene by the time this full adventure lands. Loading the data is not
-             enough: repaint the board and whatever side window is open, or the good load wins
-             in memory and loses on screen, which is exactly what a hard refresh looked like. */
           try { render(); } catch(e){}
           try { if (typeof refreshWinBody === 'function' && S.openSection) refreshWinBody(); } catch(e){}
           try { if (S.scene) tsLogSceneRoster('after full load', S.scene); } catch(e){}
+        } else if (_spine && _spine.acts && _spine.acts.length && !S._advFullLoaded){
+          S._advFullLoaded = true; /* the loaded adventure is fuller than the tree; keep it and bar partial snapshots */
+          console.log('%c[CTX-KEEP] loaded adventure (' + _curScenes + ' scenes) kept over smaller tree (' + _spScenes + ')', 'color:#7ae67a;font-weight:bold');
         }
       } catch(e){
         /* A large or awkward spine that trips while standing up must not leave the table
