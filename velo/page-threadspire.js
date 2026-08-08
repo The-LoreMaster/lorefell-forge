@@ -158,7 +158,7 @@ $w.onReady(async function () {
 
     if (msg.type === 'THREADSPIRE_READY') {
       // Paint the right side straight away; the confirmed context follows and corrects it.
-      embed.postMessage({ type: 'THREADSPIRE_ROLE_HINT', role: q.role === 'lm' ? 'lm' : 'player' });
+      embed.postMessage({ type: 'THREADSPIRE_ROLE_HINT', role: q.role === 'lm' ? 'lm' : 'player', fromCast: cameFromCast });
       const ctx = await buildContext(characterId, campaignId);
       // Entry point requests LM (Cast carries ?role=lm); ownership must confirm it.
       let role = 'player';
