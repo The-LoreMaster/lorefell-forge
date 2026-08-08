@@ -267,12 +267,21 @@ export const saveAdventureFromCampaign = webMethod(Permissions.Anyone, async (ad
   }
   const acts = Array.isArray(campaign.acts) ? campaign.acts : [];
 
-  // read the current rows once, so the diff needs no per-row lookups
+  // Read the current rows once. NOTE: .eq('advId') returned empty for rows the REST migration
+  // wrote, which caused the re-insert flood. This path is only reached with the compressed
+  // dual-write disabled; once the collection is cleaned and rows are written through this Velo
+  // backend, .eq is reliable again. Kept capped and guarded.
   const [actRows, sesRows, scnRows] = await Promise.all([
     wd.query(ACTS).eq('advId', advId).limit(500).find({ suppressAuth: true }).then(r => r.items).catch(() => []),
     wd.query(SES).eq('advId', advId).limit(1000).find({ suppressAuth: true }).then(r => r.items).catch(() => []),
     wd.query(SCN).eq('advId', advId).limit(2000).find({ suppressAuth: true }).then(r => r.items).catch(() => [])
   ]);
+  // Guard: if the diff would insert many rows because it found none, something is wrong (the
+  // query failed or the collection is mid-repair). Refuse to bulk-insert rather than flood.
+  const blobSceneCount = acts.reduce((n, a) => n + (a.sessions || []).reduce((m, s) => m + (s.scenes || []).length, 0), 0);
+  if (scnRows.length === 0 && blobSceneCount > 5) {
+    return { ok: false, error: 'reconcile aborted: found no existing scenes for a non-empty adventure, refusing to bulk-insert', advId: advId, blobSceneCount: blobSceneCount, tele: TELE };
+  }
   const actBy = index(actRows, 'actId'), sesBy = index(sesRows, 'sesId'), scnBy = index(scnRows, 'sceneId');
   let writes = 0;
 
@@ -402,6 +411,35 @@ export const saveAdventureFromBlob = webMethod(Permissions.Anyone, async (advId)
   const data = unpackCampaignData(jparse(camp.data, {}));
   const res = await saveAdventureFromCampaign(advId, Object.assign({ name: camp.name || data.name }, data));
   return { ok: (res && res.ok) !== false, advId: advId, tele: TELE, diag: res && res.diag };
+});
+
+// REPAIR. The scene collection filled with thousands of duplicate rows because a reconcile
+// query kept returning empty and re-inserting the whole tree. The filtered query .eq('advId')
+// is exactly what came back empty, so this cleanup does NOT trust it: it scans the collection
+// in pages and removes rows by matching advId in code, which the diagnostics proved works
+// (the unfiltered scan sees the rows and their advId). It removes every scene, session and act
+// row for the given advId. After this, the tree can be rebuilt once, cleanly.
+export const purgeAdventureTree = webMethod(Permissions.Anyone, async (advId) => {
+  teleReset();
+  if (!advId) return { ok: false, error: 'no adventure' };
+  async function purge(coll) {
+    let removed = 0, skip = 0;
+    for (let page = 0; page < 400; page++) {
+      const res = await wd.query(coll).limit(100).skip(skip).find({ suppressAuth: true }).catch(() => null);
+      if (!res || !res.items || !res.items.length) break;
+      let rp = 0;
+      for (const row of res.items) {
+        if (row.advId === advId) { try { await wd.remove(coll, row._id, { suppressAuth: true }); removed++; rp++; } catch (e) {} }
+      }
+      if (!rp) skip += res.items.length; // only advance when nothing was removed, since removal shifts the window
+      if (res.items.length < 100) break;
+    }
+    return removed;
+  }
+  const removedScenes = await purge(SCN);
+  const removedSessions = await purge(SES);
+  const removedActs = await purge(ACTS);
+  return { ok: true, advId: advId, removedScenes: removedScenes, removedSessions: removedSessions, removedActs: removedActs, tele: TELE };
 });
 
 export const migrateCampaign = webMethod(Permissions.Anyone, async (campaignId) => {
