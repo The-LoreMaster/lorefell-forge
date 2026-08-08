@@ -308,7 +308,10 @@ export const saveAdventureFromCampaign = webMethod(Permissions.Anyone, async (ad
   // call makes; whatever is left over is written by the next save, since the diff will still
   // see it as changed. Better a save that lands most of the change and finishes than one that
   // floods and lands none.
-  var WRITE_BUDGET = 40;
+  // 120 covers a large adventure (about eighty rows for sixty nine scenes with their
+  // sessions, acts and root) in ONE pass, so a fresh population does not depend on reading
+  // back rows it just wrote. The cap still exists so a runaway can never write unbounded.
+  var WRITE_BUDGET = 120;
   var budgetLeft = WRITE_BUDGET;
   for (let ai = 0; ai < acts.length; ai++) {
     const a = acts[ai]; keepA[a.id] = 1;
