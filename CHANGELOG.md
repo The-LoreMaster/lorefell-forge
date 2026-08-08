@@ -1,3 +1,7 @@
+## 2026-07-29 - A button for the repair, since the console cannot reach the embed
+
+The repair trigger lived on the embed window, which the browser console cannot reach because the tool runs inside a frame. So the repair is a button now, next to Save all adventures in the backup panel, shown only when signed in. It asks to confirm, says plainly that the adventures themselves are the source and are not touched, and announces when the rebuild finishes. One click, no console.
+
 ## 2026-07-29 - Wipe and rebuild the tree through the path the tools read
 
 The migrated rows were written through REST and do not answer the Velo query the tools use, which is why the reconcile never found them and flooded the collection with duplicates. Deleting the duplicates alone would not help, since a fresh REST-style write would be just as unqueryable. So the repair clears the four collections completely and rebuilds every adventure from its Campaigns blob through wixData, the same path the tools query, then verifies each adventure by that very query. It runs once, by hand: type fwWipeRemigrate() in the tool console. The reconcile guard is relaxed only for this deliberate rebuild, through a force flag, so the normal save still refuses to bulk-insert. The blobs are untouched and remain the source, so the rebuild is safe to repeat.
