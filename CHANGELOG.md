@@ -1,3 +1,7 @@
+## 2026-08-08 - A refresh of a cast tab is not a fresh cast
+
+Refreshing a ThreadSpire tab whose address still ended in the cast marker stood the table up as a hollow shell. A cast deep-links to the active scene on the strength of a live relay from FateWell, but a refresh has no relay behind it, so deep-linking lands on nothing. A cast now counts only on the first load of a tab. A marker in session storage survives a refresh, so a reload of a cast tab is treated as a plain open: the chooser is offered and nothing is deep-linked into emptiness. The address bar marker is still stripped so a bookmark stays clean.
+
 ## 2026-08-08 - The board foe carries its image at last
 
 Every layer checked out: the library held the image, the combatant pointed at the right entry by the same id in both tools, and the rehydrate merged the image onto the combatant. Yet the token and the roster still showed nothing. The cast step that turns a hydrated combatant into the board foe copied the name, rating, vitality, damage and kit, but never the image or the description, so it stripped both right back off the moment before drawing. The board foe carries image and description now. The token reads the foe image, the roster card reads it, and the foe on the board is finally the same entity as the one in FateWell and the library.

@@ -65,14 +65,25 @@ $w.onReady(async function () {
   if (!embed || !embed.onMessage) return;
 
   const q = wixLocation.query || {};
-  const cameFromCast = (q.cast === '1' || q.cast === 1);
-  // A cast from FateWell marks the URL so the tool deep-links to the active scene instead of
-  // offering the chooser. That marker is for THIS arrival only. Strip it from the address bar
-  // now, on the top frame, without a reload, so that a LoreMaster who bookmarks a cast-opened
-  // tab does not save cast=1 and keep skipping the chooser forever. history.replaceState keeps
-  // the page as is and only rewrites what the address bar (and any new bookmark) will hold.
+  // A cast from FateWell opens a NEW tab with cast=1, and the tool deep-links to the active
+  // scene. But a hard refresh of that same tab re-reads cast=1 with no live relay behind it,
+  // and deep-linking then stands up a hollow shell. So a cast counts only on the FIRST load of
+  // a tab. sessionStorage lives for the tab's lifetime and survives a refresh, so once this tab
+  // has loaded, a later refresh sees the marker and is treated as a plain open: chooser offered,
+  // no deep-link into nothing. The URL marker is also stripped so a bookmark stays clean.
+  let cameFromCast = (q.cast === '1' || q.cast === 1);
   try {
-    if (cameFromCast && typeof window !== 'undefined' && window.history && window.history.replaceState){
+    if (typeof window !== 'undefined' && window.sessionStorage){
+      if (cameFromCast && window.sessionStorage.getItem('ts_cast_seen') === '1'){
+        cameFromCast = false; // this is a refresh of a cast tab, not a fresh cast
+      }
+      if (cameFromCast) window.sessionStorage.setItem('ts_cast_seen', '1');
+    }
+  } catch (e) {}
+  // Strip the marker from the address bar (top frame, no reload) so a bookmark of a cast tab
+  // does not carry cast=1 and keep skipping the chooser.
+  try {
+    if ((q.cast === '1' || q.cast === 1) && typeof window !== 'undefined' && window.history && window.history.replaceState){
       const u = new URL(window.location.href);
       if (u.searchParams.has('cast')){ u.searchParams.delete('cast'); window.history.replaceState(null, '', u.toString()); }
     }
