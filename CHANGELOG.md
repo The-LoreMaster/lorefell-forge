@@ -1,3 +1,7 @@
+## 2026-08-07 - The full adventure paints when it lands
+
+The probes told the whole story in order. The relay wins the race to the first paint, so the table draws its stale single scene, then the full forty scene adventure arrives from the account, stands up cleanly, and nothing repaints. The good load was winning in memory and losing on screen, every refresh. Now, when the full adventure stands up, the board and the open side window repaint on the spot. The story panel shows both acts the moment they land instead of holding the picture it drew a second earlier.
+
 ## 2026-08-07 - Every path that can replace the adventure now says so
 
 The trace proved the forty scene adventure stands up cleanly and nothing visible replaces it, yet the panel shows one act. Two paths set the adventure directly without going through the traced loader, the blank placeholder and the reset, so they were invisible. Both log now, and the story panel itself logs what it paints from, act and scene counts, at the moment it renders. The next reload shows the full sequence from stand-up to paint, and whichever step drops the story names itself.
