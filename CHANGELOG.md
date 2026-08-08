@@ -1,3 +1,7 @@
+## 2026-07-29 - The repair runs in small steps so it cannot time out
+
+The one-shot repair hit a 504: clearing thousands of rows and rebuilding in a single backend call ran past the web method time limit. The repair is broken into bounded calls now. wipeChunk removes a few hundred rows per call and reports how many remain; remigrateOne rebuilds a single adventure and verifies it; listCampaignIds names what to rebuild. The tool, running in the browser where there is no such limit, loops wipeChunk until the collections are empty, then rebuilds each adventure in turn, showing progress as it goes. No single call runs long enough to be cut off.
+
 ## 2026-07-29 - A button for the repair, since the console cannot reach the embed
 
 The repair trigger lived on the embed window, which the browser console cannot reach because the tool runs inside a frame. So the repair is a button now, next to Save all adventures in the backup panel, shown only when signed in. It asks to confirm, says plainly that the adventures themselves are the source and are not touched, and announces when the rebuild finishes. One click, no console.
