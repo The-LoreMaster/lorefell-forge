@@ -1,3 +1,7 @@
+## 2026-08-07 - A cast marker does not survive into a bookmark
+
+The chooser skipped for a LoreMaster opening a bookmark, because the bookmark had been saved from a cast and still carried the cast marker in its address. The marker is meant for one arrival, not forever. The page now strips it from the address bar as soon as it is read, on the top frame and without a reload, so a tab opened by a cast can be bookmarked freely and the saved URL is clean. A real cast still deep-links straight to the active scene; a bookmark of it now offers the chooser like any other direct open.
+
 ## 2026-08-07 - Enter-a-Fell no longer reassigns a constant
 
 The new enter-a-Fell handler tried to reassign characterId, which is a constant in that page, so publish failed. It never needed to: the local cid holds the chosen Fell and is already used everywhere the handler acts. Removed the assignment.
