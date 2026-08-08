@@ -12,7 +12,7 @@ import { publishAdventure, myPublishedAdventures, unpublishAdventure, getPublish
 import { createInvite, revokeInvite } from 'backend/invites.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
 import { getCampaignState, saveCampaignState, getJournal } from 'backend/campaignview.web.js';
-import { loadAdventure, saveAdventureFromCampaign, saveAdventureFromBlob, migrateCampaign, wipeAndRemigrateAll } from 'backend/adventures.web.js';
+import { loadAdventure, saveAdventureFromCampaign, saveAdventureFromBlob, migrateCampaign, wipeChunk, remigrateOne, listCampaignIds } from 'backend/adventures.web.js';
 import wixLocation from 'wix-location';
 import wixWindow from 'wix-window';
 
@@ -179,12 +179,24 @@ $w.onReady(() => {
     if (!m || typeof m !== 'object' || !m.type) return;
 
     if (m.type === 'lmtool-wipe-remigrate') {
-      // One-time repair: wipe the four adventure collections and rebuild from the blobs through
-      // Velo, so the rows are queryable. Triggered by hand from the tool console. Logs the full
-      // report so the result is verifiable.
+      // Bounded repair loop: clear the collections a chunk at a time so no single call times
+      // out, reporting progress, then rebuild each adventure from its blob and verify.
       try {
-        const r = await wipeAndRemigrateAll();
-        embed.postMessage({ type: 'lmtool-wipe-remigrate-result', result: r });
+        let totalRemoved = 0, guard = 0;
+        while (guard++ < 200) {
+          const w = await wipeChunk(300);
+          totalRemoved += (w && w.removed) || 0;
+          embed.postMessage({ type: 'lmtool-wipe-progress', phase: 'clearing', removed: totalRemoved, remainingScenes: w && w.remainingScenes });
+          if (!w || w.done || (w.removed === 0)) break;
+        }
+        const list = await listCampaignIds();
+        const report = [];
+        for (const c of ((list && list.ids) || [])) {
+          const r = await remigrateOne(c.advId);
+          report.push(r);
+          embed.postMessage({ type: 'lmtool-wipe-progress', phase: 'rebuilding', name: c.name, done: r && r.ok, queryableScenes: r && r.queryableScenes, blobScenes: r && r.blobScenes });
+        }
+        embed.postMessage({ type: 'lmtool-wipe-remigrate-result', result: { ok: true, totalRemoved: totalRemoved, report: report } });
       } catch (e) {
         embed.postMessage({ type: 'lmtool-wipe-remigrate-result', result: { ok: false, error: String(e) } });
       }

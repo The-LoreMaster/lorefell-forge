@@ -448,41 +448,53 @@ export const purgeAdventureTree = webMethod(Permissions.Anyone, async (advId) =>
 // rows the tools can actually query. This clears the four collections completely, then rebuilds
 // every adventure from its Campaigns blob. It is heavy by design and meant to be run once, by
 // hand, not on a hot path. Returns a per-adventure count so the result can be verified.
-export const wipeAndRemigrateAll = webMethod(Permissions.Anyone, async () => {
+// Bounded repair, in small calls so none times out (Velo caps a web method near 14s, and
+// clearing thousands of rows in one call hit a 504). The tool loops these until done.
+
+// Delete up to `budget` rows across the four collections in one call. Returns how many were
+// removed and a rough count still present, so the caller knows whether to call again.
+export const wipeChunk = webMethod(Permissions.Anyone, async (budget) => {
   teleReset();
-  // 1) clear the four collections by scanning and removing every row (no advId filter, since
-  // that is the query that fails on the old rows).
-  async function clearAll(coll) {
-    let removed = 0;
-    for (let page = 0; page < 2000; page++) {
-      const res = await wd.query(coll).limit(100).find({ suppressAuth: true }).catch(() => null);
+  const cap = Math.min(budget || 300, 400);
+  let removed = 0;
+  for (const coll of [SCN, SES, ACTS, ADV]) {
+    while (removed < cap) {
+      const res = await wd.query(coll).limit(Math.min(100, cap - removed)).find({ suppressAuth: true }).catch(() => null);
       if (!res || !res.items || !res.items.length) break;
-      for (const row of res.items) { try { await wd.remove(coll, row._id, { suppressAuth: true }); removed++; } catch (e) {} }
+      for (const row of res.items) {
+        if (removed >= cap) break;
+        try { await wd.remove(coll, row._id, { suppressAuth: true }); removed++; } catch (e) {}
+      }
       if (res.items.length < 100) break;
     }
-    return removed;
+    if (removed >= cap) break;
   }
-  const cleared = {
-    scenes: await clearAll(SCN),
-    sessions: await clearAll(SES),
-    acts: await clearAll(ACTS),
-    roots: await clearAll(ADV)
-  };
+  // report remaining scene count so the caller knows if more passes are needed
+  const remainingScenes = await wd.query(SCN).limit(1).find({ suppressAuth: true }).then(r => r.totalCount).catch(() => -1);
+  const remainingTree = await wd.query(ADV).limit(1).find({ suppressAuth: true }).then(r => r.totalCount).catch(() => -1);
+  const done = (remainingScenes === 0 && remainingTree === 0);
+  return { ok: true, removed: removed, remainingScenes: remainingScenes, remainingTree: remainingTree, done: done, tele: TELE };
+});
 
-  // 2) rebuild from every Campaigns blob, writing through wixData so the rows are queryable.
+// Rebuild ONE adventure from its blob through wixData, so its rows are queryable. Verifies by
+// the same query the tools use. Small enough to finish in one call.
+export const remigrateOne = webMethod(Permissions.Anyone, async (advId) => {
+  teleReset();
+  if (!advId) return { ok: false, error: 'no advId' };
+  const camp = await wd.get(CAMPAIGNS, advId, { suppressAuth: true }).catch(() => null);
+  if (!camp) return { ok: false, error: 'no blob for ' + advId };
+  const data = unpackCampaignData(jparse(camp.data, {}));
+  if (!data || !Array.isArray(data.acts)) return { ok: false, error: 'no acts', advId: advId };
+  await saveAdventureFromCampaign(advId, Object.assign({ name: camp.name || data.name }, data), true);
+  const check = await wd.query(SCN).eq('advId', advId).limit(1).find({ suppressAuth: true }).then(r => r.totalCount).catch(() => -1);
+  const blobScenes = data.acts.reduce((n, a) => n + (a.sessions || []).reduce((m, s) => m + (s.scenes || []).length, 0), 0);
+  return { ok: check === blobScenes, advId: advId, name: camp.name, blobScenes: blobScenes, queryableScenes: check, tele: TELE };
+});
+
+// List the adventure ids to rebuild, so the tool can loop remigrateOne over them.
+export const listCampaignIds = webMethod(Permissions.Anyone, async () => {
   const camps = await wd.query(CAMPAIGNS).limit(200).find({ suppressAuth: true }).then(r => r.items).catch(() => []);
-  const report = [];
-  for (const camp of camps) {
-    const advId = camp._id;
-    const data = unpackCampaignData(jparse(camp.data, {}));
-    if (!data || !Array.isArray(data.acts)) { report.push({ advId: advId, name: camp.name, skipped: 'no acts' }); continue; }
-    const res = await saveAdventureFromCampaign(advId, Object.assign({ name: camp.name || data.name }, data), true);
-    // verify by the SAME query the tools use, so we know it is queryable now
-    const check = await wd.query(SCN).eq('advId', advId).limit(1).find({ suppressAuth: true }).then(r => r.totalCount).catch(() => -1);
-    const blobScenes = data.acts.reduce((n, a) => n + (a.sessions || []).reduce((m, s) => m + (s.scenes || []).length, 0), 0);
-    report.push({ advId: advId, name: camp.name, blobScenes: blobScenes, queryableScenes: check, ok: check === blobScenes });
-  }
-  return { ok: true, cleared: cleared, report: report, tele: TELE };
+  return { ok: true, ids: camps.map(c => ({ advId: c._id, name: c.name })) };
 });
 
 export const migrateCampaign = webMethod(Permissions.Anyone, async (campaignId) => {
