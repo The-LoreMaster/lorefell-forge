@@ -5387,11 +5387,25 @@ function applyRemoteSnapshot(snap){
     var _rr = snap.advRev || 0, _lr = S.advRev || 0;
     var _fresh = S._advTouch && Date.now() - S._advTouch < 6000;
     var _first = !S._advRemote;                       /* the adventure has not arrived yet */
-    if (_first || (_rr > _lr && !_fresh)){
+    /* Count the scenes in the incoming snapshot and in what is already loaded. A live relay
+       snapshot can be a partial view, sometimes a single active scene, and it must never
+       overwrite the full adventure read from the account with a smaller one: that is what left
+       the table on one scene after a refresh, with the rest of the story gone. So once the full
+       adventure has stood up, a relay snapshot only replaces it when it is genuinely newer AND
+       carries at least as many scenes. */
+    var _snapScenes = 0; (snap.adventure.acts || []).forEach(function(a){ (a.sessions||[]).forEach(function(s){ _snapScenes += (s.scenes||[]).length; }); });
+    var _haveScenes = 0; if (S.adventure && S.adventure.acts) S.adventure.acts.forEach(function(a){ (a.sessions||[]).forEach(function(s){ _haveScenes += (s.scenes||[]).length; }); });
+    var _notSmaller = _snapScenes >= _haveScenes;
+    var _mayReplace = (_first && !S._advFullLoaded)          /* nothing real loaded yet */
+                   || (_rr > _lr && !_fresh && _notSmaller); /* newer and not a partial */
+    if (_mayReplace){
       loadAdventureSpine(snap.adventure);
       S._advRemote = true;
+      if (_snapScenes >= _haveScenes) S._advFullLoaded = true;
       if (_rr) S.advRev = _rr;
       mergeFellSheets();
+    } else {
+      S._advRemote = true; /* mark arrival so first-load logic settles, without overwriting */
     }
   }
   if (snap.tokens) S.tokens = snap.tokens;

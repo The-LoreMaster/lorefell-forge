@@ -1,3 +1,7 @@
+## 2026-07-29 - A partial relay snapshot stops overwriting the full adventure
+
+The diagnostic found it: the full adventure did stand up on load, forty scenes, but a live relay snapshot arrived right after carrying far fewer, sometimes one, and overwrote it. That is why a refresh landed on a single stale scene with an old roster. The relay now counts the scenes it carries against what is already loaded and refuses to replace a fuller adventure with a smaller one; it only takes over when nothing real has loaded yet, or when it is genuinely newer and no less complete. The full account read wins, and live pushes still update state on top of it without shrinking the story.
+
 ## 2026-07-29 - See why the adventure does not stand up on load
 
 The full adventure still would not load on refresh, so this logs the context as it arrives: whether the raw campaign came with it, how many scenes it held, whether the load flags were already set, and whether the surface thinks it is the LoreMaster. One line in the console, and window._ctxDiag in devtools, says which condition is stopping the full load, so the next fix is aimed rather than guessed.
