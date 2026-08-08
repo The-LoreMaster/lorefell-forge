@@ -6364,8 +6364,17 @@ window.onmessage = function(ev){
     if (d.rawCampaign && isLM()){
       try {
         var _spine = spineFromRawCampaign(d.rawCampaign, (S.adventure && S.adventure.activeSceneId) || null);
-        if (_spine && _spine.acts && _spine.acts.length && !S._advRemote){
+        /* The raw campaign is the whole adventure read from the account, the authoritative
+           source. A live relay push carries only the active scene, so if it arrived first it
+           must NOT block this: otherwise a refresh stands the table up on a single stale scene
+           with the rest of the story missing, which is exactly the one-scene-on-refresh
+           symptom. Load the full tree whenever it has not been loaded yet this session, even if
+           a partial relay snapshot already set _advRemote. _advFullLoaded tracks the full load
+           specifically, so a later relay push still updates live state without re-triggering. */
+        if (_spine && _spine.acts && _spine.acts.length && !S._advFullLoaded){
           loadAdventureSpine(_spine);
+          S._advFullLoaded = true;
+          S._advRemote = true;
           S._advTouch = Date.now();       /* mine now; a slower remote will not overwrite it */
         }
       } catch(e){

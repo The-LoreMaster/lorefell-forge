@@ -1,3 +1,7 @@
+## 2026-07-29 - A refresh loads the whole adventure, not one stale scene
+
+On a hard refresh ThreadSpire stood the table up on a single scene, the one the live relay carries, and skipped the full adventure read from the account, because a partial relay snapshot arrived first and set the flag that blocked the full load. That is why a refresh showed one scene and an old roster: the relay snapshot predated the edit. The full tree read now has its own flag and loads whenever it has not run this session, even if a relay snapshot came first, so a refresh stands up the entire adventure from the account and later relay pushes still update live state on top. Together with the roster deriving from the shared combatants, a FateWell edit now shows after a refresh.
+
 ## 2026-07-29 - The load path derives the roster from the shared combatants
 
 The roster still showed the old foe because the fix went into the wrong function. Two scene builders exist: one reads combatants and casts the board, the other, the one the adventure load actually calls, was reading a foes list the tree does not carry and ignoring combatants entirely. So a FateWell roster edit, stored in combatants, never reached the board. The load path now derives foes and npcs from the shared combatants, each re-hydrated from the library first, so a foe added or removed in FateWell shows on the ThreadSpire board after a load. A scene still carrying its own foes mid-session is left as is.
