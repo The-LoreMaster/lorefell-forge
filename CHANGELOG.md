@@ -1,3 +1,7 @@
+## 2026-08-07 - Enter-a-Fell no longer reassigns a constant
+
+The new enter-a-Fell handler tried to reassign characterId, which is a constant in that page, so publish failed. It never needed to: the local cid holds the chosen Fell and is already used everywhere the handler acts. Removed the assignment.
+
 ## 2026-08-07 - A chooser on open, for adventures and for Fells
 
 Opening ThreadSpire from a bookmark or a typed address used to drop you into whatever the address bar held, which after a reimport was often the wrong or a stale adventure. Now a bookmark or direct open offers a chooser. The LoreMaster picks the adventure to bring to the table; the player picks which Fell to take up, and the page resolves that Fell's adventure. A cast from FateWell is different on purpose: it carries a cast marker and deep-links straight to the active scene, so the table opens exactly where the session left off with no extra step. The chooser can be dismissed, leaving whatever the address pointed to open, so nothing is forced. This is independent of the tree sync work and stands on its own.

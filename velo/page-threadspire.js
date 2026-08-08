@@ -459,7 +459,6 @@ $w.onReady(async function () {
             let camp = '';
             try { const a = await charAdventure(cid); if (a && a.campaignId) camp = a.campaignId; } catch (e) {}
             if (cid) {
-              characterId = cid;
               if (camp) campaignId = camp;
               const ctx = await buildContext(cid, campaignId);
               embed.postMessage(Object.assign({ type: 'THREADSPIRE_CONTEXT', role: 'player', campaignId: campaignId, characterId: cid, fromCast: true, switched: true }, ctx));
