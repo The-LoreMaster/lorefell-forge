@@ -35,7 +35,21 @@ function scheduleDualWriteCompressed(advId) {
   _advCompTimers[advId] = setTimeout(async function () {
     _advCompTimers[advId] = null;
     delete _advCompPending[advId];
-    try { const r = await saveAdventureFromBlob(advId); teleReport('dualWrite-gz', advId, r && r.tele); teleDiag('dualWrite-gz', r); } catch (e) { teleReport('dualWrite-gz-fail', advId, { error: String(e) }); }
+    /* The reconcile writes at most a budget of rows per call, so one pass over a large
+       adventure leaves the rest as a shell: forty scenes stored of sixty nine, and every later
+       pass reporting nothing to do against a stale replica. With consistent reads the diff is
+       honest, so now: run passes until one writes nothing, with a breath between them. A small
+       edit costs one pass plus one cheap confirming pass; a fresh population takes as many as
+       the budget needs and actually finishes. */
+    try {
+      for (var pass = 0; pass < 5; pass++) {
+        const r = await saveAdventureFromBlob(advId);
+        teleReport('dualWrite-gz', advId, r && r.tele);
+        teleDiag('dualWrite-gz', r);
+        if (!r || !r.ok || !(r.writes > 0)) break;
+        await new Promise(function(res){ setTimeout(res, 1200); });
+      }
+    } catch (e) { teleReport('dualWrite-gz-fail', advId, { error: String(e) }); }
   }, _ADV_DUAL_MS);
 }
 async function dualWriteTree(advId, camp) {

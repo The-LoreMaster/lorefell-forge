@@ -56,7 +56,7 @@ async function memberId() {
 async function roleFor(id, advId, ownerId) {
   if (ownerId && id && ownerId === id) return 'loremaster';
   try {
-    const km = await wd.query('AdventureMembers').eq('memberId', id).eq('campaignId', advId).limit(1).find({ suppressAuth: true });
+    const km = await wd.query('AdventureMembers').eq('memberId', id).eq('campaignId', advId).limit(1).find({ suppressAuth: true, consistentRead: true });
     if (km.items.length) return km.items[0].role || 'member';
   } catch (e) {}
   return 'member';
@@ -97,9 +97,9 @@ export const loadAdventure = webMethod(Permissions.Anyone, async (advId) => {
   }
 
   const [actQ, sesQ, scnQ] = await Promise.all([
-    wd.query(ACTS).eq('advId', advId).limit(200).find({ suppressAuth: true }),
-    wd.query(SES).eq('advId', advId).limit(500).find({ suppressAuth: true }),
-    wd.query(SCN).eq('advId', advId).limit(1000).find({ suppressAuth: true })
+    wd.query(ACTS).eq('advId', advId).limit(200).find({ suppressAuth: true, consistentRead: true }),
+    wd.query(SES).eq('advId', advId).limit(500).find({ suppressAuth: true, consistentRead: true }),
+    wd.query(SCN).eq('advId', advId).limit(1000).find({ suppressAuth: true, consistentRead: true })
   ]);
 
   const scenesBySes = {};
@@ -174,7 +174,7 @@ async function saveChild(coll, idKey, advId, keyVal, fields) {
   if (root && root.ownerMemberId && id && root.ownerMemberId !== id) {
     if (!(await mayKeep(id, advId, root.ownerMemberId))) return { ok: false, error: 'owned by another member' };
   }
-  const q = await wd.query(coll).eq(idKey, keyVal).eq('advId', advId).limit(1).find({ suppressAuth: true });
+  const q = await wd.query(coll).eq(idKey, keyVal).eq('advId', advId).limit(1).find({ suppressAuth: true, consistentRead: true });
   const existing = q.items[0] || null;
   const row = existing || Object.assign({ advId: advId }, { [idKey]: keyVal });
   Object.keys(fields).forEach(k => { row[k] = fields[k]; });
@@ -233,7 +233,7 @@ async function removeChild(coll, idKey, advId, keyVal) {
   if (root && root.ownerMemberId && id && root.ownerMemberId !== id) {
     if (!(await mayKeep(id, advId, root.ownerMemberId))) return { ok: false, error: 'owned by another member' };
   }
-  const q = await wd.query(coll).eq(idKey, keyVal).eq('advId', advId).limit(1).find({ suppressAuth: true });
+  const q = await wd.query(coll).eq(idKey, keyVal).eq('advId', advId).limit(1).find({ suppressAuth: true, consistentRead: true });
   if (!q.items.length) return { ok: true, gone: true };
   try { await wd.remove(coll, q.items[0]._id, { suppressAuth: true }); return { ok: true }; }
   catch (e) { return { ok: false, error: (e && e.message) || String(e) }; }
@@ -273,9 +273,9 @@ export const saveAdventureFromCampaign = webMethod(Permissions.Anyone, async (ad
   // dual-write disabled; once the collection is cleaned and rows are written through this Velo
   // backend, .eq is reliable again. Kept capped and guarded.
   const [actRows, sesRows, scnRows] = await Promise.all([
-    wd.query(ACTS).eq('advId', advId).limit(500).find({ suppressAuth: true }).then(r => r.items).catch(() => []),
-    wd.query(SES).eq('advId', advId).limit(1000).find({ suppressAuth: true }).then(r => r.items).catch(() => []),
-    wd.query(SCN).eq('advId', advId).limit(2000).find({ suppressAuth: true }).then(r => r.items).catch(() => [])
+    wd.query(ACTS).eq('advId', advId).limit(500).find({ suppressAuth: true, consistentRead: true }).then(r => r.items).catch(() => []),
+    wd.query(SES).eq('advId', advId).limit(1000).find({ suppressAuth: true, consistentRead: true }).then(r => r.items).catch(() => []),
+    wd.query(SCN).eq('advId', advId).limit(2000).find({ suppressAuth: true, consistentRead: true }).then(r => r.items).catch(() => [])
   ]);
   // Guard: if the diff would insert many rows because it found none, something is wrong (the
   // query failed or the collection is mid-repair). Refuse to bulk-insert rather than flood.
@@ -347,8 +347,8 @@ export const saveAdventureFromCampaign = webMethod(Permissions.Anyone, async (ad
       // count ALL scenes in the collection, unfiltered, and sample the advId they actually
       // carry. If total is high but storedScenes is 0, the advId filter is the mismatch and
       // this shows what advId the rows were really written under.
-      totalScenesAllAdvs: await wd.query(SCN).limit(1).find({ suppressAuth: true }).then(r => r.totalCount).catch(() => -1),
-      sampleAnyAdvId: await wd.query(SCN).limit(1).find({ suppressAuth: true }).then(r => (r.items[0] && r.items[0].advId) || '(empty)').catch(() => '(err)')
+      totalScenesAllAdvs: await wd.query(SCN).limit(1).find({ suppressAuth: true, consistentRead: true }).then(r => r.totalCount).catch(() => -1),
+      sampleAnyAdvId: await wd.query(SCN).limit(1).find({ suppressAuth: true, consistentRead: true }).then(r => (r.items[0] && r.items[0].advId) || '(empty)').catch(() => '(err)')
     }
   };
 });
@@ -420,7 +420,7 @@ export const saveAdventureFromBlob = webMethod(Permissions.Anyone, async (advId)
   if (!camp) return { ok: false, error: 'no blob' };
   const data = unpackCampaignData(jparse(camp.data, {}));
   const res = await saveAdventureFromCampaign(advId, Object.assign({ name: camp.name || data.name }, data));
-  return { ok: (res && res.ok) !== false, advId: advId, tele: TELE, diag: res && res.diag };
+  return { ok: (res && res.ok) !== false, advId: advId, tele: TELE, diag: res && res.diag, writes: (res && res.writes) || 0 };
 });
 
 // REPAIR. The scene collection filled with thousands of duplicate rows because a reconcile
@@ -435,7 +435,7 @@ export const purgeAdventureTree = webMethod(Permissions.Anyone, async (advId) =>
   async function purge(coll) {
     let removed = 0, skip = 0;
     for (let page = 0; page < 400; page++) {
-      const res = await wd.query(coll).limit(100).skip(skip).find({ suppressAuth: true }).catch(() => null);
+      const res = await wd.query(coll).limit(100).skip(skip).find({ suppressAuth: true, consistentRead: true }).catch(() => null);
       if (!res || !res.items || !res.items.length) break;
       let rp = 0;
       for (const row of res.items) {
@@ -469,7 +469,7 @@ export const wipeChunk = webMethod(Permissions.Anyone, async (budget) => {
   let removed = 0;
   for (const coll of [SCN, SES, ACTS, ADV]) {
     while (removed < cap) {
-      const res = await wd.query(coll).limit(Math.min(100, cap - removed)).find({ suppressAuth: true }).catch(() => null);
+      const res = await wd.query(coll).limit(Math.min(100, cap - removed)).find({ suppressAuth: true, consistentRead: true }).catch(() => null);
       if (!res || !res.items || !res.items.length) break;
       for (const row of res.items) {
         if (removed >= cap) break;
@@ -480,8 +480,8 @@ export const wipeChunk = webMethod(Permissions.Anyone, async (budget) => {
     if (removed >= cap) break;
   }
   // report remaining scene count so the caller knows if more passes are needed
-  const remainingScenes = await wd.query(SCN).limit(1).find({ suppressAuth: true }).then(r => r.totalCount).catch(() => -1);
-  const remainingTree = await wd.query(ADV).limit(1).find({ suppressAuth: true }).then(r => r.totalCount).catch(() => -1);
+  const remainingScenes = await wd.query(SCN).limit(1).find({ suppressAuth: true, consistentRead: true }).then(r => r.totalCount).catch(() => -1);
+  const remainingTree = await wd.query(ADV).limit(1).find({ suppressAuth: true, consistentRead: true }).then(r => r.totalCount).catch(() => -1);
   const done = (remainingScenes === 0 && remainingTree === 0);
   return { ok: true, removed: removed, remainingScenes: remainingScenes, remainingTree: remainingTree, done: done, tele: TELE };
 });
@@ -496,14 +496,14 @@ export const remigrateOne = webMethod(Permissions.Anyone, async (advId) => {
   const data = unpackCampaignData(jparse(camp.data, {}));
   if (!data || !Array.isArray(data.acts)) return { ok: false, error: 'no acts', advId: advId };
   await saveAdventureFromCampaign(advId, Object.assign({ name: camp.name || data.name }, data), true);
-  const check = await wd.query(SCN).eq('advId', advId).limit(1).find({ suppressAuth: true }).then(r => r.totalCount).catch(() => -1);
+  const check = await wd.query(SCN).eq('advId', advId).limit(1).find({ suppressAuth: true, consistentRead: true }).then(r => r.totalCount).catch(() => -1);
   const blobScenes = data.acts.reduce((n, a) => n + (a.sessions || []).reduce((m, s) => m + (s.scenes || []).length, 0), 0);
   return { ok: check === blobScenes, advId: advId, name: camp.name, blobScenes: blobScenes, queryableScenes: check, tele: TELE };
 });
 
 // List the adventure ids to rebuild, so the tool can loop remigrateOne over them.
 export const listCampaignIds = webMethod(Permissions.Anyone, async () => {
-  const camps = await wd.query(CAMPAIGNS).limit(200).find({ suppressAuth: true }).then(r => r.items).catch(() => []);
+  const camps = await wd.query(CAMPAIGNS).limit(200).find({ suppressAuth: true, consistentRead: true }).then(r => r.items).catch(() => []);
   return { ok: true, ids: camps.map(c => ({ advId: c._id, name: c.name })) };
 });
 
