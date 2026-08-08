@@ -1,3 +1,7 @@
+## 2026-08-07 - The map art layer lets drags through
+
+Clicking to pan the board twitched and then stopped, though tokens moved and pinch zoom worked. The scene art layer that sits over the board was taking pointer events, so it caught the drag and the board never saw the move. Token drags and pinch both grab the pointer up front and were unaffected, which is why only plain panning died. The art layer is marked to ignore pointer events now, so a drag passes straight through to the board beneath. This was named by asking the browser what sat under the cursor, rather than guessing at overlays.
+
 ## 2026-08-07 - The chooser stops locking the board, and opens at once
 
 Two faults from the chooser, fixed together. The board would twitch and then refuse to move, and tokens would not click, because the progressive fill kept calling the modal on a timer even after a choice was made, so the full screen modal reopened over the table and swallowed every drag. The fill now stops the instant a choice is made and never reopens, the close clears the live flag, and the board ignores the modal only while it is actually displayed. And the chooser was appearing up to ten seconds late because it waited for the full context, which is slow while a large adventure is read; it now opens on the role hint, which carries whether this was a cast and arrives almost immediately. A cast still deep-links straight in.
