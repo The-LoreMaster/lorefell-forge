@@ -6101,17 +6101,33 @@ function mergeFellSheets(){
 function tsSceneFromSpine(sc){
   var seed = S.scene || {};
   /* Start from the whole authored scene so every field survives the round trip, then lay the
-     table's live-play defaults over the top. The old version listed the fields to keep and so
-     silently dropped every one it did not name; this keeps all of them and only sets the ones
-     the board needs to run. */
+     table's live-play defaults over the top. combatants is the shared stored shape; the board
+     view foes/npcs are derived from it, each combatant re-hydrated from the library first since
+     the stored form is slimmed to a libId reference. This is the load path the adventure uses,
+     so deriving here is what makes a FateWell roster edit show on the ThreadSpire board. A
+     scene that still carries its own foes/npcs (mid-session, not yet round-tripped) keeps
+     them. */
+  var derivedFoes = [], derivedNpcs = [];
+  var source = (Array.isArray(sc.combatants) && sc.combatants.length) ? sc.combatants : null;
+  if (source){
+    source.forEach(function(raw, i){
+      if (!raw) return;
+      var cb = (typeof tsHydrateCombatant === 'function') ? tsHydrateCombatant(raw) : raw;
+      if (cb.type === 'npc' || cb.side === 'npc') derivedNpcs.push(tsCastNpc(cb, i));
+      else derivedFoes.push(tsCastFoe(cb, i));
+    });
+  }
+  var foesIn = source ? derivedFoes : (sc.foes || []);
+  var npcsIn = source ? derivedNpcs : (sc.npcs || []);
   return Object.assign({}, sc, {
     name: sc.name || 'Scene', id: sc.id, combatPhase:null, background:null,
     maps: seed.maps || [], spotMode:'auto', manual:{}, spotOrder:[], activeSpot:0,
     beats: sc.beats || [], entries: sc.entries || [], out: sc.out || {},
     prep: sc.prep || '', desc: sc.desc || '', mode: sc.mode || 'roleplay', status: sc.status || 'active',
-    foes: (sc.foes || []).map(function(f){ return Object.assign({ act:'', target:'', locked:false, spot:null, reactUsed:false }, f); }),
+    combatants: sc.combatants || [],
+    foes: foesIn.map(function(f){ return Object.assign({ act:'', target:'', locked:false, spot:null, reactUsed:false }, f); }),
     fell: (sc.fell || []).map(function(p){ return Object.assign({ act:'', target:'', locked:false, spot:null, react:'' }, p); }),
-    npcs: sc.npcs || [] });
+    npcs: npcsIn });
 }
 /* Build the play spine from the adventure as it was authored. FateWell used to shape this
    and hand it over; ThreadSpire shapes it itself now, from the same campaign record read

@@ -1,3 +1,7 @@
+## 2026-07-29 - The load path derives the roster from the shared combatants
+
+The roster still showed the old foe because the fix went into the wrong function. Two scene builders exist: one reads combatants and casts the board, the other, the one the adventure load actually calls, was reading a foes list the tree does not carry and ignoring combatants entirely. So a FateWell roster edit, stored in combatants, never reached the board. The load path now derives foes and npcs from the shared combatants, each re-hydrated from the library first, so a foe added or removed in FateWell shows on the ThreadSpire board after a load. A scene still carrying its own foes mid-session is left as is.
+
 ## 2026-07-29 - ThreadSpire rebuilds a foe from the library, so the roster syncs
 
 The library synced but the roster did not: a foe removed and replaced in FateWell still showed the old one in ThreadSpire. The cause is that a combatant stored in the shared tree is slimmed to a library reference, its name, image, stats and kit stripped, since the library holds the full profile. FateWell rebuilds the foe from the library on load; ThreadSpire did not, so it cast a bare foe with no name or image from the stripped record. ThreadSpire now re-hydrates each combatant from the library by its libId before building the board view, the same way FateWell does, so the current roster and its images show correctly.
