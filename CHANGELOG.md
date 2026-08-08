@@ -1,3 +1,7 @@
+## 2026-08-08 - The foe description survives the library, and a probe for the missing image
+
+The tree write is fixed, but a foe still reached ThreadSpire with no image and no description, so the roster fault was never only the tree. Foes are slimmed on save: their image and description move to an account library entry keyed by a library id, and ThreadSpire rehydrates from that entry. The adopt-a-library-entry seed copied the image but not the description, so an adopted foe lost its description at the seam. The seed carries the description now. The missing image is not yet explained, so the roster probe now reports, per combatant, whether its library id resolves and whether the resolved entry actually holds an image and a description. The next open reads the answer.
+
 ## 2026-08-08 - Show the read-failure fields the query fix added
 
 The scene read fix records readErr and sceneReadCapped, but the tool never printed them, so the DIAG line looked identical to the old one and there was no way to tell from the console whether the fix was even running. The DIAG line now prints both. An empty readErr and a false sceneReadCapped mean the reads ran clean; anything else names what went wrong instead of leaving a plausible zero.
