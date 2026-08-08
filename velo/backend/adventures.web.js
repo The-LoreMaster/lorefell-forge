@@ -319,11 +319,17 @@ export const saveAdventureFromCampaign = webMethod(Permissions.Anyone, async (ad
 
   return { ok: true, advId: advId, writes: writes, tele: TELE,
     diag: {
+      queryAdvId: advId,
       blobScenes: (function(){ let n = 0; acts.forEach(a => (a.sessions||[]).forEach(s => n += (s.scenes||[]).length)); return n; })(),
       storedScenes: scnRows.length,
       matched: (function(){ let n = 0; acts.forEach(a => (a.sessions||[]).forEach(s => (s.scenes||[]).forEach(sc => { if (scnBy[sc.id]) n++; }))); return n; })(),
       sampleBlobId: (acts[0] && acts[0].sessions && acts[0].sessions[0] && acts[0].sessions[0].scenes && acts[0].sessions[0].scenes[0] && acts[0].sessions[0].scenes[0].id) || '(none)',
-      sampleStoredId: (scnRows[0] && scnRows[0].sceneId) || '(none)'
+      sampleStoredId: (scnRows[0] && scnRows[0].sceneId) || '(none)',
+      // count ALL scenes in the collection, unfiltered, and sample the advId they actually
+      // carry. If total is high but storedScenes is 0, the advId filter is the mismatch and
+      // this shows what advId the rows were really written under.
+      totalScenesAllAdvs: await wd.query(SCN).limit(1).find({ suppressAuth: true }).then(r => r.totalCount).catch(() => -1),
+      sampleAnyAdvId: await wd.query(SCN).limit(1).find({ suppressAuth: true }).then(r => (r.items[0] && r.items[0].advId) || '(empty)').catch(() => '(err)')
     }
   };
 });
