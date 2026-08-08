@@ -268,15 +268,31 @@ export const saveAdventureFromCampaign = webMethod(Permissions.Anyone, async (ad
   }
   const acts = Array.isArray(campaign.acts) ? campaign.acts : [];
 
-  // Read the current rows once. NOTE: .eq('advId') returned empty for rows the REST migration
-  // wrote, which caused the re-insert flood. This path is only reached with the compressed
-  // dual-write disabled; once the collection is cleaned and rows are written through this Velo
-  // backend, .eq is reliable again. Kept capped and guarded.
+  // Read the current rows once.
+  //
+  // The scene read asked for .limit(2000). Wix Data caps .find() at 1000, so that one query
+  // REJECTED on every call, and the old .catch(() => []) turned the rejection into an empty
+  // list. An empty list is exactly what a fresh collection looks like, so the diff concluded
+  // the tree was missing and re-inserted all of it, every save, forever. The rows were always
+  // present and always carried the right advId; the query never ran far enough to see them.
+  // That is why .eq('advId') looked broken while an unfiltered scan of the same collection
+  // found the same rows: the unfiltered probes below use limit(1), which is under the cap.
+  //
+  // Two rules come out of it. Stay at or under the cap, and never let a read that FAILED look
+  // like a collection that is EMPTY, because the second one is what writes.
+  const readErr = {};
+  const readTree = (coll, cap) => wd.query(coll).eq('advId', advId).limit(cap)
+    .find({ suppressAuth: true, consistentRead: true })
+    .then(r => r.items)
+    .catch(e => { readErr[coll] = (e && e.message) || String(e); return null; });
   const [actRows, sesRows, scnRows] = await Promise.all([
-    wd.query(ACTS).eq('advId', advId).limit(500).find({ suppressAuth: true, consistentRead: true }).then(r => r.items).catch(() => []),
-    wd.query(SES).eq('advId', advId).limit(1000).find({ suppressAuth: true, consistentRead: true }).then(r => r.items).catch(() => []),
-    wd.query(SCN).eq('advId', advId).limit(2000).find({ suppressAuth: true, consistentRead: true }).then(r => r.items).catch(() => [])
+    readTree(ACTS, 500), readTree(SES, 1000), readTree(SCN, 1000)
   ]);
+  // A failed read tells us nothing about what is stored, so refuse rather than diff against a
+  // guess. Treating a failed read as an empty tree is precisely what flooded the collection.
+  if (!actRows || !sesRows || !scnRows) {
+    return { ok: false, error: 'reconcile refused: a tree read failed, so an empty result cannot be trusted', readErr: readErr, advId: advId, tele: TELE };
+  }
   // Guard: if the diff would insert many rows because it found none, something is wrong (the
   // query failed or the collection is mid-repair). Refuse to bulk-insert rather than flood.
   const blobSceneCount = acts.reduce((n, a) => n + (a.sessions || []).reduce((m, s) => m + (s.scenes || []).length, 0), 0);
@@ -347,6 +363,12 @@ export const saveAdventureFromCampaign = webMethod(Permissions.Anyone, async (ad
       matched: (function(){ let n = 0; acts.forEach(a => (a.sessions||[]).forEach(s => (s.scenes||[]).forEach(sc => { if (scnBy[sc.id]) n++; }))); return n; })(),
       sampleBlobId: (acts[0] && acts[0].sessions && acts[0].sessions[0] && acts[0].sessions[0].scenes && acts[0].sessions[0].scenes[0] && acts[0].sessions[0].scenes[0].id) || '(none)',
       sampleStoredId: (scnRows[0] && scnRows[0].sceneId) || '(none)',
+      // Empty when the reads succeeded. If a read ever fails again this carries the reason,
+      // so the next person sees the error instead of a plausible looking zero.
+      readErr: readErr,
+      // A read that came back exactly at the cap may have been truncated, which hides rows from
+      // the diff and makes it re-insert them as duplicates. Same failure, quieter.
+      sceneReadCapped: scnRows.length >= 1000,
       // count ALL scenes in the collection, unfiltered, and sample the advId they actually
       // carry. If total is high but storedScenes is 0, the advId filter is the mismatch and
       // this shows what advId the rows were really written under.
@@ -426,12 +448,12 @@ export const saveAdventureFromBlob = webMethod(Permissions.Anyone, async (advId)
   return { ok: (res && res.ok) !== false, advId: advId, tele: TELE, diag: res && res.diag, writes: (res && res.writes) || 0 };
 });
 
-// REPAIR. The scene collection filled with thousands of duplicate rows because a reconcile
-// query kept returning empty and re-inserting the whole tree. The filtered query .eq('advId')
-// is exactly what came back empty, so this cleanup does NOT trust it: it scans the collection
-// in pages and removes rows by matching advId in code, which the diagnostics proved works
-// (the unfiltered scan sees the rows and their advId). It removes every scene, session and act
-// row for the given advId. After this, the tree can be rebuilt once, cleanly.
+// REPAIR. The scene collection filled with thousands of duplicate rows because the reconcile
+// read asked for more rows than Wix Data will return, failed, and was read as an empty tree,
+// so every save re-inserted everything. That read is fixed above. This still scans in pages
+// and matches advId in code rather than filtering, because a repair pass should not depend on
+// the same query whose failure it is cleaning up after. It removes every scene, session and
+// act row for the given advId. After this, the tree can be rebuilt once, cleanly.
 export const purgeAdventureTree = webMethod(Permissions.Anyone, async (advId) => {
   teleReset();
   if (!advId) return { ok: false, error: 'no adventure' };
@@ -455,12 +477,13 @@ export const purgeAdventureTree = webMethod(Permissions.Anyone, async (advId) =>
   return { ok: true, advId: advId, removedScenes: removedScenes, removedSessions: removedSessions, removedActs: removedActs, tele: TELE };
 });
 
-// WIPE AND RE-MIGRATE, through Velo. The first migration wrote rows via the REST API, and
-// those rows do not answer an .eq('advId') query from Velo, which is how the tools read, so
-// the reconcile never found them and re-inserted forever. Re-migrating through wixData writes
-// rows the tools can actually query. This clears the four collections completely, then rebuilds
-// every adventure from its Campaigns blob. It is heavy by design and meant to be run once, by
-// hand, not on a hot path. Returns a per-adventure count so the result can be verified.
+// WIPE AND RE-MIGRATE, through Velo. This was built on the belief that REST written rows could
+// not answer an .eq('advId') query from Velo. That was wrong: the reconcile read was over the
+// Wix Data row cap and failed, and a failed read looked empty no matter who wrote the rows.
+// The write path was never the problem. The method is still the right way to clear a collection
+// the flood filled and rebuild it from the Campaigns blobs, so it stays. It clears the four
+// collections completely, then rebuilds every adventure. It is heavy by design and meant to be
+// run once, by hand, not on a hot path. Returns a per-adventure count so it can be verified.
 // Bounded repair, in small calls so none times out (Velo caps a web method near 14s, and
 // clearing thousands of rows in one call hit a 504). The tool loops these until done.
 
