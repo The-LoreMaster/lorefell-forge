@@ -24,6 +24,7 @@ import { gunzipSync } from 'zlib';
 // knowing where a flood comes from. Each webMethod resets the tally at its start and returns
 // TELE in its result; the page logs it to the seams panel. Zero cost beyond a counter.
 var TELE = null;
+var _lastBulkInsert = {}; // advId -> last time a full bulk-insert ran, to catch a runaway loop
 function teleReset() { TELE = { get: 0, query: 0, insert: 0, update: 0, remove: 0, total: 0, byColl: {} }; }
 function teleEnter() { if (!TELE) { teleReset(); return true; } return false; } // true if this is the outermost
 function teleBump(op, coll) {
@@ -279,8 +280,17 @@ export const saveAdventureFromCampaign = webMethod(Permissions.Anyone, async (ad
   // Guard: if the diff would insert many rows because it found none, something is wrong (the
   // query failed or the collection is mid-repair). Refuse to bulk-insert rather than flood.
   const blobSceneCount = acts.reduce((n, a) => n + (a.sessions || []).reduce((m, s) => m + (s.scenes || []).length, 0), 0);
+  // The flood was not a single bulk-insert, it was the SAME bulk-insert firing over and over
+  // because the query never found the rows it had just written. So allow a bulk population when
+  // the tree is empty (a fresh collection legitimately needs it), but refuse to do it AGAIN for
+  // the same adventure within a short window. A healthy write finds its rows on the next save
+  // and never trips this; a runaway loop trips it on the second pass and stops.
   if (scnRows.length === 0 && blobSceneCount > 5 && !force) {
-    return { ok: false, error: 'reconcile aborted: found no existing scenes for a non-empty adventure, refusing to bulk-insert', advId: advId, blobSceneCount: blobSceneCount, tele: TELE };
+    const last = _lastBulkInsert[advId] || 0;
+    if (Date.now() - last < 30000) {
+      return { ok: false, error: 'reconcile refused: repeated bulk-insert for the same adventure within 30s, the query is not finding written rows', advId: advId, blobSceneCount: blobSceneCount, tele: TELE };
+    }
+    _lastBulkInsert[advId] = Date.now();
   }
   const actBy = index(actRows, 'actId'), sesBy = index(sesRows, 'sesId'), scnBy = index(scnRows, 'sceneId');
   let writes = 0;
