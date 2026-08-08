@@ -1,3 +1,7 @@
+## 2026-08-08 - The board foe carries its image at last
+
+Every layer checked out: the library held the image, the combatant pointed at the right entry by the same id in both tools, and the rehydrate merged the image onto the combatant. Yet the token and the roster still showed nothing. The cast step that turns a hydrated combatant into the board foe copied the name, rating, vitality, damage and kit, but never the image or the description, so it stripped both right back off the moment before drawing. The board foe carries image and description now. The token reads the foe image, the roster card reads it, and the foe on the board is finally the same entity as the one in FateWell and the library.
+
 ## 2026-08-08 - A foe keeps its image when its library entry predates it
 
 The probe found the last gap: the library entry resolved, but held no image. Foes slim to a library reference and lose their own image and description in the trade. When the slim found an existing library entry, it stripped those fields from the foe without checking the entry actually held them. So any foe given an image or description after its library entry was first made lost that art at save time, since the entry never had it and the foe was about to be emptied. The slim now backfills the entry from the foe first, filling only what the entry is missing, then strips. A foe carries its face and its text through to the table.
