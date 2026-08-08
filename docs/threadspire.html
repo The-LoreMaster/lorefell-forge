@@ -6162,18 +6162,41 @@ function tsCastFoe(cb, i){
 /* the same rule as a foe, for the same reason: an NPC is targetable too */
 function tsCastNpc(cb, i){ return { id: (cb && cb.id) || ('n-' + ((cb && cb.libId) || 'x') + '-' + (i || 0)), name: (cb && cb.name) || 'NPC' }; }
 function tsCastFell(pl){ return { id: pl.id || ('p-' + Math.random().toString(36).slice(2)), charId: pl.charId || null, name: pl.name || 'Fell', level: pl.level || 1, curVit: pl.maxVit || 0, maxVit: pl.maxVit || 0, charge: 0 }; }
+/* A combatant stored in the shared tree is slimmed to a library reference: FateWell strips its
+   name, image, stats and kit on save and keeps only libId, since the library holds the full
+   profile. So before the board casts a foe, its full fields are merged back from the library
+   entry by libId. Without this the board shows a bare foe with no name, image or description,
+   which is the roster-not-syncing symptom. The combatant's own fields win where present, so a
+   foe that still carries full stats (mid-session, not yet slimmed) is unchanged. */
+function tsHydrateCombatant(cb){
+  if (!cb) return cb;
+  var e = (cb.libId && libGet(cb.libId)) || null;
+  if (!e) return cb;
+  var out = {};
+  // library fields first, then the combatant's own non-empty fields on top
+  ['name','sr','build','stance','sig','maxVit','attrs','inv','infusions','augments','abilities','img','desc','source','type'].forEach(function(k){
+    if (e[k] !== undefined && e[k] !== null && e[k] !== '') out[k] = e[k];
+  });
+  Object.keys(cb).forEach(function(k){
+    if (cb[k] !== undefined && cb[k] !== null && cb[k] !== '' && !(k === 'name' && cb[k] === 'Foe')) out[k] = cb[k];
+  });
+  // keep the identity and reference of the combatant
+  out.id = cb.id; out.libId = cb.libId;
+  return out;
+}
 function tsSpineScene(sc, c){
   /* Two shapes coexist here on purpose. combatants is the stored, shared shape (FateWell
      authors it, ThreadSpire preserves it). foes/npcs are the board's working view, cast from
      combatants for rendering the card and tokens. The cast is kept for the board; combatants
      is kept untouched for storage, so a save writes the shared shape and the board still has
-     what it needs. When the scene was edited on this surface (a foe added to combatants), the
-     cast is rebuilt from the current combatants so the board reflects the edit. */
+     what it needs. Each combatant is re-hydrated from the library first, since the stored form
+     is slimmed to a libId reference. */
   var source = (Array.isArray(sc.combatants) && sc.combatants.length) ? sc.combatants
              : (sc.foes || []).concat(sc.npcs || []);
   var foes = [], npcs = [];
-  source.forEach(function(cb, i){
-    if (!cb) return;
+  source.forEach(function(raw, i){
+    if (!raw) return;
+    var cb = tsHydrateCombatant(raw);
     if (cb.type === 'npc' || cb.side === 'npc') npcs.push(tsCastNpc(cb, i));
     else foes.push(tsCastFoe(cb, i));
   });
