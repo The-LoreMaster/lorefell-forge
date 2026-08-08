@@ -3139,11 +3139,16 @@ function slimCombatantsForSave(camp){
       if(!e){
         // no library source: adopt a library entry from this combatant's own stats so it
         // can be stored as a reference. This runs on the SAVE copy, but the library is
-        // account-global, so also add it to the live library and push it.
+        // account-global, so also add it to the live library and push it. Vitality is stored
+        // resolved: a foe often carries vit 0 and leans on its rating to derive the number, so
+        // seed the effective value, or the library entry would read 0 while the foe reads full.
+        var seedVit = (cb.maxVit && cb.maxVit > 0) ? cb.maxVit
+                    : (cb.curVit && cb.curVit > 0) ? cb.curVit
+                    : (typeof effMaxVit === 'function' ? effMaxVit({ maxVit: cb.maxVit||0, sr: cb.sr||'' }) : (cb.maxVit||0));
         var seed = {
           id: uid(), type: cb.type, name: baseName(cb.name),
           sr: cb.sr||'', build: cb.build||'', stance: cb.stance||'', sig: cb.sig||'',
-          maxVit: cb.maxVit||0, attrs: JSON.parse(JSON.stringify(cb.attrs||blankAttrs())),
+          maxVit: seedVit || 0, attrs: JSON.parse(JSON.stringify(cb.attrs||blankAttrs())),
           inv: (cb.inv||[]).slice(), infusions: (cb.infusions||[]).slice(), augments: (cb.augments||[]).slice(),
           abilities: JSON.parse(JSON.stringify(cb.abilities||[])), img: cb.img||'', desc: cb.desc||'', source: cb.source||''
         };
@@ -3157,11 +3162,17 @@ function slimCombatantsForSave(camp){
            library entry is missing something the combatant still has, that field would be lost
            for good: the entry never had it and the combatant is about to be stripped. This
            happened whenever a foe was given an image or description AFTER its library entry was
-           first made, so the entry predated the art. Backfill the entry from the combatant
-           first, then strip. Only fills gaps, never overwrites a value the entry already holds. */
+           first made, and also for thin adopt-entries that stored vit 0. Backfill the entry
+           from the combatant first, gaps only, then strip. Never overwrites a value the entry
+           already holds. */
         var _bf = false;
         if((!e.img || e.img==='') && cb.img){ e.img = cb.img; _bf = true; }
         if((!e.desc || e.desc==='') && cb.desc){ e.desc = cb.desc; _bf = true; }
+        if((!e.sr || e.sr==='') && cb.sr){ e.sr = cb.sr; _bf = true; }
+        if((!e.maxVit || e.maxVit===0)){
+          var _v = (cb.maxVit && cb.maxVit>0) ? cb.maxVit : (cb.curVit && cb.curVit>0 ? cb.curVit : (typeof effMaxVit==='function' ? effMaxVit({ maxVit:cb.maxVit||0, sr:cb.sr||e.sr||'' }) : 0));
+          if(_v && _v>0){ e.maxVit = _v; _bf = true; }
+        }
         if(_bf && WIX.hosted) pushAsset(e);
         cb.libId = e.id;                 // relink to the surviving or adopted entry
         COMBATANT_STATIC.forEach(function(k){ delete cb[k]; });
@@ -11543,7 +11554,6 @@ function scrData(){
     + '<textarea class="inp ta tall mono" id="expTA" readonly>'+esc(exportJson())+'</textarea>'
     + '<button class="btn wide" id="copyBtn" onclick="copyExport()">Copy backup</button>'
     + (WIX.hosted ? '<button class="btn wide" onclick="syncAllToAccount()">Save all adventures to my account</button>' : '')
-    + (WIX.hosted ? '<button class="btn wide" style="border-color:#5a3a3a;color:#c88" onclick="fwWipeRemigrate()">Repair adventure sync (one time)</button>' : '')
     + '<div class="sec-h">Restore</div>'
     + '<textarea class="inp ta mono" id="impTA" placeholder="Paste a backup here"></textarea>'
     + '<button class="btn wide ghost" onclick="importJson()">Load backup</button>'
