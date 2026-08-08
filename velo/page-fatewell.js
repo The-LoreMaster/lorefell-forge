@@ -29,6 +29,14 @@ var _advCompPending = {};
 var _ADV_DUAL_MS = 1500;
 var _advCompTimers = {};
 function scheduleDualWriteCompressed(advId) {
+  // DISABLED. This path was flooding the scene collection with duplicate rows: its diff query
+  // returned empty under load, so it re-inserted the whole tree every fire, thousands of
+  // duplicates, and burned the quota. FateWell loads from its own blob, so it does not need
+  // this to function; ThreadSpire reads the tree and will be reconciled by a repaired, safe
+  // path once the duplicates are cleaned. Left as a no-op until then.
+  return;
+}
+function scheduleDualWriteCompressedDISABLED(advId) {
   if (!advId) return;
   _advCompPending[advId] = true;
   if (_advCompTimers[advId]) return;
@@ -117,7 +125,7 @@ async function flushDualWrites() {
   for (const advId of Object.keys(_advCompPending)) {
     if (_advCompTimers[advId]) { clearTimeout(_advCompTimers[advId]); _advCompTimers[advId] = null; }
     delete _advCompPending[advId];
-    try { await saveAdventureFromBlob(advId); } catch (e) {}
+    // compressed dual-write is disabled while the duplicate flood is cleaned up; do nothing
   }
 }
 
