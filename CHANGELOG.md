@@ -1,3 +1,7 @@
+## 2026-08-07 - The chooser opens at once, and it must be answered
+
+The chooser was fixed in four ways from watching it in use. It now opens the instant the role is known, with a short gathering line, and fills in the adventures as the list arrives, rather than waiting seconds for the whole context handshake before showing anything. There is a New adventure choice, which sends the LoreMaster to FateWell to author one. The stay here escape is gone from both the adventure and the Fell chooser, because staying resolves to nowhere sensible; the choice is required. And the backdrop no longer closes it on an outside click, since it is a gate, not a passing dialog. A cast from FateWell still deep-links straight to the active scene and never sees the chooser.
+
 ## 2026-08-07 - A cast marker does not survive into a bookmark
 
 The chooser skipped for a LoreMaster opening a bookmark, because the bookmark had been saved from a cast and still carried the cast marker in its address. The marker is meant for one arrival, not forever. The page now strips it from the address bar as soon as it is read, on the top frame and without a reload, so a tab opened by a cast can be bookmarked freely and the saved URL is clean. A real cast still deep-links straight to the active scene; a bookmark of it now offers the chooser like any other direct open.

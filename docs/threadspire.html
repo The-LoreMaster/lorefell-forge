@@ -366,6 +366,9 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .tsm-pick-sub{ font-size:.68rem; color:var(--muted,#7e8a99); letter-spacing:.02em; }
 .tsm-pick-cur{ font-size:.62rem; color:var(--gold); letter-spacing:.08em; text-transform:uppercase; }
 .tsm-pick-face{ width:34px; height:34px; border-radius:6px; object-fit:cover; border:1px solid var(--line2,#2a3552); flex:0 0 auto; }
+.tsm-back-locked{ cursor:default; }
+.tsm-pick-load{ padding:16px 4px; color:var(--muted,#7e8a99); font-family:Cinzel,serif; font-size:.78rem; letter-spacing:.04em; text-align:center; }
+.tsm-row-spread{ justify-content:flex-start; }
 .tsm-btn{ padding:7px 14px; border-radius:6px; border:1px solid var(--gold); background:var(--gold); color:var(--navy); font-family:Cinzel,serif; font-size:.72rem; letter-spacing:.08em; cursor:pointer; }
 .tsm-btn.ghost{ background:transparent; color:var(--silver); border-color:var(--line2,#2a3552); }
 .tsm-btn.danger{ background:var(--danger,#8d3b3b); border-color:var(--danger,#8d3b3b); color:#fff; }
@@ -1995,6 +1998,15 @@ function tsModal(html){
   var m = document.getElementById('tsModal');
   if (!m){ m = document.createElement('div'); m.id = 'tsModal'; document.body.appendChild(m); }
   m.innerHTML = '<div class="tsm-back" onclick="tsCloseModal()"></div><div class="tsm-panel">' + html + '</div>';
+  m.style.display = 'block';
+}
+/* A gate that must be answered. The backdrop does nothing on click, and there is no dismiss,
+   so the only way past it is to make the choice it asks for. Used for the on-load chooser,
+   which has no sensible "stay nowhere" fallback. */
+function tsModalLocked(html){
+  var m = document.getElementById('tsModal');
+  if (!m){ m = document.createElement('div'); m.id = 'tsModal'; document.body.appendChild(m); }
+  m.innerHTML = '<div class="tsm-back tsm-back-locked"></div><div class="tsm-panel">' + html + '</div>';
   m.style.display = 'block';
 }
 function tsCloseModal(){ window._rosterOpen = false; window._questScene = null; var m = document.getElementById('tsModal'); if (m){ m.style.display = 'none'; m.innerHTML = ''; } }
@@ -5583,49 +5595,64 @@ function tsOpenOnLoadPicker(){
   if (isLM()) tsAdventurePicker();
   else tsFellPicker();
 }
+function tsAdvPickerMarkup(rows, loading){
+  var cur = S.campaignId || '';
+  var body;
+  if (loading && !rows){
+    body = '<div class="tsm-pick-load">Gathering your adventures</div>';
+  } else if (!rows || !rows.length){
+    body = '<div class="tsm-pick-load">No adventures yet. Create your first one.</div>';
+  } else {
+    body = rows.map(function(c){
+      var on = sameId(c.id, cur);
+      return '<button class="tsm-pick' + (on ? ' on' : '') + '" onclick="tsPickAdventure(\'' + esc(c.id) + '\')">'
+        + '<span class="tsm-pick-name">' + esc(c.name || 'Adventure') + '</span>'
+        + (on ? '<span class="tsm-pick-cur">open now</span>' : '')
+        + '</button>';
+    }).join('');
+  }
+  return '<h3 class="tsm-title">Open an adventure</h3>'
+    + '<p class="lc-p">Choose the adventure to bring to the table.</p>'
+    + '<div class="tsm-pick-list">' + body + '</div>'
+    + '<div class="tsm-row tsm-row-spread"><button class="tsm-btn ghost" onclick="tsNewAdventure()">New adventure</button></div>';
+}
 function tsAdventurePicker(){
-  var rows = Array.isArray(S._advList) ? S._advList : null;
-  if (!rows){
-    // list not in yet: fetch, then open when it lands
+  // Open at once, with a loading line, then fill in as the list arrives. Waiting for the list
+  // before showing anything is what made it appear seconds late.
+  tsModalLocked(tsAdvPickerMarkup(Array.isArray(S._advList) ? S._advList : null, true));
+  if (!Array.isArray(S._advList)){
     advList(true);
     var waited = 0;
     var t = setInterval(function(){
-      waited += 200;
-      if (Array.isArray(S._advList)){ clearInterval(t); tsAdventurePicker(); }
-      else if (waited > 6000){ clearInterval(t); }
-    }, 200);
-    return;
+      waited += 150;
+      if (Array.isArray(S._advList)){ clearInterval(t); tsModalLocked(tsAdvPickerMarkup(S._advList, false)); }
+      else if (waited > 12000){ clearInterval(t); tsModalLocked(tsAdvPickerMarkup([], false)); }
+    }, 150);
   }
-  if (!rows.length) return; // nothing to choose from; leave the current open
-  var cur = S.campaignId || '';
-  var items = rows.map(function(c){
-    var on = sameId(c.id, cur);
-    return '<button class="tsm-pick' + (on ? ' on' : '') + '" onclick="tsPickAdventure(\'' + esc(c.id) + '\')">'
-      + '<span class="tsm-pick-name">' + esc(c.name || 'Adventure') + '</span>'
-      + (on ? '<span class="tsm-pick-cur">open now</span>' : '')
-      + '</button>';
-  }).join('');
-  tsModal('<h3 class="tsm-title">Open an adventure</h3>'
-    + '<p class="lc-p">Choose the adventure to bring to the table.</p>'
-    + '<div class="tsm-pick-list">' + items + '</div>'
-    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Stay here</button></div>');
+}
+function tsNewAdventure(){
+  /* New adventures are authored in FateWell. Send the LoreMaster there to create one; the
+     chooser stays put behind, so if they change their mind the choice is still waiting. */
+  try { window.open('/the-fatewell', '_blank'); } catch(e){}
 }
 function tsPickAdventure(id){
   tsCloseModal();
   if (sameId(id, S.campaignId)){
-    // already the open one: just make sure it is fully stood up, no switch needed
     S._advFullLoaded = false;
     if (typeof loadForAdventure === 'function') loadForAdventure();
     return;
   }
   advSwitch(id);
 }
-function tsFellPicker(){
-  var render = function(list){
-    if (!Array.isArray(list) || !list.length) return; // no Fells to choose; leave as is
-    if (list.length === 1){ tsPickFell(list[0].id || list[0].charId); return; } // only one, just enter it
-    var cur = S.characterId || '';
-    var items = list.map(function(c){
+function tsFellPickerMarkup(list, loading){
+  var cur = S.characterId || '';
+  var body;
+  if (loading && !list){
+    body = '<div class="tsm-pick-load">Finding your Fells</div>';
+  } else if (!list || !list.length){
+    body = '<div class="tsm-pick-load">You have no Fells in play yet.</div>';
+  } else {
+    body = list.map(function(c){
       var id = c.id || c.charId || '';
       var on = sameId(id, cur);
       return '<button class="tsm-pick' + (on ? ' on' : '') + '" onclick="tsPickFell(\'' + esc(id) + '\')">'
@@ -5634,23 +5661,26 @@ function tsFellPicker(){
         + (c.advName || c.campaignName ? '<span class="tsm-pick-sub">' + esc(c.advName || c.campaignName) + '</span>' : '')
         + '</button>';
     }).join('');
-    tsModal('<h3 class="tsm-title">Take up your Fell</h3>'
-      + '<p class="lc-p">Choose which Fell you are playing.</p>'
-      + '<div class="tsm-pick-list">' + items + '</div>'
-      + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Stay here</button></div>');
-  };
+  }
+  return '<h3 class="tsm-title">Take up your Fell</h3>'
+    + '<p class="lc-p">Choose which Fell you are playing.</p>'
+    + '<div class="tsm-pick-list">' + body + '</div>';
+}
+function tsFellPicker(){
+  tsModalLocked(tsFellPickerMarkup(null, true));
   if (charBackend && charBackend.list){
-    charBackend.list().then(render).catch(function(){});
+    charBackend.list().then(function(list){
+      if (Array.isArray(list) && list.length === 1){ tsPickFell(list[0].id || list[0].charId); return; }
+      tsModalLocked(tsFellPickerMarkup(list || [], false));
+    }).catch(function(){ tsModalLocked(tsFellPickerMarkup([], false)); });
   }
 }
 function tsPickFell(id){
   tsCloseModal();
   if (!id) return;
-  if (sameId(id, S.characterId)) return; // already this Fell
-  // entering a Fell means loading it; the page resolves its adventure from the Fell
+  if (sameId(id, S.characterId)) return;
   S.characterId = id;
   tsAsk('TS_ENTER_FELL', { charId:id }).catch(function(){
-    // fallback: reload with the character in the address so the page resolves the adventure
     try { var u = new URL(window.location.href); u.searchParams.set('character', id); u.searchParams.delete('cast'); window.location.href = u.toString(); } catch(e){}
   });
 }
@@ -6462,6 +6492,10 @@ window.onmessage = function(ev){
     if (!S.roleReady && (d.role === 'lm' || d.role === 'player')){
       S.role = d.role; document.body.classList.remove('roleboot'); render();
     }
+    /* Offer the chooser the instant the role is known, so it is on screen at once rather than
+       seconds later after the whole context handshake. A cast is not yet known to be a cast at
+       hint time, so hold the picker until the context confirms fromCast; the context handler
+       does the actual open. This just records that role arrived early. */
     return;
   }
   if (d && d.type === 'THREADSPIRE_CONTEXT'){
@@ -6480,6 +6514,12 @@ window.onmessage = function(ev){
     }
     if (d.campaignId) S.campaignId = d.campaignId;
     S._fromCast = !!d.fromCast; /* a cast deep-links to the active scene; a bookmark or direct open offers a picker */
+    /* Fire the chooser here, the moment role and cast are known, before the heavy adventure
+       stand-up below. That is what makes it appear at once instead of many seconds later. */
+    if (!S._fromCast && !S._pickerShown && (d.role === 'lm' || d.role === 'player')){
+      S._pickerShown = true;
+      setTimeout(function(){ try { tsOpenOnLoadPicker(); } catch(e){} }, 60);
+    }
     if (d.memberName) S.memberName = d.memberName;
     if (d.party) { S.party = d.party; _partyLoaded = true; SEAM.partyAt = Date.now(); SEAM.partyWhy = 'arrived on the state feed'; harvestPortraits(d.party); mergeFellSheets(); scanShardFeeds(); try { renderTokens(); } catch(e){} if (S.openSection === 'fell') refreshWinBody(); }
     if (d.character && d.character.id) { rememberPortrait(d.character.id, d.character.image); try { renderTokens(); } catch(e){} }
@@ -6566,14 +6606,6 @@ window.onmessage = function(ev){
     if (_switched && typeof loadForAdventure === 'function') loadForAdventure();
     else if (isLM()) loadJournal();
     if (!isLM()) loadMyChar();
-    /* On a bookmark or a typed-in open, offer a chooser instead of dropping the user into
-       whatever adventure or Fell the address bar happened to hold. A cast from FateWell sets
-       fromCast, and deep-links straight to the active scene, so it skips this. Offered once
-       per load. */
-    if (!S._fromCast && !S._pickerShown){
-      S._pickerShown = true;
-      setTimeout(function(){ try { tsOpenOnLoadPicker(); } catch(e){} }, 400);
-    }
     return;
   }
   if (!d || d.type !== 'TS_RESULT' || !d.reqId || !_tsPending[d.reqId]) return;
