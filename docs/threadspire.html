@@ -5397,7 +5397,7 @@ function applyRemoteSnapshot(snap){
     var _snapScenes = 0; (snap.adventure.acts || []).forEach(function(a){ (a.sessions||[]).forEach(function(s){ _snapScenes += (s.scenes||[]).length; }); });
     var _haveScenes = 0; if (S.adventure && S.adventure.acts) S.adventure.acts.forEach(function(a){ (a.sessions||[]).forEach(function(s){ _haveScenes += (s.scenes||[]).length; }); });
     if ((_first || (_rr > _lr && !_fresh)) && _snapScenes >= _haveScenes){
-      loadAdventureSpine(snap.adventure);
+      loadAdventureSpine(snap.adventure, 'relay snapshot');
       S._advRemote = true;
       if (_rr) S.advRev = _rr;
       mergeFellSheets();
@@ -5589,6 +5589,8 @@ function advReset(nextId){
   S.campaignId = nextId || S.campaignId;
   advBlank();
   S._advRemote = false; S.advRev = 0; S._advTouch = 0;
+  S._advFullLoaded = false; /* a new table means the full adventure has NOT loaded yet; leaving
+                               this true made every load path skip the new adventure entirely */
   S.journal = null; S.quests = null; S.library = null; S.published = null;
   S.declares = null; S.mode = 'explore'; S.round = 0;
   S.tokens = []; S.log = [];
@@ -6246,7 +6248,14 @@ function spineFromRawCampaign(c, activeSceneId){
     })
   };
 }
-function loadAdventureSpine(spine){
+function loadAdventureSpine(spine, why){
+  /* SEAM TRACE: every stand-up of an adventure logs its source and size, so when the table
+     ends up on the wrong story we can read the exact sequence instead of guessing which of
+     the callers put it there. */
+  try {
+    var _tn = 0; (spine && spine.acts || []).forEach(function(a){ (a.sessions||[]).forEach(function(s){ _tn += (s.scenes||[]).length; }); });
+    console.log('%c[SPINE] ' + (why || 'unknown caller') + ' scenes=' + _tn + ' acts=' + ((spine && spine.acts && spine.acts.length) || 0) + ' fullLoaded=' + (!!S._advFullLoaded), 'color:#7ac6e6;font-weight:bold');
+  } catch(e){}
   var acts = (spine.acts||[]).map(function(a){
     return { id:a.id, name:a.name, sessions:(a.sessions||[]).map(function(se){
       return { id:se.id, name:se.name, scenes:(se.scenes||[]).map(tsSceneFromSpine) };
@@ -6390,8 +6399,9 @@ window.onmessage = function(ev){
            a partial relay snapshot already set _advRemote. _advFullLoaded tracks the full load
            specifically, so a later relay push still updates live state without re-triggering. */
         if (_spine && _spine.acts && _spine.acts.length && !S._advFullLoaded){
-          loadAdventureSpine(_spine);
+          loadAdventureSpine(_spine, 'account context (full)');
           S._advFullLoaded = true;
+          console.log('%c[CTX-OK] full adventure stood up, fullLoaded set', 'color:#7ae67a;font-weight:bold');
           S._advRemote = true;
           S._advTouch = Date.now();       /* mine now; a slower remote will not overwrite it */
         }
@@ -6400,6 +6410,8 @@ window.onmessage = function(ev){
            veiled forever: the switch still happened, the record is loaded, so let it show
            rather than hang on "Still here". The error is surfaced, not swallowed. */
         SEAM.lastErr = 'spine build: ' + String((e && e.message) || e).slice(0,80);
+        console.log('%c[CTX-ERR] full adventure stand-up FAILED: ' + String((e && e.message) || e).slice(0,200), 'color:#e66;font-weight:bold;font-size:13px');
+        try { console.log(e && e.stack); } catch(_e){}
       }
       /* Lift the veil once the switch has been handled, whether the spine stood up cleanly
          or stumbled. It is held only to hide the change of table, not to gate on a push
