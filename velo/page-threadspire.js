@@ -65,6 +65,18 @@ $w.onReady(async function () {
   if (!embed || !embed.onMessage) return;
 
   const q = wixLocation.query || {};
+  const cameFromCast = (q.cast === '1' || q.cast === 1);
+  // A cast from FateWell marks the URL so the tool deep-links to the active scene instead of
+  // offering the chooser. That marker is for THIS arrival only. Strip it from the address bar
+  // now, on the top frame, without a reload, so that a LoreMaster who bookmarks a cast-opened
+  // tab does not save cast=1 and keep skipping the chooser forever. history.replaceState keeps
+  // the page as is and only rewrites what the address bar (and any new bookmark) will hold.
+  try {
+    if (cameFromCast && typeof window !== 'undefined' && window.history && window.history.replaceState){
+      const u = new URL(window.location.href);
+      if (u.searchParams.has('cast')){ u.searchParams.delete('cast'); window.history.replaceState(null, '', u.toString()); }
+    }
+  } catch (e) {}
   const characterId = q.character || '';
   // Not const: changing adventure rebinds this page rather than reloading it. Asking
   // Wix to navigate to the page it is already on does nothing at all, so the switch
@@ -153,7 +165,7 @@ $w.onReady(async function () {
       if (q.role === 'lm' && campaignId) {
         try { const ar = await myAdventureRole(campaignId); if (ar === 'loremaster' || ar === 'lorekeeper') role = 'lm'; } catch (e) {}
       }
-      embed.postMessage(Object.assign({ type: 'THREADSPIRE_CONTEXT', role: role, campaignId: campaignId, characterId: characterId, fromCast: (q.cast === '1' || q.cast === 1) }, ctx));
+      embed.postMessage(Object.assign({ type: 'THREADSPIRE_CONTEXT', role: role, campaignId: campaignId, characterId: characterId, fromCast: cameFromCast }, ctx));
     } else if (msg.type === 'THREADSPIRE_WANT_LORE') {
       let character = null;
       try { character = await threadspirePublicChar(msg.characterId); } catch (e) { character = null; }
