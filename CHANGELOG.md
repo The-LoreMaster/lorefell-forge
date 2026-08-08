@@ -1,3 +1,7 @@
+## 2026-08-07 - The chooser stops locking the board, and opens at once
+
+Two faults from the chooser, fixed together. The board would twitch and then refuse to move, and tokens would not click, because the progressive fill kept calling the modal on a timer even after a choice was made, so the full screen modal reopened over the table and swallowed every drag. The fill now stops the instant a choice is made and never reopens, the close clears the live flag, and the board ignores the modal only while it is actually displayed. And the chooser was appearing up to ten seconds late because it waited for the full context, which is slow while a large adventure is read; it now opens on the role hint, which carries whether this was a cast and arrives almost immediately. A cast still deep-links straight in.
+
 ## 2026-08-07 - The chooser opens at once, and it must be answered
 
 The chooser was fixed in four ways from watching it in use. It now opens the instant the role is known, with a short gathering line, and fills in the adventures as the list arrives, rather than waiting seconds for the whole context handshake before showing anything. There is a New adventure choice, which sends the LoreMaster to FateWell to author one. The stay here escape is gone from both the adventure and the Fell chooser, because staying resolves to nowhere sensible; the choice is required. And the backdrop no longer closes it on an outside click, since it is a gate, not a passing dialog. A cast from FateWell still deep-links straight to the active scene and never sees the chooser.

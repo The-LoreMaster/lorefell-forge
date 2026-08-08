@@ -2009,7 +2009,7 @@ function tsModalLocked(html){
   m.innerHTML = '<div class="tsm-back tsm-back-locked"></div><div class="tsm-panel">' + html + '</div>';
   m.style.display = 'block';
 }
-function tsCloseModal(){ window._rosterOpen = false; window._questScene = null; var m = document.getElementById('tsModal'); if (m){ m.style.display = 'none'; m.innerHTML = ''; } }
+function tsCloseModal(){ window._rosterOpen = false; window._questScene = null; if (typeof S !== 'undefined') S._pickerLive = false; var m = document.getElementById('tsModal'); if (m){ m.style.display = 'none'; m.innerHTML = ''; } }
 function tsAsk2(opts){
   window._tsCb = opts.onSave;
   var h = '<h3 class="tsm-title">' + esc(opts.title) + '</h3>'
@@ -3781,7 +3781,12 @@ function winOutsideClose(ev){
   if (!S.openSection) return;
   var t = ev.target;
   if (!t || !t.closest) return;
-  if (t.closest('#win, #winX, #rail, #mrail, #hud, #mhud, #log, #drawer, #tsModal, #cleanExit')) return;
+  if (t.closest('#win, #winX, #rail, #mrail, #hud, #mhud, #log, #drawer, #cleanExit')) return;
+  /* Only bail for the modal when it is actually open. A hidden modal node still sits at inset:0
+     over the board; testing closest('#tsModal') alone would treat a closed modal as if it were
+     covering the table and kill every drag and token click. Check it is displayed first. */
+  var _mod = document.getElementById('tsModal');
+  if (_mod && _mod.style.display !== 'none' && t.closest('#tsModal')) return;
   closeWin();
 }
 document.addEventListener('pointerdown', winOutsideClose, true);
@@ -5619,14 +5624,17 @@ function tsAdvPickerMarkup(rows, loading){
 function tsAdventurePicker(){
   // Open at once, with a loading line, then fill in as the list arrives. Waiting for the list
   // before showing anything is what made it appear seconds late.
+  S._pickerLive = true;
   tsModalLocked(tsAdvPickerMarkup(Array.isArray(S._advList) ? S._advList : null, true));
   if (!Array.isArray(S._advList)){
     advList(true);
     var waited = 0;
     var t = setInterval(function(){
       waited += 150;
-      if (Array.isArray(S._advList)){ clearInterval(t); tsModalLocked(tsAdvPickerMarkup(S._advList, false)); }
-      else if (waited > 12000){ clearInterval(t); tsModalLocked(tsAdvPickerMarkup([], false)); }
+      // stop the moment a choice was made, or the fill would reopen the modal over the board
+      if (!S._pickerLive){ clearInterval(t); return; }
+      if (Array.isArray(S._advList)){ clearInterval(t); if (S._pickerLive) tsModalLocked(tsAdvPickerMarkup(S._advList, false)); }
+      else if (waited > 12000){ clearInterval(t); if (S._pickerLive) tsModalLocked(tsAdvPickerMarkup([], false)); }
     }, 150);
   }
 }
@@ -5667,12 +5675,14 @@ function tsFellPickerMarkup(list, loading){
     + '<div class="tsm-pick-list">' + body + '</div>';
 }
 function tsFellPicker(){
+  S._pickerLive = true;
   tsModalLocked(tsFellPickerMarkup(null, true));
   if (charBackend && charBackend.list){
     charBackend.list().then(function(list){
+      if (!S._pickerLive) return; // a choice was already made; do not reopen
       if (Array.isArray(list) && list.length === 1){ tsPickFell(list[0].id || list[0].charId); return; }
       tsModalLocked(tsFellPickerMarkup(list || [], false));
-    }).catch(function(){ tsModalLocked(tsFellPickerMarkup([], false)); });
+    }).catch(function(){ if (S._pickerLive) tsModalLocked(tsFellPickerMarkup([], false)); });
   }
 }
 function tsPickFell(id){
@@ -6492,10 +6502,15 @@ window.onmessage = function(ev){
     if (!S.roleReady && (d.role === 'lm' || d.role === 'player')){
       S.role = d.role; document.body.classList.remove('roleboot'); render();
     }
-    /* Offer the chooser the instant the role is known, so it is on screen at once rather than
-       seconds later after the whole context handshake. A cast is not yet known to be a cast at
-       hint time, so hold the picker until the context confirms fromCast; the context handler
-       does the actual open. This just records that role arrived early. */
+    /* The hint arrives well before the full context, and it now carries whether this was a
+       cast. So open the chooser here, at once, for a bookmark or direct open. Waiting for the
+       context, which can be slow while a large adventure is read, is what made it appear many
+       seconds late. A cast skips it and deep-links in. */
+    if (!d.fromCast && !S._pickerShown && (d.role === 'lm' || d.role === 'player')){
+      S._pickerShown = true;
+      S._fromCast = false;
+      setTimeout(function(){ try { tsOpenOnLoadPicker(); } catch(e){} }, 30);
+    }
     return;
   }
   if (d && d.type === 'THREADSPIRE_CONTEXT'){
@@ -6514,12 +6529,6 @@ window.onmessage = function(ev){
     }
     if (d.campaignId) S.campaignId = d.campaignId;
     S._fromCast = !!d.fromCast; /* a cast deep-links to the active scene; a bookmark or direct open offers a picker */
-    /* Fire the chooser here, the moment role and cast are known, before the heavy adventure
-       stand-up below. That is what makes it appear at once instead of many seconds later. */
-    if (!S._fromCast && !S._pickerShown && (d.role === 'lm' || d.role === 'player')){
-      S._pickerShown = true;
-      setTimeout(function(){ try { tsOpenOnLoadPicker(); } catch(e){} }, 60);
-    }
     if (d.memberName) S.memberName = d.memberName;
     if (d.party) { S.party = d.party; _partyLoaded = true; SEAM.partyAt = Date.now(); SEAM.partyWhy = 'arrived on the state feed'; harvestPortraits(d.party); mergeFellSheets(); scanShardFeeds(); try { renderTokens(); } catch(e){} if (S.openSection === 'fell') refreshWinBody(); }
     if (d.character && d.character.id) { rememberPortrait(d.character.id, d.character.image); try { renderTokens(); } catch(e){} }
