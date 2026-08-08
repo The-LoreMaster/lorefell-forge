@@ -1858,12 +1858,24 @@ function tsScenes(){
   return out;
 }
 function tsSceneById(id){ var r=null; tsScenes().forEach(function(x){ if(x.scene.id===id) r=x; }); return r; }
+function tsLogSceneRoster(tag, sc){
+  /* SEAM PROBE for the roster. Says what the scene actually stores (combatants: the shared
+     shape FateWell writes) next to what the board derived from it (foes). If combatants shows
+     the old names, the write to the tree is stale. If combatants is right and foes is wrong,
+     the derivation is dropping it. One line answers which side the bug is on. */
+  try {
+    var cbs = (sc.combatants||[]).map(function(c){ return (c.name||'(slim)') + (c.libId ? '#'+String(c.libId).slice(0,6) : '') + (c._slim ? '*' : ''); });
+    var fs = (sc.foes||[]).map(function(f){ return f.name||'?'; });
+    console.log('%c[ROSTER] ' + tag + ' scene=' + (sc.name||sc.id) + ' | combatants(' + cbs.length + '): ' + cbs.join(', ') + ' | foes(' + fs.length + '): ' + fs.join(', '), 'color:#e6d47a;font-weight:bold');
+  } catch(e){}
+}
 function setActiveScene(id){
   if (S.scene.id === id){ closeWin(); return; }
   if (isLM()) lmSaveCurrentStage();               /* the scene you leave keeps its board */
   var hit = tsSceneById(id); if (!hit) return;
   S.scene = hit.scene;
   S.adventure.activeSceneId = id;
+  tsLogSceneRoster('activated', S.scene);
   var bd = sceneBinding();
   var st = bd.activeStageId ? stageById(bd.activeStageId) : null;
   if (st) stageRestore(st);                        /* restore returns this scene's board and syncs */
@@ -6416,6 +6428,7 @@ window.onmessage = function(ev){
              in memory and loses on screen, which is exactly what a hard refresh looked like. */
           try { render(); } catch(e){}
           try { if (typeof refreshWinBody === 'function' && S.openSection) refreshWinBody(); } catch(e){}
+          try { if (S.scene) tsLogSceneRoster('after full load', S.scene); } catch(e){}
         }
       } catch(e){
         /* A large or awkward spine that trips while standing up must not leave the table

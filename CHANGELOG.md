@@ -1,3 +1,7 @@
+## 2026-08-07 - Name which side the stale roster is on
+
+The full adventure loads and paints now, both acts on the panel, forty scenes standing. What remains is the original complaint, the scene roster showing old foes. Two suspects are left and only one probe is needed: when a scene is activated, and once for the scene the load lands on, the console prints what the scene stores against what the board derived from it. Stale names in the stored combatants means the write to the tree never carried the edit. A correct store with wrong foes means the derivation drops it. The next click on the scene answers it.
+
 ## 2026-08-07 - The full adventure paints when it lands
 
 The probes told the whole story in order. The relay wins the race to the first paint, so the table draws its stale single scene, then the full forty scene adventure arrives from the account, stands up cleanly, and nothing repaints. The good load was winning in memory and losing on screen, every refresh. Now, when the full adventure stands up, the board and the open side window repaint on the spot. The story panel shows both acts the moment they land instead of holding the picture it drew a second earlier.
