@@ -1,3 +1,7 @@
+## 2026-08-08 - Retire the repair button, and let the library hold a foe's full profile
+
+Two cleanups now that the sync is trustworthy. The one time repair button is gone from the backup panel: it rebuilt the whole tree in a single call and timed out, and the normal save now populates the tree correctly on its own, so the button was a crutch from the broken era. The console function stays for a true emergency. And the library now holds a foe's real vitality. A foe often carries vit zero and leans on its rating to derive the number at the table, so an adopted library entry stored zero while the foe read full. The adopt seed now stores the resolved effective vitality, and the backfill repairs a thin entry's vitality and rating on the next save, so the library and the roster show the same foe in both tools.
+
 ## 2026-08-08 - A refresh of a cast tab is not a fresh cast
 
 Refreshing a ThreadSpire tab whose address still ended in the cast marker stood the table up as a hollow shell. A cast deep-links to the active scene on the strength of a live relay from FateWell, but a refresh has no relay behind it, so deep-linking lands on nothing. A cast now counts only on the first load of a tab. A marker in session storage survives a refresh, so a reload of a cast tab is treated as a plain open: the chooser is offered and nothing is deep-linked into emptiness. The address bar marker is still stripped so a bookmark stays clean.
