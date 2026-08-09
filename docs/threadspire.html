@@ -497,6 +497,7 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .rs-kind{ font-family:Cinzel,serif; font-size:.56rem; letter-spacing:.1em; color:var(--muted,#7e8a99); }
 .rs-pill{ background:transparent; border:1px solid var(--line2,#2a3552); border-radius:10px; color:var(--ice,#b8ccd8); font:inherit; font-size:.64rem; padding:1px 9px; cursor:pointer; }
 .rs-row.out .rs-pill{ border-color:var(--danger,#8d3b3b); color:var(--danger,#8d3b3b); }
+.rs-pill.muted{ opacity:.6; cursor:default; border-style:dashed; }
 .rs-adds{ display:flex; gap:6px; }
 .rs-adds .st-add{ flex:1; text-align:center; }
 .dlg-head{ display:flex; align-items:center; gap:6px; margin:4px 0 2px; font-family:Cinzel,serif; font-size:.72rem; letter-spacing:.06em; }
@@ -2208,6 +2209,7 @@ function storyBody(){
          + '<button class="st-b" onclick="storyDelete(\'session\',\'' + se.id + '\')" title="Delete">\u2715</button></div>';
       if (!so) return;
       h += '<div class="st-kids">';
+      h += '<button class="rs-open" onclick="sessionRosterWindow(\'' + se.id + '\')">Roster <span class="rs-count">' + sessionFell(se).filter(function(p){ return !p.benched; }).length + '</span></button>';
       (se.scenes || []).forEach(function(sc){
         var on = sc.id === (S.scene && S.scene.id);
         var co = !!storyOpen.scene[sc.id];
@@ -2638,10 +2640,46 @@ function castList(sc){
   return out;
 }
 /* the players at this scene. Everyone is in unless the LoreMaster marks them out. */
+/* The Fell at the table, from the adventure party. Keyed by charId so the same person
+   lines up across the session roster, every scene, and combat. A player kept "at the
+   table" without a device still counts. */
+function partyFell(){
+  return (S.party || []).filter(function(p){ return p.charId || p.kept; })
+    .map(function(p){ return { key:(p.charId || p.memberId || p.name), name:(p.charName || p.name || 'Fell'), level:p.level, ref:p }; });
+}
+/* Who is playing a given session: the party, minus anyone the LoreMaster benched on that
+   session. With no live party (dev, or before the roster lands) it falls back to whoever
+   already sits in the session's own scenes, so nothing goes blank offline. */
+function sessionFell(ses){
+  var base = partyFell();
+  if (!base.length && ses){
+    var seen = {}, out = [];
+    (ses.scenes || []).forEach(function(sc){
+      (sc.fell || []).forEach(function(p){
+        var k = p.charId || p.id; if (!k || seen[k]) return; seen[k] = 1;
+        out.push({ key:k, name:p.name || 'Fell', level:p.level, ref:p });
+      });
+    });
+    base = out;
+  }
+  var bench = (ses && ses.bench) || {};
+  return base.map(function(p){ return { key:p.key, name:p.name, level:p.level, benched:!!bench[p.key], ref:p.ref }; });
+}
+/* A scene inherits its session's playing Fell automatically. A member benched on the
+   session is out everywhere in it; the LoreMaster can also mark someone absent for this
+   one scene without touching the session. */
 function scenePlayers(sc){
   sc = sc || S.scene || {};
-  var roster = (sc.fell && sc.fell.length) ? sc.fell : ((S.scene && S.scene.fell) || []);
-  return roster.map(function(p){ return { id:p.id, name:p.name, level:p.level, out:!!(sc.out && sc.out[p.id]), ref:p }; });
+  var f = storyFind('scene', sc.id) || {};
+  var list = sessionFell(f.ses || null);
+  if (!list.length){
+    var roster = (sc.fell && sc.fell.length) ? sc.fell : ((S.scene && S.scene.fell) || []);
+    return roster.map(function(p){ var k = p.charId || p.id; return { id:k, name:p.name, level:p.level, out:!!(sc.out && sc.out[k]), benched:false, ref:p }; });
+  }
+  return list.map(function(p){
+    var sceneOut = !!(sc.out && sc.out[p.key]);
+    return { id:p.key, name:p.name, level:p.level, benched:p.benched, out:(p.benched || sceneOut), ref:p.ref };
+  });
 }
 function togglePlayerOut(sceneId, pid){
   var f = storyFind('scene', sceneId); if (!f){ rosterRefresh(); return; }
@@ -3289,19 +3327,60 @@ function questWindow(sceneId){
 function rosterWindow(sceneId){
   var f = storyFind('scene', sceneId); if (!f) return;
   window._rosterScene = sceneId; window._rosterOpen = true;
+  if (!_partyLoaded) partyLoad();
   tsModal('<h3 class="tsm-title">Roster</h3><div class="rs-wrap">' + storyRosterHtml(f.scene) + '</div>'
-    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseSceneRoster()">Close</button></div>');
 }
+function tsCloseSceneRoster(){ window._rosterOpen = false; tsCloseModal(); }
 function rosterRefresh(){
   if (window._rosterOpen && window._rosterScene) rosterWindow(window._rosterScene);
   else refreshWinBody();
 }
+/* The session roster. The party is the pool; the LoreMaster benches whoever is sitting
+   this session out, and everyone still playing joins every scene in the session. */
+function sessionRosterWindow(sesId){
+  var f = storyFind('session', sesId); if (!f) return;
+  window._sesRoster = sesId; window._sesRosterOpen = true;
+  if (!_partyLoaded) partyLoad();
+  tsModal('<h3 class="tsm-title">Session roster</h3>'
+    + '<p class="tsm-note">Everyone at the table. Whoever is playing joins every scene in this session automatically. Bench anyone sitting out.</p>'
+    + '<div class="rs-wrap">' + sessionRosterHtml(f.ses) + '</div>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseSessionRoster()">Close</button></div>');
+}
+function tsCloseSessionRoster(){ window._sesRosterOpen = false; tsCloseModal(); }
+function sessionRosterRefresh(){ if (window._sesRosterOpen && window._sesRoster) sessionRosterWindow(window._sesRoster); }
+function sessionRosterHtml(ses){
+  var list = sessionFell(ses);
+  var h = '<div class="st-sub">The Fell</div>';
+  if (!list.length){
+    h += '<div class="tsm-note">' + (_partyLoaded ? 'No one has joined this adventure yet. Add players in the Fell panel.' : 'Reading the roster\u2026') + '</div>';
+    return h;
+  }
+  list.forEach(function(p){
+    h += '<div class="rs-row' + (p.benched ? ' out' : '') + '">'
+      + '<span class="rs-name">' + esc(p.name || 'Fell') + '</span>'
+      + '<button class="rs-pill" onclick="toggleSessionPlay(\'' + ses.id + '\',\'' + String(p.key).replace(/'/g, "\\'") + '\')">' + (p.benched ? 'Benched' : 'Playing') + '</button></div>';
+  });
+  return h;
+}
+function toggleSessionPlay(sesId, key){
+  var f = storyFind('session', sesId); if (!f){ sessionRosterRefresh(); return; }
+  f.ses.bench = f.ses.bench || {};
+  if (f.ses.bench[key]) delete f.ses.bench[key]; else f.ses.bench[key] = true;
+  storySave(); sessionRosterRefresh(); rosterRefresh(); render();
+}
 function storyRosterHtml(sc){
   var h = '<div class="st-sub">The Fell</div>';
-  scenePlayers(sc).forEach(function(p){
-    h += '<div class="rs-row' + (p.out ? ' out' : '') + '">'
-      + '<span class="rs-name">' + esc(p.name || 'Fell') + '</span>'
-      + '<button class="rs-pill" onclick="togglePlayerOut(\'' + sc.id + '\',\'' + p.id + '\')">' + (p.out ? 'Absent' : 'Attending') + '</button></div>';
+  var players = scenePlayers(sc);
+  if (!players.length) h += '<div class="tsm-note">No one is playing this session yet. Open the session roster to add players to the table.</div>';
+  players.forEach(function(p){
+    if (p.benched){
+      h += '<div class="rs-row out"><span class="rs-name">' + esc(p.name || 'Fell') + '</span>'
+        + '<span class="rs-pill muted" title="Benched in the session roster">Benched</span></div>';
+    } else {
+      h += '<div class="rs-row' + (p.out ? ' out' : '') + '"><span class="rs-name">' + esc(p.name || 'Fell') + '</span>'
+        + '<button class="rs-pill" onclick="togglePlayerOut(\'' + sc.id + '\',\'' + String(p.id).replace(/'/g, "\\'") + '\')">' + (p.out ? 'Absent' : 'Attending') + '</button></div>';
+    }
   });
   h += '<div class="st-sub">Cast</div>';
   castList(sc).forEach(function(c){
@@ -7174,6 +7253,8 @@ function partyLoad(){
     SEAM.partyAt = Date.now();
     SEAM.partyWhy = S.party.length ? (S.party.length + ' at the table') : 'the adventure answered with nobody';
     if (S.openSection === 'fell') refreshWinBody();
+    if (window._sesRosterOpen) sessionRosterRefresh();
+    if (window._rosterOpen) rosterRefresh();
     try { renderTokens(); } catch(e){}
     /* if the roster lands while a battle is running, the fighters list was published
        without it; say it again with everyone named */
