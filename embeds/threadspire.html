@@ -1050,6 +1050,8 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 #lmstrip > *{ pointer-events:auto; }
 .lm-topbar{ display:flex; align-items:center; gap:9px; margin-bottom:10px; background:rgba(10,14,26,.9); border:1px solid var(--line); border-radius:10px; padding:6px 10px; }
 .lm-topbar .lm-head{ margin:0 4px; }
+.lm-apl{ margin:0 4px; font-size:.7rem; letter-spacing:.04em; color:var(--silver,#b8ccd8); white-space:nowrap; }
+.lm-apl b{ color:var(--gold); }
 .lm-head{ font-family:Cinzel,serif; letter-spacing:.1em; font-size:.68rem; color:var(--gold); text-transform:uppercase; }
 .lm-stage{ position:relative; display:flex; align-items:center; justify-content:center; gap:0; height:auto; width:min(92vw,700px); }
 .lm-slot{ transition:transform .2s ease, opacity .2s ease; cursor:pointer; }
@@ -1981,6 +1983,7 @@ function advCleanScene(sc){
     return c;
   }
   out.combatants = (sc.combatants || []).map(stripLive);
+  if (out.fell) out.fell = out.fell.filter(function(p){ return !p._auto; });
   return out;
 }
 function storyToggle(lvl, id){ storyOpen[lvl][id] = !storyOpen[lvl][id]; refreshWinBody(); }
@@ -2685,7 +2688,9 @@ function togglePlayerOut(sceneId, pid){
   var f = storyFind('scene', sceneId); if (!f){ rosterRefresh(); return; }
   f.scene.out = f.scene.out || {};
   if (f.scene.out[pid]) delete f.scene.out[pid]; else f.scene.out[pid] = true;
-  storySave(); rosterRefresh(); render();
+  storySave(); rosterRefresh();
+  if (isLM() && inBattle() && sameId(sceneId, S.scene && S.scene.id)){ syncSceneFell(); applyRemoteState({ scene:S.scene }); combatPublish(); }
+  render();
 }
 function rosterAddFromLib(sceneId){
   var f = storyFind('scene', sceneId); if (!f) return;
@@ -3083,15 +3088,57 @@ function sheetSetCampaign(v){
   t.obj.campaignName = nm;
   sheetLiveSave(); sheetReopen();
 }
-function partyLevel(){
-  var l = (S.scene && S.scene.fell) || [];
-  if (!l.length) return 1;
-  var t = 0; l.forEach(function(p){ t += p.level || 1; });
-  return Math.max(1, Math.round(t / l.length));
+/* Average party level, from the Fell actually attending this scene (the session roster
+   minus anyone benched or marked absent). The LoreMaster may pin a number when the shape
+   should read higher or lower than the roster says. Foe Vitality scales to this. */
+function partyApl(){
+  var sc = S.scene || {};
+  if (sc.aplPin) return Math.max(1, +sc.aplPin);
+  var lv = [];
+  scenePlayers(sc).forEach(function(p){
+    if (p.out) return;
+    var n = (p.ref && p.ref.level) || p.level || 0;
+    if (n > 0) lv.push(+n);
+  });
+  if (!lv.length) (sc.fell || []).forEach(function(p){ if (p.level) lv.push(+p.level); });
+  if (!lv.length) return 1;
+  return Math.max(1, Math.round(lv.reduce(function(a, b){ return a + b; }, 0) / lv.length));
 }
+function partyLevel(){ return partyApl(); }
+/* Pull the attending Fell onto the board as combatants so the LoreMaster can aim acts at
+   them and read the party. Records are keyed by charId and tagged _auto; they are stripped
+   before the scene is stored, so materialising the roster never rewrites the authored
+   scene. Existing entries (authored, or a Fell already carrying combat state) are kept as
+   they are; only missing attenders are added, and auto rows for anyone no longer attending
+   are dropped. */
+function syncSceneFell(){
+  var sc = S.scene; if (!sc) return;
+  sc.fell = sc.fell || [];
+  var attending = scenePlayers(sc).filter(function(p){ return !p.out; });
+  var want = {}; attending.forEach(function(p){ if (p.id) want[p.id] = true; });
+  sc.fell = sc.fell.filter(function(r){ return !(r._auto && !want[r.charId || r.id]); });
+  attending.forEach(function(p){
+    if (!p.id) return;
+    var has = false;
+    sc.fell.forEach(function(r){ if (sameId(r.charId, p.id) || sameId(r.id, p.id)) has = true; });
+    if (has) return;
+    var lvl = (p.ref && p.ref.level) || p.level || 1;
+    var mv = (p.ref && p.ref.maxVit) || 0;
+    sc.fell.push({ id:p.id, charId:p.id, name:p.name || 'Fell', level:lvl,
+      maxVit:mv, curVit:mv, charge:0, act:'', target:'', locked:false, spot:null,
+      attrs:{}, reacts:['Any skill', 'Movement'], react:'', _auto:true });
+  });
+}
+/* Foe Vitality is canon: seven Vitality per average party level, times the rating's
+   share (Minion half a Fell, Elite one, Champion one and a half, Epic two, Forsaken two
+   and a half), rounded half up. The number of Fell never thickens a foe; a bigger party
+   is answered with more foes. Kept identical to FateWell so a rating means the same in
+   both tools. */
+var TS_VIT_PER_LEVEL = 7;
+var TS_VIT_SHARE = { Minion:0.5, Elite:1.0, Champion:1.5, Epic:2.0, Forsaken:2.5 };
 function foeVitality(sr, apl){
-  var base = (SR_TABLE[sr] || SR_TABLE.Elite).vit;
-  return Math.round(base + (base / 8) * (apl - 1));
+  var share = TS_VIT_SHARE[sr]; if (!share) share = 1.0;
+  return Math.max(1, Math.round(TS_VIT_PER_LEVEL * Math.max(1, apl || 1) * share));
 }
 function assetToRow(e){
   return {
@@ -3367,7 +3414,9 @@ function toggleSessionPlay(sesId, key){
   var f = storyFind('session', sesId); if (!f){ sessionRosterRefresh(); return; }
   f.ses.bench = f.ses.bench || {};
   if (f.ses.bench[key]) delete f.ses.bench[key]; else f.ses.bench[key] = true;
-  storySave(); sessionRosterRefresh(); rosterRefresh(); render();
+  storySave(); sessionRosterRefresh(); rosterRefresh();
+  if (isLM() && inBattle()){ syncSceneFell(); applyRemoteState({ scene:S.scene }); combatPublish(); }
+  render();
 }
 function storyRosterHtml(sc){
   var h = '<div class="st-sub">The Fell</div>';
@@ -4148,14 +4197,48 @@ window.addEventListener('keydown', function(e){
   if (e.key === 'ArrowRight') lmStep(1);
 });
 
+function lmAplControls(){
+  var apl = partyApl(), pinned = !!(S.scene && S.scene.aplPin);
+  return '<span class="lm-apl" title="Average level of the attending Fell">Avg lvl <b>' + apl + '</b></span>'
+    + '<button class="lmbtn" onclick="lmBalanceFoes()" title="Set every foe\'s Vitality to 7 x average level x its rating">Balance foes</button>'
+    + '<button class="lmbtn' + (pinned ? ' gold' : '') + '" onclick="lmPinApl()">' + (pinned ? 'APL ' + S.scene.aplPin : 'Pin APL') + '</button>';
+}
+function lmBalanceFoes(){
+  var apl = partyApl(), n = 0;
+  (S.scene.foes || []).forEach(function(f){
+    if (!f.sr || !TS_VIT_SHARE[f.sr]) return;
+    var oldMax = f.maxVit || 0, nv = foeVitality(f.sr, apl);
+    f.maxVit = nv;
+    if (f.curVit === undefined || f.curVit >= oldMax || f.curVit > nv) f.curVit = nv;
+    n++;
+  });
+  applyRemoteState({ scene:S.scene }); try { combatPublish(); } catch(e){} paintLmStrip(); paintHud();
+  pushLog({ kind:'sys', html:n + ' foe' + (n === 1 ? '' : 's') + ' balanced to average level <b>' + apl + '</b>.' });
+  applyRemoteState({ log:S.log });
+}
+function lmPinApl(){
+  var cur = (S.scene && S.scene.aplPin) || '';
+  tsModal('<h3 class="tsm-title">Average player level</h3>'
+    + '<p class="tsm-note">Foe Vitality scales to this. Leave it blank to read it from the attending Fell.</p>'
+    + '<input class="tsm-inp" id="aplPinIn" type="number" min="1" placeholder="from the roster" value="' + esc(String(cur)) + '">'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button>'
+    + '<button class="tsm-btn" onclick="lmPinAplSave()">Set</button></div>');
+}
+function lmPinAplSave(){
+  var v = (document.getElementById('aplPinIn') || {}).value;
+  if (v === '' || +v <= 0) delete S.scene.aplPin; else S.scene.aplPin = Math.max(1, Math.round(+v));
+  tsCloseModal(); applyRemoteState({ scene:S.scene }); paintLmStrip();
+}
 function lmPhaseControls(){
   if (S.mode !== 'combat')
     return '<button class="lmbtn" onclick="lmOpenMaps()">Maps</button>'
          + '<button class="lmbtn" onclick="lmOpenTokens()">Tokens</button>'
+         + lmAplControls()
          + '<button class="lmbtn" onclick="lmBeginCombat()">Begin combat</button>';
   if (S.scene.combatPhase === 'commit')
     return '<button class="lmbtn gold" onclick="lmLockActs()">Lock acts into Spotlights</button>'
          + '<button class="lmbtn" onclick="declaresLoad()">Read declares</button>'
+         + lmAplControls()
          + '<button class="lmbtn" onclick="lmEndCombat()">End combat</button>';
   return '<button class="lmbtn' + (S.scene.spotMode==='auto'?' gold':'') + '" onclick="lmSpotMode(\'auto\')">Auto</button>'
        + '<button class="lmbtn' + (S.scene.spotMode==='manual'?' gold':'') + '" onclick="lmSpotMode(\'manual\')">Manual</button>'
@@ -9859,8 +9942,8 @@ function lmAmbushResolve(){
   applyRemoteState({ scene:S.scene });
   combatPublish(); declaresLoad();
 }
-function lmBeginCombat(){ S.scene.combatPhase = 'commit'; applyRemoteState({ mode:'combat', scene:S.scene }); combatPublish(); declaresLoad(); }
-function lmEndCombat(){ S.declares = null; S.scene.combatPhase = null; S.scene.foes.concat(S.scene.fell).forEach(function(c){ c.act=''; c.locked=false; c.spot=null; }); applyRemoteState({ mode:'explore', scene:S.scene });  combatPublish(); }
+function lmBeginCombat(){ syncSceneFell(); S.scene.combatPhase = 'commit'; applyRemoteState({ mode:'combat', scene:S.scene }); combatPublish(); declaresLoad(); }
+function lmEndCombat(){ S.declares = null; S.scene.combatPhase = null; S.scene.foes.concat(S.scene.fell).forEach(function(c){ c.act=''; c.locked=false; c.spot=null; }); S.scene.fell = (S.scene.fell || []).filter(function(p){ return !p._auto; }); applyRemoteState({ mode:'explore', scene:S.scene });  combatPublish(); }
 function lmLockActs(){ S.scene.combatPhase = 'resolve'; S.scene.foes.concat(S.scene.fell).forEach(function(c){ if(c.act) c.locked = true; }); applyRemoteState({ scene:S.scene }); lmMaterialisePlacements(); }
 function lmUnlock(){ S.scene.combatPhase = 'commit'; S.scene.foes.concat(S.scene.fell).forEach(function(c){ c.locked=false; c.spot=null; }); applyRemoteState({ scene:S.scene }); }
 function lmNextRound(){ setTimeout(function(){ S.declares = null; combatPublish(); declaresLoad(); }, 60); S.scene.combatPhase = 'commit'; S.scene.foes.concat(S.scene.fell).forEach(function(c){ c.act=''; c.locked=false; c.spot=null; c._roll=null; }); applyRemoteState({ round:S.round+1, scene:S.scene }); }
