@@ -3055,6 +3055,25 @@ function foeDamage(f, attrs, apl){
            text: base + ' + ' + bonus + ' ' + (t === 'magic' ? 'magical' : 'physical') };
 }
 function sheetSetAtkPref(v){ sheetSetField('atkPref', v); }
+/* The one place a foe's numbers are worked out for the screen. A foe is stored as a build and
+   a rating; its attributes, damage and Vitality are not stored, they derive from those two and
+   the party's current average level, exactly as FateWell derives them. Reading a cached f.dmg
+   or f.attrs let a number freeze at an old level (a foe cast at level 7 still showing weapon
+   bonus 10 after the party dropped to 6); deriving here every time it is shown means the two
+   tools cannot disagree and nothing can go stale. A foe with no build keeps whatever numbers it
+   was given by hand. */
+function foeLive(f){
+  var sr = (f && f.sr) || 'Elite';
+  if (f && f.build && foeBuild(f.build)){
+    var apl = partyApl();
+    var attrs = deriveKit(f, sr, apl).attrs;
+    var d = foeDamage(Object.assign({}, f, { attrs: attrs }), attrs, apl);
+    return { attrs: attrs,
+             dmg: { base: d.base || 0, bonus: d.bonus || 0, type: (d.type === 'magic' ? 'magical' : 'physical'), acc: d.acc || '' },
+             maxVit: foeVitality(sr, apl) };
+  }
+  return { attrs: (f && f.attrs) || {}, dmg: (f && f.dmg) || {}, maxVit: (f && f.maxVit) || 0 };
+}
 /* Forge an Act or a relic from the table. Both land in the same shelves the forges fill. */
 function forgeCustomAct(tier){
   window._actTier = tier;
@@ -4133,7 +4152,7 @@ function evaRow(f){
   var eva = (tgt.attrs && tgt.attrs.Evasion) || 0;
   if (!f._roll) return '<div class="lmc-eva"><span class="lmc-alab">Evasion</span>'
     + '<span class="lmc-wait">waiting on the roll vs ' + esc(tgt.name) + ' (Evasion ' + eva + ')</span></div>';
-  var prec = (f.attrs && f.attrs.Precision) || 0;
+  var prec = (foeLive(f).attrs.Precision) || 0;
   var acc = f._roll + prec;
   var hit = acc >= eva;
   return '<div class="lmc-eva"><span class="lmc-alab">Evasion</span>'
@@ -4144,7 +4163,7 @@ function lmFoeRoll(id){
   var f = findC(id); if(!f) return;
   f._roll = 1 + Math.floor(Math.random()*6);
   var tag = foeRollTag(f);
-  var prec = (f.attrs && f.attrs.Precision) || 0;
+  var prec = (foeLive(f).attrs.Precision) || 0;
   var line = '<b>' + esc(f.name) + '</b> rolls ' + f._roll;
   if (f.act && f.target){
     var tgt=null; S.scene.fell.forEach(function(p){ if(p.id===f.target) tgt=p; });
@@ -4368,7 +4387,7 @@ function foeCardOpen(f){
 }
 
 function foeTabBody(f, tab){
-  var sr = f.sr || 'Elite', minion = sr === 'Minion', d = f.dmg;
+  var sr = f.sr || 'Elite', minion = sr === 'Minion', _k = foeLive(f), d = _k.dmg;
   if (tab === 'about'){
     /* The roll waits for a target. A die shown before anyone is aimed at is a roll with
        nothing to resolve against, so foeDiceRow appears only once this foe has both an act
@@ -4380,7 +4399,7 @@ function foeTabBody(f, tab){
       + actLine(f, 'foe') + (showRoll ? foeDiceRow(f) : '');
   }
   if (tab === 'attributes'){
-    return f.attrs ? attrsGrid(f.attrs) : '<div class="lmc-note">No attributes.</div>';
+    return _k.attrs ? attrsGrid(_k.attrs) : '<div class="lmc-note">No attributes.</div>';
   }
   if (tab === 'attack'){
     if (!d) return '<div class="lmc-note">No attack set.</div>';
@@ -5138,7 +5157,7 @@ function spotCard(c, n){
     + '<span class="lmc-sd">' + (isFoe ? 'Foe' : 'Fell') + '</span></div>'
     + '<div class="lmc-vit">' + c.curVit + ' / ' + c.maxVit + chargePips(c, isFoe ? 'foe' : 'fell') + '</div>'
     + '<div class="lmc-act"><span class="lmc-alab">Act</span>' + esc(c.act) + (c.target ? ' \u2192 ' + esc(targetName(c.target)) : '') + '</div>'
-    + (isFoe && c.dmg ? '<div class="lmc-dmg">' + c.dmg.base + ' + ' + c.dmg.bonus + ' ' + c.dmg.type + '</div>' : '')
+    + (isFoe ? (function(){ var _d = foeLive(c).dmg; return _d ? '<div class="lmc-dmg">' + (_d.base||0) + ' + ' + (_d.bonus||0) + ' ' + (_d.type||'') + '</div>' : ''; })() : '')
     + '<button class="lmbtn sm" onclick="lmResolveSpot(\'' + c.id + '\')">' + (c.spot === 'done' ? 'Resolved' : 'Resolve') + '</button></div>';
 }
 
