@@ -116,14 +116,29 @@ export const loadAdventure = webMethod(Permissions.Anyone, async (advId) => {
     return Object.assign({ id: a.actId, name: a.name || '', notes: a.notes || '', img: a.img || '', desc: a.desc || '', sessions: sessions }, jparse(a.extra, {}));
   });
 
-  return {
+  // The tree's freshness is the most recent write to any of its rows - the root, an act, a
+  // session, or a scene. ThreadSpire edits a single scene row, so the root alone is not
+  // enough; take the max across everything. FateWell compares this against its own blob's
+  // write time and loads whichever is newer, so an edit made in either tool wins by recency.
+  const stamps = [root._updatedDate]
+    .concat(actQ.items.map(r => r._updatedDate))
+    .concat(sesQ.items.map(r => r._updatedDate))
+    .concat(scnQ.items.map(r => r._updatedDate))
+    .filter(Boolean).map(d => +new Date(d));
+  const updatedAt = stamps.length ? Math.max.apply(null, stamps) : 0;
+
+  const metaObj = jparse(root.meta, {});
+  // Spread the campaign-level fields back to the top level where the tools keep them, with the
+  // structural fields winning, so loading the tree reconstructs the whole campaign losslessly.
+  return Object.assign({}, metaObj, {
     id: advId,
     name: root.name || 'Adventure',
     activeSceneId: root.activeSceneId || '',
     acts: acts,
     role: 'loremaster',
-    meta: jparse(root.meta, {})
-  };
+    updatedAt: updatedAt,
+    meta: metaObj
+  });
 });
 
 // A scene row -> the in-memory scene object. Beats and combatants come out of their JSON
@@ -311,9 +326,10 @@ export const saveAdventureFromCampaign = webMethod(Permissions.Anyone, async (ad
   const actBy = index(actRows, 'actId'), sesBy = index(sesRows, 'sesId'), scnBy = index(scnRows, 'sceneId');
   let writes = 0;
 
-  // root: write only if name, active scene, or act order changed
+  // root: write only if name, active scene, act order, or any campaign-level field changed
   const actOrder = JSON.stringify(acts.map(a => a.id));
-  if (!existingRoot || existingRoot.name !== (campaign.name || 'Adventure') || existingRoot.activeSceneId !== (campaign.activeSceneId || '') || existingRoot.actOrder !== actOrder) {
+  const rootMeta = JSON.stringify(rootMetaOf(campaign));
+  if (!existingRoot || existingRoot.name !== (campaign.name || 'Adventure') || existingRoot.activeSceneId !== (campaign.activeSceneId || '') || existingRoot.actOrder !== actOrder || !jsonEq(existingRoot.meta, rootMeta)) {
     await saveAdventureRootRow(advId, campaign, acts, existingRoot, id); writes++;
   }
 
@@ -410,11 +426,22 @@ async function writeRow(coll, row, fields) {
   if (row) return wd.update(coll, out, { suppressAuth: true });
   return wd.insert(coll, out, { suppressAuth: true });
 }
+// Everything on the campaign that is not the structure itself - notes, entries, manual
+// references, description, image, and whatever else FateWell keeps at the top level - so the
+// tree carries a lossless copy and a tool loading the tree does not lose it.
+function rootMetaOf(campaign) {
+  const meta = {};
+  Object.keys(campaign || {}).forEach(k => {
+    if (!['id', 'name', 'activeSceneId', 'acts', 'role', 'updatedAt', 'meta', '_row'].includes(k)) meta[k] = campaign[k];
+  });
+  return meta;
+}
 async function saveAdventureRootRow(advId, campaign, acts, existing, id) {
   const row = existing || { _id: advId, advId: advId, ownerMemberId: id };
   row.name = campaign.name || 'Adventure';
   row.activeSceneId = campaign.activeSceneId || '';
   row.actOrder = JSON.stringify(acts.map(a => a.id));
+  row.meta = JSON.stringify(rootMetaOf(campaign));
   if (!row.ownerMemberId) row.ownerMemberId = id;
   row.updatedAt = Date.now();
   return existing ? wd.update(ADV, row, { suppressAuth: true }) : wd.insert(ADV, row, { suppressAuth: true });
