@@ -12,7 +12,7 @@ import { publishAdventure, myPublishedAdventures, unpublishAdventure, getPublish
 import { createInvite, revokeInvite } from 'backend/invites.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
 import { getCampaignState, saveCampaignState, getJournal } from 'backend/campaignview.web.js';
-import { loadAdventure, saveAdventureFromCampaign, saveAdventureFromBlob, migrateCampaign, wipeChunk, remigrateOne, listCampaignIds } from 'backend/adventures.web.js';
+import { loadAdventure, saveAdventureFromCampaign, saveAdventureFromBlob, migrateCampaign, wipeChunk, remigrateOne, listCampaignIds, removeAdventure } from 'backend/adventures.web.js';
 import wixLocation from 'wix-location';
 import wixWindow from 'wix-window';
 
@@ -417,6 +417,8 @@ $w.onReady(() => {
     } else if (m.type === 'lmtool-campaign-delete') {
       let dres = { ok: false };
       try { dres = await deleteCampaign(m.campaignId); } catch (e) { dres = { ok: false, error: String(e) }; }
+      // the blob is only half the adventure; clear its shared tree too, or the rows linger
+      try { await removeAdventure(m.campaignId); } catch (e) {}
       embed.postMessage({ type: 'lmtool-campaign-deleted', campaignId: m.campaignId, ok: !!(dres && dres.ok) });
     } else if (m.type === 'lmtool-campaign-title') {
       try { await saveCampaign(m.campaignId || campaignId, null, m.title || ''); } catch (e) {}
