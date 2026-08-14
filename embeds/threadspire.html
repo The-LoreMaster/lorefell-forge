@@ -2838,8 +2838,8 @@ function foeBuild(name){ var hit = null; (FORGE.pack.builds || []).forEach(funct
 function foeTier(name){ var hit = null; (FORGE.pack.tiers || []).forEach(function(t){ if (t && t.name === name) hit = t; }); return hit; }
 /* A foe is built to the ceiling. The rating and the party it faces decide what it
    actually brings: attributes are the party's level shifted by the rating. */
-function deriveKit(foe, sr){
-  var apl = partyLevel();
+function deriveKit(foe, sr, apl){
+  if (apl === undefined || apl === null) apl = partyLevel();
   var b = foeBuild(foe.build || ((FORGE.pack.builds[0] || {}).name));
   var t = foeTier(sr);
   var attrs = blankAttrs();
@@ -3091,8 +3091,8 @@ function sheetSetCampaign(v){
 /* Average party level, from the Fell actually attending this scene (the session roster
    minus anyone benched or marked absent). The LoreMaster may pin a number when the shape
    should read higher or lower than the roster says. Foe Vitality scales to this. */
-function partyApl(){
-  var sc = S.scene || {};
+function partyApl(sc){
+  sc = sc || S.scene || {};
   if (sc.aplPin) return Math.max(1, +sc.aplPin);
   var lv = [];
   scenePlayers(sc).forEach(function(p){
@@ -4427,13 +4427,24 @@ function kitChunk(label, list, revealed, bucket){
 }
 function foeReactRow(f){
   if (f.reactUsed) return '<div class="lmc-reactspent">React spent \u00b7 <button class="lm-link" onclick="lmFoeReactReset(\'' + f.id + '\')">Restore</button></div>';
-  var opts = (f.reacts || ['Skill','Movement']);
+  var opts = (f.reacts || ['Skill','Movement']).slice();
+  /* Changing your Armor Stance is a React. Offer the stances the foe is not already
+     holding; using one switches the stance and spends the React. */
+  STANCE_ALL.forEach(function(s){ if (s !== f.stance) opts.push('Armor Stance: ' + s); });
   return '<div class="lmc-reactrow"><span class="lmc-alab">React</span>'
     + '<select class="lmc-rsel" id="tsR-' + f.id + '">'
     + opts.map(function(o){ return '<option>' + esc(o) + '</option>'; }).join('')
     + '</select><button class="lmbtn sm2" onclick="lmUseFoeReact(\'' + f.id + '\')">Use</button></div>';
 }
-function lmUseFoeReact(id){ var c = findC(id); if(c){ c.reactUsed = true; applyRemoteState({ scene:S.scene }); } }
+function lmUseFoeReact(id){
+  var c = findC(id); if(!c) return;
+  var sel = document.getElementById('tsR-' + id);
+  var m = /^Armor Stance:\s*(.+)$/.exec((sel && sel.value) || '');
+  if (m) c.stance = m[1];
+  c.reactUsed = true;
+  applyRemoteState({ scene:S.scene });
+  try { paintLmStrip(); } catch(e){}
+}
 function lmFoeReactReset(id){ var c = findC(id); if(c){ c.reactUsed = false; applyRemoteState({ scene:S.scene }); } }
 
 /* Fell card mirrors the foe card: compact by default, tabbed when opened. Tabs
@@ -6494,9 +6505,19 @@ function tsFoeId(cb, i){
    into disagreeing about the punctuation, which is the other way this class of bug
    arrives. */
 function foeKey(id){ return 'm:' + id; }
-function tsCastFoe(cb, i){
-  var attrs = cb.attrs || {};
-  var d = {}; try { d = foeDamage(cb, attrs); } catch(e){ d = {}; }
+function tsCastFoe(cb, i, apl){
+  var sr = cb.sr || 'Elite';
+  /* A foe is stored at a build ceiling, not with fixed numbers. FateWell derives its
+     attributes per scene from the build, the rating's offset, and the party it faces, and
+     the board must do the same or the card reads all zeroes (and the standard attack, which
+     reads Power or Magic off them, reads wrong). Derive when the foe carries a real build;
+     a hand-made foe with no build keeps whatever it was given. */
+  var attrs;
+  if (cb.build && foeBuild(cb.build) && foeTier(sr))
+    attrs = deriveKit(cb, sr, (apl === undefined ? partyApl() : apl)).attrs;
+  else
+    attrs = cb.attrs || {};
+  var d = {}; try { d = foeDamage(Object.assign({}, cb, { attrs: attrs }), attrs); } catch(e){ d = {}; }
   return {
     id: tsFoeId(cb, i),
     name: cb.name || 'Foe', sr: cb.sr || 'Elite', side: 'foe',
@@ -6545,11 +6566,12 @@ function tsSpineScene(sc, c){
   var source = (Array.isArray(sc.combatants) && sc.combatants.length) ? sc.combatants
              : (sc.foes || []).concat(sc.npcs || []);
   var foes = [], npcs = [];
+  var apl = partyApl(sc);
   source.forEach(function(raw, i){
     if (!raw) return;
     var cb = tsHydrateCombatant(raw);
     if (cb.type === 'npc' || cb.side === 'npc') npcs.push(tsCastNpc(cb, i));
-    else foes.push(tsCastFoe(cb, i));
+    else foes.push(tsCastFoe(cb, i, apl));
   });
   return Object.assign({}, sc, {
     id: sc.id, name: sc.name,
