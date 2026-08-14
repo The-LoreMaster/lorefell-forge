@@ -3464,7 +3464,18 @@ function adoptHostedCampaigns(list){
   // kept synchronous for callers that do not await; compressed rows resolve shortly after
   // and trigger a render. Plain rows resolve immediately.
   var chain = Promise.resolve();
-  (list||[]).forEach(function(w){ chain = chain.then(function(){ return adoptOneCampaign(w); }); });
+  (list||[]).forEach(function(w){ chain = chain.then(function(){ return adoptOneCampaign(w); }).then(function(){
+    /* Drop anything the other tool deleted from this campaign, whether it was just adopted or
+       was already in local storage (adoptOneCampaign skips those, so they never learn of a
+       deletion otherwise). This is the hub-mode equivalent of the drop done on lmtool-open. */
+    if (w && w.deletedIds){
+      var c = null; S.campaigns.forEach(function(x){ if (x.id===w.id) c=x; });
+      if (c){
+        try { console.log('%c[FWDROP hub] ' + w.id + ' deletedIds=' + JSON.stringify(w.deletedIds), 'color:#e6a07a;font-weight:bold'); } catch(e){}
+        fwDropDeleted(c, w.deletedIds);
+      }
+    }
+  }); });
   chain.then(function(){ try{ saveLocal(); render(); }catch(e){} });
 }
 function syncAllToAccount(){

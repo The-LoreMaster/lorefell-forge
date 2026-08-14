@@ -336,6 +336,19 @@ export const removeAdventure = webMethod(Permissions.Anyone, async (advId) => {
   return { ok: true };
 });
 
+// Just the live tombstone ids for one adventure, per kind - cheap enough to fetch for every
+// adventure the hub lists so the tool can drop deleted nodes from its own copies.
+export const advTombstones = webMethod(Permissions.Anyone, async (advId) => {
+  const out = { act: [], session: [], scene: [] };
+  if (!advId) return out;
+  try {
+    const cutoff = Date.now() - TOMB_MS;
+    const dl = (await wd.query(DEL).eq('advId', advId).limit(1000).find({ suppressAuth: true, consistentRead: true })).items || [];
+    dl.forEach(t => { if ((t.deletedAt || 0) >= cutoff && out[t.kind]) out[t.kind].push(t.targetId); });
+  } catch (e) {}
+  return out;
+});
+
 // ---- MIGRATION: one Campaigns blob -> the decomposed tree ----
 // Additive and idempotent: it writes the new rows and stamps migratedFrom, but does NOT delete
 // the Campaigns row. The blob path stays until every adventure round-trips clean, then retires.
