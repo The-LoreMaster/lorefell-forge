@@ -239,6 +239,10 @@ export function get_advinfo(request) {
     out += 'acts (' + acts.length + '):\n';
     acts.forEach(a => { out += '  ' + a.actId + '  ' + JSON.stringify(a.name || '') + '  updated=' + iso(a._updatedDate) + '\n'; });
     out += 'sessions=' + ses.length + '  scenes=' + scn.length + '\n';
+    const dA = new Set(acts.map(a => a.actId)).size, dSe = new Set(ses.map(s => s.sesId)).size, dSc = new Set(scn.map(s => s.sceneId)).size;
+    if (dA !== acts.length || dSe !== ses.length || dSc !== scn.length) {
+      out += 'DISTINCT: acts=' + dA + ' sessions=' + dSe + ' scenes=' + dSc + '  (duplicate rows present; heal on next FateWell save)\n';
+    }
     out += 'tree newest write: ' + iso(treeAt ? new Date(treeAt) : null) + '\n\n';
     out += '== BLOB  (Campaigns, FateWell writes here) ==\n';
     out += (blob ? (JSON.stringify(blob.name || '') + '  updated=' + iso(blob._updatedDate)) : '(NO BLOB ROW)') + '\n\n';

@@ -111,6 +111,17 @@ function jorder(s) { const a = jparse(s, []); return Array.isArray(a) ? a : []; 
 // Order a list of rows by an explicit id-order array when present, else by sortIndex, else by
 // insertion. The order array is authoritative because reordering must not require rewriting
 // every child's sortIndex, only the parent's one order field.
+// Collapse rows that share a logical id (actId/sesId/sceneId) down to one, keeping the most
+// recently written. Duplicate rows accumulated from the pre-sync REST writes - the tree could
+// hold three rows for one act - and they must not become three acts when the tree is read.
+function dedupeNewest(rows, idKey) {
+  const by = {};
+  (rows || []).forEach(r => {
+    const k = r[idKey], cur = by[k];
+    if (!cur || (+new Date(r._updatedDate || 0)) >= (+new Date(cur._updatedDate || 0))) by[k] = r;
+  });
+  return Object.keys(by).map(k => by[k]);
+}
 function ordered(rows, idKey, orderIds) {
   if (orderIds && orderIds.length) {
     const byId = {}; rows.forEach(r => { byId[r[idKey]] = r; });
@@ -141,12 +152,16 @@ export const loadAdventure = webMethod(Permissions.Anyone, async (advId) => {
     wd.query(SCN).eq('advId', advId).limit(1000).find({ suppressAuth: true, consistentRead: true })
   ]);
 
-  const scenesBySes = {};
-  scnQ.items.forEach(r => { (scenesBySes[r.sesId] = scenesBySes[r.sesId] || []).push(r); });
-  const sesByAct = {};
-  sesQ.items.forEach(r => { (sesByAct[r.actId] = sesByAct[r.actId] || []).push(r); });
+  const actItems = dedupeNewest(actQ.items, 'actId');
+  const sesItems = dedupeNewest(sesQ.items, 'sesId');
+  const scnItems = dedupeNewest(scnQ.items, 'sceneId');
 
-  const acts = ordered(actQ.items, 'actId', jorder(root.actOrder)).map(a => {
+  const scenesBySes = {};
+  scnItems.forEach(r => { (scenesBySes[r.sesId] = scenesBySes[r.sesId] || []).push(r); });
+  const sesByAct = {};
+  sesItems.forEach(r => { (sesByAct[r.actId] = sesByAct[r.actId] || []).push(r); });
+
+  const acts = ordered(actItems, 'actId', jorder(root.actOrder)).map(a => {
     const sessions = ordered(sesByAct[a.actId] || [], 'sesId', jorder(a.sessionOrder)).map(se => {
       const sceneRows = ordered(scenesBySes[se.sesId] || [], 'sceneId', jorder(se.sceneOrder));
       const scenes = sceneRows.map(row => { const s = sceneFromRow(row); delete s._row; return s; });
@@ -470,10 +485,12 @@ export const saveAdventureFromCampaign = webMethod(Permissions.Anyone, async (ad
     }
   }
 
-  // prune rows the campaign dropped, using the already-read lists (no extra queries)
-  for (const row of scnRows) { if (!keepSc[row.sceneId]) { try { await wd.remove(SCN, row._id, { suppressAuth: true }); writes++; } catch (e) {} } }
-  for (const row of sesRows) { if (!keepSe[row.sesId]) { try { await wd.remove(SES, row._id, { suppressAuth: true }); writes++; } catch (e) {} } }
-  for (const row of actRows) { if (!keepA[row.actId]) { try { await wd.remove(ACTS, row._id, { suppressAuth: true }); writes++; } catch (e) {} } }
+  // prune rows the campaign dropped, and collapse any duplicate rows that share a logical id
+  // (keeping the first seen), so the pre-sync duplicates heal on the next save
+  const seenSc = {}, seenSe = {}, seenA = {};
+  for (const row of scnRows) { if (!keepSc[row.sceneId] || seenSc[row.sceneId]) { try { await wd.remove(SCN, row._id, { suppressAuth: true }); writes++; } catch (e) {} } else { seenSc[row.sceneId] = 1; } }
+  for (const row of sesRows) { if (!keepSe[row.sesId] || seenSe[row.sesId]) { try { await wd.remove(SES, row._id, { suppressAuth: true }); writes++; } catch (e) {} } else { seenSe[row.sesId] = 1; } }
+  for (const row of actRows) { if (!keepA[row.actId] || seenA[row.actId]) { try { await wd.remove(ACTS, row._id, { suppressAuth: true }); writes++; } catch (e) {} } else { seenA[row.actId] = 1; } }
 
   return { ok: true, advId: advId, writes: writes, tele: TELE,
     diag: {
