@@ -227,15 +227,16 @@ $w.onReady(() => {
         embed.postMessage({ type: 'lmtool-hosted', campaigns: mine });
         return;
       }
-      // Both tools persist the same adventure: FateWell to its Campaigns blob (written
-      // synchronously), ThreadSpire to the shared Adventures tree (row per scene). Neither is
-      // the source of truth. Read both and load whichever was written most recently, so an
-      // edit made in either tool wins by recency and flows to the other on its next open.
-      // This also keeps the guard the old blob-first read provided: right after a FateWell
-      // edit its blob is newer than the tree (which FateWell reconciles on a delay), so the
-      // blob still wins and the edit is not reverted.
+      // FateWell reads the shared Adventures tree as the source. Both tools write it -
+      // ThreadSpire per scene, FateWell reconciles its blob into it about 1.5s after a save -
+      // so the tree is where a change made in either tool lands, including a deletion. Reading
+      // the tree (not FateWell's own blob) is what lets a ThreadSpire delete actually reach
+      // FateWell instead of hiding behind the newer blob. The blob is only a fallback for an
+      // adventure that has no tree yet. The revert this could cause - a reload catching the
+      // tree before FateWell's own edit reconciled into it - is prevented in the tool: it keeps
+      // its local copy for a few seconds after an edit, which covers the reconcile, before it
+      // adopts what the server sends.
       let blob = null, campData = null, title = 'Campaign', role = '';
-      try { blob = await loadCampaign(campaignId); } catch (e) { blob = null; }
       let adv = null;
       try {
         adv = await loadAdventure(campaignId);
@@ -244,16 +245,11 @@ $w.onReady(() => {
           adv = await loadAdventure(campaignId);
         }
       } catch (e) { adv = null; }
-      const blobHas = !!(blob && blob.data);
-      const treeHas = !!(adv && adv.acts);
-      const blobAt = blobHas ? (blob.updatedAt || 0) : 0;
-      const treeAt = treeHas ? (adv.updatedAt || 0) : 0;
-      // Tree wins only when it is strictly newer, so a tie (or a missing timestamp) keeps
-      // FateWell on its own blob and never flips an edit back to an equal-age tree copy.
-      if (treeHas && (!blobHas || treeAt > blobAt)) {
+      if (adv && adv.acts) {
         campData = adv; title = adv.name || 'Campaign'; role = adv.role || 'loremaster';
-      } else if (blobHas) {
-        campData = blob.data; title = blob.title || 'Campaign'; role = blob.role || 'loremaster';
+      } else {
+        try { blob = await loadCampaign(campaignId); } catch (e) { blob = null; }
+        if (blob && blob.data) { campData = blob.data; title = blob.title || 'Campaign'; role = blob.role || 'loremaster'; }
       }
       embed.postMessage({
         type: 'lmtool-open',
