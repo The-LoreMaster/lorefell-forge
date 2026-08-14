@@ -3085,6 +3085,23 @@ function preserveImages(incoming, local){
   try { if (incoming && local){ var map = {}; _collectImgs(local, map); _fillImgs(incoming, map); } } catch(_){}
   return incoming;
 }
+/* Remove from a campaign copy any act, session or scene the backend reports as deleted
+   (tombstoned) in either tool. Cascades: a deleted act takes its sessions and scenes. */
+function fwDropDeleted(camp, del){
+  if (!camp || !del || !Array.isArray(camp.acts)) return;
+  var A = {}, SS = {}, C = {};
+  (del.act||[]).forEach(function(x){ A[x]=1; });
+  (del.session||[]).forEach(function(x){ SS[x]=1; });
+  (del.scene||[]).forEach(function(x){ C[x]=1; });
+  camp.acts = camp.acts.filter(function(a){ return !A[a.id]; });
+  camp.acts.forEach(function(a){
+    if (!Array.isArray(a.sessions)) return;
+    a.sessions = a.sessions.filter(function(s){ return !SS[s.id]; });
+    a.sessions.forEach(function(s){
+      if (Array.isArray(s.scenes)) s.scenes = s.scenes.filter(function(sc){ return !C[sc.id]; });
+    });
+  });
+}
 function fmtClock(t){
   if (!t) return '';
   var d = new Date(t), hh = d.getHours(), mm = String(d.getMinutes()).padStart(2,'0');
@@ -3714,6 +3731,11 @@ window.addEventListener('message', function(ev){
          reply reflects, keep local and re-sync rather than letting it flip back. */
       var localCopy = null;
       S.campaigns.forEach(function(c){ if (c.id===migrated.id) localCopy = c; });
+      /* Whatever the other tool deleted is dropped from both copies here, so a node ThreadSpire
+         removed cannot linger in FateWell's local copy or be flushed back even when we keep
+         local below. This is what makes a delete actually stick. */
+      fwDropDeleted(localCopy, m.deletedIds);
+      fwDropDeleted(migrated, m.deletedIds);
       var recentlyEdited = WIX.dirty || (WIX.lastSaveAt && (Date.now() - WIX.lastSaveAt < 4000));
       if (localCopy && recentlyEdited){
         clearTimeout(WIX.saveTimer); flushSave();
