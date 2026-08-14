@@ -5718,10 +5718,29 @@ function duplicateLib(id){
 
 /* ---------- scene roster ---------- */
 
+/* Rescale every foe's Vitality to the attending party's level, keeping damage already dealt.
+   Run on combat begin and whenever attendance changes, so foes are always sized to who is
+   actually at the table - the loremaster never balances by hand. Mirrors ThreadSpire's
+   refreshFoeKits Vitality pass. */
+function fwRebalanceFoes(sc){
+  sc = sc || curSc(); if (!sc || !Array.isArray(sc.combatants)) return;
+  var apl = fwCombatApl();
+  sc.combatants.forEach(function(cb){
+    if (cb && cb.type==='monster' && cb.sr && VIT_SHARE[cb.sr]){
+      var nv = foeVitality(cb.sr, apl);
+      if (nv && nv !== cb.maxVit){
+        var wasFull = (cb.curVit===undefined || cb.curVit>=cb.maxVit);
+        cb.maxVit = nv;
+        if (wasFull || cb.curVit===undefined || cb.curVit>nv) cb.curVit = nv;
+      }
+    }
+  });
+}
 function toggleAtt(pid){
   var sc = curSc();
   if (sc.att[pid]) delete sc.att[pid]; else sc.att[pid] = true;
   if (!sc.ps[pid]) sc.ps[pid] = { act:'', react:'', target:'', actDone:false, reactDone:false, affs:[] };
+  fwRebalanceFoes(sc);
   save(); render();
 }
 
@@ -5836,9 +5855,39 @@ function reforgeFoeToTier(foe, newTier){
    Infusions, augmentations, and Acts trim in author order, first picked first kept.
    Attributes and vitality rescale to the rating. The library foe is never touched.
    ============================================================ */
+/* The level foes scale to in play: the average of the Fell actually attending this scene, not
+   the whole campaign roster. A player marked absent should not drag the level down, and marking
+   one attending or absent re-levels the foes on the next render. Honors a pinned override, and
+   falls back to the campaign party only when no one is marked attending (the shelf, out of a
+   scene). This is the same set ThreadSpire averages, so the two tools land on the same level. */
+function fwCombatApl(){
+  var c = curC() || {}, ov = c.partyOverride || {};
+  if (ov.apl) return Math.max(1, +ov.apl);
+  var lv = [];
+  (attendingPlayers() || []).forEach(function(p){ if (p && p.level) lv.push(+p.level); });
+  var known = lv.filter(function(n){ return n > 0; });
+  if (known.length) return Math.max(1, Math.round(known.reduce(function(a, b){ return a + b; }, 0) / known.length));
+  return fwPartyLevel() || 3;
+}
+/* Resolve a foe's build, or infer it from the attributes its numbers use when it carries none -
+   the canon build whose attribute pair matches. The twin of ThreadSpire's foeInferBuild, so a
+   foe with no explicit build still derives the same way in both tools. */
+function fwInferBuild(f){
+  if (f && f.build && fwFoeBuild(f.build)) return f.build;
+  var a = (f && f.attrs) || {}, have = [];
+  ATTR_LIST.forEach(function(k){ if ((a[k] || 0) > 0) have.push(k); });
+  if (have.length){
+    var key = have.slice().sort().join(','), match = '';
+    (FW_FOE_PACK.builds || []).forEach(function(b){
+      if (((b.attributes || []).slice().sort().join(',')) === key) match = b.name;
+    });
+    if (match) return match;
+  }
+  return (f && f.build) || '';
+}
 function fwDeriveKit(foe, sr){
-  var apl=fwPartyLevel(), party=fwPartySize();
-  var scaled=fwScaleFoe(foe.build||FW_FOE_PACK.builds[0].name, sr, apl, party) || { attrs:blankAttrs(), maxVit:0 };
+  var apl=fwCombatApl(), party=fwPartySize();
+  var scaled=fwScaleFoe(fwInferBuild(foe)||FW_FOE_PACK.builds[0].name, sr, apl, party) || { attrs:blankAttrs(), maxVit:0 };
   /* The rating scales vitality and attributes. The kit is what the loremaster built, kept
      in full at every rating. A Minion of a foe hits softer than a Forsaken of it, but it
      brings the same infusions, augmentations, and Acts. */
@@ -7072,7 +7121,7 @@ function fwFoeDamage(f, attrs){
      by its rating (a Minion fights two below the party), so the bonus reads off the foe's level,
      not the party's - the same rule ThreadSpire uses. Then the revealed kit stacks. */
   var _t = fwFoeTier(f.sr || 'Elite'), _off = _t ? (_t.attributeOffset || 0) : 0;
-  var bonus = fwWeaponBonus(fwPartyLevel() + _off);
+  var bonus = fwWeaponBonus(fwCombatApl() + _off);
   fwRevealedInf(f).forEach(function(n){
     if (FW_BASE_INF[n]) base += attrs[FW_BASE_INF[n]] || 0;
     if (FW_BONUS_INF[n]) bonus += attrs[FW_BONUS_INF[n]] || 0;
@@ -10418,6 +10467,7 @@ function exitRunner(){ V.screen = 'scene'; V.tab = 'notes'; render(); window.scr
 function escalateScene(){
   var sc = curSc(); if (!sc) return;
   sc.mode = 'combat';
+  fwRebalanceFoes(sc);
   save(); render();
 }
 /* Battle summary: rounds fought and a per-side tally of damage dealt and
