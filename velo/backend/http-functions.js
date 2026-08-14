@@ -221,8 +221,9 @@ export function get_advinfo(request) {
   return Promise.all([
     wixData.get('Adventures', adv, { suppressAuth: true, consistentRead: true }).catch(() => null),
     R('AdvActs'), R('AdvSessions'), R('AdvScenes'),
-    wixData.get('Campaigns', adv, { suppressAuth: true, consistentRead: true }).catch(() => null)
-  ]).then(([root, acts, ses, scn, blob]) => {
+    wixData.get('Campaigns', adv, { suppressAuth: true, consistentRead: true }).catch(() => null),
+    R('AdvDeletes')
+  ]).then(([root, acts, ses, scn, blob, dels]) => {
     const stamps = [root && root._updatedDate]
       .concat(acts.map(r => r._updatedDate), ses.map(r => r._updatedDate), scn.map(r => r._updatedDate))
       .filter(Boolean).map(ms);
@@ -243,7 +244,14 @@ export function get_advinfo(request) {
     out += (blob ? (JSON.stringify(blob.name || '') + '  updated=' + iso(blob._updatedDate)) : '(NO BLOB ROW)') + '\n\n';
     out += '== VERDICT ==\n';
     out += 'treeAt ' + (treeAt > blobAt ? '>' : (treeAt === blobAt ? '=' : '<')) + ' blobAt\n';
-    out += verdict + '\n';
+    out += verdict + '\n\n';
+    out += '== TOMBSTONES (AdvDeletes -> the deletedIds FateWell receives) ==\n';
+    if (!dels.length) out += '(none)\n';
+    const nowMs = Date.now();
+    dels.forEach(t => {
+      const age = Math.round((nowMs - (t.deletedAt || 0)) / 1000);
+      out += '  ' + (t.kind || '?') + ' ' + (t.targetId || '?') + '  age=' + age + 's  deletedAt=' + iso(t.deletedAt) + '\n';
+    });
     return ok({ headers: H, body: out });
   }).catch(err => serverError({ headers: H, body: String(err) }));
 }
