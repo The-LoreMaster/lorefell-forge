@@ -227,24 +227,33 @@ $w.onReady(() => {
         embed.postMessage({ type: 'lmtool-hosted', campaigns: mine });
         return;
       }
-      // FateWell reads its OWN blob first. The blob is written synchronously on every save, so
-      // it is always at least as fresh as the tree, which FateWell reconciles on a short delay.
-      // Reading the tree first meant a hard refresh landing before that delayed write reverted
-      // the edit to the tree's older copy. The tree stays the shared channel ThreadSpire reads;
-      // FateWell trusts the blob it just wrote. If there is no blob yet (a tree made by
-      // ThreadSpire alone), fall back to the tree.
+      // Both tools persist the same adventure: FateWell to its Campaigns blob (written
+      // synchronously), ThreadSpire to the shared Adventures tree (row per scene). Neither is
+      // the source of truth. Read both and load whichever was written most recently, so an
+      // edit made in either tool wins by recency and flows to the other on its next open.
+      // This also keeps the guard the old blob-first read provided: right after a FateWell
+      // edit its blob is newer than the tree (which FateWell reconciles on a delay), so the
+      // blob still wins and the edit is not reverted.
       let blob = null, campData = null, title = 'Campaign', role = '';
       try { blob = await loadCampaign(campaignId); } catch (e) { blob = null; }
-      if (blob && blob.data) { campData = blob.data; title = blob.title || 'Campaign'; role = blob.role || 'loremaster'; }
-      if (!campData) {
-        try {
-          let adv = await loadAdventure(campaignId);
-          if (!adv || !adv.acts) {
-            try { await migrateCampaign(campaignId); } catch (e) {}
-            adv = await loadAdventure(campaignId);
-          }
-          if (adv && adv.acts) { campData = adv; title = adv.name || 'Campaign'; role = adv.role || 'loremaster'; }
-        } catch (e) {}
+      let adv = null;
+      try {
+        adv = await loadAdventure(campaignId);
+        if (!adv || !adv.acts) {
+          try { await migrateCampaign(campaignId); } catch (e) {}
+          adv = await loadAdventure(campaignId);
+        }
+      } catch (e) { adv = null; }
+      const blobHas = !!(blob && blob.data);
+      const treeHas = !!(adv && adv.acts);
+      const blobAt = blobHas ? (blob.updatedAt || 0) : 0;
+      const treeAt = treeHas ? (adv.updatedAt || 0) : 0;
+      // Tree wins only when it is strictly newer, so a tie (or a missing timestamp) keeps
+      // FateWell on its own blob and never flips an edit back to an equal-age tree copy.
+      if (treeHas && (!blobHas || treeAt > blobAt)) {
+        campData = adv; title = adv.name || 'Campaign'; role = adv.role || 'loremaster';
+      } else if (blobHas) {
+        campData = blob.data; title = blob.title || 'Campaign'; role = blob.role || 'loremaster';
       }
       embed.postMessage({
         type: 'lmtool-open',

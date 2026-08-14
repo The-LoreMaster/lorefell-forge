@@ -61,7 +61,7 @@ export const loadCampaign = webMethod(Permissions.Anyone, async (campaignId) => 
   }
   let data = {}; try { data = r.data ? JSON.parse(r.data) : {}; } catch (e) { data = {}; }
   data = unpackCampaignData(data);
-  return { title: r.name || 'Campaign', data: data, role: role };
+  return { title: r.name || 'Campaign', data: data, role: role, updatedAt: r._updatedDate ? +new Date(r._updatedDate) : 0 };
 });
 
 export const listMyCampaigns = webMethod(Permissions.Anyone, async () => {
