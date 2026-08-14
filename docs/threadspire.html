@@ -2690,7 +2690,7 @@ function togglePlayerOut(sceneId, pid){
   f.scene.out = f.scene.out || {};
   if (f.scene.out[pid]) delete f.scene.out[pid]; else f.scene.out[pid] = true;
   storySave(); rosterRefresh();
-  if (isLM() && inBattle() && sameId(sceneId, S.scene && S.scene.id)){ syncSceneFell(); applyRemoteState({ scene:S.scene }); combatPublish(); }
+  if (isLM() && inBattle() && sameId(sceneId, S.scene && S.scene.id)){ syncSceneFell(); refreshFoeKits(); applyRemoteState({ scene:S.scene }); combatPublish(); }
   render();
 }
 function rosterAddFromLib(sceneId){
@@ -2863,9 +2863,27 @@ function tierOffset(sr){
   if (t && typeof t.attributeOffset === 'number') return t.attributeOffset;
   return (TS_TIER_OFFSET[sr] !== undefined) ? TS_TIER_OFFSET[sr] : 0;
 }
+/* Resolve a foe's build. Usually it carries one; if it does not (an older foe, or one whose
+   build did not survive a round trip), infer it from the two attributes its stored numbers
+   already use - the canon build whose attribute pair matches. Without this a build-less foe
+   cannot derive and falls back to whatever numbers it happens to have stored, which is exactly
+   how the two tools ended up showing a foe at different levels. */
+function foeInferBuild(f){
+  if (f && f.build && foeBuild(f.build)) return f.build;
+  var a = (f && f.attrs) || {}, have = [];
+  ATTR_LIST.forEach(function(k){ if ((a[k] || 0) > 0) have.push(k); });
+  if (have.length){
+    var key = have.slice().sort().join(','), match = '';
+    (FORGE.pack.builds || []).forEach(function(b){
+      if (((b.attributes || []).slice().sort().join(',')) === key) match = b.name;
+    });
+    if (match) return match;
+  }
+  return (f && f.build) || '';
+}
 function deriveKit(foe, sr, apl){
   if (apl === undefined || apl === null) apl = partyLevel();
-  var b = foeBuild(foe.build || ((FORGE.pack.builds[0] || {}).name));
+  var b = foeBuild(foeInferBuild(foe) || ((FORGE.pack.builds[0] || {}).name));
   var attrs = blankAttrs();
   if (b){
     var val = Math.max(0, apl + tierOffset(sr));
@@ -3064,14 +3082,17 @@ function sheetSetAtkPref(v){ sheetSetField('atkPref', v); }
    was given by hand. */
 function foeLive(f){
   var sr = (f && f.sr) || 'Elite';
-  if (f && f.build && foeBuild(f.build)){
+  var bn = foeInferBuild(f);
+  if (bn && foeBuild(bn)){
     var apl = partyApl();
     var attrs = deriveKit(f, sr, apl).attrs;
     var d = foeDamage(Object.assign({}, f, { attrs: attrs }), attrs, apl);
+    try { console.log('%c[FOELIVE] ' + ((f&&f.name)||'?') + ' build=' + bn + ' sr=' + sr + ' apl=' + apl + ' attr=' + (attrs.Power||attrs.Magic||attrs.Precision||0) + ' dmg=' + (d.base||0) + '+' + (d.bonus||0), 'color:#7ac6e6;font-weight:bold'); } catch(e){}
     return { attrs: attrs,
              dmg: { base: d.base || 0, bonus: d.bonus || 0, type: (d.type === 'magic' ? 'magical' : 'physical'), acc: d.acc || '' },
              maxVit: foeVitality(sr, apl) };
   }
+  try { console.log('%c[FOELIVE] ' + ((f&&f.name)||'?') + ' NO BUILD (build=' + ((f&&f.build)||'') + ') -> stored numbers', 'color:#e67a7a;font-weight:bold'); } catch(e){}
   return { attrs: (f && f.attrs) || {}, dmg: (f && f.dmg) || {}, maxVit: (f && f.maxVit) || 0 };
 }
 /* Forge an Act or a relic from the table. Both land in the same shelves the forges fill. */
@@ -3461,7 +3482,7 @@ function toggleSessionPlay(sesId, key){
   f.ses.bench = f.ses.bench || {};
   if (f.ses.bench[key]) delete f.ses.bench[key]; else f.ses.bench[key] = true;
   storySave(); sessionRosterRefresh(); rosterRefresh();
-  if (isLM() && inBattle()){ syncSceneFell(); applyRemoteState({ scene:S.scene }); combatPublish(); }
+  if (isLM() && inBattle()){ syncSceneFell(); refreshFoeKits(); applyRemoteState({ scene:S.scene }); combatPublish(); }
   render();
 }
 function storyRosterHtml(sc){
@@ -10031,11 +10052,21 @@ function refreshFoeKits(){
   if (!S.scene || !S.scene.foes || !S.scene.foes.length) return false;
   var apl = partyApl(), touched = false;
   S.scene.foes.forEach(function(f){
-    if (!(f.build && foeBuild(f.build))) return;
-    var attrs = deriveKit(f, f.sr || 'Elite', apl).attrs;
+    var bn = foeInferBuild(f);
+    if (!(bn && foeBuild(bn))) return;
+    var sr = f.sr || 'Elite';
+    var attrs = deriveKit(f, sr, apl).attrs;
     var d = foeDamage(Object.assign({}, f, { attrs: attrs }), attrs, apl);
+    f.build = bn;   // pin the resolved build so it stays derivable
     f.attrs = attrs;
     f.dmg = { base: d.base || 0, bonus: d.bonus || 0, type: (d.type === 'magic' ? 'magical' : 'physical'), acc: d.acc || '' };
+    // Vitality scales to the level in the same pass, so no manual balance is ever needed.
+    // Damage already dealt is kept: only a foe still at full (or above the new max) refills.
+    if (TS_VIT_SHARE[sr]){
+      var oldMax = f.maxVit || 0, nv = foeVitality(sr, apl);
+      f.maxVit = nv;
+      if (f.curVit === undefined || f.curVit === null || f.curVit >= oldMax || f.curVit > nv) f.curVit = nv;
+    }
     touched = true;
   });
   return touched;
