@@ -206,6 +206,48 @@ export function get_embed(request) {
     .catch((err) => serverError({ headers: htmlHeaders(), body: '<!doctype html><meta charset="utf-8"><p>' + String(err) + '</p>' }));
 }
 
+// GET /_functions/advinfo?adv=<adventureId>
+// Read-only. For one adventure it dumps the shared Adventures tree (what ThreadSpire writes),
+// the Campaigns blob (what FateWell writes), each with its write time, and the last-write-wins
+// verdict FateWell reaches on load. Use it to see whether a ThreadSpire edit actually landed in
+// the tree, and which source is fresher. Nothing is written.
+export function get_advinfo(request) {
+  const adv = (request.query && (request.query.adv || request.query.id)) || '';
+  const H = { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-cache' };
+  if (!adv) return ok({ headers: H, body: 'Add ?adv=<adventureId> (the campaign/adventure id in the tool URL).' });
+  const ms = d => (d ? new Date(d).getTime() : 0);
+  const iso = d => (d ? new Date(d).toISOString() : '(none)');
+  const R = (coll) => wixData.query(coll).eq('advId', adv).limit(1000).find({ suppressAuth: true, consistentRead: true }).then(r => r.items).catch(() => []);
+  return Promise.all([
+    wixData.get('Adventures', adv, { suppressAuth: true, consistentRead: true }).catch(() => null),
+    R('AdvActs'), R('AdvSessions'), R('AdvScenes'),
+    wixData.get('Campaigns', adv, { suppressAuth: true, consistentRead: true }).catch(() => null)
+  ]).then(([root, acts, ses, scn, blob]) => {
+    const stamps = [root && root._updatedDate]
+      .concat(acts.map(r => r._updatedDate), ses.map(r => r._updatedDate), scn.map(r => r._updatedDate))
+      .filter(Boolean).map(ms);
+    const treeAt = stamps.length ? Math.max.apply(null, stamps) : 0;
+    const blobAt = blob ? ms(blob._updatedDate) : 0;
+    const treeHas = !!(root || acts.length);
+    const verdict = (treeHas && (!blob || treeAt > blobAt))
+      ? 'TREE wins  -> FateWell loads the shared tree (ThreadSpire edits show)'
+      : (blob ? 'BLOB wins  -> FateWell loads its own copy (ThreadSpire edits do NOT show)' : 'nothing stored');
+    let out = 'adventure ' + adv + '\n' + new Date().toISOString() + '\n\n';
+    out += '== TREE  (shared source, ThreadSpire writes here) ==\n';
+    out += 'root: ' + (root ? (JSON.stringify(root.name || '') + '  updated=' + iso(root._updatedDate)) : '(NO ROOT ROW)') + '\n';
+    out += 'acts (' + acts.length + '):\n';
+    acts.forEach(a => { out += '  ' + a.actId + '  ' + JSON.stringify(a.name || '') + '  updated=' + iso(a._updatedDate) + '\n'; });
+    out += 'sessions=' + ses.length + '  scenes=' + scn.length + '\n';
+    out += 'tree newest write: ' + iso(treeAt ? new Date(treeAt) : null) + '\n\n';
+    out += '== BLOB  (Campaigns, FateWell writes here) ==\n';
+    out += (blob ? (JSON.stringify(blob.name || '') + '  updated=' + iso(blob._updatedDate)) : '(NO BLOB ROW)') + '\n\n';
+    out += '== VERDICT ==\n';
+    out += 'treeAt ' + (treeAt > blobAt ? '>' : (treeAt === blobAt ? '=' : '<')) + ' blobAt\n';
+    out += verdict + '\n';
+    return ok({ headers: H, body: out });
+  }).catch(err => serverError({ headers: H, body: String(err) }));
+}
+
 export function get_aiforge(request) {
   // GET returns a version stamp so you can confirm the deployed build in a browser
   return ok({ headers: jsonHeaders(), body: { ok: true, version: 'aiforge-v2-wixfetch-guard', hint: 'POST here with {system,messages,max_tokens,model} to generate' } });
