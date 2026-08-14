@@ -3393,11 +3393,16 @@ function save(){
   clearTimeout(WIX.saveTimer);
   WIX.saveTimer = setTimeout(flushSave, 600);
 }
-/* If the tab is hidden or closing, push whatever is pending right then so nothing in the
-   debounce window is lost. The local copy is already current; this flushes the account push. */
-document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'hidden'){ saveLocal(); flushSave(); fwFlushTree(); } });
-window.addEventListener('pagehide', function(){ saveLocal(); flushSave(); fwFlushTree(); });
-window.addEventListener('beforeunload', function(){ saveLocal(); flushSave(); fwFlushTree(); });
+/* If the tab is hidden or closing, push whatever is PENDING right then so nothing in the
+   debounce window is lost - but only when something is actually pending. Flushing every time
+   the tab lost focus or reloaded re-wrote FateWell's whole local copy over the shared tree,
+   and its copy still held anything ThreadSpire had deleted meanwhile, so that stale whole-
+   adventure write won last and the deletion came back. The local copy is always written; only
+   the account push is gated on there being an unsaved edit. */
+function fwFlushOnLeave(){ saveLocal(); if (WIX.dirty || WIX.saveTimer){ flushSave(); fwFlushTree(); } }
+document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'hidden') fwFlushOnLeave(); });
+window.addEventListener('pagehide', fwFlushOnLeave);
+window.addEventListener('beforeunload', fwFlushOnLeave);
 /* Ask the page to flush any pending shared-tree write now. FateWell loads from its own blob,
    so a stale tree does not revert its edits, but ThreadSpire reads the tree, so flushing on
    the way out keeps the other tool current without waiting for the next open. */
