@@ -46,6 +46,45 @@ const ACTS = 'AdvActs';
 const SES = 'AdvSessions';
 const SCN = 'AdvScenes';
 const CAMPAIGNS = 'Campaigns';
+const DEL = 'AdvDeletes';
+
+// A deletion made in one tool must stick even after the other tool later reconciles its own
+// whole copy of the adventure, which still holds the deleted node. A tombstone records the
+// delete; the reconcile refuses to re-insert any id that has a live tombstone, so a stale copy
+// cannot resurrect it. Tombstones live two days - long enough to outlast any copy in play - and
+// are trimmed as they are read.
+const TOMB_MS = 48 * 3600 * 1000;
+async function tombstone(advId, kind, targetId) {
+  if (!advId || !targetId) return;
+  try { await wd.insert(DEL, { advId: advId, kind: kind, targetId: targetId, deletedAt: Date.now() }, { suppressAuth: true }); } catch (e) {}
+}
+async function recentTombstones(advId) {
+  const live = { act: {}, session: {}, scene: {}, adventure: {} };
+  const cutoff = Date.now() - TOMB_MS;
+  let items = [];
+  try { items = (await wd.query(DEL).eq('advId', advId).limit(1000).find({ suppressAuth: true, consistentRead: true })).items || []; } catch (e) { items = []; }
+  const stale = [];
+  items.forEach(t => {
+    if ((t.deletedAt || 0) >= cutoff) { if (live[t.kind]) live[t.kind][t.targetId] = 1; }
+    else stale.push(t._id);
+  });
+  for (const id of stale) { try { await wd.remove(DEL, id, { suppressAuth: true }); } catch (e) {} }
+  return live;
+}
+async function ownerBlocked(advId) {
+  const id = await memberId();
+  const root = await wd.get(ADV, advId, { suppressAuth: true }).catch(() => null);
+  if (root && root.ownerMemberId && id && root.ownerMemberId !== id) {
+    if (!(await mayKeep(id, advId, root.ownerMemberId))) return true;
+  }
+  return false;
+}
+async function removeWhere(coll, field, value, advId) {
+  const q = await wd.query(coll).eq(field, value).eq('advId', advId).limit(1000).find({ suppressAuth: true, consistentRead: true }).catch(() => ({ items: [] }));
+  let removed = 0;
+  for (const row of q.items) { try { await wd.remove(coll, row._id, { suppressAuth: true }); removed++; } catch (e) {} }
+  return q.items;
+}
 
 async function memberId() {
   try { const m = await currentMember.getMember(); return (m && m._id) || null; } catch (e) { return null; }
@@ -242,20 +281,49 @@ export const saveAdvScene = webMethod(Permissions.Anyone, async (advId, actId, s
   });
 });
 
-async function removeChild(coll, idKey, advId, keyVal) {
-  const id = await memberId();
-  const root = await wd.get(ADV, advId, { suppressAuth: true }).catch(() => null);
-  if (root && root.ownerMemberId && id && root.ownerMemberId !== id) {
-    if (!(await mayKeep(id, advId, root.ownerMemberId))) return { ok: false, error: 'owned by another member' };
+// A delete now takes the whole subtree with it and leaves a tombstone for each node, so the
+// rows do not linger (the orphan leak) and a later reconcile cannot bring them back.
+export const removeAdvScene = webMethod(Permissions.Anyone, async (advId, sceneId) => {
+  if (await ownerBlocked(advId)) return { ok: false, error: 'owned by another member' };
+  await removeWhere(SCN, 'sceneId', sceneId, advId);
+  await tombstone(advId, 'scene', sceneId);
+  return { ok: true };
+});
+export const removeAdvSession = webMethod(Permissions.Anyone, async (advId, sesId) => {
+  if (await ownerBlocked(advId)) return { ok: false, error: 'owned by another member' };
+  const scenes = await removeWhere(SCN, 'sesId', sesId, advId);
+  for (const sc of scenes) await tombstone(advId, 'scene', sc.sceneId);
+  await removeWhere(SES, 'sesId', sesId, advId);
+  await tombstone(advId, 'session', sesId);
+  return { ok: true };
+});
+export const removeAdvAct = webMethod(Permissions.Anyone, async (advId, actId) => {
+  if (await ownerBlocked(advId)) return { ok: false, error: 'owned by another member' };
+  const sessions = await wd.query(SES).eq('actId', actId).eq('advId', advId).limit(1000).find({ suppressAuth: true, consistentRead: true }).catch(() => ({ items: [] }));
+  for (const s of sessions.items) {
+    const scenes = await removeWhere(SCN, 'sesId', s.sesId, advId);
+    for (const sc of scenes) await tombstone(advId, 'scene', sc.sceneId);
+    await tombstone(advId, 'session', s.sesId);
   }
-  const q = await wd.query(coll).eq(idKey, keyVal).eq('advId', advId).limit(1).find({ suppressAuth: true, consistentRead: true });
-  if (!q.items.length) return { ok: true, gone: true };
-  try { await wd.remove(coll, q.items[0]._id, { suppressAuth: true }); return { ok: true }; }
-  catch (e) { return { ok: false, error: (e && e.message) || String(e) }; }
-}
-export const removeAdvScene = webMethod(Permissions.Anyone, async (advId, sceneId) => removeChild(SCN, 'sceneId', advId, sceneId));
-export const removeAdvSession = webMethod(Permissions.Anyone, async (advId, sesId) => removeChild(SES, 'sesId', advId, sesId));
-export const removeAdvAct = webMethod(Permissions.Anyone, async (advId, actId) => removeChild(ACTS, 'actId', advId, actId));
+  await removeWhere(SES, 'actId', actId, advId);
+  await removeWhere(ACTS, 'actId', actId, advId);
+  await tombstone(advId, 'act', actId);
+  return { ok: true };
+});
+// Deleting an adventure clears its whole tree - the four child collections and the root row -
+// and tombstones the adventure so a stray reconcile cannot rebuild it. Deleting the Campaigns
+// blob alone (what the delete used to do) left every one of these rows behind.
+export const removeAdventure = webMethod(Permissions.Anyone, async (advId) => {
+  if (!advId) return { ok: false, error: 'no adventure' };
+  if (await ownerBlocked(advId)) return { ok: false, error: 'owned by another member' };
+  for (const coll of [SCN, SES, ACTS]) {
+    const res = await wd.query(coll).eq('advId', advId).limit(1000).find({ suppressAuth: true, consistentRead: true }).catch(() => ({ items: [] }));
+    for (const row of res.items) { try { await wd.remove(coll, row._id, { suppressAuth: true }); } catch (e) {} }
+  }
+  try { await wd.remove(ADV, advId, { suppressAuth: true }); } catch (e) {}
+  await tombstone(advId, 'adventure', advId);
+  return { ok: true };
+});
 
 // ---- MIGRATION: one Campaigns blob -> the decomposed tree ----
 // Additive and idempotent: it writes the new rows and stamps migratedFrom, but does NOT delete
@@ -326,6 +394,12 @@ export const saveAdventureFromCampaign = webMethod(Permissions.Anyone, async (ad
   const actBy = index(actRows, 'actId'), sesBy = index(sesRows, 'sesId'), scnBy = index(scnRows, 'sceneId');
   let writes = 0;
 
+  // A node deleted in the other tool has a live tombstone; skipping those below is what stops
+  // this reconcile from re-inserting something the other tool just removed. A deleted adventure
+  // is not rebuilt at all.
+  const tombs = await recentTombstones(advId);
+  if (tombs.adventure[advId]) return { ok: true, skipped: 'adventure deleted', advId: advId, tele: TELE };
+
   // root: write only if name, active scene, act order, or any campaign-level field changed
   const actOrder = JSON.stringify(acts.map(a => a.id));
   const rootMeta = JSON.stringify(rootMetaOf(campaign));
@@ -346,19 +420,25 @@ export const saveAdventureFromCampaign = webMethod(Permissions.Anyone, async (ad
   var WRITE_BUDGET = 120;
   var budgetLeft = WRITE_BUDGET;
   for (let ai = 0; ai < acts.length; ai++) {
-    const a = acts[ai]; keepA[a.id] = 1;
+    const a = acts[ai];
+    if (tombs.act[a.id]) continue;   // deleted in the other tool; do not resurrect it or its subtree
+    keepA[a.id] = 1;
     const aRow = actBy[a.id];
     const aFields = actFields(advId, a, ai);
     if (budgetLeft > 0 && rowChanged(aRow, aFields)) { await writeRow(ACTS, aRow, aFields); writes++; budgetLeft--; }
     const sessions = a.sessions || [];
     for (let si = 0; si < sessions.length; si++) {
-      const se = sessions[si]; keepSe[se.id] = 1;
+      const se = sessions[si];
+      if (tombs.session[se.id]) continue;
+      keepSe[se.id] = 1;
       const sRow = sesBy[se.id];
       const sFields = sesFields(advId, a.id, se, si);
       if (budgetLeft > 0 && rowChanged(sRow, sFields)) { await writeRow(SES, sRow, sFields); writes++; budgetLeft--; }
       const scenes = se.scenes || [];
       for (let ci = 0; ci < scenes.length; ci++) {
-        const sc = scenes[ci]; keepSc[sc.id] = 1;
+        const sc = scenes[ci];
+        if (tombs.scene[sc.id]) continue;
+        keepSc[sc.id] = 1;
         const cRow = scnBy[sc.id];
         const cFields = sceneFields(advId, a.id, se.id, sc, ci);
         if (budgetLeft > 0 && rowChanged(cRow, cFields)) { await writeRow(SCN, cRow, cFields); writes++; budgetLeft--; }
