@@ -12,7 +12,7 @@ import { publishAdventure, myPublishedAdventures, unpublishAdventure, getPublish
 import { createInvite, revokeInvite } from 'backend/invites.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
 import { getCampaignState, saveCampaignState, getJournal } from 'backend/campaignview.web.js';
-import { loadAdventure, saveAdventureFromCampaign, saveAdventureFromBlob, migrateCampaign, wipeChunk, remigrateOne, listCampaignIds, removeAdventure } from 'backend/adventures.web.js';
+import { loadAdventure, saveAdventureFromCampaign, saveAdventureFromBlob, migrateCampaign, wipeChunk, remigrateOne, listCampaignIds, removeAdventure, advTombstones } from 'backend/adventures.web.js';
 import wixLocation from 'wix-location';
 import wixWindow from 'wix-window';
 
@@ -224,6 +224,9 @@ $w.onReady(() => {
         // edit, and keep persisting them, each stamped with this member as loremaster.
         let mine = [];
         try { mine = await listMyCampaigns(); } catch (e) { mine = []; }
+        // Attach each adventure's tombstones so the hub can drop nodes deleted in the other tool
+        // from its own (blob-based) copies, which otherwise never learn about the deletion.
+        for (const w of mine) { if (w && w.id) { try { w.deletedIds = await advTombstones(w.id); } catch (e) { w.deletedIds = null; } } }
         embed.postMessage({ type: 'lmtool-hosted', campaigns: mine });
         return;
       }
