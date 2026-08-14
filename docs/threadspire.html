@@ -2839,13 +2839,22 @@ function foeBuild(name){ var hit = null; (FORGE.pack.builds || []).forEach(funct
 function foeTier(name){ var hit = null; (FORGE.pack.tiers || []).forEach(function(t){ if (t && t.name === name) hit = t; }); return hit; }
 /* A foe is built to the ceiling. The rating and the party it faces decide what it
    actually brings: attributes are the party's level shifted by the rating. */
+/* Canon rating offsets, mirrored from FateWell's embedded pack (generated from
+   CanonFoePack). ThreadSpire otherwise reads tiers from the live backend, which can drift
+   from canon; a foe's attributes must derive from the same offset in both tools or its card
+   reads different numbers here than in FateWell. Canon wins; the backend value is a fallback
+   only for a rating not named here. */
+var TS_TIER_OFFSET = { Minion:-2, Elite:0, Champion:1, Epic:2, Forsaken:3 };
+function tierOffset(sr){
+  if (TS_TIER_OFFSET[sr] !== undefined) return TS_TIER_OFFSET[sr];
+  var t = foeTier(sr); return (t && typeof t.attributeOffset === 'number') ? t.attributeOffset : 0;
+}
 function deriveKit(foe, sr, apl){
   if (apl === undefined || apl === null) apl = partyLevel();
   var b = foeBuild(foe.build || ((FORGE.pack.builds[0] || {}).name));
-  var t = foeTier(sr);
   var attrs = blankAttrs();
-  if (b && t){
-    var val = Math.max(0, apl + (t.attributeOffset || 0));
+  if (b){
+    var val = Math.max(0, apl + tierOffset(sr));
     (b.attributes || []).forEach(function(a){ attrs[a] = val; });
   }
   return { sr:sr, attrs:attrs, maxVit:foeVitality(sr, apl) };
@@ -3014,11 +3023,11 @@ function atkType(attrs, foe){
   return m > p ? 'magic' : 'phys';
 }
 function isTie(attrs){ var p = (attrs && attrs.Power) || 0, m = (attrs && attrs.Magic) || 0; return p > 0 && p === m; }
-function foeDamage(f, attrs){
+function foeDamage(f, attrs, apl){
   attrs = attrs || f.attrs || blankAttrs();
   var t = atkType(attrs, f);
   var base = 1 + ((t === 'magic' ? attrs.Magic : attrs.Power) || 0);
-  var bonus = weaponBonus(partyLevel());
+  var bonus = weaponBonus(apl === undefined || apl === null ? partyLevel() : apl);
   (f.infusions || []).forEach(function(n){
     if (FW_BASE_INF[n]) base += attrs[FW_BASE_INF[n]] || 0;
     if (FW_BONUS_INF[n]) bonus += attrs[FW_BONUS_INF[n]] || 0;
@@ -6522,7 +6531,7 @@ function tsCastFoe(cb, i, apl){
     attrs = deriveKit(cb, sr, (apl === undefined ? partyApl() : apl)).attrs;
   else
     attrs = cb.attrs || {};
-  var d = {}; try { d = foeDamage(Object.assign({}, cb, { attrs: attrs }), attrs); } catch(e){ d = {}; }
+  var d = {}; try { d = foeDamage(Object.assign({}, cb, { attrs: attrs }), attrs, (apl === undefined ? partyApl() : apl)); } catch(e){ d = {}; }
   return {
     id: tsFoeId(cb, i),
     name: cb.name || 'Foe', sr: cb.sr || 'Elite', side: 'foe',
