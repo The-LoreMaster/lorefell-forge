@@ -4233,6 +4233,7 @@ function lmBalanceFoes(){
     if (f.curVit === undefined || f.curVit >= oldMax || f.curVit > nv) f.curVit = nv;
     n++;
   });
+  refreshFoeKits();
   applyRemoteState({ scene:S.scene }); try { combatPublish(); } catch(e){} paintLmStrip(); paintHud();
   pushLog({ kind:'sys', html:n + ' foe' + (n === 1 ? '' : 's') + ' balanced to average level <b>' + apl + '</b>.' });
   applyRemoteState({ log:S.log });
@@ -4241,7 +4242,8 @@ function lmBalanceFoes(){
 function lmPinAplSave(){
   var v = (document.getElementById('aplPinIn') || {}).value;
   if (v === '' || +v <= 0) delete S.scene.aplPin; else S.scene.aplPin = Math.max(1, Math.round(+v));
-  applyRemoteState({ scene:S.scene }); paintLmStrip(); lmAplWindow();
+  refreshFoeKits();
+  applyRemoteState({ scene:S.scene }); try { combatPublish(); } catch(e){} paintLmStrip(); lmAplWindow();
 }
 function lmPhaseControls(){
   if (S.mode !== 'combat')
@@ -6527,14 +6529,14 @@ function tsCastFoe(cb, i, apl){
      reads Power or Magic off them, reads wrong). Derive when the foe carries a real build;
      a hand-made foe with no build keeps whatever it was given. */
   var attrs;
-  if (cb.build && foeBuild(cb.build) && foeTier(sr))
+  if (cb.build && foeBuild(cb.build))
     attrs = deriveKit(cb, sr, (apl === undefined ? partyApl() : apl)).attrs;
   else
     attrs = cb.attrs || {};
   var d = {}; try { d = foeDamage(Object.assign({}, cb, { attrs: attrs }), attrs, (apl === undefined ? partyApl() : apl)); } catch(e){ d = {}; }
   return {
     id: tsFoeId(cb, i),
-    name: cb.name || 'Foe', sr: cb.sr || 'Elite', side: 'foe',
+    name: cb.name || 'Foe', sr: cb.sr || 'Elite', side: 'foe', build: cb.build || '',
     curVit: (cb.curVit !== undefined ? cb.curVit : cb.maxVit) || 0, maxVit: cb.maxVit || 0, charge: cb.charge || 0,
     attrs: attrs,
     dmg: { base: d.base || 0, bonus: d.bonus || 0, type: (d.type === 'magic' ? 'magical' : 'physical'), acc: d.acc || '' },
@@ -7375,6 +7377,11 @@ function partyLoad(){
     if (window._sesRosterOpen) sessionRosterRefresh();
     if (window._rosterOpen) rosterRefresh();
     try { renderTokens(); } catch(e){}
+    /* the roster is what average level reads from; foes cast before it arrived froze their
+       attributes at level 1, so re-derive them now that the table is known */
+    if (isLM() && inBattle()) syncSceneFell();
+    var fixed = refreshFoeKits();
+    if (isLM() && S.scene){ applyRemoteState({ scene:S.scene }); try { paintLmStrip(); paintHud(); } catch(e){} }
     /* if the roster lands while a battle is running, the fighters list was published
        without it; say it again with everyone named */
     if (isLM() && inBattle()) combatPublish();
@@ -9978,7 +9985,26 @@ function lmAmbushResolve(){
   applyRemoteState({ scene:S.scene });
   combatPublish(); declaresLoad();
 }
-function lmBeginCombat(){ syncSceneFell(); S.scene.combatPhase = 'commit'; applyRemoteState({ mode:'combat', scene:S.scene }); combatPublish(); declaresLoad(); }
+/* Re-derive every foe's attributes and standard attack against the party at the current
+   average level, in place, keeping the Vitality, charge, and acts already on the board.
+   Foes are cast once when the spine is built, which can happen before the party roster has
+   arrived; with no party the level reads as 1 and a foe's attributes derive to almost
+   nothing. Once the roster lands (or the level is pinned or changed) this brings the frozen
+   numbers up to the party actually at the table. */
+function refreshFoeKits(){
+  if (!S.scene || !S.scene.foes || !S.scene.foes.length) return false;
+  var apl = partyApl(), touched = false;
+  S.scene.foes.forEach(function(f){
+    if (!(f.build && foeBuild(f.build))) return;
+    var attrs = deriveKit(f, f.sr || 'Elite', apl).attrs;
+    var d = foeDamage(Object.assign({}, f, { attrs: attrs }), attrs, apl);
+    f.attrs = attrs;
+    f.dmg = { base: d.base || 0, bonus: d.bonus || 0, type: (d.type === 'magic' ? 'magical' : 'physical'), acc: d.acc || '' };
+    touched = true;
+  });
+  return touched;
+}
+function lmBeginCombat(){ if (!_partyLoaded && !_partyLoading) partyLoad(); syncSceneFell(); refreshFoeKits(); S.scene.combatPhase = 'commit'; applyRemoteState({ mode:'combat', scene:S.scene }); combatPublish(); declaresLoad(); }
 function lmEndCombat(){ S.declares = null; S.scene.combatPhase = null; S.scene.foes.concat(S.scene.fell).forEach(function(c){ c.act=''; c.locked=false; c.spot=null; }); S.scene.fell = (S.scene.fell || []).filter(function(p){ return !p._auto; }); applyRemoteState({ mode:'explore', scene:S.scene });  combatPublish(); }
 function lmLockActs(){ S.scene.combatPhase = 'resolve'; S.scene.foes.concat(S.scene.fell).forEach(function(c){ if(c.act) c.locked = true; }); applyRemoteState({ scene:S.scene }); lmMaterialisePlacements(); }
 function lmUnlock(){ S.scene.combatPhase = 'commit'; S.scene.foes.concat(S.scene.fell).forEach(function(c){ c.locked=false; c.spot=null; }); applyRemoteState({ scene:S.scene }); }
