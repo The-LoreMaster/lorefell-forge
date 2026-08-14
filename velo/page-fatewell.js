@@ -256,6 +256,7 @@ $w.onReady(() => {
         campaignId: campaignId,
         title: title,
         data: campData ? { campaign: campData } : null,
+        deletedIds: (adv && adv.deletes) || null,
         role: role
       });
       let players = [];

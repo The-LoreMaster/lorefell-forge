@@ -166,6 +166,16 @@ export const loadAdventure = webMethod(Permissions.Anyone, async (advId) => {
     .filter(Boolean).map(d => +new Date(d));
   const updatedAt = stamps.length ? Math.max.apply(null, stamps) : 0;
 
+  // The ids deleted in either tool recently, so the client can drop them from its own local
+  // copy even when it is holding on to that copy - which is what stops FateWell showing and
+  // re-saving a node ThreadSpire deleted.
+  let deletes = { act: [], session: [], scene: [] };
+  try {
+    const cutoff = Date.now() - TOMB_MS;
+    const dl = (await wd.query(DEL).eq('advId', advId).limit(1000).find({ suppressAuth: true, consistentRead: true })).items || [];
+    dl.forEach(t => { if ((t.deletedAt || 0) >= cutoff && deletes[t.kind]) deletes[t.kind].push(t.targetId); });
+  } catch (e) {}
+
   const metaObj = jparse(root.meta, {});
   // Spread the campaign-level fields back to the top level where the tools keep them, with the
   // structural fields winning, so loading the tree reconstructs the whole campaign losslessly.
@@ -176,6 +186,7 @@ export const loadAdventure = webMethod(Permissions.Anyone, async (advId) => {
     acts: acts,
     role: 'loremaster',
     updatedAt: updatedAt,
+    deletes: deletes,
     meta: metaObj
   });
 });
