@@ -137,7 +137,7 @@ console.log('genCanon: all baked datasets regenerated from seeds');
   };
   const body = JSON.stringify(pack);
 
-  [['docs/fatewell.html', 'FW_FOE_PACK'], ['docs/sagaforge.html', 'FOE_PACK']].forEach(([file, varName]) => {
+  [['docs/fatewell.html', 'FW_FOE_PACK'], ['docs/sagaforge.html', 'FOE_PACK'], ['docs/threadspire.html', 'TS_FOE_PACK']].forEach(([file, varName]) => {
     let s = read(file);
     s = replaceOnce(file, s, new RegExp('var ' + varName + '=\\{[\\s\\S]*?\\};\\n'),
       'var ' + varName + '=' + body + ';\n', varName);
