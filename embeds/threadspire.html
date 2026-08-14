@@ -1051,6 +1051,7 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .lm-topbar{ display:flex; align-items:center; gap:9px; margin-bottom:10px; background:rgba(10,14,26,.9); border:1px solid var(--line); border-radius:10px; padding:6px 10px; }
 .lm-topbar .lm-head{ margin:0 4px; }
 .lm-apl{ margin:0 4px; font-size:.7rem; letter-spacing:.04em; color:var(--silver,#b8ccd8); white-space:nowrap; }
+.lm-gear{ padding:0 10px; font-size:.95rem; line-height:1; }
 .lm-apl b{ color:var(--gold); }
 .lm-head{ font-family:Cinzel,serif; letter-spacing:.1em; font-size:.68rem; color:var(--gold); text-transform:uppercase; }
 .lm-stage{ position:relative; display:flex; align-items:center; justify-content:center; gap:0; height:auto; width:min(92vw,700px); }
@@ -4197,11 +4198,22 @@ window.addEventListener('keydown', function(e){
   if (e.key === 'ArrowRight') lmStep(1);
 });
 
-function lmAplControls(){
+function lmAplGear(){
+  var pinned = !!(S.scene && S.scene.aplPin);
+  return '<button class="lmbtn lm-gear' + (pinned ? ' gold' : '') + '" onclick="lmAplWindow()" title="Combat settings: average level and foe balance">\u2699</button>';
+}
+function lmAplWindow(){
   var apl = partyApl(), pinned = !!(S.scene && S.scene.aplPin);
-  return '<span class="lm-apl" title="Average level of the attending Fell">Avg lvl <b>' + apl + '</b></span>'
-    + '<button class="lmbtn" onclick="lmBalanceFoes()" title="Set every foe\'s Vitality to 7 x average level x its rating">Balance foes</button>'
-    + '<button class="lmbtn' + (pinned ? ' gold' : '') + '" onclick="lmPinApl()">' + (pinned ? 'APL ' + S.scene.aplPin : 'Pin APL') + '</button>';
+  tsModal('<h3 class="tsm-title">Combat settings</h3>'
+    + '<div class="st-sub">Average player level</div>'
+    + '<p class="tsm-note">Foe Vitality and attributes scale to this. It reads from the attending Fell unless you pin a number.</p>'
+    + '<div class="rs-row"><span class="rs-name">Average level</span><b class="lm-apl">' + apl + (pinned ? ' \u00b7 pinned' : '') + '</b></div>'
+    + '<label class="tsm-lbl">Pin the level</label>'
+    + '<input class="tsm-inp" id="aplPinIn" type="number" min="1" placeholder="from the roster" value="' + esc(String((S.scene && S.scene.aplPin) || '')) + '">'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="lmPinAplSave()">Save level</button>'
+    + '<button class="tsm-btn" onclick="lmBalanceFoes()">Balance foes to this level</button></div>'
+    + '<p class="tsm-note">Balancing sets every foe\'s Vitality to seven times the level times its rating, keeping damage already dealt.</p>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
 }
 function lmBalanceFoes(){
   var apl = partyApl(), n = 0;
@@ -4215,31 +4227,24 @@ function lmBalanceFoes(){
   applyRemoteState({ scene:S.scene }); try { combatPublish(); } catch(e){} paintLmStrip(); paintHud();
   pushLog({ kind:'sys', html:n + ' foe' + (n === 1 ? '' : 's') + ' balanced to average level <b>' + apl + '</b>.' });
   applyRemoteState({ log:S.log });
-}
-function lmPinApl(){
-  var cur = (S.scene && S.scene.aplPin) || '';
-  tsModal('<h3 class="tsm-title">Average player level</h3>'
-    + '<p class="tsm-note">Foe Vitality scales to this. Leave it blank to read it from the attending Fell.</p>'
-    + '<input class="tsm-inp" id="aplPinIn" type="number" min="1" placeholder="from the roster" value="' + esc(String(cur)) + '">'
-    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button>'
-    + '<button class="tsm-btn" onclick="lmPinAplSave()">Set</button></div>');
+  try { if (document.getElementById('aplPinIn')) lmAplWindow(); } catch(e){}
 }
 function lmPinAplSave(){
   var v = (document.getElementById('aplPinIn') || {}).value;
   if (v === '' || +v <= 0) delete S.scene.aplPin; else S.scene.aplPin = Math.max(1, Math.round(+v));
-  tsCloseModal(); applyRemoteState({ scene:S.scene }); paintLmStrip();
+  applyRemoteState({ scene:S.scene }); paintLmStrip(); lmAplWindow();
 }
 function lmPhaseControls(){
   if (S.mode !== 'combat')
     return '<button class="lmbtn" onclick="lmOpenMaps()">Maps</button>'
          + '<button class="lmbtn" onclick="lmOpenTokens()">Tokens</button>'
-         + lmAplControls()
-         + '<button class="lmbtn" onclick="lmBeginCombat()">Begin combat</button>';
+         + '<button class="lmbtn" onclick="lmBeginCombat()">Begin combat</button>'
+         + lmAplGear();
   if (S.scene.combatPhase === 'commit')
     return '<button class="lmbtn gold" onclick="lmLockActs()">Lock acts into Spotlights</button>'
          + '<button class="lmbtn" onclick="declaresLoad()">Read declares</button>'
-         + lmAplControls()
-         + '<button class="lmbtn" onclick="lmEndCombat()">End combat</button>';
+         + '<button class="lmbtn" onclick="lmEndCombat()">End combat</button>'
+         + lmAplGear();
   return '<button class="lmbtn' + (S.scene.spotMode==='auto'?' gold':'') + '" onclick="lmSpotMode(\'auto\')">Auto</button>'
        + '<button class="lmbtn' + (S.scene.spotMode==='manual'?' gold':'') + '" onclick="lmSpotMode(\'manual\')">Manual</button>'
        + '<button class="lmbtn" onclick="lmUnlock()">Back to Commit</button>'
