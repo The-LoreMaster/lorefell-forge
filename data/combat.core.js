@@ -33,12 +33,15 @@
   // The foe's effective level for its weapon bonus: party level + rating offset (min 1).
   function foeLevel(apl, sr){ return Math.max(1, (apl | 0) + offset(sr)); }
 
-  // Which attribute the strike uses: the higher of Magic/Power, tie -> the foe's preference.
+  // Which attribute the strike uses: the higher of Magic/Power. On a tie the foe's preference
+  // decides, but only when there is a real attribute to fight with; a foe with neither is
+  // physical by default. (Matches the tools' original atkType.)
   function atkType(attrs, pref){
     var m = (attrs && attrs.Magic) || 0, p = (attrs && attrs.Power) || 0;
     if (m > p) return 'magic';
     if (p > m) return 'physical';
-    return (pref === 'magic') ? 'magic' : 'physical';
+    if (p > 0 && pref === 'magic') return 'magic';
+    return 'physical';
   }
 
   // Base = 1 + Power (or Magic). Bonus = weaponBonus at the foe's level. Infusions within the
