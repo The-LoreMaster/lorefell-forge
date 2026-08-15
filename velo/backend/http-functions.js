@@ -306,6 +306,33 @@ export function get_advorphans(request) {
     .catch(e => serverError({ headers: H, body: 'error: ' + ((e && e.message) || e) }));
 }
 
+// GET /_functions/advpurge?adv=<id>  - removes ONE orphan tree (its scenes, sessions, acts, and
+// root row) and tombstones it. Hard safety: it REFUSES any adventure that has a Campaigns blob,
+// so it physically cannot delete a live adventure - only a blob-less orphan. Confirm the target
+// against advorphans first; deletion is not reversible.
+export function get_advpurge(request) {
+  const H = { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-cache' };
+  const adv = (request.query && request.query.adv) || '';
+  if (!adv) return badRequest({ headers: H, body: 'Missing ?adv=<id>. Nothing removed.' });
+  const removeAllFor = coll => wixData.query(coll).eq('advId', adv).limit(1000).find({ suppressAuth: true, consistentRead: true })
+    .then(res => {
+      const items = res.items || [];
+      return Promise.all(items.map(r => wixData.remove(coll, r._id, { suppressAuth: true }).catch(() => null))).then(() => items.length);
+    }).catch(() => 0);
+  return wixData.get('Campaigns', adv, { suppressAuth: true, consistentRead: true }).catch(() => null).then(blob => {
+    if (blob) {
+      return ok({ headers: H, body: 'REFUSED: ' + adv + ' has a Campaigns blob (a live adventure). Protected. Nothing removed.\n' });
+    }
+    return Promise.all([removeAllFor('AdvScenes'), removeAllFor('AdvSessions'), removeAllFor('AdvActs')]).then(counts => {
+      return wixData.remove('Adventures', adv, { suppressAuth: true }).catch(() => null).then(() => {
+        return wixData.insert('AdvDeletes', { advId: adv, kind: 'adventure', targetId: adv, deletedAt: Date.now() }, { suppressAuth: true }).catch(() => null).then(() => {
+          return ok({ headers: H, body: 'REMOVED orphan ' + adv + ':  scenes=' + counts[0] + '  sessions=' + counts[1] + '  acts=' + counts[2] + '  + root row.  Tombstoned.\nRun advorphans again to confirm.\n' });
+        });
+      });
+    });
+  }).catch(e => serverError({ headers: H, body: 'error: ' + ((e && e.message) || e) }));
+}
+
 export function get_aiforge(request) {
   // GET returns a version stamp so you can confirm the deployed build in a browser
   return ok({ headers: jsonHeaders(), body: { ok: true, version: 'aiforge-v2-wixfetch-guard', hint: 'POST here with {system,messages,max_tokens,model} to generate' } });
