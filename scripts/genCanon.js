@@ -59,6 +59,17 @@ const ord = (a, b) => (a.displayOrder || 0) - (b.displayOrder || 0);
   write(file, s);
 })();
 
+/* ---- threadspire + fatewell: shared combat formulas inlined from data/combat.core.js ---- */
+(function combatCore() {
+  const pack = read('data/combat.core.js').trim();
+  const re = /\/\* LoreFell canon combat formulas\.[\s\S]*?\}\)\(typeof window !== "undefined" \? window : this\);/;
+  ['docs/threadspire.html', 'docs/fatewell.html'].forEach(file => {
+    let s = read(file);
+    s = replaceOnce(file, s, re, pack, 'combat core');
+    write(file, s);
+  });
+})();
+
 /* ---- fatewell + fellglass: conditions pack inlined from data/conditions.canon.js ---- */
 (function conditions() {
   const pack = read('data/conditions.canon.js').trim();
