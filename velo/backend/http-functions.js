@@ -260,6 +260,52 @@ export function get_advinfo(request) {
   }).catch(err => serverError({ headers: H, body: String(err) }));
 }
 
+// GET /_functions/advorphans  - READ ONLY. Lists every Adventures root grouped by owner, with
+// child counts, and flags duplicate names, roots with no Campaigns blob, empty trees, and blobs
+// with no root. Nothing is deleted; this is the eyeball pass before any cleanup.
+export function get_advorphans(request) {
+  const H = { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-cache' };
+  const iso = d => (d ? new Date(d).toISOString() : '(none)');
+  const all = coll => wixData.query(coll).limit(1000).find({ suppressAuth: true, consistentRead: true }).then(r => r.items).catch(() => []);
+  return Promise.all([all('Adventures'), all('Campaigns'), all('AdvActs'), all('AdvSessions'), all('AdvScenes')])
+    .then(([advs, blobs, acts, ses, scn]) => {
+      const tally = rows => { const m = {}; rows.forEach(r => { m[r.advId] = (m[r.advId] || 0) + 1; }); return m; };
+      const aC = tally(acts), sC = tally(ses), cC = tally(scn);
+      const blobById = {}; blobs.forEach(b => { blobById[b._id] = b; });
+      const advById = {}; advs.forEach(a => { advById[a._id] = a; });
+      let out = 'ADVENTURE ORPHAN / DUPLICATE REPORT (READ ONLY)\n' + new Date().toISOString() + '\n\n';
+      out += 'Adventures roots: ' + advs.length + '   Campaigns blobs: ' + blobs.length + '\n';
+      out += 'AdvActs: ' + acts.length + '   AdvSessions: ' + ses.length + '   AdvScenes: ' + scn.length + '\n\n';
+      const byOwner = {};
+      advs.forEach(a => { const o = a.ownerMemberId || '(no owner)'; (byOwner[o] = byOwner[o] || []).push(a); });
+      Object.keys(byOwner).forEach(owner => {
+        const list = byOwner[owner];
+        const nameCount = {}; list.forEach(a => { const n = (a.name || '').toLowerCase().trim(); nameCount[n] = (nameCount[n] || 0) + 1; });
+        list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        out += '== owner ' + owner + '  (' + list.length + ' roots) ==\n';
+        list.forEach(a => {
+          const flags = [];
+          if ((nameCount[(a.name || '').toLowerCase().trim()] || 0) > 1) flags.push('DUPLICATE-NAME');
+          if (!blobById[a._id]) flags.push('NO-BLOB');
+          const kids = (aC[a._id] || 0) + (sC[a._id] || 0) + (cC[a._id] || 0);
+          if (kids === 0) flags.push('EMPTY-TREE');
+          out += '  ' + a._id + '  ' + JSON.stringify(a.name || '') +
+                 '  acts=' + (aC[a._id] || 0) + ' ses=' + (sC[a._id] || 0) + ' scn=' + (cC[a._id] || 0) +
+                 '  updated=' + iso(a._updatedDate) +
+                 (flags.length ? '  <<< ' + flags.join(', ') : '') + '\n';
+        });
+        out += '\n';
+      });
+      const orphanBlobs = blobs.filter(b => !advById[b._id]);
+      out += '== Campaigns blobs with NO Adventures root (' + orphanBlobs.length + ') ==\n';
+      if (!orphanBlobs.length) out += '(none)\n';
+      orphanBlobs.forEach(b => { out += '  ' + b._id + '  ' + JSON.stringify(b.name || '') + '  updated=' + iso(b._updatedDate) + '\n'; });
+      out += '\nREAD-ONLY. Nothing was changed. Review before any cleanup.\n';
+      return ok({ headers: H, body: out });
+    })
+    .catch(e => serverError({ headers: H, body: 'error: ' + ((e && e.message) || e) }));
+}
+
 export function get_aiforge(request) {
   // GET returns a version stamp so you can confirm the deployed build in a browser
   return ok({ headers: jsonHeaders(), body: { ok: true, version: 'aiforge-v2-wixfetch-guard', hint: 'POST here with {system,messages,max_tokens,model} to generate' } });
