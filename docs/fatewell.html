@@ -2716,9 +2716,8 @@ var VIT_ORDER = ['Minion','Elite','Champion','Epic','Forsaken'];
 var VIT_MODEL = VIT_SHARE;
 function fellVitality(apl){ return VIT_PER_LEVEL * Math.max(1, apl||1); }
 function foeVitality(tierName, apl){
-  var share = VIT_SHARE[tierName];
-  if (!share) return 0;
-  return Math.max(1, Math.round(fellVitality(apl) * share));
+  if (!VIT_SHARE[tierName]) return 0;
+  return LF_COMBAT.vitality(apl, tierName);
 }
 /* Canon foe vocabulary, mirrored from the FoeForge pack (generated from the vault).
    If the vault's builds, stances, or afflictions change, regenerate this list. */
@@ -5814,12 +5813,15 @@ function countModal(libId){
   // The foe's effective level for its weapon bonus: party level + rating offset (min 1).
   function foeLevel(apl, sr){ return Math.max(1, (apl | 0) + offset(sr)); }
 
-  // Which attribute the strike uses: the higher of Magic/Power, tie -> the foe's preference.
+  // Which attribute the strike uses: the higher of Magic/Power. On a tie the foe's preference
+  // decides, but only when there is a real attribute to fight with; a foe with neither is
+  // physical by default. (Matches the tools' original atkType.)
   function atkType(attrs, pref){
     var m = (attrs && attrs.Magic) || 0, p = (attrs && attrs.Power) || 0;
     if (m > p) return 'magic';
     if (p > m) return 'physical';
-    return (pref === 'magic') ? 'magic' : 'physical';
+    if (p > 0 && pref === 'magic') return 'magic';
+    return 'physical';
   }
 
   // Base = 1 + Power (or Magic). Bonus = weaponBonus at the foe's level. Infusions within the
@@ -5862,7 +5864,7 @@ function fwFoeTier(name){ for(var i=0;i<FW_FOE_PACK.tiers.length;i++){ if(FW_FOE
 function fwScaleFoe(buildName, tierName, apl, party){
   var b=fwFoeBuild(buildName), t=fwFoeTier(tierName); if(!b||!t) return null;
   apl=Math.max(1,apl||1); party=Math.max(1,party||4);
-  var val=Math.max(0,apl+t.attributeOffset);
+  var val=LF_COMBAT.attrValue(apl,tierName);
   var attrs=blankAttrs(); (b.attributes||[]).forEach(function(a){ attrs[a]=val; });
   return { attrs:attrs, maxVit:foeVitality(tierName, apl) };
 }
@@ -7164,11 +7166,7 @@ function fwWeaponBonus(apl){ return LF_COMBAT.weaponBonus(apl); }
    decides, and that choice rides on the foe as atkPref. A tie is the only case
    the override touches; the moment one attribute leads, the lead wins. */
 function fwIsTie(attrs){ var p=(attrs&&attrs.Power)||0, m=(attrs&&attrs.Magic)||0; return p>0 && p===m; }
-function fwAtkType(attrs, foe){
-  var p=(attrs&&attrs.Power)||0, m=(attrs&&attrs.Magic)||0;
-  if(p>0 && p===m && foe && (foe.atkPref==='phys'||foe.atkPref==='magic')) return foe.atkPref;
-  return m > p ? 'magic' : 'phys';
-}
+function fwAtkType(attrs, foe){ return LF_COMBAT.atkType(attrs, foe && foe.atkPref) === 'magic' ? 'magic' : 'phys'; }
 function fwActsCeiling(sr){ return fwTierBudget(sr||'Elite').acts; }
 /* Which of the foe's carried infusions its rating has revealed. The kit is full;
    the rating shows the first N of it, escalation shows the next. */
@@ -7179,24 +7177,11 @@ function fwRevealedAug(f){ return (f.augments||[]).slice(0, fwTierBudget(f.sr||'
    Standard Attack has none of its own. */
 function fwFoeDamage(f, attrs){
   attrs = attrs || f.attrs || blankAttrs();
-  var t = fwAtkType(attrs, f);
-  var base = 1 + ((t==='magic' ? attrs.Magic : attrs.Power) || 0);
-  /* The weapon bonus scales with the wielder's level. A foe's level is the party level shifted
-     by its rating (a Minion fights two below the party), so the bonus reads off the foe's level,
-     not the party's - the same rule ThreadSpire uses. Then the revealed kit stacks. */
-  var _t = fwFoeTier(f.sr || 'Elite'), _off = _t ? (_t.attributeOffset || 0) : 0;
-  var bonus = fwWeaponBonus(fwCombatApl() + _off);
-  fwRevealedInf(f).forEach(function(n){
-    if (FW_BASE_INF[n]) base += attrs[FW_BASE_INF[n]] || 0;
-    if (FW_BONUS_INF[n]) bonus += attrs[FW_BONUS_INF[n]] || 0;
-  });
-  /* A standard attack resolves on Precision against Evasion whether the weapon is
-     physical or magic; Magic only ever sets Base Damage. This line read out Magic for
-     a magic build, so the card told the loremaster to roll one thing while
-     cbRollFoeAcc rolled another. The roll was always right, only the label lied. */
-  var acc = '1d6 + Precision '+(attrs.Precision||0);
-  return { type:t, base:base, bonus:bonus, acc:acc,
-    text: base + (bonus ? ' + ' + bonus : ' + 0') + ' ' + (t==='magic' ? 'magical' : 'physical') };
+  var d = LF_COMBAT.damage(attrs, f.sr || 'Elite', fwCombatApl(), f.infusions, f && f.atkPref);
+  var t = (d.type === 'magical') ? 'magic' : 'phys';
+  return { type:t, base:d.base, bonus:d.bonus,
+    acc: '1d6 + Precision '+(attrs.Precision||0),
+    text: d.base + (d.bonus ? ' + ' + d.bonus : ' + 0') + ' ' + d.type };
 }
 /* On a Power and Magic tie, the loremaster picks the damage type. The choice
    stores on the foe and syncs like the rest of the kit. */

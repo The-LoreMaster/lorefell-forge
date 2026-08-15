@@ -2808,12 +2808,15 @@ function rosterReopenAfter(){ if (window._rosterScene) rosterWindow(window._rost
   // The foe's effective level for its weapon bonus: party level + rating offset (min 1).
   function foeLevel(apl, sr){ return Math.max(1, (apl | 0) + offset(sr)); }
 
-  // Which attribute the strike uses: the higher of Magic/Power, tie -> the foe's preference.
+  // Which attribute the strike uses: the higher of Magic/Power. On a tie the foe's preference
+  // decides, but only when there is a real attribute to fight with; a foe with neither is
+  // physical by default. (Matches the tools' original atkType.)
   function atkType(attrs, pref){
     var m = (attrs && attrs.Magic) || 0, p = (attrs && attrs.Power) || 0;
     if (m > p) return 'magic';
     if (p > m) return 'physical';
-    return (pref === 'magic') ? 'magic' : 'physical';
+    if (p > 0 && pref === 'magic') return 'magic';
+    return 'physical';
   }
 
   // Base = 1 + Power (or Magic). Bonus = weaponBonus at the foe's level. Infusions within the
@@ -2933,11 +2936,7 @@ function foeTier(name){ var hit = null; (FORGE.pack.tiers || []).forEach(functio
    reads different numbers here than in FateWell. Canon wins; the backend value is a fallback
    only for a rating not named here. */
 var TS_TIER_OFFSET = { Minion:-2, Elite:0, Champion:1, Epic:2, Forsaken:3 };
-function tierOffset(sr){
-  var t = foeTier(sr);
-  if (t && typeof t.attributeOffset === 'number') return t.attributeOffset;
-  return (TS_TIER_OFFSET[sr] !== undefined) ? TS_TIER_OFFSET[sr] : 0;
-}
+function tierOffset(sr){ return LF_COMBAT.offset(sr); }
 /* Resolve a foe's build. Usually it carries one; if it does not (an older foe, or one whose
    build did not survive a round trip), infer it from the two attributes its stored numbers
    already use - the canon build whose attribute pair matches. Without this a build-less foe
@@ -2961,7 +2960,7 @@ function deriveKit(foe, sr, apl){
   var b = foeBuild(foeInferBuild(foe) || ((FORGE.pack.builds[0] || {}).name));
   var attrs = blankAttrs();
   if (b){
-    var val = Math.max(0, apl + tierOffset(sr));
+    var val = LF_COMBAT.attrValue(apl, sr);
     (b.attributes || []).forEach(function(a){ attrs[a] = val; });
   }
   return { sr:sr, attrs:attrs, maxVit:foeVitality(sr, apl) };
@@ -3124,37 +3123,17 @@ var FW_WEAPON_BONUS = { 1:1, 2:1, 3:3, 4:3, 5:6, 6:6, 7:10, 8:10, 9:15, 10:15 };
 var FW_BASE_INF  = { Brutal:'Power', Sharp:'Precision', Potent:'Magic' };
 var FW_BONUS_INF = { Mauling:'Power', Wounding:'Precision', Blighting:'Magic' };
 function weaponBonus(apl){ return LF_COMBAT.weaponBonus(apl); }
-function atkType(attrs, foe){
-  var p = (attrs && attrs.Power) || 0, m = (attrs && attrs.Magic) || 0;
-  if (p > 0 && p === m && foe && (foe.atkPref === 'phys' || foe.atkPref === 'magic')) return foe.atkPref;
-  return m > p ? 'magic' : 'phys';
-}
+function atkType(attrs, foe){ return LF_COMBAT.atkType(attrs, foe && foe.atkPref) === 'magic' ? 'magic' : 'phys'; }
 function isTie(attrs){ var p = (attrs && attrs.Power) || 0, m = (attrs && attrs.Magic) || 0; return p > 0 && p === m; }
 function foeDamage(f, attrs, apl){
   attrs = attrs || f.attrs || blankAttrs();
-  var t = atkType(attrs, f);
-  var base = 1 + ((t === 'magic' ? attrs.Magic : attrs.Power) || 0);
-  var _sr = f.sr || 'Elite';
-  /* The weapon bonus scales with the WIELDER's level, and a foe's effective level is the party
-     level shifted by its rating - a Minion fights two below the party. So the bonus reads off
-     the foe's level, not the party's: a Minion at a level-6 party is a level-4 wielder (+3),
-     not the +6 a level-6 wielder brings. */
-  var _wl = (apl === undefined || apl === null ? partyLevel() : apl) + tierOffset(_sr);
-  var bonus = weaponBonus(_wl);
-  /* Only infusions within the rating's budget apply - a Minion's budget is zero, so it brings
-     only its Standard Attack. FateWell limits the same way (fwRevealedInf); applying every
-     infusion here was adding a Minion's kit to its damage and reading higher than FateWell. */
-  (f.infusions || []).slice(0, (tsRating(_sr).inf || 0)).forEach(function(n){
-    if (FW_BASE_INF[n]) base += attrs[FW_BASE_INF[n]] || 0;
-    if (FW_BONUS_INF[n]) bonus += attrs[FW_BONUS_INF[n]] || 0;
-  });
-  /* A standard attack resolves on Precision against Evasion whatever the foe fights
-     with; Magic sets Base Damage and never the roll to land. The same line in
-     FateWell's fwFoeDamage read out Magic for a magic build, and this is its twin, so
-     it carried the same wrong instruction to whoever read this card. */
-  return { type:t, base:base, bonus:bonus,
+  var d = LF_COMBAT.damage(attrs, f.sr || 'Elite',
+                           (apl === undefined || apl === null ? partyLevel() : apl),
+                           f.infusions, f && f.atkPref);
+  var t = (d.type === 'magical') ? 'magic' : 'phys';
+  return { type:t, base:d.base, bonus:d.bonus,
            acc: '1d6 + Precision ' + (attrs.Precision || 0),
-           text: base + ' + ' + bonus + ' ' + (t === 'magic' ? 'magical' : 'physical') };
+           text: d.base + ' + ' + d.bonus + ' ' + d.type };
 }
 function sheetSetAtkPref(v){ sheetSetField('atkPref', v); }
 /* The one place a foe's numbers are worked out for the screen. A foe is stored as a build and
@@ -3285,10 +3264,7 @@ function syncSceneFell(){
    both tools. */
 var TS_VIT_PER_LEVEL = 7;
 var TS_VIT_SHARE = { Minion:0.5, Elite:1.0, Champion:1.5, Epic:2.0, Forsaken:2.5 };
-function foeVitality(sr, apl){
-  var share = TS_VIT_SHARE[sr]; if (!share) share = 1.0;
-  return Math.max(1, Math.round(TS_VIT_PER_LEVEL * Math.max(1, apl || 1) * share));
-}
+function foeVitality(sr, apl){ return LF_COMBAT.vitality(apl, sr); }
 function assetToRow(e){
   return {
     assetId: e.id, type: e.type || 'monster', name: e.name || '', description: e.desc || '',
