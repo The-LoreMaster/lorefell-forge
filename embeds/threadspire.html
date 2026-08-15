@@ -5611,6 +5611,7 @@ function sharedSnapshot(){
 /* relay our state outward. On acknowledgement we mark the version seen, so the feed never
    pulls our own writes back and clobbers a live interaction. */
 var _advSwitching = false;
+var _advLoadVeilT = null;   /* absolute fallback timer for the load veil, so it can never hang */
 var _pushWarnAt = 0;
 var _advTooBig = false;
 /* The spine travels alone. It is the heaviest single thing the table shares and it
@@ -5748,6 +5749,7 @@ function applyRemoteSnapshot(snap){
      has stood up from the account, the relay's adventure field is ignored entirely. It is only
      honoured before the real load, as the first thing to put something on an empty table. */
   if (snap.adventure && snap.adventure.acts && !S._advFullLoaded){
+    advVeilForLoad('');   /* hide this partial until the full spine stands up */
     var _rr = snap.advRev || 0, _lr = S.advRev || 0;
     var _fresh = S._advTouch && Date.now() - S._advTouch < 6000;
     var _first = !S._advRemote;
@@ -6111,7 +6113,18 @@ function advGoing(name){
     + '<div class="ag-sub">Traversing the Sphere</div></div>';
   el.style.display = 'flex';
 }
-function advGoingStop(){ var el = document.getElementById('advGo'); if (el){ el.style.display = 'none'; el.innerHTML = ''; } }
+function advGoingStop(){ var el = document.getElementById('advGo'); if (el){ el.style.display = 'none'; el.innerHTML = ''; } if (_advLoadVeilT){ clearTimeout(_advLoadVeilT); _advLoadVeilT = null; } }
+/* Hold the veil over a load in progress so the LoreMaster's table does not flash a partial
+   one-act adventure while the full spine is still being read from the account. It lifts the
+   moment the full adventure stands up (which calls advGoingStop), and an absolute fallback
+   guarantees it can never trap the table if that stand-up never arrives. Only the LoreMaster
+   reads the full spine; a player's view comes over the relay and must not be veiled. */
+function advVeilForLoad(name){
+  if (!isLM() || S._advFullLoaded) return;
+  if (_advLoadVeilT) return;                        /* already veiling this load */
+  if (!advVeiled()) advGoing(name || '');
+  _advLoadVeilT = setTimeout(function(){ _advLoadVeilT = null; if (advVeiled()) advGoingStop(); }, 10000);
+}
 /* The veil's frame is built once and reused, so asking whether it exists answers yes
    forever and every stuck-check fired on a switch that had worked perfectly. Ask
    whether it is showing. */
