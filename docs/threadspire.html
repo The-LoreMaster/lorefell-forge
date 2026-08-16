@@ -1819,9 +1819,13 @@ window.addEventListener('resize', function(){ try { clampCam(); applyCam(); } ca
    A loose roll from the tray carries no mods, because a die thrown at nothing has no
    sheet behind it, and showing invented modifiers was the bug this replaced. */
 function rollEntry(evt){
-  return { kind:'roll', who:S.character.name, rollType:evt.rollType, n:evt.n,
+  /* The LoreMaster's loose rolls belong to the LoreMaster, not to whatever Fell the account
+     carries. Logging S.character.name here credited the roll to the account's own Fell (a name
+     that need not even be in this adventure). A player's roll is still their Fell's. */
+  var who = isLM() ? 'LoreMaster' : ((S.character && S.character.name) || '');
+  return { kind:'roll', who:who, rollType:evt.rollType, n:evt.n,
     mods:evt.mods || [], total:(typeof evt.total === 'number') ? evt.total : evt.n,
-    skin:skinKey(evt.rollType, S.character.name) };
+    skin:skinKey(evt.rollType, who) };
 }
 
 /* ---- the seam ---- */
@@ -4137,16 +4141,27 @@ function paintLmStrip(){
      card jumped up while you were reading it. Capture where the open card was scrolled and
      put it back after the repaint, so a live update no longer costs you your place. Keyed
      off the expanded card element, which survives the rebuild by class. */
-  var prevScroll = null;
+  var prevScroll = null, prevBeatScroll = null;
   try {
     var openCard = el.querySelector('.lmcard.expanded');
     if (openCard) prevScroll = openCard.scrollTop;
+    /* The centre beat card scrolls its own body (a long read-aloud, a dialogue, a note). The
+       repaint rebuilt it too, so a roll - which repaints the strip to show the die - threw the
+       LoreMaster back to the top of whatever they were reading. Capture and restore it as well. */
+    var beatBody = el.querySelector('.lmcard.beat .lmc-body');
+    if (beatBody) prevBeatScroll = beatBody.scrollTop;
   } catch(e){}
   el.innerHTML = lmStripHtml();
   if (prevScroll){
     try {
       var newCard = el.querySelector('.lmcard.expanded');
       if (newCard) newCard.scrollTop = prevScroll;
+    } catch(e){}
+  }
+  if (prevBeatScroll){
+    try {
+      var newBeat = el.querySelector('.lmcard.beat .lmc-body');
+      if (newBeat) newBeat.scrollTop = prevBeatScroll;
     } catch(e){}
   }
   try {
