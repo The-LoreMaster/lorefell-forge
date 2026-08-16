@@ -56,10 +56,39 @@ permits only four exact scripts. To run it by hand, add `canon/checkCanon.js` to
 Each concept: where its truth lives now, and the recommended authoritative source. This is the
 migration order. Fix the actively-broken ones first.
 
-### 1. Foe pack. WORST, actively disagreeing
-- **Now:** `docs/fatewell.html` `FW_FOE_PACK` (carries infusion rule text) vs `docs/sagaforge.html`
-  `FOE_PACK` (names only, **already drifted**) vs Wix `CanonFoePack` (live, foeforge reads it at
-  runtime). `data/FoePack.canon.json` is dead (its generator `build-canon-pack.py` is absent).
+### 0. Foe-derivation MATH (`data/combat.core.js`). DONE — single source, do NOT hand-edit the tools
+- **Source of record:** `data/combat.core.js`, the `LF_COMBAT` global. It holds the rating table
+  (attribute offsets, vitality shares, infusion budgets, lore points), the weapon-bonus table, and
+  every foe derivation: attribute value, vitality (`7 x APL x share`), the weapon bonus read at the
+  foe's level, attack type, the full damage composition (base + bonus + infusions within budget),
+  average party level, skill difficulty, and the disruption pool.
+- **How it reaches the tools:** `node scripts/genCanon.js` bakes the file verbatim into both
+  `docs/threadspire.html` and `docs/fatewell.html` between the `LF_COMBAT` markers
+  (`/* LoreFell canon combat formulas. ... })(typeof window !== "undefined" ? window : this);`),
+  byte-identical across the two and idempotent. Inside each tool, the foe functions **delegate** to
+  `LF_COMBAT`: ThreadSpire's `tierOffset`, `foeVitality`, `atkType`, the `deriveKit` attribute, and
+  `foeDamage`; FateWell's `foeVitality`, `fwAtkType`, `fwScaleFoe` attribute, and `fwFoeDamage`.
+  The tools keep only their own display wrapping (`'phys'`/`'magic'` label, accuracy line, card
+  text) around the shared numbers.
+- **⚠️ Do NOT hand-edit the baked `LF_COMBAT` block inside a tool.** It is generated. Edit
+  `data/combat.core.js`, run `node scripts/genCanon.js`, `cp docs/{threadspire,fatewell}.html
+  embeds/`, then validate. A hand edit to the block is overwritten on the next bake and is caught by
+  the drift gate.
+- **Guards:** `scripts/checkCombatCore.js` (32 assertions pinning `LF_COMBAT` to the canon tables
+  and the ruling) and an old-vs-new equivalence sweep (every rating x APL 1-10 x five builds x five
+  infusion sets x three preferences = 3750 damage cases, plus vitality and offset) proved the
+  delegation byte-identical when it landed.
+- **The one ruling that overrides the vault prose:** the weapon Bonus Damage reads at the **foe's
+  level** (Average Party Level + the rating's offset), the way a Fell's weapon reads at the Fell's
+  level, **not** the flat party level. `LoreVault/Running the Game/Building Crucibles.md` was
+  corrected to match (a Champion at party level 4 is level 5, bonus 6 not 3).
+
+### 1. Foe pack. Foe MATH is now single-source (item 0); the pack DATA is still split
+- **Now:** the scaling *formulas* moved to `data/combat.core.js` (item 0 above). What remains split
+  is the pack *data*: `docs/fatewell.html` `FW_FOE_PACK` (carries infusion rule text) vs
+  `docs/sagaforge.html` `FOE_PACK` (names only, **already drifted**) vs Wix `CanonFoePack` (live,
+  foeforge reads it at runtime). `data/FoePack.canon.json` is dead (its generator
+  `build-canon-pack.py` is absent).
 - **Recommend:** author a vault foe-pack collection (builds / tiers / stances / pools), generate
   `schemas/seed/CanonFoePack.json` from it, and push to Wix. This needs authoring first. The 15 builds
   and the tier ladder currently live only as prose in `LoreVault/Running the Game/Building Crucibles.md`.
