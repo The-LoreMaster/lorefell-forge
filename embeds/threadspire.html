@@ -2941,6 +2941,105 @@ function foeForgeSave(){
   render();
 }
 function libScopeFlip(sceneId){ S.libAll = !S.libAll; libChooser(sceneId); }
+
+/* ---- back up and import an adventure ----
+   Export writes a lorefell-adventure-pack-1 pack, the same format FateWell reads and writes, so a
+   backup made here opens there and the other way round. Import hands the pack to the backend,
+   which inserts it through saveCampaign exactly as a create does, so a fresh adventure lands
+   without either tool owning the transform. */
+function tsBuildPack(){
+  var A = S.adventure || {};
+  var camp = JSON.parse(JSON.stringify(A));
+  camp.players = [];
+  var foes = [], npcs = [], seen = {};
+  function takeLib(id){
+    if (!id || seen[id]) return;
+    var e = libGet(id); if (!e) return;
+    seen[id] = 1;
+    (e.type === 'npc' ? npcs : foes).push(JSON.parse(JSON.stringify(e)));
+  }
+  (camp.acts || []).forEach(function(a){
+    (a.sessions || []).forEach(function(ss){
+      (ss.scenes || []).forEach(function(sc){
+        if ((!sc.entries || !sc.entries.length) && (sc.beats || []).length){
+          sc.entries = (sc.beats || []).map(function(b){
+            return { id:b.id || mkId(), type:b.kind || 'general', title:b.title || '', body:b.body || '',
+                     speaker:b.speaker || '', handle:b.handle || '', img:b.img || '' };
+          });
+        }
+        sc.ps = {}; sc.att = {}; sc.combatants = []; sc.log = [];
+        (sc.foes || []).forEach(function(f){ takeLib(f.libId); });
+        (sc.npcs || []).forEach(function(n){ takeLib(n.libId); });
+      });
+    });
+  });
+  (S.library || []).forEach(function(e){
+    if (e.type === 'monster' && e.campaignId && sameId(e.campaignId, S.campaignId)) takeLib(e.id);
+  });
+  return { meta:{ format:'lorefell-adventure-pack-1', builtAt:Date.now() }, campaign:camp, npcs:npcs, foes:foes };
+}
+function tsExportAdventure(){
+  var A = S.adventure || {};
+  if (!A.acts || !A.acts.length){
+    tsModal('<h3 class="tsm-title">Nothing to back up</h3><p class="lc-p">Open an adventure first.</p><div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
+    return;
+  }
+  var text = JSON.stringify(tsBuildPack(), null, 2);
+  var name = String(A.name || 'adventure').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'adventure';
+  try {
+    var b = new Blob([text], { type:'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(b); a.download = name + '.lorefell-pack.json';
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 500);
+    tsModal('<h3 class="tsm-title">Backed up</h3><p class="lc-p">The adventure downloaded as a pack. Bring it back through Import and it lands as a fresh copy.</p><div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
+  } catch(e){
+    tsModal('<h3 class="tsm-title">Back up ' + esc(A.name || 'adventure') + '</h3><p class="tsm-note">Copy this and save it as a .json file. Bring it back through Import.</p><textarea class="tsm-inp tsm-ta" style="min-height:220px" onclick="this.select()" readonly>' + esc(text) + '</textarea><div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Done</button></div>');
+  }
+}
+function tsImportAdventure(){
+  tsModal('<h3 class="tsm-title">Import an adventure</h3>'
+    + '<p class="tsm-note">Choose a LoreFell pack (.json), from a backup or from FateWell. It lands as a fresh adventure you can run and edit.</p>'
+    + '<input type="file" accept="application/json,.json" id="tsPackFile" onchange="tsReadPack(this)">'
+    + '<div id="tsPackMsg" class="tsm-note" style="margin-top:8px"></div>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
+}
+function tsReadPack(input){
+  var f = input.files && input.files[0]; input.value = '';
+  if (!f) return;
+  var msg = document.getElementById('tsPackMsg');
+  if (msg) msg.textContent = 'Reading ' + f.name + '...';
+  var reader = new FileReader();
+  reader.onload = function(ev){
+    var pack;
+    try { pack = JSON.parse(ev.target.result); }
+    catch(e){ if (msg) msg.textContent = 'That file is not valid JSON.'; return; }
+    if (!pack || !pack.campaign || !pack.meta || pack.meta.format !== 'lorefell-adventure-pack-1'){
+      if (msg) msg.textContent = 'That does not look like a LoreFell adventure pack.'; return;
+    }
+    if (msg) msg.textContent = 'Building the adventure...';
+    setTimeout(function(){ tsImportPack(pack); }, 30);
+  };
+  reader.onerror = function(){ if (msg) msg.textContent = 'Could not read that file.'; };
+  reader.readAsText(f);
+}
+function tsImportPack(pack){
+  var nm = (pack.campaign && pack.campaign.name) || 'Imported adventure';
+  tsCloseModal(); advGoing(nm);
+  tsAsk('TS_ADVENTURE_IMPORT', { pack:pack }).then(function(r){
+    if (!r || !r.id) throw new Error('no id');
+    return tsAsk('TS_CAMPAIGN_SET', { campaignId:r.id });
+  }).catch(function(){
+    advGoingStop();
+    tsModal('<h3 class="tsm-title">It was not imported</h3><p class="lc-p">The pack could not be built into an adventure. Nothing here has changed. If this page is out of date, paste velo/page-threadspire.js and publish.</p><div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
+  });
+  setTimeout(function(){
+    if (!advVeiled()) return;
+    if (sameId(S.campaignId, nm)) return;
+    advGoingStop();
+    tsModal('<h3 class="tsm-title">Still here</h3><p class="lc-p">It may have imported, but the page did not move. Open Settings and look for it in your adventures.</p><div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
+  }, 15000);
+}
 function libFilter(q){
   q = String(q || '').toLowerCase();
   var rows = document.querySelectorAll('#libList .lib-row');
@@ -6615,6 +6714,10 @@ function settingsBody(){
   h += '<div class="nb-scene">A new adventure</div>'
     + '<div class="rs-adds"><button class="st-add" onclick="advNewHere()">Make one here</button>'
     + '<button class="st-add" onclick="advNew()">Write one in FateWell</button></div>';
+  h += '<div class="nb-scene">Backup</div>'
+    + '<div class="win-note">Download this adventure as a pack, or bring one in. A pack opens in FateWell too.</div>'
+    + '<div class="rs-adds"><button class="st-add" onclick="tsExportAdventure()">Back up this adventure</button>'
+    + '<button class="st-add" onclick="tsImportAdventure()">Import an adventure</button></div>';
   h += '<div class="nb-scene">Published</div>'
     + '<div class="win-note">This adventure, and the shelf it is published to.</div>';
   var mine = (S.published || []).filter(function(p){ return sameId(p.campaignId, S.campaignId); })[0];

@@ -316,6 +316,25 @@ $w.onReady(async function () {
             if (r && r.ok && r.id) reply(true, { id: r.id, name: nm });
             else reply(false, null, (r && r.error) || 'the adventure was not created');
           } catch (e) { reply(false, null, String(e)); }
+        } else if (msg.type === 'TS_ADVENTURE_IMPORT') {
+          // Bring a lorefell-adventure-pack-1 pack in as a fresh adventure. saveCampaign with no
+          // id inserts the whole campaign and hands back the new id, exactly as a create does;
+          // then the pack's foes and NPCs are saved to the library, stamped with that new id.
+          try {
+            const pack = msg.pack || {};
+            const camp = Object.assign({}, pack.campaign || {});
+            const nm = String(camp.name || 'Imported adventure').slice(0, 120);
+            delete camp.id;
+            const r = await saveCampaign('', { campaign: camp }, nm);
+            if (!(r && r.ok && r.id)) { reply(false, null, (r && r.error) || 'the adventure was not created'); }
+            else {
+              const lib = [].concat(pack.foes || [], pack.npcs || []);
+              for (const e of lib) {
+                try { const a = Object.assign({}, e); a.campaignId = r.id; await saveAsset(a); } catch (e2) {}
+              }
+              reply(true, { id: r.id, name: nm });
+            }
+          } catch (e) { reply(false, null, String(e)); }
         } else if (msg.type === 'TS_NEW_ADVENTURE') {
           // FateWell authors adventures; ThreadSpire runs them. The route is the one
           // the Hearth uses, in docs/the_hearth.html.
