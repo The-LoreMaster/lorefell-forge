@@ -415,6 +415,11 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
   background:transparent; border:1px solid rgba(201,168,76,.28); color:var(--silver); }
 .ff-chip.on{ background:rgba(201,168,76,.18); border-color:var(--gold); color:#fff; }
 .ff-chip:disabled{ opacity:.32; cursor:default; }
+.ff-act{ border:1px solid rgba(201,168,76,.16); border-radius:8px; padding:7px; margin:4px 0; }
+.ff-act-top{ display:flex; gap:6px; align-items:center; }
+.ff-act-nm{ flex:1 1 auto; margin:0; }
+.ff-act-tier{ flex:0 0 auto; width:auto; margin:0; }
+.ff-act-eff{ margin-top:6px; min-height:44px; }
 .lib-row.static{ cursor:default; }
 .lib-row:hover:not(.static){ background:rgba(20,30,54,.5); }
 .lib-av{ width:26px; height:26px; border-radius:50%; object-fit:cover; flex:none; }
@@ -2808,6 +2813,31 @@ function foeForgeKitSection(kind){
   h += '</div>';
   return h;
 }
+function foeActsBudget(sr){ var b = (FORGE.pack.tierBudget || {})[sr]; return (b && typeof b.acts === 'number') ? b.acts : 0; }
+function foeTierCap(sr){ return Math.min(foeActsBudget(sr), 3); }
+function foeForgeActsSection(){
+  var c = window._foeForge;
+  var budget = foeActsBudget(c.sr), cap = foeTierCap(c.sr);
+  var h = '<label class="tsm-lbl">Acts <span class="ff-budget">' + (c.abilities || []).length + ' of ' + budget + '</span></label>';
+  if (budget <= 0 || cap <= 0){ h += '<p class="tsm-note">A ' + esc(c.sr) + ' brings only its Standard Attack.</p>'; return h; }
+  var tierOpts = function(sel){ var o = ''; for (var t = 1; t <= cap; t++){ o += '<option value="' + t + '"' + ((sel || 1) === t ? ' selected' : '') + '>Tier ' + t + '</option>'; } return o; };
+  (c.abilities || []).forEach(function(ab, i){
+    h += '<div class="ff-act">'
+      + '<div class="ff-act-top">'
+      + '<input class="tsm-inp ff-act-nm" id="ffAbName' + i + '" value="' + esc(ab.name || '') + '" placeholder="Act name" oninput="foeForgeAbSet(' + i + ',\'name\',this.value)">'
+      + '<select class="tsm-inp ff-act-tier" onchange="foeForgeAbTier(' + i + ',this.value)">' + tierOpts(ab.tier) + '</select>'
+      + '<button type="button" class="st-b" onclick="foeForgeAbDel(' + i + ')" title="Remove">\u2715</button>'
+      + '</div>'
+      + '<textarea class="tsm-inp tsm-ta ff-act-eff" id="ffAbEff' + i + '" placeholder="What it does" oninput="foeForgeAbSet(' + i + ',\'effect\',this.value)">' + esc(ab.effect || '') + '</textarea>'
+      + '</div>';
+  });
+  h += '<button type="button" class="st-add"' + ((c.abilities || []).length >= budget ? ' disabled' : '') + ' onclick="foeForgeAbAdd()">Add an act</button>';
+  return h;
+}
+function foeForgeAbSet(i, k, v){ var c = window._foeForge; if (c && c.abilities && c.abilities[i]) c.abilities[i][k] = v; }
+function foeForgeAbTier(i, v){ var c = window._foeForge; if (c && c.abilities && c.abilities[i]) c.abilities[i].tier = parseInt(v, 10) || 1; }
+function foeForgeAbAdd(){ var c = window._foeForge; if (!c) return; c.abilities = c.abilities || []; if (c.abilities.length >= foeActsBudget(c.sr)) return; c.abilities.push({ name:'', tier:1, effect:'' }); foeForgeRerender(); }
+function foeForgeAbDel(i){ var c = window._foeForge; if (!c || !c.abilities) return; c.abilities.splice(i, 1); foeForgeRerender(); }
 function foeForgeBody(){
   var c = window._foeForge;
   var builds = (FORGE.pack.builds || []).map(function(b){ return b.name; });
@@ -2825,6 +2855,7 @@ function foeForgeBody(){
     + '<select class="tsm-inp" id="ffPref" onchange="foeForgeRerender()"><option value="phys"' + (c.atkPref !== 'magic' ? ' selected' : '') + '>Physical</option><option value="magic"' + (c.atkPref === 'magic' ? ' selected' : '') + '>Magical</option></select>'
     + foeForgeKitSection('inf')
     + foeForgeKitSection('aug')
+    + foeForgeActsSection()
     + '<label class="tsm-lbl">Description</label>'
     + '<textarea class="tsm-inp tsm-ta" id="ffDesc" placeholder="What it is at the table">' + esc(c.desc) + '</textarea>'
     + '<div id="ffPrev">' + foeForgePreview() + '</div>'
@@ -2839,6 +2870,10 @@ function foeForgeSync(){
   var sr = g('ffRating'); if (sr !== undefined) c.sr = sr;
   var ap = g('ffPref'); if (ap !== undefined) c.atkPref = ap;
   var ds = g('ffDesc'); if (ds !== undefined) c.desc = ds;
+  if (c.abilities){ c.abilities.forEach(function(ab, i){
+    var nm = document.getElementById('ffAbName' + i); if (nm) ab.name = nm.value;
+    var ef = document.getElementById('ffAbEff' + i); if (ef) ab.effect = ef.value;
+  }); }
 }
 function foeForgeRerender(){
   foeForgeSync();
@@ -2846,6 +2881,9 @@ function foeForgeRerender(){
   /* a rating change moves the budget, so trim anything no longer affordable before repainting */
   c.infusions = (c.infusions || []).slice(0, foeInfBudget(c.sr));
   c.augments = (c.augments || []).slice(0, foeAugBudget(c.sr));
+  c.abilities = (c.abilities || []).slice(0, foeActsBudget(c.sr));
+  var _cap = foeTierCap(c.sr);
+  c.abilities.forEach(function(ab){ if ((ab.tier || 1) > _cap) ab.tier = _cap || 1; });
   var panel = document.querySelector('#tsModal .tsm-panel');
   if (panel) panel.innerHTML = foeForgeBody();
 }
@@ -2869,11 +2907,13 @@ function foeForge(libId){
     atkPref: (e && e.atkPref) || 'phys',
     desc: (e && (e.desc || e.description)) || '',
     infusions: (e && Array.isArray(e.infusions)) ? e.infusions.slice() : [],
-    augments: (e && Array.isArray(e.augments)) ? e.augments.slice() : []
+    augments: (e && Array.isArray(e.augments)) ? e.augments.slice() : [],
+    abilities: (e && Array.isArray(e.abilities)) ? JSON.parse(JSON.stringify(e.abilities)) : []
   };
   var c = window._foeForge;
   c.infusions = c.infusions.slice(0, foeInfBudget(c.sr));
   c.augments = c.augments.slice(0, foeAugBudget(c.sr));
+  c.abilities = c.abilities.slice(0, foeActsBudget(c.sr));
   tsModal(foeForgeBody());
   setTimeout(function(){ var el = document.getElementById('ffName'); if (el){ el.focus(); if (!c.name) el.select(); } }, 40);
 }
@@ -2890,7 +2930,7 @@ function foeForgeSave(){
   rec.maxVit = LF_COMBAT.vitality(apl, c.sr);
   rec.infusions = (c.infusions || []).slice(0, foeInfBudget(c.sr));
   rec.augments = (c.augments || []).slice(0, foeAugBudget(c.sr));
-  rec.abilities = rec.abilities || [];
+  rec.abilities = (c.abilities || []).filter(function(a){ return (a.name || '').trim(); }).slice(0, foeActsBudget(c.sr));
   if (!rec.campaignId && S.campaignId) rec.campaignId = S.campaignId;
   var idx = -1; (S.library || []).forEach(function(x, i){ if (sameId(x.id, rec.id)) idx = i; });
   S.library = S.library || [];
