@@ -1,3 +1,11 @@
+## 2026-08-16 - SagaForge decommissioned from the hearth
+
+SagaForge is pulled from the hearth. Its card and icon are gone from the_hearth.html, so nothing
+on the site routes to it. The tool itself is left untouched in the repo (docs/sagaforge.html and
+embeds/sagaforge.html) because it is meant to come back, not to be thrown away; reviving it is
+re-adding its WALL card and icon to the hearth. Its Wix page at /the-sagaforge is separate and can
+be removed or hidden there whenever convenient.
+
 ## 2026-08-16 - The foe math reads from one source
 
 The foe derivation lived as two hand-kept copies, one in ThreadSpire and one in FateWell, free to drift, which is how a rules question turned into a formula hunt across both tools. It reads from one source now. data/combat.core.js holds the LF_COMBAT global: the rating table (offsets, vitality shares, infusion budgets, lore points), the weapon-bonus table, and every derivation from attribute value and vitality through the damage composition, the average party level, the skill difficulty, and the disruption pool. genCanon bakes it verbatim into both tools between the LF_COMBAT markers, byte-identical and idempotent, and each tool's foe functions delegate to it, keeping only their own labels and card text around the shared numbers. Editing a foe rule is one file and one command now. checkCombatCore pins it with thirty-two assertions, and an old-versus-new sweep of every rating by level by build by infusion set by preference, 3750 damage cases plus vitality and offset, proved the delegation identical when it landed. One ruling overrides the vault prose: the weapon Bonus Damage reads at the foe's own level, the party level shifted by the rating, not the flat party level, and Building Crucibles was corrected to match. Do not hand-edit the baked LF_COMBAT block inside a tool. Edit data/combat.core.js, run node scripts/genCanon.js, mirror docs to embeds, and validate. See CANON_SOURCES.md item 0 for the full record.
