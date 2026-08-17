@@ -2133,6 +2133,16 @@ function storyBeatMove(sceneId, idx, dir){
   storySave(); refreshWinBody();
   if (typeof paintLmStrip === 'function' && isLM()) paintLmStrip();
 }
+function storyMove(kind, id, dir){
+  /* Reorder an act, session, or scene the same way beats reorder. advPersistTree writes the act
+     order, each act's session order, and each session's scene order into the shared tree, so the
+     order both tools read is the one just set here. Neither tool owns it; the tree does. */
+  var f = storyFind(kind, id); if (!f) return;
+  var arr = f.list, i = f.idx, j = i + dir;
+  if (!arr || j < 0 || j >= arr.length) return;
+  var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+  storySave(); advPersistTree(); refreshWinBody(); render();
+}
 function storyBeatAdd(sceneId){ tsBeatModal(sceneId, -1); }
 function storyBeatOpen(sceneId, idx){ tsBeatModal(sceneId, idx); }
 function tsBeatModal(sceneId, idx){
@@ -2201,29 +2211,35 @@ function storyBody(){
     console.log('%c[STORY] painting acts=' + ((A.acts&&A.acts.length)||0) + ' scenes=' + _pn + ' name=' + (A.name||'') + ' fullLoaded=' + (!!S._advFullLoaded), 'color:#c6a7e6;font-weight:bold');
   } catch(e){}
   var h = '<div class="win-note">The adventure spine. Open an act to reach its sessions, scenes, and notes.</div>';
-  (A.acts || []).forEach(function(a){
+  (A.acts || []).forEach(function(a, ai){
     var ao = !!storyOpen.act[a.id];
     h += '<div class="st-row st-act"><span class="st-tw" onclick="storyToggle(\'act\',\'' + a.id + '\')">' + (ao ? '\u25be' : '\u25b8') + '</span>'
        + '<span class="st-name" onclick="storyToggle(\'act\',\'' + a.id + '\')">' + esc(a.name) + '</span>'
+       + '<button class="st-b" onclick="storyMove(\'act\',\'' + a.id + '\',-1)"' + (ai === 0 ? ' disabled' : '') + ' title="Move up">\u25b4</button>'
+       + '<button class="st-b" onclick="storyMove(\'act\',\'' + a.id + '\',1)"' + (ai === (A.acts.length - 1) ? ' disabled' : '') + ' title="Move down">\u25be</button>'
        + '<button class="st-b" onclick="storyRename(\'act\',\'' + a.id + '\')" title="Rename">\u270e</button>'
        + '<button class="st-b" onclick="storyDelete(\'act\',\'' + a.id + '\')" title="Delete">\u2715</button></div>';
     if (!ao) return;
     h += '<div class="st-kids">';
-    (a.sessions || []).forEach(function(se){
+    (a.sessions || []).forEach(function(se, si){
       var so = !!storyOpen.ses[se.id];
       h += '<div class="st-row st-ses"><span class="st-tw" onclick="storyToggle(\'ses\',\'' + se.id + '\')">' + (so ? '\u25be' : '\u25b8') + '</span>'
          + '<span class="st-name" onclick="storyToggle(\'ses\',\'' + se.id + '\')">' + esc(se.name) + '</span>'
+         + '<button class="st-b" onclick="storyMove(\'session\',\'' + se.id + '\',-1)"' + (si === 0 ? ' disabled' : '') + ' title="Move up">\u25b4</button>'
+         + '<button class="st-b" onclick="storyMove(\'session\',\'' + se.id + '\',1)"' + (si === (a.sessions.length - 1) ? ' disabled' : '') + ' title="Move down">\u25be</button>'
          + '<button class="st-b" onclick="storyRename(\'session\',\'' + se.id + '\')" title="Rename">\u270e</button>'
          + '<button class="st-b" onclick="storyDelete(\'session\',\'' + se.id + '\')" title="Delete">\u2715</button></div>';
       if (!so) return;
       h += '<div class="st-kids">';
       h += '<button class="rs-open" onclick="sessionRosterWindow(\'' + se.id + '\')">Roster <span class="rs-count">' + sessionFell(se).filter(function(p){ return !p.benched; }).length + '</span></button>';
-      (se.scenes || []).forEach(function(sc){
+      (se.scenes || []).forEach(function(sc, ci){
         var on = sc.id === (S.scene && S.scene.id);
         var co = !!storyOpen.scene[sc.id];
         h += '<div class="st-row st-scene' + (on ? ' live' : '') + '"><span class="st-tw" onclick="storyToggle(\'scene\',\'' + sc.id + '\')">' + (co ? '\u25be' : '\u25b8') + '</span>'
            + '<span class="st-name" onclick="storyToggle(\'scene\',\'' + sc.id + '\')">' + esc(sc.name) + (on ? ' <em class="st-live">running</em>' : '') + '</span>'
            + (on ? '' : '<button class="st-b st-run" onclick="setActiveScene(\'' + sc.id + '\')" title="Run this scene">\u25b6</button>')
+           + '<button class="st-b" onclick="storyMove(\'scene\',\'' + sc.id + '\',-1)"' + (ci === 0 ? ' disabled' : '') + ' title="Move up">\u25b4</button>'
+           + '<button class="st-b" onclick="storyMove(\'scene\',\'' + sc.id + '\',1)"' + (ci === (se.scenes.length - 1) ? ' disabled' : '') + ' title="Move down">\u25be</button>'
            + '<button class="st-b" onclick="storyRename(\'scene\',\'' + sc.id + '\')" title="Rename">\u270e</button>'
            + '<button class="st-b" onclick="storyDelete(\'scene\',\'' + sc.id + '\')" title="Delete">\u2715</button></div>';
         if (!co) return;
