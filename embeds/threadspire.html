@@ -401,6 +401,13 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .lib-scope{ display:block; width:100%; margin:6px 0 8px; font-size:.66rem; }
 .lib-list{ max-height:46vh; overflow-y:auto; }
 .lib-row{ display:flex; align-items:center; gap:8px; width:100%; padding:6px 4px; background:transparent; border:none; border-bottom:1px solid rgba(201,168,76,.10); color:var(--silver); font:inherit; text-align:left; cursor:pointer; }
+.lib-rowx{ display:flex; align-items:center; gap:4px; }
+.lib-rowx .lib-row{ border-bottom:none; }
+.lib-rowx{ border-bottom:1px solid rgba(201,168,76,.10); }
+.lib-edit{ flex:0 0 auto; }
+.ff-prev{ margin:10px 0 4px; padding:8px 10px; border:1px solid rgba(201,168,76,.18); border-radius:8px; background:rgba(201,168,76,.05); }
+.ff-prev-h{ font-family:Cinzel,serif; font-size:.72rem; letter-spacing:.06em; color:var(--gold); margin-bottom:4px; }
+.ff-prev-row{ font-size:.82rem; color:var(--ice); line-height:1.5; }
 .lib-row.static{ cursor:default; }
 .lib-row:hover:not(.static){ background:rgba(20,30,54,.5); }
 .lib-av{ width:26px; height:26px; border-radius:50%; object-fit:cover; flex:none; }
@@ -2731,15 +2738,106 @@ function libChooser(sceneId){
     var meta = kind === 'foe'
       ? ((e.sr || '') + (e.maxVit ? ' \u00b7 ' + e.maxVit + ' vit' : ''))
       : (e.role || 'NPC');
-    return '<button class="lib-row" data-name="' + esc(e.name.toLowerCase()) + '" onclick="libAttach(\'' + sceneId + '\',\'' + e.id + '\')">'
+    var main = '<button class="lib-row" data-name="' + esc(e.name.toLowerCase()) + '" onclick="libAttach(\'' + sceneId + '\',\'' + e.id + '\')">'
       + (e.img ? '<img class="lib-av" src="' + esc(e.img) + '" alt="">' : '<span class="lib-av lib-ph"></span>')
       + '<span class="lib-nm">' + esc(e.name) + '</span><span class="lib-meta">' + esc(meta) + '</span></button>';
+    if (kind === 'foe'){
+      main = '<div class="lib-rowx">' + main + '<button class="st-b lib-edit" onclick="foeForge(\'' + e.id + '\')" title="Edit foe">\u270e</button></div>';
+    }
+    return main;
   }
   if (foes.length){ h += '<div class="tsm-lbl">Foes</div>'; foes.forEach(function(e){ h += row(e, 'foe'); }); }
   if (npcs.length){ h += '<div class="tsm-lbl">NPCs</div>'; npcs.forEach(function(e){ h += row(e, 'npc'); }); }
-  if (!foes.length && !npcs.length) h += '<p class="tsm-note">Nothing here yet. FateWell authors the library.</p>';
-  h += '</div><div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>';
+  if (!foes.length && !npcs.length) h += '<p class="tsm-note">No foes here yet. Forge one below, or author the library in FateWell.</p>';
+  h += '</div><button class="st-add" onclick="foeForge()">Forge a new foe</button>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>';
   tsModal(h);
+}
+/* ---- forge a foe at the table ----
+   Build and rating are the foe's identity. LF_COMBAT derives its attributes, vitality, and
+   damage from them, the same source FateWell derives from, so a foe made here reads identically
+   there. The record saves to the shared account library (assetBackend.save), stamped with the
+   campaign, so it is one foe both tools read and write. Neither tool owns it. */
+function foeForgeAttrs(build, sr, apl){
+  var attrs = blankAttrs();
+  var b = foeBuild(build);
+  if (b){ var v = LF_COMBAT.attrValue(apl, sr); (b.attributes || []).forEach(function(a){ attrs[a] = v; }); }
+  return attrs;
+}
+function foeForgePreview(){
+  var c = window._foeForge; if (!c) return '';
+  var apl = (typeof partyLevel === 'function' ? partyLevel() : 3) || 3;
+  var attrs = foeForgeAttrs(c.build, c.sr, apl);
+  var d = LF_COMBAT.damage(attrs, c.sr, apl, [], c.atkPref === 'magic' ? 'magic' : 'phys');
+  var b = foeBuild(c.build) || { attributes: [] };
+  var pairs = (b.attributes || []).map(function(a){ return a + ' ' + (attrs[a] || 0); }).join(' \u00b7 ');
+  return '<div class="ff-prev"><div class="ff-prev-h">At party level ' + apl + '</div>'
+    + '<div class="ff-prev-row">' + esc(pairs || 'no attributes') + '</div>'
+    + '<div class="ff-prev-row">Vitality ' + LF_COMBAT.vitality(apl, c.sr) + '</div>'
+    + '<div class="ff-prev-row">Standard damage ' + d.base + ' + ' + d.bonus + ' ' + d.type + '</div></div>';
+}
+function foeForgeSync(){
+  var c = window._foeForge; if (!c) return;
+  var g = function(id){ var e = document.getElementById(id); return e ? e.value : undefined; };
+  var nm = g('ffName'); if (nm !== undefined) c.name = nm.replace(/^\s+|\s+$/g, '');
+  var bd = g('ffBuild'); if (bd !== undefined) c.build = bd;
+  var sr = g('ffRating'); if (sr !== undefined) c.sr = sr;
+  var ap = g('ffPref'); if (ap !== undefined) c.atkPref = ap;
+  var ds = g('ffDesc'); if (ds !== undefined) c.desc = ds;
+}
+function foeForgeChanged(){ foeForgeSync(); var p = document.getElementById('ffPrev'); if (p) p.innerHTML = foeForgePreview(); }
+function foeForge(libId){
+  var e = libId ? libGet(libId) : null;
+  var builds = (FORGE.pack.builds || []).map(function(b){ return b.name; });
+  var tiers = (FORGE.pack.tiers || []).map(function(t){ return t.name; });
+  window._foeForge = {
+    id: e ? e.id : null,
+    name: e ? (e.name || '') : '',
+    build: (e && (e.build || foeInferBuild(e))) || builds[0] || 'Juggernaut',
+    sr: (e && e.sr) || 'Elite',
+    atkPref: (e && e.atkPref) || 'phys',
+    desc: (e && (e.desc || e.description)) || ''
+  };
+  var c = window._foeForge;
+  function opts(list, sel){ return list.map(function(x){ return '<option value="' + esc(x) + '"' + (x === sel ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join(''); }
+  var back = window._rosterScene ? 'libChooser(\'' + window._rosterScene + '\')' : 'tsCloseModal()';
+  var h = '<h3 class="tsm-title">' + (c.id ? 'Edit foe' : 'Forge a foe') + '</h3>'
+    + '<label class="tsm-lbl">Name</label>'
+    + '<input class="tsm-inp" id="ffName" value="' + esc(c.name) + '" placeholder="The Charnel" autocomplete="off">'
+    + '<label class="tsm-lbl">Build</label>'
+    + '<select class="tsm-inp" id="ffBuild" onchange="foeForgeChanged()">' + opts(builds, c.build) + '</select>'
+    + '<label class="tsm-lbl">Rating</label>'
+    + '<select class="tsm-inp" id="ffRating" onchange="foeForgeChanged()">' + opts(tiers, c.sr) + '</select>'
+    + '<label class="tsm-lbl">Attack preference (only matters on a tie)</label>'
+    + '<select class="tsm-inp" id="ffPref" onchange="foeForgeChanged()"><option value="phys"' + (c.atkPref !== 'magic' ? ' selected' : '') + '>Physical</option><option value="magic"' + (c.atkPref === 'magic' ? ' selected' : '') + '>Magical</option></select>'
+    + '<label class="tsm-lbl">Description</label>'
+    + '<textarea class="tsm-inp tsm-ta" id="ffDesc" placeholder="What it is at the table">' + esc(c.desc) + '</textarea>'
+    + '<div id="ffPrev">' + foeForgePreview() + '</div>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="' + back + '">Cancel</button>'
+    + '<button class="tsm-btn" onclick="foeForgeSave()">' + (c.id ? 'Save' : 'Forge it') + '</button></div>';
+  tsModal(h);
+  setTimeout(function(){ var el = document.getElementById('ffName'); if (el){ el.focus(); if (!c.name) el.select(); } }, 40);
+}
+function foeForgeSave(){
+  foeForgeSync();
+  var c = window._foeForge; if (!c) return;
+  if (!c.name){ var el = document.getElementById('ffName'); if (el) el.focus(); return; }
+  var apl = (typeof partyLevel === 'function' ? partyLevel() : 3) || 3;
+  var rec = (c.id && libGet(c.id)) || { id:mkId(), type:'monster', side:'monster' };
+  rec.type = 'monster';
+  rec.name = c.name; rec.build = c.build; rec.sr = c.sr; rec.atkPref = c.atkPref;
+  rec.desc = c.desc; rec.description = c.desc;
+  rec.attrs = foeForgeAttrs(c.build, c.sr, apl);
+  rec.maxVit = LF_COMBAT.vitality(apl, c.sr);
+  rec.abilities = rec.abilities || []; rec.infusions = rec.infusions || []; rec.augments = rec.augments || [];
+  if (!rec.campaignId && S.campaignId) rec.campaignId = S.campaignId;
+  var idx = -1; (S.library || []).forEach(function(x, i){ if (sameId(x.id, rec.id)) idx = i; });
+  S.library = S.library || [];
+  if (idx >= 0) S.library[idx] = rec; else S.library.push(rec);
+  if (typeof assetBackend !== 'undefined' && assetBackend && assetBackend.save) assetBackend.save(rec).catch(function(){});
+  tsCloseModal();
+  if (window._rosterScene) libChooser(window._rosterScene);
+  render();
 }
 function libScopeFlip(sceneId){ S.libAll = !S.libAll; libChooser(sceneId); }
 function libFilter(q){
