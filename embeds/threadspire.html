@@ -4321,8 +4321,8 @@ function openWin(key){
   if (S.openSection === null) window._lmPrevMin = lmMin;
   if (key !== 'fell' && S.godChar){
     godWait(false);
+    godFlushThenClose();
     S.godChar = null; S.godPanel = null;
-    try { tsAsk('TS_GOD_SHEET_CLOSE', {}); } catch(e){}
     sheet.postMessage({ type:'ts-god', on:false });
   }
   S.openSection = key;
@@ -4377,8 +4377,8 @@ function openWin(key){
 function closeWin(){
   if (S.godChar){
     godWait(false);
+    godFlushThenClose();
     S.godChar = null; S.godPanel = null;
-    try { tsAsk('TS_GOD_SHEET_CLOSE', {}); } catch(e){}
     sheet.postMessage({ type:'ts-god', on:false });
   }
   S.openSection = null;
@@ -7780,10 +7780,7 @@ function lmFellBody(){
       + (p.charId
           ? '<button class="pt-main pt-open" onclick="lmOpenFell(\'' + esc(p.charId) + '\')"><span class="pt-name">' + esc(p.charName || p.name || 'Unnamed') + '</span>'
             + '<span class="pt-meta">' + esc(p.name || '') + (vit ? ' \u00b7 ' + vit : '')
-              /* DIAGNOSTIC: the record this row actually points at, and the level the
-                 roster is reporting. If two rows show the same id they are one record. */
               + ' \u00b7 lv ' + (p.level === undefined ? '?' : p.level)
-              + ' \u00b7 id ' + esc(String(p.charId || 'none')).slice(-8)
               + '</span></button>'
           : '<span class="pt-main"><span class="pt-name">' + esc(p.charName || p.name || 'Unnamed') + '</span>'
             + '<span class="pt-meta">' + esc(p.name || '') + (vit ? ' \u00b7 ' + vit : '') + '</span></span>')
@@ -8183,10 +8180,17 @@ function godShow(charId, rec){
   sheet.postMessage({ type:'ts-god', on:true });
   paintGodBar(); sheetGoto(S.godPanel || 'lore');
 }
+/* Closing tells the site to forget which Fell was open, which is also the only thing
+   authorising a save for it. The sheet's last edit may still be in its debounce, so
+   ask it to write now and let that land before the door shuts. */
+function godFlushThenClose(){
+  try { sheet.postMessage({ type:'ts-god-flush' }); } catch(e){}
+  setTimeout(function(){ try { tsAsk('TS_GOD_SHEET_CLOSE', {}); } catch(e){} }, 900);
+}
 function lmCloseFell(){
   godWait(false);
+  godFlushThenClose();
   S.godChar = null; S.godPanel = null;
-  tsAsk('TS_GOD_SHEET_CLOSE', {}).catch(function(){});
   sheet.postMessage({ type:'ts-god', on:false });
   openWin('fell');
 }
