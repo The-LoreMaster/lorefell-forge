@@ -302,10 +302,14 @@ export const getCampaignPlayers = webMethod(Permissions.Anyone, async (campaignI
   const out = [];
   const withChar = {};
   chars.forEach((it) => {
-    let lvl = 1, maxVit = 0;
+    // The row carries an indexed `level` column that saveCharacter keeps in step with the
+    // sheet. Read it FIRST and outside the try, so a data blob that fails to parse costs
+    // the vitality reading rather than flattening every Fell in the party to level 1.
+    let lvl = Number(it.level) || 1, maxVit = 0;
     try {
       const dat = typeof it.data === 'string' ? JSON.parse(it.data) : (it.data || {});
-      lvl = Number(dat.level || (dat.lore && dat.lore.level) || (dat.identity && dat.identity.level)) || 1;
+      const blobLvl = Number(dat.level || (dat.lore && dat.lore.level) || (dat.identity && dat.identity.level)) || 0;
+      if (blobLvl > 0) lvl = blobLvl;
       maxVit = Number(dat.vitality && dat.vitality.max) || 0;
     } catch (e) {}
     const mid = it.ownerMemberId || '';
