@@ -718,6 +718,42 @@ body.in-combat{ padding-top:var(--cbn-h,46px); }
 .cb-sel{ width:100%; background:var(--navy-3); border:1px solid var(--line); color:var(--silver); border-radius:8px; padding:9px 10px; font-family:inherit; font-size:.9rem; }
 .cb-meta{ margin-top:12px; font-size:.8rem; color:#7e8a99; }
 .cb-row{ display:flex; justify-content:space-between; gap:10px; margin-top:16px; }
+/* ---------- Treasure Phase (player) ---------- */
+.tp-ovl{position:fixed;inset:0;z-index:9500;background:rgba(4,7,14,.86);backdrop-filter:blur(3px);
+  display:flex;align-items:center;justify-content:center;padding:18px;overflow-y:auto}
+.tp-card{width:100%;max-width:420px;background:var(--navy-2,#101626);border:1px solid var(--line,#26324a);
+  border-top:3px solid var(--gold,#c9a84c);border-radius:14px;padding:20px;box-shadow:0 18px 50px rgba(0,0,0,.6)}
+.tp-eyebrow{font-family:"Cinzel",serif;font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--silver-dim,#8fa3b3);margin-bottom:4px}
+.tp-h{font-family:"Cinzel",serif;font-size:1.24rem;color:var(--gold,#c9a84c);margin-bottom:8px}
+.tp-sub{font-size:.94rem;color:var(--silver,#b9c6d4);margin:6px 0 12px;line-height:1.45}
+.tp-line{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:8px 0 2px}
+.tp-lbl{font-family:"Cinzel",serif;font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--silver-dim,#8fa3b3)}
+.tp-val{font-family:"Cinzel",serif;font-size:1.32rem;color:var(--ice,#b8ccd8)}
+.tp-val.gold{color:var(--gold,#c9a84c)}
+.tp-val.bad{color:var(--danger,#c2504b)}
+.tp-note{font-size:.86rem;color:var(--silver-dim,#8fa3b3);line-height:1.4;margin-bottom:2px}
+.tp-note.quiet{font-style:italic;margin-top:6px}
+.tp-sep{height:1px;background:var(--line,#26324a);margin:14px 0 10px}
+.tp-row{display:flex;justify-content:flex-end;margin-top:14px}
+.tp-dierow{display:flex;align-items:center;gap:12px;margin-top:14px}
+.tp-die{width:46px;height:46px;flex:0 0 46px;display:flex;align-items:center;justify-content:center;
+  border:1px solid var(--line,#26324a);border-radius:10px;background:var(--navy,#0a0f1c);
+  font-family:"Cinzel",serif;font-size:1.3rem;color:var(--ice,#b8ccd8)}
+.tp-btn{flex:1;background:var(--navy,#0a0f1c);border:1px solid var(--line2,#3a4a68);color:var(--silver,#b9c6d4);
+  font-family:"Cinzel",serif;font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;
+  padding:11px 16px;border-radius:8px;cursor:pointer;transition:border-color .15s,color .15s}
+.tp-btn:hover:not(:disabled){border-color:var(--gold,#c9a84c);color:var(--gold,#c9a84c)}
+.tp-btn:disabled{opacity:.45;cursor:default}
+.tp-btn.gold{border-color:rgba(201,168,76,.55);color:var(--gold,#c9a84c)}
+.tp-prize{font-family:"Cinzel",serif;font-size:1.16rem;color:var(--ice,#b8ccd8);text-align:center;
+  padding:14px 10px;margin:12px 0 6px;border:1px solid var(--line,#26324a);border-radius:10px;background:var(--navy,#0a0f1c)}
+.tp-prize.gold{color:var(--gold,#c9a84c);border-color:rgba(201,168,76,.5)}
+.tp-wait{display:flex;align-items:center;gap:10px;margin-top:14px;font-size:.9rem;color:var(--silver-dim,#8fa3b3)}
+.tp-spin{width:13px;height:13px;border:2px solid var(--line2,#3a4a68);border-top-color:var(--gold,#c9a84c);
+  border-radius:50%;animation:tpspin .8s linear infinite}
+@keyframes tpspin{to{transform:rotate(360deg)}}
+
 </style>
 </head>
 <body>
@@ -6708,6 +6744,226 @@ renderLore();renderDials();renderVit();renderCharges();renderFatigue();
 renderWeapons();renderArmor();renderLorebounds();renderSkills();renderItems();
 updateAurum();renderStatus();renderBattle();grantSummary();renderStrip();buildHub("lore");
 syncIdentityLock();renderMotivation();
+
+/* ===================== TREASURE PHASE (player side) =====================
+   Runs after the battle ends, so it deliberately does NOT live behind
+   COMBAT.active - the backend keeps serving the row while treasure.open is
+   true and active is already false. Three beats: Endurance against Fatigue,
+   then Lore Points, then the Treasure Roll if the LoreMaster marked you
+   lucky. The Draw is the LoreMaster's, so the sheet goes quiet between your
+   roll and your loot. Everything is pushed on the combat-sync channel the
+   sheet already uses; nothing here opens a second transport. */
+
+var TP_FATIGUE_NAMES = (typeof FATIGUE_NAMES !== "undefined") ? FATIGUE_NAMES
+  : ["Fresh","Tired","Weary","Exhausted","Drained","Overwhelmed"];
+
+function tpState(){ return (COMBAT && COMBAT.treasure) || null; }
+function tpOpen(){ var t = tpState(); return !!(t && t.open); }
+function tpMine(){ return (COMBAT && COMBAT.youTreasure) || null; }
+function tpAmLucky(){ var t = tpState(); return !!(t && t.lucky && CUR_WIX_ID && t.lucky[CUR_WIX_ID]); }
+function tpMyDraw(){ var t = tpState(); return (t && t.draws && CUR_WIX_ID) ? (t.draws[CUR_WIX_ID] || null) : null; }
+
+/* Harfolk carry a permanent extra Lucky die on Treasure Rolls, so they roll
+   three and keep the highest. Read off the sheet's own identity rather than
+   anything the board sends, because the lineage is the player's to know. */
+function tpDiceCount(){
+  if (!tpAmLucky()) return 1;
+  var lin = String((C && C.identity && C.identity.lineage) || "").toLowerCase();
+  return (lin.indexOf("harfolk") >= 0) ? 3 : 2;
+}
+
+function tpPush(patch){
+  if (!CUR_WIX_ID) return;
+  var cur = tpMine() || {};
+  var next = {};
+  Object.keys(cur).forEach(function(k){ next[k] = cur[k]; });
+  Object.keys(patch).forEach(function(k){ next[k] = patch[k]; });
+  if (COMBAT) COMBAT.youTreasure = next;   /* optimistic, so the card moves at once */
+  postToVelo({ type:"combat-sync", charId:CUR_WIX_ID, treasure: next });
+  tpRender();
+}
+
+/* ---- the three beats ---- */
+
+function tpRollEndurance(){
+  var btn = document.getElementById("tpEndBtn");
+  if (btn){ if (btn.dataset.busy) return; btn.dataset.busy = "1"; btn.disabled = true; }
+  var face = document.getElementById("tpEndDie");
+  var iv = setInterval(function(){ if (face) face.textContent = 1 + Math.floor(Math.random()*6); }, 70);
+  setTimeout(function(){
+    clearInterval(iv);
+    var die = 1 + Math.floor(Math.random()*6);
+    var fellstrike = (die === 1);
+    var rank = 0;
+    if (fellstrike){
+      /* Only a Fellstrike costs you. Survival.md: a battle without rest has a
+         chance to add 1 rank, and the Sample Scenario resolves it on the 1. */
+      C.fatigue = Math.min(5, (C.fatigue || 0) + 1);
+      rank = C.fatigue;
+      try { renderFatigue(); renderStrip(); } catch(e){}
+      try { scheduleSave(); } catch(e){}
+    }
+    tpPush({ endurance:{ die:die, fellstrike:fellstrike, rank:rank, at:Date.now() } });
+    try { cbLogSelf("fell", meName()+" rolls Endurance \u2192 "+(fellstrike ? "Fellstrike, gains Fatigue" : die)+"."); } catch(e){}
+  }, 560);
+}
+
+function tpAckLore(){
+  var t = tpState();
+  var lp = (t && t.lorePoints) || 0;
+  if (lp > 0 && C && C.lore){
+    C.lore.lorePoints = (C.lore.lorePoints || 0) + lp;
+    try { renderLore(); renderStrip(); } catch(e){}
+    try { scheduleSave(); } catch(e){}
+  }
+  tpPush({ acked:true, loreTaken:lp });
+}
+
+function tpRollTreasure(){
+  var btn = document.getElementById("tpTreBtn");
+  if (btn){ if (btn.dataset.busy) return; btn.dataset.busy = "1"; btn.disabled = true; }
+  var n = tpDiceCount();
+  var face = document.getElementById("tpTreDie");
+  var iv = setInterval(function(){ if (face) face.textContent = 1 + Math.floor(Math.random()*6); }, 70);
+  setTimeout(function(){
+    clearInterval(iv);
+    var dice = [];
+    for (var i=0; i<n; i++) dice.push(1 + Math.floor(Math.random()*6));
+    var kept = Math.max.apply(null, dice);
+    tpPush({ roll:{ dice:dice, kept:kept, fellmark:(kept === 6), at:Date.now() } });
+    try { cbLogSelf("fell", meName()+" rolls Treasure \u2192 "+(kept === 6 ? "Fellmark" : kept)+"."); } catch(e){}
+  }, 620);
+}
+
+/* ---- render ---- */
+
+function tpCard(){
+  var t = tpState(), mine = tpMine() || {}, h = "";
+  var end = mine.endurance || null;
+  var lucky = tpAmLucky();
+  var draw = tpMyDraw();
+
+  h += '<div class="tp-eyebrow">The fight is over</div>';
+  h += '<div class="tp-h">The Treasure Phase</div>';
+
+  /* Beat 1: Endurance */
+  if (!end){
+    h += '<p class="tp-sub">The exhaustion of battle settles over you. Roll Endurance to see if you gain Fatigue.</p>'
+      +  '<div class="tp-dierow"><span class="tp-die" id="tpEndDie">?</span>'
+      +  '<button class="tp-btn" id="tpEndBtn">Roll Endurance</button></div>';
+    return h;
+  }
+
+  h += '<div class="tp-line"><span class="tp-lbl">Endurance</span>'
+    +  '<span class="tp-val'+(end.fellstrike ? ' bad' : '')+'">'+(end.fellstrike ? 'Fellstrike' : end.die)+'</span></div>'
+    +  '<div class="tp-note">'+(end.fellstrike
+         ? 'You gain a rank of Fatigue. You are '+cbEsc(TP_FATIGUE_NAMES[Math.min(5, end.rank || 1)])+'.'
+         : 'No Fatigue. You hold.')+'</div>';
+
+  /* Beat 2: Lore Points */
+  if (!mine.acked){
+    var lp = (t && t.lorePoints) || 0;
+    h += '<div class="tp-sep"></div>'
+      +  '<div class="tp-line"><span class="tp-lbl">Lore Points</span><span class="tp-val gold">+'+lp+'</span></div>'
+      +  '<div class="tp-note">Taken from what fell in front of you.</div>'
+      +  '<div class="tp-row"><button class="tp-btn" id="tpNextBtn">Next</button></div>';
+    return h;
+  }
+
+  h += '<div class="tp-sep"></div>'
+    +  '<div class="tp-line"><span class="tp-lbl">Lore Points</span><span class="tp-val gold">+'+(mine.loreTaken || 0)+'</span></div>';
+
+  /* Beat 3: Treasure */
+  if (!lucky){
+    h += '<div class="tp-sep"></div>'
+      +  '<div class="tp-note quiet">The bodies hold nothing for you this time. Treasure comes to those who earned Luck in the fight.</div>';
+    return h;
+  }
+
+  if (!mine.roll){
+    var n = tpDiceCount();
+    h += '<div class="tp-sep"></div>'
+      +  '<p class="tp-sub">You earned Luck. Roll '+n+' dice and keep the highest.'+(n === 3 ? ' Harfolk carry an extra Lucky die.' : '')+'</p>'
+      +  '<div class="tp-dierow"><span class="tp-die" id="tpTreDie">?</span>'
+      +  '<button class="tp-btn gold" id="tpTreBtn">Roll Treasure</button></div>';
+    return h;
+  }
+
+  var r = mine.roll;
+  h += '<div class="tp-sep"></div>'
+    +  '<div class="tp-line"><span class="tp-lbl">Treasure Roll</span>'
+    +  '<span class="tp-val'+(r.fellmark ? ' gold' : '')+'">'+(r.fellmark ? 'Fellmark' : r.kept)+'</span></div>'
+    +  '<div class="tp-note">'+cbEsc(r.dice.join(' \u00b7 '))+', kept '+r.kept+'.</div>';
+
+  if (r.fellmark && !draw){
+    h += '<div class="tp-prize gold">A Paragon Point</div>'
+      +  '<div class="tp-note">The rarest thing in the game. The LoreMaster will hand it to you.</div>';
+    return h;
+  }
+  if (!draw){
+    h += '<div class="tp-wait"><span class="tp-spin"></span>The LoreMaster is rolling the Draw.</div>';
+    return h;
+  }
+
+  h += '<div class="tp-prize">'+cbEsc(draw.loot || 'Nothing named yet')+'</div>';
+  if (draw.dice && draw.dice.length){
+    h += '<div class="tp-note">Band '+(draw.band || r.kept)+' \u00b7 '+cbEsc(draw.dice.join(' \u00b7 '))+' \u2192 '+(draw.sum || 0)+'</div>';
+  }
+  return h;
+}
+
+function tpRender(){
+  var ov = document.getElementById("tpOverlay");
+  if (!tpOpen()){
+    if (ov) ov.remove();
+    document.body.classList.remove("tp-on");
+    return;
+  }
+  if (!ov){
+    ov = document.createElement("div");
+    ov.id = "tpOverlay";
+    ov.className = "tp-ovl";
+    document.body.appendChild(ov);
+  }
+  document.body.classList.add("tp-on");
+  ov.innerHTML = '<div class="tp-card">'+tpCard()+'</div>';
+
+  var a = document.getElementById("tpEndBtn");  if (a) a.addEventListener("click", tpRollEndurance);
+  var b = document.getElementById("tpNextBtn"); if (b) b.addEventListener("click", tpAckLore);
+  var c = document.getElementById("tpTreBtn");  if (c) c.addEventListener("click", tpRollTreasure);
+}
+
+/* The phase must survive the sheet tearing combat down. applyCombatMode
+   early-returns and clears everything the moment active goes false, which is
+   exactly when this opens, so it runs after rather than inside. */
+(function(){
+  var _origApply = applyCombatMode;
+  applyCombatMode = function(){
+    var r = _origApply.apply(this, arguments);
+    try { tpRender(); } catch(e){}
+    return r;
+  };
+  var _origSet = setCombatState;
+  setCombatState = function(state){
+    var r = _origSet.apply(this, arguments);
+    /* Polling is 15s in a quiet battle, far too slow for a phase where the
+       table is watching each other roll. Tighten while it is open, restore
+       after, and never leave two timers running. */
+    try {
+      var want = tpOpen() ? 3000 : 15000;
+      if (window._tpPollMs !== want){
+        window._tpPollMs = want;
+        clearInterval(_combatPoll);
+        if (CUR_WIX_ID) _combatPoll = setInterval(function(){
+          if (document.visibilityState !== "hidden") refreshCombat();
+        }, want);
+      }
+      tpRender();
+    } catch(e){}
+    return r;
+  };
+})();
+
 </script>
 <!-- ============ FEEDBACK WIDGET ============ -->
 <style>
