@@ -2806,8 +2806,11 @@ function renderLore(){
     }else{
       const minus=el("button",null,"−"),v=el("span","v",C.lore[k]),plus=el("button",null,"+");
       const min=k==="level"?1:0;
-      minus.addEventListener("click",()=>{C.lore[k]=Math.max(min,C.lore[k]-1);renderLore();});
-      plus.addEventListener("click",()=>{C.lore[k]++;renderLore();});
+      /* These four steppers moved the number on screen and never wrote it. Level, Lore
+         Points, Skyvault Shards and Paragon Points all reverted the moment the sheet was
+         reopened, and a level set by the LoreMaster never reached the roster at all. */
+      minus.addEventListener("click",()=>{C.lore[k]=Math.max(min,C.lore[k]-1);renderLore();scheduleSave();});
+      plus.addEventListener("click",()=>{C.lore[k]++;renderLore();scheduleSave();});
       ctl.append(minus,v,plus);
     }
     d.appendChild(ctl);g.appendChild(d);
@@ -3430,7 +3433,7 @@ $("vDmg").addEventListener("click",()=>{
   edgeGlow("rgba(201,106,90,.8)");
 });
 $("vHeal").addEventListener("click",()=>{ cbTryHeal(Math.max(1,+$("vAmt").value||1)); });
-$("vTempAdd").addEventListener("click",()=>{C.vitality.temp+=Math.max(1,+$("vAmt").value||1);renderVit();});
+$("vTempAdd").addEventListener("click",()=>{C.vitality.temp+=Math.max(1,+$("vAmt").value||1);renderVit();scheduleSave();});
 document.querySelectorAll("[data-god]").forEach(b=>b.addEventListener("click",()=>{
   if(!god)return;const v=C.vitality;
   if(b.dataset.god==="vmax+")v.max++;
@@ -3470,7 +3473,7 @@ function renderFatigue(){
   for(let i=1;i<=5;i++){
     const p=el("button","fpip"+(C.fatigue>=i?" on":""));
     p.setAttribute("aria-label","Fatigue "+i);
-    p.addEventListener("click",()=>{C.fatigue=(C.fatigue===i)?i-1:i;renderFatigue();});
+    p.addEventListener("click",()=>{C.fatigue=(C.fatigue===i)?i-1:i;renderFatigue();scheduleSave();});
     w.appendChild(p);
   }
   var _ef=(typeof cbEffFatigue==="function")?cbEffFatigue():C.fatigue;
@@ -3564,7 +3567,7 @@ function renderWeapons(){
     if(god&&idx>0){
       const rm=el("button","btn small danger","Remove (LM)");
       rm.style.float="right";rm.style.marginTop="-34px";
-      rm.addEventListener("click",()=>{C.weapons.splice(idx,1);renderWeapons();});
+      rm.addEventListener("click",()=>{C.weapons.splice(idx,1);renderWeapons();scheduleSave();});
       slot.appendChild(rm);
     }
 
@@ -3662,7 +3665,7 @@ function renderWeapons(){
   });
   if(god&&C.weapons.length<3){
     const add=el("button","btn small gold","Add weapon slot (LM)");
-    add.addEventListener("click",()=>{C.weapons.push(newWeapon());renderWeapons();});
+    add.addEventListener("click",()=>{C.weapons.push(newWeapon());renderWeapons();scheduleSave();});
     wrap.appendChild(add);
   }
 }
@@ -3708,7 +3711,7 @@ function renderArmor(){
     nm.addEventListener("click",()=>fgTell(sn,"<p>"+db.desc+"</p>"));
     top.appendChild(nm);
     const adopt=el("button","adopt",C.armor.active===sn?"Active":"Adopt");
-    adopt.addEventListener("click",()=>{C.armor.active=(C.armor.active===sn)?null:sn;renderArmor();renderDials();renderWeapons();renderBattle();});
+    adopt.addEventListener("click",()=>{C.armor.active=(C.armor.active===sn)?null:sn;renderArmor();renderDials();renderWeapons();renderBattle();scheduleSave();});
     top.appendChild(adopt);card.appendChild(top);
     /* each tier is a pill that says what it does when asked, rather than a wall of lines */
     const tiers=el("div","pillrow");
@@ -3735,7 +3738,7 @@ function renderLorebounds(){
     if(god&&idx>0){
       const rm=el("button","btn small danger","Release (LM)");
       rm.style.float="right";rm.style.marginTop="-34px";
-      rm.addEventListener("click",()=>{C.lorebounds.splice(idx,1);renderLorebounds();});
+      rm.addEventListener("click",()=>{C.lorebounds.splice(idx,1);renderLorebounds();scheduleSave();});
       slot.appendChild(rm);
     }
     const nm=el("input");nm.placeholder="Name";nm.value=lb.name||"";
@@ -3813,7 +3816,7 @@ function renderLorebounds(){
   $("lbHint").textContent=C.lorebounds.length>=2?"Two lorebounds bonded (maximum).":(C.lorebounds.length===1?"A second bond can form through leveling.":"");
   if(god&&C.lorebounds.length<2){
     const add=el("button","btn small gold","Bond second lorebound (LM)");
-    add.addEventListener("click",()=>{C.lorebounds.push({name:"",type:"",level:1,aspects:[null,null]});renderLorebounds();});
+    add.addEventListener("click",()=>{C.lorebounds.push({name:"",type:"",level:1,aspects:[null,null]});renderLorebounds();scheduleSave();});
     wrap.appendChild(add);
   }
 }
@@ -4520,6 +4523,12 @@ function cbSendEva(){
   cbPing("Evasion sent to the LoreMaster.");
 }
 function flushSave(){ if(saveTimer || C.created){ doSave(); } }
+/* A pending autosave belongs to the Fell that is still open. Every path that swaps
+   Fell used to clearTimeout it, which threw the write away: type a level, hit back,
+   open another, and the first Fell never got the number. Flush it instead, before
+   LOADING goes up, because doSave refuses to write mid-load. Only when a save is
+   actually queued, so switching Fell does not write for the sake of writing. */
+function flushBeforeSwitch(){ if(saveTimer && !LOADING) doSave(); }
 document.addEventListener("visibilitychange",function(){ if(document.visibilityState==="hidden") flushSave(); });
 window.addEventListener("pagehide",flushSave);
 window.addEventListener("beforeunload",flushSave);
@@ -4892,7 +4901,7 @@ function renderCharSwitch(){
   sel.addEventListener("change",function(){
     var v=sel.value;
     if(v==="__add__"){ postToVelo({type:"add-character"}); }
-    else if(v && v!==CUR_SEL){ setLoading(true,"select-character"); clearTimeout(saveTimer); saveTimer=null; postToVelo({type:"select-character",charId:v}); }
+    else if(v && v!==CUR_SEL){ flushBeforeSwitch(); setLoading(true,"select-character"); clearTimeout(saveTimer); saveTimer=null; postToVelo({type:"select-character",charId:v}); }
     else { renderCharSwitch(); }
   });
   var del=$("csDel"); if(del) del.addEventListener("click",csDeleteCharacter);
@@ -6688,6 +6697,7 @@ window.onmessage=ev=>{
   if(d.type==="init"||d.type==="new")hideCover();
   if(d.type==="new"&&!d.character){
     /* nothing was handed over, so nothing is kept. Whatever Fell was here goes. */
+    flushBeforeSwitch();
     setLoading(true,"new"); clearTimeout(saveTimer); saveTimer=null;
     CUR_WIX_ID=d.charId||""; CUR_LOCAL_ID=uid();
     loadCharacter(seedSheet({}));
@@ -6697,6 +6707,7 @@ window.onmessage=ev=>{
   if(offline){ offline=false; renderSaveState(); }
   if(d.libraries)loadLibraries(d.libraries);
   if(d.type==="init"&&d.character){
+    flushBeforeSwitch();
     setLoading(true,"init"); clearTimeout(saveTimer); saveTimer=null;
     // wipe the previous character's combat so nothing bleeds across the switch
     clearInterval(_combatPoll); _combatPoll=null; _combatSig=""; COMBAT=null;
