@@ -27,7 +27,7 @@ const ALLOW = {
 // not the page bridge's business, but they are still a contract: if the child stops
 // handling one, the parent goes quiet with no error. Checked against the child instead.
 const CHILD = {
-  threadspire: { tool: 'fellglass', types: ['ts-god', 'ts-new', 'goto-panel', 'ts-hand-request', 'ts-declare', 'ts-undo'] }
+  threadspire: { tool: 'fellglass', types: ['ts-god', 'ts-god-flush', 'ts-new', 'goto-panel', 'ts-hand-request', 'ts-declare', 'ts-undo'] }
 };
 // one-way ping families: resize and readiness pings a bridge may legitimately ignore
 const PING = /(?:HEIGHT|READY)$/i;
