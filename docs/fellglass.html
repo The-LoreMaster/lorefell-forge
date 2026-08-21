@@ -2676,8 +2676,8 @@ function grantSummary(){
      again in a sentence was noise */
   $("grantNote").textContent="";
 }
-$("f-lineage").addEventListener("change",e=>{C.identity.lineage=e.target.value;});
-$("f-origin").addEventListener("change",e=>{C.identity.origin=e.target.value;});
+$("f-lineage").addEventListener("change",e=>{C.identity.lineage=e.target.value;scheduleSave();});
+$("f-origin").addEventListener("change",e=>{C.identity.origin=e.target.value;scheduleSave();});
 $("f-motivation").addEventListener("change",e=>{
   const prev=C.identity.motivation||"";
   const next=e.target.value||"";
@@ -4382,6 +4382,7 @@ function renderSaveState(){
     el.textContent="Not saved \u00b7 "+saveFailWhy;
     return;
   }
+  if(LOADING){ el.textContent="Loading\u2026 edits are held"; return; }
   if(savePending){ el.textContent="Saving\u2026"; return; }
   if(!lastAutosaveAt){ el.textContent=offline?"Offline, will sync":"Autosave on. Every change saves automatically."; return; }
   var t=new Date(lastAutosaveAt), hh=String(t.getHours()).padStart(2,"0"), mm=String(t.getMinutes()).padStart(2,"0");
@@ -4426,7 +4427,12 @@ function scheduleSave(){
 }
 function doSave(){
   clearTimeout(saveTimer); saveTimer=null;
-  if(LOADING) return;            // a load is mid-flight, do not write
+  if(LOADING){
+    /* A write refused because a load was in flight used to vanish without trace. Hold it
+       and try once the load settles, so an edit made a moment too early is not lost. */
+    saveTimer=setTimeout(doSave,300);
+    return;
+  }
   var seq=++SAVE_SEQ;
   postToVelo({type:"save",charId:CUR_WIX_ID,localId:CUR_LOCAL_ID,saveSeq:seq,character:C});
   saveAwait(seq,CUR_WIX_ID);
@@ -4875,9 +4881,20 @@ function loadCharacter(rec){
   C=seedSheet(rec);
   $("f-name").value=(C.identity&&C.identity.name)||"";
   $("f-desc").value=(C.identity&&C.identity.desc)||"";
+  /* These three were painted only when the libraries arrived and by the forging wizard,
+     never when a Fell was loaded. Switching Fell left the previous one's Lineage, Origin
+     and Motivation sitting in the boxes, so every Fell appeared to carry the same three,
+     and the LoreMaster saw one Fell's identity on all of them. The records were always
+     distinct. Only the boxes lied. */
+  try {
+    ensureOption($("f-lineage"),C.identity.lineage);    $("f-lineage").value=C.identity.lineage||"";
+    ensureOption($("f-origin"),C.identity.origin);      $("f-origin").value=C.identity.origin||"";
+    ensureOption($("f-motivation"),C.identity.motivation);$("f-motivation").value=C.identity.motivation||"";
+  } catch(e){}
   $("headName").textContent=(C.identity&&C.identity.name)||"Unnamed Wanderer";
   showPortrait(C.portrait || DEFAULT_PORTRAIT);
   renderAll();
+  try { renderMotivation(); syncIdentityLock(); } catch(e){}
   // release the guard after this tick, once all programmatic field writes have settled
   setTimeout(function(){ setLoading(false); },0);
 }
