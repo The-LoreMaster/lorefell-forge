@@ -4406,7 +4406,13 @@ function saveAck(d){
   if(d.saveSeq!==undefined&&d.saveSeq!==savePending.seq) return;
   clearTimeout(saveAckTimer); saveAckTimer=null;
   savePending=null;
-  if(d.ok===false){ saveFailWhy=String(d.error||"the table refused it").slice(0,70); }
+  if(d.ok===false){
+    saveFailWhy=String(d.error||"the table refused it").slice(0,70);
+    /* A refused write only ever appeared as small text in the save line, which is out
+       of sight the moment a panel closes. Say it out loud, because the alternative is
+       an edit that looks made and was not. */
+    try { cbPing("Not saved \u00b7 "+saveFailWhy, true); } catch(e){}
+  }
   else { saveFailWhy=""; lastAutosaveAt=Date.now(); if(offline){ offline=false; } }
   renderSaveState();
 }
@@ -6727,6 +6733,13 @@ window.onmessage=ev=>{
   }
   else if(d.type==="combat-sync-ack"){
     if(!d.ok) cbPing("Your combat state did not save. It will retry on the next change.", true);
+  }
+  else if(d.type==="ts-god-flush"){
+    /* The LoreMaster is leaving this Fell. Their last edit is still sitting in the
+       600ms autosave debounce, and the moment the panel closes the board forgets it
+       had this Fell open, so the write would come back "not yours" and vanish. Send
+       it now, while the board still knows. */
+    if(saveTimer) doSave();
   }
   else if(d.type==="combat-state"){ if(d.state===null||d.state===undefined){ if(!(COMBAT&&COMBAT.active)) setCombatState(null); } else setCombatState(d.state); }
   else if(d.type==="new"){ if(d.forge){ccOpenForge(d.forge);} else {ccOpen();} CUR_WIX_ID=d.charId||""; CUR_LOCAL_ID=uid(); }
