@@ -257,6 +257,17 @@ async function saveChild(coll, idKey, advId, keyVal, fields) {
   const q = await wd.query(coll).eq(idKey, keyVal).eq('advId', advId).limit(1).find({ suppressAuth: true, consistentRead: true });
   const existing = q.items[0] || null;
   const row = existing || Object.assign({ advId: advId }, { [idKey]: keyVal });
+  // Everything a node carries beyond its own columns rides in `extra`. That column used to
+  // be replaced by whatever the caller happened to send, so a caller passing a partial node
+  // did not merely fail to save the rest, it deleted it: ThreadSpire sent id, name and the
+  // child order, and every note FateWell had authored on an act or a session went with the
+  // next rename. It merges into what is stored now, against the row already fetched above
+  // rather than a second read, so a field left out is left alone.
+  if (fields.extraMerge) {
+    const prev = existing ? jparse(existing.extra, {}) : {};
+    row.extra = JSON.stringify(Object.assign({}, prev, fields.extraMerge));
+    delete fields.extraMerge;
+  }
   Object.keys(fields).forEach(k => { row[k] = fields[k]; });
   row.updatedAt = Date.now();
   try {
@@ -273,7 +284,7 @@ export const saveAdvAct = webMethod(Permissions.Anyone, async (advId, act) => {
     name: name || '', notes: notes || '', img: img || '', desc: desc || '',
     sortIndex: act.sortIndex || 0,
     sessionOrder: JSON.stringify((sessions || []).map(s => s.id)),
-    extra: JSON.stringify(extra)
+    extraMerge: extra
   });
 });
 
@@ -285,7 +296,7 @@ export const saveAdvSession = webMethod(Permissions.Anyone, async (advId, actId,
     name: ses.name || '',
     sortIndex: ses.sortIndex || 0,
     sceneOrder: JSON.stringify((ses.scenes || []).map(s => s.id)),
-    extra: JSON.stringify(extra)
+    extraMerge: extra
   });
 });
 
