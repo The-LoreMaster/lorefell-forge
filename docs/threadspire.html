@@ -1210,6 +1210,15 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .lmc-down{ font-family:Cinzel,serif; font-size:.56rem; letter-spacing:.12em; text-transform:uppercase;
   color:var(--danger,#c2504b); border:1px solid var(--danger,#8d3b3b); border-radius:5px; padding:1px 7px; margin-left:8px; }
 .lmc-name.struck{ text-decoration:line-through; opacity:.75; }
+.lmc-downbtn{ background:none; border:1px solid var(--line2,#3a4a68); border-radius:6px; color:var(--silver,#9fb0c2);
+  font-size:.82rem; line-height:1; padding:2px 7px; margin-left:8px; cursor:pointer; }
+.lmc-downbtn:hover{ border-color:var(--danger,#8d3b3b); color:var(--danger,#c2504b); }
+.lmc-downbtn.on{ border-color:var(--danger,#8d3b3b); color:var(--danger,#c2504b); background:rgba(141,59,59,.15); }
+.lm-spotdown{ position:absolute; top:-4px; left:-4px; z-index:2; background:var(--navy,#0a0f1c);
+  border:1px solid var(--line2,#3a4a68); border-radius:6px; color:var(--silver,#9fb0c2);
+  font-size:.72rem; line-height:1; padding:2px 6px; cursor:pointer; }
+.lm-spotdown.on{ border-color:var(--danger,#8d3b3b); color:var(--danger,#c2504b); }
+.lm-spotslot.isdown{ opacity:.62; }
 /* A token whose fighter has fallen. Dimmed and ringed in red rather than removed, because
    a body is still on the board and still matters to where people can stand. */
 .token.down{ opacity:.45; filter:grayscale(.7); box-shadow:0 0 0 2px rgba(194,80,75,.85); }
@@ -4831,11 +4840,15 @@ function spotGroupCard(it){
     }
     var mtog = manual ? '<button class="lmc-mdot' + (S.scene.manual[n.key]?' on':'') + '" onclick="event.stopPropagation();lmToggleManual(\'' + n.key + '\')" title="Group into the spotlight">\u25c9</button>' : '';
     var mini = isFoe ? foeCardCompact(c) : fellCardCompact(c);
+    /* Marking someone down is the commonest thing to do to a card in a spotlight, so it
+       does not want the card opened first. */
+    var dbtn = '<button class="lm-spotdown' + (cDown(c) ? ' on' : '') + '" onclick="event.stopPropagation();lmToggleDown(\'' + c.id + '\')" title="'
+      + (cDown(c) ? 'Back on their feet' : 'Mark down') + '">\u2620</button>';
     /* a small die on the compact face so a foe can roll without opening, and the foe's
        React beside it, because a spotlight is exactly where a foe answers something and
        the row was only reachable by opening the card */
     var die = isFoe ? '<div class="lm-minidie">' + foeDiceRow(c) + foeReactRow(c) + '</div>' : '';
-    return '<div class="lm-spotslot' + (isFoe ? ' foe' : ' fell') + '">' + mtog + mini + die + '</div>';
+    return '<div class="lm-spotslot' + (isFoe ? ' foe' : ' fell') + (cDown(c) ? ' isdown' : '') + '">' + mtog + dbtn + mini + die + '</div>';
   }).join('');
   return '<div class="lmcard spotbox' + (done?' done':'') + '">'
     + '<div class="lmc-spothead"><span class="lmc-spotnum">' + esc(it.label) + '</span>'
@@ -5076,7 +5089,19 @@ function manualDot(key){
 }
 /* What a fighter is actually doing, under their Vitality. A spotlight without it is a row
    of names and numbers and no answer to the only question being asked. */
-function cDown(c){ return (c.maxVit || 0) > 0 && (c.curVit || 0) <= 0; }
+/* Down is a thing the LoreMaster says, not a thing a number implies. Vitality does not
+   always get filled in, and a fighter sitting at 0 / 0 because nobody typed a number is
+   not a body on the floor. The flag is the truth; Vitality is only a hint. */
+function cDown(c){ return !!(c && c.down); }
+function lmToggleDown(id){
+  var c = findC(id); if (!c) return;
+  c.down = !c.down;
+  if (c.down){ c.act = ''; c.target = ''; c.spot = null; }
+  pushLog({ kind:'sys', html:'<b>' + esc(c.name) + '</b> ' + (c.down ? 'goes down.' : 'is back on their feet.') });
+  applyRemoteState({ scene:S.scene, log:S.log });
+  try { combatPublish(); } catch(e){}
+  paintLmStrip(); paintHud(); renderTokens();
+}
 function declLine(c){
   if (cDown(c)) return '<div class="lmc-cdecl down">Down</div>';
   var act = c.act || '', tgt = c.target ? targetName(c.target) : '';
@@ -5107,6 +5132,8 @@ function foeCardOpen(f){
   var labels = { about:'About', attributes:'Attributes', attack:'Attack', acts:'Acts', stats:'Stats' };
   var head = '<div class="lmc-top"><span class="lmc-name' + (cDown(f) ? ' struck' : '') + '">' + esc(f.name) + '</span>'
     + (cDown(f) ? '<span class="lmc-down">Down</span>' : '')
+    + '<button class="lmc-downbtn' + (cDown(f) ? ' on' : '') + '" onclick="event.stopPropagation();lmToggleDown(\'' + f.id + '\')" title="'
+      + (cDown(f) ? 'Back on their feet' : 'Mark down') + '">\u2620</button>'
     + '<button class="lmc-close" onclick="lmToggleCard(\'' + f.id + '\')">\u00d7</button></div>';
   var tabrow = '<div class="lmc-tabs">' + tabs.map(function(t){
     return '<button class="lmc-tab' + (lmTab === t ? ' on' : '') + '" onclick="lmSetTab(\'' + f.id + '\',\'' + t + '\')">' + labels[t] + '</button>';
@@ -5248,6 +5275,8 @@ function fellCardOpen(p){
   var labels = { about:'About', attributes:'Attributes', attack:'Attack', acts:'Acts', stats:'Stats' };
   var head = '<div class="lmc-top"><span class="lmc-name' + (cDown(p) ? ' struck' : '') + '">' + esc(p.name) + '</span>'
     + (cDown(p) ? '<span class="lmc-down">Down</span>' : '')
+    + '<button class="lmc-downbtn' + (cDown(p) ? ' on' : '') + '" onclick="event.stopPropagation();lmToggleDown(\'' + p.id + '\')" title="'
+      + (cDown(p) ? 'Back on their feet' : 'Mark down') + '">\u2620</button>'
     + '<button class="lmc-close" onclick="lmToggleCard(\'' + p.id + '\')">\u00d7</button></div>';
   var tabrow = '<div class="lmc-tabs">' + tabs.map(function(t){
     return '<button class="lmc-tab' + (lmTab === t ? ' on' : '') + '" onclick="lmSetTab(\'' + p.id + '\',\'' + t + '\')">' + labels[t] + '</button>';
@@ -5925,7 +5954,7 @@ function spotResolved(it){
   return it.nodes.every(function(n){
     var r = n.ref;
     if (r.spot === 'done') return true;
-    if ((r.maxVit || 0) > 0 && (r.curVit || 0) <= 0) return true;
+    if (cDown(r)) return true;
     return !r.act;
   });
 }
@@ -5941,7 +5970,7 @@ function lmSpotDeck(){
   return groups;
 }
 function lastReactsCard(){
-  var foes = (S.scene.foes || []).filter(function(f){ return (f.curVit || 0) > 0 && !f.reactUsed; });
+  var foes = (S.scene.foes || []).filter(function(f){ return !cDown(f) && !f.reactUsed; });
   var h = '<div class="lmcard spotbox">'
     + '<div class="lmc-spothead"><span class="lmc-spotnum">Last Reacts</span>'
     + '<button class="lmbtn sm2" onclick="lmNextRound()">End the round</button></div>'
@@ -5954,7 +5983,7 @@ function lastReactsCard(){
         + foeReactRow(f) + '</div></div>';
     }).join('') + '</div>';
   }
-  var fell = (S.scene.fell || []).filter(function(p){ return !cIsOut(p) && (p.curVit || 0) > 0; });
+  var fell = (S.scene.fell || []).filter(function(p){ return !cIsOut(p) && !cDown(p); });
   if (fell.length){
     h += '<p class="tsm-note">Ask the table: ' + fell.map(function(p){ return esc(p.name); }).join(', ') + '.</p>';
   }
