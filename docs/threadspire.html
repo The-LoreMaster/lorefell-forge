@@ -517,6 +517,7 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .rs-pill{ background:transparent; border:1px solid var(--line2,#2a3552); border-radius:10px; color:var(--ice,#b8ccd8); font:inherit; font-size:.64rem; padding:1px 9px; cursor:pointer; }
 .rs-row.out .rs-pill{ border-color:var(--danger,#8d3b3b); color:var(--danger,#8d3b3b); }
 .rs-pill.muted{ opacity:.6; cursor:default; border-style:dashed; }
+.rs-pill.on{ border-color:var(--gold,#c9a84c); color:var(--gold,#c9a84c); }
 .rs-adds{ display:flex; gap:6px; }
 .rs-adds .st-add{ flex:1; text-align:center; }
 .dlg-head{ display:flex; align-items:center; gap:6px; margin:4px 0 2px; font-family:Cinzel,serif; font-size:.72rem; letter-spacing:.06em; }
@@ -3581,11 +3582,19 @@ function sheetSetCampaign(v){
    one stable list. Empty roster falls back to 3, the level FateWell assumes when it does not
    yet know the table, so a foe cast before the roster lands is close rather than zero. The
    LoreMaster can still pin a level per scene. */
+/* Who is at this scene, by the same sc.out the roster pill has always written. The level
+   the foes answer to used to average the whole campaign roster, so sending a Fell home left
+   their level dragging on every foe in the fight, and their card stayed on the board. */
+function attOut(sc, id){ sc = sc || S.scene || {}; return !!(sc.out && sc.out[id]); }
+function attendingParty(sc){
+  sc = sc || S.scene || {};
+  return (S.party || []).filter(function(p){ return !attOut(sc, p.charId || p.id); });
+}
 function partyApl(sc){
   sc = sc || S.scene || {};
   if (sc.aplPin) return Math.max(1, +sc.aplPin);
   var lv = [];
-  (S.party || []).forEach(function(p){ if (p && p.level) lv.push(+p.level); });
+  attendingParty(sc).forEach(function(p){ if (p && p.level) lv.push(+p.level); });
   var known = lv.filter(function(n){ return n > 0; });
   if (!known.length) return 3;
   return Math.max(1, Math.round(known.reduce(function(a, b){ return a + b; }, 0) / known.length));
@@ -4706,7 +4715,42 @@ function lmAplWindow(){
     + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="lmPinAplSave()">Save level</button>'
     + '<button class="tsm-btn" onclick="lmBalanceFoes()">Balance foes to this level</button></div>'
     + '<p class="tsm-note">Balancing sets every foe\'s Vitality to seven times the level times its rating, keeping damage already dealt.</p>'
+    + lmAttendanceHtml()
     + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
+}
+/* Attendance belongs in the runner, not only on the roster tab. A Fell leaves mid-fight
+   and the LoreMaster is looking at the board, not at a tab two screens away. Sending one
+   home here drops their card, drops them from the fighters every player's sheet reads,
+   and moves the level the foes are balanced against. */
+function lmAttendanceHtml(){
+  var sc = S.scene || {};
+  var list = (S.party || []);
+  if (!list.length) return '<div class="st-sub">At this scene</div><p class="tsm-note">The roster has not loaded.</p>';
+  var h = '<div class="st-sub">At this scene</div>'
+    + '<p class="tsm-note">Sending a Fell home drops their card and re-levels the foes. Balance again after.</p>';
+  list.forEach(function(p){
+    var id = p.charId || p.id, out = attOut(sc, id);
+    h += '<div class="rs-row"><span class="rs-name">' + esc(p.charName || p.name || 'A Fell')
+      + ' <span class="tpl-dim">lv ' + (p.level || 1) + '</span></span>'
+      + '<button class="rs-pill' + (out ? '' : ' on') + '" onclick="lmAttToggle(\'' + esc(String(id)) + '\')">'
+      + (out ? 'Absent' : 'Attending') + '</button></div>';
+  });
+  return h;
+}
+function lmAttToggle(id){
+  var sc = S.scene; if (!sc || !id) return;
+  sc.out = sc.out || {};
+  if (sc.out[id]) delete sc.out[id]; else sc.out[id] = true;
+  /* Keep the authored copy in step, since the roster tab reads that one. */
+  try {
+    var f = storyFind('scene', sc.id);
+    if (f && f.scene){ f.scene.out = f.scene.out || {}; if (sc.out[id]) f.scene.out[id] = true; else delete f.scene.out[id]; storySave(); }
+  } catch(e){}
+  try { syncSceneFell(); refreshFoeKits(); } catch(e){}
+  applyRemoteState({ scene:S.scene });
+  try { combatPublish(); } catch(e){}
+  paintLmStrip(); paintHud(); render();
+  lmAplWindow();   /* redraw the sheet in place, with the new level */
 }
 function lmBalanceFoes(){
   var apl = partyApl(), n = 0;
@@ -5403,8 +5447,9 @@ function combatFighters(){
     seen[charId] = true;
     out.push({ key:'p:' + charId, name:name || 'A Fell', side:'fell', charId:charId });
   }
-  (S.party || []).forEach(function(p){ fell(p.charId, p.charName || p.name); });
-  (S.scene && S.scene.fell || []).forEach(function(p){ fell(p.charId || '', p.name); });
+  var _sc = S.scene || {};
+  (S.party || []).forEach(function(p){ if (!attOut(_sc, p.charId || p.id)) fell(p.charId, p.charName || p.name); });
+  (_sc.fell || []).forEach(function(p){ if (!attOut(_sc, p.charId || p.id)) fell(p.charId || '', p.name); });
   return out;
 }
 function combatPublish(){
