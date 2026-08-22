@@ -1210,6 +1210,13 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .lmc-down{ font-family:Cinzel,serif; font-size:.56rem; letter-spacing:.12em; text-transform:uppercase;
   color:var(--danger,#c2504b); border:1px solid var(--danger,#8d3b3b); border-radius:5px; padding:1px 7px; margin-left:8px; }
 .lmc-name.struck{ text-decoration:line-through; opacity:.75; }
+.stn-beat{ border-left-width:3px; border-left-style:solid; }
+.stn-wrap{ margin:4px 0 8px; }
+.stn-head{ font-family:Cinzel,serif; font-size:.58rem; letter-spacing:.11em; text-transform:uppercase;
+  color:var(--silver,#9fb0c2); opacity:.8; margin:6px 0 4px; }
+.stn-card.pinned{ border-color:rgba(201,168,76,.5); }
+.stn-body{ font-size:.9rem; line-height:1.55; color:var(--ice,#b8ccd8); max-height:52vh; overflow-y:auto; white-space:normal; }
+.stn-img{ max-width:100%; border-radius:8px; margin:6px 0 10px; display:block; }
 .lmc-downbtn{ background:none; border:1px solid var(--line2,#3a4a68); border-radius:6px; color:var(--silver,#9fb0c2);
   font-size:.82rem; line-height:1; padding:2px 7px; margin-left:8px; cursor:pointer; }
 .lmc-downbtn:hover{ border-color:var(--danger,#8d3b3b); color:var(--danger,#c2504b); }
@@ -2258,6 +2265,45 @@ function storyDelete(kind, id){
     refreshWinBody(); render();
   });
 }
+/* Notes authored on an act or a session in FateWell. They have always ridden along in the
+   adventure and had nowhere to appear, which is why the Story panel's own header promised
+   sessions, scenes AND notes and only ever showed the first two. Read-only here: FateWell
+   is where they are written, and two authoring surfaces for one thing is how they drift. */
+function storyNotesHtml(node){
+  var list = node.entries || [];
+  if (!list.length) return '';
+  var pinned = list.filter(function(e){ return e.pinned; });
+  var rest   = list.filter(function(e){ return !e.pinned; });
+  function card(e){
+    var m = beatMeta(e.type || 'general');
+    return '<div class="stb-card stn-card' + (e.pinned ? ' pinned' : '') + '" style="border-left-color:' + m[1] + '">'
+      + '<span class="stb-main" onclick="storyNoteOpen(\'' + esc(String(node.id)) + '\',\'' + esc(String(e.id || '')) + '\')">'
+      + '<span class="stb-tag" style="color:' + m[1] + '">' + m[0] + '</span>'
+      + '<span class="stb-title">' + (e.pinned ? '\u2605 ' : '') + esc(e.title || 'Note') + '</span></span></div>';
+  }
+  return '<div class="stn-wrap"><div class="stn-head">Notes <span class="rs-count">' + list.length + '</span></div>'
+    + pinned.map(card).join('') + rest.map(card).join('') + '</div>';
+}
+function storyNoteFind(nodeId, noteId){
+  var found = null;
+  (((S.adventure || {}).acts) || []).forEach(function(a){
+    if (String(a.id) === String(nodeId)) (a.entries || []).forEach(function(e){ if (String(e.id) === String(noteId)) found = e; });
+    (a.sessions || []).forEach(function(se){
+      if (String(se.id) === String(nodeId)) (se.entries || []).forEach(function(e){ if (String(e.id) === String(noteId)) found = e; });
+    });
+  });
+  return found;
+}
+function storyNoteOpen(nodeId, noteId){
+  var found = storyNoteFind(nodeId, noteId);
+  if (!found) return;
+  var m = beatMeta(found.type || 'general');
+  tsModal('<h3 class="tsm-title">' + esc(found.title || 'Note') + '</h3>'
+    + '<p class="tsm-note" style="color:' + m[1] + '">' + m[0] + (found.pinned ? ' \u00b7 pinned' : '') + '</p>'
+    + (found.img ? '<img class="stn-img" src="' + esc(found.img) + '" alt="">' : '')
+    + '<div class="stn-body">' + esc(found.body || '').replace(/\n/g, '<br>') + '</div>'
+    + '<div class="tsm-row"><button class="tsm-btn" onclick="tsCloseModal()">Close</button></div>', true);
+}
 function storyBeatsHtml(sc){
   var h = '';
   var n = (sc.beats || []).length;
@@ -2384,6 +2430,7 @@ function storyBody(){
       if (!so) return;
       h += '<div class="st-kids">';
       h += '<button class="rs-open" onclick="sessionRosterWindow(\'' + se.id + '\')">Roster <span class="rs-count">' + sessionFell(se).filter(function(p){ return !p.benched; }).length + '</span></button>';
+      h += storyNotesHtml(se);
       (se.scenes || []).forEach(function(sc, ci){
         var on = sc.id === (S.scene && S.scene.id);
         var co = !!storyOpen.scene[sc.id];
@@ -2403,6 +2450,7 @@ function storyBody(){
       });
       h += '<button class="st-add" onclick="storyAdd(\'scene\',\'' + se.id + '\')">Add a scene</button></div>';
     });
+    h += storyNotesHtml(a);
     h += '<button class="st-add" onclick="storyAdd(\'session\',\'' + a.id + '\')">Add a session</button></div>';
   });
   h += '<button class="ts-newfell" onclick="storyAdd(\'act\')">Add an act</button>';
@@ -4594,9 +4642,35 @@ function cIsOut(c){
   if (!sc.out || !c) return false;
   return !!(sc.out[c.charId] || sc.out[c.id]);
 }
+/* The session and act the running scene belongs to, so their notes can be reached from
+   the board rather than only from the Story panel. */
+function liveSession(){
+  var hit = null;
+  (((S.adventure || {}).acts) || []).forEach(function(a){
+    (a.sessions || []).forEach(function(se){
+      (se.scenes || []).forEach(function(sc){ if (sameId(sc.id, S.scene && S.scene.id)) hit = { act:a, ses:se }; });
+    });
+  });
+  return hit;
+}
 function lmDeck(){
   var f = lmFace();
-  if (f === 'scene') return S.scene.beats.map(function(b){ return { kind:'beat', data:b }; });
+  if (f === 'scene'){
+    var deck = S.scene.beats.map(function(b){ return { kind:'beat', data:b }; });
+    /* A pinned note is pinned because it is wanted in hand. Run This First should be the
+       first thing met when a scene opens, not something to go looking for two panels away,
+       so pinned session and act notes lead the deck. Unpinned ones stay filed in Story. */
+    try {
+      var live = liveSession();
+      if (live){
+        var lead = [];
+        (live.ses.entries || []).forEach(function(e){ if (e.pinned) lead.push({ kind:'note', data:{ node:live.ses, note:e } }); });
+        (live.act.entries || []).forEach(function(e){ if (e.pinned) lead.push({ kind:'note', data:{ node:live.act, note:e } }); });
+        if (lead.length) deck = lead.concat(deck);
+      }
+    } catch(e){}
+    return deck;
+  }
   if (f === 'resolve') return lmSpotDeck();
   return S.scene.foes.concat(S.scene.fell.filter(function(p){ return !cIsOut(p); })).map(function(c){
     return { kind: S.scene.foes.indexOf(c) >= 0 ? 'foe' : 'fell', data:c };
@@ -4903,6 +4977,7 @@ function cardFor(item){
   if (item.kind === 'fell') return fellCard(item.data);
   if (item.kind === 'spotgroup') return spotGroupCard(item.data);
   if (item.kind === 'lastreacts') return lastReactsCard();
+  if (item.kind === 'note') return noteCard(item.data);
   return '';
 }
 function nextSceneAfter(){
@@ -5990,6 +6065,13 @@ function lmSpotDeck(){
     groups.push({ kind:'lastreacts', data:null });
   }
   return groups;
+}
+function noteCard(d){
+  var e = d.note, m = beatMeta(e.type || 'general');
+  return '<div class="lmcard beat stn-beat" style="border-left-color:' + m[1] + '">'
+    + '<div class="lmc-top"><span class="lmc-name">' + esc(e.title || 'Note') + '</span>'
+    + '<span class="lmc-sd" style="color:' + m[1] + '">' + m[0] + '</span></div>'
+    + '<div class="lmc-body stn-body">' + esc(e.body || '').replace(/\n/g, '<br>') + '</div></div>';
 }
 function lastReactsCard(){
   var foes = (S.scene.foes || []).filter(function(f){ return !cDown(f) && !f.reactUsed; });
