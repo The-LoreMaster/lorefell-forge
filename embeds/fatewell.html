@@ -1585,6 +1585,9 @@ body.runner-mode.fw-flow{ overflow-x:hidden; }
 .tpl-wrap{width:100%;max-width:560px;background:var(--navy2,#101628);border:1px solid var(--line,#26324a);
   border-top:3px solid var(--gold,#c9a84c);border-radius:14px;padding:18px;box-shadow:0 18px 50px rgba(0,0,0,.6)}
 .tpl-head{margin-bottom:12px}
+.tpl-fat{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:0 0 12px;padding:9px 11px;
+  border:1px solid rgba(201,168,76,.35);border-radius:9px;background:var(--navy,#0a0f1c)}
+.tpl-target{font-family:Cinzel,serif;font-size:1.3rem;color:var(--gold,#c9a84c)}
 .tpl-title{display:block;font-family:Cinzel,serif;font-size:1.2rem;color:var(--gold,#c9a84c)}
 .tpl-sub{display:block;font-size:.84rem;color:var(--silver,#9fb0c2);margin-top:3px}
 .tpl-sub b{color:var(--ice,#b8ccd8)}
@@ -11894,7 +11897,7 @@ function tpFwAurum(){
 function tpFwBegin(){
   var sc=curSc(); if(!sc) return;
   sc.treasure={ open:true, sceneId:sc.id||'', lorePoints:lpTotal(),
-                aurum:tpFwAurum(), lucky:{}, draws:{}, manual:{} };
+                aurum:tpFwAurum(), fatigue:null, lucky:{}, draws:{}, manual:{}, endManual:{} };
   /* Carry over any Lucky the loremaster already granted on the Loot tab, so the
      switch is not thrown twice for the same fight. */
   Object.keys((sc.loot&&sc.loot.lucky)||{}).forEach(function(pid){ sc.treasure.lucky[pid]=true; });
@@ -11922,8 +11925,22 @@ function tpFwRollFor(p){
   var st=pState(p.id), r=st && st.treasure && st.treasure.roll;
   return r ? { kept:r.kept, dice:r.dice, fellmark:r.fellmark, by:'player' } : null;
 }
-function tpFwEndFor(p){ var st=pState(p.id); return (st && st.treasure && st.treasure.endurance) || null; }
+function tpFwEndFor(p){
+  var t=tpFwState();
+  if(t && t.endManual && t.endManual[p.id]) return t.endManual[p.id];
+  var st=pState(p.id); return (st && st.treasure && st.treasure.endurance) || null; }
 
+/* Fatigue is an opposed check: the LoreMaster rolls once, everyone rolls Endurance
+   against it, equal or higher holds. Matches ThreadSpire exactly. */
+function tpFwRollFatigue(){ var t=tpFwState(); if(!t) return;
+  t.fatigue=1+Math.floor(Math.random()*6); save(); tpFwPublish(); render(); }
+function tpFwSetFatigue(v){ var t=tpFwState(); if(!t) return;
+  var n=parseInt(v,10); t.fatigue=(isNaN(n)||n<1||n>6)?null:n; save(); tpFwPublish(); render(); }
+function tpFwRollEndFor(pid){ var t=tpFwState(); if(!t) return;
+  if(t.fatigue===null||t.fatigue===undefined) return;
+  var d=1+Math.floor(Math.random()*6);
+  t.endManual[pid]={die:d,total:d,target:t.fatigue,held:(d>=t.fatigue),fellmark:(d===6),by:'lm'};
+  save(); tpFwPublish(); render(); }
 function tpFwLucky(pid){ var t=tpFwState(); if(!t) return;
   if(t.lucky[pid]) delete t.lucky[pid]; else t.lucky[pid]=true; save(); tpFwPublish(); render(); }
 function tpFwManual(pid,val){ var t=tpFwState(); if(!t) return;
@@ -11947,7 +11964,13 @@ function tpFwCardHtml(){
   var t=tpFwState(); if(!t) return '';
   var h='<div class="tpl-wrap"><div class="tpl-head">'
     +'<span class="tpl-title">Treasure Phase</span>'
-    +'<span class="tpl-sub">Lore Points <b>'+(t.lorePoints||0)+'</b> each \u00b7 Aurum '+tpAurumText(t.aurum||{})+'</span></div>';
+    +'<span class="tpl-sub">Lore Points <b>'+(t.lorePoints||0)+'</b> each \u00b7 Aurum '+tpAurumText(t.aurum||{})+'</span></div>'
+    +'<div class="tpl-fat"><span class="tpl-lbl">Fatigue check</span>'
+    +((t.fatigue===null||t.fatigue===undefined)
+        ?'<button class="tpl-btn gold" onclick="tpFwRollFatigue()">Roll 1d6</button><span class="tpl-dim">Nobody rolls Endurance until you do.</span>'
+        :'<b class="tpl-target">'+t.fatigue+'</b><span class="tpl-dim">They match it or beat it to hold.</span>'
+         +'<button class="tpl-btn" onclick="tpFwRollFatigue()">Re-roll</button>')
+    +'<input class="tpl-in" type="number" min="1" max="6" placeholder="set" value="'+((t.fatigue===null||t.fatigue===undefined)?'':t.fatigue)+'" onchange="tpFwSetFatigue(this.value)"></div>';
   var aps=attendingPlayers();
   if(!aps.length) h+='<p class="tpl-empty">No attending players. Mark attendance on the Roster tab.</p>';
   aps.forEach(function(p){
@@ -11957,8 +11980,17 @@ function tpFwCardHtml(){
       +'<div class="tpl-r1"><span class="tpl-name">'+esc(p.name)+(off?' <span class="tpl-off">at the table</span>':'')+'</span>'
       +'<button class="tpl-luck'+(lucky?' on':'')+'" onclick="tpFwLucky(\''+p.id+'\')">'+(lucky?'Lucky':'Grant Luck')+'</button></div>'
       +'<div class="tpl-r2"><span class="tpl-lbl">Endurance</span><span class="tpl-v">'
-      +(end ? (end.fellstrike?'<b class="bad">Fellstrike</b> \u00b7 gains Fatigue':end.die+' \u00b7 holds')
-            : (off?'rolls at the table':'<span class="tpl-wait">waiting</span>'))+'</span></div>';
+      +(end
+         ?('<b'+(end.held===false?' class="bad"':(end.fellmark?' class="gold"':''))+'>'
+           +(end.total!==undefined?end.total:end.die)+'</b>'
+           +' <span class="tpl-dim">vs '+(end.target!==undefined?end.target:(t.fatigue===null?'?':t.fatigue))+'</span> \u00b7 '
+           +(end.held===false?'gains Fatigue':'holds')
+           +(end.by==='lm'?' <span class="tpl-dim">(yours)</span>':''))
+         :((t.fatigue===null||t.fatigue===undefined)?'<span class="tpl-wait">roll the check first</span>':'<span class="tpl-wait">waiting</span>'))
+      +'</span>'
+      +((!end && t.fatigue!==null && t.fatigue!==undefined)
+         ?'<button class="tpl-btn" onclick="tpFwRollEndFor(\''+p.id+'\')">Roll for them</button>':'')
+      +'</div>';
     if(!lucky){ h+='<div class="tpl-r2 quiet">No Luck earned. The foes hold nothing for them.</div></div>'; return; }
     h+='<div class="tpl-r2"><span class="tpl-lbl">Treasure Roll</span><span class="tpl-v">'
       +(roll ? ('<b'+(roll.kept===6?' class="gold"':'')+'>'+(roll.kept===6?'Fellmark':roll.kept)+'</b>'

@@ -6807,6 +6807,18 @@ function tpMyDraw(){ var t = tpState(); return (t && t.draws && CUR_WIX_ID) ? (t
 /* Harfolk carry a permanent extra Lucky die on Treasure Rolls, so they roll
    three and keep the highest. Read off the sheet's own identity rather than
    anything the board sends, because the lineage is the player's to know. */
+/* Endurance resolves like any Lore Check: 1d6 plus rank, mastery and any identity
+   grant, against the number the LoreMaster rolled. Equal or higher holds. */
+function tpEnduranceBonus(){
+  try {
+    var s = C.skills && C.skills.Endurance;
+    if (!s) return 0;
+    var grant = (typeof skillGrant === 'function') ? skillGrant('Endurance') : 0;
+    return (s.rank || 0) + (s.mastery || 0) + (grant || 0);
+  } catch(e){ return 0; }
+}
+function tpFatigueTarget(){ var t = tpState(); return (t && typeof t.fatigue === 'number') ? t.fatigue : null; }
+
 function tpDiceCount(){
   if (!tpAmLucky()) return 1;
   var lin = String((C && C.identity && C.identity.lineage) || "").toLowerCase();
@@ -6827,6 +6839,8 @@ function tpPush(patch){
 /* ---- the three beats ---- */
 
 function tpRollEndurance(){
+  var target = tpFatigueTarget();
+  if (target === null) return;                 /* the LoreMaster has not rolled yet */
   var btn = document.getElementById("tpEndBtn");
   if (btn){ if (btn.dataset.busy) return; btn.dataset.busy = "1"; btn.disabled = true; }
   var face = document.getElementById("tpEndDie");
@@ -6834,21 +6848,29 @@ function tpRollEndurance(){
   setTimeout(function(){
     clearInterval(iv);
     var die = 1 + Math.floor(Math.random()*6);
-    var fellstrike = (die === 1);
+    var bonus = tpEnduranceBonus();
+    var total = die + bonus;
+    var held = total >= target;                /* equal or higher holds, per the tie rule */
+    var fellmark = (die === 6);
     var rank = 0;
-    if (fellstrike){
-      /* Only a Fellstrike costs you. Survival.md: a battle without rest has a
-         chance to add 1 rank, and the Sample Scenario resolves it on the 1. */
+    if (!held){
       C.fatigue = Math.min(5, (C.fatigue || 0) + 1);
       rank = C.fatigue;
       try { renderFatigue(); renderStrip(); } catch(e){}
-      try { scheduleSave(); } catch(e){}
     }
-    tpPush({ endurance:{ die:die, fellstrike:fellstrike, rank:rank, at:Date.now() } });
-    try { cbLogSelf("fell", meName()+" rolls Endurance \u2192 "+(fellstrike ? "Fellstrike, gains Fatigue" : die)+"."); } catch(e){}
+    /* A Fellmark on a Lore Check raises that skill by 1, and Endurance is no exception.
+       It was being thrown away here. */
+    if (fellmark){
+      try {
+        var s = C.skills && C.skills.Endurance;
+        if (s && (s.rank || 0) + (typeof skillGrant === 'function' ? skillGrant('Endurance') : 0) < 5){ s.rank = (s.rank || 0) + 1; renderSkills(); }
+      } catch(e){}
+    }
+    try { scheduleSave(); } catch(e){}
+    tpPush({ endurance:{ die:die, bonus:bonus, total:total, target:target, held:held, fellmark:fellmark, rank:rank, at:Date.now() } });
+    try { cbLogSelf("fell", meName()+" rolls Endurance "+total+" against "+target+" \u2192 "+(held ? "holds" : "gains Fatigue")+"."); } catch(e){}
   }, 560);
 }
-
 function tpAckLore(){
   var t = tpState();
   var lp = (t && t.lorePoints) || 0;
@@ -6887,19 +6909,29 @@ function tpCard(){
   h += '<div class="tp-eyebrow">The fight is over</div>';
   h += '<div class="tp-h">The Treasure Phase</div>';
 
-  /* Beat 1: Endurance */
+  /* Beat 1: Endurance, against the LoreMaster's roll */
+  var target = tpFatigueTarget();
   if (!end){
-    h += '<p class="tp-sub">The exhaustion of battle settles over you. Roll Endurance to see if you gain Fatigue.</p>'
+    if (target === null){
+      h += '<p class="tp-sub">The exhaustion of battle settles over you. The LoreMaster is rolling the Fatigue check.</p>'
+        +  '<div class="tp-wait"><span class="tp-spin"></span>Waiting on the LoreMaster.</div>';
+      return h;
+    }
+    var bon = tpEnduranceBonus();
+    h += '<p class="tp-sub">The exhaustion of battle settles over you. The LoreMaster rolled <b>'+target+'</b>. Match it or beat it and you hold.</p>'
       +  '<div class="tp-dierow"><span class="tp-die" id="tpEndDie">?</span>'
-      +  '<button class="tp-btn" id="tpEndBtn">Roll Endurance</button></div>';
+      +  '<button class="tp-btn" id="tpEndBtn">Roll Endurance'+(bon ? ' +'+bon : '')+'</button></div>';
     return h;
   }
 
   h += '<div class="tp-line"><span class="tp-lbl">Endurance</span>'
-    +  '<span class="tp-val'+(end.fellstrike ? ' bad' : '')+'">'+(end.fellstrike ? 'Fellstrike' : end.die)+'</span></div>'
-    +  '<div class="tp-note">'+(end.fellstrike
+    +  '<span class="tp-val'+(end.held === false ? ' bad' : '')+(end.fellmark ? ' gold' : '')+'">'+(end.total !== undefined ? end.total : end.die)+'</span></div>'
+    +  '<div class="tp-note">'+(end.die || '?')+(end.bonus ? ' + '+end.bonus : '')
+       +' against '+(end.target !== undefined ? end.target : '?')+'. '
+       +(end.held === false
          ? 'You gain a rank of Fatigue. You are '+cbEsc(TP_FATIGUE_NAMES[Math.min(5, end.rank || 1)])+'.'
-         : 'No Fatigue. You hold.')+'</div>';
+         : 'You hold.')
+       +(end.fellmark ? ' Fellmark, Endurance rises by 1.' : '')+'</div>';
 
   /* Beat 2: Lore Points */
   if (!mine.acked){

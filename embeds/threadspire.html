@@ -1451,6 +1451,9 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .tpl-wrap{width:100%;max-width:560px;background:var(--navy2,#101628);border:1px solid var(--line,#26324a);
   border-top:3px solid var(--gold,#c9a84c);border-radius:14px;padding:18px;box-shadow:0 18px 50px rgba(0,0,0,.6)}
 .tpl-head{margin-bottom:12px}
+.tpl-fat{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:0 0 12px;padding:9px 11px;
+  border:1px solid rgba(201,168,76,.35);border-radius:9px;background:var(--navy,#0a0f1c)}
+.tpl-target{font-family:Cinzel,serif;font-size:1.3rem;color:var(--gold,#c9a84c)}
 .tpl-title{display:block;font-family:Cinzel,serif;font-size:1.2rem;color:var(--gold,#c9a84c)}
 .tpl-sub{display:block;font-size:.84rem;color:var(--silver,#9fb0c2);margin-top:3px}
 .tpl-sub b{color:var(--ice,#b8ccd8)}
@@ -11496,9 +11499,11 @@ function tpLmBegin(){
     sceneId: sc.id || '',
     lorePoints: tpLoreFor(foes),
     aurum: tpAurumFor(foes),
+    fatigue: null,       /* the LoreMaster's roll. Nobody rolls Endurance until it is set. */
     lucky: {},
     draws: {},
-    manual: {}
+    manual: {},
+    endManual: {}
   };
   tpLmPublish();
   render();
@@ -11555,10 +11560,35 @@ function tpLmRollFor(key){
   return r ? { kept: r.kept, dice: r.dice, fellmark: r.fellmark, by:'player' } : null;
 }
 function tpLmEnduranceFor(key){
+  var t = tpLmState();
+  if (t && t.endManual && t.endManual[key]) return t.endManual[key];
   var d = (S.declares || []).filter(function(x){ return x.charId === key; })[0];
   return (d && d.treasure && d.treasure.endurance) || null;
 }
 
+/* Fatigue is an opposed check. The LoreMaster rolls once, everyone rolls Endurance
+   against it, and equal or higher holds. Until this is rolled the players' cards say so
+   rather than letting them roll against nothing. */
+function tpLmRollFatigue(){
+  var t = tpLmState(); if (!t) return;
+  t.fatigue = 1 + Math.floor(Math.random() * 6);
+  tpLmPublish(); render();
+}
+function tpLmSetFatigue(val){
+  var t = tpLmState(); if (!t) return;
+  var n = parseInt(val, 10);
+  t.fatigue = (isNaN(n) || n < 1 || n > 6) ? null : n;
+  tpLmPublish(); render();
+}
+/* Rolling Endurance on someone's behalf. Their sheet's competency is not on the board,
+   so this is the raw die and the LoreMaster applies the bonus they know about. */
+function tpLmRollEnduranceFor(key){
+  var t = tpLmState(); if (!t) return;
+  if (t.fatigue === null || t.fatigue === undefined) return;
+  var die = 1 + Math.floor(Math.random() * 6);
+  t.endManual[key] = { die:die, total:die, target:t.fatigue, held:(die >= t.fatigue), fellmark:(die === 6), by:'lm' };
+  tpLmPublish(); render();
+}
 function tpLmSetLucky(key){
   var t = tpLmState(); if (!t) return;
   if (t.lucky[key]) delete t.lucky[key]; else t.lucky[key] = true;
@@ -11595,6 +11625,14 @@ function tpLmCardHtml(){
   var h = '<div class="tpl-wrap"><div class="tpl-head">'
     + '<span class="tpl-title">Treasure Phase</span>'
     + '<span class="tpl-sub">Lore Points <b>' + (t.lorePoints || 0) + '</b> each \u00b7 Aurum ' + tpAurumText(t.aurum || {}) + '</span>'
+    + '</div>'
+    + '<div class="tpl-fat">'
+      + '<span class="tpl-lbl">Fatigue check</span>'
+      + (t.fatigue === null || t.fatigue === undefined
+          ? '<button class="tpl-btn gold" onclick="tpLmRollFatigue()">Roll 1d6</button><span class="tpl-dim">Nobody rolls Endurance until you do.</span>'
+          : '<b class="tpl-target">' + t.fatigue + '</b><span class="tpl-dim">They match it or beat it to hold.</span>'
+            + '<button class="tpl-btn" onclick="tpLmRollFatigue()">Re-roll</button>')
+      + '<input class="tpl-in" type="number" min="1" max="6" placeholder="set" value="' + ((t.fatigue === null || t.fatigue === undefined) ? '' : t.fatigue) + '" onchange="tpLmSetFatigue(this.value)">'
     + '</div>';
 
   var roster = tpLmRoster();
@@ -11612,8 +11650,17 @@ function tpLmCardHtml(){
       + '<button class="tpl-luck' + (lucky ? ' on' : '') + '" onclick="tpLmSetLucky(\'' + esc(k) + '\')">' + (lucky ? 'Lucky' : 'Grant Luck') + '</button></div>';
 
     h += '<div class="tpl-r2"><span class="tpl-lbl">Endurance</span><span class="tpl-v">'
-      + (end ? (end.fellstrike ? '<b class="bad">Fellstrike</b> \u00b7 gains Fatigue' : end.die + ' \u00b7 holds')
-             : (p.offline ? 'rolls at the table' : '<span class="tpl-wait">waiting</span>')) + '</span></div>';
+      + (end
+          ? ('<b' + (end.held === false ? ' class="bad"' : (end.fellmark ? ' class="gold"' : '')) + '>'
+             + (end.total !== undefined ? end.total : end.die) + '</b>'
+             + ' <span class="tpl-dim">vs ' + (end.target !== undefined ? end.target : (t.fatigue === null ? '?' : t.fatigue)) + '</span> \u00b7 '
+             + (end.held === false ? 'gains Fatigue' : 'holds')
+             + (end.by === 'lm' ? ' <span class="tpl-dim">(yours)</span>' : ''))
+          : (t.fatigue === null || t.fatigue === undefined ? '<span class="tpl-wait">roll the check first</span>' : '<span class="tpl-wait">waiting</span>'))
+      + '</span>'
+      + ((!end && t.fatigue !== null && t.fatigue !== undefined)
+          ? '<button class="tpl-btn" onclick="tpLmRollEnduranceFor(\'' + esc(k) + '\')">Roll for them</button>' : '')
+      + '</div>';
 
     if (!lucky){
       h += '<div class="tpl-r2 quiet">No Luck earned. The foes hold nothing for them.</div></div>';
