@@ -2093,15 +2093,37 @@ function advPersistTree(){
     var A = S.adventure;
     tsAsk('TS_ADV_SAVE_ROOT', { root:{ name:A.name || 'Adventure', activeSceneId:A.activeSceneId || '', actOrder:(A.acts||[]).map(function(a){ return a.id; }) } }).catch(function(){});
     (A.acts || []).forEach(function(a){
-      tsAsk('TS_ADV_SAVE_ACT', { act:{ id:a.id, name:a.name||'', notes:a.notes||'', img:a.img||'', desc:a.desc||'', sessions:(a.sessions||[]).map(function(s){ return { id:s.id }; }) } }).catch(function(){});
+      /* Send back everything that was loaded, not a stub. saveAdvAct and saveAdvSession
+         rebuild the row's `extra` column from whatever arrives, so a field left out here is
+         not merely unsaved, it is deleted. This used to send id, name and the child order
+         and nothing else, which wiped every note FateWell had authored on an act or a
+         session the moment anything in the Story panel was renamed, reordered, added to or
+         deleted from. Children are still sent as ids alone, because each child writes its
+         own row and the parent only records the order. */
+      tsAsk('TS_ADV_SAVE_ACT', { act:advCleanNode(a, 'sessions') }).catch(function(){});
       (a.sessions || []).forEach(function(se){
-        tsAsk('TS_ADV_SAVE_SESSION', { actId:a.id, session:{ id:se.id, name:se.name||'', scenes:(se.scenes||[]).map(function(s){ return { id:s.id }; }) } }).catch(function(){});
+        tsAsk('TS_ADV_SAVE_SESSION', { actId:a.id, session:advCleanNode(se, 'scenes') }).catch(function(){});
         (se.scenes || []).forEach(function(sc){
           tsAsk('TS_ADV_SAVE_SCENE', { actId:a.id, sesId:se.id, scene:advCleanScene(sc) }).catch(function(){});
         });
       });
     });
   }, 900);
+}
+/* An act or a session on its way back to the row it came from. Everything it carries is
+   kept, the child list is flattened to ids, and the live board state a scene would drag
+   along is not a concern here because neither of these holds any. */
+function advCleanNode(node, childKey){
+  var out = {};
+  Object.keys(node || {}).forEach(function(k){
+    if (k === childKey) return;
+    if (k.charAt(0) === '_') return;          /* transient, never stored */
+    out[k] = node[k];
+  });
+  out.id = node.id;
+  out.name = node.name || '';
+  out[childKey] = (node[childKey] || []).map(function(c){ return { id:c.id }; });
+  return out;
 }
 /* the authored scene in the shared shape. combatants is canonical and both tools read it;
    the roster keeps it in sync as foes and npcs are added or removed. Live turn state and the
