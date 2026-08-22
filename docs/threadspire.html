@@ -2731,6 +2731,32 @@ function abilityBlock(list){
   }).join('');
 }
 /* The library card: the same face FateWell shows when you open an entry. */
+/* A blank entry of the asked-for kind, saved so it exists before it is edited, then
+   opened on the same sheet every other library entry is edited through. A foe is born at
+   the party's level so its Vitality is not zero from the start. */
+function libNew(kind){
+  var apl = partyApl();
+  var e = { id:mkId(), type:kind, name:kind === 'monster' ? 'New foe' : (kind === 'npc' ? 'New NPC' : 'New item'),
+            desc:'', img:'', origin:'' };
+  if (kind === 'monster'){
+    e.sr = 'Elite';
+    e.lp = SR_TABLE.Elite ? SR_TABLE.Elite.lp : 2;
+    e.sp = SR_TABLE.Elite ? SR_TABLE.Elite.sp : 0;
+    e.maxVit = foeVitality('Elite', apl);
+    e.attrs = blankAttrs(); e.inv = []; e.abilities = [];
+    e.infusions = []; e.augments = []; e.sig = ''; e.build = ''; e.stance = '';
+  } else if (kind === 'npc'){
+    e.role = ''; e.maxVit = 0; e.attrs = blankAttrs(); e.inv = []; e.abilities = [];
+  } else {
+    e.role = '';
+  }
+  if (S.campaignId) e.campaignId = S.campaignId;
+  S.library = S.library || [];
+  S.library.unshift(e);
+  if (assetBackend && assetBackend.save) assetBackend.save(assetToRow(e)).catch(function(){});
+  refreshWinBody();
+  entrySheet('lib', '', '', e.id);
+}
 function libDelete(id){
   var e = libGet(id); if (!e) return;
   window._tsYes = function(){
@@ -4244,6 +4270,14 @@ function libraryBody(){
     var allOn = shown.length && shown.every(function(e){ return S.libSel && S.libSel[e.id]; });
     h += '<div class="lib-bar">'
       + '<button class="tsm-btn ghost" onclick="libSelToggleMode()">' + (libSelOn() ? 'Done' : 'Select') + '</button>';
+    /* The library could be searched, opened and deleted from, but never added to, so a foe
+       thought of at the table had to be made in FateWell and waited for. The save path and
+       the sheet were both already here; only the way in was missing. */
+    if (!libSelOn()){
+      h += '<button class="tsm-btn ghost" onclick="libNew(\'monster\')">New foe</button>'
+        + '<button class="tsm-btn ghost" onclick="libNew(\'npc\')">New NPC</button>'
+        + '<button class="tsm-btn ghost" onclick="libNew(\'item\')">New item</button>';
+    }
     if (libSelOn()){
       h += '<button class="tsm-btn ghost" onclick="libSelAll()">' + (allOn ? 'None' : 'All') + '</button>'
         + '<span class="lib-count">' + picked + ' of ' + shown.length + ' chosen</span>'
@@ -4272,7 +4306,7 @@ function libraryBody(){
   } else if (S.libLoaded && libSelOn()){
     h += '<div class="win-note">Nothing here matches. Clear the search, or change what is shown.</div>';
   } else {
-    h += '<div class="win-note">Nothing in the library yet. FateWell authors it.</div>';
+    h += '<div class="win-note">Nothing in the library yet. Make one above, or author it in FateWell.</div>';
   }
   h += '<div class="nb-scene">At this scene</div>';
   function group(title, list, line){
