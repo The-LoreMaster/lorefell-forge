@@ -1215,6 +1215,7 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .stn-head{ font-family:Cinzel,serif; font-size:.58rem; letter-spacing:.11em; text-transform:uppercase;
   color:var(--silver,#9fb0c2); opacity:.8; margin:6px 0 4px; }
 .stn-card.pinned{ border-color:rgba(201,168,76,.5); }
+.st-b.on{ color:var(--gold,#c9a84c); }
 .stn-body{ font-size:.9rem; line-height:1.55; color:var(--ice,#b8ccd8); max-height:52vh; overflow-y:auto; white-space:normal; }
 .stn-img{ max-width:100%; border-radius:8px; margin:6px 0 10px; display:block; }
 .lmc-downbtn{ background:none; border:1px solid var(--line2,#3a4a68); border-radius:6px; color:var(--silver,#9fb0c2);
@@ -2275,38 +2276,21 @@ function storyDelete(kind, id){
    is where they are written, and two authoring surfaces for one thing is how they drift. */
 function storyNotesHtml(node){
   var list = node.entries || [];
-  if (!list.length) return '';
+  if (!list.length){
+    return '<div class="stn-wrap"><button class="st-add" onclick="tsNoteModal(\'act\',\'' + esc(String(node.id)) + '\',-1)">Add a note</button></div>';
+  }
   var pinned = list.filter(function(e){ return e.pinned; });
   var rest   = list.filter(function(e){ return !e.pinned; });
   function card(e){
     var m = beatMeta(e.type || 'general');
     return '<div class="stb-card stn-card' + (e.pinned ? ' pinned' : '') + '" style="border-left-color:' + m[1] + '">'
-      + '<span class="stb-main" onclick="storyNoteOpen(\'' + esc(String(node.id)) + '\',\'' + esc(String(e.id || '')) + '\')">'
+      + '<span class="stb-main" onclick="tsNoteModal(\'act\',\'' + esc(String(node.id)) + '\',' + list.indexOf(e) + ')">'
       + '<span class="stb-tag" style="color:' + m[1] + '">' + m[0] + '</span>'
       + '<span class="stb-title">' + (e.pinned ? '\u2605 ' : '') + esc(e.title || 'Note') + '</span></span></div>';
   }
   return '<div class="stn-wrap"><div class="stn-head">Notes <span class="rs-count">' + list.length + '</span></div>'
-    + pinned.map(card).join('') + rest.map(card).join('') + '</div>';
-}
-function storyNoteFind(nodeId, noteId){
-  var found = null;
-  (((S.adventure || {}).acts) || []).forEach(function(a){
-    if (String(a.id) === String(nodeId)) (a.entries || []).forEach(function(e){ if (String(e.id) === String(noteId)) found = e; });
-    (a.sessions || []).forEach(function(se){
-      if (String(se.id) === String(nodeId)) (se.entries || []).forEach(function(e){ if (String(e.id) === String(noteId)) found = e; });
-    });
-  });
-  return found;
-}
-function storyNoteOpen(nodeId, noteId){
-  var found = storyNoteFind(nodeId, noteId);
-  if (!found) return;
-  var m = beatMeta(found.type || 'general');
-  tsModal('<h3 class="tsm-title">' + esc(found.title || 'Note') + '</h3>'
-    + '<p class="tsm-note" style="color:' + m[1] + '">' + m[0] + (found.pinned ? ' \u00b7 pinned' : '') + '</p>'
-    + (found.img ? '<img class="stn-img" src="' + esc(found.img) + '" alt="">' : '')
-    + '<div class="stn-body">' + esc(found.body || '').replace(/\n/g, '<br>') + '</div>'
-    + '<div class="tsm-row"><button class="tsm-btn" onclick="tsCloseModal()">Close</button></div>', true);
+    + pinned.map(card).join('') + rest.map(card).join('')
+    + '<button class="st-add" onclick="tsNoteModal(\'act\',\'' + esc(String(node.id)) + '\',-1)">Add a note</button></div>';
 }
 function storyBeatsHtml(sc){
   var h = '';
@@ -4046,24 +4030,99 @@ function sessionScenesRefresh(){ if (window._sesScenesOpen && window._sesScenes)
 
 /* The notes authored on this session in FateWell, pinned first. Read-only, because
    FateWell is where they are written and two authoring surfaces is how things drift. */
+function tsNoteModal(nodeKind, nodeId, idx){
+  var node = storyNode(nodeKind, nodeId); if (!node) return;
+  var list = node.entries || [];
+  var e = idx >= 0 ? list[idx] : { type:'general', title:'', body:'', img:'', pinned:false };
+  if (!e) return;
+  window._noteCtx = { kind:nodeKind, id:nodeId, idx:idx };
+  var opts = '';
+  Object.keys(BEAT_TYPES).forEach(function(k){
+    opts += '<option value="' + k + '"' + ((e.type || 'general') === k ? ' selected' : '') + '>' + BEAT_TYPES[k][0] + '</option>';
+  });
+  tsModal('<h3 class="tsm-title">' + (idx >= 0 ? 'Edit note' : 'New note') + '</h3>'
+    + '<label class="tsm-lbl">Type</label><select class="tsm-inp" id="tsnKind">' + opts + '</select>'
+    + '<label class="tsm-lbl">Title</label><input class="tsm-inp" id="tsnName" value="' + esc(e.title || '') + '">'
+    + '<label class="tsm-lbl">Body</label><textarea class="tsm-inp tsm-ta" id="tsnBody">' + esc(e.body || '') + '</textarea>'
+    + '<label class="tsm-lbl">Image (optional)</label><input class="tsm-inp" id="tsnImg" value="' + esc(e.img || '') + '" placeholder="Image URL">'
+    + '<label class="tsm-lbl"><input type="checkbox" id="tsnPin"' + (e.pinned ? ' checked' : '') + '> Pinned</label>'
+    + '<p class="tsm-note">A pinned note leads this session\'s scenes on the board, so it is the first thing met when a scene opens.</p>'
+    + '<div class="tsm-row">'
+    + (idx >= 0 ? '<button class="tsm-btn ghost" onclick="tsNoteDelete()">Delete</button>' : '')
+    + '<button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button>'
+    + '<button class="tsm-btn" onclick="tsNoteSave()">Save</button></div>', true);
+}
+function tsNoteSave(){
+  var c = window._noteCtx; if (!c) return;
+  var node = storyNode(c.kind, c.id); if (!node) return;
+  node.entries = node.entries || [];
+  var e = {
+    type: (document.getElementById('tsnKind') || {}).value || 'general',
+    title: ((document.getElementById('tsnName') || {}).value || '').replace(/^\s+|\s+$/g, ''),
+    body: (document.getElementById('tsnBody') || {}).value || '',
+    img: (document.getElementById('tsnImg') || {}).value || '',
+    pinned: !!(document.getElementById('tsnPin') || {}).checked
+  };
+  if (c.idx >= 0){
+    var prev = node.entries[c.idx] || {};
+    e.id = prev.id || mkId();
+    node.entries[c.idx] = e;
+  } else {
+    e.id = mkId(); e.open = false;
+    node.entries.push(e);
+  }
+  tsCloseModal(); storySave(); advPersistTree(); refreshWinBody(); render();
+  if (isLM()) { try { paintLmStrip(); } catch(err){} }
+  if (c.kind === 'session') sessionNotesRefresh();
+}
+function tsNoteDelete(){
+  var c = window._noteCtx; if (!c || c.idx < 0) return;
+  var node = storyNode(c.kind, c.id); if (!node) return;
+  (node.entries || []).splice(c.idx, 1);
+  tsCloseModal(); storySave(); advPersistTree(); refreshWinBody(); render();
+  if (isLM()) { try { paintLmStrip(); } catch(err){} }
+  if (c.kind === 'session') sessionNotesRefresh();
+}
+function tsNoteMove(nodeKind, nodeId, idx, dir){
+  var node = storyNode(nodeKind, nodeId); if (!node) return;
+  var arr = node.entries || [], j = idx + dir;
+  if (j < 0 || j >= arr.length) return;
+  var tmp = arr[idx]; arr[idx] = arr[j]; arr[j] = tmp;
+  storySave(); advPersistTree(); refreshWinBody(); render();
+  if (isLM()) { try { paintLmStrip(); } catch(err){} }
+  if (nodeKind === 'session') sessionNotesRefresh();
+}
+function tsNotePin(nodeKind, nodeId, idx){
+  var node = storyNode(nodeKind, nodeId); if (!node) return;
+  var e = (node.entries || [])[idx]; if (!e) return;
+  e.pinned = !e.pinned;
+  storySave(); advPersistTree(); refreshWinBody(); render();
+  if (isLM()) { try { paintLmStrip(); } catch(err){} }
+  if (nodeKind === 'session') sessionNotesRefresh();
+}
+function tsCloseSessionNotes(){ window._sesNotesOpen = false; tsCloseModal(); }
+function sessionNotesRefresh(){ if (window._sesNotesOpen && window._sesNotes) sessionNotesWindow(window._sesNotes); }
 function sessionNotesWindow(sesId){
   var f = storyFind('session', sesId); if (!f) return;
-  var se = f.ses, list = se.entries || [];
-  var pinned = list.filter(function(e){ return e.pinned; });
-  var rest = list.filter(function(e){ return !e.pinned; });
-  function card(e){
+  window._sesNotes = sesId; window._sesNotesOpen = true;
+  var se = f.ses, list = se.entries || [], n = list.length;
+  var rows = n ? list.map(function(e, i){
     var m = beatMeta(e.type || 'general');
     return '<div class="stb-card stn-card' + (e.pinned ? ' pinned' : '') + '" style="border-left-color:' + m[1] + '">'
-      + '<span class="stb-main" onclick="storyNoteOpen(\'' + esc(String(se.id)) + '\',\'' + esc(String(e.id || '')) + '\')">'
+      + '<span class="stb-main" onclick="tsNoteModal(\'session\',\'' + esc(String(se.id)) + '\',' + i + ')">'
       + '<span class="stb-tag" style="color:' + m[1] + '">' + m[0] + '</span>'
-      + '<span class="stb-title">' + (e.pinned ? '\u2605 ' : '') + esc(e.title || 'Note') + '</span></span></div>';
-  }
+      + '<span class="stb-title">' + esc(e.title || 'Note') + '</span></span>'
+      + '<span class="stb-ord">'
+      + '<button class="st-b' + (e.pinned ? ' on' : '') + '" onclick="tsNotePin(\'session\',\'' + esc(String(se.id)) + '\',' + i + ')" title="' + (e.pinned ? 'Unpin' : 'Pin to the board') + '">\u2605</button>'
+      + '<button class="st-b" onclick="tsNoteMove(\'session\',\'' + esc(String(se.id)) + '\',' + i + ',-1)"' + (i === 0 ? ' disabled' : '') + ' title="Move up">\u25b4</button>'
+      + '<button class="st-b" onclick="tsNoteMove(\'session\',\'' + esc(String(se.id)) + '\',' + i + ',1)"' + (i === n - 1 ? ' disabled' : '') + ' title="Move down">\u25be</button>'
+      + '</span></div>';
+  }).join('') : '<p class="tsm-note">No notes on this session yet.</p>';
   tsModal('<h3 class="tsm-title">' + esc(se.name || 'Session') + ' \u00b7 Notes</h3>'
-    + (list.length
-        ? '<p class="tsm-note">Written in FateWell. A pinned note also leads this session\'s scenes on the board.</p>'
-          + '<div class="rs-wrap">' + pinned.map(card).join('') + rest.map(card).join('') + '</div>'
-        : '<p class="tsm-note">No notes on this session. They are authored in FateWell.</p>')
-    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>', true);
+    + '<p class="tsm-note">A pinned note leads this session\'s scenes on the board. Written here or in FateWell, whichever is to hand.</p>'
+    + '<div class="rs-wrap">' + rows + '</div>'
+    + '<button class="st-add" onclick="tsNoteModal(\'session\',\'' + esc(String(se.id)) + '\',-1)">Add a note</button>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseSessionNotes()">Close</button></div>', true);
 }
 function sessionRosterWindow(sesId){
   var f = storyFind('session', sesId); if (!f) return;
