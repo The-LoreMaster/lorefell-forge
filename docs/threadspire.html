@@ -1163,6 +1163,11 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
    the edges of the screen and the only way through was a scrollbar nobody could find. It
    is a fixed column now, centred under the bar, stacking downward inside itself and
    growing upward off the bottom of the screen because the strip is anchored there. */
+/* The settings sheet fills with a row per Fell and used to run off the bottom of the
+   screen with no way down. It is wider now, and scrolls. */
+.tsm.tsm-wide{ width:min(760px, calc(100vw - 36px)); max-width:none; max-height:calc(100vh - 90px); overflow-y:auto; }
+.tsm-wide .rs-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:3px 0; }
+.tsm-attgrid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(232px, 1fr)); gap:4px 18px; }
 .lmcard.spotbox{ width:min(440px, calc(100vw - 92px)); max-width:none;
   max-height:calc(100vh - 210px); overflow-y:auto; overflow-x:hidden; padding:10px 13px 12px; }
 .lmc-spothead{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:8px; }
@@ -1181,6 +1186,7 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .ts-dim{ opacity:.6; }
 .ts-dmg{ color:var(--gold,#c9a84c); font-family:Cinzel,serif; font-size:.76rem; margin-left:4px; }
 .ts-kitrow{ display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
+.lmc-lastfoe{ border:1px solid var(--line,#26324a); border-radius:9px; padding:8px 10px; background:rgba(10,14,26,.5); }
 .ts-kit{ border:1px solid var(--line2,#3a4a68); border-radius:6px; background:transparent; cursor:pointer;
   font-size:.6rem; letter-spacing:.03em; padding:2px 7px; color:var(--silver,#9fb0c2); }
 .ts-kit.inf{ border-color:rgba(201,168,76,.4); color:var(--gold,#c9a84c); }
@@ -2104,10 +2110,10 @@ function storyNewScene(name){
            battle:{ round:1, phase:'commit', locked:false, pLocked:false, spots:[], spotMode:'auto', manual:{}, order:[] },
            dis:{ spent:[], base:null }, loot:{ lucky:{}, shards:{}, rolls:{}, notes:{} } };
 }
-function tsModal(html){
+function tsModal(html, wide){
   var m = document.getElementById('tsModal');
   if (!m){ m = document.createElement('div'); m.id = 'tsModal'; document.body.appendChild(m); }
-  m.innerHTML = '<div class="tsm-back" onclick="tsCloseModal()"></div><div class="tsm-panel">' + html + '</div>';
+  m.innerHTML = '<div class="tsm-back" onclick="tsCloseModal()"></div><div class="tsm-panel' + (wide ? ' tsm tsm-wide' : '') + '">' + html + '</div>';
   m.style.display = 'block';
 }
 /* A gate that must be answered. The backdrop does nothing on click, and there is no dismiss,
@@ -4497,14 +4503,45 @@ function lmMinimize(){ lmMin = true; paintLmStrip(); }
 function lmRestore(){ if (S.openSection){ closeWin(); } else { lmMin = false; paintLmStrip(); } }
 var lmTab = 'about';          /* active tab on the expanded card */
 var _lmStripDeferred = false; /* a strip repaint was skipped to protect an open control */
+/* The card the deck is pointing at, whatever face the strip is showing. */
+function lmCentreCardId(){
+  try {
+    var deck = lmDeck(), f = lmFace();
+    var i = Math.max(0, Math.min(lmFocus[f] || 0, deck.length - 1));
+    var item = deck[i];
+    if (!item) return null;
+    if (item.kind === 'spotgroup'){
+      var n = (item.data.nodes || [])[0];
+      return n && n.ref ? n.ref.id : null;
+    }
+    return item.data && item.data.id;
+  } catch(e){ return null; }
+}
+function lmCardUp(){
+  if (lmMin){ lmRestore(); return; }
+  var id = lmCentreCardId();
+  if (id && lmExpanded !== id){ lmExpanded = id; lmTab = 'about'; if (S.openSection) closeWin(); paintLmStrip(); paintHud(); }
+}
+function lmCardDown(){
+  if (lmExpanded){ lmExpanded = null; paintLmStrip(); paintHud(); return; }
+  lmMinimize();
+}
 function lmToggleCard(id){ lmExpanded = (lmExpanded === id) ? null : id; if (lmExpanded && S.openSection) closeWin(); lmTab = 'about'; paintLmStrip(); paintHud(); }
 function lmSetTab(id, tab){ lmExpanded = id; lmTab = tab; paintLmStrip(); paintHud(); }
 function lmFace(){ return S.mode === 'combat' ? (S.scene.combatPhase || 'commit') : 'scene'; }
+/* A Fell sent home keeps their record, because it may have been placed by hand and
+   deleting it would lose that. The card is hidden instead. syncSceneFell only ever pruned
+   the ones it had created itself, which is why an authored Fell stayed on the board. */
+function cIsOut(c){
+  var sc = S.scene || {};
+  if (!sc.out || !c) return false;
+  return !!(sc.out[c.charId] || sc.out[c.id]);
+}
 function lmDeck(){
   var f = lmFace();
   if (f === 'scene') return S.scene.beats.map(function(b){ return { kind:'beat', data:b }; });
   if (f === 'resolve') return lmSpotDeck();
-  return S.scene.foes.concat(S.scene.fell).map(function(c){
+  return S.scene.foes.concat(S.scene.fell.filter(function(p){ return !cIsOut(p); })).map(function(c){
     return { kind: S.scene.foes.indexOf(c) >= 0 ? 'foe' : 'fell', data:c };
   });
 }
@@ -4533,7 +4570,7 @@ function paintLmStrip(){
      card jumped up while you were reading it. Capture where the open card was scrolled and
      put it back after the repaint, so a live update no longer costs you your place. Keyed
      off the expanded card element, which survives the rebuild by class. */
-  var prevScroll = null, prevBeatScroll = null;
+  var prevScroll = null, prevBeatScroll = null, prevSpotScroll = null;
   try {
     var openCard = el.querySelector('.lmcard.expanded');
     if (openCard) prevScroll = openCard.scrollTop;
@@ -4542,6 +4579,11 @@ function paintLmStrip(){
        LoreMaster back to the top of whatever they were reading. Capture and restore it as well. */
     var beatBody = el.querySelector('.lmcard.beat .lmc-body');
     if (beatBody) prevBeatScroll = beatBody.scrollTop;
+    /* The spotlight box scrolls too, now that its fighters stack. It was not in this set,
+       so every repaint - and the feed repaints about once a second - threw the LoreMaster
+       back to the top of a spotlight they were reading. */
+    var spotBox = el.querySelector('.lmcard.spotbox');
+    if (spotBox) prevSpotScroll = spotBox.scrollTop;
   } catch(e){}
   el.innerHTML = lmStripHtml();
   if (prevScroll){
@@ -4554,6 +4596,12 @@ function paintLmStrip(){
     try {
       var newBeat = el.querySelector('.lmcard.beat .lmc-body');
       if (newBeat) newBeat.scrollTop = prevBeatScroll;
+    } catch(e){}
+  }
+  if (prevSpotScroll){
+    try {
+      var newSpot = el.querySelector('.lmcard.spotbox');
+      if (newSpot) newSpot.scrollTop = prevSpotScroll;
     } catch(e){}
   }
   try {
@@ -4757,13 +4805,15 @@ function spotGroupCard(it){
     }
     var mtog = manual ? '<button class="lmc-mdot' + (S.scene.manual[n.key]?' on':'') + '" onclick="event.stopPropagation();lmToggleManual(\'' + n.key + '\')" title="Group into the spotlight">\u25c9</button>' : '';
     var mini = isFoe ? foeCardCompact(c) : fellCardCompact(c);
-    /* a small die on the compact face so a foe can roll without opening */
-    var die = isFoe ? '<div class="lm-minidie">' + foeDiceRow(c) + '</div>' : '';
+    /* a small die on the compact face so a foe can roll without opening, and the foe's
+       React beside it, because a spotlight is exactly where a foe answers something and
+       the row was only reachable by opening the card */
+    var die = isFoe ? '<div class="lm-minidie">' + foeDiceRow(c) + foeReactRow(c) + '</div>' : '';
     return '<div class="lm-spotslot">' + mtog + mini + die + '</div>';
   }).join('');
   return '<div class="lmcard spotbox' + (done?' done':'') + '">'
     + '<div class="lmc-spothead"><span class="lmc-spotnum">' + esc(it.label) + '</span>'
-    + '<button class="lmbtn sm2" onclick="lmResolveGroup(\'' + it.id + '\')">' + (done?'Resolved':'Resolve') + '</button></div>'
+    + '<button class="lmbtn sm2" onclick="lmResolveGroup(\'' + it.id + '\')">' + (done?'Reopen':'Resolve') + '</button></div>'
     + '<div class="lm-spotrow">' + inner + '</div></div>';
 }
 function lmResolveGroup(id){
@@ -4778,6 +4828,7 @@ function cardFor(item){
   if (item.kind === 'foe') return foeCard(item.data);
   if (item.kind === 'fell') return fellCard(item.data);
   if (item.kind === 'spotgroup') return spotGroupCard(item.data);
+  if (item.kind === 'lastreacts') return lastReactsCard();
   return '';
 }
 function nextSceneAfter(){
@@ -4825,11 +4876,11 @@ function lmAplWindow(){
     + '<div class="rs-row"><span class="rs-name">Average level</span><b class="lm-apl">' + apl + (pinned ? ' \u00b7 pinned' : '') + '</b></div>'
     + '<label class="tsm-lbl">Pin the level</label>'
     + '<input class="tsm-inp" id="aplPinIn" type="number" min="1" placeholder="from the roster" value="' + esc(String((S.scene && S.scene.aplPin) || '')) + '">'
-    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="lmPinAplSave()">Save level</button>'
-    + '<button class="tsm-btn" onclick="lmBalanceFoes()">Balance foes to this level</button></div>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="lmPinAplSave(true)">Save level</button>'
+    + '<button class="tsm-btn" onclick="lmBalanceFoes(true)">Balance foes to this level</button></div>'
     + '<p class="tsm-note">Balancing sets every foe\'s Vitality to seven times the level times its rating, keeping damage already dealt.</p>'
     + lmAttendanceHtml()
-    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>', true);
 }
 /* Attendance belongs in the runner, not only on the roster tab. A Fell leaves mid-fight
    and the LoreMaster is looking at the board, not at a tab two screens away. Sending one
@@ -4840,7 +4891,8 @@ function lmAttendanceHtml(){
   var list = (S.party || []);
   if (!list.length) return '<div class="st-sub">At this scene</div><p class="tsm-note">The roster has not loaded.</p>';
   var h = '<div class="st-sub">At this scene</div>'
-    + '<p class="tsm-note">Sending a Fell home drops their card and re-levels the foes. Balance again after.</p>';
+    + '<p class="tsm-note">Sending a Fell home drops their card and re-levels the foes. Balance again after.</p>'
+    + '<div class="tsm-attgrid">';
   list.forEach(function(p){
     var id = p.charId || p.id, out = attOut(sc, id);
     h += '<div class="rs-row"><span class="rs-name">' + esc(p.charName || p.name || 'A Fell')
@@ -4848,7 +4900,7 @@ function lmAttendanceHtml(){
       + '<button class="rs-pill' + (out ? '' : ' on') + '" onclick="lmAttToggle(\'' + esc(String(id)) + '\')">'
       + (out ? 'Absent' : 'Attending') + '</button></div>';
   });
-  return h;
+  return h + '</div>';
 }
 function lmAttToggle(id){
   var sc = S.scene; if (!sc || !id) return;
@@ -4865,7 +4917,7 @@ function lmAttToggle(id){
   paintLmStrip(); paintHud(); render();
   lmAplWindow();   /* redraw the sheet in place, with the new level */
 }
-function lmBalanceFoes(){
+function lmBalanceFoes(andClose){
   var apl = partyApl(), n = 0;
   (S.scene.foes || []).forEach(function(f){
     if (!f.sr || !TS_VIT_SHARE[f.sr]) return;
@@ -4878,13 +4930,18 @@ function lmBalanceFoes(){
   applyRemoteState({ scene:S.scene }); try { combatPublish(); } catch(e){} paintLmStrip(); paintHud();
   pushLog({ kind:'sys', html:n + ' foe' + (n === 1 ? '' : 's') + ' balanced to average level <b>' + apl + '</b>.' });
   applyRemoteState({ log:S.log });
+  /* Both buttons are the end of the errand, so the sheet gets out of the way rather than
+     redrawing itself over the board the LoreMaster wanted to look at. */
+  if (andClose){ tsCloseModal(); return; }
   try { if (document.getElementById('aplPinIn')) lmAplWindow(); } catch(e){}
 }
-function lmPinAplSave(){
+function lmPinAplSave(andClose){
   var v = (document.getElementById('aplPinIn') || {}).value;
   if (v === '' || +v <= 0) delete S.scene.aplPin; else S.scene.aplPin = Math.max(1, Math.round(+v));
   refreshFoeKits();
-  applyRemoteState({ scene:S.scene }); try { combatPublish(); } catch(e){} paintLmStrip(); lmAplWindow();
+  applyRemoteState({ scene:S.scene }); try { combatPublish(); } catch(e){} paintLmStrip();
+  if (andClose){ tsCloseModal(); return; }
+  lmAplWindow();
 }
 function lmPhaseControls(){
   if (S.mode !== 'combat')
@@ -4894,7 +4951,7 @@ function lmPhaseControls(){
          + lmAplGear();
   if (S.scene.combatPhase === 'commit')
     return '<button class="lmbtn gold" onclick="lmLockActs()">Lock acts into Spotlights</button>'
-         + '<button class="lmbtn" onclick="declaresLoad()">Read declares</button>'
+         + '<button class="lmbtn" onclick="declaresLoad(true)">Read declares</button>'
          + '<button class="lmbtn" onclick="lmEndCombat()">End combat</button>'
          + lmAplGear();
   return '<button class="lmbtn' + (S.scene.spotMode==='auto'?' gold':'') + '" onclick="lmSpotMode(\'auto\')">Auto</button>'
@@ -5299,15 +5356,15 @@ function fellDeclareHtml(p){
   } else {
     h += '<div class="bt-row"><span class="bt-lbl">Declared</span><span class="tsm-note">Nothing yet.</span></div>';
   }
-  h += '<div class="bt-row"><span class="bt-lbl">Strike</span>'
+  /* Wrapping, so Send stays inside the border instead of being pushed through it by the
+     three fields ahead of it. The Charges row that sat here is gone: the pips on the
+     Vitality line at the top are the one charge control, the same as on a foe. */
+  h += '<div class="bt-row wrap"><span class="bt-lbl">Strike</span>'
     + '<input class="tsm-inp bt-in" id="dmgB_' + esc(p.charId || p.id) + '" type="number" placeholder="base" value="">'
     + '<input class="tsm-inp bt-in" id="dmgN_' + esc(p.charId || p.id) + '" type="number" placeholder="bonus" value="">'
     + '<select class="tsm-inp bt-sel" id="dmgT_' + esc(p.charId || p.id) + '"><option value="phys">physical</option><option value="magic">magical</option></select>'
     + '<button class="bt-b" onclick="strikeFell(\'' + esc(p.charId || p.id) + '\')">Send</button></div>'
-  + '<div class="bt-row"><span class="bt-lbl">Charges</span>'
-    + [0,1,2,3].map(function(n){ return '<button class="bt-pip' + ((p.charge || 0) >= n && n > 0 ? ' on' : '') + '" onclick="chargeFell(\'' + esc(p.charId || p.id) + '\',' + n + ')">' + (n === 0 ? '\u2013' : n) + '</button>'; }).join('')
-    + '</div>'
-  + '<div class="bt-row wrap"><span class="bt-lbl">Upon them</span>'
+  + '<div class="bt-row wrap"><span class="bt-lbl">Afflictions</span>'
     + ((p.affs || []).map(function(a){ return '<span class="chip on">' + esc(a) + '</span>'; }).join('') || '<span class="tsm-note">Nothing.</span>')
     + '<button class="bt-b" onclick="affFell(\'' + esc(p.charId || p.id) + '\')">Apply</button></div>'
   + '</div>';
@@ -5588,7 +5645,7 @@ function combatPublish(){
     log: logOut } }).catch(function(){});
 }
 /* what the players have declared this round */
-function declaresLoad(){
+function declaresLoad(loud){
   if (!isLM() || !tsEmbedded()) return;
   tsAsk('TS_COMBAT_DECLARES', {}).then(function(list){
     S.declares = list || [];
@@ -5596,6 +5653,19 @@ function declaresLoad(){
     /* the board carries the same answer as the strip: which Fell are locked in. Without
        this the marks only appeared whenever something else happened to repaint. */
     try { renderTokens(); } catch(e){}
+    /* Pressed by hand it used to do its work in silence, and since the feed has usually
+       already fetched the same answer, nothing on screen moved and the button looked dead.
+       It says what it found now. */
+    if (loud){
+      var round = S.round || 1;
+      var inRound = (S.declares || []).filter(function(d){ return d.act && (!d.round || d.round === round); });
+      var here = (S.scene && S.scene.fell || []).filter(function(p){ return !cIsOut(p); }).length;
+      var names = inRound.map(function(d){ var f = fellByCharId(d.charId); return (f && f.name) || 'a Fell'; });
+      pushLog({ kind:'sys', html: inRound.length
+        ? (inRound.length + ' of ' + here + ' declared \u00b7 ' + names.map(esc).join(', '))
+        : 'Nobody has declared yet this round.' });
+      applyRemoteState({ log:S.log });
+    }
   }).catch(function(){});
 }
 function declareFor(charId){
@@ -5673,7 +5743,7 @@ function targetOptionsFor(c, side){
   var out = [];
   S.scene.fell.forEach(function(t){ out.push({ v:t.id, label:t.name }); });
   S.scene.foes.forEach(function(t){ if (t.id !== c.id) out.push({ v:t.id, label:t.name }); });
-  out.push({ v:'self:' + c.id, label:'Itself' });
+  out.push({ v:'self:' + c.id, label:'Self' });
   out.push({ v:'space', label:'A space' });
   return out;
 }
@@ -5767,8 +5837,35 @@ function spotResolved(it){
   return it.nodes.every(function(n){ return n.ref.spot==='done' || (n.ref.curVit||0)<=0 || !n.ref.act; });
 }
 function lmSpotDeck(){
-  return buildSpotlights().filter(function(it){ return it.type!=='solo' || it.nodes[0].ref.act; })
+  var groups = buildSpotlights().filter(function(it){ return it.type!=='solo' || it.nodes[0].ref.act; })
     .map(function(it){ return { kind:'spotgroup', data:it }; });
+  /* Once every spotlight is answered the round is not over: a React can still be spent
+     in reply to the last thing that happened, and there was nowhere to do it. A closing
+     card asks each foe with a React still in hand, then ends the round. */
+  if (groups.length && groups.every(function(g){ return spotResolved(g.data); })){
+    groups.push({ kind:'lastreacts', data:null });
+  }
+  return groups;
+}
+function lastReactsCard(){
+  var foes = (S.scene.foes || []).filter(function(f){ return (f.curVit || 0) > 0 && !f.reactUsed; });
+  var h = '<div class="lmcard spotbox">'
+    + '<div class="lmc-spothead"><span class="lmc-spotnum">Last Reacts</span>'
+    + '<button class="lmbtn sm2" onclick="lmNextRound()">End the round</button></div>'
+    + '<p class="tsm-note">Every spotlight is answered. Anything still holding a React may spend it now.</p>';
+  if (!foes.length){
+    h += '<p class="tsm-note">No foe still has a React in hand.</p>';
+  } else {
+    h += '<div class="lm-spotrow">' + foes.map(function(f){
+      return '<div class="lm-spotslot"><div class="lmc-lastfoe"><span class="lmc-cname">' + esc(f.name) + '</span>'
+        + foeReactRow(f) + '</div></div>';
+    }).join('') + '</div>';
+  }
+  var fell = (S.scene.fell || []).filter(function(p){ return !cIsOut(p) && (p.curVit || 0) > 0; });
+  if (fell.length){
+    h += '<p class="tsm-note">Ask the table: ' + fell.map(function(p){ return esc(p.name); }).join(', ') + '.</p>';
+  }
+  return h + '</div>';
 }
 function spotCard(c, n){
   var isFoe = S.scene.foes.indexOf(c) >= 0;
@@ -7867,6 +7964,11 @@ setTimeout(function(){ try { if (typeof ensureSheet === 'function') ensureSheet(
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
       if (e.key === 'ArrowRight'){ e.preventDefault(); if (isLM() && typeof lmStep === 'function') lmStep(1); }
       else if (e.key === 'ArrowLeft'){ e.preventDefault(); if (isLM() && typeof lmStep === 'function') lmStep(-1); }
+      /* Left and right walk the deck, so up and down open and shut the card in front of
+         you. Up opens the centre card, down closes it, and down again folds the whole
+         strip to its pill. */
+      else if (e.key === 'ArrowUp'){ e.preventDefault(); if (isLM()) lmCardUp(); }
+      else if (e.key === 'ArrowDown'){ e.preventDefault(); if (isLM()) lmCardDown(); }
       else if (e.key === 'h' || e.key === 'H'){ toggleClean(); }
       else if (e.key === 'f' || e.key === 'F'){ toggleFull(); }
     });
