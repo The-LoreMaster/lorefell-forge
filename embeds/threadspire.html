@@ -2245,6 +2245,7 @@ function storyRename(kind, id){
   var t = storyNode(kind, id); if (!t) return;
   tsAsk2({ title:'Rename', label:'Name', value:t.name, onSave:function(n){
     if (!n) return; t.name = n; storySave(); advPersistTree(); refreshWinBody(); render();
+    try { sessionScenesRefresh(); } catch(e){}
   }});
 }
 function storyDelete(kind, id){
@@ -2263,6 +2264,9 @@ function storyDelete(kind, id){
       tsAsk(mt, key).catch(function(){});
     }
     refreshWinBody(); render();
+    /* A scene deleted from inside the Scenes window leaves that window showing a row that
+       is gone. Reopen it, unless the session itself was what went. */
+    try { if (wasKind === 'scene') sessionScenesRefresh(); else window._sesScenesOpen = false; } catch(e){}
   });
 }
 /* Notes authored on an act or a session in FateWell. They have always ridden along in the
@@ -2428,27 +2432,15 @@ function storyBody(){
          + '<button class="st-b" onclick="storyRename(\'session\',\'' + se.id + '\')" title="Rename">\u270e</button>'
          + '<button class="st-b" onclick="storyDelete(\'session\',\'' + se.id + '\')" title="Delete">\u2715</button></div>';
       if (!so) return;
-      h += '<div class="st-kids">';
-      h += '<button class="rs-open" onclick="sessionRosterWindow(\'' + se.id + '\')">Roster <span class="rs-count">' + sessionFell(se).filter(function(p){ return !p.benched; }).length + '</span></button>';
-      h += storyNotesHtml(se);
-      (se.scenes || []).forEach(function(sc, ci){
-        var on = sc.id === (S.scene && S.scene.id);
-        var co = !!storyOpen.scene[sc.id];
-        h += '<div class="st-row st-scene' + (on ? ' live' : '') + '"><span class="st-tw" onclick="storyToggle(\'scene\',\'' + sc.id + '\')">' + (co ? '\u25be' : '\u25b8') + '</span>'
-           + '<span class="st-name" onclick="storyToggle(\'scene\',\'' + sc.id + '\')">' + esc(sc.name) + (on ? ' <em class="st-live">running</em>' : '') + '</span>'
-           + (on ? '' : '<button class="st-b st-run" onclick="setActiveScene(\'' + sc.id + '\')" title="Run this scene">\u25b6</button>')
-           + '<button class="st-b" onclick="storyMove(\'scene\',\'' + sc.id + '\',-1)"' + (ci === 0 ? ' disabled' : '') + ' title="Move up">\u25b4</button>'
-           + '<button class="st-b" onclick="storyMove(\'scene\',\'' + sc.id + '\',1)"' + (ci === (se.scenes.length - 1) ? ' disabled' : '') + ' title="Move down">\u25be</button>'
-           + '<button class="st-b" onclick="storyRename(\'scene\',\'' + sc.id + '\')" title="Rename">\u270e</button>'
-           + '<button class="st-b" onclick="storyDelete(\'scene\',\'' + sc.id + '\')" title="Delete">\u2715</button></div>';
-        if (!co) return;
-        h += '<div class="st-kids">';
-        h += '<button class="rs-open" onclick="rosterWindow(\'' + sc.id + '\')">Roster <span class="rs-count">' + (scenePlayers(sc).filter(function(p){ return !p.out; }).length + castList(sc).length) + '</span></button>'
-           + '<button class="rs-open" onclick="questWindow(\'' + sc.id + '\')">Quests <span class="rs-count">' + sceneQuests(sc).length + '</span></button>';
-        h += storyBeatsHtml(sc);
-        h += '</div>';
-      });
-      h += '<button class="st-add" onclick="storyAdd(\'scene\',\'' + se.id + '\')">Add a scene</button></div>';
+      /* A session used to unroll into its whole scene list and its notes, so an act with
+         five sessions was a wall of rows to scroll past before reaching the next one. Three
+         buttons, each opening what it names, the way Roster and Quests already worked one
+         level down on a scene. */
+      h += '<div class="st-kids">'
+        + '<button class="rs-open" onclick="sessionRosterWindow(\'' + se.id + '\')">Roster <span class="rs-count">' + sessionFell(se).filter(function(p){ return !p.benched; }).length + '</span></button>'
+        + '<button class="rs-open" onclick="sessionScenesWindow(\'' + se.id + '\')">Scenes <span class="rs-count">' + (se.scenes || []).length + '</span></button>'
+        + '<button class="rs-open" onclick="sessionNotesWindow(\'' + se.id + '\')">Notes <span class="rs-count">' + (se.entries || []).length + '</span></button>'
+        + '</div>';
     });
     h += storyNotesHtml(a);
     h += '<button class="st-add" onclick="storyAdd(\'session\',\'' + a.id + '\')">Add a session</button></div>';
@@ -4017,6 +4009,62 @@ function rosterRefresh(){
 }
 /* The session roster. The party is the pool; the LoreMaster benches whoever is sitting
    this session out, and everyone still playing joins every scene in the session. */
+/* The session's scenes, with everything the inline list carried: run it, reorder it,
+   rename it, delete it, and reach its own Roster, Quests and beats. Reopened in place
+   after any of those so the window does not shut under the LoreMaster mid-errand. */
+function sessionScenesWindow(sesId){
+  var f = storyFind('session', sesId); if (!f) return;
+  window._sesScenes = sesId; window._sesScenesOpen = true;
+  var se = f.ses, n = (se.scenes || []).length;
+  var body = n ? (se.scenes || []).map(function(sc, ci){
+    var on = sc.id === (S.scene && S.scene.id);
+    var co = !!storyOpen.scene[sc.id];
+    var row = '<div class="st-row st-scene' + (on ? ' live' : '') + '"><span class="st-tw" onclick="storyToggle(\'scene\',\'' + sc.id + '\');sessionScenesRefresh()">' + (co ? '\u25be' : '\u25b8') + '</span>'
+      + '<span class="st-name" onclick="storyToggle(\'scene\',\'' + sc.id + '\');sessionScenesRefresh()">' + esc(sc.name) + (on ? ' <em class="st-live">running</em>' : '') + '</span>'
+      + (on ? '' : '<button class="st-b st-run" onclick="setActiveScene(\'' + sc.id + '\');tsCloseSessionScenes()" title="Run this scene">\u25b6</button>')
+      + '<button class="st-b" onclick="storyMove(\'scene\',\'' + sc.id + '\',-1);sessionScenesRefresh()"' + (ci === 0 ? ' disabled' : '') + ' title="Move up">\u25b4</button>'
+      + '<button class="st-b" onclick="storyMove(\'scene\',\'' + sc.id + '\',1);sessionScenesRefresh()"' + (ci === n - 1 ? ' disabled' : '') + ' title="Move down">\u25be</button>'
+      + '<button class="st-b" onclick="storyRename(\'scene\',\'' + sc.id + '\')" title="Rename">\u270e</button>'
+      + '<button class="st-b" onclick="storyDelete(\'scene\',\'' + sc.id + '\')" title="Delete">\u2715</button></div>';
+    /* Rename and Delete open their own prompt over this one, so the list behind is stale
+       once they finish. They are refreshed where they land rather than here. */
+    if (co){
+      row += '<div class="st-kids">'
+        + '<button class="rs-open" onclick="rosterWindow(\'' + sc.id + '\')">Roster <span class="rs-count">' + (scenePlayers(sc).filter(function(p){ return !p.out; }).length + castList(sc).length) + '</span></button>'
+        + '<button class="rs-open" onclick="questWindow(\'' + sc.id + '\')">Quests <span class="rs-count">' + sceneQuests(sc).length + '</span></button>'
+        + storyBeatsHtml(sc) + '</div>';
+    }
+    return row;
+  }).join('') : '<p class="tsm-note">No scenes yet.</p>';
+  tsModal('<h3 class="tsm-title">' + esc(se.name || 'Session') + ' \u00b7 Scenes</h3>'
+    + '<div class="rs-wrap">' + body + '</div>'
+    + '<button class="st-add" onclick="storyAdd(\'scene\',\'' + se.id + '\');sessionScenesRefresh()">Add a scene</button>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseSessionScenes()">Close</button></div>', true);
+}
+function tsCloseSessionScenes(){ window._sesScenesOpen = false; tsCloseModal(); }
+function sessionScenesRefresh(){ if (window._sesScenesOpen && window._sesScenes) sessionScenesWindow(window._sesScenes); }
+
+/* The notes authored on this session in FateWell, pinned first. Read-only, because
+   FateWell is where they are written and two authoring surfaces is how things drift. */
+function sessionNotesWindow(sesId){
+  var f = storyFind('session', sesId); if (!f) return;
+  var se = f.ses, list = se.entries || [];
+  var pinned = list.filter(function(e){ return e.pinned; });
+  var rest = list.filter(function(e){ return !e.pinned; });
+  function card(e){
+    var m = beatMeta(e.type || 'general');
+    return '<div class="stb-card stn-card' + (e.pinned ? ' pinned' : '') + '" style="border-left-color:' + m[1] + '">'
+      + '<span class="stb-main" onclick="storyNoteOpen(\'' + esc(String(se.id)) + '\',\'' + esc(String(e.id || '')) + '\')">'
+      + '<span class="stb-tag" style="color:' + m[1] + '">' + m[0] + '</span>'
+      + '<span class="stb-title">' + (e.pinned ? '\u2605 ' : '') + esc(e.title || 'Note') + '</span></span></div>';
+  }
+  tsModal('<h3 class="tsm-title">' + esc(se.name || 'Session') + ' \u00b7 Notes</h3>'
+    + (list.length
+        ? '<p class="tsm-note">Written in FateWell. A pinned note also leads this session\'s scenes on the board.</p>'
+          + '<div class="rs-wrap">' + pinned.map(card).join('') + rest.map(card).join('') + '</div>'
+        : '<p class="tsm-note">No notes on this session. They are authored in FateWell.</p>')
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>', true);
+}
 function sessionRosterWindow(sesId){
   var f = storyFind('session', sesId); if (!f) return;
   window._sesRoster = sesId; window._sesRosterOpen = true;
