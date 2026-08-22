@@ -1189,6 +1189,15 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .ts-die.strike{ border-color:var(--danger,#8d3b3b); color:var(--danger,#8d3b3b); }
 .ts-rc-tot{ font-size:.72rem; color:var(--ice,#b8ccd8); }
 .ts-dim{ opacity:.6; }
+.lmc-pend{ font-size:.58rem; letter-spacing:.08em; text-transform:uppercase; color:var(--gold,#c9a84c); opacity:.85; margin-left:5px; }
+.ts-facepick{ display:inline-flex; gap:3px; margin-left:4px; }
+.ts-fp{ width:22px; height:22px; display:grid; place-items:center; font-family:Cinzel,serif; font-size:.66rem;
+  color:var(--silver,#9fb0c2); background:var(--navy,#0a0f1c); border:1px solid var(--line,#26324a);
+  border-radius:5px; cursor:pointer; padding:0; }
+.ts-fp:hover{ border-color:var(--line2,#3a4a68); }
+.ts-fp.on{ color:var(--navy,#0a0f1c); background:var(--ice,#b8ccd8); border-color:var(--ice,#b8ccd8); }
+.ts-fp.fell.on{ background:var(--gold,#c9a84c); border-color:var(--gold,#c9a84c); color:var(--navy,#0a0f1c); }
+.ts-fp.strike.on{ background:var(--danger,#8d3b3b); border-color:var(--danger,#8d3b3b); color:#fff; }
 .ts-dmg{ color:var(--gold,#c9a84c); font-family:Cinzel,serif; font-size:.76rem; margin-left:4px; }
 .ts-kitrow{ display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
 .lmc-lastfoe{ border:1px solid var(--line,#26324a); border-radius:9px; padding:8px 10px; background:rgba(10,14,26,.5); }
@@ -4956,6 +4965,35 @@ function tsAttackersOf(c){
   return out;
 }
 function tsEvaKey(defId, atkId){ return defId + '<' + atkId; }
+/* Most tables roll real dice. The board could only roll its own, so a physical die had to
+   be re-rolled on screen or ignored. A strip of six faces beside each die takes the number
+   that actually came up. Same idea as FateWell's, which is where this comes from. */
+function tsFaces(cur, onpick){
+  var h = '<span class="ts-facepick">';
+  for (var i = 1; i <= 6; i++){
+    h += '<button class="ts-fp' + (i === 6 ? ' fell' : (i === 1 ? ' strike' : ''))
+      + (cur === i ? ' on' : '') + '" onclick="' + onpick.replace('{n}', i) + '">' + i + '</button>';
+  }
+  return h + '</span>';
+}
+function tsSetAttack(id, face){
+  var c = findC(id); if (!c) return;
+  c._roll = face;
+  pushLog({ kind:'sys', html:'<b>' + esc(c.name) + '</b> rolls ' + (face === 6 ? 'a Fellmark' : (face === 1 ? 'a Fellstrike' : face)) + '.' });
+  applyRemoteState({ scene:S.scene, log:S.log });
+  try { combatPublish(); } catch(e){}
+  paintLmStrip();
+}
+function tsSetEva(defId, atkId, face){
+  var c = findC(defId); if (!c) return;
+  var isFoe = S.scene.foes.indexOf(c) >= 0;
+  var evasion = (isFoe ? (foeLive(c).attrs.Evasion) : (c.attrs && c.attrs.Evasion)) || 0;
+  S.scene.eva = S.scene.eva || {};
+  S.scene.eva[tsEvaKey(defId, atkId)] = { r:face, bonus:evasion, total:face + evasion };
+  applyRemoteState({ scene:S.scene });
+  try { combatPublish(); } catch(e){}
+  paintLmStrip();
+}
 function foeDiceRow(f){ return tsKitRow(f) + tsRollsRow(f); }
 function tsRollsRow(c){
   var isFoe = S.scene.foes.indexOf(c) >= 0;
@@ -4969,6 +5007,7 @@ function tsRollsRow(c){
       + '<button class="ts-die' + (a === 6 ? ' fell' : (a === 1 ? ' strike' : '')) + '" onclick="lmFoeRoll(\'' + c.id + '\')" aria-label="Roll accuracy">' + (a || '?') + '</button>'
       + (a ? '<span class="ts-rc-tot">accuracy ' + (a + prec) + ' <span class="ts-dim">(' + a + '+' + prec + ')</span>'
              + (a === 6 ? ' \u00b7 Fellmark' : (a === 1 ? ' \u00b7 Fellstrike' : '')) + '</span>' : '')
+      + tsFaces(a, "tsSetAttack('" + c.id + "',{n})")
       + '</div>');
   }
 
@@ -4992,6 +5031,7 @@ function tsRollsRow(c){
       + '<button class="ts-die' + (ev && ev.r === 6 ? ' fell' : (ev && ev.r === 1 ? ' strike' : '')) + '" onclick="tsRollEva(\'' + c.id + '\',\'' + atk.id + '\')" aria-label="Roll evasion">' + (ev ? ev.r : '?') + '</button>'
       + (ev ? '<span class="ts-rc-tot">evasion ' + ev.total + ' <span class="ts-dim">(' + ev.r + '+' + evasion + ')</span>'
               + (acc === null ? ' \u00b7 <span class="ts-dim">waiting on their attack</span>' : verdict) + '</span>' : '')
+      + tsFaces(ev ? ev.r : 0, "tsSetEva('" + c.id + "','" + atk.id + "',{n})")
       + '</div>');
   });
 
@@ -5297,6 +5337,16 @@ function manualDot(key){
    always get filled in, and a fighter sitting at 0 / 0 because nobody typed a number is
    not a body on the floor. The flag is the truth; Vitality is only a hint. */
 function cDown(c){ return !!(c && c.down); }
+/* Staged, not yet landed. Shown so the LoreMaster can see what is coming without it
+   having already arrived. */
+function pendTag(c){
+  var p = (S.scene && S.scene.pend || {})[c.id];
+  if (!p) return '';
+  var bits = [];
+  if (p.dvit) bits.push((p.dvit < 0 ? '' : '+') + p.dvit);
+  if ((p.affs || []).length) bits.push(p.affs.length + ' aff');
+  return bits.length ? ' <span class="lmc-pend">' + bits.join(' \u00b7 ') + ' staged</span>' : '';
+}
 function lmToggleDown(id){
   var c = findC(id); if (!c) return;
   c.down = !c.down;
@@ -5321,7 +5371,7 @@ function foeCardCompact(f){
     + manualDot('f:'+f.id)
     + '<div class="lmc-cname">' + esc(f.name) + '</div>'
     + '<div class="lmc-cbar"><div class="lmc-cfill" style="width:' + Math.round((f.curVit/f.maxVit)*100) + '%"></div></div>'
-    + '<div class="lmc-cvit">' + f.curVit + ' / ' + f.maxVit + '</div>'
+    + '<div class="lmc-cvit">' + shownVit(f) + ' / ' + f.maxVit + pendTag(f) + '</div>'
     + declLine(f)
     + '<div class="lmc-cpips">' + compactPips(f) + '</div></div>';
 }
@@ -5467,7 +5517,7 @@ function fellCardCompact(p){
     + manualDot('p:'+p.id)
     + '<div class="lmc-cname">' + esc(p.name) + '</div>'
     + '<div class="lmc-cbar fell"><div class="lmc-cfill" style="width:' + Math.round((p.curVit/p.maxVit)*100) + '%"></div></div>'
-    + '<div class="lmc-cvit">' + p.curVit + ' / ' + p.maxVit + '</div>'
+    + '<div class="lmc-cvit">' + shownVit(p) + ' / ' + p.maxVit + pendTag(p) + '</div>'
     + declLine(p)
     + '<div class="lmc-cpips">' + compactPipsFell(p) + '</div></div>';
 }
@@ -5537,11 +5587,49 @@ function foeById(id){
   ((S.scene && S.scene.foes) || []).forEach(function(f){ if (sameId(f.id, id)) hit = f; });
   return hit;
 }
+/* Acts and Reacts are declared at the same time, so nothing one fighter does can change
+   what another was already committed to. Damage and Afflictions are therefore staged
+   through the round and cement when it ends, which is how FateWell has always run it and
+   how the rules read. ThreadSpire used to apply everything the instant it was entered, so
+   a foe struck early in a round was already weaker when the next spotlight resolved
+   against it. */
+function scPend(){ var sc = S.scene || {}; if (!sc.pend) sc.pend = {}; return sc.pend; }
+function pendFor(id){ var p = scPend(); if (!p[id]) p[id] = { dvit:0, affs:[] }; return p[id]; }
+function pendVitOf(c){
+  var p = (S.scene && S.scene.pend || {})[c.id];
+  return p ? (p.dvit || 0) : 0;
+}
+/* What a card shows: where they stand now, plus what is coming to them. */
+function shownVit(c){
+  var d = pendVitOf(c), mx = c.maxVit || 0;
+  var v = (c.curVit || 0) + d;
+  return Math.max(0, mx > 0 ? Math.min(mx, v) : v);
+}
 function foeVit(id, delta){
   var f = foeById(id); if (!f) return;
-  f.curVit = Math.max(0, Math.min(f.maxVit || 0, (f.curVit || 0) + delta));
-  pushLog({ kind:'sys', html:esc(f.name) + (delta < 0 ? ' takes ' + (-delta) : ' recovers ' + delta) + ', now ' + f.curVit + '/' + f.maxVit + '.' });
+  var p = pendFor(f.id);
+  p.dvit = (p.dvit || 0) + delta;
+  pushLog({ kind:'sys', html:esc(f.name) + (delta < 0 ? ' takes ' + (-delta) : ' recovers ' + delta) + ', staged for the end of the round.' });
   combatPublish(); applyRemoteState({ scene:S.scene, log:S.log }); paintLmStrip(); paintHud();
+}
+/* Everything staged lands at once, and the round moves. */
+function pendCement(){
+  var sc = S.scene || {}, p = sc.pend || {}, n = 0;
+  Object.keys(p).forEach(function(id){
+    var c = findC(id); if (!c) return;
+    var d = p[id] || {};
+    if (d.dvit){
+      var mx = c.maxVit || 0, v = (c.curVit || 0) + d.dvit;
+      c.curVit = Math.max(0, mx > 0 ? Math.min(mx, v) : v);
+      n++;
+    }
+    (d.affs || []).forEach(function(a){
+      c.affs = c.affs || [];
+      if (c.affs.indexOf(a) < 0){ c.affs.push(a); n++; }
+    });
+  });
+  if (n) pushLog({ kind:'sys', html:'Round ' + S.round + ' stands. Staged outcomes cement.' });
+  sc.pend = {};
 }
 function foeCharge(id, v){
   var f = foeById(id); if (!f) return;
@@ -5577,9 +5665,9 @@ function foeAffSave(id){
   var f = foeById(id); if (!f) return;
   var v = (document.getElementById('afPick') || {}).value;
   if (v){
-    f.affs = f.affs || [];
-    if (f.affs.indexOf(v) < 0) f.affs.push(v);
-    pushLog({ kind:'sys', html:esc(v) + ' takes hold of ' + esc(f.name) + '.' });
+    var pf = pendFor(f.id);
+    if ((f.affs || []).indexOf(v) < 0 && pf.affs.indexOf(v) < 0) pf.affs.push(v);
+    pushLog({ kind:'sys', html:esc(v) + ' will take hold of ' + esc(f.name) + ' when the round stands.' });
   }
   tsCloseModal(); combatPublish(); applyRemoteState({ scene:S.scene, log:S.log }); paintLmStrip();
 }
@@ -5895,7 +5983,7 @@ function foeLiveHtml(f){
     + '<div class="bt-row"><span class="bt-lbl">Vitality</span>'
     + '<button class="bt-b" onclick="foeVit(\'' + f.id + '\',-5)">-5</button>'
     + '<button class="bt-b" onclick="foeVit(\'' + f.id + '\',-1)">-1</button>'
-    + '<span class="bt-n">' + (f.curVit || 0) + ' / ' + (f.maxVit || 0) + '</span>'
+    + '<span class="bt-n">' + shownVit(f) + ' / ' + (f.maxVit || 0) + pendTag(f) + '</span>'
     + '<button class="bt-b" onclick="foeVit(\'' + f.id + '\',1)">+1</button>'
     + '<button class="bt-b" onclick="foeVit(\'' + f.id + '\',5)">+5</button></div>'
     /* the Charges row that sat here is gone: the diamond pips on the Vitality line above
@@ -11155,7 +11243,7 @@ function lmBeginCombat(){ if (!_partyLoaded && !_partyLoading) partyLoad(); sync
 function lmEndCombat(){ S.declares = null; S.scene.combatPhase = null; S.scene.foes.concat(S.scene.fell).forEach(function(c){ c.act=''; c.locked=false; c.spot=null; }); S.scene.fell = (S.scene.fell || []).filter(function(p){ return !p._auto; }); applyRemoteState({ mode:'explore', scene:S.scene });  combatPublish(); }
 function lmLockActs(){ S.scene.combatPhase = 'resolve'; S.scene.foes.concat(S.scene.fell).forEach(function(c){ if(c.act) c.locked = true; }); applyRemoteState({ scene:S.scene }); lmMaterialisePlacements(); }
 function lmUnlock(){ S.scene.combatPhase = 'commit'; S.scene.foes.concat(S.scene.fell).forEach(function(c){ c.locked=false; c.spot=null; }); applyRemoteState({ scene:S.scene }); }
-function lmNextRound(){ setTimeout(function(){ S.declares = null; combatPublish(); declaresLoad(); }, 60); S.scene.combatPhase = 'commit'; S.scene.foes.concat(S.scene.fell).forEach(function(c){ c.act=''; c.locked=false; c.spot=null; c._roll=null; }); applyRemoteState({ round:S.round+1, scene:S.scene }); }
+function lmNextRound(){ pendCement(); setTimeout(function(){ S.declares = null; combatPublish(); declaresLoad(); }, 60); S.scene.combatPhase = 'commit'; S.scene.foes.concat(S.scene.fell).forEach(function(c){ c.act=''; c.locked=false; c.spot=null; c._roll=null; }); applyRemoteState({ round:S.round+1, scene:S.scene }); }
 function lmResolveSpot(id){ var c = findC(id); if(c){ c.spot = c.spot === 'done' ? null : 'done'; applyRemoteState({ scene:S.scene }); } }
 function lmSpotMode(m){ S.scene.spotMode = m; S.scene.spotOrder = []; applyRemoteState({ scene:S.scene }); }
 function lmToggleManual(key){ S.scene.manual[key] = !S.scene.manual[key]; S.scene.spotOrder = []; applyRemoteState({ scene:S.scene }); }
