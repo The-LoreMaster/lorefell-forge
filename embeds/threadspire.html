@@ -1168,6 +1168,23 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .lmc-spothead{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:8px; }
 .lmc-spothead .lmbtn.sm2{ margin:0; width:auto; }
 .lm-spotrow{ display:flex; flex-direction:column; gap:8px; align-items:stretch; }
+.ts-rollrow{ display:flex; flex-direction:column; gap:5px; margin-top:6px; }
+.ts-rollchip{ display:flex; align-items:center; gap:7px; flex-wrap:wrap; background:rgba(10,14,26,.55);
+  border:1px solid var(--line,#26324a); border-radius:8px; padding:4px 7px; }
+.ts-rc-lbl{ font-family:Cinzel,serif; font-size:.56rem; letter-spacing:.09em; text-transform:uppercase;
+  color:var(--silver,#9fb0c2); min-width:96px; }
+.ts-die{ width:26px; height:26px; flex:none; border:1px solid var(--line2,#3a4a68); border-radius:6px;
+  background:var(--navy,#0a0f1c); color:var(--ice,#b8ccd8); font-family:Cinzel,serif; font-size:.86rem; cursor:pointer; }
+.ts-die.fell{ border-color:var(--gold,#c9a84c); color:var(--gold,#c9a84c); }
+.ts-die.strike{ border-color:var(--danger,#8d3b3b); color:var(--danger,#8d3b3b); }
+.ts-rc-tot{ font-size:.72rem; color:var(--ice,#b8ccd8); }
+.ts-dim{ opacity:.6; }
+.ts-dmg{ color:var(--gold,#c9a84c); font-family:Cinzel,serif; font-size:.76rem; margin-left:4px; }
+.ts-kitrow{ display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
+.ts-kit{ border:1px solid var(--line2,#3a4a68); border-radius:6px; background:transparent; cursor:pointer;
+  font-size:.6rem; letter-spacing:.03em; padding:2px 7px; color:var(--silver,#9fb0c2); }
+.ts-kit.inf{ border-color:rgba(201,168,76,.4); color:var(--gold,#c9a84c); }
+.ts-kit.aug{ border-color:rgba(120,160,200,.4); color:var(--ice,#b8ccd8); }
 .lm-spotslot{ position:relative; flex:0 0 auto; width:100%; }
 .lm-spotslot > .lmcard{ width:100%; box-sizing:border-box; }
 .lm-spotslot .lmc-mdot{ position:absolute; top:-4px; right:-4px; z-index:2; }
@@ -4608,31 +4625,109 @@ function lmStripHtml(){
     + next + '</div>'
     + '<div class="lm-stage">' + stage + '</div>' + dots;
 }
-function foeDiceRow(f){
-  return '<div class="lmc-dicerow"><span class="lmc-alab">Roll</span>'
-    + '<button class="lmc-die" id="tsDie-' + f.id + '" onclick="lmFoeRoll(\'' + f.id + '\')" aria-label="Roll the foe die">' + (f._roll || '?') + '</button>'
-    + '<span class="lmc-dieout" id="tsDieOut-' + f.id + '">' + (f._roll ? foeRollTag(f) : '') + '</span></div>'
-    + evaRow(f);
+/* Every roll this fighter owes for the round, on one line, each one saying what it is and
+   who it is against. Attack when they are swinging at someone, and one Evade for each
+   separate thing swinging at them, because two attackers means two rolls and the old card
+   had no way to say that. Mirrors FateWell's rolls row so the two boards agree: accuracy
+   is 1d6 plus Precision, evasion is 1d6 plus Evasion. */
+/* A foe's infusions and augmentations were named on the build screen and nowhere on the
+   board, so mid-fight the LoreMaster had to remember what Barbed did. The rules text is
+   already baked in TS_FOE_PACK, so the card can just say. Hover on a pointer, tap on a
+   touch screen, since a tooltip alone is useless on a phone. */
+function tsKitRule(kind, name){
+  var list = (TS_FOE_PACK && TS_FOE_PACK[kind === 'inf' ? 'infusions' : 'augmentations']) || [];
+  var hit = null;
+  list.forEach(function(x){ if (x && x.name === name) hit = x; });
+  return hit ? (hit.rule || '') : '';
+}
+function tsKitRow(c){
+  var infs = (c.infusions || []), augs = (c.augments || []);
+  if (!infs.length && !augs.length) return '';
+  function pill(kind, n){
+    var rule = tsKitRule(kind, n);
+    return '<button class="ts-kit ' + kind + '" title="' + esc(rule) + '"'
+      + ' onclick="event.stopPropagation();tsKitTap(\'' + kind + '\',\'' + esc(String(n).replace(/'/g, "\\'")) + '\')">' + esc(n) + '</button>';
+  }
+  return '<div class="ts-kitrow">'
+    + infs.map(function(n){ return pill('inf', n); }).join('')
+    + augs.map(function(n){ return pill('aug', n); }).join('')
+    + '</div>';
+}
+function tsKitTap(kind, name){
+  var rule = tsKitRule(kind, name) || 'No rule recorded.';
+  tsModal('<h3 class="tsm-title">' + esc(name) + '</h3>'
+    + '<p class="tsm-note">' + (kind === 'inf' ? 'Infusion' : 'Augmentation') + '</p>'
+    + '<p>' + esc(rule) + '</p>'
+    + '<div class="tsm-row"><button class="tsm-btn" onclick="tsCloseModal()">Close</button></div>');
+}
+function tsAttackersOf(c){
+  var out = [];
+  S.scene.foes.concat(S.scene.fell).forEach(function(o){
+    if (o === c) return;
+    if (!o.act || !o.target) return;
+    if (o.target === c.id || sameId(o.target, c.charId)) out.push(o);
+  });
+  return out;
+}
+function tsEvaKey(defId, atkId){ return defId + '<' + atkId; }
+function foeDiceRow(f){ return tsKitRow(f) + tsRollsRow(f); }
+function tsRollsRow(c){
+  var isFoe = S.scene.foes.indexOf(c) >= 0;
+  var chips = [];
+
+  if (c.act && c.target){
+    var tn = targetName(c.target);
+    var prec = (isFoe ? (foeLive(c).attrs.Precision) : (c.attrs && c.attrs.Precision)) || 0;
+    var a = c._roll;
+    chips.push('<div class="ts-rollchip"><span class="ts-rc-lbl">Attack \u2192 ' + esc(tn) + '</span>'
+      + '<button class="ts-die' + (a === 6 ? ' fell' : (a === 1 ? ' strike' : '')) + '" onclick="lmFoeRoll(\'' + c.id + '\')" aria-label="Roll accuracy">' + (a || '?') + '</button>'
+      + (a ? '<span class="ts-rc-tot">accuracy ' + (a + prec) + ' <span class="ts-dim">(' + a + '+' + prec + ')</span>'
+             + (a === 6 ? ' \u00b7 Fellmark' : (a === 1 ? ' \u00b7 Fellstrike' : '')) + '</span>' : '')
+      + '</div>');
+  }
+
+  tsAttackersOf(c).forEach(function(atk){
+    var k = tsEvaKey(c.id, atk.id);
+    S.scene.eva = S.scene.eva || {};
+    var ev = S.scene.eva[k];
+    var evasion = (isFoe ? (foeLive(c).attrs.Evasion) : (c.attrs && c.attrs.Evasion)) || 0;
+    var atkIsFoe = S.scene.foes.indexOf(atk) >= 0;
+    var acc = atk._roll ? (atk._roll + ((atkIsFoe ? (foeLive(atk).attrs.Precision) : (atk.attrs && atk.attrs.Precision)) || 0)) : null;
+    var verdict = '';
+    if (ev && acc !== null){
+      var hit = acc >= ev.total;   /* a tie goes to the attacker */
+      verdict = ' \u00b7 <b class="' + (hit ? 'lmc-hit' : 'lmc-miss') + '">' + (hit ? 'Hit' : 'Evaded') + '</b>';
+      if (hit && atkIsFoe){
+        var d = foeLive(atk).dmg;
+        if (d) verdict += ' <span class="ts-dmg">' + (d.base || 0) + ' + ' + (d.bonus || 0) + (d.type ? ' ' + d.type : '') + '</span>';
+      }
+    }
+    chips.push('<div class="ts-rollchip"><span class="ts-rc-lbl">Evade \u2190 ' + esc(atk.name) + '</span>'
+      + '<button class="ts-die' + (ev && ev.r === 6 ? ' fell' : (ev && ev.r === 1 ? ' strike' : '')) + '" onclick="tsRollEva(\'' + c.id + '\',\'' + atk.id + '\')" aria-label="Roll evasion">' + (ev ? ev.r : '?') + '</button>'
+      + (ev ? '<span class="ts-rc-tot">evasion ' + ev.total + ' <span class="ts-dim">(' + ev.r + '+' + evasion + ')</span>'
+              + (acc === null ? ' \u00b7 <span class="ts-dim">waiting on their attack</span>' : verdict) + '</span>' : '')
+      + '</div>');
+  });
+
+  if (!chips.length) return '';
+  return '<div class="ts-rollrow">' + chips.join('') + '</div>';
+}
+function tsRollEva(defId, atkId){
+  var c = findC(defId); if (!c) return;
+  var isFoe = S.scene.foes.indexOf(c) >= 0;
+  var evasion = (isFoe ? (foeLive(c).attrs.Evasion) : (c.attrs && c.attrs.Evasion)) || 0;
+  var r = 1 + Math.floor(Math.random() * 6);
+  S.scene.eva = S.scene.eva || {};
+  S.scene.eva[tsEvaKey(defId, atkId)] = { r:r, bonus:evasion, total:r + evasion };
+  var atk = findC(atkId);
+  pushLog({ kind:'sys', html:'<b>' + esc(c.name) + '</b> evades ' + esc((atk && atk.name) || 'the attack') + ', ' + (r + evasion) + ' (' + r + '+' + evasion + ')' + (r === 6 ? ', Fellmark' : (r === 1 ? ', Fellstrike' : '')) + '.' });
+  applyRemoteState({ scene:S.scene, log:S.log });
+  try { combatPublish(); } catch(e){}
+  paintLmStrip();
 }
 function foeRollTag(f){
   var v = f._roll;
   return v===6 ? 'Fellmark' : (v===1 ? 'Fellstrike' : String(v));
-}
-/* auto evasion, matching fwEvaRow. Shows only when this foe's act targets a Fell.
-   Before the die is thrown it waits; after, accuracy meets the Fell's Evasion. */
-function evaRow(f){
-  if (!(f.act && f.target)) return '';
-  var tgt = null; S.scene.fell.forEach(function(p){ if(p.id===f.target) tgt=p; });
-  if (!tgt) return '';
-  var eva = (tgt.attrs && tgt.attrs.Evasion) || 0;
-  if (!f._roll) return '<div class="lmc-eva"><span class="lmc-alab">Evasion</span>'
-    + '<span class="lmc-wait">waiting on the roll vs ' + esc(tgt.name) + ' (Evasion ' + eva + ')</span></div>';
-  var prec = (foeLive(f).attrs.Precision) || 0;
-  var acc = f._roll + prec;
-  var hit = acc >= eva;
-  return '<div class="lmc-eva"><span class="lmc-alab">Evasion</span>'
-    + 'accuracy ' + acc + ' vs Evasion ' + eva + ' \u00b7 '
-    + '<b class="' + (hit?'lmc-hit':'lmc-miss') + '">' + (hit?'Hit':'Evaded') + '</b></div>';
 }
 function lmFoeRoll(id){
   var f = findC(id); if(!f) return;
