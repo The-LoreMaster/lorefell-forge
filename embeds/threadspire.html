@@ -7702,9 +7702,14 @@ function spineFromRawCampaign(c, activeSceneId){
     name: c.name || 'Adventure',
     activeSceneId: activeSceneId || null,
     acts: c.acts.map(function(a){
-      return { id:a.id, name:a.name, sessions:(a.sessions||[]).map(function(se){
-        return { id:se.id, name:se.name, scenes:(se.scenes||[]).map(function(sc){ return tsSpineScene(sc, c); }) };
-      }) };
+      /* Same as loadAdventureSpine: carry the whole node, not two fields of it. */
+      var act = {}; Object.keys(a).forEach(function(k){ if (k !== 'sessions') act[k] = a[k]; });
+      act.sessions = (a.sessions||[]).map(function(se){
+        var ses = {}; Object.keys(se).forEach(function(k){ if (k !== 'scenes') ses[k] = se[k]; });
+        ses.scenes = (se.scenes||[]).map(function(sc){ return tsSpineScene(sc, c); });
+        return ses;
+      });
+      return act;
     })
   };
 }
@@ -7716,10 +7721,22 @@ function loadAdventureSpine(spine, why){
     var _tn = 0; (spine && spine.acts || []).forEach(function(a){ (a.sessions||[]).forEach(function(s){ _tn += (s.scenes||[]).length; }); });
     console.log('%c[SPINE] ' + (why || 'unknown caller') + ' scenes=' + _tn + ' acts=' + ((spine && spine.acts && spine.acts.length) || 0) + ' fullLoaded=' + (!!S._advFullLoaded), 'color:#7ac6e6;font-weight:bold');
   } catch(e){}
+  /* Keep everything an act or a session carries, not just its id and name. The backend
+     hands notes, images, descriptions and manual references down inside each node, and
+     rebuilding the node from two fields threw all of it away the moment the adventure stood
+     up. Nothing downstream could show a note, and the save sent back what was left, which is
+     how a note written in either tool never reached the other. Children are rebuilt, since
+     each has its own shape. */
+  function keepNode(node, childKey, childMap){
+    var out = {};
+    Object.keys(node || {}).forEach(function(k){ if (k !== childKey) out[k] = node[k]; });
+    out[childKey] = (node[childKey] || []).map(childMap);
+    return out;
+  }
   var acts = (spine.acts||[]).map(function(a){
-    return { id:a.id, name:a.name, sessions:(a.sessions||[]).map(function(se){
-      return { id:se.id, name:se.name, scenes:(se.scenes||[]).map(tsSceneFromSpine) };
-    }) };
+    return keepNode(a, 'sessions', function(se){
+      return keepNode(se, 'scenes', tsSceneFromSpine);
+    });
   });
   if (!acts.length) return;
   var firstScene = null;
