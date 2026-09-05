@@ -2851,6 +2851,7 @@ function libMakeCombatant(e, name){
     inv: (e.inv || []).slice(),
     infusions: (e.infusions || []).slice(), augments: (e.augments || []).slice(),
     sig: e.sig || '', source: e.source || '', build: e.build || '', stance: e.stance || '',
+    range: (e.range != null ? +e.range : 1),
     img: e.img || '', desc: e.desc || '',
     act:'', target:'', done:false, affs:[]
   };
@@ -3047,6 +3048,8 @@ function foeForgeBody(){
     + '<select class="tsm-inp" id="ffRating" onchange="foeForgeRerender()">' + opts(tiers, c.sr) + '</select>'
     + '<label class="tsm-lbl">Attack preference (only matters on a tie)</label>'
     + '<select class="tsm-inp" id="ffPref" onchange="foeForgeRerender()"><option value="phys"' + (c.atkPref !== 'magic' ? ' selected' : '') + '>Physical</option><option value="magic"' + (c.atkPref === 'magic' ? ' selected' : '') + '>Magical</option></select>'
+    + '<label class="tsm-lbl">Weapon range (spaces)</label>'
+    + '<input class="tsm-inp" id="ffRange" type="number" min="1" max="99" step="1" value="' + (c.range != null ? c.range : 1) + '">'
     + foeForgeKitSection('inf')
     + foeForgeKitSection('aug')
     + foeForgeActsSection()
@@ -3063,6 +3066,7 @@ function foeForgeSync(){
   var bd = g('ffBuild'); if (bd !== undefined) c.build = bd;
   var sr = g('ffRating'); if (sr !== undefined) c.sr = sr;
   var ap = g('ffPref'); if (ap !== undefined) c.atkPref = ap;
+  var rg = g('ffRange'); if (rg !== undefined) c.range = Math.max(1, parseInt(rg, 10) || 1);
   var ds = g('ffDesc'); if (ds !== undefined) c.desc = ds;
   if (c.abilities){ c.abilities.forEach(function(ab, i){
     var nm = document.getElementById('ffAbName' + i); if (nm) ab.name = nm.value;
@@ -3090,15 +3094,28 @@ function foeForgeToggle(kind, name){
   else if (arr.length < budget) arr.push(name);
   foeForgeRerender();
 }
-function foeForge(libId){
-  var e = libId ? libGet(libId) : null;
+function foeCbCtx(id, sceneId){
+  if (!id || !sceneId) return null;
+  var f = storyFind('scene', sceneId);
+  if (!f || !f.scene) return null;
+  var cbs = f.scene.combatants || [];
+  for (var i = 0; i < cbs.length; i++){
+    if (sameId(cbs[i].id, id) && cbs[i].type === 'monster') return { sceneId: sceneId, cb: cbs[i] };
+  }
+  return null;
+}
+function foeForge(libId, sceneId){
+  var cbCtx = foeCbCtx(libId, sceneId);
+  var e = cbCtx ? cbCtx.cb : (libId ? libGet(libId) : null);
   var builds = (FORGE.pack.builds || []).map(function(b){ return b.name; });
   window._foeForge = {
-    id: e ? e.id : null,
+    id: cbCtx ? null : (e ? e.id : null),
+    _cb: cbCtx,
     name: e ? (e.name || '') : '',
     build: (e && (e.build || foeInferBuild(e))) || builds[0] || 'Juggernaut',
     sr: (e && e.sr) || 'Elite',
     atkPref: (e && e.atkPref) || 'phys',
+    range: (e && e.range != null) ? +e.range : 1,
     desc: (e && (e.desc || e.description)) || '',
     infusions: (e && Array.isArray(e.infusions)) ? e.infusions.slice() : [],
     augments: (e && Array.isArray(e.augments)) ? e.augments.slice() : [],
@@ -3116,15 +3133,34 @@ function foeForgeSave(){
   var c = window._foeForge; if (!c) return;
   if (!c.name){ var el = document.getElementById('ffName'); if (el) el.focus(); return; }
   var apl = (typeof partyLevel === 'function' ? partyLevel() : 3) || 3;
+  var inf = (c.infusions || []).slice(0, foeInfBudget(c.sr));
+  var aug = (c.augments || []).slice(0, foeAugBudget(c.sr));
+  var abl = (c.abilities || []).filter(function(a){ return (a.name || '').trim(); }).slice(0, foeActsBudget(c.sr));
+  if (c._cb){
+    /* editing a foe already on the scene: change the combatant in place, re-derive, and let the
+       shared scene write carry it. Range, like build and rating, rides on the combatant. */
+    var cb = c._cb.cb;
+    cb.name = c.name; cb.build = c.build; cb.sr = c.sr; cb.atkPref = c.atkPref; cb.range = c.range;
+    cb.desc = c.desc; cb.infusions = inf; cb.augments = aug; cb.abilities = abl;
+    cb.attrs = foeForgeAttrs(c.build, c.sr, apl);
+    cb.maxVit = LF_COMBAT.vitality(apl, c.sr);
+    if (cb.curVit == null || cb.curVit > cb.maxVit) cb.curVit = cb.maxVit;
+    storySave(); advPersistTree();
+    if (isLM() && inBattle() && sameId(c._cb.sceneId, S.scene && S.scene.id)){ refreshFoeKits(); applyRemoteState({ scene: S.scene }); combatPublish(); }
+    tsCloseModal();
+    if (window._rosterScene) libChooser(window._rosterScene);
+    render();
+    return;
+  }
   var rec = (c.id && libGet(c.id)) || { id:mkId(), type:'monster', side:'monster' };
   rec.type = 'monster';
-  rec.name = c.name; rec.build = c.build; rec.sr = c.sr; rec.atkPref = c.atkPref;
+  rec.name = c.name; rec.build = c.build; rec.sr = c.sr; rec.atkPref = c.atkPref; rec.range = c.range;
   rec.desc = c.desc; rec.description = c.desc;
   rec.attrs = foeForgeAttrs(c.build, c.sr, apl);
   rec.maxVit = LF_COMBAT.vitality(apl, c.sr);
-  rec.infusions = (c.infusions || []).slice(0, foeInfBudget(c.sr));
-  rec.augments = (c.augments || []).slice(0, foeAugBudget(c.sr));
-  rec.abilities = (c.abilities || []).filter(function(a){ return (a.name || '').trim(); }).slice(0, foeActsBudget(c.sr));
+  rec.infusions = inf;
+  rec.augments = aug;
+  rec.abilities = abl;
   if (!rec.campaignId && S.campaignId) rec.campaignId = S.campaignId;
   var idx = -1; (S.library || []).forEach(function(x, i){ if (sameId(x.id, rec.id)) idx = i; });
   S.library = S.library || [];
@@ -4217,7 +4253,8 @@ function storyRosterHtml(sc){
     h += tsVCard({ img: c.img || (e.type === 'item' ? '' : DEFAULT_ART), badge:TYPE_LABEL[e.type], title:c.name, sub:sub,
                    origin: lib.name ? 'From the library' : '',
                    openFn: 'entrySheet(\'roster\',\'' + sc.id + '\',\'' + c.kind + '\',\'' + c.id + '\')',
-                   corner: '<button class="card-x" title="Remove" onclick="event.stopPropagation();rosterRemove(\'' + sc.id + '\',\'' + c.kind + '\',\'' + c.id + '\')">\u2715</button>' });
+                   corner: (c.kind === 'foe' ? '<button class="card-x" title="Edit foe" onclick="event.stopPropagation();foeForge(\'' + c.id + '\',\'' + sc.id + '\')">\u270e</button>' : '')
+                     + '<button class="card-x" title="Remove" onclick="event.stopPropagation();rosterRemove(\'' + sc.id + '\',\'' + c.kind + '\',\'' + c.id + '\')">\u2715</button>' });
   });
   h += '<div class="rs-adds"><button class="st-add" onclick="rosterAddFromLib(\'' + sc.id + '\')">Add from library</button>'
     + '<button class="st-add" onclick="rosterAdd(\'' + sc.id + '\',\'npc\')">New NPC</button>'
@@ -5460,9 +5497,10 @@ function foeTabBody(f, tab){
   }
   if (tab === 'attack'){
     if (!d) return '<div class="lmc-note">No attack set.</div>';
+    var rng = (f && f.range) || 1;
     return '<div class="lmc-dmg">' + (d.base||0) + ' + ' + (d.bonus||0) + ' ' + esc(d.type||'')
       + '<span class="lmc-acc">' + esc(d.acc||'') + ' to hit</span></div>'
-      + '<div class="lmc-note">Base always lands. Bonus meets ' + (d.type === 'magical' ? 'Resistance' : 'Durability') + '.'
+      + '<div class="lmc-note">Range ' + rng + (rng === 1 ? ' space' : ' spaces') + '. Base always lands. Bonus meets ' + (d.type === 'magical' ? 'Resistance' : 'Durability') + '.'
       + (minion ? '' : ' Landing it charges the first tier.') + '</div>';
   }
   if (tab === 'acts'){
