@@ -2851,7 +2851,7 @@ function libMakeCombatant(e, name){
     inv: (e.inv || []).slice(),
     infusions: (e.infusions || []).slice(), augments: (e.augments || []).slice(),
     sig: e.sig || '', source: e.source || '', build: e.build || '', stance: e.stance || '',
-    range: (e.range != null ? +e.range : 5),
+    range: (e.range != null ? +e.range : 1),
     img: e.img || '', desc: e.desc || '',
     act:'', target:'', done:false, affs:[]
   };
@@ -3049,7 +3049,7 @@ function foeForgeBody(){
     + '<label class="tsm-lbl">Attack preference (only matters on a tie)</label>'
     + '<select class="tsm-inp" id="ffPref" onchange="foeForgeRerender()"><option value="phys"' + (c.atkPref !== 'magic' ? ' selected' : '') + '>Physical</option><option value="magic"' + (c.atkPref === 'magic' ? ' selected' : '') + '>Magical</option></select>'
     + '<label class="tsm-lbl">Weapon range (spaces)</label>'
-    + '<input class="tsm-inp" id="ffRange" type="number" min="1" max="99" step="1" value="' + (c.range != null ? c.range : 5) + '">'
+    + '<input class="tsm-inp" id="ffRange" type="number" min="1" max="99" step="1" value="' + (c.range != null ? c.range : 1) + '">'
     + foeForgeKitSection('inf')
     + foeForgeKitSection('aug')
     + foeForgeActsSection()
@@ -3066,7 +3066,7 @@ function foeForgeSync(){
   var bd = g('ffBuild'); if (bd !== undefined) c.build = bd;
   var sr = g('ffRating'); if (sr !== undefined) c.sr = sr;
   var ap = g('ffPref'); if (ap !== undefined) c.atkPref = ap;
-  var rg = g('ffRange'); if (rg !== undefined) c.range = Math.max(1, parseInt(rg, 10) || 5);
+  var rg = g('ffRange'); if (rg !== undefined) c.range = Math.max(1, parseInt(rg, 10) || 1);
   var ds = g('ffDesc'); if (ds !== undefined) c.desc = ds;
   if (c.abilities){ c.abilities.forEach(function(ab, i){
     var nm = document.getElementById('ffAbName' + i); if (nm) ab.name = nm.value;
@@ -3115,7 +3115,7 @@ function foeForge(libId, sceneId){
     build: (e && (e.build || foeInferBuild(e))) || builds[0] || 'Juggernaut',
     sr: (e && e.sr) || 'Elite',
     atkPref: (e && e.atkPref) || 'phys',
-    range: (e && e.range != null) ? +e.range : 5,
+    range: (e && e.range != null) ? +e.range : 1,
     desc: (e && (e.desc || e.description)) || '',
     infusions: (e && Array.isArray(e.infusions)) ? e.infusions.slice() : [],
     augments: (e && Array.isArray(e.augments)) ? e.augments.slice() : [],
@@ -3880,6 +3880,10 @@ function entrySheet(src, sceneId, kind, id){
       + '<div class="tsm-lbl">Standard attack</div>'
       + '<div class="fw-dmg"><span class="fw-dmg-n">' + esc(dmg.text) + '</span><span class="fw-dmg-acc">' + esc(dmg.acc) + ' to hit</span></div>'
       + '<p class="tsm-note">Base always lands. Bonus meets ' + (dmg.type === 'magic' ? 'Resistance' : 'Durability') + '. Landing it charges the first tier.</p>'
+      + '<label class="tsm-lbl">Weapon range (spaces)</label>'
+      + '<span class="rs-step"><button class="bt-b" onclick="stepNum(\'rsRange\',-1)">-</button>'
+      + '<input class="tsm-inp rs-anum" id="rsRange" type="number" min="1" max="99" step="1" value="' + (e.range != null ? e.range : 1) + '">'
+      + '<button class="bt-b" onclick="stepNum(\'rsRange\',1)">+</button></span>'
       + (isTie(e.attrs) ? sheetChoice('On a tie it strikes', e.atkPref || '', ['phys','magic'], 'sheetSetAtkPref', 'Physical', '') : '')
       + '<div class="tsm-lbl">Default rating in scenes</div>'
       + '<select class="tsm-inp" id="rsSR" onchange="sheetSRChange()">'
@@ -3993,6 +3997,7 @@ function sheetSave(){
     e.build = parts[0] || ''; e.stance = parts[1] || '';
   }
   if (val('rsSig') !== undefined) e.sig = val('rsSig');
+  var rgv = val('rsRange'); if (rgv !== undefined) e.range = Math.max(1, parseInt(rgv, 10) || 1);
   e.attrs = e.attrs || blankAttrs();
   ATTR_LIST.forEach(function(a){ e.attrs[a] = num('rsA_' + a); });
   var inf = list('rsInf'); if (inf) e.infusions = inf;
@@ -4253,8 +4258,7 @@ function storyRosterHtml(sc){
     h += tsVCard({ img: c.img || (e.type === 'item' ? '' : DEFAULT_ART), badge:TYPE_LABEL[e.type], title:c.name, sub:sub,
                    origin: lib.name ? 'From the library' : '',
                    openFn: 'entrySheet(\'roster\',\'' + sc.id + '\',\'' + c.kind + '\',\'' + c.id + '\')',
-                   corner: (c.kind === 'foe' ? '<button class="card-x" title="Edit foe" onclick="event.stopPropagation();foeForge(\'' + c.id + '\',\'' + sc.id + '\')">\u270e</button>' : '')
-                     + '<button class="card-x" title="Remove" onclick="event.stopPropagation();rosterRemove(\'' + sc.id + '\',\'' + c.kind + '\',\'' + c.id + '\')">\u2715</button>' });
+                   corner: '<button class="card-x" title="Remove" onclick="event.stopPropagation();rosterRemove(\'' + sc.id + '\',\'' + c.kind + '\',\'' + c.id + '\')">\u2715</button>' });
   });
   h += '<div class="rs-adds"><button class="st-add" onclick="rosterAddFromLib(\'' + sc.id + '\')">Add from library</button>'
     + '<button class="st-add" onclick="rosterAdd(\'' + sc.id + '\',\'npc\')">New NPC</button>'
@@ -5497,7 +5501,7 @@ function foeTabBody(f, tab){
   }
   if (tab === 'attack'){
     if (!d) return '<div class="lmc-note">No attack set.</div>';
-    var rng = (f && f.range) || 5;
+    var rng = (f && f.range) || 1;
     return '<div class="lmc-dmg">' + (d.base||0) + ' + ' + (d.bonus||0) + ' ' + esc(d.type||'')
       + '<span class="lmc-acc">' + esc(d.acc||'') + ' to hit</span></div>'
       + '<div class="lmc-note">Range ' + rng + (rng === 1 ? ' space' : ' spaces') + '. Base always lands. Bonus meets ' + (d.type === 'magical' ? 'Resistance' : 'Durability') + '.'
