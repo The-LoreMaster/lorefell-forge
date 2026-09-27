@@ -3261,12 +3261,12 @@ function tsExportAdventure(){
     tsModal('<h3 class="tsm-title">Back up ' + esc(A.name || 'adventure') + '</h3><p class="tsm-note">Copy this and save it as a .json file. Bring it back through Import.</p><textarea class="tsm-inp tsm-ta" style="min-height:220px" onclick="this.select()" readonly>' + esc(text) + '</textarea><div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Done</button></div>');
   }
 }
-function tsImportAdventure(){
-  tsModal('<h3 class="tsm-title">Import an adventure</h3>'
+function tsImportAdventure(fromPicker){
+  (fromPicker ? tsModalLocked : tsModal)('<h3 class="tsm-title">Import an adventure</h3>'
     + '<p class="tsm-note">Choose a LoreFell pack (.json), from a backup or from FateWell. It lands as a fresh adventure you can run and edit.</p>'
     + '<input type="file" accept="application/json,.json" id="tsPackFile" onchange="tsReadPack(this)">'
     + '<div id="tsPackMsg" class="tsm-note" style="margin-top:8px"></div>'
-    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="' + (fromPicker ? 'tsAdventurePicker()' : 'tsCloseModal()') + '">' + (fromPicker ? 'Back' : 'Close') + '</button></div>');
 }
 function tsReadPack(input){
   var f = input.files && input.files[0]; input.value = '';
@@ -4467,6 +4467,9 @@ function battleBody(){
    through the seam. animateDie owns the visual and is told what landed. A
    physics layer can replace animateDie later without touching the result. */
 var ROLL_TYPES = { attack:'Attack', evade:'Evade', skill:'Skill', generic:'Generic' };
+/* roll kinds the sheet throws that are not on the tray's picker */
+var ROLL_EXTRA = { mobility:'Mobility' };
+function rollLabel(t){ return ROLL_TYPES[t] || ROLL_EXTRA[t] || t; }
 var PIPS = { 1:[4], 2:[0,8], 3:[0,4,8], 4:[0,2,6,8], 5:[0,2,4,6,8], 6:[0,2,3,5,6,8] };
 var REST = { 1:[0,0], 2:[0,-90], 3:[-90,0], 4:[90,0], 5:[0,90], 6:[0,180] };
 /* A skin is a texture swap and nothing more. Skins are earned in game, so they
@@ -4540,7 +4543,7 @@ function flourish(e){
     }).join('');
     var tot = (e.mods && e.mods.length) ? '<span class="ftot">= ' + e.total + '</span>' : '';
     f.className = e.n === 6 ? 'mark' : e.n === 1 ? 'strike' : '';
-    f.innerHTML = '<span class="ftype">' + esc(ROLL_TYPES[e.rollType] || e.rollType) + '</span>'
+    f.innerHTML = '<span class="ftype">' + esc(rollLabel(e.rollType)) + '</span>'
       + '<span class="fdie">' + e.n + '</span>' + mods + tot + note;
     void f.offsetWidth;
     f.classList.add('show');
@@ -7211,7 +7214,8 @@ function tsAdvPickerMarkup(rows, loading){
   return '<h3 class="tsm-title">Open an adventure</h3>'
     + '<p class="lc-p">Choose the adventure to bring to the table.</p>'
     + '<div class="tsm-pick-list">' + body + '</div>'
-    + '<div class="tsm-row tsm-row-spread"><button class="tsm-btn ghost" onclick="advNewHere(true)">New adventure</button></div>';
+    + '<div class="tsm-row tsm-row-spread"><button class="tsm-btn ghost" onclick="advNewHere(true)">New adventure</button>'
+    + '<button class="tsm-btn ghost" onclick="tsImportAdventure(true)">Import adventure</button></div>';
 }
 function tsAdventurePicker(){
   // Open at once, with a loading line, then fill in as the list arrives. Waiting for the list
@@ -10754,6 +10758,13 @@ window.addEventListener('message', function(ev){
        and the sheet and deliberately not relayed onward: the site has no use for it and
        the board never travels a hand. Returns before the TS_TOOL_UP relay below. */
     if (ev.data.type === 'leave-adventure' && !isLM() && !S.godChar && sameId(ev.data.charId, S.characterId)) playerLeftAdventure();
+    /* a roll the sheet made (Mobility from the stat strip) is thrown on the table like any
+       other: the dice on the map, the line in the log, and out to everyone */
+    if (ev.data.type === 'ts-sheet-roll' && !isLM()){
+      var sr = ev.data, sn = Number(sr.n) || 0;
+      if (sn >= 1 && sn <= 6) send({ type:'roll', rollType:String(sr.rollType || 'generic'), n:sn, mods:sr.mods || [], total:(typeof sr.total === 'number') ? sr.total : sn });
+      return;
+    }
     if (ev.data.type === 'ts-hand'){ tsHandTake(ev.data.hand); return; }
     if (ev.data.type === 'ts-declare-result'){ handDeclareResult(ev.data.result); return; }
     if (ev.data.type === 'ts-undo-result'){ handUndoResult(ev.data.result); return; }
@@ -12503,7 +12514,7 @@ function entryHtml(e){
     var sum = (e.mods || []).map(function(x){ return ' + ' + esc(x.label) + ' ' + x.value; }).join('');
     var tot = (e.mods && e.mods.length) ? ' = <span class="num">' + e.total + '</span>' : '';
     return '<div class="le roll"><b>' + esc(e.who) + '</b> rolled <span class="num">' + e.n + '</span>'
-      + sum + tot + ' on ' + esc(ROLL_TYPES[e.rollType] || e.rollType) + m + '</div>';
+      + sum + tot + ' on ' + esc(rollLabel(e.rollType)) + m + '</div>';
   }
   return '<div class="le sys">\u00b7 ' + e.html + '</div>';
 }
