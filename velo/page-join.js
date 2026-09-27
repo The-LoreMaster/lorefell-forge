@@ -15,6 +15,9 @@ let CAMPAIGN_NAME = '';
 let IS_OWNER = false;
 // The page slug that hosts FellForge. Change to match your site if it differs.
 const FELLFORGE_PATH = '/fellforge';
+// Where a player lands after attaching a Fell: its sheet. The route is the Hearth's, in
+// docs/the_hearth.html (FACTS.md lists it).
+const FELLGLASS_PATH = '/the-fellglass';
 
 $w.onReady(() => {
   const embed = $w(EMBED);
@@ -52,7 +55,13 @@ $w.onReady(() => {
       try { await authentication.promptLogin({ mode: 'login' }); } catch (e) {}
       await pushState();
     } else if (m.type === 'JOIN_ATTACH') {
-      try { await attachCharacter(CAMPAIGN_ID, m.charId); } catch (e) {}
+      // Once the Fell is in the adventure, take the player straight to its sheet in
+      // FellGlass. If attaching failed, stay here and show the list as it now stands.
+      let r = null;
+      try { r = await attachCharacter(CAMPAIGN_ID, m.charId); } catch (e) { r = null; }
+      if (r && r.ok && m.charId) {
+        try { wixLocation.to(FELLGLASS_PATH + '?charId=' + encodeURIComponent(m.charId)); return; } catch (e) {}
+      }
       await pushState();
     } else if (m.type === 'JOIN_DETACH') {
       try { await detachOwnCharacter(m.charId); } catch (e) {}
