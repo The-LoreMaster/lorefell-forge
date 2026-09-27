@@ -169,6 +169,13 @@ export async function handleSheetMessage(m, ctx) {
     reply({ type: 'characters', list: list, currentId: nextId });
     await openCharacter(nextId);
 
+  } else if (m.type === 'archive-consult') {
+    // Consult the Archive from the sheet: a description written from the Fell's own facts.
+    let r = { ok: false };
+    try { r = api.consultArchive ? await api.consultArchive(m.fell || {}) : { ok: false, error: 'the Archive is not wired on this page' }; }
+    catch (e) { r = { ok: false, error: String((e && e.message) || e) }; }
+    reply({ type: 'archive-result', reqId: m.reqId || 0, ok: !!(r && r.ok), description: (r && r.description) || '', error: (r && r.error) || '' });
+
   } else if (m.type === 'threadspire-open') {
     if (ctx.onThreadspireOpen) ctx.onThreadspireOpen(m);
 

@@ -1,3 +1,11 @@
+## 2026-09-27 - The Archive and the Sealed Past come to the sheet
+
+FellForge's two Archive calls now have a home on the sheet, in FellGlass and ThreadSpire alike. The Identity card's Description is now The Archive: the same field, where a forged Fell's FellForge entry already lands, with a Consult the Archive button that writes a two or three sentence entry from the Fell's own facts (name, lineage, origin, motivation, level, titles, and any FellForge hooks and fragments), in FellForge's house style. Asking over written text asks first. The call is consultArchive in backend/characters.web.js, reached through the shared sheet bridge as archive-consult.
+
+The Sealed Past is a card under Records that shows only in LoreMaster mode. Break the Seal takes two taps, the second warning the table, and shows the buried truths, the seal code and the fragments the player holds. A Fell with no seal can have one woven from what the sheet knows, and any seal can be woven anew. It is never stored on the sheet's record or sent to a player's sheet: ThreadSpire asks lmSealedGet and lmSealedWeave through TS_SEALED_GET and TS_SEALED_WEAVE, and those read and write the row's own sealedPast field behind a gate that admits only the adventure's owner, loremaster or lorekeeper. Owning the Fell is deliberately not enough, so the player cannot read their own. The sheet clears it the moment the LoreMaster closes the Fell or another loads.
+
+Paste velo/backend/characters.web.js, then velo/public/fgSheetBridge.js, then velo/page-fellglass.js and velo/page-threadspire.js. The contract checker learns seal-request, seal-weave and ts-sealed; merged with skip ci and Pages, Seed Embeds and Contracts run by hand.
+
 ## 2026-09-27 - The tools move to table.lorefell.com
 
 GitHub Pages serves the forge under its own address, table.lorefell.com, a CNAME in the lorefell.com DNS on Wix pointing at the-loremaster.github.io. Paths lose the /lorefell-forge/ prefix (https://table.lorefell.com/threadspire.html), and GitHub redirects the old github.io addresses there. The AI worker's ALLOW list gains https://table.lorefell.com, since a tool served from the new address calls it from that origin and would otherwise be refused; the worker is deployed by hand in Cloudflare. DEPLOY_MANIFEST.md, SERVING.md and README.md carry the new addresses. The Wix embeds are updated in the Wix editor.

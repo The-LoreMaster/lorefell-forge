@@ -2,7 +2,7 @@
 // Paste into the ThreadSpire page. Set the embed element ID to match EMBED.
 // Feeds the character-first view: the player's character card, the party at their
 // location, revealed nodes, quest-board goals, world issues, and map art.
-import { threadspirePublicChar, listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter, threadspireSaveMeta, lmLoadCharacter, lmSaveCharacter, lmCreateOfflineFell, lmRemoveFromAdventure, charAdventure, leaveAdventure, lmWipeFell, giveRecord } from 'backend/characters.web.js';
+import { threadspirePublicChar, listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter, threadspireSaveMeta, lmLoadCharacter, lmSaveCharacter, lmCreateOfflineFell, lmRemoveFromAdventure, charAdventure, leaveAdventure, lmWipeFell, giveRecord, consultArchive, lmSealedGet, lmSealedWeave } from 'backend/characters.web.js';
 import { getLmPortrait, saveLmPortrait, getForgePools, getForgeLibrary, listMyCampaigns, saveCampaign, submitAct, submitItem, deleteAsset, listGlossary , setMemberRole, detachCharacter, loadCampaign } from 'backend/fatewell.web.js';
 import { createInvite, revokeInvite } from 'backend/invites.web.js';
 import { publishAdventure, unpublishAdventure, myPublishedAdventures } from 'backend/published.web.js';
@@ -163,7 +163,7 @@ $w.onReady(async function () {
   const fgApi = {
     listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter,
     leaveAdventure, getClueCards, listQuests, getCombatForChar, saveCombatDeclare,
-    syncCombatPlayer, getLibraries, lmSaveCharacter
+    syncCombatPlayer, getLibraries, lmSaveCharacter, consultArchive
   };
   async function fgBridge(m, reply) {
     await handleSheetMessage(m, {
@@ -543,6 +543,13 @@ $w.onReady(async function () {
           let list = [];
           try { list = await listMyCharacters(); } catch (e) { list = []; }
           reply(true, list);
+        } else if (msg.type === 'TS_SEALED_GET' || msg.type === 'TS_SEALED_WEAVE') {
+          // The Sealed Past, for the LoreMaster only; the backend refuses anyone else,
+          // the Fell's own player included.
+          let r = { ok: false };
+          try { r = msg.type === 'TS_SEALED_GET' ? await lmSealedGet(msg.charId || '') : await lmSealedWeave(msg.charId || ''); }
+          catch (e) { r = { ok: false, error: String(e) }; }
+          reply(!!(r && r.ok), r, r && r.error);
         } else if (msg.type === 'TS_GIVE') {
           // The LoreMaster hands a beat to chosen Fells from the scene runner. The backend
           // checks each Fell against the adventure it is in.

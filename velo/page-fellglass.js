@@ -9,7 +9,7 @@
 // Fell (initNeedsCreated), it bounces an entry that already has a character to the
 // table, and it navigates when the sheet asks for ThreadSpire.
 
-import { listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter, leaveAdventure } from 'backend/characters.web.js';
+import { listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter, leaveAdventure, consultArchive } from 'backend/characters.web.js';
 import { getClueCards, listQuests } from 'backend/fatewell.web.js';
 import { getCombatForChar, saveCombatDeclare, syncCombatPlayer } from 'backend/combat.web.js';
 import { getLibraries } from 'backend/libraries.web.js';
@@ -21,7 +21,7 @@ const EMBED = '#html1';   // change to your Embed a Site element ID
 const api = {
   listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter,
   leaveAdventure, getClueCards, listQuests, getCombatForChar, saveCombatDeclare,
-  syncCombatPlayer, getLibraries
+  syncCombatPlayer, getLibraries, consultArchive
 };
 
 $w.onReady(() => {

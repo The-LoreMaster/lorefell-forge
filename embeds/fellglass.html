@@ -444,6 +444,19 @@ h3{font-family:var(--head);font-weight:500;font-size:12px;letter-spacing:.12em;t
 .rec-plus:hover{border-color:var(--gold)}
 .rec-add input{flex:1;min-width:160px}
 .rec-empty{margin:0}
+.arc-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px}
+.arc-hd .fld{margin:0}
+.arc-msg{font-size:13px;color:var(--silver-dim);margin-top:4px;min-height:0}
+.arc-msg.bad{color:var(--danger)}
+#sealCard{display:none;border-color:rgba(201,106,90,.45)}
+body.god #sealCard{display:block}
+#sealCard h2{color:#e3a193}
+.seal-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+#sealBtn.armed{border-color:var(--danger);color:#e3a193}
+.seal-code{font-family:var(--head);font-size:11px;letter-spacing:.14em;color:var(--gold);margin:4px 0 6px}
+.seal-list{margin:6px 0 0 18px;padding:0}
+.seal-list li{margin-bottom:6px;color:var(--silver)}
+.seal-frag{font-size:13px;color:var(--silver-dim);margin-top:8px}
 .rem-h2{display:flex;align-items:center;justify-content:space-between}
 .rem-form{display:grid;gap:8px;margin-top:8px}
 .rem-form textarea{min-height:80px}
@@ -924,7 +937,11 @@ body.in-combat{ padding-top:var(--cbn-h,46px); }
       <label class="fld">Titles</label>
       <input id="f-titles" readonly>
     </div>
-    <div style="margin-top:10px"><label class="fld">Description</label><textarea id="f-desc"></textarea></div>
+    <div style="margin-top:10px">
+      <div class="arc-hd"><label class="fld" for="f-desc">The Archive</label><button type="button" class="btn small" id="archiveBtn">Consult the Archive</button></div>
+      <textarea id="f-desc" placeholder="Who this Fell is now. Write it yourself, or Consult the Archive."></textarea>
+      <div class="arc-msg" id="archiveMsg"></div>
+    </div>
   </section>
 
   <section class="card">
@@ -936,6 +953,15 @@ body.in-combat{ padding-top:var(--cbn-h,46px); }
   <section class="card" id="recordsCard">
     <h2><span class="orn">❖</span> Records</h2>
     <div id="recGroups"></div>
+  </section>
+  <!-- The Sealed Past. The LoreMaster's alone: shown only in LoreMaster mode, and filled only
+       by ThreadSpire from a backend that refuses the Fell's own player. Nothing of it is
+       ever stored on the sheet's record. -->
+  <section class="card" id="sealCard">
+    <h2><span class="orn">❖</span> The Sealed Past</h2>
+    <p class="note" id="sealNote">Threads of this Fell's forgotten life, for the LoreMaster only. The player never sees this.</p>
+    <div id="sealBody"></div>
+    <div class="row seal-row"><button type="button" class="btn small" id="sealBtn">Break the Seal</button><button type="button" class="btn small ghost" id="sealWeaveBtn" style="display:none">Weave it anew</button></div>
   </section>
   <div class="savebar">
     <span id="saveState">Autosave on. Every change saves automatically.</span>
@@ -4741,6 +4767,86 @@ function renderRemnants(){
   });
 })();
 
+/* ---------- the Archive ----------
+   Consult the Archive writes who this Fell is now, the way FellForge does, from the facts
+   the sheet holds. A forged Fell already arrives with FellForge's entry here. Asking again
+   over written text asks first, so nothing a player wrote is lost to a stray tap. */
+let _arcReq=0,_arcArmed=false,_arcT=null;
+function archiveFacts(){
+  const id=C.identity||{}, f=C.forge||{}, fi=(f.identity)||{};
+  return { name:id.name||"", sex:fi.sex||"", lineage:id.lineage||"", lineageDesc:id.lineageDesc||"", origin:id.origin||"",
+    motivation:id.motivation||"", level:(C.lore&&C.lore.level)||1, titles:(C.titles||[]).join(", "),
+    hooks:f.hooks||"", fragments:f.fragments||"", desc:"" };
+}
+(function(){
+  const b=$("archiveBtn"); if(!b) return;
+  b.addEventListener("click",()=>{
+    const have=($("f-desc").value||"").trim();
+    if(have && !_arcArmed){ _arcArmed=true; b.textContent="Replace it? Tap again"; clearTimeout(_arcT); _arcT=setTimeout(()=>{_arcArmed=false;b.textContent="Consult the Archive";},4000); return; }
+    _arcArmed=false; clearTimeout(_arcT);
+    if(window.parent===window){ const m=$("archiveMsg"); m.className="arc-msg bad"; m.textContent="The Archive answers on the live site."; b.textContent="Consult the Archive"; return; }
+    _arcReq++; b.disabled=true; b.textContent="Consulting the Archive...";
+    const m=$("archiveMsg"); m.className="arc-msg"; m.textContent="";
+    postToVelo({type:"archive-consult",reqId:_arcReq,fell:archiveFacts()});
+    const mine=_arcReq;
+    setTimeout(()=>{ if(mine===_arcReq && b.disabled){ b.disabled=false; b.textContent="Consult the Archive"; m.className="arc-msg bad"; m.textContent="The Archive did not answer. Try again in a moment."; } },60000);
+  });
+})();
+function archiveResult(d){
+  if(d.reqId && d.reqId!==_arcReq) return;
+  const b=$("archiveBtn"), m=$("archiveMsg");
+  if(b){ b.disabled=false; b.textContent="Consult the Archive"; }
+  if(!d.ok||!d.description){ if(m){ m.className="arc-msg bad"; m.textContent="The Archive did not answer"+(d.error?(": "+d.error):"")+"."; } return; }
+  C.identity.desc=d.description; $("f-desc").value=d.description; if(m) m.textContent="";
+  scheduleSave();
+}
+/* ---------- the Sealed Past (LoreMaster only) ----------
+   Shown only in LoreMaster mode. The sheet never holds it: ThreadSpire asks its backend,
+   which refuses the Fell's own player, and hands the answer down only while the LoreMaster
+   has this Fell open. Breaking the seal takes two taps, the second warning the table. */
+let _sealArmed=false,_sealT=null,_sealFor="";
+function sealReset(){
+  _sealArmed=false; clearTimeout(_sealT); _sealFor="";
+  const b=$("sealBtn"); if(b){ b.classList.remove("armed"); b.textContent="Break the Seal"; b.disabled=false; }
+  const w=$("sealWeaveBtn"); if(w) w.style.display="none";
+  const body=$("sealBody"); if(body) body.innerHTML="";
+}
+function sealPaint(d){
+  const body=$("sealBody"), b=$("sealBtn"), w=$("sealWeaveBtn"); if(!body) return;
+  if(b){ b.disabled=false; b.classList.remove("armed"); }
+  if(!d||!d.ok){ body.innerHTML='<p class="note" style="color:var(--danger)">'+cbEsc((d&&d.error)||"The seal would not open.")+'</p>'; if(b) b.textContent="Break the Seal"; return; }
+  _sealFor=CUR_WIX_ID;
+  const rev=d.reveals||[], fr=d.fragments||[];
+  if(!rev.length){
+    body.innerHTML='<p class="note">No past is sealed for this Fell yet. Weave one from what the sheet knows of them.</p>';
+    if(b) b.textContent="Weave the seal";
+    if(w) w.style.display="none";
+    return;
+  }
+  body.innerHTML=(d.code?'<div class="seal-code">Sealed as '+cbEsc(d.code)+'</div>':'')
+    +'<ol class="seal-list">'+rev.map(r=>'<li>'+cbEsc(r)+'</li>').join("")+'</ol>'
+    +(fr.length?'<div class="seal-frag">Fragments the player holds: '+fr.map(f=>cbEsc((f.type?f.type+": ":"")+(f.text||f))).join(" &middot; ")+'</div>':'');
+  if(b){ b.textContent="Close the seal"; }
+  if(w) w.style.display="";
+}
+(function(){
+  const b=$("sealBtn"), w=$("sealWeaveBtn"); if(!b) return;
+  b.addEventListener("click",()=>{
+    if(!god) return;
+    if(_sealFor===CUR_WIX_ID && b.textContent==="Close the seal"){ sealReset(); return; }
+    if(b.textContent==="Weave the seal"){ b.disabled=true; b.textContent="Weaving..."; postToVelo({type:"seal-weave",charId:CUR_WIX_ID}); return; }
+    if(!_sealArmed){ _sealArmed=true; b.classList.add("armed"); b.textContent="Tap again. Players, look away."; clearTimeout(_sealT); _sealT=setTimeout(()=>{ _sealArmed=false; b.classList.remove("armed"); b.textContent="Break the Seal"; },4000); return; }
+    _sealArmed=false; clearTimeout(_sealT); b.disabled=true; b.textContent="Breaking...";
+    postToVelo({type:"seal-request",charId:CUR_WIX_ID});
+  });
+  w.addEventListener("click",()=>{
+    if(!god) return;
+    if(!confirm("Weave this Fell's sealed past anew? The truths written now replace the ones here.")) return;
+    w.style.display="none"; const bb=$("sealBtn"); if(bb){ bb.disabled=true; bb.textContent="Weaving..."; }
+    postToVelo({type:"seal-weave",charId:CUR_WIX_ID});
+  });
+})();
+
 /* ---------- autosave ---------- */
 /* Debounced: any interaction schedules a save 1.2s after the last change.
    Live build: doSave() posts the full character state to Velo via
@@ -5308,6 +5414,7 @@ function loadCharacter(rec){
   setLoading(true,"loadCharacter");
   clearTimeout(saveTimer); saveTimer=null;   // drop any save queued for the previous character
   C=seedSheet(rec);
+  try{ sealReset(); }catch(e){}
   /* a Fell forged before Motivations granted skills gets its +1s once, and saves them */
   const _motBackfill=motGrantSkills();
   $("f-name").value=(C.identity&&C.identity.name)||"";
@@ -7034,6 +7141,8 @@ window.onmessage=ev=>{
   const d=ev&&ev.data;
   if(!d||typeof d!=="object"||!d.type)return;
   if(d.type==="ts-charge-tap"){ chargeTap(d.tier); return; }
+  if(d.type==="ts-sealed"){ if(god && (!d.charId || d.charId===CUR_WIX_ID)) sealPaint(d); return; }
+  if(d.type==="archive-result"){ archiveResult(d); return; }
   if(d.type==="ts-vit-op"){ vitOp(d.op,d.amt); return; }
   if(d.type==="ts-fatigue-step"){ fatigueSet((C.fatigue||0)+(Number(d.delta)||0)); return; }
   if(d.type==="ts-subtabs"){
@@ -7174,7 +7283,7 @@ window.onmessage=ev=>{
     return;
   }
   if(d.type==="ts-new"){ postToVelo({type:"add-character"}); return; }
-  if(d.type==="ts-god"){ god=!!d.on; document.body.classList.toggle("god",god); var gb=$("godBtn"); if(gb) gb.classList.toggle("on",god); try{renderWeapons();renderDials();renderArmor();renderLorebounds();renderCampaignOptions();renderMotivation();syncIdentityLock();}catch(e){} return; }
+  if(d.type==="ts-god"){ god=!!d.on; if(!god){ try{ sealReset(); }catch(e){} } document.body.classList.toggle("god",god); var gb=$("godBtn"); if(gb) gb.classList.toggle("on",god); try{renderWeapons();renderDials();renderArmor();renderLorebounds();renderCampaignOptions();renderMotivation();syncIdentityLock();}catch(e){} return; }
   bridged=true;
   if(d.type==="init"||d.type==="new")hideCover();
   if(d.type==="new"&&!d.character){
