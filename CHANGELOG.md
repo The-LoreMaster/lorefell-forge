@@ -1,3 +1,7 @@
+## 2026-09-27 - The Archive writes the whole entry, in an expandable Description
+
+The field is Description again, with Consult the Archive beneath it rather than beside the label. The Archive now writes everything FellForge did: who you are, a first impression, three lines on how to play them, and, for a Fell that never went through FellForge, three forgotten fragments (a forged Fell keeps its own). It lands as one readable, editable text under those four headings. A forged Fell whose Description held only FellForge's first paragraph has its first impression, tips and fragments folded in once from the forge seed, below what was there, and saved. An Expand button grows the field to show the whole entry; switching tabs folds it back. Paste velo/backend/characters.web.js and velo/public/fgSheetBridge.js again.
+
 ## 2026-09-27 - The Archive and the Sealed Past come to the sheet
 
 FellForge's two Archive calls now have a home on the sheet, in FellGlass and ThreadSpire alike. The Identity card's Description is now The Archive: the same field, where a forged Fell's FellForge entry already lands, with a Consult the Archive button that writes a two or three sentence entry from the Fell's own facts (name, lineage, origin, motivation, level, titles, and any FellForge hooks and fragments), in FellForge's house style. Asking over written text asks first. The call is consultArchive in backend/characters.web.js, reached through the shared sheet bridge as archive-consult.

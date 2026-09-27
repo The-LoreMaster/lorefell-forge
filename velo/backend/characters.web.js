@@ -291,12 +291,18 @@ export const consultArchive = webMethod(Permissions.Anyone, async (fell) => {
       'Write the Archive entry for this Fell, freshly woken with no memory of the life before.',
       fellFacts(fell),
       '',
-      'Return JSON with exactly this key:',
-      '"description": two or three sentences on who this Fell is now, awake without memory, written in second person.'
-    ].join('\n'), 600);
+      'Return JSON with exactly these keys:',
+      '"description": two or three sentences on who this Fell is now, awake without memory, written in second person.',
+      '"firstImpression": one or two sentences on how strangers read them at a glance.',
+      '"tips": an array of three short second-person lines on how to play them.',
+      (fell && fell.fragments) ? '"fragments": an empty array, since this Fell already holds its fragments.'
+        : '"fragments": an array of three objects, each {"type": one word such as Scent, Sound, Name, Scar, Object, Place, "text": a short concrete half-memory from the forgotten life}.'
+    ].join('\n'), 1100);
     const d = String((o && o.description) || '').trim();
     if (!d) return { ok: false, error: 'the Archive gave no answer' };
-    return { ok: true, description: d };
+    const tips = Array.isArray(o.tips) ? o.tips.map((x) => String(x).trim()).filter(Boolean).slice(0, 5) : [];
+    const frags = Array.isArray(o.fragments) ? o.fragments.filter((x) => x && (x.text || typeof x === 'string')).slice(0, 5) : [];
+    return { ok: true, description: d, firstImpression: String(o.firstImpression || '').trim(), tips: tips, fragments: frags };
   } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
 });
 
