@@ -323,9 +323,10 @@ export const consultArchive = webMethod(Permissions.Anyone, async (fell) => {
   } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
 });
 
-// The Sealed Past is the LoreMaster's alone. The player owns the Fell, so owning it is
-// deliberately not enough here: only whoever runs the adventure the Fell is in may read
-// or weave it. It lives in the row's sealedPast field, which no player-facing read returns.
+// The Sealed Past and the LoreMaster's notes are the LoreMaster's alone. The player owns the
+// Fell, so owning it is deliberately not enough, and a lorekeeper who helps run the table is
+// not the LoreMaster either: only the adventure's owner, or a member made its loremaster, may
+// read or write them. Both live in the row's sealedPast field, which no other read returns.
 async function sealGate(charId) {
   const me = await memberId();
   if (!me) return { ok: false, error: 'not signed in' };
@@ -340,13 +341,13 @@ async function sealGate(charId) {
   try {
     const r = await wixData.query('AdventureMembers').eq('campaignId', cid).eq('memberId', me).limit(1).find({ suppressAuth: true });
     const role = r.items.length ? r.items[0].role : '';
-    if (role === 'loremaster' || role === 'lorekeeper') return { ok: true, row: row };
+    if (role === 'loremaster') return { ok: true, row: row };
   } catch (e) {}
-  return { ok: false, error: 'only the LoreMaster may break this seal' };
+  return { ok: false, forbidden: true, error: 'for the LoreMaster only' };
 }
 function readSealed(row) {
   let s = {}; try { s = row.sealedPast ? JSON.parse(row.sealedPast) : {}; } catch (e) { s = {}; }
-  return { code: row.sealCode || '', reveals: Array.isArray(s.reveals) ? s.reveals : [], fragments: Array.isArray(s.fragments) ? s.fragments : [] };
+  return { code: row.sealCode || '', reveals: Array.isArray(s.reveals) ? s.reveals : [], fragments: Array.isArray(s.fragments) ? s.fragments : [], notes: typeof s.lmNotes === 'string' ? s.lmNotes : '' };
 }
 export const lmSealedGet = webMethod(Permissions.Anyone, async (charId) => {
   if (!charId) return { ok: false, error: 'no Fell given' };
@@ -384,10 +385,23 @@ export const lmSealedWeave = webMethod(Permissions.Anyone, async (charId) => {
     if (!reveals.length) return { ok: false, error: 'the seal would not hold' };
     const code = row.sealCode || ('S-' + Math.random().toString(36).slice(2, 6).toUpperCase());
     row.sealCode = code;
-    row.sealedPast = JSON.stringify({ reveals: reveals, fragments: had.fragments });
+    row.sealedPast = JSON.stringify({ reveals: reveals, fragments: had.fragments, lmNotes: had.notes });
     await wixData.save(COLLECTION, row, { suppressAuth: true });
-    return { ok: true, code: code, reveals: reveals, fragments: had.fragments };
+    return { ok: true, code: code, reveals: reveals, fragments: had.fragments, notes: had.notes };
   } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+});
+
+// The LoreMaster's notes on a Fell: how they mean to handle the player and its lore. Kept
+// beside the Sealed Past, behind the same gate, so a weave never touches them.
+export const lmNotesSave = webMethod(Permissions.Anyone, async (charId, text) => {
+  if (!charId) return { ok: false, error: 'no Fell given' };
+  const gate = await sealGate(charId);
+  if (!gate.ok) return gate;
+  const row = gate.row;
+  const had = readSealed(row);
+  row.sealedPast = JSON.stringify({ reveals: had.reveals, fragments: had.fragments, lmNotes: String(text || '').slice(0, 20000) });
+  try { await wixData.save(COLLECTION, row, { suppressAuth: true }); return { ok: true }; }
+  catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
 });
 
 // Which adventure a Fell belongs to. The record is the truth: a player arrives at the

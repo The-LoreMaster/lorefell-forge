@@ -1,3 +1,9 @@
+## 2026-09-27 - LoreMaster's Notes, and the Seal closed to lorekeepers
+
+A LoreMaster's Notes card sits under the Sealed Past on the Lore tab: how the LoreMaster means to handle the player and their lore. It saves a moment after typing stops, through a new seal-notes message, TS_LM_NOTES_SAVE and lmNotesSave, into the same row field as the Sealed Past, beside it, so weaving a seal anew leaves the notes alone. It is never on the sheet's record.
+
+Both cards are now the LoreMaster's alone. The gate that admitted the adventure's owner, loremaster or lorekeeper now admits only the owner or a member made loremaster, and refuses a lorekeeper as it refuses the player. The sheet shows the two cards only after the backend answers for this LoreMaster, so a lorekeeper opening a Fell sees neither. Paste velo/backend/characters.web.js, then velo/page-threadspire.js. The contract checker learns seal-notes and ts-notes-saved; merged with skip ci and the workflows run by hand.
+
 ## 2026-09-27 - The LoreMaster's Fell menu says what each option does
 
 Empty this Fell and start it over now shows only for a Fell kept at the table, and lmWipeFell refuses any other: a player's Fell is theirs to rebuild. Release their Fell becomes Unlink their Fell (they stay in the adventure), which is what it did: the Fell leaves, the player keeps their seat and can bring another. Remove from the adventure becomes Remove them from the adventure, and its confirmation says the seat and the Fell both go and a new invite is needed to return. Unlinking or removing cleared the adventure on the row but not in the sheet's record, so the Fell's Lore tab went on naming it; loading now clears it there too. Paste velo/backend/characters.web.js.

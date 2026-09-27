@@ -2,7 +2,7 @@
 // Paste into the ThreadSpire page. Set the embed element ID to match EMBED.
 // Feeds the character-first view: the player's character card, the party at their
 // location, revealed nodes, quest-board goals, world issues, and map art.
-import { threadspirePublicChar, listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter, threadspireSaveMeta, lmLoadCharacter, lmSaveCharacter, lmCreateOfflineFell, lmRemoveFromAdventure, charAdventure, leaveAdventure, lmWipeFell, giveRecord, consultArchive, lmSealedGet, lmSealedWeave } from 'backend/characters.web.js';
+import { threadspirePublicChar, listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter, threadspireSaveMeta, lmLoadCharacter, lmSaveCharacter, lmCreateOfflineFell, lmRemoveFromAdventure, charAdventure, leaveAdventure, lmWipeFell, giveRecord, consultArchive, lmSealedGet, lmSealedWeave, lmNotesSave } from 'backend/characters.web.js';
 import { getLmPortrait, saveLmPortrait, getForgePools, getForgeLibrary, listMyCampaigns, saveCampaign, submitAct, submitItem, deleteAsset, listGlossary , setMemberRole, detachCharacter, loadCampaign } from 'backend/fatewell.web.js';
 import { createInvite, revokeInvite } from 'backend/invites.web.js';
 import { publishAdventure, unpublishAdventure, myPublishedAdventures } from 'backend/published.web.js';
@@ -543,6 +543,10 @@ $w.onReady(async function () {
           let list = [];
           try { list = await listMyCharacters(); } catch (e) { list = []; }
           reply(true, list);
+        } else if (msg.type === 'TS_LM_NOTES_SAVE') {
+          let r = { ok: false };
+          try { r = await lmNotesSave(msg.charId || '', msg.text || ''); } catch (e) { r = { ok: false, error: String(e) }; }
+          reply(!!(r && r.ok), r, r && r.error);
         } else if (msg.type === 'TS_SEALED_GET' || msg.type === 'TS_SEALED_WEAVE') {
           // The Sealed Past, for the LoreMaster only; the backend refuses anyone else,
           // the Fell's own player included.
