@@ -170,6 +170,24 @@ async function storePortrait(character) {
   } catch (e) { return character; }
 }
 
+// ---- things the LoreMaster gives a Fell ----
+// A clue, quest, secret or note handed out from ThreadSpire's scene runner lands in the
+// Fell's data.given. The player's open sheet may still hold an older copy of the Fell,
+// and its next autosave writes the whole record, which would quietly drop anything given
+// in between. So every save keeps what is already given on the row, adds anything new it
+// carries, and drops only what someone dismissed (data.givenGone, kept as a tombstone
+// list so a dismissal also survives a stale save).
+function parseData(row) { try { return row && row.data ? JSON.parse(row.data) : {}; } catch (e) { return {}; } }
+function mergeGiven(prev, next) {
+  const gone = Array.from(new Set([].concat((prev && prev.givenGone) || [], (next && next.givenGone) || []))).slice(-500);
+  const out = [], seen = {};
+  [].concat((prev && prev.given) || [], (next && next.given) || []).forEach((g) => {
+    if (!g || !g.id || seen[g.id] || gone.indexOf(g.id) >= 0) return;
+    seen[g.id] = true; out.push(g);
+  });
+  next.given = out; next.givenGone = gone;
+  return next;
+}
 export const saveCharacter = webMethod(Permissions.Anyone, async (charId, character) => {
   const id = await memberId();
   const c = character || {};
@@ -182,6 +200,7 @@ export const saveCharacter = webMethod(Permissions.Anyone, async (charId, charac
     row = { ownerMemberId: id };
   }
   await storePortrait(c);
+  if (charId) mergeGiven(parseData(row), c);
   row.data = JSON.stringify(c);
   row.charName = (c.identity && c.identity.name) || row.charName || 'Unnamed Fell';
   row.level = (c.lore && c.lore.level) || 1;
@@ -467,12 +486,45 @@ export const lmSaveCharacter = webMethod(Permissions.Anyone, async (charId, char
   const row = gate.row;
   const c = character || {};
   await storePortrait(c);
+  mergeGiven(parseData(row), c);
   row.data = JSON.stringify(c);
   row.charName = (c.identity && c.identity.name) || row.charName || 'Unnamed Fell';
   row.level = (c.lore && c.lore.level) || row.level || 1;
   // the owner and the adventure are the player's to change, never the LoreMaster's
   const saved = await wixData.save(COLLECTION, row, { suppressAuth: true });
   return { ok: true, id: saved._id };
+});
+
+// The LoreMaster gives one entry to each chosen Fell. Each Fell is checked on its own:
+// only the LoreMaster of the adventure that Fell is in may write to it. Giving the same
+// entry again replaces it, and brings it back if the player had dismissed it.
+export const giveRecord = webMethod(Permissions.Anyone, async (charIds, entry) => {
+  const e = entry || {};
+  if (!Array.isArray(charIds) || !charIds.length || !e.id) return { ok: false, error: 'nothing to give', given: [] };
+  const kinds = ['quests', 'characters', 'clues', 'secrets', 'notes'];
+  const item = {
+    id: String(e.id).slice(0, 120),
+    kind: kinds.indexOf(e.kind) >= 0 ? e.kind : 'notes',
+    title: String(e.title || '').slice(0, 300),
+    body: String(e.body || '').slice(0, 4000),
+    scene: String(e.scene || '').slice(0, 200),
+    at: Date.now()
+  };
+  const given = [], refused = [];
+  for (const cid of charIds) {
+    try {
+      const gate = await lmMayTouch(cid);
+      if (!gate.ok) { refused.push(cid); continue; }
+      const row = gate.row;
+      const data = parseData(row);
+      data.given = (data.given || []).filter((g) => g && g.id !== item.id).concat([item]);
+      data.givenGone = (data.givenGone || []).filter((id) => id !== item.id);
+      row.data = JSON.stringify(data);
+      await wixData.save(COLLECTION, row, { suppressAuth: true });
+      given.push(cid);
+    } catch (err) { refused.push(cid); }
+  }
+  return { ok: given.length > 0, given: given, refused: refused };
 });
 
 export const threadspireSaveMeta = webMethod(Permissions.Anyone, async (charId, patch) => {
