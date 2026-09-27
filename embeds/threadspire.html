@@ -369,6 +369,11 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .tsm-pick-row .tsm-pick{ flex:1; min-width:0; }
 .tsm-pick-del{ flex:0 0 auto; width:40px; border-radius:8px; border:1px solid var(--line2,#2a3552); background:var(--panel,#10162a); color:var(--muted,#7e8a99); font-size:.9rem; cursor:pointer; transition:border-color .12s, color .12s; }
 .tsm-pick-del:hover{ border-color:var(--danger,#8d3b3b); color:#e08a8a; }
+.give-hd{ display:flex; align-items:center; justify-content:space-between; margin-top:10px; }
+.give-all{ padding:4px 10px; font-size:.62rem; }
+.give-box{ width:18px; height:18px; border:1px solid var(--line2,#2a3552); border-radius:4px; display:inline-flex; align-items:center; justify-content:center; color:var(--gold); font-size:.75rem; flex:0 0 auto; }
+.give-pick.on .give-box{ border-color:var(--gold); }
+.give-btn{ margin-top:8px; }
 .tsm-pick-face{ width:34px; height:34px; border-radius:6px; object-fit:cover; border:1px solid var(--line2,#2a3552); flex:0 0 auto; }
 .tsm-back-locked{ cursor:default; }
 .tsm-pick-load{ padding:16px 4px; color:var(--muted,#7e8a99); font-family:Cinzel,serif; font-size:.78rem; letter-spacing:.04em; text-align:center; }
@@ -5370,7 +5375,92 @@ function beatCard(b){
     + '<div class="lmc-title">' + esc(b.title) + '</div>'
     + (b.img ? '<img class="lmc-img" src="' + esc(b.img) + '" alt="">' : '')
     + '<div class="lmc-body">' + esc(b.body) + '</div>'
-    + questBeatAction(b) + '</div>';
+    + questBeatAction(b) + giveBeatAction(b) + '</div>';
+}
+/* ---- Give to... ----
+   Any beat, whatever its kind, can be handed to the Fell at the table: all of them, or
+   whichever ones the LoreMaster ticks. It lands in each chosen Fell's Records on the Lore
+   tab, under the section picked here (defaulting from the beat's kind), and nobody else
+   sees it. The backend checks every Fell against the adventure it belongs to. */
+var GIVE_KINDS = [['quests','Quests'],['characters','Characters'],['clues','Clues'],['secrets','Secrets'],['notes','Notes']];
+function giveKindFor(kind){ return kind === 'quest' ? 'quests' : kind === 'clue' ? 'clues' : kind === 'secret' ? 'secrets' : kind === 'dialogue' ? 'characters' : 'notes'; }
+function giveBeatAction(b){
+  if (!isLM() || !b || !b.id) return '';
+  return '<button class="lmbtn give-btn" onclick="giveOpen(\'' + esc(String(b.id)) + '\')">Give to\u2026</button>';
+}
+function giveBeatById(id){
+  var list = (S.scene && S.scene.beats) || [];
+  for (var i = 0; i < list.length; i++) if (String(list[i].id) === String(id)) return list[i];
+  return null;
+}
+function giveParty(){
+  var seen = {};
+  return (S.party || []).filter(function(p){ if (!p || !p.charId || seen[p.charId]) return false; seen[p.charId] = true; return true; });
+}
+function giveOpen(beatId){
+  var b = giveBeatById(beatId); if (!b) return;
+  var party = giveParty();
+  window._give = { beatId: beatId, pick: {}, kind: giveKindFor(b.kind) };
+  if (!party.length && !_partyLoaded && !_partyLoading){ try { partyLoad(); } catch(e){} }
+  giveRender();
+}
+function giveRender(){
+  var g = window._give; if (!g) return;
+  var b = giveBeatById(g.beatId); if (!b){ tsCloseModal(); return; }
+  var party = giveParty();
+  var all = party.length && party.every(function(p){ return g.pick[p.charId]; });
+  var rows = party.length ? party.map(function(p){
+    var on = !!g.pick[p.charId];
+    return '<button class="tsm-pick give-pick' + (on ? ' on' : '') + '" onclick="giveToggle(\'' + esc(String(p.charId)) + '\')">'
+      + '<span class="give-box">' + (on ? '\u2713' : '') + '</span>'
+      + '<span class="tsm-pick-name">' + esc(p.charName || 'Fell') + '</span></button>';
+  }).join('') : '<div class="tsm-pick-load">' + (_partyLoading ? 'Finding the Fell at this table' : 'No Fell are in this adventure yet.') + '</div>';
+  var kinds = GIVE_KINDS.map(function(k){ return '<option value="' + k[0] + '"' + (k[0] === g.kind ? ' selected' : '') + '>' + k[1] + '</option>'; }).join('');
+  var n = party.filter(function(p){ return g.pick[p.charId]; }).length;
+  tsModal('<h3 class="tsm-title">Give: ' + esc(b.title || beatMeta(b.kind)[0]) + '</h3>'
+    + '<label class="tsm-lbl">Goes into their Records under</label>'
+    + '<select class="tsm-inp" onchange="window._give.kind=this.value">' + kinds + '</select>'
+    + '<div class="give-hd"><span class="tsm-lbl">Give it to</span>'
+    + (party.length ? '<button class="tsm-btn ghost give-all" onclick="giveAll()">' + (all ? 'Clear all' : 'Assign to all') + '</button>' : '') + '</div>'
+    + '<div class="tsm-pick-list">' + rows + '</div>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button>'
+    + '<button class="tsm-btn"' + (n ? '' : ' disabled') + ' onclick="giveNow()">Give' + (n ? ' to ' + n : '') + '</button></div>');
+}
+function giveToggle(cid){ var g = window._give; if (!g) return; g.pick[cid] = !g.pick[cid]; giveRender(); }
+function giveAll(){
+  var g = window._give; if (!g) return;
+  var party = giveParty(), all = party.every(function(p){ return g.pick[p.charId]; });
+  party.forEach(function(p){ g.pick[p.charId] = !all; });
+  giveRender();
+}
+function giveNow(){
+  var g = window._give; if (!g) return;
+  var b = giveBeatById(g.beatId); if (!b) return;
+  var party = giveParty();
+  var ids = party.filter(function(p){ return g.pick[p.charId]; }).map(function(p){ return p.charId; });
+  if (!ids.length) return;
+  var names = {}; party.forEach(function(p){ names[p.charId] = p.charName || 'Fell'; });
+  var entry = { id: 'beat:' + b.id, kind: g.kind, title: b.title || '', body: b.body || '', scene: (S.scene && S.scene.name) || '' };
+  tsModal('<h3 class="tsm-title">Giving...</h3>');
+  tsAsk('TS_GIVE', { charIds: ids, entry: entry }).then(function(r){
+    var got = (r && r.given) || [], no = (r && r.refused) || [];
+    /* each Fell that received it is told to read its record again */
+    S.sheetRev = S.sheetRev || {};
+    got.forEach(function(cid){ S.sheetRev[cid] = Date.now(); });
+    if (got.length) schedulePush();
+    window._give = null;
+    var kindName = (GIVE_KINDS.filter(function(k){ return k[0] === entry.kind; })[0] || ['', 'Records'])[1];
+    pushLog({ kind:'sys', html:'Gave <b>' + esc(entry.title || 'a note') + '</b> (' + esc(kindName) + ') to ' + esc(got.map(function(id){ return names[id]; }).join(', ') || 'nobody') + '.' });
+    if (no.length){
+      tsModal('<h3 class="tsm-title">Not everyone got it</h3>'
+        + '<p class="lc-p">It did not reach ' + esc(no.map(function(id){ return names[id] || 'a Fell'; }).join(', ')) + '. A Fell can only be given to from the adventure it is in.</p>'
+        + '<div class="tsm-row"><button class="tsm-btn" onclick="tsCloseModal()">OK</button></div>');
+    } else tsCloseModal();
+    render();
+  }).catch(function(){
+    tsModal('<h3 class="tsm-title">That did not go out</h3><p class="lc-p">Nobody received it. Try again in a moment. If this keeps happening, the ThreadSpire page code and the characters backend may need pasting again.</p>'
+      + '<div class="tsm-row"><button class="tsm-btn" onclick="giveRender()">Back</button></div>');
+  });
 }
 /* A quest is prep until it is offered. Running the beat is what puts it on the board. */
 function questBeatAction(b){

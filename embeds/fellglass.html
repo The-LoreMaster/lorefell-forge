@@ -411,6 +411,8 @@ h3{font-family:var(--head);font-weight:500;font-size:12px;letter-spacing:.12em;t
 .rec-plus:hover{border-color:var(--gold)}
 .rec-add input{flex:1;min-width:160px}
 .rec-empty{margin:0}
+.given-card{position:relative;padding-right:34px}
+.given-x{position:absolute;top:6px;right:8px;color:var(--silver-dim);font-size:13px;padding:2px 6px}
 .addline select,.addline input{flex:1;min-width:90px}
 .savebar{display:flex;gap:10px;justify-content:flex-end;margin-top:4px;align-items:center;flex-wrap:wrap}
 #saveState{font-size:14px;color:var(--silver-dim);font-style:italic;margin-right:auto}
@@ -2425,6 +2427,8 @@ function seedSheet(c){
     .forEach(function(k){ if(!Array.isArray(c[k])) c[k]=[]; });
   c.records=c.records||{};
   REC_KINDS.forEach(function(k){ if(!Array.isArray(c.records[k[0]])) c.records[k[0]]=[]; });
+  if(!Array.isArray(c.given)) c.given=[];
+  if(!Array.isArray(c.givenGone)) c.givenGone=[];
   if(typeof c.portrait!=="string") c.portrait="";
   c.created=!!c.created;
   return c;
@@ -4350,7 +4354,7 @@ let QUESTS=[]; let _questSig="";
 function renderQuests(){
   const w=$("quest-board"); if(!w) return; w.innerHTML="";
   if(!QUESTS.length) return;
-  w.appendChild(el("div","clue-hd","From the LoreMaster"));
+  w.appendChild(el("div","clue-hd","Quest board"));
   QUESTS.forEach(q=>{
     const card=el("div","clue-card"+(q.status==="complete"?" quest-done":""));
     if(q.title) card.appendChild(el("div","clue-title",q.title));
@@ -4390,10 +4394,28 @@ function startCluePolling(){
 document.addEventListener("visibilitychange",function(){ if(document.visibilityState==="visible") refreshClues(); });
 
 let recEditing=null; /* "category:index" while editing */
+/* What the LoreMaster gave this Fell, filed under its Records kind. The player may dismiss
+   one; the id goes on givenGone so the dismissal holds even against an older copy. */
+function renderGiven(cat){
+  const w=$("given-"+cat); if(!w) return; w.innerHTML="";
+  const list=(C.given||[]).filter(g=>g&&g.kind===cat);
+  if(!list.length) return;
+  w.appendChild(el("div","clue-hd","From the LoreMaster"));
+  list.forEach(g=>{
+    const card=el("div","clue-card given-card");
+    if(g.title) card.appendChild(el("div","clue-title",g.title));
+    if(g.body) card.appendChild(el("div","clue-body",g.body));
+    if(g.scene) card.appendChild(el("div","clue-scene","From "+g.scene));
+    const x=el("button","given-x","\u2715");x.title="Dismiss";
+    x.addEventListener("click",()=>{C.given=(C.given||[]).filter(e=>e.id!==g.id);C.givenGone=(C.givenGone||[]).concat([g.id]);renderRecords(cat);scheduleSave();});
+    card.appendChild(x);w.appendChild(card);
+  });
+}
 function renderRecords(cat){
+  try{renderGiven(cat);}catch(e){}
   const w=$("rec-"+cat);w.innerHTML="";
   const arr=C.records[cat];
-  if(!arr.length&&!((cat==="quests"&&QUESTS.length)||(cat==="clues"&&CLUES.length)))w.appendChild(el("p","note rec-empty","Nothing recorded yet."));
+  if(!arr.length&&!((cat==="quests"&&QUESTS.length)||(cat==="clues"&&CLUES.length)||(C.given||[]).some(g=>g&&g.kind===cat)))w.appendChild(el("p","note rec-empty","Nothing recorded yet."));
   arr.forEach((txt,idx)=>{
     const entry=el("div","status-entry");
     if(recEditing===cat+":"+idx){
@@ -4431,6 +4453,7 @@ function renderRecords(cat){
     hd.appendChild(plus);g.appendChild(hd);
     if(cat==="quests")g.appendChild(Object.assign(document.createElement("div"),{id:"quest-board"}));
     if(cat==="clues")g.appendChild(Object.assign(document.createElement("div"),{id:"clue-cards"}));
+    const giv=el("div");giv.id="given-"+cat;g.appendChild(giv);
     const list=el("div");list.id="rec-"+cat;g.appendChild(list);
     const line=el("div","addline rec-add");line.style.display="none";
     const inp=el("input");inp.id="add-"+cat;inp.placeholder=ph;
