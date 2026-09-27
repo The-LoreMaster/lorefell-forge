@@ -1579,6 +1579,30 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
   #win .wtitle{ font-size:.78rem; color:var(--gold); }
   #winX{ left:auto; right:4px; top:58px; bottom:auto; width:40px; height:40px; font-size:26px; z-index:63; background:transparent; border:none; }
   #winArt{ display:none !important; }
+  /* Joel's art is painted for a wide screen and does not survive a phone, so on a phone the
+     frame, the HUD art and the window art stand down, and the table is drawn plainly: a
+     navy field, the gold top bar and bottom rail, and the map itself. Desktop keeps the art. */
+  .artlayer{ display:none !important; }
+  #map{ background:var(--navy,#0a0f1c) !important; }
+  #mhud{ z-index:62; box-shadow:0 2px 14px rgba(0,0,0,.45); }
+  #mrail{ z-index:62; box-shadow:0 -2px 14px rgba(0,0,0,.45); }
+  #mhud .portrait{ background-size:cover; background-position:center; cursor:pointer; flex:none; }
+  #mhud .mid{ cursor:pointer; }
+  #mhud .pname{ color:#e8eef7; letter-spacing:.04em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #mhud .gem{ border:1.5px solid var(--gold); border-radius:8px; transform:rotate(45deg); background:#5a1f1f; display:flex; align-items:center; justify-content:center; flex:none; padding:0; }
+  #mhud .gem span{ transform:rotate(-45deg); color:#fff; font-family:Cinzel,serif; }
+  #mhud.lm .gem{ display:none; }
+  #mhud #mlog{ min-height:32px; }
+  #fellmarkM{ cursor:pointer; }
+  #fellmarkM.combat{ filter:drop-shadow(0 0 6px rgba(201,106,90,.9)); animation:fellpulse 1.15s ease-in-out infinite; }
+  #mrail button{ min-height:60px; }
+  .frame{ display:none; }                       /* the wooden edge drawn around the table */
+  /* the LoreMaster's scene runner: clear of the bottom rail, and a beat card as wide as the
+     phone rather than a little wider */
+  #lmstrip{ bottom:66px; }
+  #lmstrip .lm-stage{ width:100vw; }
+  .lm-topbar{ max-width:calc(100vw - 8px); flex-wrap:wrap; justify-content:center; row-gap:6px; }
+  .lmcard.beat{ width:calc(100vw - 16px); height:min(46vh, 420px); }
   #win.open{ background:var(--navy,#0a0f1c); border-top:1px solid var(--gold); }
   #win #sheetFrame{ border-radius:0; }
   #mhud{ position:fixed; top:0; left:0; right:0; height:56px; display:flex; align-items:center; gap:8px; padding:0 10px; background:rgba(10,14,26,.94); border-bottom:1px solid var(--gold); z-index:40; }
@@ -1685,11 +1709,11 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
     <div class="hslot hFell" id="hudFell" onclick="railClick(isLM()?'settings':'menu')" title="Menu"><img src="assets/fellmark-white.png" alt="Menu"></div>
   </div>
   <div id="mhud">
-    <div class="portrait" onclick="openWin('identity')"></div>
-    <div class="mid" onclick="openWin('identity')"><div class="pname">Acantha</div><div class="psub" id="mhudSub">Level 12</div></div>
-    <button id="mlog" onclick="openWin('log')" aria-label="Session log">Log</button>
-    <div class="gem" id="vitGemM"><span id="vitValM">70</span></div>
-    <div class="fmark" id="fellmarkM" role="button" aria-label="Fellmark"></div>
+    <div class="portrait" id="mhudPortrait" onclick="mhudWho()"></div>
+    <div class="mid" onclick="mhudWho()"><div class="pname"></div><div class="psub" id="mhudSub"></div></div>
+    <button id="mlog" onclick="railClick('log')" aria-label="Session log">Log</button>
+    <button class="gem" id="vitGemM" onclick="vitHudOpen()" aria-label="Vitality"><span id="vitValM"></span></button>
+    <div class="fmark" id="fellmarkM" role="button" aria-label="Menu" onclick="mhudMark()"></div>
   </div>
   <button id="winX" onclick="closeWin()" aria-label="Close">&times;</button>
   <div id="win">
@@ -5019,7 +5043,8 @@ function paintLmStrip(){
   try {
     var _tb = el.querySelector('.lm-topbar');
     var _card = el.querySelector('.lm-slot.center .lmcard.beat');
-    if (_tb && _card) _card.style.width = _tb.offsetWidth + 'px';
+    /* as wide as the toolbar above it, but never wider than the screen */
+    if (_tb && _card) _card.style.width = Math.min(_tb.offsetWidth, window.innerWidth - 16) + 'px';
   } catch(e){}
 }
 
@@ -8847,6 +8872,13 @@ function hudPortraitClick(){
 /* The name on the plaque is where a player reaches for to change who they are playing.
    Tapping it lists their Fells; choosing one takes it up the way the chooser does, into
    whatever adventure that Fell is in. The LoreMaster's plaque does nothing here. */
+/* The phone's top bar does what the desktop HUD does: the name swaps Fells, the gem is
+   vitality, and the Fellmark is the menu, or the fight while one is on. */
+function mhudWho(){ if (!isLM()) fellSwapOpen(); }
+function mhudMark(){
+  if (isLM()) { railClick('settings'); return; }
+  railClick(S.mode === 'combat' ? 'combat' : 'menu');
+}
 function fellSwapOpen(){
   if (isLM() || !tsEmbedded()) return;
   var draw = function(list, loading){
@@ -9271,6 +9303,12 @@ function paintHud(){
     } else { mhud.classList.remove('lm'); msub.textContent = 'Level ' + ((S.character && S.character.level) || 1);
       var mn2 = mhud.querySelector('.pname'); if (mn2) mn2.textContent = (S.character && S.character.name) || 'Fell';
     }
+    var mp = document.getElementById('mhudPortrait');
+    if (mp) mp.style.backgroundImage = 'url(' + artOr(isLM() ? ((S.lm && S.lm.portrait) || '') : ((S.character && S.character.portrait) || '')) + ')';
+    var mv = document.getElementById('vitValM');
+    if (mv && !isLM()){ var _c = S.character || {}; mv.textContent = ((_c.vit || 0) + (_c.tempVit || 0)) || ''; }
+    var fm = document.getElementById('fellmarkM');
+    if (fm) fm.classList.toggle('combat', !isLM() && S.mode === 'combat');
   }
 }
 var lmMapsOpen = false;

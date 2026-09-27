@@ -1,3 +1,11 @@
+## 2026-09-27 - Phones get a plain table; desktop keeps Joel's art
+
+Joel's art is painted for a wide screen and does not survive a phone. Under 700px wide, the frame art, the HUD art, the window art and the wooden table edge all stand down, and the map sits on a plain navy field between the gold top bar and the bottom rail, both lifted above everything and given a soft shadow. Desktop is unchanged.
+
+The phone top bar now works the way the desktop HUD does: the portrait and name open Switch Fell, the vitality gem opens the Vitality window and shows current plus temp, the Fellmark opens the menu or, in a fight, the fight (and pulses red while one is on), and Log opens the session log. It used to try to open an identity section that does not exist, and its name read Acantha until painted.
+
+The LoreMaster's scene runner on a phone sits clear of the bottom rail, its toolbar wraps to two lines, and the beat card, which copied the toolbar's width and so ran off both edges, is capped at the screen's width.
+
 ## 2026-09-27 - Loose ends: a clean check run, a new Fell's first save, and imports that do not collide
 
 npm run checks passes end to end again. adventure-source.test.js checked a fresh open in the same tick, but the stand-up now waits for the library so foes are hydrated first; the test waits for it. The code was right, the test was stale.
