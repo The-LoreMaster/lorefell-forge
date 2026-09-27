@@ -106,9 +106,19 @@ export const attachCharacter = webMethod(Permissions.Anyone, async (campaignId, 
     // redeem, so without it there is no attaching, even to a campaign you own.
     const mem = await wixData.query('AdventureMembers').eq('campaignId', campaignId).eq('memberId', mid).limit(1).find({ suppressAuth: true });
     if (!mem.items.length) return { ok: false, denied: true, error: 'Join through the invite link first.' };
+    // The row says which adventure, and so must the sheet's own record: the sheet reads
+    // identity.campaign and identity.campaignId from data, and attaching only the row left
+    // a joined Fell reading No adventure on its own Lore tab.
+    let name = '';
+    try { const c = await wixData.get('Campaigns', campaignId, { suppressAuth: true }); if (c && c.name) name = c.name; } catch (e) {}
     row.campaignId = campaignId;
+    row.campaign = name;
+    try {
+      const data = row.data ? JSON.parse(row.data) : null;
+      if (data) { data.identity = data.identity || {}; data.identity.campaignId = campaignId; data.identity.campaign = name; row.data = JSON.stringify(data); }
+    } catch (e) {}
     await wixData.update('Characters', row, { suppressAuth: true });
-    return { ok: true };
+    return { ok: true, campaignName: name };
   } catch (e) { return { ok: false, error: String(e) }; }
 });
 
