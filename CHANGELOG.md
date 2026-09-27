@@ -1,3 +1,7 @@
+## 2026-09-27 - Defenses leave Condition
+
+Durability and Resistance already show on the Attributes tab, so the Defenses block on Condition is hidden too (cond-cut). Condition is now the vitality controls and Status.
+
 ## 2026-09-27 - Condition shows nothing the strip or the cards already show
 
 Nate's rule for the tab: nothing the stat strip shows, and nothing the battle cards show. The Temp, Current and Max boxes, the vitality bar, the Charges diamonds and the Fatigue pips are hidden (cond-cut, renderers still run). What stays: the Damage, Heal and +Temp controls, the LoreMaster's max vitality control, Defenses, and Status.
