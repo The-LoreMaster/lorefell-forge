@@ -1,3 +1,7 @@
+## 2026-09-27 - Charges can be set from the strip and from above the cards
+
+With the diamonds gone from Condition, a player had no way left to set their own charges. Two places now do it, with one rule (chargeTap): tap the next tier to light it, tap a lit tier to drop back below it, tap a full set to clear it. The charge gems in the stat strip, on every tab, are live; the rest of the strip stays a readout. And ThreadSpire's card row has a small Charge bar at the right of its top line, which tells the sheet through a new ts-charge-tap message; the thin gems on each card still only show what the Fell has. checkContracts learns ts-charge-tap as a message from ThreadSpire to its sheet frame. Merged with skip ci so apply.yml leaves the live CMS alone; Pages, Seed Embeds and Contracts were run by hand.
+
 ## 2026-09-27 - Defenses leave Condition
 
 Durability and Resistance already show on the Attributes tab, so the Defenses block on Condition is hidden too (cond-cut). Condition is now the vitality controls and Status.

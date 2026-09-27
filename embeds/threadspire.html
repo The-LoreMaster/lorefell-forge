@@ -727,6 +727,11 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .hcard:hover{ border-color:rgba(201,168,76,.45); }
 .hcard:focus-visible{ outline:2px solid var(--gold); outline-offset:2px; }
 .hc-rail{ display:flex; gap:3px; margin-bottom:1px; }
+.hand-charge{ margin-left:auto; display:flex; align-items:center; gap:7px; padding:3px 9px; border-radius:10px; background:rgba(10,14,26,.85); border:1px solid rgba(201,168,76,.3); pointer-events:auto; }
+.hch-l{ font-family:Cinzel,serif; font-size:.55rem; letter-spacing:.12em; text-transform:uppercase; color:var(--muted,#7e8a99); }
+.hch-gem{ width:13px; height:13px; transform:rotate(45deg); border:1px solid rgba(201,168,76,.55); background:rgba(201,168,76,.08); padding:0; cursor:pointer; position:relative; }
+.hch-gem::after{ content:''; position:absolute; inset:-6px; }
+.hch-gem.on{ background:var(--gold); box-shadow:0 0 6px rgba(201,168,76,.6); }
 .hc-pip{ width:11px; height:3px; border-radius:2px; background:rgba(201,168,76,.16); }
 .hc-pip.on{ background:var(--gold); box-shadow:0 0 5px rgba(201,168,76,.5); }
 .hc-kick{ font-family:Cinzel,serif; font-size:.5rem; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); }
@@ -9353,6 +9358,12 @@ function tsHandRequest(){ sheet.postMessage({ type:'ts-hand-request' }); }
 /* The three charge gems, as the sheet lights them. Drawn on every card because what a
    card costs and what the Fell has are the same question, and a player should not have
    to look away from the card to answer it. */
+function handChargeBar(charge){
+  var h = '<span class="hand-charge" title="Tap to set your charges"><span class="hch-l">Charge</span>';
+  for (var i = 1; i <= 3; i++) h += '<button type="button" class="hch-gem' + ((charge || 0) >= i ? ' on' : '') + '" data-charge="' + i + '" aria-label="Charge tier ' + i + '"></button>';
+  return h + '</span>';
+}
+function handChargeTap(t){ sheet.postMessage({ type:'ts-charge-tap', tier:t }); }
 function handRail(charge){
   var h = '<span class="hc-rail">';
   for (var i = 1; i <= 3; i++) h += '<span class="hc-pip' + ((charge || 0) >= i ? ' on' : '') + '"></span>';
@@ -10299,14 +10310,18 @@ function renderHand(){
      cards, the red gem and the map all say a fight is on - and it sat where the first
      card wanted to be. The tabs come back only when there is a second group to choose
      BETWEEN, which is the one time a label is doing any work. */
-  var tabs = reactsOpen
-    ? '<div class="hand-tabs">'
-      + '<button type="button" class="hand-tab' + (handTab === 'act' ? ' on' : '') + '" data-tab="act">'
-        + 'Acts<span class="ht-n">' + acts.length + '</span></button>'
-      + '<button type="button" class="hand-tab' + (handTab === 'react' ? ' on' : '') + '" data-tab="react">'
-        + 'Reacts<span class="ht-n">' + reacts.length + '</span></button>'
-      + '</div>'
-    : '';
+  /* The row's top line: the Acts and Reacts tabs when there are two groups, and always the
+     Fell's charges, which the player can set right here. The gems on each card only show
+     what the Fell has; this is the one place above the cards that changes it. */
+  var tabs = '<div class="hand-tabs">'
+      + (reactsOpen
+        ? '<button type="button" class="hand-tab' + (handTab === 'act' ? ' on' : '') + '" data-tab="act">'
+          + 'Acts<span class="ht-n">' + acts.length + '</span></button>'
+        + '<button type="button" class="hand-tab' + (handTab === 'react' ? ' on' : '') + '" data-tab="react">'
+          + 'Reacts<span class="ht-n">' + reacts.length + '</span></button>'
+        : '')
+      + handChargeBar(charge)
+      + '</div>';
 
   var cards = group.length
     ? group.map(function(e, i){ return handCard(e, charge, handTab, i); }).join('')
@@ -10618,6 +10633,8 @@ function handSetTab(t){
     if (pk){ handPickKind(pk.getAttribute('data-pkind')); return; }
     var take = ev.target.closest && ev.target.closest('[data-ptake]');
     if (take){ handPickTake(take.getAttribute('data-ptake'), take.getAttribute('data-pskill') || ''); return; }
+    var chg = ev.target.closest && ev.target.closest('[data-charge]');
+    if (chg){ handChargeTap(Number(chg.getAttribute('data-charge')) || 0); return; }
     var tab = ev.target.closest && ev.target.closest('[data-tab]');
     if (tab){ handSetTab(tab.getAttribute('data-tab')); return; }
     var pg = ev.target.closest && ev.target.closest('[data-page]');
