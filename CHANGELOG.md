@@ -1,3 +1,7 @@
+## 2026-09-27 - page-threadspire.js imported listAssets twice
+
+The last change added an import of listAssets that the page already had, and a duplicate import is a syntax error in a module, so the page would not save in Velo. The extra line is gone. threadspire/tests/velo-syntax.test.js now parses every Velo file as an ES module, the way Velo loads it, and is part of npm run checks, so this kind of mistake is caught before a paste.
+
 ## 2026-09-27 - A LoreMaster sees their own adventures; deleting clears the library; forging can be cancelled
 
 listMyCampaigns now returns only adventures the member owns. Keeper roles on someone else's adventure no longer add it to the list, in FateWell or in ThreadSpire's picker. A lorekeeper still reaches an adventure they help run through its link or a cast: the ThreadSpire page's resolveCampaign now keeps a linked adventure when myAdventureRole says loremaster or lorekeeper, rather than swapping it for one of their own. Published adventures stay on the Adventures page.
