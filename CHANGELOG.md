@@ -1,3 +1,7 @@
+## 2026-09-27 - Phone top bar: portrait, gear, a proper full-screen icon, and the tabs in reading order
+
+The phone portrait showed a corner of the picture: a later phone rule used the background shorthand, which reset the size, so the image drew at full size inside a 38px circle. It covers the circle now. The full-screen button read as the literal text \u26f6; it is an icon, four corners out to go full screen and in to come back. The top-right button on a phone is Settings, so it wears a gear rather than the Fellmark, for players and now for the LoreMaster too (it opens their Settings; it was hidden for them). In a fight a player's gear still opens the fight and turns red. And the phone's bottom bar reads from the Fell outward, Lore, Attributes, Arsenal, Skills, Inventory, where desktop keeps its order.
+
 ## 2026-09-27 - No sample Fell on a phone, and the table fills the screen
 
 The page starts from a sample Fell (Acantha, level 12) for the offline prototype. The desktop HUD already waited for the player's own Fell before showing anything, but the phone top bar did not, so Acantha flashed up before the real Fell. The phone bar now stays blank until the player's Fell arrives, and it is hidden with the rest of the HUD while the role is still being decided.
