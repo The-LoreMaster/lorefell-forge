@@ -2151,6 +2151,25 @@ let MOTIVATION_DEFS=[
    All three: the Title, +3 to the attribute, and a new Motivation may be chosen. */
 const motSkills=def=>def?SKILLS[def.attr].map(x=>x[0]):[];
 const motByName=n=>MOTIVATION_DEFS.find(m=>m.name===n)||null;
+/* Nate's ruling: a Motivation also raises each of its attribute's three skills by 1 (The
+   Precise: Trickery, Presence, Finesse). grants.motSkillsFor names the Motivation whose
+   skills are credited, so the +1s land once per vow and never twice: a reload, a toggle, or
+   a Fell forged before this rule all settle to exactly one grant. Abandoning a vow returns
+   them. Claiming its Title keeps them, since the vow was fulfilled, not dropped. */
+function motGrantSkills(){
+  const d=motByName(C.identity&&C.identity.motivation);
+  if(!d||!C.grants)return false;
+  C.grants.skills=C.grants.skills||{};
+  if(C.grants.motSkillsFor)return false;   /* one vow credited at a time; abandon or a Title clears it */
+  motSkills(d).forEach(n=>{C.grants.skills[n]=(C.grants.skills[n]||0)+1;});
+  C.grants.motSkillsFor=d.name;
+  return true;
+}
+function motReturnSkills(){
+  const d=motByName(C.grants&&C.grants.motSkillsFor);
+  if(d)motSkills(d).forEach(n=>{C.grants.skills[n]=Math.max(0,(C.grants.skills[n]||0)-1);});
+  if(C.grants)C.grants.motSkillsFor="";
+}
 const skillIsLucky=name=>{
   const m=motByName(C.identity.motivation);
   return !!(m&&motSkills(m).includes(name)&&C.skills[name].mastery>=4);
@@ -2717,8 +2736,8 @@ $("f-motivation").addEventListener("change",e=>{
   /* Committing to a Motivation from an empty slot raises its Attribute by 1. Empty happens
      at the first pick and after a Title clears the old vow, so every new Motivation grants
      the point once, and toggling the field cannot farm it. */
-  if(!prev){ const nd=motByName(next); if(nd){ C.grants.attrs[nd.attr]=(C.grants.attrs[nd.attr]||0)+1; } }
-  renderMotivation();renderDials();renderStrip();syncIdentityLock();scheduleSave();
+  if(!prev){ const nd=motByName(next); if(nd){ C.grants.attrs[nd.attr]=(C.grants.attrs[nd.attr]||0)+1; motGrantSkills(); } }
+  renderMotivation();renderDials();renderSkills();renderStrip();syncIdentityLock();scheduleSave();
 });
 /* Portrait is downscaled to a small JPEG and stored on the character, so it
    travels through save messages; the Velo side moves it into the Media Manager
@@ -3172,7 +3191,7 @@ function ccApply(){
      everything from the track, origin, and lineage, and it stacks with each new Motivation
      taken up after a Title. */
   const _motDef=motByName(C.identity.motivation);
-  if(_motDef)addAttr(_motDef.attr);
+  if(_motDef){addAttr(_motDef.attr);motGrantSkills();}
   if(CC&&CC.forge)C.forge=CC.forge;
   C.identity.campaign=C.identity.campaign||"";
   C.identity.campaignId=C.identity.campaignId||"";
@@ -4818,6 +4837,7 @@ function renderMotivation(){
     claim.addEventListener("click",()=>{
       C.titles.push(m.title);
       C.attrs[m.attr].base+=3;
+      if(C.grants)C.grants.motSkillsFor="";   /* the vow's skill points are kept, it was fulfilled */
       C.identity.motivation="";
       $("f-motivation").value="";
       window._motivationJustClaimed=true;
@@ -4853,10 +4873,11 @@ function abandonMotivation(){
   if(!cur) return;
   const nd=motByName(cur);
   if(nd){ C.grants.attrs[nd.attr]=Math.max(0,(C.grants.attrs[nd.attr]||0)-1); }
+  motReturnSkills();
   C.identity.motivation="";
   const sel=$("f-motivation"); if(sel) sel.value="";
   window._motivationJustClaimed=false;
-  renderMotivation();renderDials();renderWeapons();renderBattle();renderStrip();
+  renderMotivation();renderDials();renderSkills();renderWeapons();renderBattle();renderStrip();
   syncIdentityLock();
   scheduleSave();
 }
@@ -4972,6 +4993,8 @@ function loadCharacter(rec){
   setLoading(true,"loadCharacter");
   clearTimeout(saveTimer); saveTimer=null;   // drop any save queued for the previous character
   C=seedSheet(rec);
+  /* a Fell forged before Motivations granted skills gets its +1s once, and saves them */
+  const _motBackfill=motGrantSkills();
   $("f-name").value=(C.identity&&C.identity.name)||"";
   $("f-desc").value=(C.identity&&C.identity.desc)||"";
   /* These three were painted only when the libraries arrived and by the forging wizard,
@@ -4989,7 +5012,7 @@ function loadCharacter(rec){
   renderAll();
   try { renderMotivation(); syncIdentityLock(); } catch(e){}
   // release the guard after this tick, once all programmatic field writes have settled
-  setTimeout(function(){ setLoading(false); },0);
+  setTimeout(function(){ setLoading(false); if(_motBackfill) scheduleSave(); },0);
 }
 /* A new character opens the forging immediately, but only once we know it
    IS new: either Velo says so, or no bridge message arrives at all

@@ -1,3 +1,7 @@
+## 2026-09-27 - A Motivation raises its three skills too
+
+Nate's ruling: choosing a Motivation raises its attribute by 1 and each of that attribute's three skills by 1 (The Precise: Trickery, Presence, Finesse). FellGlass granted the attribute only. The skill points now land at character creation and whenever a new Motivation is taken up, as the same kind of grant Origin skills use. grants.motSkillsFor records which vow's skills are credited, so they land once and never twice, however often the Fell is reloaded or the field is touched. Abandoning a vow returns them with the attribute point. Claiming its Title keeps them. A Fell forged before this change is credited once when it next loads, and saved.
+
 ## 2026-09-27 - The crystal picker says only what it needs to
 
 Nate's call: players do not need the instruction paragraph under "You hold N Ascension Crystals". The picker is now the title, the count with its steppers, and the Level X to Level Y line.
