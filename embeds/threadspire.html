@@ -731,6 +731,12 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .hch-l{ font-family:Cinzel,serif; font-size:.55rem; letter-spacing:.12em; text-transform:uppercase; color:var(--muted,#7e8a99); }
 .hch-gem{ width:13px; height:13px; transform:rotate(45deg); border:1px solid rgba(201,168,76,.55); background:rgba(201,168,76,.08); padding:0; cursor:pointer; position:relative; }
 .hch-gem::after{ content:''; position:absolute; inset:-6px; }
+.hand-fat{ margin-left:auto; margin-right:6px; }
+.hand-fat + .hand-charge{ margin-left:0; }
+.hf-b{ width:18px; height:18px; border:1px solid rgba(201,168,76,.45); border-radius:50%; color:var(--gold); font-size:.8rem; line-height:1; padding:0; display:inline-flex; align-items:center; justify-content:center; }
+.hf-b:disabled{ opacity:.3; }
+.hf-v{ font-family:Cinzel,serif; font-size:.6rem; letter-spacing:.08em; text-transform:uppercase; color:var(--silver); min-width:64px; text-align:center; }
+.hf-v.on{ color:#e3a193; }
 .hch-gem.on{ background:var(--gold); box-shadow:0 0 6px rgba(201,168,76,.6); }
 .hc-pip{ width:11px; height:3px; border-radius:2px; background:rgba(201,168,76,.16); }
 .hc-pip.on{ background:var(--gold); box-shadow:0 0 5px rgba(201,168,76,.5); }
@@ -9364,6 +9370,19 @@ function handChargeBar(charge){
   return h + '</span>';
 }
 function handChargeTap(t){ sheet.postMessage({ type:'ts-charge-tap', tier:t }); }
+/* Fatigue beside it, stepped with - and +, since it runs to five ranks rather than three
+   gems. The name is the rank; a Drained or Overwhelmed Fell sees their cards grey out as
+   soon as the sheet answers. */
+function handFatigueBar(hand){
+  if (!hand || typeof hand.fatigue !== 'number') return '';
+  var f = hand.fatigue;
+  return '<span class="hand-charge hand-fat" title="Your Fatigue">'
+    + '<span class="hch-l">Fatigue</span>'
+    + '<button type="button" class="hf-b" data-fatigue="-1"' + (f <= 0 ? ' disabled' : '') + ' aria-label="Less fatigue">\u2212</button>'
+    + '<span class="hf-v' + (f > 0 ? ' on' : '') + '">' + esc(hand.fatigueName || String(f)) + '</span>'
+    + '<button type="button" class="hf-b" data-fatigue="1"' + (f >= 5 ? ' disabled' : '') + ' aria-label="More fatigue">+</button></span>';
+}
+function handFatigueStep(d){ sheet.postMessage({ type:'ts-fatigue-step', delta:d }); }
 function handRail(charge){
   var h = '<span class="hc-rail">';
   for (var i = 1; i <= 3; i++) h += '<span class="hc-pip' + ((charge || 0) >= i ? ' on' : '') + '"></span>';
@@ -10320,6 +10339,7 @@ function renderHand(){
         + '<button type="button" class="hand-tab' + (handTab === 'react' ? ' on' : '') + '" data-tab="react">'
           + 'Reacts<span class="ht-n">' + reacts.length + '</span></button>'
         : '')
+      + handFatigueBar(hand)
       + handChargeBar(charge)
       + '</div>';
 
@@ -10633,6 +10653,8 @@ function handSetTab(t){
     if (pk){ handPickKind(pk.getAttribute('data-pkind')); return; }
     var take = ev.target.closest && ev.target.closest('[data-ptake]');
     if (take){ handPickTake(take.getAttribute('data-ptake'), take.getAttribute('data-pskill') || ''); return; }
+    var fat = ev.target.closest && ev.target.closest('[data-fatigue]');
+    if (fat){ if (!fat.disabled) handFatigueStep(Number(fat.getAttribute('data-fatigue')) || 0); return; }
     var chg = ev.target.closest && ev.target.closest('[data-charge]');
     if (chg){ handChargeTap(Number(chg.getAttribute('data-charge')) || 0); return; }
     var tab = ev.target.closest && ev.target.closest('[data-tab]');
