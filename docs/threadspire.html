@@ -7205,10 +7205,10 @@ function tsAdvPickerMarkup(rows, loading){
   } else {
     body = rows.map(function(c){
       var on = sameId(c.id, cur);
-      return '<button class="tsm-pick' + (on ? ' on' : '') + '" onclick="tsPickAdventure(\'' + esc(c.id) + '\')">'
+      return '<div class="tsm-pick-row"><button class="tsm-pick' + (on ? ' on' : '') + '" onclick="tsPickAdventure(\'' + esc(c.id) + '\')">'
         + '<span class="tsm-pick-name">' + esc(c.name || 'Adventure') + '</span>'
         + (on ? '<span class="tsm-pick-cur">open now</span>' : '')
-        + '</button>';
+        + '</button><button class="tsm-pick-del" title="Delete this adventure" aria-label="Delete ' + esc(c.name || 'adventure') + '" onclick="advDeleteAsk(\'' + esc(c.id) + '\')">\u2715</button></div>';
     }).join('');
   }
   return '<h3 class="tsm-title">Open an adventure</h3>'
@@ -7216,6 +7216,39 @@ function tsAdvPickerMarkup(rows, loading){
     + '<div class="tsm-pick-list">' + body + '</div>'
     + '<div class="tsm-row tsm-row-spread"><button class="tsm-btn ghost" onclick="advNewHere(true)">New adventure</button>'
     + '<button class="tsm-btn ghost" onclick="tsImportAdventure(true)">Import adventure</button></div>';
+}
+/* Deleting an adventure from the picker. It asks first, by name, because it takes the story
+   and every scene with it for everyone. Only an adventure this LoreMaster owns can go; the
+   site refuses the rest. Deleting the one on the table puts the table down and asks which
+   to open instead. */
+function advNameOf(id){
+  var n = 'this adventure';
+  (Array.isArray(S._advList) ? S._advList : []).forEach(function(c){ if (sameId(c.id, id)) n = c.name || n; });
+  return n;
+}
+function advDeleteAsk(id){
+  if (!id || !isLM()) return;
+  window._advDel = id;
+  tsModalLocked('<h3 class="tsm-title">Delete ' + esc(advNameOf(id)) + '?</h3>'
+    + '<p class="lc-p">The adventure, its acts, sessions and scenes are gone for everyone. Players keep their Fells. This cannot be undone.</p>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsAdventurePicker()">Keep it</button>'
+    + '<button class="tsm-btn danger" onclick="advDeleteNow()">Delete it</button></div>');
+}
+function advDeleteNow(){
+  var id = window._advDel; window._advDel = null;
+  if (!id) return;
+  var nm = advNameOf(id), wasOpen = sameId(id, S.campaignId);
+  tsModalLocked('<h3 class="tsm-title">Deleting ' + esc(nm) + '...</h3>');
+  tsAsk('TS_ADVENTURE_DELETE', { campaignId:id }).then(function(){
+    S._advList = (Array.isArray(S._advList) ? S._advList : []).filter(function(c){ return !sameId(c.id, id); });
+    if (wasOpen){ try { advReset(''); } catch(e){} _advSwitching = false; advGoingStop(); }
+    tsAdventurePicker();
+  }).catch(function(err){
+    var why = String((err && err.message) || '');
+    tsModalLocked('<h3 class="tsm-title">' + esc(nm) + ' was not deleted</h3>'
+      + '<p class="lc-p">' + (/owned by another/.test(why) ? 'It belongs to another LoreMaster. Only its owner can delete it.' : 'Nothing changed. Try again in a moment. If this keeps happening, the ThreadSpire page code may need pasting again.') + '</p>'
+      + '<div class="tsm-row"><button class="tsm-btn" onclick="tsAdventurePicker()">Back</button></div>');
+  });
 }
 function tsAdventurePicker(){
   // Open at once, with a loading line, then fill in as the list arrives. Waiting for the list
