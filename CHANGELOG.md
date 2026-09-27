@@ -1,3 +1,7 @@
+## 2026-09-27 - The speaker's face while their Dialogue beat is up
+
+On a Dialogue beat the LoreMaster's portrait and name on the right should become the NPC speaking it, and go back after. Every beat card set the speaker as it was drawn, including the cards either side of the centre, and nothing ever set it back, so the portrait could show a neighbouring beat's speaker and keep it. lmSyncSpeaker now follows the centred beat only, on every repaint of the scene runner: a Dialogue beat with a speaker shows them, anything else, and leaving the scene for a fight, returns the LoreMaster's own portrait and name. The phone top bar follows it too.
+
 ## 2026-09-27 - LoreMaster's Notes, and the Seal closed to lorekeepers
 
 A LoreMaster's Notes card sits under the Sealed Past on the Lore tab: how the LoreMaster means to handle the player and their lore. It saves a moment after typing stops, through a new seal-notes message, TS_LM_NOTES_SAVE and lmNotesSave, into the same row field as the Sealed Past, beside it, so weaving a seal anew leaves the notes alone. It is never on the sheet's record.
