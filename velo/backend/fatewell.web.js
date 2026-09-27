@@ -76,17 +76,10 @@ export const listMyCampaigns = webMethod(Permissions.Anyone, async () => {
       out.push({ id: it._id, name: it.name || 'Adventure', data: data, role: 'loremaster' });
     });
   } catch (e) {}
-  try {
-    const km = await wd.query('AdventureMembers').eq('memberId', id).hasSome('role', ['loremaster', 'lorekeeper']).limit(100).find({ suppressAuth: true });
-    for (const m of km.items) {
-      if (!m.campaignId || seen[m.campaignId]) continue;
-      const c = await wd.get(COLLECTION, m.campaignId, { suppressAuth: true }).catch(() => null);
-      if (!c) continue;
-      seen[m.campaignId] = 1;
-      let data = {}; try { data = c.data ? unpackCampaignData(JSON.parse(c.data)) : {}; } catch (e) { data = {}; }
-      out.push({ id: c._id, name: c.name || 'Adventure', data: data, role: m.role || 'lorekeeper' });
-    }
-  } catch (e) {}
+  // Nate's rule: a LoreMaster's list is their own adventures and nobody else's. Keeper roles
+  // on other people's adventures no longer add them here; a lorekeeper still reaches one they
+  // help run through its link or a cast, where myAdventureRole decides. Published adventures
+  // are found on the Adventures page, not here.
   return out;
 });
 

@@ -148,8 +148,10 @@ body.god .god-lock{pointer-events:auto;opacity:1}
 .stat-cell .minigems{display:flex;justify-content:center;gap:6px;padding:4px 0 3px}
 .stat-cell.stat-fat,.stat-cell.stat-vit,.stat-cell.stat-mob,.stat-cell.stat-lvl{pointer-events:auto;cursor:pointer}
 .stat-cell.stat-mob:hover .v,.stat-cell.stat-lvl:hover .v{color:var(--gold)}
-.stat-cell .v.rolled{color:var(--gold);animation:mobpop .5s ease}
-@keyframes mobpop{0%{transform:scale(.6);opacity:.2}60%{transform:scale(1.25)}100%{transform:scale(1)}}
+.mob-toast{position:absolute;left:50%;top:100%;transform:translateX(-50%);margin-top:4px;z-index:61;background:var(--navy-2);border:1px solid var(--gold);border-radius:10px;padding:6px 12px;font-family:var(--head);font-size:12px;letter-spacing:.06em;color:var(--silver);opacity:0;pointer-events:none;transition:opacity .25s}
+.mob-toast.on{opacity:1}
+.mob-toast b{color:var(--gold);font-size:15px}
+.mt-mark{color:var(--gold)}.mt-strike{color:var(--danger)}
 section.card.flash{animation:cardflash 1.4s ease}
 @keyframes cardflash{0%,40%{box-shadow:0 0 0 2px var(--gold),0 0 22px rgba(201,168,76,.4)}100%{box-shadow:none}}
 .dial.fatigued .v{color:var(--danger)}
@@ -2686,10 +2688,14 @@ function mobilityRoll(){
   if(document.body.classList.contains("tsembed")){
     try{ window.parent.postMessage({type:"ts-sheet-roll",rollType:"mobility",n:n,mods:[{label:"Mobility",value:m}],total:total},"*"); }catch(e){}
   }
-  const cell=document.querySelector(".stat-mob .v");
-  if(cell){ cell.textContent=total; cell.classList.remove("rolled");void cell.offsetWidth;cell.classList.add("rolled");
-    clearTimeout(window._mobT); window._mobT=setTimeout(()=>{cell.classList.remove("rolled");renderStrip();},2600); }
-  if(!document.body.classList.contains("tsembed")) edgeGlow(n===6?"rgba(201,168,76,.85)":n===1?"rgba(201,106,90,.8)":"rgba(158,203,224,.6)");
+  /* The strip keeps showing Mobility. On its own page, with no table to throw on, the roll
+     shows for a moment in a small note under the strip instead. */
+  if(!document.body.classList.contains("tsembed")){
+    let t=$("mobToast"); if(!t){ t=el("div","mob-toast");t.id="mobToast";document.querySelector("header").appendChild(t); }
+    t.innerHTML='Mobility roll: '+n+' + '+m+' = <b>'+total+'</b>'+(n===6?' <span class="mt-mark">Fellmark</span>':n===1?' <span class="mt-strike">Fellstrike</span>':'');
+    t.classList.remove("on");void t.offsetWidth;t.classList.add("on");
+    clearTimeout(window._mobT); window._mobT=setTimeout(()=>t.classList.remove("on"),3200);
+  }
 }
 function levelJump(){
   switchPanel("lore");
@@ -2995,7 +3001,16 @@ function ccOpen(){
   ccRender();
   $("ccModal").classList.add("open");
 }
-function ccClose(){CC=null;$("ccModal").classList.remove("open");}
+function ccClose(){
+  CC=null;$("ccModal").classList.remove("open");
+  if(window._creating && !window._ccApplied){
+    /* cancelled: put back the Fell that was open before, rather than leaving an empty one */
+    window._creating=false;
+    const prev=window._preNew&&window._preNew.id; window._preNew=null;
+    clearTimeout(saveTimer); saveTimer=null;
+    if(prev){ setLoading(true,"restore"); postToVelo({type:"select-character",charId:prev}); }   /* setLoading has its own watchdog if the page never answers */
+  }
+}
 /* Open creation pre-filled from a forged Fell. Lineage, origin, motivation, name,
    and description carry over. The player still makes the choices the forge does not
    decide: the starting weapon and infusion, or the lorebound type. If the live
@@ -3261,6 +3276,7 @@ function ccRender(){
   }
 }
 function ccApply(){
+  window._ccApplied=true;
   const addSkill=n=>{C.grants.skills[n]=(C.grants.skills[n]||0)+1;};
   const addAttr=a=>{C.grants.attrs[a]=(C.grants.attrs[a]||0)+1;};
   if(CC.path==="custom"){
@@ -3314,6 +3330,7 @@ function ccApply(){
   C.created=true;
   syncIdentityLock();
   ccClose();
+  window._creating=false; window._ccApplied=false; window._preNew=null;
   grantSummary();
   renderLore();renderDials();renderVit();renderWeapons();renderArmor();renderLorebounds();renderSkills();renderBattle();renderStrip();
   scheduleSave();
@@ -4784,6 +4801,7 @@ function saveAck(d){
 }
 function scheduleSave(){
   if(LOADING) return;            // never save while a character is loading in
+  if(window._creating) return;   // an unfinished forging is not a Fell yet
   clearTimeout(saveTimer);
   saveFailWhy="";
   $("saveState").classList.remove("bad");
@@ -7122,7 +7140,11 @@ window.onmessage=ev=>{
   bridged=true;
   if(d.type==="init"||d.type==="new")hideCover();
   if(d.type==="new"&&!d.character){
-    /* nothing was handed over, so nothing is kept. Whatever Fell was here goes. */
+    /* Building a new Fell. The one in hand is remembered, nothing is saved while the forge
+       is open, and cancelling brings that Fell straight back. Only a finished forging
+       becomes a new record, and the sheet then moves onto it. */
+    window._preNew = CUR_WIX_ID ? { id: CUR_WIX_ID } : null;
+    window._creating = true; window._ccApplied = false;
     flushBeforeSwitch();
     setLoading(true,"new"); clearTimeout(saveTimer); saveTimer=null;
     CUR_WIX_ID=d.charId||""; CUR_LOCAL_ID=uid();
