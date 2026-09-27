@@ -134,6 +134,9 @@ body.god .god-only{display:initial}
 body.god .god-lock{pointer-events:auto;opacity:1}
 /* stat strip */
 .statstrip{display:flex;border-top:1px solid var(--line)}
+#tsSubtabs{display:flex;flex-wrap:wrap;gap:6px;padding:8px 12px;border-top:1px solid var(--line)}
+.ts-subtab{border:1px solid var(--line2,#2a3552);background:transparent;color:var(--silver);font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.08em;text-transform:uppercase;padding:5px 11px;border-radius:6px;cursor:pointer}
+.ts-subtab.on{border-color:var(--gold);color:var(--gold)}
 .stat-cell{flex:1;text-align:center;padding:6px 2px;border-right:1px solid var(--line);background:none;min-width:0}
 .stat-cell:last-child{border-right:none}
 .stat-cell .v{font-family:var(--head);font-size:17px;font-weight:600;color:var(--silver);line-height:1.1}
@@ -2532,6 +2535,20 @@ function switchPanel(name){
   /* The sheet can change its own panel (the stat strip jumps), so tell ThreadSpire which
      panel is showing and its tab bar stays lit on the right one. */
   if(document.body.classList.contains("tsembed")){ try{ window.parent.postMessage({type:"sheet-panel",panel:name},"*"); }catch(e){} }
+  tsPaintSubtabs(name);
+}
+/* ThreadSpire's Arsenal tabs, drawn under the stat strip so the name and stats stay on top
+   the way they do on every other panel. Navigation only: ThreadSpire sends which tabs, the
+   sheet draws them and switches. Empty or absent everywhere else, and never standalone. */
+var TS_SUB=null;
+function tsPaintSubtabs(active){
+  var hd=document.querySelector("header"); if(!hd) return;
+  var row=document.getElementById("tsSubtabs");
+  if(!TS_SUB||!TS_SUB.tabs||!TS_SUB.tabs.length){ if(row) row.remove(); return; }
+  if(!row){ row=document.createElement("div"); row.id="tsSubtabs"; hd.appendChild(row); }
+  var on=active||TS_SUB.active;
+  row.innerHTML=TS_SUB.tabs.map(function(t){ return '<button class="ts-subtab'+(t[0]===on?' on':'')+'" data-panel="'+t[0]+'">'+t[1]+'</button>'; }).join("");
+  row.querySelectorAll(".ts-subtab").forEach(function(b){ b.addEventListener("click",function(){ switchPanel(b.getAttribute("data-panel")); }); });
 }
 function buildHub(current){
   const g=$("hubGrid");g.innerHTML="";
@@ -6619,6 +6636,12 @@ function cbDeclare(){
 window.onmessage=ev=>{
   const d=ev&&ev.data;
   if(!d||typeof d!=="object"||!d.type)return;
+  if(d.type==="ts-subtabs"){
+    TS_SUB = (d.tabs&&d.tabs.length) ? { tabs:d.tabs, active:d.active } : null;
+    var cur=(document.querySelector(".panel.active")||{}).id||"";
+    tsPaintSubtabs(d.active||cur.replace("panel-",""));
+    return;
+  }
   if(d.type==="goto-panel"){
     if(d.panel){
       window._tsPanel=d.panel;

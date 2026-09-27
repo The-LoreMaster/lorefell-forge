@@ -558,6 +558,8 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .ts-newfell:active{ background:var(--gold); color:var(--navy); }
 #sheetSub{ display:none; gap:6px; padding:8px 12px; border-bottom:1px solid var(--line); flex-wrap:wrap; }
 #win.arsenal.sheeting #sheetSub{ display:flex; }
+/* the player's Arsenal tabs are drawn inside the sheet, under the name and stat strip */
+#win.arsenal.sheeting.subinsheet #sheetSub{ display:none; }
 .subtab{ border:1px solid var(--line2,#2a3552); background:transparent; color:var(--silver); font-family:Cinzel,serif; font-size:.6rem; letter-spacing:.08em; text-transform:uppercase; padding:5px 11px; border-radius:6px; cursor:pointer; }
 .subtab.on{ border-color:var(--gold); color:var(--gold); }
 #lmstrip.hidden{ display:none; }
@@ -4685,7 +4687,8 @@ function openWin(key){
   /* start from nothing every time. A window left in sheet mode shows the frame and hides
      the body, so whatever is written into the body afterwards is written out of sight,
      and the section reads as though it never opened. */
-  win.classList.remove('sheeting'); win.classList.remove('arsenal');
+  win.classList.remove('sheeting'); win.classList.remove('arsenal'); win.classList.remove('subinsheet');
+  sheetSubtabs(null);
   /* The fight is the sheet too, but it is not one of the sheet's tabs - it is the combat
      banner, which the sheet shows only when this asks for it. Same iframe, same seam, one
      more thing it can be asked to show. */
@@ -4697,7 +4700,7 @@ function openWin(key){
   }
   else if (panel){
     ensureSheet(); win.classList.add('sheeting');
-    if (key === 'arsenal'){ win.classList.add('arsenal'); renderSheetSub('weapons'); sheetGoto('weapons'); }
+    if (key === 'arsenal'){ win.classList.add('arsenal'); win.classList.add('subinsheet'); sheetSubtabs('weapons'); sheetGoto('weapons'); }
     else { win.classList.remove('arsenal'); sheetGoto(panel); }
   }
   else {
@@ -4735,7 +4738,8 @@ function closeWin(){
   S.openSection = null;
   document.body.classList.remove('winopen');
   if (window._lmPrevMin !== undefined){ lmMin = window._lmPrevMin; window._lmPrevMin = undefined; }
-  var win = document.getElementById('win'); win.classList.remove('open'); win.classList.remove('sheeting'); win.classList.remove('arsenal'); win.style.height = ''; win.style.bottom = '';
+  var win = document.getElementById('win'); win.classList.remove('open'); win.classList.remove('sheeting'); win.classList.remove('arsenal'); win.classList.remove('subinsheet'); win.style.height = ''; win.style.bottom = '';
+  sheetSubtabs(null);
   var _wa=document.getElementById('winArt'); if(_wa) _wa.style.display='none';
   var _wx=document.getElementById('winX'); if(_wx) _wx.style.display='none';
   paintRails(); paintSelectArt();
@@ -9117,6 +9121,17 @@ function renderSheetSub(active){
   el.innerHTML = ARSENAL_TABS.map(function(t){ return '<button class="subtab' + (t[0]===active?' on':'') + '" onclick="sheetSubGoto(\'' + t[0] + '\')">' + t[1] + '</button>'; }).join('');
 }
 function sheetSubGoto(panel){ sheetGoto(panel); renderSheetSub(panel); }
+/* The player's Arsenal tabs sit inside the sheet, under the name and stat strip, the way
+   every other panel reads: who, then the stats, then the choice. ThreadSpire decides which
+   tabs; the sheet only draws them and switches panels. null clears them. Only the latest
+   request matters, so an older one still waiting for the sheet is dropped. */
+var _sheetSubState = null;
+function sheetSubtabs(active){
+  _sheetSubState = active ? { tabs: ARSENAL_TABS, active: active } : null;
+  if (!_sheetLoaded && !active) return;
+  sheet.queue = sheet.queue.filter(function(m){ return m.type !== 'ts-subtabs'; });
+  sheet.postMessage({ type:'ts-subtabs', tabs: active ? ARSENAL_TABS : [], active: active || '' });
+}
 function sheetSetHeight(h){ /* fixed 610x940 window for now; auto-size disabled */ }
 /* ---- the player's hand ----
    What this Fell can do this round: their Acts, their Reacts, what a charge has locked
@@ -10505,6 +10520,8 @@ window.addEventListener('message', function(ev){
       sheet.ready = true;
       sheet.flush();
       if (S.sheetPanel) sheet.postMessage({ type:'goto-panel', panel:S.sheetPanel });
+      /* a reloaded sheet forgets its Arsenal tabs; hand them back if Arsenal is open */
+      if (_sheetSubState) sheetSubtabs(S.sheetPanel || _sheetSubState.active);
       /* The LoreMaster always holds the hand on a Fell sheet in ThreadSpire - there is no
          toggle, it is simply what running the table means. godChar is a specific player's Fell
          being held open; either way the sheet comes up under the LoreMaster's control. */
