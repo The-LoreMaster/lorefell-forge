@@ -146,6 +146,9 @@ body.god .god-lock{pointer-events:auto;opacity:1}
 .stat-cell .v{font-family:var(--head);font-size:17px;font-weight:600;color:var(--silver);line-height:1.1}
 .stat-cell .l{font-family:var(--head);font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:var(--silver-dim)}
 .stat-cell .minigems{display:flex;justify-content:center;gap:6px;padding:4px 0 3px}
+/* the charge gems are the one live part of the strip: a player sets charges from any tab */
+.stat-cell .minigems .minigem{pointer-events:auto;cursor:pointer;padding:0;position:relative}
+.stat-cell .minigems .minigem::after{content:"";position:absolute;inset:-7px -4px}
 .minigem{width:11px;height:11px;transform:rotate(45deg);border:1px solid var(--line);border-radius:2px;background:var(--navy-3)}
 .minigem.charged{border-color:var(--gold);background:var(--gold);box-shadow:0 0 5px rgba(201,168,76,.5)}
 
@@ -2654,7 +2657,12 @@ function renderStrip(){
   $("stripFatigue").style.color=C.fatigue>0?"var(--danger)":"var(--silver)";
   $("headLevel").textContent="Level "+C.lore.level;
   const g=$("stripGems");g.innerHTML="";
-  for(let t=1;t<=3;t++)g.appendChild(el("span","minigem"+(C.charge>=t?" charged":"")));
+  for(let t=1;t<=3;t++){
+    const m=el("button","minigem"+(C.charge>=t?" charged":""));
+    m.type="button";m.title="Charge T"+t;m.setAttribute("aria-label","Charge tier "+t);
+    m.addEventListener("click",()=>chargeTap(t));
+    g.appendChild(m);
+  }
 }
 
 /* ---------- god mode ---------- */
@@ -3581,17 +3589,24 @@ document.querySelectorAll("[data-god]").forEach(b=>b.addEventListener("click",()
 }));
 
 /* ---------- charges ---------- */
+/* One rule for every place a player can touch their charges: the Condition diamonds, the
+   gems in the stat strip, and the gem bar over ThreadSpire's cards. Tap the next tier to
+   light it, tap a lit tier to drop back below it, and a tap on a full set clears it. */
+function chargeTap(t){
+  t=Number(t)||0; if(t<1||t>3) return;
+  if(C.charge===3)C.charge=0;
+  else if(t===C.charge+1)C.charge=t;
+  else if(t<=C.charge)C.charge=t-1;
+  else C.charge=t;
+  renderCharges();renderDials();renderWeapons();renderBattle();
+  scheduleSave();
+}
 function renderCharges(){
   const wrap=$("charges");wrap.innerHTML="";
   for(let t=1;t<=3;t++){
     const b=el("button","charge"+(C.charge>=t?" charged":""));
     b.innerHTML=`<span class="gem"></span><span class="t">T${t}</span>`;
-    b.addEventListener("click",()=>{
-      if(C.charge===3)C.charge=0;
-      else if(t===C.charge+1)C.charge=t;
-      else if(t<=C.charge)C.charge=t-1;
-      renderCharges();renderDials();renderWeapons();renderBattle();
-    });
+    b.addEventListener("click",()=>chargeTap(t));
     wrap.appendChild(b);
   }
   $("chargeHint").textContent=
@@ -6847,6 +6862,7 @@ function cbDeclare(){
 window.onmessage=ev=>{
   const d=ev&&ev.data;
   if(!d||typeof d!=="object"||!d.type)return;
+  if(d.type==="ts-charge-tap"){ chargeTap(d.tier); return; }
   if(d.type==="ts-subtabs"){
     TS_SUB = (d.tabs&&d.tabs.length) ? { tabs:d.tabs, active:d.active } : null;
     var cur=(document.querySelector(".panel.active")||{}).id||"";
