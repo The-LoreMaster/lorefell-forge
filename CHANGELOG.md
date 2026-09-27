@@ -1,3 +1,11 @@
+## 2026-09-27 - Loose ends: a clean check run, a new Fell's first save, and imports that do not collide
+
+npm run checks passes end to end again. adventure-source.test.js checked a fresh open in the same tick, but the stand-up now waits for the library so foes are hydrated first; the test waits for it. The code was right, the test was stale.
+
+A new Fell's first save was being logged and marked as an edit to the Fell in hand, since ThreadSpire credited every sheet save to S.characterId. A save for a different Fell, or for one with no id yet, is no longer counted against the one in hand. Cancelling a forging now also sets the window title back from NEW FELL to the section it was on.
+
+ThreadSpire's import kept the pack's foe and NPC ids, so importing the same pack twice made two adventures share library entries, and deleting either took the other's with it. Each import now remints those ids and every reference to them inside the adventure follows, the way FateWell's import does.
+
 ## 2026-09-27 - Tab pages and battle cards ready for phones
 
 An audit of every sheet tab at phone width (390px) and desktop found nothing spilling sideways; the trouble on a phone was size. On a touch screen or anything under 600px wide, the sheet's controls grow to a thumb's size: steppers and dial buttons 36px, small buttons 34px, record and Remnant + buttons 34px, skill pips 22px with wider gaps, inputs 40px at 16px type (which also stops phones zooming on focus), info buttons and charge gems given a larger hit area beyond their drawn shape, and the smallest labels up a step. Desktop with a mouse is unchanged.

@@ -76,6 +76,9 @@ const RAW = {
 
   js('S._advRemote=false; S.adventure=null;');
   js('(window.onmessage)({ data:{ type:"THREADSPIRE_CONTEXT", role:"lm", campaignId:"SnS", rawCampaign: window.__raw } });');
+  /* the stand-up waits for the library when it is not loaded yet, so foes are hydrated
+     before the spine is built; that is a promise, not a same-tick return */
+  await new Promise((r) => setTimeout(r, 300));
   check('a fresh open also stands up the story', js('S.adventure && S.adventure.name') === 'Stone and Sovereign', 'name=' + js('S.adventure && S.adventure.name'));
 
   console.log('\na live push still wins over the stored copy');

@@ -3323,9 +3323,21 @@ function tsReadPack(input){
 function tsImportPack(pack){
   var nm = (pack.campaign && pack.campaign.name) || 'Imported adventure';
   tsCloseModal(); advGoing(nm);
+  /* Every import gets its own copies of the pack's foes and NPCs. Their ids are reminted and
+     every reference to them inside the adventure follows, the way FateWell's import does, so
+     importing the same pack twice makes two independent adventures: deleting one no longer
+     takes the other's library entries with it, and editing one's foe leaves the other's alone. */
+  var suffix = '-' + Date.now().toString(36).slice(-5) + Math.random().toString(36).slice(2, 5);
+  var idMap = {};
+  [].concat(pack.foes || [], pack.npcs || []).forEach(function(e){ if (e && e.id) idMap[e.id] = String(e.id) + suffix; });
+  var campJson = JSON.stringify(pack.campaign || {});
+  Object.keys(idMap).forEach(function(old){
+    campJson = campJson.split(JSON.stringify(old)).join(JSON.stringify(idMap[old]));
+  });
+  pack = Object.assign({}, pack, { campaign: JSON.parse(campJson) });
   var rows = [];
-  (pack.foes || []).forEach(function(f){ var e = Object.assign({}, f); e.type = 'monster'; rows.push(assetToRow(e)); });
-  (pack.npcs || []).forEach(function(n){ var e = Object.assign({}, n); e.type = 'npc'; rows.push(assetToRow(e)); });
+  (pack.foes || []).forEach(function(f){ var e = Object.assign({}, f); e.type = 'monster'; if (idMap[e.id]) e.id = idMap[e.id]; rows.push(assetToRow(e)); });
+  (pack.npcs || []).forEach(function(n){ var e = Object.assign({}, n); e.type = 'npc'; if (idMap[e.id]) e.id = idMap[e.id]; rows.push(assetToRow(e)); });
   tsAsk('TS_ADVENTURE_IMPORT', { pack:pack, rows:rows }).then(function(r){
     if (!r || !r.id) throw new Error('no id');
     return tsAsk('TS_CAMPAIGN_SET', { campaignId:r.id });
@@ -10840,6 +10852,12 @@ window.addEventListener('message', function(ev){
       if (sn >= 1 && sn <= 6) send({ type:'roll', rollType:String(sr.rollType || 'generic'), n:sn, mods:sr.mods || [], total:(typeof sr.total === 'number') ? sr.total : sn });
       return;
     }
+    /* the forge was cancelled and the sheet went back to the Fell in hand: the window stops
+       saying NEW FELL */
+    if (ev.data.type === 'select-character' && !isLM() && S.openSection){
+      var _wt = document.getElementById('winTitle');
+      if (_wt && /NEW FELL/.test(_wt.textContent) && SECTIONS[S.openSection]) _wt.textContent = SECTIONS[S.openSection].title.toUpperCase();
+    }
     if (ev.data.type === 'ts-hand'){ tsHandTake(ev.data.hand); return; }
     if (ev.data.type === 'ts-declare-result'){ handDeclareResult(ev.data.result); return; }
     if (ev.data.type === 'ts-undo-result'){ handUndoResult(ev.data.result); return; }
@@ -10851,6 +10869,10 @@ window.addEventListener('message', function(ev){
     if (ev.data.type === 'save'){
       SEAM.saves = (SEAM.saves || 0) + 1;
       var whose = (isLM() && S.godChar && S.godChar.id) ? S.godChar.id : (!isLM() ? S.characterId : '');
+      /* A save for a different Fell, or for one with no id yet (a new Fell being forged in the
+         sheet), is not an edit to the Fell in hand. Marking and logging it against that Fell
+         recorded the new one's whole record as changes to the old one. */
+      if (whose && !sameId(ev.data.charId || '', whose)) whose = '';
       SEAM.savedFor = whose || 'nobody';
       if (whose){
         /* record what changed before anything else touches the record. The side holding
