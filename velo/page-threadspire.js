@@ -4,6 +4,7 @@
 // location, revealed nodes, quest-board goals, world issues, and map art.
 import { threadspirePublicChar, listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter, threadspireSaveMeta, lmLoadCharacter, lmSaveCharacter, lmCreateOfflineFell, lmRemoveFromAdventure, charAdventure, leaveAdventure, lmWipeFell, giveRecord } from 'backend/characters.web.js';
 import { getLmPortrait, saveLmPortrait, getForgePools, getForgeLibrary, listMyCampaigns, saveCampaign, submitAct, submitItem, deleteAsset, listGlossary , setMemberRole, detachCharacter, loadCampaign } from 'backend/fatewell.web.js';
+import { listAssets } from 'backend/fatewell.web.js';
 import { createInvite, revokeInvite } from 'backend/invites.web.js';
 import { publishAdventure, unpublishAdventure, myPublishedAdventures } from 'backend/published.web.js';
 import { getFoePack } from 'backend/forge.web.js';
@@ -119,6 +120,8 @@ $w.onReady(async function () {
     if (!mine.length) return want;                      // not a LoreMaster; do not touch it
     const has = (id) => id && mine.some((c) => String(c.id) === String(id));
     if (has(want)) return want;                         // the address is still valid, keep it
+    // not theirs, but one they help run: a lorekeeper's link stays where it points
+    if (want) { try { const ar = await myAdventureRole(want); if (ar === 'loremaster' || ar === 'lorekeeper') return want; } catch (e) {} }
     // the id in the address is not one they run: deleted, reimported, or never theirs.
     // The Fell knows which adventure it is in, so ask it, and take that only if it too is
     // one they run. This is the sure swap: same table, right id.
@@ -336,9 +339,18 @@ $w.onReady(async function () {
             const r = await saveCampaign('', { campaign: camp }, nm);
             if (!(r && r.ok && r.id)) { reply(false, null, (r && r.error) || 'the adventure was not created'); }
             else {
-              const lib = [].concat(pack.foes || [], pack.npcs || []);
-              for (const e of lib) {
-                try { const a = Object.assign({}, e); a.campaignId = r.id; await saveAsset(a); } catch (e2) {}
+              // Library rows arrive already shaped (assetToRow in the tool); each is stamped with
+              // the new adventure in foeMeta, the same place FateWell keeps it, so the library
+              // scopes them to this adventure and a delete can find them again.
+              const rows = Array.isArray(msg.rows) ? msg.rows : [];
+              for (const row of rows) {
+                try {
+                  const a = Object.assign({}, row);
+                  let meta = {}; try { meta = a.foeMeta ? JSON.parse(a.foeMeta) : {}; } catch (e3) { meta = {}; }
+                  meta.campaignId = r.id; meta.campaignName = nm;
+                  a.foeMeta = JSON.stringify(meta);
+                  if (a.assetId) await saveAsset(a);
+                } catch (e2) {}
               }
               reply(true, { id: r.id, name: nm });
             }
@@ -350,8 +362,21 @@ $w.onReady(async function () {
           try {
             const id = msg.campaignId || '';
             const d = await deleteCampaign(id);
-            if (d && d.ok) { try { await removeAdventure(id); } catch (e) {} }
-            reply(!!(d && d.ok), d, d && d.error);
+            let removed = 0;
+            if (d && d.ok) {
+              try { await removeAdventure(id); } catch (e) {}
+              // and the foes and NPCs that came in with it, as FateWell does: library rows this
+              // member owns that are tagged with this adventure
+              try {
+                const all = await listAssets();
+                for (const row of (all || [])) {
+                  if (!row || !row.ownerMemberId || !row.assetId) continue;
+                  let meta = {}; try { meta = row.foeMeta ? JSON.parse(row.foeMeta) : {}; } catch (e) { meta = {}; }
+                  if (String(meta.campaignId || row.campaignId || '') === String(id)) { try { await deleteAsset(row.assetId); removed++; } catch (e) {} }
+                }
+              } catch (e) {}
+            }
+            reply(!!(d && d.ok), Object.assign({}, d, { assetsRemoved: removed }), d && d.error);
           } catch (e) { reply(false, null, String(e)); }
         } else if (msg.type === 'TS_NEW_ADVENTURE') {
           // FateWell authors adventures; ThreadSpire runs them. The route is the one

@@ -3290,7 +3290,10 @@ function tsReadPack(input){
 function tsImportPack(pack){
   var nm = (pack.campaign && pack.campaign.name) || 'Imported adventure';
   tsCloseModal(); advGoing(nm);
-  tsAsk('TS_ADVENTURE_IMPORT', { pack:pack }).then(function(r){
+  var rows = [];
+  (pack.foes || []).forEach(function(f){ var e = Object.assign({}, f); e.type = 'monster'; rows.push(assetToRow(e)); });
+  (pack.npcs || []).forEach(function(n){ var e = Object.assign({}, n); e.type = 'npc'; rows.push(assetToRow(e)); });
+  tsAsk('TS_ADVENTURE_IMPORT', { pack:pack, rows:rows }).then(function(r){
     if (!r || !r.id) throw new Error('no id');
     return tsAsk('TS_CAMPAIGN_SET', { campaignId:r.id });
   }).catch(function(){
@@ -10793,6 +10796,12 @@ window.addEventListener('message', function(ev){
     if (ev.data.type === 'leave-adventure' && !isLM() && !S.godChar && sameId(ev.data.charId, S.characterId)) playerLeftAdventure();
     /* a roll the sheet made (Mobility from the stat strip) is thrown on the table like any
        other: the dice on the map, the line in the log, and out to everyone */
+    /* The sheet announces a freshly forged Fell this way. Take it up, into whatever adventure
+       it is in, so the table is on the new Fell rather than the one before it. */
+    if (ev.data.type === 'threadspire-open' && !isLM() && !S.godChar && ev.data.charId && !sameId(ev.data.charId, S.characterId)){
+      S.characterId = ev.data.charId; S._charList = null;
+      tsAsk('TS_ENTER_FELL', { charId:ev.data.charId }).catch(function(){});
+    }
     if (ev.data.type === 'ts-sheet-roll' && !isLM()){
       var sr = ev.data, sn = Number(sr.n) || 0;
       if (sn >= 1 && sn <= 6) send({ type:'roll', rollType:String(sr.rollType || 'generic'), n:sn, mods:sr.mods || [], total:(typeof sr.total === 'number') ? sr.total : sn });

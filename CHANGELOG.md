@@ -1,3 +1,15 @@
+## 2026-09-27 - A LoreMaster sees their own adventures; deleting clears the library; forging can be cancelled
+
+listMyCampaigns now returns only adventures the member owns. Keeper roles on someone else's adventure no longer add it to the list, in FateWell or in ThreadSpire's picker. A lorekeeper still reaches an adventure they help run through its link or a cast: the ThreadSpire page's resolveCampaign now keeps a linked adventure when myAdventureRole says loremaster or lorekeeper, rather than swapping it for one of their own. Published adventures stay on the Adventures page.
+
+Deleting an adventure from ThreadSpire now also removes the library foes and NPCs tagged with it, as FateWell does, matching the tag FateWell keeps in foeMeta. ThreadSpire's import was sending pack entries raw, without an assetId, so saveAsset refused every one and imported adventures arrived with no library entries at all. It now shapes them with assetToRow and the page stamps the new adventure into foeMeta.
+
+Building a new Fell no longer drops the one in hand. The sheet remembers it, saves nothing while the forge is open, and Cancel brings it straight back through select-character. A finished forging saves as before, and ThreadSpire now takes up the new Fell when the sheet announces it, into whatever adventure it is in.
+
+The Mobility roll no longer writes the total into the strip, which read as Mobility changing. In ThreadSpire the dice and the log carry it; on its own page a small note under the strip shows it for a few seconds.
+
+Paste velo/backend/fatewell.web.js, then velo/page-threadspire.js.
+
 ## 2026-09-27 - Delete an adventure from ThreadSpire's picker
 
 Each adventure in Open an adventure has a delete button. It asks first, by name, then takes the same two steps FateWell does through a new TS_ADVENTURE_DELETE page call: deleteCampaign for the campaign row, then removeAdventure for its story tree. Both refuse an adventure owned by another member, and the picker says so. Deleting the adventure on the table puts the table down and leaves the picker open to choose another. Players keep their Fells. velo/page-threadspire.js must be pasted again.
