@@ -1,3 +1,7 @@
+## 2026-09-27 - Records move to the Lore tab
+
+The sheet's Notes panel held Quests, Characters and Notes, but ThreadSpire's player rail has no Notes tab, so on the table a player could not reach their own records at all. Records now sit on the Lore tab as a card under Invested Lore, with five kinds: Quests, Characters, Clues, Secrets and Notes. Each has a + that opens a line to write one, Enter to save. Quests also shows the campaign's quest board and Clues the clues discovered in play, both above the Fell's own entries. Clues and Secrets are new record kinds, seeded empty on every Fell. The Notes panel is retired, from PANELS and from the LoreMaster's tab bar, and the autosave line moves with it to the Lore tab. Edits and deletes in a record now save straight away. The Invested Lore tip no longer says leveling consumes one crystal.
+
 ## 2026-09-27 - Abandon this vow explains itself on hover
 
 The line under Abandon this vow still said it returned only the +1 attribute, which stopped being true when Motivations began granting their three skills. The line is gone from view. The button's hover text now reads: Abandoning returns the attribute and skill bonuses and opens the choice of a new Motivation.
