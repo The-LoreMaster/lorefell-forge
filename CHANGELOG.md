@@ -1,3 +1,9 @@
+## 2026-09-27 - Tab pages and battle cards ready for phones
+
+An audit of every sheet tab at phone width (390px) and desktop found nothing spilling sideways; the trouble on a phone was size. On a touch screen or anything under 600px wide, the sheet's controls grow to a thumb's size: steppers and dial buttons 36px, small buttons 34px, record and Remnant + buttons 34px, skill pips 22px with wider gaps, inputs 40px at 16px type (which also stops phones zooming on focus), info buttons and charge gems given a larger hit area beyond their drawn shape, and the smallest labels up a step. Desktop with a mouse is unchanged.
+
+ThreadSpire's sheet window on a phone kept its desktop placement, a third of the screen over the frame art, because #win.sheeting outranked the phone rule for #win. It now fills the space between the top bar and the bottom rail, sits above the desktop art that still covers a phone until the mobile pass, drops the window's own frame art for a plain panel, and gains a title bar with the section name and a close cross. The card row's top line wraps on narrow screens instead of running off the edge, the Fatigue and Charge labels drop to save room, and their controls grow. The map page, the menu, and the desktop layout are untouched.
+
 ## 2026-09-27 - page-threadspire.js imported listAssets twice
 
 The last change added an import of listAssets that the page already had, and a duplicate import is a syntax error in a module, so the page would not save in Velo. The extra line is gone. threadspire/tests/velo-syntax.test.js now parses every Velo file as an ES module, the way Velo loads it, and is part of npm run checks, so this kind of mistake is caught before a paste.
