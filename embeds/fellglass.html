@@ -146,7 +146,16 @@ body.god .god-lock{pointer-events:auto;opacity:1}
 .stat-cell .v{font-family:var(--head);font-size:17px;font-weight:600;color:var(--silver);line-height:1.1}
 .stat-cell .l{font-family:var(--head);font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:var(--silver-dim)}
 .stat-cell .minigems{display:flex;justify-content:center;gap:6px;padding:4px 0 3px}
-.stat-cell.stat-fat{pointer-events:auto;cursor:pointer}
+.stat-cell.stat-fat,.stat-cell.stat-vit{pointer-events:auto;cursor:pointer}
+.stat-cell.stat-vit:hover .v{color:var(--gold)}
+.vit-pop{left:8px;right:auto;min-width:290px;max-width:340px}
+.vp-nums{display:flex;align-items:baseline;justify-content:space-between;font-family:var(--head);color:var(--silver-dim);font-size:13px;margin-bottom:8px}
+.vp-nums b{font-size:20px;color:var(--silver)}
+.vp-temp{color:var(--ice)}
+.vp-row{display:flex;gap:6px;align-items:center}
+.vp-amt{width:58px}
+.vp-row .btn{white-space:nowrap}
+.vp-god{margin-top:8px;justify-content:space-between;font-family:var(--head);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--gold)}
 .stat-cell.stat-fat:hover .v{color:var(--gold)}
 .fat-pop{position:absolute;right:8px;top:100%;margin-top:4px;z-index:60;min-width:210px;max-width:260px;background:var(--navy-2);border:1px solid var(--gold);border-radius:10px;padding:10px 12px;box-shadow:0 8px 24px rgba(0,0,0,.45)}
 .fp-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
@@ -819,7 +828,7 @@ body.in-combat{ padding-top:var(--cbn-h,46px); }
     <button id="hubBtn" aria-label="Open section hub"><span class="gl">✦</span><span class="hb-l">Sections</span></button>
   </div>
   <div class="statstrip">
-    <button class="stat-cell" data-jump="battle"><div class="v" id="stripVit">5/5</div><div class="l">Vitality</div></button>
+    <button class="stat-cell stat-vit" data-jump="battle"><div class="v" id="stripVit">5/5</div><div class="l">Vitality</div></button>
     <button class="stat-cell" data-jump="attributes"><div class="v" id="stripMob">5</div><div class="l">Mobility</div></button>
     <button class="stat-cell" data-jump="lore"><div class="v" id="stripLevel">1</div><div class="l">Level</div></button>
     <button class="stat-cell" data-jump="battle"><div class="minigems" id="stripGems"></div><div class="l">Charges</div></button>
@@ -912,7 +921,7 @@ body.in-combat{ padding-top:var(--cbn-h,46px); }
        weapon damage are hidden (cond-cut), not deleted: their renderers still run, the
        hand ThreadSpire draws is built from them, and phone play may bring them back. -->
   <div class="cond-col">
-  <section class="card">
+  <section class="card cond-cut">
     <h2><span class="orn">☄</span> Vitality</h2>
     <div class="vitbar cond-cut"><div class="fill" id="vitFill" style="width:100%"></div></div>
     <div class="vit-row cond-cut">
@@ -2649,6 +2658,7 @@ function currentPanel(){const a=document.querySelector(".panel.active");return a
 /* The stat strip is a readout, not a way around the sheet: it used to jump to a panel on
    click, which read as a mis-tap. Battle has its own button in the header now. */
 document.querySelectorAll(".stat-cell").forEach(c=>{c.setAttribute("tabindex","-1");c.setAttribute("aria-hidden","false");});
+(function(){ const vc=document.querySelector(".stat-vit"); if(vc){ vc.setAttribute("tabindex","0"); vc.title="Change Vitality"; vc.addEventListener("click",ev=>{ev.stopPropagation();vitPopToggle();}); } })();
 (function(){ const fc=document.querySelector(".stat-fat"); if(fc){ fc.setAttribute("tabindex","0"); fc.title="Set Fatigue"; fc.addEventListener("click",ev=>{ev.stopPropagation();fatiguePopToggle();}); } })();
 /* The Condition button is a toggle: Condition, then back to wherever the Fell was. */
 let _panelBeforeBattle="lore";
@@ -3583,19 +3593,44 @@ function renderVit(flash){
   if(flash){const b=document.querySelector(".vit-box.cur");b.classList.remove("hurt");void b.offsetWidth;b.classList.add("hurt");}
   renderStrip();
 }
-$("vDmg").addEventListener("click",()=>{
-  let amt=Math.max(1,+$("vAmt").value||1);const v=C.vitality;
-  const fromTemp=Math.min(v.temp,amt);v.temp-=fromTemp;amt-=fromTemp;
-  v.current=Math.max(0,v.current-amt);renderVit(true);
-  edgeGlow("rgba(201,106,90,.8)");
-});
-$("vHeal").addEventListener("click",()=>{ cbTryHeal(Math.max(1,+$("vAmt").value||1)); });
-$("vTempAdd").addEventListener("click",()=>{C.vitality.temp+=Math.max(1,+$("vAmt").value||1);renderVit();scheduleSave();});
+/* One way to change vitality, from wherever a player reaches for it: the Vitality panel
+   under the stat strip, the Condition tab, or ThreadSpire's HUD. Damage drains Temp first.
+   Every change saves, and the save carries it into the fight through combat sync. */
+function vitOp(op,amt){
+  amt=Math.max(1,Math.floor(Number(amt)||1));const v=C.vitality;
+  if(op==="dmg"){const fromTemp=Math.min(v.temp,amt);v.temp-=fromTemp;amt-=fromTemp;v.current=Math.max(0,v.current-amt);renderVit(true);edgeGlow("rgba(201,106,90,.8)");}
+  else if(op==="heal"){cbTryHeal(amt);renderVit();}
+  else if(op==="temp"){v.temp+=amt;renderVit();}
+  else if(op==="max+"&&god){v.max++;renderVit();}
+  else if(op==="max-"&&god){v.max=Math.max(1,v.max-1);v.current=Math.min(v.current,v.max);renderVit();}
+  else return;
+  vitPopPaint();scheduleSave();
+}
+$("vDmg").addEventListener("click",()=>vitOp("dmg",$("vAmt").value));
+$("vHeal").addEventListener("click",()=>vitOp("heal",$("vAmt").value));
+$("vTempAdd").addEventListener("click",()=>vitOp("temp",$("vAmt").value));
+/* The strip's Vitality cell opens this panel, the same way Fatigue does. The LoreMaster,
+   holding a Fell open, also gets Max Vitality here. */
+function vitPopPaint(){
+  const pop=$("vitPop"); if(!pop||pop.style.display==="none") return;
+  const v=C.vitality, keep=pop.querySelector(".vp-amt"), amt=keep?keep.value:"1";
+  pop.innerHTML='<div class="vp-nums"><span><b>'+v.current+'</b> / '+v.max+'</span>'+(v.temp?'<span class="vp-temp">+'+v.temp+' temp</span>':'')+'</div>'
+    +'<div class="vp-row"><input class="vp-amt" type="number" min="1" inputmode="numeric" value="'+(amt||1)+'">'
+    +'<button type="button" class="btn small danger" data-vop="dmg">DMG</button><button type="button" class="btn small" data-vop="heal">Heal</button><button type="button" class="btn small" data-vop="temp">+ Temp</button></div>'
+    +(god?'<div class="vp-row vp-god"><span>Max vitality (LM)</span><button type="button" class="fp-b" data-vop="max-">\u2212</button><b>'+v.max+'</b><button type="button" class="fp-b" data-vop="max+">+</button></div>':'');
+  pop.querySelectorAll("[data-vop]").forEach(b=>b.addEventListener("click",ev=>{ev.stopPropagation();vitOp(b.getAttribute("data-vop"),(pop.querySelector(".vp-amt")||{}).value);}));
+}
+function vitPopToggle(open){
+  let pop=$("vitPop");
+  if(!pop){ pop=el("div","fat-pop vit-pop");pop.id="vitPop";pop.style.display="none";document.querySelector("header").appendChild(pop);
+    pop.addEventListener("click",ev=>ev.stopPropagation()); }
+  const show=(open===undefined)?pop.style.display==="none":open;
+  pop.style.display=show?"block":"none";
+  if(show){ const f=$("fatPop"); if(f) f.style.display="none"; vitPopPaint(); }
+}
 document.querySelectorAll("[data-god]").forEach(b=>b.addEventListener("click",()=>{
-  if(!god)return;const v=C.vitality;
-  if(b.dataset.god==="vmax+")v.max++;
-  if(b.dataset.god==="vmax-"){v.max=Math.max(1,v.max-1);v.current=Math.min(v.current,v.max);}
-  renderVit();
+  if(b.dataset.god==="vmax+")vitOp("max+");
+  if(b.dataset.god==="vmax-")vitOp("max-");
 }));
 
 /* ---------- charges ---------- */
@@ -3657,9 +3692,9 @@ function fatiguePopToggle(open){
     pop.addEventListener("click",ev=>ev.stopPropagation()); }
   const show=(open===undefined)?pop.style.display==="none":open;
   pop.style.display=show?"block":"none";
-  if(show)fatiguePopPaint();
+  if(show){ const vp=$("vitPop"); if(vp) vp.style.display="none"; fatiguePopPaint(); }
 }
-document.addEventListener("click",ev=>{ if(!ev.target.closest||(!ev.target.closest("#fatPop")&&!ev.target.closest(".stat-fat"))) { const p=$("fatPop"); if(p) p.style.display="none"; } });
+document.addEventListener("click",ev=>{ if(!ev.target.closest||(!ev.target.closest("#fatPop")&&!ev.target.closest(".stat-fat"))) { const p=$("fatPop"); if(p) p.style.display="none"; } if(!ev.target.closest||(!ev.target.closest("#vitPop")&&!ev.target.closest(".stat-vit"))) { const p=$("vitPop"); if(p) p.style.display="none"; } });
 function renderFatigue(){
   const w=$("fatiguePips");w.innerHTML="";
   for(let i=1;i<=5;i++){
@@ -6903,6 +6938,7 @@ window.onmessage=ev=>{
   const d=ev&&ev.data;
   if(!d||typeof d!=="object"||!d.type)return;
   if(d.type==="ts-charge-tap"){ chargeTap(d.tier); return; }
+  if(d.type==="ts-vit-op"){ vitOp(d.op,d.amt); return; }
   if(d.type==="ts-fatigue-step"){ fatigueSet((C.fatigue||0)+(Number(d.delta)||0)); return; }
   if(d.type==="ts-subtabs"){
     TS_SUB = (d.tabs&&d.tabs.length) ? { tabs:d.tabs, active:d.active } : null;
