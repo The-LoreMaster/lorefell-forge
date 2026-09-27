@@ -1,3 +1,7 @@
+## 2026-09-27 - Accepting an invite opens the Fell's sheet
+
+On the join page, attaching a Fell to the adventure now takes the player straight to that Fell in FellGlass (/the-fellglass?charId=...), which opens on its sheet with the adventure already on the Lore tab. If attaching fails, the player stays on the join page and sees the list as it stands. Paste velo/page-join.js.
+
 ## 2026-09-27 - Lettering that fits any window, and a joined Fell that knows its adventure
 
 On another screen the lettering came out enormous and ran into itself. The frame art stretches to fill the window, so the HUD's slots are fractions of its width and height, but its text was sized by height alone; any window narrower than 16:9, or a zoomed browser or larger system text, made the text outgrow its slot. Every one of ThreadSpire's sixteen height-based sizes is now the smaller of its height share and the matching width share, and HUD and rail text stays on one line. On the sheet, the stat strip's labels scale with the strip itself (container units on the header), stay on one line and end in an ellipsis before they can collide, and a long name does the same.
