@@ -16,7 +16,9 @@ and not the other is not done.
 
 The one sanctioned difference is navigation. FellGlass navigates with its own hub; in
 ThreadSpire the player uses the rail on the right and the LoreMaster uses the tab bar
-across the top. Everything inside the sheet is identical.
+across the top. The player's Arsenal tabs (Weapons, Lorebounds, Armor) are drawn inside the
+sheet under the stat strip, via the `ts-subtabs` message; that row is navigation too and
+never appears standalone. Everything else inside the sheet is identical.
 
 How it is wired, so the rule can be kept rather than remembered:
 

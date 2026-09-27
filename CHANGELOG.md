@@ -1,3 +1,7 @@
+## 2026-09-27 - Arsenal tabs sit under the name and stat strip
+
+Every other panel in ThreadSpire reads name, then stats, then content. Arsenal put its Weapons, Lorebounds and Armor tabs above the sheet, so the tabs came first and the name and stat strip sat under them. ThreadSpire now hands the sheet those tabs with a ts-subtabs message and the sheet draws them in its header, directly under the stat strip, where they stick with the header on scroll. Clicking one switches the panel inside the sheet, which reports back with sheet-panel. Any other section, or closing the window, clears the row, and a reloaded sheet gets it back. The row is navigation only and never appears on the standalone FellGlass page. The LoreMaster's tab bar is unchanged.
+
 ## 2026-09-27 - Players can build and delete Fells from ThreadSpire
 
 The FellGlass page sends a player straight to ThreadSpire, and ThreadSpire hides FellGlass's own character switcher, so a player had no way left to add or delete a Fell. The on-load chooser now has a Build a new Fell button and a delete button beside each Fell, and the Characters list in the menu under the Fellmark has a delete button on each row. Deleting asks first, then calls the same deleteCharacter FellGlass's switcher uses, through a new TS_CHAR_DELETE page call. Deleting the Fell in hand drops it from the table and reopens the chooser. This is player side only: the LoreMaster's menu shows no delete. velo/page-threadspire.js must be pasted again for TS_CHAR_DELETE.
