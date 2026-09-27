@@ -146,7 +146,13 @@ body.god .god-lock{pointer-events:auto;opacity:1}
 .stat-cell .v{font-family:var(--head);font-size:17px;font-weight:600;color:var(--silver);line-height:1.1}
 .stat-cell .l{font-family:var(--head);font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:var(--silver-dim)}
 .stat-cell .minigems{display:flex;justify-content:center;gap:6px;padding:4px 0 3px}
-.stat-cell.stat-fat,.stat-cell.stat-vit{pointer-events:auto;cursor:pointer}
+.stat-cell.stat-fat,.stat-cell.stat-vit,.stat-cell.stat-mob,.stat-cell.stat-lvl{pointer-events:auto;cursor:pointer}
+.stat-cell.stat-mob:hover .v,.stat-cell.stat-lvl:hover .v{color:var(--gold)}
+.stat-cell .v.rolled{color:var(--gold);animation:mobpop .5s ease}
+@keyframes mobpop{0%{transform:scale(.6);opacity:.2}60%{transform:scale(1.25)}100%{transform:scale(1)}}
+section.card.flash{animation:cardflash 1.4s ease}
+@keyframes cardflash{0%,40%{box-shadow:0 0 0 2px var(--gold),0 0 22px rgba(201,168,76,.4)}100%{box-shadow:none}}
+.dial.fatigued .v{color:var(--danger)}
 .stat-cell.stat-vit:hover .v{color:var(--gold)}
 .vit-pop{left:8px;right:auto;min-width:290px;max-width:340px}
 .vp-nums{display:flex;align-items:baseline;justify-content:space-between;font-family:var(--head);color:var(--silver-dim);font-size:13px;margin-bottom:8px}
@@ -829,8 +835,8 @@ body.in-combat{ padding-top:var(--cbn-h,46px); }
   </div>
   <div class="statstrip">
     <button class="stat-cell stat-vit" data-jump="battle"><div class="v" id="stripVit">5/5</div><div class="l">Vitality</div></button>
-    <button class="stat-cell" data-jump="attributes"><div class="v" id="stripMob">5</div><div class="l">Mobility</div></button>
-    <button class="stat-cell" data-jump="lore"><div class="v" id="stripLevel">1</div><div class="l">Level</div></button>
+    <button class="stat-cell stat-mob" data-jump="attributes"><div class="v" id="stripMob">5</div><div class="l">Mobility</div></button>
+    <button class="stat-cell stat-lvl" data-jump="lore"><div class="v" id="stripLevel">1</div><div class="l">Level</div></button>
     <button class="stat-cell" data-jump="battle"><div class="minigems" id="stripGems"></div><div class="l">Charges</div></button>
     <button class="stat-cell stat-fat" data-jump="battle"><div class="v" id="stripFatigue">0</div><div class="l">Fatigue</div></button>
   </div>
@@ -2503,7 +2509,21 @@ const stanceBonus=a=>{
   if(!C.armor.active||C.armor.level<STANCE_TIER_UNLOCK[0]||C.charge<1)return 0;
   return STANCE_DB[C.armor.active].attr===a?2:0;
 };
-const attrTotal=a=>C.attrs[a].base+C.attrs[a].mod+attrGrant(a)+stanceBonus(a);
+/* Fatigue bites the attributes it names (Survival): Tired is -1 Precision, Exhausted is -2
+   Evasion. Ranks stack, so an Exhausted Fell is still Tired and Weary as well. Read through
+   cbEffFatigue, so Unbowed and Unflagging lower the rank first. Weary halves Mobility for
+   movement, which is not an attribute, so it lives in fatigueMobility. */
+const fatiguePenalty=a=>{
+  const ef=(typeof cbEffFatigue==="function")?cbEffFatigue():(C.fatigue||0);
+  if(a==="precision"&&ef>=1)return -1;
+  if(a==="evasion"&&ef>=3)return -2;
+  return 0;
+};
+const fatigueMobility=()=>{
+  const ef=(typeof cbEffFatigue==="function")?cbEffFatigue():(C.fatigue||0);
+  return ef>=2?Math.floor((C.mobility||0)/2):(C.mobility||0);
+};
+const attrTotal=a=>C.attrs[a].base+C.attrs[a].mod+attrGrant(a)+stanceBonus(a)+fatiguePenalty(a);
 /* Lore Points crystallise in groups the size of the NEXT level's cost (Leveling: 2 for
    1 to 2, 3 for 2 to 3, +1 per level). Saving them up and spending several crystals at
    once is the cheaper way up, by canon, so every crystal in one ascension is priced at the
@@ -2658,6 +2678,25 @@ function currentPanel(){const a=document.querySelector(".panel.active");return a
 /* The stat strip is a readout, not a way around the sheet: it used to jump to a panel on
    click, which read as a mis-tap. Battle has its own button in the header now. */
 document.querySelectorAll(".stat-cell").forEach(c=>{c.setAttribute("tabindex","-1");c.setAttribute("aria-hidden","false");});
+/* Mobility on the strip rolls Mobility: 1d6 + Mobility. Inside ThreadSpire the throw goes
+   to the table, onto the map and into the log like any other roll; on its own page the
+   sheet shows it. Level on the strip opens the Lore tab at Invested Lore, where leveling is. */
+function mobilityRoll(){
+  const n=1+Math.floor(Math.random()*6), m=C.mobility||0, total=n+m;
+  if(document.body.classList.contains("tsembed")){
+    try{ window.parent.postMessage({type:"ts-sheet-roll",rollType:"mobility",n:n,mods:[{label:"Mobility",value:m}],total:total},"*"); }catch(e){}
+  }
+  const cell=document.querySelector(".stat-mob .v");
+  if(cell){ cell.textContent=total; cell.classList.remove("rolled");void cell.offsetWidth;cell.classList.add("rolled");
+    clearTimeout(window._mobT); window._mobT=setTimeout(()=>{cell.classList.remove("rolled");renderStrip();},2600); }
+  if(!document.body.classList.contains("tsembed")) edgeGlow(n===6?"rgba(201,168,76,.85)":n===1?"rgba(201,106,90,.8)":"rgba(158,203,224,.6)");
+}
+function levelJump(){
+  switchPanel("lore");
+  setTimeout(()=>{ const g=$("loreGrid"); const card=g&&g.closest("section"); if(card){ const hd=document.querySelector("header"); const y=card.getBoundingClientRect().top+window.scrollY-((hd&&hd.offsetHeight)||0)-8; window.scrollTo({top:Math.max(0,y),behavior:"smooth"}); card.classList.remove("flash");void card.offsetWidth;card.classList.add("flash"); } },60);
+}
+(function(){ const mc=document.querySelector(".stat-mob"); if(mc){ mc.setAttribute("tabindex","0"); mc.title="Roll Mobility (1d6 + Mobility)"; mc.addEventListener("click",ev=>{ev.stopPropagation();mobilityRoll();}); } })();
+(function(){ const lc=document.querySelector(".stat-lvl"); if(lc){ lc.setAttribute("tabindex","0"); lc.title="Open Invested Lore"; lc.addEventListener("click",ev=>{ev.stopPropagation();levelJump();}); } })();
 (function(){ const vc=document.querySelector(".stat-vit"); if(vc){ vc.setAttribute("tabindex","0"); vc.title="Change Vitality"; vc.addEventListener("click",ev=>{ev.stopPropagation();vitPopToggle();}); } })();
 (function(){ const fc=document.querySelector(".stat-fat"); if(fc){ fc.setAttribute("tabindex","0"); fc.title="Set Fatigue"; fc.addEventListener("click",ev=>{ev.stopPropagation();fatiguePopToggle();}); } })();
 /* The Condition button is a toggle: Condition, then back to wherever the Fell was. */
@@ -2671,7 +2710,7 @@ let _panelBeforeBattle="lore";
 /* ---------- stat strip ---------- */
 function renderStrip(){
   $("stripVit").textContent=C.vitality.current+"/"+C.vitality.max+(C.vitality.temp?" +"+C.vitality.temp:"");
-  $("stripMob").textContent=C.mobility;
+  { const mv=fatigueMobility(), sm=$("stripMob"); sm.textContent=mv; sm.style.color=mv<(C.mobility||0)?"var(--danger)":""; sm.title=mv<(C.mobility||0)?("Weary: movement halved from "+C.mobility):""; }
   $("stripLevel").textContent=C.lore.level;
   $("stripFatigue").textContent=C.fatigue;
   $("stripFatigue").style.color=C.fatigue>0?"var(--danger)":"var(--silver)";
@@ -3544,8 +3583,8 @@ function renderDials(){
   ATTRS.forEach(([cat,list])=>{
     g.appendChild(el("div","dial-cat",cat));
     list.forEach(([a,use])=>{
-      const d=C.attrs[a],grant=attrGrant(a),stance=stanceBonus(a),tot=d.base+d.mod+grant+stance;
-      const dial=el("div","dial"+((d.mod||grant||stance)?" modded":""));
+      const d=C.attrs[a],grant=attrGrant(a),stance=stanceBonus(a),fat=fatiguePenalty(a),tot=d.base+d.mod+grant+stance+fat;
+      const dial=el("div","dial"+((d.mod||grant||stance||fat)?" modded":"")+(fat?" fatigued":""));
       dial.title=a+": "+use;
       dial.addEventListener("click",function(ev){
         /* a tap on the dial's face, not on its steppers, says what the attribute is for */
@@ -3557,6 +3596,7 @@ function renderDials(){
       if(d.mod)chips.push((d.mod>0?"+":"")+d.mod);
       if(grant)chips.push("✦+"+grant);
       if(stance)chips.push("⛨+"+stance);
+      if(fat)chips.push("fatigue "+fat);
       dial.innerHTML=`
         <div class="ringwrap">
           <svg viewBox="0 0 84 84">
@@ -3672,7 +3712,7 @@ function renderCharges(){
    Overwhelmed take the Act and the React away. */
 function fatigueSet(n){
   C.fatigue=Math.max(0,Math.min(5,Number(n)||0));
-  renderFatigue();try{renderBattle();}catch(e){}fatiguePopPaint();
+  renderFatigue();try{renderDials();renderBattle();}catch(e){}fatiguePopPaint();
   scheduleSave();
 }
 /* The strip's Fatigue cell opens a small panel under the strip: the rank, what it does,
