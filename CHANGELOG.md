@@ -1,3 +1,7 @@
+## 2026-09-27 - The crystal picker says only what it needs to
+
+Nate's call: players do not need the instruction paragraph under "You hold N Ascension Crystals". The picker is now the title, the count with its steppers, and the Level X to Level Y line.
+
 ## 2026-09-27 - Every level's Vitality roll is d6 plus Vigor, kept from the roll
 
 Nate's ruling: a multi-crystal ascension rolls Vitality once per level, and each roll adds the Fell's Vigor plus the d6 to maximum Vitality. That was already the arithmetic, but the total was read back off the die's on-screen result after a fixed wait, with a fallback of Vigor + 1 if the text was not there yet. The roll now computes d6 + Vigor itself and applies that number. Vigor is read fresh each level, so a crystal invested in Vigor counts on its own roll and every later one.
