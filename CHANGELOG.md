@@ -1,3 +1,7 @@
+## 2026-09-27 - Every level's Vitality roll is d6 plus Vigor, kept from the roll
+
+Nate's ruling: a multi-crystal ascension rolls Vitality once per level, and each roll adds the Fell's Vigor plus the d6 to maximum Vitality. That was already the arithmetic, but the total was read back off the die's on-screen result after a fixed wait, with a fallback of Vigor + 1 if the text was not there yet. The roll now computes d6 + Vigor itself and applies that number. Vigor is read fresh each level, so a crystal invested in Vigor counts on its own roll and every later one.
+
 ## 2026-09-27 - Spend several Ascension Crystals in one ascension
 
 The sheet counted crystals correctly, by canon: Lore Points crystallise in groups the size of the next level's cost, so a level 1 Fell with 6 Lore Points holds 3. But Level Up spent one crystal and then priced the rest at the new level, so 6 Lore Points became one level and a single leftover crystal. Leveling says the opposite: saving points and spending them together is the cheaper way up. Level Up now opens by showing how many crystals the Fell holds and asking how many to spend, and walks the full level up (attribute, Arsenal, Vitality roll) once for each. The whole ascension is paid at the price of the level it started from, on the first Ascend. Leaving partway keeps the rest: they are held on the Fell as ascPending, still count as crystals, and the next Level Up resumes them. A Fell with one crystal goes straight into the level up as before.
