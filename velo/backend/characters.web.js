@@ -8,6 +8,8 @@ import { Permissions, webMethod } from 'wix-web-module';
 import wixData from 'wix-data';
 import { uploadRune } from 'backend/loreforge.web.js';
 import { currentMember, members } from 'wix-members-backend';
+import { fetch } from 'wix-fetch';
+import { getSecret } from 'wix-secrets-backend';
 
 const COLLECTION = 'Characters';
 
@@ -236,6 +238,134 @@ async function lmMayTouch(charId) {
   } catch (e) {}
   return { ok: false, error: 'not your adventure' };
 }
+
+// ---- the Archive and the Sealed Past ----
+// FellForge writes a Fell's description (Consult the Archive) and seals the buried truths
+// of its forgotten life (the Sealed Past) for the LoreMaster. These two do the same for a
+// Fell that was never forged, straight from the sheet. Same house style, same shapes.
+const ARCHIVE_MODEL = 'claude-sonnet-4-6';
+const ARCHIVE_SYSTEM = [
+  'You write for LoreFell, a dark grounded weird-fantasy world.',
+  'A Fell wakes with no memory of the life they lived before. The player knows only loose fragments.',
+  'House style is strict. No em dashes. No en dashes. No semicolons. No ellipses. Short declarative sentences. State facts directly. Dark and grounded. Never whimsical, never hype, never a sales pitch.',
+  'Return only a JSON object. No prose around it. No code fences.'
+].join(' ');
+async function archiveCall(prompt, maxTokens) {
+  const key = await getSecret('ANTHROPIC_API_KEY');
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'post',
+    headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({ model: ARCHIVE_MODEL, max_tokens: maxTokens || 900, system: ARCHIVE_SYSTEM, messages: [{ role: 'user', content: prompt }] })
+  });
+  if (!res.ok) { const t = await res.text(); throw new Error('Archive call failed ' + res.status + ' ' + t.slice(0, 160)); }
+  const data = await res.json();
+  let t = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n').trim();
+  const a = t.indexOf('{'), b = t.lastIndexOf('}');
+  if (a >= 0 && b > a) t = t.slice(a, b + 1);
+  try { return JSON.parse(t); } catch (e) { return {}; }
+}
+function fellFacts(c) {
+  const f = c || {};
+  const lines = [];
+  if (f.name) lines.push('Name: ' + f.name);
+  if (f.sex) lines.push('Sex: ' + f.sex);
+  if (f.lineage) lines.push('Lineage: ' + f.lineage + (f.lineageDesc ? ' (' + f.lineageDesc + ')' : ''));
+  if (f.origin) lines.push('Origin: ' + f.origin);
+  if (f.motivation) lines.push('Motivation: ' + f.motivation);
+  if (f.level) lines.push('Level: ' + f.level);
+  if (f.titles) lines.push('Titles: ' + f.titles);
+  if (f.hooks) lines.push('Roleplaying hooks:\n' + f.hooks);
+  if (f.fragments) lines.push('Forgotten fragments:\n' + f.fragments);
+  if (f.desc) lines.push('What is written of them now: ' + f.desc);
+  return lines.join('\n');
+}
+
+// Consult the Archive: a two or three sentence description of who this Fell is now. Any
+// signed-in member may ask, for the Fell in front of them; nothing is saved here, the sheet
+// keeps the answer the way it keeps anything the player writes.
+export const consultArchive = webMethod(Permissions.Anyone, async (fell) => {
+  const me = await memberId();
+  if (!me) return { ok: false, error: 'not signed in' };
+  try {
+    const o = await archiveCall([
+      'Write the Archive entry for this Fell, freshly woken with no memory of the life before.',
+      fellFacts(fell),
+      '',
+      'Return JSON with exactly this key:',
+      '"description": two or three sentences on who this Fell is now, awake without memory, written in second person.'
+    ].join('\n'), 600);
+    const d = String((o && o.description) || '').trim();
+    if (!d) return { ok: false, error: 'the Archive gave no answer' };
+    return { ok: true, description: d };
+  } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+});
+
+// The Sealed Past is the LoreMaster's alone. The player owns the Fell, so owning it is
+// deliberately not enough here: only whoever runs the adventure the Fell is in may read
+// or weave it. It lives in the row's sealedPast field, which no player-facing read returns.
+async function sealGate(charId) {
+  const me = await memberId();
+  if (!me) return { ok: false, error: 'not signed in' };
+  const row = await wixData.get(COLLECTION, charId, { suppressAuth: true }).catch(() => null);
+  if (!row) return { ok: false, error: 'not found' };
+  const cid = row.campaignId || '';
+  if (!cid) return { ok: false, error: 'that Fell is not in an adventure' };
+  try {
+    const camp = await wixData.get('Campaigns', cid, { suppressAuth: true }).catch(() => null);
+    if (camp && camp.ownerMemberId === me) return { ok: true, row: row };
+  } catch (e) {}
+  try {
+    const r = await wixData.query('AdventureMembers').eq('campaignId', cid).eq('memberId', me).limit(1).find({ suppressAuth: true });
+    const role = r.items.length ? r.items[0].role : '';
+    if (role === 'loremaster' || role === 'lorekeeper') return { ok: true, row: row };
+  } catch (e) {}
+  return { ok: false, error: 'only the LoreMaster may break this seal' };
+}
+function readSealed(row) {
+  let s = {}; try { s = row.sealedPast ? JSON.parse(row.sealedPast) : {}; } catch (e) { s = {}; }
+  return { code: row.sealCode || '', reveals: Array.isArray(s.reveals) ? s.reveals : [], fragments: Array.isArray(s.fragments) ? s.fragments : [] };
+}
+export const lmSealedGet = webMethod(Permissions.Anyone, async (charId) => {
+  if (!charId) return { ok: false, error: 'no Fell given' };
+  const gate = await sealGate(charId);
+  if (!gate.ok) return gate;
+  return Object.assign({ ok: true }, readSealed(gate.row));
+});
+// Weave a Sealed Past for a Fell that has none, or anew. The fragments FellForge rolled are
+// kept; the reveals are written from everything the sheet knows of the Fell.
+export const lmSealedWeave = webMethod(Permissions.Anyone, async (charId) => {
+  if (!charId) return { ok: false, error: 'no Fell given' };
+  const gate = await sealGate(charId);
+  if (!gate.ok) return gate;
+  const row = gate.row;
+  const had = readSealed(row);
+  let data = {}; try { data = row.data ? JSON.parse(row.data) : {}; } catch (e) { data = {}; }
+  let seed = {}; try { seed = row.forgeSeed ? JSON.parse(row.forgeSeed) : {}; } catch (e) { seed = {}; }
+  const id = data.identity || {};
+  const fell = {
+    name: id.name || row.charName || '', sex: (seed.identity && seed.identity.sex) || '',
+    lineage: id.lineage || '', lineageDesc: id.lineageDesc || '', origin: id.origin || '', motivation: id.motivation || '',
+    level: (data.lore && data.lore.level) || row.level || 1, titles: (data.titles || []).join(', '),
+    hooks: seed.hooks || '', desc: id.desc || '',
+    fragments: had.fragments.length ? had.fragments.map((f) => (f.type ? f.type + ': ' : '') + (f.text || f)).join('\n') : (seed.fragments || '')
+  };
+  try {
+    const o = await archiveCall([
+      'Seal the forgotten past of this Fell for the LoreMaster.',
+      fellFacts(fell),
+      '',
+      'Return JSON with exactly this key:',
+      '"reveals": an array of three to five lines for the LoreMaster only. Each names one buried truth of the forgotten past that the facts point toward. The player must never be told these. Keep each one usable as plot, not a riddle.'
+    ].join('\n'), 900);
+    const reveals = Array.isArray(o && o.reveals) ? o.reveals.map((x) => String(x).trim()).filter(Boolean).slice(0, 6) : [];
+    if (!reveals.length) return { ok: false, error: 'the seal would not hold' };
+    const code = row.sealCode || ('S-' + Math.random().toString(36).slice(2, 6).toUpperCase());
+    row.sealCode = code;
+    row.sealedPast = JSON.stringify({ reveals: reveals, fragments: had.fragments });
+    await wixData.save(COLLECTION, row, { suppressAuth: true });
+    return { ok: true, code: code, reveals: reveals, fragments: had.fragments };
+  } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+});
 
 // Which adventure a Fell belongs to. The record is the truth: a player arrives at the
 // table by way of their Fell, and the table used to learn the adventure only from the
