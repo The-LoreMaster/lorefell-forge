@@ -15,7 +15,8 @@ import { uploadRune } from 'backend/loreforge.web.js';
 import { listStages, saveStage, deleteStage } from 'backend/threadspire.web.js';
 import { getCampaignState, saveCampaignState, getJournal, saveJournal } from 'backend/campaignview.web.js';
 import { loadAdventure, saveAdventureRoot, saveAdvAct, saveAdvSession, saveAdvScene, removeAdvScene, removeAdvSession, removeAdvAct, migrateCampaign } from 'backend/adventures.web.js';
-import { myAdventureRole } from 'backend/fatewell.web.js';
+import { myAdventureRole, deleteCampaign } from 'backend/fatewell.web.js';
+import { removeAdventure } from 'backend/adventures.web.js';
 import { handleSheetMessage } from 'public/fgSheetBridge.js';
 import wixLocation from 'wix-location';
 
@@ -341,6 +342,16 @@ $w.onReady(async function () {
               }
               reply(true, { id: r.id, name: nm });
             }
+          } catch (e) { reply(false, null, String(e)); }
+        } else if (msg.type === 'TS_ADVENTURE_DELETE') {
+          // The LoreMaster deletes an adventure from ThreadSpire's picker, the same two steps
+          // FateWell takes: the campaign row, then its story tree. Both refuse an adventure
+          // owned by another member.
+          try {
+            const id = msg.campaignId || '';
+            const d = await deleteCampaign(id);
+            if (d && d.ok) { try { await removeAdventure(id); } catch (e) {} }
+            reply(!!(d && d.ok), d, d && d.error);
           } catch (e) { reply(false, null, String(e)); }
         } else if (msg.type === 'TS_NEW_ADVENTURE') {
           // FateWell authors adventures; ThreadSpire runs them. The route is the one
