@@ -146,6 +146,15 @@ body.god .god-lock{pointer-events:auto;opacity:1}
 .stat-cell .v{font-family:var(--head);font-size:17px;font-weight:600;color:var(--silver);line-height:1.1}
 .stat-cell .l{font-family:var(--head);font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:var(--silver-dim)}
 .stat-cell .minigems{display:flex;justify-content:center;gap:6px;padding:4px 0 3px}
+.stat-cell.stat-fat{pointer-events:auto;cursor:pointer}
+.stat-cell.stat-fat:hover .v{color:var(--gold)}
+.fat-pop{position:absolute;right:8px;top:100%;margin-top:4px;z-index:60;min-width:210px;max-width:260px;background:var(--navy-2);border:1px solid var(--gold);border-radius:10px;padding:10px 12px;box-shadow:0 8px 24px rgba(0,0,0,.45)}
+.fp-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.fp-b{width:30px;height:30px;border:1px solid var(--line);border-radius:50%;color:var(--gold);font-size:17px;line-height:1}
+.fp-b:disabled{opacity:.35}
+.fp-v{font-family:var(--head);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--silver)}
+.fp-v b{font-size:18px;color:var(--gold);margin-right:4px}
+.fp-fx{margin-top:6px;font-size:13px;color:var(--silver-dim)}
 /* the charge gems are the one live part of the strip: a player sets charges from any tab */
 .stat-cell .minigems .minigem{pointer-events:auto;cursor:pointer;padding:0;position:relative}
 .stat-cell .minigems .minigem::after{content:"";position:absolute;inset:-7px -4px}
@@ -814,7 +823,7 @@ body.in-combat{ padding-top:var(--cbn-h,46px); }
     <button class="stat-cell" data-jump="attributes"><div class="v" id="stripMob">5</div><div class="l">Mobility</div></button>
     <button class="stat-cell" data-jump="lore"><div class="v" id="stripLevel">1</div><div class="l">Level</div></button>
     <button class="stat-cell" data-jump="battle"><div class="minigems" id="stripGems"></div><div class="l">Charges</div></button>
-    <button class="stat-cell" data-jump="battle"><div class="v" id="stripFatigue">0</div><div class="l">Fatigue</div></button>
+    <button class="stat-cell stat-fat" data-jump="battle"><div class="v" id="stripFatigue">0</div><div class="l">Fatigue</div></button>
   </div>
 </header>
 
@@ -2640,6 +2649,7 @@ function currentPanel(){const a=document.querySelector(".panel.active");return a
 /* The stat strip is a readout, not a way around the sheet: it used to jump to a panel on
    click, which read as a mis-tap. Battle has its own button in the header now. */
 document.querySelectorAll(".stat-cell").forEach(c=>{c.setAttribute("tabindex","-1");c.setAttribute("aria-hidden","false");});
+(function(){ const fc=document.querySelector(".stat-fat"); if(fc){ fc.setAttribute("tabindex","0"); fc.title="Set Fatigue"; fc.addEventListener("click",ev=>{ev.stopPropagation();fatiguePopToggle();}); } })();
 /* The Condition button is a toggle: Condition, then back to wherever the Fell was. */
 let _panelBeforeBattle="lore";
 (function(){ var b=$("battleBtn"); if(b) b.addEventListener("click",()=>{
@@ -3622,12 +3632,40 @@ function renderCharges(){
 }
 
 /* ---------- fatigue / mobility ---------- */
+/* One way to move Fatigue, from wherever a player touches it: the stat strip, or the bar
+   over ThreadSpire's cards. It re-reads the hand's gates too, since Drained and
+   Overwhelmed take the Act and the React away. */
+function fatigueSet(n){
+  C.fatigue=Math.max(0,Math.min(5,Number(n)||0));
+  renderFatigue();try{renderBattle();}catch(e){}fatiguePopPaint();
+  scheduleSave();
+}
+/* The strip's Fatigue cell opens a small panel under the strip: the rank, what it does,
+   and - / +. A popover rather than buttons in the cell, so the strip keeps its one line. */
+function fatiguePopPaint(){
+  const pop=$("fatPop"); if(!pop||pop.style.display==="none") return;
+  const f=C.fatigue||0, ef=(typeof cbEffFatigue==="function")?cbEffFatigue():f;
+  pop.innerHTML='<div class="fp-row"><button type="button" class="fp-b" data-fd="-1"'+(f<=0?' disabled':'')+'>\u2212</button>'
+    +'<span class="fp-v"><b>'+f+'</b> '+(FATIGUE_NAMES[Math.min(5,f)]||"")+'</span>'
+    +'<button type="button" class="fp-b" data-fd="1"'+(f>=5?' disabled':'')+'>+</button></div>'
+    +'<div class="fp-fx">'+((ef>0?FATIGUE_FX[ef]:"No effect.")||"")+(ef!==f?' <i>(reduced to '+(FATIGUE_NAMES[ef]||ef)+')</i>':'')+'</div>';
+  pop.querySelectorAll("[data-fd]").forEach(b=>b.addEventListener("click",ev=>{ev.stopPropagation();fatigueSet((C.fatigue||0)+Number(b.getAttribute("data-fd")));}));
+}
+function fatiguePopToggle(open){
+  let pop=$("fatPop");
+  if(!pop){ pop=el("div","fat-pop");pop.id="fatPop";pop.style.display="none";document.querySelector("header").appendChild(pop);
+    pop.addEventListener("click",ev=>ev.stopPropagation()); }
+  const show=(open===undefined)?pop.style.display==="none":open;
+  pop.style.display=show?"block":"none";
+  if(show)fatiguePopPaint();
+}
+document.addEventListener("click",ev=>{ if(!ev.target.closest||(!ev.target.closest("#fatPop")&&!ev.target.closest(".stat-fat"))) { const p=$("fatPop"); if(p) p.style.display="none"; } });
 function renderFatigue(){
   const w=$("fatiguePips");w.innerHTML="";
   for(let i=1;i<=5;i++){
     const p=el("button","fpip"+(C.fatigue>=i?" on":""));
     p.setAttribute("aria-label","Fatigue "+i);
-    p.addEventListener("click",()=>{C.fatigue=(C.fatigue===i)?i-1:i;renderFatigue();scheduleSave();});
+    p.addEventListener("click",()=>fatigueSet((C.fatigue===i)?i-1:i));
     w.appendChild(p);
   }
   var _ef=(typeof cbEffFatigue==="function")?cbEffFatigue():C.fatigue;
@@ -4290,6 +4328,8 @@ function tsHandPayload(){
   var round=(typeof COMBAT!=='undefined' && COMBAT && COMBAT.round)||0;
   return {
     charge: ch,
+    fatigue: C.fatigue||0,
+    fatigueName: FATIGUE_NAMES[Math.min(5,C.fatigue||0)]||"",
     gates: g,
     acts: (window.COMBAT_ACTS||[]).map(function(a){
       return Object.assign({}, a, { locked: tsHandLocked(a.tier, ch) });
@@ -6863,6 +6903,7 @@ window.onmessage=ev=>{
   const d=ev&&ev.data;
   if(!d||typeof d!=="object"||!d.type)return;
   if(d.type==="ts-charge-tap"){ chargeTap(d.tier); return; }
+  if(d.type==="ts-fatigue-step"){ fatigueSet((C.fatigue||0)+(Number(d.delta)||0)); return; }
   if(d.type==="ts-subtabs"){
     TS_SUB = (d.tabs&&d.tabs.length) ? { tabs:d.tabs, active:d.active } : null;
     var cur=(document.querySelector(".panel.active")||{}).id||"";
