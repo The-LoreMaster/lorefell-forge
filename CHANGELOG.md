@@ -1,3 +1,7 @@
+## 2026-09-27 - The LoreMaster's Fell menu says what each option does
+
+Empty this Fell and start it over now shows only for a Fell kept at the table, and lmWipeFell refuses any other: a player's Fell is theirs to rebuild. Release their Fell becomes Unlink their Fell (they stay in the adventure), which is what it did: the Fell leaves, the player keeps their seat and can bring another. Remove from the adventure becomes Remove them from the adventure, and its confirmation says the seat and the Fell both go and a new invite is needed to return. Unlinking or removing cleared the adventure on the row but not in the sheet's record, so the Fell's Lore tab went on naming it; loading now clears it there too. Paste velo/backend/characters.web.js.
+
 ## 2026-09-27 - Accepting an invite opens the Fell's sheet
 
 On the join page, attaching a Fell to the adventure now takes the player straight to that Fell in FellGlass (/the-fellglass?charId=...), which opens on its sheet with the adventure already on the Lore tab. If attaching fails, the player stays on the join page and sees the list as it stands. Paste velo/page-join.js.

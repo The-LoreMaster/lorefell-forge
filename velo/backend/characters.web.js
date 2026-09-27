@@ -82,7 +82,8 @@ async function rowAdventureIntoData(r, data) {
   if (!r || !data) return;
   const cid = r.campaignId || '';
   data.identity = data.identity || {};
-  if (!cid) return;
+  // unlinked or removed: the record forgets the adventure the row no longer names
+  if (!cid) { if (data.identity.campaignId || data.identity.campaign) { data.identity.campaignId = ''; data.identity.campaign = ''; } return; }
   if (data.identity.campaignId === cid && data.identity.campaign) return;
   let name = r.campaign || '';
   if (!name) { try { const c = await wixData.get('Campaigns', cid, { suppressAuth: true }); if (c && c.name) name = c.name; } catch (e) {} }
@@ -543,6 +544,13 @@ export const lmWipeFell = webMethod(Permissions.Anyone, async (charId) => {
   const row = await wixData.get(COLLECTION, charId, { suppressAuth: true }).catch(() => null);
   if (!row) return { ok: false, error: 'not found' };
   if (!(await lmMayRun(row.campaignId))) return { ok: false, error: 'not your adventure' };
+  // Only a Fell the table keeps may be emptied: one with no player behind it, or held by the
+  // adventure's own account. A player's Fell is theirs to rebuild.
+  let kept = !row.ownerMemberId;
+  if (!kept) {
+    try { const camp = await wixData.get('Campaigns', row.campaignId, { suppressAuth: true }).catch(() => null); kept = !!(camp && camp.ownerMemberId && camp.ownerMemberId === row.ownerMemberId); } catch (e) {}
+  }
+  if (!kept) return { ok: false, error: "a player's Fell is theirs to start over" };
   let old = {};
   try { old = row.data ? JSON.parse(row.data) : {}; } catch (e) { old = {}; }
   const idn = old.identity || {};
