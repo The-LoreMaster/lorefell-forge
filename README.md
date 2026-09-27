@@ -39,4 +39,4 @@ Wix reserves the field ids `title`, `status`, and `_owner`. Collections here use
 
 Enable Pages: Settings, Pages, Deploy from a branch, `main`, folder `/docs`.
 The kernel loads at:
-`https://the-loremaster.github.io/lorefell-forge/forgemaster.html?forge=sigilforge`
+`https://table.lorefell.com/forgemaster.html?forge=sigilforge`

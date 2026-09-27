@@ -10,9 +10,9 @@ SERVING.md prose or from memory; look it up here, per tool.
 There are TWO independent ways a tool reaches the live site, and each tool uses exactly
 one. They deploy through different workflows and are verified differently.
 
-**PAGES path** - the Wix HTML component points at a `the-loremaster.github.io/...` URL.
+**PAGES path** - the Wix HTML component points at a `table.lorefell.com/...` URL (GitHub Pages under its custom domain; the old `the-loremaster.github.io/lorefell-forge/...` addresses redirect there).
   - Deployed by: `Deploy Pages` workflow (`.github/workflows/pages.yml`), on push touching `docs/**`.
-  - What it serves: `docs/<tool>.html` verbatim, at `https://the-loremaster.github.io/lorefell-forge/<tool>.html`.
+  - What it serves: `docs/<tool>.html` verbatim, at `https://table.lorefell.com/<tool>.html`.
   - Verify live by: opening that github.io URL's view-source and searching for a string from the change.
   - The `embeds/` mirror and the SiteEmbeds CMS are IRRELEVANT to these tools. Do not check `?info=1` for them.
 
@@ -30,9 +30,9 @@ Website address, then correct this file.
 
 | Tool         | Path  | Live URL the component points at                                          | Deploy workflow |
 | ---          | ---   | ---                                                                       | ---             |
-| threadspire  | PAGES | https://the-loremaster.github.io/lorefell-forge/threadspire.html          | Deploy Pages    |
-| fatewell     | PAGES | https://the-loremaster.github.io/lorefell-forge/fatewell.html (confirm)   | Deploy Pages    |
-| fellglass    | PAGES | https://the-loremaster.github.io/lorefell-forge/fellglass.html (confirm)  | Deploy Pages    |
+| threadspire  | PAGES | https://table.lorefell.com/threadspire.html          | Deploy Pages    |
+| fatewell     | PAGES | https://table.lorefell.com/fatewell.html (confirm)   | Deploy Pages    |
+| fellglass    | PAGES | https://table.lorefell.com/fellglass.html (confirm)  | Deploy Pages    |
 
 Tools not listed: verify the component's Website address in the Wix editor and add a row
 before assuming either path. A blank row is better than a guessed one.

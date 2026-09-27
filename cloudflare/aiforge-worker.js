@@ -13,6 +13,7 @@
    The ALLOW list restricts who may call it. Keep it tight. */
 
 const ALLOW = [
+  'https://table.lorefell.com',          // the tools' own address (GitHub Pages custom domain)
   'https://the-loremaster.github.io',
   'https://lorefell.com',
   'https://www.lorefell.com'

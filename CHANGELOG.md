@@ -1,3 +1,7 @@
+## 2026-09-27 - The tools move to table.lorefell.com
+
+GitHub Pages serves the forge under its own address, table.lorefell.com, a CNAME in the lorefell.com DNS on Wix pointing at the-loremaster.github.io. Paths lose the /lorefell-forge/ prefix (https://table.lorefell.com/threadspire.html), and GitHub redirects the old github.io addresses there. The AI worker's ALLOW list gains https://table.lorefell.com, since a tool served from the new address calls it from that origin and would otherwise be refused; the worker is deployed by hand in Cloudflare. DEPLOY_MANIFEST.md, SERVING.md and README.md carry the new addresses. The Wix embeds are updated in the Wix editor.
+
 ## 2026-09-27 - Phone top bar: portrait, gear, a proper full-screen icon, and the tabs in reading order
 
 The phone portrait showed a corner of the picture: a later phone rule used the background shorthand, which reset the size, so the image drew at full size inside a 38px circle. It covers the circle now. The full-screen button read as the literal text \u26f6; it is an icon, four corners out to go full screen and in to come back. The top-right button on a phone is Settings, so it wears a gear rather than the Fellmark, for players and now for the LoreMaster too (it opens their Settings; it was hidden for them). In a fight a player's gear still opens the fight and turns red. And the phone's bottom bar reads from the Fell outward, Lore, Attributes, Arsenal, Skills, Inventory, where desktop keeps its order.
