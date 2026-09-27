@@ -411,6 +411,12 @@ h3{font-family:var(--head);font-weight:500;font-size:12px;letter-spacing:.12em;t
 .rec-plus:hover{border-color:var(--gold)}
 .rec-add input{flex:1;min-width:160px}
 .rec-empty{margin:0}
+.rem-h2{display:flex;align-items:center;justify-content:space-between}
+.rem-form{display:grid;gap:8px;margin-top:8px}
+.rem-form textarea{min-height:80px}
+.rem-form .row{display:flex;gap:6px;justify-content:flex-end}
+.rem-card{padding-right:60px}
+.rem-desc{margin-top:4px;white-space:pre-wrap}
 .given-card{position:relative;padding-right:34px}
 .given-x{position:absolute;top:6px;right:8px;color:var(--silver-dim);font-size:13px;padding:2px 6px}
 .addline select,.addline input{flex:1;min-width:90px}
@@ -1023,6 +1029,17 @@ body.in-combat{ padding-top:var(--cbn-h,46px); }
     <div class="addline">
       <select id="itemPick"></select>
       <button class="btn small" id="itemAdd">Add</button>
+    </div>
+  </section>
+  <section class="card" id="remnantsCard">
+    <h2 class="rem-h2"><span><span class="orn">⛨</span> Remnants</span><button class="rec-plus" id="remAddBtn" title="Add a Remnant" aria-label="Add a Remnant">+</button></h2>
+    <div id="remnantsWrap"></div>
+    <div id="remForm" class="rem-form" style="display:none">
+      <input id="remName" placeholder="Title">
+      <input id="remWorld" placeholder="World it comes from" list="remWorlds">
+      <datalist id="remWorlds"></datalist>
+      <textarea id="remDesc" placeholder="Description"></textarea>
+      <div class="row"><button class="btn small" id="remCancel">Cancel</button><button class="btn small gold" id="remSave">Add</button></div>
     </div>
   </section>
   <section class="card">
@@ -2425,6 +2442,7 @@ function seedSheet(c){
   if(c.armor.active===undefined) c.armor.active=null;
   ["weapons","lorebounds","inventory","afflictions","impairments","effects","boons","banes","titles"]
     .forEach(function(k){ if(!Array.isArray(c[k])) c[k]=[]; });
+  if(!Array.isArray(c.remnants)) c.remnants=[];
   c.records=c.records||{};
   REC_KINDS.forEach(function(k){ if(!Array.isArray(c.records[k[0]])) c.records[k[0]]=[]; });
   if(!Array.isArray(c.given)) c.given=[];
@@ -4468,6 +4486,52 @@ function renderRecords(cat){
 })();
 REC_KINDS.forEach(k=>renderRecords(k[0]));
 
+/* ---------- remnants ----------
+   World-altering artifacts, rarer than Paragon Points. A Fell records each with a title,
+   the world it comes from, and what it is. The player fills this in, or the LoreMaster
+   does while holding the Fell open in ThreadSpire. The world box suggests the 36 canon
+   worlds (data/Worlds.canon.json) but takes any name. */
+const REMNANT_WORLDS=["Akkoroka", "Amaranthia", "Avemriol", "Brimsever", "Burhallow", "Crixalis", "Eldarwyn", "Elysara", "Felidae", "Garyx", "Karn", "Kwuhara", "Mireleor", "Mireth", "Mortavia", "Natbakka", "Neriad", "Oroniel", "Pandemonium", "Sable", "Scitnix", "Sellenia", "Shadakar", "Shervinaw", "Sporion", "Sylvanoth", "Thaloryn", "The Scere", "Therion", "Ursathar", "Valoria", "Verdantia", "Vulkaris", "Vyrathis", "Wildermire", "Wylv"];
+let remEditing=-1;
+function remFormOpen(idx){
+  remEditing=idx;
+  const r=idx>=0?C.remnants[idx]:{name:"",world:"",desc:""};
+  $("remName").value=r.name||"";$("remWorld").value=r.world||"";$("remDesc").value=r.desc||"";
+  $("remSave").textContent=idx>=0?"Save":"Add";
+  $("remForm").style.display="grid";$("remName").focus();
+}
+function remFormClose(){remEditing=-1;$("remForm").style.display="none";}
+function renderRemnants(){
+  const w=$("remnantsWrap"); if(!w) return; w.innerHTML="";
+  const list=C.remnants||[];
+  if(!list.length){w.appendChild(el("p","note rec-empty","No Remnants carried."));return;}
+  list.forEach((r,i)=>{
+    const card=el("div","status-entry rem-card");
+    card.appendChild(el("div","nm",r.name||"Unnamed Remnant"));
+    if(r.world)card.appendChild(el("div","sub",r.world));
+    if(r.desc)card.appendChild(el("div","d rem-desc",r.desc));
+    const acts=el("div","rec-actions");
+    const edit=el("button",null,"\u270E"),del=el("button",null,"\u2715");
+    edit.title="Edit";del.title="Delete";
+    edit.addEventListener("click",()=>remFormOpen(i));
+    del.addEventListener("click",()=>{if(!confirm("Remove "+(r.name||"this Remnant")+"?"))return;C.remnants.splice(i,1);remFormClose();renderRemnants();scheduleSave();});
+    acts.append(edit,del);card.appendChild(acts);w.appendChild(card);
+  });
+}
+(function wireRemnants(){
+  const dl=$("remWorlds"); if(dl) dl.innerHTML=REMNANT_WORLDS.map(n=>'<option value="'+n+'">').join("");
+  $("remAddBtn").addEventListener("click",()=>{ if($("remForm").style.display==="none") remFormOpen(-1); else remFormClose(); });
+  $("remCancel").addEventListener("click",remFormClose);
+  $("remSave").addEventListener("click",()=>{
+    const r={name:$("remName").value.trim(),world:$("remWorld").value.trim(),desc:$("remDesc").value.trim()};
+    if(!r.name){$("remName").focus();return;}
+    C.remnants=C.remnants||[];
+    if(remEditing>=0)C.remnants[remEditing]=Object.assign({},C.remnants[remEditing],r);
+    else C.remnants.push(Object.assign({id:"rem-"+Date.now().toString(36)},r));
+    remFormClose();renderRemnants();scheduleSave();
+  });
+})();
+
 /* ---------- autosave ---------- */
 /* Debounced: any interaction schedules a save 1.2s after the last change.
    Live build: doSave() posts the full character state to Velo via
@@ -4818,6 +4882,7 @@ function toggleUtilityEquip(idx){
 }
 function renderAll(){
   equipSeed();
+  try{renderRemnants();}catch(e){}
   grantSummary();renderLore();renderDials();renderVit();renderWeapons();
   /* The pack is repainted here like everything else. It was not, and the Inventory tab
      went on showing the blank character that exists before a record has loaded: the rows

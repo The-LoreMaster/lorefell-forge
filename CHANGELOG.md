@@ -1,3 +1,7 @@
+## 2026-09-27 - Remnants on the Inventory tab
+
+A Remnants card sits between Utilities and Aurum. Its + opens a short form: title, the world it comes from, and a description. Each Remnant can be edited or removed. The player fills it in, or the LoreMaster does while holding the Fell open in ThreadSpire, since that is the same sheet. The world box suggests the 36 canon worlds from data/Worlds.canon.json and takes any other name. Stored on the Fell as remnants, seeded empty. No slot limit is enforced: the FellGuide says Remnant slots open only at very high levels and leaves the rest to the LoreMaster.
+
 ## 2026-09-27 - Give to: the LoreMaster hands any beat to chosen Fell
 
 Every beat in ThreadSpire's scene runner now has a Give to button, whatever its kind. It opens a list of the Fell in the adventure: tick them one by one, or Assign to all. The LoreMaster also picks which Records section it lands in, defaulting from the beat (Quest to Quests, Clue to Clues, Secret to Secrets, Dialogue to Characters, anything else to Notes). It arrives in each chosen Fell's Records on the Lore tab under From the LoreMaster, and nobody else sees it. The player can dismiss one.
