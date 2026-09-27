@@ -71,8 +71,24 @@ export const loadCharacter = webMethod(Permissions.Anyone, async (charId) => {
     return { forged: true, seed: seed };
   }
   let data = {}; try { data = r.data ? JSON.parse(r.data) : {}; } catch (e) { data = {}; }
+  await rowAdventureIntoData(r, data);
   return { forged: false, character: data };  // sealed past intentionally absent
 });
+// The row's campaignId is the truth about which adventure a Fell is in. A Fell attached
+// through an invite, or forged into one, had the row set and the sheet's record not, so its
+// Lore tab read No adventure. Loading carries the row's adventure into the record the sheet
+// reads; the next save writes it back.
+async function rowAdventureIntoData(r, data) {
+  if (!r || !data) return;
+  const cid = r.campaignId || '';
+  data.identity = data.identity || {};
+  if (!cid) return;
+  if (data.identity.campaignId === cid && data.identity.campaign) return;
+  let name = r.campaign || '';
+  if (!name) { try { const c = await wixData.get('Campaigns', cid, { suppressAuth: true }); if (c && c.name) name = c.name; } catch (e) {} }
+  data.identity.campaignId = cid;
+  data.identity.campaign = name || data.identity.campaign || '';
+}
 
 // A public, safe view of any character for ThreadSpire: card fields only, no sealed
 // past, no private mechanics. Includes the owner's display name and whether the
@@ -612,6 +628,7 @@ export const lmLoadCharacter = webMethod(Permissions.Anyone, async (charId) => {
     return { forged: true, seed: seed };
   }
   let data = {}; try { data = r.data ? JSON.parse(r.data) : {}; } catch (e) { data = {}; }
+  await rowAdventureIntoData(r, data);
   return { forged: false, character: data };
 });
 

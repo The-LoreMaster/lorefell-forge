@@ -1,3 +1,9 @@
+## 2026-09-27 - Lettering that fits any window, and a joined Fell that knows its adventure
+
+On another screen the lettering came out enormous and ran into itself. The frame art stretches to fill the window, so the HUD's slots are fractions of its width and height, but its text was sized by height alone; any window narrower than 16:9, or a zoomed browser or larger system text, made the text outgrow its slot. Every one of ThreadSpire's sixteen height-based sizes is now the smaller of its height share and the matching width share, and HUD and rail text stays on one line. On the sheet, the stat strip's labels scale with the strip itself (container units on the header), stay on one line and end in an ellipsis before they can collide, and a long name does the same.
+
+Joining an adventure through an invite attached only the Characters row, so the Fell's own record, which the sheet reads, still said no adventure and its Lore tab showed none. attachCharacter now writes the adventure's id and name into the record too, and loadCharacter and lmLoadCharacter carry the row's adventure into the record on load, which also fixes every Fell already joined this way the next time it opens. Paste velo/backend/invites.web.js and velo/backend/characters.web.js.
+
 ## 2026-09-27 - The Sealed Past simply shows for the LoreMaster
 
 Nate's call: only the LoreMaster ever sees this card, so there is no one to warn and nothing to break. Opening a Fell in LoreMaster mode now reads its sealed past at once and lays it out for review, with the fragments the player holds beneath. A Fell with none offers Weave the seal; once woven it stays shown, with Weave it anew (which asks first). Break the Seal, its Players, look away warning, Close the seal and the Sealed as code line are gone. No Velo paste.
