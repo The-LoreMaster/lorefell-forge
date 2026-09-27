@@ -1,3 +1,7 @@
+## 2026-09-27 - One character sheet, held as a standing rule
+
+FellGlass and ThreadSpire share one character sheet: ThreadSpire loads fellglass.html in its sheet frame for both the player and the LoreMaster view. That is now a written rule in CLAUDE.md rather than an implementation detail. Any design or function change to the FellGlass sheet ships in ThreadSpire in the same change, the three seams where they could drift (the tsembed style block, the ts-god flag, and GOD_TABS) are named, and any new exception is a design ruling for Nate. One open question is recorded there: the LoreMaster tab bar omits the Battle and Notes panels.
+
 ## 2026-08-16 - SagaForge decommissioned from the hearth
 
 SagaForge is pulled from the hearth. Its card and icon are gone from the_hearth.html, so nothing
