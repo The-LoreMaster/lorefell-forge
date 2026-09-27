@@ -1627,7 +1627,7 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
     <div class="hslot hNum hCur" id="hudCur"></div>
     <div class="hslot hNum hMax" id="hudMax"></div>
     <div class="hslot hCharge" id="hudCharge">0</div>
-    <div class="hslot hName" id="hudName"></div>
+    <div class="hslot hName" id="hudName" onclick="fellSwapOpen()" title="Switch Fell"></div>
     <div class="hslot hPortrait" id="hudPortrait" onclick="isLM()?lmPortraitPick():railClick('lore')" title="Portrait"></div>
     <input type="file" id="lmPortInput" accept="image/*" style="display:none" onchange="lmPortraitPicked(this)">
     <div class="hslot hLvl"><span class="hlbl" id="hudLvlLbl">LVL</span><span id="hudLvl"></span></div>
@@ -8740,6 +8740,37 @@ function hudPortraitClick(){
     rd.readAsDataURL(f);
   };
   inp.click();
+}
+/* The name on the plaque is where a player reaches for to change who they are playing.
+   Tapping it lists their Fells; choosing one takes it up the way the chooser does, into
+   whatever adventure that Fell is in. The LoreMaster's plaque does nothing here. */
+function fellSwapOpen(){
+  if (isLM() || !tsEmbedded()) return;
+  var draw = function(list, loading){
+    var cur = S.characterId || '';
+    var body = (loading && !list) ? '<div class="tsm-pick-load">Finding your Fells</div>'
+      : (!list || !list.length) ? '<div class="tsm-pick-load">No other Fells yet.</div>'
+      : list.map(function(c){
+          var id = c.id || c.charId || '', on = sameId(id, cur);
+          return '<button class="tsm-pick' + (on ? ' on' : '') + '" onclick="fellSwap(\'' + esc(id) + '\')">'
+            + (c.portrait || c.image ? '<img class="tsm-pick-face" src="' + esc(c.portrait || c.image) + '" alt="">' : '')
+            + '<span class="tsm-pick-name">' + esc(c.name || c.charName || 'Fell') + '</span>'
+            + (on ? '<span class="tsm-pick-cur">Playing</span>' : (c.advName || c.campaignName ? '<span class="tsm-pick-sub">' + esc(c.advName || c.campaignName) + '</span>' : ''))
+            + '</button>';
+        }).join('');
+    tsModal('<h3 class="tsm-title">Switch Fell</h3><div class="tsm-pick-list">' + body + '</div>'
+      + '<button class="ts-newfell" onclick="tsCloseModal();buildNewFell()">Build a new Fell</button>');
+  };
+  draw(S._charList || null, !S._charList);
+  if (charBackend.list) charBackend.list().then(function(list){ S._charList = list || []; if (document.querySelector('#tsModal .tsm-title') && /Switch Fell/.test(document.querySelector('#tsModal .tsm-title').textContent)) draw(S._charList, false); }).catch(function(){});
+}
+function fellSwap(id){
+  tsCloseModal();
+  if (!id || sameId(id, S.characterId)) return;
+  S.sheet = null; S.charReady = false; if (S.character) S.character.portrait = '';
+  _sheetLoaded = false; var f = document.getElementById('sheetFrame'); if (f) f.src = '';
+  closeWin();
+  tsPickFell(id);
 }
 function hudNameEdit(){
   if (isLM()) return;

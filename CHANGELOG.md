@@ -1,3 +1,7 @@
+## 2026-09-27 - Crossed swords for Battle, a quiet stat strip, and swapping from the name plaque
+
+The stat strip under the name jumped to a panel when clicked, mostly Battle, and read as a mis-tap. It is a readout now and does nothing on click. Battle gets its own crossed-swords button in the sheet header on every tab, lit while Battle is showing, in FellGlass and ThreadSpire alike. In ThreadSpire, a player tapping their name plaque in the HUD gets a Switch Fell list: their Fells, the one in hand marked Playing, and Build a new Fell. Choosing one takes it up the way the on-load chooser does, into whatever adventure it is in. The LoreMaster's plaque is unchanged.
+
 ## 2026-09-27 - Remnants on the Inventory tab
 
 A Remnants card sits between Utilities and Aurum. Its + opens a short form: title, the world it comes from, and a description. Each Remnant can be edited or removed. The player fills it in, or the LoreMaster does while holding the Fell open in ThreadSpire, since that is the same sheet. The world box suggests the 36 canon worlds from data/Worlds.canon.json and takes any other name. Stored on the Fell as remnants, seeded empty. No slot limit is enforced: the FellGuide says Remnant slots open only at very high levels and leaves the rest to the LoreMaster.
