@@ -1,3 +1,7 @@
+## 2026-09-27 - The crossed swords toggle back
+
+Tapping the crossed swords while Battle is showing returns to the tab the Fell was on before it, rather than doing nothing.
+
 ## 2026-09-27 - Crossed swords for Battle, a quiet stat strip, and swapping from the name plaque
 
 The stat strip under the name jumped to a panel when clicked, mostly Battle, and read as a mis-tap. It is a readout now and does nothing on click. Battle gets its own crossed-swords button in the sheet header on every tab, lit while Battle is showing, in FellGlass and ThreadSpire alike. In ThreadSpire, a player tapping their name plaque in the HUD gets a Switch Fell list: their Fells, the one in hand marked Playing, and Build a new Fell. Choosing one takes it up the way the on-load chooser does, into whatever adventure it is in. The LoreMaster's plaque is unchanged.
