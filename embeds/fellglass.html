@@ -456,8 +456,6 @@ h3{font-family:var(--head);font-weight:500;font-size:12px;letter-spacing:.12em;t
 body.god #sealCard{display:block}
 #sealCard h2{color:#e3a193}
 .seal-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
-#sealBtn.armed{border-color:var(--danger);color:#e3a193}
-.seal-code{font-family:var(--head);font-size:11px;letter-spacing:.14em;color:var(--gold);margin:4px 0 6px}
 .seal-list{margin:6px 0 0 18px;padding:0}
 .seal-list li{margin-bottom:6px;color:var(--silver)}
 .seal-frag{font-size:13px;color:var(--silver-dim);margin-top:8px}
@@ -965,7 +963,7 @@ body.in-combat{ padding-top:var(--cbn-h,46px); }
     <h2><span class="orn">❖</span> The Sealed Past</h2>
     <p class="note" id="sealNote">Threads of this Fell's forgotten life, for the LoreMaster only. The player never sees this.</p>
     <div id="sealBody"></div>
-    <div class="row seal-row"><button type="button" class="btn small" id="sealBtn">Break the Seal</button><button type="button" class="btn small ghost" id="sealWeaveBtn" style="display:none">Weave it anew</button></div>
+    <div class="row seal-row"><button type="button" class="btn small" id="sealWeaveBtn" style="display:none">Weave the seal</button></div>
   </section>
   <div class="savebar">
     <span id="saveState">Autosave on. Every change saves automatically.</span>
@@ -4848,48 +4846,43 @@ function archiveResult(d){
   scheduleSave();
 }
 /* ---------- the Sealed Past (LoreMaster only) ----------
-   Shown only in LoreMaster mode. The sheet never holds it: ThreadSpire asks its backend,
-   which refuses the Fell's own player, and hands the answer down only while the LoreMaster
-   has this Fell open. Breaking the seal takes two taps, the second warning the table. */
-let _sealArmed=false,_sealT=null,_sealFor="";
+   Shown only in LoreMaster mode, and there it simply shows: opening a Fell asks for its
+   sealed past and lays it out for review. A Fell with none offers Weave the seal; one
+   that has it offers Weave it anew. The sheet never holds it: ThreadSpire asks a backend
+   that refuses the Fell's own player, and it is cleared when the Fell closes. */
+let _sealFor="";
 function sealReset(){
-  _sealArmed=false; clearTimeout(_sealT); _sealFor="";
-  const b=$("sealBtn"); if(b){ b.classList.remove("armed"); b.textContent="Break the Seal"; b.disabled=false; }
-  const w=$("sealWeaveBtn"); if(w) w.style.display="none";
+  _sealFor="";
+  const w=$("sealWeaveBtn"); if(w){ w.style.display="none"; w.disabled=false; }
   const body=$("sealBody"); if(body) body.innerHTML="";
 }
-function sealPaint(d){
-  const body=$("sealBody"), b=$("sealBtn"), w=$("sealWeaveBtn"); if(!body) return;
-  if(b){ b.disabled=false; b.classList.remove("armed"); }
-  if(!d||!d.ok){ body.innerHTML='<p class="note" style="color:var(--danger)">'+cbEsc((d&&d.error)||"The seal would not open.")+'</p>'; if(b) b.textContent="Break the Seal"; return; }
+function sealLoad(){
+  if(!god || !CUR_WIX_ID || _sealFor===CUR_WIX_ID) return;
   _sealFor=CUR_WIX_ID;
+  const body=$("sealBody"); if(body) body.innerHTML='<p class="note">Reading the seal...</p>';
+  postToVelo({type:"seal-request",charId:CUR_WIX_ID});
+}
+function sealPaint(d){
+  const body=$("sealBody"), w=$("sealWeaveBtn"); if(!body) return;
+  if(w){ w.disabled=false; w.style.display=""; }
+  if(!d||!d.ok){ body.innerHTML='<p class="note" style="color:var(--danger)">'+cbEsc((d&&d.error)||"The seal could not be read.")+'</p>'; if(w) w.textContent="Weave the seal"; return; }
   const rev=d.reveals||[], fr=d.fragments||[];
   if(!rev.length){
-    body.innerHTML='<p class="note">No past is sealed for this Fell yet. Weave one from what the sheet knows of them.</p>';
-    if(b) b.textContent="Weave the seal";
-    if(w) w.style.display="none";
+    body.innerHTML='<p class="note">No past is sealed for this Fell yet.</p>';
+    if(w) w.textContent="Weave the seal";
     return;
   }
-  body.innerHTML=(d.code?'<div class="seal-code">Sealed as '+cbEsc(d.code)+'</div>':'')
-    +'<ol class="seal-list">'+rev.map(r=>'<li>'+cbEsc(r)+'</li>').join("")+'</ol>'
+  body.innerHTML='<ol class="seal-list">'+rev.map(r=>'<li>'+cbEsc(r)+'</li>').join("")+'</ol>'
     +(fr.length?'<div class="seal-frag">Fragments the player holds: '+fr.map(f=>cbEsc((f.type?f.type+": ":"")+(f.text||f))).join(" &middot; ")+'</div>':'');
-  if(b){ b.textContent="Close the seal"; }
-  if(w) w.style.display="";
+  if(w) w.textContent="Weave it anew";
 }
 (function(){
-  const b=$("sealBtn"), w=$("sealWeaveBtn"); if(!b) return;
-  b.addEventListener("click",()=>{
-    if(!god) return;
-    if(_sealFor===CUR_WIX_ID && b.textContent==="Close the seal"){ sealReset(); return; }
-    if(b.textContent==="Weave the seal"){ b.disabled=true; b.textContent="Weaving..."; postToVelo({type:"seal-weave",charId:CUR_WIX_ID}); return; }
-    if(!_sealArmed){ _sealArmed=true; b.classList.add("armed"); b.textContent="Tap again. Players, look away."; clearTimeout(_sealT); _sealT=setTimeout(()=>{ _sealArmed=false; b.classList.remove("armed"); b.textContent="Break the Seal"; },4000); return; }
-    _sealArmed=false; clearTimeout(_sealT); b.disabled=true; b.textContent="Breaking...";
-    postToVelo({type:"seal-request",charId:CUR_WIX_ID});
-  });
+  const w=$("sealWeaveBtn"); if(!w) return;
   w.addEventListener("click",()=>{
     if(!god) return;
-    if(!confirm("Weave this Fell's sealed past anew? The truths written now replace the ones here.")) return;
-    w.style.display="none"; const bb=$("sealBtn"); if(bb){ bb.disabled=true; bb.textContent="Weaving..."; }
+    const anew=w.textContent==="Weave it anew";
+    if(anew && !confirm("Weave this Fell's sealed past anew? The truths written now replace the ones here.")) return;
+    w.disabled=true; w.textContent="Weaving...";
     postToVelo({type:"seal-weave",charId:CUR_WIX_ID});
   });
 })();
@@ -5482,7 +5475,7 @@ function loadCharacter(rec){
   renderAll();
   try { renderMotivation(); syncIdentityLock(); } catch(e){}
   // release the guard after this tick, once all programmatic field writes have settled
-  setTimeout(function(){ setLoading(false); if(_motBackfill||_arcFilled) scheduleSave(); },0);
+  setTimeout(function(){ setLoading(false); if(_motBackfill||_arcFilled) scheduleSave(); try{ sealLoad(); }catch(e){} },0);
 }
 /* A new character opens the forging immediately, but only once we know it
    IS new: either Velo says so, or no bridge message arrives at all
@@ -7331,7 +7324,7 @@ window.onmessage=ev=>{
     return;
   }
   if(d.type==="ts-new"){ postToVelo({type:"add-character"}); return; }
-  if(d.type==="ts-god"){ god=!!d.on; if(!god){ try{ sealReset(); }catch(e){} } document.body.classList.toggle("god",god); var gb=$("godBtn"); if(gb) gb.classList.toggle("on",god); try{renderWeapons();renderDials();renderArmor();renderLorebounds();renderCampaignOptions();renderMotivation();syncIdentityLock();}catch(e){} return; }
+  if(d.type==="ts-god"){ god=!!d.on; if(!god){ try{ sealReset(); }catch(e){} } else { setTimeout(function(){ try{ sealLoad(); }catch(e){} },0); } document.body.classList.toggle("god",god); var gb=$("godBtn"); if(gb) gb.classList.toggle("on",god); try{renderWeapons();renderDials();renderArmor();renderLorebounds();renderCampaignOptions();renderMotivation();syncIdentityLock();}catch(e){} return; }
   bridged=true;
   if(d.type==="init"||d.type==="new")hideCover();
   if(d.type==="new"&&!d.character){

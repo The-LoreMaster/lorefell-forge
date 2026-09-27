@@ -1,3 +1,7 @@
+## 2026-09-27 - The Sealed Past simply shows for the LoreMaster
+
+Nate's call: only the LoreMaster ever sees this card, so there is no one to warn and nothing to break. Opening a Fell in LoreMaster mode now reads its sealed past at once and lays it out for review, with the fragments the player holds beneath. A Fell with none offers Weave the seal; once woven it stays shown, with Weave it anew (which asks first). Break the Seal, its Players, look away warning, Close the seal and the Sealed as code line are gone. No Velo paste.
+
 ## 2026-09-27 - The Archive writes the whole entry, in an expandable Description
 
 The field is Description again, with Consult the Archive beneath it rather than beside the label. The Archive now writes everything FellForge did: who you are, a first impression, three lines on how to play them, and, for a Fell that never went through FellForge, three forgotten fragments (a forged Fell keeps its own). It lands as one readable, editable text under those four headings. A forged Fell whose Description held only FellForge's first paragraph has its first impression, tips and fragments folded in once from the forge seed, below what was there, and saved. An Expand button grows the field to show the whole entry; switching tabs folds it back. Paste velo/backend/characters.web.js and velo/public/fgSheetBridge.js again.
