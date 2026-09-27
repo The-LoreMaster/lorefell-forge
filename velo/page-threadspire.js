@@ -19,6 +19,7 @@ import { myAdventureRole, deleteCampaign } from 'backend/fatewell.web.js';
 import { removeAdventure } from 'backend/adventures.web.js';
 import { handleSheetMessage } from 'public/fgSheetBridge.js';
 import wixLocation from 'wix-location';
+import wixWindow from 'wix-window';
 
 // uploadRune hands back a wix:image:// descriptor, which a plain <img> cannot load.
 // Convert to an https url the embed can paint. Same conversion page-fatewell uses.
@@ -64,6 +65,14 @@ const EMBED = '#html1';
 $w.onReady(async function () {
   const embed = $w(EMBED);
   if (!embed || !embed.onMessage) return;
+  // On a phone the table should fill the screen, not sit between the site's header and
+  // footer. Scroll it to the top of the view once the page has settled; with the embed sized
+  // to the screen in the mobile editor, the header scrolls away and the table fits.
+  try {
+    if (wixWindow.formFactor === 'Mobile') {
+      setTimeout(() => { try { embed.scrollTo(); } catch (e) {} }, 400);
+    }
+  } catch (e) {}
 
   const q = wixLocation.query || {};
   // A cast from FateWell opens a NEW tab with cast=1, and the tool deep-links to the active

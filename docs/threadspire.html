@@ -105,6 +105,7 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 #hud.lm .hlbl{ color:#9fb0c8; }
 body.winopen #lmstrip{ display:none !important; }
 body.roleboot #hud, body.roleboot #rail, body.roleboot #tray, body.roleboot #lmstrip, body.roleboot #hand{ visibility:hidden; }
+body.roleboot #mhud .mid, body.roleboot #mhud .gem, body.roleboot #mhud .portrait, body.roleboot #mrail button{ visibility:hidden; }
 .hslot{ position:fixed; z-index:60; pointer-events:none; display:flex; align-items:center; justify-content:center; color:var(--silver); font-family:Cinzel,serif; text-align:center; line-height:1; overflow:hidden; }
 .hLP{ left:93.076%; top:45.12%; width:5.981%; height:3.38%; font-size:1.7vh; color:#cfe0ff; }
 .hVlbl{ left:89.53%; top:50.14%; width:9.373%; height:3.38%; font-size:1.2vh; letter-spacing:.02em; color:#9fb0c8; font-family:'Crimson Pro',serif; }
@@ -1593,6 +1594,9 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
   #mhud .gem span{ transform:rotate(-45deg); color:#fff; font-family:Cinzel,serif; }
   #mhud.lm .gem{ display:none; }
   #mhud #mlog{ min-height:32px; }
+  #mfull{ display:none; flex:none; width:32px; height:32px; border:1px solid var(--gold); border-radius:5px; color:var(--gold); font-size:1rem; line-height:1; padding:0; }
+  body.canfull #mfull{ display:inline-flex; align-items:center; justify-content:center; }
+  body.isfull #mfull{ opacity:.6; }
   #fellmarkM{ cursor:pointer; }
   #fellmarkM.combat{ filter:drop-shadow(0 0 6px rgba(201,106,90,.9)); animation:fellpulse 1.15s ease-in-out infinite; }
   #mrail button{ min-height:60px; }
@@ -1711,6 +1715,7 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
   <div id="mhud">
     <div class="portrait" id="mhudPortrait" onclick="mhudWho()"></div>
     <div class="mid" onclick="mhudWho()"><div class="pname"></div><div class="psub" id="mhudSub"></div></div>
+    <button id="mfull" onclick="tsFullscreen()" aria-label="Full screen" title="Full screen">\u26f6</button>
     <button id="mlog" onclick="railClick('log')" aria-label="Session log">Log</button>
     <button class="gem" id="vitGemM" onclick="vitHudOpen()" aria-label="Vitality"><span id="vitValM"></span></button>
     <div class="fmark" id="fellmarkM" role="button" aria-label="Menu" onclick="mhudMark()"></div>
@@ -8875,6 +8880,37 @@ function hudPortraitClick(){
 /* The phone's top bar does what the desktop HUD does: the name swaps Fells, the gem is
    vitality, and the Fellmark is the menu, or the fight while one is on. */
 function mhudWho(){ if (!isLM()) fellSwapOpen(); }
+/* ---- full screen on a phone ----
+   The table sits inside a site page with its own header and footer. Where the browser lets a
+   page go full screen (Android, most desktop browsers), the first tap on a phone takes the
+   table full screen by itself, and the button in the top bar toggles it after that. iPhones
+   do not allow it for anything but video, so there the button stays hidden and the page's
+   own code scrolls the table into view instead. */
+function tsCanFull(){
+  var d = document, el = d.documentElement;
+  return !!(d.fullscreenEnabled || d.webkitFullscreenEnabled) && !!(el.requestFullscreen || el.webkitRequestFullscreen);
+}
+function tsIsFull(){ return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+function tsFullscreen(on){
+  var d = document, el = d.documentElement;
+  var want = (on === undefined) ? !tsIsFull() : on;
+  try {
+    if (want && !tsIsFull()) (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+    else if (!want && tsIsFull()) (d.exitFullscreen || d.webkitExitFullscreen).call(d);
+  } catch(e){}
+}
+(function(){
+  if (tsCanFull()) document.body.classList.add('canfull');
+  var sync = function(){ document.body.classList.toggle('isfull', tsIsFull()); };
+  document.addEventListener('fullscreenchange', sync); document.addEventListener('webkitfullscreenchange', sync);
+  var first = function(ev){
+    document.removeEventListener('touchend', first, true);
+    if (!tsCanFull() || !isMobile() || tsIsFull()) return;
+    if (ev && ev.target && ev.target.closest && ev.target.closest('#mfull')) return;
+    tsFullscreen(true);
+  };
+  document.addEventListener('touchend', first, true);
+})();
 function mhudMark(){
   if (isLM()) { railClick('settings'); return; }
   railClick(S.mode === 'combat' ? 'combat' : 'menu');
@@ -9300,13 +9336,17 @@ function paintHud(){
   if (msub && mhud){
     if (isLM()){ mhud.classList.add('lm'); msub.textContent = S.memberName;
       var mn = mhud.querySelector('.pname'); if (mn) mn.textContent = 'LoreMaster';
-    } else { mhud.classList.remove('lm'); msub.textContent = 'Level ' + ((S.character && S.character.level) || 1);
-      var mn2 = mhud.querySelector('.pname'); if (mn2) mn2.textContent = (S.character && S.character.name) || 'Fell';
+    } else { mhud.classList.remove('lm');
+      /* nothing until this player's own Fell has arrived: the page starts from a sample Fell
+         for the offline prototype, and on a phone that sample flashed up before the real one */
+      var _mReady = S.charReady || !tsEmbedded(), _mStats = !!S.sheet || !tsEmbedded();
+      msub.textContent = _mStats ? ('Level ' + ((S.character && S.character.level) || 1)) : '';
+      var mn2 = mhud.querySelector('.pname'); if (mn2) mn2.textContent = _mReady ? ((S.character && S.character.name) || 'Fell') : '';
     }
     var mp = document.getElementById('mhudPortrait');
-    if (mp) mp.style.backgroundImage = 'url(' + artOr(isLM() ? ((S.lm && S.lm.portrait) || '') : ((S.character && S.character.portrait) || '')) + ')';
+    if (mp) mp.style.backgroundImage = 'url(' + artOr(isLM() ? ((S.lm && S.lm.portrait) || '') : ((S.charReady || !tsEmbedded()) ? ((S.character && S.character.portrait) || '') : '')) + ')';
     var mv = document.getElementById('vitValM');
-    if (mv && !isLM()){ var _c = S.character || {}; mv.textContent = ((_c.vit || 0) + (_c.tempVit || 0)) || ''; }
+    if (mv && !isLM()){ var _c = S.character || {}; mv.textContent = (!!S.sheet || !tsEmbedded()) ? (((_c.vit || 0) + (_c.tempVit || 0)) || '') : ''; }
     var fm = document.getElementById('fellmarkM');
     if (fm) fm.classList.toggle('combat', !isLM() && S.mode === 'combat');
   }

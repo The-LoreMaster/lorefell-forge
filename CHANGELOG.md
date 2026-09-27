@@ -1,3 +1,9 @@
+## 2026-09-27 - No sample Fell on a phone, and the table fills the screen
+
+The page starts from a sample Fell (Acantha, level 12) for the offline prototype. The desktop HUD already waited for the player's own Fell before showing anything, but the phone top bar did not, so Acantha flashed up before the real Fell. The phone bar now stays blank until the player's Fell arrives, and it is hidden with the rest of the HUD while the role is still being decided.
+
+On a phone the table sits inside a site page with its own header and footer. Where the browser allows a page to go full screen (Android and most desktop browsers), the first tap takes the table full screen, and a button in the phone top bar toggles it after that. iPhones only allow full screen for video, so there the button stays hidden. For every phone, the ThreadSpire page code now scrolls the table to the top of the view on load when wix-window reports a mobile form factor, so with the embed sized to the screen in the mobile editor the header scrolls away. velo/page-threadspire.js must be pasted again.
+
 ## 2026-09-27 - Phones get a plain table; desktop keeps Joel's art
 
 Joel's art is painted for a wide screen and does not survive a phone. Under 700px wide, the frame art, the HUD art, the window art and the wooden table edge all stand down, and the map sits on a plain navy field between the gold top bar and the bottom rail, both lifted above everything and given a soft shadow. Desktop is unchanged.
