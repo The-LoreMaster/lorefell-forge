@@ -109,6 +109,13 @@ body.roleboot #hud, body.roleboot #rail, body.roleboot #tray, body.roleboot #lms
 .hLP{ left:93.076%; top:45.12%; width:5.981%; height:3.38%; font-size:1.7vh; color:#cfe0ff; }
 .hVlbl{ left:89.53%; top:50.14%; width:9.373%; height:3.38%; font-size:1.2vh; letter-spacing:.02em; color:#9fb0c8; font-family:'Crimson Pro',serif; }
 .hTotal{ left:85.946%; top:53.255%; width:4.81%; height:7.955%; flex-direction:column; gap:0.2vh; }
+.hVitTap{ pointer-events:auto; cursor:pointer; }
+body.lm .hVitTap{ cursor:default; }
+.vh-nums{ display:flex; align-items:baseline; justify-content:space-between; font-family:Cinzel,serif; color:var(--muted,#7e8a99); margin:4px 0 10px; }
+.vh-nums b{ font-size:1.6rem; color:var(--silver); }
+.vh-temp{ color:#9ecbe0; }
+.vh-row{ display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+.vh-amt{ width:70px; margin:0; }
 .hTotal .hlbl{ font-size:1.1vh; color:#e6c9c0; letter-spacing:.05em; }
 .hTotal #hudTotal{ font-size:2.6vh; color:#fff; }
 .hNum{ top:54.028%; width:1.832%; height:4.328%; font-size:1.8vh; color:#f0e0d8; }
@@ -1633,10 +1640,10 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
   <div id="hud">
     <div class="hslot hLP" id="hudLP"></div>
     <div class="hslot hVlbl" id="hudVlbl">TEMP · CURRENT · MAX</div>
-    <div class="hslot hTotal"><span class="hlbl" id="hudTotalLbl">TOTAL</span><span id="hudTotal"></span></div>
-    <div class="hslot hNum hTemp" id="hudTemp"></div>
-    <div class="hslot hNum hCur" id="hudCur"></div>
-    <div class="hslot hNum hMax" id="hudMax"></div>
+    <div class="hslot hTotal hVitTap" onclick="vitHudOpen()"><span class="hlbl" id="hudTotalLbl">TOTAL</span><span id="hudTotal"></span></div>
+    <div class="hslot hNum hTemp hVitTap" id="hudTemp" onclick="vitHudOpen()"></div>
+    <div class="hslot hNum hCur hVitTap" id="hudCur" onclick="vitHudOpen()"></div>
+    <div class="hslot hNum hMax hVitTap" id="hudMax" onclick="vitHudOpen()"></div>
     <div class="hslot hCharge" id="hudCharge">0</div>
     <div class="hslot hName" id="hudName" onclick="fellSwapOpen()" title="Switch Fell"></div>
     <div class="hslot hPortrait" id="hudPortrait" onclick="isLM()?lmPortraitPick():railClick('lore')" title="Portrait"></div>
@@ -2228,7 +2235,7 @@ function tsModalLocked(html){
   m.innerHTML = '<div class="tsm-back tsm-back-locked"></div><div class="tsm-panel">' + html + '</div>';
   m.style.display = 'block';
 }
-function tsCloseModal(){ window._rosterOpen = false; window._questScene = null; if (typeof S !== 'undefined') S._pickerLive = false; var m = document.getElementById('tsModal'); if (m){ m.style.display = 'none'; m.innerHTML = ''; } }
+function tsCloseModal(){ window._vitHud = false; window._rosterOpen = false; window._questScene = null; if (typeof S !== 'undefined') S._pickerLive = false; var m = document.getElementById('tsModal'); if (m){ m.style.display = 'none'; m.innerHTML = ''; } }
 function tsAsk2(opts){
   window._tsCb = opts.onSave;
   var h = '<h3 class="tsm-title">' + esc(opts.title) + '</h3>'
@@ -9382,6 +9389,31 @@ function handFatigueBar(hand){
     + '<span class="hf-v' + (f > 0 ? ' on' : '') + '">' + esc(hand.fatigueName || String(f)) + '</span>'
     + '<button type="button" class="hf-b" data-fatigue="1"' + (f >= 5 ? ' disabled' : '') + ' aria-label="More fatigue">+</button></span>';
 }
+/* The HUD's vitality is where a player's eye goes for their health, so tapping it opens the
+   same four controls the sheet has. The sheet does the arithmetic and saves; the HUD repaints
+   when that save comes back. The LoreMaster's HUD shows a foe, and does nothing here. */
+function vitHudOpen(){
+  if (isLM() || !tsEmbedded() || !S.characterId) return;
+  window._vitHud = true;
+  vitHudPaint();
+}
+function vitHudPaint(){
+  if (!window._vitHud) return;
+  var C = S.character || {}, cur = C.vit || 0, mx = C.maxVit || 0, temp = C.tempVit || ((S.sheet && S.sheet.vitality && S.sheet.vitality.temp) || 0);
+  var was = document.getElementById('vhAmt'), amt = was ? was.value : '1';
+  tsModal('<h3 class="tsm-title">Vitality</h3>'
+    + '<div class="vh-nums"><span><b>' + cur + '</b> / ' + mx + '</span>' + (temp ? '<span class="vh-temp">+' + temp + ' temp</span>' : '') + '</div>'
+    + '<div class="vh-row"><input class="tsm-inp vh-amt" id="vhAmt" type="number" min="1" inputmode="numeric" value="' + esc(amt || '1') + '">'
+    + '<button class="tsm-btn danger" onclick="vitHudOp(\'dmg\')">Damage</button>'
+    + '<button class="tsm-btn ghost" onclick="vitHudOp(\'heal\')">Heal</button>'
+    + '<button class="tsm-btn ghost" onclick="vitHudOp(\'temp\')">+ Temp</button></div>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="window._vitHud=false;tsCloseModal()">Done</button></div>');
+}
+function vitHudOp(op){
+  var a = Number((document.getElementById('vhAmt') || {}).value) || 1;
+  if (typeof ensureSheet === 'function') ensureSheet();
+  sheet.postMessage({ type:'ts-vit-op', op:op, amt:Math.max(1, a) });
+}
 function handFatigueStep(d){ sheet.postMessage({ type:'ts-fatigue-step', delta:d }); }
 function handRail(charge){
   var h = '<span class="hc-rail">';
@@ -10725,7 +10757,7 @@ window.addEventListener('message', function(ev){
     if (ev.data.type === 'ts-hand'){ tsHandTake(ev.data.hand); return; }
     if (ev.data.type === 'ts-declare-result'){ handDeclareResult(ev.data.result); return; }
     if (ev.data.type === 'ts-undo-result'){ handUndoResult(ev.data.result); return; }
-    if (ev.data.type === 'save' && ev.data.character){ S.sheet = ev.data.character; S.charReady = true; if (typeof applySheet === 'function') applySheet(); render(); }
+    if (ev.data.type === 'save' && ev.data.character){ S.sheet = ev.data.character; S.charReady = true; if (typeof applySheet === 'function') applySheet(); render(); if (window._vitHud) { try { vitHudPaint(); } catch(e){} } }
     /* A Fell written to from this side is a Fell somebody else is holding an older copy
        of. Mark it, and the mark travels with the table's state to whoever it belongs to. */
     SEAM.frameMsgs = (SEAM.frameMsgs || 0) + 1;
