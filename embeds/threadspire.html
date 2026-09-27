@@ -4996,10 +4996,30 @@ function lmDeck(){
     return { kind: S.scene.foes.indexOf(c) >= 0 ? 'foe' : 'fell', data:c };
   });
 }
+/* While a Dialogue beat is the one in front of the LoreMaster, the portrait and name on the
+   right are the NPC speaking it; on any other beat, or out of the scene, they are the
+   LoreMaster's own again. It used to be set by every beat card as it was drawn, including
+   the ones either side of the centre, and never set back, so a neighbour's speaker could
+   take the portrait and keep it. Now it follows the centred beat only. */
+function lmSyncSpeaker(){
+  if (!isLM()) return;
+  var sp = null;
+  try {
+    if (lmFace() === 'scene'){
+      var deck = lmDeck(), i = Math.max(0, Math.min(lmFocus.scene || 0, deck.length - 1)), item = deck[i];
+      if (item && item.kind === 'beat') sp = beatSpeaker(item.data, S.scene);
+    }
+  } catch(e){ sp = null; }
+  var cur = (S.lm && S.lm.speaker) || null;
+  var want = sp ? { name:sp.name, portrait:(sp.img || '') } : null;
+  if ((cur && cur.name) === (want && want.name) && (cur && cur.portrait) === (want && want.portrait)) return;
+  lmSetSpeaker(want ? want.name : '', want ? want.portrait : '');
+}
 function paintLmStrip(){
   var el = document.getElementById('lmstrip');
   if (!isLM()){ el.classList.add('hidden'); return; }
   el.classList.remove('hidden');
+  try { lmSyncSpeaker(); } catch(e){}
   el.className = 'lm-' + lmFace();
   /* If the LoreMaster is mid-interaction with a control inside the open card - a dropdown
      held open, a number being typed - a repaint from the state feed would tear that control
@@ -5477,7 +5497,6 @@ function lmPhaseControls(){
 function beatCard(b){
   var _m = beatMeta(b.kind);
   var sp = beatSpeaker(b);
-  if (sp && typeof lmSetSpeaker === 'function' && isLM()) lmSetSpeaker(sp.name, sp.img);
   return '<div class="lmcard beat ' + b.kind + '">'
     + '<div class="lmc-tag" style="color:' + _m[1] + '">' + _m[0] + (b.handle ? ' <span class="bt-handle">#' + esc(b.handle) + '</span>' : '') + '</div>'
     + speakerHead(sp)
@@ -9348,7 +9367,8 @@ function paintHud(){
   var mhud = document.getElementById('mhud');
   if (msub && mhud){
     if (isLM()){ mhud.classList.add('lm'); msub.textContent = S.memberName;
-      var mn = mhud.querySelector('.pname'); if (mn) mn.textContent = 'LoreMaster';
+      var _msp = S.lm && S.lm.speaker;
+      var mn = mhud.querySelector('.pname'); if (mn) mn.textContent = (_msp && _msp.name) || 'LoreMaster';
     } else { mhud.classList.remove('lm');
       /* nothing until this player's own Fell has arrived: the page starts from a sample Fell
          for the offline prototype, and on a phone that sample flashed up before the real one */
@@ -9357,7 +9377,7 @@ function paintHud(){
       var mn2 = mhud.querySelector('.pname'); if (mn2) mn2.textContent = _mReady ? ((S.character && S.character.name) || 'Fell') : '';
     }
     var mp = document.getElementById('mhudPortrait');
-    if (mp) mp.style.backgroundImage = 'url(' + artOr(isLM() ? ((S.lm && S.lm.portrait) || '') : ((S.charReady || !tsEmbedded()) ? ((S.character && S.character.portrait) || '') : '')) + ')';
+    if (mp) mp.style.backgroundImage = 'url(' + artOr(isLM() ? ((S.lm && S.lm.speaker && S.lm.speaker.portrait) || (S.lm && S.lm.portrait) || '') : ((S.charReady || !tsEmbedded()) ? ((S.character && S.character.portrait) || '') : '')) + ')';
     var mv = document.getElementById('vitValM');
     if (mv && !isLM()){ var _c = S.character || {}; mv.textContent = (!!S.sheet || !tsEmbedded()) ? (((_c.vit || 0) + (_c.tempVit || 0)) || '') : ''; }
     var fm = document.getElementById('fellmarkM');
