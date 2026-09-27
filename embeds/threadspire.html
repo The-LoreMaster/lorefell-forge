@@ -365,6 +365,10 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .tsm-pick-name{ flex:1; }
 .tsm-pick-sub{ font-size:.68rem; color:var(--muted,#7e8a99); letter-spacing:.02em; }
 .tsm-pick-cur{ font-size:.62rem; color:var(--gold); letter-spacing:.08em; text-transform:uppercase; }
+.tsm-pick-row{ display:flex; gap:7px; align-items:stretch; }
+.tsm-pick-row .tsm-pick{ flex:1; min-width:0; }
+.tsm-pick-del{ flex:0 0 auto; width:40px; border-radius:8px; border:1px solid var(--line2,#2a3552); background:var(--panel,#10162a); color:var(--muted,#7e8a99); font-size:.9rem; cursor:pointer; transition:border-color .12s, color .12s; }
+.tsm-pick-del:hover{ border-color:var(--danger,#8d3b3b); color:#e08a8a; }
 .tsm-pick-face{ width:34px; height:34px; border-radius:6px; object-fit:cover; border:1px solid var(--line2,#2a3552); flex:0 0 auto; }
 .tsm-back-locked{ cursor:default; }
 .tsm-pick-load{ padding:16px 4px; color:var(--muted,#7e8a99); font-family:Cinzel,serif; font-size:.78rem; letter-spacing:.04em; text-align:center; }
@@ -1119,6 +1123,8 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .lb-row{ display:flex; justify-content:space-between; align-items:baseline; padding:6px 2px; border-bottom:1px solid rgba(220,232,239,.1); }
 .lb-name{ font-family:Cinzel,serif; font-size:.84rem; color:var(--silver); }
 .lb-meta{ font-size:.7rem; color:var(--muted); }
+.lb-del{ margin-left:10px; background:none; border:1px solid transparent; border-radius:5px; color:var(--muted); font-size:.75rem; padding:1px 7px; cursor:pointer; }
+.lb-del:hover{ border-color:var(--danger,#8d3b3b); color:#e08a8a; }
 .sd-box{ background:var(--panel); border:2px solid var(--gold); border-radius:11px; padding:10px; display:flex; flex-direction:column; gap:7px; width:min(300px,86vw); max-height:52vh; overflow-y:auto; box-shadow:0 10px 34px rgba(0,0,0,.6); }
 /* A stage card reads top to bottom: whose table this is, then the faces it can wear.
    It used to be one flex row, which meant the strip of faces fought the title for
@@ -7124,16 +7130,17 @@ function tsFellPickerMarkup(list, loading){
     body = list.map(function(c){
       var id = c.id || c.charId || '';
       var on = sameId(id, cur);
-      return '<button class="tsm-pick' + (on ? ' on' : '') + '" onclick="tsPickFell(\'' + esc(id) + '\')">'
+      return '<div class="tsm-pick-row"><button class="tsm-pick' + (on ? ' on' : '') + '" onclick="tsPickFell(\'' + esc(id) + '\')">'
         + (c.portrait || c.image ? '<img class="tsm-pick-face" src="' + esc(c.portrait || c.image) + '" alt="">' : '')
         + '<span class="tsm-pick-name">' + esc(c.name || c.charName || 'Fell') + '</span>'
         + (c.advName || c.campaignName ? '<span class="tsm-pick-sub">' + esc(c.advName || c.campaignName) + '</span>' : '')
-        + '</button>';
+        + '</button><button class="tsm-pick-del" title="Delete this Fell" aria-label="Delete ' + esc(c.name || c.charName || 'Fell') + '" onclick="fellDeleteAsk(\'' + esc(id) + '\',\'picker\')">\u2715</button></div>';
     }).join('');
   }
   return '<h3 class="tsm-title">Take up your Fell</h3>'
     + '<p class="lc-p">Choose which Fell you are playing.</p>'
-    + '<div class="tsm-pick-list">' + body + '</div>';
+    + '<div class="tsm-pick-list">' + body + '</div>'
+    + (loading && !list ? '' : '<button class="ts-newfell" onclick="tsPickerNewFell()">Build a new Fell</button>');
 }
 function tsFellPicker(){
   S._pickerLive = true;
@@ -7141,6 +7148,7 @@ function tsFellPicker(){
   if (charBackend && charBackend.list){
     charBackend.list().then(function(list){
       if (!S._pickerLive) return; // a choice was already made; do not reopen
+      S._pickList = list || [];
       if (Array.isArray(list) && list.length === 1){ tsPickFell(list[0].id || list[0].charId); return; }
       tsModalLocked(tsFellPickerMarkup(list || [], false));
     }).catch(function(){ if (S._pickerLive) tsModalLocked(tsFellPickerMarkup([], false)); });
@@ -7610,7 +7618,8 @@ function renderCharList(list){
   if (!list.length){ e.innerHTML = '<div class="win-note">No characters yet.</div>'; return; }
   e.innerHTML = list.map(function(c){
     var on = c.id === S.characterId;
-    return '<div class="lb-row" style="cursor:pointer" onclick="switchCharacter(\''+c.id+'\')"><span class="lb-name">'+esc(c.name||'Unnamed Fell')+'</span><span class="lb-meta">'+(on?'Active':'Switch')+'</span></div>';
+    var del = isLM() ? '' : '<button class="lb-del" title="Delete this Fell" aria-label="Delete '+esc(c.name||'Unnamed Fell')+'" onclick="event.stopPropagation();fellDeleteAsk(\''+c.id+'\',\'menu\')">\u2715</button>';
+    return '<div class="lb-row" style="cursor:pointer" onclick="switchCharacter(\''+c.id+'\')"><span class="lb-name">'+esc(c.name||'Unnamed Fell')+'</span><span class="lb-meta">'+(on?'Active':'Switch')+del+'</span></div>';
   }).join('');
 }
 function warmCharList(){
@@ -7629,6 +7638,53 @@ function switchCharacter(id){
   _sheetLoaded = false; var f = document.getElementById('sheetFrame'); if (f) f.src = '';
   closeWin(); render(); loadMyChar();
 }
+/* A player deletes one of their own Fells, from the on-load chooser or from the menu under
+   the Fellmark. Player side only: the LoreMaster never adds or deletes Fells here. The
+   backend is the same deleteCharacter FellGlass's own switcher calls. */
+function fellNameOf(id){
+  var pool = (S._pickList || []).concat(S._charList || []);
+  for (var i = 0; i < pool.length; i++){ var c = pool[i]; if (sameId(c.id || c.charId, id)) return c.name || c.charName || 'this Fell'; }
+  return 'this Fell';
+}
+function fellDeleteAsk(id, from){
+  if (!id || isLM()) return;
+  window._fellDel = { id:id, from:from };
+  var back = from === 'picker' ? 'tsFellPicker()' : 'tsCloseModal()';
+  var h = '<h3 class="tsm-title">Delete ' + esc(fellNameOf(id)) + '?</h3>'
+    + '<p class="tsm-note">This Fell is gone for good. It cannot be undone.</p>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="' + back + '">Cancel</button>'
+    + '<button class="tsm-btn danger" onclick="fellDeleteNow()">Delete</button></div>';
+  if (from === 'picker') tsModalLocked(h); else tsModal(h);
+}
+function fellDeleteNow(){
+  var job = window._fellDel; window._fellDel = null;
+  if (!job || !job.id) return;
+  var fromPicker = job.from === 'picker';
+  var h = '<h3 class="tsm-title">Deleting...</h3>';
+  if (fromPicker) tsModalLocked(h); else tsModal(h);
+  tsAsk('TS_CHAR_DELETE', { charId:job.id }).then(function(r){
+    if (r && r.ok === false) throw new Error(r.error || 'not deleted');
+    S._charList = null; S._pickList = null;
+    if (sameId(job.id, S.characterId)){
+      /* the Fell in hand is gone: drop it everywhere and ask which one to take up */
+      S.characterId = ''; S.sheet = null; S.charReady = false;
+      if (S.character) S.character.portrait = '';
+      _sheetLoaded = false; var f = document.getElementById('sheetFrame'); if (f) f.src = '';
+      try { var u = new URL(window.location.href); u.searchParams.delete('character'); window.history.replaceState(null, '', u.toString()); } catch(e){}
+      closeWin(); render(); tsFellPicker();
+    } else if (fromPicker){
+      tsFellPicker();
+    } else {
+      tsCloseModal(); warmCharList();
+    }
+  }).catch(function(){
+    var h2 = '<h3 class="tsm-title">That Fell was not deleted</h3>'
+      + '<p class="tsm-note">Nothing changed. Try again in a moment.</p>'
+      + '<div class="tsm-row"><button class="tsm-btn" onclick="' + (fromPicker ? 'tsFellPicker()' : 'tsCloseModal()') + '">OK</button></div>';
+    if (fromPicker) tsModalLocked(h2); else tsModal(h2);
+  });
+}
+function tsPickerNewFell(){ tsCloseModal(); buildNewFell(); }
 function buildNewFell(){
   closeWin(); ensureSheet();
   var win = document.getElementById('win'); win.classList.add('sheeting'); win.classList.remove('arsenal');

@@ -492,6 +492,12 @@ $w.onReady(async function () {
           let list = [];
           try { list = await listMyCharacters(); } catch (e) { list = []; }
           reply(true, list);
+        } else if (msg.type === 'TS_CHAR_DELETE') {
+          // A player deletes one of their own Fells from the chooser or the menu. The backend
+          // refuses a Fell that is not theirs.
+          let r = { ok: false };
+          try { r = await deleteCharacter(msg.charId); } catch (e) { r = { ok: false, error: String((e && e.message) || e) }; }
+          reply(!!(r && r.ok), r, r && r.error);
         } else if (msg.type === 'TS_ENTER_FELL') {
           // The player picked a Fell from the on-load chooser. Resolve the adventure that Fell
           // is in and send a fresh context for it, so they enter without a page reload.
