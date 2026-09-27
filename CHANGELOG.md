@@ -1,3 +1,7 @@
+## 2026-09-27 - Condition shows nothing the strip or the cards already show
+
+Nate's rule for the tab: nothing the stat strip shows, and nothing the battle cards show. The Temp, Current and Max boxes, the vitality bar, the Charges diamonds and the Fatigue pips are hidden (cond-cut, renderers still run). What stays: the Damage, Heal and +Temp controls, the LoreMaster's max vitality control, Defenses, and Status.
+
 ## 2026-09-27 - Battle becomes Condition
 
 The Battle tab repeated what the table already shows: the cards carry Acts, Reacts, Passives and weapon damage, and the dice and declare flow carry the rolls. It now keeps only what nothing else covers, and is named Condition: Vitality with its Damage, Heal and +Temp controls, Charges, Fatigue, Defenses (Durability and Resistance), and Status (Afflictions, Impairments, Effects Placed, Boons, Banes). Rolls, Acts and Reacts, and the weapon damage rows are hidden with cond-cut rather than deleted, because their renderers build the hand ThreadSpire draws and phone play may want them back. The header button trades the crossed swords for a heart with a pulse line and still toggles back to the previous tab. PANELS, GOD_TABS and ThreadSpire's section title read Condition; the panel key stays battle.
