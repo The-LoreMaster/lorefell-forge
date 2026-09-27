@@ -1,3 +1,7 @@
+## 2026-09-27 - Abandon this vow explains itself on hover
+
+The line under Abandon this vow still said it returned only the +1 attribute, which stopped being true when Motivations began granting their three skills. The line is gone from view. The button's hover text now reads: Abandoning returns the attribute and skill bonuses and opens the choice of a new Motivation.
+
 ## 2026-09-27 - A Motivation raises its three skills too
 
 Nate's ruling: choosing a Motivation raises its attribute by 1 and each of that attribute's three skills by 1 (The Precise: Trickery, Presence, Finesse). FellGlass granted the attribute only. The skill points now land at character creation and whenever a new Motivation is taken up, as the same kind of grant Origin skills use. grants.motSkillsFor records which vow's skills are credited, so they land once and never twice, however often the Fell is reloaded or the field is touched. Abandoning a vow returns them with the attribute point. Claiming its Title keeps them. A Fell forged before this change is credited once when it next loads, and saved.
