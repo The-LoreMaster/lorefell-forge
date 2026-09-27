@@ -560,6 +560,9 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 #win.arsenal.sheeting #sheetSub{ display:flex; }
 /* the player's Arsenal tabs are drawn inside the sheet, under the name and stat strip */
 #win.arsenal.sheeting.subinsheet #sheetSub{ display:none; }
+/* in a fight the gem opens the fight; this row is the way to the menu and back */
+#win.fightnav.sheeting #sheetSub{ display:flex; }
+.ts-tobattle{ margin:0 0 12px; border-color:#c96a5a; color:#e3a193; }
 .subtab{ border:1px solid var(--line2,#2a3552); background:transparent; color:var(--silver); font-family:Cinzel,serif; font-size:.6rem; letter-spacing:.08em; text-transform:uppercase; padding:5px 11px; border-radius:6px; cursor:pointer; }
 .subtab.on{ border-color:var(--gold); color:var(--gold); }
 #lmstrip.hidden{ display:none; }
@@ -4687,7 +4690,7 @@ function openWin(key){
   /* start from nothing every time. A window left in sheet mode shows the frame and hides
      the body, so whatever is written into the body afterwards is written out of sight,
      and the section reads as though it never opened. */
-  win.classList.remove('sheeting'); win.classList.remove('arsenal'); win.classList.remove('subinsheet');
+  win.classList.remove('sheeting'); win.classList.remove('arsenal'); win.classList.remove('subinsheet'); win.classList.remove('fightnav');
   sheetSubtabs(null);
   /* The fight is the sheet too, but it is not one of the sheet's tabs - it is the combat
      banner, which the sheet shows only when this asks for it. Same iframe, same seam, one
@@ -4702,6 +4705,7 @@ function openWin(key){
     ensureSheet(); win.classList.add('sheeting');
     if (key === 'arsenal'){ win.classList.add('arsenal'); win.classList.add('subinsheet'); sheetSubtabs('weapons'); sheetGoto('weapons'); }
     else { win.classList.remove('arsenal'); sheetGoto(panel); }
+    if (key === 'combat') paintFightNav();
   }
   else {
     win.classList.remove('sheeting'); win.classList.remove('arsenal');
@@ -4738,7 +4742,7 @@ function closeWin(){
   S.openSection = null;
   document.body.classList.remove('winopen');
   if (window._lmPrevMin !== undefined){ lmMin = window._lmPrevMin; window._lmPrevMin = undefined; }
-  var win = document.getElementById('win'); win.classList.remove('open'); win.classList.remove('sheeting'); win.classList.remove('arsenal'); win.classList.remove('subinsheet'); win.style.height = ''; win.style.bottom = '';
+  var win = document.getElementById('win'); win.classList.remove('open'); win.classList.remove('sheeting'); win.classList.remove('arsenal'); win.classList.remove('subinsheet'); win.classList.remove('fightnav'); win.style.height = ''; win.style.bottom = '';
   sheetSubtabs(null);
   var _wa=document.getElementById('winArt'); if(_wa) _wa.style.display='none';
   var _wx=document.getElementById('winX'); if(_wx) _wx.style.display='none';
@@ -6750,6 +6754,7 @@ function sharedSnapshot(){
     activeSceneId: S.adventure ? S.adventure.activeSceneId : S.scene.id,
     activeStageId: (function(){ try { return activeStageId(); } catch(e){ return null; } })(),
     combatPhase: S.scene.combatPhase, mode: S.mode, round: S.round,
+    lmAt: isLM() ? Date.now() : (S._lmAt || 0),   /* the LoreMaster is at the table; see battleFresh */
     sheetRev: S.sheetRev || {},   /* who has been written to, and when */
     log: (S.log || []).slice(-40),
     advRev: S.advRev || 0,
@@ -6964,7 +6969,10 @@ function applyRemoteSnapshot(snap){
     }
   }
   var _wasBattle = S.mode === 'combat';
+  if (snap.lmAt !== undefined && snap.lmAt !== S._lmAt){ S._lmAt = snap.lmAt; S._lmSeenAt = Date.now(); }
   if (snap.mode) S.mode = snap.mode;
+  if (!isLM() && S.mode === 'combat' && !battleFresh()) S.mode = 'explore';
+  if (isLM()) lmStaleBattleCheck(snap);
   if (!isLM()){
     if (!_wasBattle && S.mode === 'combat') playerBattleStart();
     else if (_wasBattle && S.mode !== 'combat') playerBattleEnd();
@@ -7210,7 +7218,8 @@ function advReset(nextId){
   _advSwitching = true;
   _advPushedRev = -1; _advTooBig = false; SEAM.advSent = '';
   if (_logPushT){ clearTimeout(_logPushT); _logPushT = null; }
-  S.campaignId = nextId || S.campaignId;
+  S.campaignId = (nextId === '') ? '' : (nextId || S.campaignId);
+  _lmBattleAsked = false; S._lmAt = 0; S._lmSeenAt = 0; S._leftAdv = '';
   advBlank();
   S._advRemote = false; S.advRev = 0; S._advTouch = 0;
   S._advFullLoaded = false; /* a new table means the full adventure has NOT loaded yet; leaving
@@ -7250,6 +7259,64 @@ function tsEdgeGlow(color){
   el.classList.add('on');
   clearTimeout(el._t);
   el._t = setTimeout(function(){ el.classList.remove('on'); }, 2400);
+}
+/* ---- a battle is only a battle while the LoreMaster is at the table ----
+   The adventure's stored state keeps whatever mode it was last left in. A LoreMaster who
+   closed the tab mid-fight left 'combat' written there for good, and every player who
+   opened the table after that stood in a battle nobody was running. Now the LoreMaster's
+   table stamps lmAt on every push and pushes once a minute while a fight is on. A player
+   takes a battle only from a stamp that is recent by their own clock (under ten minutes,
+   which forgives a skewed clock) and has kept changing (a new one within two and a half
+   minutes, measured locally, so skew does not matter). When the stamps stop, the fight
+   drops on the player's side by itself, and comes straight back if the LoreMaster does. */
+var BATTLE_ABS_MS = 10 * 60 * 1000, BATTLE_QUIET_MS = 150 * 1000, _lmBattleAsked = false;
+function battleFresh(){
+  if (!S.campaignId || S._leftAdv) return false;
+  if (!S._lmAt) return false;
+  if (Date.now() - S._lmAt > BATTLE_ABS_MS) return false;
+  if (S._lmSeenAt && Date.now() - S._lmSeenAt > BATTLE_QUIET_MS) return false;
+  return true;
+}
+setInterval(function(){
+  try {
+    if (!tsEmbedded()) return;
+    if (isLM()){ if (inBattle() && !_advSwitching) pushState(); return; }
+    if (S.mode === 'combat' && !battleFresh()){
+      S.mode = 'explore'; playerBattleEnd(); render();
+      if (S.openSection === 'combat') closeWin();
+    }
+  } catch(e){}
+}, 60 * 1000);
+/* The LoreMaster's side of the same thing. Coming back to a table whose stored state says a
+   fight is on, but whose last stamp is old, means the fight was left running. Ask once:
+   pick it back up, or end it. A quick refresh mid-fight is recent and is not asked about. */
+function lmStaleBattleCheck(snap){
+  if (_lmBattleAsked || !snap || snap.mode !== 'combat') return;
+  _lmBattleAsked = true;
+  if (snap.lmAt && Date.now() - snap.lmAt < BATTLE_QUIET_MS) return;
+  tsModal('<h3 class="tsm-title">A battle was left running</h3>'
+    + '<p class="lc-p">This adventure was still in battle when the table was last closed. Your players are out of it until you pick it back up.</p>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal();pushState()">Pick it back up</button>'
+    + '<button class="tsm-btn danger" onclick="tsCloseModal();lmEndCombat()">End the battle</button></div>');
+}
+/* In a fight the gem opens the fight and nothing else, so the window carries the way out
+   to the menu, and the menu the way back. */
+function paintFightNav(){
+  var win = document.getElementById('win'), el = document.getElementById('sheetSub');
+  if (!win || !el || isLM()) return;
+  win.classList.add('fightnav');
+  el.innerHTML = '<button class="subtab on">The fight</button>'
+    + '<button class="subtab" onclick="openWin(\'menu\')">Menu</button>';
+}
+/* Leaving an adventure ends its battle for this player at once. The sheet says it is
+   leaving; the page does the leaving; a fresh context then puts the table down. */
+function playerLeftAdventure(){
+  if (isLM() || !S.characterId) return;
+  S._leftAdv = S.campaignId || 'left';
+  if (S.mode === 'combat'){ S.mode = 'explore'; playerBattleEnd(); }
+  if (S.openSection === 'combat') closeWin();
+  render();
+  setTimeout(function(){ tsAsk('TS_ENTER_FELL', { charId:S.characterId }).catch(function(){}); }, 2500);
 }
 function playerBattleStart(){
   /* A fight announces itself and then gets out of the way. This used to throw the old
@@ -7601,7 +7668,8 @@ function unpublishNow(id){
 }
 function menuBody(){
   var lm = isLM();
-  var h = '<div class="win-note">Characters</div>'
+  var h = (!lm && inBattle()) ? '<button class="ts-newfell ts-tobattle" onclick="openWin(\'combat\')">Back to the battle</button>' : '';
+  h += '<div class="win-note">Characters</div>'
     + '<div id="charList" class="win-note">Loading...</div>'
     + '<button class="ts-newfell" onclick="buildNewFell()">Build a new Fell</button>';
   h += '<div class="win-note" style="margin-top:14px">Settings</div>';
@@ -8018,6 +8086,7 @@ function startStateFeed(){
       SEAM.pullAt = Date.now(); SEAM.pulls++;
       if (!res){ SEAM.pullGot = 'nothing'; seamPaint(); return; }
       /* an answer about the adventure we just left is not news, it is the past */
+      if (!isLM() && !S.campaignId){ SEAM.pullGot = 'no adventure'; seamPaint(); return; }
       if (res.campaignId && S.campaignId && !sameId(res.campaignId, S.campaignId)){ SEAM.pullGot = 'other adventure (' + String(res.campaignId).slice(0,8) + ')'; seamPaint(); return; }
       if (res.version === undefined){ SEAM.pullGot = 'no row yet'; seamPaint(); return; }
       if (res.version > _stateSeen){ _stateSeen = res.version; SEAM.pullV = res.version; SEAM.pullGot = 'new state v' + res.version; applyRemoteSnapshot(res.snap); }
@@ -8083,8 +8152,11 @@ window.onmessage = function(ev){
     /* A context carrying a different adventure is a change of table, not a correction
        of this one. Everything held here belongs to the adventure that was open, so it
        is put down before the new one is picked up. */
-    var _switched = d.switched || (d.campaignId && S.campaignId && !sameId(d.campaignId, S.campaignId));
-    if (_switched) advReset(d.campaignId);
+    var _playerNoAdv = d.role === 'player' && !d.campaignId && !!S.campaignId;
+    var _switched = d.switched || _playerNoAdv || (d.campaignId && S.campaignId && !sameId(d.campaignId, S.campaignId));
+    if (_switched) advReset(d.role === 'player' ? (d.campaignId || '') : d.campaignId);
+    /* no adventure to wait for, so no veil to hold over it */
+    if (_playerNoAdv){ _advSwitching = false; advGoingStop(); }
     if (d.role === 'lm' || d.role === 'player'){
       S.role = d.role; S.roleReady = true; document.body.classList.remove('roleboot');
       /* Both roles need the library: foes are stored slim and the board rehydrates their
@@ -10489,6 +10561,7 @@ window.addEventListener('message', function(ev){
     /* The player's Acts and Reacts, as the sheet derives them. Kept between this frame
        and the sheet and deliberately not relayed onward: the site has no use for it and
        the board never travels a hand. Returns before the TS_TOOL_UP relay below. */
+    if (ev.data.type === 'leave-adventure' && !isLM() && !S.godChar && sameId(ev.data.charId, S.characterId)) playerLeftAdventure();
     if (ev.data.type === 'ts-hand'){ tsHandTake(ev.data.hand); return; }
     if (ev.data.type === 'ts-declare-result'){ handDeclareResult(ev.data.result); return; }
     if (ev.data.type === 'ts-undo-result'){ handUndoResult(ev.data.result); return; }

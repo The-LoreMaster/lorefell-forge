@@ -170,11 +170,18 @@ $w.onReady(async function () {
     if (msg.type === 'THREADSPIRE_READY') {
       // Paint the right side straight away; the confirmed context follows and corrects it.
       embed.postMessage({ type: 'THREADSPIRE_ROLE_HINT', role: q.role === 'lm' ? 'lm' : 'player', fromCast: cameFromCast });
-      const ctx = await buildContext(characterId, campaignId);
+      let ctx = await buildContext(characterId, campaignId);
       // Entry point requests LM (Cast carries ?role=lm); ownership must confirm it.
       let role = 'player';
       if (q.role === 'lm' && campaignId) {
         try { const ar = await myAdventureRole(campaignId); if (ar === 'loremaster' || ar === 'lorekeeper') role = 'lm'; } catch (e) {}
+      }
+      // A player's table is the adventure their Fell is in now. The address can still name
+      // one they have left, and reading that one kept them in its battle.
+      if (role === 'player' && characterId) {
+        let cur = '';
+        try { const a = await charAdventure(characterId); cur = (a && a.campaignId) || ''; } catch (e) { cur = campaignId; }
+        if (cur !== campaignId) { campaignId = cur; ctx = await buildContext(characterId, campaignId); }
       }
       embed.postMessage(Object.assign({ type: 'THREADSPIRE_CONTEXT', role: role, campaignId: campaignId, characterId: characterId, fromCast: cameFromCast }, ctx));
     } else if (msg.type === 'THREADSPIRE_WANT_LORE') {
@@ -507,7 +514,7 @@ $w.onReady(async function () {
             let camp = '';
             try { const a = await charAdventure(cid); if (a && a.campaignId) camp = a.campaignId; } catch (e) {}
             if (cid) {
-              if (camp) campaignId = camp;
+              campaignId = camp;   // no adventure is an answer too; keeping the old one kept its battle
               const ctx = await buildContext(cid, campaignId);
               embed.postMessage(Object.assign({ type: 'THREADSPIRE_CONTEXT', role: 'player', campaignId: campaignId, characterId: cid, fromCast: true, switched: true }, ctx));
               ok = true;
