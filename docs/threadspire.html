@@ -10951,13 +10951,24 @@ window.addEventListener('message', function(ev){
     }
     /* The Sealed Past: only for the LoreMaster, only for the Fell they hold open. Asked of
        the backend, handed down to the sheet, never kept on the Fell's record. */
+    if (ev.data.type === 'seal-notes'){
+      if (isLM() && S.godChar && sameId(ev.data.charId, S.godChar.id)){
+        var _nid = S.godChar.id;
+        tsAsk('TS_LM_NOTES_SAVE', { charId:_nid, text:String(ev.data.text || '') }).then(function(){
+          sheet.postMessage({ type:'ts-notes-saved', charId:_nid, ok:true });
+        }).catch(function(e){ sheet.postMessage({ type:'ts-notes-saved', charId:_nid, ok:false, error:String((e && e.message) || '') }); });
+      }
+      return;
+    }
     if ((ev.data.type === 'seal-request' || ev.data.type === 'seal-weave')){
       if (isLM() && S.godChar && sameId(ev.data.charId, S.godChar.id)){
         var _sid = S.godChar.id;
         tsAsk(ev.data.type === 'seal-request' ? 'TS_SEALED_GET' : 'TS_SEALED_WEAVE', { charId:_sid }).then(function(r){
           sheet.postMessage(Object.assign({ type:'ts-sealed', charId:_sid }, r || {}, { ok:true }));
         }).catch(function(e){
-          sheet.postMessage({ type:'ts-sealed', charId:_sid, ok:false, error:String((e && e.message) || 'The seal would not open.') });
+          var why = String((e && e.message) || 'The seal would not open.');
+          /* a lorekeeper is refused by the backend; the sheet then keeps both cards hidden */
+          sheet.postMessage({ type:'ts-sealed', charId:_sid, ok:false, forbidden:/LoreMaster only/i.test(why), error:why });
         });
       }
       return;

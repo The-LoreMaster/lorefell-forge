@@ -463,8 +463,10 @@ h3{font-family:var(--head);font-weight:500;font-size:12px;letter-spacing:.12em;t
 .arc-hd .fld{margin:0}
 .arc-msg{font-size:13px;color:var(--silver-dim);min-height:0}
 .arc-msg.bad{color:var(--danger)}
-#sealCard{display:none;border-color:rgba(201,106,90,.45)}
-body.god #sealCard{display:block}
+#sealCard,#lmNotesCard{display:none;border-color:rgba(201,106,90,.45)}
+body.god.lmown #sealCard,body.god.lmown #lmNotesCard{display:block}
+#lmNotesCard h2{color:#e3a193}
+#lmNotes{min-height:120px}
 #sealCard h2{color:#e3a193}
 .seal-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
 .seal-list{margin:6px 0 0 18px;padding:0}
@@ -975,6 +977,14 @@ body.in-combat{ padding-top:var(--cbn-h,46px); }
     <p class="note" id="sealNote">Threads of this Fell's forgotten life, for the LoreMaster only. The player never sees this.</p>
     <div id="sealBody"></div>
     <div class="row seal-row"><button type="button" class="btn small" id="sealWeaveBtn" style="display:none">Weave the seal</button></div>
+  </section>
+  <!-- The LoreMaster's notes on this Fell: how they mean to handle the player and its lore.
+       Same keeping as the Sealed Past: LoreMaster only, never on the sheet's record. -->
+  <section class="card" id="lmNotesCard">
+    <h2><span class="orn">❖</span> LoreMaster's Notes</h2>
+    <p class="note">How you mean to handle this player and their lore. Only you see this.</p>
+    <textarea id="lmNotes" placeholder="Threads to pull, reveals to time, how this player likes to be surprised."></textarea>
+    <div class="arc-msg" id="lmNotesMsg"></div>
   </section>
   <div class="savebar">
     <span id="saveState">Autosave on. Every change saves automatically.</span>
@@ -4863,7 +4873,8 @@ function archiveResult(d){
    that refuses the Fell's own player, and it is cleared when the Fell closes. */
 let _sealFor="";
 function sealReset(){
-  _sealFor="";
+  _sealFor=""; document.body.classList.remove("lmown");
+  const n=$("lmNotes"); if(n) n.value=""; const nm=$("lmNotesMsg"); if(nm) nm.textContent="";
   const w=$("sealWeaveBtn"); if(w){ w.style.display="none"; w.disabled=false; }
   const body=$("sealBody"); if(body) body.innerHTML="";
 }
@@ -4876,6 +4887,10 @@ function sealLoad(){
 function sealPaint(d){
   const body=$("sealBody"), w=$("sealWeaveBtn"); if(!body) return;
   if(w){ w.disabled=false; w.style.display=""; }
+  /* a lorekeeper is refused: the two LoreMaster cards stay hidden for them */
+  if(d&&d.forbidden){ document.body.classList.remove("lmown"); body.innerHTML=""; return; }
+  document.body.classList.add("lmown");
+  if(d&&d.ok&&typeof d.notes==="string"){ const n=$("lmNotes"); if(n && document.activeElement!==n) n.value=d.notes; }
   if(!d||!d.ok){ body.innerHTML='<p class="note" style="color:var(--danger)">'+cbEsc((d&&d.error)||"The seal could not be read.")+'</p>'; if(w) w.textContent="Weave the seal"; return; }
   const rev=d.reveals||[], fr=d.fragments||[];
   if(!rev.length){
@@ -4886,6 +4901,21 @@ function sealPaint(d){
   body.innerHTML='<ol class="seal-list">'+rev.map(r=>'<li>'+cbEsc(r)+'</li>').join("")+'</ol>'
     +(fr.length?'<div class="seal-frag">Fragments the player holds: '+fr.map(f=>cbEsc((f.type?f.type+": ":"")+(f.text||f))).join(" &middot; ")+'</div>':'');
   if(w) w.textContent="Weave it anew";
+}
+/* LoreMaster's notes save a moment after typing stops, straight to the backend */
+let _lmNotesT=null;
+(function(){
+  const n=$("lmNotes"); if(!n) return;
+  n.addEventListener("input",()=>{
+    const m=$("lmNotesMsg"); if(m){ m.className="arc-msg"; m.textContent="Saving..."; }
+    clearTimeout(_lmNotesT);
+    _lmNotesT=setTimeout(()=>{ if(god && CUR_WIX_ID) postToVelo({type:"seal-notes",charId:CUR_WIX_ID,text:n.value}); },900);
+  });
+})();
+function lmNotesSaved(d){
+  const m=$("lmNotesMsg"); if(!m) return;
+  if(d&&d.ok){ m.className="arc-msg"; m.textContent="Saved."; setTimeout(()=>{ if(m.textContent==="Saved.") m.textContent=""; },1500); }
+  else { m.className="arc-msg bad"; m.textContent="Not saved"+((d&&d.error)?(": "+d.error):"")+". Keep typing to try again."; }
 }
 (function(){
   const w=$("sealWeaveBtn"); if(!w) return;
@@ -7193,6 +7223,7 @@ window.onmessage=ev=>{
   const d=ev&&ev.data;
   if(!d||typeof d!=="object"||!d.type)return;
   if(d.type==="ts-charge-tap"){ chargeTap(d.tier); return; }
+  if(d.type==="ts-notes-saved"){ if(!d.charId||d.charId===CUR_WIX_ID) lmNotesSaved(d); return; }
   if(d.type==="ts-sealed"){ if(god && (!d.charId || d.charId===CUR_WIX_ID)) sealPaint(d); return; }
   if(d.type==="archive-result"){ archiveResult(d); return; }
   if(d.type==="ts-vit-op"){ vitOp(d.op,d.amt); return; }
