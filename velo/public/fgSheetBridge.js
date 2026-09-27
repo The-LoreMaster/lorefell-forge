@@ -174,7 +174,8 @@ export async function handleSheetMessage(m, ctx) {
     let r = { ok: false };
     try { r = api.consultArchive ? await api.consultArchive(m.fell || {}) : { ok: false, error: 'the Archive is not wired on this page' }; }
     catch (e) { r = { ok: false, error: String((e && e.message) || e) }; }
-    reply({ type: 'archive-result', reqId: m.reqId || 0, ok: !!(r && r.ok), description: (r && r.description) || '', error: (r && r.error) || '' });
+    reply({ type: 'archive-result', reqId: m.reqId || 0, ok: !!(r && r.ok), description: (r && r.description) || '',
+      firstImpression: (r && r.firstImpression) || '', tips: (r && r.tips) || [], fragments: (r && r.fragments) || [], error: (r && r.error) || '' });
 
   } else if (m.type === 'threadspire-open') {
     if (ctx.onThreadspireOpen) ctx.onThreadspireOpen(m);

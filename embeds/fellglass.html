@@ -445,8 +445,12 @@ h3{font-family:var(--head);font-weight:500;font-size:12px;letter-spacing:.12em;t
 .rec-add input{flex:1;min-width:160px}
 .rec-empty{margin:0}
 .arc-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px}
+.arc-grow{font-family:var(--head);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);border:1px solid rgba(201,168,76,.4);border-radius:12px;padding:3px 10px}
+#f-desc{min-height:96px;transition:height .15s}
+#f-desc.grown{resize:none;overflow:hidden}
+.arc-foot{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px}
 .arc-hd .fld{margin:0}
-.arc-msg{font-size:13px;color:var(--silver-dim);margin-top:4px;min-height:0}
+.arc-msg{font-size:13px;color:var(--silver-dim);min-height:0}
 .arc-msg.bad{color:var(--danger)}
 #sealCard{display:none;border-color:rgba(201,106,90,.45)}
 body.god #sealCard{display:block}
@@ -938,9 +942,9 @@ body.in-combat{ padding-top:var(--cbn-h,46px); }
       <input id="f-titles" readonly>
     </div>
     <div style="margin-top:10px">
-      <div class="arc-hd"><label class="fld" for="f-desc">The Archive</label><button type="button" class="btn small" id="archiveBtn">Consult the Archive</button></div>
-      <textarea id="f-desc" placeholder="Who this Fell is now. Write it yourself, or Consult the Archive."></textarea>
-      <div class="arc-msg" id="archiveMsg"></div>
+      <div class="arc-hd"><label class="fld" for="f-desc">Description</label><button type="button" class="arc-grow" id="descGrow" aria-expanded="false">Expand</button></div>
+      <textarea id="f-desc" placeholder="Who this Fell is now, how strangers see them, how to play them, and what they half remember. Write it yourself, or Consult the Archive."></textarea>
+      <div class="arc-foot"><button type="button" class="btn small" id="archiveBtn">Consult the Archive</button><span class="arc-msg" id="archiveMsg"></span></div>
     </div>
   </section>
 
@@ -2696,6 +2700,7 @@ function tsHeightSettle(){
 }
 function switchPanel(name){
   document.querySelectorAll(".panel").forEach(p=>p.classList.toggle("active",p.id==="panel-"+name));
+  try{ descFold(false); }catch(e){}
   { const bb=$("battleBtn"); if(bb) bb.classList.toggle("on",name==="battle"); }
   if(name==="battle")renderBattle();
   buildHub(name);
@@ -3385,8 +3390,9 @@ function ccApply(){
   C.identity.campaignId=C.identity.campaignId||"";
   C.identity.name=CC.name||"";
   C.identity.desc=CC.desc||"";
+  try{ archiveBackfill(); }catch(e){}
   if(CC.name){$("f-name").value=CC.name;$("headName").textContent=CC.name;}
-  if(CC.desc)$("f-desc").value=CC.desc;
+  $("f-desc").value=C.identity.desc||"";
   ensureOption($("f-lineage"),C.identity.lineage);$("f-lineage").value=C.identity.lineage||"";
   ensureOption($("f-origin"),C.identity.origin);$("f-origin").value=C.identity.origin||"";
   ensureOption($("f-motivation"),C.identity.motivation);$("f-motivation").value=C.identity.motivation||"";
@@ -4776,8 +4782,47 @@ function archiveFacts(){
   const id=C.identity||{}, f=C.forge||{}, fi=(f.identity)||{};
   return { name:id.name||"", sex:fi.sex||"", lineage:id.lineage||"", lineageDesc:id.lineageDesc||"", origin:id.origin||"",
     motivation:id.motivation||"", level:(C.lore&&C.lore.level)||1, titles:(C.titles||[]).join(", "),
-    hooks:f.hooks||"", fragments:f.fragments||"", desc:"" };
+    hooks:f.hooks||"", fragments:archiveFragments(), desc:"" };
 }
+/* The Archive's full entry, the way FellForge lays it out: who you are, how strangers read
+   you, how to play you, and the fragments you half remember. One text in the Description
+   field, so a player can read it whole and edit any of it. */
+function archiveFragments(){
+  const f=C.forge||{};
+  if(f.fragments) return String(f.fragments);
+  const d=String((C.identity&&C.identity.desc)||""), i=d.indexOf("Forgotten fragments\n");
+  return i>=0 ? d.slice(i+"Forgotten fragments\n".length).split("\n").map(l=>l.replace(/^[\u2022\-]\s*/,"")).filter(Boolean).join("\n") : "";
+}
+function archiveCompose(p){
+  const lines=x=>(Array.isArray(x)?x:String(x||"").split("\n")).map(s=>String(s).trim()).filter(Boolean);
+  const parts=[];
+  if(p.description) parts.push("Who you are\n"+String(p.description).trim());
+  if(p.firstImpression) parts.push("First impression\n"+String(p.firstImpression).trim());
+  const tips=lines(p.tips); if(tips.length) parts.push("How to play\n"+tips.map(t=>"\u2022 "+t).join("\n"));
+  const fr=(Array.isArray(p.fragments)?p.fragments:lines(p.fragments)).map(x=>(x&&typeof x==="object")?((x.type?x.type+": ":"")+(x.text||"")):String(x||"").trim()).filter(Boolean);
+  if(fr.length) parts.push("Forgotten fragments\n"+fr.map(t=>"\u2022 "+t).join("\n"));
+  return parts.join("\n\n");
+}
+/* A forged Fell arrives with only FellForge's first paragraph in Description. Its first
+   impression, tips and fragments ride in the forge seed; fold them in once, below whatever
+   is there, so nothing already written is touched. */
+function archiveBackfill(){
+  const f=C.forge||{}; if(!f.firstImpression&&!f.tips&&!f.fragments) return false;
+  const d=String((C.identity&&C.identity.desc)||"");
+  if(/\bFirst impression\n|\bForgotten fragments\n/.test(d)) return false;
+  const rest=archiveCompose({firstImpression:f.firstImpression,tips:f.tips,fragments:f.fragments});
+  if(!rest) return false;
+  C.identity.desc=(d.trim()?("Who you are\n"+d.trim()+"\n\n"):"")+rest;
+  return true;
+}
+/* Expand shows the whole entry at its full height; switching tabs folds it back. */
+function descFold(open){
+  const t=$("f-desc"), g=$("descGrow"); if(!t||!g) return;
+  if(open){ t.classList.add("grown"); t.style.height="auto"; t.style.height=(t.scrollHeight+4)+"px"; g.textContent="Collapse"; g.setAttribute("aria-expanded","true"); }
+  else { t.classList.remove("grown"); t.style.height=""; g.textContent="Expand"; g.setAttribute("aria-expanded","false"); }
+}
+(function(){ const g=$("descGrow"); if(g) g.addEventListener("click",()=>descFold(!$("f-desc").classList.contains("grown")));
+  const t=$("f-desc"); if(t) t.addEventListener("input",()=>{ if(t.classList.contains("grown")){ t.style.height="auto"; t.style.height=(t.scrollHeight+4)+"px"; } }); })();
 (function(){
   const b=$("archiveBtn"); if(!b) return;
   b.addEventListener("click",()=>{
@@ -4797,7 +4842,9 @@ function archiveResult(d){
   const b=$("archiveBtn"), m=$("archiveMsg");
   if(b){ b.disabled=false; b.textContent="Consult the Archive"; }
   if(!d.ok||!d.description){ if(m){ m.className="arc-msg bad"; m.textContent="The Archive did not answer"+(d.error?(": "+d.error):"")+"."; } return; }
-  C.identity.desc=d.description; $("f-desc").value=d.description; if(m) m.textContent="";
+  const text=archiveCompose({description:d.description,firstImpression:d.firstImpression,tips:d.tips,fragments:(d.fragments&&d.fragments.length)?d.fragments:archiveFragments()});
+  C.identity.desc=text; $("f-desc").value=text; if(m) m.textContent="";
+  if($("f-desc").classList.contains("grown")) descFold(true);
   scheduleSave();
 }
 /* ---------- the Sealed Past (LoreMaster only) ----------
@@ -5415,6 +5462,7 @@ function loadCharacter(rec){
   clearTimeout(saveTimer); saveTimer=null;   // drop any save queued for the previous character
   C=seedSheet(rec);
   try{ sealReset(); }catch(e){}
+  let _arcFilled=false; try{ _arcFilled=archiveBackfill(); }catch(e){}
   /* a Fell forged before Motivations granted skills gets its +1s once, and saves them */
   const _motBackfill=motGrantSkills();
   $("f-name").value=(C.identity&&C.identity.name)||"";
@@ -5434,7 +5482,7 @@ function loadCharacter(rec){
   renderAll();
   try { renderMotivation(); syncIdentityLock(); } catch(e){}
   // release the guard after this tick, once all programmatic field writes have settled
-  setTimeout(function(){ setLoading(false); if(_motBackfill) scheduleSave(); },0);
+  setTimeout(function(){ setLoading(false); if(_motBackfill||_arcFilled) scheduleSave(); },0);
 }
 /* A new character opens the forging immediately, but only once we know it
    IS new: either Velo says so, or no bridge message arrives at all
