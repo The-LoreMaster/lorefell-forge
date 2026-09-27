@@ -14,6 +14,10 @@ design (layout, styling, wording, icons, order) and function (fields, buttons, e
 saves, rolls). There is no "FellGlass now, ThreadSpire later." A change that lands in one
 and not the other is not done.
 
+The one sanctioned difference is navigation. FellGlass navigates with its own hub; in
+ThreadSpire the player uses the rail on the right and the LoreMaster uses the tab bar
+across the top. Everything inside the sheet is identical.
+
 How it is wired, so the rule can be kept rather than remembered:
 
 - ThreadSpire does not have its own sheet. `#sheetFrame` in `threadspire.html` loads
@@ -21,20 +25,22 @@ How it is wired, so the rule can be kept rather than remembered:
   (`lmOpenFell`, `godShow`, the `ts-god` message) are both that one FellGlass page.
   Never build a second sheet or port sheet markup into ThreadSpire.
 - Divergence can only come from the seams, so every sheet change checks all three:
-  1. `tsembed` in `fellglass.html`: the `?host=threadspire` style block and every
-     `body.tsembed` branch. These hide FellGlass chrome that ThreadSpire replaces with its
-     own (portrait, id, stat strip, hub, character switcher, first card title). Nothing
-     else may be hidden or restyled there.
-  2. `ts-god` in `fellglass.html`: the LoreMaster flag. It may change who is allowed to
-     edit. It may not change what the sheet looks like or what it can do.
-  3. `GOD_TABS` in `threadspire.html`: the LoreMaster's panel bar. A new, renamed or
-     reordered FellGlass panel is mirrored there in the same change.
-- Any new exception to the above (something hidden, restyled or missing in ThreadSpire)
-  is a design ruling for Nate. Ask, then record the ruling in the list below.
+  1. The `?host=threadspire` style block in `fellglass.html`. It hides FellGlass's own
+     navigation (`#hub`, `#hubBtn`, `#charSwitch`) and styles the frame's scrollbar.
+     Nothing else. No card styling, no hidden titles, no hidden header fields.
+  2. `ts-god` in `fellglass.html`: the LoreMaster flag. It is the same LoreMaster mode
+     FellGlass has on its own page, so what it adds (such as Max Vitality (LM)) shows in
+     both places alike.
+  3. `GOD_TABS` in `threadspire.html`: the LoreMaster's tab bar. It is every FellGlass
+     panel in `PANELS`, same order, same names. The sheet reports its panel back with a
+     `sheet-panel` message so the bar stays lit on the right tab.
+- Host plumbing that is not sheet design and may stay: height reporting
+  (`tsPostHeight`), no automatic character creation in the frame, and `cbOnTable`
+  sending combat to ThreadSpire's table instead of the sheet's banner.
+- Any new difference is a design ruling for Nate. Ask first.
 
-Recorded exceptions:
-
-- *Pending ruling:* `GOD_TABS` omits the `battle` and `notes` panels that FellGlass has.
+`threadspire/tests/sheet-parity.test.js` (in `npm run checks`) fails if the tab bar and
+`PANELS` differ or if the style block does anything beyond the list above.
 
 Verification for any sheet change: the ThreadSpire harness sheet specs
 (`threadspire/harness/specs/_sheet.js` and the `*sheet*` specs) pass, and the change is
