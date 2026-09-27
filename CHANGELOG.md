@@ -1,3 +1,7 @@
+## 2026-09-27 - Battle becomes Condition
+
+The Battle tab repeated what the table already shows: the cards carry Acts, Reacts, Passives and weapon damage, and the dice and declare flow carry the rolls. It now keeps only what nothing else covers, and is named Condition: Vitality with its Damage, Heal and +Temp controls, Charges, Fatigue, Defenses (Durability and Resistance), and Status (Afflictions, Impairments, Effects Placed, Boons, Banes). Rolls, Acts and Reacts, and the weapon damage rows are hidden with cond-cut rather than deleted, because their renderers build the hand ThreadSpire draws and phone play may want them back. The header button trades the crossed swords for a heart with a pulse line and still toggles back to the previous tab. PANELS, GOD_TABS and ThreadSpire's section title read Condition; the panel key stays battle.
+
 ## 2026-09-27 - The crossed swords toggle back
 
 Tapping the crossed swords while Battle is showing returns to the tab the Fell was on before it, rather than doing nothing.
