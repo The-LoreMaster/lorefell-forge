@@ -403,6 +403,14 @@ h3{font-family:var(--head);font-weight:500;font-size:12px;letter-spacing:.12em;t
 .status-entry .sub{font-size:13px;color:var(--gold)}
 .status-entry .d{font-size:14px;color:var(--silver-dim)}
 .addline{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.rec-group{padding:10px 0;border-top:1px solid var(--line)}
+.rec-group:first-child{border-top:none;padding-top:2px}
+.rec-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.rec-name{font-family:var(--head);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold)}
+.rec-plus{width:26px;height:26px;border:1px solid var(--line);border-radius:6px;color:var(--gold);font-size:16px;line-height:1;display:flex;align-items:center;justify-content:center}
+.rec-plus:hover{border-color:var(--gold)}
+.rec-add input{flex:1;min-width:160px}
+.rec-empty{margin:0}
 .addline select,.addline input{flex:1;min-width:90px}
 .savebar{display:flex;gap:10px;justify-content:flex-end;margin-top:4px;align-items:center;flex-wrap:wrap}
 #saveState{font-size:14px;color:var(--silver-dim);font-style:italic;margin-right:auto}
@@ -842,8 +850,16 @@ body.in-combat{ padding-top:var(--cbn-h,46px); }
   <section class="card">
     <h2><span class="orn">❖</span> Invested Lore</h2>
     <div style="display:grid;gap:8px" id="loreGrid"></div>
-    <p class="note tip" style="margin-top:10px">Lore Points convert at level + 1 per crystal. Crystals are computed automatically; leveling consumes one.</p>
+    <p class="note tip" style="margin-top:10px">Lore Points convert at level + 1 per crystal. Crystals are computed automatically.</p>
   </section>
+
+  <section class="card" id="recordsCard">
+    <h2><span class="orn">❖</span> Records</h2>
+    <div id="recGroups"></div>
+  </section>
+  <div class="savebar">
+    <span id="saveState">Autosave on. Every change saves automatically.</span>
+  </div>
 </div>
 
 <!-- ============ ATTRIBUTES ============ -->
@@ -1015,29 +1031,6 @@ body.in-combat{ padding-top:var(--cbn-h,46px); }
 </div>
 
 <!-- ============ NOTES ============ -->
-<div class="panel" id="panel-notes">
-  <section class="card">
-    <h2><span class="orn">❖</span> Quests</h2>
-    <div id="rec-quests"></div>
-    <div class="addline"><input id="add-quests" placeholder="Record a quest"><button class="btn small" id="btn-quests">Add</button></div>
-  </section>
-  <section class="card">
-    <h2><span class="orn">❖</span> Characters</h2>
-    <div id="rec-characters"></div>
-    <div class="addline"><input id="add-characters" placeholder="Record a character"><button class="btn small" id="btn-characters">Add</button></div>
-  </section>
-  <section class="card">
-    <h2><span class="orn">❖</span> Notes</h2>
-    <div id="quest-board"></div>
-    <div id="clue-cards"></div>
-    <div id="rec-notes"></div>
-    <div class="addline"><input id="add-notes" placeholder="Record a note"><button class="btn small" id="btn-notes">Add</button></div>
-  </section>
-  <div class="savebar">
-    <span id="saveState">Autosave on. Every change saves automatically.</span>
-  </div>
-</div>
-
 </main>
 
 <script>
@@ -2151,6 +2144,8 @@ let MOTIVATION_DEFS=[
    All three: the Title, +3 to the attribute, and a new Motivation may be chosen. */
 const motSkills=def=>def?SKILLS[def.attr].map(x=>x[0]):[];
 const motByName=n=>MOTIVATION_DEFS.find(m=>m.name===n)||null;
+/* the kinds of record a Fell keeps, in the order the Records card shows them */
+const REC_KINDS=[["quests","Quests","Record a quest"],["characters","Characters","Record a character"],["clues","Clues","Record a clue"],["secrets","Secrets","Record a secret"],["notes","Notes","Record a note"]];
 /* Nate's ruling: a Motivation also raises each of its attribute's three skills by 1 (The
    Precise: Trickery, Presence, Finesse). grants.motSkillsFor names the Motivation whose
    skills are credited, so the +1s land once per vow and never twice: a reload, a toggle, or
@@ -2393,7 +2388,7 @@ let C={
   armor:{level:0,augs:[null,null],active:null}, /* 0 = no armor yet; gained through leveling */
   lorebounds:[], /* nothing by default; bonds form only through creation or leveling */
   inventory:[],afflictions:[],impairments:[],effects:[],boons:[],banes:[],
-  records:{quests:[],characters:[],notes:[]}
+  records:{quests:[],characters:[],clues:[],secrets:[],notes:[]}
 };
 function seedSheet(c){
   c=c||{};
@@ -2429,7 +2424,7 @@ function seedSheet(c){
   ["weapons","lorebounds","inventory","afflictions","impairments","effects","boons","banes","titles"]
     .forEach(function(k){ if(!Array.isArray(c[k])) c[k]=[]; });
   c.records=c.records||{};
-  ["quests","characters","notes"].forEach(function(k){ if(!Array.isArray(c.records[k])) c.records[k]=[]; });
+  REC_KINDS.forEach(function(k){ if(!Array.isArray(c.records[k[0]])) c.records[k[0]]=[]; });
   if(typeof c.portrait!=="string") c.portrait="";
   c.created=!!c.created;
   return c;
@@ -2536,7 +2531,7 @@ function rollDieForced(dieEl,resultEl,tagEl,bonus,final,extraTag){
 const PANELS=[
   ["lore","The Lore","❖"],["attributes","Attributes","◉"],["battle","Battle","☄"],
   ["weapons","Weapons","⚔"],["armor","Armor","⛨"],["lorebounds","Lorebounds","♞"],
-  ["skills","Skills","❋"],["inventory","Inventory","⛁"],["notes","Notes","✎"]
+  ["skills","Skills","❋"],["inventory","Inventory","⛁"]
 ];
 function tsPostHeight(){
   if(!document.body.classList.contains("tsembed"))return;
@@ -4355,7 +4350,7 @@ let QUESTS=[]; let _questSig="";
 function renderQuests(){
   const w=$("quest-board"); if(!w) return; w.innerHTML="";
   if(!QUESTS.length) return;
-  w.appendChild(el("div","clue-hd","Quest board"));
+  w.appendChild(el("div","clue-hd","From the LoreMaster"));
   QUESTS.forEach(q=>{
     const card=el("div","clue-card"+(q.status==="complete"?" quest-done":""));
     if(q.title) card.appendChild(el("div","clue-title",q.title));
@@ -4363,12 +4358,13 @@ function renderQuests(){
     if(q.status==="complete") card.appendChild(el("div","clue-scene","Complete"));
     w.appendChild(card);
   });
+  try{renderRecords("quests");}catch(e){}
 }
 let CLUES=[];
 function renderClues(){
   const w=$("clue-cards"); if(!w) return; w.innerHTML="";
   if(!CLUES.length) return;
-  w.appendChild(el("div","clue-hd","Discovered clues"));
+  w.appendChild(el("div","clue-hd","Discovered in play"));
   CLUES.forEach(cl=>{
     const card=el("div","clue-card");
     if(cl.title) card.appendChild(el("div","clue-title",cl.title));
@@ -4376,6 +4372,7 @@ function renderClues(){
     if(cl.scene) card.appendChild(el("div","clue-scene","Found in "+cl.scene));
     w.appendChild(card);
   });
+  try{renderRecords("clues");}catch(e){}
 }
 let _clueSig="";
 let _cluePoll=null;
@@ -4396,7 +4393,7 @@ let recEditing=null; /* "category:index" while editing */
 function renderRecords(cat){
   const w=$("rec-"+cat);w.innerHTML="";
   const arr=C.records[cat];
-  if(!arr.length)w.appendChild(el("p","note","Nothing recorded yet."));
+  if(!arr.length&&!((cat==="quests"&&QUESTS.length)||(cat==="clues"&&CLUES.length)))w.appendChild(el("p","note rec-empty","Nothing recorded yet."));
   arr.forEach((txt,idx)=>{
     const entry=el("div","status-entry");
     if(recEditing===cat+":"+idx){
@@ -4404,7 +4401,7 @@ function renderRecords(cat){
       const ta=el("textarea");ta.value=txt;
       const rowb=el("div","row");
       const save=el("button","btn small gold","Save"),cancel=el("button","btn small","Cancel");
-      save.addEventListener("click",()=>{const v=ta.value.trim();if(v)arr[idx]=v;recEditing=null;renderRecords(cat);});
+      save.addEventListener("click",()=>{const v=ta.value.trim();if(v)arr[idx]=v;recEditing=null;renderRecords(cat);scheduleSave();});
       cancel.addEventListener("click",()=>{recEditing=null;renderRecords(cat);});
       rowb.append(cancel,save);ed.append(ta,rowb);entry.appendChild(ed);
     }else{
@@ -4413,20 +4410,40 @@ function renderRecords(cat){
       const edit=el("button",null,"✎"),del=el("button",null,"✕");
       edit.title="Edit";del.title="Delete";
       edit.addEventListener("click",()=>{recEditing=cat+":"+idx;renderRecords(cat);});
-      del.addEventListener("click",()=>{arr.splice(idx,1);recEditing=null;renderRecords(cat);});
+      del.addEventListener("click",()=>{arr.splice(idx,1);recEditing=null;renderRecords(cat);scheduleSave();});
       acts.append(edit,del);entry.appendChild(acts);
     }
     w.appendChild(entry);
   });
 }
-["quests","characters","notes"].forEach(cat=>{
-  $("btn-"+cat).addEventListener("click",()=>{
-    const inp=$("add-"+cat),v=inp.value.trim();
-    if(!v)return;
-    C.records[cat].push(v);inp.value="";renderRecords(cat);
+/* Records live on the Lore tab, under Invested Lore: five kinds, each with a + that opens
+   a line to write one. Quests and Clues also show what the LoreMaster handed over through
+   the campaign (the quest board, clues found in play) above the Fell's own entries. The
+   LoreMaster, holding a player's Fell open in ThreadSpire, writes here too, which is how a
+   Secret or a Clue reaches one player and nobody else. */
+(function buildRecordGroups(){
+  const host=$("recGroups"); if(!host) return;
+  REC_KINDS.forEach(([cat,label,ph])=>{
+    const g=el("div","rec-group");
+    const hd=el("div","rec-hd");
+    hd.appendChild(el("span","rec-name",label));
+    const plus=el("button","rec-plus","+");plus.title="Add to "+label;plus.setAttribute("aria-label","Add to "+label);
+    hd.appendChild(plus);g.appendChild(hd);
+    if(cat==="quests")g.appendChild(Object.assign(document.createElement("div"),{id:"quest-board"}));
+    if(cat==="clues")g.appendChild(Object.assign(document.createElement("div"),{id:"clue-cards"}));
+    const list=el("div");list.id="rec-"+cat;g.appendChild(list);
+    const line=el("div","addline rec-add");line.style.display="none";
+    const inp=el("input");inp.id="add-"+cat;inp.placeholder=ph;
+    const add=el("button","btn small","Add");
+    line.append(inp,add);g.appendChild(line);
+    const commit=()=>{const v=inp.value.trim();if(!v)return;C.records[cat].push(v);inp.value="";line.style.display="none";renderRecords(cat);scheduleSave();};
+    plus.addEventListener("click",()=>{const open=line.style.display==="none";line.style.display=open?"flex":"none";if(open)inp.focus();});
+    add.addEventListener("click",commit);
+    inp.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();commit();}else if(e.key==="Escape"){line.style.display="none";}});
+    host.appendChild(g);
   });
-  renderRecords(cat);
-});
+})();
+REC_KINDS.forEach(k=>renderRecords(k[0]));
 
 /* ---------- autosave ---------- */
 /* Debounced: any interaction schedules a save 1.2s after the last change.
@@ -4788,7 +4805,7 @@ function renderAll(){
      A render list is a promise that what is on screen matches the record; anything left
      off it breaks that promise silently. */
   renderArmor();renderLorebounds();renderSkills();renderItems();renderAurum();renderFatigue();renderMobility();renderStatus();
-  renderBattle();renderCharges();renderStrip();["quests","characters","notes"].forEach(renderRecords);renderMotivation();syncIdentityLock();
+  renderBattle();renderCharges();renderStrip();REC_KINDS.forEach(k=>renderRecords(k[0]));renderMotivation();syncIdentityLock();
   wireTips();
 }
 function renderMotivation(){
