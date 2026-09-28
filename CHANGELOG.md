@@ -1,3 +1,7 @@
+## 2026-09-27 - The grid panel closes like the bar's others
+
+Choosing any tool in the map bar closes the grid's panel, and opening the grid closes whichever tool panel was open and returns the map to Move, so only one panel beside the bar is ever open.
+
 ## 2026-09-27 - Doors at any angle, and fog that survives a grid change
 
 Doors no longer snap to the grid: they land exactly where they are drawn, at any angle, and only catch on the end of a wall already there, so a door still meets its wall. Walls still snap to the grid's corners.
