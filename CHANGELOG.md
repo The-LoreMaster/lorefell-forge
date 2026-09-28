@@ -1,3 +1,9 @@
+## 2026-09-27 - The map bar folds away at the top left, and the LoreMaster gets a Player view
+
+The map bar moved to the table's top left, as far in from the corner as the dice tray is from its own, and has a tools button at its head that folds the whole bar down to that one symbol (and back). Folding returns the map to Move and closes any open panel; this screen remembers whether it was folded. The grid's panel opens beside it at the same height. On a phone it sits just under the top bar.
+
+The LoreMaster's Settings gain Player view, under The view. It draws the table as the party sees it: fog solid rather than at half strength, anything under the fog or Obscured hidden, walls, doors and lights unseen. A badge at the top of the screen says Player view and takes the LoreMaster back. It is the shared party view, so a Masked player's narrower sight, or a player whose own Fell sees the Obscured, would differ from it. Nothing about the table changes. The old Grid and map controls button in Settings is gone, since the grid lives in the map bar now.
+
 ## 2026-09-27 - Echosight and Ever-Watchful at the table
 
 The fog now knows how each Fell sees. threadspirePublicChar reports senses (Echosight from the armor's augmentations, Ever-Watchful from the talents), and the sheet's hand payload carries the same for the player's own Fell. An Echosight Fell sees through darkness: its full 15-square sight stands in the dark, and the party shares it as it shares any sight. A player whose own Fell has Echosight or Ever-Watchful sees Obscured foes; everyone else's screen still hides them, since perceiving the concealed is that Fell's alone. Paste velo/backend/characters.web.js.
