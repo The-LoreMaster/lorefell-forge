@@ -93,6 +93,14 @@ export const getLibraries = webMethod(Permissions.Anyone, async () => {
     if (talents.length) out.talents = talents;
   } catch (e) {}
 
+  // Weapon abilities and spells, by tree, form and tier, from the FellGuide.
+  try {
+    const rw2 = await wixData.query('WeaponAbilities').ascending('displayOrder').limit(200).find({ suppressAuth: true });
+    const wab = rw2.items.map((it) => ({ name: it.name || '', tree: it.tree || '', form: it.form || '', tier: Number(it.tier) || 1,
+      shorthand: it.shorthand || '', description: it.description || '' })).filter((a) => a.name && a.tree);
+    if (wab.length) out.weaponAbilities = wab;
+  } catch (e) {}
+
   // The weapon trees. Each form carries its own Fellmark Affliction, its grip, and its range,
   // so the sheet reads three of each rather than one for the whole tree.
   try {
