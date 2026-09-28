@@ -936,6 +936,19 @@ button.ax-fact{cursor:pointer}
 .ax-input{margin:8px 0 2px}
 .ax-lm{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px;padding-top:8px;border-top:1px dashed var(--line)}.ax-lm-l{font-family:var(--head);font-size:9.5px;letter-spacing:.12em;color:var(--gold);text-transform:uppercase}
 .ax-misc{width:56px}
+.ax-chev{grid-column:4;grid-row:1/3;display:flex;align-items:center;margin-left:8px;color:var(--silver-dim);transition:transform .18s}
+.ax-chev svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.ax-row.open > .ax-id .ax-chev{transform:rotate(180deg);color:var(--gold)}
+.ax-id{grid-template-columns:auto 1fr auto auto}
+.ax-id:hover .ax-nm{color:var(--gold)}.ax-id:hover .ax-chev{color:var(--gold)}
+.ax-stance .ax-id{grid-template-columns:1fr auto}
+.ax-slot{cursor:pointer}
+.ax-slot.empty{border-style:dashed;color:var(--silver-dim)}
+.ax-slot.empty::before{content:"+ ";color:var(--gold)}
+.ax-slot.empty:hover{border-color:var(--gold);color:var(--silver)}
+.ax-opt{display:block;width:100%;text-align:left;margin:6px 0;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--navy-2);color:var(--silver)}
+.ax-opt:hover{border-color:var(--gold)}.ax-opt b{display:block;font-family:var(--head);font-weight:500;letter-spacing:.04em;margin-bottom:2px}.ax-opt span{font-size:13px;color:var(--silver-dim)}
+.ax-from{font-style:normal;color:var(--gold);font-size:11.5px;margin-left:4px}
 .ax-row .pill{text-transform:none;font-style:normal;letter-spacing:.02em;font-size:13px}
 </style>
 </head>
@@ -4115,7 +4128,9 @@ function axToggle(k,fn){ _axOpen[k]=!_axOpen[k]; fn(); }
 function axHead(kind,sym,name,type,level,key,fn){
   const h=el("button","ax-id");h.type="button";h.setAttribute("aria-expanded",_axOpen[key]?"true":"false");
   h.innerHTML=`<span class="ax-sym">${sym}</span><span class="ax-nm">${cbEsc(name)}</span><span class="ax-ty">${cbEsc(type||"")}</span>`
-    +(level!=null?`<span class="ax-lvl">Level<b>${level}</b></span>`:"");
+    +(level!=null?`<span class="ax-lvl">Level<b>${level}</b></span>`:"")
+    +`<span class="ax-chev" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span>`;
+  h.title=_axOpen[key]?"Close":"Open for details";
   h.addEventListener("click",()=>axToggle(key,fn));
   return h;
 }
@@ -4132,6 +4147,44 @@ function axFacts(list){
 function axSec(label,ruled){ return el("div","ax-sec"+(ruled?" ruled":""),label); }
 function axLine(k,txt){ const d=el("div","ax-li"); d.innerHTML=`<span class="k">${k}</span><span>${txt}</span>`; return d; }
 const ORD=["1st","2nd","3rd"];
+/* A slot on a weapon or the armor. Filled, it names what is in it; hovering says what it
+   does, and tapping says so too. Empty, it offers what can go there (from the FellGuide's
+   own lists for this weapon or armor) to anyone whose slot it is, and the choice is made
+   once. Changing a slot already filled is the LoreMaster's. */
+function axSlot(label,options,current,onPick,descFn,cls){
+  const found=current?((options||[]).find(o=>o&&o.name===current)||{name:current}):null;
+  const b=el("button","pill ax-slot"+(found?"":" empty")+(cls?" "+cls:""),found?cbEsc(found.name):label);
+  b.type="button";
+  const d=found?(descFn(found)||((INFUSIONS||[]).concat(AUGMENTATIONS||[]).find(x=>x.name===found.name)||{}).desc||axDescAff(found.name)||""):"";
+  if(d) b.title=d.replace(/<[^>]+>/g,"");
+  b.addEventListener("click",ev=>{
+    ev.stopPropagation();
+    if(found){
+      const box=el("div"); box.appendChild(el("p",null,d||"No description yet."));
+      if(god){ const ch=el("button","pill empty","Clear this slot (LM)"); ch.type="button"; ch.addEventListener("click",()=>{onPick(null);fgTellClose();}); box.appendChild(ch); }
+      fgTell(found.name,box); return;
+    }
+    const opts=(options||[]).filter(Boolean);
+    const box=el("div");
+    if(!opts.length){ box.appendChild(el("p","note","Nothing is available for this slot yet.")); fgTell(label,box); return; }
+    box.appendChild(el("p","note","Choose one. The choice is kept."));
+    opts.forEach(o=>{
+      const r=el("button","ax-opt");r.type="button";
+      r.innerHTML=`<b>${cbEsc(o.name)}</b><span>${descFn(o)||""}</span>`;
+      r.addEventListener("click",()=>{ if(!god&&!confirm("Take "+o.name+"?"))return; onPick(o.name); fgTellClose(); });
+      box.appendChild(r);
+    });
+    fgTell(label,box);
+  });
+  return b;
+}
+function axDescAff(n){ const a=(AFFLICTIONS||[]).find(x=>x.name===n); return a?(a.desc||""):""; }
+/* afflictions of a weapon's own family (FellGuide: a Fellmark applies an Affliction of the
+   weapon's own family) */
+function axFamilyAfflictions(cat){
+  const names=[]; Object.values(WEAPON_DB).forEach(d=>{ if(d.category===cat) (d.afflictions||[]).forEach(a=>{ if(a&&names.indexOf(a)<0) names.push(a); }); });
+  return names.map(n=>({name:n,desc:axDescAff(n)}));
+}
 function renderWeapons(){
   try{ equipSeed(); }catch(e){}
   const wrap=$("weaponsWrap");wrap.innerHTML="";
@@ -4173,14 +4226,23 @@ function renderWeapons(){
       body.appendChild(dmg);
       body.appendChild(axSec("Afflictions"));
       const affRow=el("div","pillrow");
-      const innate=weaponAff(w); if(innate) affRow.appendChild(el("span","pill ax-aff",cbEsc(innate)));
+      const innate=weaponAff(w); if(innate) affRow.appendChild(axSlot("",[{name:innate,desc:axDescAff(innate)}],innate,()=>{},f=>f.desc||axDescAff(f.name),"ax-aff"));
       body.appendChild(affRow);
-      for(let i=1;i<3;i++){ if(w.level>=AFFLICTION_UNLOCK[i]) body.appendChild(slotPill(AFFLICTIONS,w.afflictions[i],v=>{w.afflictions[i]=v;renderWeapons();scheduleSave();},f=>f.desc||"",ORD[i]+" Slot")); }
+      for(let i=1;i<3;i++){
+        if(w.level<AFFLICTION_UNLOCK[i]) continue;
+        const held=[innate].concat(w.afflictions||[]).filter(Boolean);
+        const pool=axFamilyAfflictions(db.category).filter(a=>held.indexOf(a.name)<0||a.name===w.afflictions[i]);
+        affRow.appendChild(axSlot(ORD[i]+" Slot",pool,w.afflictions[i],v=>{w.afflictions[i]=v;renderWeapons();scheduleSave();},f=>f.desc||axDescAff(f.name),w.afflictions[i]?"ax-aff":""));
+      }
       const infOpen=[0,1,2].filter(i=>w.level>=INFUSION_UNLOCK[i]);
       if(infOpen.length){
         body.appendChild(axSec("Infusions"));
-        const ipool=god?INFUSIONS:INFUSIONS.filter(x=>x.weaponCat===db.category);
-        infOpen.forEach(i=>body.appendChild(slotPill(ipool,w.infusions[i],v=>{w.infusions[i]=v;renderWeapons();scheduleSave();},f=>f.desc||"",ORD[i]+" Slot")));
+        const infRow=el("div","pillrow");
+        infOpen.forEach(i=>{
+          const pool=INFUSIONS.filter(x=>x.weaponCat===db.category&&(w.infusions.indexOf(x.name)<0||x.name===w.infusions[i]));
+          infRow.appendChild(axSlot(ORD[i]+" Slot",pool.length?pool:INFUSIONS.filter(x=>x.name===w.infusions[i]),w.infusions[i],v=>{w.infusions[i]=v;renderWeapons();renderBattle();scheduleSave();},f=>f.desc||""));
+        });
+        body.appendChild(infRow);
       }
       const abOpen=[0,1,2].filter(i=>w.level>=ABILITY_UNLOCK[i]);
       if(abOpen.length){
@@ -4189,9 +4251,10 @@ function renderWeapons(){
           const name=w.abilities[i], ab=name?ABILITIES.find(x=>x.name===name):null;
           if(ab) body.appendChild(axLine("Tier "+(i+1),`<b>${cbEsc(ab.name)}.</b> ${cbEsc(ab.desc||"")}`));
           else{
-            const pool=god?ABILITIES:ABILITIES.filter(x=>(!x.tree||x.tree===w.tree)&&x.tier===i+1);
+            /* FellGuide: a weapon's abilities by tier, from the forms it has reached */
+            const pool=ABILITIES.filter(x=>x.tree===w.tree&&x.tier===i+1&&(db.forms.indexOf(x.form)<0||db.forms.indexOf(x.form)<=w.formIdx));
             const li=axLine("Tier "+(i+1),"");
-            li.lastChild.appendChild(slotPill(pool,null,v=>{w.abilities[i]=v;renderWeapons();scheduleSave();},f=>f.desc||"","Choose"));
+            li.lastChild.appendChild(axSlot("Choose a Tier "+(i+1)+" ability",pool,null,v=>{w.abilities[i]=v;renderWeapons();renderBattle();scheduleSave();},f=>cbEsc(f.desc||"")+(f.form?' <i class="ax-from">'+cbEsc(f.form)+'</i>':"")));
             body.appendChild(li);
           }
         });
@@ -4243,8 +4306,11 @@ function renderArmor(){
       body.appendChild(axSec("Augmentations",true));
       augOpen.forEach(i=>{
         const n=C.armor.augs[i], f=n?(AUGMENTATIONS||[]).find(x=>x.name===n):null;
-        if(f) body.appendChild(axLine(cbEsc(f.name),cbEsc(f.desc||"")));
-        else body.appendChild(slotPill(AUGMENTATIONS,null,v=>{C.armor.augs[i]=v;renderArmor();renderBattle();scheduleSave();},x=>x.desc||"",ORD[i]+" Slot"));
+        if(f){ const li=axLine(cbEsc(f.name),cbEsc(f.desc||"")); li.title=f.desc||""; body.appendChild(li); }
+        else{
+          const pool=(AUGMENTATIONS||[]).filter(x=>C.armor.augs.indexOf(x.name)<0);
+          body.appendChild(axSlot(ORD[i]+" Slot",pool,null,v=>{C.armor.augs[i]=v;renderArmor();renderBattle();scheduleSave();},x=>x.desc||""));
+        }
         if(f&&god){ const clr=el("button","pill empty","Change"); clr.type="button"; clr.addEventListener("click",()=>{C.armor.augs[i]=null;renderArmor();renderBattle();scheduleSave();}); body.appendChild(clr); }
       });
     }
@@ -5623,7 +5689,15 @@ function loadLibraries(lib){
     if(aff.length)AFFLICTIONS=aff.map(r=>({name:r.name,desc:r.desc}));
     if(typeof canonByType==='function'){ var _imps=canonByType('impairment'); if(_imps&&_imps.length) IMPAIRMENTS=_imps.map(function(r){ return {name:r.name, desc:r.rule||''}; }); }
   }
-  if(has(lib.abilities)){
+  if(has(lib.weaponAbilities)){
+    /* the FellGuide's weapon abilities: each belongs to a tree and a form, at a tier. The
+       vault names the Grimoire's tree Tome; the sheet keys it Grimoire. */
+    const key=t=>t==="Tome"?"Grimoire":t;
+    const wab=lib.weaponAbilities.map(r=>({name:F(r,"name"),tree:key(F(r,"tree")),form:F(r,"form"),tier:Number(F(r,"tier"))||1,use:"Act",
+      desc:F(r,"description")||F(r,"shorthand"),short:F(r,"shorthand")}));
+    if(wab.length){ ABILITIES=wab; if(typeof renderWeapons==="function") try{renderWeapons();}catch(e){} }
+  }
+  if(has(lib.abilities)&&!has(lib.weaponAbilities)){
     const ab=lib.abilities
       .filter(r=>r.loreforgeApproved===true||r.loreForgeApproved===true||r["loreforge-approved"]===true)
       .map(r=>({name:F(r,"title","name"),tier:Number(F(r,"tier"))||1,use:F(r,"use")||"Act",desc:F(r,"description","shorthand")}));

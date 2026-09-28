@@ -77,4 +77,11 @@ function writeSeed(name, keyField, items) {
     return { name: b.name, skill: b.f.Skill || "", attribute: b.f.Attribute || "", effect: b.f.Effect || "", displayOrder: (i + 1) * 10 };
   });
   writeSeed("Talents", "name", tal);
+
+  // Weapon abilities and spells: six per tree, by form and tier.
+  const wab = read(dir, "WeaponAbilities.md").map(function (b, i) {
+    return { name: b.name, tree: b.f.Tree || "", form: b.f.Form || "", tier: Number(b.f.Tier) || 1,
+      shorthand: b.f.Shorthand || "", description: b.f.Description || "", displayOrder: (i + 1) * 10 };
+  });
+  writeSeed("WeaponAbilities", "name", wab);
 })();
