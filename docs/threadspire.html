@@ -7216,7 +7216,11 @@ function applyRemoteSnapshot(snap){
   }
   if (snap.tokens) S.tokens = snap.tokens;
   if (snap.draw){ S.draw = drawMerge(S.draw, snap.draw); try { drawPaint(); } catch(e){} }
-  if (snap.fog && !(isLM() && _fogPainting)){ S.fog = snap.fog; _fogCache = {}; try { fogPaint(); } catch(e){} }
+  if (snap.fog && !(isLM() && _fogPainting)){
+    S.fog = snap.fog; _fogCache = {};
+    if (!isLM()) _seen = {};   /* players take the LoreMaster's memory of the map */
+    try { fogPaint(); } catch(e){}
+  }
   if (snap.pings){ try { pingTake(snap.pings); } catch(e){} }
   try { harvestFoeArt(); } catch(e){}
   if (snap.grid){ S.grid = snap.grid; S.grid.offX = 0; S.grid.offY = 0; }
@@ -12625,13 +12629,78 @@ function fogEncode(a){
   return out.join(',');
 }
 function fogCells(){ var r = fogRec(); if (!r) return null; var d = fogDims(); if (r.cols !== d.cols || r.rows !== d.rows) return null; return { d:d, a:fogDecode(r, d.cols * d.rows) }; }
-/* Is this token under fog, for a player? The Fell are never hidden from their party. */
+/* ---- vision ----
+   Each Fell sees 15 spaces in every direction (the FellGuide's Vision), counted the way the
+   ruler counts: diagonals are one space, so the seen area is a square 31 spaces across,
+   centred on the token. The party shares what it sees, and places once seen stay dimmed:
+   the map shows, its current tokens do not.
+   Conditions bite only the Fell who has them. Masked sees its own space and the spaces
+   next to it, so a Masked Fell adds nothing beyond that to the party's sight, and the
+   Masked player's own screen shows only that, whatever the rest of the party can see.
+   An Obscured foe is hidden from every player until it deals or takes damage. */
+var VISION_SPACES = 15;
+function tokAffs(t){
+  try { var c = (typeof findC === 'function' && findC(t.id)) || (t.charId && typeof fellByCharId === 'function' && fellByCharId(t.charId)); return (c && c.affs) || []; }
+  catch(e){ return []; }
+}
+function tokHas(t, name){ return tokAffs(t).indexOf(name) >= 0; }
+function tokVisionSpaces(t){ return tokHas(t, 'Masked') ? 1 : VISION_SPACES; }
+function myFellTok(){ if (isLM()) return null; var m = null; (S.tokens || []).forEach(function(t){ if (t.kind === 'p' && typeof tokenIsMine === 'function' && tokenIsMine(t)) m = t; }); return m; }
+function visionOf(tokens, d){
+  var v = new Uint8Array(d.cols * d.rows);
+  tokens.forEach(function(t){
+    var r = tokVisionSpaces(t) * FOG_SUB + Math.floor(((t.cells || 1) * FOG_SUB) / 2);
+    var cx = Math.floor(t.x / d.c), cy = Math.floor(t.y / d.c);
+    var y0 = Math.max(0, cy - r), y1 = Math.min(d.rows - 1, cy + r), x0 = Math.max(0, cx - r), x1 = Math.min(d.cols - 1, cx + r);
+    for (var y = y0; y <= y1; y++) for (var x = x0; x <= x1; x++) v[y * d.cols + x] = 1;
+  });
+  return v;
+}
+/* What this screen may see right now, and what it has seen before. */
+var _seen = {};   /* per map: cells ever inside the party's sight, this session */
+var _fvMemo = null;
+function fogView(){
+  /* many callers in one repaint; work it out once per moment */
+  var sig = mapKey() + '|' + ((fogRec() || {}).v || 0) + '|' + (S.tokens || []).map(function(t){ return t.id + ':' + Math.round(t.x) + ':' + Math.round(t.y) + ':' + tokAffs(t).join('+'); }).join(',');
+  if (_fvMemo && _fvMemo.sig === sig && Date.now() - _fvMemo.at < 250) return _fvMemo.v;
+  var v = fogViewNow();
+  _fvMemo = { sig:sig, at:Date.now(), v:v };
+  return v;
+}
+function fogViewNow(){
+  var fc = fogCells(); if (!fc) return null;
+  var d = fc.d, n = d.cols * d.rows, me = myFellTok();
+  if (me && tokHas(me, 'Masked')){
+    return { d:d, vis:visionOf([me], d), seen:new Uint8Array(n), masked:true };
+  }
+  var party = (S.tokens || []).filter(function(t){ return t.kind === 'p'; });
+  var sight = visionOf(party, d), vis = new Uint8Array(n);
+  for (var i = 0; i < n; i++) vis[i] = (fc.a[i] || sight[i]) ? 1 : 0;
+  var k = mapKey() + ':' + n, seen = _seen[k];
+  if (!seen){ seen = _seen[k] = new Uint8Array(n); var rec = fogRec(); if (rec && rec.e){ var e = fogDecode({ r:rec.e, v:'e' + (rec.ev || 0) }, n); for (var j = 0; j < n; j++) seen[j] = e[j]; } }
+  var grew = false;
+  for (var q = 0; q < n; q++) if (sight[q] && !seen[q]){ seen[q] = 1; grew = true; }
+  if (grew && isLM()) fogSeenShare(seen);
+  return { d:d, vis:vis, seen:seen, masked:false };
+}
+/* the LoreMaster's screen keeps the party's memory in the table's state, so a player who
+   joins later, or reloads, finds the same places dimmed */
+var _seenShareT = null;
+function fogSeenShare(seen){
+  clearTimeout(_seenShareT);
+  _seenShareT = setTimeout(function(){ var rec = fogRec(); if (!rec) return; rec.e = fogEncode(seen); rec.ev = Date.now(); schedulePush(); }, 1500);
+}
+/* Is this token hidden from this player? The Fell are never hidden from their party,
+   except from a Masked player, who sees only what is next to them. */
 function fogHides(t){
-  if (!t || isLM() || t.kind === 'p') return false;
-  var fc = fogCells(); if (!fc) return false;
-  var cx = Math.floor(t.x / fc.d.c), cy = Math.floor(t.y / fc.d.c);
-  if (cx < 0 || cy < 0 || cx >= fc.d.cols || cy >= fc.d.rows) return false;
-  return !fc.a[cy * fc.d.cols + cx];
+  if (!t || isLM()) return false;
+  if (t.kind !== 'p' && tokHas(t, 'Obscured')) return true;
+  var fv = fogView(); if (!fv) return false;
+  if (t.kind === 'p' && !fv.masked) return false;
+  var me = myFellTok(); if (me && me.id === t.id) return false;
+  var cx = Math.floor(t.x / fv.d.c), cy = Math.floor(t.y / fv.d.c);
+  if (cx < 0 || cy < 0 || cx >= fv.d.cols || cy >= fv.d.rows) return false;
+  return !fv.vis[cy * fv.d.cols + cx];
 }
 function fogTexture(){
   if (_fogTex) return _fogTex;
@@ -12660,7 +12729,7 @@ function fogTexture(){
 var _fogMask = null;
 function fogPaint(){
   var cv = document.getElementById('fogLayer'); if (!cv) return;
-  var fc = fogCells();
+  var fc = fogView();
   if (!fc){ cv.classList.remove('on'); return; }
   var scale = 4, W = Math.ceil(S.map.w / scale), H = Math.ceil(S.map.h / scale);
   if (cv.width !== W || cv.height !== H){ cv.width = W; cv.height = H; }
@@ -12677,7 +12746,11 @@ function fogPaint(){
   if (!_fogMask) _fogMask = document.createElement('canvas');
   var d = fc.d; if (_fogMask.width !== d.cols || _fogMask.height !== d.rows){ _fogMask.width = d.cols; _fogMask.height = d.rows; }
   var mctx = _fogMask.getContext('2d'), mi = mctx.createImageData(d.cols, d.rows);
-  for (var i = 0; i < fc.a.length; i++){ if (fc.a[i]){ mi.data[i*4] = mi.data[i*4+1] = mi.data[i*4+2] = 255; mi.data[i*4+3] = 255; } }
+  /* visible now: cleared. Seen before: thinned, so the map shows through as memory. */
+  for (var i = 0; i < fc.vis.length; i++){
+    var a = fc.vis[i] ? 255 : (fc.seen[i] ? 150 : 0);
+    if (a){ mi.data[i*4] = mi.data[i*4+1] = mi.data[i*4+2] = 255; mi.data[i*4+3] = a; }
+  }
   mctx.putImageData(mi, 0, 0);
   ctx.globalCompositeOperation = 'destination-out';
   ctx.imageSmoothingEnabled = true;
@@ -12687,7 +12760,15 @@ function fogPaint(){
   ctx.globalCompositeOperation = 'source-over';
 }
 /* drift: a slow redraw while fog is showing and the tab is visible */
-setInterval(function(){ try { if (document.visibilityState !== 'hidden' && fogRec()) fogPaint(); } catch(e){} }, 120);
+var _fogHideSig = '';
+setInterval(function(){
+  try {
+    if (document.visibilityState === 'hidden' || !fogRec()) return;
+    fogPaint();
+    /* who is hidden changes as tokens move, so re-check a few times a second */
+    if (!isLM()){ var sig = (S.tokens || []).map(function(t){ return fogHides(t) ? t.id : ''; }).join(','); if (sig !== _fogHideSig){ _fogHideSig = sig; renderTokens(); } }
+  } catch(e){}
+}, 120);
 function fogEnsure(){
   var d = fogDims(), k = mapKey();
   S.fog = S.fog || {};
@@ -12714,6 +12795,7 @@ function fogCommit(){ _fogPainting = false; _fogWork = null; try { renderTokens(
 function fogAll(what){
   if (!isLM()) return;
   var k = mapKey(), d = fogDims(); S.fog = S.fog || {};
+  _seen = {};
   if (what === 'off'){ S.fog[k] = { on:false }; }
   else {
     var a = new Uint8Array(d.cols * d.rows); if (what === 'reveal') a.fill(1);
