@@ -2581,6 +2581,7 @@ function seedSheet(c){
   ["name","desc","lineage","origin","motivation","motivationPurpose","lineageDesc","campaign","campaignId","worldId"]
     .forEach(function(k){ if(typeof c.identity[k]!=="string") c.identity[k]=""; });
   c.grants=c.grants||{}; c.grants.skills=c.grants.skills||{}; c.grants.attrs=c.grants.attrs||{};
+  if(!Array.isArray(c.attrSrc)) c.attrSrc=null;   /* where each attribute point came from; null on a Fell forged before it was kept */
   c.attrs=c.attrs||{};
   ATTRS.forEach(function(g){ g[1].forEach(function(a){
     var k=a[0];
@@ -2973,7 +2974,7 @@ $("f-motivation").addEventListener("change",e=>{
   /* Committing to a Motivation from an empty slot raises its Attribute by 1. Empty happens
      at the first pick and after a Title clears the old vow, so every new Motivation grants
      the point once, and toggling the field cannot farm it. */
-  if(!prev){ const nd=motByName(next); if(nd){ C.grants.attrs[nd.attr]=(C.grants.attrs[nd.attr]||0)+1; motGrantSkills(); } }
+  if(!prev){ const nd=motByName(next); if(nd){ C.grants.attrs[nd.attr]=(C.grants.attrs[nd.attr]||0)+1; attrSrcAdd(nd.attr,1,"grant","motivation","Motivation ("+nd.name+")"); motGrantSkills(); } }
   renderMotivation();renderDials();renderSkills();renderStrip();syncIdentityLock();scheduleSave();
 });
 /* Portrait is downscaled to a small JPEG and stored on the character, so it
@@ -3400,19 +3401,21 @@ function ccRender(){
 }
 function ccApply(){
   window._ccApplied=true;
+  C.attrSrc=[];
   const addSkill=n=>{C.grants.skills[n]=(C.grants.skills[n]||0)+1;};
-  const addAttr=a=>{C.grants.attrs[a]=(C.grants.attrs[a]||0)+1;};
+  const addAttr=(a,src,label)=>{C.grants.attrs[a]=(C.grants.attrs[a]||0)+1;attrSrcAdd(a,1,"grant",src||"lineage",label||("Lineage ("+(CC.lineage==="__own__"?(CC.lineageCustom||"own lineage"):(CC.lineage||"lineage"))+")"));};
+  const addBase=(a,src,label)=>{C.attrs[a].base++;attrSrcAdd(a,1,"base",src,label);};
   if(CC.path==="custom"){
     if(CC.track==="weapon"){
-      C.attrs[CC.trackAttr].base++;
+      addBase(CC.trackAttr,"start","Starting weapon");
       const w=newWeapon();w.tree=CC.weaponTree;w.infusions[0]=CC.infusion;
       C.weapons.push(w);
     }else if(CC.track==="armor"){
-      CC.armorPts.forEach(a=>C.attrs[a].base++);
+      CC.armorPts.forEach(a=>addBase(a,"start","Starting armor"));
       C.armor.level=1;
     }else{
-      C.attrs[CC.trackAttr].base++;
-      C.attrs[CC.lbAttr2].base++;
+      addBase(CC.trackAttr,"start","Starting lorebound");
+      addBase(CC.lbAttr2,"start","Starting lorebound");
       C.lorebounds.push({name:"",type:CC.lbType||"",level:1,aspects:[null,null]});
     }
     CC.originSkills.forEach(addSkill);
@@ -3423,7 +3426,7 @@ function ccApply(){
     C.identity.lineageDesc=CC.linDesc||"";
   }else{
     const o=CC.pgOrigin,track=originTrack(o);
-    C.attrs[o.attr].base++;
+    addBase(o.attr,"origin","Origin ("+o.name+")");
     if(CC.linType==="skill")addSkill(CC.linPick);else if(CC.linType==="attr")addAttr(CC.linPick);
     if(track==="weapon"){const w=newWeapon();w.tree=CC.weaponTree;w.infusions[0]=CC.infusion||null;C.weapons.push(w);}
     if(track==="armor")C.armor.level=1;
@@ -3438,7 +3441,7 @@ function ccApply(){
      everything from the track, origin, and lineage, and it stacks with each new Motivation
      taken up after a Title. */
   const _motDef=motByName(C.identity.motivation);
-  if(_motDef){addAttr(_motDef.attr);motGrantSkills();}
+  if(_motDef){addAttr(_motDef.attr,"motivation","Motivation ("+_motDef.name+")");motGrantSkills();}
   if(CC&&CC.forge)C.forge=CC.forge;
   C.identity.campaign=C.identity.campaign||"";
   C.identity.campaignId=C.identity.campaignId||"";
@@ -3690,7 +3693,7 @@ function luApply(){
   }
   C.lore.ascPending=Math.max(0,ascPending()-1);
   C.lore.level++;
-  C.attrs[LU.attr].base++;
+  C.attrs[LU.attr].base++; attrSrcAdd(LU.attr,1,"base","level","Level "+C.lore.level);
   /* track */
   if(LU.track==="offensive"){
     if(LU.newWeaponTree){const w=newWeapon();w.tree=LU.newWeaponTree;C.weapons.push(w);}
@@ -3698,12 +3701,12 @@ function luApply(){
   }
   if(LU.track==="defensive"){
     if(LU.armorGain)C.armor.level=1;else C.armor.level=Math.min(10,C.armor.level+1);
-    if(LU.armorGrowth)C.attrs[LU.armorGrowth].base++;
+    if(LU.armorGrowth){ C.attrs[LU.armorGrowth].base++; attrSrcAdd(LU.armorGrowth,1,"base","level","Level "+C.lore.level+" (armor)"); }
   }
   if(LU.track==="core"){
     if(LU.lbNew)C.lorebounds.push({name:"",type:"",level:1,aspects:[null,null]});
     else if(LU.lbIdx!=null)C.lorebounds[LU.lbIdx].level=Math.min(10,C.lorebounds[LU.lbIdx].level+1);
-    if(LU.lbGrowth)C.attrs[LU.lbGrowth].base++;
+    if(LU.lbGrowth){ C.attrs[LU.lbGrowth].base++; attrSrcAdd(LU.lbGrowth,1,"base","level","Level "+C.lore.level+" (lorebound)"); }
   }
   /* vitality */
   C.vitality.max+=LU.vitRoll||1;
@@ -3726,6 +3729,39 @@ $("lvlUpBtn").addEventListener("click",luOpen);
    and red when it is lowered, and hovering it (tapping, on a phone) opens the breakdown, with
    the battle modifier's - and + and, for the LoreMaster, the base. */
 const ATTR_LABEL={grant:"Granted (lineage, origin, motivation)",stance:"Armor stance",fat:"Fatigue",mod:"Battle modifier"};
+/* ---- where each attribute point came from ----
+   C.attrSrc is a ledger kept from creation on: {a, n, k:"base"|"grant", src, label}. Entries
+   with the same label merge, and a -1 cancels a +1. A Fell forged before the ledger has none,
+   so its breakdown is worked out instead: the current Motivation's +1 and the Lineage's share
+   of the granted points, and a pre-built Origin's +1 out of Base. Anything left over is Base. */
+function attrSrcAdd(a,n,k,src,label){
+  /* an older Fell starts its ledger from what can be worked out, so the first level-up does
+     not forget where its earlier points came from */
+  if(!C.attrSrc){
+    const seed=[];
+    Object.keys(C.attrs||{}).forEach(x=>attrSources(x).forEach(e=>{ if(e.label!=="Base") seed.push({a:x,n:e.n,k:e.k,src:"derived",label:e.label}); }));
+    C.attrSrc=seed;
+  }
+  const hit=C.attrSrc.find(e=>e.a===a&&e.k===k&&e.label===label);
+  if(hit){ hit.n+=n; if(!hit.n) C.attrSrc.splice(C.attrSrc.indexOf(hit),1); }
+  else if(n) C.attrSrc.push({a:a,n:n,k:k,src:src,label:label});
+}
+function attrSrcDrop(a,label){ if(!C.attrSrc) return; const i=C.attrSrc.findIndex(e=>e.a===a&&e.label===label); if(i>=0){ C.attrSrc[i].n--; if(C.attrSrc[i].n<=0) C.attrSrc.splice(i,1); } }
+function attrSources(a){
+  const d=C.attrs[a], grant=attrGrant(a), out=[];
+  let base=d.base, g=grant;
+  if(C.attrSrc){
+    C.attrSrc.filter(e=>e.a===a).forEach(e=>{ out.push({label:e.label,n:e.n,k:e.k}); if(e.k==="base") base-=e.n; else g-=e.n; });
+  }else{
+    const m=motByName(C.identity&&C.identity.motivation);
+    if(m&&m.attr===a&&g>=1){ out.push({label:"Motivation ("+m.name+")",n:1,k:"grant"}); g-=1; }
+    const og=(typeof PREGEN_ORIGINS!=="undefined"?PREGEN_ORIGINS:[]).find(o=>o.name===(C.identity&&C.identity.origin));
+    if(og&&og.attr===a&&base>=1){ out.push({label:"Origin ("+og.name+")",n:1,k:"base"}); base-=1; }
+  }
+  if(g>0) out.unshift({label:(C.identity&&C.identity.lineage)?("Lineage ("+C.identity.lineage+")"):"Granted",n:g,k:"grant"});
+  if(base) out.unshift({label:"Base",n:base,k:"base"});
+  return out;
+}
 function attrParts(a){
   const d=C.attrs[a],grant=attrGrant(a),stance=stanceBonus(a),fat=fatiguePenalty(a),mod=d.mod||0;
   const tot=d.base+mod+grant+stance+fat;
@@ -3781,8 +3817,12 @@ function attrPopBody(a){
   const p=attrParts(a), use=(ATTRS.flatMap(x=>x[1]).find(x=>x[0]===a)||[])[1]||"";
   const sign=n=>(n>0?"+":"\u2212")+Math.abs(n);
   let h=`<div class="ap-h">${a.charAt(0).toUpperCase()+a.slice(1)} <b class="${p.tot>p.d.base?"raised":(p.tot<p.d.base?"lowered":"")}">${p.tot}</b></div>`;
-  h+=god?`<div class="ap-l ap-ctl">Base <button data-ap="base-">\u2212</button><b>${p.d.base}</b><button data-ap="base+">+</button></div>`:`<div class="ap-l">Base ${p.d.base}</div>`;
-  if(p.grant)h+=`<div class="ap-l raised">${ATTR_LABEL.grant} ${sign(p.grant)}</div>`;
+  /* each source on its own line: base points in plain, granted ones in gold */
+  attrSources(a).forEach(s=>{
+    if(s.label==="Base") h+=`<div class="ap-l">Base ${s.n}</div>`;
+    else h+=`<div class="ap-l${s.k==="grant"?" raised":""}">${s.label} ${sign(s.n)}</div>`;
+  });
+  if(god)h+=`<div class="ap-l ap-ctl">Base <button data-ap="base-">\u2212</button><b>${p.d.base}</b><button data-ap="base+">+</button></div>`;
   if(p.stance)h+=`<div class="ap-l raised">${ATTR_LABEL.stance} ${sign(p.stance)}</div>`;
   if(p.fat){ const ef=(typeof cbEffFatigue==="function")?cbEffFatigue():(C.fatigue||0); h+=`<div class="ap-l lowered">${FATIGUE_NAMES[Math.min(5,ef)]||"Fatigue"} (fatigue) ${sign(p.fat)}</div>`; }
   h+=`<div class="ap-l ap-ctl">${ATTR_LABEL.mod} <button data-ap="mod-">\u2212</button><b class="${p.mod>0?"raised":(p.mod<0?"lowered":"")}">${p.mod>0?"+":""}${p.mod}</b><button data-ap="mod+">+</button></div>`;
@@ -3798,7 +3838,7 @@ function attrPopShow(btn,pin){
       const b=ev.target.closest("[data-ap]"); if(!b) return;
       const a=_attrPop.getAttribute("data-for"), k=b.getAttribute("data-ap");
       if(k==="mod-"||k==="mod+"){ C.attrs[a].mod=(C.attrs[a].mod||0)+(k==="mod+"?1:-1); }
-      else if((k==="base-"||k==="base+")&&god){ C.attrs[a].base=Math.max(0,C.attrs[a].base+(k==="base+"?1:-1)); }
+      else if((k==="base-"||k==="base+")&&god){ const was=C.attrs[a].base; C.attrs[a].base=Math.max(0,was+(k==="base+"?1:-1)); if(C.attrs[a].base!==was) attrSrcAdd(a,C.attrs[a].base-was,"base","lm","Set by the LoreMaster"); }
       else if((k==="mob-"||k==="mob+")&&god){ C.mobility=Math.max(0,(C.mobility||0)+(k==="mob+"?1:-1)); try{ const mvl=$("mobVal"); if(mvl) mvl.textContent=C.mobility; }catch(e){} }
       renderDials();renderWeapons();try{renderStrip();}catch(e){} scheduleSave();
     }); }
@@ -5464,7 +5504,7 @@ function renderMotivation(){
     claim.style.marginTop="6px";
     claim.addEventListener("click",()=>{
       C.titles.push(m.title);
-      C.attrs[m.attr].base+=3;
+      C.attrs[m.attr].base+=3; attrSrcAdd(m.attr,3,"base","title","Title ("+m.name+")");
       if(C.grants)C.grants.motSkillsFor="";   /* the vow's skill points are kept, it was fulfilled */
       C.identity.motivation="";
       $("f-motivation").value="";
@@ -5500,7 +5540,7 @@ function abandonMotivation(){
   const cur=C.identity.motivation||"";
   if(!cur) return;
   const nd=motByName(cur);
-  if(nd){ C.grants.attrs[nd.attr]=Math.max(0,(C.grants.attrs[nd.attr]||0)-1); }
+  if(nd){ C.grants.attrs[nd.attr]=Math.max(0,(C.grants.attrs[nd.attr]||0)-1); attrSrcDrop(nd.attr,"Motivation ("+nd.name+")"); }
   motReturnSkills();
   C.identity.motivation="";
   const sel=$("f-motivation"); if(sel) sel.value="";

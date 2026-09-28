@@ -1,3 +1,9 @@
+## 2026-09-27 - Every attribute point says where it came from
+
+The attribute breakdown used to lump lineage, origin and motivation into one granted line and everything else into Base. A Fell now keeps a ledger of its attribute points (attrSrc): character creation records the Origin, the starting weapon, armor or lorebound choice, the Lineage and the Motivation; later Motivations, abandoning one, a Title's +3, each level-up (and its armor or lorebound growth) and the LoreMaster's base changes are recorded as they happen. The hover or tap panel lists each on its own line, granted points in gold: Base, Origin (The Watchful) +1, Lineage (The Rysen) +1, Motivation (The Witty) +1, Level 3 +1, and so on.
+
+A Fell forged before the ledger has its breakdown worked out instead: the current Motivation's +1, the Lineage's share of the granted points, and a pre-built Origin's +1 out of Base, with anything left over shown as Base. Its first recorded change starts the ledger from that, so nothing already worked out is forgotten. A custom-path Fell's starting choices were never recorded, so those stay inside its Base. Sheet only, no Velo paste.
+
 ## 2026-09-27 - The Attributes tab, option A: rings in rows
 
 The team's pick from four mockups. Each category (Offensive, Core, Defensive) is its own centred row, every ring the same size, so Core no longer leaves a hole in a grid. A ring is ten ticks, one per point: points the Fell owns are white, points something grants (lineage, origin, motivation, an armor stance, a positive battle modifier) are gold, and points taken away (fatigue, a negative battle modifier) are red outlines.
