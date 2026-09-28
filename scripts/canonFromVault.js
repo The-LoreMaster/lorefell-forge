@@ -71,4 +71,10 @@ function writeSeed(name, keyField, items) {
     return { name: b.name, effect: b.f.Effect || "", domain: b.f.Domain || "", core: /^y/i.test(b.f.Core || ""), lore: b.f.Lore || "", displayOrder: (i + 1) * 10 };
   });
   writeSeed("Augmentations", "name", aug);
+
+  // Talents: one per skill, granted by that skill's first Mastery point.
+  const tal = read(dir, "Talents.md").map(function (b, i) {
+    return { name: b.name, skill: b.f.Skill || "", attribute: b.f.Attribute || "", effect: b.f.Effect || "", displayOrder: (i + 1) * 10 };
+  });
+  writeSeed("Talents", "name", tal);
 })();

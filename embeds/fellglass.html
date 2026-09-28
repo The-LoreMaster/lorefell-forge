@@ -415,6 +415,9 @@ h3{font-family:var(--head);font-weight:500;font-size:12px;letter-spacing:.12em;t
 .mpip.on{background:var(--gold);border-color:var(--gold)}
 .master-btn{font-family:var(--head);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--gold);border:1px solid rgba(201,168,76,.5);border-radius:10px;padding:3px 8px}
 .talent-tag{font-size:13px;color:var(--gold)}
+.talent-pill{display:inline-flex;align-items:center;margin:6px 0 2px;padding:4px 11px;border-radius:14px;border:1px solid var(--line);background:none;color:var(--silver-dim);font-family:var(--head);font-size:11px;letter-spacing:.08em;cursor:pointer}
+.talent-pill.on{border-color:var(--gold);color:var(--gold);background:rgba(201,168,76,.08)}
+.talent-desc{margin:6px 0 4px;padding:8px 10px;border-left:2px solid var(--gold);background:var(--navy-3);font-size:14px;color:var(--silver);line-height:1.45}
 .grant-tag{font-family:var(--head);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--gold);border:1px solid rgba(201,168,76,.4);border-radius:9px;padding:2px 7px}
 .use-tag{font-family:var(--head);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--ice);border:1px solid var(--line);border-radius:9px;padding:2px 7px}
 .rec-actions{position:absolute;top:6px;right:8px;display:flex;gap:4px}
@@ -2514,7 +2517,11 @@ const SKILLS={
   resistance:[["Conviction","How strongly can I protect my mind and beliefs?"],["Sanctum","How fully can I preserve my body and soul?"],["Resonance","How well can I remain whole against magical disruption?"]]
 };
 /* CANON:skills end */
-const TALENTS={};Object.values(SKILLS).flat().forEach(([n])=>TALENTS[n]=`${n} Talent (placeholder)`);
+/* Talents come from the Wix Talents collection (the vault's _Canon/collections/Talents.md),
+   keyed by the skill whose first Mastery point grants them. Nothing here names a talent. */
+let TALENT_DB={};
+function talentFor(skill){ return TALENT_DB[skill]||null; }
+function fellHasTalent(name){ return Object.keys(TALENT_DB).some(k=>TALENT_DB[k].name===name&&C.skills[k]&&C.skills[k].mastery>0); }
 const DIE_FACES=["⚀","⚁","⚂","⚃","⚄","⚅"];
 
 /* =====================================================================
@@ -4211,7 +4218,18 @@ function renderSkills(){
       top.appendChild(resWrap);
       row.appendChild(top);
       /* row 2: question + talent */
-      row.appendChild(el("span","q",q+(s.talent?` <span class="talent-tag">✦ ${s.talent}</span>`:"")));
+      row.appendChild(el("span","q",q));
+      /* the skill's talent: a pill that opens to say what it does. Lit once the skill has a
+         Mastery point, dim until then so a player can see what mastery will bring. */
+      const tal=talentFor(name);
+      if(tal){
+        const own=s.mastery>0;
+        const pill=el("button","talent-pill"+(own?" on":""),"✦ "+tal.name+(own?"":" · at first Mastery"));
+        pill.type="button";pill.setAttribute("aria-expanded","false");
+        const desc=el("div","talent-desc",cbEsc(tal.effect||""));desc.style.display="none";
+        pill.addEventListener("click",()=>{const open=desc.style.display==="none";desc.style.display=open?"block":"none";pill.setAttribute("aria-expanded",open?"true":"false");});
+        row.appendChild(pill);row.appendChild(desc);
+      }
       /* row 3: rank pips | mastery | master button */
       const bottom=el("div","skill-bottom");
       /* identity grants occupy the first pips in gold and cannot be cleared;
@@ -4235,7 +4253,7 @@ function renderSkills(){
       bottom.appendChild(m);
       if(s.rank+grant===5&&s.mastery<4){
         const mb=el("button","master-btn","Master");
-        mb.addEventListener("click",()=>{s.rank=0;s.mastery++;if(s.mastery===1&&!s.talent)s.talent=TALENTS[name];renderSkills();renderMotivation();});
+        mb.addEventListener("click",()=>{s.rank=0;s.mastery++;const tl=talentFor(name);if(tl)s.talent=tl.name;renderSkills();renderMotivation();});
         bottom.appendChild(mb);
       }
       const roll=el("div","skill-roll-cluster");
@@ -4510,7 +4528,7 @@ function tsHandPayload(){
   return {
     charge: ch,
     fatigue: C.fatigue||0,
-    senses: { echosight: cbHasAug("Echosight"), everWatchful: ((C.talents||[]).map(function(t){ return typeof t==="string"?t:(t&&t.name); }).indexOf("Ever-Watchful")>=0) },
+    senses: { echosight: cbHasAug("Echosight"), everWatchful: fellHasTalent("Ever-Watchful") },
     fatigueName: FATIGUE_NAMES[Math.min(5,C.fatigue||0)]||"",
     gates: g,
     acts: (window.COMBAT_ACTS||[]).map(function(a){
@@ -5414,6 +5432,10 @@ function loadLibraries(lib){
       roll:F(r,"roll"), target:F(r,"target"), places:Number(F(r,"places"))||0
     })).filter(u=>u.name);
     if(mapped.length){ ITEMS_LIB=mapped; if(typeof renderItems==="function") renderItems(); }
+  }
+  if(has(lib.talents)){
+    const tdb={};lib.talents.forEach(t=>{const sk=F(t,"skill");if(sk)tdb[sk]={name:F(t,"name"),effect:F(t,"effect"),attribute:F(t,"attribute")};});
+    if(Object.keys(tdb).length){ TALENT_DB=tdb; if(typeof renderSkills==="function") try{renderSkills();}catch(e){} }
   }
   if(has(lib.lineages)){
     const mapped=lib.lineages.map(r=>{

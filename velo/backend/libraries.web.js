@@ -86,6 +86,13 @@ export const getLibraries = webMethod(Permissions.Anyone, async () => {
     if (utilities.length) out.utilities = utilities;
   } catch (e) {}
 
+  // Talents, one per skill, granted by its first Mastery point.
+  try {
+    const rt = await wixData.query('Talents').ascending('displayOrder').limit(100).find({ suppressAuth: true });
+    const talents = rt.items.map((it) => ({ name: it.name || '', skill: it.skill || '', attribute: it.attribute || '', effect: it.effect || '' })).filter((t) => t.name && t.skill);
+    if (talents.length) out.talents = talents;
+  } catch (e) {}
+
   // The weapon trees. Each form carries its own Fellmark Affliction, its grip, and its range,
   // so the sheet reads three of each rather than one for the whole tree.
   try {

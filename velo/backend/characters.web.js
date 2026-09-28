@@ -105,7 +105,16 @@ export const threadspirePublicChar = webMethod(Permissions.Anyone, async (charId
     lorebounds: (data.lorebounds || []).map((l) => l && (l.name || l.type || '')).filter(Boolean),
     armor: data.armor && (data.armor.active || data.armor.name) ? [data.armor.active || data.armor.name] : []
   };
-  const talents = (data.talents || []).map((t) => (typeof t === 'string' ? t : (t && t.name))).filter(Boolean);
+  // A Fell's talents are the talents of every skill it has put a Mastery point into, named
+  // from the Talents collection (the sheet never stored them as a list).
+  let talents = [];
+  try {
+    const mastered = Object.keys(data.skills || {}).filter((k) => data.skills[k] && Number(data.skills[k].mastery) > 0);
+    if (mastered.length) {
+      const rt = await wixData.query('Talents').hasSome('skill', mastered).limit(50).find({ suppressAuth: true });
+      talents = rt.items.map((t) => t.name).filter(Boolean);
+    }
+  } catch (e) { talents = []; }
   let playerName = '';
   const ownerId = r.ownerMemberId || r._owner;
   if (ownerId) {
