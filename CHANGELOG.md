@@ -1,3 +1,7 @@
+## 2026-09-27 - Fog outside sight is 98% solid
+
+Places the party has seen but cannot see now are covered at 98%, per Nate, so nothing of the map comes through for players outside their vision.
+
 ## 2026-09-27 - Thicker fog outside the party's sight
 
 Places the party has seen but cannot see now were thinned to let the map show through clearly. They now show only as a faint shape through nearly whole fog, so almost nothing comes through for players outside their vision. Inside the vision circle nothing changed: clear to half its reach, half-dimmed to the edge.
