@@ -40,6 +40,22 @@ export const getCampaignState = webMethod(Permissions.Anyone, async (campaignId,
   } catch (e) { return null; }
 });
 
+function mergeDraw(a, b) {
+  a = a || {}; b = b || {};
+  const gone = Array.from(new Set([].concat(a.gone || [], b.gone || []))).slice(-3000);
+  const goneSet = {}; gone.forEach((g) => { goneSet[g] = 1; });
+  const seen = {}, strokes = [];
+  [].concat(a.strokes || [], b.strokes || []).forEach((s) => {
+    if (!s || !s.id || seen[s.id] || goneSet[s.id]) return;
+    seen[s.id] = 1; strokes.push(s);
+  });
+  return { strokes: strokes.slice(-600), gone: gone };
+}
+function mergePings(a, b) {
+  const seen = {}, out = [];
+  [].concat(a || [], b || []).forEach((p) => { if (p && p.id && !seen[p.id]) { seen[p.id] = 1; out.push(p); } });
+  return out.slice(-20);
+}
 export const saveCampaignState = webMethod(Permissions.Anyone, async (campaignId, snap) => {
   cvTeleReset();
   const mid = await memberId(); if (!mid || !campaignId) return { ok: false };
@@ -57,6 +73,12 @@ export const saveCampaignState = webMethod(Permissions.Anyone, async (campaignId
         if (prev) {
           const merged = Object.assign({}, body);
           Object.keys(prev).forEach((k) => { if (merged[k] === undefined) merged[k] = prev[k]; });
+          // Drawings and pings come from every seat at once, so a push merges into them
+          // rather than replacing them: strokes are a union by id, minus anything erased
+          // (erasures are kept as tombstones so an older copy cannot bring a stroke back),
+          // and pings keep only the last few.
+          if (body.draw || prev.draw) merged.draw = mergeDraw(prev.draw, body.draw);
+          if (body.pings || prev.pings) merged.pings = mergePings(prev.pings, body.pings);
           body = merged;
         }
       } catch (e) {}

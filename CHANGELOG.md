@@ -1,3 +1,11 @@
+## 2026-09-27 - Map tools: select, ruler, drawing, pings
+
+A small bar at the left of the table (above the dice tray on a phone) holds Pan, Select, Ruler and Draw. Pan is the default and does what the map always did.
+
+Select drags a box; every token inside it is selected and outlined, and dragging any selected token moves every one of them this seat may move, snapped and sent together. The ruler measures from any point or token to any other, counting one per square in every direction, diagonals included, per Nate: the count is the larger of the two sides. It stays up until the next measure or another tool. Draw puts strokes over the map image and under the tokens, in six colours, sized to the grid; they belong to the map they were drawn on. A player's eraser takes only their own strokes; the LoreMaster's takes any, and Clear wipes the map after asking. Double-clicking the map, in any tool, pings it: rings in the pinger's colour with their name, for everyone looking at that map.
+
+Drawings and pings travel in the table's state as draw and pings. Because every seat pushes at once, saveCampaignState now merges them instead of overwriting: strokes are a union by id minus erasures, erasures are kept as tombstones so an older copy cannot bring a stroke back, and only the last twenty pings are kept. Paste velo/backend/campaignview.web.js.
+
 ## 2026-09-27 - The speaker's face while their Dialogue beat is up
 
 On a Dialogue beat the LoreMaster's portrait and name on the right should become the NPC speaking it, and go back after. Every beat card set the speaker as it was drawn, including the cards either side of the centre, and nothing ever set it back, so the portrait could show a neighbouring beat's speaker and keep it. lmSyncSpeaker now follows the centred beat only, on every repaint of the scene runner: a Dialogue beat with a speaker shows them, anything else, and leaving the scene for a fight, returns the LoreMaster's own portrait and name. The phone top bar follows it too.

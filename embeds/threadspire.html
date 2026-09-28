@@ -31,6 +31,34 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 #tokenLayer{ position:absolute; inset:0; pointer-events:none; z-index:2; }
 #tokenLayer .token{ pointer-events:auto; }
 #mapArt{ position:absolute; left:0; top:0; background:transparent; pointer-events:none; }
+#drawLayer{ position:absolute; left:0; top:0; overflow:visible; pointer-events:none; }
+#drawLayer path{ fill:none; stroke-linecap:round; stroke-linejoin:round; }
+#mapTools{ position:fixed; left:calc(3.2% + 6px); top:44%; transform:translateY(-50%); z-index:58; display:flex; flex-direction:column; gap:6px; padding:6px; border-radius:12px; background:rgba(10,14,26,.82); border:1px solid rgba(201,168,76,.35); }
+#mapTools > button, #drawOpts > button{ width:34px; height:34px; border-radius:8px; border:1px solid transparent; color:var(--silver,#c8d0dc); display:flex; align-items:center; justify-content:center; padding:0; }
+#mapTools svg{ width:19px; height:19px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+#mapTools > button.on, #drawOpts > button.on{ border-color:var(--gold); color:var(--gold); background:rgba(201,168,76,.12); }
+#drawOpts{ display:none; flex-direction:column; gap:6px; padding-top:6px; border-top:1px solid rgba(201,168,76,.25); }
+#mapTools.drawing #drawOpts{ display:flex; }
+.dswatches{ display:grid; grid-template-columns:1fr 1fr; gap:4px; }
+.dsw{ width:15px; height:15px; border-radius:50%; border:2px solid transparent; padding:0; cursor:pointer; }
+.dsw.on{ border-color:#fff; }
+body:not(.lm-role) #mapTools .lmonly{ display:none; }
+#map.tool-select, #map.tool-ruler, #map.tool-draw{ cursor:crosshair; }
+#selBox{ position:fixed; display:none; z-index:57; border:1px dashed var(--gold); background:rgba(201,168,76,.10); pointer-events:none; }
+#rulerLayer{ position:fixed; inset:0; width:100%; height:100%; z-index:57; pointer-events:none; overflow:visible; }
+#rulerLayer line{ stroke:var(--gold,#c9a84c); stroke-width:2.5; stroke-dasharray:7 5; }
+#rulerLayer circle{ fill:var(--gold,#c9a84c); }
+#rulerLayer .rl-tag rect{ fill:rgba(10,14,26,.92); stroke:var(--gold,#c9a84c); }
+#rulerLayer .rl-tag text{ fill:#fff; font-family:Cinzel,serif; font-size:14px; }
+.token.msel{ outline:2px dashed var(--gold); outline-offset:3px; border-radius:50%; }
+#pingLayer{ position:fixed; inset:0; z-index:57; pointer-events:none; }
+.ping{ position:fixed; width:18px; height:18px; margin:-9px 0 0 -9px; border-radius:50%; }
+.ping::before, .ping::after{ content:''; position:absolute; inset:0; border-radius:50%; border:3px solid var(--pc,#c9a84c); animation:pingring 1.4s ease-out 2; }
+.ping::after{ animation-delay:.35s; }
+.ping b{ position:absolute; inset:5px; border-radius:50%; background:var(--pc,#c9a84c); }
+.ping i{ position:absolute; top:22px; left:50%; transform:translateX(-50%); white-space:nowrap; font-style:normal; font-family:Cinzel,serif; font-size:11px; color:#fff; text-shadow:0 1px 3px #000; }
+@keyframes pingring{ 0%{ transform:scale(.6); opacity:1; } 100%{ transform:scale(4.2); opacity:0; } }
+@media (max-width:700px){ #mapTools{ left:6px; top:auto; bottom:136px; transform:none; } }
 #mapArt video{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; pointer-events:none; }
 #grid{ display:none; }
 #gridInf{ position:absolute; left:-20000px; top:-20000px; width:40000px; height:40000px; pointer-events:none; }
@@ -1688,12 +1716,28 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
     <div id="mapLayer">
       <div id="mapArt"></div>
       <div id="gridInf"></div>
+      <svg id="drawLayer" xmlns="http://www.w3.org/2000/svg"></svg>
   <input type="file" id="mapFileInput" accept="image/*" multiple style="display:none" onchange="lmMapFilePicked(this)">
   <input type="file" id="tokFileInput" accept="image/*" style="display:none" onchange="lmTokenFilePicked(this)">
     </div>
     <div id="tokenLayer"></div>
   </div>
   <div class="frame"></div>
+  <!-- map tools: pan, select, ruler, draw -->
+  <div id="mapTools" role="toolbar" aria-label="Map tools">
+    <button data-tool="pan" class="on" title="Move the map" aria-label="Move the map"><svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/></svg></button>
+    <button data-tool="select" title="Select tokens (drag a box)" aria-label="Select tokens"><svg viewBox="0 0 24 24"><path d="M4 4h4M4 4v4M20 4h-4M20 4v4M4 20h4M4 20v-4M20 20h-4M20 20v-4"/><path d="M10 9l6 4-3 1-1 3z"/></svg></button>
+    <button data-tool="ruler" title="Measure squares" aria-label="Ruler"><svg viewBox="0 0 24 24"><path d="M3 17L17 3l4 4L7 21z"/><path d="M7 13l2 2M10 10l2 2M13 7l2 2"/></svg></button>
+    <button data-tool="draw" title="Draw on the map" aria-label="Draw"><svg viewBox="0 0 24 24"><path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="M14 6l3 3"/></svg></button>
+    <div id="drawOpts">
+      <div class="dswatches"></div>
+      <button data-dact="erase" title="Erase your own strokes" aria-label="Erase"><svg viewBox="0 0 24 24"><path d="M4 16l8-8 6 6-6 6H8z"/><path d="M13 19h7"/></svg></button>
+      <button data-dact="clear" class="lmonly" title="Clear every drawing on this map" aria-label="Clear all drawings"><svg viewBox="0 0 24 24"><path d="M5 7h14M9 7V4h6v3M7 7l1 13h8l1-13"/></svg></button>
+    </div>
+  </div>
+  <div id="selBox"></div>
+  <svg id="rulerLayer" xmlns="http://www.w3.org/2000/svg"></svg>
+  <div id="pingLayer"></div>
   <img id="winArt" class="artlayer" src="assets/win-art.png" alt="">
   <img id="frameArt" class="artlayer" src="assets/table-frame.png" alt="">
   <img id="uiArt" class="artlayer" src="assets/table-ui.png" alt="">
@@ -6963,6 +7007,7 @@ var _advPushedRev = -1;
 function sharedSnapshot(){
   return {
     tokens: slimTokens(S.tokens), grid: S.grid, map: S.map,
+    draw: S.draw || { strokes:[], gone:[] }, pings: S.pings || [],
     background: S.scene.background,
     /* The background is an id from the loremaster's own shelf, and nobody else has that
        shelf to look it up in, so the map arrived at every player's table as a name for
@@ -7147,6 +7192,8 @@ function applyRemoteSnapshot(snap){
     }
   }
   if (snap.tokens) S.tokens = snap.tokens;
+  if (snap.draw){ S.draw = drawMerge(S.draw, snap.draw); try { drawPaint(); } catch(e){} }
+  if (snap.pings){ try { pingTake(snap.pings); } catch(e){} }
   try { harvestFoeArt(); } catch(e){}
   if (snap.grid){ S.grid = snap.grid; S.grid.offX = 0; S.grid.offY = 0; }
   if (snap.map) S.map = snap.map;
@@ -12253,7 +12300,7 @@ function renderTokens(){
     }
     var lmLocked = isLM() && t.kind === 'p' && t.charId && declareFor(t.charId) && (declareFor(t.charId).act || '');
     el.className = 'token ' + t.kind + (isMine ? ' mine' : '') + (draggable && !isMine ? ' lm-drag' : '')
-      + (sel === t.id ? ' sel' : '') + (art ? ' hasimg' : '') + (_flashToken === t.id ? ' justplaced' : '')
+      + (sel === t.id ? ' sel' : '') + (multiSel[t.id] ? ' msel' : '') + (art ? ' hasimg' : '') + (_flashToken === t.id ? ' justplaced' : '')
       + (aimedAt ? ' aimed' + aimedSide : '') + (lmLocked ? ' declared' : '')
       /* A fallen fighter reads as fallen on the board too, not only on their card. */
       + ((function(){ try { var c = findC(t.id) || fellByCharId(t.charId); return (c && cDown(c)) ? ' down' : ''; } catch(e){ return ''; } })());
@@ -12321,6 +12368,9 @@ function snapAxis(v, off, cells){
    drag. One function decides what a tap means, so the two cannot drift apart again. */
 function wireToken(el, t, draggable){
   el.addEventListener('pointerdown', function(e){
+    /* the ruler, pen and eraser work over tokens too: the map handles the gesture, and a
+       measure started on a token starts from its centre */
+    if (mapTool === 'ruler' || mapTool === 'draw' || mapTool === 'erase') return;
     e.preventDefault(); e.stopPropagation();
     /* captured either way, so the pointerup still arrives when the finger slides off the
        token it started on - a tap that ends a few pixels outside is still a tap */
@@ -12334,8 +12384,10 @@ function wireToken(el, t, draggable){
         return;
       }
       var p = toMap(ev.clientX, ev.clientY);
+      if (t._gx === undefined){ t._gx = t.x; t._gy = t.y; }
       t.x = clamp(p.x + ox, 0, S.map.w); t.y = clamp(p.y + oy, 0, S.map.h);
       moved = true; place(el, t);
+      if (multiSel[t.id]) groupMove(t, t.x - t._gx, t.y - t._gy, false);
     }
     function upfn(){
       el.removeEventListener('pointermove', mv); el.removeEventListener('pointerup', upfn);
@@ -12351,11 +12403,216 @@ function wireToken(el, t, draggable){
         t.x = clamp(t.x, 0, S.map.w); t.y = clamp(t.y, 0, S.map.h);
       }
       place(el, t);
+      var _grp = multiSel[t.id] ? groupMove(t, t.x - t._gx, t.y - t._gy, true) : [];
+      delete t._gx; delete t._gy;
       send({ type:'token-move', id:t.id, x:t.x, y:t.y });
+      _grp.forEach(function(o){ send({ type:'token-move', id:o.id, x:o.x, y:o.y }); });
     }
     el.addEventListener('pointermove', mv); el.addEventListener('pointerup', upfn);
   });
 }
+/* ================= map tools =================
+   Pan (the default), Select, Ruler and Draw sit in a small bar at the left of the table.
+   Double-click anywhere on the map pings it, in any tool.
+
+   Select drags a box; every token inside it is selected, and dragging any one of them moves
+   the ones this seat may move, together. The ruler counts squares the way LoreFell does, one
+   per square in any direction, diagonals included, so the count is the larger of the two
+   sides. Drawings sit over the map and under the tokens, belong to the map they were drawn
+   on, and sync through the table's state; the backend merges them from every seat. A player
+   erases only their own strokes; the LoreMaster can erase any and clear the map. */
+var mapTool = 'pan', drawColor = '#c9a84c', multiSel = {};
+var DRAW_COLORS = ['#c9a84c','#e3a193','#8ec5ff','#8fd694','#ffffff','#1a1a1a'];
+function myMark(){ return isLM() ? 'lm' : (S.characterId || 'me'); }
+function myName(){ return isLM() ? 'LoreMaster' : ((S.character && S.character.name) || 'A Fell'); }
+function mapKey(){ try { return (S.scene && S.scene.background) || (activeMap() && activeMap().url) || 'map'; } catch(e){ return 'map'; } }
+function setMapTool(t){
+  mapTool = t;
+  var bar = document.getElementById('mapTools'), m = mapEl();
+  if (bar){ bar.querySelectorAll('[data-tool]').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-tool') === t); }); bar.classList.toggle('drawing', t === 'draw' || t === 'erase'); }
+  if (m){ m.classList.remove('tool-select','tool-ruler','tool-draw'); if (t !== 'pan') m.classList.add('tool-' + (t === 'erase' ? 'draw' : t)); }
+  var er = bar && bar.querySelector('[data-dact="erase"]'); if (er) er.classList.toggle('on', t === 'erase');
+  rulerClear();
+  if (t !== 'select' && Object.keys(multiSel).length){ multiSel = {}; renderTokens(); }
+}
+(function wireMapTools(){
+  var bar = document.getElementById('mapTools'); if (!bar) return;
+  var sw = bar.querySelector('.dswatches');
+  sw.innerHTML = DRAW_COLORS.map(function(c){ return '<button class="dsw' + (c === drawColor ? ' on' : '') + '" data-color="' + c + '" style="background:' + c + '" aria-label="Colour"></button>'; }).join('');
+  bar.addEventListener('pointerdown', function(e){ e.stopPropagation(); });
+  bar.addEventListener('click', function(e){
+    var b = e.target.closest('button'); if (!b) return;
+    if (b.hasAttribute('data-tool')) { setMapTool(mapTool === b.getAttribute('data-tool') && mapTool !== 'pan' ? 'pan' : b.getAttribute('data-tool')); return; }
+    if (b.hasAttribute('data-color')){ drawColor = b.getAttribute('data-color'); sw.querySelectorAll('.dsw').forEach(function(x){ x.classList.toggle('on', x === b); }); if (mapTool === 'erase') setMapTool('draw'); return; }
+    var act = b.getAttribute('data-dact');
+    if (act === 'erase'){ setMapTool(mapTool === 'erase' ? 'draw' : 'erase'); return; }
+    if (act === 'clear' && isLM()) drawClearMap();
+  });
+})();
+
+/* ---- drawings ---- */
+function drawMerge(a, b){
+  a = a || {}; b = b || {};
+  var gone = {}, goneList = [];
+  [].concat(a.gone || [], b.gone || []).forEach(function(g){ if (!gone[g]){ gone[g] = 1; goneList.push(g); } });
+  var seen = {}, strokes = [];
+  [].concat(a.strokes || [], b.strokes || []).forEach(function(s){ if (s && s.id && !seen[s.id] && !gone[s.id]){ seen[s.id] = 1; strokes.push(s); } });
+  return { strokes: strokes.slice(-600), gone: goneList.slice(-3000) };
+}
+function drawPaint(){
+  var svg = document.getElementById('drawLayer'); if (!svg) return;
+  svg.setAttribute('width', S.map.w); svg.setAttribute('height', S.map.h);
+  var k = mapKey(), d = S.draw || { strokes:[] };
+  svg.innerHTML = (d.strokes || []).filter(function(s){ return s.k === k; }).map(function(s){
+    return '<path data-id="' + esc(s.id) + '" d="' + drawPathD(s.p) + '" stroke="' + esc(s.c) + '" stroke-width="' + (s.w || 5) + '"/>';
+  }).join('') + (_stroke ? '<path d="' + drawPathD(_stroke.p) + '" stroke="' + esc(_stroke.c) + '" stroke-width="' + _stroke.w + '"/>' : '');
+}
+function drawPathD(p){
+  if (!p || p.length < 2) return '';
+  var h = 'M' + p[0] + ' ' + p[1];
+  for (var i = 2; i < p.length; i += 2) h += 'L' + p[i] + ' ' + p[i+1];
+  if (p.length === 2) h += 'l0.1 0';
+  return h;
+}
+var _stroke = null;
+function drawCommit(stroke){
+  S.draw = drawMerge(S.draw, { strokes:[stroke] });
+  drawPaint(); drawShare();
+}
+function drawShare(){ if (isLM()) schedulePush(); else { try { pushState(); } catch(e){} } }
+function drawEraseAt(mx, my){
+  var k = mapKey(), me = myMark(), best = null, bestD = Infinity, reach = Math.max(12, (S.grid && S.grid.size || 100) * 0.25);
+  ((S.draw && S.draw.strokes) || []).forEach(function(s){
+    if (s.k !== k || (!isLM() && s.by !== me)) return;
+    for (var i = 0; i < s.p.length; i += 2){ var dx = s.p[i] - mx, dy = s.p[i+1] - my, d = dx*dx + dy*dy; if (d < bestD){ bestD = d; best = s; } }
+  });
+  if (!best || Math.sqrt(bestD) > reach) return;
+  S.draw = drawMerge(S.draw, { gone:[best.id] }); drawPaint(); drawShare();
+}
+function drawClearMap(){
+  var k = mapKey(), ids = ((S.draw && S.draw.strokes) || []).filter(function(s){ return s.k === k; }).map(function(s){ return s.id; });
+  if (!ids.length) return;
+  tsConfirm('Clear every drawing on this map?', function(){ S.draw = drawMerge(S.draw, { gone:ids }); drawPaint(); drawShare(); });
+}
+
+/* ---- ruler ---- */
+function cellOf(x, y){ var g = S.grid.size || 100; return { c:Math.floor((x - (S.grid.offX||0)) / g), r:Math.floor((y - (S.grid.offY||0)) / g) }; }
+function rulerDraw(a, b){
+  var L = document.getElementById('rulerLayer'); if (!L) return;
+  var ca = cellOf(a.x, a.y), cb = cellOf(b.x, b.y), n = Math.max(Math.abs(ca.c - cb.c), Math.abs(ca.r - cb.r));
+  var r = mapEl().getBoundingClientRect();
+  var sa = { x:r.left + cam.x + a.x * cam.zoom, y:r.top + cam.y + a.y * cam.zoom }, sb = { x:r.left + cam.x + b.x * cam.zoom, y:r.top + cam.y + b.y * cam.zoom };
+  var label = n + (n === 1 ? ' square' : ' squares'), tw = label.length * 8.2 + 16;
+  L.innerHTML = '<line x1="' + sa.x + '" y1="' + sa.y + '" x2="' + sb.x + '" y2="' + sb.y + '"/><circle cx="' + sa.x + '" cy="' + sa.y + '" r="4"/><circle cx="' + sb.x + '" cy="' + sb.y + '" r="4"/>'
+    + '<g class="rl-tag" transform="translate(' + (sb.x + 12) + ',' + (sb.y - 30) + ')"><rect width="' + tw + '" height="24" rx="6"/><text x="8" y="17">' + label + '</text></g>';
+}
+function rulerClear(){ var L = document.getElementById('rulerLayer'); if (L) L.innerHTML = ''; }
+
+/* ---- multi-select ---- */
+/* the same rule renderTokens uses to make a token draggable */
+function mayMoveTok(t){ if (!t) return false; if (S.role === 'lm') return true; return !!(t.mine || (typeof tokenIsMine === 'function' && tokenIsMine(t))); }
+function selectBox(a, b){
+  var x0 = Math.min(a.x, b.x), x1 = Math.max(a.x, b.x), y0 = Math.min(a.y, b.y), y1 = Math.max(a.y, b.y);
+  multiSel = {};
+  (S.tokens || []).forEach(function(t){ if (t.x >= x0 && t.x <= x1 && t.y >= y0 && t.y <= y1) multiSel[t.id] = 1; });
+  renderTokens();
+}
+function groupMove(lead, dx, dy, done){
+  var moved = [];
+  (S.tokens || []).forEach(function(t){
+    if (!multiSel[t.id] || t.id === lead.id || !mayMoveTok(t)) return;
+    if (t._gx === undefined){ t._gx = t.x; t._gy = t.y; }
+    t.x = clamp(t._gx + dx, 0, S.map.w); t.y = clamp(t._gy + dy, 0, S.map.h);
+    if (done){
+      var c = t.cells || 1;
+      if (snapOn){ t.x = clamp(snapAxis(t.x, S.grid.offX, c), 0, S.map.w); t.y = clamp(snapAxis(t.y, S.grid.offY, c), 0, S.map.h); }
+      delete t._gx; delete t._gy; moved.push(t);
+    }
+  });
+  placeTokens();
+  return moved;
+}
+
+/* ---- pings ---- */
+var _pingSeen = {}, _pingBoot = true;
+function pingColor(name){ try { return speakerColor(name); } catch(e){ return '#c9a84c'; } }
+function pingShow(p){
+  var L = document.getElementById('pingLayer'); if (!L) return;
+  var r = mapEl().getBoundingClientRect();
+  var el = document.createElement('div'); el.className = 'ping';
+  el.style.left = (r.left + cam.x + p.x * cam.zoom) + 'px'; el.style.top = (r.top + cam.y + p.y * cam.zoom) + 'px';
+  el.style.setProperty('--pc', p.c || '#c9a84c');
+  el.innerHTML = '<b></b><i>' + esc(p.who || '') + '</i>';
+  L.appendChild(el); setTimeout(function(){ el.remove(); }, 3200);
+}
+function pingTake(list){
+  (list || []).forEach(function(p){
+    if (!p || !p.id || _pingSeen[p.id]) return;
+    _pingSeen[p.id] = 1;
+    if (!_pingBoot && p.k === mapKey()) pingShow(p);
+  });
+  _pingBoot = false;
+}
+function pingAt(mx, my){
+  var p = { id:'pg' + Date.now().toString(36) + Math.random().toString(36).slice(2,5), x:Math.round(mx), y:Math.round(my), k:mapKey(), who:myName(), c:pingColor(myName()), at:Date.now() };
+  _pingSeen[p.id] = 1; pingShow(p);
+  S.pings = (S.pings || []).concat([p]).slice(-20);
+  drawShare();
+}
+(function(){ var m = mapEl(); if (!m) return;
+  m.addEventListener('dblclick', function(e){
+    if (e.target.closest && (e.target.closest('.token') || e.target.closest('#mapTools'))) return;
+    var p = toMap(e.clientX, e.clientY); pingAt(p.x, p.y);
+  });
+})();
+
+/* ---- the tool gesture: one pointer on the bare map, in any tool but Pan ---- */
+var _toolG = null;
+function toolDown(e){
+  if (mapTool === 'pan') return false;
+  if (e.button !== undefined && e.button !== 0) return false;
+  var p = toMap(e.clientX, e.clientY);
+  if (mapTool === 'erase'){ drawEraseAt(p.x, p.y); _toolG = { kind:'erase' }; return true; }
+  if (mapTool === 'draw'){
+    var w = Math.max(3, Math.round((S.grid.size || 100) * 0.05));
+    _stroke = { id:'dr' + Date.now().toString(36) + Math.random().toString(36).slice(2,5), by:myMark(), k:mapKey(), c:drawColor, w:w, p:[Math.round(p.x), Math.round(p.y)], at:Date.now() };
+    _toolG = { kind:'draw' }; drawPaint(); return true;
+  }
+  if (mapTool === 'ruler'){
+    var tk = e.target.closest && e.target.closest('.token'), tt = tk && tokById(tk.getAttribute('data-tok'));
+    if (tt) p = { x:tt.x, y:tt.y };
+    _toolG = { kind:'ruler', a:p }; rulerDraw(p, p); return true;
+  }
+  if (mapTool === 'select'){ _toolG = { kind:'select', a:p, sx:e.clientX, sy:e.clientY }; return true; }
+  return false;
+}
+function toolMove(e){
+  if (!_toolG) return;
+  var p = toMap(e.clientX, e.clientY);
+  if (_toolG.kind === 'draw' && _stroke){
+    var n = _stroke.p.length, lx = _stroke.p[n-2], ly = _stroke.p[n-1];
+    if (Math.abs(p.x - lx) + Math.abs(p.y - ly) >= 4 / cam.zoom && n < 1200){ _stroke.p.push(Math.round(p.x), Math.round(p.y)); drawPaint(); }
+  } else if (_toolG.kind === 'erase'){ drawEraseAt(p.x, p.y); }
+  else if (_toolG.kind === 'ruler'){
+    var ov = document.elementFromPoint(e.clientX, e.clientY), tk = ov && ov.closest && ov.closest('.token'), tt = tk && tokById(tk.getAttribute('data-tok'));
+    rulerDraw(_toolG.a, tt ? { x:tt.x, y:tt.y } : p);
+  }
+  else if (_toolG.kind === 'select'){
+    var bx = document.getElementById('selBox');
+    var x = Math.min(_toolG.sx, e.clientX), y = Math.min(_toolG.sy, e.clientY);
+    bx.style.display = 'block'; bx.style.left = x + 'px'; bx.style.top = y + 'px';
+    bx.style.width = Math.abs(e.clientX - _toolG.sx) + 'px'; bx.style.height = Math.abs(e.clientY - _toolG.sy) + 'px';
+    _toolG.b = p;
+  }
+}
+function toolUp(e){
+  if (!_toolG) return;
+  var g = _toolG; _toolG = null;
+  if (g.kind === 'draw' && _stroke){ var s = _stroke; _stroke = null; drawCommit(s); }
+  else if (g.kind === 'select'){ document.getElementById('selBox').style.display = 'none'; if (g.b) selectBox(g.a, g.b); else { multiSel = {}; renderTokens(); } }
+  /* the ruler stays up until the next measure or another tool */
+}
+
 /* ---- grid ----
    Drawn in map space, so it rides the camera and stays welded to the art.
    non-scaling-stroke keeps the lines hairlines instead of ropes at 4x. */
@@ -12618,8 +12875,12 @@ function mid(a, b){ return { x:(a.x + b.x) / 2, y:(a.y + b.y) / 2 }; }
     p.classList.remove('open'); tpUnpin(p);
   }, true);
   m.addEventListener('pointerdown', function(e){
-    if (e.target.closest && e.target.closest('.token')) return;
+    if (e.target.closest && e.target.closest('#mapTools')) return;
+    if (e.target.closest && e.target.closest('.token') && !(mapTool === 'ruler' || mapTool === 'draw' || mapTool === 'erase')) return;
     m.setPointerCapture(e.pointerId);
+    /* a tool other than Pan takes a single pointer; a second finger still pinches */
+    if (pts.size === 0 && toolDown(e)){ pts.set(e.pointerId, { x:e.clientX, y:e.clientY, tool:true }); return; }
+    if (_toolG){ _toolG = null; _stroke = null; drawPaint(); document.getElementById('selBox').style.display = 'none'; }
     pts.set(e.pointerId, { x:e.clientX, y:e.clientY });
     if (pts.size === 1){
       pan = { x:e.clientX, y:e.clientY, cx:cam.x, cy:cam.y, moved:false };
@@ -12632,6 +12893,7 @@ function mid(a, b){ return { x:(a.x + b.x) / 2, y:(a.y + b.y) / 2 }; }
   });
   m.addEventListener('pointermove', function(e){
     if (!pts.has(e.pointerId)) return;
+    if (pts.get(e.pointerId).tool){ toolMove(e); return; }
     pts.set(e.pointerId, { x:e.clientX, y:e.clientY });
     if (pinch && pts.size >= 2){
       var a = pv(), d = dist(a[0], a[1]), c = mid(a[0], a[1]);
@@ -12650,6 +12912,8 @@ function mid(a, b){ return { x:(a.x + b.x) / 2, y:(a.y + b.y) / 2 }; }
     }
   });
   function release(e){
+    var _pt = pts.get(e.pointerId);
+    if (_pt && _pt.tool){ pts.delete(e.pointerId); toolUp(e); return; }
     pts.delete(e.pointerId);
     if (pts.size < 2) pinch = null;
     if (pts.size === 1){
@@ -12767,6 +13031,8 @@ function renderLog(){
 /* ---- render ---- */
 function render(){
   var combat = S.mode === 'combat';
+  document.body.classList.toggle('lm-role', isLM());
+  try { drawPaint(); } catch(e){}
   try { renderHand(); } catch(e){}
   var hf = document.getElementById('hudFell');
   if (hf){
