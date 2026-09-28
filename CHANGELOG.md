@@ -1,3 +1,7 @@
+## 2026-09-27 - Distance as the crow flies, sight that thins with range, and H hides the map bar
+
+Nate's ruling: distance is measured in a straight line, rounded to the nearest whole square. The ruler now reads that (12 across and 12 down is 17 squares), and Vision reaches 15 squares in a circle rather than a square, so the two always agree. Within that circle, sight is clear to half its reach and half-dimmed from there to the edge, with a short blend between; places seen before sit a little dimmer still. Tokens anywhere in the circle stay visible. H, which hides the widgets for a clean view, now hides the map bar, the grid panel and the ruler too, and they return on H.
+
 ## 2026-09-27 - The grid panel closes like the bar's others
 
 Choosing any tool in the map bar closes the grid's panel, and opening the grid closes whichever tool panel was open and returns the map to Move, so only one panel beside the bar is ever open.
