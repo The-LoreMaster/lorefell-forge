@@ -1,3 +1,7 @@
+## 2026-09-27 - P for Player view, and one brightness for every light
+
+P toggles the LoreMaster's Player view, as H toggles the clean view; Settings and the badge name the key. Light gains a button under Bright that sets every light on the map to the slider's brightness at once (and makes it the brightness for the next light placed).
+
 ## 2026-09-27 - Fog thickness everywhere outside sight, light brightness, and H hides the Player view badge
 
 Thick now sets the fog's density everywhere outside the party's sight, never-seen and seen-before alike. It used to touch only remembered places, so after Fog the whole map, which starts the map's memory over, the slider had nothing to act on and seemed dead. Fog the whole map and Fog off also keep the map's thickness and vision switch rather than resetting them. Lift all fog is gone: it did what Fog off does, with extra steps.
