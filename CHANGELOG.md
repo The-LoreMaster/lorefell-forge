@@ -1,3 +1,9 @@
+## 2026-09-27 - Light sources, darkness, windows, and walls that step back when not being drawn
+
+Wall and window lines show only while Walls is the tool in hand; away from it the fog keeps working unseen, and doors keep a half-strength handle to open and close. Walls gains Window (blocks the way, not the view; lines at any angle like doors) and Remove all, which clears every wall, window and door on the map after asking.
+
+Light is a new tool in the LoreMaster's map bar: press where a light sits and drag out its reach, in half squares, shown as a circle with its size while Light is in hand (a mark at half strength otherwise). Remove takes one; Remove all takes every light after asking. A light any Fell has a clear line to reveals everything within its reach that its own light reaches, stopping at walls and closed doors, however far it is from the party. Darkness, a switch per map, is the FellGuide's call made the LoreMaster's: in the dark a Fell sees only what is lit, plus its own space and the ones beside it. Lights and darkness are kept per map under lights, written only by the LoreMaster once the stored copy has arrived.
+
 ## 2026-09-27 - Distance as the crow flies, sight that thins with range, and H hides the map bar
 
 Nate's ruling: distance is measured in a straight line, rounded to the nearest whole square. The ruler now reads that (12 across and 12 down is 17 squares), and Vision reaches 15 squares in a circle rather than a square, so the two always agree. Within that circle, sight is clear to half its reach and half-dimmed from there to the edge, with a short blend between; places seen before sit a little dimmer still. Tokens anywhere in the circle stay visible. H, which hides the widgets for a clean view, now hides the map bar, the grid panel and the ruler too, and they return on H.

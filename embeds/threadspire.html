@@ -39,7 +39,21 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 #mapTools > button.on, #drawOpts > button.on{ border-color:var(--gold); color:var(--gold); background:rgba(201,168,76,.12); }
 /* a tool's options fly out beside the bar, so the bar itself stays short */
 #drawOpts, #fogOpts{ display:none; flex-direction:column; gap:6px; position:absolute; left:calc(100% + 8px); top:0; padding:6px; border-radius:12px; background:rgba(10,14,26,.9); border:1px solid rgba(201,168,76,.35); }
-#mapTools.fogging #fogOpts, #mapTools.walling #wallOpts{ display:flex; }
+#mapTools.fogging #fogOpts, #mapTools.walling #wallOpts, #mapTools.lighting #lightOpts{ display:flex; }
+#lightOpts{ display:none; flex-direction:column; gap:6px; position:absolute; left:calc(100% + 8px); top:0; padding:6px; border-radius:12px; background:rgba(10,14,26,.9); border:1px solid rgba(201,168,76,.35); }
+#lightOpts > button{ width:34px; height:34px; border-radius:8px; border:1px solid transparent; color:var(--silver,#c8d0dc); display:flex; align-items:center; justify-content:center; padding:0; }
+#lightOpts > button.on{ border-color:var(--gold); color:var(--gold); background:rgba(201,168,76,.12); }
+#wallLayer line.win{ stroke:#8ec5ff; stroke-linecap:round; stroke-dasharray:14 5; }
+#wallLayer .walls-only{ display:none; }
+#map.tool-walls ~ * #wallLayer .walls-only{ display:inline; }
+#wallLayer.editing .walls-only{ display:inline; }
+#wallLayer .dh{ opacity:.5; }
+#wallLayer.editing .dh{ opacity:1; }
+#wallLayer .lt{ opacity:.5; }
+#wallLayer.lighting .lt{ opacity:1; }
+#wallLayer .lt-reach{ display:none; fill:rgba(255,214,120,.10); stroke:#ffd678; stroke-dasharray:8 6; }
+#wallLayer.lighting .lt-reach{ display:inline; }
+#map.tool-light{ cursor:crosshair; }
 #wallOpts{ display:none; flex-direction:column; gap:6px; position:absolute; left:calc(100% + 8px); top:0; padding:6px; border-radius:12px; background:rgba(10,14,26,.9); border:1px solid rgba(201,168,76,.35); }
 #wallOpts > button{ width:34px; height:34px; border-radius:8px; border:1px solid transparent; color:var(--silver,#c8d0dc); display:flex; align-items:center; justify-content:center; padding:0; }
 #wallOpts > button.on{ border-color:var(--gold); color:var(--gold); background:rgba(201,168,76,.12); }
@@ -1765,7 +1779,16 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
     <div id="wallOpts">
       <button data-wall="wall" class="on" title="Draw a wall: drag from corner to corner" aria-label="Wall"><svg viewBox="0 0 24 24"><path d="M4 20L20 4"/><circle cx="4" cy="20" r="1.8"/><circle cx="20" cy="4" r="1.8"/></svg></button>
       <button data-wall="door" title="Draw a door: drag across the doorway" aria-label="Door"><svg viewBox="0 0 24 24"><path d="M6 21V4h10v17M13 12h.01M3 21h18"/></svg></button>
-      <button data-wall="remove" title="Remove: tap a wall or door" aria-label="Remove"><svg viewBox="0 0 24 24"><path d="M5 5l14 14M19 5L5 19"/></svg></button>
+      <button data-wall="window" title="Draw a window: blocks the way, not the view" aria-label="Window"><svg viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="1"/><path d="M12 4v16M5 12h14"/></svg></button>
+      <button data-wall="remove" title="Remove: tap a wall, window or door" aria-label="Remove"><svg viewBox="0 0 24 24"><path d="M5 5l14 14M19 5L5 19"/></svg></button>
+      <button data-wallclear title="Remove every wall, window and door on this map" aria-label="Remove all"><svg viewBox="0 0 24 24"><path d="M5 7h14M9 7V4h6v3M7 7l1 13h8l1-13"/></svg></button>
+    </div>
+    <button data-tool="light" class="lmonly" title="Light sources" aria-label="Light sources"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg></button>
+    <div id="lightOpts">
+      <button data-light="place" class="on" title="Place a light: press where it sits, drag out how far it reaches" aria-label="Place a light"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8" stroke-dasharray="2 3"/></svg></button>
+      <button data-light="remove" title="Remove: tap a light" aria-label="Remove a light"><svg viewBox="0 0 24 24"><path d="M5 5l14 14M19 5L5 19"/></svg></button>
+      <button data-lightsall title="Remove every light on this map" aria-label="Remove all lights"><svg viewBox="0 0 24 24"><path d="M5 7h14M9 7V4h6v3M7 7l1 13h8l1-13"/></svg></button>
+      <button data-dark title="Darkness: the Fell see only what is lit, and their own space and the ones beside it" aria-label="Darkness"><svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg></button>
     </div>
     <div id="fogOpts">
       <button data-fog="reveal" class="on" title="Reveal: paint the fog away" aria-label="Reveal"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/></svg></button>
@@ -7061,6 +7084,7 @@ function sharedSnapshot(){
        before the first pull would otherwise lay an empty set over what was saved */
     fog: (isLM() && _mapStateLoaded) ? (S.fog || {}) : undefined,
     walls: (isLM() && _mapStateLoaded) ? (S.walls || {}) : undefined,
+    lights: (isLM() && _mapStateLoaded) ? (S.lights || {}) : undefined,
     background: S.scene.background,
     /* The background is an id from the loremaster's own shelf, and nobody else has that
        shelf to look it up in, so the map arrived at every player's table as a name for
@@ -7249,6 +7273,7 @@ function applyRemoteSnapshot(snap){
   if (snap.draw){ S.draw = drawMerge(S.draw, snap.draw); try { drawPaint(); } catch(e){} }
   _mapStateLoaded = true;
   if (snap.walls && !(isLM() && _wallDrag)){ S.walls = snap.walls; _fvMemo = null; try { wallPaint(); } catch(e){} }
+  if (snap.lights && !(isLM() && _lightDrag)){ S.lights = snap.lights; _fvMemo = null; try { wallPaint(); } catch(e){} }
   if (snap.fog && !(isLM() && _fogPainting)){
     S.fog = snap.fog; _fogCache = {};
     if (!isLM()) _seen = {};   /* players take the LoreMaster's memory of the map */
@@ -12494,7 +12519,7 @@ function wireToken(el, t, draggable){
   el.addEventListener('pointerdown', function(e){
     /* the ruler, pen and eraser work over tokens too: the map handles the gesture, and a
        measure started on a token starts from its centre */
-    if (mapTool === 'ruler' || mapTool === 'draw' || mapTool === 'erase' || mapTool === 'fog' || mapTool === 'walls') return;
+    if (mapTool === 'ruler' || mapTool === 'draw' || mapTool === 'erase' || mapTool === 'fog' || mapTool === 'walls' || mapTool === 'light') return;
     e.preventDefault(); e.stopPropagation();
     /* captured either way, so the pointerup still arrives when the finger slides off the
        token it started on - a tap that ends a few pixels outside is still a tap */
@@ -12556,8 +12581,10 @@ function setMapTool(t){
   if (lmGridOpen){ lmGridOpen = false; try { paintLmbar(); } catch(e){} var gb = document.querySelector('#mapTools [data-tool="grid"]'); if (gb) gb.classList.remove('on'); }
   var bar = document.getElementById('mapTools'), m = mapEl();
   if (bar){ bar.querySelectorAll('[data-tool]').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-tool') === t); }); bar.classList.toggle('drawing', t === 'draw' || t === 'erase'); }
-  if (m){ m.classList.remove('tool-select','tool-ruler','tool-draw','tool-fog','tool-walls'); if (t !== 'pan') m.classList.add('tool-' + (t === 'erase' ? 'draw' : t)); }
-  if (bar){ bar.classList.toggle('fogging', t === 'fog'); bar.classList.toggle('walling', t === 'walls'); }
+  if (m){ m.classList.remove('tool-select','tool-ruler','tool-draw','tool-fog','tool-walls','tool-light'); if (t !== 'pan') m.classList.add('tool-' + (t === 'erase' ? 'draw' : t)); }
+  if (bar){ bar.classList.toggle('fogging', t === 'fog'); bar.classList.toggle('walling', t === 'walls'); bar.classList.toggle('lighting', t === 'light'); }
+  try { wallPaint(); } catch(e){}
+  if (t === 'light') lightPaintOpts();
   if (t === 'fog') fogPaintOpts();
   var er = bar && bar.querySelector('[data-dact="erase"]'); if (er) er.classList.toggle('on', t === 'erase');
   rulerClear();
@@ -12586,6 +12613,10 @@ function setMapTool(t){
     if (b.hasAttribute('data-fsize')){ fogBrush = Number(b.getAttribute('data-fsize')) || 2; bar.querySelectorAll('[data-fsize]').forEach(function(x){ x.classList.toggle('on', x === b); }); return; }
     if (b.hasAttribute('data-fogall')) fogAll(b.getAttribute('data-fogall'));
     if (b.hasAttribute('data-fogvision')){ fogVisionToggle(); return; }
+    if (b.hasAttribute('data-wallclear')){ wallClearAll(); return; }
+    if (b.hasAttribute('data-light')){ lightMode = b.getAttribute('data-light'); bar.querySelectorAll('[data-light]').forEach(function(x){ x.classList.toggle('on', x === b); }); return; }
+    if (b.hasAttribute('data-lightsall')){ lightClearAll(); return; }
+    if (b.hasAttribute('data-dark')){ darkToggle(); return; }
     if (b.hasAttribute('data-wall')){ wallMode = b.getAttribute('data-wall'); bar.querySelectorAll('[data-wall]').forEach(function(x){ x.classList.toggle('on', x === b); }); return; }
   });
 })();
@@ -12835,7 +12866,7 @@ var _seen = {};   /* per map: cells ever inside the party's sight, this session 
 var _fvMemo = null;
 function fogView(){
   /* many callers in one repaint; work it out once per moment */
-  var sig = mapKey() + '|' + ((fogRec() || {}).v || 0) + '|' + (S.tokens || []).map(function(t){ return t.id + ':' + Math.round(t.x) + ':' + Math.round(t.y) + ':' + tokAffs(t).join('+'); }).join(',');
+  var sig = mapKey() + '|' + ((fogRec() || {}).v || 0) + '|' + JSON.stringify((S.lights && S.lights[mapKey()]) || 0) + '|' + JSON.stringify(((S.walls && S.walls[mapKey()]) || []).map(function(w){ return w.id + (w.open ? 'o' : ''); })) + '|' + (S.tokens || []).map(function(t){ return t.id + ':' + Math.round(t.x) + ':' + Math.round(t.y) + ':' + tokAffs(t).join('+'); }).join(',');
   if (_fvMemo && _fvMemo.sig === sig && Date.now() - _fvMemo.at < 250) return _fvMemo.v;
   var v = fogViewNow();
   _fvMemo = { sig:sig, at:Date.now(), v:v };
@@ -12853,11 +12884,26 @@ function fogViewNow(){
   var recV = fogRec();
   var sight = (recV && recV.nov) ? new Uint8Array(n) : visionOf(party, d), vis = new Uint8Array(n), clr = new Uint8Array(n);
   var va = (recV && recV.nov) ? null : VIS_A;
-  for (var i = 0; i < n; i++){ vis[i] = (fc.a[i] || sight[i] === 1) ? 1 : 0; clr[i] = fc.a[i] ? 255 : (sight[i] === 1 && va ? va[i] : 0); }
+  /* light: what the party can see lit is revealed; in darkness, sight keeps only what is lit
+     and the spaces right around each Fell */
+  var segsL = wallBlockers(), lit = litCells(d, party, segsL), dark = !!(S.lights && S.lights[mapKey()] && S.lights[mapKey()].dark);
+  if (dark){
+    var gq = (S.grid && S.grid.size) || 100;
+    for (var z = 0; z < n; z++){
+      if (sight[z] !== 1 || lit[z]) continue;
+      var zx = ((z % d.cols) + .5) * d.c, zy = (Math.floor(z / d.cols) + .5) * d.c;
+      if (!party.some(function(t){ return Math.hypot(zx - t.x, zy - t.y) <= gq * 1.5; })) sight[z] = 0;
+    }
+  }
+  for (var i = 0; i < n; i++){
+    var seeNow = sight[i] === 1 || lit[i];
+    vis[i] = (fc.a[i] || seeNow) ? 1 : 0;
+    clr[i] = (fc.a[i] || lit[i]) ? 255 : (sight[i] === 1 && va ? va[i] : 0);
+  }
   var k = mapKey() + ':' + n, seen = _seen[k];
   if (!seen){ seen = _seen[k] = new Uint8Array(n); var rec = fogRec(); if (rec && rec.e){ var e = fogDecode({ r:rec.e, v:'e' + (rec.ev || 0) }, n); for (var j = 0; j < n; j++) seen[j] = e[j]; } }
   var grew = false;
-  for (var q = 0; q < n; q++) if (sight[q] && !seen[q]){ seen[q] = 1; grew = true; }
+  for (var q = 0; q < n; q++) if ((sight[q] || lit[q]) && !seen[q]){ seen[q] = 1; grew = true; }
   /* a Masked Fell's own screen (above) and walls aside, what sits behind a big creature
      is dimmed rather than revealed: seen, not shown */
   if (grew && isLM()) fogSeenShare(seen);
@@ -13004,7 +13050,7 @@ function fogAll(what){
    by the LoreMaster, like the fog. */
 var wallMode = 'wall', _wallDrag = null, _mapStateLoaded = false;
 function wallList(){ var k = mapKey(); S.walls = S.walls || {}; return S.walls[k] || (S.walls[k] = []); }
-function wallBlockers(){ var k = mapKey(); return ((S.walls && S.walls[k]) || []).filter(function(w){ return !(w.door && w.open); }); }
+function wallBlockers(){ var k = mapKey(); return ((S.walls && S.walls[k]) || []).filter(function(w){ return !(w.door && w.open) && !w.win; }); }
 /* Walls snap to the grid's corners. Doors go at any angle: they land exactly where they are
    drawn, and only catch on the end of a wall already there, so a door still meets its wall. */
 function wallSnap(x, y, free){
@@ -13019,8 +13065,13 @@ function wallPaint(){
   var svg = document.getElementById('wallLayer'); if (!svg) return;
   svg.setAttribute('width', S.map.w); svg.setAttribute('height', S.map.h);
   var sw = Math.max(3, Math.round(((S.grid && S.grid.size) || 100) * .06)), h = '';
+  /* The lines show while Walls is the tool in hand. Away from it the fog carries on doing
+     its work unseen, doors keep a half-strength handle to open and close, and lights keep
+     a half-strength mark. */
+  svg.classList.toggle('editing', mapTool === 'walls');
+  svg.classList.toggle('lighting', mapTool === 'light');
   ((S.walls && S.walls[mapKey()]) || []).forEach(function(w){
-    h += '<line class="' + (w.door ? ('d' + (w.open ? ' open' : '')) : 'w') + '" x1="' + w.x1 + '" y1="' + w.y1 + '" x2="' + w.x2 + '" y2="' + w.y2 + '" stroke-width="' + sw + '"/>';
+    h += '<line class="' + (w.door ? ('d' + (w.open ? ' open' : '')) : (w.win ? 'win walls-only' : 'w walls-only')) + '" x1="' + w.x1 + '" y1="' + w.y1 + '" x2="' + w.x2 + '" y2="' + w.y2 + '" stroke-width="' + sw + '"/>';
     if (w.door){
       var mx = (w.x1 + w.x2) / 2, my = (w.y1 + w.y2) / 2, rr = sw * 2.6;
       h += '<g class="dh" data-door="' + esc(w.id) + '"><circle cx="' + mx + '" cy="' + my + '" r="' + rr + '" fill="rgba(10,14,26,.92)" stroke="' + (w.open ? '#8fd694' : '#e3a193') + '" stroke-width="' + (sw * .6) + '"/>'
@@ -13028,13 +13079,20 @@ function wallPaint(){
     }
   });
   if (_wallDrag && _wallDrag.b) h += '<line class="pv" x1="' + _wallDrag.a.x + '" y1="' + _wallDrag.a.y + '" x2="' + _wallDrag.b.x + '" y2="' + _wallDrag.b.y + '" stroke-width="' + sw + '"/>';
+  var gq = (S.grid && S.grid.size) || 100;
+  lightList().concat(_lightDrag ? [{ id:'_pv', x:_lightDrag.x, y:_lightDrag.y, r:_lightDrag.r || 0 }] : []).forEach(function(L){
+    var rr = Math.max(8, gq * .22);
+    h += '<g class="lt" data-light-id="' + esc(L.id) + '"><circle class="lt-reach" cx="' + L.x + '" cy="' + L.y + '" r="' + ((L.r || 0) * gq) + '" stroke-width="' + (sw * .5) + '"/>'
+      + '<circle cx="' + L.x + '" cy="' + L.y + '" r="' + rr + '" fill="#ffd678" stroke="rgba(10,14,26,.9)" stroke-width="' + (sw * .5) + '"/>'
+      + '<text x="' + L.x + '" y="' + (L.y + rr * 2.3) + '" text-anchor="middle" font-size="' + (rr * 1.1) + '" fill="#ffd678" font-family="Cinzel,serif" class="lt-reach" style="fill:#ffd678;stroke:none">' + (L.r || 0) + ' sq</text></g>';
+  });
   svg.innerHTML = h;
 }
 function wallShare(){ _fvMemo = null; wallPaint(); try { fogPaint(); renderTokens(); } catch(e){} if (isLM()) schedulePush(); }
 function wallCommit(){
   var w = _wallDrag; _wallDrag = null;
   if (!w || !w.b || (w.a.x === w.b.x && w.a.y === w.b.y)){ wallPaint(); return; }
-  wallList().push({ id:'w' + Date.now().toString(36) + Math.random().toString(36).slice(2,5), x1:w.a.x, y1:w.a.y, x2:w.b.x, y2:w.b.y, door:w.door ? 1 : 0, open:0 });
+  wallList().push({ id:'w' + Date.now().toString(36) + Math.random().toString(36).slice(2,5), x1:w.a.x, y1:w.a.y, x2:w.b.x, y2:w.b.y, door:w.door ? 1 : 0, win:w.win ? 1 : 0, open:0 });
   wallShare();
 }
 function wallRemoveAt(x, y){
@@ -13058,6 +13116,58 @@ function doorToggle(id){
   });
 })();
 
+
+/* ================= light =================
+   Light sources the LoreMaster places on a map (Light in the map bar): press where it sits
+   and drag out how far it reaches, in squares, shown as a circle while Light is in hand.
+   A light the party can see (a clear line from any Fell to it, walls and closed doors in
+   the way) reveals everything within its reach that its own light can reach, past walls it
+   cannot. Darkness, a switch per map, is the FellGuide's call made the LoreMaster's: in the
+   dark a Fell sees only what is lit, and its own space and the ones beside it. Kept per map
+   under lights, written only by the LoreMaster. */
+var lightMode = 'place', _lightDrag = null;
+function lightRec(){ var k = mapKey(); S.lights = S.lights || {}; return S.lights[k] || (S.lights[k] = { dark:0, list:[] }); }
+function lightList(){ var r = S.lights && S.lights[mapKey()]; return (r && r.list) || []; }
+function lightShare(){ _fvMemo = null; wallPaint(); try { fogPaint(); renderTokens(); } catch(e){} if (isLM()) schedulePush(); }
+function lightCommit(){
+  var L = _lightDrag; _lightDrag = null;
+  if (!L){ wallPaint(); return; }
+  lightRec().list.push({ id:'l' + Date.now().toString(36) + Math.random().toString(36).slice(2,5), x:L.x, y:L.y, r:L.r > 0 ? L.r : 4 });
+  lightShare();
+}
+function lightRemoveAt(x, y){
+  var list = lightRec().list, best = -1, bd = Infinity, reach = Math.max(14, ((S.grid && S.grid.size) || 100) * .4);
+  list.forEach(function(L, i){ var dd = Math.hypot(L.x - x, L.y - y); if (dd < bd){ bd = dd; best = i; } });
+  if (best >= 0 && bd <= reach){ list.splice(best, 1); lightShare(); }
+}
+function lightClearAll(){
+  if (!lightList().length) return;
+  tsConfirm('Remove every light on this map?', function(){ lightRec().list = []; lightShare(); });
+}
+function darkToggle(){ var r = lightRec(); r.dark = r.dark ? 0 : 1; lightPaintOpts(); lightShare(); }
+function lightPaintOpts(){ var b = document.querySelector('#lightOpts [data-dark]'); if (b) b.classList.toggle('on', !!(S.lights && S.lights[mapKey()] && S.lights[mapKey()].dark)); }
+function wallClearAll(){
+  var list = (S.walls && S.walls[mapKey()]) || [];
+  if (!list.length) return;
+  tsConfirm('Remove every wall, window and door on this map?', function(){ S.walls[mapKey()] = []; wallShare(); });
+}
+/* cells each light reaches, for lights the party can see */
+function litCells(d, party, segs){
+  var lit = new Uint8Array(d.cols * d.rows), gq = (S.grid && S.grid.size) || 100;
+  lightList().forEach(function(L){
+    var seen = party.some(function(t){ return !losBlocked(t.x, t.y, L.x, L.y, segs); });
+    if (!seen) return;
+    var R = (L.r || 0) * gq, cx = Math.floor(L.x / d.c), cy = Math.floor(L.y / d.c), rc = Math.ceil(R / d.c);
+    for (var y = Math.max(0, cy - rc); y <= Math.min(d.rows - 1, cy + rc); y++) for (var x = Math.max(0, cx - rc); x <= Math.min(d.cols - 1, cx + rc); x++){
+      var px = (x + .5) * d.c, py = (y + .5) * d.c;
+      if (Math.hypot(px - L.x, py - L.y) > R) continue;
+      if (segs.length && losBlocked(L.x, L.y, px, py, segs)) continue;
+      lit[y * d.cols + x] = 1;
+    }
+  });
+  return lit;
+}
+
 /* ---- the tool gesture: one pointer on the bare map, in any tool but Pan ---- */
 var _toolG = null;
 function toolDown(e){
@@ -13066,7 +13176,11 @@ function toolDown(e){
   var p = toMap(e.clientX, e.clientY);
   if (mapTool === 'walls' && isLM()){
     if (wallMode === 'remove'){ wallRemoveAt(p.x, p.y); _toolG = { kind:'wallrm' }; return true; }
-    _wallDrag = { a:wallSnap(p.x, p.y, wallMode === 'door'), b:null, door:wallMode === 'door' }; _toolG = { kind:'wall' }; wallPaint(); return true;
+    _wallDrag = { a:wallSnap(p.x, p.y, wallMode === 'door' || wallMode === 'window'), b:null, door:wallMode === 'door', win:wallMode === 'window' }; _toolG = { kind:'wall' }; wallPaint(); return true;
+  }
+  if (mapTool === 'light' && isLM()){
+    if (lightMode === 'remove'){ lightRemoveAt(p.x, p.y); _toolG = { kind:'lightrm' }; return true; }
+    _lightDrag = { x:Math.round(p.x), y:Math.round(p.y), r:0 }; _toolG = { kind:'light' }; wallPaint(); return true;
   }
   if (mapTool === 'fog' && isLM()){ _fogPainting = true; fogBrushAt(p.x, p.y, true); _toolG = { kind:'fog' }; return true; }
   if (mapTool === 'erase'){ drawEraseAt(p.x, p.y); _toolG = { kind:'erase' }; return true; }
@@ -13091,7 +13205,8 @@ function toolMove(e){
     if (Math.abs(p.x - lx) + Math.abs(p.y - ly) >= 4 / cam.zoom && n < 1200){ _stroke.p.push(Math.round(p.x), Math.round(p.y)); drawPaint(); }
   } else if (_toolG.kind === 'erase'){ drawEraseAt(p.x, p.y); }
   else if (_toolG.kind === 'fog'){ fogBrushAt(p.x, p.y, false); }
-  else if (_toolG.kind === 'wall' && _wallDrag){ _wallDrag.b = wallSnap(p.x, p.y, _wallDrag.door); wallPaint(); }
+  else if (_toolG.kind === 'wall' && _wallDrag){ _wallDrag.b = wallSnap(p.x, p.y, _wallDrag.door || _wallDrag.win); wallPaint(); }
+  else if (_toolG.kind === 'light' && _lightDrag){ var gq = (S.grid && S.grid.size) || 100; _lightDrag.r = Math.max(0, Math.round(Math.hypot(p.x - _lightDrag.x, p.y - _lightDrag.y) / gq * 2) / 2); wallPaint(); }
   else if (_toolG.kind === 'ruler'){
     var ov = document.elementFromPoint(e.clientX, e.clientY), tk = ov && ov.closest && ov.closest('.token'), tt = tk && tokById(tk.getAttribute('data-tok'));
     rulerDraw(_toolG.a, tt ? { x:tt.x, y:tt.y } : p);
@@ -13110,6 +13225,7 @@ function toolUp(e){
   if (g.kind === 'draw' && _stroke){ var s = _stroke; _stroke = null; drawCommit(s); }
   else if (g.kind === 'fog'){ fogCommit(); }
   else if (g.kind === 'wall'){ wallCommit(); }
+  else if (g.kind === 'light'){ lightCommit(); }
   else if (g.kind === 'select'){ document.getElementById('selBox').style.display = 'none'; if (g.b) selectBox(g.a, g.b); else { multiSel = {}; renderTokens(); } }
   /* the ruler stays up until the next measure or another tool */
 }
@@ -13377,7 +13493,7 @@ function mid(a, b){ return { x:(a.x + b.x) / 2, y:(a.y + b.y) / 2 }; }
   }, true);
   m.addEventListener('pointerdown', function(e){
     if (e.target.closest && e.target.closest('#mapTools')) return;
-    if (e.target.closest && e.target.closest('.token') && !(mapTool === 'ruler' || mapTool === 'draw' || mapTool === 'erase' || mapTool === 'fog' || mapTool === 'walls')) return;
+    if (e.target.closest && e.target.closest('.token') && !(mapTool === 'ruler' || mapTool === 'draw' || mapTool === 'erase' || mapTool === 'fog' || mapTool === 'walls' || mapTool === 'light')) return;
     if (e.target.closest && e.target.closest('#wallLayer .dh')) return;
     m.setPointerCapture(e.pointerId);
     /* a tool other than Pan takes a single pointer; a second finger still pinches */
