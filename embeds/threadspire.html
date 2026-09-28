@@ -1768,6 +1768,27 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
   font-family:Cinzel,serif;font-size:.88rem;color:var(--gold,#c9a84c);text-align:center}
 .tpl-foot{display:flex;justify-content:space-between;gap:8px;margin-top:14px}
 
+
+/* ---- the cards, C4: squarer, a coloured edge by kind, the strip carries the choice ---- */
+.hcard{ flex:0 0 164px; max-width:164px; gap:2px; padding:9px 11px 10px 13px; border-left:4px solid var(--line);
+  transform:rotate(var(--tilt,0deg)); transform-origin:50% 140%; }
+.hcard.armed{ transform:translateY(-10px) rotate(0deg); }
+.hand-scroll{ padding-top:16px; }
+.hcard.k-phys{ border-left-color:#d98452; } .hcard.k-mag{ border-left-color:#8ec5ff; } .hcard.k-lb{ border-left-color:#8fd694; }
+.hcard.k-armor{ border-left-color:var(--gold); } .hcard.k-skill, .hcard.k-move, .hcard.k-other{ border-left-color:#7b8aa3; }
+.hcard.armed{ border-left-width:4px; }
+.hc-title{ font-family:Cinzel,serif; font-size:.8rem; line-height:1.2; color:var(--silver); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.hcard.armed .hc-title{ color:var(--gold); white-space:normal; }
+.hc-meta{ display:flex; align-items:center; gap:5px; font-size:.68rem; color:var(--muted,#8fa3b3); }
+.hc-src{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+.hc-sym{ display:inline-flex; flex:none; }
+.hc-sym svg{ width:13px; height:13px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+.k-phys .hc-sym{ color:#d98452; } .k-mag .hc-sym{ color:#8ec5ff; } .k-lb .hc-sym{ color:#8fd694; } .k-armor .hc-sym{ color:var(--gold); }
+.hc-v{ margin-left:auto; font-family:Cinzel,serif; font-size:.95rem; color:var(--silver); font-variant-numeric:tabular-nums; }
+.hc-cost{ align-self:flex-start; margin-top:3px; font-family:Cinzel,serif; font-size:.55rem; letter-spacing:.08em; color:var(--gold); border:1px solid rgba(201,168,76,.5); border-radius:9px; padding:1px 7px; }
+.hc-cost.short{ color:#e3a193; border-color:rgba(227,161,147,.5); }
+.hcard .hc-desc{ margin-top:5px; padding-top:5px; border-top:1px solid var(--line); -webkit-line-clamp:5; font-size:.7rem; color:var(--silver); opacity:.92; }
+@media (prefers-reduced-motion:reduce){ .hcard{ transform:none; } .hcard.armed{ transform:none; } }
 </style>
 </head>
 <body>
@@ -10579,34 +10600,66 @@ function handCard(e, charge, group, i){
      ones is a card with a gold border, while a lit card among four resting ones is the
      one the player is holding. */
   var resting = !isArmed && !!(armed && armed.group === group);
-  var cls = 'hcard' + (locked ? ' locked' : '') + (barred ? ' barred' : '')
+  /* The card, drawn as the team's C4: a squarer card whose top strip carries everything
+     needed to choose between cards - the title, then one line with the source, the tier
+     if it has one, a physical or magic symbol and the damage as base+bonus - and, when the
+     card needs charge, how much, in words. Choosing it lifts it and opens the rest. */
+  var kind = handKindOf(e);
+  var cls = 'hcard k-' + kind + (locked ? ' locked' : '') + (barred ? ' barred' : '')
           + (isArmed ? ' armed' : '') + (resting ? ' resting' : '')
           + (isDeclared ? ' declared' : '');
+  var src = handSrcName(e);
+  var dmgTxt = (e.dmg > 0) ? ((e.base || 0) + '+' + Math.max(0, (e.dmg || 0) - (e.base || 0))) : '';
+  var need = (e.tier && e.tier > 0) ? e.tier : 0;
   return '<button type="button" class="' + cls + '"'
     + ((locked || barred || spent) ? ' aria-disabled="true"' : '')
     + ' aria-pressed="' + (isArmed ? 'true' : 'false') + '"'
-    /* the name is what it says; the key is which one it is */
+    + ' style="--tilt:' + (typeof i === 'number' ? handTilt(i, group) : 0) + 'deg"'
     + ' data-act="' + esc(e.nm) + '" data-key="' + esc(key) + '" data-group="' + group + '">'
-    + handRail(charge)
-    /* Closed, a card is one line and that line is what the player is choosing between:
-       which weapon and which attack. Everything else - the tier, what it does to Vitality
-       and Durability, an ability's description - is what they want once they have chosen,
-       and it is there the moment they take the card up. A row of nine cards each shouting
-       their damage is a row nobody reads. */
-    + '<span class="hc-line">' + esc(handCardLine(e)) + '</span>'
-    + (isArmed ? '<span class="hc-kick">' + handKicker(e) + '</span>' : '')
+    + '<span class="hc-title">' + esc(e.nm) + '</span>'
+    + '<span class="hc-meta"><span class="hc-src">' + esc(src) + (need ? ' · Tier ' + need : '') + '</span>'
+    +   handSym(kind) + (dmgTxt ? '<span class="hc-v">' + dmgTxt + '</span>' : '') + '</span>'
+    + (need ? '<span class="hc-cost' + (locked ? ' short' : '') + '">' + need + ' charge' + (need > 1 ? 's' : '') + '</span>' : '')
     + (isArmed && e.desc ? '<span class="hc-desc">' + esc(e.desc) + '</span>' : '')
-    /* A declared card is closed - it is not one you are still choosing between - but the
-       stamp keeps the target, because "what did I just commit to, and at whom" is the one
-       question a player asks after the roll and the whole reason A5 exists. */
     + (isArmed ? bits : (isDeclared
         ? '<span class="hc-declared">Declared'
           + (declaredAs.targetName ? ' → ' + esc(declaredAs.targetName) : '') + '</span>'
         : ''))
-    + (locked ? '<span class="hc-lock">Charge ' + e.tier + '</span>' : '')
     + (barred ? '<span class="hc-bar">' + esc(barred) + '</span>' : '')
     + (spent ? '<span class="hc-spent">' + (group === 'act' ? 'Act declared' : 'React spent') + '</span>' : '')
     + '</button>';
+}
+/* what kind of card: sets its colour and symbol */
+function handKindOf(e){
+  if (!e) return 'other';
+  if (e.kind === 'weapon') return e.dt === 'magic' ? 'mag' : 'phys';
+  if (e.kind === 'lorebound') return 'lb';
+  if (e.src === 'armor' || e.kind === 'armor' || e.kind === 'augmentation') return 'armor';
+  if (e.src === 'skills') return 'skill';
+  if (e.src === 'movement') return 'move';
+  if (e.dt === 'magic') return 'mag';
+  return 'other';
+}
+/* the source, as a player would name it: the weapon, the lorebound, or the kind of thing */
+function handSrcName(e){
+  var s = String((e && e.src) || '');
+  if (!s) return '';
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+var HAND_SYM = {
+  phys:'<svg viewBox="0 0 24 24"><path d="M4 20l10-10M14 4l6 6-8 8-4 1 1-4 8-8"/><path d="M4 16l4 4"/></svg>',
+  mag:'<svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>',
+  lb:'<svg viewBox="0 0 24 24"><ellipse cx="12" cy="16" rx="4.2" ry="3.6"/><circle cx="6.2" cy="10.6" r="1.9"/><circle cx="9.6" cy="6.9" r="1.9"/><circle cx="14.4" cy="6.9" r="1.9"/><circle cx="17.8" cy="10.6" r="1.9"/></svg>',
+  armor:'<svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/></svg>',
+  skill:'<svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="3"/><circle cx="9" cy="9" r="1"/><circle cx="15" cy="15" r="1"/><circle cx="15" cy="9" r="1"/><circle cx="9" cy="15" r="1"/></svg>',
+  move:'<svg viewBox="0 0 24 24"><path d="M7 4h5v8l6 3v4H6z"/><path d="M6 17h12"/></svg>'
+};
+function handSym(kind){ return HAND_SYM[kind] ? '<span class="hc-sym">' + HAND_SYM[kind] + '</span>' : ''; }
+/* a slight fan across the row, centred on its middle card */
+function handTilt(i, group){
+  var list = (group === 'react') ? ((hand && hand.reacts) || []) : ((hand && hand.acts) || []);
+  var n = list.length || 1;
+  return Math.round((i - (n - 1) / 2) * 1.6 * 10) / 10;
 }
 /* The row itself. Shown to a player in a fight and to nobody else: the LoreMaster has
    their own strip in this band, and out of combat the map should be the map. */
