@@ -1,3 +1,11 @@
+## 2026-09-27 - Grid in the map bar, fog without vision, and maps that stay with their scenes
+
+The grid's controls (cell size, fade, inset, snap) open from a Grid button in the LoreMaster's map bar, beside it like the tools' options. The Settings button above the scene runner's note is gone; the scene's name sits there instead.
+
+Fog has an automatic vision switch per map (the eye in Fog's options). On, the Fell clear fog around themselves as before; off, only the LoreMaster's painting counts, so fog works with no walls at all. Walls stay optional either way.
+
+Maps now stay put. The map picker asks where a map goes: This scene, or Whole session. The choice is stored in the adventure itself (tableMap on the scene or session, written with the story), so it survives reloads, cache clears and days between sessions, until changed. A scene's own map beats its session's; picking one for the whole session clears each scene's own. Opening a scene lays its remembered map down. After a reload the LoreMaster's shelf used to load only when Maps was opened, so their own table had no picture for its map and told the players its address was empty; the shelf now loads as the LoreMaster's table stands up, the last known address is kept rather than blanked, and the remembered map is laid down. Fog and walls are keyed by map, so they come back with it.
+
 ## 2026-09-27 - Walls, doors, and shadows behind big creatures
 
 The LoreMaster's map bar gains Walls, with Wall, Door and Remove. Drag from corner to corner to lay one; ends snap to the grid's corners or to the end of a wall already there. A door carries a handle at its middle (D closed, O open) that the LoreMaster taps to open or close. Walls and closed doors stop the party's sight: a fog cell counts as seen only if the line from the Fell to it crosses none of them, so the fog clears room by room as the party moves. Open doors let sight through. Players never see the lines, only what the fog shows. Walls are kept per map in the table's state under walls, written only by the LoreMaster.
