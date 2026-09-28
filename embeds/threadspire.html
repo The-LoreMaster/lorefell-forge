@@ -1805,6 +1805,7 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
       <button data-light="remove" title="Remove: tap a light" aria-label="Remove a light"><svg viewBox="0 0 24 24"><path d="M5 5l14 14M19 5L5 19"/></svg></button>
       <button data-lightsall title="Remove every light on this map" aria-label="Remove all lights"><svg viewBox="0 0 24 24"><path d="M5 7h14M9 7V4h6v3M7 7l1 13h8l1-13"/></svg></button>
       <label class="fthick" title="Brightness of the chosen light (or the next one placed)"><span>Bright</span><input type="range" id="lightBright" min="10" max="100" step="5"><b id="lightBrightV"></b></label>
+      <button data-lightall title="Set every light on this map to this brightness" aria-label="Set every light to this brightness"><svg viewBox="0 0 24 24"><circle cx="7" cy="8" r="2.5"/><circle cx="17" cy="8" r="2.5"/><circle cx="12" cy="16" r="2.5"/><path d="M7 3v1M17 3v1M12 11v1M3 8h1M20 8h1"/></svg></button>
       <button data-dark title="Darkness: the Fell see only what is lit, and their own space and the ones beside it" aria-label="Darkness"><svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg></button>
     </div>
     <div id="fogOpts">
@@ -1822,7 +1823,7 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
       <button data-dact="clear" class="lmonly" title="Clear every drawing on this map" aria-label="Clear all drawings"><svg viewBox="0 0 24 24"><path d="M5 7h14M9 7V4h6v3M7 7l1 13h8l1-13"/></svg></button>
     </div>
   </div>
-  <div id="pviewBadge">Player view<button onclick="pviewSet(false)">Back to LoreMaster</button></div>
+  <div id="pviewBadge">Player view<button onclick="pviewSet(false)">Back to LoreMaster (P)</button></div>
   <div id="selBox"></div>
   <svg id="rulerLayer" xmlns="http://www.w3.org/2000/svg"></svg>
   <div id="pingLayer"></div>
@@ -8007,7 +8008,7 @@ function settingsBody(){
   /* these were promised by a settings panel nothing could reach, so they lived only on
      the H and F keys */
   h += '<div class="nb-scene">The view</div>'
-    + '<div class="rs-adds"><button class="st-add" onclick="pviewSet(!S._pv)">' + (S._pv ? 'Back to the LoreMaster\u2019s view' : 'Player view: see the fog as players do') + '</button>'
+    + '<div class="rs-adds"><button class="st-add" onclick="pviewSet(!S._pv)">' + (S._pv ? 'Back to the LoreMaster\u2019s view (P)' : 'Player view: see the fog as players do (P)') + '</button>'
     + '<button class="st-add" onclick="toggleClean()">Clean view, hide the widgets (H)</button>'
     + '<button class="st-add" onclick="toggleFull()">Full screen (F)</button></div>';
   h += '<div class="nb-scene">Under the hood</div>'
@@ -9031,6 +9032,7 @@ setTimeout(function(){ try { if (typeof ensureSheet === 'function') ensureSheet(
       else if (e.key === 'ArrowUp'){ e.preventDefault(); if (isLM()) lmCardUp(); }
       else if (e.key === 'ArrowDown'){ e.preventDefault(); if (isLM()) lmCardDown(); }
       else if (e.key === 'h' || e.key === 'H'){ toggleClean(); }
+      else if ((e.key === 'p' || e.key === 'P') && isLM()){ pviewSet(!S._pv); }   /* the LoreMaster's Player view */
       else if (e.key === 'f' || e.key === 'F'){ toggleFull(); }
     });
   } catch(e){}
@@ -12634,6 +12636,7 @@ function setMapTool(t){
     if (b.hasAttribute('data-wallclear')){ wallClearAll(); return; }
     if (b.hasAttribute('data-light')){ lightMode = b.getAttribute('data-light'); bar.querySelectorAll('[data-light]').forEach(function(x){ x.classList.toggle('on', x === b); }); return; }
     if (b.hasAttribute('data-lightsall')){ lightClearAll(); return; }
+    if (b.hasAttribute('data-lightall')){ lightAllBright(); return; }
     if (b.hasAttribute('data-dark')){ darkToggle(); return; }
     if (b.hasAttribute('data-wall')){ wallMode = b.getAttribute('data-wall'); bar.querySelectorAll('[data-wall]').forEach(function(x){ x.classList.toggle('on', x === b); }); return; }
   });
@@ -13184,6 +13187,15 @@ function doorToggle(id){
    dark a Fell sees only what is lit, and its own space and the ones beside it. Kept per map
    under lights, written only by the LoreMaster. */
 var lightMode = 'place', _lightDrag = null, lightSel = null, lightNextB = 1;
+/* every light on the map to the slider's brightness at once */
+function lightAllBright(){
+  if (!isLM()) return;
+  var sl = document.getElementById('lightBright'), b = sl ? (+sl.value) / 100 : 1, list = lightList();
+  if (!list.length) return;
+  list.forEach(function(L){ L.b = b; }); lightNextB = b;
+  lightShare();
+  pushLog({ kind:'sys', html:'Every light on this map set to ' + Math.round(b * 100) + '%.' }); applyRemoteState({ log:S.log });
+}
 function lightNear(x, y){
   var reach = Math.max(14, ((S.grid && S.grid.size) || 100) * .4), best = null, bd = Infinity;
   lightList().forEach(function(L){ var dd = Math.hypot(L.x - x, L.y - y); if (dd < bd){ bd = dd; best = L; } });
