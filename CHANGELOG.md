@@ -1,3 +1,7 @@
+## 2026-09-27 - Echosight and Ever-Watchful at the table
+
+The fog now knows how each Fell sees. threadspirePublicChar reports senses (Echosight from the armor's augmentations, Ever-Watchful from the talents), and the sheet's hand payload carries the same for the player's own Fell. An Echosight Fell sees through darkness: its full 15-square sight stands in the dark, and the party shares it as it shares any sight. A player whose own Fell has Echosight or Ever-Watchful sees Obscured foes; everyone else's screen still hides them, since perceiving the concealed is that Fell's alone. Paste velo/backend/characters.web.js.
+
 ## 2026-09-27 - Light sources, darkness, windows, and walls that step back when not being drawn
 
 Wall and window lines show only while Walls is the tool in hand; away from it the fog keeps working unseen, and doors keep a half-strength handle to open and close. Walls gains Window (blocks the way, not the view; lines at any angle like doors) and Remove all, which clears every wall, window and door on the map after asking.
