@@ -1,3 +1,9 @@
+## 2026-09-27 - Fog of war: the party sees 15 spaces
+
+On a map with fog on, every Fell now reveals 15 spaces around it, the FellGuide's Vision, counted as the ruler counts, one per space in any direction, so the area is a square 31 spaces across. The party shares what it sees. Places once seen stay dimmed when the party moves on: the map shows through thinly, and any token there is hidden. The LoreMaster's screen keeps that memory in the fog record (e), so a player who joins or reloads finds the same places dimmed. Painted reveals still clear fog anywhere.
+
+Conditions apply to the Fell who has them. A Masked Fell (canon: may only see its own space and adjacent spaces) contributes only that to the party, and the Masked player's own screen shows only that, allies beyond it included. An Obscured foe is hidden from every player until it deals or takes damage. Blinded changes nothing here: canon's Blinded is Bleeding and Dazzled, which halves Accuracy. Walls, doors and creature shadows are next.
+
 ## 2026-09-27 - Fog of war, stage A: painted by hand
 
 The LoreMaster's map bar gains Fog. Its options fly out beside the bar (Draw's now do too, so the bar stays short): Reveal and Cover brushes in three sizes, Fog the whole map, Lift all fog, and Fog off for this map. Each map keeps its own fog as a grid of quarter-square cells, run-length encoded, in the table's state under fog, keyed by the map. Only the LoreMaster's push carries it; a player's push leaves it out, so a stale copy can never overwrite it.
