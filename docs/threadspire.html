@@ -55,6 +55,7 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 #wallLayer.lighting .lt{ opacity:1; }
 #wallLayer .lt-reach{ display:none; fill:rgba(255,214,120,.10); stroke:#ffd678; stroke-dasharray:8 6; }
 #wallLayer.lighting .lt-reach{ display:inline; }
+#wallLayer .lt.chosen .lt-reach{ stroke:#fff; }
 #map.tool-light{ cursor:crosshair; }
 #wallOpts{ display:none; flex-direction:column; gap:6px; position:absolute; left:calc(100% + 8px); top:0; padding:6px; border-radius:12px; background:rgba(10,14,26,.9); border:1px solid rgba(201,168,76,.35); }
 #wallOpts > button{ width:34px; height:34px; border-radius:8px; border:1px solid transparent; color:var(--silver,#c8d0dc); display:flex; align-items:center; justify-content:center; padding:0; }
@@ -435,7 +436,7 @@ body.handup #flourish{ bottom:186px; }
 #cleanExit{ display:none; position:fixed; top:10px; left:10px; z-index:200; background:rgba(10,14,26,.5); border:1px solid rgba(201,168,76,.4); color:var(--gold); font-family:Cinzel,serif; font-size:.58rem; letter-spacing:.12em; text-transform:uppercase; border-radius:6px; padding:4px 9px; cursor:pointer; opacity:.45; }
 #cleanExit:hover{ opacity:1; }
 body.clean #cleanExit{ display:block; }
-body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean #mrail, body.clean #tray, body.clean #lmstrip, body.clean #hand, body.clean #devbar, body.clean #log, body.clean #mapTools, body.clean #lmbar, body.clean #rulerLayer{ display:none !important; }
+body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean #mrail, body.clean #tray, body.clean #lmstrip, body.clean #hand, body.clean #devbar, body.clean #log, body.clean #mapTools, body.clean #lmbar, body.clean #rulerLayer, body.clean #pviewBadge{ display:none !important; }
 #win #sheetFrame{ display:none; flex:1 1 auto; min-height:0; width:100%; border:none; background:transparent; border-radius:0 0 10px 10px; }
 #win.sheeting{ top:11.186%; left:54.691%; right:auto; bottom:5.184%; width:30.688%; height:auto; max-height:none; }
 #win.sheeting #winBody{ display:none; }
@@ -1803,6 +1804,7 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
       <button data-light="place" class="on" title="Place a light: press where it sits, drag out how far it reaches" aria-label="Place a light"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8" stroke-dasharray="2 3"/></svg></button>
       <button data-light="remove" title="Remove: tap a light" aria-label="Remove a light"><svg viewBox="0 0 24 24"><path d="M5 5l14 14M19 5L5 19"/></svg></button>
       <button data-lightsall title="Remove every light on this map" aria-label="Remove all lights"><svg viewBox="0 0 24 24"><path d="M5 7h14M9 7V4h6v3M7 7l1 13h8l1-13"/></svg></button>
+      <label class="fthick" title="Brightness of the chosen light (or the next one placed)"><span>Bright</span><input type="range" id="lightBright" min="10" max="100" step="5"><b id="lightBrightV"></b></label>
       <button data-dark title="Darkness: the Fell see only what is lit, and their own space and the ones beside it" aria-label="Darkness"><svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg></button>
     </div>
     <div id="fogOpts">
@@ -1810,9 +1812,8 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
       <button data-fog="cover" title="Cover: paint fog back" aria-label="Cover"><svg viewBox="0 0 24 24"><path d="M4 11h11a3 3 0 1 0-3-3M3 15h16"/></svg></button>
       <div class="fsizes"><button data-fsize="1">S</button><button data-fsize="2" class="on">M</button><button data-fsize="4">L</button></div>
       <button data-fogall="cover" title="Fog the whole map" aria-label="Fog the whole map"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M7 10h10M7 14h10"/></svg></button>
-      <button data-fogall="reveal" title="Lift all fog" aria-label="Lift all fog"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/></svg></button>
       <button data-fogvision title="Automatic vision: the Fell clear fog around themselves (off: only your painting counts)" aria-label="Automatic vision"><svg viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
-      <label class="fthick" title="How thick the fog stays over places the party has seen but cannot see now"><span>Thick</span><input type="range" id="fogThick" min="50" max="100" step="1"><b id="fogThickV"></b></label>
+      <label class="fthick" title="How thick the fog is outside the party's sight"><span>Thick</span><input type="range" id="fogThick" min="50" max="100" step="1"><b id="fogThickV"></b></label>
       <button data-fogall="off" title="Turn fog off for this map" aria-label="Fog off"><svg viewBox="0 0 24 24"><path d="M4 4l16 16M4 11h8M3 15h9"/></svg></button>
     </div>
     <div id="drawOpts">
@@ -12927,7 +12928,7 @@ function fogViewNow(){
   for (var i = 0; i < n; i++){
     var seeNow = sight[i] === 1 || lit[i];
     vis[i] = (fc.a[i] || seeNow) ? 1 : 0;
-    clr[i] = (fc.a[i] || lit[i]) ? 255 : (sight[i] === 1 && va ? va[i] : 0);
+    clr[i] = fc.a[i] ? 255 : Math.max(lit[i] || 0, (sight[i] === 1 && va) ? va[i] : 0);
   }
   var k = mapKey() + ':' + n, seen = _seen[k];
   if (!seen){ seen = _seen[k] = new Uint8Array(n); var rec = fogRec(); if (rec && rec.e){ var e = fogDecode({ r:rec.e, v:'e' + (rec.ev || 0) }, n); for (var j = 0; j < n; j++) seen[j] = e[j]; } }
@@ -13011,7 +13012,9 @@ function fogPaint(){
     /* seen now: as clear as sight makes it; seen before: dimmer than the edge of sight */
     /* outside the party's sight a place seen before shows through only as much as the map's
        fog thickness allows (98% solid unless the LoreMaster changes it) */
-    var a = fc.vis[i] ? (fc.clr ? Math.max(fc.clr[i], 128) : 255) : (fc.seen[i] ? seenA : 0);
+    /* outside sight the fog is as thick as the map's slider says, never-seen and seen-before
+       alike; seen-before places just never go darker than that */
+    var a = fc.vis[i] ? (fc.clr ? Math.max(fc.clr[i], 128) : 255) : seenA;
     if (a){ mi.data[i*4] = mi.data[i*4+1] = mi.data[i*4+2] = 255; mi.data[i*4+3] = a; }
   }
   mctx.putImageData(mi, 0, 0);
@@ -13083,10 +13086,13 @@ function fogAll(what){
   if (!isLM()) return;
   var k = mapKey(), d = fogDims(); S.fog = S.fog || {};
   _seen = {};
-  if (what === 'off'){ S.fog[k] = { on:false }; }
+  if (what === 'off'){ var wo = S.fog[k] || {}; S.fog[k] = { on:false, th:wo.th, nov:wo.nov }; }
   else {
     var a = new Uint8Array(d.cols * d.rows); if (what === 'reveal') a.fill(1);
-    S.fog[k] = { on:true, cols:d.cols, rows:d.rows, r:fogEncode(a), v:Date.now() };
+    /* a fresh cover keeps this map's thickness and vision switch */
+    var was = S.fog[k] || {};
+    S.fog[k] = { on:true, cols:d.cols, rows:d.rows, r:fogEncode(a), v:Date.now(), th:was.th, nov:was.nov };
+    fogPaintOpts();
   }
   _fogCache = {}; fogPaint(); try { renderTokens(); } catch(e){} schedulePush();
 }
@@ -13133,9 +13139,10 @@ function wallPaint(){
   var gq = (S.grid && S.grid.size) || 100;
   lightList().concat(_lightDrag ? [{ id:'_pv', x:_lightDrag.x, y:_lightDrag.y, r:_lightDrag.r || 0 }] : []).forEach(function(L){
     var rr = Math.max(8, gq * .22);
-    h += '<g class="lt" data-light-id="' + esc(L.id) + '"><circle class="lt-reach" cx="' + L.x + '" cy="' + L.y + '" r="' + ((L.r || 0) * gq) + '" stroke-width="' + (sw * .5) + '"/>'
+    var chosen = L.id === lightSel && mapTool === 'light';
+    h += '<g class="lt' + (chosen ? ' chosen' : '') + '" data-light-id="' + esc(L.id) + '"><circle class="lt-reach" cx="' + L.x + '" cy="' + L.y + '" r="' + ((L.r || 0) * gq) + '" stroke-width="' + (sw * .5) + '"/>'
       + '<circle cx="' + L.x + '" cy="' + L.y + '" r="' + rr + '" fill="#ffd678" stroke="rgba(10,14,26,.9)" stroke-width="' + (sw * .5) + '"/>'
-      + '<text x="' + L.x + '" y="' + (L.y + rr * 2.3) + '" text-anchor="middle" font-size="' + (rr * 1.1) + '" fill="#ffd678" font-family="Cinzel,serif" class="lt-reach" style="fill:#ffd678;stroke:none">' + (L.r || 0) + ' sq</text></g>';
+      + '<text x="' + L.x + '" y="' + (L.y + rr * 2.3) + '" text-anchor="middle" font-size="' + (rr * 1.1) + '" fill="#ffd678" font-family="Cinzel,serif" class="lt-reach" style="fill:#ffd678;stroke:none">' + (L.r || 0) + ' sq \u00b7 ' + Math.round(100 * (L.b === undefined ? 1 : L.b)) + '%</text></g>';
   });
   svg.innerHTML = h;
 }
@@ -13176,27 +13183,51 @@ function doorToggle(id){
    cannot. Darkness, a switch per map, is the FellGuide's call made the LoreMaster's: in the
    dark a Fell sees only what is lit, and its own space and the ones beside it. Kept per map
    under lights, written only by the LoreMaster. */
-var lightMode = 'place', _lightDrag = null;
+var lightMode = 'place', _lightDrag = null, lightSel = null, lightNextB = 1;
+function lightNear(x, y){
+  var reach = Math.max(14, ((S.grid && S.grid.size) || 100) * .4), best = null, bd = Infinity;
+  lightList().forEach(function(L){ var dd = Math.hypot(L.x - x, L.y - y); if (dd < bd){ bd = dd; best = L; } });
+  return (best && bd <= reach) ? best : null;
+}
+(function(){
+  var sl = document.getElementById('lightBright'); if (!sl) return;
+  var t = null;
+  sl.addEventListener('pointerdown', function(e){ e.stopPropagation(); });
+  sl.addEventListener('input', function(){
+    if (!isLM()) return;
+    var b = (+sl.value) / 100, v = document.getElementById('lightBrightV'); if (v) v.textContent = sl.value + '%';
+    var L = lightList().filter(function(x){ return x.id === lightSel; })[0];
+    if (L){ L.b = b; _fvMemo = null; fogPaint(); wallPaint(); clearTimeout(t); t = setTimeout(function(){ schedulePush(); }, 300); }
+    else lightNextB = b;
+  });
+})();
 function lightRec(){ var k = mapKey(); S.lights = S.lights || {}; return S.lights[k] || (S.lights[k] = { dark:0, list:[] }); }
 function lightList(){ var r = S.lights && S.lights[mapKey()]; return (r && r.list) || []; }
 function lightShare(){ _fvMemo = null; wallPaint(); try { fogPaint(); renderTokens(); } catch(e){} if (isLM()) schedulePush(); }
 function lightCommit(){
   var L = _lightDrag; _lightDrag = null;
   if (!L){ wallPaint(); return; }
-  lightRec().list.push({ id:'l' + Date.now().toString(36) + Math.random().toString(36).slice(2,5), x:L.x, y:L.y, r:L.r > 0 ? L.r : 4 });
+  var nid = 'l' + Date.now().toString(36) + Math.random().toString(36).slice(2,5);
+  lightRec().list.push({ id:nid, x:L.x, y:L.y, r:L.r > 0 ? L.r : 4, b:lightNextB });
+  lightSel = nid; lightPaintOpts();
   lightShare();
 }
 function lightRemoveAt(x, y){
   var list = lightRec().list, best = -1, bd = Infinity, reach = Math.max(14, ((S.grid && S.grid.size) || 100) * .4);
   list.forEach(function(L, i){ var dd = Math.hypot(L.x - x, L.y - y); if (dd < bd){ bd = dd; best = i; } });
-  if (best >= 0 && bd <= reach){ list.splice(best, 1); lightShare(); }
+  if (best >= 0 && bd <= reach){ if (list[best].id === lightSel) lightSel = null; list.splice(best, 1); lightShare(); }
 }
 function lightClearAll(){
   if (!lightList().length) return;
   tsConfirm('Remove every light on this map?', function(){ lightRec().list = []; lightShare(); });
 }
 function darkToggle(){ var r = lightRec(); r.dark = r.dark ? 0 : 1; lightPaintOpts(); lightShare(); }
-function lightPaintOpts(){ var b = document.querySelector('#lightOpts [data-dark]'); if (b) b.classList.toggle('on', !!(S.lights && S.lights[mapKey()] && S.lights[mapKey()].dark)); }
+function lightPaintOpts(){
+  var b = document.querySelector('#lightOpts [data-dark]'); if (b) b.classList.toggle('on', !!(S.lights && S.lights[mapKey()] && S.lights[mapKey()].dark));
+  var L = lightList().filter(function(x){ return x.id === lightSel; })[0];
+  var sl = document.getElementById('lightBright'), v = document.getElementById('lightBrightV');
+  if (sl){ sl.value = Math.round(100 * (L ? (L.b === undefined ? 1 : L.b) : lightNextB)); if (v) v.textContent = sl.value + '%'; }
+}
 function wallClearAll(){
   var list = (S.walls && S.walls[mapKey()]) || [];
   if (!list.length) return;
@@ -13213,7 +13244,8 @@ function litCells(d, party, segs){
       var px = (x + .5) * d.c, py = (y + .5) * d.c;
       if (Math.hypot(px - L.x, py - L.y) > R) continue;
       if (segs.length && losBlocked(L.x, L.y, px, py, segs)) continue;
-      lit[y * d.cols + x] = 1;
+      var bv = Math.round(255 * Math.max(.1, Math.min(1, L.b === undefined ? 1 : L.b))), li = y * d.cols + x;
+      if (bv > lit[li]) lit[li] = bv;
     }
   });
   return lit;
@@ -13259,6 +13291,8 @@ function toolDown(e){
   }
   if (mapTool === 'light' && isLM()){
     if (lightMode === 'remove'){ lightRemoveAt(p.x, p.y); _toolG = { kind:'lightrm' }; return true; }
+    /* a press on a light already there picks it, for the Bright slider; anywhere else lays a new one */
+    var near = lightNear(p.x, p.y); if (near){ lightSel = near.id; lightPaintOpts(); wallPaint(); _toolG = { kind:'lightpick' }; return true; }
     _lightDrag = { x:Math.round(p.x), y:Math.round(p.y), r:0 }; _toolG = { kind:'light' }; wallPaint(); return true;
   }
   if (mapTool === 'fog' && isLM()){ _fogPainting = true; fogBrushAt(p.x, p.y, true); _toolG = { kind:'fog' }; return true; }

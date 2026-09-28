@@ -1,3 +1,11 @@
+## 2026-09-27 - Fog thickness everywhere outside sight, light brightness, and H hides the Player view badge
+
+Thick now sets the fog's density everywhere outside the party's sight, never-seen and seen-before alike. It used to touch only remembered places, so after Fog the whole map, which starts the map's memory over, the slider had nothing to act on and seemed dead. Fog the whole map and Fog off also keep the map's thickness and vision switch rather than resetting them. Lift all fog is gone: it did what Fog off does, with extra steps.
+
+Light gains Bright, from 10% to full. Pressing an existing light with Light in hand picks it (outlined), and the slider sets its brightness; with none picked it sets the next light placed. A light's label reads its reach and brightness. A lit place is as clear as its brightest light makes it.
+
+H now hides the Player view badge with the other widgets.
+
 ## 2026-09-27 - A thickness slider for the fog
 
 Fog's options gain Thick, a slider from 50% to fully solid for how much the fog covers places the party has seen but cannot see now. It is kept per map with the fog (th), 98% unless changed, and every player's screen follows it. The LoreMaster's own view stays at half strength; Player view shows the result.
