@@ -1,3 +1,7 @@
+## 2026-09-27 - Thicker fog outside the party's sight
+
+Places the party has seen but cannot see now were thinned to let the map show through clearly. They now show only as a faint shape through nearly whole fog, so almost nothing comes through for players outside their vision. Inside the vision circle nothing changed: clear to half its reach, half-dimmed to the edge.
+
 ## 2026-09-27 - The map bar folds away at the top left, and the LoreMaster gets a Player view
 
 The map bar moved to the table's top left, as far in from the corner as the dice tray is from its own, and has a tools button at its head that folds the whole bar down to that one symbol (and back). Folding returns the map to Move and closes any open panel; this screen remembers whether it was folded. The grid's panel opens beside it at the same height. On a phone it sits just under the top bar.
