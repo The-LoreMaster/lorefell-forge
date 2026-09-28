@@ -289,8 +289,34 @@ h3{font-family:var(--head);font-weight:500;font-size:12px;letter-spacing:.12em;t
 .portrait-hint{font-size:13px;color:var(--silver-dim);font-style:italic}
 
 /* ---------- attribute dials ---------- */
-.dial-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px 6px;justify-items:center}
-.dial-cat{font-family:var(--head);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);grid-column:1/-1;justify-self:start;margin-top:6px}
+.dial-grid{display:block}
+.dial-row{display:flex;justify-content:center;gap:clamp(14px,6cqw,40px);margin:4px 0 10px}
+.dial-row .dial{width:auto;flex:0 0 auto;min-width:74px;border:none;cursor:pointer;padding:4px 2px;border-radius:10px}
+.dial-row .dial:focus-visible,.mob-line:focus-visible{outline:1.5px solid var(--gold);outline-offset:3px}
+.dial-row .dial.on{background:rgba(201,168,76,.06)}
+.dial-row .dial svg{transform:none}
+.dial svg path.t{fill:none;stroke:var(--line);stroke-width:5;stroke-linecap:round}
+.dial svg path.t.own{stroke:var(--silver)}
+.dial svg path.t.up{stroke:var(--gold)}
+.dial svg path.t.lost{stroke:var(--danger);stroke-width:1.8}
+.dial.raised .num .v{color:var(--gold)}
+.dial.lowered .num .v{color:var(--danger)}
+.mob-line{display:flex;justify-content:space-between;align-items:center;width:100%;margin-top:6px;padding:10px 4px 2px;border-top:1px solid var(--line);background:none;border-left:0;border-right:0;border-bottom:0;cursor:pointer;font-family:var(--body);color:var(--silver-dim);font-size:15px}
+.mob-line .v{font-family:var(--head);font-size:18px;color:var(--silver)}
+.mob-line.lowered .v{color:var(--danger)}
+.attr-foot{display:flex;justify-content:flex-end;margin-top:8px}
+.attr-pop{position:fixed;z-index:70;display:none;min-width:200px;max-width:min(280px,calc(100vw - 16px));padding:10px 12px;background:var(--navy);border:1px solid var(--gold);border-radius:10px;box-shadow:0 10px 26px rgba(0,0,0,.5);font-size:14px;color:var(--silver)}
+.attr-pop .ap-h{font-family:var(--head);font-size:12px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px}
+.attr-pop .ap-h b{font-size:16px;margin-left:4px}
+.attr-pop .ap-l{margin:3px 0;color:var(--silver-dim)}
+.attr-pop .raised{color:var(--gold)} .attr-pop .lowered{color:var(--danger)}
+.attr-pop .ap-ctl{display:flex;align-items:center;gap:8px}
+.attr-pop .ap-ctl button{width:26px;height:26px;border:1px solid var(--line);border-radius:50%;color:var(--gold);font-size:15px;line-height:1;padding:0}
+.attr-pop .ap-ctl b{min-width:22px;text-align:center;font-family:var(--head)}
+.attr-pop .ap-use{margin-top:7px;padding-top:6px;border-top:1px solid var(--line);font-size:13px;font-style:italic;color:var(--silver-dim)}
+@media (pointer:coarse){ .attr-pop .ap-ctl button{width:34px;height:34px} }
+.dial-cat{font-family:var(--head);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);margin-top:6px}
+#panel-attributes .card{container-type:inline-size}
 .dial-cat:first-child{margin-top:0}
 .dial{display:flex;flex-direction:column;align-items:center;gap:3px;background:none;width:100%;min-width:0}
 .dial .ringwrap{position:relative;width:var(--dial);height:var(--dial)}
@@ -1002,12 +1028,11 @@ body.in-combat{ padding-top:var(--cbn-h,46px); }
   <section class="card">
     <h2><span class="orn">❖</span> Attributes</h2>
     <div class="dial-grid" id="dialGrid"></div>
-    <div class="savebar" style="margin-top:14px">
-      <span class="note tip">Gold ring means a temporary battle mod is active.</span>
-      <button class="btn small" id="clearMods">Clear battle mods</button>
-    </div>
+    <div class="attr-foot"><button class="btn small" id="clearMods" style="display:none">Clear battle mods</button></div>
   </section>
-  <section class="card">
+  <!-- Mobility lives in the Attributes card now; this card stays (hidden) for the controls
+       other code still reaches for -->
+  <section class="card cond-cut">
     <h2><span class="orn">❖</span> Mobility</h2>
     <div class="counter god-lock"><span class="nm">Mobility</span>
       <span class="ctl"><button data-mob="-">−</button><span class="v" id="mobVal">5</span><button data-mob="+">+</button></span>
@@ -3693,52 +3718,124 @@ function luApply(){
 $("lvlUpBtn").addEventListener("click",luOpen);
 
 /* ---------- attribute dials ---------- */
+/* ---------- attributes: rings in rows (the team's option A) ----------
+   Each category is its own centred row, every ring the same size. A ring is ten ticks, one per
+   point: points the Fell owns are white, points something grants (lineage, origin, motivation,
+   a stance, a battle modifier) are gold, points taken away (fatigue, a battle modifier) are red
+   outlines. Nothing spells a modifier out on the tab: the number turns gold when it is raised
+   and red when it is lowered, and hovering it (tapping, on a phone) opens the breakdown, with
+   the battle modifier's - and + and, for the LoreMaster, the base. */
+const ATTR_LABEL={grant:"Granted (lineage, origin, motivation)",stance:"Armor stance",fat:"Fatigue",mod:"Battle modifier"};
+function attrParts(a){
+  const d=C.attrs[a],grant=attrGrant(a),stance=stanceBonus(a),fat=fatiguePenalty(a),mod=d.mod||0;
+  const tot=d.base+mod+grant+stance+fat;
+  const up=grant+stance+Math.max(0,mod), down=-(fat+Math.min(0,mod));
+  return {d,grant,stance,fat,mod,tot,up,down};
+}
+function attrRing(p){
+  const N=10,R=35,C0=42;let h="";
+  const own=Math.max(0,p.d.base-p.down), lost=Math.min(p.down,p.d.base);
+  for(let i=0;i<N;i++){
+    const a0=(-90+i*36+5)*Math.PI/180,a1=(-90+(i+1)*36-5)*Math.PI/180;
+    const x0=(C0+R*Math.cos(a0)).toFixed(1),y0=(C0+R*Math.sin(a0)).toFixed(1),x1=(C0+R*Math.cos(a1)).toFixed(1),y1=(C0+R*Math.sin(a1)).toFixed(1);
+    let cls="t";
+    if(i<own)cls="t own";else if(i<own+p.up)cls="t up";else if(i<own+p.up+lost)cls="t lost";
+    h+=`<path class="${cls}" d="M${x0} ${y0} A${R} ${R} 0 0 1 ${x1} ${y1}"/>`;
+  }
+  return h;
+}
 function renderDials(){
   const g=$("dialGrid");g.innerHTML="";
-  const R=36,CIRC=2*Math.PI*R,MAXSHOW=10;
+  let anyMod=false;
   ATTRS.forEach(([cat,list])=>{
     g.appendChild(el("div","dial-cat",cat));
+    const row=el("div","dial-row");
     list.forEach(([a,use])=>{
-      const d=C.attrs[a],grant=attrGrant(a),stance=stanceBonus(a),fat=fatiguePenalty(a),tot=d.base+d.mod+grant+stance+fat;
-      const dial=el("div","dial"+((d.mod||grant||stance||fat)?" modded":"")+(fat?" fatigued":""));
-      dial.title=a+": "+use;
-      dial.addEventListener("click",function(ev){
-        /* a tap on the dial's face, not on its steppers, says what the attribute is for */
-        if(ev.target.closest(".steps")||ev.target.closest("button"))return;
-        fgTell(a,"<p>"+use+"</p>");
-      });
-      const pct=Math.max(0,Math.min(1,tot/MAXSHOW));
-      const chips=[];
-      if(d.mod)chips.push((d.mod>0?"+":"")+d.mod);
-      if(grant)chips.push("✦+"+grant);
-      if(stance)chips.push("⛨+"+stance);
-      if(fat)chips.push("fatigue "+fat);
-      dial.innerHTML=`
-        <div class="ringwrap">
-          <svg viewBox="0 0 84 84">
-            <circle class="track" cx="42" cy="42" r="${R}" stroke-width="5"/>
-            <circle class="arc" cx="42" cy="42" r="${R}" stroke-width="5"
-              stroke-dasharray="${CIRC}" stroke-dashoffset="${CIRC*(1-pct)}"/>
-          </svg>
-          <div class="num"><span class="v">${tot}</span><span class="m">${chips.join(" · ")}</span></div>
-        </div>
-        <div class="nm" title="${use}">${a}</div>`;
-      const steps=el("div","steps");
-      const mk=(s,fn)=>{const b=el("button",null,s);b.addEventListener("click",fn);return b;};
-      steps.appendChild(mk("−",()=>{d.mod--;renderDials();renderWeapons();}));
-      steps.appendChild(mk("+",()=>{d.mod++;renderDials();renderWeapons();}));
-      dial.appendChild(steps);
-      if(god){
-        const baseRow=el("button","note tip",`base ${d.base} · tap to raise`);
-        baseRow.style.color="var(--gold)";
-        baseRow.addEventListener("click",()=>{d.base++;renderDials();renderWeapons();});
-        dial.appendChild(baseRow);
-      }
-      g.appendChild(dial);
+      const p=attrParts(a); if(p.mod) anyMod=true;
+      const state=p.tot>p.d.base?"raised":(p.tot<p.d.base?"lowered":"");
+      const dial=el("button","dial"+(state?" "+state:""));
+      dial.type="button";dial.setAttribute("data-attr",a);dial.setAttribute("aria-label",a+" "+p.tot+(state?", "+state:"")+". Show what makes this number");
+      dial.innerHTML=`<div class="ringwrap"><svg viewBox="0 0 84 84">${attrRing(p)}</svg><div class="num"><span class="v">${p.tot}</span></div></div><div class="nm">${a}</div>`;
+      row.appendChild(dial);
     });
+    g.appendChild(row);
   });
+  /* Mobility, one line; halved for movement while Weary, and the number says so in red */
+  const mv=fatigueMobility(), mob=el("button","mob-line"+(mv<(C.mobility||0)?" lowered":""));
+  mob.type="button";mob.setAttribute("data-attr","mobility");
+  mob.innerHTML=`<span class="nm">Mobility</span><span class="v">${mv}</span>`;
+  g.appendChild(mob);
+  const cm=$("clearMods"); if(cm) cm.style.display=anyMod?"":"none";
+  attrPopRefresh();
 }
-$("clearMods").addEventListener("click",()=>{Object.values(C.attrs).forEach(a=>a.mod=0);renderDials();renderWeapons();});
+/* the breakdown panel: hover on a mouse, tap on a phone; tapping pins it on a mouse too */
+let _attrPop=null,_attrPinned=false,_attrHide=null;
+function attrPopBody(a){
+  if(a==="mobility"){
+    const base=C.mobility||0, mv=fatigueMobility();
+    return `<div class="ap-h">Mobility <b class="${mv<base?"lowered":""}">${mv}</b></div>`
+      +`<div class="ap-l">Base ${base}</div>`
+      +(mv<base?`<div class="ap-l lowered">Weary (fatigue): halved for movement</div>`:"")
+      +(god?`<div class="ap-l ap-ctl">Base <button data-ap="mob-">\u2212</button><b>${base}</b><button data-ap="mob+">+</button></div>`:"");
+  }
+  const p=attrParts(a), use=(ATTRS.flatMap(x=>x[1]).find(x=>x[0]===a)||[])[1]||"";
+  const sign=n=>(n>0?"+":"\u2212")+Math.abs(n);
+  let h=`<div class="ap-h">${a.charAt(0).toUpperCase()+a.slice(1)} <b class="${p.tot>p.d.base?"raised":(p.tot<p.d.base?"lowered":"")}">${p.tot}</b></div>`;
+  h+=god?`<div class="ap-l ap-ctl">Base <button data-ap="base-">\u2212</button><b>${p.d.base}</b><button data-ap="base+">+</button></div>`:`<div class="ap-l">Base ${p.d.base}</div>`;
+  if(p.grant)h+=`<div class="ap-l raised">${ATTR_LABEL.grant} ${sign(p.grant)}</div>`;
+  if(p.stance)h+=`<div class="ap-l raised">${ATTR_LABEL.stance} ${sign(p.stance)}</div>`;
+  if(p.fat){ const ef=(typeof cbEffFatigue==="function")?cbEffFatigue():(C.fatigue||0); h+=`<div class="ap-l lowered">${FATIGUE_NAMES[Math.min(5,ef)]||"Fatigue"} (fatigue) ${sign(p.fat)}</div>`; }
+  h+=`<div class="ap-l ap-ctl">${ATTR_LABEL.mod} <button data-ap="mod-">\u2212</button><b class="${p.mod>0?"raised":(p.mod<0?"lowered":"")}">${p.mod>0?"+":""}${p.mod}</b><button data-ap="mod+">+</button></div>`;
+  if(use)h+=`<div class="ap-use">${use}</div>`;
+  return h;
+}
+function attrPopShow(btn,pin){
+  if(!_attrPop){ _attrPop=el("div","attr-pop");_attrPop.id="attrPop";document.body.appendChild(_attrPop);
+    _attrPop.addEventListener("mouseenter",()=>clearTimeout(_attrHide));
+    _attrPop.addEventListener("mouseleave",()=>{ if(!_attrPinned) attrPopHide(); });
+    _attrPop.addEventListener("click",ev=>{
+      ev.stopPropagation();
+      const b=ev.target.closest("[data-ap]"); if(!b) return;
+      const a=_attrPop.getAttribute("data-for"), k=b.getAttribute("data-ap");
+      if(k==="mod-"||k==="mod+"){ C.attrs[a].mod=(C.attrs[a].mod||0)+(k==="mod+"?1:-1); }
+      else if((k==="base-"||k==="base+")&&god){ C.attrs[a].base=Math.max(0,C.attrs[a].base+(k==="base+"?1:-1)); }
+      else if((k==="mob-"||k==="mob+")&&god){ C.mobility=Math.max(0,(C.mobility||0)+(k==="mob+"?1:-1)); try{ const mvl=$("mobVal"); if(mvl) mvl.textContent=C.mobility; }catch(e){} }
+      renderDials();renderWeapons();try{renderStrip();}catch(e){} scheduleSave();
+    }); }
+  const a=btn.getAttribute("data-attr");
+  _attrPop.setAttribute("data-for",a);
+  _attrPop.innerHTML=attrPopBody(a);
+  _attrPop.style.display="block";
+  const r=btn.getBoundingClientRect(), pw=_attrPop.offsetWidth, ph=_attrPop.offsetHeight;
+  let x=r.left+r.width/2-pw/2, y=r.bottom+6;
+  x=Math.max(8,Math.min(x,window.innerWidth-pw-8));
+  if(y+ph>window.innerHeight-8) y=Math.max(8,r.top-ph-6);
+  _attrPop.style.left=x+"px";_attrPop.style.top=y+"px";
+  _attrPinned=!!pin;
+  document.querySelectorAll("#dialGrid .on").forEach(x=>x.classList.remove("on"));
+  btn.classList.add("on");
+}
+function attrPopHide(){ if(_attrPop) _attrPop.style.display="none"; _attrPinned=false; document.querySelectorAll("#dialGrid .on").forEach(x=>x.classList.remove("on")); }
+function attrPopRefresh(){
+  if(!_attrPop||_attrPop.style.display==="none") return;
+  const a=_attrPop.getAttribute("data-for"), btn=document.querySelector('#dialGrid [data-attr="'+a+'"]');
+  if(btn) attrPopShow(btn,_attrPinned); else attrPopHide();
+}
+(function(){
+  const g=$("dialGrid"); if(!g) return;
+  const fine=window.matchMedia&&window.matchMedia("(hover:hover) and (pointer:fine)").matches;
+  if(fine){
+    g.addEventListener("mouseover",ev=>{ const b=ev.target.closest("[data-attr]"); if(!b||_attrPinned) return; clearTimeout(_attrHide); attrPopShow(b,false); });
+    g.addEventListener("mouseout",ev=>{ const b=ev.target.closest("[data-attr]"); if(!b||_attrPinned) return; clearTimeout(_attrHide); _attrHide=setTimeout(attrPopHide,180); });
+  }
+  g.addEventListener("click",ev=>{
+    const b=ev.target.closest("[data-attr]"); if(!b) return; ev.stopPropagation();
+    const same=_attrPop&&_attrPop.style.display!=="none"&&_attrPop.getAttribute("data-for")===b.getAttribute("data-attr");
+    if(same&&_attrPinned) attrPopHide(); else attrPopShow(b,true);
+  });
+  document.addEventListener("click",ev=>{ if(_attrPop&&_attrPop.style.display!=="none"&&!ev.target.closest("#attrPop")) attrPopHide(); });
+})();
+$("clearMods").addEventListener("click",()=>{Object.values(C.attrs).forEach(a=>a.mod=0);renderDials();renderWeapons();scheduleSave();});
 
 /* ---------- vitality ---------- */
 function renderVit(flash){

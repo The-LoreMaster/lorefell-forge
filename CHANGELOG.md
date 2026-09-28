@@ -1,3 +1,9 @@
+## 2026-09-27 - The Attributes tab, option A: rings in rows
+
+The team's pick from four mockups. Each category (Offensive, Core, Defensive) is its own centred row, every ring the same size, so Core no longer leaves a hole in a grid. A ring is ten ticks, one per point: points the Fell owns are white, points something grants (lineage, origin, motivation, an armor stance, a positive battle modifier) are gold, and points taken away (fatigue, a negative battle modifier) are red outlines.
+
+Per Nate, nothing spells a modifier out on the tab. The number turns gold when it is raised and red when it is lowered, and hovering it with a mouse, or tapping it on a phone or tablet, opens a small panel with the breakdown (base, what raises it, what lowers it), the battle modifier's - and +, and what the attribute is used for. The LoreMaster's panel also sets the base. The sixteen steppers under the rings are gone. Mobility is a single line at the foot of the card, red when Weary halves it, with the same panel; its old card is hidden. Clear battle mods appears only when a battle modifier is set. The same in FellGlass and ThreadSpire.
+
 ## 2026-09-27 - Talent pills sit beside the dice; the phone bar drops its name
 
 Each skill's talent pill now sits on the dice's line, under the rank circles, on the left with the dice on the right and the two centred on each other; its description opens beneath. It reads only the talent's name, greyed until the skill's first Mastery earns it (the hover says so). The phone top bar no longer shows the portrait, name and level, which every open tab already shows; it keeps its buttons, at the right. Switch Fell is still in the menu.
