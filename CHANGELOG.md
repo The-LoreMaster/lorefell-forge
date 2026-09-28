@@ -1,3 +1,7 @@
+## 2026-09-27 - A thickness slider for the fog
+
+Fog's options gain Thick, a slider from 50% to fully solid for how much the fog covers places the party has seen but cannot see now. It is kept per map with the fog (th), 98% unless changed, and every player's screen follows it. The LoreMaster's own view stays at half strength; Player view shows the result.
+
 ## 2026-09-27 - Fog outside sight is 98% solid
 
 Places the party has seen but cannot see now are covered at 98%, per Nate, so nothing of the map comes through for players outside their vision.

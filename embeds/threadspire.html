@@ -72,6 +72,9 @@ body.lm-role #wallLayer{ display:block; }
 .fsizes{ display:flex; gap:2px; }
 .fsizes button{ flex:1; height:22px; font-family:Cinzel,serif; font-size:.6rem; color:var(--silver,#c8d0dc); border:1px solid transparent; border-radius:5px; padding:0; }
 .fsizes button.on{ border-color:var(--gold); color:var(--gold); }
+.fthick{ display:flex; flex-direction:column; align-items:center; gap:3px; font-family:Cinzel,serif; font-size:.52rem; letter-spacing:.08em; text-transform:uppercase; color:var(--muted,#7e8a99); }
+.fthick input{ writing-mode:vertical-lr; direction:rtl; width:22px; height:90px; accent-color:var(--gold); }
+.fthick b{ font-weight:400; color:var(--gold); font-size:.6rem; }
 #fogLayer{ position:absolute; left:0; top:0; pointer-events:none; display:none; }
 #fogLayer.on{ display:block; }
 body.lm-role #fogLayer{ opacity:.55; }
@@ -1809,6 +1812,7 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
       <button data-fogall="cover" title="Fog the whole map" aria-label="Fog the whole map"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M7 10h10M7 14h10"/></svg></button>
       <button data-fogall="reveal" title="Lift all fog" aria-label="Lift all fog"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/></svg></button>
       <button data-fogvision title="Automatic vision: the Fell clear fog around themselves (off: only your painting counts)" aria-label="Automatic vision"><svg viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+      <label class="fthick" title="How thick the fog stays over places the party has seen but cannot see now"><span>Thick</span><input type="range" id="fogThick" min="50" max="100" step="1"><b id="fogThickV"></b></label>
       <button data-fogall="off" title="Turn fog off for this map" aria-label="Fog off"><svg viewBox="0 0 24 24"><path d="M4 4l16 16M4 11h8M3 15h9"/></svg></button>
     </div>
     <div id="drawOpts">
@@ -13000,12 +13004,14 @@ function fogPaint(){
   if (!_fogMask) _fogMask = document.createElement('canvas');
   var d = fc.d; if (_fogMask.width !== d.cols || _fogMask.height !== d.rows){ _fogMask.width = d.cols; _fogMask.height = d.rows; }
   var mctx = _fogMask.getContext('2d'), mi = mctx.createImageData(d.cols, d.rows);
+  /* how thick the fog stays over places seen before: the map's own setting, 98% unless changed */
+  var _fr = fogRec(), seenA = Math.round(255 * (1 - (((_fr && _fr.th) || 98) / 100)));
   /* visible now: cleared. Seen before: thinned, so the map shows through as memory. */
   for (var i = 0; i < fc.vis.length; i++){
     /* seen now: as clear as sight makes it; seen before: dimmer than the edge of sight */
-    /* outside the party's sight the fog is 98% solid: a place seen before barely shows
-       (Nate: completely solid, or at least 98%) */
-    var a = fc.vis[i] ? (fc.clr ? Math.max(fc.clr[i], 128) : 255) : (fc.seen[i] ? 5 : 0);   /* 98% solid */
+    /* outside the party's sight a place seen before shows through only as much as the map's
+       fog thickness allows (98% solid unless the LoreMaster changes it) */
+    var a = fc.vis[i] ? (fc.clr ? Math.max(fc.clr[i], 128) : 255) : (fc.seen[i] ? seenA : 0);
     if (a){ mi.data[i*4] = mi.data[i*4+1] = mi.data[i*4+2] = 255; mi.data[i*4+3] = a; }
   }
   mctx.putImageData(mi, 0, 0);
@@ -13056,7 +13062,22 @@ function fogVisionToggle(){
 function fogPaintOpts(){
   var b = document.querySelector('#fogOpts [data-fogvision]'); if (!b) return;
   var r = fogRec(); b.classList.toggle('on', !(r && r.nov));
+  var th = document.getElementById('fogThick'), tv = document.getElementById('fogThickV');
+  if (th){ th.value = (r && r.th) || 98; if (tv) tv.textContent = th.value + '%'; }
 }
+/* Thickness of the fog over remembered places, per map, from 50% to fully solid. It travels
+   with the fog, so every player's screen follows the LoreMaster's slider. */
+(function(){
+  var th = document.getElementById('fogThick'); if (!th) return;
+  var t = null;
+  th.addEventListener('pointerdown', function(e){ e.stopPropagation(); });
+  th.addEventListener('input', function(){
+    if (!isLM()) return;
+    var r = fogEnsure(); r.th = +th.value; r.v = Date.now(); _fvMemo = null;
+    var tv = document.getElementById('fogThickV'); if (tv) tv.textContent = th.value + '%';
+    fogPaint(); clearTimeout(t); t = setTimeout(function(){ schedulePush(); }, 300);
+  });
+})()
 function fogCommit(){ _fogPainting = false; _fogWork = null; try { renderTokens(); } catch(e){} if (isLM()) schedulePush(); }
 function fogAll(what){
   if (!isLM()) return;
