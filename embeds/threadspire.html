@@ -9684,6 +9684,7 @@ function sheetSetHeight(h){ /* fixed 610x940 window for now; auto-size disabled 
 var hand = null;
 var _handSeen = 0;
 function tsHandTake(h){
+  try { if (h) S._hand = h; } catch(e){}
   if (!h || typeof h !== 'object') return;
   hand = h;
   _handSeen = Date.now();
@@ -12806,6 +12807,15 @@ function tokAffs(t){
   catch(e){ return []; }
 }
 function tokHas(t, name){ return tokAffs(t).indexOf(name) >= 0; }
+/* How a Fell sees, from its sheet: Echosight (an armor augmentation) sees through darkness and
+   concealment; Ever-Watchful (a talent) always perceives the Obscured and hidden. Read from the
+   party's public sheets, and for this player's own Fell from its sheet directly. */
+function tokSense(t, name){
+  if (!t || t.kind !== 'p') return false;
+  if (!isLM() && typeof tokenIsMine === 'function' && tokenIsMine(t) && S._hand && S._hand.senses && S._hand.senses[name]) return true;
+  var hit = (S.party || []).filter(function(p){ return p && t.charId && sameId(p.charId || p.id, t.charId); })[0];
+  return !!(hit && hit.senses && hit.senses[name]);
+}
 function tokVisionSpaces(t){ return tokHas(t, 'Masked') ? 1 : VISION_SPACES; }
 function myFellTok(){ if (isLM()) return null; var m = null; (S.tokens || []).forEach(function(t){ if (t.kind === 'p' && typeof tokenIsMine === 'function' && tokenIsMine(t)) m = t; }); return m; }
 /* 1 = seen now, 2 = in range but behind a creature 2x2 or larger (dimmed, not revealed).
@@ -12889,8 +12899,11 @@ function fogViewNow(){
   var segsL = wallBlockers(), lit = litCells(d, party, segsL), dark = !!(S.lights && S.lights[mapKey()] && S.lights[mapKey()].dark);
   if (dark){
     var gq = (S.grid && S.grid.size) || 100;
+    /* an Echosight Fell sees through the dark, and the party shares what it sees */
+    var echo = party.filter(function(t){ return tokSense(t, 'echosight'); });
+    var echoSight = echo.length ? visionOf(echo, d) : null;
     for (var z = 0; z < n; z++){
-      if (sight[z] !== 1 || lit[z]) continue;
+      if (sight[z] !== 1 || lit[z] || (echoSight && echoSight[z] === 1)) continue;
       var zx = ((z % d.cols) + .5) * d.c, zy = (Math.floor(z / d.cols) + .5) * d.c;
       if (!party.some(function(t){ return Math.hypot(zx - t.x, zy - t.y) <= gq * 1.5; })) sight[z] = 0;
     }
@@ -12920,7 +12933,10 @@ function fogSeenShare(seen){
    except from a Masked player, who sees only what is next to them. */
 function fogHides(t){
   if (!t || isLM()) return false;
-  if (t.kind !== 'p' && tokHas(t, 'Obscured')) return true;
+  if (t.kind !== 'p' && tokHas(t, 'Obscured')){
+    var mine = myFellTok();
+    if (!(mine && (tokSense(mine, 'echosight') || tokSense(mine, 'everWatchful')))) return true;
+  }
   var fv = fogView(); if (!fv) return false;
   if (t.kind === 'p' && !fv.masked) return false;
   var me = myFellTok(); if (me && me.id === t.id) return false;

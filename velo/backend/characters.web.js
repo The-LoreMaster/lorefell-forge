@@ -122,6 +122,12 @@ export const threadspirePublicChar = webMethod(Permissions.Anyone, async (charId
     blurb: idn.desc || '',
     arsenal: arsenal,
     talents: talents,
+    // what the table's fog needs to know of how this Fell sees: Echosight sees through
+    // darkness and concealment, Ever-Watchful always perceives the Obscured and hidden
+    senses: {
+      echosight: ((data.armor && data.armor.augs) || []).indexOf('Echosight') >= 0,
+      everWatchful: talents.indexOf('Ever-Watchful') >= 0
+    },
     locationId: idn.locationId || '',
     worldId: idn.worldId || '',
     isOwner: !!(me && ownerId && me === ownerId)
