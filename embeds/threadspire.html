@@ -12727,7 +12727,28 @@ function fogEncode(a){
   out.push(run.toString(36));
   return out.join(',');
 }
-function fogCells(){ var r = fogRec(); if (!r) return null; var d = fogDims(); if (r.cols !== d.cols || r.rows !== d.rows) return null; return { d:d, a:fogDecode(r, d.cols * d.rows) }; }
+/* The fog's cells are a quarter of a grid square, so changing the grid's size changes how
+   many there are. The painted fog and the party's memory are carried over by position rather
+   than dropped: each new cell takes the value of the old cell under its centre. */
+function fogResample(runs, oc, orows, d){
+  var old = fogDecode({ r:runs, v:'rs' + oc + 'x' + orows + ':' + String(runs).length }, oc * orows), out = new Uint8Array(d.cols * d.rows);
+  var ocw = S.map.w / oc, och = S.map.h / orows;
+  for (var y = 0; y < d.rows; y++) for (var x = 0; x < d.cols; x++){
+    var ox = Math.min(oc - 1, Math.floor(((x + .5) * d.c) / ocw)), oy = Math.min(orows - 1, Math.floor(((y + .5) * d.c) / och));
+    out[y * d.cols + x] = old[oy * oc + ox];
+  }
+  return fogEncode(out);
+}
+function fogCells(){
+  var r = fogRec(); if (!r) return null; var d = fogDims();
+  if (r.cols && r.rows && (r.cols !== d.cols || r.rows !== d.rows)){
+    r.r = fogResample(r.r, r.cols, r.rows, d);
+    if (r.e) r.e = fogResample(r.e, r.cols, r.rows, d);
+    r.cols = d.cols; r.rows = d.rows; r.v = Date.now(); _fogCache = {}; _seen = {};
+    if (isLM()) schedulePush();
+  }
+  return { d:d, a:fogDecode(r, d.cols * d.rows) };
+}
 /* ---- vision ----
    Each Fell sees 15 spaces in every direction (the FellGuide's Vision), counted the way the
    ruler counts: diagonals are one space, so the seen area is a square 31 spaces across,
@@ -12960,11 +12981,14 @@ function fogAll(what){
 var wallMode = 'wall', _wallDrag = null, _mapStateLoaded = false;
 function wallList(){ var k = mapKey(); S.walls = S.walls || {}; return S.walls[k] || (S.walls[k] = []); }
 function wallBlockers(){ var k = mapKey(); return ((S.walls && S.walls[k]) || []).filter(function(w){ return !(w.door && w.open); }); }
-function wallSnap(x, y){
+/* Walls snap to the grid's corners. Doors go at any angle: they land exactly where they are
+   drawn, and only catch on the end of a wall already there, so a door still meets its wall. */
+function wallSnap(x, y, free){
   var g = (S.grid && S.grid.size) || 100, ox = (S.grid && S.grid.offX) || 0, oy = (S.grid && S.grid.offY) || 0, near = 14 / cam.zoom;
   var best = null;
   wallList().forEach(function(w){ [[w.x1, w.y1], [w.x2, w.y2]].forEach(function(p){ var dd = Math.hypot(p[0] - x, p[1] - y); if (dd < near && (!best || dd < best.d)) best = { d:dd, x:p[0], y:p[1] }; }); });
   if (best) return { x:best.x, y:best.y };
+  if (free) return { x:Math.round(x), y:Math.round(y) };
   return { x:Math.round((x - ox) / g) * g + ox, y:Math.round((y - oy) / g) * g + oy };
 }
 function wallPaint(){
@@ -13018,7 +13042,7 @@ function toolDown(e){
   var p = toMap(e.clientX, e.clientY);
   if (mapTool === 'walls' && isLM()){
     if (wallMode === 'remove'){ wallRemoveAt(p.x, p.y); _toolG = { kind:'wallrm' }; return true; }
-    _wallDrag = { a:wallSnap(p.x, p.y), b:null, door:wallMode === 'door' }; _toolG = { kind:'wall' }; wallPaint(); return true;
+    _wallDrag = { a:wallSnap(p.x, p.y, wallMode === 'door'), b:null, door:wallMode === 'door' }; _toolG = { kind:'wall' }; wallPaint(); return true;
   }
   if (mapTool === 'fog' && isLM()){ _fogPainting = true; fogBrushAt(p.x, p.y, true); _toolG = { kind:'fog' }; return true; }
   if (mapTool === 'erase'){ drawEraseAt(p.x, p.y); _toolG = { kind:'erase' }; return true; }
@@ -13043,7 +13067,7 @@ function toolMove(e){
     if (Math.abs(p.x - lx) + Math.abs(p.y - ly) >= 4 / cam.zoom && n < 1200){ _stroke.p.push(Math.round(p.x), Math.round(p.y)); drawPaint(); }
   } else if (_toolG.kind === 'erase'){ drawEraseAt(p.x, p.y); }
   else if (_toolG.kind === 'fog'){ fogBrushAt(p.x, p.y, false); }
-  else if (_toolG.kind === 'wall' && _wallDrag){ _wallDrag.b = wallSnap(p.x, p.y); wallPaint(); }
+  else if (_toolG.kind === 'wall' && _wallDrag){ _wallDrag.b = wallSnap(p.x, p.y, _wallDrag.door); wallPaint(); }
   else if (_toolG.kind === 'ruler'){
     var ov = document.elementFromPoint(e.clientX, e.clientY), tk = ov && ov.closest && ov.closest('.token'), tt = tk && tokById(tk.getAttribute('data-tok'));
     rulerDraw(_toolG.a, tt ? { x:tt.x, y:tt.y } : p);

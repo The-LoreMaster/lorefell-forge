@@ -1,3 +1,9 @@
+## 2026-09-27 - Doors at any angle, and fog that survives a grid change
+
+Doors no longer snap to the grid: they land exactly where they are drawn, at any angle, and only catch on the end of a wall already there, so a door still meets its wall. Walls still snap to the grid's corners.
+
+Vision and the fog both scale with the grid: sight is 15 grid squares, and the fog's cells are a quarter of a square. Changing the grid's size used to change how many fog cells a map had, and the stored fog, no longer matching, vanished. It is now carried over by position, painted fog and the party's memory alike, and saved again at the new size.
+
 ## 2026-09-27 - Grid in the map bar, fog without vision, and maps that stay with their scenes
 
 The grid's controls (cell size, fade, inset, snap) open from a Grid button in the LoreMaster's map bar, beside it like the tools' options. The Settings button above the scene runner's note is gone; the scene's name sits there instead.
