@@ -1,3 +1,7 @@
+## 2026-09-27 - Talents from Wix, as clickable pills on every skill
+
+Talents were placeholders ("Trickery Talent (placeholder)"). They now follow the same road as augmentations and infusions: the vault's _Canon/collections/Talents.md (written from the 24 talent pages) becomes schemas/seed/Talents.json through canonFromVault.js, apply.yml creates and seeds the new Talents collection (schemas/Talents.json), libraries.web.js sends them to the sheet as talents, and nothing in the sheet names a talent. Each skill shows its talent as a pill under its question: lit once the skill has a Mastery point, dim with "at first Mastery" until then, and tapping it opens what it does. Mastering a skill stores the talent's real name. threadspirePublicChar derives a Fell's talents from its mastered skills through the collection (the list it read was never written), and the sheet's Ever-Watchful sense does the same. Paste velo/backend/libraries.web.js and velo/backend/characters.web.js.
+
 ## 2026-09-27 - P for Player view, and one brightness for every light
 
 P toggles the LoreMaster's Player view, as H toggles the clean view; Settings and the badge name the key. Light gains a button under Bright that sets every light on the map to the slider's brightness at once (and makes it the brightness for the next light placed).
