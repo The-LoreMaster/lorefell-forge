@@ -37,7 +37,19 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 #mapTools > button, #drawOpts > button{ width:34px; height:34px; border-radius:8px; border:1px solid transparent; color:var(--silver,#c8d0dc); display:flex; align-items:center; justify-content:center; padding:0; }
 #mapTools svg{ width:19px; height:19px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
 #mapTools > button.on, #drawOpts > button.on{ border-color:var(--gold); color:var(--gold); background:rgba(201,168,76,.12); }
-#drawOpts{ display:none; flex-direction:column; gap:6px; padding-top:6px; border-top:1px solid rgba(201,168,76,.25); }
+/* a tool's options fly out beside the bar, so the bar itself stays short */
+#drawOpts, #fogOpts{ display:none; flex-direction:column; gap:6px; position:absolute; left:calc(100% + 8px); top:0; padding:6px; border-radius:12px; background:rgba(10,14,26,.9); border:1px solid rgba(201,168,76,.35); }
+#mapTools.fogging #fogOpts{ display:flex; }
+#fogOpts > button{ width:34px; height:34px; border-radius:8px; border:1px solid transparent; color:var(--silver,#c8d0dc); display:flex; align-items:center; justify-content:center; padding:0; }
+#fogOpts > button.on{ border-color:var(--gold); color:var(--gold); background:rgba(201,168,76,.12); }
+.fsizes{ display:flex; gap:2px; }
+.fsizes button{ flex:1; height:22px; font-family:Cinzel,serif; font-size:.6rem; color:var(--silver,#c8d0dc); border:1px solid transparent; border-radius:5px; padding:0; }
+.fsizes button.on{ border-color:var(--gold); color:var(--gold); }
+#fogLayer{ position:absolute; left:0; top:0; pointer-events:none; display:none; }
+#fogLayer.on{ display:block; }
+body.lm-role #fogLayer{ opacity:.55; }
+.token.fogged{ display:none !important; }
+#map.tool-fog{ cursor:cell; }
 #mapTools.drawing #drawOpts{ display:flex; }
 .dswatches{ display:grid; grid-template-columns:1fr 1fr; gap:4px; }
 .dsw{ width:15px; height:15px; border-radius:50%; border:2px solid transparent; padding:0; cursor:pointer; }
@@ -1717,6 +1729,7 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
       <div id="mapArt"></div>
       <div id="gridInf"></div>
       <svg id="drawLayer" xmlns="http://www.w3.org/2000/svg"></svg>
+      <canvas id="fogLayer"></canvas>
   <input type="file" id="mapFileInput" accept="image/*" multiple style="display:none" onchange="lmMapFilePicked(this)">
   <input type="file" id="tokFileInput" accept="image/*" style="display:none" onchange="lmTokenFilePicked(this)">
     </div>
@@ -1729,6 +1742,15 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
     <button data-tool="select" title="Select tokens (drag a box)" aria-label="Select tokens"><svg viewBox="0 0 24 24"><path d="M4 4h4M4 4v4M20 4h-4M20 4v4M4 20h4M4 20v-4M20 20h-4M20 20v-4"/><path d="M10 9l6 4-3 1-1 3z"/></svg></button>
     <button data-tool="ruler" title="Measure squares" aria-label="Ruler"><svg viewBox="0 0 24 24"><path d="M3 17L17 3l4 4L7 21z"/><path d="M7 13l2 2M10 10l2 2M13 7l2 2"/></svg></button>
     <button data-tool="draw" title="Draw on the map" aria-label="Draw"><svg viewBox="0 0 24 24"><path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="M14 6l3 3"/></svg></button>
+    <button data-tool="fog" class="lmonly" title="Fog of war" aria-label="Fog of war"><svg viewBox="0 0 24 24"><path d="M4 9h11a3 3 0 1 0-3-3M3 13h16a3 3 0 1 1-3 3M5 17h7"/></svg></button>
+    <div id="fogOpts">
+      <button data-fog="reveal" class="on" title="Reveal: paint the fog away" aria-label="Reveal"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/></svg></button>
+      <button data-fog="cover" title="Cover: paint fog back" aria-label="Cover"><svg viewBox="0 0 24 24"><path d="M4 11h11a3 3 0 1 0-3-3M3 15h16"/></svg></button>
+      <div class="fsizes"><button data-fsize="1">S</button><button data-fsize="2" class="on">M</button><button data-fsize="4">L</button></div>
+      <button data-fogall="cover" title="Fog the whole map" aria-label="Fog the whole map"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M7 10h10M7 14h10"/></svg></button>
+      <button data-fogall="reveal" title="Lift all fog" aria-label="Lift all fog"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/></svg></button>
+      <button data-fogall="off" title="Turn fog off for this map" aria-label="Fog off"><svg viewBox="0 0 24 24"><path d="M4 4l16 16M4 11h8M3 15h9"/></svg></button>
+    </div>
     <div id="drawOpts">
       <div class="dswatches"></div>
       <button data-dact="erase" title="Erase your own strokes" aria-label="Erase"><svg viewBox="0 0 24 24"><path d="M4 16l8-8 6 6-6 6H8z"/><path d="M13 19h7"/></svg></button>
@@ -7008,6 +7030,7 @@ function sharedSnapshot(){
   return {
     tokens: slimTokens(S.tokens), grid: S.grid, map: S.map,
     draw: S.draw || { strokes:[], gone:[] }, pings: S.pings || [],
+    fog: isLM() ? (S.fog || {}) : undefined,   /* the LoreMaster's alone to write; absent means keep */
     background: S.scene.background,
     /* The background is an id from the loremaster's own shelf, and nobody else has that
        shelf to look it up in, so the map arrived at every player's table as a name for
@@ -7193,6 +7216,7 @@ function applyRemoteSnapshot(snap){
   }
   if (snap.tokens) S.tokens = snap.tokens;
   if (snap.draw){ S.draw = drawMerge(S.draw, snap.draw); try { drawPaint(); } catch(e){} }
+  if (snap.fog && !(isLM() && _fogPainting)){ S.fog = snap.fog; _fogCache = {}; try { fogPaint(); } catch(e){} }
   if (snap.pings){ try { pingTake(snap.pings); } catch(e){} }
   try { harvestFoeArt(); } catch(e){}
   if (snap.grid){ S.grid = snap.grid; S.grid.offX = 0; S.grid.offY = 0; }
@@ -12300,7 +12324,7 @@ function renderTokens(){
     }
     var lmLocked = isLM() && t.kind === 'p' && t.charId && declareFor(t.charId) && (declareFor(t.charId).act || '');
     el.className = 'token ' + t.kind + (isMine ? ' mine' : '') + (draggable && !isMine ? ' lm-drag' : '')
-      + (sel === t.id ? ' sel' : '') + (multiSel[t.id] ? ' msel' : '') + (art ? ' hasimg' : '') + (_flashToken === t.id ? ' justplaced' : '')
+      + (sel === t.id ? ' sel' : '') + (multiSel[t.id] ? ' msel' : '') + (fogHides(t) ? ' fogged' : '') + (art ? ' hasimg' : '') + (_flashToken === t.id ? ' justplaced' : '')
       + (aimedAt ? ' aimed' + aimedSide : '') + (lmLocked ? ' declared' : '')
       /* A fallen fighter reads as fallen on the board too, not only on their card. */
       + ((function(){ try { var c = findC(t.id) || fellByCharId(t.charId); return (c && cDown(c)) ? ' down' : ''; } catch(e){ return ''; } })());
@@ -12370,7 +12394,7 @@ function wireToken(el, t, draggable){
   el.addEventListener('pointerdown', function(e){
     /* the ruler, pen and eraser work over tokens too: the map handles the gesture, and a
        measure started on a token starts from its centre */
-    if (mapTool === 'ruler' || mapTool === 'draw' || mapTool === 'erase') return;
+    if (mapTool === 'ruler' || mapTool === 'draw' || mapTool === 'erase' || mapTool === 'fog') return;
     e.preventDefault(); e.stopPropagation();
     /* captured either way, so the pointerup still arrives when the finger slides off the
        token it started on - a tap that ends a few pixels outside is still a tap */
@@ -12430,7 +12454,8 @@ function setMapTool(t){
   mapTool = t;
   var bar = document.getElementById('mapTools'), m = mapEl();
   if (bar){ bar.querySelectorAll('[data-tool]').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-tool') === t); }); bar.classList.toggle('drawing', t === 'draw' || t === 'erase'); }
-  if (m){ m.classList.remove('tool-select','tool-ruler','tool-draw'); if (t !== 'pan') m.classList.add('tool-' + (t === 'erase' ? 'draw' : t)); }
+  if (m){ m.classList.remove('tool-select','tool-ruler','tool-draw','tool-fog'); if (t !== 'pan') m.classList.add('tool-' + (t === 'erase' ? 'draw' : t)); }
+  if (bar) bar.classList.toggle('fogging', t === 'fog');
   var er = bar && bar.querySelector('[data-dact="erase"]'); if (er) er.classList.toggle('on', t === 'erase');
   rulerClear();
   if (t !== 'select' && Object.keys(multiSel).length){ multiSel = {}; renderTokens(); }
@@ -12447,6 +12472,9 @@ function setMapTool(t){
     var act = b.getAttribute('data-dact');
     if (act === 'erase'){ setMapTool(mapTool === 'erase' ? 'draw' : 'erase'); return; }
     if (act === 'clear' && isLM()) drawClearMap();
+    if (b.hasAttribute('data-fog')){ fogMode = b.getAttribute('data-fog'); bar.querySelectorAll('[data-fog]').forEach(function(x){ x.classList.toggle('on', x === b); }); return; }
+    if (b.hasAttribute('data-fsize')){ fogBrush = Number(b.getAttribute('data-fsize')) || 2; bar.querySelectorAll('[data-fsize]').forEach(function(x){ x.classList.toggle('on', x === b); }); return; }
+    if (b.hasAttribute('data-fogall')) fogAll(b.getAttribute('data-fogall'));
   });
 })();
 
@@ -12566,12 +12594,141 @@ function pingAt(mx, my){
   });
 })();
 
+
+/* ================= fog of war, stage A: painted by hand =================
+   The LoreMaster paints fog over a map and paints it away. Each map keeps its own fog, as
+   a grid of small cells (a quarter of a square each), sent run-length encoded in the
+   table's state under fog, keyed by the map. Only the LoreMaster writes it; a player's
+   push leaves it out, so a stale copy can never overwrite it.
+
+   It is drawn as mist, not a grey box: a tileable noise texture generated once, drifting
+   slowly, with soft edges where it has been cleared. The LoreMaster sees it at half
+   strength so the map and every token stay visible to them; players see it solid, and
+   any token standing under fog is hidden from them, except the Fell themselves. */
+var FOG_SUB = 4, fogMode = 'reveal', fogBrush = 2, _fogPainting = false, _fogCache = {}, _fogTex = null, _fogT0 = Date.now();
+function fogDims(){ var g = (S.grid && S.grid.size) || 100, c = g / FOG_SUB; return { c:c, cols:Math.max(1, Math.ceil(S.map.w / c)), rows:Math.max(1, Math.ceil(S.map.h / c)) }; }
+function fogRec(){ var f = S.fog && S.fog[mapKey()]; return (f && f.on) ? f : null; }
+/* cells: 1 = clear, 0 = fogged. Runs alternate, starting with fogged. */
+function fogDecode(rec, n){
+  var key = mapKey() + ':' + (rec.v || 0) + ':' + n;
+  if (_fogCache[key]) return _fogCache[key];
+  var a = new Uint8Array(n), runs = String(rec.r || '').split(',').filter(function(x){ return x !== ''; }).map(function(x){ return parseInt(x, 36) || 0; });
+  var i = 0, val = 0;
+  if (!runs.length){ _fogCache = {}; _fogCache[key] = a; return a; }
+  runs.forEach(function(len){ for (var k = 0; k < len && i < n; k++) a[i++] = val; val = val ? 0 : 1; });
+  _fogCache = {}; _fogCache[key] = a; return a;
+}
+function fogEncode(a){
+  var out = [], val = 0, run = 0;
+  for (var i = 0; i < a.length; i++){ if (a[i] === val) run++; else { out.push(run.toString(36)); val = a[i]; run = 1; } }
+  out.push(run.toString(36));
+  return out.join(',');
+}
+function fogCells(){ var r = fogRec(); if (!r) return null; var d = fogDims(); if (r.cols !== d.cols || r.rows !== d.rows) return null; return { d:d, a:fogDecode(r, d.cols * d.rows) }; }
+/* Is this token under fog, for a player? The Fell are never hidden from their party. */
+function fogHides(t){
+  if (!t || isLM() || t.kind === 'p') return false;
+  var fc = fogCells(); if (!fc) return false;
+  var cx = Math.floor(t.x / fc.d.c), cy = Math.floor(t.y / fc.d.c);
+  if (cx < 0 || cy < 0 || cx >= fc.d.cols || cy >= fc.d.rows) return false;
+  return !fc.a[cy * fc.d.cols + cx];
+}
+function fogTexture(){
+  if (_fogTex) return _fogTex;
+  var N = 256, cv = document.createElement('canvas'); cv.width = cv.height = N;
+  var ctx = cv.getContext('2d'); if (!ctx) return null;
+  var img = ctx.createImageData(N, N), seed = 7;
+  function rnd(){ seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+  function grid(s){ var g = []; for (var i = 0; i < s * s; i++) g.push(rnd()); return g; }
+  var octs = [[4, .5], [8, .25], [16, .15], [32, .1]].map(function(o){ return { s:o[0], w:o[1], g:grid(o[0]) }; });
+  function smooth(t){ return t * t * (3 - 2 * t); }
+  for (var y = 0; y < N; y++) for (var x = 0; x < N; x++){
+    var v = 0;
+    octs.forEach(function(o){
+      var fx = x / N * o.s, fy = y / N * o.s, x0 = Math.floor(fx), y0 = Math.floor(fy), tx = smooth(fx - x0), ty = smooth(fy - y0);
+      var x1 = (x0 + 1) % o.s, y1 = (y0 + 1) % o.s;
+      var a = o.g[y0 * o.s + x0], b = o.g[y0 * o.s + x1], c = o.g[y1 * o.s + x0], d = o.g[y1 * o.s + x1];
+      v += (a + (b - a) * tx + ((c + (d - c) * tx) - (a + (b - a) * tx)) * ty) * o.w;
+    });
+    /* deep blue-black with pale wisps: contrast is what reads as mist rather than a sheet */
+    var w = Math.pow(Math.max(0, v - .35) / .65, 1.6), i4 = (y * N + x) * 4, l = 12 + v * 34 + w * 95;
+    img.data[i4] = l * .82; img.data[i4 + 1] = l * .92; img.data[i4 + 2] = l * 1.18; img.data[i4 + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  _fogTex = cv; return cv;
+}
+var _fogMask = null;
+function fogPaint(){
+  var cv = document.getElementById('fogLayer'); if (!cv) return;
+  var fc = fogCells();
+  if (!fc){ cv.classList.remove('on'); return; }
+  var scale = 4, W = Math.ceil(S.map.w / scale), H = Math.ceil(S.map.h / scale);
+  if (cv.width !== W || cv.height !== H){ cv.width = W; cv.height = H; }
+  cv.style.width = S.map.w + 'px'; cv.style.height = S.map.h + 'px';
+  cv.classList.add('on');
+  var ctx = cv.getContext('2d'), tex = fogTexture(); if (!ctx) return;
+  /* the mist drifts slowly */
+  var t = (Date.now() - _fogT0) / 1000, ox = (t * 3) % 256, oy = (t * 1.3) % 256;
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.clearRect(0, 0, W, H);
+  if (tex){ var pat = ctx.createPattern(tex, 'repeat'); ctx.save(); ctx.translate(-ox, -oy); ctx.fillStyle = pat; ctx.fillRect(ox, oy, W, H); ctx.restore(); }
+  else { ctx.fillStyle = 'rgba(20,26,40,.94)'; ctx.fillRect(0, 0, W, H); }
+  /* soft-edged holes where it has been cleared */
+  if (!_fogMask) _fogMask = document.createElement('canvas');
+  var d = fc.d; if (_fogMask.width !== d.cols || _fogMask.height !== d.rows){ _fogMask.width = d.cols; _fogMask.height = d.rows; }
+  var mctx = _fogMask.getContext('2d'), mi = mctx.createImageData(d.cols, d.rows);
+  for (var i = 0; i < fc.a.length; i++){ if (fc.a[i]){ mi.data[i*4] = mi.data[i*4+1] = mi.data[i*4+2] = 255; mi.data[i*4+3] = 255; } }
+  mctx.putImageData(mi, 0, 0);
+  ctx.globalCompositeOperation = 'destination-out';
+  ctx.imageSmoothingEnabled = true;
+  try { ctx.filter = 'blur(' + Math.max(2, Math.round(d.c / scale * 0.7)) + 'px)'; } catch(e){}
+  ctx.drawImage(_fogMask, 0, 0, W, H);
+  try { ctx.filter = 'none'; } catch(e){}
+  ctx.globalCompositeOperation = 'source-over';
+}
+/* drift: a slow redraw while fog is showing and the tab is visible */
+setInterval(function(){ try { if (document.visibilityState !== 'hidden' && fogRec()) fogPaint(); } catch(e){} }, 120);
+function fogEnsure(){
+  var d = fogDims(), k = mapKey();
+  S.fog = S.fog || {};
+  var r = S.fog[k];
+  if (!r || !r.on || r.cols !== d.cols || r.rows !== d.rows){
+    r = S.fog[k] = { on:true, cols:d.cols, rows:d.rows, r:(d.cols * d.rows).toString(36), v:Date.now() };
+    _fogCache = {};
+  }
+  return r;
+}
+var _fogWork = null;
+function fogBrushAt(mx, my, first){
+  var r = fogEnsure(), d = fogDims();
+  if (first || !_fogWork) _fogWork = fogDecode(r, d.cols * d.rows).slice();
+  var cx = mx / d.c, cy = my / d.c, rad = fogBrush * FOG_SUB / 2 + 0.5, val = fogMode === 'reveal' ? 1 : 0;
+  for (var y = Math.floor(cy - rad); y <= Math.ceil(cy + rad); y++) for (var x = Math.floor(cx - rad); x <= Math.ceil(cx + rad); x++){
+    if (x < 0 || y < 0 || x >= d.cols || y >= d.rows) continue;
+    var dx = x + .5 - cx, dy = y + .5 - cy; if (dx*dx + dy*dy <= rad*rad) _fogWork[y * d.cols + x] = val;
+  }
+  r.r = fogEncode(_fogWork); r.v = Date.now(); _fogCache = {};
+  fogPaint();
+}
+function fogCommit(){ _fogPainting = false; _fogWork = null; try { renderTokens(); } catch(e){} if (isLM()) schedulePush(); }
+function fogAll(what){
+  if (!isLM()) return;
+  var k = mapKey(), d = fogDims(); S.fog = S.fog || {};
+  if (what === 'off'){ S.fog[k] = { on:false }; }
+  else {
+    var a = new Uint8Array(d.cols * d.rows); if (what === 'reveal') a.fill(1);
+    S.fog[k] = { on:true, cols:d.cols, rows:d.rows, r:fogEncode(a), v:Date.now() };
+  }
+  _fogCache = {}; fogPaint(); try { renderTokens(); } catch(e){} schedulePush();
+}
+
 /* ---- the tool gesture: one pointer on the bare map, in any tool but Pan ---- */
 var _toolG = null;
 function toolDown(e){
   if (mapTool === 'pan') return false;
   if (e.button !== undefined && e.button !== 0) return false;
   var p = toMap(e.clientX, e.clientY);
+  if (mapTool === 'fog' && isLM()){ _fogPainting = true; fogBrushAt(p.x, p.y, true); _toolG = { kind:'fog' }; return true; }
   if (mapTool === 'erase'){ drawEraseAt(p.x, p.y); _toolG = { kind:'erase' }; return true; }
   if (mapTool === 'draw'){
     var w = Math.max(3, Math.round((S.grid.size || 100) * 0.05));
@@ -12593,6 +12750,7 @@ function toolMove(e){
     var n = _stroke.p.length, lx = _stroke.p[n-2], ly = _stroke.p[n-1];
     if (Math.abs(p.x - lx) + Math.abs(p.y - ly) >= 4 / cam.zoom && n < 1200){ _stroke.p.push(Math.round(p.x), Math.round(p.y)); drawPaint(); }
   } else if (_toolG.kind === 'erase'){ drawEraseAt(p.x, p.y); }
+  else if (_toolG.kind === 'fog'){ fogBrushAt(p.x, p.y, false); }
   else if (_toolG.kind === 'ruler'){
     var ov = document.elementFromPoint(e.clientX, e.clientY), tk = ov && ov.closest && ov.closest('.token'), tt = tk && tokById(tk.getAttribute('data-tok'));
     rulerDraw(_toolG.a, tt ? { x:tt.x, y:tt.y } : p);
@@ -12609,6 +12767,7 @@ function toolUp(e){
   if (!_toolG) return;
   var g = _toolG; _toolG = null;
   if (g.kind === 'draw' && _stroke){ var s = _stroke; _stroke = null; drawCommit(s); }
+  else if (g.kind === 'fog'){ fogCommit(); }
   else if (g.kind === 'select'){ document.getElementById('selBox').style.display = 'none'; if (g.b) selectBox(g.a, g.b); else { multiSel = {}; renderTokens(); } }
   /* the ruler stays up until the next measure or another tool */
 }
@@ -12876,7 +13035,7 @@ function mid(a, b){ return { x:(a.x + b.x) / 2, y:(a.y + b.y) / 2 }; }
   }, true);
   m.addEventListener('pointerdown', function(e){
     if (e.target.closest && e.target.closest('#mapTools')) return;
-    if (e.target.closest && e.target.closest('.token') && !(mapTool === 'ruler' || mapTool === 'draw' || mapTool === 'erase')) return;
+    if (e.target.closest && e.target.closest('.token') && !(mapTool === 'ruler' || mapTool === 'draw' || mapTool === 'erase' || mapTool === 'fog')) return;
     m.setPointerCapture(e.pointerId);
     /* a tool other than Pan takes a single pointer; a second finger still pinches */
     if (pts.size === 0 && toolDown(e)){ pts.set(e.pointerId, { x:e.clientX, y:e.clientY, tool:true }); return; }
@@ -13033,6 +13192,7 @@ function render(){
   var combat = S.mode === 'combat';
   document.body.classList.toggle('lm-role', isLM());
   try { drawPaint(); } catch(e){}
+  try { fogPaint(); } catch(e){}
   try { renderHand(); } catch(e){}
   var hf = document.getElementById('hudFell');
   if (hf){

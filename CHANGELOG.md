@@ -1,3 +1,9 @@
+## 2026-09-27 - Fog of war, stage A: painted by hand
+
+The LoreMaster's map bar gains Fog. Its options fly out beside the bar (Draw's now do too, so the bar stays short): Reveal and Cover brushes in three sizes, Fog the whole map, Lift all fog, and Fog off for this map. Each map keeps its own fog as a grid of quarter-square cells, run-length encoded, in the table's state under fog, keyed by the map. Only the LoreMaster's push carries it; a player's push leaves it out, so a stale copy can never overwrite it.
+
+It is drawn as mist rather than a grey sheet: a tileable noise texture, deep blue-black with pale wisps, generated once and drifting slowly, with soft edges wherever it has been cleared. The LoreMaster sees it at about half strength, so the map and every token stay visible to them. Players see it solid, and any token standing under it is hidden from them, except the Fell, who are never hidden from their party. Walls, automatic fog from the party's shared vision, remembered places dimmed, creature shadows and the per-player conditions (Masked, Obscured) are stage B.
+
 ## 2026-09-27 - Map tools: select, ruler, drawing, pings
 
 A small bar at the left of the table (above the dice tray on a phone) holds Pan, Select, Ruler and Draw. Pan is the default and does what the map always did.
