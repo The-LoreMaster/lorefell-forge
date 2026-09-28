@@ -1,3 +1,7 @@
+## 2026-09-27 - Talent pills sit beside the dice; the phone bar drops its name
+
+Each skill's talent pill now sits on the dice's line, under the rank circles, on the left with the dice on the right and the two centred on each other; its description opens beneath. It reads only the talent's name, greyed until the skill's first Mastery earns it (the hover says so). The phone top bar no longer shows the portrait, name and level, which every open tab already shows; it keeps its buttons, at the right. Switch Fell is still in the menu.
+
 ## 2026-09-27 - Talents from Wix, as clickable pills on every skill
 
 Talents were placeholders ("Trickery Talent (placeholder)"). They now follow the same road as augmentations and infusions: the vault's _Canon/collections/Talents.md (written from the 24 talent pages) becomes schemas/seed/Talents.json through canonFromVault.js, apply.yml creates and seeds the new Talents collection (schemas/Talents.json), libraries.web.js sends them to the sheet as talents, and nothing in the sheet names a talent. Each skill shows its talent as a pill under its question: lit once the skill has a Mastery point, dim with "at first Mastery" until then, and tapping it opens what it does. Mastering a skill stores the talent's real name. threadspirePublicChar derives a Fell's talents from its mastered skills through the collection (the list it read was never written), and the sheet's Ever-Watchful sense does the same. Paste velo/backend/libraries.web.js and velo/backend/characters.web.js.
