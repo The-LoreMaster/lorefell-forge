@@ -39,7 +39,18 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 #mapTools > button.on, #drawOpts > button.on{ border-color:var(--gold); color:var(--gold); background:rgba(201,168,76,.12); }
 /* a tool's options fly out beside the bar, so the bar itself stays short */
 #drawOpts, #fogOpts{ display:none; flex-direction:column; gap:6px; position:absolute; left:calc(100% + 8px); top:0; padding:6px; border-radius:12px; background:rgba(10,14,26,.9); border:1px solid rgba(201,168,76,.35); }
-#mapTools.fogging #fogOpts{ display:flex; }
+#mapTools.fogging #fogOpts, #mapTools.walling #wallOpts{ display:flex; }
+#wallOpts{ display:none; flex-direction:column; gap:6px; position:absolute; left:calc(100% + 8px); top:0; padding:6px; border-radius:12px; background:rgba(10,14,26,.9); border:1px solid rgba(201,168,76,.35); }
+#wallOpts > button{ width:34px; height:34px; border-radius:8px; border:1px solid transparent; color:var(--silver,#c8d0dc); display:flex; align-items:center; justify-content:center; padding:0; }
+#wallOpts > button.on{ border-color:var(--gold); color:var(--gold); background:rgba(201,168,76,.12); }
+#wallLayer{ position:absolute; left:0; top:0; overflow:visible; pointer-events:none; display:none; }
+body.lm-role #wallLayer{ display:block; }
+#wallLayer line.w{ stroke:#e6c46a; stroke-linecap:round; }
+#wallLayer line.d{ stroke:#e3a193; stroke-linecap:round; stroke-dasharray:10 7; }
+#wallLayer line.d.open{ stroke:#8fd694; stroke-dasharray:3 9; }
+#wallLayer line.pv{ stroke:#fff; stroke-dasharray:6 6; stroke-linecap:round; }
+#wallLayer .dh{ pointer-events:auto; cursor:pointer; }
+#map.tool-walls{ cursor:crosshair; }
 #fogOpts > button{ width:34px; height:34px; border-radius:8px; border:1px solid transparent; color:var(--silver,#c8d0dc); display:flex; align-items:center; justify-content:center; padding:0; }
 #fogOpts > button.on{ border-color:var(--gold); color:var(--gold); background:rgba(201,168,76,.12); }
 .fsizes{ display:flex; gap:2px; }
@@ -1730,6 +1741,7 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
       <div id="gridInf"></div>
       <svg id="drawLayer" xmlns="http://www.w3.org/2000/svg"></svg>
       <canvas id="fogLayer"></canvas>
+      <svg id="wallLayer" xmlns="http://www.w3.org/2000/svg"></svg>
   <input type="file" id="mapFileInput" accept="image/*" multiple style="display:none" onchange="lmMapFilePicked(this)">
   <input type="file" id="tokFileInput" accept="image/*" style="display:none" onchange="lmTokenFilePicked(this)">
     </div>
@@ -1743,6 +1755,12 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
     <button data-tool="ruler" title="Measure squares" aria-label="Ruler"><svg viewBox="0 0 24 24"><path d="M3 17L17 3l4 4L7 21z"/><path d="M7 13l2 2M10 10l2 2M13 7l2 2"/></svg></button>
     <button data-tool="draw" title="Draw on the map" aria-label="Draw"><svg viewBox="0 0 24 24"><path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="M14 6l3 3"/></svg></button>
     <button data-tool="fog" class="lmonly" title="Fog of war" aria-label="Fog of war"><svg viewBox="0 0 24 24"><path d="M4 9h11a3 3 0 1 0-3-3M3 13h16a3 3 0 1 1-3 3M5 17h7"/></svg></button>
+    <button data-tool="walls" class="lmonly" title="Walls and doors" aria-label="Walls and doors"><svg viewBox="0 0 24 24"><path d="M3 20V8h6v12M9 12h6v8M15 4h6v16M3 20h18"/></svg></button>
+    <div id="wallOpts">
+      <button data-wall="wall" class="on" title="Draw a wall: drag from corner to corner" aria-label="Wall"><svg viewBox="0 0 24 24"><path d="M4 20L20 4"/><circle cx="4" cy="20" r="1.8"/><circle cx="20" cy="4" r="1.8"/></svg></button>
+      <button data-wall="door" title="Draw a door: drag across the doorway" aria-label="Door"><svg viewBox="0 0 24 24"><path d="M6 21V4h10v17M13 12h.01M3 21h18"/></svg></button>
+      <button data-wall="remove" title="Remove: tap a wall or door" aria-label="Remove"><svg viewBox="0 0 24 24"><path d="M5 5l14 14M19 5L5 19"/></svg></button>
+    </div>
     <div id="fogOpts">
       <button data-fog="reveal" class="on" title="Reveal: paint the fog away" aria-label="Reveal"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/></svg></button>
       <button data-fog="cover" title="Cover: paint fog back" aria-label="Cover"><svg viewBox="0 0 24 24"><path d="M4 11h11a3 3 0 1 0-3-3M3 15h16"/></svg></button>
@@ -7030,7 +7048,10 @@ function sharedSnapshot(){
   return {
     tokens: slimTokens(S.tokens), grid: S.grid, map: S.map,
     draw: S.draw || { strokes:[], gone:[] }, pings: S.pings || [],
-    fog: isLM() ? (S.fog || {}) : undefined,   /* the LoreMaster's alone to write; absent means keep */
+    /* the LoreMaster's alone to write, and only once the stored copy has arrived: a push made
+       before the first pull would otherwise lay an empty set over what was saved */
+    fog: (isLM() && _mapStateLoaded) ? (S.fog || {}) : undefined,
+    walls: (isLM() && _mapStateLoaded) ? (S.walls || {}) : undefined,
     background: S.scene.background,
     /* The background is an id from the loremaster's own shelf, and nobody else has that
        shelf to look it up in, so the map arrived at every player's table as a name for
@@ -7216,6 +7237,8 @@ function applyRemoteSnapshot(snap){
   }
   if (snap.tokens) S.tokens = snap.tokens;
   if (snap.draw){ S.draw = drawMerge(S.draw, snap.draw); try { drawPaint(); } catch(e){} }
+  _mapStateLoaded = true;
+  if (snap.walls && !(isLM() && _wallDrag)){ S.walls = snap.walls; _fvMemo = null; try { wallPaint(); } catch(e){} }
   if (snap.fog && !(isLM() && _fogPainting)){
     S.fog = snap.fog; _fogCache = {};
     if (!isLM()) _seen = {};   /* players take the LoreMaster's memory of the map */
@@ -12398,7 +12421,7 @@ function wireToken(el, t, draggable){
   el.addEventListener('pointerdown', function(e){
     /* the ruler, pen and eraser work over tokens too: the map handles the gesture, and a
        measure started on a token starts from its centre */
-    if (mapTool === 'ruler' || mapTool === 'draw' || mapTool === 'erase' || mapTool === 'fog') return;
+    if (mapTool === 'ruler' || mapTool === 'draw' || mapTool === 'erase' || mapTool === 'fog' || mapTool === 'walls') return;
     e.preventDefault(); e.stopPropagation();
     /* captured either way, so the pointerup still arrives when the finger slides off the
        token it started on - a tap that ends a few pixels outside is still a tap */
@@ -12458,8 +12481,8 @@ function setMapTool(t){
   mapTool = t;
   var bar = document.getElementById('mapTools'), m = mapEl();
   if (bar){ bar.querySelectorAll('[data-tool]').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-tool') === t); }); bar.classList.toggle('drawing', t === 'draw' || t === 'erase'); }
-  if (m){ m.classList.remove('tool-select','tool-ruler','tool-draw','tool-fog'); if (t !== 'pan') m.classList.add('tool-' + (t === 'erase' ? 'draw' : t)); }
-  if (bar) bar.classList.toggle('fogging', t === 'fog');
+  if (m){ m.classList.remove('tool-select','tool-ruler','tool-draw','tool-fog','tool-walls'); if (t !== 'pan') m.classList.add('tool-' + (t === 'erase' ? 'draw' : t)); }
+  if (bar){ bar.classList.toggle('fogging', t === 'fog'); bar.classList.toggle('walling', t === 'walls'); }
   var er = bar && bar.querySelector('[data-dact="erase"]'); if (er) er.classList.toggle('on', t === 'erase');
   rulerClear();
   if (t !== 'select' && Object.keys(multiSel).length){ multiSel = {}; renderTokens(); }
@@ -12479,6 +12502,7 @@ function setMapTool(t){
     if (b.hasAttribute('data-fog')){ fogMode = b.getAttribute('data-fog'); bar.querySelectorAll('[data-fog]').forEach(function(x){ x.classList.toggle('on', x === b); }); return; }
     if (b.hasAttribute('data-fsize')){ fogBrush = Number(b.getAttribute('data-fsize')) || 2; bar.querySelectorAll('[data-fsize]').forEach(function(x){ x.classList.toggle('on', x === b); }); return; }
     if (b.hasAttribute('data-fogall')) fogAll(b.getAttribute('data-fogall'));
+    if (b.hasAttribute('data-wall')){ wallMode = b.getAttribute('data-wall'); bar.querySelectorAll('[data-wall]').forEach(function(x){ x.classList.toggle('on', x === b); }); return; }
   });
 })();
 
@@ -12646,15 +12670,48 @@ function tokAffs(t){
 function tokHas(t, name){ return tokAffs(t).indexOf(name) >= 0; }
 function tokVisionSpaces(t){ return tokHas(t, 'Masked') ? 1 : VISION_SPACES; }
 function myFellTok(){ if (isLM()) return null; var m = null; (S.tokens || []).forEach(function(t){ if (t.kind === 'p' && typeof tokenIsMine === 'function' && tokenIsMine(t)) m = t; }); return m; }
+/* 1 = seen now, 2 = in range but behind a creature 2x2 or larger (dimmed, not revealed).
+   Walls and closed doors stop sight outright: a cell counts only if the line from the
+   Fell to it crosses none of them. */
 function visionOf(tokens, d){
   var v = new Uint8Array(d.cols * d.rows);
+  var segs = wallBlockers();
+  var big = (S.tokens || []).filter(function(t){ return (t.cells || 1) >= 2 || t.shadow; });
   tokens.forEach(function(t){
     var r = tokVisionSpaces(t) * FOG_SUB + Math.floor(((t.cells || 1) * FOG_SUB) / 2);
     var cx = Math.floor(t.x / d.c), cy = Math.floor(t.y / d.c);
     var y0 = Math.max(0, cy - r), y1 = Math.min(d.rows - 1, cy + r), x0 = Math.max(0, cx - r), x1 = Math.min(d.cols - 1, cx + r);
-    for (var y = y0; y <= y1; y++) for (var x = x0; x <= x1; x++) v[y * d.cols + x] = 1;
+    var casters = big.filter(function(o){ return o.id !== t.id; });
+    for (var y = y0; y <= y1; y++) for (var x = x0; x <= x1; x++){
+      var i = y * d.cols + x;
+      if (v[i] === 1) continue;
+      var px = (x + .5) * d.c, py = (y + .5) * d.c;
+      if (segs.length && losBlocked(t.x, t.y, px, py, segs)) continue;
+      var shade = false;
+      for (var k = 0; k < casters.length && !shade; k++){ if (behindCreature(t.x, t.y, px, py, casters[k])) shade = true; }
+      v[i] = shade ? (v[i] || 2) : 1;
+    }
   });
   return v;
+}
+function losBlocked(ax, ay, bx, by, segs){
+  for (var i = 0; i < segs.length; i++){ var s = segs[i]; if (segsCross(ax, ay, bx, by, s.x1, s.y1, s.x2, s.y2)) return true; }
+  return false;
+}
+function segsCross(ax, ay, bx, by, cx, cy, dx, dy){
+  var d1 = (dx - cx) * (ay - cy) - (dy - cy) * (ax - cx), d2 = (dx - cx) * (by - cy) - (dy - cy) * (bx - cx);
+  var d3 = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax), d4 = (bx - ax) * (dy - ay) - (by - ay) * (dx - ax);
+  return ((d1 > 0) !== (d2 > 0)) && ((d3 > 0) !== (d4 > 0));
+}
+/* the cell is farther than the creature and the sight line passes within its body */
+function behindCreature(ax, ay, bx, by, o){
+  var rad = (o.cells || 1) * ((S.grid && S.grid.size) || 100) / 2 * .85;
+  var vx = bx - ax, vy = by - ay, L2 = vx*vx + vy*vy; if (!L2) return false;
+  var ox = o.x - ax, oy = o.y - ay, t = (ox*vx + oy*vy) / L2;
+  if (t <= 0 || t >= 1) return false;
+  if (Math.hypot(bx - o.x, by - o.y) < rad) return false;   /* the creature's own squares stay lit */
+  var qx = ax + vx * t - o.x, qy = ay + vy * t - o.y;
+  return qx*qx + qy*qy < rad*rad;
 }
 /* What this screen may see right now, and what it has seen before. */
 var _seen = {};   /* per map: cells ever inside the party's sight, this session */
@@ -12675,11 +12732,13 @@ function fogViewNow(){
   }
   var party = (S.tokens || []).filter(function(t){ return t.kind === 'p'; });
   var sight = visionOf(party, d), vis = new Uint8Array(n);
-  for (var i = 0; i < n; i++) vis[i] = (fc.a[i] || sight[i]) ? 1 : 0;
+  for (var i = 0; i < n; i++) vis[i] = (fc.a[i] || sight[i] === 1) ? 1 : 0;
   var k = mapKey() + ':' + n, seen = _seen[k];
   if (!seen){ seen = _seen[k] = new Uint8Array(n); var rec = fogRec(); if (rec && rec.e){ var e = fogDecode({ r:rec.e, v:'e' + (rec.ev || 0) }, n); for (var j = 0; j < n; j++) seen[j] = e[j]; } }
   var grew = false;
   for (var q = 0; q < n; q++) if (sight[q] && !seen[q]){ seen[q] = 1; grew = true; }
+  /* a Masked Fell's own screen (above) and walls aside, what sits behind a big creature
+     is dimmed rather than revealed: seen, not shown */
   if (grew && isLM()) fogSeenShare(seen);
   return { d:d, vis:vis, seen:seen, masked:false };
 }
@@ -12804,12 +12863,77 @@ function fogAll(what){
   _fogCache = {}; fogPaint(); try { renderTokens(); } catch(e){} schedulePush();
 }
 
+
+/* ================= walls and doors =================
+   The LoreMaster draws walls and doors on a map (Walls in the map bar): drag from corner to
+   corner, snapped to the grid's corners or to the end of a wall already there. A door is a
+   wall that opens: tap its handle to open or close it. Walls and closed doors stop the
+   party's sight; open doors let it through. Players never see the lines themselves, only
+   what the fog lets through. Kept per map in the table's state under walls, written only
+   by the LoreMaster, like the fog. */
+var wallMode = 'wall', _wallDrag = null, _mapStateLoaded = false;
+function wallList(){ var k = mapKey(); S.walls = S.walls || {}; return S.walls[k] || (S.walls[k] = []); }
+function wallBlockers(){ var k = mapKey(); return ((S.walls && S.walls[k]) || []).filter(function(w){ return !(w.door && w.open); }); }
+function wallSnap(x, y){
+  var g = (S.grid && S.grid.size) || 100, ox = (S.grid && S.grid.offX) || 0, oy = (S.grid && S.grid.offY) || 0, near = 14 / cam.zoom;
+  var best = null;
+  wallList().forEach(function(w){ [[w.x1, w.y1], [w.x2, w.y2]].forEach(function(p){ var dd = Math.hypot(p[0] - x, p[1] - y); if (dd < near && (!best || dd < best.d)) best = { d:dd, x:p[0], y:p[1] }; }); });
+  if (best) return { x:best.x, y:best.y };
+  return { x:Math.round((x - ox) / g) * g + ox, y:Math.round((y - oy) / g) * g + oy };
+}
+function wallPaint(){
+  var svg = document.getElementById('wallLayer'); if (!svg) return;
+  svg.setAttribute('width', S.map.w); svg.setAttribute('height', S.map.h);
+  var sw = Math.max(3, Math.round(((S.grid && S.grid.size) || 100) * .06)), h = '';
+  ((S.walls && S.walls[mapKey()]) || []).forEach(function(w){
+    h += '<line class="' + (w.door ? ('d' + (w.open ? ' open' : '')) : 'w') + '" x1="' + w.x1 + '" y1="' + w.y1 + '" x2="' + w.x2 + '" y2="' + w.y2 + '" stroke-width="' + sw + '"/>';
+    if (w.door){
+      var mx = (w.x1 + w.x2) / 2, my = (w.y1 + w.y2) / 2, rr = sw * 2.6;
+      h += '<g class="dh" data-door="' + esc(w.id) + '"><circle cx="' + mx + '" cy="' + my + '" r="' + rr + '" fill="rgba(10,14,26,.92)" stroke="' + (w.open ? '#8fd694' : '#e3a193') + '" stroke-width="' + (sw * .6) + '"/>'
+        + '<text x="' + mx + '" y="' + (my + rr * .38) + '" text-anchor="middle" font-size="' + (rr * 1.05) + '" fill="#fff" font-family="Cinzel,serif">' + (w.open ? 'O' : 'D') + '</text></g>';
+    }
+  });
+  if (_wallDrag && _wallDrag.b) h += '<line class="pv" x1="' + _wallDrag.a.x + '" y1="' + _wallDrag.a.y + '" x2="' + _wallDrag.b.x + '" y2="' + _wallDrag.b.y + '" stroke-width="' + sw + '"/>';
+  svg.innerHTML = h;
+}
+function wallShare(){ _fvMemo = null; wallPaint(); try { fogPaint(); renderTokens(); } catch(e){} if (isLM()) schedulePush(); }
+function wallCommit(){
+  var w = _wallDrag; _wallDrag = null;
+  if (!w || !w.b || (w.a.x === w.b.x && w.a.y === w.b.y)){ wallPaint(); return; }
+  wallList().push({ id:'w' + Date.now().toString(36) + Math.random().toString(36).slice(2,5), x1:w.a.x, y1:w.a.y, x2:w.b.x, y2:w.b.y, door:w.door ? 1 : 0, open:0 });
+  wallShare();
+}
+function wallRemoveAt(x, y){
+  var list = wallList(), reach = Math.max(10, ((S.grid && S.grid.size) || 100) * .2), best = -1, bd = Infinity;
+  list.forEach(function(w, i){
+    var vx = w.x2 - w.x1, vy = w.y2 - w.y1, L2 = vx*vx + vy*vy || 1, t = Math.max(0, Math.min(1, ((x - w.x1) * vx + (y - w.y1) * vy) / L2));
+    var dd = Math.hypot(w.x1 + vx * t - x, w.y1 + vy * t - y); if (dd < bd){ bd = dd; best = i; }
+  });
+  if (best >= 0 && bd <= reach){ list.splice(best, 1); wallShare(); }
+}
+function doorToggle(id){
+  if (!isLM()) return;
+  wallList().forEach(function(w){ if (w.id === id) w.open = w.open ? 0 : 1; });
+  wallShare();
+}
+(function(){
+  var svg = document.getElementById('wallLayer'); if (!svg) return;
+  svg.addEventListener('pointerdown', function(e){
+    var g = e.target.closest && e.target.closest('.dh'); if (!g) return;
+    e.preventDefault(); e.stopPropagation(); doorToggle(g.getAttribute('data-door'));
+  });
+})();
+
 /* ---- the tool gesture: one pointer on the bare map, in any tool but Pan ---- */
 var _toolG = null;
 function toolDown(e){
   if (mapTool === 'pan') return false;
   if (e.button !== undefined && e.button !== 0) return false;
   var p = toMap(e.clientX, e.clientY);
+  if (mapTool === 'walls' && isLM()){
+    if (wallMode === 'remove'){ wallRemoveAt(p.x, p.y); _toolG = { kind:'wallrm' }; return true; }
+    _wallDrag = { a:wallSnap(p.x, p.y), b:null, door:wallMode === 'door' }; _toolG = { kind:'wall' }; wallPaint(); return true;
+  }
   if (mapTool === 'fog' && isLM()){ _fogPainting = true; fogBrushAt(p.x, p.y, true); _toolG = { kind:'fog' }; return true; }
   if (mapTool === 'erase'){ drawEraseAt(p.x, p.y); _toolG = { kind:'erase' }; return true; }
   if (mapTool === 'draw'){
@@ -12833,6 +12957,7 @@ function toolMove(e){
     if (Math.abs(p.x - lx) + Math.abs(p.y - ly) >= 4 / cam.zoom && n < 1200){ _stroke.p.push(Math.round(p.x), Math.round(p.y)); drawPaint(); }
   } else if (_toolG.kind === 'erase'){ drawEraseAt(p.x, p.y); }
   else if (_toolG.kind === 'fog'){ fogBrushAt(p.x, p.y, false); }
+  else if (_toolG.kind === 'wall' && _wallDrag){ _wallDrag.b = wallSnap(p.x, p.y); wallPaint(); }
   else if (_toolG.kind === 'ruler'){
     var ov = document.elementFromPoint(e.clientX, e.clientY), tk = ov && ov.closest && ov.closest('.token'), tt = tk && tokById(tk.getAttribute('data-tok'));
     rulerDraw(_toolG.a, tt ? { x:tt.x, y:tt.y } : p);
@@ -12850,6 +12975,7 @@ function toolUp(e){
   var g = _toolG; _toolG = null;
   if (g.kind === 'draw' && _stroke){ var s = _stroke; _stroke = null; drawCommit(s); }
   else if (g.kind === 'fog'){ fogCommit(); }
+  else if (g.kind === 'wall'){ wallCommit(); }
   else if (g.kind === 'select'){ document.getElementById('selBox').style.display = 'none'; if (g.b) selectBox(g.a, g.b); else { multiSel = {}; renderTokens(); } }
   /* the ruler stays up until the next measure or another tool */
 }
@@ -13117,7 +13243,8 @@ function mid(a, b){ return { x:(a.x + b.x) / 2, y:(a.y + b.y) / 2 }; }
   }, true);
   m.addEventListener('pointerdown', function(e){
     if (e.target.closest && e.target.closest('#mapTools')) return;
-    if (e.target.closest && e.target.closest('.token') && !(mapTool === 'ruler' || mapTool === 'draw' || mapTool === 'erase' || mapTool === 'fog')) return;
+    if (e.target.closest && e.target.closest('.token') && !(mapTool === 'ruler' || mapTool === 'draw' || mapTool === 'erase' || mapTool === 'fog' || mapTool === 'walls')) return;
+    if (e.target.closest && e.target.closest('#wallLayer .dh')) return;
     m.setPointerCapture(e.pointerId);
     /* a tool other than Pan takes a single pointer; a second finger still pinches */
     if (pts.size === 0 && toolDown(e)){ pts.set(e.pointerId, { x:e.clientX, y:e.clientY, tool:true }); return; }
@@ -13275,6 +13402,7 @@ function render(){
   document.body.classList.toggle('lm-role', isLM());
   try { drawPaint(); } catch(e){}
   try { fogPaint(); } catch(e){}
+  try { wallPaint(); } catch(e){}
   try { renderHand(); } catch(e){}
   var hf = document.getElementById('hudFell');
   if (hf){

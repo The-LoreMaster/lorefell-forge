@@ -1,3 +1,11 @@
+## 2026-09-27 - Walls, doors, and shadows behind big creatures
+
+The LoreMaster's map bar gains Walls, with Wall, Door and Remove. Drag from corner to corner to lay one; ends snap to the grid's corners or to the end of a wall already there. A door carries a handle at its middle (D closed, O open) that the LoreMaster taps to open or close. Walls and closed doors stop the party's sight: a fog cell counts as seen only if the line from the Fell to it crosses none of them, so the fog clears room by room as the party moves. Open doors let sight through. Players never see the lines, only what the fog shows. Walls are kept per map in the table's state under walls, written only by the LoreMaster.
+
+Creatures 2x2 or larger (or any token marked shadow) cast a dim shadow: what lies behind them in range is dimmed rather than revealed, and tokens there are hidden, per the FellGuide's line of sight. The creature's own squares stay lit.
+
+The LoreMaster's push now carries fog and walls only once the stored copy has arrived, so a push made in the first moment after a reload can no longer lay an empty set over what was saved.
+
 ## 2026-09-27 - Fog of war: the party sees 15 spaces
 
 On a map with fog on, every Fell now reveals 15 spaces around it, the FellGuide's Vision, counted as the ruler counts, one per space in any direction, so the area is a square 31 spaces across. The party shares what it sees. Places once seen stay dimmed when the party moves on: the map shows through thinly, and any token there is hidden. The LoreMaster's screen keeps that memory in the fog record (e), so a player who joins or reloads finds the same places dimmed. Painted reveals still clear fog anywhere.
