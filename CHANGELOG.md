@@ -1,3 +1,7 @@
+## 2026-09-28 - Music: new tracks and playlists appear in the panel at once
+
+A track uploaded or a playlist made in Manage music did not appear in the Music panel's This scene and Battle lists until the panel was closed and reopened. Every change to the music now redraws the panel, and so does Done.
+
 ## 2026-09-28 - Music: the file goes straight to Media Manager
 
 Uploading through the backend failed with 413: a song is far bigger than a Wix backend call will carry. musicUpload is replaced by musicUploadUrl, which only asks Wix (mediaManager.getUploadUrl) for an upload address and token for LoreFell Music; the table then posts the file there itself, from the LoreMaster's device, and takes the file's address from Wix's reply (static.wixstatic.com/mp3/...). Files up to 50 MB. Paste velo/backend/campaignview.web.js, then velo/page-threadspire.js.
