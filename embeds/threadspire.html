@@ -3494,10 +3494,25 @@ function tsBuildPack(){
       });
     });
   });
+  /* everything saved to this adventure's library, NPCs as well as foes, whether or not a
+     scene uses it yet */
   (S.library || []).forEach(function(e){
-    if (e.type === 'monster' && e.campaignId && sameId(e.campaignId, S.campaignId)) takeLib(e.id);
+    if ((e.type === 'monster' || e.type === 'npc') && e.campaignId && sameId(e.campaignId, S.campaignId)) takeLib(e.id);
   });
-  return { meta:{ format:'lorefell-adventure-pack-1', builtAt:Date.now() }, campaign:camp, npcs:npcs, foes:foes };
+  return { meta:{ format:'lorefell-adventure-pack-1', builtAt:Date.now(), full:true }, campaign:camp, npcs:npcs, foes:foes, table:tsBuildTable() };
+}
+/* The table itself, for a full backup: the boards (stages, each a map and where every token
+   stands), which scene uses which, and the live state everyone sees (tokens, grid, map,
+   drawings, fog, walls and doors, lights and darkness, music). Pings are left behind. FateWell
+   ignores this section; ThreadSpire restores it. */
+function tsBuildTable(){
+  var clone = function(x){ try { return JSON.parse(JSON.stringify(x)); } catch(e){ return null; } };
+  var inst = clone(S.instance || {}) || {};
+  var stages = (inst.stages || []).map(function(st){ var c = Object.assign({}, st); delete c.campaignId; return c; });
+  var state = clone(sharedSnapshot()) || {};
+  delete state.pings; delete state.log;
+  state.fog = clone(S.fog || {}); state.walls = clone(S.walls || {}); state.lights = clone(S.lights || {}); state.music = clone(S.music || null) || undefined;
+  return { originalId:S.campaignId || '', stages:stages, state:state };
 }
 function tsExportAdventure(){
   var A = S.adventure || {};
@@ -3505,7 +3520,15 @@ function tsExportAdventure(){
     tsModal('<h3 class="tsm-title">Nothing to back up</h3><p class="lc-p">Open an adventure first.</p><div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
     return;
   }
-  var text = JSON.stringify(tsBuildPack(), null, 2);
+  /* the roster rides along: who was in the adventure, at what role, and with which Fell */
+  if (!tsExportAdventure._roster){
+    tsAsk('TS_ROSTER_GET', { campaignId:S.campaignId }).then(function(ps){ tsExportAdventure._roster = Array.isArray(ps) ? ps : []; tsExportAdventure(); tsExportAdventure._roster = null; })
+      .catch(function(){ tsExportAdventure._roster = []; tsExportAdventure(); tsExportAdventure._roster = null; });
+    return;
+  }
+  var packObj = tsBuildPack();
+  packObj.roster = (tsExportAdventure._roster || []).map(function(p){ return { memberId:p.memberId || '', memberName:p.memberName || '', role:p.role || 'player', charId:p.charId || '', name:p.name || '', kept:!!p.kept }; });
+  var text = JSON.stringify(packObj, null, 2);
   var name = String(A.name || 'adventure').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'adventure';
   try {
     var b = new Blob([text], { type:'application/json' });
@@ -3513,7 +3536,7 @@ function tsExportAdventure(){
     a.href = URL.createObjectURL(b); a.download = name + '.lorefell-pack.json';
     document.body.appendChild(a); a.click();
     setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 500);
-    tsModal('<h3 class="tsm-title">Backed up</h3><p class="lc-p">The adventure downloaded as a pack. Bring it back through Import and it lands as a fresh copy.</p><div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
+    tsModal('<h3 class="tsm-title">Backed up</h3><p class="lc-p">The adventure downloaded as a pack: the story, its foes and NPCs, the table (maps and boards, tokens, fog, walls, lights, drawings, music), and who was at it. Import brings all of it back.</p><div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
   } catch(e){
     tsModal('<h3 class="tsm-title">Back up ' + esc(A.name || 'adventure') + '</h3><p class="tsm-note">Copy this and save it as a .json file. Bring it back through Import.</p><textarea class="tsm-inp tsm-ta" style="min-height:220px" onclick="this.select()" readonly>' + esc(text) + '</textarea><div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Done</button></div>');
   }
@@ -3559,11 +3582,18 @@ function tsImportPack(pack){
     campJson = campJson.split(JSON.stringify(old)).join(JSON.stringify(idMap[old]));
   });
   pack = Object.assign({}, pack, { campaign: JSON.parse(campJson) });
+  var tableJson = pack.table ? JSON.stringify(pack.table) : '';
+  Object.keys(idMap).forEach(function(old){ if (tableJson) tableJson = tableJson.split(JSON.stringify(old)).join(JSON.stringify(idMap[old])); });
+  var table = tableJson ? JSON.parse(tableJson) : null;
   var rows = [];
   (pack.foes || []).forEach(function(f){ var e = Object.assign({}, f); e.type = 'monster'; if (idMap[e.id]) e.id = idMap[e.id]; rows.push(assetToRow(e)); });
   (pack.npcs || []).forEach(function(n){ var e = Object.assign({}, n); e.type = 'npc'; if (idMap[e.id]) e.id = idMap[e.id]; rows.push(assetToRow(e)); });
-  tsAsk('TS_ADVENTURE_IMPORT', { pack:pack, rows:rows }).then(function(r){
+  tsAsk('TS_ADVENTURE_IMPORT', { pack:pack, rows:rows, table:table, roster:pack.roster || [] }).then(function(r){
     if (!r || !r.id) throw new Error('no id');
+    if (r.restored && r.restored.roster && r.restored.roster.skipped){
+      /* said once the table opens: Fells still at another table, or no longer the member's, stay where they are */
+      setTimeout(function(){ try { pushLog({ kind:'sys', html:'Restored from backup. ' + r.restored.roster.fells + ' Fell' + (r.restored.roster.fells === 1 ? '' : 's') + ' came back to the table; ' + r.restored.roster.skipped + ' did not, because they are at another table or no longer belong to that player.' }); applyRemoteState({ log:S.log }); } catch(e){} }, 4000);
+    }
     return tsAsk('TS_CAMPAIGN_SET', { campaignId:r.id });
   }).catch(function(){
     advGoingStop();
