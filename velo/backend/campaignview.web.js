@@ -6,6 +6,24 @@ import { Permissions, webMethod } from 'wix-web-module';
 import wixData from 'wix-data';
 import { currentMember } from 'wix-members-backend';
 import { myAdventureRole } from 'backend/fatewell.web.js';
+import { fetch } from 'wix-fetch';
+
+// Music at the table: read a Suno song page (a browser cannot, across sites) for the song's
+// title and where its audio lives. A short suno.com/s/ link is followed to the song first.
+export const musicResolve = webMethod(Permissions.Anyone, async (url) => {
+  try {
+    const u = String(url || '').trim();
+    if (!/^https:\/\/(www\.)?suno\.(com|ai)\//i.test(u)) return { ok: false, error: 'not a Suno link' };
+    const res = await fetch(u, { method: 'get', headers: { 'user-agent': 'Mozilla/5.0' } });
+    const html = await res.text();
+    const idm = String(res.url || '').match(/\/song\/([0-9a-f-]{36})/i) || html.match(/cdn1\.suno\.ai\/([0-9a-f-]{36})\.mp3/i) || html.match(/\/song\/([0-9a-f-]{36})/i);
+    if (!idm) return { ok: false, error: 'no song found at that link' };
+    const tm = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i) || html.match(/<title>([^<]+)<\/title>/i);
+    let title = tm ? tm[1] : 'Suno song';
+    title = title.replace(/\s*[|\-–]\s*Suno.*$/i, '').replace(/&amp;/g, '&').replace(/&#39;|&apos;/g, "'").replace(/&quot;/g, '"').trim() || 'Suno song';
+    return { ok: true, id: idm[1], title: title, audio: 'https://cdn1.suno.ai/' + idm[1] + '.mp3' };
+  } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+});
 
 // TELEMETRY. The 2-second table-state poll runs through here, so this is the steady baseline
 // of calls that everything else stacks on top of. Counting it shows how much quota the poll
