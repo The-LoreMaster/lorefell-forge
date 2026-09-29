@@ -733,3 +733,43 @@ export const threadspireSaveMeta = webMethod(Permissions.Anyone, async (charId, 
     return { ok: true };
   } catch (e) { return { ok: false, error: String(e) }; }
 });
+
+// ---- dice ----
+// What dice a player owns is worked out here, from their own Fells, so it cannot be claimed
+// from the page: every lineage any of their Fells has taken, and the highest level any has
+// reached (Resplendent at 10, Ascendent at 20, Transcendent at 30). Their choice of set per
+// kind of roll is kept in DicePrefs, one row per member.
+async function diceOwned(me) {
+  const lineages = [], seen = {}; let maxLevel = 0;
+  try {
+    const rs = await wixData.query('Characters').eq('ownerMemberId', me).limit(200).find({ suppressAuth: true });
+    rs.items.forEach((row) => {
+      let data = {}; try { data = typeof row.data === 'string' ? JSON.parse(row.data) : (row.data || {}); } catch (e) { data = {}; }
+      const lin = String((data.identity && data.identity.lineage) || '').trim();
+      if (lin && !seen[lin.toLowerCase()]) { seen[lin.toLowerCase()] = 1; lineages.push(lin); }
+      const lv = Math.max(Number(row.level) || 0, Number(data.lore && data.lore.level) || 0, Number(data.level) || 0);
+      if (lv > maxLevel) maxLevel = lv;
+    });
+  } catch (e) {}
+  return { lineages, maxLevel };
+}
+export const myDice = webMethod(Permissions.Anyone, async () => {
+  const m = await currentMember.getMember().catch(() => null);
+  if (!m || !m._id) return { ok: false, lineages: [], maxLevel: 0, picks: {} };
+  const own = await diceOwned(m._id);
+  let picks = {};
+  try { const r = await wixData.query('DicePrefs').eq('memberId', m._id).limit(1).find({ suppressAuth: true }); if (r.items[0]) picks = JSON.parse(r.items[0].picks || '{}') || {}; } catch (e) { picks = {}; }
+  return { ok: true, lineages: own.lineages, maxLevel: own.maxLevel, picks };
+});
+export const saveDicePicks = webMethod(Permissions.Anyone, async (picks) => {
+  const m = await currentMember.getMember().catch(() => null);
+  if (!m || !m._id) return { ok: false };
+  const clean = {};
+  ['attack', 'evade', 'skill', 'generic'].forEach((k) => { const v = picks && picks[k]; if (typeof v === 'string' && v.length < 60) clean[k] = v; });
+  try {
+    const r = await wixData.query('DicePrefs').eq('memberId', m._id).limit(1).find({ suppressAuth: true });
+    if (r.items[0]) await wixData.update('DicePrefs', Object.assign({}, r.items[0], { picks: JSON.stringify(clean) }), { suppressAuth: true });
+    else await wixData.insert('DicePrefs', { memberId: m._id, picks: JSON.stringify(clean) }, { suppressAuth: true });
+    return { ok: true };
+  } catch (e) { return { ok: false, error: String(e) }; }
+});
