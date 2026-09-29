@@ -1,3 +1,7 @@
+## 2026-09-28 - Music: the file goes straight to Media Manager
+
+Uploading through the backend failed with 413: a song is far bigger than a Wix backend call will carry. musicUpload is replaced by musicUploadUrl, which only asks Wix (mediaManager.getUploadUrl) for an upload address and token for LoreFell Music; the table then posts the file there itself, from the LoreMaster's device, and takes the file's address from Wix's reply (static.wixstatic.com/mp3/...). Files up to 50 MB. Paste velo/backend/campaignview.web.js, then velo/page-threadspire.js.
+
 ## 2026-09-28 - Music: upload files; links are gone
 
 Suno signs its song files (CloudFront Key-Pair-Id) and the signatures expire, so no Suno address, public or not, can be played from the table. The link option is removed, along with musicResolve. Manage music now has Upload file: the LoreMaster picks an audio file they own (an MP3 downloaded from Suno, say), the table reads it and hands it to a new musicUpload in backend/campaignview.web.js, which puts it in the site's Media Manager under LoreFell Music (public, up to 25 MB, members only) and returns its address; the track joins the library under the file's name. Paste velo/backend/campaignview.web.js, then velo/page-threadspire.js. Tracks added from Suno links before today will not play; remove them.

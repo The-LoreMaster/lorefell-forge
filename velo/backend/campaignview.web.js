@@ -9,27 +9,23 @@ import { myAdventureRole } from 'backend/fatewell.web.js';
 import { mediaManager } from 'wix-media-backend';
 
 // Music at the table: the LoreMaster uploads an audio file they own (a song downloaded from
-// Suno, say), and it goes into the site's Media Manager under LoreFell Music. Suno's own file
-// addresses are signed and expire, so a copy on the site is what plays for everyone.
-export const musicUpload = webMethod(Permissions.Anyone, async (name, mime, b64) => {
+// Suno, say) into the site's Media Manager under LoreFell Music. Suno's own file addresses are
+// signed and expire, so a copy on the site is what plays for everyone. A song is too big to
+// pass through a backend call (Wix refuses it with 413), so the backend only asks Wix for an
+// upload address and the browser sends the file there itself.
+export const musicUploadUrl = webMethod(Permissions.Anyone, async (name, mime) => {
   try {
     const m = await currentMember.getMember().catch(() => null);
     if (!m || !m._id) return { ok: false, error: 'sign in to upload music' };
     const type = String(mime || '');
     if (!/^audio\//i.test(type)) return { ok: false, error: 'that is not an audio file' };
-    const buf = Buffer.from(String(b64 || ''), 'base64');
-    if (!buf.length) return { ok: false, error: 'the file was empty' };
-    if (buf.length > 25 * 1024 * 1024) return { ok: false, error: 'the file is over 25 MB' };
     const fileName = String(name || 'track').replace(/[^\w .()-]+/g, '').slice(0, 120) || 'track';
-    const up = await mediaManager.upload('/LoreFell Music', buf, fileName, {
+    const r = await mediaManager.getUploadUrl('/LoreFell Music', {
       mediaOptions: { mimeType: type, mediaType: 'audio' },
-      metadataOptions: { isPrivate: false, isVisitorUpload: false }
+      metadataOptions: { isPrivate: false, isVisitorUpload: false, fileName: fileName }
     });
-    let url = '';
-    try { url = await mediaManager.getFileUrl(up.fileName); } catch (e) { url = ''; }
-    if (!url && up.fileName) url = 'https://static.wixstatic.com/mp3/' + up.fileName;
-    if (!url) return { ok: false, error: 'the upload gave no address' };
-    return { ok: true, url: url, title: (up.originalFileName || fileName).replace(/\.[a-z0-9]+$/i, '') };
+    if (!r || !r.uploadUrl) return { ok: false, error: 'no upload address' };
+    return { ok: true, uploadUrl: r.uploadUrl, uploadToken: r.uploadToken || '', fileName: fileName };
   } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
 });
 

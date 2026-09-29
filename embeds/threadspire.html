@@ -13561,24 +13561,38 @@ function musicManage(){
   tsModal(h);
 }
 function musicId(){ return 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
-/* read the chosen file and hand it to the site, which puts it in Media Manager */
+/* The site hands back an upload address for Media Manager, and the file goes straight there
+   from this device: a song is too big to pass through the site's own backend. */
+function musicWixUrl(res, fallbackName){
+  var o = Array.isArray(res) ? res[0] : res; o = (o && (o.file || o.fileDescriptor)) || o || {};
+  var fn = o.file_name || o.fileName || o.id || '';
+  var direct = o.file_url || o.fileUrl || o.url || '';
+  if (/^https?:\/\//i.test(direct)) return direct;
+  if (fn) return 'https://static.wixstatic.com/mp3/' + fn;
+  return '';
+}
 function musicUploadPick(inp){
   var f = inp && inp.files && inp.files[0], msg = document.getElementById('muMsg'); if (!f) return;
-  if (!/^audio\//i.test(f.type || '')){ if (msg) msg.textContent = 'That is not an audio file.'; return; }
-  if (f.size > 25 * 1024 * 1024){ if (msg) msg.textContent = 'That file is over 25 MB. Try a smaller MP3.'; return; }
-  if (msg) msg.textContent = 'Uploading ' + f.name + ' (' + (f.size / 1048576).toFixed(1) + ' MB)\u2026';
-  var rd = new FileReader();
-  rd.onload = function(){
-    var b64 = String(rd.result || '').split(',')[1] || '';
-    tsAsk('TS_MUSIC_UPLOAD', { name:f.name, mime:f.type, b64:b64 }).then(function(r){
-      if (!r || !r.url){ if (msg) msg.textContent = 'The upload did not finish. Try again.'; return; }
+  var say = function(t){ if (msg) msg.textContent = t; };
+  if (!/^audio\//i.test(f.type || '')){ say('That is not an audio file.'); return; }
+  if (f.size > 50 * 1024 * 1024){ say('That file is over 50 MB. Try a smaller MP3.'); return; }
+  say('Uploading ' + f.name + ' (' + (f.size / 1048576).toFixed(1) + ' MB)\u2026');
+  tsAsk('TS_MUSIC_UPLOAD_URL', { name:f.name, mime:f.type }).then(function(u){
+    if (!u || !u.uploadUrl){ say('The site gave no upload address. Try again.'); return; }
+    var fd = new FormData();
+    fd.append('upload_token', u.uploadToken || '');
+    fd.append('file', f, u.fileName || f.name);
+    return fetch(u.uploadUrl, { method:'POST', body:fd }).then(function(res){
+      if (!res.ok) throw new Error('status ' + res.status);
+      return res.json().catch(function(){ return {}; });
+    }).then(function(j){
+      var url = musicWixUrl(j, u.fileName);
+      if (!url){ say('The file uploaded, but its address did not come back. Find it in Media Manager, LoreFell Music.'); return; }
       var m = musicState(); m.tracks = m.tracks || [];
-      m.tracks.push({ id:musicId(), title:r.title || f.name.replace(/\.[a-z0-9]+$/i, ''), url:r.url });
+      m.tracks.push({ id:musicId(), title:f.name.replace(/\.[a-z0-9]+$/i, ''), url:url });
       musicShare(); musicManage();
-    }).catch(function(e){ if (msg) msg.textContent = 'The upload did not finish: ' + ((e && e.message) || 'try again') + '.'; });
-  };
-  rd.onerror = function(){ if (msg) msg.textContent = 'That file could not be read.'; };
-  rd.readAsDataURL(f);
+    });
+  }).catch(function(e){ say('The upload did not finish: ' + ((e && e.message) || 'try again') + '.'); });
 }
 function musicToList(trackId, listId){
   if (!listId) return;
