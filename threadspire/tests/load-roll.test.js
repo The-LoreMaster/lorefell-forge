@@ -66,6 +66,16 @@ async function boot() {
   js('applyRemoteState({ log: S.log.concat([{id:402,kind:"roll",who:"Astra",rollType:"attack",n:6}]) });');
   check('a roll that arrives after load throws once', js('window.__throws.length') === 1 && js('window.__throws[0]') === 'Astra', 'threw for ' + js('JSON.stringify(window.__throws)'));
 
+  console.log('\nanother player\'s roll, arriving with the next pull, is thrown');
+  js('flourishedId=0;');
+  js('applyRemoteSnapshot({ log:[ {id:501,kind:"roll",who:"Astra",rollType:"attack",n:2} ] });');
+  js('window.__throws=[];');
+  js('applyRemoteSnapshot({ log:[ {id:501,kind:"roll",who:"Astra",rollType:"attack",n:2}, {id:502,kind:"roll",who:"Agnes",rollType:"attack",n:5} ] });');
+  check('a pulled roll from someone else throws, tagged with them', js('window.__throws.length') >= 1 && js('window.__throws[0]') === 'Agnes', 'threw for ' + js('JSON.stringify(window.__throws)'));
+  js('window.__throws=[];');
+  js('applyRemoteSnapshot({ log:[ {id:601,kind:"roll",who:"Brom",rollType:"attack",n:1} ] });');
+  check('another adventure\'s log arriving throws nothing', js('window.__throws.length') === 0, 'threw for ' + js('JSON.stringify(window.__throws)'));
+
   console.log('\n' + (fail ? 'FAILED ' + fail + ' of ' + (pass + fail) : 'all ' + pass + ' checks passed'));
   process.exit(fail ? 1 : 0);
 })();
