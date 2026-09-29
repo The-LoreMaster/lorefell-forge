@@ -13,7 +13,7 @@ import { getLibraries } from 'backend/libraries.web.js';
 import { listSphereArt } from 'backend/sphereart.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
 import { listStages, saveStage, deleteStage } from 'backend/threadspire.web.js';
-import { getCampaignState, saveCampaignState, getJournal, saveJournal, musicUpload } from 'backend/campaignview.web.js';
+import { getCampaignState, saveCampaignState, getJournal, saveJournal, musicUploadUrl } from 'backend/campaignview.web.js';
 import { loadAdventure, saveAdventureRoot, saveAdvAct, saveAdvSession, saveAdvScene, removeAdvScene, removeAdvSession, removeAdvAct, migrateCampaign } from 'backend/adventures.web.js';
 import { myAdventureRole, deleteCampaign } from 'backend/fatewell.web.js';
 import { removeAdventure } from 'backend/adventures.web.js';
@@ -543,9 +543,9 @@ $w.onReady(async function () {
           let list = [];
           try { list = await listMyCharacters(); } catch (e) { list = []; }
           reply(true, list);
-        } else if (msg.type === 'TS_MUSIC_UPLOAD') {
+        } else if (msg.type === 'TS_MUSIC_UPLOAD_URL') {
           let r = { ok: false };
-          try { r = await musicUpload(msg.name || '', msg.mime || '', msg.b64 || ''); } catch (e) { r = { ok: false, error: String(e) }; }
+          try { r = await musicUploadUrl(msg.name || '', msg.mime || ''); } catch (e) { r = { ok: false, error: String(e) }; }
           reply(!!(r && r.ok), r, r && r.error);
         } else if (msg.type === 'TS_LM_NOTES_SAVE') {
           let r = { ok: false };
