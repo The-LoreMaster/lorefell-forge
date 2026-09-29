@@ -1,3 +1,7 @@
+## 2026-09-28 - Music picks up where it left off, and loops by default
+
+Switching music now remembers where the music being left was, and music coming back picks up from there: after a fight, the scene's playlist returns at the same song and moment rather than its first track. Battle music always starts fresh, since every fight is a new one. Playlists and single tracks loop by default, battle music included: the playlist carries on round, a single track plays again. A Loop button beside the controls lets the LoreMaster turn that off for the table, and then the music stops after the last track.
+
 ## 2026-09-28 - Music: new tracks and playlists appear in the panel at once
 
 A track uploaded or a playlist made in Manage music did not appear in the Music panel's This scene and Battle lists until the panel was closed and reopened. Every change to the music now redraws the panel, and so does Done.

@@ -51,6 +51,9 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 .mu-ctl button{ width:34px; height:30px; border:1px solid rgba(201,168,76,.4); border-radius:8px; color:var(--gold); background:none; font-size:.95rem; padding:0; }
 .mu-ctl .mu-master{ width:auto; padding:0 12px; margin-left:auto; font-family:Cinzel,serif; font-size:.6rem; letter-spacing:.1em; color:var(--muted,#8fa3b3); }
 .mu-ctl .mu-master.on{ color:var(--gold); border-color:var(--gold); }
+.mu-ctl .mu-loop{ display:flex; align-items:center; justify-content:center; color:var(--muted,#8fa3b3); border-color:var(--line); }
+.mu-ctl .mu-loop svg{ width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+.mu-ctl .mu-loop.on{ color:var(--gold); border-color:var(--gold); }
 .mu-row{ display:flex; flex-direction:column; gap:3px; font-size:.75rem; color:var(--muted,#8fa3b3); }
 .mu-row select, .mu-row input[type=range]{ width:100%; accent-color:var(--gold); }
 .mu-me{ display:flex; gap:6px; align-items:center; font-size:.8rem; }
@@ -13395,7 +13398,7 @@ function pviewSet(on){
    has arrived: { tracks:[{id,title,url}], lists:[{id,name,ids}], scenes:{sceneId:ref},
    battle:ref, live:{on,playing,ref,idx,at,pos} }, where a ref is "p:<list>" or "t:<track>". */
 var musicEl = null, _musicTap = false, _musicLoadedSrc = '', _musicTaken = false, _musicErr = '', _musicErrSrc = '';
-function musicState(){ S.music = S.music || { tracks:[], lists:[], scenes:{}, battle:'', live:{ on:true, playing:true, ref:'', idx:0, at:0, pos:0 } }; S.music.live = S.music.live || { on:true, playing:true, ref:'', idx:0, at:0, pos:0 }; return S.music; }
+function musicState(){ S.music = S.music || { tracks:[], lists:[], scenes:{}, battle:'', live:{ on:true, playing:true, loop:true, ref:'', idx:0, at:0, pos:0 } }; S.music.live = S.music.live || { on:true, playing:true, loop:true, ref:'', idx:0, at:0, pos:0 }; return S.music; }
 function musicMine(){ var o = {}; try { o = JSON.parse(localStorage.getItem('ts_music_me') || '{}') || {}; } catch(e){} if (o.vol === undefined) o.vol = .6; return o; }
 function musicSetMine(k, v){ var o = musicMine(); o[k] = v; try { localStorage.setItem('ts_music_me', JSON.stringify(o)); } catch(e){} musicApply(); musicPaintPanel(); }
 function musicTrack(id){ return (musicState().tracks || []).filter(function(t){ return t.id === id; })[0] || null; }
@@ -13421,11 +13424,37 @@ function musicWanted(){
 /* every change to the music reaches the table, and redraws the panel's lists at once, so a
    track or playlist just added can be chosen without closing and reopening Music */
 function musicShare(){ if (isLM()) schedulePush(); try { musicPaintPanel(); } catch(e){} }
+/* Switching music remembers where the music being left off was, and music coming back picks
+   up from there: a fight's music, and then the scene's playlist at the same song and moment.
+   Battle music itself always starts fresh, since every fight is a new one. */
 function musicStart(ref){
-  var m = musicState();
-  m.live.ref = ref || ''; m.live.idx = 0; m.live.at = Date.now(); m.live.pos = 0;
+  var m = musicState(), L = m.live;
+  m.resume = m.resume || {};
+  if (L.ref && L.ref !== m.battle){
+    var pos = L.playing ? Math.max(0, (Date.now() - (L.at || Date.now())) / 1000) : (L.pos || 0);
+    m.resume[L.ref] = { idx:L.idx || 0, pos:pos };
+  }
+  var back = (ref && ref !== m.battle) ? m.resume[ref] : null;
+  L.ref = ref || ''; L.idx = back ? back.idx : 0; L.pos = back ? back.pos : 0;
+  L.at = Date.now() - (L.playing ? (L.pos || 0) * 1000 : 0);
+  if (L.loop === undefined) L.loop = true;
   musicShare(); musicApply(); musicPaintPanel();
 }
+/* The end of a track. Looping (the default) carries on round the playlist, or plays a single
+   track again; with looping off the music stops after the last track. */
+function musicEnded(){
+  if (!isLM()) return;
+  var m = musicState(), L = m.live, n = musicRefTracks(L.ref).length; if (!n) return;
+  var loop = L.loop !== false;
+  if ((L.idx || 0) + 1 < n){ L.idx = (L.idx || 0) + 1; }
+  else if (loop){ L.idx = 0; }
+  else { L.playing = false; L.pos = 0; L.idx = 0; musicShare(); musicApply(); musicPaintPanel(); return; }
+  L.at = Date.now(); L.pos = 0;
+  /* the same file again, as with one looping track, has to be rewound by hand */
+  try { if (musicEl) musicEl.currentTime = 0; } catch(e){}
+  musicShare(); musicApply(); musicPaintPanel();
+}
+function musicLoopToggle(){ if (!isLM()) return; var L = musicState().live; L.loop = (L.loop === false); musicShare(); musicPaintPanel(); }
 function musicPlayPause(){
   if (!isLM()) return;
   var L = musicState().live;
@@ -13444,7 +13473,7 @@ function musicMaster(on){ if (!isLM()) return; musicState().live.on = !!on; musi
 function musicApply(){
   if (!musicEl){
     musicEl = new Audio(); musicEl.preload = 'auto';
-    musicEl.addEventListener('ended', function(){ if (isLM()) musicSkip(1); });
+    musicEl.addEventListener('ended', function(){ musicEnded(); });
     /* a file that will not load is not a missing tap: say which, so the prompt stops asking
        for taps that cannot help */
     musicEl.addEventListener('error', function(){
@@ -13506,6 +13535,7 @@ function musicPaintPanel(){
     + (_musicErr ? '<div class="mu-err">' + esc(_musicErr) + (isLM() && t ? '<br><span class="mu-url">' + esc(t.url) + '</span>' : '') + '</div>' : '');
   if (isLM()){
     h += '<div class="mu-ctl"><button data-mu="prev" title="Previous">\u23ee</button><button data-mu="pp" title="Play or pause for everyone">' + (L.playing ? '\u23f8' : '\u25b6') + '</button><button data-mu="next" title="Next">\u23ed</button>'
+      + '<button data-mu="loop" class="mu-loop' + (L.loop !== false ? ' on' : '') + '" title="Loop: carry on round the playlist, or play a single track again. Off: stop after the last track." aria-pressed="' + (L.loop !== false) + '"><svg viewBox="0 0 24 24"><path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg></button>'
       + '<button data-mu="master" class="mu-master' + (L.on ? ' on' : '') + '" title="Music on or off for the whole table">' + (L.on ? 'On' : 'Off') + '</button></div>';
     var opts = function(sel){
       var o = '<option value="">Nothing</option>';
@@ -13530,6 +13560,7 @@ function musicPaintPanel(){
     var k = b.getAttribute('data-mu');
     if (k === 'pp') musicPlayPause(); else if (k === 'next') musicSkip(1); else if (k === 'prev') musicSkip(-1);
     else if (k === 'master') musicMaster(!musicState().live.on);
+    else if (k === 'loop') musicLoopToggle();
     else if (k === 'manage') musicManage();
   });
   box.addEventListener('change', function(e){
