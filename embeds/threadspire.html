@@ -13378,8 +13378,9 @@ function pviewSet(on){
 
 
 /* ================= music at the table =================
-   The LoreMaster keeps a library of tracks for the adventure (Suno song links, or any direct
-   audio file address, such as a song uploaded to the site), groups them into playlists, and
+   The LoreMaster keeps a library of tracks for the adventure, uploaded from their own device
+   into the site's Media Manager (Suno's own file addresses are signed and expire, so they
+   cannot be played from here), groups them into playlists, and
    assigns a playlist or a single track to each scene and one to battle. Opening a scene, or a
    fight starting and ending, switches the music on its own. Everyone's own device plays it;
    the LoreMaster's screen says what is playing and when it started, and each device joins
@@ -13397,10 +13398,6 @@ var musicEl = null, _musicTap = false, _musicLoadedSrc = '', _musicTaken = false
 function musicState(){ S.music = S.music || { tracks:[], lists:[], scenes:{}, battle:'', live:{ on:true, playing:true, ref:'', idx:0, at:0, pos:0 } }; S.music.live = S.music.live || { on:true, playing:true, ref:'', idx:0, at:0, pos:0 }; return S.music; }
 function musicMine(){ var o = {}; try { o = JSON.parse(localStorage.getItem('ts_music_me') || '{}') || {}; } catch(e){} if (o.vol === undefined) o.vol = .6; return o; }
 function musicSetMine(k, v){ var o = musicMine(); o[k] = v; try { localStorage.setItem('ts_music_me', JSON.stringify(o)); } catch(e){} musicApply(); musicPaintPanel(); }
-function musicFixUrl(t){
-  if (t && /suno\.com\/api\/forbidden/i.test(t.url || '') && t.sid) t.url = 'https://cdn1.suno.ai/' + t.sid + '.mp3';
-  return t;
-}
 function musicTrack(id){ return (musicState().tracks || []).filter(function(t){ return t.id === id; })[0] || null; }
 function musicList(id){ return (musicState().lists || []).filter(function(l){ return l.id === id; })[0] || null; }
 function musicRefTracks(ref){
@@ -13413,7 +13410,7 @@ function musicRefName(ref){
   if (ref.indexOf('t:') === 0){ var t = musicTrack(ref.slice(2)); return t ? t.title : 'A missing track'; }
   var l = musicList(ref.slice(2)); return l ? l.name : 'A missing playlist';
 }
-function musicNow(){ var m = musicState(), L = musicRefTracks(m.live.ref); return L.length ? musicFixUrl(L[(m.live.idx || 0) % L.length]) : null; }
+function musicNow(){ var m = musicState(), L = musicRefTracks(m.live.ref); return L.length ? L[(m.live.idx || 0) % L.length] : null; }
 /* what should be playing here and now: battle's music in a fight, else the scene's */
 function musicWanted(){
   var m = musicState();
@@ -13548,8 +13545,8 @@ function musicManage(){
   if (!isLM()) return;
   var m = musicState();
   var h = '<h3 class="tsm-title">Music</h3>'
-    + '<p class="lc-p">Paste a Suno song link (suno.com/song/... or a short suno.com/s/... link), or the address of an audio file you have uploaded to the site.</p>'
-    + '<div class="tsm-row"><input id="muLink" class="tsm-in" placeholder="Song link or audio file address" style="flex:1"><button class="tsm-btn" onclick="musicAddLink()">Add</button></div>'
+    + '<p class="lc-p">Upload an audio file you own (an MP3 downloaded from Suno, for instance). It goes into your site\u2019s Media Manager and into this adventure\u2019s music.</p>'
+    + '<div class="tsm-row"><label class="tsm-btn" style="cursor:pointer">Upload file<input type="file" accept="audio/*" id="muFile" style="display:none" onchange="musicUploadPick(this)"></label></div>'
     + '<div id="muMsg" class="lc-p" style="min-height:18px"></div>'
     + '<div class="mu-lib">' + ((m.tracks || []).length ? m.tracks.map(function(t){
         return '<div class="mu-trk"><span>' + esc(t.title) + '</span><select onchange="musicToList(\'' + esc(t.id) + '\', this.value); this.value=\'\'"><option value="">Add to playlist\u2026</option>'
@@ -13564,29 +13561,24 @@ function musicManage(){
   tsModal(h);
 }
 function musicId(){ return 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
-function musicAddLink(){
-  var inp = document.getElementById('muLink'), msg = document.getElementById('muMsg'); if (!inp) return;
-  var url = (inp.value || '').trim(); if (!url) return;
-  var direct = /\.(mp3|m4a|ogg|oga|wav|aac|flac)(\?|$)/i.test(url);
-  var sunoSong = url.match(/suno\.(?:com|ai)\/song\/([0-9a-f-]{36})/i);
-  var add = function(title, audio, sid){
-    var m = musicState(); m.tracks = m.tracks || [];
-    m.tracks.push({ id:musicId(), title:title || 'Untitled track', url:audio, sid:sid || '' }); musicShare(); musicManage();
+/* read the chosen file and hand it to the site, which puts it in Media Manager */
+function musicUploadPick(inp){
+  var f = inp && inp.files && inp.files[0], msg = document.getElementById('muMsg'); if (!f) return;
+  if (!/^audio\//i.test(f.type || '')){ if (msg) msg.textContent = 'That is not an audio file.'; return; }
+  if (f.size > 25 * 1024 * 1024){ if (msg) msg.textContent = 'That file is over 25 MB. Try a smaller MP3.'; return; }
+  if (msg) msg.textContent = 'Uploading ' + f.name + ' (' + (f.size / 1048576).toFixed(1) + ' MB)\u2026';
+  var rd = new FileReader();
+  rd.onload = function(){
+    var b64 = String(rd.result || '').split(',')[1] || '';
+    tsAsk('TS_MUSIC_UPLOAD', { name:f.name, mime:f.type, b64:b64 }).then(function(r){
+      if (!r || !r.url){ if (msg) msg.textContent = 'The upload did not finish. Try again.'; return; }
+      var m = musicState(); m.tracks = m.tracks || [];
+      m.tracks.push({ id:musicId(), title:r.title || f.name.replace(/\.[a-z0-9]+$/i, ''), url:r.url });
+      musicShare(); musicManage();
+    }).catch(function(e){ if (msg) msg.textContent = 'The upload did not finish: ' + ((e && e.message) || 'try again') + '.'; });
   };
-  if (direct){ add(decodeURIComponent(url.split('/').pop().split('?')[0]).replace(/\.[a-z0-9]+$/i, ''), url); return; }
-  if (msg) msg.textContent = 'Looking the song up\u2026';
-  /* the site reads the song's page, since a browser cannot: its title, and where its audio is */
-  tsAsk('TS_MUSIC_RESOLVE', { url:url }).then(function(r){
-    /* only a file on Suno's CDN is a song; anything else from the lookup is set aside for the
-       CDN address built from the song's id */
-    if (r && r.id && !/^https:\/\/cdn\d*\.suno\.ai\//i.test(r.audio || '')) r.audio = 'https://cdn1.suno.ai/' + r.id + '.mp3';
-    if (r && r.audio) add(r.title, r.audio, r.id);
-    else if (sunoSong) add('Suno song', 'https://cdn1.suno.ai/' + sunoSong[1] + '.mp3');
-    else if (msg) msg.textContent = 'That link could not be read. Try the song\u2019s full suno.com/song/ link.';
-  }).catch(function(){
-    if (sunoSong) add('Suno song', 'https://cdn1.suno.ai/' + sunoSong[1] + '.mp3');
-    else if (msg) msg.textContent = 'That link could not be read. Try the song\u2019s full suno.com/song/ link.';
-  });
+  rd.onerror = function(){ if (msg) msg.textContent = 'That file could not be read.'; };
+  rd.readAsDataURL(f);
 }
 function musicToList(trackId, listId){
   if (!listId) return;
