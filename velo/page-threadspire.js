@@ -2,7 +2,7 @@
 // Paste into the ThreadSpire page. Set the embed element ID to match EMBED.
 // Feeds the character-first view: the player's character card, the party at their
 // location, revealed nodes, quest-board goals, world issues, and map art.
-import { threadspirePublicChar, listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter, threadspireSaveMeta, lmLoadCharacter, lmSaveCharacter, lmCreateOfflineFell, lmRemoveFromAdventure, charAdventure, leaveAdventure, lmWipeFell, giveRecord, consultArchive, lmSealedGet, lmSealedWeave, lmNotesSave } from 'backend/characters.web.js';
+import { threadspirePublicChar, listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter, threadspireSaveMeta, lmLoadCharacter, lmSaveCharacter, lmCreateOfflineFell, lmRemoveFromAdventure, charAdventure, leaveAdventure, lmWipeFell, giveRecord, consultArchive, lmSealedGet, lmSealedWeave, lmNotesSave, myDice, saveDicePicks } from 'backend/characters.web.js';
 import { getLmPortrait, saveLmPortrait, getForgePools, getForgeLibrary, listMyCampaigns, saveCampaign, submitAct, submitItem, deleteAsset, listGlossary , setMemberRole, detachCharacter, loadCampaign, restoreRoster } from 'backend/fatewell.web.js';
 import { createInvite, revokeInvite } from 'backend/invites.web.js';
 import { publishAdventure, unpublishAdventure, myPublishedAdventures } from 'backend/published.web.js';
@@ -382,6 +382,12 @@ $w.onReady(async function () {
               reply(true, { id: r.id, name: nm, restored: restored });
             }
           } catch (e) { reply(false, null, String(e)); }
+        } else if (msg.type === 'TS_DICE_GET') {
+          let r = null; try { r = await myDice(); } catch (e) { r = null; }
+          reply(!!(r && r.ok), r);
+        } else if (msg.type === 'TS_DICE_SAVE') {
+          let r = null; try { r = await saveDicePicks(msg.picks || {}); } catch (e) { r = null; }
+          reply(!!(r && r.ok), r);
         } else if (msg.type === 'TS_ROSTER_GET') {
           // who is at this adventure, for a full backup
           let players = [];
