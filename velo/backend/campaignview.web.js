@@ -21,7 +21,13 @@ export const musicResolve = webMethod(Permissions.Anyone, async (url) => {
     const tm = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i) || html.match(/<title>([^<]+)<\/title>/i);
     let title = tm ? tm[1] : 'Suno song';
     title = title.replace(/\s*[|\-–]\s*Suno.*$/i, '').replace(/&amp;/g, '&').replace(/&#39;|&apos;/g, "'").replace(/&quot;/g, '"').trim() || 'Suno song';
-    return { ok: true, id: idm[1], title: title, audio: 'https://cdn1.suno.ai/' + idm[1] + '.mp3' };
+    // the page's own audio address when it gives one (og:audio or its audio_url), else the
+    // usual CDN address built from the song id
+    const am = html.match(/<meta[^>]+property=["']og:audio(?::url)?["'][^>]+content=["']([^"']+)["']/i)
+      || html.match(/audio_url\\?["']\s*:\s*\\?["'](https:[^"'\\]+)/i)
+      || html.match(/(https:\/\/cdn\d?\.suno\.ai\/[^"'\s\\]+\.(?:mp3|m4a))/i);
+    const audio = am ? am[1].replace(/\\u002F/g, '/') : ('https://cdn1.suno.ai/' + idm[1] + '.mp3');
+    return { ok: true, id: idm[1], title: title, audio: audio };
   } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
 });
 
