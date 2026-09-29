@@ -1,3 +1,7 @@
+## 2026-09-28 - Dice: prime on a new log, not only the first
+
+The previous change primed the roll guard on the log's first arrival only, which would have thrown another adventure's last rolls when a LoreMaster switched adventures, and it threw even the first die a beat late, which load-roll.test.js caught locally. The guard now primes whenever an arriving log is not a continuation of the one on screen (the roll last thrown is not in it): the first load, or another adventure's. A continuation throws its new rolls, the first at once and the rest a little apart. load-roll.test.js gains two checks: a pulled roll from someone else throws, tagged with them; another adventure's log throws nothing.
+
 ## 2026-09-28 - Everyone sees everyone's dice
 
 Other people's rolls never threw a die on anyone's screen. Every pull of the table's state marked the log's newest roll as already shown, a guard meant only for opening an adventure (so last session's final roll is not thrown out of nowhere); on every later pull it swallowed each new roll from the rest of the table before it could be thrown. The guard now runs only on the log's first arrival. A roll from someone else drops onto the map from the top with their name tag, as intended, and every roll that arrived since the last one thrown lands, a little apart (up to four at once), rather than only the newest.

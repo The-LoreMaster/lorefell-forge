@@ -2754,7 +2754,6 @@ function scenesBody(){
   return h;
 }
 
-var _logPrimed = false;
 function applyRemoteState(patch){
   Object.keys(patch).forEach(function(k){ S[k] = patch[k]; });
   render();
@@ -2769,11 +2768,12 @@ function applyRemoteState(patch){
   }
   if (flourishedId === null || flourishedId === undefined || seenAt >= 0 || fresh.length <= 4){
     fresh.slice(-4).forEach(function(en, k){
-      setTimeout(function(){
+      var go = function(){
         throwFor(en);
         /* the readout spells out your own maths only, everyone else gets a name tag */
         if (en.who === S.character.name) flourish(en);
-      }, k * 260);
+      };
+      if (k === 0) go(); else setTimeout(go, k * 260);
     });
     if (fresh.length) flourishedId = fresh[fresh.length - 1].id;
   } else if (fresh.length){ flourishedId = fresh[fresh.length - 1].id; }
@@ -7489,8 +7489,12 @@ function applyRemoteSnapshot(snap){
     /* Only on the log's first arrival. Doing it on every pull marked each new roll from the
        rest of the table as seen before it could be thrown, so nobody ever saw anyone else's
        dice. */
-    if (!_logPrimed){
-      _logPrimed = true;
+    /* Prime the guard when this log is not a continuation of the one on screen: the first
+       load, or another adventure's log. A continuation still holds the roll last thrown, and
+       then new rolls in it are thrown as they arrive. */
+    var _cont = flourishedId !== null && flourishedId !== undefined && flourishedId !== 0
+      && S.log.some(function(en){ return en && en.id === flourishedId; });
+    if (!_cont){
       for (var _i = S.log.length - 1; _i >= 0; _i--){
         if (S.log[_i] && S.log[_i].kind === 'roll'){ flourishedId = S.log[_i].id; break; }
       }
