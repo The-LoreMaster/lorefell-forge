@@ -1,3 +1,7 @@
+## 2026-09-28 - Everyone sees everyone's dice
+
+Other people's rolls never threw a die on anyone's screen. Every pull of the table's state marked the log's newest roll as already shown, a guard meant only for opening an adventure (so last session's final roll is not thrown out of nowhere); on every later pull it swallowed each new roll from the rest of the table before it could be thrown. The guard now runs only on the log's first arrival. A roll from someone else drops onto the map from the top with their name tag, as intended, and every roll that arrived since the last one thrown lands, a little apart (up to four at once), rather than only the newest.
+
 ## 2026-09-28 - Full adventure backups: the table and who sits at it
 
 Export from ThreadSpire now carries everything needed to bring an adventure back as it was. Beside the story and its foes and NPCs (now every foe and NPC saved to the adventure, used or not; NPCs were left out before), the pack gains a table section (the boards, each a map with every token where it stood, which scene uses which, and the live table state: tokens, grid, map, drawings, fog, walls and doors, lights and darkness, and the music setup) and a roster (each member, their role, and their Fell). The format stays lorefell-adventure-pack-1; FateWell ignores the new sections and older packs import as before.

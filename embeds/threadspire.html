@@ -2754,16 +2754,29 @@ function scenesBody(){
   return h;
 }
 
+var _logPrimed = false;
 function applyRemoteState(patch){
   Object.keys(patch).forEach(function(k){ S[k] = patch[k]; });
   render();
-  var last = S.log[S.log.length - 1];
-  if (last && last.kind === 'roll' && last.id !== flourishedId){
-    flourishedId = last.id;
-    throwFor(last);
-    /* the readout spells out your own maths only, everyone else gets a name tag */
-    if (last.who === S.character.name) flourish(last);
+  /* every roll that has arrived since the last one thrown, not only the newest, so two players
+     rolling in the same second both land; a few at most, a little apart */
+  var fresh = [], seenAt = -1;
+  for (var _r = S.log.length - 1; _r >= 0; _r--){
+    var en = S.log[_r];
+    if (!en || en.kind !== 'roll') continue;
+    if (en.id === flourishedId){ seenAt = _r; break; }
+    fresh.unshift(en);
   }
+  if (flourishedId === null || flourishedId === undefined || seenAt >= 0 || fresh.length <= 4){
+    fresh.slice(-4).forEach(function(en, k){
+      setTimeout(function(){
+        throwFor(en);
+        /* the readout spells out your own maths only, everyone else gets a name tag */
+        if (en.who === S.character.name) flourish(en);
+      }, k * 260);
+    });
+    if (fresh.length) flourishedId = fresh[fresh.length - 1].id;
+  } else if (fresh.length){ flourishedId = fresh[fresh.length - 1].id; }
   /* This is the loremaster saying a thing is now true of the table: the map, the scene,
      the stage laid out. It updated this screen and went no further, because the only
      things that ever reached the server were tokens and the log. Say it outward, so the
@@ -7473,8 +7486,14 @@ function applyRemoteSnapshot(snap){
        happened, not one that happened last week and is only now arriving with the saved
        log. Mark the log's last roll as already shown, so opening an adventure does not
        throw a die for whoever rolled last, tagged with their name, out of nowhere. */
-    for (var _i = S.log.length - 1; _i >= 0; _i--){
-      if (S.log[_i] && S.log[_i].kind === 'roll'){ flourishedId = S.log[_i].id; break; }
+    /* Only on the log's first arrival. Doing it on every pull marked each new roll from the
+       rest of the table as seen before it could be thrown, so nobody ever saw anyone else's
+       dice. */
+    if (!_logPrimed){
+      _logPrimed = true;
+      for (var _i = S.log.length - 1; _i >= 0; _i--){
+        if (S.log[_i] && S.log[_i].kind === 'roll'){ flourishedId = S.log[_i].id; break; }
+      }
     }
     if (typeof renderLog === 'function') renderLog();
   }
