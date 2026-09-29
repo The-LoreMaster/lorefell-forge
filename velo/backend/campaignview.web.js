@@ -6,31 +6,30 @@ import { Permissions, webMethod } from 'wix-web-module';
 import wixData from 'wix-data';
 import { currentMember } from 'wix-members-backend';
 import { myAdventureRole } from 'backend/fatewell.web.js';
-import { fetch } from 'wix-fetch';
+import { mediaManager } from 'wix-media-backend';
 
-// Music at the table: read a Suno song page (a browser cannot, across sites) for the song's
-// title and where its audio lives. A short suno.com/s/ link is followed to the song first.
-export const musicResolve = webMethod(Permissions.Anyone, async (url) => {
+// Music at the table: the LoreMaster uploads an audio file they own (a song downloaded from
+// Suno, say), and it goes into the site's Media Manager under LoreFell Music. Suno's own file
+// addresses are signed and expire, so a copy on the site is what plays for everyone.
+export const musicUpload = webMethod(Permissions.Anyone, async (name, mime, b64) => {
   try {
-    const u = String(url || '').trim();
-    if (!/^https:\/\/(www\.)?suno\.(com|ai)\//i.test(u)) return { ok: false, error: 'not a Suno link' };
-    const res = await fetch(u, { method: 'get', headers: { 'user-agent': 'Mozilla/5.0' } });
-    const html = await res.text();
-    const idm = String(res.url || '').match(/\/song\/([0-9a-f-]{36})/i) || html.match(/cdn1\.suno\.ai\/([0-9a-f-]{36})\.mp3/i) || html.match(/\/song\/([0-9a-f-]{36})/i);
-    if (!idm) return { ok: false, error: 'no song found at that link' };
-    const tm = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i) || html.match(/<title>([^<]+)<\/title>/i);
-    let title = tm ? tm[1] : 'Suno song';
-    title = title.replace(/\s*[|\-–]\s*Suno.*$/i, '').replace(/&amp;/g, '&').replace(/&#39;|&apos;/g, "'").replace(/&quot;/g, '"').trim() || 'Suno song';
-    // the page's own audio address when it gives one (og:audio or its audio_url), else the
-    // usual CDN address built from the song id
-    const am = html.match(/<meta[^>]+property=["']og:audio(?::url)?["'][^>]+content=["']([^"']+)["']/i)
-      || html.match(/audio_url\\?["']\s*:\s*\\?["'](https:[^"'\\]+)/i)
-      || html.match(/(https:\/\/cdn\d?\.suno\.ai\/[^"'\s\\]+\.(?:mp3|m4a))/i);
-    // Only a real audio file on Suno's CDN will do. A page fetched by a server can carry a
-    // placeholder instead (studio-api.../api/forbidden), which is not a song at all.
-    const found = am ? am[1].replace(/\\u002F/g, '/') : '';
-    const audio = /^https:\/\/cdn\d*\.suno\.ai\/[^\s"']+\.(mp3|m4a)(\?|$)/i.test(found) ? found : ('https://cdn1.suno.ai/' + idm[1] + '.mp3');
-    return { ok: true, id: idm[1], title: title, audio: audio };
+    const m = await currentMember.getMember().catch(() => null);
+    if (!m || !m._id) return { ok: false, error: 'sign in to upload music' };
+    const type = String(mime || '');
+    if (!/^audio\//i.test(type)) return { ok: false, error: 'that is not an audio file' };
+    const buf = Buffer.from(String(b64 || ''), 'base64');
+    if (!buf.length) return { ok: false, error: 'the file was empty' };
+    if (buf.length > 25 * 1024 * 1024) return { ok: false, error: 'the file is over 25 MB' };
+    const fileName = String(name || 'track').replace(/[^\w .()-]+/g, '').slice(0, 120) || 'track';
+    const up = await mediaManager.upload('/LoreFell Music', buf, fileName, {
+      mediaOptions: { mimeType: type, mediaType: 'audio' },
+      metadataOptions: { isPrivate: false, isVisitorUpload: false }
+    });
+    let url = '';
+    try { url = await mediaManager.getFileUrl(up.fileName); } catch (e) { url = ''; }
+    if (!url && up.fileName) url = 'https://static.wixstatic.com/mp3/' + up.fileName;
+    if (!url) return { ok: false, error: 'the upload gave no address' };
+    return { ok: true, url: url, title: (up.originalFileName || fileName).replace(/\.[a-z0-9]+$/i, '') };
   } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
 });
 

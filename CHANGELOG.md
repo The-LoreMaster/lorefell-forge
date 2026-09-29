@@ -1,3 +1,7 @@
+## 2026-09-28 - Music: upload files; links are gone
+
+Suno signs its song files (CloudFront Key-Pair-Id) and the signatures expire, so no Suno address, public or not, can be played from the table. The link option is removed, along with musicResolve. Manage music now has Upload file: the LoreMaster picks an audio file they own (an MP3 downloaded from Suno, say), the table reads it and hands it to a new musicUpload in backend/campaignview.web.js, which puts it in the site's Media Manager under LoreFell Music (public, up to 25 MB, members only) and returns its address; the track joins the library under the file's name. Paste velo/backend/campaignview.web.js, then velo/page-threadspire.js. Tracks added from Suno links before today will not play; remove them.
+
 ## 2026-09-28 - Music: only a Suno CDN file is a song
 
 Suno serves a page fetched by a server with a placeholder where the song's audio address would be (studio-api.prod.suno.com/api/forbidden), and the lookup took it for the song. musicResolve, and the table itself, now accept only a real audio file on Suno's CDN (cdn*.suno.ai, .mp3 or .m4a); anything else gives way to the CDN address built from the song's id. Tracks remember their Suno id, so a track still holding the placeholder is mended as it plays. Paste velo/backend/campaignview.web.js; tracks added before today need adding once more.
