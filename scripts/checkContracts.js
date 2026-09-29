@@ -16,7 +16,7 @@ const TOOLS = ['fatewell', 'foeforge', 'sigilforge', 'bondforge', 'relicforge', 
 // genuine one-way messages handled outside the paired bridge
 const ALLOW = {
   '*': ['LOREFELL_FEEDBACK_SUBMIT'],
-  fellglass: ['init', 'new', 'libraries', 'ts-hand', 'ts-declare-result', 'ts-undo-result', 'sheet-panel', 'ts-sheet-roll', 'seal-request', 'seal-weave', 'seal-notes'],  // FellForge handoff, plus combat replies and the active-panel report handled by docs/threadspire.html not the page bridge
+  fellglass: ['init', 'new', 'libraries', 'ts-hand', 'ts-declare-result', 'ts-undo-result', 'sheet-panel', 'ts-sheet-roll', 'seal-request', 'seal-weave', 'seal-notes', 'ts-quick-choose', 'ts-weapon-attack'],  // FellForge handoff, plus combat replies and the active-panel report handled by docs/threadspire.html not the page bridge
   // The page answers THREADSPIRE_WANT_LORE for the older build under threadspire/app
   // and threadspire/dist. docs/threadspire.html never asks, so the reply lands nowhere
   // in the live tool. Kept because the older build still reads it.
@@ -27,7 +27,7 @@ const ALLOW = {
 // not the page bridge's business, but they are still a contract: if the child stops
 // handling one, the parent goes quiet with no error. Checked against the child instead.
 const CHILD = {
-  threadspire: { tool: 'fellglass', types: ['ts-god', 'ts-god-flush', 'ts-new', 'goto-panel', 'ts-subtabs', 'ts-charge-tap', 'ts-fatigue-step', 'ts-vit-op', 'ts-sealed', 'ts-notes-saved', 'ts-hand-request', 'ts-declare', 'ts-undo'] }
+  threadspire: { tool: 'fellglass', types: ['ts-god', 'ts-god-flush', 'ts-new', 'goto-panel', 'ts-subtabs', 'ts-charge-tap', 'ts-fatigue-step', 'ts-vit-op', 'ts-sealed', 'ts-notes-saved', 'ts-quick-roll', 'ts-hand-request', 'ts-declare', 'ts-undo'] }
 };
 // one-way ping families: resize and readiness pings a bridge may legitimately ignore
 const PING = /(?:HEIGHT|READY)$/i;

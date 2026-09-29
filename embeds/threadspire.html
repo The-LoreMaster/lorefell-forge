@@ -409,6 +409,12 @@ body.clean .artlayer{ display:none; }
 .diefx.strike b{ background:radial-gradient(circle, rgba(226,75,74,.55) 0%, rgba(226,75,74,.14) 42%, transparent 66%); animation:aura 720ms ease-out forwards; }
 
 #dieField{ position:fixed; inset:0; pointer-events:none; z-index:60; }
+#quickChoose{ position:fixed; left:2.141%; bottom:calc(3.8% + 70px); z-index:92; display:none; min-width:200px; max-width:280px; max-height:50vh; overflow:auto; padding:8px; border-radius:12px; background:rgba(10,14,26,.96); border:1px solid var(--gold); box-shadow:0 12px 28px rgba(0,0,0,.5); }
+#quickChoose.open{ display:block; }
+#quickChoose .qc-h{ display:flex; justify-content:space-between; align-items:center; font-family:Cinzel,serif; font-size:.62rem; letter-spacing:.14em; text-transform:uppercase; color:var(--gold); margin:0 2px 6px; }
+#quickChoose .qc-x{ border:0; background:none; color:var(--muted,#8fa3b3); font-size:1rem; padding:0 4px; }
+#quickChoose .qc-o{ display:flex; justify-content:space-between; gap:10px; width:100%; text-align:left; padding:7px 9px; margin:2px 0; border:1px solid var(--line); border-radius:8px; background:none; color:var(--silver,#dce8ef); font-family:'Crimson Pro',Georgia,serif; font-size:.9rem; }
+#quickChoose .qc-o:hover{ border-color:var(--gold); } #quickChoose .qc-o span{ color:var(--gold); font-family:Cinzel,serif; font-size:.8rem; }
 .cube{ width:36px; height:36px; position:relative; transform-style:preserve-3d; transition:transform 900ms cubic-bezier(.2,.75,.25,1); --pip:#dce8ef; }
 #restCube{ transition:opacity .2s ease; }
 #restCube.away{ opacity:0; }
@@ -2262,7 +2268,7 @@ function rollEntry(evt){
      that need not even be in this adventure). A player's roll is still their Fell's. */
   var who = isLM() ? 'LoreMaster' : ((S.character && S.character.name) || '');
   return { kind:'roll', who:who, rollType:evt.rollType, n:evt.n,
-    mods:evt.mods || [], total:(typeof evt.total === 'number') ? evt.total : evt.n,
+    mods:evt.mods || [], total:(typeof evt.total === 'number') ? evt.total : evt.n, note:evt.note || '',
     skin:skinKey(evt.rollType, who) };
 }
 
@@ -4960,10 +4966,75 @@ function throwFor(e){
     }
   }, FLIGHT + HOLD + HOME);
 }
+
+/* ---- the quick roller, and rolls from the sheet's tabs ----
+   The die in the corner rolls what its menu says. Generic is a plain d6. Evade and Skill ask
+   the sheet, which knows the numbers: Evade rolls d6 plus the Fell's Evasion, Skill offers
+   the skills with their values and rolls the one chosen. Attack asks which weapon, if there
+   is more than one in hand; in a fight it takes up that weapon's attack card exactly as a tap
+   on the card would, so the target is tapped and the attack goes to the LoreMaster the usual
+   way; outside a fight it rolls accuracy and shows the weapon's damage. Every die lands on
+   the table with the roller's name. */
+function quickSheet(){ return document.getElementById('sheetFrame'); }
+function quickAsk(msg){
+  var f = quickSheet();
+  if (!f || !f.contentWindow || isLM()){ var n = 1 + Math.floor(Math.random() * 6); send({ type:'roll', rollType:msg.kind === 'evade' ? 'evade' : (msg.kind || 'generic'), n:n, mods:[], total:n }); return; }
+  f.contentWindow.postMessage({ type:'ts-quick-roll', kind:msg.kind, pick:msg.pick }, '*');
+}
+function quickAttack(){
+  /* in a fight: the weapon's own attack card, so targeting and damage go the card's way */
+  var inFight = !isLM() && S.mode === 'combat' && hand && hand.active !== false;
+  if (inFight){
+    var cards = [];
+    (hand.acts || []).forEach(function(e, i){ if (e && e.kind === 'weapon' && /basic attack/i.test(e.nm || '') && !e.locked) cards.push({ e:e, i:i }); });
+    if (!cards.length){ quickAsk({ kind:'attack' }); return; }
+    var take = function(c){ handTab = 'act'; handArm(handKey(c.e, c.i), 'act'); renderHand(); };
+    if (cards.length === 1){ take(cards[0]); return; }
+    quickChoose('Attack with', cards.map(function(c, k){ return { label:c.e.src || ('Weapon ' + (k + 1)), value:k }; }), function(k){ take(cards[k]); });
+    return;
+  }
+  quickAsk({ kind:'attack' });
+}
+/* a short list above the tray: which weapon, which skill */
+function quickChoose(title, options, onPick){
+  var box = document.getElementById('quickChoose');
+  if (!box){ box = document.createElement('div'); box.id = 'quickChoose'; document.body.appendChild(box); }
+  box.innerHTML = '<div class="qc-h">' + esc(title) + '<button class="qc-x" aria-label="Close">\u00d7</button></div>'
+    + '<div class="qc-list">' + options.map(function(o, k){ return '<button class="qc-o" data-k="' + k + '">' + esc(o.label) + (o.note ? '<span>' + esc(o.note) + '</span>' : '') + '</button>'; }).join('') + '</div>';
+  box.classList.add('open');
+  box.onclick = function(ev){
+    if (ev.target.closest('.qc-x')){ box.classList.remove('open'); return; }
+    var b = ev.target.closest('.qc-o'); if (!b) return;
+    box.classList.remove('open'); onPick(options[Number(b.getAttribute('data-k'))].value);
+  };
+}
+window.addEventListener('message', function(ev){
+  var d = ev.data; if (!d || typeof d !== 'object') return;
+  var f = quickSheet(); if (!f || ev.source !== f.contentWindow) return;
+  /* the sheet asks which one, when there is more than one */
+  if (d.type === 'ts-quick-choose'){
+    quickChoose(d.title || 'Choose', d.options || [], function(v){ quickAsk({ kind:d.kind, pick:v }); });
+  }
+  /* a weapon's roll button on the Arsenal tab: in a fight it is that weapon's attack card */
+  if (d.type === 'ts-weapon-attack' && !isLM()){
+    var inFight = S.mode === 'combat' && hand && hand.active !== false;
+    if (inFight){
+      var hit = null;
+      (hand.acts || []).forEach(function(e, i){ if (!hit && e && e.kind === 'weapon' && /basic attack/i.test(e.nm || '') && e.src === d.weapon) hit = { e:e, i:i }; });
+      if (hit){ closeWin(); handTab = 'act'; handArm(handKey(hit.e, hit.i), 'act'); renderHand(); return; }
+    }
+    quickAsk({ kind:'attack', pick:d.idx });
+  }
+});
+
 function rollFromTray(){
   /* the backstop for every path into a loose roll: while a declaration is owed a roll,
      any way of rolling commits it rather than throwing a die into the log beside it */
   if (armed && armed.awaitingRoll){ handRollDo(); return; }
+  /* the type decides what is rolled: the sheet's numbers for attack, evade and skill */
+  if (S.rollType === 'attack'){ quickAttack(); return; }
+  if (S.rollType === 'evade'){ quickAsk({ kind:'evade' }); return; }
+  if (S.rollType === 'skill'){ quickAsk({ kind:'skill' }); return; }
   var n = 1 + Math.floor(Math.random() * 6);
   send({ type:'roll', rollType:S.rollType, n:n, mods:[], total:n });
 }
@@ -11254,7 +11325,7 @@ window.addEventListener('message', function(ev){
     }
     if (ev.data.type === 'ts-sheet-roll' && !isLM()){
       var sr = ev.data, sn = Number(sr.n) || 0;
-      if (sn >= 1 && sn <= 6) send({ type:'roll', rollType:String(sr.rollType || 'generic'), n:sn, mods:sr.mods || [], total:(typeof sr.total === 'number') ? sr.total : sn });
+      if (sn >= 1 && sn <= 6) send({ type:'roll', rollType:String(sr.rollType || 'generic'), n:sn, mods:sr.mods || [], total:(typeof sr.total === 'number') ? sr.total : sn, note:String(sr.note || '').slice(0, 140) });
       return;
     }
     /* the forge was cancelled and the sheet went back to the Fell in hand: the window stops
@@ -14152,7 +14223,7 @@ function entryHtml(e){
     var sum = (e.mods || []).map(function(x){ return ' + ' + esc(x.label) + ' ' + x.value; }).join('');
     var tot = (e.mods && e.mods.length) ? ' = <span class="num">' + e.total + '</span>' : '';
     return '<div class="le roll"><b>' + esc(e.who) + '</b> rolled <span class="num">' + e.n + '</span>'
-      + sum + tot + ' on ' + esc(rollLabel(e.rollType)) + m + '</div>';
+      + sum + tot + ' on ' + esc(rollLabel(e.rollType)) + m + (e.note ? ' <span class="lnote">\u00b7 ' + esc(e.note) + '</span>' : '') + '</div>';
   }
   return '<div class="le sys">\u00b7 ' + e.html + '</div>';
 }

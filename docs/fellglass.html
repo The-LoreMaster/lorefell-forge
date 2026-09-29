@@ -948,6 +948,8 @@ button.ax-fact{cursor:pointer}
 .ax-input{margin:8px 0 2px}
 .ax-lm{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px;padding-top:8px;border-top:1px dashed var(--line)}.ax-lm-l{font-family:var(--head);font-size:9.5px;letter-spacing:.12em;color:var(--gold);text-transform:uppercase}
 .ax-misc{width:56px}
+.ax-roll{margin-left:auto;align-self:center;display:flex;align-items:center;gap:6px;padding:7px 12px;border:1px solid var(--gold);border-radius:10px;background:none;color:var(--gold);font-family:var(--head);font-size:11px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer}
+.ax-roll svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.6}
 .ax-chev{grid-column:4;grid-row:1/3;display:flex;align-items:center;margin-left:8px;color:var(--silver-dim);transition:transform .18s}
 .ax-chev svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .ax-row.open > .ax-id .ax-chev{transform:rotate(180deg);color:var(--gold)}
@@ -4199,6 +4201,50 @@ function axFamilyAfflictions(cat){
   const names=[]; Object.values(WEAPON_DB).forEach(d=>{ if(d.category===cat) (d.afflictions||[]).forEach(a=>{ if(a&&names.indexOf(a)<0) names.push(a); }); });
   return names.map(n=>({name:n,desc:axDescAff(n)}));
 }
+
+/* ---- rolls that land on the table (inside ThreadSpire) ----
+   The table's quick roller asks here for the numbers, and the sheet's own roll buttons send
+   their rolls out the same way: one message, ts-sheet-roll, that the table throws as a die
+   with this Fell's name and logs with the sum. */
+function tableRoll(rollType,n,mods,total,note){
+  try{ window.parent.postMessage({type:"ts-sheet-roll",rollType:rollType,n:n,mods:mods,total:total,note:note||""},"*"); }catch(e){}
+}
+function skillBonusOf(name){ const s=C.skills[name]; return s?(s.rank+s.mastery+skillGrant(name)):0; }
+function quickSkillRoll(name){
+  const b=skillBonusOf(name);
+  let n=1+Math.floor(Math.random()*6), note="";
+  if(skillIsLucky(name)){ const a=n, c=1+Math.floor(Math.random()*6); n=Math.max(a,c); note="Lucky "+a+" | "+c; }
+  tableRoll("skill",n,[{label:name,value:b}],n+b,note);
+}
+function heldWeapons(){ return (C.weapons||[]).map((w,i)=>({w,i})).filter(x=>x.w.tree&&x.w.equipped); }
+function quickAttackRoll(i){
+  const w=(C.weapons||[])[i]; if(!w||!w.tree) return;
+  const db=WEAPON_DB[w.tree], magic=db&&db.category==="magic";
+  const n=1+Math.floor(Math.random()*6), prec=attrTotal("precision");
+  const base=1+attrTotal(magic?"magic":"power"), bonus=weaponBonus(w);
+  tableRoll("attack",n,[{label:"Precision",value:prec}],n+prec,weaponName(w)+": "+base+" base + "+bonus+" bonus "+(magic?"magic":"physical"));
+}
+window.addEventListener("message",ev=>{
+  const d=ev.data; if(!d||d.type!=="ts-quick-roll") return;
+  if(d.kind==="evade"){
+    const n=1+Math.floor(Math.random()*6), ev2=attrTotal("evasion");
+    tableRoll("evade",n,[{label:"Evasion",value:ev2}],n+ev2); return;
+  }
+  if(d.kind==="skill"){
+    if(d.pick){ quickSkillRoll(d.pick); return; }
+    const opts=[]; ATTRS.forEach(([,list])=>list.forEach(([a])=>(SKILLS[a]||[]).forEach(([nm])=>opts.push({label:nm,value:nm,note:"+"+skillBonusOf(nm)}))));
+    try{ window.parent.postMessage({type:"ts-quick-choose",kind:"skill",title:"Roll a skill",options:opts},"*"); }catch(e){}
+    return;
+  }
+  if(d.kind==="attack"){
+    if(typeof d.pick==="number"){ quickAttackRoll(d.pick); return; }
+    const held=heldWeapons();
+    if(!held.length){ tableRoll("attack",1+Math.floor(Math.random()*6),[],0,"No weapon in hand"); return; }
+    if(held.length===1){ quickAttackRoll(held[0].i); return; }
+    try{ window.parent.postMessage({type:"ts-quick-choose",kind:"attack",title:"Attack with",options:held.map(x=>({label:weaponName(x.w),value:x.i}))},"*"); }catch(e){}
+  }
+});
+
 function renderWeapons(){
   try{ equipSeed(); }catch(e){}
   const wrap=$("weaponsWrap");wrap.innerHTML="";
@@ -4237,6 +4283,16 @@ function renderWeapons(){
       const base=1+attrTotal(magic?"magic":"power"), bonus=weaponBonus(w);
       const dmg=el("div","ax-dmg");
       dmg.innerHTML=`<div><b>${base}</b><span>Base damage</span></div><div><b>${bonus}</b><span>Bonus damage</span></div>`;
+      /* roll this weapon's attack: at the table, in a fight, it is the weapon's attack card with
+         its target; otherwise accuracy lands on the table with the damage beside it */
+      const rb=el("button","ax-roll");rb.type="button";rb.title="Roll an attack with "+weaponName(w);
+      rb.innerHTML='<svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3.5"/><circle cx="9" cy="9" r="1.2"/><circle cx="15" cy="15" r="1.2"/><circle cx="15" cy="9" r="1.2"/><circle cx="9" cy="15" r="1.2"/></svg><span>Attack</span>';
+      rb.addEventListener("click",ev=>{ ev.stopPropagation();
+        if(document.body.classList.contains("tsembed")){ try{ window.parent.postMessage({type:"ts-weapon-attack",idx:idx,weapon:weaponName(w)},"*"); }catch(e){} return; }
+        const n=1+Math.floor(Math.random()*6), p=attrTotal("precision");
+        fgTell(weaponName(w)+" attack","<p>Rolled "+n+" + "+p+" Precision = <b>"+(n+p)+"</b> accuracy.</p><p>"+base+" base + "+bonus+" bonus damage.</p>");
+      });
+      dmg.appendChild(rb);
       body.appendChild(dmg);
       body.appendChild(axSec("Afflictions"));
       const affRow=el("div","pillrow");
@@ -4490,6 +4546,8 @@ function renderSkills(){
       die.title=`1d6 + ${s.rank} rank + ${s.mastery} mastery${grant?` + ${grant} identity`:""}${lucky?" \u00b7 Lucky: best of two":""}`;
       die.addEventListener("click",()=>{
         const bonus=s.rank+s.mastery+skillGrant(name);
+        /* at the table the roll lands on the table, with the Fell's name, not in here */
+        if(document.body.classList.contains("tsembed")){ quickSkillRoll(name); die.classList.remove("spin");void die.offsetWidth;die.classList.add("spin"); return; }
         if(skillIsLucky(name)){
           /* Lucky Rolls: roll twice, keep the better die */
           const a=1+Math.floor(Math.random()*6),b=1+Math.floor(Math.random()*6);
