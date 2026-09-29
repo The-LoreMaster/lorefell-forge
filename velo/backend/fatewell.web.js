@@ -322,6 +322,50 @@ export const getCampaignPlayers = webMethod(Permissions.Anyone, async (campaignI
   return out.filter((p) => p.name || p.charId);
 });
 
+// Restoring an adventure from a backup brings its table back with it: the members who were
+// in it, at their roles, and their Fells. Only the new adventure's owner may do this. A Fell
+// is attached only if it is still free (in no adventure) and still belongs to the member the
+// backup names, so a backup cannot pull anyone else's Fell, or a Fell already at another
+// table, into this one. Members are added back so they see the adventure again.
+export const restoreRoster = webMethod(Permissions.Anyone, async (campaignId, roster, originalId) => {
+  const me = await memberId();
+  const cid = String(campaignId || '');
+  if (!me || !cid) return { ok: false, error: 'not signed in' };
+  const camp = await wd.get(COLLECTION, cid, { suppressAuth: true }).catch(() => null);
+  if (!camp || camp.ownerMemberId !== me) return { ok: false, error: 'not your adventure' };
+  const list = Array.isArray(roster) ? roster.slice(0, 60) : [];
+  let members = 0, fells = 0, skipped = 0;
+  // A Fell still pointing at the adventure this backup came from counts as free once that
+  // adventure is gone: restoring after a delete brings the table back as it was.
+  const orig = String(originalId || '');
+  let origGone = false;
+  if (orig && orig !== cid) { try { origGone = !(await wd.get(COLLECTION, orig, { suppressAuth: true }).catch(() => null)); } catch (e) { origGone = false; } }
+  for (const p of list) {
+    const mid = String((p && p.memberId) || '');
+    if (mid && mid !== me) {
+      try {
+        const ex = await wd.query('AdventureMembers').eq('campaignId', cid).eq('memberId', mid).limit(1).find({ suppressAuth: true });
+        const role = ['player', 'lorekeeper', 'loremaster'].indexOf(p.role) >= 0 ? p.role : 'player';
+        if (!ex.items.length) { await wd.insert('AdventureMembers', { campaignId: cid, memberId: mid, name: String(p.memberName || '').slice(0, 80), role: role }, { suppressAuth: true }); members++; }
+      } catch (e) {}
+    }
+    const chid = String((p && p.charId) || '');
+    if (!chid) continue;
+    try {
+      const row = await wd.get('Characters', chid, { suppressAuth: true }).catch(() => null);
+      const owner = row ? (row.ownerMemberId || '') : '';
+      const wantOwner = mid || me;
+      const free = !row ? false : (!row.campaignId || (origGone && row.campaignId === orig));
+      if (!row || !free || (owner && owner !== wantOwner)) { skipped++; continue; }
+      row.campaignId = cid; row.campaign = camp.name || '';
+      try { const data = row.data ? JSON.parse(row.data) : null; if (data) { data.identity = data.identity || {}; data.identity.campaignId = cid; data.identity.campaign = camp.name || ''; row.data = JSON.stringify(data); } } catch (e) {}
+      await wd.update('Characters', row, { suppressAuth: true });
+      fells++;
+    } catch (e) { skipped++; }
+  }
+  return { ok: true, members: members, fells: fells, skipped: skipped };
+});
+
 // Unlink a character from its adventure. Loremaster and lorekeeper only, since this is
 // the roster owner acting. A character holds one adventure at a time, so clearing the
 // link frees it to join another.

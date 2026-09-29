@@ -3,7 +3,7 @@
 // Feeds the character-first view: the player's character card, the party at their
 // location, revealed nodes, quest-board goals, world issues, and map art.
 import { threadspirePublicChar, listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter, threadspireSaveMeta, lmLoadCharacter, lmSaveCharacter, lmCreateOfflineFell, lmRemoveFromAdventure, charAdventure, leaveAdventure, lmWipeFell, giveRecord, consultArchive, lmSealedGet, lmSealedWeave, lmNotesSave } from 'backend/characters.web.js';
-import { getLmPortrait, saveLmPortrait, getForgePools, getForgeLibrary, listMyCampaigns, saveCampaign, submitAct, submitItem, deleteAsset, listGlossary , setMemberRole, detachCharacter, loadCampaign } from 'backend/fatewell.web.js';
+import { getLmPortrait, saveLmPortrait, getForgePools, getForgeLibrary, listMyCampaigns, saveCampaign, submitAct, submitItem, deleteAsset, listGlossary , setMemberRole, detachCharacter, loadCampaign, restoreRoster } from 'backend/fatewell.web.js';
 import { createInvite, revokeInvite } from 'backend/invites.web.js';
 import { publishAdventure, unpublishAdventure, myPublishedAdventures } from 'backend/published.web.js';
 import { getFoePack } from 'backend/forge.web.js';
@@ -360,9 +360,33 @@ $w.onReady(async function () {
                   if (a.assetId) await saveAsset(a);
                 } catch (e2) {}
               }
-              reply(true, { id: r.id, name: nm });
+              // A full backup brings its table too: the boards (stages), the live table state
+              // (tokens, fog, walls, lights, drawings, music, grid), and who was at it.
+              const T = msg.table || null;
+              let restored = null;
+              if (T) {
+                restored = { stages: 0, state: false, roster: null };
+                for (const st of (Array.isArray(T.stages) ? T.stages : [])) {
+                  try {
+                    const row = Object.assign({}, st, { campaignId: r.id,
+                      tokens: typeof st.tokens === 'string' ? st.tokens : JSON.stringify(st.tokens || []),
+                      grid: typeof st.grid === 'string' ? st.grid : JSON.stringify(st.grid || {}),
+                      mapIds: typeof st.mapIds === 'string' ? st.mapIds : JSON.stringify(st.mapIds || []) });
+                    const sr = await saveStage(await tsInlineImages(row));
+                    if (sr && sr.ok) restored.stages++;
+                  } catch (e) {}
+                }
+                if (T.state) { try { const cs = await saveCampaignState(r.id, T.state); restored.state = !!(cs && cs.ok); } catch (e) {} }
+                if (Array.isArray(msg.roster) && msg.roster.length) { try { restored.roster = await restoreRoster(r.id, msg.roster, T.originalId || ''); } catch (e) {} }
+              }
+              reply(true, { id: r.id, name: nm, restored: restored });
             }
           } catch (e) { reply(false, null, String(e)); }
+        } else if (msg.type === 'TS_ROSTER_GET') {
+          // who is at this adventure, for a full backup
+          let players = [];
+          try { players = await getCampaignPlayers(msg.campaignId || campaignId, ''); } catch (e) { players = []; }
+          reply(true, players);
         } else if (msg.type === 'TS_ADVENTURE_DELETE') {
           // The LoreMaster deletes an adventure from ThreadSpire's picker, the same two steps
           // FateWell takes: the campaign row, then its story tree. Both refuse an adventure
