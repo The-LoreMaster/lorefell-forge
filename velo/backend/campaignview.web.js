@@ -26,7 +26,10 @@ export const musicResolve = webMethod(Permissions.Anyone, async (url) => {
     const am = html.match(/<meta[^>]+property=["']og:audio(?::url)?["'][^>]+content=["']([^"']+)["']/i)
       || html.match(/audio_url\\?["']\s*:\s*\\?["'](https:[^"'\\]+)/i)
       || html.match(/(https:\/\/cdn\d?\.suno\.ai\/[^"'\s\\]+\.(?:mp3|m4a))/i);
-    const audio = am ? am[1].replace(/\\u002F/g, '/') : ('https://cdn1.suno.ai/' + idm[1] + '.mp3');
+    // Only a real audio file on Suno's CDN will do. A page fetched by a server can carry a
+    // placeholder instead (studio-api.../api/forbidden), which is not a song at all.
+    const found = am ? am[1].replace(/\\u002F/g, '/') : '';
+    const audio = /^https:\/\/cdn\d*\.suno\.ai\/[^\s"']+\.(mp3|m4a)(\?|$)/i.test(found) ? found : ('https://cdn1.suno.ai/' + idm[1] + '.mp3');
     return { ok: true, id: idm[1], title: title, audio: audio };
   } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
 });

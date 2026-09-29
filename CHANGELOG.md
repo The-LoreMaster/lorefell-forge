@@ -1,3 +1,7 @@
+## 2026-09-28 - Music: only a Suno CDN file is a song
+
+Suno serves a page fetched by a server with a placeholder where the song's audio address would be (studio-api.prod.suno.com/api/forbidden), and the lookup took it for the song. musicResolve, and the table itself, now accept only a real audio file on Suno's CDN (cdn*.suno.ai, .mp3 or .m4a); anything else gives way to the CDN address built from the song's id. Tracks remember their Suno id, so a track still holding the placeholder is mended as it plays. Paste velo/backend/campaignview.web.js; tracks added before today need adding once more.
+
 ## 2026-09-28 - Music: say why a track will not play
 
 A track whose file would not load kept the Tap anywhere prompt up, since every refusal to play was read as a missing tap; tapping could never help. The player now tells the two apart: only the browser's autoplay refusal asks for a tap, and a file that fails shows its reason in the Music panel (private, moved or not audio; unreachable; or the error's name), with the address for the LoreMaster. musicResolve now takes the audio address the Suno page itself gives (og:audio or its audio_url) before falling back to the usual CDN address. Paste velo/backend/campaignview.web.js.
