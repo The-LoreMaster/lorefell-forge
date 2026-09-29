@@ -45,7 +45,8 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 #musicOpts{ display:none; flex-direction:column; gap:8px; position:absolute; left:calc(100% + 8px); top:0; width:250px; padding:10px 12px; border-radius:12px; background:rgba(10,14,26,.95); border:1px solid rgba(201,168,76,.35); font-family:'Crimson Pro',Georgia,serif; color:var(--silver,#dce8ef); font-size:.85rem; }
 .mu-now{ display:flex; flex-direction:column; gap:1px; }
 .mu-lab{ font-family:Cinzel,serif; font-size:.55rem; letter-spacing:.14em; text-transform:uppercase; color:var(--gold); }
-.mu-now b{ font-weight:500; font-size:.95rem; } .mu-from{ font-size:.75rem; color:var(--muted,#8fa3b3); font-style:italic; }
+.mu-now b{ font-weight:500; font-size:.95rem; }
+.mu-err{ font-size:.78rem; color:#e3a193; line-height:1.35; } .mu-url{ color:var(--muted,#8fa3b3); word-break:break-all; font-size:.7rem; } .mu-from{ font-size:.75rem; color:var(--muted,#8fa3b3); font-style:italic; }
 .mu-ctl{ display:flex; gap:6px; align-items:center; }
 .mu-ctl button{ width:34px; height:30px; border:1px solid rgba(201,168,76,.4); border-radius:8px; color:var(--gold); background:none; font-size:.95rem; padding:0; }
 .mu-ctl .mu-master{ width:auto; padding:0 12px; margin-left:auto; font-family:Cinzel,serif; font-size:.6rem; letter-spacing:.1em; color:var(--muted,#8fa3b3); }
@@ -13392,7 +13393,7 @@ function pviewSet(on){
    Kept in the table's state under music, written only by the LoreMaster once the stored copy
    has arrived: { tracks:[{id,title,url}], lists:[{id,name,ids}], scenes:{sceneId:ref},
    battle:ref, live:{on,playing,ref,idx,at,pos} }, where a ref is "p:<list>" or "t:<track>". */
-var musicEl = null, _musicTap = false, _musicLoadedSrc = '', _musicTaken = false;
+var musicEl = null, _musicTap = false, _musicLoadedSrc = '', _musicTaken = false, _musicErr = '', _musicErrSrc = '';
 function musicState(){ S.music = S.music || { tracks:[], lists:[], scenes:{}, battle:'', live:{ on:true, playing:true, ref:'', idx:0, at:0, pos:0 } }; S.music.live = S.music.live || { on:true, playing:true, ref:'', idx:0, at:0, pos:0 }; return S.music; }
 function musicMine(){ var o = {}; try { o = JSON.parse(localStorage.getItem('ts_music_me') || '{}') || {}; } catch(e){} if (o.vol === undefined) o.vol = .6; return o; }
 function musicSetMine(k, v){ var o = musicMine(); o[k] = v; try { localStorage.setItem('ts_music_me', JSON.stringify(o)); } catch(e){} musicApply(); musicPaintPanel(); }
@@ -13438,18 +13439,38 @@ function musicSkip(d){
 function musicMaster(on){ if (!isLM()) return; musicState().live.on = !!on; musicShare(); musicApply(); musicPaintPanel(); }
 /* make this device's player match the table */
 function musicApply(){
-  if (!musicEl){ musicEl = new Audio(); musicEl.preload = 'auto'; musicEl.addEventListener('ended', function(){ if (isLM()) musicSkip(1); }); }
+  if (!musicEl){
+    musicEl = new Audio(); musicEl.preload = 'auto';
+    musicEl.addEventListener('ended', function(){ if (isLM()) musicSkip(1); });
+    /* a file that will not load is not a missing tap: say which, so the prompt stops asking
+       for taps that cannot help */
+    musicEl.addEventListener('error', function(){
+      var c = musicEl.error ? musicEl.error.code : 0;
+      _musicErrSrc = musicEl.currentSrc || musicEl.src || '';
+      _musicErr = c === 4 ? 'This track could not be played. The link may be private, moved, or not an audio file.'
+               : c === 2 ? 'This track could not be reached. Check the connection, or the link.'
+               : 'This track could not be played.';
+      _musicTap = false; musicPaintPrompt(); musicPaintPanel();
+    });
+    musicEl.addEventListener('playing', function(){ _musicErr = ''; _musicTap = false; musicPaintPrompt(); musicPaintPanel(); });
+  }
   var m = musicState(), L = m.live, t = musicNow(), me = musicMine();
   var should = !!(L.on && L.playing && t && !me.off);
   musicEl.volume = Math.max(0, Math.min(1, me.vol));
   if (!t || !L.on){ if (!musicEl.paused) musicEl.pause(); _musicLoadedSrc = ''; return; }
-  if (_musicLoadedSrc !== t.url){ _musicLoadedSrc = t.url; musicEl.src = t.url; }
+  if (_musicLoadedSrc !== t.url){ _musicLoadedSrc = t.url; _musicErr = ''; musicEl.src = t.url; }
+  if (_musicErr && _musicErrSrc && _musicErrSrc.indexOf(t.url) >= 0){ musicPaintPrompt(); return; }
   var want = L.playing ? Math.max(0, (Date.now() - (L.at || Date.now())) / 1000) : (L.pos || 0);
   var seekTo = function(){ try { if (isFinite(musicEl.duration) && want < musicEl.duration && Math.abs(musicEl.currentTime - want) > 2.5) musicEl.currentTime = want; } catch(e){} };
   if (musicEl.readyState >= 1) seekTo(); else musicEl.addEventListener('loadedmetadata', seekTo, { once:true });
   if (should && musicEl.paused){
     var p = musicEl.play();
-    if (p && p.catch) p.catch(function(){ _musicTap = true; musicPaintPrompt(); });
+    if (p && p.catch) p.catch(function(err){
+      /* only a browser's autoplay refusal wants a tap; anything else is the file */
+      if (err && err.name === 'NotAllowedError'){ _musicTap = true; }
+      else if (!_musicErr){ _musicErr = 'This track could not be played (' + ((err && err.name) || 'error') + ').'; _musicErrSrc = t.url; }
+      musicPaintPrompt(); musicPaintPanel();
+    });
   } else if (!should && !musicEl.paused) musicEl.pause();
   musicPaintPrompt();
 }
@@ -13458,7 +13479,7 @@ document.addEventListener('pointerdown', function(){ if (_musicTap){ _musicTap =
 function musicPaintPrompt(){
   var p = document.getElementById('musicPrompt'); if (!p) return;
   var m = musicState(), t = musicNow();
-  p.classList.toggle('on', !!(_musicTap && t && m.live.on && m.live.playing && !musicMine().off));
+  p.classList.toggle('on', !!(_musicTap && !_musicErr && t && m.live.on && m.live.playing && !musicMine().off));
 }
 /* the LoreMaster's screen follows scenes and fights, and the music follows it */
 setInterval(function(){
@@ -13478,7 +13499,8 @@ function musicPaintPanel(){
   var m = musicState(), L = m.live, t = musicNow(), me = musicMine();
   var h = '<div class="mu-now"><span class="mu-lab">' + (L.on ? (L.playing ? 'Now playing' : 'Paused') : 'Music off for the table') + '</span>'
     + '<b>' + esc(t ? t.title : 'Nothing') + '</b>'
-    + (L.ref ? '<span class="mu-from">' + esc(musicRefName(L.ref)) + '</span>' : '') + '</div>';
+    + (L.ref ? '<span class="mu-from">' + esc(musicRefName(L.ref)) + '</span>' : '') + '</div>'
+    + (_musicErr ? '<div class="mu-err">' + esc(_musicErr) + (isLM() && t ? '<br><span class="mu-url">' + esc(t.url) + '</span>' : '') + '</div>' : '');
   if (isLM()){
     h += '<div class="mu-ctl"><button data-mu="prev" title="Previous">\u23ee</button><button data-mu="pp" title="Play or pause for everyone">' + (L.playing ? '\u23f8' : '\u25b6') + '</button><button data-mu="next" title="Next">\u23ed</button>'
       + '<button data-mu="master" class="mu-master' + (L.on ? ' on' : '') + '" title="Music on or off for the whole table">' + (L.on ? 'On' : 'Off') + '</button></div>';
