@@ -759,7 +759,10 @@ export const myDice = webMethod(Permissions.Anyone, async () => {
   const own = await diceOwned(m._id);
   let picks = {};
   try { const r = await wixData.query('DicePrefs').eq('memberId', m._id).limit(1).find({ suppressAuth: true }); if (r.items[0]) picks = JSON.parse(r.items[0].picks || '{}') || {}; } catch (e) { picks = {}; }
-  return { ok: true, lineages: own.lineages, maxLevel: own.maxLevel, picks };
+  // the LoreMaster's set belongs to anyone who runs an adventure
+  let ranAdventure = false;
+  try { const rc = await wixData.query('Campaigns').eq('ownerMemberId', m._id).limit(1).find({ suppressAuth: true }); ranAdventure = rc.items.length > 0; } catch (e) {}
+  return { ok: true, lineages: own.lineages, maxLevel: own.maxLevel, picks, ranAdventure };
 });
 export const saveDicePicks = webMethod(Permissions.Anyone, async (picks) => {
   const m = await currentMember.getMember().catch(() => null);
