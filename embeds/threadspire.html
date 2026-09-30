@@ -409,6 +409,11 @@ body.clean .artlayer{ display:none; }
 .diefx.strike b{ background:radial-gradient(circle, rgba(226,75,74,.55) 0%, rgba(226,75,74,.14) 42%, transparent 66%); animation:aura 720ms ease-out forwards; }
 
 #dieField{ position:fixed; inset:0; pointer-events:none; z-index:60; }
+#dice3d{ position:fixed; inset:0; width:100vw; height:100vh; pointer-events:none; z-index:59; }
+.dietag3d{ position:fixed; transform:translateX(-50%); z-index:61; pointer-events:none; font-family:Cinzel,serif; font-size:.62rem; letter-spacing:.1em; color:var(--silver,#dce8ef); text-shadow:0 1px 3px rgba(0,0,0,.9); }
+.dice3d-flash{ position:fixed; width:120px; height:120px; margin:-60px 0 0 -60px; border-radius:50%; pointer-events:none; z-index:60; animation:d3flash 900ms ease-out forwards; }
+.dice3d-flash.mark{ background:radial-gradient(circle,rgba(246,227,166,.75),rgba(201,168,76,0) 70%); } .dice3d-flash.strike{ background:radial-gradient(circle,rgba(226,75,74,.7),rgba(226,75,74,0) 70%); }
+@keyframes d3flash{ 0%{ transform:scale(.3); opacity:1; } 100%{ transform:scale(1.6); opacity:0; } }
 .cube .face.fx-sheen{ background-blend-mode:screen; } .cube .face.fx-sheen::after, .dk-face.fx-sheen::after{ content:''; position:absolute; inset:0; border-radius:inherit; background:linear-gradient(115deg,transparent 35%,rgba(255,255,255,.35) 50%,transparent 65%); pointer-events:none; }
 .cube .face.fx-glow, .dk-face.fx-glow{ box-shadow:inset 0 0 14px rgba(255,255,255,.45), 0 0 14px rgba(255,240,200,.35); }
 @keyframes dicestars{ 0%{ background-position:0 0,0 0,0 0,0 0,0 0; } 100%{ background-position:40px 20px,-30px 40px,20px -30px,-20px -10px,0 0; } }
@@ -4829,9 +4834,10 @@ var DICE_SKINS = {
    claimed from here. Each set: a face (bg, or six faces), the pips, the edge, and an effect. */
 var DICE_CAT = {
   lorefell:   { name:'LoreFell', bg:'linear-gradient(160deg,#1b2440,#0b101f)', pip:'#c9a84c', edge:'#c9a84c' },
+  loremaster: { name:'LoreMaster', lm:true, bg:'radial-gradient(circle at 50% 45%,#5a0f14 0%,#2a0508 55%,#0a0204 100%)', pip:'#f1d98a', edge:'#c9a84c', fx:'glow', base3d:['#5a0f14','#14030a'] },
   resplendent:{ name:'Resplendent', level:10, bg:'linear-gradient(135deg,#f6e3a1 0%,#c9a84c 38%,#8a6a22 70%,#f1d98a 100%)', pip:'#2a1d05', edge:'#fff1bf', fx:'sheen' },
   ascendent:  { name:'Ascendent', level:20, bg:'radial-gradient(circle at 50% 40%,#fffaf0 0%,#f3e2b0 45%,#c9a84c 100%)', pip:'#7a5a12', edge:'#fffbe8', fx:'glow' },
-  transcendent:{ name:'Transcendent', level:30, bg:'radial-gradient(1px 1px at 20% 30%,#fff 50%,transparent 51%),radial-gradient(1px 1px at 70% 60%,#cfe8ff 50%,transparent 51%),radial-gradient(1.5px 1.5px at 40% 80%,#fff 50%,transparent 51%),radial-gradient(1px 1px at 85% 20%,#ffe9b0 50%,transparent 51%),radial-gradient(circle at 50% 50%,rgba(120,160,255,.35),rgba(10,8,40,.95) 70%),#07061a', pip:'#eaf4ff', edge:'#bcd4ff', fx:'stars' },
+  transcendent:{ name:'Transcendent', level:30, bg:'radial-gradient(1px 1px at 20% 30%,#fff 50%,transparent 51%),radial-gradient(1px 1px at 70% 60%,#cfe8ff 50%,transparent 51%),radial-gradient(1.5px 1.5px at 40% 80%,#fff 50%,transparent 51%),radial-gradient(1px 1px at 85% 20%,#ffe9b0 50%,transparent 51%),radial-gradient(circle at 50% 50%,rgba(120,160,255,.35),rgba(10,8,40,.95) 70%),#07061a', pip:'#eaf4ff', edge:'#bcd4ff', fx:'stars', base3d:['#2a2470','#07061a'] },
   'lin:Arboril':  { name:'Heartwood', lineage:'Arboril', bg:'repeating-radial-gradient(circle at 30% 70%,#6b4a2b 0 3px,#553820 3px 6px),#4a321d', pip:'#e9d7a8', edge:'#8c6a3f' },
   'lin:Bogle':    { name:'Bogle Lacquer', lineage:'Bogle', bg:'linear-gradient(150deg,#2f5fb0,#132f66)', pip:'#ffe9a8', edge:'#7fa8ff' },
   'lin:Boxunin':  { name:'Soft Stone', lineage:'Boxunin', bg:'linear-gradient(160deg,#d8cfc2,#a99d8c)', pip:'#4b3b2a', edge:'#efe7da' },
@@ -4879,16 +4885,18 @@ S.dice = S.dice || { lineages:[], maxLevel:0, picks:{} };
 function diceOwns(key){
   var d = DICE_CAT[key]; if (!d || d.legacy) return false;
   if (key === 'lorefell') return true;
+  /* the LoreMaster's set is for whoever runs a table */
+  if (d.lm) return isLM() || !!S.dice.ranAdventure;
   if (d.level) return (S.dice.maxLevel || 0) >= d.level;
   if (d.lineage) return (S.dice.lineages || []).some(function(l){ return String(l).replace(/^the\s+/i, '').toLowerCase() === d.lineage.toLowerCase(); });
   return false;
 }
-function diceMine(type){ var k = (S.dice.picks || {})[type]; return (k && diceOwns(k)) ? k : 'lorefell'; }
+function diceMine(type){ var k = (S.dice.picks || {})[type]; return (k && diceOwns(k)) ? k : (isLM() ? 'loremaster' : 'lorefell'); }
 function diceLoad(){
   tsAsk('TS_DICE_GET', {}).then(function(r){
-    if (!r) return; S.dice = { lineages:r.lineages || [], maxLevel:r.maxLevel || 0, picks:r.picks || {} };
+    if (!r) return; S.dice = { lineages:r.lineages || [], maxLevel:r.maxLevel || 0, picks:r.picks || {}, ranAdventure:!!r.ranAdventure };
     try { buildCube(S.rollType); } catch(e){}
-    if (S.openSection === 'settings') refreshWinBody();
+    if (S.openSection === 'settings' || S.openSection === 'menu') refreshWinBody();
   }).catch(function(){});
 }
 function dicePick(type, key){
@@ -4918,7 +4926,7 @@ function diceSettingsHtml(){
   if (locked.length){
     h += '<details class="dice-locked"><summary>Still to earn (' + locked.length + ')</summary><div class="dice-grid">'
       + locked.map(function(k){ var d = DICE_CAT[k];
-          var how = d.level ? ('Reach level ' + d.level + ' with any Fell') : ('Play a ' + d.lineage + ' Fell');
+          var how = d.lm ? 'Run an adventure as its LoreMaster' : (d.level ? ('Reach level ' + d.level + ' with any Fell') : ('Play a ' + d.lineage + ' Fell'));
           return '<span class="dk-sw locked" title="' + esc(d.name + ': ' + how) + '">' + diceFace(k, 5) + '<em>' + esc(d.name) + '</em><small>' + esc(how) + '</small></span>'; }).join('')
       + '</div></details>';
   }
@@ -5035,6 +5043,145 @@ function makeDie(skin, tag){
   document.getElementById('dieField').appendChild(el);
   return el;
 }
+
+/* ================= 3D dice =================
+   A real die, drawn with three.js: thrown from the roller's side of the table, it falls,
+   bounces on the map, tumbles and rolls to rest showing the number rolled. The roll itself
+   is decided before the throw (the log already has it); the physics carries the die there, and
+   the last part of its tumble eases onto the face that was rolled, so what everyone sees is
+   what was rolled. Faces are painted from the roller's dice set. three.js loads the first time
+   a die is thrown; a device without WebGL, or a slow one, keeps the flat dice. */
+var Dice3D = { ok:false, loading:false, failed:false, scene:null, cam:null, ren:null, dice:[], raf:0 };
+function dice3dLoad(){
+  if (Dice3D.ok || Dice3D.loading || Dice3D.failed) return;
+  try { var t = document.createElement('canvas'); if (!(t.getContext('webgl') || t.getContext('experimental-webgl'))){ Dice3D.failed = true; return; } } catch(e){ Dice3D.failed = true; return; }
+  Dice3D.loading = true;
+  var s = document.createElement('script');
+  s.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
+  s.onload = function(){ Dice3D.loading = false; try { dice3dInit(); } catch(e){ Dice3D.failed = true; } };
+  s.onerror = function(){ Dice3D.loading = false; Dice3D.failed = true; };
+  document.head.appendChild(s);
+}
+function dice3dInit(){
+  var T = window.THREE; if (!T){ Dice3D.failed = true; return; }
+  var cv = document.createElement('canvas'); cv.id = 'dice3d';
+  document.body.appendChild(cv);
+  var lowPower = isMobile() || (navigator.hardwareConcurrency || 4) <= 4;
+  var ren = new T.WebGLRenderer({ canvas:cv, alpha:true, antialias:!lowPower });
+  ren.setPixelRatio(Math.min(window.devicePixelRatio || 1, lowPower ? 1.25 : 2));
+  ren.shadowMap.enabled = !lowPower;
+  var scene = new T.Scene();
+  var cam = new T.OrthographicCamera(0, 1, 0, 1, -2000, 2000);
+  scene.add(new T.AmbientLight(0xffffff, .62));
+  var key = new T.DirectionalLight(0xffffff, .75); key.position.set(-300, 900, 600); key.castShadow = !lowPower;
+  if (!lowPower){ key.shadow.mapSize.set(1024, 1024); var sc = key.shadow.camera; sc.left = -2000; sc.right = 2000; sc.top = 2000; sc.bottom = -2000; sc.near = 1; sc.far = 4000; }
+  scene.add(key);
+  /* the floor only catches shadows */
+  var floor = new T.Mesh(new T.PlaneGeometry(8000, 8000), new T.ShadowMaterial({ opacity:.32 }));
+  floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+  Dice3D.floor = floor;
+  Dice3D.scene = scene; Dice3D.cam = cam; Dice3D.ren = ren; Dice3D.low = lowPower;
+  dice3dSize(); window.addEventListener('resize', dice3dSize);
+  Dice3D.ok = true;
+}
+/* The camera looks straight down at the table from above; screen pixels are world units, so a
+   die can be thrown from one screen point to another. World x = screen x, world z = screen y. */
+function dice3dSize(){
+  if (!Dice3D.ren) return;
+  var w = window.innerWidth, h = window.innerHeight;
+  Dice3D.ren.setSize(w, h, false);
+  var c = Dice3D.cam; c.left = 0; c.right = w; c.top = 0; c.bottom = -h; c.near = -3000; c.far = 3000;
+  c.position.set(0, 1500, 0); c.up.set(0, 0, -1); c.lookAt(0, 0, 0);
+  c.updateProjectionMatrix();
+}
+/* paint a face from a dice set: its colours, and its pips */
+function dice3dColors(css){
+  var m = String(css || '').match(/#[0-9a-f]{6}|#[0-9a-f]{3}\b|rgba?\([^)]*\)/gi) || [];
+  return m.length ? m : ['#1b2440', '#0b101f'];
+}
+function dice3dFaceTex(skin, n){
+  var T = window.THREE, sz = Dice3D.low ? 128 : 256;
+  var c = document.createElement('canvas'); c.width = c.height = sz;
+  var g = c.getContext('2d');
+  var bg = skin.faces ? skin.faces[n - 1] : skin.bg, cols = skin.base3d || dice3dColors(bg);
+  var gr = g.createLinearGradient(0, 0, sz, sz);
+  cols.slice(0, 4).forEach(function(cl, i, a){ gr.addColorStop(a.length === 1 ? 0 : i / (a.length - 1), cl); });
+  g.fillStyle = gr; g.fillRect(0, 0, sz, sz);
+  if (skin.fx === 'stars'){ for (var s = 0; s < 70; s++){ g.fillStyle = 'rgba(255,255,255,' + (0.3 + Math.random() * .7) + ')'; g.beginPath(); g.arc(Math.random() * sz, Math.random() * sz, Math.random() * 1.6 * sz / 256 + .4, 0, 7); g.fill(); } }
+  if (skin.fx === 'sheen'){ var sh = g.createLinearGradient(0, 0, sz, sz * .8); sh.addColorStop(.35, 'rgba(255,255,255,0)'); sh.addColorStop(.5, 'rgba(255,255,255,.28)'); sh.addColorStop(.65, 'rgba(255,255,255,0)'); g.fillStyle = sh; g.fillRect(0, 0, sz, sz); }
+  g.strokeStyle = skin.edge || '#c9a84c'; g.lineWidth = sz * .05; g.strokeRect(g.lineWidth / 2, g.lineWidth / 2, sz - g.lineWidth, sz - g.lineWidth);
+  var P = { 1:[[.5,.5]], 2:[[.27,.27],[.73,.73]], 3:[[.27,.27],[.5,.5],[.73,.73]], 4:[[.27,.27],[.73,.27],[.27,.73],[.73,.73]], 5:[[.27,.27],[.73,.27],[.5,.5],[.27,.73],[.73,.73]], 6:[[.27,.24],[.73,.24],[.27,.5],[.73,.5],[.27,.76],[.73,.76]] };
+  g.fillStyle = skin.pip || '#dce8ef';
+  P[n].forEach(function(p){ g.beginPath(); g.arc(p[0] * sz, p[1] * sz, sz * .085, 0, 7); g.fill(); });
+  var tex = new T.CanvasTexture(c); tex.anisotropy = 4;
+  return tex;
+}
+/* box faces in three.js order: +x, -x, +y, -y, +z, -z; the numbers on them, opposite faces
+   adding to seven */
+var DICE3D_FACES = [3, 4, 1, 6, 2, 5];
+function dice3dMesh(skin){
+  var T = window.THREE, size = 46;
+  var mats = DICE3D_FACES.map(function(n){ return new T.MeshStandardMaterial({ map:dice3dFaceTex(skin, n), roughness:skin.fx === 'glow' ? .35 : .5, metalness:(skin.fx === 'sheen') ? .35 : .08,
+    emissive:skin.fx === 'glow' || skin.fx === 'stars' ? new T.Color(skin.edge || '#ffffff') : new T.Color(0x000000), emissiveIntensity:skin.fx === 'glow' ? .12 : (skin.fx === 'stars' ? .08 : 0) }); });
+  var geo = new T.BoxGeometry(size, size, size);
+  var m = new T.Mesh(geo, mats); m.castShadow = true; m.userData.size = size;
+  return m;
+}
+/* the rotation that puts face n on top */
+function dice3dRest(n){
+  var T = window.THREE, q = new T.Quaternion(), up = new T.Vector3(0, 1, 0);
+  var normals = { 3:[1,0,0], 4:[-1,0,0], 1:[0,1,0], 6:[0,-1,0], 2:[0,0,1], 5:[0,0,-1] };
+  var v = new T.Vector3().fromArray(normals[n]);
+  q.setFromUnitVectors(v, up);
+  /* and a random turn about the vertical, so no two dice land alike */
+  var yaw = new T.Quaternion().setFromAxisAngle(up, Math.random() * Math.PI * 2);
+  return yaw.multiply(q);
+}
+function dice3dThrow(e, skin, from, to, done){
+  var T = window.THREE, D = Dice3D;
+  var die = dice3dMesh(skin), half = die.userData.size / 2;
+  D.scene.add(die);
+  var tag = null;
+  if (e.who && e.who !== (S.character && S.character.name)){
+    tag = document.createElement('div'); tag.className = 'dietag3d'; tag.textContent = e.who; document.body.appendChild(tag);
+  }
+  var st = { p:new T.Vector3(from.x, 260, from.y), v:new T.Vector3((to.x - from.x) / 0.62, 380, (to.y - from.y) / 0.62),
+             w:new T.Vector3((Math.random() - .5) * 24, (Math.random() - .5) * 18, (Math.random() - .5) * 24), q:new T.Quaternion().setFromEuler(new T.Euler(Math.random() * 6, Math.random() * 6, Math.random() * 6)) };
+  var rest = dice3dRest(e.n), t0 = performance.now(), last = t0, settleAt = 1.05, total = 1.5, from0 = null;
+  D.dice.push(die);
+  function step(now){
+    var dt = Math.min(.033, (now - last) / 1000), t = (now - t0) / 1000; last = now;
+    if (t < settleAt){
+      st.v.y -= 2600 * dt;
+      st.p.addScaledVector(st.v, dt);
+      if (st.p.y < half){ st.p.y = half; st.v.y = -st.v.y * .42; st.v.x *= .72; st.v.z *= .72; st.w.multiplyScalar(.7); }
+      var ang = st.w.length() * dt;
+      if (ang > 0){ var dq = new T.Quaternion().setFromAxisAngle(st.w.clone().normalize(), ang); st.q.premultiply(dq); }
+      die.position.copy(st.p); die.quaternion.copy(st.q);
+    } else if (t < total){
+      /* the last tumble eases onto the face that was rolled */
+      if (!from0) from0 = { q:st.q.clone(), p:st.p.clone() };
+      var k = (t - settleAt) / (total - settleAt), e2 = 1 - Math.pow(1 - k, 3);
+      die.quaternion.copy(from0.q).slerp(rest, e2);
+      die.position.set(from0.p.x + (to.x - from0.p.x) * e2 * .5, half + Math.abs(Math.sin(k * Math.PI)) * 10 * (1 - k), from0.p.z + (to.y - from0.p.z) * e2 * .5);
+    } else { die.quaternion.copy(rest); die.position.y = half; }
+    if (tag){ var sp = die.position.clone().project(D.cam); tag.style.left = ((sp.x + 1) / 2 * window.innerWidth) + 'px'; tag.style.top = ((1 - sp.y) / 2 * window.innerHeight + 34) + 'px'; }
+    if (t < total + HOLD / 1000){ dice3dDraw(); requestAnimationFrame(step); }
+    else {
+      /* lift and fade */
+      var f0 = performance.now();
+      (function fade(n2){ var k2 = Math.min(1, (n2 - f0) / HOME); die.material.forEach(function(m){ m.transparent = true; m.opacity = 1 - k2; }); die.position.y = half + k2 * 30; if (tag) tag.style.opacity = String(1 - k2); dice3dDraw();
+        if (k2 < 1) requestAnimationFrame(fade); else { D.scene.remove(die); die.geometry.dispose(); die.material.forEach(function(m){ if (m.map) m.map.dispose(); m.dispose(); }); D.dice.splice(D.dice.indexOf(die), 1); if (tag) tag.remove(); dice3dDraw(); if (done) done(); } })(f0);
+    }
+  }
+  requestAnimationFrame(step);
+  return true;
+}
+function dice3dDraw(){ if (Dice3D.ren) Dice3D.ren.render(Dice3D.scene, Dice3D.cam); }
+setTimeout(function(){ try { dice3dLoad(); } catch(e){} }, 3000);
+
+/* a Fellmark or a Fellstrike announces itself where the die came to rest */
+function dice3dFlash(kind, at){ var f = document.createElement('div'); f.className = 'dice3d-flash ' + kind; f.style.left = at.x + 'px'; f.style.top = at.y + 'px'; document.body.appendChild(f); setTimeout(function(){ f.remove(); }, 950); }
 function throwFor(e){
   var mine = e.who === S.character.name;
   var skin = DICE_SKINS[e.skin] || skinFor(e.rollType, e.who);
@@ -5042,6 +5189,16 @@ function throwFor(e){
      cannot strand a die on the table with nothing to animate it */
   var to = landSpot();
   var from = mine ? slotCentre() : { x:to.x, y:mapEl().getBoundingClientRect().top - 70 };
+  /* a real die when the device can draw one; the flat die otherwise */
+  if (Dice3D.ok && !document.body.classList.contains('reduce-motion')){
+    if (mine){ myDice++; dieHome = false; tumbleEnds = Date.now() + FLIGHT; document.getElementById('restCube').classList.add('away'); document.getElementById('dieSlot').classList.add('empty'); }
+    dice3dThrow(e, skin, from, to, function(){
+      if (mine && --myDice === 0){ dieHome = true; document.getElementById('restCube').classList.remove('away'); document.getElementById('dieSlot').classList.remove('empty'); buildCube(S.rollType); }
+    });
+    if (e.n === 6 || e.n === 1) setTimeout(function(){ dice3dFlash(e.n === 6 ? 'mark' : 'strike', to); }, 1500);
+    return;
+  }
+  dice3dLoad();
   var el = makeDie(skin, mine ? '' : e.who);
   var cube = el.querySelector('.cube');
   el.style.left = from.x + 'px'; el.style.top = from.y + 'px';
@@ -8335,8 +8492,6 @@ function settingsBody(){
     h += '<div class="win-note">Not published. Publishing puts it on the directory for others to run.</div>'
       + '<button class="st-add" onclick="publishOpen()">Publish this adventure</button>';
   }
-  h += '<div class="nb-scene">Table</div>'
-    + '<div class="lb-row"><span class="lb-name">Dice skins</span><span class="lb-meta">Soon</span></div>';
   return h;
 }
 function publishLoad(){
@@ -8379,7 +8534,8 @@ function menuBody(){
     + '<div id="charList" class="win-note">Loading...</div>'
     + '<button class="ts-newfell" onclick="buildNewFell()">Build a new Fell</button>';
   h += '<div class="win-note" style="margin-top:14px">Settings</div>';
-  h += '<div class="lb-row"><span class="lb-name">Dice skins</span><span class="lb-meta">Soon</span></div>';
+  if (!S._diceAsked){ S._diceAsked = true; diceLoad(); }
+  h += diceSettingsHtml();
   h += '<div class="lb-row" style="cursor:pointer" onclick="openWin(\'seams\')"><span class="lb-name">Show the seams</span><span class="lb-meta">Live</span></div>';
   setTimeout(loadCharList, 30);
   return h;
