@@ -43,6 +43,7 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 #drawOpts, #fogOpts{ display:none; flex-direction:column; gap:6px; position:absolute; left:calc(100% + 8px); top:0; padding:6px; border-radius:12px; background:rgba(10,14,26,.9); border:1px solid rgba(201,168,76,.35); }
 #mapTools.fogging #fogOpts, #mapTools.walling #wallOpts, #mapTools.lighting #lightOpts, #mapTools.musicking #musicOpts, #mapTools.resting #restOpts, #mapTools.weathering #weatherOpts{ display:flex; }
 #weatherOpts{ display:none; flex-direction:column; gap:8px; position:absolute; left:calc(100% + 8px); top:0; width:220px; padding:10px 12px; border-radius:12px; background:rgba(10,14,26,.95); border:1px solid rgba(201,168,76,.35); font-family:'Crimson Pro',Georgia,serif; color:var(--silver,#dce8ef); }
+.wx-str{ display:grid; grid-template-columns:auto 1fr auto; gap:8px; align-items:center; font-family:Cinzel,serif; font-size:.58rem; letter-spacing:.1em; text-transform:uppercase; color:var(--muted,#8fa3b3); } .wx-str input{ accent-color:var(--gold); width:100%; } .wx-str b{ font-weight:400; color:var(--gold); min-width:32px; text-align:right; }
 .wx-h{ font-family:Cinzel,serif; font-size:.55rem; letter-spacing:.14em; text-transform:uppercase; color:#a88a3e; margin:4px 0 -2px; }
 #weatherOpts{ max-height:70vh; overflow:auto; }
 .wx-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:6px; } .wx-grid button{ padding:6px; border:1px solid var(--line); border-radius:8px; background:none; color:var(--silver,#dce8ef); font-family:Cinzel,serif; font-size:.62rem; letter-spacing:.06em; cursor:pointer; } .wx-grid button.on{ border-color:var(--gold); color:var(--gold); background:rgba(201,168,76,.1); }
@@ -3708,7 +3709,8 @@ function tsBuildTable(){
   var inst = clone(S.instance || {}) || {};
   var stages = (inst.stages || []).map(function(st){ var c = Object.assign({}, st); delete c.campaignId; return c; });
   var state = clone(sharedSnapshot()) || {};
-  delete state.pings; delete state.log;
+  /* pings are a moment; the table's log is the session's record, so the last of it comes too */
+  delete state.pings; state.log = (S.log || []).slice(-400);
   state.fog = clone(S.fog || {}); state.walls = clone(S.walls || {}); state.lights = clone(S.lights || {}); state.music = clone(S.music || null) || undefined;
   return { originalId:S.campaignId || '', stages:stages, state:state };
 }
@@ -3725,6 +3727,7 @@ function tsExportAdventure(){
     return;
   }
   var packObj = tsBuildPack();
+  packObj.journal = (S.journal || []).map(function(e){ return { id:e.id, ts:e.ts, text:e.text }; });
   packObj.roster = (tsExportAdventure._roster || []).map(function(p){ return { memberId:p.memberId || '', memberName:p.memberName || '', role:p.role || 'player', charId:p.charId || '', name:p.name || '', kept:!!p.kept }; });
   var text = JSON.stringify(packObj, null, 2);
   var name = String(A.name || 'adventure').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'adventure';
@@ -3786,7 +3789,7 @@ function tsImportPack(pack){
   var rows = [];
   (pack.foes || []).forEach(function(f){ var e = Object.assign({}, f); e.type = 'monster'; if (idMap[e.id]) e.id = idMap[e.id]; rows.push(assetToRow(e)); });
   (pack.npcs || []).forEach(function(n){ var e = Object.assign({}, n); e.type = 'npc'; if (idMap[e.id]) e.id = idMap[e.id]; rows.push(assetToRow(e)); });
-  tsAsk('TS_ADVENTURE_IMPORT', { pack:pack, rows:rows, table:table, roster:pack.roster || [] }).then(function(r){
+  tsAsk('TS_ADVENTURE_IMPORT', { pack:pack, rows:rows, table:table, roster:pack.roster || [], journal:Array.isArray(pack.journal) ? pack.journal : [] }).then(function(r){
     if (!r || !r.id) throw new Error('no id');
     if (r.restored && r.restored.roster && r.restored.roster.skipped){
       /* said once the table opens: Fells still at another table, or no longer the member's, stay where they are */
@@ -14946,6 +14949,18 @@ var WEATHER_WORLD = { spores:'Sporion', crimson:'Vyrathis', ashstorm:'Mortavia',
   blizzard:'Vulkaris', prismatic:'Felidae', abysm:'Shadakar', steamfrost:'Garyx', pollen:'Elysara and Mireth', crystal:'Kwuhara', leylines:'Wildermire', temporal:'Therion' };
 var _wx = { kind:'', parts:[], cv:null, raf:0 };
 function weatherKind(){ var sid = (S.scene && S.scene.id) || ''; return (S.weather && S.weather[sid]) || ''; }
+/* how strong the scene's weather shows, 10 to 100 percent; kept in the same record as the
+   kind (under 'op:' and the scene), so it travels to the table and exports with it */
+function weatherStrength(){ var sid = (S.scene && S.scene.id) || ''; var v = S.weather && S.weather['op:' + sid]; return (typeof v === 'number') ? v : 100; }
+function weatherStrengthSet(v){
+  if (!isLM()) return;
+  var sid = (S.scene && S.scene.id) || ''; S.weather = S.weather || {};
+  var n = Math.max(10, Math.min(100, Math.round(Number(v) || 100)));
+  if (n === 100) delete S.weather['op:' + sid]; else S.weather['op:' + sid] = n;
+  weatherApplyStrength(); schedulePush();
+  var lab = document.getElementById('wxStrV'); if (lab) lab.textContent = n + '%';
+}
+function weatherApplyStrength(){ if (_wx.cv) _wx.cv.style.opacity = String(weatherStrength() / 100); }
 function weatherSet(k){
   if (!isLM()) return;
   var sid = (S.scene && S.scene.id) || ''; S.weather = S.weather || {};
@@ -14955,6 +14970,7 @@ function weatherSet(k){
 function weatherRun(){
   var k = weatherKind();
   if (window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches) k = (['mist', 'crimson', 'moonlight', 'abysm'].indexOf(k) >= 0) ? k : '';
+  weatherApplyStrength();
   if (k === _wx.kind && (_wx.raf || !k)) return;
   _wx.kind = k; cancelAnimationFrame(_wx.raf); _wx.raf = 0;
   if (!_wx.cv){ _wx.cv = document.createElement('canvas'); _wx.cv.id = 'weatherLayer'; mapEl().appendChild(_wx.cv); }
@@ -15155,7 +15171,9 @@ function weatherPanelPaint(){
   var box = document.getElementById('weatherOpts'); if (!box) return;
   var cur = weatherKind();
   var nameOf = {}; WEATHERS.forEach(function(w){ nameOf[w[0]] = w[1]; });
+  var st = weatherStrength();
   box.innerHTML = '<div class="mu-now"><span class="mu-lab">Weather</span><b>This scene</b></div>'
+    + '<label class="wx-str"><span>Strength</span><input type="range" min="10" max="100" step="5" value="' + st + '" oninput="weatherStrengthSet(this.value)"><b id="wxStrV">' + st + '%</b></label>'
     + WEATHER_GROUPS.map(function(gr){
         return '<div class="wx-h">' + gr[0] + '</div><div class="wx-grid">' + gr[1].map(function(k){
           return '<button class="' + (cur === k ? 'on' : '') + '"' + (WEATHER_WORLD[k] ? ' title="From ' + WEATHER_WORLD[k] + '"' : '') + ' onclick="weatherSet(\'' + k + '\')">' + nameOf[k] + '</button>'; }).join('') + '</div>';
