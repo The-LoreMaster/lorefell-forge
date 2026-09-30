@@ -1,3 +1,7 @@
+## 2026-09-28 - A dice window, earned-how on hover, and glowing Fellmarks and Fellstrikes
+
+Settings and the players' gear menu now hold one Your dice line (the current die and Choose your dice) that opens a window for choosing a set for each kind of roll. Choosing redraws only that window, which ends the jolt of the whole Settings panel redrawing under the pointer. Hovering an earned set names it and says how it was earned (everyone's first dice; played a Shadowkin Fell; reached level 10; ran an adventure as its LoreMaster). A 3D die resting on a Fellmark burns gold, its faces pulsing and a halo rising with motes; on a Fellstrike it smoulders red with an uneven flicker. Both follow the die and fade with it, and hold still for anyone who prefers reduced motion.
+
 ## 2026-09-28 - Real 3D dice, the LoreMaster's set, and Your dice where players look
 
 Dice are now real 3D dice, drawn with three.js (loaded from cdnjs the first time a die is thrown): thrown from the roller's side, a die falls, bounces on the map, tumbles and rolls to rest, its last tumble easing onto the face that was rolled, so the table sees what the log records. Faces are painted from the roller's set (its colours, pips, edge, sheen, glow or starfield); a Fellmark or a Fellstrike flares where it rests, and another player's die carries their name. Devices without WebGL, or while three.js has not loaded, keep the flat dice; phones and low-power devices draw at a lower resolution without shadows.
