@@ -1,3 +1,7 @@
+## 2026-09-28 - The portrait frame's numbers say what they are
+
+On a player's side, hovering any number on the portrait frame (a tap, on a touch screen, beside whatever the tap already does) shows what it is, in the FellGuide's words: Total, Temporary, Current and Maximum Vitality (Survival, Understanding Vitality), Charges (The Currency), Lore Points and Level. The tip opens to the left of the frame and stays on screen. The LoreMaster's side, where the same slots show the chosen foe, is unchanged.
+
 ## 2026-09-28 - The Lore grant's amount box matches the table
 
 The amount in Grant Lore Points was a bare white browser box. It is now the table's own field: dark, gold-rimmed, the number in Cinzel gold, no spinner arrows (the - and + beside it do that), a gold ring on focus. The checkboxes take the gold, and Grant reads as disabled when there is no one to grant to.
