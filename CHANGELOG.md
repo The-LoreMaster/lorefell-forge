@@ -1,3 +1,7 @@
+## 2026-09-28 - Attribute breakdown opens on click only
+
+Hovering an attribute no longer opens its breakdown, which covered the lines being read. A click (a tap on a phone) opens it; another click on the same attribute, or anywhere else, closes it. The same in FellGlass and ThreadSpire.
+
 ## 2026-09-28 - Four special sets for those who come before release, and a clearer dice window
 
 Four sets given by hand, shown in the collection with how they come (grants keys developer, playtester, streamer, community): Wyrdwright (developers; dark teal with glowing circuit traces that pulse), Proving Glass (playtesters; iridescent glass whose colours cycle), On Air (streamers; magenta to cyan with a live-red pulse ring), and The Gathering (Discord community; Discord blurple nebula with drifting stars). On the table their 3D dice glow and breathe in flight and at rest; Proving Glass shifts hue face by face. The collection now counts 50. Every set always says how it is actually earned, even when it was given (no more A gift from the Skyvault on sets with a rule of their own). A die in use for any kind of roll has a gold border in place of the A E S G letters; the chosen die's panel has a close (x) and says that choosing a kind moves it there from whichever die had it.
