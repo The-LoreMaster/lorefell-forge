@@ -1,3 +1,7 @@
+## 2026-09-28 - Dice grants: "all"
+
+A grants entry of all (["all"] in DicePrefs) gives that member every set there is, the hidden ones included. Sets they would own by the rules anyway still say how they were earned; the rest say they were a gift.
+
 ## 2026-09-28 - The dice window is the collection
 
 The four assignment rows (Attack, Evade, Skill, Generic, each listing every set owned) are gone; they would only have grown. The window is the collection alone: every set, earned ones lit with small letters beneath (A E S G) showing which kinds of roll use them, unearned ones as plain shadows. Tapping an earned die opens a panel above the grid (it stays in view while scrolling) naming it, saying how it was earned, and offering the four kinds; choosing one moves that kind to this die. A shadow was a blacked-out face, which a translucent set (Wyspar) showed through; a shadow is now an empty tile with no face at all, its tooltip still naming the set and how to earn it. Redrawing keeps the window's scroll.

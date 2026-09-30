@@ -4938,6 +4938,8 @@ function diceOwns(key){
   if (key === 'lorefell') return true;
   /* granted by hand in the site's DicePrefs, and only there */
   if ((S.dice.grants || []).indexOf(key) >= 0) return true;
+  /* "all" in the grants: every set there is, the hidden ones included */
+  if ((S.dice.grants || []).indexOf('all') >= 0) return true;
   if (d.hidden) return false;
   /* the LoreMaster's set is for whoever runs a table */
   if (d.lm) return isLM() || !!S.dice.ranAdventure;
@@ -4966,11 +4968,21 @@ function diceFace(key, n){
   var bg = d.faces ? d.faces[((n || 5) - 1) % 6] : d.bg;
   return '<span class="dk-face' + (d.fx ? ' fx-' + d.fx : '') + '" style="background:' + bg + ';--pip:' + d.pip + ';border-color:' + (d.edge || '#c9a84c') + '">' + cells + '</span>';
 }
+/* whether a set is owned by the rules alone, before any grant */
+function diceEarnedByRule(k){
+  var d = DICE_CAT[k] || {};
+  if (k === 'lorefell') return true;
+  if (d.lm) return isLM() || !!S.dice.ranAdventure;
+  if (d.level) return (S.dice.maxLevel || 0) >= d.level;
+  if (d.lineage) return (S.dice.lineages || []).some(function(l){ return String(l).replace(/^the\s+/i, '').toLowerCase() === d.lineage.toLowerCase(); });
+  return false;
+}
 function diceHow(k, earned){
   var d = DICE_CAT[k] || {};
   if (k === 'lorefell') return 'Everyone\u2019s first dice';
-  if (d.story) return earned ? d.earnedHow : d.how;
+  if (d.story) return (earned && !((S.dice.grants || []).indexOf(k) < 0 && (S.dice.grants || []).indexOf('all') >= 0)) ? d.earnedHow : (earned ? (d.gift || 'A gift from the Skyvault') : d.how);
   if ((S.dice.grants || []).indexOf(k) >= 0 && (d.hidden || earned)) return d.gift || 'A gift from the Skyvault';
+  if (earned && (S.dice.grants || []).indexOf('all') >= 0 && !diceEarnedByRule(k)) return d.gift || 'A gift from the Skyvault';
   if (d.lm) return earned ? 'Earned by running an adventure as its LoreMaster' : 'Run an adventure as its LoreMaster';
   if (d.level) return earned ? ('Earned by reaching level ' + d.level) : ('Reach level ' + d.level + ' with any Fell');
   if (d.lineage) return earned ? ('Earned by playing a ' + d.lineage + ' Fell') : ('Play a ' + d.lineage + ' Fell');
