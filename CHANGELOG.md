@@ -1,3 +1,7 @@
+## 2026-09-28 - The Lore grant's amount box matches the table
+
+The amount in Grant Lore Points was a bare white browser box. It is now the table's own field: dark, gold-rimmed, the number in Cinzel gold, no spinner arrows (the - and + beside it do that), a gold ring on focus. The checkboxes take the gold, and Grant reads as disabled when there is no one to grant to.
+
 ## 2026-09-28 - The LoreMaster grants Lore Points
 
 On the LoreMaster's side only, the LP slot on the portrait frame now reads Lore and opens a grant: any amount, to the Fells chosen (every Fell at the table checked by default). A grant is kept in the table's state under loreGrants, written by the LoreMaster, and logged (The LoreMaster grants 3 Lore Points to Astra). Each player's table hands the grants meant for its Fell to the sheet (ts-lore-grants), which adds each once: the ids taken are kept in the Fell's own record (lore.grantsTaken), so a grant never lands twice, on any device, however late the player arrives; the sheet logs it (Astra receives 3 Lore Points from the LoreMaster, now 7). Players' LP slot is unchanged.
