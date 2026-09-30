@@ -2123,7 +2123,7 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
   </div>
   <div id="dieField"></div>
   <div id="tokmenu">
-    <input id="tmLabel" maxlength="14" aria-label="Token name" placeholder="Name">
+    <input id="tmLabel" maxlength="40" aria-label="Token name" placeholder="Name" title="Rename it here, or double-click the token">
     <div class="tmsz" id="tmSize"></div>
     <div class="tmshard" id="tmShard" style="display:none">
       <div class="tmshl">This shard has <b id="tmShardVit">1</b> Vitality left.</div>
@@ -2990,7 +2990,7 @@ function send(evt){
       applyRemoteState({ tokens: S.tokens });
     }
     if (evt.type === 'token-name'){
-      S.tokens.forEach(function(t){ if (t.id === evt.id){ t.name = evt.name; t.label = initials(evt.name); } });
+      S.tokens.forEach(function(t){ if (t.id === evt.id){ t.name = evt.name; t.label = initials(evt.name); tokRenameFoe(t, evt.name); } });
       applyRemoteState({ tokens: S.tokens });
     }
     if (evt.type === 'token-remove'){
@@ -13160,6 +13160,28 @@ function tokenIsMine(t){
   var tn = String(t.name || t.label || '');
   return !!myName && tn.toLowerCase() === String(myName).toLowerCase();
 }
+/* the foe behind a token takes the token's new name, in the roster, the fight and the store */
+function tokRenameFoe(t, name){
+  if (!isLM() || !name) return;
+  var f = (S.scene.foes || []).filter(function(x){ return sameId(x.id, t.refId) || sameId(x.id, t.id); })[0];
+  if (!f) return;
+  f.name = name;
+  (S.scene.combatants || []).forEach(function(cb){ if (sameId(cb.id, f.id)) cb.name = name; });
+  try { var fs = storyFind('scene', S.scene.id); if (fs && fs.scene !== S.scene) (fs.scene.foes || []).concat(fs.scene.combatants || []).forEach(function(x){ if (sameId(x.id, f.id)) x.name = name; }); } catch(e){}
+  clearTimeout(tokRenameFoe._t); tokRenameFoe._t = setTimeout(function(){ try { storySave(); render(); } catch(e){} }, 500);
+}
+/* a double-click on a token renames it, any time (LoreMaster); a Fell keeps its own name */
+function tokRenameAsk(id){
+  var t = tokById(id); if (!t || !isLM() || t.kind === 'p' || t.charId) return;
+  tsModal('<h3 class="tsm-title">Rename</h3><input id="tokRenameIn" class="tsm-in" maxlength="40" style="width:100%" value="' + esc(tokenName(t)) + '">'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button><button class="tsm-btn" onclick="tokRenameDo(\'' + esc(id) + '\')">Rename</button></div>');
+  var i = document.getElementById('tokRenameIn'); if (i){ i.focus(); i.select(); i.onkeydown = function(e){ if (e.key === 'Enter') tokRenameDo(id); }; }
+}
+function tokRenameDo(id){
+  var i = document.getElementById('tokRenameIn'); var v = i ? i.value.trim() : '';
+  if (v) send({ type:'token-name', id:id, name:v });
+  tsCloseModal(); setTimeout(function(){ try { paintTokMenu(); } catch(e){} }, 50);
+}
 function tokenName(t){
   var cid = t.charId || (t.kind === 'p' ? t.refId : '');
   if (cid){
@@ -13168,7 +13190,7 @@ function tokenName(t){
     if (hit) return hit;
   }
   if (t.kind === 'foe' || t.kind === 'monster'){
-    var f = (S.scene.foes || []).filter(function(x){ return sameId(x.id, t.refId); })[0];
+    var f = (S.scene.foes || []).filter(function(x){ return sameId(x.id, t.refId) || sameId(x.id, t.id); })[0];
     if (f && f.name) return f.name;
   }
   return t.name || t.label || '';
@@ -13363,6 +13385,7 @@ function snapAxis(v, off, cells){
 
    So: every token that can be TARGETED gets the tap. Only tokens the player owns get the
    drag. One function decides what a tap means, so the two cannot drift apart again. */
+var _lastTokTap = { id:'', at:0 };
 function wireToken(el, t, draggable){
   el.addEventListener('pointerdown', function(e){
     /* the ruler, pen and eraser work over tokens too: the map handles the gesture, and a
@@ -13392,7 +13415,14 @@ function wireToken(el, t, draggable){
       dragReadout(null);
       /* A tap, not a drag. A held card aims at this token; with no card held the tap
          selects, the way it always has. */
-      if (!moved){ if (!handAimByTap(t)) selectToken(t.id); return; }
+      if (!moved){
+        /* two taps on the same token in quick succession rename it (LoreMaster); the tokens are
+           redrawn between taps, so this is counted here rather than with a dblclick */
+        var nowT = Date.now();
+        if (isLM() && _lastTokTap.id === t.id && nowT - _lastTokTap.at < 380 && t.kind !== 'p' && !t.charId){ _lastTokTap = { id:'', at:0 }; tokRenameAsk(t.id); return; }
+        _lastTokTap = { id:t.id, at:nowT };
+        if (!handAimByTap(t)) selectToken(t.id); return;
+      }
       if (!draggable) return;                 /* it never moved; there is nothing to send */
       var c = t.cells || 1;
       if (snapOn){
@@ -15298,6 +15328,7 @@ function paintTokMenu(){
   var lab = document.getElementById('tmLabel');
   /* the letters are only what a faceless token wears; the box is for the name itself */
   if (document.activeElement !== lab) lab.value = tokenName(t);
+  var _fellTok = t.kind === 'p' || !!t.charId; lab.readOnly = _fellTok; lab.title = _fellTok ? 'A Fell\u2019s name is its player\u2019s' : 'Rename it here, or double-click the token';
   var sz = document.getElementById('tmSize');
   var shardBox = document.getElementById('tmShard');
   /* A shard is an object, not a token you resize: hide the size row, show its Vitality and

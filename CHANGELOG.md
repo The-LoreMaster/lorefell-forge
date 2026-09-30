@@ -1,3 +1,7 @@
+## 2026-09-28 - Rename a token at any time
+
+Renaming a foe's token in the token menu did nothing visible, because a foe token shows its foe's name and the rename only reached the token. Now a rename reaches the foe too, in the roster, the fight and the stored scene, so the card, the tracker and the token read the same. A token can also be renamed by double-clicking (or double-tapping) it, for the LoreMaster; the two taps are counted in the token's own tap handler, since the tokens redraw between them. The name field takes up to 40 characters, and on a Fell's token it is read-only, since a Fell's name is its player's.
+
 ## 2026-09-28 - The LoreMaster's +N is the Skill Difficulty; foes are numbered from 1
 
 The diamond under the LoreMaster's Vitality read a difficulty nothing ever set. It now shows the Skill Difficulty as the LoreVault defines it (Building Crucibles): the Average Party Level divided by 5, rounded down, with the working on hover. The rest's item inspection now rolls against the same number (1d6 plus the Skill Difficulty), which is what the rule meant by APL difficulty; it had been adding the whole average level (vault PR 22 corrects the wording). When a second foe of a kind arrives, from the library or by copying a token, the first is numbered too, on its card and its token: Wolf 1 and Wolf 2 rather than Wolf and Wolf 2.
