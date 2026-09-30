@@ -43,6 +43,8 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 #drawOpts, #fogOpts{ display:none; flex-direction:column; gap:6px; position:absolute; left:calc(100% + 8px); top:0; padding:6px; border-radius:12px; background:rgba(10,14,26,.9); border:1px solid rgba(201,168,76,.35); }
 #mapTools.fogging #fogOpts, #mapTools.walling #wallOpts, #mapTools.lighting #lightOpts, #mapTools.musicking #musicOpts, #mapTools.resting #restOpts, #mapTools.weathering #weatherOpts{ display:flex; }
 #weatherOpts{ display:none; flex-direction:column; gap:8px; position:absolute; left:calc(100% + 8px); top:0; width:220px; padding:10px 12px; border-radius:12px; background:rgba(10,14,26,.95); border:1px solid rgba(201,168,76,.35); font-family:'Crimson Pro',Georgia,serif; color:var(--silver,#dce8ef); }
+.wx-h{ font-family:Cinzel,serif; font-size:.55rem; letter-spacing:.14em; text-transform:uppercase; color:#a88a3e; margin:4px 0 -2px; }
+#weatherOpts{ max-height:70vh; overflow:auto; }
 .wx-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:6px; } .wx-grid button{ padding:6px; border:1px solid var(--line); border-radius:8px; background:none; color:var(--silver,#dce8ef); font-family:Cinzel,serif; font-size:.62rem; letter-spacing:.06em; cursor:pointer; } .wx-grid button.on{ border-color:var(--gold); color:var(--gold); background:rgba(201,168,76,.1); }
 .tm-extras{ display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; } .tm-extras button{ flex:1 1 auto; padding:4px 6px; border:1px solid var(--line); border-radius:7px; background:none; color:var(--silver,#dce8ef); font-family:Cinzel,serif; font-size:.55rem; letter-spacing:.05em; cursor:pointer; } .tm-extras button.on{ border-color:var(--gold); color:var(--gold); background:rgba(201,168,76,.1); }
 #restOpts{ display:none; flex-direction:column; gap:8px; position:absolute; left:calc(100% + 8px); top:0; width:250px; padding:10px 12px; border-radius:12px; background:rgba(10,14,26,.95); border:1px solid rgba(201,168,76,.35); font-family:'Crimson Pro',Georgia,serif; color:var(--silver,#dce8ef); font-size:.85rem; }
@@ -14930,7 +14932,15 @@ function gatherCue(text, at){
 }
 
 /* ---- weather, per scene: rain, snow, ash, embers, mist ---- */
-var WEATHERS = [['', 'None'], ['rain', 'Rain'], ['storm', 'Storm'], ['snow', 'Snow'], ['ash', 'Ash'], ['embers', 'Embers'], ['mist', 'Mist']];
+var WEATHERS = [['', 'None'], ['rain', 'Rain'], ['storm', 'Storm'], ['snow', 'Snow'], ['ash', 'Ash'], ['embers', 'Embers'], ['mist', 'Mist'],
+  /* of the worlds, each from its own Stratum page */
+  ['spores', 'Spores'], ['crimson', 'Crimson Haze'], ['ashstorm', 'Ashstorm'], ['static', 'Static Storm'], ['moonlight', 'Moonlight'], ['deepwater', 'Deep Water'],
+  /* magic */
+  ['wisps', 'Spirit Wisps'], ['discord', 'Discord']];
+var WEATHER_GROUPS = [['Weather', ['', 'rain', 'storm', 'snow', 'ash', 'embers', 'mist']],
+  ['Of the worlds', ['spores', 'crimson', 'ashstorm', 'static', 'moonlight', 'deepwater']],
+  ['Magic', ['wisps', 'discord']]];
+var WEATHER_WORLD = { spores:'Sporion', crimson:'Vyrathis', ashstorm:'Mortavia', static:'Mireleor', moonlight:'Sellenia', deepwater:'Neriad', wisps:'Oroniel', discord:'Pandemonium' };
 var _wx = { kind:'', parts:[], cv:null, raf:0 };
 function weatherKind(){ var sid = (S.scene && S.scene.id) || ''; return (S.weather && S.weather[sid]) || ''; }
 function weatherSet(k){
@@ -14941,7 +14951,7 @@ function weatherSet(k){
 }
 function weatherRun(){
   var k = weatherKind();
-  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches) k = (k === 'mist') ? 'mist' : '';
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches) k = (['mist', 'crimson', 'moonlight'].indexOf(k) >= 0) ? k : '';
   if (k === _wx.kind && (_wx.raf || !k)) return;
   _wx.kind = k; cancelAnimationFrame(_wx.raf); _wx.raf = 0;
   if (!_wx.cv){ _wx.cv = document.createElement('canvas'); _wx.cv.id = 'weatherLayer'; mapEl().appendChild(_wx.cv); }
@@ -14950,7 +14960,7 @@ function weatherRun(){
   g.clearRect(0, 0, W, H);
   if (!k){ cv.style.display = 'none'; return; }
   cv.style.display = 'block';
-  var n = { rain:220, storm:380, snow:160, ash:120, embers:70, mist:14 }[k] || 100;
+  var n = { rain:220, storm:380, snow:160, ash:120, embers:70, mist:14, spores:90, crimson:16, ashstorm:420, static:18, moonlight:60, deepwater:50, wisps:22, discord:140 }[k] || 100;
   if (isMobile()) n = Math.round(n * .5);
   _wx.parts = [];
   for (var i = 0; i < n; i++) _wx.parts.push({ x:Math.random() * W, y:Math.random() * H, s:Math.random(), p:Math.random() * 6.28 });
@@ -14975,6 +14985,49 @@ function weatherRun(){
         q.p += dt * 2; q.y -= (25 + q.s * 45) * dt; q.x += Math.sin(q.p) * 18 * dt; if (q.y < -5){ q.y = H + 5; q.x = Math.random() * W; }
         var a = .45 + .45 * Math.sin(q.p * 2);
         g.fillStyle = 'rgba(255,' + Math.round(120 + q.s * 90) + ',60,' + a + ')'; g.beginPath(); g.arc(q.x, q.y, 1 + q.s * 1.8, 0, 7); g.fill();
+      } else if (k === 'spores'){
+        /* Sporion: blue, green, amber and violet spores, rising slowly, some pulsing */
+        q.p += dt * (0.6 + q.s); q.y -= (8 + q.s * 16) * dt; q.x += Math.sin(q.p * .7) * 10 * dt; if (q.y < -8){ q.y = H + 8; q.x = Math.random() * W; }
+        var sc = ['90,180,255', '120,235,150', '255,190,90', '190,130,255'][Math.floor(q.s * 4) % 4], sa = .35 + .4 * (0.5 + 0.5 * Math.sin(q.p * 1.6));
+        var sg = g.createRadialGradient(q.x, q.y, 0, q.x, q.y, 3 + q.s * 5); sg.addColorStop(0, 'rgba(' + sc + ',' + sa + ')'); sg.addColorStop(1, 'rgba(' + sc + ',0)');
+        g.fillStyle = sg; g.beginPath(); g.arc(q.x, q.y, 3 + q.s * 5, 0, 7); g.fill();
+      } else if (k === 'crimson'){
+        /* Vyrathis: the Crimson Haze, rolling low red mist */
+        q.x += (6 + q.s * 8) * dt * (q.s > .5 ? 1 : -1); if (q.x > W + 320) q.x = -320; if (q.x < -320) q.x = W + 320;
+        var cg = g.createRadialGradient(q.x, q.y, 0, q.x, q.y, 260 + q.s * 200); cg.addColorStop(0, 'rgba(150,20,35,.085)'); cg.addColorStop(1, 'rgba(150,20,35,0)');
+        g.fillStyle = cg; g.fillRect(q.x - 470, q.y - 470, 940, 940);
+      } else if (k === 'ashstorm'){
+        /* Mortavia: gusting sheets of ash with glowing flecks */
+        var gust = 1 + .8 * Math.sin(now / 900 + q.s * 3);
+        q.x += (120 + q.s * 90) * gust * dt; q.y += (30 + q.s * 30) * dt; if (q.x > W + 10){ q.x = -10; q.y = Math.random() * H; } if (q.y > H) q.y = -5;
+        if (q.s > .93){ g.fillStyle = 'rgba(255,140,60,' + (.5 + .4 * Math.sin(now / 150 + q.p)) + ')'; g.fillRect(q.x, q.y, 2, 2); }
+        else { g.fillStyle = 'rgba(95,92,98,' + (.4 + q.s * .4) + ')'; g.fillRect(q.x, q.y, 2.5 + q.s * 4, 1.8 + q.s * 2.2); }
+      } else if (k === 'static'){
+        /* Mireleor: drifting smoke; the arcs are drawn once per frame below */
+        q.x += (10 + q.s * 8) * dt; if (q.x > W + 300) q.x = -300;
+        var mg = g.createRadialGradient(q.x, q.y, 0, q.x, q.y, 220 + q.s * 160); mg.addColorStop(0, 'rgba(70,72,84,.14)'); mg.addColorStop(1, 'rgba(70,72,84,0)');
+        g.fillStyle = mg; g.fillRect(q.x - 400, q.y - 400, 800, 800);
+      } else if (k === 'moonlight'){
+        /* Sellenia: pale motes hanging nearly still in silver light */
+        q.p += dt * .4; var ma = .25 + .35 * (0.5 + 0.5 * Math.sin(q.p + q.s * 6));
+        g.fillStyle = 'rgba(235,242,255,' + (ma + .15) + ')'; g.beginPath(); g.arc(q.x + Math.sin(q.p) * 3, q.y + Math.cos(q.p * .8) * 3, 1 + q.s * 1.7, 0, 7); g.fill();
+      } else if (k === 'deepwater'){
+        /* Neriad: bubbles rising through a blue-green glow */
+        q.p += dt * 2; q.y -= (30 + q.s * 50) * dt; q.x += Math.sin(q.p) * 8 * dt; if (q.y < -10){ q.y = H + 10; q.x = Math.random() * W; }
+        g.strokeStyle = 'rgba(170,240,235,' + (.3 + q.s * .35) + ')'; g.lineWidth = 1; g.beginPath(); g.arc(q.x, q.y, 1.5 + q.s * 3.5, 0, 7); g.stroke();
+      } else if (k === 'wisps'){
+        /* Oroniel: pale spirits that wander and curl, trailing light */
+        q.p += dt * (0.5 + q.s * .5); q.x += Math.cos(q.p) * (22 + q.s * 18) * dt; q.y += Math.sin(q.p * 1.3) * (18 + q.s * 14) * dt;
+        if (q.x < -20) q.x = W + 20; if (q.x > W + 20) q.x = -20; if (q.y < -20) q.y = H + 20; if (q.y > H + 20) q.y = -20;
+        q.tr = q.tr || []; q.tr.push([q.x, q.y]); if (q.tr.length > 14) q.tr.shift();
+        q.tr.forEach(function(pt, ti){ var ta = (ti / q.tr.length) * .22; g.fillStyle = 'rgba(200,230,255,' + ta + ')'; g.beginPath(); g.arc(pt[0], pt[1], 1 + ti * .18, 0, 7); g.fill(); });
+        var wg = g.createRadialGradient(q.x, q.y, 0, q.x, q.y, 10 + q.s * 8); wg.addColorStop(0, 'rgba(235,248,255,.8)'); wg.addColorStop(.4, 'rgba(170,215,255,.3)'); wg.addColorStop(1, 'rgba(170,215,255,0)');
+        g.fillStyle = wg; g.beginPath(); g.arc(q.x, q.y, 10 + q.s * 8, 0, 7); g.fill();
+      } else if (k === 'discord'){
+        /* Pandemonium: black static specks falling upward */
+        q.y -= (20 + q.s * 40) * dt; q.x += (Math.random() - .5) * 30 * dt; if (q.y < -5){ q.y = H + 5; q.x = Math.random() * W; }
+        g.fillStyle = (Math.random() < .08) ? 'rgba(150,60,200,.7)' : 'rgba(8,4,12,' + (.5 + q.s * .4) + ')';
+        g.fillRect(q.x, q.y, 1 + q.s * 2.5, 1 + q.s * 2.5);
       } else if (k === 'mist'){
         q.x += (8 + q.s * 10) * dt; if (q.x > W + 300) q.x = -300;
         var gr = g.createRadialGradient(q.x, q.y, 0, q.x, q.y, 220 + q.s * 180);
@@ -14982,6 +15035,39 @@ function weatherRun(){
         g.fillStyle = gr; g.fillRect(q.x - 420, q.y - 420, 840, 840);
       }
     });
+    if (k === 'crimson'){ g.fillStyle = 'rgba(120,10,25,' + (.045 + .02 * Math.sin(now / 2400)) + ')'; g.fillRect(0, 0, W, H); }
+    if (k === 'moonlight'){ g.fillStyle = 'rgba(170,190,230,' + (.09 + .02 * Math.sin(now / 3000)) + ')'; g.fillRect(0, 0, W, H); }
+    if (k === 'deepwater'){
+      g.fillStyle = 'rgba(20,90,110,.13)'; g.fillRect(0, 0, W, H);
+      /* caustics: soft bands of light wandering across the floor */
+      for (var ci = 0; ci < 6; ci++){
+        var cx = (Math.sin(now / 4000 + ci * 1.7) * .5 + .5) * W, cy = (Math.cos(now / 5200 + ci * 2.3) * .5 + .5) * H;
+        var cgd = g.createRadialGradient(cx, cy, 0, cx, cy, 180); cgd.addColorStop(0, 'rgba(140,240,230,.09)'); cgd.addColorStop(1, 'rgba(140,240,230,0)');
+        g.fillStyle = cgd; g.fillRect(cx - 180, cy - 180, 360, 360);
+      }
+    }
+    if (k === 'ashstorm'){ g.fillStyle = 'rgba(40,36,34,' + (.14 + .1 * (0.5 + 0.5 * Math.sin(now / 900))) + ')'; g.fillRect(0, 0, W, H); }
+    if (k === 'discord'){
+      /* the edges darken and bend inward, slowly */
+      var eg = g.createRadialGradient(W / 2, H / 2, Math.min(W, H) * (.32 + .03 * Math.sin(now / 1500)), W / 2, H / 2, Math.max(W, H) * .75);
+      eg.addColorStop(0, 'rgba(10,0,20,0)'); eg.addColorStop(1, 'rgba(20,0,35,.45)'); g.fillStyle = eg; g.fillRect(0, 0, W, H);
+    }
+    if (k === 'static'){
+      /* blue-white arcs crackling across the map, each flickering for a moment before it goes */
+      _wx.arcs = _wx.arcs || [];
+      if (Math.random() < dt * 2.2){
+        var ax = Math.random() * W, ay = Math.random() * H, pts = [[ax, ay]], steps = 8 + Math.floor(Math.random() * 7);
+        for (var si = 0; si < steps; si++){ ax += (Math.random() - .3) * 44; ay += (Math.random() - .5) * 44; pts.push([ax, ay]); }
+        _wx.arcs.push({ pts:pts, life:.35 });
+      }
+      _wx.arcs = _wx.arcs.filter(function(a){ a.life -= dt; return a.life > 0; });
+      _wx.arcs.forEach(function(a){
+        if (Math.random() < .25) return;   /* the flicker */
+        g.strokeStyle = 'rgba(200,230,255,' + Math.min(1, a.life * 3) + ')'; g.lineWidth = 1.5; g.shadowColor = 'rgba(140,200,255,.95)'; g.shadowBlur = 10;
+        g.beginPath(); g.moveTo(a.pts[0][0], a.pts[0][1]); a.pts.forEach(function(pt){ g.lineTo(pt[0], pt[1]); }); g.stroke();
+      });
+      g.shadowBlur = 0;
+    }
     if (k === 'storm'){ if (flash > 0){ g.fillStyle = 'rgba(220,230,255,' + (flash * .35) + ')'; g.fillRect(0, 0, W, H); flash -= dt * 3; } else if (Math.random() < dt * .08) flash = 1; }
     _wx.raf = requestAnimationFrame(step);
   })(last);
@@ -14989,8 +15075,12 @@ function weatherRun(){
 function weatherPanelPaint(){
   var box = document.getElementById('weatherOpts'); if (!box) return;
   var cur = weatherKind();
+  var nameOf = {}; WEATHERS.forEach(function(w){ nameOf[w[0]] = w[1]; });
   box.innerHTML = '<div class="mu-now"><span class="mu-lab">Weather</span><b>This scene</b></div>'
-    + '<div class="wx-grid">' + WEATHERS.map(function(w){ return '<button class="' + (cur === w[0] ? 'on' : '') + '" onclick="weatherSet(\'' + w[0] + '\')">' + w[1] + '</button>'; }).join('') + '</div>';
+    + WEATHER_GROUPS.map(function(gr){
+        return '<div class="wx-h">' + gr[0] + '</div><div class="wx-grid">' + gr[1].map(function(k){
+          return '<button class="' + (cur === k ? 'on' : '') + '"' + (WEATHER_WORLD[k] ? ' title="From ' + WEATHER_WORLD[k] + '"' : '') + ' onclick="weatherSet(\'' + k + '\')">' + nameOf[k] + '</button>'; }).join('') + '</div>';
+      }).join('');
 }
 
 /* ---- map notes: pins only the LoreMaster sees, until one is shown to the table ---- */
