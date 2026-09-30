@@ -957,6 +957,9 @@ button.ax-fact{cursor:pointer}
 .ax-id:hover .ax-nm{color:var(--gold)}.ax-id:hover .ax-chev{color:var(--gold)}
 .ax-stance .ax-id{grid-template-columns:1fr auto}
 .ax-slot{cursor:pointer}
+.ax-row.ax-tap{cursor:pointer}
+.ax-row.ax-tap:hover{border-color:rgba(201,168,76,.45)}
+.ax-row.ax-tap:hover .ax-chev{color:var(--gold)}
 .ax-slot.empty{border-style:dashed;color:var(--silver-dim)}
 .ax-slot.empty::before{content:"+ ";color:var(--gold)}
 .ax-slot.empty:hover{border-color:var(--gold);color:var(--silver)}
@@ -4159,6 +4162,16 @@ function axFacts(list){
   });
   return f;
 }
+/* a folded card opens from a tap anywhere on it, not only its header; a control on it (the
+   Equipped toggle, a picker) keeps its own job, and an open card closes from its header */
+function axOpenOnTap(row,key,fn){
+  row.addEventListener("click",ev=>{
+    if(_axOpen[key]) return;
+    if(ev.target.closest("button,select,input,textarea,a,label")) return;
+    axToggle(key,fn);
+  });
+  if(!_axOpen[key]) row.classList.add("ax-tap");
+}
 function axSec(label,ruled){ return el("div","ax-sec"+(ruled?" ruled":""),label); }
 function axLine(k,txt){ const d=el("div","ax-li"); d.innerHTML=`<span class="k">${k}</span><span>${txt}</span>`; return d; }
 const ORD=["1st","2nd","3rd"];
@@ -4254,6 +4267,7 @@ function renderWeapons(){
     const db=w.tree?WEAPON_DB[w.tree]:null, magic=db&&db.category==="magic";
     const row=el("div","ax-row "+(magic?"k-mag":"k-phys")+(open?" open":"")+(w.equipped?"":" ax-stowed"));
     row.appendChild(axHead(magic?"mag":"phys",magic?AXI.mag:AXI.phys,weaponName(w)||"Choose a weapon",w.tree||"",w.tree?w.level:null,key,renderWeapons));
+    if(w.tree) axOpenOnTap(row,key,renderWeapons);
     if(!w.tree){
       /* a weapon slot with nothing in it yet: the one question is which weapon */
       const sel=el("select");
@@ -4368,6 +4382,7 @@ function renderArmor(){
   /* the armor itself: its level, and the augmentation slots it has opened */
   const row=el("div","ax-row k-armor"+(_axOpen.armor?" open":""));
   row.appendChild(axHead("armor",AXI.shield,"Armor","",C.armor.level,"armor",renderArmor));
+  axOpenOnTap(row,"armor",renderArmor);
   if(_axOpen.armor){
     const body=el("div","ax-body");
     const augOpen=[0,1].filter(i=>C.armor.level>=AUG_UNLOCK[i]);
@@ -4405,6 +4420,7 @@ function renderArmor(){
       if(held) axToggle(key,renderArmor); else fgTell(sn,"<p>"+db.desc+"</p>");
     });
     r.appendChild(hd);
+    if(held) axOpenOnTap(r,key,renderArmor);
     const unlocked=db.tiers.map((t,i)=>C.armor.level>=STANCE_TIER_UNLOCK[i]?i:-1).filter(i=>i>=0);
     if(held&&_axOpen[key]){
       const body=el("div","ax-body ax-tiers");
@@ -4427,6 +4443,7 @@ function renderLorebounds(){
     const fi=lbFormIdx(lb.level), form=LB_FORMS[fi], asp=aspectOf(lb.type);
     const row=el("div","ax-row k-lb"+(open?" open":""));
     row.appendChild(axHead("lb",AXI.paw,lb.name||"Unnamed",lb.type||"Choose a lorebound",lb.level,key,renderLorebounds));
+    axOpenOnTap(row,key,renderLorebounds);
     const mob=(C.mobility||0)*(fi===2?2:1);
     const arche=asp&&asp.category?asp.category.charAt(0).toUpperCase()+asp.category.slice(1):"";
     row.appendChild(axFacts([["Form",form.name],["Mobility",String(mob)]].concat(arche?[["Archetype",arche]]:[])));

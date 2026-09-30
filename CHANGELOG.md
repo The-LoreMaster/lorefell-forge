@@ -1,3 +1,7 @@
+## 2026-09-28 - Mobility rolls the Generic dice; Arsenal cards open from anywhere
+
+A Mobility roll (from the stat strip) rolled the LoreFell set whatever the player had chosen, since mobility is not one of the four kinds; any roll outside Attack, Evade and Skill now rolls the player's Generic dice. A folded Weapons, Lorebounds or Armor card, and the held stance, now opens from a tap anywhere on it, not only its header; a control on it (the Equipped toggle, a picker) keeps its own job, and an open card closes from its header. A folded card shows it can be opened: the pointer, and a gold edge on hover.
+
 ## 2026-09-28 - Attribute breakdown opens on click only
 
 Hovering an attribute no longer opens its breakdown, which covered the lines being read. A click (a tap on a phone) opens it; another click on the same attribute, or anywhere else, closes it. The same in FellGlass and ThreadSpire.
