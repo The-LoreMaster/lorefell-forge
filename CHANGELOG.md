@@ -1,3 +1,7 @@
+## 2026-09-28 - Undo on the map, and Rotate that follows the pointer
+
+Ctrl+Z (Cmd+Z) now undoes the LoreMaster's last change on the map, and Ctrl+Shift+Z or Ctrl+Y does it again: tokens placed, moved, removed, turned, renamed or copied, walls and doors, lights, fog painting and drawings, up to 40 steps. Changes that arrive from someone else reset the watch rather than becoming something to undo, so it only walks back the LoreMaster's own work, and the restored map goes to everyone. Rotation steps are 20 degrees (the arrows, R and Shift+R), and Rotate itself turns the chosen token, or a whole selection, to face wherever the pointer goes until a click sets it; Escape puts it back.
+
 ## 2026-09-28 - Remove many tokens at once, rotate tokens, and the Skyvault Shards slot names itself
 
 A box selection of more than one token gets a small bar (Rotate, Duplicate, Remove), and Delete or Backspace removes whatever is chosen, one token or many; removing a Fell's token asks first, and never touches the Fell itself. Tokens turn: Rotate in the token menu, R (Shift+R the other way), 45 degrees a step, for one token or a selection; the name stays level, and the turn is kept with the token (rot) for everyone. The LoreMaster's SS slot now reads Skyvault Shards, and Skyvault Shards and the count while Shards are waiting to be placed.
