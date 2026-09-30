@@ -757,12 +757,23 @@ export const myDice = webMethod(Permissions.Anyone, async () => {
   const m = await currentMember.getMember().catch(() => null);
   if (!m || !m._id) return { ok: false, lineages: [], maxLevel: 0, picks: {} };
   const own = await diceOwned(m._id);
-  let picks = {};
-  try { const r = await wixData.query('DicePrefs').eq('memberId', m._id).limit(1).find({ suppressAuth: true }); if (r.items[0]) picks = JSON.parse(r.items[0].picks || '{}') || {}; } catch (e) { picks = {}; }
+  let picks = {}, grants = [];
+  try {
+    const r = await wixData.query('DicePrefs').eq('memberId', m._id).limit(1).find({ suppressAuth: true });
+    const row = r.items[0];
+    if (row) {
+      picks = JSON.parse(row.picks || '{}') || {};
+      // Sets given by hand. Only the site's owner can write this field (DicePrefs is admin
+      // only), in the CMS: a list of set keys such as ["skyvault"], or the keys comma-separated.
+      const g = row.grants;
+      if (Array.isArray(g)) grants = g.map(String);
+      else if (typeof g === 'string' && g.trim()) { try { const pg = JSON.parse(g); grants = Array.isArray(pg) ? pg.map(String) : []; } catch (e2) { grants = g.split(',').map((x) => x.trim()).filter(Boolean); } }
+    }
+  } catch (e) { picks = {}; }
   // the LoreMaster's set belongs to anyone who runs an adventure
   let ranAdventure = false;
   try { const rc = await wixData.query('Campaigns').eq('ownerMemberId', m._id).limit(1).find({ suppressAuth: true }); ranAdventure = rc.items.length > 0; } catch (e) {}
-  return { ok: true, lineages: own.lineages, maxLevel: own.maxLevel, picks, ranAdventure };
+  return { ok: true, lineages: own.lineages, maxLevel: own.maxLevel, picks, ranAdventure, grants };
 });
 export const saveDicePicks = webMethod(Permissions.Anyone, async (picks) => {
   const m = await currentMember.getMember().catch(() => null);
@@ -771,7 +782,7 @@ export const saveDicePicks = webMethod(Permissions.Anyone, async (picks) => {
   ['attack', 'evade', 'skill', 'generic'].forEach((k) => { const v = picks && picks[k]; if (typeof v === 'string' && v.length < 60) clean[k] = v; });
   try {
     const r = await wixData.query('DicePrefs').eq('memberId', m._id).limit(1).find({ suppressAuth: true });
-    if (r.items[0]) await wixData.update('DicePrefs', Object.assign({}, r.items[0], { picks: JSON.stringify(clean) }), { suppressAuth: true });
+    if (r.items[0]) await wixData.update('DicePrefs', Object.assign({}, r.items[0], { picks: JSON.stringify(clean) }), { suppressAuth: true });  // grants ride along untouched
     else await wixData.insert('DicePrefs', { memberId: m._id, picks: JSON.stringify(clean) }, { suppressAuth: true });
     return { ok: true };
   } catch (e) { return { ok: false, error: String(e) }; }

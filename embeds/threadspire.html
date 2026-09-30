@@ -433,8 +433,10 @@ body.clean .artlayer{ display:none; }
 .dice-open:hover{ border-color:var(--gold); }
 .dice-open span{ display:flex; flex-direction:column; } .dice-open b{ font-family:Cinzel,serif; font-weight:500; font-size:.8rem; letter-spacing:.06em; } .dice-open small{ font-size:.78rem; color:var(--muted,#8fa3b3); }
 .dk-sw{ position:relative; }
-.dk-sw[data-tip]:hover::after{ content:attr(data-tip) '\A' attr(data-how); white-space:pre; position:absolute; left:50%; bottom:calc(100% + 6px); transform:translateX(-50%); z-index:5; padding:6px 9px; border-radius:8px; background:rgba(10,14,26,.97); border:1px solid var(--gold); color:var(--silver,#dce8ef); font-family:'Crimson Pro',Georgia,serif; font-size:.78rem; line-height:1.35; text-align:center; pointer-events:none; min-width:140px; }
-#diceWin{ max-height:60vh; overflow:auto; padding-top:34px; margin-top:-24px; }
+.dk-sw-unused[data-tip]:hover::after{ content:attr(data-tip) '\A' attr(data-how); white-space:pre; position:absolute; left:50%; bottom:calc(100% + 6px); transform:translateX(-50%); z-index:5; padding:6px 9px; border-radius:8px; background:rgba(10,14,26,.97); border:1px solid var(--gold); color:var(--silver,#dce8ef); font-family:'Crimson Pro',Georgia,serif; font-size:.78rem; line-height:1.35; text-align:center; pointer-events:none; min-width:140px; }
+#diceWin{ max-height:60vh; overflow:auto; }
+#diceTip{ position:fixed; z-index:200; display:none; padding:6px 10px; border-radius:8px; background:rgba(10,14,26,.97); border:1px solid var(--gold); color:var(--silver,#dce8ef); font-family:'Crimson Pro',Georgia,serif; font-size:.82rem; line-height:1.35; text-align:center; pointer-events:none; max-width:240px; box-shadow:0 8px 20px rgba(0,0,0,.5); }
+#diceTip b{ display:block; font-family:Cinzel,serif; font-weight:500; font-size:.75rem; letter-spacing:.06em; color:var(--gold); }
 .dice-row{ display:flex; flex-direction:column; gap:5px; }
 .dice-kind{ font-family:Cinzel,serif; font-size:.6rem; letter-spacing:.14em; text-transform:uppercase; color:var(--muted,#8fa3b3); }
 .dice-grid{ display:flex; flex-wrap:wrap; gap:6px; }
@@ -4850,6 +4852,7 @@ var DICE_SKINS = {
    claimed from here. Each set: a face (bg, or six faces), the pips, the edge, and an effect. */
 var DICE_CAT = {
   lorefell:   { name:'LoreFell', bg:'linear-gradient(160deg,#1b2440,#0b101f)', pip:'#c9a84c', edge:'#c9a84c' },
+  skyvault:   { name:'Skyvault', hidden:true, gift:'From the Skyvault, to its maker', bg:'radial-gradient(1px 1px at 25% 30%,#fff 50%,transparent 51%),radial-gradient(1px 1px at 65% 70%,#fff 50%,transparent 51%),radial-gradient(1px 1px at 80% 25%,#f6e3a1 50%,transparent 51%),linear-gradient(160deg,#0f1c3d,#050a18)', pip:'#e9eef8', edge:'#c9a84c', fx:'stars', base3d:['#162a58','#050a18'] },
   loremaster: { name:'LoreMaster', lm:true, bg:'radial-gradient(circle at 50% 45%,#5a0f14 0%,#2a0508 55%,#0a0204 100%)', pip:'#f1d98a', edge:'#c9a84c', fx:'glow', base3d:['#5a0f14','#14030a'] },
   resplendent:{ name:'Resplendent', level:10, bg:'linear-gradient(135deg,#f6e3a1 0%,#c9a84c 38%,#8a6a22 70%,#f1d98a 100%)', pip:'#2a1d05', edge:'#fff1bf', fx:'sheen' },
   ascendent:  { name:'Ascendent', level:20, bg:'radial-gradient(circle at 50% 40%,#fffaf0 0%,#f3e2b0 45%,#c9a84c 100%)', pip:'#7a5a12', edge:'#fffbe8', fx:'glow' },
@@ -4901,6 +4904,9 @@ S.dice = S.dice || { lineages:[], maxLevel:0, picks:{} };
 function diceOwns(key){
   var d = DICE_CAT[key]; if (!d || d.legacy) return false;
   if (key === 'lorefell') return true;
+  /* granted by hand in the site's DicePrefs, and only there */
+  if ((S.dice.grants || []).indexOf(key) >= 0) return true;
+  if (d.hidden) return false;
   /* the LoreMaster's set is for whoever runs a table */
   if (d.lm) return isLM() || !!S.dice.ranAdventure;
   if (d.level) return (S.dice.maxLevel || 0) >= d.level;
@@ -4910,7 +4916,7 @@ function diceOwns(key){
 function diceMine(type){ var k = (S.dice.picks || {})[type]; return (k && diceOwns(k)) ? k : (isLM() ? 'loremaster' : 'lorefell'); }
 function diceLoad(){
   tsAsk('TS_DICE_GET', {}).then(function(r){
-    if (!r) return; S.dice = { lineages:r.lineages || [], maxLevel:r.maxLevel || 0, picks:r.picks || {}, ranAdventure:!!r.ranAdventure };
+    if (!r) return; S.dice = { lineages:r.lineages || [], maxLevel:r.maxLevel || 0, picks:r.picks || {}, ranAdventure:!!r.ranAdventure, grants:Array.isArray(r.grants) ? r.grants : [] };
     try { buildCube(S.rollType); } catch(e){}
     diceWindowPaint();
   }).catch(function(){});
@@ -4931,6 +4937,7 @@ function diceFace(key, n){
 function diceHow(k, earned){
   var d = DICE_CAT[k] || {};
   if (k === 'lorefell') return 'Everyone\u2019s first dice';
+  if ((S.dice.grants || []).indexOf(k) >= 0 && (d.hidden || earned)) return d.gift || 'A gift from the Skyvault';
   if (d.lm) return earned ? 'Earned by running an adventure as its LoreMaster' : 'Run an adventure as its LoreMaster';
   if (d.level) return earned ? ('Earned by reaching level ' + d.level) : ('Reach level ' + d.level + ' with any Fell');
   if (d.lineage) return earned ? ('Earned by playing a ' + d.lineage + ' Fell') : ('Play a ' + d.lineage + ' Fell');
@@ -4948,15 +4955,30 @@ function diceWindow(){
   tsModal('<h3 class="tsm-title">Your dice</h3><div id="diceWin">' + diceSettingsHtml() + '</div>'
     + '<div class="tsm-row"><button class="tsm-btn" onclick="tsCloseModal()">Done</button></div>');
 }
-function diceWindowPaint(){ var w = document.getElementById('diceWin'); if (w) w.innerHTML = diceSettingsHtml(); }
+function diceWindowPaint(){ var w = document.getElementById('diceWin'); if (w) w.innerHTML = diceSettingsHtml(); diceTipHide(); }
+/* the dice window's tooltip: one, on the page itself, kept on screen */
+function diceTipHide(){ var t = document.getElementById('diceTip'); if (t) t.style.display = 'none'; }
+document.addEventListener('mouseover', function(ev){
+  var b = ev.target.closest && ev.target.closest('#diceWin [data-tip]');
+  if (!b){ diceTipHide(); return; }
+  var t = document.getElementById('diceTip');
+  if (!t){ t = document.createElement('div'); t.id = 'diceTip'; document.body.appendChild(t); }
+  t.innerHTML = '<b>' + esc(b.getAttribute('data-tip')) + '</b>' + esc(b.getAttribute('data-how') || '');
+  t.style.display = 'block';
+  var r = b.getBoundingClientRect(), w = t.offsetWidth, h = t.offsetHeight;
+  var x = Math.max(8, Math.min(window.innerWidth - w - 8, r.left + r.width / 2 - w / 2));
+  var y = r.top - h - 8; if (y < 8) y = r.bottom + 8;
+  t.style.left = x + 'px'; t.style.top = y + 'px';
+});
 function diceSettingsHtml(){
   var own = Object.keys(DICE_CAT).filter(function(k){ return diceOwns(k); });
-  var locked = Object.keys(DICE_CAT).filter(function(k){ return !DICE_CAT[k].legacy && !diceOwns(k); });
+  /* a hidden set is never listed to earn: it is only ever given */
+  var locked = Object.keys(DICE_CAT).filter(function(k){ return !DICE_CAT[k].legacy && !DICE_CAT[k].hidden && !diceOwns(k); });
   var h = '<div class="dice-set">';
   ROLL_KINDS.forEach(function(rk){
     var cur = diceMine(rk[0]);
     h += '<div class="dice-row"><span class="dice-kind">' + rk[1] + '</span><div class="dice-grid">'
-      + own.map(function(k){ return '<button class="dk-sw' + (k === cur ? ' on' : '') + '" title="' + esc(DICE_CAT[k].name + '. ' + diceHow(k, true)) + '" data-tip="' + esc(DICE_CAT[k].name) + '" data-how="' + esc(diceHow(k, true)) + '" onclick="dicePick(\'' + rk[0] + '\',\'' + esc(k) + '\')">' + diceFace(k, 5) + '</button>'; }).join('')
+      + own.map(function(k){ return '<button class="dk-sw' + (k === cur ? ' on' : '') + '" aria-label="' + esc(DICE_CAT[k].name + '. ' + diceHow(k, true)) + '" data-tip="' + esc(DICE_CAT[k].name) + '" data-how="' + esc(diceHow(k, true)) + '" onclick="dicePick(\'' + rk[0] + '\',\'' + esc(k) + '\')">' + diceFace(k, 5) + '</button>'; }).join('')
       + '</div></div>';
   });
   h += '</div>';
@@ -4964,7 +4986,7 @@ function diceSettingsHtml(){
     h += '<details class="dice-locked"><summary>Still to earn (' + locked.length + ')</summary><div class="dice-grid">'
       + locked.map(function(k){ var d = DICE_CAT[k];
           var how = diceHow(k, false);
-          return '<span class="dk-sw locked" title="' + esc(d.name + ': ' + how) + '">' + diceFace(k, 5) + '<em>' + esc(d.name) + '</em><small>' + esc(how) + '</small></span>'; }).join('')
+          return '<span class="dk-sw locked" data-tip="' + esc(d.name) + '" data-how="' + esc(how) + '">' + diceFace(k, 5) + '<em>' + esc(d.name) + '</em><small>' + esc(how) + '</small></span>'; }).join('')
       + '</div></details>';
   }
   return h;
@@ -5055,10 +5077,18 @@ function slotCentre(){
 }
 /* The table, minus the furniture. Two randoms averaged give a centre bias, so it
    scatters like a thrown die instead of drifting to the edges or repeating a spot. */
-function landSpot(){
+/* The open floor of the table: inside the frame's art and clear of the widgets, measured in
+   proportion to the window as well as in pixels, since a full-screen table grows the frame. */
+function diceFloor(){
   var r = mapEl().getBoundingClientRect(), m = isMobile();
-  var x0 = r.left + (m ? 30 : 250), x1 = r.left + r.width - (m ? 30 : 286);
-  var y0 = r.top + (m ? 86 : 58), y1 = r.top + r.height - (m ? 116 : 152);
+  var W = Math.min(r.width, window.innerWidth), H = Math.min(r.height, window.innerHeight);
+  var L = Math.max(r.left, 0), T = Math.max(r.top, 0);
+  return { x0:L + Math.max(m ? 30 : 250, W * (m ? .06 : .17)), x1:L + W - Math.max(m ? 30 : 286, W * (m ? .06 : .21)),
+           y0:T + Math.max(m ? 86 : 58, H * (m ? .12 : .1)), y1:T + H - Math.max(m ? 116 : 152, H * (m ? .16 : .2)) };
+}
+function landSpot(){
+  var r = mapEl().getBoundingClientRect(), f = diceFloor();
+  var x0 = f.x0, x1 = f.x1, y0 = f.y0, y1 = f.y1;
   if (x1 <= x0 || y1 <= y0) return { x:r.left + r.width / 2, y:r.top + r.height / 2 };
   function pick(a, b){ return a + (b - a) * ((Math.random() + Math.random()) / 2); }
   return { x:pick(x0, x1), y:pick(y0, y1) };
@@ -5184,7 +5214,7 @@ function dice3dThrow(e, skin, from, to, done){
   }
   var st = { p:new T.Vector3(from.x, 260, from.y), v:new T.Vector3((to.x - from.x) / 0.62, 380, (to.y - from.y) / 0.62),
              w:new T.Vector3((Math.random() - .5) * 24, (Math.random() - .5) * 18, (Math.random() - .5) * 24), q:new T.Quaternion().setFromEuler(new T.Euler(Math.random() * 6, Math.random() * 6, Math.random() * 6)) };
-  var rest = dice3dRest(e.n), t0 = performance.now(), last = t0, settleAt = 1.05, total = 1.5, from0 = null, halo = null;
+  var rest = dice3dRest(e.n), t0 = performance.now(), last = t0, settleAt = 1.05, total = 1.5, from0 = null, halo = null, fl = diceFloor();
   D.dice.push(die);
   function step(now){
     var dt = Math.min(.033, (now - last) / 1000), t = (now - t0) / 1000; last = now;
@@ -5192,6 +5222,11 @@ function dice3dThrow(e, skin, from, to, done){
       st.v.y -= 2600 * dt;
       st.p.addScaledVector(st.v, dt);
       if (st.p.y < half){ st.p.y = half; st.v.y = -st.v.y * .42; st.v.x *= .72; st.v.z *= .72; st.w.multiplyScalar(.7); }
+      /* the floor's edges are walls: a die that reaches one comes back off it */
+      if (st.p.x < fl.x0 + half){ st.p.x = fl.x0 + half; st.v.x = Math.abs(st.v.x) * .5; }
+      if (st.p.x > fl.x1 - half){ st.p.x = fl.x1 - half; st.v.x = -Math.abs(st.v.x) * .5; }
+      if (st.p.z < fl.y0 + half && t > .25){ st.p.z = fl.y0 + half; st.v.z = Math.abs(st.v.z) * .5; }
+      if (st.p.z > fl.y1 - half){ st.p.z = fl.y1 - half; st.v.z = -Math.abs(st.v.z) * .5; }
       var ang = st.w.length() * dt;
       if (ang > 0){ var dq = new T.Quaternion().setFromAxisAngle(st.w.clone().normalize(), ang); st.q.premultiply(dq); }
       die.position.copy(st.p); die.quaternion.copy(st.q);
@@ -5200,7 +5235,7 @@ function dice3dThrow(e, skin, from, to, done){
       if (!from0) from0 = { q:st.q.clone(), p:st.p.clone() };
       var k = (t - settleAt) / (total - settleAt), e2 = 1 - Math.pow(1 - k, 3);
       die.quaternion.copy(from0.q).slerp(rest, e2);
-      die.position.set(from0.p.x + (to.x - from0.p.x) * e2 * .5, half + Math.abs(Math.sin(k * Math.PI)) * 10 * (1 - k), from0.p.z + (to.y - from0.p.z) * e2 * .5);
+      die.position.set(from0.p.x + (to.x - from0.p.x) * e2, half + Math.abs(Math.sin(k * Math.PI)) * 10 * (1 - k), from0.p.z + (to.y - from0.p.z) * e2);
     } else {
       die.quaternion.copy(rest); die.position.y = half;
       /* a Fellmark burns gold and a Fellstrike smoulders red, pulsing while the die rests */
@@ -5235,7 +5270,7 @@ function throwFor(e){
   /* work out the throw before anything reaches the DOM, so a bad measurement
      cannot strand a die on the table with nothing to animate it */
   var to = landSpot();
-  var from = mine ? slotCentre() : { x:to.x, y:mapEl().getBoundingClientRect().top - 70 };
+  var from = mine ? slotCentre() : { x:to.x, y:diceFloor().y0 };
   /* a real die when the device can draw one; the flat die otherwise */
   if (Dice3D.ok && !document.body.classList.contains('reduce-motion')){
     if (mine){ myDice++; dieHome = false; tumbleEnds = Date.now() + FLIGHT; document.getElementById('restCube').classList.add('away'); document.getElementById('dieSlot').classList.add('empty'); }
