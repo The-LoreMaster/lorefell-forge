@@ -421,6 +421,9 @@ body.clean .artlayer{ display:none; }
 .diefx.strike b{ background:radial-gradient(circle, rgba(226,75,74,.55) 0%, rgba(226,75,74,.14) 42%, transparent 66%); animation:aura 720ms ease-out forwards; }
 
 #dieField{ position:fixed; inset:0; pointer-events:none; z-index:60; }
+.hslot.lm-lore{ cursor:pointer; pointer-events:auto; z-index:62; } .hslot.lm-lore:hover{ color:var(--gold); filter:brightness(1.2); }
+.lg-amt{ display:flex; align-items:center; gap:8px; margin:8px 0 12px; } .lg-amt input{ width:70px; text-align:center; font-family:Cinzel,serif; font-size:1rem; } .lg-amt button{ width:32px; height:32px; border:1px solid var(--line); border-radius:50%; background:none; color:var(--gold); font-size:1rem; } .lg-amt span{ color:var(--muted,#8fa3b3); }
+.lg-to{ display:flex; flex-direction:column; gap:6px; margin-bottom:10px; } .lg-to label{ display:flex; gap:8px; align-items:center; }
 #dice3d{ position:fixed; inset:0; width:100vw; height:100vh; pointer-events:none; z-index:59; }
 .dietag3d{ position:fixed; transform:translateX(-50%); z-index:61; pointer-events:none; font-family:Cinzel,serif; font-size:.62rem; letter-spacing:.1em; color:var(--silver,#dce8ef); text-shadow:0 1px 3px rgba(0,0,0,.9); }
 /* the resting die's glow: a Fellmark's gold, rising motes; a Fellstrike's red, uneven flicker */
@@ -7733,6 +7736,7 @@ function sharedSnapshot(){
     fog: (isLM() && _mapStateLoaded) ? (S.fog || {}) : undefined,
     walls: (isLM() && _mapStateLoaded) ? (S.walls || {}) : undefined,
     lights: (isLM() && _mapStateLoaded) ? (S.lights || {}) : undefined,
+    loreGrants: isLM() ? (S.loreGrants || undefined) : undefined,
     music: (isLM() && _mapStateLoaded) ? (S.music || undefined) : undefined,
     rest: isLM() ? (S.rest || undefined) : undefined,
     background: S.scene.background,
@@ -7927,6 +7931,7 @@ function applyRemoteSnapshot(snap){
   /* the LoreMaster writes the music and takes the stored copy once, on arrival; after that
      their own screen is the source, so a pull landing mid-edit cannot undo them */
   if (snap.rest && !isLM()) S.rest = snap.rest;
+  if (snap.loreGrants){ if (!isLM() || !S.loreGrants) S.loreGrants = snap.loreGrants; }
   if (snap.music && !(isLM() && _musicTaken)){ S.music = snap.music; if (isLM()) _musicTaken = true; try { musicApply(); musicPaintPanel(); } catch(e){} }
   if (snap.fog && !(isLM() && _fogPainting)){
     S.fog = snap.fog; _fogCache = {};
@@ -10146,7 +10151,10 @@ function paintHud(){
     hud.classList.add('lm');
     var L = S.lm || (S.lm = {});
     var foe = lmSelectedFoe();
-    setT('hudLP',   (L.lp   !== undefined && L.lp   !== null) ? (L.lp + ' LP') : '');
+    /* the LoreMaster's LP slot is the Lore grant */
+    setT('hudLP', 'Lore');
+    var _lpEl = document.getElementById('hudLP'); if (_lpEl && !_lpEl._lg){ _lpEl._lg = true; _lpEl.addEventListener('click', function(){ if (isLM()) loreGrantOpen(); }); }
+    if (_lpEl){ _lpEl.classList.add('lm-lore'); _lpEl.title = 'Grant Lore Points'; }
     setT('hudVlbl', (L.ss   !== undefined && L.ss   !== null) ? (L.ss + ' SS') : '');
     setT('hudTotalLbl', 'VIT');
     setT('hudTotal', foe ? foe.curVit : '');
@@ -14248,6 +14256,43 @@ function musicToList(trackId, listId){
 function musicDropTrack(id){ var m = musicState(); m.tracks = (m.tracks || []).filter(function(t){ return t.id !== id; }); (m.lists || []).forEach(function(l){ l.ids = (l.ids || []).filter(function(x){ return x !== id; }); }); musicShare(); musicManage(); }
 function musicDropList(id){ var m = musicState(); m.lists = (m.lists || []).filter(function(l){ return l.id !== id; }); musicShare(); musicManage(); }
 
+
+
+/* ---- the LoreMaster grants Lore Points ----
+   Only on the LoreMaster's side: the LP slot reads Lore and opens a grant, any amount, to the
+   Fells chosen (all at the table by default). A grant goes into the table's state under
+   loreGrants, written by the LoreMaster; each player's table hands the grants meant for their
+   Fell to its sheet, which adds them once (the sheet keeps the ids it has taken, in the Fell's
+   own record, so a grant is never added twice, on any device, however late the player
+   arrives) and logs it. */
+function loreGrantOpen(){
+  if (!isLM()) return;
+  var party = (S.party || []).filter(function(p){ return p && p.charId && !p.kept; });
+  var h = '<h3 class="tsm-title">Grant Lore Points</h3>'
+    + '<div class="lg-amt"><button onclick="loreGrantStep(-1)">\u2212</button><input id="lgAmt" type="number" min="1" value="1"><button onclick="loreGrantStep(1)">+</button><span>Lore Points</span></div>'
+    + '<div class="lg-to">' + (party.length ? party.map(function(p){ return '<label><input type="checkbox" class="lg-c" value="' + esc(p.charId) + '" checked> ' + esc(p.charName || p.name || 'A Fell') + '</label>'; }).join('') : '<p class="lc-p">No Fells at the table.</p>') + '</div>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button><button class="tsm-btn" onclick="loreGrantGo()" ' + (party.length ? '' : 'disabled') + '>Grant</button></div>';
+  tsModal(h);
+}
+function loreGrantStep(d){ var i = document.getElementById('lgAmt'); if (i) i.value = Math.max(1, (parseInt(i.value, 10) || 1) + d); }
+function loreGrantGo(){
+  var amt = Math.max(1, parseInt((document.getElementById('lgAmt') || {}).value, 10) || 0);
+  var to = [].slice.call(document.querySelectorAll('.lg-c')).filter(function(c){ return c.checked; }).map(function(c){ return c.value; });
+  if (!to.length || !amt) return;
+  S.loreGrants = (S.loreGrants || []).concat([{ id:'lg' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), to:to, amount:amt, at:Date.now() }]).slice(-60);
+  var names = to.map(function(cid){ var p = (S.party || []).filter(function(x){ return x.charId === cid; })[0]; return p ? (p.charName || p.name) : 'a Fell'; });
+  pushLog({ kind:'sys', html:'The LoreMaster grants ' + amt + ' Lore Point' + (amt === 1 ? '' : 's') + ' to ' + names.map(esc).join(', ') + '.' });
+  applyRemoteState({ log:S.log }); schedulePush(); tsCloseModal();
+}
+/* a player's table hands its Fell's grants to the sheet, which takes each only once */
+setInterval(function(){
+  try {
+    if (isLM() || !S.loreGrants || !S.loreGrants.length) return;
+    var f = document.getElementById('sheetFrame'); if (!f || !f.contentWindow) return;
+    var mine = S.loreGrants.filter(function(g){ return g && (g.to || []).indexOf(S.characterId) >= 0; });
+    if (mine.length) f.contentWindow.postMessage({ type:'ts-lore-grants', grants:mine.map(function(g){ return { id:g.id, amount:g.amount }; }) }, '*');
+  } catch(e){}
+}, 2000);
 
 /* ================= rests =================
    A rest comes from the LoreMaster, and only outside a fight: Call a rest opens it for the
