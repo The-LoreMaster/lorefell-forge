@@ -1,3 +1,7 @@
+## 2026-09-28 - A copied foe token brings its foe; Bring everyone here shows it worked
+
+Copying a foe's token (Ctrl+C and Ctrl+V, Ctrl+D, or Duplicate) now copies the foe with it: a new combatant in the scene's roster and in the fight, with the same stats, the next name (Wolf 2, Wolf 3), full Vitality, and no charge or afflictions; the token takes the new foe's id, so the card, the tracker and the token are one foe. Bring everyone here now shows it worked: a banner for the LoreMaster (Everyone is looking here now) and for each player (The LoreMaster brought your view here), and rings spreading from the spot. Its tooltip read \u2019 as text; fixed. The LoreMaster's frame (Vitality and the charge diamonds) now shows a foe when its token is chosen on the map, as well as when its card is open.
+
 ## 2026-09-28 - Foe rings from the foe, a map note that says it is waiting, and a larger Skyvault Shards
 
 The token menu's Move and Reach are gone: a foe's rings now come from the foe itself, its weapon range (already on the foe and its card) and a new Mobility on the foe forge and the library sheet, beside the range, 5 until set. A map note, once its button is pressed, lights the button and shows a banner (Click the map where the note goes, with Cancel; Escape cancels too), rather than waiting silently for a click. The Skyvault Shards label on the LoreMaster's gem is larger.

@@ -1204,6 +1204,11 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .hslot.lm-ss{ cursor:pointer; pointer-events:auto; z-index:62; font-size:min(1.62vh, .94vw); letter-spacing:.02em; white-space:nowrap; }
 .hslot.lm-ss.waiting{ color:#fff1bf; text-shadow:0 0 8px rgba(246,215,120,.9); animation:ssWait 1.2s ease-in-out infinite; }
 @keyframes ssWait{ 0%,100%{ opacity:1; } 50%{ opacity:.55; } }
+#gatherCue{ position:fixed; left:50%; top:12px; transform:translate(-50%,-8px); z-index:96; padding:8px 16px; border-radius:18px; background:rgba(10,14,26,.95); border:1px solid var(--gold); color:var(--gold); font-family:Cinzel,serif; font-size:.72rem; letter-spacing:.08em; opacity:0; pointer-events:none; transition:opacity .25s, transform .25s; }
+#gatherCue.show{ opacity:1; transform:translate(-50%,0); }
+.gather-ring{ position:fixed; width:40px; height:40px; margin:-20px 0 0 -20px; border-radius:50%; border:2px solid rgba(201,168,76,.9); pointer-events:none; z-index:95; animation:gatherRing 1.2s ease-out forwards; }
+@keyframes gatherRing{ 0%{ transform:scale(.3); opacity:1; } 100%{ transform:scale(6); opacity:0; } }
+@media (prefers-reduced-motion:reduce){ .gather-ring{ display:none; } }
 #noteCue{ position:fixed; left:50%; top:12px; transform:translateX(-50%); z-index:95; padding:8px 14px; border-radius:18px; background:rgba(10,14,26,.95); border:1px solid var(--gold); color:var(--gold); font-family:Cinzel,serif; font-size:.7rem; letter-spacing:.08em; display:none; }
 #noteCue button{ margin-left:10px; border:1px solid var(--line); border-radius:12px; background:none; color:var(--silver,#dce8ef); font-family:inherit; font-size:.62rem; padding:3px 9px; cursor:pointer; }
 #shardPlacing{ position:fixed; left:50%; top:12px; transform:translateX(-50%); z-index:95; padding:8px 14px; border-radius:18px; background:rgba(10,14,26,.95); border:1px solid var(--gold); color:var(--gold); font-family:Cinzel,serif; font-size:.7rem; letter-spacing:.08em; display:none; }
@@ -2004,7 +2009,7 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
     <button data-tool="ruler" title="Measure squares" aria-label="Ruler"><svg viewBox="0 0 24 24"><path d="M3 17L17 3l4 4L7 21z"/><path d="M7 13l2 2M10 10l2 2M13 7l2 2"/></svg></button>
     <button data-tool="draw" title="Draw on the map" aria-label="Draw"><svg viewBox="0 0 24 24"><path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="M14 6l3 3"/></svg></button>
     <button data-tool="ping" title="Ping: click the map to point something out" aria-label="Ping"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.5"/><circle cx="12" cy="12" r="6.5" opacity=".7"/><circle cx="12" cy="12" r="10.5" opacity=".4"/></svg></button>
-    <button id="gatherBtn" class="lmonly" onclick="gatherView()" title="Bring everyone\u2019s view here" aria-label="Bring everyone here"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="8"/></svg></button>
+    <button id="gatherBtn" class="lmonly" onclick="gatherView()" title="Bring everyone’s view here" aria-label="Bring everyone here"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="8"/></svg></button>
     <button data-tool="weather" class="lmonly" title="Weather" aria-label="Weather"><svg viewBox="0 0 24 24"><path d="M7 16a4 4 0 0 1 .5-8 5.5 5.5 0 0 1 10.5 2 3.5 3.5 0 0 1-.5 6.9H7z"/><path d="M8 19l-1 2M12 19l-1 2M16 19l-1 2"/></svg></button>
     <div id="weatherOpts"></div>
     <button id="noteBtn" class="lmonly" onclick="noteAddStart()" title="Add a map note: click where it goes" aria-label="Add a map note"><svg viewBox="0 0 24 24"><path d="M12 2c-3.9 0-7 3.1-7 7 0 5.2 7 13 7 13s7-7.8 7-13c0-3.9-3.1-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg></button>
@@ -10243,6 +10248,8 @@ function paintHud(){
     hud.classList.add('lm');
     var L = S.lm || (S.lm = {});
     var foe = lmSelectedFoe();
+    /* or the foe whose token is chosen on the map */
+    if (!foe && sel){ try { var _fc = findC(sel); if (_fc && _fc.side !== 'fell' && (S.scene.foes || []).indexOf(_fc) >= 0) foe = _fc; } catch(e){} }
     /* the LoreMaster's LP slot is the Lore grant */
     setT('hudLP', 'Lore');
     var _lpEl = document.getElementById('hudLP'); if (_lpEl && !_lpEl._lg){ _lpEl._lg = true; _lpEl.addEventListener('click', function(){ if (isLM()) loreGrantOpen(); }); }
@@ -14544,6 +14551,31 @@ function tokCopy(){
   _tokClip = list.map(function(t){ return JSON.parse(JSON.stringify(t)); });
   return true;
 }
+
+/* The foe behind a copied token, copied too: a new combatant in the scene's roster and in the
+   fight, with the same stats, a fresh name (Wolf 2, Wolf 3), full Vitality, no charge and no
+   afflictions. Its token takes the new combatant's id, so the card, the tracker and the token
+   are one foe, as a foe added from the library would be. */
+function foeCopyFor(t){
+  var src = null; try { src = findC(t.id); } catch(e){}
+  if (!src || src.side === 'fell' || src.type === 'npc' || src.side === 'npc') return null;
+  if (!(S.scene && (S.scene.foes || []).some(function(f){ return f === src || sameId(f.id, src.id); }))) return null;
+  var base = String(src.name || 'Foe').replace(/\s+\d+$/, '');
+  var n = (S.scene.foes || []).filter(function(f){ return String(f.name || '').replace(/\s+\d+$/, '') === base; }).length;
+  var cb = JSON.parse(JSON.stringify(src));
+  cb.id = mkId(); cb.name = base + ' ' + (n + 1);
+  cb.curVit = cb.maxVit || cb.curVit || 0; cb.charge = 0; cb.affs = []; cb.act = ''; cb.locked = false; cb.tempVit = 0;
+  delete cb.down; delete cb.dmgTaken;
+  var f = null; try { f = storyFind('scene', S.scene.id); } catch(e){}
+  var scene = f ? f.scene : S.scene;
+  scene.foes = scene.foes || []; scene.foes.push(cb);
+  scene.combatants = scene.combatants || []; scene.combatants.push(cb);
+  if (scene !== S.scene){ S.scene.foes = S.scene.foes || []; S.scene.foes.push(cb); }
+  try { storySave(); } catch(e){}
+  setTimeout(function(){ try { render(); } catch(e){} }, 0);
+  return cb;
+}
+
 function tokPaste(at){
   if (!isLM() || !_tokClip || !_tokClip.length) return false;
   var cx = _tokClip.reduce(function(a, t){ return a + t.x; }, 0) / _tokClip.length, cy = _tokClip.reduce(function(a, t){ return a + t.y; }, 0) / _tokClip.length;
@@ -14552,6 +14584,9 @@ function tokPaste(at){
     var c = JSON.parse(JSON.stringify(t));
     c.id = (t.kind || 'tok') + '-' + mkId(); c.x = dest.x + (t.x - cx); c.y = dest.y + (t.y - cy);
     delete c.pid; c.dmg = 0;
+    /* a foe's token brings its foe: a fresh combatant, same stats, at full Vitality */
+    var foe = foeCopyFor(t);
+    if (foe){ c.id = foe.id; if (c.refId) c.refId = foe.id; c.name = foe.name; c.label = foe.name; }
     return c;
   });
   S.tokens = (S.tokens || []).concat(fresh);
@@ -14818,6 +14853,7 @@ function gatherView(){
   var c = toMap(r.left + r.width / 2, r.top + r.height / 2);
   S.viewCall = { id:mkId(), x:c.x, y:c.y, zoom:cam.zoom };
   schedulePush();
+  gatherCue('Everyone is looking here now', c);
   pushLog({ kind:'sys', html:'The LoreMaster brings everyone\u2019s view here.' }); applyRemoteState({ log:S.log });
 }
 var _viewSeen = null;
@@ -14829,6 +14865,18 @@ function gatherFollow(){
   cam.zoom = S.viewCall.zoom || cam.zoom;
   cam.x = r.width / 2 - S.viewCall.x * cam.zoom; cam.y = r.height / 2 - S.viewCall.y * cam.zoom;
   try { applyCam(); } catch(e){ try { render(); } catch(e2){} }
+  gatherCue('The LoreMaster brought your view here', { x:S.viewCall.x, y:S.viewCall.y });
+}
+/* a banner, and rings spreading from the spot everyone is now looking at */
+function gatherCue(text, at){
+  var b = document.getElementById('gatherCue');
+  if (!b){ b = document.createElement('div'); b.id = 'gatherCue'; document.body.appendChild(b); }
+  b.textContent = text; b.classList.remove('show'); void b.offsetWidth; b.classList.add('show');
+  clearTimeout(gatherCue._t); gatherCue._t = setTimeout(function(){ b.classList.remove('show'); }, 2600);
+  try {
+    var r = mapEl().getBoundingClientRect(), x = r.left + cam.x + at.x * cam.zoom, y = r.top + cam.y + at.y * cam.zoom;
+    for (var i = 0; i < 3; i++){ (function(k){ setTimeout(function(){ var ring = document.createElement('div'); ring.className = 'gather-ring'; ring.style.left = x + 'px'; ring.style.top = y + 'px'; document.body.appendChild(ring); setTimeout(function(){ ring.remove(); }, 1300); }, k * 250); })(i); }
+  } catch(e){}
 }
 
 /* ---- weather, per scene: rain, snow, ash, embers, mist ---- */
