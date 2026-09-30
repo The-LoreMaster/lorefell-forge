@@ -167,6 +167,8 @@ body:not(.lm-role) #mapTools .lmonly{ display:none; }
 #tokmenu .tm-del:active{ background:rgba(201,106,90,.25); }
 #tokmenu .tmshard{ margin-top:4px; }
 .tm-rot{ display:flex; align-items:center; justify-content:space-between; margin-top:6px; font-family:Cinzel,serif; font-size:.6rem; letter-spacing:.1em; color:var(--muted,#8fa3b3); text-transform:uppercase; }
+.tm-rot .tm-aim{ width:auto; flex:1; margin:0 6px; font-family:Cinzel,serif; font-size:.6rem; letter-spacing:.08em; color:var(--silver,#dce8ef); }
+#map.aiming-rot{ cursor:crosshair; }
 .tm-rot button{ width:32px; height:28px; border:1px solid var(--line); border-radius:8px; background:none; color:var(--gold); font-size:1rem; cursor:pointer; } .tm-rot button:hover{ border-color:var(--gold); }
 #multiBar{ position:fixed; left:50%; bottom:92px; transform:translateX(-50%); z-index:90; display:none; align-items:center; gap:8px; padding:6px 8px 6px 14px; border-radius:18px; background:rgba(10,14,26,.95); border:1px solid var(--gold); font-family:Cinzel,serif; font-size:.66rem; letter-spacing:.08em; color:var(--gold); }
 #multiBar button{ border:1px solid var(--line); border-radius:12px; background:none; color:var(--silver,#dce8ef); font-family:inherit; font-size:.62rem; padding:4px 10px; cursor:pointer; } #multiBar button:hover{ border-color:var(--gold); } #multiBar button.danger{ color:#e3a193; }
@@ -2081,7 +2083,7 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
       <button id="tmShardFeed" class="tmsh-feed">Feed a Skyvault Shard</button>
       <div class="tmsh-note" id="tmShardNote"></div>
     </div>
-    <div class="tm-rot"><button onclick="tokRotate(-45)" title="Turn left (Shift+R)">⟲</button><span>Rotate</span><button onclick="tokRotate(45)" title="Turn right (R)">⟳</button></div>
+    <div class="tm-rot"><button onclick="tokRotate(-20)" title="Turn left 20° (Shift+R)">⟲</button><button class="tm-aim" onclick="tokAimStart()" title="Turn it to face where you point, then click">Rotate</button><button onclick="tokRotate(20)" title="Turn right 20° (R)">⟳</button></div>
     <button id="tmDup" class="tm-dup" onclick="tokDuplicate()" title="Copy this token beside it (Ctrl+D). Ctrl+C and Ctrl+V copy and paste at the pointer.">Duplicate</button>
     <button id="tmDelete" class="tm-del">Remove from the map</button>
   </div>
@@ -7925,6 +7927,7 @@ function seamWarn(){
 }
 /* apply a remote snapshot as truth */
 function applyRemoteSnapshot(snap){
+  setTimeout(function(){ try { if (!_undoQuiet) undoRebase(); } catch(e){} }, 0);
   if (!snap) return;
   if (_advSwitching){ _advSwitching = false; advGoingStop(); }
   /* The relay is for live play state, the scene on the table, tokens, the log. It is NOT the
@@ -14503,7 +14506,8 @@ document.addEventListener('keydown', function(e){
 
 /* ---- turning tokens, and removing or copying many at once (LoreMaster) ----
    The chosen token, or every token in a box selection, turns by 45 degrees from the token
-   menu or with R (Shift+R the other way); its name stays level. A box selection of more than
+   menu or with R (Shift+R the other way), 20 degrees a step, or Rotate turns it to face the
+   pointer until a click sets it; its name stays level. A box selection of more than
    one token gets a small bar: Rotate, Duplicate, Remove. Delete or Backspace removes the
    selection too. Removing a Fell's token asks first, since it is a player's. */
 function tokChosen(){
@@ -14538,7 +14542,7 @@ function multiBarPaint(){
   var b = document.getElementById('multiBar');
   if (!b){ b = document.createElement('div'); b.id = 'multiBar'; document.body.appendChild(b); }
   if (!isLM() || n < 2){ b.style.display = 'none'; return; }
-  b.innerHTML = n + ' tokens <button onclick="tokRotate(45)">Rotate</button><button onclick="tokDuplicate()">Duplicate</button><button class="danger" onclick="tokRemoveChosen()">Remove</button>';
+  b.innerHTML = n + ' tokens <button onclick="tokAimStart()">Rotate</button><button onclick="tokDuplicate()">Duplicate</button><button class="danger" onclick="tokRemoveChosen()">Remove</button>';
   b.style.display = 'flex';
 }
 setInterval(function(){ try { multiBarPaint(); } catch(e){} }, 500);
@@ -14548,7 +14552,75 @@ document.addEventListener('keydown', function(e){
   if (/INPUT|TEXTAREA|SELECT/.test(tag) || (document.activeElement && document.activeElement.isContentEditable)) return;
   if (!tokChosen().length) return;
   if (e.key === 'Delete' || e.key === 'Backspace'){ e.preventDefault(); tokRemoveChosen(); }
-  else if (e.key === 'r' || e.key === 'R'){ e.preventDefault(); tokRotate(e.shiftKey ? -45 : 45); }
+  else if (e.key === 'r' || e.key === 'R'){ e.preventDefault(); tokRotate(e.shiftKey ? -20 : 20); }
+});
+
+
+/* ---- Rotate: the chosen token(s) face the pointer until a click sets them ---- */
+var _tokAim = null;
+function tokAimStart(){
+  if (!isLM()) return;
+  var list = tokChosen(); if (!list.length) return;
+  _tokAim = { ids:list.map(function(t){ return t.id; }), before:list.map(function(t){ return Number(t.rot) || 0; }) };
+  mapEl().classList.add('aiming-rot');
+  var m = document.getElementById('tokmenu'); if (m) m.classList.remove('open');
+}
+function tokAimEnd(keep){
+  if (!_tokAim) return;
+  if (!keep) _tokAim.ids.forEach(function(id, i){ var t = tokById(id); if (t) t.rot = _tokAim.before[i]; });
+  _tokAim = null; mapEl().classList.remove('aiming-rot');
+  applyRemoteState({ tokens:S.tokens }); schedulePush(); renderTokens(); paintTokMenu();
+}
+document.addEventListener('pointermove', function(e){
+  if (!_tokAim) return;
+  var p = toMap(e.clientX, e.clientY);
+  _tokAim.ids.forEach(function(id){
+    var t = tokById(id); if (!t) return;
+    /* 0 degrees faces up the map, as a token first stands */
+    var a = Math.atan2(p.y - t.y, p.x - t.x) * 180 / Math.PI + 90;
+    t.rot = Math.round(((a % 360) + 360) % 360);
+    var el = document.querySelector('.token[data-tok="' + id + '"]'); if (el) el.style.setProperty('--rot', t.rot + 'deg');
+  });
+});
+document.addEventListener('pointerdown', function(e){ if (!_tokAim) return; e.preventDefault(); e.stopPropagation(); tokAimEnd(true); }, true);
+document.addEventListener('keydown', function(e){ if (_tokAim && e.key === 'Escape') tokAimEnd(false); });
+
+/* ================= undo on the map (LoreMaster) =================
+   Ctrl+Z (Cmd+Z) undoes the last change the LoreMaster made on the map, and Ctrl+Shift+Z or
+   Ctrl+Y does it again: tokens (placed, moved, removed, turned, renamed, copied), walls and
+   doors, lights, fog painting, and drawings. The map is watched for changes; one that
+   arrives from someone else resets the watch rather than becoming something to undo, so
+   undo only ever walks back the LoreMaster's own work, and restores it for everyone. */
+var _undo = [], _redo = [], _undoBase = null, _undoQuiet = false;
+function undoTake(){
+  try { return JSON.stringify({ tokens:S.tokens || [], walls:S.walls || {}, lights:S.lights || {}, fog:S.fog || {}, draw:S.draw || { strokes:[], gone:[] } }); } catch(e){ return null; }
+}
+function undoRebase(){ _undoBase = undoTake(); }
+function undoPut(snap){
+  var o = JSON.parse(snap);
+  _undoQuiet = true;
+  S.tokens = o.tokens; S.walls = o.walls; S.lights = o.lights; S.fog = o.fog; S.draw = o.draw;
+  try { _fvMemo = null; } catch(e){}
+  applyRemoteState({ tokens:S.tokens });
+  try { wallPaint(); fogPaint(); drawPaint(); } catch(e){}
+  renderTokens(); schedulePush();
+  _undoBase = undoTake(); _undoQuiet = false;
+}
+setInterval(function(){
+  if (!isLM() || _undoQuiet || _tokAim) return;
+  var cur = undoTake(); if (cur === null) return;
+  if (_undoBase === null){ _undoBase = cur; return; }
+  if (cur !== _undoBase){ _undo.push(_undoBase); if (_undo.length > 40) _undo.shift(); _redo = []; _undoBase = cur; }
+}, 350);
+function mapUndo(){ if (!_undo.length) return false; _redo.push(undoTake()); undoPut(_undo.pop()); return true; }
+function mapRedo(){ if (!_redo.length) return false; _undo.push(undoTake()); undoPut(_redo.pop()); return true; }
+document.addEventListener('keydown', function(e){
+  if (!isLM() || !(e.ctrlKey || e.metaKey)) return;
+  var tag = (document.activeElement && document.activeElement.tagName) || '';
+  if (/INPUT|TEXTAREA|SELECT/.test(tag) || (document.activeElement && document.activeElement.isContentEditable)) return;
+  var k = (e.key || '').toLowerCase();
+  if (k === 'z' && !e.shiftKey){ if (mapUndo()) e.preventDefault(); }
+  else if ((k === 'z' && e.shiftKey) || k === 'y'){ if (mapRedo()) e.preventDefault(); }
 });
 
 /* ================= rests =================
