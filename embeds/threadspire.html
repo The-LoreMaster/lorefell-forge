@@ -166,6 +166,8 @@ body:not(.lm-role) #mapTools .lmonly{ display:none; }
 #tokmenu .tm-del{ width:100%; margin-top:8px; border:1px solid rgba(201,106,90,.6); border-radius:5px; color:#e0b0a4; font-family:Cinzel,serif; font-size:.62rem; letter-spacing:.08em; text-transform:uppercase; padding:6px 0; }
 #tokmenu .tm-del:active{ background:rgba(201,106,90,.25); }
 #tokmenu .tmshard{ margin-top:4px; }
+#tokmenu .tm-dup{ display:block; width:100%; margin-top:6px; padding:6px; border:1px solid var(--line); border-radius:8px; background:none; color:var(--silver,#dce8ef); font-family:Cinzel,serif; font-size:.62rem; letter-spacing:.08em; cursor:pointer; } #tokmenu .tm-dup:hover{ border-color:var(--gold); color:var(--gold); }
+#map.placing-shard{ cursor:crosshair; }
 #tokmenu .tmshl{ font-size:.72rem; color:var(--ice); margin-bottom:6px; }
 #tokmenu .tmshl b{ color:#d9b8ff; }
 #tokmenu .tmshrow{ display:flex; gap:5px; margin-bottom:6px; }
@@ -1166,6 +1168,16 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 /* A shard reads as an object, not a person: no round portrait frame, a deep vorpal glow
    (near-black violet) pulsing around it, and its Vitality shown as a small number so the
    LoreMaster can watch the feeder and the attacker push it opposite ways. */
+/* a Skyvault Shard on the map: the art alone, no frame or disc, a soft gold shimmer */
+.token.vshard{ border:0 !important; border-radius:0; background-color:transparent !important; background-size:contain; background-repeat:no-repeat; background-position:center; box-shadow:none !important; filter:drop-shadow(0 0 6px rgba(246,215,120,.55)); animation:vshard 2.6s ease-in-out infinite; cursor:pointer; }
+.token.vshard .tok-face, .token.vshard .tok-label{ display:none; }
+@keyframes vshard{ 0%,100%{ filter:drop-shadow(0 0 4px rgba(246,215,120,.45)); } 50%{ filter:drop-shadow(0 0 10px rgba(255,236,170,.85)); } }
+@media (prefers-reduced-motion:reduce){ .token.vshard{ animation:none; } }
+.hslot.lm-ss{ cursor:pointer; pointer-events:auto; z-index:62; }
+.hslot.lm-ss.waiting{ color:#fff1bf; text-shadow:0 0 8px rgba(246,215,120,.9); animation:ssWait 1.2s ease-in-out infinite; }
+@keyframes ssWait{ 0%,100%{ opacity:1; } 50%{ opacity:.55; } }
+#shardPlacing{ position:fixed; left:50%; top:12px; transform:translateX(-50%); z-index:95; padding:8px 14px; border-radius:18px; background:rgba(10,14,26,.95); border:1px solid var(--gold); color:var(--gold); font-family:Cinzel,serif; font-size:.7rem; letter-spacing:.08em; display:none; }
+#shardPlacing button{ margin-left:10px; border:1px solid var(--line); border-radius:12px; background:none; color:var(--silver,#dce8ef); font-family:inherit; font-size:.62rem; padding:3px 9px; cursor:pointer; }
 .token.shard{
   border:0; border-radius:8px; background-color:rgba(10,4,18,.6); overflow:visible;
   --glow:120,40,180; --glow-hi:180,90,230;
@@ -2063,6 +2075,7 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
       <button id="tmShardFeed" class="tmsh-feed">Feed a Skyvault Shard</button>
       <div class="tmsh-note" id="tmShardNote"></div>
     </div>
+    <button id="tmDup" class="tm-dup" onclick="tokDuplicate()" title="Copy this token beside it (Ctrl+D). Ctrl+C and Ctrl+V copy and paste at the pointer.">Duplicate</button>
     <button id="tmDelete" class="tm-del">Remove from the map</button>
   </div>
   <div id="lmbar" class="hidden">
@@ -10162,7 +10175,11 @@ function paintHud(){
     setT('hudLP', 'Lore');
     var _lpEl = document.getElementById('hudLP'); if (_lpEl && !_lpEl._lg){ _lpEl._lg = true; _lpEl.addEventListener('click', function(){ if (isLM()) loreGrantOpen(); }); }
     if (_lpEl){ _lpEl.classList.add('lm-lore'); _lpEl.title = 'Grant Lore Points'; }
-    setT('hudVlbl', (L.ss   !== undefined && L.ss   !== null) ? (L.ss + ' SS') : '');
+    var _pend = shardPending();
+    setT('hudVlbl', _pend.length ? (_pend.reduce(function(n, r){ return n + r.left; }, 0) + ' SS') : 'SS');
+    var _ssEl = document.getElementById('hudVlbl');
+    if (_ssEl){ _ssEl.classList.add('lm-ss'); _ssEl.classList.toggle('waiting', !!_pend.length); _ssEl.title = _pend.length ? 'Place the Skyvault Shards found' : 'Skyvault Shards: place some on the field';
+      if (!_ssEl._ss){ _ssEl._ss = true; _ssEl.addEventListener('click', function(){ if (isLM()) shardGemClick(); }); } }
     setT('hudTotalLbl', 'VIT');
     setT('hudTotal', foe ? foe.curVit : '');
     [['hudTemp',1],['hudCur',2],['hudMax',3]].forEach(function(p){
@@ -11116,6 +11133,12 @@ function handDeclareResult(res){
     /* What went, and at whom. The card stamps rather than simply vanishing, because a
        declaration you cannot see is one you will make twice. Cleared by the round tick
        when the sheet sends a hand for a round this does not belong to. */
+    if (armed && armed.entry && armed.entry.src === 'shards'){
+      var mx = /up to (\d+)/.exec(armed.entry.desc || ''); var nn = mx ? Number(mx[1]) : 1;
+      pushLog({ kind:'sys', html:esc(S.character.name || 'A Fell') + ' searches the field for Skyvault Shards (up to ' + nn + ').',
+                shardSearch:{ id:mkId(), who:S.character.name || '', charId:S.characterId || '', n:nn } });
+      applyRemoteState({ log:S.log });
+    }
     declaredAs = { act: armed ? armed.entry.nm : '', key: armed ? armed.key : '',
                    target: armed ? armed.target : '',
                    targetName: armed ? armed.targetName : '', round: res.round || (hand && hand.round) || 0 };
@@ -13093,7 +13116,9 @@ function tokenThumb(url){
   img.src = url;
   return url;
 }
+var SKYVAULT_SHARD_IMG = 'https://table.lorefell.com/img/skyvault-shard.png';
 function tokenArt(t){
+  if (t.kind === 'vshard') return SKYVAULT_SHARD_IMG;
   /* A marker wears its utility's art if the record has any, and letters otherwise. The
      empty-string fallthrough is still a real answer: a utility with no art drawn is meant
      to show its initials, not the default portrait, so a marker never lands wearing a
@@ -13206,7 +13231,7 @@ function renderTokens(){
     /* An art marker wears no text label: the picture names it, and five "Caltrops" tags
        across a cluster was noise the map could not carry. A marker WITHOUT art keeps its
        label, since letters alone do not say much. Every other token keeps its name. */
-    var showLabel = full && !(t.kind === 'marker' && art);
+    var showLabel = full && !(t.kind === 'marker' && art) && t.kind !== 'vshard';
     /* A shard shows its Vitality in a corner badge, so the LoreMaster reads its health as
        the feeder raises it and an attacker lowers it - the whole point of the object. */
     var vitBadge = (t.kind === 'shard')
@@ -14326,6 +14351,146 @@ function hudTitles(){
 }
 setInterval(function(){ try { hudTitles(); } catch(e){} }, 1500);
 
+
+/* ================= Skyvault Shards on the field =================
+   A Fell spends their Act to search and finds up to 1 + Wit each battle (FellGuide, The
+   Currency). The search reaches the LoreMaster as a request in the log; the SS slot on the
+   LoreMaster's frame glows with the Shards waiting to be placed, and a click on it starts
+   placing them: each click on the map sets one Shard down, until that Fell's are all out.
+   A player taps a Shard to pick it up, and adds it to their inventory themselves. When the
+   battle ends, every Shard left on the map is cleared. */
+var _shardPlace = null;
+function shardSearches(){ return (S.log || []).filter(function(e){ return e && e.shardSearch; }); }
+function shardPlacedFor(charId){
+  /* this battle's placements, as recorded in the log */
+  var since = S.combatStartedAt || 0, n = 0;
+  (S.log || []).forEach(function(e){ if (e && e.shardPlaced && e.shardPlaced.charId === charId && (e.shardPlaced.at || 0) >= since) n += e.shardPlaced.n; });
+  return n;
+}
+function shardPending(){
+  if (!isLM()) return [];
+  var since = S.combatStartedAt || 0, done = {};
+  (S.log || []).forEach(function(e){ if (e && e.shardPlaced && e.shardPlaced.req) done[e.shardPlaced.req] = true; });
+  var out = [];
+  shardSearches().forEach(function(e){
+    var r = e.shardSearch; if (done[r.id] || !(e.at === undefined || e.at >= since)) return;
+    var left = Math.max(0, r.n - shardPlacedFor(r.charId));
+    if (left > 0) out.push({ id:r.id, who:r.who, charId:r.charId, left:left });
+  });
+  return S.mode === 'combat' ? out : [];
+}
+function shardGemClick(){
+  var p = shardPending();
+  if (p.length){ shardStart(p[0].left, p[0]); return; }
+  /* nothing waiting: the LoreMaster may still set Shards down by hand */
+  tsModal('<h3 class="tsm-title">Skyvault Shards</h3><p class="lc-p">No searches are waiting. Place Shards on the field by hand?</p>'
+    + '<div class="lg-amt"><button onclick="loreGrantStep(-1)">\u2212</button><input id="lgAmt" type="number" min="1" value="1"><button onclick="loreGrantStep(1)">+</button><span>Shards</span></div>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button><button class="tsm-btn" onclick="var n=Math.max(1,parseInt(document.getElementById(\'lgAmt\').value,10)||1);tsCloseModal();shardStart(n,null)">Place</button></div>');
+}
+function shardStart(n, req){
+  _shardPlace = { left:n, total:n, req:req };
+  shardPlacingPaint();
+}
+function shardPlacingPaint(){
+  var b = document.getElementById('shardPlacing');
+  if (!b){ b = document.createElement('div'); b.id = 'shardPlacing'; document.body.appendChild(b); }
+  if (!_shardPlace){ b.style.display = 'none'; mapEl().classList.remove('placing-shard'); return; }
+  b.innerHTML = 'Place ' + _shardPlace.left + ' Skyvault Shard' + (_shardPlace.left === 1 ? '' : 's') + (_shardPlace.req ? ' for ' + esc(_shardPlace.req.who) : '') + ': click the map'
+    + '<button onclick="shardDone()">Done</button>';
+  b.style.display = 'block'; mapEl().classList.add('placing-shard');
+}
+function shardDone(){
+  if (!_shardPlace) return;
+  var placed = _shardPlace.total - _shardPlace.left, req = _shardPlace.req;
+  if (placed > 0){
+    pushLog({ kind:'sys', html:'The LoreMaster places ' + placed + ' Skyvault Shard' + (placed === 1 ? '' : 's') + (req ? ' for ' + esc(req.who) : '') + '.',
+              shardPlaced:{ req:req ? req.id : '', charId:req ? req.charId : '', n:placed, at:Date.now() } });
+    applyRemoteState({ log:S.log });
+  }
+  _shardPlace = null; shardPlacingPaint(); try { paintHud(); } catch(e){}
+}
+/* a click on the map while placing sets one Shard down there */
+mapEl().addEventListener('pointerdown', function(e){
+  if (!_shardPlace || !isLM() || e.button !== 0) return;
+  if (e.target.closest && e.target.closest('.token')) return;
+  e.stopPropagation(); e.preventDefault();
+  var m = toMap(e.clientX, e.clientY);
+  S.tokens.push({ id:'vs-' + mkId(), kind:'vshard', name:'Skyvault Shard', label:'', x:m.x, y:m.y, cells:1, mine:false });
+  applyRemoteState({ tokens:S.tokens }); schedulePush();
+  _shardPlace.left--;
+  if (_shardPlace.left <= 0) shardDone(); else shardPlacingPaint();
+}, true);
+document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && _shardPlace) shardDone(); });
+/* a player picks one up: it leaves the map; they add it to their inventory */
+function shardPickup(t){
+  tsModal('<h3 class="tsm-title">Pick up this Skyvault Shard?</h3><p class="lc-p">It leaves the map. Add it to your inventory yourself, as a Skyvault Shard.</p>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Leave it</button><button class="tsm-btn" onclick="shardTake(\'' + esc(t.id) + '\')">Pick it up</button></div>');
+}
+function shardTake(id){
+  S.tokens = (S.tokens || []).filter(function(x){ return x.id !== id; });
+  applyRemoteState({ tokens:S.tokens });
+  pushLog({ kind:'sys', html:esc(S.character.name || 'A Fell') + ' picks up a Skyvault Shard.' });
+  applyRemoteState({ log:S.log }); schedulePush(); tsCloseModal();
+}
+/* the battle over: every Shard left on the map goes, on the LoreMaster's screen */
+var _shardWasCombat = false;
+setInterval(function(){
+  try {
+    if (!isLM()) return;
+    var now = S.mode === 'combat';
+    if (now && !_shardWasCombat) S.combatStartedAt = Date.now();
+    if (!now && _shardWasCombat){
+      var had = (S.tokens || []).some(function(t){ return t.kind === 'vshard'; });
+      if (had){ S.tokens = S.tokens.filter(function(t){ return t.kind !== 'vshard'; }); applyRemoteState({ tokens:S.tokens }); schedulePush(); }
+      if (_shardPlace){ _shardPlace = null; shardPlacingPaint(); }
+    }
+    _shardWasCombat = now;
+  } catch(e){}
+}, 800);
+
+/* ================= copy and paste tokens (LoreMaster) =================
+   Ctrl+C (Cmd+C) copies the chosen token, or every token in a box selection; Ctrl+V pastes
+   them where the pointer is, keeping their spacing, each a new token with a fresh id. The
+   token menu's Duplicate does the same beside the original. Fells are never copied: a Fell
+   is a player's, and one of them on the board is enough. */
+var _tokClip = null, _mouseMap = null;
+document.addEventListener('pointermove', function(e){ try { var r = mapEl().getBoundingClientRect(); if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) _mouseMap = toMap(e.clientX, e.clientY); } catch(x){} }, true);
+function tokCopyable(t){ return t && t.kind !== 'p' && !t.charId; }
+function tokCopy(){
+  if (!isLM()) return false;
+  var ids = (typeof multiSel === 'object' && multiSel && Object.keys(multiSel).length) ? Object.keys(multiSel) : (sel ? [sel] : []);
+  var list = ids.map(tokById).filter(tokCopyable);
+  if (!list.length) return false;
+  _tokClip = list.map(function(t){ return JSON.parse(JSON.stringify(t)); });
+  return true;
+}
+function tokPaste(at){
+  if (!isLM() || !_tokClip || !_tokClip.length) return false;
+  var cx = _tokClip.reduce(function(a, t){ return a + t.x; }, 0) / _tokClip.length, cy = _tokClip.reduce(function(a, t){ return a + t.y; }, 0) / _tokClip.length;
+  var g = (S.grid && S.grid.size) || 100, dest = at || { x:cx + g, y:cy + g };
+  var fresh = _tokClip.map(function(t){
+    var c = JSON.parse(JSON.stringify(t));
+    c.id = (t.kind || 'tok') + '-' + mkId(); c.x = dest.x + (t.x - cx); c.y = dest.y + (t.y - cy);
+    delete c.pid; c.dmg = 0;
+    return c;
+  });
+  S.tokens = (S.tokens || []).concat(fresh);
+  applyRemoteState({ tokens:S.tokens }); schedulePush();
+  if (typeof multiSel === 'object' && multiSel){ Object.keys(multiSel).forEach(function(k){ delete multiSel[k]; }); fresh.forEach(function(t){ multiSel[t.id] = true; }); }
+  sel = fresh.length === 1 ? fresh[0].id : null; renderTokens(); paintTokMenu();
+  return true;
+}
+function tokDuplicate(){ if (tokCopy()) tokPaste(null); }
+document.addEventListener('keydown', function(e){
+  if (!isLM() || !(e.ctrlKey || e.metaKey)) return;
+  var tag = (document.activeElement && document.activeElement.tagName) || '';
+  if (/INPUT|TEXTAREA|SELECT/.test(tag) || (document.activeElement && document.activeElement.isContentEditable)) return;
+  var k = (e.key || '').toLowerCase();
+  if (k === 'c' && tokCopy()) e.preventDefault();
+  if (k === 'v' && tokPaste(_mouseMap)) e.preventDefault();
+  if (k === 'd' && (tokCopy(), tokPaste(null))) e.preventDefault();
+});
+
 /* ================= rests =================
    A rest comes from the LoreMaster, and only outside a fight: Call a rest opens it for the
    whole table. Each player chooses to rest or to skip it; resting runs the FellGuide's rest
@@ -14572,7 +14737,12 @@ function drawGrid(){
    zoom. Selection highlights for anyone, the menu only opens for the LoreMaster,
    since a player resizing their own creature is not a thing the game allows. */
 function tokById(id){ var f = null; S.tokens.forEach(function(t){ if (t.id === id) f = t; }); return f; }
-function selectToken(id){ sel = (sel === id) ? null : id; renderTokens(); paintTokMenu(); }
+function selectToken(id){
+  /* a player taps a Skyvault Shard to pick it up */
+  var tt = tokById(id);
+  if (tt && tt.kind === 'vshard' && !isLM()){ shardPickup(tt); return; }
+  sel = (sel === id) ? null : id; renderTokens(); paintTokMenu();
+}
 function tokScreen(t){
   var r = mapEl().getBoundingClientRect();
   return { x:r.left + cam.x + t.x * cam.zoom, y:r.top + cam.y + t.y * cam.zoom };

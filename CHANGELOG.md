@@ -1,3 +1,11 @@
+## 2026-09-28 - Searching for Skyvault Shards, placing them, and copying tokens
+
+A Fell's hand in battle gains Search for Shards (an Act): a Fell finds up to 1 + Wit Shards each battle, none shared (vault PR 21). Declaring it logs a request to the LoreMaster. The LoreMaster's SS slot now glows with the Shards waiting to be placed; a click on it starts placing them, each click on the map setting one Skyvault Shard down (Done, or Escape, ends it), and the placement is logged against that Fell's search, so a second search the same battle can only bring out what is left of their 1 + Wit. With none waiting, the slot offers to place Shards by hand. A Shard on the map is the new Skyvault Shard art (img/skyvault-shard.png), with no frame or disc, a transparent background and a soft gold shimmer. A player taps one to pick it up: it leaves the map and they add it to their inventory. When a battle ends, every Shard left on the map is cleared.
+
+Shards now live only in the inventory, as Skyvault Shard utilities: the Invested Lore row loses its Skyvault Shards counter, a count still held there moves into the inventory once, and the Paragon card checks and spends the inventory Shard.
+
+Tokens can be copied: Ctrl+C (Cmd+C) copies the chosen token or a box selection, Ctrl+V pastes at the pointer keeping their spacing, Ctrl+D or the token menu's Duplicate copies beside the original. Each copy is a new token; Fells are never copied.
+
 ## 2026-09-28 - The frame's tooltips are the browser's own
 
 The drawn tooltips beside the portrait frame were large and in the way. The same lines are now the browser's own tooltips (the title on each number), small and only on hover, with nothing drawn over the table; the LoreMaster's side still has none.
