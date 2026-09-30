@@ -1,3 +1,7 @@
+## 2026-09-28 - Weather of the worlds, and magic
+
+Eight more kinds of weather, each drawn from its world's FellGuide page, in the Weather panel under three headings (Weather, Of the worlds, Magic), each world named on hover. Spores (Sporion): blue, green, amber and violet spores rising and pulsing. Crimson Haze (Vyrathis): low red mist and a crimson tint. Ashstorm (Mortavia): gusting ash with glowing flecks, the light dimming in the gusts. Static Storm (Mireleor): drifting smoke with blue-white arcs crackling across the map. Moonlight (Sellenia): a silver wash with pale motes hanging still. Deep Water (Neriad): rising bubbles, a blue-green glow and wandering caustic light. Spirit Wisps (Oroniel): pale spirits wandering and curling, trailing light. Discord (Pandemonium): black static falling upward, the map's edges darkening and bending inward. For reduced motion, Crimson Haze and Moonlight keep their still wash, like Mist.
+
 ## 2026-09-28 - Rename a token at any time
 
 Renaming a foe's token in the token menu did nothing visible, because a foe token shows its foe's name and the rename only reached the token. Now a rename reaches the foe too, in the roster, the fight and the stored scene, so the card, the tracker and the token read the same. A token can also be renamed by double-clicking (or double-tapping) it, for the LoreMaster; the two taps are counted in the token's own tap handler, since the tokens redraw between them. The name field takes up to 40 characters, and on a Fell's token it is read-only, since a Fell's name is its player's.
