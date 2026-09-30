@@ -47,6 +47,7 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 .rest-who b{ font-weight:400; font-family:Cinzel,serif; font-size:.65rem; letter-spacing:.08em; } .rest-who b.rest{ color:#8fd694; } .rest-who b.skip{ color:var(--muted,#8fa3b3); } .rest-who b.wait{ color:var(--gold); }
 .rest-stat{ display:flex; gap:18px; margin:4px 0 8px; font-size:.9rem; color:var(--muted,#8fa3b3); } .rest-stat b{ color:var(--silver,#dce8ef); font-family:Cinzel,serif; font-weight:500; }
 .rest-log{ margin:0 0 10px; padding:8px 10px; border:1px solid var(--line); border-radius:8px; font-size:.85rem; color:#8fd694; }
+#restResume{ position:fixed; left:50%; bottom:92px; transform:translateX(-50%); z-index:95; padding:9px 18px; border-radius:18px; background:rgba(10,14,26,.95); border:1px solid var(--gold); color:var(--gold); font-family:Cinzel,serif; font-size:.7rem; letter-spacing:.1em; cursor:pointer; }
 .rest-opt{ display:flex; flex-direction:column; width:100%; text-align:left; padding:8px 10px; margin:5px 0; border:1px solid var(--line); border-radius:9px; background:none; color:var(--silver,#dce8ef); cursor:pointer; }
 .rest-opt:hover:not([disabled]){ border-color:var(--gold); } .rest-opt[disabled]{ opacity:.4; cursor:default; }
 .rest-opt b{ font-family:Cinzel,serif; font-weight:500; font-size:.78rem; letter-spacing:.05em; } .rest-opt span{ font-size:.82rem; color:var(--muted,#8fa3b3); }
@@ -14302,7 +14303,7 @@ function restPaintLM(){
 function restWatch(){
   if (isLM()) return;
   var r = S.rest;
-  if (!r || !r.open){ if (_restMine && document.getElementById('restWin')) tsCloseModal(); _restMine = null; return; }
+  if (!r || !r.open){ if (_restMine){ if (document.getElementById('restWin')) tsCloseModal(); restResumeShow(false); restAsk('rest-over').catch(function(){}); _restState = null; } _restMine = null; return; }
   var done = null; try { done = localStorage.getItem('ts_rest_done'); } catch(e){}
   if (done === r.id || _restMine === r.id) return;
   _restMine = r.id;
@@ -14317,7 +14318,7 @@ function restSay(choice, bits){
   applyRemoteState({ log:S.log });
   try { localStorage.setItem('ts_rest_done', r.id); } catch(e){}
 }
-function restSkip(){ restSay('skip'); tsCloseModal(); }
+function restSkip(){ restSay('skip'); tsCloseModal(); restAsk('rest-over').catch(function(){}); }
 var _restState = null;
 function restBegin(){
   _restState = { bits:[], inspected:{}, inspections:0, food:0, info:null };
@@ -14367,7 +14368,7 @@ function restDo(op){
       pushLog({ kind:'sys', html:esc(S.character.name || 'A Fell') + ' shares a Camp Kettle. Every Fell resting sheds all their Fatigue.', kettle:(S.rest || {}).id }); applyRemoteState({ log:S.log });
       return restAsk('fatigue-clear').then(function(f){ _restState.info = f.info; restPaint(); });
     }
-    if (op === 'levelup'){ tsCloseModal(); openWin('lore'); setTimeout(function(){ _restMine = null; }, 0); return; }
+    if (op === 'levelup'){ tsCloseModal(); openWin('lore'); restResumeShow(true); return; }
     restPaint();
   }).catch(function(){});
 }
@@ -14382,7 +14383,14 @@ function restInspect(idx){
     restPaint();
   }).catch(function(){ restPaint(); });
 }
-function restFinish(){ restSay('rest', _restState ? _restState.bits : []); _restState = null; tsCloseModal(); }
+function restFinish(){ restSay('rest', _restState ? _restState.bits : []); _restState = null; tsCloseModal(); restResumeShow(false); restAsk('rest-over').catch(function(){}); }
+/* after levelling up in the sheet, a way back to the rest that is still under way */
+function restResumeShow(on){
+  var b = document.getElementById('restResume');
+  if (on && !b){ b = document.createElement('button'); b.id = 'restResume'; b.textContent = 'Back to resting'; b.onclick = restResume; document.body.appendChild(b); }
+  if (b) b.style.display = on ? '' : 'none';
+}
+function restResume(){ restResumeShow(false); closeWin(); tsModal('<div id="restWin"></div>'); restPaint(); }
 /* the kettle, shared by someone else at this rest, clears this Fell's Fatigue too */
 var _kettleSeen = {};
 setInterval(function(){

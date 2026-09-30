@@ -81,6 +81,7 @@ header{position:sticky;top:0;z-index:50;background:rgba(10,14,26,.96);backdrop-f
 #godBtn.on{border-color:var(--gold);color:var(--gold);box-shadow:0 0 10px rgba(201,168,76,.25)}
 #lvlUpBtn{display:none;border-color:var(--gold);color:var(--gold);animation:lvlglow 2.4s ease-in-out infinite}
 #lvlUpBtn.show{display:inline-block}
+.lu-wait{display:block;font-family:var(--body);font-size:12px;letter-spacing:0;text-transform:none;color:var(--gold);font-style:italic}
 @keyframes lvlglow{0%,100%{box-shadow:0 0 6px rgba(201,168,76,.2)}50%{box-shadow:0 0 16px rgba(201,168,76,.55)}}
 #edgeGlow{position:fixed;inset:0;pointer-events:none;z-index:80;opacity:0;box-shadow:inset 0 0 90px 24px var(--glowc,transparent)}
 #edgeGlow.flash{animation:edgeflash 1.1s ease-out}
@@ -3133,9 +3134,10 @@ function renderLore(){
        itself: gold, relabelled "Level Up!", and clickable, so it sits right in the lore
        card where the crystal count already drew the eye, instead of only in the header
        button a player has to scroll up to find. With no crystal it is the plain count. */
-    const canLevel=(k==="__crystals")&&crystals()>=1;
+    const canLevel=(k==="__crystals")&&crystals()>=1&&levelAllowed();
+    const waiting=(k==="__crystals")&&crystals()>=1&&!levelAllowed();
     if(canLevel)d.classList.add("crystal-ready");
-    d.innerHTML=`<span class="nm">${canLevel?"Level Up!":label}</span>`;
+    d.innerHTML=`<span class="nm">${canLevel?"Level Up!":label}${waiting?'<small class="lu-wait">Level up at the next rest</small>':""}</span>`;
     const ctl=el("span","ctl");
     if(derived){
       ctl.appendChild(el("span","v",crystals()));
@@ -3162,7 +3164,7 @@ function renderLore(){
     }
     d.appendChild(ctl);g.appendChild(d);
   });
-  $("lvlUpBtn").classList.toggle("show",crystals()>=1);
+  $("lvlUpBtn").classList.toggle("show",crystals()>=1&&levelAllowed());
   renderStrip();
 }
 /* =====================================================================
@@ -3555,8 +3557,13 @@ function luFresh(batch){
 }
 /* batch: how many crystals this ascension spends, how many are done, and whether the Lore
    Points are already paid (a resumed ascension) */
+/* Levelling happens at a rest, and a rest comes from the LoreMaster (FellGuide, Leveling:
+   crystals are spent while resting). So a player's sheet levels only while ThreadSpire's rest
+   has opened it (ts-rest-op levelup), and the LoreMaster can level any Fell at any time. */
+function levelAllowed(){ return !!god || !!window._restLevelOK; }
 function luOpen(){
   if(crystals()<1)return;
+  if(!levelAllowed()){ fgTell("Level up at a rest","<p>You have an Ascension Crystal to spend. Crystals are spent while resting, so you level up when the LoreMaster calls a rest.</p>"); return; }
   const held=ascPending();
   if(held>0){
     /* an ascension left partway: its crystals are paid for, pick up where it stopped */
@@ -4186,7 +4193,8 @@ window.addEventListener("message",ev=>{
     const e=(ITEMS_LIB||[]).find(l=>l.id===it.itemId)||{};
     reply({ok:true,won,n,lore,m,apl,name:won?(e.name||""):"",veiled:e.veiled||"",info:restInfo()}); return;
   }
-  if(d.op==="levelup"){ try{ switchPanel("lore"); luOpen(); }catch(e){} reply({ok:true}); return; }
+  if(d.op==="levelup"){ window._restLevelOK=true; try{ renderLore(); switchPanel("lore"); luOpen(); }catch(e){} reply({ok:true}); return; }
+  if(d.op==="rest-over"){ window._restLevelOK=false; try{ renderLore(); }catch(e){} reply({ok:true}); return; }
 });
 
 /* ---------- the Arsenal: one card shape for Weapons, Lorebounds and Armor ----------
