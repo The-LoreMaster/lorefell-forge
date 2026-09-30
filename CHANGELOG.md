@@ -1,3 +1,7 @@
+## 2026-09-28 - Crystal Glints, softer
+
+Crystal Glints was too busy. Half as many flakes, fainter, and their flashes rarer, smaller and dimmer.
+
 ## 2026-09-28 - Weather for every world
 
 The nineteen worlds without weather now have their own, each from its FellGuide page: Resonance (Akkoroka), Perpetual Dawn (Amaranthia), High Winds (Avemriol), Trench Heat (Brimsever), Hearthglow (Burhallow), The Hive (Crixalis), Old Forest (Eldarwyn), Threnody Winds (Karn), Omen Fog (Natbakka), Story-Motes (Sable), Sigils (Scitnix), Root-Dark (Shervinaw), Bramble Wind (Sylvanoth), Hunter's Frost (Thaloryn), Probability (The Scere), Mountain Cloud (Ursathar), Faeliri Snow (Valoria), The Seasons (Verdantia; blossom, leaves and snow in turn) and Dragon Heat (Wylv). Of the worlds now lists every world's weather in order of its world, Blizzard among them. Each button's tooltip names its world and, where a weather suits others, where else it can stand in (Snow: Thaloryn, Ursathar, Valoria, Vulkaris; Embers: Brimsever, Mortavia, Wylv; and so on), so the LoreMaster knows where an overlap might be used. For reduced motion, Root-Dark, Hearthglow and Faeliri Snow keep their still wash.
