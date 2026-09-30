@@ -787,3 +787,47 @@ export const saveDicePicks = webMethod(Permissions.Anyone, async (picks) => {
     return { ok: true };
   } catch (e) { return { ok: false, error: String(e) }; }
 });
+
+// ---- dice the story gives ----
+// Grants live in DicePrefs.grants, beside the ones the site's owner types in by hand.
+async function diceGrant(memberId, key) {
+  const r = await wixData.query('DicePrefs').eq('memberId', memberId).limit(1).find({ suppressAuth: true });
+  const row = r.items[0];
+  let g = [];
+  if (row && row.grants) { try { const pg = typeof row.grants === 'string' ? JSON.parse(row.grants) : row.grants; g = Array.isArray(pg) ? pg.map(String) : []; } catch (e) { g = String(row.grants).split(',').map((x) => x.trim()).filter(Boolean); } }
+  if (g.indexOf(key) >= 0) return { ok: true, fresh: false };
+  g.push(key);
+  if (row) await wixData.update('DicePrefs', Object.assign({}, row, { grants: JSON.stringify(g) }), { suppressAuth: true });
+  else await wixData.insert('DicePrefs', { memberId: memberId, picks: '{}', grants: JSON.stringify(g) }, { suppressAuth: true });
+  return { ok: true, fresh: true };
+}
+// The LoreMaster gives Spindle's Web or The Double to a Fell's player, when the story earns
+// it: only the adventure's owner or a member at the loremaster role, and only to a Fell in
+// that adventure.
+export const lmGiveDice = webMethod(Permissions.Anyone, async (campaignId, charId, key) => {
+  const m = await currentMember.getMember().catch(() => null);
+  if (!m || !m._id) return { ok: false, error: 'sign in' };
+  if (['spindle', 'whip'].indexOf(String(key)) < 0) return { ok: false, error: 'those dice are not the LoreMaster\'s to give' };
+  const cid = String(campaignId || '');
+  const camp = await wixData.get('Campaigns', cid, { suppressAuth: true }).catch(() => null);
+  if (!camp) return { ok: false, error: 'no such adventure' };
+  let lm = camp.ownerMemberId === m._id;
+  if (!lm) { try { const rm = await wixData.query('AdventureMembers').eq('campaignId', cid).eq('memberId', m._id).limit(1).find({ suppressAuth: true }); lm = !!(rm.items[0] && rm.items[0].role === 'loremaster'); } catch (e) {} }
+  if (!lm) return { ok: false, error: 'only the LoreMaster can give these' };
+  const ch = await wixData.get('Characters', String(charId || ''), { suppressAuth: true }).catch(() => null);
+  if (!ch || String(ch.campaignId || '') !== cid || !ch.ownerMemberId) return { ok: false, error: 'that Fell is not at this table' };
+  try { return await diceGrant(ch.ownerMemberId, String(key)); } catch (e) { return { ok: false, error: String(e) }; }
+});
+// A player earns the Discord dice when their own Fell falls to 0 Vitality. The site checks
+// the Fell's saved Vitality, so it cannot be claimed without it.
+export const earnDice = webMethod(Permissions.Anyone, async (key, charId) => {
+  const m = await currentMember.getMember().catch(() => null);
+  if (!m || !m._id) return { ok: false };
+  if (String(key) !== 'discord') return { ok: false, error: 'not earned this way' };
+  const ch = await wixData.get('Characters', String(charId || ''), { suppressAuth: true }).catch(() => null);
+  if (!ch || ch.ownerMemberId !== m._id) return { ok: false, error: 'not your Fell' };
+  let data = {}; try { data = typeof ch.data === 'string' ? JSON.parse(ch.data) : (ch.data || {}); } catch (e) { data = {}; }
+  const v = data.vitality || {};
+  if (!(Number(v.max) > 0 && Number(v.current) <= 0)) return { ok: false, error: 'this Fell has not fallen' };
+  try { return await diceGrant(m._id, 'discord'); } catch (e) { return { ok: false, error: String(e) }; }
+});
