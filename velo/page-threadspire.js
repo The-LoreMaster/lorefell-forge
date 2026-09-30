@@ -379,6 +379,10 @@ $w.onReady(async function () {
                 if (T.state) { try { const cs = await saveCampaignState(r.id, T.state); restored.state = !!(cs && cs.ok); } catch (e) {} }
                 if (Array.isArray(msg.roster) && msg.roster.length) { try { restored.roster = await restoreRoster(r.id, msg.roster, T.originalId || ''); } catch (e) {} }
               }
+              // the LoreMaster's journal for the adventure, as it was
+              if (Array.isArray(msg.journal) && msg.journal.length) {
+                try { await saveJournal(r.id, msg.journal.slice(0, 2000)); } catch (e) {}
+              }
               reply(true, { id: r.id, name: nm, restored: restored });
             }
           } catch (e) { reply(false, null, String(e)); }

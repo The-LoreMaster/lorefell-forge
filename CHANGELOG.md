@@ -1,3 +1,7 @@
+## 2026-09-28 - Weather strength, and the journal in backups
+
+The Weather panel gains a Strength slider (10 to 100 percent) for the scene's weather, so a storm can be a hint or a downpour; it is kept per scene with the weather, reaches every player, and exports with the table. An adventure export now carries the LoreMaster's journal, which lived only on the site, and an import writes it back to the new adventure; the table's log (its last 400 lines) now comes along too. Paste velo/page-threadspire.js.
+
 ## 2026-09-28 - Weather: the second batch of worlds
 
 Eight more, each from its world's FellGuide page. Weather: Blizzard (Vulkaris), snow driven sideways in gusts with a white-out haze. Of the worlds: The Abysm (Shadakar), dark ink-mist curling in from the edges; Steam and Frost (Garyx), steam rising from the ground and frost glinting; Pollen and Petals (Elysara and Mireth), golden pollen and drifting petals; Crystal Glints (Kwuhara), crystal flakes falling and catching the light; Prismatic Light (Felidae), slow ribbons of shifting colour. Magic: Leylines (Wildermire), faint golden threads with pulses running along them; Temporal Echoes (Therion), a moment rippling out and fading as if time stuttered there. For reduced motion, The Abysm keeps its still dark wash.
