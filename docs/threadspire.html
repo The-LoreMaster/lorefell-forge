@@ -1201,9 +1201,11 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .token.vshard .tok-face, .token.vshard .tok-label{ display:none; }
 @keyframes vshard{ 0%,100%{ filter:drop-shadow(0 0 4px rgba(246,215,120,.45)); } 50%{ filter:drop-shadow(0 0 10px rgba(255,236,170,.85)); } }
 @media (prefers-reduced-motion:reduce){ .token.vshard{ animation:none; } }
-.hslot.lm-ss{ cursor:pointer; pointer-events:auto; z-index:62; font-size:min(1.25vh, .72vw); letter-spacing:.04em; white-space:nowrap; }
+.hslot.lm-ss{ cursor:pointer; pointer-events:auto; z-index:62; font-size:min(1.62vh, .94vw); letter-spacing:.02em; white-space:nowrap; }
 .hslot.lm-ss.waiting{ color:#fff1bf; text-shadow:0 0 8px rgba(246,215,120,.9); animation:ssWait 1.2s ease-in-out infinite; }
 @keyframes ssWait{ 0%,100%{ opacity:1; } 50%{ opacity:.55; } }
+#noteCue{ position:fixed; left:50%; top:12px; transform:translateX(-50%); z-index:95; padding:8px 14px; border-radius:18px; background:rgba(10,14,26,.95); border:1px solid var(--gold); color:var(--gold); font-family:Cinzel,serif; font-size:.7rem; letter-spacing:.08em; display:none; }
+#noteCue button{ margin-left:10px; border:1px solid var(--line); border-radius:12px; background:none; color:var(--silver,#dce8ef); font-family:inherit; font-size:.62rem; padding:3px 9px; cursor:pointer; }
 #shardPlacing{ position:fixed; left:50%; top:12px; transform:translateX(-50%); z-index:95; padding:8px 14px; border-radius:18px; background:rgba(10,14,26,.95); border:1px solid var(--gold); color:var(--gold); font-family:Cinzel,serif; font-size:.7rem; letter-spacing:.08em; display:none; }
 #shardPlacing button{ margin-left:10px; border:1px solid var(--line); border-radius:12px; background:none; color:var(--silver,#dce8ef); font-family:inherit; font-size:.62rem; padding:3px 9px; cursor:pointer; }
 .token.shard{
@@ -2128,7 +2130,6 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
       <div class="tmsh-note" id="tmShardNote"></div>
     </div>
     <div class="tm-icons" id="tmExtras"></div>
-    <div class="tm-reach" id="tmReach"></div>
     <div class="tm-rot"><button onclick="tokRotate(-20)" title="Turn left 20° (Shift+R)" aria-label="Turn left">⟲</button><button class="tm-aim" onclick="tokAimStart()" title="Turn it to face where you point, then click">Rotate</button><button onclick="tokRotate(20)" title="Turn right 20° (R)" aria-label="Turn right">⟳</button></div>
     <button id="tmDup" style="display:none" onclick="tokDuplicate()"></button>
     <button id="tmDelete" style="display:none"></button>
@@ -3526,6 +3527,8 @@ function foeForgeBody(){
     + '<select class="tsm-inp" id="ffRating" onchange="foeForgeRerender()">' + opts(tiers, c.sr) + '</select>'
     + '<label class="tsm-lbl">Attack preference (only matters on a tie)</label>'
     + '<select class="tsm-inp" id="ffPref" onchange="foeForgeRerender()"><option value="phys"' + (c.atkPref !== 'magic' ? ' selected' : '') + '>Physical</option><option value="magic"' + (c.atkPref === 'magic' ? ' selected' : '') + '>Magical</option></select>'
+    + '<label class="tsm-lbl">Mobility (spaces a turn)</label>'
+    + '<input class="tsm-inp" id="ffMob" type="number" min="1" max="99" step="1" value="' + (c.mobility != null ? c.mobility : 5) + '">'
     + '<label class="tsm-lbl">Weapon range (spaces)</label>'
     + '<input class="tsm-inp" id="ffRange" type="number" min="1" max="99" step="1" value="' + (c.range != null ? c.range : 1) + '">'
     + foeForgeKitSection('inf')
@@ -3545,6 +3548,7 @@ function foeForgeSync(){
   var sr = g('ffRating'); if (sr !== undefined) c.sr = sr;
   var ap = g('ffPref'); if (ap !== undefined) c.atkPref = ap;
   var rg = g('ffRange'); if (rg !== undefined) c.range = Math.max(1, parseInt(rg, 10) || 1);
+  var mb = g('ffMob'); if (mb !== undefined) c.mobility = Math.max(1, parseInt(mb, 10) || 5);
   var ds = g('ffDesc'); if (ds !== undefined) c.desc = ds;
   if (c.abilities){ c.abilities.forEach(function(ab, i){
     var nm = document.getElementById('ffAbName' + i); if (nm) ab.name = nm.value;
@@ -3618,7 +3622,7 @@ function foeForgeSave(){
     /* editing a foe already on the scene: change the combatant in place, re-derive, and let the
        shared scene write carry it. Range, like build and rating, rides on the combatant. */
     var cb = c._cb.cb;
-    cb.name = c.name; cb.build = c.build; cb.sr = c.sr; cb.atkPref = c.atkPref; cb.range = c.range;
+    cb.name = c.name; cb.build = c.build; cb.sr = c.sr; cb.atkPref = c.atkPref; cb.range = c.range; cb.mobility = c.mobility;
     cb.desc = c.desc; cb.infusions = inf; cb.augments = aug; cb.abilities = abl;
     cb.attrs = foeForgeAttrs(c.build, c.sr, apl);
     cb.maxVit = LF_COMBAT.vitality(apl, c.sr);
@@ -3632,7 +3636,7 @@ function foeForgeSave(){
   }
   var rec = (c.id && libGet(c.id)) || { id:mkId(), type:'monster', side:'monster' };
   rec.type = 'monster';
-  rec.name = c.name; rec.build = c.build; rec.sr = c.sr; rec.atkPref = c.atkPref; rec.range = c.range;
+  rec.name = c.name; rec.build = c.build; rec.sr = c.sr; rec.atkPref = c.atkPref; rec.range = c.range; rec.mobility = c.mobility;
   rec.desc = c.desc; rec.description = c.desc;
   rec.attrs = foeForgeAttrs(c.build, c.sr, apl);
   rec.maxVit = LF_COMBAT.vitality(apl, c.sr);
@@ -4403,6 +4407,10 @@ function entrySheet(src, sceneId, kind, id){
       + '<div class="tsm-lbl">Standard attack</div>'
       + '<div class="fw-dmg"><span class="fw-dmg-n">' + esc(dmg.text) + '</span><span class="fw-dmg-acc">' + esc(dmg.acc) + ' to hit</span></div>'
       + '<p class="tsm-note">Base always lands. Bonus meets ' + (dmg.type === 'magic' ? 'Resistance' : 'Durability') + '. Landing it charges the first tier.</p>'
+      + '<label class="tsm-lbl">Mobility (spaces a turn)</label>'
+      + '<span class="rs-step"><button class="bt-b" onclick="stepNum(\'rsMob\',-1)">-</button>'
+      + '<input class="tsm-inp rs-anum" id="rsMob" type="number" min="1" max="99" step="1" value="' + (e.mobility != null ? e.mobility : 5) + '">'
+      + '<button class="bt-b" onclick="stepNum(\'rsMob\',1)">+</button></span>'
       + '<label class="tsm-lbl">Weapon range (spaces)</label>'
       + '<span class="rs-step"><button class="bt-b" onclick="stepNum(\'rsRange\',-1)">-</button>'
       + '<input class="tsm-inp rs-anum" id="rsRange" type="number" min="1" max="99" step="1" value="' + (e.range != null ? e.range : 1) + '">'
@@ -4521,6 +4529,7 @@ function sheetSave(){
   }
   if (val('rsSig') !== undefined) e.sig = val('rsSig');
   var rgv = val('rsRange'); if (rgv !== undefined) e.range = Math.max(1, parseInt(rgv, 10) || 1);
+  var mbv = val('rsMob'); if (mbv !== undefined) e.mobility = Math.max(1, parseInt(mbv, 10) || 5);
   e.attrs = e.attrs || blankAttrs();
   ATTR_LIST.forEach(function(a){ e.attrs[a] = num('rsA_' + a); });
   var inf = list('rsInf'); if (inf) e.infusions = inf;
@@ -14704,7 +14713,12 @@ function tokAffBadges(t){
    own Fell's; the LoreMaster sees any Fell's they select, when that Fell's reach is known. */
 function reachOf(t){
   if (!t) return null;
-  if (t.kind !== 'p' && !t.charId) return (t.move || t.reach) ? { mobility:t.move || 0, range:t.reach || 0 } : null;
+  if (t.kind !== 'p' && !t.charId){
+    /* a foe's own record: its Mobility (5 until the LoreMaster sets it) and its weapon range */
+    var fc = null; try { fc = findC(t.id); } catch(e){}
+    if (!fc || fc.side === 'fell') return null;
+    return { mobility:Number(fc.mobility) || 5, range:Number(fc.range) || 1 };
+  }
   if (!isLM() && tokenIsMine(t) && hand && hand.reach) return hand.reach;
   var p = (S.party || []).filter(function(x){ return x && t.charId && sameId(x.charId, t.charId); })[0];
   return (p && p.reach) || null;
@@ -14787,7 +14801,7 @@ var TM_ICON = {
 };
 function tokExtrasPaint(){
   var box = document.getElementById('tmExtras'); if (!box) return;
-  var t = sel ? tokById(sel) : null; if (!t){ box.innerHTML = ''; tokReachPaint(null); return; }
+  var t = sel ? tokById(sel) : null; if (!t){ box.innerHTML = ''; return; }
   var b = function(icon, title, fn, on, cls){ return '<button class="tmi' + (on ? ' on' : '') + (cls ? ' ' + cls : '') + '" title="' + title + '" aria-label="' + title + '" onclick="' + fn + '">' + icon + '</button>'; };
   box.innerHTML = b(t.hidden ? TM_ICON.hidden : TM_ICON.hide, t.hidden ? 'Hidden from players (show)' : 'Hide from players', "tokToggle('hidden')", t.hidden)
     + b(t.locked ? TM_ICON.lock : TM_ICON.unlock, t.locked ? 'Locked (unlock)' : 'Lock in place', "tokToggle('locked')", t.locked)
@@ -14795,21 +14809,6 @@ function tokExtrasPaint(){
     + b(TM_ICON.front, 'Bring to front', 'tokLayer(1)') + b(TM_ICON.back, 'Send to back', 'tokLayer(-1)')
     + b(TM_ICON.dup, 'Duplicate (Ctrl+D)', 'tokDuplicate()')
     + b(TM_ICON.del, 'Remove from the map (Delete)', 'tokRemoveChosen()', false, 'danger');
-  tokReachPaint(t);
-}
-/* a foe's movement and weapon reach, set by the LoreMaster, for its rings in battle */
-function tokReachPaint(t){
-  var box = document.getElementById('tmReach'); if (!box) return;
-  if (!t || t.kind === 'p' || t.charId || t.kind === 'vshard' || t.kind === 'shard' || t.kind === 'marker'){ box.innerHTML = ''; box.style.display = 'none'; return; }
-  box.style.display = '';
-  if (document.activeElement && box.contains(document.activeElement)) return;
-  box.innerHTML = '<label title="How many squares it moves in a turn">Move<input type="number" min="0" max="30" value="' + (t.move || '') + '" onchange="tokReachSet(\'move\', this.value)"></label>'
-    + '<label title="How far its attacks reach, in squares">Reach<input type="number" min="0" max="30" value="' + (t.reach || '') + '" onchange="tokReachSet(\'reach\', this.value)"></label>';
-}
-function tokReachSet(k, v){
-  var list = tokChosen(); var n = Math.max(0, parseInt(v, 10) || 0);
-  list.forEach(function(t){ if (n) t[k] = n; else delete t[k]; });
-  applyRemoteState({ tokens:S.tokens }); schedulePush();
 }
 
 /* ---- bring everyone here: every player's view goes to what the LoreMaster sees ---- */
@@ -14930,12 +14929,26 @@ function noteSave(id){
   schedulePush(); notesDraw(); tsCloseModal();
 }
 function noteDel(id){ var k = mapKey(); S.notes[k] = notesHere().filter(function(x){ return x.id !== id; }); schedulePush(); notesDraw(); tsCloseModal(); }
-function noteAddStart(){ if (!isLM()) return; _noteAdd = true; mapEl().classList.add('placing-shard'); }
+function noteAddStart(){
+  if (!isLM()) return;
+  _noteAdd = !_noteAdd;
+  noteCuePaint();
+}
+/* while a note waits for its spot, the button stays lit and a banner says what to do */
+function noteCuePaint(){
+  var btn = document.getElementById('noteBtn'); if (btn) btn.classList.toggle('on', !!_noteAdd);
+  mapEl().classList.toggle('placing-shard', !!_noteAdd);
+  var b = document.getElementById('noteCue');
+  if (!b){ b = document.createElement('div'); b.id = 'noteCue'; document.body.appendChild(b); }
+  b.innerHTML = 'Click the map where the note goes<button onclick="_noteAdd=false;noteCuePaint()">Cancel</button>';
+  b.style.display = _noteAdd ? 'block' : 'none';
+}
+document.addEventListener('keydown', function(e){ if (_noteAdd && e.key === 'Escape'){ _noteAdd = false; noteCuePaint(); } });
 mapEl().addEventListener('pointerdown', function(e){
   if (!_noteAdd || !isLM() || e.button !== 0) return;
   e.stopPropagation(); e.preventDefault();
   var m = toMap(e.clientX, e.clientY), n = { id:mkId(), x:m.x, y:m.y, text:'', shown:false };
-  notesHere().push(n); _noteAdd = false; mapEl().classList.remove('placing-shard');
+  notesHere().push(n); _noteAdd = false; noteCuePaint();
   schedulePush(); notesDraw(); noteOpen(n.id);
 }, true);
 

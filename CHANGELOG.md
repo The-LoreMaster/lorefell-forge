@@ -1,3 +1,7 @@
+## 2026-09-28 - Foe rings from the foe, a map note that says it is waiting, and a larger Skyvault Shards
+
+The token menu's Move and Reach are gone: a foe's rings now come from the foe itself, its weapon range (already on the foe and its card) and a new Mobility on the foe forge and the library sheet, beside the range, 5 until set. A map note, once its button is pressed, lights the button and shows a banner (Click the map where the note goes, with Cancel; Escape cancels too), rather than waiting silently for a click. The Skyvault Shards label on the LoreMaster's gem is larger.
+
 ## 2026-09-28 - The map bar runs across, a cleaner token menu, rings in battle for foes too, and a Ping tool
 
 On a desktop the map bar now runs across the top of the table and each tool's panel drops down beneath it (phones keep the column). A Ping tool joins it: click the map to point something out, for anyone (double-click still pings too). The token menu is simpler: the name field, the size, then one row of icon buttons with their names on hover (hide, lock, carry a light with its squares, to front, to back, duplicate, remove), and Rotate beneath; the long Duplicate and Remove bars are gone. A foe's menu adds Move and Reach, in squares, set by the LoreMaster and kept on the token. Movement and weapon-range rings now show only in battle, for the chosen Fell and, for the LoreMaster, the chosen foe from its Move and Reach; dragging a foe shows red past its Move.
