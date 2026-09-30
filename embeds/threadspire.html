@@ -450,7 +450,7 @@ body.clean .artlayer{ display:none; }
 
 #dieField{ position:fixed; inset:0; pointer-events:none; z-index:60; }
 /* the frame's numbers take a pointer on a player's side, so they can say what they are */
-body:not(.lm-role) .hslot.hCharge, body:not(.lm-role) .hslot.hLP, body:not(.lm-role) .hslot.hLvl{ pointer-events:auto; }
+body:not(.lm-role) .hslot.hCharge, body:not(.lm-role) .hslot.hLP, body:not(.lm-role) .hslot.hLvl, body.lm-role .hslot.hCharge{ pointer-events:auto; }
 .hslot.lm-lore{ cursor:pointer; pointer-events:auto; z-index:62; } .hslot.lm-lore:hover{ color:var(--gold); filter:brightness(1.2); }
 .lg-amt{ display:flex; align-items:center; gap:8px; margin:8px 0 12px; } .lg-amt input{ width:74px; height:34px; box-sizing:border-box; padding:0 6px; text-align:center; font-family:Cinzel,serif; font-size:1.05rem; color:var(--gold); background:rgba(10,14,26,.85); border:1px solid rgba(201,168,76,.45); border-radius:8px; outline:none; -moz-appearance:textfield; appearance:textfield; font-variant-numeric:tabular-nums; }
 .lg-amt input::-webkit-outer-spin-button, .lg-amt input::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
@@ -3816,7 +3816,8 @@ function libAttach(sceneId, libId){
   var isFoe = e.type === 'monster';
   var key = isFoe ? 'foes' : 'npcs';
   f.scene[key] = f.scene[key] || [];
-  var same = f.scene[key].filter(function(c){ return sameId(c.libId, libId); }).length;
+  var sameList = f.scene[key].filter(function(c){ return sameId(c.libId, libId); }), same = sameList.length;
+  if (same && isFoe){ var _was = S.scene; S.scene = f.scene; try { foeNumberFirst(sameList, e.name); } finally { S.scene = _was; } }
   var cb = libMakeCombatant(e, e.name + (same ? ' ' + (same + 1) : ''));
   f.scene[key].push(cb);
   /* combatants is the shared store both tools read; keep it in step with the board list so an
@@ -4321,6 +4322,7 @@ function partyApl(sc){
   return Math.max(1, Math.round(known.reduce(function(a, b){ return a + b; }, 0) / known.length));
 }
 function partyLevel(){ return partyApl(); }
+function skillDifficulty(sc){ return Math.floor(partyApl(sc) / 5); }
 /* Pull the attending Fell onto the board as combatants so the LoreMaster can aim acts at
    them and read the party. Records are keyed by charId and tagged _auto; they are stripped
    before the scene is stored, so materialising the roster never rewrites the authored
@@ -10266,7 +10268,12 @@ function paintHud(){
       e.textContent = '';
       e.classList.toggle('charged', !!foe && (foe.charge || 0) >= p[1]);
     });
-    setT('hudCharge', (L.diff !== undefined && L.diff !== null) ? ('+' + L.diff) : '');
+    /* Skill Difficulty (LoreVault, Building Crucibles): the Average Party Level divided by 5,
+       rounded down, added to what a Fell rolls against */
+    var _sd = skillDifficulty();
+    setT('hudCharge', '+' + _sd);
+    var _sdEl = document.getElementById('hudCharge');
+    if (_sdEl){ _sdEl.title = 'Skill Difficulty +' + _sd + ': the average party level (' + partyApl() + ') divided by 5, rounded down. Add it to what a Fell rolls against.'; _sdEl.setAttribute('data-tipset', _sdEl.title); }
     var sp = L.speaker;
     setT('hudName', (sp && sp.name) ? sp.name : 'LoreMaster');
     var lpor = document.getElementById('hudPortrait');
@@ -14431,6 +14438,7 @@ var HUD_TIPS = {
 function hudTitles(){
   Object.keys(HUD_TIPS).forEach(function(c){
     document.querySelectorAll('#hud .hslot.' + c).forEach(function(el){
+      if (isLM() && c === 'hCharge') return;   /* the LoreMaster's diamond carries its own */
       var t = isLM() ? '' : (HUD_TIPS[c][0] + ': ' + HUD_TIPS[c][1]);
       if (el.getAttribute('data-tipset') !== t){ if (t) el.title = t; else el.removeAttribute('title'); el.setAttribute('data-tipset', t); }
     });
@@ -14556,12 +14564,24 @@ function tokCopy(){
    fight, with the same stats, a fresh name (Wolf 2, Wolf 3), full Vitality, no charge and no
    afflictions. Its token takes the new combatant's id, so the card, the tracker and the token
    are one foe, as a foe added from the library would be. */
+/* when a second foe of a kind arrives, the first one is numbered too, on its card and its
+   token, so the table reads Wolf 1 and Wolf 2 rather than Wolf and Wolf 2 */
+function foeNumberFirst(kin, base){
+  kin.forEach(function(f){
+    if (f.name !== base) return;
+    f.name = base + ' 1';
+    (S.tokens || []).forEach(function(t){ if (t.id === f.id || sameId(t.refId, f.id)){ t.name = f.name; if (t.label) t.label = f.name; } });
+    (S.scene.combatants || []).forEach(function(cb){ if (cb !== f && sameId(cb.id, f.id)) cb.name = f.name; });
+  });
+}
 function foeCopyFor(t){
   var src = null; try { src = findC(t.id); } catch(e){}
   if (!src || src.side === 'fell' || src.type === 'npc' || src.side === 'npc') return null;
   if (!(S.scene && (S.scene.foes || []).some(function(f){ return f === src || sameId(f.id, src.id); }))) return null;
   var base = String(src.name || 'Foe').replace(/\s+\d+$/, '');
-  var n = (S.scene.foes || []).filter(function(f){ return String(f.name || '').replace(/\s+\d+$/, '') === base; }).length;
+  var kin = (S.scene.foes || []).filter(function(f){ return String(f.name || '').replace(/\s+\d+$/, '') === base; });
+  var n = kin.length;
+  foeNumberFirst(kin, base);
   var cb = JSON.parse(JSON.stringify(src));
   cb.id = mkId(); cb.name = base + ' ' + (n + 1);
   cb.curVit = cb.maxVit || cb.curVit || 0; cb.charge = 0; cb.affs = []; cb.act = ''; cb.locked = false; cb.tempVit = 0;
@@ -15104,7 +15124,7 @@ function restPaint(){
   var unknown = (i.items || []).filter(function(it){ return !it.known && !_restState.inspected[it.idx]; });
   if (unknown.length){
     opts += '<div class="rest-h">Inspect utilities <span>' + left + ' of ' + (1 + (i.wit || 0)) + ' left</span></div>'
-      + '<div class="rest-note">A Lore check each: 1d6 + Lore against the LoreMaster\u2019s 1d6 + the party\u2019s level.</div>'
+      + '<div class="rest-note">A Lore check each: 1d6 + Lore against the LoreMaster\u2019s 1d6 + the Skill Difficulty (+' + skillDifficulty() + ').</div>'
       + unknown.map(function(it){ return '<button class="rest-opt" ' + (left ? '' : 'disabled') + ' onclick="restInspect(' + it.idx + ')"><b>? ? ?</b><span>' + esc(it.veiled) + '</span></button>'; }).join('');
   }
   var restItems = (i.items || []).filter(function(it){ return it.known && /rest/i.test(it.use || '') && ['Skyvault Shard','Food Portion','Camp Kettle'].indexOf(it.name) < 0; });
@@ -15131,7 +15151,7 @@ function restInspect(idx){
   var i = _restState.info || {};
   if (_restState.inspections >= 1 + (i.wit || 0)) return;
   _restState.inspections++; _restState.inspected[idx] = true;
-  restAsk('inspect', { idx:idx, apl:partyApl() }).then(function(r){
+  restAsk('inspect', { idx:idx, apl:skillDifficulty() }).then(function(r){
     if (r.info) _restState.info = r.info;
     send({ type:'roll', rollType:'skill', n:r.n, mods:[{ label:'Lore', value:r.lore }], total:r.n + r.lore, note:'Inspecting: ' + (r.won ? 'discovered ' + r.name : 'still unknown') + ' (LoreMaster ' + r.m + ' + ' + r.apl + ')' });
     _restState.bits.push(r.won ? ('discovered ' + r.name) : 'an item that stays unknown');
