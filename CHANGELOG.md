@@ -1,3 +1,7 @@
+## 2026-09-28 - Weather for every world
+
+The nineteen worlds without weather now have their own, each from its FellGuide page: Resonance (Akkoroka), Perpetual Dawn (Amaranthia), High Winds (Avemriol), Trench Heat (Brimsever), Hearthglow (Burhallow), The Hive (Crixalis), Old Forest (Eldarwyn), Threnody Winds (Karn), Omen Fog (Natbakka), Story-Motes (Sable), Sigils (Scitnix), Root-Dark (Shervinaw), Bramble Wind (Sylvanoth), Hunter's Frost (Thaloryn), Probability (The Scere), Mountain Cloud (Ursathar), Faeliri Snow (Valoria), The Seasons (Verdantia; blossom, leaves and snow in turn) and Dragon Heat (Wylv). Of the worlds now lists every world's weather in order of its world, Blizzard among them. Each button's tooltip names its world and, where a weather suits others, where else it can stand in (Snow: Thaloryn, Ursathar, Valoria, Vulkaris; Embers: Brimsever, Mortavia, Wylv; and so on), so the LoreMaster knows where an overlap might be used. For reduced motion, Root-Dark, Hearthglow and Faeliri Snow keep their still wash.
+
 ## 2026-09-28 - Weather strength, and the journal in backups
 
 The Weather panel gains a Strength slider (10 to 100 percent) for the scene's weather, so a storm can be a hint or a downpour; it is kept per scene with the weather, reaches every player, and exports with the table. An adventure export now carries the LoreMaster's journal, which lived only on the site, and an import writes it back to the new adventure; the table's log (its last 400 lines) now comes along too. Paste velo/page-threadspire.js.
