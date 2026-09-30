@@ -449,6 +449,27 @@ body.clean .artlayer{ display:none; }
 .dice-coll .dk-sw{ cursor:default; padding:2px; }
 .dk-sw.shadow .dk-face{ filter:brightness(0) opacity(.55); box-shadow:none; border-color:rgba(143,163,179,.25) !important; }
 .dk-sw.shadow .dk-face::after{ display:none; }
+
+.dice-hint{ font-size:.8rem; color:var(--muted,#8fa3b3); margin:-2px 0 8px; }
+.dice-coll{ gap:8px; display:grid; grid-template-columns:repeat(auto-fill,minmax(46px,1fr)); }
+.dice-coll .dk-sw{ width:auto; }
+.dice-assign{ position:sticky; top:0; z-index:2; margin:0 0 10px !important; background:#0f1526 !important; }
+.dice-coll .dk-sw{ display:flex; flex-direction:column; align-items:center; padding:4px; border:1px solid transparent; border-radius:10px; }
+.dice-coll .dk-sw.got{ cursor:pointer; }
+.dice-coll .dk-sw.got:hover{ border-color:rgba(201,168,76,.5); }
+.dice-coll .dk-sw.inuse{ border-color:rgba(201,168,76,.35); background:rgba(201,168,76,.06); }
+.dice-coll .dk-sw.open{ border-color:var(--gold); background:rgba(201,168,76,.12); }
+.dice-coll .dk-face{ width:34px; height:34px; }
+.dk-shadow{ display:block; width:34px; height:34px; border-radius:7px; background:#070b16; border:1px solid rgba(143,163,179,.14); }
+.dk-marks{ display:flex; gap:2px; margin-top:3px; }
+.dk-marks i{ font-style:normal; font-family:Cinzel,serif; font-size:.5rem; width:10px; text-align:center; color:rgba(143,163,179,.35); }
+.dk-marks i.on{ color:var(--gold); }
+.dice-assign{ margin-top:12px; padding:10px; border:1px solid var(--gold); border-radius:10px; background:rgba(201,168,76,.05); }
+.da-h{ display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+.da-h span{ display:flex; flex-direction:column; } .da-h b{ font-family:Cinzel,serif; font-weight:500; font-size:.85rem; color:var(--gold); } .da-h small{ font-size:.78rem; color:var(--muted,#8fa3b3); }
+.da-kinds{ display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+.da-k{ padding:7px 4px; border:1px solid var(--line); border-radius:8px; background:none; color:var(--silver,#dce8ef); font-family:Cinzel,serif; font-size:.62rem; letter-spacing:.06em; cursor:pointer; }
+.da-k.on{ border-color:var(--gold); color:var(--gold); background:rgba(201,168,76,.1); }
 .dice-locked summary{ cursor:pointer; font-family:Cinzel,serif; font-size:.6rem; letter-spacing:.14em; text-transform:uppercase; color:var(--muted,#8fa3b3); margin:4px 0 8px; }
 .dk-sw.locked{ display:flex; flex-direction:column; align-items:center; width:84px; text-align:center; cursor:default; opacity:.55; }
 .dk-sw.locked em{ font-style:normal; font-size:.72rem; color:var(--silver,#dce8ef); margin-top:3px; } .dk-sw.locked small{ font-size:.62rem; color:var(--muted,#8fa3b3); line-height:1.2; }
@@ -4967,7 +4988,7 @@ function diceWindow(){
   tsModal('<h3 class="tsm-title">Your dice</h3><div id="diceWin">' + diceSettingsHtml() + '</div>'
     + '<div class="tsm-row"><button class="tsm-btn" onclick="tsCloseModal()">Done</button></div>');
 }
-function diceWindowPaint(){ var w = document.getElementById('diceWin'); if (w) w.innerHTML = diceSettingsHtml(); diceTipHide(); }
+function diceWindowPaint(){ var w = document.getElementById('diceWin'); if (w){ var top = w.scrollTop; w.innerHTML = diceSettingsHtml(); w.scrollTop = top; } diceTipHide(); }
 /* the dice window's tooltip: one, on the page itself, kept on screen */
 function diceTipHide(){ var t = document.getElementById('diceTip'); if (t) t.style.display = 'none'; }
 document.addEventListener('mouseover', function(ev){
@@ -4983,27 +5004,36 @@ document.addEventListener('mouseover', function(ev){
   t.style.left = x + 'px'; t.style.top = y + 'px';
 });
 function diceSettingsHtml(){
-  var own = Object.keys(DICE_CAT).filter(function(k){ return diceOwns(k); });
-  /* a hidden set is never listed to earn: it is only ever given */
-  var locked = Object.keys(DICE_CAT).filter(function(k){ return !DICE_CAT[k].legacy && !DICE_CAT[k].hidden && !diceOwns(k); });
-  var h = '<div class="dice-set">';
-  ROLL_KINDS.forEach(function(rk){
-    var cur = diceMine(rk[0]);
-    h += '<div class="dice-row"><span class="dice-kind">' + rk[1] + '</span><div class="dice-grid">'
-      + own.map(function(k){ return '<button class="dk-sw' + (k === cur ? ' on' : '') + '" aria-label="' + esc(DICE_CAT[k].name + '. ' + diceHow(k, true)) + '" data-tip="' + esc(DICE_CAT[k].name) + '" data-how="' + esc(diceHow(k, true)) + '" onclick="dicePick(\'' + rk[0] + '\',\'' + esc(k) + '\')">' + diceFace(k, 5) + '</button>'; }).join('')
-      + '</div></div>';
+  /* One grid: the whole collection. An earned set is lit and can be chosen; tapping it says
+     which kinds of roll it is used for, and choosing a kind moves that kind to it. Its small
+     letters show where it is used now: A Attack, E Evade, S Skill, G Generic. An unearned set
+     is a plain shadow (no face, so no set's colours or pips show through), and its tooltip
+     names it and says how to earn it. Hidden sets appear only once given. */
+  var all = Object.keys(DICE_CAT).filter(function(k){ return !DICE_CAT[k].legacy && (!DICE_CAT[k].hidden || diceOwns(k)); });
+  var own = all.filter(diceOwns);
+  var used = {}; ROLL_KINDS.forEach(function(rk){ var m = diceMine(rk[0]); (used[m] = used[m] || []).push(rk[0]); });
+  var h = '<div class="dice-coll-h">Collection <span>' + own.length + ' of ' + all.length + '</span></div>'
+    + '<div class="dice-hint">Tap a die you have earned to roll it for Attack, Evade, Skill or Generic.</div>'
+    + '%%ASSIGN%%<div class="dice-grid dice-coll">';
+  all.forEach(function(k){
+    var d = DICE_CAT[k], got = diceOwns(k);
+    if (!got){ h += '<span class="dk-sw shadow" data-tip="' + esc(d.name) + '" data-how="' + esc(diceHow(k, false)) + '"><span class="dk-shadow"></span><span class="dk-marks"><i></i><i></i><i></i><i></i></span></span>'; return; }
+    var marks = ROLL_KINDS.map(function(rk){ return '<i class="' + ((used[k] || []).indexOf(rk[0]) >= 0 ? 'on' : '') + '">' + rk[1].charAt(0) + '</i>'; }).join('');
+    h += '<button class="dk-sw got' + ((used[k] || []).length ? ' inuse' : '') + (S._diceOpen === k ? ' open' : '') + '" data-tip="' + esc(d.name) + '" data-how="' + esc(diceHow(k, true)) + '" onclick="diceOpenPick(\'' + esc(k) + '\')">'
+      + diceFace(k, 5) + '<span class="dk-marks">' + marks + '</span></button>';
   });
   h += '</div>';
-  /* The collection: every set there is to earn, the unearned as shadows. Each still says, on
-     hover, what it is and how it is earned; once earned it steps out of the shadow and joins
-     the rows above. A hidden set never appears here. */
-  var all = Object.keys(DICE_CAT).filter(function(k){ return !DICE_CAT[k].legacy && (!DICE_CAT[k].hidden || diceOwns(k)); });
-  h += '<div class="dice-coll-h">Collection <span>' + own.length + ' of ' + all.length + '</span></div><div class="dice-grid dice-coll">'
-    + all.map(function(k){ var d = DICE_CAT[k], got = diceOwns(k);
-        return '<span class="dk-sw' + (got ? ' got' : ' shadow') + '" data-tip="' + esc(d.name) + '" data-how="' + esc(diceHow(k, got)) + '">' + diceFace(k, 5) + '</span>'; }).join('')
-    + '</div>';
-  return h;
+  var panel = '';
+  if (S._diceOpen && diceOwns(S._diceOpen)){
+    var k2 = S._diceOpen, d2 = DICE_CAT[k2];
+    panel = '<div class="dice-assign"><div class="da-h">' + diceFace(k2, 5) + '<span><b>' + esc(d2.name) + '</b><small>' + esc(diceHow(k2, true)) + '</small></span></div>'
+      + '<div class="da-kinds">' + ROLL_KINDS.map(function(rk){ var on = diceMine(rk[0]) === k2;
+          return '<button class="da-k' + (on ? ' on' : '') + '" onclick="dicePick(\'' + rk[0] + '\',\'' + esc(k2) + '\')">' + (on ? '\u2713 ' : '') + rk[1] + '</button>'; }).join('')
+      + '</div></div>';
+  }
+  return h.replace('%%ASSIGN%%', panel);
 }
+function diceOpenPick(k){ S._diceOpen = (S._diceOpen === k) ? null : k; diceWindowPaint(); }
 
 /* The roster is a list, not a shelf keyed by name, so looking a player up by name on
    it always found nothing and every die at the table rolled plainstone. */
