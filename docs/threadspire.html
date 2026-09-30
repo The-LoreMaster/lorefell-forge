@@ -422,9 +422,7 @@ body.clean .artlayer{ display:none; }
 
 #dieField{ position:fixed; inset:0; pointer-events:none; z-index:60; }
 /* the frame's numbers take a pointer on a player's side, so they can say what they are */
-body:not(.lm-role) .hslot.hCharge, body:not(.lm-role) .hslot.hLP, body:not(.lm-role) .hslot.hLvl{ pointer-events:auto; cursor:help; }
-#hudTip{ position:fixed; z-index:120; display:none; max-width:240px; padding:8px 11px; border-radius:9px; background:rgba(10,14,26,.97); border:1px solid var(--gold); color:var(--silver,#dce8ef); font-family:'Crimson Pro',Georgia,serif; font-size:.84rem; line-height:1.4; pointer-events:none; box-shadow:0 8px 22px rgba(0,0,0,.5); }
-#hudTip b{ display:block; font-family:Cinzel,serif; font-weight:500; font-size:.72rem; letter-spacing:.1em; text-transform:uppercase; color:var(--gold); margin-bottom:2px; }
+body:not(.lm-role) .hslot.hCharge, body:not(.lm-role) .hslot.hLP, body:not(.lm-role) .hslot.hLvl{ pointer-events:auto; }
 .hslot.lm-lore{ cursor:pointer; pointer-events:auto; z-index:62; } .hslot.lm-lore:hover{ color:var(--gold); filter:brightness(1.2); }
 .lg-amt{ display:flex; align-items:center; gap:8px; margin:8px 0 12px; } .lg-amt input{ width:74px; height:34px; box-sizing:border-box; padding:0 6px; text-align:center; font-family:Cinzel,serif; font-size:1.05rem; color:var(--gold); background:rgba(10,14,26,.85); border:1px solid rgba(201,168,76,.45); border-radius:8px; outline:none; -moz-appearance:textfield; appearance:textfield; font-variant-numeric:tabular-nums; }
 .lg-amt input::-webkit-outer-spin-button, .lg-amt input::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
@@ -14305,7 +14303,7 @@ setInterval(function(){
 
 
 /* ---- what each number on the portrait frame is (players) ----
-   Hover (or tap, on a touch screen) any of the frame's numbers for a line saying what it is,
+   Hover any of the frame's numbers for the browser's own tooltip saying what it is,
    in the FellGuide's words (Survival, Understanding Vitality; The Currency, Charges). Only for
    players: on the LoreMaster's side the same slots show the chosen foe. */
 var HUD_TIPS = {
@@ -14317,39 +14315,16 @@ var HUD_TIPS = {
   hLP:      ['Lore Points', 'Taken from the foes you defeat. Enough of them become an Ascension Crystal, spent at a rest to level up.'],
   hLvl:     ['Level', 'Your Fell\u2019s level. It rises when you spend an Ascension Crystal at a rest.']
 };
-function hudTipFor(el){
-  if (!el || isLM()) return null;
-  var k = Object.keys(HUD_TIPS).filter(function(c){ return el.classList.contains(c); })[0];
-  return k ? HUD_TIPS[k] : null;
-}
-function hudTipShow(el){
-  var t = hudTipFor(el); if (!t){ hudTipHide(); return; }
-  var b = document.getElementById('hudTip');
-  if (!b){ b = document.createElement('div'); b.id = 'hudTip'; b.setAttribute('role', 'tooltip'); document.body.appendChild(b); }
-  b.innerHTML = '<b>' + esc(t[0]) + '</b>' + esc(t[1]);
-  b.style.display = 'block';
-  var r = el.getBoundingClientRect(), w = b.offsetWidth, h = b.offsetHeight;
-  /* the frame sits at the right: the tip opens to the left of the number, kept on screen */
-  var x = Math.max(8, Math.min(window.innerWidth - w - 8, r.left - w - 10));
-  var y = Math.max(8, Math.min(window.innerHeight - h - 8, r.top + r.height / 2 - h / 2));
-  b.style.left = x + 'px'; b.style.top = y + 'px';
-}
-function hudTipHide(){ var b = document.getElementById('hudTip'); if (b) b.style.display = 'none'; }
-(function(){
-  var hud = document.getElementById('hud'); if (!hud) return;
-  var fine = window.matchMedia && window.matchMedia('(hover:hover) and (pointer:fine)').matches;
-  if (fine){
-    hud.addEventListener('mouseover', function(ev){ var s = ev.target.closest && ev.target.closest('.hslot'); if (s && hudTipFor(s)) hudTipShow(s); else hudTipHide(); });
-    hud.addEventListener('mouseout', function(ev){ var s = ev.target.closest && ev.target.closest('.hslot'); if (s && !(ev.relatedTarget && s.contains(ev.relatedTarget))) hudTipHide(); });
-  }
-  /* a tap shows it too, for a few seconds, beside whatever the tap already does */
-  var tipT = null;
-  hud.addEventListener('pointerdown', function(ev){
-    if (ev.pointerType === 'mouse') return;
-    var s = ev.target.closest && ev.target.closest('.hslot'); if (!s || !hudTipFor(s)) return;
-    hudTipShow(s); clearTimeout(tipT); tipT = setTimeout(hudTipHide, 3200);
+/* the browser's own tooltip: a short line on hover, and nothing drawn over the table */
+function hudTitles(){
+  Object.keys(HUD_TIPS).forEach(function(c){
+    document.querySelectorAll('#hud .hslot.' + c).forEach(function(el){
+      var t = isLM() ? '' : (HUD_TIPS[c][0] + ': ' + HUD_TIPS[c][1]);
+      if (el.getAttribute('data-tipset') !== t){ if (t) el.title = t; else el.removeAttribute('title'); el.setAttribute('data-tipset', t); }
+    });
   });
-})();
+}
+setInterval(function(){ try { hudTitles(); } catch(e){} }, 1500);
 
 /* ================= rests =================
    A rest comes from the LoreMaster, and only outside a fight: Call a rest opens it for the

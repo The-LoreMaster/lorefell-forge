@@ -1,3 +1,7 @@
+## 2026-09-28 - The frame's tooltips are the browser's own
+
+The drawn tooltips beside the portrait frame were large and in the way. The same lines are now the browser's own tooltips (the title on each number), small and only on hover, with nothing drawn over the table; the LoreMaster's side still has none.
+
 ## 2026-09-28 - The portrait frame's numbers say what they are
 
 On a player's side, hovering any number on the portrait frame (a tap, on a touch screen, beside whatever the tap already does) shows what it is, in the FellGuide's words: Total, Temporary, Current and Maximum Vitality (Survival, Understanding Vitality), Charges (The Currency), Lore Points and Level. The tip opens to the left of the frame and stays on screen. The LoreMaster's side, where the same slots show the chosen foe, is unchanged.
