@@ -2670,12 +2670,17 @@ function setActiveScene(id){
   /* the map shelf is the account's: it goes with the LoreMaster from scene to scene (it was
      left behind on the scene being left, so the shelf looked emptied) */
   var _shelfMaps = S.scene.maps;
+  S._sceneSwitchAt = Date.now();
   S.scene = hit.scene;
   if (_shelfMaps && (!S.scene.maps || S.scene.maps.length < _shelfMaps.length)) S.scene.maps = _shelfMaps;
   S.adventure.activeSceneId = id;
   tsLogSceneRoster('activated', S.scene);
   /* the scene's own layout first: its map, its tokens, its grid */
   if (!sceneLayoutRestore()){
+    /* a scene with no layout of its own yet starts clear: the Fell come along, nothing else
+       of the scene just left does */
+    S.tokens = (S.tokens || []).filter(function(t){ return t.kind === 'p' || t.charId; });
+    applyRemoteState({ tokens:S.tokens });
     var bd = sceneBinding();
     var st = bd.activeStageId ? stageById(bd.activeStageId) : null;
     if (st) stageRestore(st);
@@ -8227,6 +8232,15 @@ function seamWarn(){
 }
 /* apply a remote snapshot as truth */
 function applyRemoteSnapshot(snap){
+  /* The scene on the table is the LoreMaster's choice. Once their table is loaded, a pulled
+     copy never moves it, and for a few seconds after they switch scenes a pulled copy's
+     board (tokens, map, grid), which can still be the scene just left, is not taken either:
+     that stale board is what made a new scene come up wearing the old one's tokens. */
+  if (snap && isLM() && _mapStateLoaded){
+    snap = Object.assign({}, snap);
+    delete snap.activeSceneId;
+    if (S._sceneSwitchAt && Date.now() - S._sceneSwitchAt < 12000){ delete snap.tokens; delete snap.background; delete snap.backgroundUrl; delete snap.grid; delete snap.map; }
+  }
   setTimeout(function(){ try { if (!_undoQuiet) undoRebase(); } catch(e){} }, 0);
   if (!snap) return;
   if (_advSwitching){ _advSwitching = false; advGoingStop(); }
