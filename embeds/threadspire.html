@@ -9253,12 +9253,15 @@ function tsCastFoe(cb, i, apl){
     acts: (cb.abilities || []).map(function(a){ return { name: a.name || '', tier: a.tier || 0, effect: a.effect || '' }; }),
     infusions: (cb.infusions || []).slice(), augments: (cb.augments || []).slice(),
     stance: cb.stance || '', sig: cb.sig || '',
-    img: cb.img || '', desc: cb.desc || '',
+    img: cb.img || '', libId: cb.libId || '', desc: cb.desc || '',
     reacts: (cb.reacts && cb.reacts.length) ? cb.reacts.slice() : ['Skill', 'Movement']
   };
 }
 /* the same rule as a foe, for the same reason: an NPC is targetable too */
-function tsCastNpc(cb, i){ return { id: (cb && cb.id) || ('n-' + ((cb && cb.libId) || 'x') + '-' + (i || 0)), name: (cb && cb.name) || 'NPC' }; }
+function tsCastNpc(cb, i){ return { id: (cb && cb.id) || ('n-' + ((cb && cb.libId) || 'x') + '-' + (i || 0)), name: (cb && cb.name) || 'NPC', libId: (cb && cb.libId) || '', img: (cb && cb.img) || '', role: (cb && cb.role) || '', desc: (cb && cb.desc) || '' }; }
+/* the art a cast member wears: its own, else its library record's (looked up now, since the
+   library may arrive after the scene was cast) */
+function castArt(c){ if (!c) return ''; var own = String(c.img || ''); if (own && own.indexOf('blob:') !== 0) return own; var e = c.libId ? libGet(c.libId) : null; return (e && e.img) || ''; }
 function tsCastFell(pl){ return { id: pl.id || ('p-' + Math.random().toString(36).slice(2)), charId: pl.charId || null, name: pl.name || 'Fell', level: pl.level || 1, curVit: pl.maxVit || 0, maxVit: pl.maxVit || 0, charge: 0 }; }
 /* A combatant stored in the shared tree is slimmed to a library reference: FateWell strips its
    name, image, stats and kit on save and keeps only libId, since the library holds the full
@@ -9729,10 +9732,10 @@ function sceneAttached(sc){
 }
 function tokenPalette(){
   var foes = (S.scene.foes||[]).map(function(f){
-    return { kind:'foe', label:initials(f.name), name:f.name, img:f.img||null, cells:f.sr==='Champion'?2:1, refId:f.id, source:'adventure' };
+    return { kind:'foe', label:initials(f.name), name:f.name, img:castArt(f)||null, cells:f.sr==='Champion'?2:1, refId:f.id, source:'adventure' };
   });
   var npcs = (S.scene.npcs||[]).map(function(n){
-    return { kind:'npc', label:initials(n.name), name:n.name, img:n.img||null, cells:1, refId:n.id, source:'adventure' };
+    return { kind:'npc', label:initials(n.name), name:n.name, img:castArt(n)||null, cells:1, refId:n.id, source:'adventure' };
   });
   /* The palette used to offer only the Fell already written into this scene, so a Fell
      that was in the roster but had never been placed anywhere, which is every Fell after
@@ -13465,10 +13468,13 @@ function tokenArt(t){
     var fa = foeArtFor(t.refId);
     if (fa) return fa;
     var f = (S.scene.foes || []).filter(function(x){ return sameId(x.id, t.refId); })[0];
-    if (f && f.img){
-      var fi = String(f.img);
-      if (fi.indexOf('blob:') !== 0) return f.img;
-    }
+    var fart = castArt(f); if (fart) return fart;
+  }
+  /* an NPC token placed without art takes its NPC's, or its library record's */
+  if (t.kind === 'npc' && !t.img){
+    var nc = (S.scene.npcs || []).filter(function(x){ return sameId(x.id, t.refId); })[0];
+    var nart = castArt(nc); if (nart) return nart;
+    if (String(t.refId || '').indexOf('ref-') === 0){ var le = libGet(String(t.refId).slice(4)); if (le && le.img) return le.img; }
   }
   var img = String(t.img || '');
   if (img.indexOf('blob:') === 0 || img.indexOf('data:') === 0) return DEFAULT_ART;
