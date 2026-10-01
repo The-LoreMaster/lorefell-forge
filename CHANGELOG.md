@@ -1,3 +1,7 @@
+## 2026-09-28 - FellGlass makes the Dice Prefs row too
+
+Opening FellGlass now calls myDice once, quietly, so a member who only ever uses the sheet still gets their named Dice Prefs row and can be granted dice before reaching a table. Paste velo/page-fellglass.js.
+
 ## 2026-09-28 - Every member gets a Dice Prefs row, with a name
 
 A member's Dice Prefs row was made only when they first chose a die, so players who had joined and rolled were not there to be granted sets. myDice, which runs when a member opens the table, now makes the row the first time, and keeps a Name on it (their profile's nickname, or their name, or their login email) so the LoreMaster can tell rows apart in the CMS. DicePrefs gains the Name field. Paste velo/backend/characters.web.js.
