@@ -2147,6 +2147,9 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
     <div class="lmh">GRID<button class="lmx" onclick="lmToggleGrid()" title="Close">&#10005;</button></div>
     <div class="lmrow"><label>Cell</label><input type="range" id="gSize" min="20" max="220" step="2"><span id="gSizeV"></span></div>
     <div class="lmrow"><label>Fade</label><input type="range" id="gOpac" min="0" max="100" step="1"><span id="gOpacV"></span></div>
+    <div class="lmrow"><label>Shift X</label><input type="range" id="gOffX" min="0" max="99" step="1"><span id="gOffXV"></span></div>
+    <div class="lmrow"><label>Shift Y</label><input type="range" id="gOffY" min="0" max="99" step="1"><span id="gOffYV"></span></div>
+    <div class="lmrow"><label>Line up</label><button class="lmtog" id="gDrag" onclick="gridDragToggle()" title="Drag on the map to slide the grid onto the map\u2019s own squares">Drag the grid</button></div>
     <div class="lmrow"><label>Inset</label><input type="range" id="gInset" min="60" max="100" step="1"><span id="gInsetV"></span></div>
     <div class="lmrow"><label>Snap</label><button class="lmtog" id="gSnap" onclick="toggleSnap()"></button></div>
   </div>
@@ -8058,7 +8061,7 @@ function applyRemoteSnapshot(snap){
   }
   if (snap.pings){ try { pingTake(snap.pings); } catch(e){} }
   try { harvestFoeArt(); } catch(e){}
-  if (snap.grid){ S.grid = snap.grid; S.grid.offX = 0; S.grid.offY = 0; }
+  if (snap.grid){ S.grid = snap.grid; S.grid.offX = Number(S.grid.offX) || 0; S.grid.offY = Number(S.grid.offY) || 0; }
   if (snap.map) S.map = snap.map;
   if (snap.combatPhase !== undefined) S.scene.combatPhase = snap.combatPhase;
   if (snap.sheetRev && isLM() && S.godChar && S.godChar.id){
@@ -15624,7 +15627,9 @@ function drawGrid(){
        They only agreed with where a token snaps when the cell size happened to divide
        20000. Shift the pattern so a line falls exactly on the map's corner. */
     var off = ((20000 % sz) + sz) % sz;
-    gi.style.backgroundPosition = off + 'px ' + off + 'px';
+    /* and the grid's own shift, for a map whose drawn squares it is lined up with */
+    var sx = ((off + (Number(g.offX) || 0)) % sz + sz) % sz, sy = ((off + (Number(g.offY) || 0)) % sz + sz) % sz;
+    gi.style.backgroundPosition = sx + 'px ' + sy + 'px';
   }
   var ma = document.getElementById('mapArt'); if (ma){ ma.style.width = S.map.w + 'px'; ma.style.height = S.map.h + 'px'; }
 }
@@ -15948,15 +15953,19 @@ function mid(a, b){ return { x:(a.x + b.x) / 2, y:(a.y + b.y) / 2 }; }
 })();
 
 /* ---- the LoreMaster's map knobs ---- */
-/* The grid begins at the map's own corner and a token sits in the middle of its cell,
-   so there is nothing to nudge: the offsets are gone and the two are always in step. */
+/* The grid can be moved to line up with a map that has its own squares drawn on it: Shift X
+   and Shift Y slide it within one square, and Line up lets the LoreMaster drag it into place
+   on the map. Tokens find the middle of their square again after. */
 var GRID_CTL = [
   ['gSize',  'size',    function(v){ return +v; },       function(v){ return v; }],
-  ['gOpac',  'opacity', function(v){ return +v / 100; }, function(v){ return Math.round(v * 100); }]
+  ['gOpac',  'opacity', function(v){ return +v / 100; }, function(v){ return Math.round(v * 100); }],
+  ['gOffX',  'offX',    function(v){ return +v; },       function(v){ return Math.round(v || 0); }],
+  ['gOffY',  'offY',    function(v){ return +v; },       function(v){ return Math.round(v || 0); }]
 ];
 function paintLmbar(){
   var bar = document.getElementById('lmbar');
   bar.classList.toggle('hidden', S.role !== 'lm' || !lmGridOpen);
+  ['gOffX', 'gOffY'].forEach(function(id){ var e = document.getElementById(id); if (e) e.max = Math.max(1, (S.grid.size || 100) - 1); });
   GRID_CTL.forEach(function(c){
     var el = document.getElementById(c[0]);
     el.value = c[3](S.grid[c[1]]);
@@ -15970,8 +15979,10 @@ function paintLmbar(){
 (function wireLmbar(){
   GRID_CTL.forEach(function(c){
     document.getElementById(c[0]).addEventListener('input', function(){
-      var g = { size:S.grid.size, offX:0, offY:0, opacity:S.grid.opacity };
+      var g = { size:S.grid.size, offX:S.grid.offX || 0, offY:S.grid.offY || 0, opacity:S.grid.opacity };
       g[c[1]] = c[2](this.value);
+      /* a shift is kept within one square of the new size */
+      g.offX = ((g.offX % g.size) + g.size) % g.size; g.offY = ((g.offY % g.size) + g.size) % g.size;
       send({ type:'grid', grid:g });
     });
   });
@@ -15979,6 +15990,37 @@ function paintLmbar(){
     send({ type:'inset', inset:+this.value / 100 });
   });
 })();
+
+
+/* Line up: while on, a drag on the map slides the grid rather than panning, so its squares can
+   be laid over the squares a map has drawn on it. */
+var _gridDragOn = false, _gridDragFrom = null;
+function gridDragToggle(){
+  _gridDragOn = !_gridDragOn;
+  var b = document.getElementById('gDrag'); if (b){ b.classList.toggle('on', _gridDragOn); b.textContent = _gridDragOn ? 'Dragging: tap to stop' : 'Drag the grid'; }
+  mapEl().classList.toggle('placing-shard', _gridDragOn);
+}
+mapEl().addEventListener('pointerdown', function(e){
+  if (!_gridDragOn || !isLM() || e.button !== 0) return;
+  e.stopPropagation(); e.preventDefault();
+  var p = toMap(e.clientX, e.clientY);
+  _gridDragFrom = { x:p.x, y:p.y, ox:S.grid.offX || 0, oy:S.grid.offY || 0 };
+  try { mapEl().setPointerCapture(e.pointerId); } catch(x){}
+}, true);
+mapEl().addEventListener('pointermove', function(e){
+  if (!_gridDragOn || !_gridDragFrom) return;
+  e.stopPropagation(); e.preventDefault();
+  var p = toMap(e.clientX, e.clientY), g = S.grid.size || 100;
+  var ox = Math.round(_gridDragFrom.ox + (p.x - _gridDragFrom.x)), oy = Math.round(_gridDragFrom.oy + (p.y - _gridDragFrom.y));
+  S.grid.offX = ((ox % g) + g) % g; S.grid.offY = ((oy % g) + g) % g;
+  try { render(); } catch(x){}
+}, true);
+mapEl().addEventListener('pointerup', function(e){
+  if (!_gridDragOn || !_gridDragFrom) return;
+  e.stopPropagation(); _gridDragFrom = null;
+  send({ type:'grid', grid:{ size:S.grid.size, offX:S.grid.offX || 0, offY:S.grid.offY || 0, opacity:S.grid.opacity } });
+  try { paintLmbar(); } catch(x){}
+}, true);
 
 /* ---- log ----
    One stream. Chat, rolls, and effects are entry kinds on it, newest first.
