@@ -1,3 +1,7 @@
+## 2026-09-28 - Manage music, rebuilt to fit, with search and songs from other adventures
+
+Manage music ran off the bottom of the screen and sprawled in full screen. It is now one window that fits any screen: a head that stays put (Music, a search box, Upload), two columns that scroll on their own (this adventure's songs, each with the playlists it is in, a + Playlist choice and a remove; and its playlists, numbered), and a foot with Done. Search narrows songs and playlists as you type. Songs are this adventure's by default; Show my other adventures' songs lists every song in the site's LoreFell Music folder that this adventure does not have yet, each with Add (a new musicLibrary in backend/campaignview.web.js reads the folder). On a phone the columns stack. Paste velo/backend/campaignview.web.js, then velo/page-threadspire.js.
+
 ## 2026-09-28 - A table volume for the music
 
 The LoreMaster's Music panel gains Table volume, how loud the music plays for everyone, half by default, so it never arrives at full blast. Each person's own Your volume is now their share of that, full by default, kept on their device; a player sees what the table is set at. A table volume rides with the music (live.vol), so it reaches every player and exports with the table.

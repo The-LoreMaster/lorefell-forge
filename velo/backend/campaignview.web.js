@@ -144,3 +144,21 @@ export const saveJournal = webMethod(Permissions.Anyone, async (campaignId, entr
     return { ok: true };
   } catch (e) { return { ok: false, error: String(e) }; }
 });
+
+// Music at the table: every song uploaded to the site's LoreFell Music folder, for the Manage
+// music window's Show my other adventures' songs. Members only; read-only.
+export const musicLibrary = webMethod(Permissions.Anyone, async () => {
+  try {
+    const m = await currentMember.getMember().catch(() => null);
+    if (!m || !m._id) return { ok: false, files: [] };
+    const folders = await mediaManager.listFolders({}, null, { limit: 200 }).catch(() => []);
+    const folder = (folders || []).find((f) => String(f.folderName || f.displayName || '').trim() === 'LoreFell Music');
+    if (!folder) return { ok: true, files: [] };
+    const files = await mediaManager.listFiles({ parentFolderId: folder.folderId || folder._id }, null, { limit: 500 }).catch(() => []);
+    const out = (files || []).filter((f) => /audio/i.test(String(f.mediaType || f.mimeType || 'audio'))).map((f) => ({
+      title: String(f.originalFileName || f.displayName || f.fileName || 'Song').replace(/\.[a-z0-9]+$/i, ''),
+      url: 'https://static.wixstatic.com/mp3/' + f.fileName
+    })).filter((f) => /\/mp3\/.+/.test(f.url));
+    return { ok: true, files: out };
+  } catch (e) { return { ok: false, files: [], error: String((e && e.message) || e) }; }
+});
