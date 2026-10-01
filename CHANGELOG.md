@@ -1,3 +1,7 @@
+## 2026-09-28 - The grid can be moved again, to line up with a map's own squares
+
+Grid offsets had been dropped in July (the grid always began at the map's corner), which left a map with its own drawn squares impossible to line up. The Grid panel gains Shift X and Shift Y, each sliding the grid within one square, and Line up: Drag the grid, which turns a drag on the map into sliding the grid until the squares meet, and sends it to everyone when let go. Shifts are kept, sent and restored (pulled snapshots no longer reset them to 0), and tokens find the middle of their square again after a change.
+
 ## 2026-09-28 - An NPC keeps its adventure; FateWell's own library filter follows suit
 
 An NPC's (or item's) adventure was saved, inside foeMeta, but read back only for foes, so every reload dropped it and the NPC belonged nowhere. Both tools now read it for every kind. FateWell's main Library had its own filter, separate from the roster pickers, still letting every untagged foe and NPC through; it now shows only the chosen adventure's foes and NPCs (items with no adventure still show). The library's Campaign field and its filters say Adventure (Any adventure, All adventures), in FateWell and in ThreadSpire's library sheet.
