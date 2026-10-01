@@ -1,3 +1,7 @@
+## 2026-09-28 - Summon a foe, from a description
+
+The Story window's roster gains Summon foe. Describe a foe and the AI (the same connection FateWell used) picks, from the build rules only, its build, stance, attack, reach, movement, affliction, signature, and its infusions, augmentations and acts to an Epic foe's budget, and names and describes it in the house voice; anything it names that is not in the lists is dropped and the budgets are enforced. Its attributes, Vitality and damage are not the AI's: they are derived from build and rating as every foe's are. It is saved to the library at once, tagged to the adventure, and its Shatter Rating can then be set: the kit trims to that rating's budget (kept whole underneath, so raising it back restores it) and the numbers rescale, saving each time. Add to this scene puts it in the roster; Edit opens the foe forge; Summon another starts again.
+
 ## 2026-09-28 - The Story window on a phone
 
 On a phone the Story window fills the screen and the outline and the page take turns: choosing a row in the outline opens its page, and the outline button at the top left goes back. The search runs the full width under the title, a row's rename and delete are always showing (there is no hover), and a scene's roster, quests and Run this scene follow its beats on the same page.

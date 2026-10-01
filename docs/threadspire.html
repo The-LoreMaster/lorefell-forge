@@ -2190,6 +2190,19 @@ body.drop-ready #map::after{ content:'Drop images to add them as maps'; position
   .sw-cover-tools{ top:8px; right:8px; } .sw-cover-tools .tsm-btn{ padding:5px 10px; font-size:.6rem; }
   .sw-body{ padding:12px 14px; } .sw-kids{ grid-template-columns:repeat(2, 1fr); }
 }
+.sm-err{ color:#e3a193; margin:4px 0; }
+.sm-card{ border:1px solid var(--line); border-radius:12px; background:rgba(20,28,51,.85); padding:14px; display:flex; flex-direction:column; gap:10px; margin-top:4px; }
+.sm-top{ display:flex; gap:12px; align-items:flex-start; } .sm-id{ flex:1; display:flex; flex-direction:column; gap:2px; }
+.sm-name{ font-family:Cinzel,serif; font-size:1.2rem; color:var(--silver,#dce8ef); } .sm-meta{ font-size:.9rem; color:var(--muted,#9aabbb); }
+.sm-sr{ display:flex; flex-direction:column; gap:3px; align-items:flex-end; } .sm-sr span{ font-family:Cinzel,serif; font-size:.56rem; letter-spacing:.14em; text-transform:uppercase; color:#a88a3e; }
+.sm-sr select{ padding:5px 8px; border-radius:8px; border:1px solid var(--gold); background:rgba(10,14,26,.8); color:var(--gold); font-family:Cinzel,serif; font-size:.78rem; }
+.sm-desc{ margin:0; font-style:italic; color:#c8d2dc; line-height:1.45; }
+.sm-stats{ display:grid; grid-template-columns:repeat(auto-fill, minmax(92px,1fr)); gap:6px; } .sm-stats span{ display:flex; flex-direction:column; align-items:center; padding:6px; border-radius:8px; border:1px solid var(--line); background:rgba(10,14,26,.6); font-size:1.05rem; }
+.sm-stats i{ font-style:normal; font-family:Cinzel,serif; font-size:.54rem; letter-spacing:.1em; text-transform:uppercase; color:var(--muted,#9aabbb); }
+.sm-acts{ display:flex; flex-direction:column; gap:6px; } .sm-act{ display:flex; flex-wrap:wrap; gap:4px 8px; font-size:.95rem; } .sm-act em{ color:var(--gold); font-style:normal; font-size:.8rem; } .sm-act span{ flex-basis:100%; color:#b8c4d0; }
+.sm-line{ font-size:.92rem; color:#b8c4d0; } .sm-line b{ color:var(--silver,#dce8ef); font-weight:500; }
+#tsModal .tsm-panel.sm-panel{ width:min(580px, calc(100vw - 32px)); max-height:calc(100vh - 60px); overflow-y:auto; margin-top:30px; }
+.sw-row-btns{ flex-wrap:wrap; } .sw-row-btns .tsm-btn{ white-space:nowrap; padding:6px 10px; }
 </style>
 </head>
 <body>
@@ -16650,7 +16663,7 @@ function swSide(sc){
     var art = c.img || (c.lib && c.lib.img) || '';
     h += '<button class="sw-castrow" onclick="entrySheet(\'roster\',\'' + sc.id + '\',\'' + c.kind + '\',\'' + String(c.id).replace(/'/g, "\\'") + '\')">' + (art ? '<img src="' + esc(art) + '" alt="">' : '<span class="sw-cast-ph">' + esc(initials(c.name)) + '</span>') + '<span>' + esc(c.name) + '</span></button>';
   });
-  h += '</div><div class="sw-row-btns"><button class="tsm-btn ghost" onclick="rosterAddFromLib(\'' + sc.id + '\')">+ Library</button><button class="tsm-btn ghost" onclick="rosterWindow(\'' + sc.id + '\')">Roster\u2026</button></div>';
+  h += '</div><div class="sw-row-btns"><button class="tsm-btn ghost" onclick="rosterAddFromLib(\'' + sc.id + '\')">+ Library</button><button class="tsm-btn ghost" onclick="summonOpen(\'' + sc.id + '\')">Summon foe</button><button class="tsm-btn ghost" onclick="rosterWindow(\'' + sc.id + '\')">Roster\u2026</button></div>';
   var qs = (sc.beats || []).filter(function(b){ return b.kind === 'quest'; });
   h += '<div class="sw-sec" style="margin-top:14px"><span>Quests <b>' + qs.length + '</b></span></div>' + (qs.length ? qs.map(function(q){ return '<div class="sw-q">' + esc(q.title || 'Quest') + '</div>'; }).join('') : '<p class="sw-empty">None in this scene.</p>');
   var on = sc.id === (S.scene && S.scene.id);
@@ -16693,6 +16706,132 @@ function swPaint(){
   if (keepQ){ var si = document.getElementById('swSearch'); if (si){ si.focus(); si.setSelectionRange(si.value.length, si.value.length); } }
 }
 document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && SW.open && !document.querySelector('#tsModal.open, #tsModal[style*="block"]')) swClose(); });
+
+
+/* ================= Summon a foe, from a description =================
+   The LoreMaster describes a foe; the AI picks, from the build rules only, its build, stance,
+   attack, reach, movement, affliction, and its infusions, augmentations and acts to an Epic
+   foe's budget, and names and describes it in the house voice. The numbers (attributes,
+   Vitality, damage) are not the AI's: they are derived here from build and rating, as every
+   foe's are. It is saved to the library at once, tagged to this adventure, and its Shatter
+   Rating can then be set: the kit trims to that rating's budget and the numbers rescale. Then
+   it can be added to the scene. */
+var AI_WORKER = 'https://lorefell-ai.nate8-johnson.workers.dev/';
+function aiCall(system, user, maxTokens){
+  var payload = { system:system, messages:[{ role:'user', content:user }], max_tokens:maxTokens || 900, model:'fast' };
+  return fetch(AI_WORKER, { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(payload) })
+    .then(function(res){ if (res.status === 429) throw { rate:true }; if (!res.ok) throw new Error('worker http ' + res.status); return res.json(); })
+    .then(function(d){ if (!d || d.ok === false) throw new Error((d && d.error) ? String(d.error).slice(0, 120) : 'no text'); return d.text || ''; });
+}
+var SUMMON = { sceneId:'', rec:null, busy:false, err:'', text:'' };
+function summonOpen(sceneId){
+  if (!isLM()) return;
+  SUMMON = { sceneId:sceneId || (S.scene && S.scene.id) || '', rec:null, busy:false, err:'', text:'' };
+  summonPaint();
+}
+function summonNames(list){ return (list || []).map(function(x){ return typeof x === 'string' ? x : x.name; }).filter(Boolean); }
+function summonSystem(){
+  var P = FORGE.pack || {}, b = (P.tierBudget || {}).Epic || { inf:3, aug:1, acts:3 };
+  return 'You build one foe for LoreFell, a dark fantasy tabletop game, from the LoreMaster\'s description. '
+    + 'Voice: dark, grounded, specific. Short declarative sentences. No em dashes, no semicolons, no ellipses. '
+    + 'Choose ONLY from the lists given; never invent a build, stance, affliction, infusion or augmentation. '
+    + 'It is an Epic foe: exactly ' + b.inf + ' infusions, ' + b.aug + ' augmentation' + (b.aug === 1 ? '' : 's') + ', and ' + b.acts + ' acts, each act a tier from 1 to 3, one act per tier where possible. '
+    + 'Answer with JSON only, no other text, in this shape: '
+    + '{"name":"evocative name, not generic","desc":"two or three sentences: how it looks and how it fights","build":"one build","stance":"one stance","atk":"phys or magic","range":1,"mobility":5,'
+    + '"affliction":"one affliction or none","signature":"the name of its signature move","infusions":["..."],"augmentations":["..."],'
+    + '"acts":[{"name":"act name","tier":1,"effect":"what it does in one or two sentences, in game terms"}]}'
+    + '\nBuilds: ' + summonNames(P.builds).join(', ')
+    + '\nStances: ' + summonNames(P.stances).join(', ')
+    + '\nAfflictions: ' + summonNames(P.afflictions).join(', ')
+    + '\nInfusions: ' + summonNames(P.infusions).join(', ')
+    + '\nAugmentations: ' + summonNames(P.augmentations).join(', ');
+}
+function summonGo(){
+  var t = ((document.getElementById('smText') || {}).value || '').trim();
+  if (!t){ SUMMON.err = 'Describe the foe first.'; summonPaint(); return; }
+  SUMMON.text = t; SUMMON.busy = true; SUMMON.err = ''; summonPaint();
+  aiCall(summonSystem(), 'Describe this foe: ' + t, 1100).then(function(text){
+    var m = String(text).match(/\{[\s\S]*\}/); var j = null;
+    try { j = JSON.parse(m ? m[0] : text); } catch(e){ j = null; }
+    if (!j || !j.name) throw new Error('the answer could not be read');
+    SUMMON.rec = summonMake(j); SUMMON.busy = false; summonPaint();
+  }).catch(function(e){
+    SUMMON.busy = false;
+    SUMMON.err = e && e.rate ? 'The forge is busy. Try again in a minute.' : ('The forge could not build it (' + ((e && e.message) || 'error') + '). Try again.');
+    summonPaint();
+  });
+}
+/* hold the AI to the rules: names it chose that are not in the lists are dropped, budgets enforced */
+function summonMake(j){
+  var P = FORGE.pack || {};
+  var pick = function(v, list, dflt){ var L = summonNames(list); var hit = L.filter(function(x){ return String(x).toLowerCase() === String(v || '').toLowerCase(); })[0]; return hit || dflt; };
+  var only = function(arr, list){ var L = summonNames(list).map(function(x){ return x.toLowerCase(); }); var full = summonNames(list); return (arr || []).map(function(v){ var i = L.indexOf(String(v).toLowerCase()); return i >= 0 ? full[i] : null; }).filter(Boolean); };
+  var builds = summonNames(P.builds);
+  var rec = {
+    id:mkId(), type:'monster', side:'monster', name:String(j.name).slice(0, 60), desc:String(j.desc || ''), description:String(j.desc || ''),
+    build:pick(j.build, P.builds, builds[0] || 'Juggernaut'), stance:pick(j.stance, P.stances, ''), affliction:pick(j.affliction, P.afflictions, ''),
+    sig:String(j.signature || '').slice(0, 60), atkPref:(j.atk === 'magic' ? 'magic' : 'phys'),
+    range:Math.max(1, Math.min(30, parseInt(j.range, 10) || 1)), mobility:Math.max(1, Math.min(30, parseInt(j.mobility, 10) || 5)),
+    full:{ infusions:only(j.infusions, P.infusions), augments:only(j.augmentations, P.augmentations),
+           abilities:(j.acts || []).filter(function(a){ return a && a.name; }).map(function(a){ return { name:String(a.name).slice(0, 60), tier:Math.max(1, Math.min(3, parseInt(a.tier, 10) || 1)), effect:String(a.effect || '') }; }) },
+    origin:'summoned', source:'mine'
+  };
+  if (S.campaignId){ rec.campaignId = S.campaignId; rec.campaignName = advNameNow(); }
+  summonRate(rec, 'Epic');
+  return rec;
+}
+/* set the rating: the kit trims to its budget (kept whole underneath, so raising it back restores it), the numbers rescale, and it saves */
+function summonRate(rec, sr){
+  rec.sr = sr;
+  var apl = (typeof partyLevel === 'function' ? partyLevel() : 3) || 3;
+  rec.infusions = rec.full.infusions.slice(0, foeInfBudget(sr));
+  rec.augments = rec.full.augments.slice(0, foeAugBudget(sr));
+  var cap = foeTierCap(sr);
+  rec.abilities = rec.full.abilities.filter(function(a){ return a.tier <= Math.max(cap, 0); }).slice(0, foeActsBudget(sr));
+  rec.attrs = foeForgeAttrs(rec.build, sr, apl);
+  rec.maxVit = LF_COMBAT.vitality(apl, sr);
+  rec.lp = (SR_TABLE[sr] || {}).lp; rec.sp = (SR_TABLE[sr] || {}).sp;
+  var row = Object.assign({}, rec); delete row.full;
+  S.library = S.library || [];
+  var i = -1; S.library.forEach(function(x, k){ if (sameId(x.id, rec.id)) i = k; });
+  if (i >= 0) S.library[i] = row; else S.library.unshift(row);
+  if (assetBackend && assetBackend.save) assetBackend.save(assetToRow(row)).catch(function(){});
+}
+function summonWide(){ var p = document.querySelector('#tsModal .tsm-panel'); if (p) p.classList.add('sm-panel'); }
+function summonSetSR(sr){ if (!SUMMON.rec) return; summonRate(SUMMON.rec, sr); summonPaint(); }
+function summonAdd(){
+  var r = SUMMON.rec; if (!r || !SUMMON.sceneId) return;
+  libAttach(SUMMON.sceneId, r.id); r._added = true;
+  pushLog({ kind:'sys', html:'<b>' + esc(r.name) + '</b> joins the scene\u2019s roster.' }); applyRemoteState({ log:S.log });
+  summonPaint();
+}
+function summonPaint(){
+  var R = SUMMON.rec, h = '<h3 class="tsm-title">Summon a foe</h3>';
+  if (!R){
+    h += '<label class="tsm-lbl" for="smText">Describe it</label><textarea id="smText" class="tsm-inp tsm-ta" rows="3" placeholder="A wax-fused choirmaster who sings the dead awake and smothers light with tallow.">' + esc(SUMMON.text) + '</textarea>'
+      + '<p class="tsm-note">Built at Epic, by the build rules. One foe. You can set its Shatter Rating after.</p>'
+      + (SUMMON.err ? '<p class="sm-err">' + esc(SUMMON.err) + '</p>' : '')
+      + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button><button class="tsm-btn" onclick="summonGo()"' + (SUMMON.busy ? ' disabled' : '') + '>' + (SUMMON.busy ? 'Summoning\u2026' : 'Summon') + '</button></div>';
+    tsModal(h); summonWide(); var ta = document.getElementById('smText'); if (ta && !SUMMON.busy) ta.focus(); return;
+  }
+  var apl = (typeof partyLevel === 'function' ? partyLevel() : 3) || 3;
+  var b = foeBuild(R.build) || { attributes:[] };
+  var d = LF_COMBAT.damage(R.attrs, R.sr, apl, R.infusions || [], R.atkPref === 'magic' ? 'magic' : 'phys');
+  var srs = ['Minion','Elite','Champion','Epic','Forsaken'];
+  var list = function(lbl, arr){ return arr && arr.length ? '<div class="sm-line"><b>' + lbl + ':</b> ' + arr.map(esc).join(', ') + '</div>' : ''; };
+  h += '<div class="sm-card"><div class="sm-top"><div class="sm-id"><span class="sm-name">' + esc(R.name) + '</span>'
+    + '<span class="sm-meta">' + esc(R.build) + (R.stance ? ' \u00b7 ' + esc(R.stance) : '') + (R.sig ? ' \u00b7 Signature: ' + esc(R.sig) : '') + '</span></div>'
+    + '<label class="sm-sr"><span>Shatter Rating</span><select onchange="summonSetSR(this.value)">' + srs.map(function(x){ return '<option' + (x === R.sr ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select></label></div>'
+    + '<p class="sm-desc">' + esc(R.desc) + '</p>'
+    + '<div class="sm-stats"><span><i>Vitality</i>' + R.maxVit + '</span>' + (b.attributes || []).map(function(a){ return '<span><i>' + esc(a) + '</i>' + (R.attrs[a] || 0) + '</span>'; }).join('')
+    + '<span><i>Damage</i>' + d.base + ' + ' + d.bonus + '</span><span><i>Move \u00b7 reach</i>' + R.mobility + ' \u00b7 ' + R.range + '</span></div>'
+    + (R.abilities.length ? '<div class="sm-acts">' + R.abilities.map(function(a){ return '<div class="sm-act"><b>' + esc(a.name) + '</b> <em>tier ' + a.tier + '</em><span>' + esc(a.effect) + '</span></div>'; }).join('') + '</div>' : '<div class="sm-line"><i>A ' + esc(R.sr) + ' brings only its Standard Attack.</i></div>')
+    + list('Infusions', R.infusions) + list('Augmentations', R.augments) + (R.affliction ? '<div class="sm-line"><b>Affliction:</b> ' + esc(R.affliction) + '</div>' : '')
+    + '</div><p class="tsm-note">Saved to your library' + (R.campaignName ? ', tagged ' + esc(R.campaignName) : '') + '. At party level ' + apl + '; it scales with the party.</p>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal();foeForge(\'' + R.id + '\')">Edit</button><button class="tsm-btn ghost" onclick="SUMMON.rec=null;SUMMON.text=\'\';summonPaint()">Summon another</button>'
+    + (SUMMON.sceneId ? '<button class="tsm-btn" onclick="summonAdd()"' + (R._added ? ' disabled' : '') + '>' + (R._added ? 'In the scene' : 'Add to this scene') + '</button>' : '') + '</div>';
+  tsModal(h); summonWide();
+}
 
 /* ================= rests =================
    A rest comes from the LoreMaster, and only outside a fight: Call a rest opens it for the
