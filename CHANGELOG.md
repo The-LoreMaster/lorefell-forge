@@ -1,3 +1,7 @@
+## 2026-09-28 - Scene layouts stick: the LoreMaster's table takes them once
+
+Scenes still came back with the wrong map after a reload. The LoreMaster's table took the stored scene layouts on every pull (unless touched in the last eight seconds), so an older copy still in flight put each scene's old map back moments after a new one was chosen, and the next save stored the old one. The LoreMaster's table now takes the stored layouts once, on arrival, and is their source after that, as with the music; players follow every pull. A scene with only a map or only a grid of its own (no stage) is now sent too, and a layout's tokens are slimmed like any others. Switching adventures now resets these take-once marks (layouts, music, weather, notes), so the next adventure's stored copies are taken rather than skipped. The Grid panel's Apply to scenes label showed \u2026 as text; fixed.
+
 ## 2026-09-28 - Apply the grid to chosen scenes
 
 The Grid panel gains Apply to scenes: the grid as it stands (cell, fade, shift) given to whichever scenes are ticked, a whole session at a tick, kept on each scene's layout so it returns with the scene. A scene given a grid but no map yet still takes its grid.

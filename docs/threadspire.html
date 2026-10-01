@@ -2187,7 +2187,7 @@ body.drop-ready #map::after{ content:'Drop images to add them as maps'; position
     <div class="lmrow"><label>Shift X</label><input type="range" id="gOffX" min="0" max="99" step="1"><span id="gOffXV"></span></div>
     <div class="lmrow"><label>Shift Y</label><input type="range" id="gOffY" min="0" max="99" step="1"><span id="gOffYV"></span></div>
     <div class="lmrow"><label>Line up</label><button class="lmtog" id="gDrag" onclick="gridDragToggle()" title="Drag on the map to slide the grid onto the map\u2019s own squares">Drag the grid</button></div>
-    <div class="lmrow"><label>Scenes</label><button class="lmtog" onclick="gridApplyOpen()" title="Give these grid settings to other scenes">Apply to scenes\u2026</button></div>
+    <div class="lmrow"><label>Scenes</label><button class="lmtog" onclick="gridApplyOpen()" title="Give these grid settings to other scenes">Apply to scenes…</button></div>
     <div class="lmrow"><label>Inset</label><input type="range" id="gInset" min="60" max="100" step="1"><span id="gInsetV"></span></div>
     <div class="lmrow"><label>Snap</label><button class="lmtog" id="gSnap" onclick="toggleSnap()"></button></div>
   </div>
@@ -7951,7 +7951,8 @@ function sharedSnapshot(){
       var b = (S.instance && S.instance.bindings) || {};
       Object.keys(b).forEach(function(k){
         var v = b[k];
-        if (v && ((v.stageIds || []).length || v.activeStageId)) out.bindings[k] = v;
+        if (v && ((v.stageIds || []).length || v.activeStageId || v.mapId || v.grid))
+          out.bindings[k] = Object.assign({}, v, v.tokens ? { tokens: slimTokens(v.tokens) } : {});
       });
       return out;
     })()
@@ -7960,6 +7961,7 @@ function sharedSnapshot(){
 /* relay our state outward. On acknowledgement we mark the version seen, so the feed never
    pulls our own writes back and clobbers a live interaction. */
 var _advSwitching = false;
+var _bindTaken = false;   /* the LoreMaster's table has taken the stored scene layouts */
 var _advLoadVeilT = null;   /* absolute fallback timer for the load veil, so it can never hang */
 var _pushWarnAt = 0;
 var _advTooBig = false;
@@ -8215,7 +8217,11 @@ function applyRemoteSnapshot(snap){
       bnd[k].stageIds = (bnd[k].stageIds || []).filter(function(x){ return !stageBuried(x); });
       if (stageBuried(bnd[k].activeStageId)) bnd[k].activeStageId = bnd[k].stageIds[0] || null;
     });
-    S.instance.bindings = bnd;
+    /* The scenes' layouts are the LoreMaster's work. Their table takes the stored copy once,
+       on arrival, and is the source after that: taking every pull let an older copy, still in
+       flight, put back each scene's old map moments after a new one was chosen, and the next
+       save then stored the old one. Players follow every pull. */
+    if (!isLM() || !_bindTaken){ S.instance.bindings = bnd; if (isLM()) _bindTaken = true; }
   }
   if (snap.log){
     S.log = snap.log;
@@ -8470,6 +8476,9 @@ function advReset(nextId){
   if (_logPushT){ clearTimeout(_logPushT); _logPushT = null; }
   S.campaignId = (nextId === '') ? '' : (nextId || S.campaignId);
   _lmBattleAsked = false; S._lmAt = 0; S._lmSeenAt = 0; S._leftAdv = '';
+  /* the new adventure's stored layouts, music, weather and notes are taken afresh */
+  _bindTaken = false; _musicTaken = false; try { _wxTaken = false; _notesTaken = false; } catch(e){}
+  S.music = null; S.weather = {}; S.notes = {};
   advBlank();
   S._advRemote = false; S.advRev = 0; S._advTouch = 0;
   S._advFullLoaded = false; /* a new table means the full adventure has NOT loaded yet; leaving
