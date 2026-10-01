@@ -739,6 +739,13 @@ export const threadspireSaveMeta = webMethod(Permissions.Anyone, async (charId, 
 // from the page: every lineage any of their Fells has taken, and the highest level any has
 // reached (Resplendent at 10, Ascendent at 20, Transcendent at 30). Their choice of set per
 // kind of roll is kept in DicePrefs, one row per member.
+// a name to know a member by in the CMS: their profile's nickname, else their login email
+function diceWho(m) {
+  try {
+    const pr = (m && m.profile) || {};
+    return String(pr.nickname || [pr.firstName, pr.lastName].filter(Boolean).join(' ') || (m.loginEmail || '') || '').slice(0, 80);
+  } catch (e) { return ''; }
+}
 async function diceOwned(me) {
   const lineages = [], seen = {}; let maxLevel = 0;
   try {
@@ -754,13 +761,21 @@ async function diceOwned(me) {
   return { lineages, maxLevel };
 }
 export const myDice = webMethod(Permissions.Anyone, async () => {
-  const m = await currentMember.getMember().catch(() => null);
+  const m = await currentMember.getMember({ fieldsets: ['FULL'] }).catch(() => null);
   if (!m || !m._id) return { ok: false, lineages: [], maxLevel: 0, picks: {} };
   const own = await diceOwned(m._id);
   let picks = {}, grants = [];
   try {
     const r = await wixData.query('DicePrefs').eq('memberId', m._id).limit(1).find({ suppressAuth: true });
-    const row = r.items[0];
+    let row = r.items[0];
+    // Every member who opens the table gets a row, named, so the LoreMaster can find them in
+    // the CMS and grant them sets without waiting for them to choose a die first.
+    const who = diceWho(m);
+    if (!row) {
+      try { row = await wixData.insert('DicePrefs', { memberId: m._id, name: who, picks: '{}' }, { suppressAuth: true }); } catch (e3) { row = null; }
+    } else if (who && row.name !== who) {
+      try { row = await wixData.update('DicePrefs', Object.assign({}, row, { name: who }), { suppressAuth: true }); } catch (e4) {}
+    }
     if (row) {
       picks = JSON.parse(row.picks || '{}') || {};
       // Sets given by hand. Only the site's owner can write this field (DicePrefs is admin
