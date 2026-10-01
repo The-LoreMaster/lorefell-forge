@@ -1,3 +1,7 @@
+## 2026-09-28 - FateWell's attached NPCs and foes at the table
+
+FateWell's Attached NPCs and items are reference pinned to a scene (or carried down from its adventure, act or session), not the scene's roster, so ThreadSpire showed a roster of 0 and could not place them. The roster window now lists them under Attached in FateWell, each with Add to the roster (and Add all), and Place a token offers them alongside the scene's own NPCs and foes, so they can go straight onto the map. Only library foes and NPCs not already in the cast are listed.
+
 ## 2026-09-28 - Flames, lightning and holy light, less fake
 
 Flames are now fire made of many short-lived points of light rising and cooling, white-hot at the root, the chosen colour in the body, dark red at the tips, swaying and drawing back to the centre, laid additively so they bloom where they gather. Lightning strikes rather than scribbles: a branched bolt (midpoint displacement) flashes for a breath with a white core inside a coloured glow, flickers, lights the patch around it, then the dark returns until the next strike, now and then a second stroke straight after. Holy Light falls from above: soft shafts widening as they fall and breathing slowly, motes turning in them, and a gentle pool where they land, in place of the turning wedges.
