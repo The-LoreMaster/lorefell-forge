@@ -1986,6 +1986,9 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .mnote svg{ width:22px; height:22px; filter:drop-shadow(0 1px 2px rgba(0,0,0,.8)); }
 .mnote.shown svg path{ fill:#c9a84c; } .mnote.lmonly svg path{ fill:#8fa3b3; }
 #gatherBtn{ }
+
+#fullBack{ position:fixed; left:50%; top:12px; transform:translateX(-50%); z-index:200; display:none; padding:9px 18px; border-radius:18px; background:rgba(10,14,26,.96); border:1px solid var(--gold); color:var(--gold); font-family:Cinzel,serif; font-size:.72rem; letter-spacing:.1em; cursor:pointer; box-shadow:0 8px 24px rgba(0,0,0,.5); }
+body.drop-ready #map::after{ content:'Drop images to add them as maps'; position:absolute; inset:18px; display:flex; align-items:center; justify-content:center; border:2px dashed var(--gold); border-radius:16px; background:rgba(10,14,26,.55); color:var(--gold); font-family:Cinzel,serif; font-size:1rem; letter-spacing:.12em; z-index:50; pointer-events:none; }
 </style>
 </head>
 <body>
@@ -12806,6 +12809,49 @@ function lmMapDrop(e){
   /* dropping a handful works the same as choosing a handful */
   lmMapFilePicked({ files:dropped, value:'' });
 }
+
+/* ---- staying full screen through an upload ----
+   A browser leaves full screen whenever it opens its own file picker, and nothing on the page
+   can stop that. So: the table notices it was full screen when a picker opened, asks to go
+   back as soon as the file comes in, and if the browser wants a tap for that, offers a Back to
+   full screen button. And images can be dropped straight onto the table instead, which never
+   opens a picker: a drop while the Maps window is open (or anywhere, for the LoreMaster) adds
+   them as maps. */
+var _wasFullAtPick = false;
+document.addEventListener('click', function(e){
+  var t = e.target; if (!t) return;
+  var inp = (t.tagName === 'INPUT' && t.type === 'file') ? t : (t.closest && t.closest('label') && t.closest('label').querySelector('input[type=file]'));
+  if (inp) _wasFullAtPick = tsIsFull();
+}, true);
+document.addEventListener('change', function(e){
+  var t = e.target; if (!t || t.tagName !== 'INPUT' || t.type !== 'file' || !_wasFullAtPick) return;
+  _wasFullAtPick = false;
+  if (tsIsFull()) return;
+  try { tsFullscreen(true); } catch(x){}
+  setTimeout(function(){ if (!tsIsFull()) fullBackOffer(); }, 400);
+}, true);
+function fullBackOffer(){
+  var b = document.getElementById('fullBack');
+  if (!b){ b = document.createElement('button'); b.id = 'fullBack'; b.textContent = 'Back to full screen'; b.onclick = function(){ tsFullscreen(true); b.style.display = 'none'; }; document.body.appendChild(b); }
+  b.style.display = 'block';
+  clearTimeout(fullBackOffer._t); fullBackOffer._t = setTimeout(function(){ b.style.display = 'none'; }, 12000);
+}
+document.addEventListener('fullscreenchange', function(){ var b = document.getElementById('fullBack'); if (b && tsIsFull()) b.style.display = 'none'; });
+/* drop images on the table: maps, with no picker to leave full screen */
+document.addEventListener('dragover', function(e){
+  if (!isLM() || !e.dataTransfer || [].indexOf.call(e.dataTransfer.types || [], 'Files') < 0) return;
+  e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; document.body.classList.add('drop-ready');
+});
+document.addEventListener('dragleave', function(e){ if (!e.relatedTarget) document.body.classList.remove('drop-ready'); });
+document.addEventListener('drop', function(e){
+  document.body.classList.remove('drop-ready');
+  if (!isLM() || !e.dataTransfer || !e.dataTransfer.files || !e.dataTransfer.files.length) return;
+  e.preventDefault();
+  var files = [].slice.call(e.dataTransfer.files).filter(function(f){ return /^image\//.test(f.type); });
+  if (!files.length) return;
+  lmMapFilePicked({ files:files, value:'' });
+});
+
 function lmMapFilePicked(input){
   var files = [];
   for (var i = 0; i < (input.files ? input.files.length : 0); i++) files.push(input.files[i]);
