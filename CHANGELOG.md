@@ -1,3 +1,7 @@
+## 2026-09-28 - A table volume for the music
+
+The LoreMaster's Music panel gains Table volume, how loud the music plays for everyone, half by default, so it never arrives at full blast. Each person's own Your volume is now their share of that, full by default, kept on their device; a player sees what the table is set at. A table volume rides with the music (live.vol), so it reaches every player and exports with the table.
+
 ## 2026-09-28 - Staying full screen through an upload
 
 A browser leaves full screen whenever it opens its own file picker, which nothing on a page can prevent, so uploading a map or a stage's art threw the LoreMaster out of full screen. The table now notes it was full screen when a picker opened, asks to go back the moment the file arrives, and if the browser insists on a tap for that, shows Back to full screen at the top for a few seconds. Images can also be dragged from the desktop and dropped onto the table, which never opens a picker: the map shows Drop images to add them as maps, and they are added to the Maps library as an upload would.

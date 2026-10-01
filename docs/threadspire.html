@@ -72,6 +72,7 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 .mu-ctl .mu-loop{ display:flex; align-items:center; justify-content:center; color:var(--muted,#8fa3b3); border-color:var(--line); }
 .mu-ctl .mu-loop svg{ width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
 .mu-ctl .mu-loop.on{ color:var(--gold); border-color:var(--gold); }
+.mu-v{ color:var(--gold); font-weight:400; margin-left:6px; }
 .mu-row{ display:flex; flex-direction:column; gap:3px; font-size:.75rem; color:var(--muted,#8fa3b3); }
 .mu-row select, .mu-row input[type=range]{ width:100%; accent-color:var(--gold); }
 .mu-me{ display:flex; gap:6px; align-items:center; font-size:.8rem; }
@@ -14244,7 +14245,14 @@ function pviewSet(on){
    battle:ref, live:{on,playing,ref,idx,at,pos} }, where a ref is "p:<list>" or "t:<track>". */
 var musicEl = null, _musicTap = false, _musicLoadedSrc = '', _musicTaken = false, _musicErr = '', _musicErrSrc = '';
 function musicState(){ S.music = S.music || { tracks:[], lists:[], scenes:{}, battle:'', live:{ on:true, playing:true, loop:true, ref:'', idx:0, at:0, pos:0 } }; S.music.live = S.music.live || { on:true, playing:true, loop:true, ref:'', idx:0, at:0, pos:0 }; return S.music; }
-function musicMine(){ var o = {}; try { o = JSON.parse(localStorage.getItem('ts_music_me') || '{}') || {}; } catch(e){} if (o.vol === undefined) o.vol = .6; return o; }
+function musicMine(){ var o = {}; try { o = JSON.parse(localStorage.getItem('ts_music_me') || '{}') || {}; } catch(e){}
+  /* the slider is now each person's own share of the table volume; full by default */
+  if (o.vol === undefined || o.v2 !== 1){ o.vol = 1; o.v2 = 1; try { localStorage.setItem('ts_music_me', JSON.stringify(o)); } catch(e){} }
+  return o; }
+/* The table volume, set by the LoreMaster for everyone (half by default), so the music never
+   arrives at full blast; each person's own slider then turns that up or down for themselves. */
+function musicTableVol(){ var v = musicState().live.vol; return (typeof v === 'number') ? Math.max(0, Math.min(1, v)) : .5; }
+function musicTableVolSet(v){ if (!isLM()) return; musicState().live.vol = Math.max(0, Math.min(1, (+v) / 100)); musicApply(); musicShare(); var l = document.getElementById('muTblV'); if (l) l.textContent = Math.round(musicTableVol() * 100) + '%'; }
 function musicSetMine(k, v){ var o = musicMine(); o[k] = v; try { localStorage.setItem('ts_music_me', JSON.stringify(o)); } catch(e){} musicApply(); musicPaintPanel(); }
 function musicTrack(id){ return (musicState().tracks || []).filter(function(t){ return t.id === id; })[0] || null; }
 function musicList(id){ return (musicState().lists || []).filter(function(l){ return l.id === id; })[0] || null; }
@@ -14333,7 +14341,7 @@ function musicApply(){
   }
   var m = musicState(), L = m.live, t = musicNow(), me = musicMine();
   var should = !!(L.on && L.playing && t && !me.off);
-  musicEl.volume = Math.max(0, Math.min(1, me.vol));
+  musicEl.volume = Math.max(0, Math.min(1, me.vol * musicTableVol()));
   if (!t || !L.on){ if (!musicEl.paused) musicEl.pause(); _musicLoadedSrc = ''; return; }
   if (_musicLoadedSrc !== t.url){ _musicLoadedSrc = t.url; _musicErr = ''; musicEl.src = t.url; }
   if (_musicErr && _musicErrSrc && _musicErrSrc.indexOf(t.url) >= 0){ musicPaintPrompt(); return; }
@@ -14393,7 +14401,9 @@ function musicPaintPanel(){
       + '<label class="mu-row"><span>Battle</span><select data-mu="battle">' + opts(m.battle || '') + '</select></label>'
       + '<button class="mu-manage" data-mu="manage">Manage music</button>';
   }
-  h += '<label class="mu-row"><span>Your volume</span><input type="range" min="0" max="100" data-mu="vol" value="' + Math.round(me.vol * 100) + '"></label>'
+  if (isLM()) h += '<label class="mu-row"><span>Table volume <b id="muTblV" class="mu-v">' + Math.round(musicTableVol() * 100) + '%</b></span><input type="range" min="0" max="100" value="' + Math.round(musicTableVol() * 100) + '" oninput="musicTableVolSet(this.value)" title="How loud the music plays for everyone; each player can still turn their own up or down"></label>';
+  else h += '<div class="mu-from">The LoreMaster set the table at ' + Math.round(musicTableVol() * 100) + '%.</div>';
+  h += '<label class="mu-row"><span>Your volume</span><input type="range" min="0" max="100" data-mu="vol" value="' + Math.round(me.vol * 100) + '" title="Your own share of the table volume, on this device"></label>'
     + '<label class="mu-me"><input type="checkbox" data-mu="off"' + (me.off ? ' checked' : '') + '> Mute music on this device</label>';
   box.innerHTML = h;
 }
