@@ -1,3 +1,9 @@
+## 2026-09-28 - Saved tokens no longer vanish; the token and map windows, rebuilt; many images at once
+
+Saved tokens lived on the scene that happened to be on the table when they loaded, so switching scenes left them behind and the shelf looked emptied (only a token saved since showed). They now belong to the account (S.accountTokens), and the map shelf travels with the LoreMaster from scene to scene too. Nothing was lost: a hard refresh shows them all.
+
+Place a token and Choose a map are rebuilt: a fixed head with the title, a search box and Upload (and, for maps, New folder), a body that scrolls on its own, and a foot saying what a click and a drop do. Tokens sit in an even grid of portrait tiles, kinds with nothing in them are left out, and a tile's tools appear on hover; maps sit in an even grid of thumbnails, their folder tools fade until hovered. Search narrows every kind, or all maps whatever their folder. Upload in either takes many images at once, and images dropped anywhere in either window are saved; several tokens go straight to the shelf with a running count (Saving 3 of 8), one is placed on the map as before.
+
 ## 2026-09-28 - Player view shows tokens as players see them
 
 Player view hid the fog and walls the way a player's screen does, but drew tokens the LoreMaster's way: hidden tokens faint, hidden names struck through, lock marks, unrevealed map notes, and lights carried by hidden tokens. In Player view all of these are now drawn as a player sees them (hidden tokens and names gone, no lock marks, only revealed notes); leaving Player view brings the LoreMaster's marks back.
