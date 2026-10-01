@@ -1,3 +1,7 @@
+## 2026-09-28 - Tablets go full screen on the first tap, as phones do
+
+Wix serves tablets its desktop layout, a fixed-size box on a page that leaves white space around the table. A phone's first tap already took the table full screen; a tablet's now does too (any touch screen with no pointer to hover), where the browser allows it. The Full screen button on the map bar toggles it after that.
+
 ## 2026-09-28 - Tablets: the die asks first, and a Full screen button
 
 On a tablet in a desktop layout the dice tray rolled on every tap, because the roll type is chosen by hovering, which a touch screen cannot do. Any screen without a hovering pointer now does what a phone does: a tap on the die opens the roll types, and choosing one rolls. The map bar gains a Full screen button for everyone (F still works), which tablets lacked.
