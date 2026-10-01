@@ -1,3 +1,7 @@
+## 2026-09-28 - Staying full screen through an upload
+
+A browser leaves full screen whenever it opens its own file picker, which nothing on a page can prevent, so uploading a map or a stage's art threw the LoreMaster out of full screen. The table now notes it was full screen when a picker opened, asks to go back the moment the file arrives, and if the browser insists on a tap for that, shows Back to full screen at the top for a few seconds. Images can also be dragged from the desktop and dropped onto the table, which never opens a picker: the map shows Drop images to add them as maps, and they are added to the Maps library as an upload would.
+
 ## 2026-09-28 - The grid can be moved again, to line up with a map's own squares
 
 Grid offsets had been dropped in July (the grid always began at the map's corner), which left a map with its own drawn squares impossible to line up. The Grid panel gains Shift X and Shift Y, each sliding the grid within one square, and Line up: Drag the grid, which turns a drag on the map into sliding the grid until the squares meet, and sends it to everyone when let go. Shifts are kept, sent and restored (pulled snapshots no longer reset them to 0), and tokens find the middle of their square again after a change.
