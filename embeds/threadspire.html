@@ -2563,17 +2563,20 @@ function tsLogSceneRoster(tag, sc){
 }
 function setActiveScene(id){
   if (S.scene.id === id){ closeWin(); return; }
-  if (isLM()) lmSaveCurrentStage();               /* the scene you leave keeps its board */
+  if (isLM()){ sceneLayoutSave(); lmSaveCurrentStage(); }   /* the scene you leave keeps its layout */
   var hit = tsSceneById(id); if (!hit) return;
   S.scene = hit.scene;
   S.adventure.activeSceneId = id;
   tsLogSceneRoster('activated', S.scene);
-  var bd = sceneBinding();
-  var st = bd.activeStageId ? stageById(bd.activeStageId) : null;
-  if (st) stageRestore(st);                        /* restore returns this scene's board and syncs */
-  else applyRemoteState({ scene:S.scene, adventure:S.adventure, instance:S.instance });
-  /* the map this scene (or its session) remembers wins over whatever board came back */
-  try { applySceneTableMap(); } catch(e){}
+  /* the scene's own layout first: its map, its tokens, its grid */
+  if (!sceneLayoutRestore()){
+    var bd = sceneBinding();
+    var st = bd.activeStageId ? stageById(bd.activeStageId) : null;
+    if (st) stageRestore(st);
+    else applyRemoteState({ scene:S.scene, adventure:S.adventure, instance:S.instance });
+    /* the map this scene (or its session) remembers, when it has no layout of its own */
+    try { applySceneTableMap(); } catch(e){}
+  } else applyRemoteState({ adventure:S.adventure });
   pushLog({ kind:'sys', html:'Scene set to <b>' + esc(S.scene.name) + '</b>.' });
   applyRemoteState({ log:S.log });
   closeWin();
@@ -7566,6 +7569,35 @@ function sceneBinding(){
   if (!S.instance.bindings[id]) S.instance.bindings[id] = { stageIds:[], activeStageId:null };
   return S.instance.bindings[id];
 }
+/* Each scene keeps its own layout: the map chosen for it (from any stage), the tokens where
+   they stand, and the grid. It lives on the scene's binding, inside the table's saved state, so
+   it survives a reload, another browser and an export. A scene records its layout while the
+   LoreMaster works in it, and gets it back on return. */
+function sceneLayoutSave(){
+  if (!isLM() || !S.scene || !S.instance || !S.instance.bindings) return;
+  var bd = sceneBinding();
+  if (!bd.mapId && !S.scene.background) return;   /* nothing laid down here yet */
+  bd.mapId = S.scene.background || bd.mapId || null;
+  bd.tokens = (S.tokens || []).map(function(t){ return Object.assign({}, t); });
+  bd.grid = Object.assign({}, S.grid);
+  bd.mapW = S.map.w; bd.mapH = S.map.h;
+  if (activeStageId()) bd.activeStageId = activeStageId();
+}
+function sceneLayoutRestore(){
+  var bd = sceneBinding();
+  if (!bd.mapId) return false;
+  if (bd.activeStageId) setActiveStage(bd.activeStageId);
+  S.scene.background = bd.mapId;
+  var m = mapById(bd.mapId);
+  if (m && m.url) S.remoteMapUrl = m.url;
+  if (Array.isArray(bd.tokens)) S.tokens = bd.tokens.map(function(t){ return Object.assign({}, t); });
+  if (bd.grid) S.grid = Object.assign({}, bd.grid);
+  S.map = { w:bd.mapW || (m && m.w) || 2400, h:bd.mapH || (m && m.h) || 1600 };
+  applyRemoteState({ scene:S.scene, tokens:S.tokens, grid:S.grid, map:S.map, instance:S.instance });
+  paintMapArt();
+  try { clampCam(); applyCam(); } catch(e){}
+  return true;
+}
 function instanceStages(){
   var lib = S.instance.stages || (S.instance.stages = []);
   /* a reload rebuilds the deck from whatever arrived first, so filter here rather
@@ -8027,6 +8059,7 @@ function pushState(){
      and marks the version seen, so the real state is both destroyed and never pulled.
      That is the worst bug this file can have, so the gate is absolute. */
   if (_advSwitching) return;
+  try { if (isLM() && _mapStateLoaded) sceneLayoutSave(); } catch(e){}
   try {
     var snap = sharedSnapshot();
     try { SEAM.pushKB = Math.round(JSON.stringify(snap).length / 1024); } catch(e){ SEAM.pushKB = 0; }
@@ -12435,7 +12468,13 @@ function lmStageFace(stageId, mapId){
   st.mapId = mapId; st.mapW = m.w; st.mapH = m.h;
   if (stageMapIds(st).indexOf(mapId) < 0) st.mapIds = stageMapIds(st).concat([mapId]);
   stageBackend.save(st);
-  if (sameId(activeStageId(), stageId)){
+  /* the map clicked is this scene's map: the scene remembers it, and the stage it came from */
+  var bd = sceneBinding();
+  if ((bd.stageIds || []).indexOf(stageId) < 0) bd.stageIds = (bd.stageIds || []).concat([stageId]);
+  bd.activeStageId = stageId; bd.mapId = mapId; bd.mapW = m.w; bd.mapH = m.h;
+  if (!sameId(activeStageId(), stageId)) setActiveStage(stageId);
+  /* and lay it on the table now */
+  {
     S.scene.background = mapId;
     S.map = { w:m.w, h:m.h };
     applyRemoteState({ scene:S.scene, map:S.map });
@@ -12646,12 +12685,10 @@ function lmSetMap(id, quiet){
      keeping the tokens, and if there is no stage yet, this makes it one. */
   /* a map lives on a stage. If one is active, lay it there; if none exists yet, make a
      single stage to hold it, rather than one per scene. */
-  if (!activeStageId()){
-    var nid = 'st-' + Date.now();
-    var nb = { stageId:nid, name:'Stage ' + (instanceStages().length + 1), mapId:m.id, tokens:[], grid:Object.assign({},S.grid), mapW:m.w||2400, mapH:m.h||1600 };
-    stageUpsert(nb); setActiveStage(nid);
-  }
+  /* a map laid here no longer invents a stage to hold it (that was filling the shelf); the
+     scene remembers it on its own layout */
   S.scene.background = m.id;
+  try { var _bdm = sceneBinding(); _bdm.mapId = m.id; _bdm.mapW = m.w || _bdm.mapW; _bdm.mapH = m.h || _bdm.mapH; } catch(e){}
   if (m.w) S.map.w = m.w;
   if (m.h) S.map.h = m.h;
   /* the change belongs to the stage, so record it there before it is shared */
