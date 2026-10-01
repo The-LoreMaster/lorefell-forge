@@ -1,3 +1,7 @@
+## 2026-09-28 - New foes and NPCs belong to the adventure they are made in
+
+A foe or NPC made from inside an adventure (New in the library, or the foe forge, in ThreadSpire; the library wizard in FateWell, which already chose the current campaign) is tagged to that adventure with its name. The ThreadSpire foe forge saved its foe without converting it for the site, so the adventure (kept inside foeMeta) never arrived; it now saves through assetToRow like every other entry. The need to set it by hand came mostly from the earlier read-back bug, where an NPC's saved adventure was dropped on reload (fixed in PR 513).
+
 ## 2026-09-28 - A roster built for any scene is saved
 
 Adding foes or NPCs to a scene's roster saved only the scene on the table: a roster built for any other scene, from the Story window, showed, then was gone on reload. Scenes edited from the roster are now marked and written alongside the active one, and a write the site does not take is tried again. A foe or NPC added by name (not from the library) went only into the board list, which is not stored; it now goes into the stored roster too.
