@@ -2022,6 +2022,7 @@ body.drop-ready #map::after{ content:'Drop images to add them as maps'; position
 .mumgr-foot{ display:flex; justify-content:space-between; align-items:center; gap:14px; padding:10px 18px 14px; border-top:1px solid var(--line); }
 .mumgr-hint{ font-size:.78rem; color:var(--muted,#8fa3b3); }
 @media (max-width:700px){ .mumgr-cols{ grid-template-columns:1fr; overflow-y:auto; } .mumgr-col + .mumgr-col{ border-left:0; border-top:1px solid var(--line); } .mumgr-list{ max-height:none; } .mumgr-head{ grid-template-columns:1fr auto; } .mumgr-head .tsm-title{ grid-column:1 / -1; } .mumgr-hint{ display:none; } }
+.ga-list{ max-height:55vh; overflow:auto; margin:6px 0 10px; } .ga-ses{ padding:6px 0; border-bottom:1px solid var(--line); } .ga-all{ display:flex; gap:8px; font-family:Cinzel,serif; font-size:.72rem; letter-spacing:.06em; color:var(--gold); margin-bottom:4px; } .ga-sc{ display:flex; gap:8px; align-items:center; padding:2px 0 2px 18px; font-size:.9rem; } .ga-sc i{ color:var(--muted,#8fa3b3); font-size:.8rem; } .ga-list input{ accent-color:var(--gold); }
 </style>
 </head>
 <body>
@@ -2186,6 +2187,7 @@ body.drop-ready #map::after{ content:'Drop images to add them as maps'; position
     <div class="lmrow"><label>Shift X</label><input type="range" id="gOffX" min="0" max="99" step="1"><span id="gOffXV"></span></div>
     <div class="lmrow"><label>Shift Y</label><input type="range" id="gOffY" min="0" max="99" step="1"><span id="gOffYV"></span></div>
     <div class="lmrow"><label>Line up</label><button class="lmtog" id="gDrag" onclick="gridDragToggle()" title="Drag on the map to slide the grid onto the map\u2019s own squares">Drag the grid</button></div>
+    <div class="lmrow"><label>Scenes</label><button class="lmtog" onclick="gridApplyOpen()" title="Give these grid settings to other scenes">Apply to scenes\u2026</button></div>
     <div class="lmrow"><label>Inset</label><input type="range" id="gInset" min="60" max="100" step="1"><span id="gInsetV"></span></div>
     <div class="lmrow"><label>Snap</label><button class="lmtog" id="gSnap" onclick="toggleSnap()"></button></div>
   </div>
@@ -7585,7 +7587,11 @@ function sceneLayoutSave(){
 }
 function sceneLayoutRestore(){
   var bd = sceneBinding();
-  if (!bd.mapId) return false;
+  if (!bd.mapId){
+    /* a scene given a grid but no map yet still takes its grid */
+    if (bd.grid){ S.grid = Object.assign({}, bd.grid); applyRemoteState({ grid:S.grid }); }
+    return false;
+  }
   if (bd.activeStageId) setActiveStage(bd.activeStageId);
   S.scene.background = bd.mapId;
   var m = mapById(bd.mapId);
@@ -16169,6 +16175,34 @@ function paintLmbar(){
   });
 })();
 
+
+
+/* Apply to scenes: the grid as it stands now (size, fade, shift) given to whichever scenes the
+   LoreMaster ticks, kept on each scene's layout so it comes back with the scene. */
+function gridApplyOpen(){
+  if (!isLM() || !S.adventure) return;
+  var cur = (S.scene && S.scene.id) || '', h = '<h3 class="tsm-title">Apply this grid to scenes</h3>'
+    + '<p class="lc-p">Cell ' + (S.grid.size || 100) + ', fade ' + Math.round((S.grid.opacity || 0) * 100) + '%, shift ' + (S.grid.offX || 0) + ', ' + (S.grid.offY || 0) + '.</p><div class="ga-list">';
+  (S.adventure.acts || []).forEach(function(a){ (a.sessions || []).forEach(function(se){
+    h += '<div class="ga-ses"><label class="ga-all"><input type="checkbox" onchange="gridApplySession(this)"> ' + esc(se.name || 'Session') + '</label>';
+    (se.scenes || []).forEach(function(sc){
+      h += '<label class="ga-sc"><input type="checkbox" class="ga-c" value="' + esc(sc.id) + '"' + (sc.id === cur ? ' checked disabled' : '') + '> ' + esc(sc.name || 'Scene') + (sc.id === cur ? ' <i>(this scene)</i>' : '') + '</label>';
+    });
+    h += '</div>';
+  }); });
+  h += '</div><div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button><button class="tsm-btn" onclick="gridApplyGo()">Apply</button></div>';
+  tsModal(h);
+}
+function gridApplySession(box){ var wrap = box.closest('.ga-ses'); if (!wrap) return; wrap.querySelectorAll('.ga-c:not([disabled])').forEach(function(c){ c.checked = box.checked; }); }
+function gridApplyGo(){
+  var ids = [].slice.call(document.querySelectorAll('.ga-c')).filter(function(c){ return c.checked && !c.disabled; }).map(function(c){ return c.value; });
+  var g = Object.assign({}, S.grid);
+  S.instance.bindings = S.instance.bindings || {};
+  ids.forEach(function(id){ var bd = S.instance.bindings[id] || (S.instance.bindings[id] = { stageIds:[], activeStageId:null }); bd.grid = Object.assign({}, g); });
+  try { sceneLayoutSave(); } catch(e){}
+  applyRemoteState({ instance:S.instance }); schedulePush(); tsCloseModal();
+  pushLog({ kind:'sys', html:'The grid now applies to ' + (ids.length + 1) + ' scene' + (ids.length ? 's' : '') + '.' }); applyRemoteState({ log:S.log });
+}
 
 /* Line up: while on, a drag on the map slides the grid rather than panning, so its squares can
    be laid over the squares a map has drawn on it. */
