@@ -1,3 +1,7 @@
+## 2026-09-28 - An NPC keeps its adventure; FateWell's own library filter follows suit
+
+An NPC's (or item's) adventure was saved, inside foeMeta, but read back only for foes, so every reload dropped it and the NPC belonged nowhere. Both tools now read it for every kind. FateWell's main Library had its own filter, separate from the roster pickers, still letting every untagged foe and NPC through; it now shows only the chosen adventure's foes and NPCs (items with no adventure still show). The library's Campaign field and its filters say Adventure (Any adventure, All adventures), in FateWell and in ThreadSpire's library sheet.
+
 ## 2026-09-28 - The library's adventure filter shows that adventure's cast only
 
 ThreadSpire's Showing: this adventure and FateWell's campaign filter both let in every untagged foe and NPC, so the filter seemed to do nothing. Filtered to an adventure, both now show only the foes and NPCs saved to it; untagged ones and other adventures' are in the whole library, one tap away. Items with no adventure still show, since an item is no one's cast. Ids are compared as text, so a numeric and a text id for the same adventure match.
