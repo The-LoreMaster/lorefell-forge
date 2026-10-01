@@ -1,3 +1,7 @@
+## 2026-09-28 - The name plate has room at its edges
+
+The name under the portrait now sits centred with a little room at each end (and a little more when it takes two lines), rather than running up against the plate's edges; the fit to the plate allows for it.
+
 ## 2026-09-28 - Long names fit the portrait's name plate
 
 A name too long for the plate under the portrait (a speaker such as Prior Halvek Sorn, or a long Fell name) ran off both ends. The type now steps down until the name fits, to about two thirds of its size; a name still too long then takes two lines at that size, and anything beyond is cut with an ellipsis. The full name is on the plate's tooltip.
