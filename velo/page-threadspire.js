@@ -2,8 +2,8 @@
 // Paste into the ThreadSpire page. Set the embed element ID to match EMBED.
 // Feeds the character-first view: the player's character card, the party at their
 // location, revealed nodes, quest-board goals, world issues, and map art.
-import { threadspirePublicChar, listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter, threadspireSaveMeta, lmLoadCharacter, lmSaveCharacter, lmCreateOfflineFell, lmRemoveFromAdventure, charAdventure, leaveAdventure, lmWipeFell, giveRecord, consultArchive, lmSealedGet, lmSealedWeave, lmNotesSave, myDice, saveDicePicks, lmGiveDice, earnDice } from 'backend/characters.web.js';
-import { getLmPortrait, saveLmPortrait, getForgePools, getForgeLibrary, listMyCampaigns, saveCampaign, submitAct, submitItem, deleteAsset, listGlossary , setMemberRole, detachCharacter, loadCampaign, restoreRoster } from 'backend/fatewell.web.js';
+import { threadspirePublicChar, listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter, threadspireSaveMeta, lmLoadCharacter, lmSaveCharacter, lmCreateOfflineFell, lmRemoveFromAdventure, charAdventure, leaveAdventure, lmWipeFell, giveRecord, consultArchive, lmSealedGet, lmSealedWeave, lmNotesSave } from 'backend/characters.web.js';
+import { getLmPortrait, saveLmPortrait, getForgePools, getForgeLibrary, listMyCampaigns, saveCampaign, submitAct, submitItem, deleteAsset, listGlossary , setMemberRole, detachCharacter, loadCampaign } from 'backend/fatewell.web.js';
 import { createInvite, revokeInvite } from 'backend/invites.web.js';
 import { publishAdventure, unpublishAdventure, myPublishedAdventures } from 'backend/published.web.js';
 import { getFoePack } from 'backend/forge.web.js';
@@ -13,7 +13,22 @@ import { getLibraries } from 'backend/libraries.web.js';
 import { listSphereArt } from 'backend/sphereart.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
 import { listStages, saveStage, deleteStage } from 'backend/threadspire.web.js';
-import { getCampaignState, saveCampaignState, getJournal, saveJournal, musicUploadUrl, musicLibrary } from 'backend/campaignview.web.js';
+import { getCampaignState, saveCampaignState, getJournal, saveJournal } from 'backend/campaignview.web.js';
+// The newest backend functions are reached through the whole module rather than named one by
+// one. A named import of a function the site's backend does not have yet (a page pasted before
+// its backend) stops this entire page from loading, and with it every load and save the table
+// makes. Reached this way, a missing one fails only its own call.
+import * as CVB from 'backend/campaignview.web.js';
+import * as CHB from 'backend/characters.web.js';
+import * as FWB from 'backend/fatewell.web.js';
+const NEED = (mod, name) => (typeof mod[name] === 'function') ? mod[name] : (async () => ({ ok: false, error: 'the site backend is missing ' + name + '; paste the latest backend file' }));
+const musicUploadUrl = (...a) => NEED(CVB, 'musicUploadUrl')(...a);
+const musicLibrary = (...a) => NEED(CVB, 'musicLibrary')(...a);
+const myDice = (...a) => NEED(CHB, 'myDice')(...a);
+const saveDicePicks = (...a) => NEED(CHB, 'saveDicePicks')(...a);
+const lmGiveDice = (...a) => NEED(CHB, 'lmGiveDice')(...a);
+const earnDice = (...a) => NEED(CHB, 'earnDice')(...a);
+const restoreRoster = (...a) => NEED(FWB, 'restoreRoster')(...a);
 import { loadAdventure, saveAdventureRoot, saveAdvAct, saveAdvSession, saveAdvScene, removeAdvScene, removeAdvSession, removeAdvAct, migrateCampaign } from 'backend/adventures.web.js';
 import { myAdventureRole, deleteCampaign } from 'backend/fatewell.web.js';
 import { removeAdventure } from 'backend/adventures.web.js';
