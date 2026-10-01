@@ -1,3 +1,7 @@
+## 2026-09-28 - Scene is king: everything on the map belongs to the scene
+
+Fog, walls, lights, effects, map notes and drawings were kept per map, so two scenes on the same map (or a stage's several versions of a map) shared them. They are now kept per scene and map together, so each scene keeps its own. What was kept per map before comes along: effects, notes, fog and drawings move to the first scene that opens that map, since they were that scene's work; walls and lights, being the map's shape, are copied into a scene that opens a map with none of its own yet (from before, or from another scene on the same map), to keep or change. The LoreMaster's table does the settling and sends it to everyone.
+
 ## 2026-09-28 - A new scene comes up with its own board
 
 Switching scenes could leave the last scene's board on the table: the LoreMaster's table took the scene and board from pulled copies, and a copy still in flight (saved before the switch) put the old scene's tokens, map and grid back, or even the old scene itself. Once the LoreMaster's table is loaded, a pulled copy no longer moves the scene, and for twelve seconds after a switch a pulled copy's tokens, map and grid are not taken. A scene with no layout of its own yet now starts clear, keeping only the Fell's tokens; its stage or remembered map is laid as before, and once a map is clicked on a stage for it, it keeps its own layout from then on.

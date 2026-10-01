@@ -13798,7 +13798,33 @@ var mapTool = 'pan', drawColor = '#c9a84c', multiSel = {};
 var DRAW_COLORS = ['#c9a84c','#e3a193','#8ec5ff','#8fd694','#ffffff','#1a1a1a'];
 function myMark(){ return isLM() ? 'lm' : (S.characterId || 'me'); }
 function myName(){ return isLM() ? 'LoreMaster' : ((S.character && S.character.name) || 'A Fell'); }
-function mapKey(){ try { return (S.scene && S.scene.background) || (activeMap() && activeMap().url) || 'map'; } catch(e){ return 'map'; } }
+/* Scene is king: everything laid on the map (fog, walls, lights, effects, notes, drawings)
+   belongs to the scene and the map together, so two scenes on the same map, or a stage's
+   several versions of a map in different scenes, each keep their own. */
+function mapOnlyKey(){ try { return (S.scene && S.scene.background) || (activeMap() && activeMap().url) || 'map'; } catch(e){ return 'map'; } }
+function mapKey(){ return ((S.scene && S.scene.id) || 'scene') + '|' + mapOnlyKey(); }
+/* What was kept per map before is brought over. Effects, notes, fog and drawings move to the
+   first scene that opens that map (they were that scene's work). Walls and lights are the
+   map's shape, so a scene opening a map with none of its own yet starts with a copy of that
+   map's walls and lights (from before, or from another scene on the same map), to keep or
+   change. Run by the LoreMaster, whose table writes them. */
+function sceneKeysSettle(){
+  if (!isLM() || !_mapStateLoaded || !S.scene) return;
+  var k = mapKey(), old = mapOnlyKey(), changed = false;
+  ['effects', 'notes', 'fog'].forEach(function(st){
+    var o = S[st]; if (!o || o[k] !== undefined || o[old] === undefined) return;
+    o[k] = o[old]; delete o[old]; changed = true;
+  });
+  if (S.draw && S.draw.strokes){ S.draw.strokes.forEach(function(sk){ if (sk.k === old){ sk.k = k; changed = true; } }); }
+  ['walls', 'lights'].forEach(function(st){
+    var o = S[st]; if (!o || o[k] !== undefined) return;
+    var src = o[old];
+    if (src === undefined){ Object.keys(o).forEach(function(key){ if (src === undefined && key !== k && key.slice(key.indexOf('|') + 1) === old) src = o[key]; }); }
+    if (src !== undefined){ o[k] = JSON.parse(JSON.stringify(src)); changed = true; }
+  });
+  if (changed){ _fvMemo = null; try { wallPaint(); fogPaint(); drawPaint(); renderTokens(); } catch(e){} schedulePush(); }
+}
+setInterval(function(){ try { sceneKeysSettle(); } catch(e){} }, 700);
 function setMapTool(t){
   mapTool = t;
   /* the grid's panel is one of the bar's panels: choosing any tool closes it */
