@@ -2672,7 +2672,7 @@ function setActiveScene(id){
   var _shelfMaps = S.scene.maps;
   S._sceneSwitchAt = Date.now();
   S.scene = hit.scene;
-  if (_shelfMaps && (!S.scene.maps || S.scene.maps.length < _shelfMaps.length)) S.scene.maps = _shelfMaps;
+  if (_shelfMaps && _shelfMaps.length) S.scene.maps = _shelfMaps;   /* one shelf, the same in every scene */
   S.adventure.activeSceneId = id;
   tsLogSceneRoster('activated', S.scene);
   /* the scene's own layout first: its map, its tokens, its grid */
@@ -8212,15 +8212,36 @@ function pushState(){
   try {
     var snap = sharedSnapshot();
     try { SEAM.pushKB = Math.round(JSON.stringify(snap).length / 1024); } catch(e){ SEAM.pushKB = 0; }
+    _pushesOut++;
     stateBackend.push(snap).then(function(r){
+      _pushesOut = Math.max(0, _pushesOut - 1);
       SEAM.pushAt = Date.now();
-      if (r && r.version){ _stateSeen = Math.max(_stateSeen, r.version); SEAM.pushV = r.version; SEAM.pushOk = true; SEAM.pushWhy = ''; pushAdventure(); nudgePull(); }
-      else { SEAM.pushOk = false; SEAM.pushWhy = (r && r.error) || 'the site said no'; seamWarn(); }
+      if (r && r.version){ _stateSeen = Math.max(_stateSeen, r.version); SEAM.pushV = r.version; SEAM.pushOk = true; SEAM.pushWhy = ''; _pushFailingSince = 0; pushAdventure(); nudgePull(); }
+      else { SEAM.pushOk = false; SEAM.pushWhy = (r && r.error) || 'the site said no'; pushRetry(); seamWarn(); }
       seamPaint();
     }).catch(function(e){
-      SEAM.pushAt = Date.now(); SEAM.pushOk = false; SEAM.pushWhy = String(e && e.message || e).slice(0,60); seamWarn(); seamPaint();
+      _pushesOut = Math.max(0, _pushesOut - 1);
+      SEAM.pushAt = Date.now(); SEAM.pushOk = false; SEAM.pushWhy = String(e && e.message || e).slice(0,60); pushRetry(); seamWarn(); seamPaint();
     });
   } catch(e){}
+}
+/* The LoreMaster's table is the source of what it changes. While one of its changes is still
+   on its way to the site (sent, or about to be), or the site has not been taking them, a
+   pulled copy is older than the screen, and taking it put back what was just changed: a
+   scene's tokens, its map, its walls, lights and fog. So the LoreMaster's table holds its
+   pulls until its own change has landed; a change the site did not take is sent again a few
+   seconds later. After a minute of failing it gives way and takes the site's copy, rather
+   than drift for ever. Players are not held: they follow every pull. */
+var _pushesOut = 0, _pushFailingSince = 0, _pushRetryT = null;
+function pushRetry(){
+  if (!isLM()) return;
+  if (!_pushFailingSince) _pushFailingSince = Date.now();
+  clearTimeout(_pushRetryT); _pushRetryT = setTimeout(function(){ try { pushState(); } catch(e){} }, 4000);
+}
+function lmPullHeld(){
+  if (!isLM() || !_mapStateLoaded) return false;
+  if (_pushFailingSince && Date.now() - _pushFailingSince > 60000) return false;
+  return _pushesOut > 0 || !!_pushT || !!_pushFailingSince;
 }
 /* a failed push means the table and the players have quietly split; say it, throttled */
 function seamWarn(){
@@ -9494,8 +9515,10 @@ function startStateFeed(){
   if (!tsEmbedded() || _stateFeedTimer) return;
   function pullOnce(){
     if (pan || pinch) return;
+    if (lmPullHeld()){ SEAM.pullGot = 'held: our own change is on its way'; seamPaint(); return; }
     stateBackend.pull(_stateSeen).then(function(res){
       SEAM.pullAt = Date.now(); SEAM.pulls++;
+      if (lmPullHeld()){ SEAM.pullGot = 'held: our own change went out meanwhile'; seamPaint(); return; }
       if (!res){ SEAM.pullGot = 'nothing'; seamPaint(); return; }
       /* an answer about the adventure we just left is not news, it is the past */
       if (!isLM() && !S.campaignId){ SEAM.pullGot = 'no adventure'; seamPaint(); return; }
@@ -12654,7 +12677,9 @@ function lmFolderDrop(name){
     + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button>'
     + '<button class="tsm-btn danger" onclick="tsConfirmYes()">Remove the folder</button></div>');
 }
-function mapById(id){ var m = null; (S.scene.maps || []).forEach(function(x){ if (sameId(x.id, id)) m = x; }); return m; }
+function mapById(id){ var m = null; (S.scene.maps || []).forEach(function(x){ if (sameId(x.id, id)) m = x; });
+  if (!m) (S._shelfAll || []).forEach(function(x){ if (sameId(x.id, id)) m = x; });
+  return m; }
 
 /* Write a map's row back whole, so a change to one field never drops another. */
 function mapSaveRow(m){
@@ -12928,6 +12953,7 @@ function loadAccountAssets(){
   if (_assetsLoaded) return;
   _assetsLoaded = true;
   assetBackend.list('map').then(function(rows){
+    S._shelfAll = S.scene.maps;   /* the shelf itself, kept to find a map by id from any scene */
     rows.forEach(function(r){
       var have = null;
       S.scene.maps.forEach(function(m){ if (m.id === r.assetId) have = m; });
