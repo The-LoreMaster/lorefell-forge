@@ -2170,6 +2170,26 @@ body.drop-ready #map::after{ content:'Drop images to add them as maps'; position
 .sw-row-btns{ display:flex; gap:6px; margin-top:6px; } .sw-q{ font-size:.95rem; padding:2px 0; }
 .sw-run{ margin-top:10px; width:100%; } .sw-run:disabled{ opacity:.6; }
 @media (max-width:900px){ .sw-cols{ grid-template-columns:200px minmax(0,1fr); } .sw-side{ display:none; } .sw-search{ width:150px; } }
+
+/* ---- the Story window on a phone: full screen, the outline and the page take turns ---- */
+.sw-back{ display:none; }
+@media (max-width:700px){
+  #storyWin .sw-box, #storyWin.full .sw-box{ width:100vw; height:100vh; height:100dvh; border-radius:0; border:0; }
+  .sw-head{ flex-wrap:wrap; gap:8px; padding:calc(10px + env(safe-area-inset-top, 0px)) 12px 10px; }
+  .sw-head .sw-adv{ display:none; } .sw-back{ display:flex; } .sw-box.m-outline .sw-back{ display:none; }
+  .sw-search{ order:5; width:100%; flex:1 1 100%; }
+  .sw-head .sw-ic[aria-label="Full screen"]{ display:none; }
+  .sw-cols, .sw-box.noside .sw-cols{ grid-template-columns:1fr; overflow-y:auto; }
+  .sw-box.m-page .sw-outline{ display:none; }
+  .sw-box.m-outline .sw-main, .sw-box.m-outline .sw-side{ display:none !important; }
+  .sw-outline{ border-right:0; overflow:visible; padding:10px 12px 24px; }
+  .sw-row{ padding:10px 12px; } .sw-row .sw-tools{ display:flex; }
+  .sw-main{ overflow:visible; }
+  .sw-side{ display:flex !important; border-left:0; border-top:1px solid var(--line); overflow:visible; padding:12px 16px calc(20px + env(safe-area-inset-bottom, 0px)); }
+  .sw-cover{ min-height:120px; } .sw-cover.none{ min-height:96px; } .sw-title{ padding:12px 16px; } .sw-title h2{ font-size:1.25rem; }
+  .sw-cover-tools{ top:8px; right:8px; } .sw-cover-tools .tsm-btn{ padding:5px 10px; font-size:.6rem; }
+  .sw-body{ padding:12px 14px; } .sw-kids{ grid-template-columns:repeat(2, 1fr); }
+}
 </style>
 </head>
 <body>
@@ -16489,14 +16509,16 @@ function sceneCopyGo(){
    for a scene its roster, quests and Run this scene down the right. A search runs across the
    whole story. A window by default, full screen on a button. It writes to the shared story,
    as everything else here does. */
-var SW = { open:false, kind:'scene', id:'', q:'', full:false, drag:null };
+var SW = { open:false, kind:'scene', id:'', q:'', full:false, drag:null, pane:'page' };
 function swOpen(){
   SW.open = true;
   if (!SW.id || !storyNode(SW.kind === 'adv' ? 'scene' : SW.kind, SW.id)){ SW.kind = 'scene'; SW.id = (S.scene && S.scene.id) || ''; }
   swPaint();
 }
 function swClose(){ SW.open = false; var el = document.getElementById('storyWin'); if (el) el.style.display = 'none'; }
-function swSel(kind, id){ SW.kind = kind; SW.id = id; SW.q = ''; swPaint(); }
+function swSel(kind, id){ SW.kind = kind; SW.id = id; SW.q = ''; SW.pane = 'page'; swPaint(); }
+/* on a phone the outline and the page take turns: the outline is one tap away */
+function swPane(p){ SW.pane = p; swPaint(); }
 function swFull(){ SW.full = !SW.full; swPaint(); }
 function swNode(){ return SW.kind === 'adv' ? S.adventure : storyNode(SW.kind, SW.id); }
 /* the outline: every level open, a row per node, tools on hover, rows draggable among their siblings */
@@ -16661,8 +16683,8 @@ function swPaint(){
   else main = swCover(node, SW.kind) + '<div class="sw-body">' + swKids(SW.kind, node) + swNotes(SW.kind, node) + '</div>';
   var keepQ = document.activeElement && document.activeElement.id === 'swSearch';
   var outlineScroll = (el.querySelector('.sw-outline') || {}).scrollTop || 0, mainScroll = (el.querySelector('.sw-main') || {}).scrollTop || 0;
-  el.innerHTML = '<div class="sw-box' + (side ? '' : ' noside') + '">'
-    + '<div class="sw-head"><span class="sw-h">Story</span><span class="sw-adv">' + esc((S.adventure && S.adventure.name) || '') + '</span><span class="sw-grow"></span>'
+  el.innerHTML = '<div class="sw-box' + (side ? '' : ' noside') + (SW.pane === 'outline' && !SW.q.trim() ? ' m-outline' : ' m-page') + '">'
+    + '<div class="sw-head"><button class="sw-ic sw-back" onclick="swPane(\'outline\')" title="Outline" aria-label="Outline"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h13"/></svg></button><span class="sw-h">Story</span><span class="sw-adv">' + esc((S.adventure && S.adventure.name) || '') + '</span><span class="sw-grow"></span>'
     + '<input id="swSearch" class="sw-search" placeholder="Search the story" value="' + esc(SW.q) + '" oninput="SW.q=this.value;swPaint()">'
     + '<button class="sw-ic" onclick="swFull()" title="' + (SW.full ? 'Back to a window' : 'Full screen') + '" aria-label="Full screen"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>'
     + '<button class="sw-ic" onclick="swClose()" title="Close" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>'
