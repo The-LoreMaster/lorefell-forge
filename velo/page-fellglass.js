@@ -9,7 +9,10 @@
 // Fell (initNeedsCreated), it bounces an entry that already has a character to the
 // table, and it navigates when the sheet asks for ThreadSpire.
 
-import { listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter, leaveAdventure, consultArchive, myDice } from 'backend/characters.web.js';
+import { listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter, leaveAdventure, consultArchive } from 'backend/characters.web.js';
+// reached through the module, so a backend without it yet cannot stop this page from loading
+import * as CHB from 'backend/characters.web.js';
+const myDice = (...a) => (typeof CHB.myDice === 'function' ? CHB.myDice(...a) : Promise.resolve({ ok: false }));
 import { getClueCards, listQuests } from 'backend/fatewell.web.js';
 import { getCombatForChar, saveCombatDeclare, syncCombatPlayer } from 'backend/combat.web.js';
 import { getLibraries } from 'backend/libraries.web.js';
