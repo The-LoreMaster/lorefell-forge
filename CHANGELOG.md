@@ -1,3 +1,7 @@
+## 2026-09-28 - Page code: named imports again
+
+The whole-module imports added for the newest backend functions are taken back out: Velo's support for a namespace import of a web module is not something to lean on while the table is not saving, and every backend file they guarded is now on the site. The page code names each function it uses, as it always had. Paste velo/page-threadspire.js and velo/page-fellglass.js.
+
 ## 2026-09-28 - The page code cannot be stopped by a backend it is ahead of
 
 A page's named import of a backend function the site does not have yet stops that whole page from loading in Wix, and with ThreadSpire's page goes every load and save the table makes: nothing loads (stages, music, playlists look gone, though they are untouched in the CMS) and nothing saves (the log reports bridge timeouts). The newest functions (musicUploadUrl, musicLibrary, myDice, saveDicePicks, lmGiveDice, earnDice, restoreRoster) are now reached through the whole module in page-threadspire.js and page-fellglass.js, so a backend that lacks one fails only that one call, with a message saying which file to paste. Paste velo/page-threadspire.js and velo/page-fellglass.js.
