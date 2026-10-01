@@ -1,3 +1,7 @@
+## 2026-09-28 - Tokens wear their library art
+
+A scene's NPCs were cast with only an id and a name, so their image (and library link) was dropped, and a foe or NPC cast before the library had loaded had no art either; their tokens landed wearing the default portrait. The cast now keeps each NPC's image and library id, and the token palette and the tokens on the map look the art up from the library record at the moment they draw, so it is found however late the library arrives. Tokens already placed without art pick it up too.
+
 ## 2026-09-28 - Attached NPCs and dialogue speakers are in the roster
 
 In FateWell an attached NPC or foe was reference only, outside the scene's roster, so the table could not count it or place it without a second step. Now the people in a scene are its roster: attaching an NPC or foe to a scene adds it to the roster, and so does setting someone as a dialogue entry's speaker in that scene. Every adventure, the first time it is opened after this, brings each scene's attached and speaking NPCs and foes into its roster once (rosterSynced), and saves, which carries them to ThreadSpire; removing one from the roster afterwards is left alone. NPCs carried down from the adventure, act or session stay as reference, since they belong to every scene.
