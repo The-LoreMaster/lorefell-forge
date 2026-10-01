@@ -1,3 +1,7 @@
+## 2026-09-28 - Undo covers effects, notes and weather, with buttons on the map bar
+
+Ctrl+Z on the map undid tokens, walls, lights, fog and drawings, but not what came after: effects, map notes and weather now undo and redo too. The map bar gains Undo and Redo buttons (lit when there is a step to take), for a tablet or anyone without the keys. Each scene keeps its own history: a scene switch starts afresh, and a step recorded in another scene is never laid on this one.
+
 ## 2026-09-28 - The first scene opens with its own map
 
 The scene a reload lands on could open wearing another scene's map: the board that arrived disagreed with the scene's own saved layout. When they disagree, the scene's saved layout (map, tokens, grid) is now laid, since it is written on every save and is the truth about that scene.
