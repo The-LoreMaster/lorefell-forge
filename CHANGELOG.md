@@ -1,3 +1,11 @@
+## 2026-09-28 - The first scene opens with its own map
+
+The scene a reload lands on could open wearing another scene's map: the board that arrived disagreed with the scene's own saved layout. When they disagree, the scene's saved layout (map, tokens, grid) is now laid, since it is written on every save and is the truth about that scene.
+
+## 2026-09-28 - The selection bar's buttons take the first click
+
+With several tokens chosen, the bar's buttons (Name, Hide, Lock and the rest) often did nothing until a few seconds had passed: the bar was rebuilt every half second, so a button was replaced between the press and the release and the click landed on nothing. It is now drawn only when what it shows changes; so are the token menu's icon row and the map note pins, which had the same trouble.
+
 ## 2026-09-28 - The board knows which scene it belongs to
 
 After a reload, scene one's tokens and effects turned up over scene two's map, and scene one came up empty. The table's stored state arrives first, with the board of the scene that was up; the story then stands up again from the account with its own idea of the active scene (the story's record, which a scene switch did not update), and the scene was swapped under the board, which the next save then stored into the wrong scene. The board now knows which scene it belongs to: it is only ever saved into that scene, a scene switch hands it over, and when the story stands up the table goes back to the board's scene, its map filled in from its layout and the shared map shelf (a scene fresh from the story had no map on it, so the seams read map on scene: none). A scene switch now also writes the story's record of the active scene, so a reload opens where you were.
