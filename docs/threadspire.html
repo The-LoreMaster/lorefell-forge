@@ -2091,8 +2091,8 @@ body.drop-ready #map::after{ content:'Drop images to add them as maps'; position
 .sh-selbar button.danger{ color:#e3a193; } .sh-selbar button.danger:hover{ border-color:#e3a193; }
 .sh-grid{ display:grid; gap:10px; margin-bottom:12px; }
 .sh-grid.folders{ grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); }
-.sh-grid.token{ grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); }
-.sh-grid.map{ grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); }
+.sh-grid.shk-token{ grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); }
+.sh-grid.shk-map{ grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); }
 .sh-folder, .sh-item{ position:relative; display:flex; flex-direction:column; align-items:center; gap:4px; padding:10px 8px 9px; border:1px solid var(--line); border-radius:12px; background:rgba(16,22,40,.55); cursor:pointer; user-select:none; transition:border-color .12s, background .12s, transform .12s; }
 .sh-folder:hover, .sh-item:hover{ border-color:rgba(201,168,76,.6); transform:translateY(-1px); }
 .sh-folder.drop{ border-color:var(--gold); background:rgba(201,168,76,.15); transform:scale(1.03); }
@@ -2101,7 +2101,7 @@ body.drop-ready #map::after{ content:'Drop images to add them as maps'; position
 .sh-name{ font-size:.8rem; line-height:1.15; color:var(--silver,#dce8ef); text-align:center; max-width:100%; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
 .sh-meta{ font-size:.68rem; color:var(--muted,#8fa3b3); text-align:center; }
 .sh-face.tok{ width:58px; height:58px; border-radius:50%; background:#1b2440 center/cover; display:flex; align-items:center; justify-content:center; font-family:Cinzel,serif; color:var(--gold); box-shadow:0 0 0 2px rgba(201,168,76,.35); }
-.sh-item.map{ align-items:stretch; padding:8px; } .sh-item.map .sh-name, .sh-item.map .sh-meta{ text-align:left; }
+.sh-item.shk-map{ align-items:stretch; padding:8px; } .sh-item.shk-map .sh-name, .sh-item.shk-map .sh-meta{ text-align:left; }
 .sh-face.map{ width:100%; aspect-ratio:16 / 9; border-radius:8px; overflow:hidden; background:#0a0e1a; display:flex; align-items:center; justify-content:center; } .sh-face.map img{ width:100%; height:100%; object-fit:cover; } .sh-face.map i{ font-size:.75rem; color:#e3a193; }
 .sh-item.live{ box-shadow:0 0 0 2px rgba(143,214,148,.55) inset; }
 .sh-item.sel{ border-color:var(--gold); background:rgba(201,168,76,.14); }
@@ -2112,8 +2112,10 @@ body.drop-ready #map::after{ content:'Drop images to add them as maps'; position
 .sh-acts{ position:absolute; top:6px; right:6px; z-index:2; display:flex; gap:2px; opacity:0; transition:opacity .12s; }
 .sh-folder:hover .sh-acts, .sh-item:hover .sh-acts{ opacity:1; }
 .sh-acts button{ width:22px; height:22px; padding:0; border-radius:6px; border:1px solid var(--line); background:rgba(10,14,26,.92); color:var(--silver,#dce8ef); font-size:.68rem; cursor:pointer; } .sh-acts button:hover{ border-color:var(--gold); color:var(--gold); }
+.sh-lasso{ position:fixed; z-index:400; border:1px solid var(--gold); background:rgba(201,168,76,.12); border-radius:4px; pointer-events:none; }
+.sh-body{ min-height:100%; }
 .shelf-ghost{ position:fixed; top:-100px; left:-100px; padding:6px 12px; border-radius:10px; background:#c9a84c; color:#0a0e1a; font-family:Cinzel,serif; font-size:.7rem; letter-spacing:.06em; }
-@media (max-width:700px){ .sh-grid.token{ grid-template-columns:repeat(auto-fill, minmax(82px, 1fr)); } .sh-grid.map{ grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); } .sh-tick, .sh-acts{ opacity:1; } }
+@media (max-width:700px){ .sh-grid.shk-token{ grid-template-columns:repeat(auto-fill, minmax(82px, 1fr)); } .sh-grid.shk-map{ grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); } .sh-tick, .sh-acts{ opacity:1; } }
 #mapPicker .mp-grid{ display:block !important; }
 #tokPalette .tp-box, #mapPicker .mp-box{ height:min(760px, calc(100vh - 40px)); }
 #tokPalette .tp-body{ display:block !important; flex:1 1 auto; min-height:0; overflow-y:auto !important; }
@@ -16063,6 +16065,40 @@ function shelfNewFolder(kind){
     nameFolder(kind, here ? here + '/' + n : n); shelfRepaint(kind);
   }});
 }
+
+/* Drag a box across empty space in the shelf to select every tile it touches (add to the
+   selection with Ctrl or Cmd held). */
+document.addEventListener('mousedown', function(e){
+  if (e.button !== 0) return;
+  var host = e.target.closest && e.target.closest('#tokPalette .tp-body, #mapPicker .mp-grid'); if (!host) return;
+  var body = host.querySelector('.sh-body'); if (!body) return;
+  if (e.target.closest('.sh-item, .sh-folder, .sh-bar, button, input')) return;
+  var kind = body.closest('#tokPalette') ? 'token' : 'map';
+  var keep = e.ctrlKey || e.metaKey, x0 = e.clientX, y0 = e.clientY, box = null, moved = false;
+  var tiles = [].slice.call(body.querySelectorAll('.sh-item'));
+  var ids = window['_shelfVis_' + kind] || [];
+  var base = keep ? Object.assign({}, SHELF[kind].sel) : {};
+  e.preventDefault();
+  function mv(ev){
+    var x1 = ev.clientX, y1 = ev.clientY;
+    if (!moved && Math.abs(x1 - x0) + Math.abs(y1 - y0) < 5) return;
+    moved = true;
+    if (!box){ box = document.createElement('div'); box.className = 'sh-lasso'; document.body.appendChild(box); }
+    var l = Math.min(x0, x1), t = Math.min(y0, y1), w = Math.abs(x1 - x0), h = Math.abs(y1 - y0);
+    box.style.left = l + 'px'; box.style.top = t + 'px'; box.style.width = w + 'px'; box.style.height = h + 'px';
+    var sel = Object.assign({}, base);
+    tiles.forEach(function(el, i){ var r = el.getBoundingClientRect(); var hit = r.right > l && r.left < l + w && r.bottom > t && r.top < t + h; el.classList.toggle('sel', hit || !!sel[ids[i]]); if (hit) sel[ids[i]] = 1; });
+    SHELF[kind]._lasso = sel;
+  }
+  function up(){
+    document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up);
+    if (box) box.remove();
+    if (moved){ SHELF[kind].sel = SHELF[kind]._lasso || base; delete SHELF[kind]._lasso; shelfRepaint(kind); }
+    else if (!keep && Object.keys(SHELF[kind].sel).length){ SHELF[kind].sel = {}; shelfRepaint(kind); }
+  }
+  document.addEventListener('mousemove', mv); document.addEventListener('mouseup', up);
+});
+
 /* the browser itself, returned as HTML for the window it sits in */
 function shelfHtml(kind, query){
   var st = SHELF[kind], items = shelfItems(kind), folders = shelfFolders(kind), q = String(query || '').trim().toLowerCase();
@@ -16077,7 +16113,7 @@ function shelfHtml(kind, query){
   var bar = '<div class="sh-bar"><div class="sh-crumbs">' + (q ? '<span class="sh-crumb here">Search results</span>' : crumbs) + '</div>'
     + (sel.length
       ? '<div class="sh-selbar"><b>' + sel.length + ' selected</b>' + (kind === 'token' ? '<button onclick="shelfPlaceAll()">Place all</button>' : '') + '<button onclick="shelfMoveTo(\'' + kind + '\')">Move to\u2026</button><button class="danger" onclick="shelfRemove(\'' + kind + '\')">Remove</button><button onclick="shelfSelNone(\'' + kind + '\')">Clear</button></div>'
-      : '<div class="sh-tools"><button onclick="shelfNewFolder(\'' + kind + '\')" title="A folder here">+ Folder</button><button onclick="shelfSelAll(\'' + kind + '\')" title="Select everything here (or Ctrl/Cmd click, Shift click)">Select</button></div>')
+      : '<div class="sh-tools"><button onclick="shelfNewFolder(\'' + kind + '\')" title="A folder here">+ Folder</button><button onclick="shelfSelAll(\'' + kind + '\')" title="Select everything here. Or drag a box across them, Ctrl/Cmd click, or Shift click.">Select all</button></div>')
     + '</div>';
   var visIds = [], h = '';
   function itemTile(it, showPath){
@@ -16089,7 +16125,7 @@ function shelfHtml(kind, query){
     var tools = kind === 'token'
       ? '<span class="sh-acts"><button title="Rename" onclick="event.stopPropagation();lmRenameToken(\'' + sid + '\')">\u270e</button><button title="Remove" onclick="event.stopPropagation();lmDeleteToken(\'' + sid + '\')">\u2715</button></span>'
       : '<span class="sh-acts"><button title="Rename" onclick="event.stopPropagation();lmRenameMap(\'' + sid + '\')">\u270e</button><button title="Remove" onclick="event.stopPropagation();lmDeleteMap(\'' + sid + '\')">\u2715</button></span>';
-    return '<div class="sh-item ' + kind + (on ? ' sel' : '') + (it.on ? ' live' : '') + '" draggable="true" ondragstart="shelfDragItem(event,\'' + kind + '\',\'' + sid + '\')" onclick="shelfClick(event,\'' + kind + '\',\'' + sid + '\')" title="' + esc(it.name) + '">'
+    return '<div class="sh-item shk-' + kind + (on ? ' sel' : '') + (it.on ? ' live' : '') + '" draggable="true" ondragstart="shelfDragItem(event,\'' + kind + '\',\'' + sid + '\')" onclick="shelfClick(event,\'' + kind + '\',\'' + sid + '\')" title="' + esc(it.name) + '">'
       + '<button class="sh-tick" onclick="shelfTick(event,\'' + kind + '\',\'' + sid + '\')" aria-label="Select">' + SHELF_ICON.tick + '</button>' + tools + face
       + '<span class="sh-name">' + esc(it.name) + '</span>'
       + (showPath ? '<span class="sh-meta">' + esc(it.folder ? it.folder.split('/').join(' \u203a ') : 'All') + '</span>' : (it.meta ? '<span class="sh-meta">' + esc(it.meta) + (it.on ? ' \u00b7 on the table' : '') + '</span>' : ''))
@@ -16097,7 +16133,7 @@ function shelfHtml(kind, query){
   }
   if (q){
     var hits = items.filter(function(it){ return String(it.name || '').toLowerCase().indexOf(q) >= 0; });
-    h = hits.length ? '<div class="sh-grid ' + kind + '">' + hits.map(function(it){ return itemTile(it, true); }).join('') + '</div>' : '<div class="tp-none">Nothing matches \u201c' + esc(q) + '\u201d.</div>';
+    h = hits.length ? '<div class="sh-grid shk-' + kind + '">' + hits.map(function(it){ return itemTile(it, true); }).join('') + '</div>' : '<div class="tp-none">Nothing matches \u201c' + esc(q) + '\u201d.</div>';
   } else {
     var subs = folderSiblings(folders, st.path);
     var here = items.filter(function(it){ return it.folder === st.path; });
@@ -16108,7 +16144,7 @@ function shelfHtml(kind, query){
         + '<span class="sh-ficon">' + SHELF_ICON.folder + '</span><span class="sh-name">' + esc(folderLeaf(f)) + '</span><span class="sh-meta">' + n + ' item' + (n === 1 ? '' : 's') + (kids ? ' \u00b7 ' + kids + ' folder' + (kids === 1 ? '' : 's') : '') + '</span></div>';
     }).join('');
     h = (ftiles ? '<div class="sh-grid folders">' + ftiles + '</div>' : '')
-      + (here.length ? '<div class="sh-grid ' + kind + '">' + here.map(function(it){ return itemTile(it, false); }).join('') + '</div>'
+      + (here.length ? '<div class="sh-grid shk-' + kind + '">' + here.map(function(it){ return itemTile(it, false); }).join('') + '</div>'
         : (ftiles ? '' : '<div class="tp-none">' + (st.path ? 'This folder is empty. Drag things onto its name above, or upload while it is open.' : 'Nothing saved yet. Upload some.') + '</div>'));
   }
   window['_shelfVis_' + kind] = visIds;
