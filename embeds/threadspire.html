@@ -8208,6 +8208,12 @@ function pushState(){
      and marks the version seen, so the real state is both destroyed and never pulled.
      That is the worst bug this file can have, so the gate is absolute. */
   if (_advSwitching) return;
+  /* The LoreMaster's table says nothing until it has heard what is stored. A freshly loaded
+     table holds the empty board and the empty scene layouts it starts with, and a push from
+     it then wrote those over the stored ones (merged in, but a key that is sent replaces the
+     stored one): the reload that lost every scene's map and every token. The push waits for
+     the first pull to land, and goes then. */
+  if (isLM() && !_mapStateLoaded && tsEmbedded()){ _pushWaitingLoad = true; return; }
   try { if (isLM() && _mapStateLoaded) sceneLayoutSave(); } catch(e){}
   try {
     var snap = sharedSnapshot();
@@ -8232,11 +8238,16 @@ function pushState(){
    pulls until its own change has landed; a change the site did not take is sent again a few
    seconds later. After a minute of failing it gives way and takes the site's copy, rather
    than drift for ever. Players are not held: they follow every pull. */
-var _pushesOut = 0, _pushFailingSince = 0, _pushRetryT = null;
+var _pushesOut = 0, _pushFailingSince = 0, _pushRetryT = null, _pushWaitingLoad = false, _pullEmpty = 0;
 function pushRetry(){
   if (!isLM()) return;
   if (!_pushFailingSince) _pushFailingSince = Date.now();
   clearTimeout(_pushRetryT); _pushRetryT = setTimeout(function(){ try { pushState(); } catch(e){} }, 4000);
+}
+/* the stored state has been heard (or there is none to hear): from here the table may write */
+function mapStateArrived(){
+  var was = _mapStateLoaded; _mapStateLoaded = true;
+  if (!was && _pushWaitingLoad){ _pushWaitingLoad = false; setTimeout(function(){ try { schedulePush(); } catch(e){} }, 300); }
 }
 function lmPullHeld(){
   if (!isLM() || !_mapStateLoaded) return false;
@@ -8290,7 +8301,7 @@ function applyRemoteSnapshot(snap){
   }
   if (snap.tokens) S.tokens = snap.tokens;
   if (snap.draw){ S.draw = drawMerge(S.draw, snap.draw); try { drawPaint(); } catch(e){} }
-  _mapStateLoaded = true;
+  mapStateArrived();
   if (snap.walls && !(isLM() && _wallDrag)){ S.walls = snap.walls; _fvMemo = null; try { wallPaint(); } catch(e){} }
   if (snap.lights && !(isLM() && _lightDrag)){ S.lights = snap.lights; _fvMemo = null; try { wallPaint(); } catch(e){} }
   /* the LoreMaster writes the music and takes the stored copy once, on arrival; after that
@@ -8375,7 +8386,9 @@ function applyRemoteSnapshot(snap){
                                    w:(snap.map && snap.map.w) || 2400, h:(snap.map && snap.map.h) || 1600, source:'table' });
     else if (have.url !== snap.backgroundUrl) have.url = snap.backgroundUrl;
   }
-  if (snap.instance && snap.instance.bindings && !(S._advTouch && Date.now() - S._advTouch < 8000)){
+  /* the first arrival is always taken: a table that has just loaded has touched its story
+     (which set the eight-second window) without having any layouts of its own to protect */
+  if (snap.instance && snap.instance.bindings && (!_bindTaken || !(S._advTouch && Date.now() - S._advTouch < 8000))){
     S.instance = S.instance || {};
     /* keep any stage this table already knows: the account list is the record, the
        snapshot only says how they are arranged */
@@ -8648,6 +8661,8 @@ function advReset(nextId){
   if (_logPushT){ clearTimeout(_logPushT); _logPushT = null; }
   S.campaignId = (nextId === '') ? '' : (nextId || S.campaignId);
   _lmBattleAsked = false; S._lmAt = 0; S._lmSeenAt = 0; S._leftAdv = '';
+  /* the next adventure's stored state has not been heard yet */
+  _mapStateLoaded = false; _pullEmpty = 0; _pushWaitingLoad = false;
   /* the new adventure's stored layouts, music, weather and notes are taken afresh */
   _bindTaken = false; _fxTaken = false; S.effects = {}; _musicTaken = false; try { _wxTaken = false; _notesTaken = false; } catch(e){}
   S.music = null; S.weather = {}; S.notes = {};
@@ -9523,7 +9538,13 @@ function startStateFeed(){
       /* an answer about the adventure we just left is not news, it is the past */
       if (!isLM() && !S.campaignId){ SEAM.pullGot = 'no adventure'; seamPaint(); return; }
       if (res.campaignId && S.campaignId && !sameId(res.campaignId, S.campaignId)){ SEAM.pullGot = 'other adventure (' + String(res.campaignId).slice(0,8) + ')'; seamPaint(); return; }
-      if (res.version === undefined){ SEAM.pullGot = 'no row yet'; seamPaint(); return; }
+      if (res.version === undefined || res.none){
+        /* nothing stored for this adventure: a new one. The site says so (none); an older
+           backend cannot tell that from a failed read, so six empty answers in a row on a
+           table that has heard nothing stand for the same. Only then may it write. */
+        if (!_mapStateLoaded && (res.none || ++_pullEmpty >= 6)) mapStateArrived();
+        SEAM.pullGot = res.none ? 'nothing stored yet' : 'no row yet'; seamPaint(); return;
+      }
       if (res.version > _stateSeen){ _stateSeen = res.version; SEAM.pullV = res.version; SEAM.pullGot = 'new state v' + res.version; applyRemoteSnapshot(res.snap); }
       else { SEAM.pullGot = 'nothing newer than v' + _stateSeen; }
       seamPaint();

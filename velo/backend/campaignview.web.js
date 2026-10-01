@@ -55,7 +55,9 @@ export const getCampaignState = webMethod(Permissions.Anyone, async (campaignId,
   const mid = await memberId(); if (!mid || !campaignId) return null;
   try {
     const r = await wd.query(CV).eq('campaignId', String(campaignId)).limit(1).find({ suppressAuth: true });
-    const row = r.items[0]; if (!row) return null;
+    const row = r.items[0];
+    // nothing stored yet is an answer of its own, not a failed read: a new adventure
+    if (!row) return { version: 0, none: true, snap: null };
     if (typeof since === 'number' && (row.version || 0) <= since) return null;
     let snap = null; try { snap = JSON.parse(row.snapshot || 'null'); } catch (e) { snap = null; }
     return { version: row.version || 0, snap: snap, tele: TELE_CV };
