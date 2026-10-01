@@ -1,0 +1,50 @@
+name: State Doctor
+
+on:
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: 'Backup run ids to compare, comma separated'
+        required: false
+        default: ''
+      restore:
+        description: 'campaignId to restore (blank to only report)'
+        required: false
+        default: ''
+      from:
+        description: 'backup run id to restore from'
+        required: false
+        default: ''
+
+jobs:
+  doctor:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    env:
+      WIX_API_KEY: ${{ secrets.WIX_API_KEY }}
+      WIX_SITE_ID: ${{ secrets.WIX_SITE_ID }}
+      WIX_ACCOUNT_ID: ${{ secrets.WIX_ACCOUNT_ID }}
+      RESTORE: ${{ inputs.restore }}
+      FROM: ${{ inputs.from }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Fetch backups
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUNS: ${{ inputs.runs }}
+        run: |
+          mkdir -p doctor-backups
+          for r in $(echo "$RUNS" | tr ',' ' '); do
+            mkdir -p "doctor-backups/$r"
+            gh run download "$r" -R "$GITHUB_REPOSITORY" -D "doctor-backups/$r" || echo "::warning::could not fetch $r"
+            # the artifact unpacks into a folder named after it; lift its timestamp folders up
+            for d in doctor-backups/$r/*/; do [ -d "$d" ] && find "$d" -mindepth 1 -maxdepth 1 -type d -exec mv {} "doctor-backups/$r/" \; ; done
+          done
+          find doctor-backups -maxdepth 3 -type d | head -40
+      - name: Diagnose
+        run: node scripts/stateDoctor.js
