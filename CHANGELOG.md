@@ -1,3 +1,7 @@
+## 2026-09-28 - Long names fit the portrait's name plate
+
+A name too long for the plate under the portrait (a speaker such as Prior Halvek Sorn, or a long Fell name) ran off both ends. The type now steps down until the name fits, to about two thirds of its size; a name still too long then takes two lines at that size, and anything beyond is cut with an ellipsis. The full name is on the plate's tooltip.
+
 ## 2026-09-28 - Map notes move with the map; notes copy to scenes; FateWell's speakers at the table
 
 Map notes jumped about while the map moved: they were placed by a redraw on a timer, so they lagged the camera. They are now moved with every pan and zoom, as tokens are, and only rebuilt when the notes themselves change. Copy to scenes gains Map notes (replace or join, like tokens and effects). A dialogue speaker chosen in FateWell did not reach the table: the scene's FateWell entries became beats without their speaker (or art), and FateWell names a speaker by its library record, which the table's cast lookup did not recognise. Beats now keep speaker, art and handle, and a speaker is found by its library record in the cast, or from the library itself, so the speaker's name and portrait show, on the beat and in the LoreMaster's portrait.
