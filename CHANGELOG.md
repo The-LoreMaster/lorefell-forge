@@ -1,3 +1,7 @@
+## 2026-09-28 - Hide a token's name
+
+The token menu gains a name toggle (and the selection bar a Name button): with the name hidden, players see the token without its label, and the LoreMaster sees the label dimmed and struck through, so it is plain which names are hidden. It can be changed at any time, is kept with the token (nameHidden) for everyone, and travels in an export.
+
 ## 2026-09-28 - Spaces, not squares
 
 LoreFell counts in spaces. The table now says so wherever it showed squares: the distance while dragging a token (3 sp of 5), the ruler (4 spaces), the spaces left to place, a light's reach (3 sp), an effect's size, a carried light, and the log's placement lines.
