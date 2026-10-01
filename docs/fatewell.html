@@ -2872,8 +2872,6 @@ function rowToAsset(r){
     e.augments = Array.isArray(fm.augments) ? fm.augments : [];
     if (fm.atkPref) e.atkPref = fm.atkPref;
     e.infusions = Array.isArray(fm.infusions) ? fm.infusions : jp(pick('infusions'), []);
-    if (fm.campaignId !== undefined) e.campaignId = fm.campaignId || '';
-    if (fm.campaignName !== undefined) e.campaignName = fm.campaignName || '';
   } else {
     e.role = pick('role') || '';
     if (type==='npc'){
@@ -2883,6 +2881,12 @@ function rowToAsset(r){
       e.abilities = jp(pick('abilities'), []);
     }
   }
+  /* the adventure an entry belongs to rides in foeMeta for every kind, NPCs and items as well
+     as foes; reading it only for foes lost an NPC's adventure on every reload */
+  var fmA = jp(pick('foeMeta'), {});
+  if (fmA && fmA.campaignId !== undefined) e.campaignId = fmA.campaignId || '';
+  if (fmA && fmA.campaignName !== undefined) e.campaignName = fmA.campaignName || '';
+  if (!e.campaignId && pick('campaignId')) e.campaignId = pick('campaignId');
   return e;
 }
 function pushAsset(e){ postToWix({ type:'lmtool-asset-save', asset: assetToRow(e) }); }
@@ -5609,7 +5613,7 @@ function clearToken(){
 /* Options for the asset's campaign field. Assets are a shared library, but each can be
    tagged to one campaign so you can filter and organize by it. Empty means any campaign. */
 function assetCampaignOptions(sel){
-  var o = '<option value=""'+(!sel?' selected':'')+'>Any campaign</option>';
+  var o = '<option value=""'+(!sel?' selected':'')+'>Any adventure</option>';
   (S.campaigns||[]).forEach(function(c){
     o += '<option value="'+esc(c.id)+'"'+(sel===c.id?' selected':'')+'>'+esc(c.name||'Untitled')+'</option>';
   });
@@ -5654,7 +5658,7 @@ function wizard(type, entry){
   } else {
     h += '<label class="lbl">Item type</label><input class="inp" id="wRole" value="'+esc(entry?entry.role:'')+'" placeholder="Weapon, relic, consumable...">';
   }
-  h += '<label class="lbl">Campaign</label>'
+  h += '<label class="lbl">Adventure</label>'
     + '<select class="inp" id="wCampaign">'+assetCampaignOptions(entry?entry.campaignId:((curC()&&!entry)?curC().id:''))+'</select>'
     + '<label class="lbl">Description</label>'
     + '<textarea class="inp ta" id="wDesc">'+esc(entry?entry.desc:'')+'</textarea>'
@@ -7019,7 +7023,7 @@ function addManualRef(ref){
         + '<span class="muted">'+(e.sr?esc(e.sr):(e.role?esc(e.role):TYPE_LABEL[e.type]))+'</span></button>';
     });
   });
-  if (!any) h += '<p class="muted small-note">No assets tagged to this campaign. Use the button above to show all.</p>';
+  if (!any) h += '<p class="muted small-note">Nothing is tagged to this adventure yet. Use the button above to show the whole library.</p>';
   h += '<div class="m-row"><button class="btn ghost" onclick="closeModal()">Close</button></div>';
   modal(h);
 }
@@ -7768,7 +7772,7 @@ function foeSheet(id, src){
   h += '<label class="lbl">Image</label>' + fsTokenField(f.img);
   h += '<label class="lbl">Description</label>'
     + '<textarea class="inp ta" oninput="fsSetDesc(this.value)" onchange="fsPushFoe()" placeholder="What it is, in a line or two">'+esc(f.desc||'')+'</textarea>';
-  h += '<label class="lbl">Campaign</label>'
+  h += '<label class="lbl">Adventure</label>'
     + '<select class="inp" onchange="fsSetCampaign(this.value)">'+assetCampaignOptions(f.campaignId||'')+'</select>'
     + '<p class="muted small">Which campaign this foe belongs to. Tie it to a campaign to keep it off the shelf in your others. Any campaign keeps it everywhere.</p>';
   h += '<p class="muted">'+(f.sr?esc(f.sr)+' &middot; ':'')+(f.maxVit||0)+' vit</p>';
@@ -11510,7 +11514,11 @@ function libScoped(list){
   if ((V.libScope||'current') === 'all') return list;
   var cid = (curC()||{}).id || '';
   if (!cid) return list;
-  return list.filter(function(e){ return !e.campaignId || e.campaignId === cid; });
+  /* this adventure's cast only; items with no adventure still show */
+  return list.filter(function(e){
+    if (e.type === 'monster' || e.type === 'npc') return !!e.campaignId && String(e.campaignId) === String(cid);
+    return !e.campaignId || String(e.campaignId) === String(cid);
+  });
 }
 /* Selection mode. Tapping a card picks it rather than opening it. */
 function libSelCount(){ var n=0, s=V.libSel||{}; for (var k in s){ if (s[k]) n++; } return n; }
@@ -11582,7 +11590,7 @@ function scrLibrary(){
   if (cname){
     h += '<div class="search-scope lib-scope">'
       + '<button class="search-tab'+(scope==='current'?' on':'')+'" onclick="setLibScope(\'current\')">'+esc(cname)+'</button>'
-      + '<button class="search-tab'+(scope==='all'?' on':'')+'" onclick="setLibScope(\'all\')">All campaigns</button>'
+      + '<button class="search-tab'+(scope==='all'?' on':'')+'" onclick="setLibScope(\'all\')">All adventures</button>'
       + '</div>';
   }
 
@@ -11604,7 +11612,7 @@ function scrLibrary(){
   var list = libScoped(S.library.filter(function(e){ return V.libFilter==='all' || e.type===V.libFilter; }));
   if (!list.length){
     if (scope==='current' && cname && S.library.length)
-      h += '<p class="muted small-note">Nothing here is tagged to '+esc(cname)+'. Switch to All campaigns to see the rest of the shelf.</p>';
+      h += '<p class="muted small-note">Nothing here is tagged to '+esc(cname)+'. Switch to All adventures to see the rest of the shelf.</p>';
     h += emptyState('Nothing here yet. Profiles you create can be attached to any scene in any campaign.', 'New profile', 'newProfile()');
   } else {
     list.forEach(function(e){
