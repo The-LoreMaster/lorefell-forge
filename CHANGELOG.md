@@ -1,3 +1,7 @@
+## 2026-09-28 - Tablets: the die asks first, and a Full screen button
+
+On a tablet in a desktop layout the dice tray rolled on every tap, because the roll type is chosen by hovering, which a touch screen cannot do. Any screen without a hovering pointer now does what a phone does: a tap on the die opens the roll types, and choosing one rolls. The map bar gains a Full screen button for everyone (F still works), which tablets lacked.
+
 ## 2026-09-28 - FellGlass makes the Dice Prefs row too
 
 Opening FellGlass now calls myDice once, quietly, so a member who only ever uses the sheet still gets their named Dice Prefs row and can be granted dice before reaching a table. Paste velo/page-fellglass.js.
