@@ -1,3 +1,7 @@
+## 2026-09-28 - Attached NPCs and dialogue speakers are in the roster
+
+In FateWell an attached NPC or foe was reference only, outside the scene's roster, so the table could not count it or place it without a second step. Now the people in a scene are its roster: attaching an NPC or foe to a scene adds it to the roster, and so does setting someone as a dialogue entry's speaker in that scene. Every adventure, the first time it is opened after this, brings each scene's attached and speaking NPCs and foes into its roster once (rosterSynced), and saves, which carries them to ThreadSpire; removing one from the roster afterwards is left alone. NPCs carried down from the adventure, act or session stay as reference, since they belong to every scene.
+
 ## 2026-09-28 - FateWell's attached NPCs and foes at the table
 
 FateWell's Attached NPCs and items are reference pinned to a scene (or carried down from its adventure, act or session), not the scene's roster, so ThreadSpire showed a roster of 0 and could not place them. The roster window now lists them under Attached in FateWell, each with Add to the roster (and Add all), and Place a token offers them alongside the scene's own NPCs and foes, so they can go straight onto the map. Only library foes and NPCs not already in the cast are listed.
