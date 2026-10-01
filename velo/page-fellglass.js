@@ -9,7 +9,7 @@
 // Fell (initNeedsCreated), it bounces an entry that already has a character to the
 // table, and it navigates when the sheet asks for ThreadSpire.
 
-import { listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter, leaveAdventure, consultArchive } from 'backend/characters.web.js';
+import { listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter, leaveAdventure, consultArchive, myDice } from 'backend/characters.web.js';
 import { getClueCards, listQuests } from 'backend/fatewell.web.js';
 import { getCombatForChar, saveCombatDeclare, syncCombatPlayer } from 'backend/combat.web.js';
 import { getLibraries } from 'backend/libraries.web.js';
@@ -25,6 +25,9 @@ const api = {
 };
 
 $w.onReady(() => {
+  // A member opening FellGlass gets their Dice Prefs row too (made once, named), so the
+  // LoreMaster can grant them dice before they ever reach a table. Quiet if signed out.
+  myDice().catch(() => {});
   const embed = $w(EMBED);
   let charId = (wixLocation.query && wixLocation.query.charId) || '';
 
