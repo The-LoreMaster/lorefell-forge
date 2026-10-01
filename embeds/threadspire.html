@@ -2034,6 +2034,7 @@ body.drop-ready #map::after{ content:'Drop images to add them as maps'; position
 .fx-kinds button.on{ border-color:var(--gold); color:var(--gold); background:rgba(201,168,76,.1); }
 .fx-row{ display:flex; flex-direction:column; gap:3px; font-size:.75rem; color:var(--muted,#8fa3b3); } .fx-row b{ color:var(--gold); font-weight:400; } .fx-row input[type=range]{ accent-color:var(--gold); width:100%; } .fx-row input[type=color]{ width:100%; height:28px; border:1px solid var(--line); border-radius:7px; background:none; padding:2px; }
 .fx-chk{ display:flex; gap:8px; align-items:center; font-size:.82rem; } .fx-chk input{ accent-color:var(--gold); }
+.rs-attn{ font-family:'Crimson Pro',Georgia,serif; font-style:italic; text-transform:none; letter-spacing:0; font-size:.8rem; color:var(--muted,#8fa3b3); margin-left:6px; } .rs-kind{ font-style:normal; font-size:.72rem; color:var(--muted,#8fa3b3); margin-left:4px; }
 </style>
 </head>
 <body>
@@ -3947,6 +3948,7 @@ function rosterRemove(sceneId, kind, id){
 }
 
 /* ---- roster member sheet: name, art and stats, the same fields FateWell edits ---- */
+function rosterAttachAll(sceneId){ var f = storyFind('scene', sceneId); if (!f) return; sceneAttached(f.scene).forEach(function(e){ libAttach(sceneId, e.id); }); }
 function rosterReopenAfter(){ if (window._rosterScene) rosterWindow(window._rosterScene); else tsCloseModal(); }
 /* LoreFell canon combat formulas. The single source of the foe-derivation math shared by
    ThreadSpire and FateWell, so the two tools cannot drift. Generated into both tools by
@@ -4893,6 +4895,15 @@ function storyRosterHtml(sc){
                    openFn: 'entrySheet(\'roster\',\'' + sc.id + '\',\'' + c.kind + '\',\'' + c.id + '\')',
                    corner: '<button class="card-x" title="Remove" onclick="event.stopPropagation();rosterRemove(\'' + sc.id + '\',\'' + c.kind + '\',\'' + c.id + '\')">\u2715</button>' });
   });
+  var att = sceneAttached(sc);
+  if (att.length){
+    h += '<div class="st-sub">Attached in FateWell <span class="rs-attn">reference, not yet in the roster</span></div>';
+    att.forEach(function(e){
+      h += '<div class="rs-row"><span class="rs-name">' + esc(e.name) + ' <i class="rs-kind">' + (e.type === 'npc' ? 'NPC' : 'Foe') + '</i></span>'
+        + '<button class="rs-pill" onclick="libAttach(\'' + sc.id + '\',\'' + String(e.id).replace(/'/g, "\\'") + '\')">Add to the roster</button></div>';
+    });
+    if (att.length > 1) h += '<button class="st-add" onclick="rosterAttachAll(\'' + sc.id + '\')">Add all ' + att.length + ' to the roster</button>';
+  }
   h += '<div class="rs-adds"><button class="st-add" onclick="rosterAddFromLib(\'' + sc.id + '\')">Add from library</button>'
     + '<button class="st-add" onclick="rosterAdd(\'' + sc.id + '\',\'npc\')">New NPC</button>'
     + '<button class="st-add" onclick="rosterAdd(\'' + sc.id + '\',\'foe\')">New foe</button></div>';
@@ -9700,6 +9711,20 @@ function loadAccountStages(){
 var lmTokensOpen = false;
 /* the palette sources, all real records handed over through the seam:
    foes and NPCs the adventure preloaded, and the Fell from their FellGlass sheets. */
+/* FateWell's Attached NPCs and items: library entries pinned to a scene (refs), or carried
+   down from its adventure, act or session (manualRefs), as reference. They are not the roster
+   (the roster is who is in the scene's fight and story), but the table should still be able to
+   put them on the map and pull them into the roster. Library foes and NPCs only, not yet in the
+   cast. */
+function sceneAttached(sc){
+  sc = sc || S.scene || {};
+  var ids = [], seen = {};
+  var push = function(list){ (list || []).forEach(function(id){ if (id && !seen[id]){ seen[id] = 1; ids.push(id); } }); };
+  push(sc.refs);
+  try { var hit = tsSceneById(sc.id); if (hit){ push(S.adventure && S.adventure.manualRefs); push(hit.act && hit.act.manualRefs); push(hit.ses && hit.ses.manualRefs); } } catch(e){}
+  var inCast = {}; (sc.combatants || []).concat(sc.foes || [], sc.npcs || []).forEach(function(c){ if (c && c.libId) inCast[String(c.libId)] = 1; });
+  return ids.map(libGet).filter(function(e){ return e && (e.type === 'npc' || e.type === 'monster') && !inCast[String(e.id)]; });
+}
 function tokenPalette(){
   var foes = (S.scene.foes||[]).map(function(f){
     return { kind:'foe', label:initials(f.name), name:f.name, img:f.img||null, cells:f.sr==='Champion'?2:1, refId:f.id, source:'adventure' };
@@ -9726,6 +9751,11 @@ function tokenPalette(){
     var nm = p.charName || p.name || 'Fell';
     fell.push({ kind:'p', label:initials(nm), name:nm, img:p.img || portraitFor(p.charId) || null,
                 cells:1, refId:p.charId, charId:p.charId, source:'roster' });
+  });
+  /* the scene's attached NPCs and foes can go on the map too, as tokens of their own */
+  sceneAttached(S.scene).forEach(function(e){
+    var chip = { kind:(e.type === 'npc' ? 'npc' : 'foe'), label:initials(e.name), name:e.name, img:e.img || null, cells:1, refId:'ref-' + e.id, source:'attached' };
+    if (e.type === 'npc') npcs.push(chip); else foes.push(chip);
   });
   var account = (S.scene.accountTokens||[]).slice();
   return { foes:foes, npcs:npcs, fell:fell, account:account };
