@@ -2599,22 +2599,35 @@ function storySave(){
   advPersistActiveScene();
 }
 var _advSaveTimer = null;
+/* Scenes waiting to be written. The active one always is; a scene edited from the Story
+   window (its roster, say) while another is on the table is marked here too. Writing only the
+   active scene is what lost a roster built for any other scene: added, shown, and gone on the
+   next reload. */
+var _advDirty = {};
+function advMarkScene(sid){ if (sid) _advDirty[String(sid)] = true; }
 function advPersistActiveScene(){
   if (!isLM() || !S.adventure) return;
   var sid = S.adventure.activeSceneId || (S.scene && S.scene.id);
-  if (!sid) return;
+  if (sid) _advDirty[String(sid)] = true;
+  if (!Object.keys(_advDirty).length) return;
   if (_advSaveTimer) clearTimeout(_advSaveTimer);
   _advSaveTimer = setTimeout(function(){
     _advSaveTimer = null;
-    var hit = (typeof tsSceneById === 'function') ? tsSceneById(sid) : null;
-    if (!hit || !hit.scene) return;
-    var actId = (hit.act && hit.act.id) || '';
-    var sesId = (hit.ses && hit.ses.id) || '';
-    /* strip the transient board fields before the scene is stored: they belong to the live
-       relay, not the authored record, and re-saving them would bloat the row and leak one
-       table's live positions into the stored story. */
-    var scene = advCleanScene(hit.scene);
-    tsAsk('TS_ADV_SAVE_SCENE', { actId:actId, sesId:sesId, scene:scene }).catch(function(){});
+    var ids = Object.keys(_advDirty); _advDirty = {};
+    ids.forEach(function(id){
+      var hit = (typeof tsSceneById === 'function') ? tsSceneById(id) : null;
+      if (!hit || !hit.scene) return;
+      var actId = (hit.act && hit.act.id) || '';
+      var sesId = (hit.ses && hit.ses.id) || '';
+      /* strip the transient board fields before the scene is stored: they belong to the live
+         relay, not the authored record, and re-saving them would bloat the row and leak one
+         table's live positions into the stored story. */
+      var scene = advCleanScene(hit.scene);
+      tsAsk('TS_ADV_SAVE_SCENE', { actId:actId, sesId:sesId, scene:scene }).catch(function(){
+        /* not taken: mark it again, and try once more shortly */
+        advMarkScene(id); setTimeout(advPersistActiveScene, 4000);
+      });
+    });
   }, 900);
 }
 /* When the SHAPE of the adventure changes, a new act, session or scene, a rename, a
@@ -3884,20 +3897,23 @@ function libAttach(sceneId, libId){
      add here reaches FateWell too. The combatant object is the same one the board holds. */
   f.scene.combatants = f.scene.combatants || [];
   f.scene.combatants.push(cb);
-  storySave(); rosterReopenAfter(); render();
+  advMarkScene(sceneId); storySave(); rosterReopenAfter(); render();
 }
 function rosterAdd(sceneId, kind){
   var f = storyFind('scene', sceneId); if (!f) return;
   tsAsk2({ title: kind === 'npc' ? 'Add an NPC' : 'Add a foe', label:'Name', cta:'Add', onSave:function(n){
     if (!n) return;
+    /* a hand-made entry goes into the stored roster (combatants) as well as the board list;
+       the board lists are not stored, so one added only there was gone on reload */
+    f.scene.combatants = f.scene.combatants || [];
     if (kind === 'npc'){
-      f.scene.npcs = f.scene.npcs || [];
-      f.scene.npcs.push({ id:mkId(), name:n, img:'' });
+      var np = { id:mkId(), name:n, img:'', type:'npc', side:'npc' };
+      f.scene.npcs = f.scene.npcs || []; f.scene.npcs.push(np); f.scene.combatants.push(np);
     } else {
-      f.scene.foes = f.scene.foes || [];
-      f.scene.foes.push({ id:mkId(), name:n, sr:'', side:'foe', curVit:0, maxVit:0, charge:0, img:'' });
+      var fo = { id:mkId(), name:n, sr:'', side:'foe', type:'monster', curVit:0, maxVit:0, charge:0, img:'' };
+      f.scene.foes = f.scene.foes || []; f.scene.foes.push(fo); f.scene.combatants.push(fo);
     }
-    storySave(); rosterRefresh(); render();
+    advMarkScene(sceneId); storySave(); rosterRefresh(); render();
   }});
 }
 function rosterRemove(sceneId, kind, id){
@@ -3909,7 +3925,7 @@ function rosterRemove(sceneId, kind, id){
   f.scene.combatants = (f.scene.combatants || []).filter(function(cb){
     return !sameId(cb.id, id) && !sameId(tsFoeId(cb, 0), id);
   });
-  storySave(); rosterRefresh(); render();
+  advMarkScene(sceneId); storySave(); rosterRefresh(); render();
 }
 
 /* ---- roster member sheet: name, art and stats, the same fields FateWell edits ---- */

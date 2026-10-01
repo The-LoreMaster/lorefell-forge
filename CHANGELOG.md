@@ -1,3 +1,7 @@
+## 2026-09-28 - A roster built for any scene is saved
+
+Adding foes or NPCs to a scene's roster saved only the scene on the table: a roster built for any other scene, from the Story window, showed, then was gone on reload. Scenes edited from the roster are now marked and written alongside the active one, and a write the site does not take is tried again. A foe or NPC added by name (not from the library) went only into the board list, which is not stored; it now goes into the stored roster too.
+
 ## 2026-09-28 - Scene layouts stick: the LoreMaster's table takes them once
 
 Scenes still came back with the wrong map after a reload. The LoreMaster's table took the stored scene layouts on every pull (unless touched in the last eight seconds), so an older copy still in flight put each scene's old map back moments after a new one was chosen, and the next save stored the old one. The LoreMaster's table now takes the stored layouts once, on arrival, and is their source after that, as with the music; players follow every pull. A scene with only a map or only a grid of its own (no stage) is now sent too, and a layout's tokens are slimmed like any others. Switching adventures now resets these take-once marks (layouts, music, weather, notes), so the next adventure's stored copies are taken rather than skipped. The Grid panel's Apply to scenes label showed \u2026 as text; fixed.
