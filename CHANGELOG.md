@@ -1,3 +1,7 @@
+## 2026-09-28 - Spaces, not squares
+
+LoreFell counts in spaces. The table now says so wherever it showed squares: the distance while dragging a token (3 sp of 5), the ruler (4 spaces), the spaces left to place, a light's reach (3 sp), an effect's size, a carried light, and the log's placement lines.
+
 ## 2026-09-28 - Tokens wear their library art
 
 A scene's NPCs were cast with only an id and a name, so their image (and library link) was dropped, and a foe or NPC cast before the library had loaded had no art either; their tokens landed wearing the default portrait. The cast now keeps each NPC's image and library id, and the token palette and the tokens on the map look the art up from the library record at the moment they draw, so it is found however late the library arrives. Tokens already placed without art pick it up too.
