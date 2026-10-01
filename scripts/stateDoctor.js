@@ -22,14 +22,22 @@ function counts(snapStr) {
   return { ok: true, tracks: (m.tracks || []).length, lists: (m.lists || []).length, scenesWithMusic: Object.keys(m.scenes || {}).length,
     instStages: (inst.stages || []).length, boundScenes: bound, weather: Object.keys(s.weather || {}).length, notes: Object.keys(s.notes || {}).length, keys: Object.keys(s).sort().join(",") };
 }
-function note(msg) { console.log("::notice::" + msg); }
+const LINES = [];
+function note(msg) { LINES.push(msg); }
+function flush() {
+  // GitHub keeps only a handful of notices per step, so the report is packed into a few
+  const chunks = []; let cur = "";
+  LINES.forEach((l) => { if ((cur + " || " + l).length > 900) { chunks.push(cur); cur = l; } else cur = cur ? cur + " || " + l : l; });
+  if (cur) chunks.push(cur);
+  chunks.slice(0, 9).forEach((c) => console.log("::notice::" + c));
+  if (chunks.length > 9) console.log("::notice::(" + (chunks.length - 9) + " more chunks)");
+}
 
 (async () => {
   const live = await all("CampaignView");
   const stages = await all("Stages");
   const stageCount = {}; stages.forEach((st) => { const c = String(st.campaignId || ""); stageCount[c] = (stageCount[c] || 0) + 1; });
-  note("LIVE CampaignView rows: " + live.length + "; Stages rows: " + stages.length);
-  live.forEach((row) => { const c = counts(row.snapshot); note("LIVE " + row.campaignId + " v" + row.version + " " + JSON.stringify(c) + " stagesRows=" + (stageCount[row.campaignId] || 0)); });
+  const liveBy = {}; live.forEach((row) => { liveBy[row.campaignId] = counts(row.snapshot); });
 
   const base = path.resolve(__dirname, "..", "doctor-backups");
   const backups = {};
@@ -43,12 +51,26 @@ function note(msg) { console.log("::notice::" + msg); }
         const items = (JSON.parse(fs.readFileSync(f, "utf8")).items || []).map((it) => it.data || it);
         const sf = path.join(runDir, ts, "Stages.json");
         const sItems = fs.existsSync(sf) ? (JSON.parse(fs.readFileSync(sf, "utf8")).items || []).map((it) => it.data || it) : [];
-        backups[run] = { ts, items };
-        items.forEach((row) => { const c = counts(row.snapshot); note("BACKUP " + run + " " + ts + " " + row.campaignId + " v" + row.version + " " + JSON.stringify(c) + " stagesRows=" + sItems.filter((x) => String(x.campaignId) === String(row.campaignId)).length); });
+        backups[run] = { ts, items, sItems };
       }
     }
   }
 
+  // only what differs: per adventure, live against each backup (t songs, l playlists, s stages, b scenes bound, r Stages rows)
+  const fmt = (c, rows) => c && c.ok ? ("t" + c.tracks + " l" + c.lists + " s" + c.instStages + " b" + c.boundScenes + " r" + rows) : "-";
+  Object.keys(liveBy).forEach((cid) => {
+    const parts = ["LIVE " + fmt(liveBy[cid], stageCount[cid] || 0)];
+    let interesting = (liveBy[cid].tracks || liveBy[cid].instStages);
+    Object.keys(backups).forEach((run) => {
+      const b = backups[run], row = b.items.find((r) => String(r.campaignId) === String(cid));
+      if (!row) return;
+      const c = counts(row.snapshot), rows = b.sItems.filter((x) => String(x.campaignId) === String(cid)).length;
+      if (c.tracks || c.instStages || rows) interesting = true;
+      parts.push(run.slice(-6) + "@" + b.ts.slice(5, 16) + " " + fmt(c, rows));
+    });
+    if (interesting) note(cid + ": " + parts.join(" | "));
+  });
+  note("Stages rows live: " + stages.length + " across " + Object.keys(stageCount).length + " adventures");
   const target = process.env.RESTORE || "", from = process.env.FROM || "";
   if (target && from) {
     const b = backups[from]; if (!b) { note("RESTORE: no backup " + from); return; }
@@ -65,4 +87,5 @@ function note(msg) { console.log("::notice::" + msg); }
     const u = await req("PUT", "/wix-data/v2/items/" + encodeURIComponent(item.id || item._id || item.data._id), { dataCollectionId: "CampaignView", dataItem: { id: item.id || item.data._id, data } });
     note("RESTORE " + target + " from " + from + ": " + (u.ok ? "done" : "failed " + u.status) + " " + JSON.stringify(counts(cs)));
   }
-})().catch((e) => { console.log("::error::" + String(e)); process.exit(1); });
+  flush();
+})().catch((e) => { console.log("::error::" + String(e)); flush(); process.exit(1); });
