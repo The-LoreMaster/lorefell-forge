@@ -2543,6 +2543,7 @@ function applyCam(){
     'translate(' + cam.x + 'px,' + cam.y + 'px) scale(' + cam.zoom + ')';
   if (typeof placeTokens === 'function') placeTokens();
   if (typeof placeTokMenu === 'function') placeTokMenu();
+  if (typeof notesPlace === 'function') notesPlace();
 }
 function clampCam(){
   var v = viewBox();
@@ -5020,6 +5021,11 @@ function castGet(id, sc){
   if (!id) return null;
   var l = castList(sc);
   for (var i = 0; i < l.length; i++) if (sameId(l[i].id, id) || l[i].name === id) return l[i];
+  /* FateWell names a speaker by its library record: match the cast member made from it */
+  for (var j = 0; j < l.length; j++){ var c = l[j]; if ((c.lib && sameId(c.lib.id, id)) || (c.ref && sameId(c.ref.libId, id))) return c; }
+  /* or, not in the cast at all, the library record itself */
+  var e = libGet(id);
+  if (e) return { id:e.id, name:e.name, img:e.img || '', kind:(e.type === 'npc' ? 'npc' : 'foe'), lib:e, ref:null };
   return null;
 }
 /* a beat's speaker, resolved to name, colour, portrait and any stats it carries */
@@ -9390,7 +9396,7 @@ function tsSceneFromSpine(sc){
   return Object.assign({}, sc, {
     name: sc.name || 'Scene', id: sc.id, combatPhase:null, background:null,
     maps: seed.maps || [], spotMode:'auto', manual:{}, spotOrder:[], activeSpot:0,
-    beats: (sc.beats && sc.beats.length) ? sc.beats : (sc.entries || []).map(function(e){ return { kind: e.type || 'general', title: e.title || '', body: e.body || '' }; }),
+    beats: (sc.beats && sc.beats.length) ? sc.beats : (sc.entries || []).map(function(e){ return { id: e.id, kind: e.type || 'general', title: e.title || '', body: e.body || '', speaker: e.speaker || '', img: e.img || '', handle: e.handle || '' }; }),
     entries: sc.entries || [], out: sc.out || {},
     prep: sc.prep || '', desc: sc.desc || '', mode: sc.mode || 'roleplay', status: sc.status || 'active',
     combatants: sc.combatants || [],
@@ -9502,7 +9508,7 @@ function tsSpineScene(sc, c){
   });
   return Object.assign({}, sc, {
     id: sc.id, name: sc.name,
-    beats: sc.beats || (sc.entries || []).map(function(e){ return { kind: e.type || 'general', title: e.title || '', body: e.body || '' }; }),
+    beats: sc.beats || (sc.entries || []).map(function(e){ return { id: e.id, kind: e.type || 'general', title: e.title || '', body: e.body || '', speaker: e.speaker || '', img: e.img || '', handle: e.handle || '' }; }),
     combatants: source.slice(),
     foes: foes, npcs: npcs, fell: (c.players || []).map(tsCastFell)
   });
@@ -15864,10 +15870,18 @@ function weatherPanelPaint(){
 /* ---- map notes: pins only the LoreMaster sees, until one is shown to the table ---- */
 var _noteAdd = false, _wxTaken = false, _notesTaken = false;
 function notesHere(){ var k = mapKey(); S.notes = S.notes || {}; return S.notes[k] || (S.notes[k] = []); }
+/* every pan and zoom moves the pins with the map, the way tokens move (notesDraw only makes them) */
+function notesPlace(){
+  var layer = document.getElementById('tokenLayer'); if (!layer) return;
+  layer.querySelectorAll('.mnote').forEach(function(el){
+    var x = Number(el.getAttribute('data-nx')), y = Number(el.getAttribute('data-ny'));
+    el.style.left = (cam.x + x * cam.zoom) + 'px'; el.style.top = (cam.y + y * cam.zoom) + 'px';
+  });
+}
 function notesDraw(){
   var layer = document.getElementById('tokenLayer'); if (!layer) return;
   /* redrawn only when the pins or the view change, so a click is never lost to a redraw */
-  var _sig = JSON.stringify((S.notes && S.notes[mapKey()]) || []) + '|' + cam.x + ',' + cam.y + ',' + cam.zoom + '|' + seesAsLM();
+  var _sig = JSON.stringify((S.notes && S.notes[mapKey()]) || []) + '|' + seesAsLM();
   if (layer._noteSig === _sig && layer.querySelector('.mnote, .mnote-none') !== null) return;
   if (layer._noteSig === _sig && !((S.notes && S.notes[mapKey()]) || []).length) return;
   layer._noteSig = _sig;
@@ -15878,6 +15892,7 @@ function notesDraw(){
     var el = document.createElement('div');
     el.className = 'mnote ' + (n.shown ? 'shown' : 'lmonly');
     el.title = n.text + (isLM() ? (n.shown ? '  (shown to the table)' : '  (only you see this)') : '');
+    el.setAttribute('data-nx', n.x); el.setAttribute('data-ny', n.y);
     el.style.left = (cam.x + n.x * cam.zoom) + 'px'; el.style.top = (cam.y + n.y * cam.zoom) + 'px';
     el.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 2c-3.9 0-7 3.1-7 7 0 5.2 7 13 7 13s7-7.8 7-13c0-3.9-3.1-7-7-7z" stroke="#0a0e1a" stroke-width="1.2"/><circle cx="12" cy="9" r="2.6" fill="#0a0e1a"/></svg>';
     el.addEventListener('pointerdown', function(e){ e.stopPropagation(); });
@@ -16325,7 +16340,7 @@ function shelfHtml(kind, query){
    replace what is there or join it, and copy. Positions are the map's own, so they land in
    the same places on another version of the map. Each scene keeps its copy as its own from
    then on (scene is king). */
-var COPY_PARTS = [['map', 'Map'], ['tokens', 'Tokens'], ['effects', 'Effects'], ['fog', 'Fog'], ['walls', 'Walls and doors'], ['lights', 'Lights'], ['weather', 'Weather'], ['grid', 'Grid']];
+var COPY_PARTS = [['map', 'Map'], ['tokens', 'Tokens'], ['effects', 'Effects'], ['notes', 'Map notes'], ['fog', 'Fog'], ['walls', 'Walls and doors'], ['lights', 'Lights'], ['weather', 'Weather'], ['grid', 'Grid']];
 function sceneCopyOpen(preset){
   if (!isLM() || !S.adventure) return;
   var pre = {}; String(preset || 'tokens,effects').split(',').forEach(function(k){ pre[k] = 1; });
@@ -16333,7 +16348,7 @@ function sceneCopyOpen(preset){
   var h = '<h3 class="tsm-title">Copy this scene\u2019s setup</h3>'
     + '<p class="lc-p">From <b>' + esc(S.scene.name || 'this scene') + '</b>. Places stay where they are on the map, so they land in the same spots on another version of it.</p>'
     + '<div class="cp-parts">' + COPY_PARTS.map(function(p){ return '<label><input type="checkbox" class="cp-part" value="' + p[0] + '"' + (pre[p[0]] ? ' checked' : '') + '> ' + p[1] + '</label>'; }).join('') + '</div>'
-    + '<div class="cp-mode"><span>Tokens and effects</span><label><input type="radio" name="cpMode" value="replace" checked> replace what is there</label><label><input type="radio" name="cpMode" value="add"> join what is there</label></div>'
+    + '<div class="cp-mode"><span>Tokens, effects and notes</span><label><input type="radio" name="cpMode" value="replace" checked> replace what is there</label><label><input type="radio" name="cpMode" value="add"> join what is there</label></div>'
     + '<div class="ga-list">';
   (S.adventure.acts || []).forEach(function(a){ (a.sessions || []).forEach(function(se){
     h += '<div class="ga-ses"><label class="ga-all"><input type="checkbox" onchange="gridApplySession(this)"> ' + esc(se.name || 'Session') + '</label>';
@@ -16373,6 +16388,11 @@ function sceneCopyGo(){
       S.effects = S.effects || {};
       var fx = ((S.effects[myKey]) || []).map(function(e){ var c = clone(e); c.id = mkId(); return c; });
       S.effects[tKey] = add ? (S.effects[tKey] || []).concat(fx) : fx;
+    }
+    if (parts.notes){
+      S.notes = S.notes || {};
+      var ns = ((S.notes[myKey]) || []).map(function(n){ var c = clone(n); c.id = mkId(); return c; });
+      S.notes[tKey] = add ? (S.notes[tKey] || []).concat(ns) : ns;
     }
     if (parts.fog && S.fog && S.fog[myKey]){ S.fog[tKey] = clone(S.fog[myKey]); }
     if (parts.walls && S.walls && S.walls[myKey]){ S.walls[tKey] = clone(S.walls[myKey]); }
