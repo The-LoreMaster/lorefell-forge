@@ -2123,6 +2123,7 @@ body.drop-ready #map::after{ content:'Drop images to add them as maps'; position
 #tokPalette .tp-box > .tp-body, #mapPicker .mp-box > .mp-grid{ flex:1 1 auto; min-height:0; overflow-y:auto; }
 .cp-parts{ display:grid; grid-template-columns:repeat(2, 1fr); gap:4px 12px; margin:8px 0; } .cp-parts label, .cp-mode label{ display:flex; gap:8px; align-items:center; font-size:.9rem; } .cp-parts input, .cp-mode input{ accent-color:var(--gold); }
 .cp-mode{ display:flex; flex-wrap:wrap; gap:6px 14px; align-items:center; margin:2px 0 8px; padding:8px 10px; border:1px solid var(--line); border-radius:9px; } .cp-mode span{ font-family:Cinzel,serif; font-size:.6rem; letter-spacing:.1em; text-transform:uppercase; color:var(--muted,#8fa3b3); width:100%; }
+#mapTools > button:disabled{ opacity:.35; cursor:default; }
 </style>
 </head>
 <body>
@@ -2150,6 +2151,8 @@ body.drop-ready #map::after{ content:'Drop images to add them as maps'; position
     <button data-tool="draw" title="Draw on the map" aria-label="Draw"><svg viewBox="0 0 24 24"><path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="M14 6l3 3"/></svg></button>
     <button id="fullBtn" onclick="toggleFull()" title="Full screen (F)" aria-label="Full screen"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
     <button data-tool="ping" title="Ping: click the map to point something out" aria-label="Ping"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.5"/><circle cx="12" cy="12" r="6.5" opacity=".7"/><circle cx="12" cy="12" r="10.5" opacity=".4"/></svg></button>
+    <button id="undoBtn" class="lmonly" onclick="mapUndo()" title="Undo (Ctrl+Z)" aria-label="Undo" disabled><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></button>
+    <button id="redoBtn" class="lmonly" onclick="mapRedo()" title="Redo (Ctrl+Shift+Z or Ctrl+Y)" aria-label="Redo" disabled><svg viewBox="0 0 24 24"><path d="M15 14l5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h3"/></svg></button>
     <button id="copyBtn" class="lmonly" onclick="sceneCopyOpen()" title="Copy this scene\u2019s setup to other scenes" aria-label="Copy to scenes"><svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/><path d="M11 14h6M14 11v6"/></svg></button>
     <button id="gatherBtn" class="lmonly" onclick="gatherView()" title="Bring everyone’s view here" aria-label="Bring everyone here"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="8"/></svg></button>
     <button data-tool="fx" class="lmonly" title="Effects: flames, arcane, lightning and more" aria-label="Effects"><svg viewBox="0 0 24 24"><path d="M12 3c1 3 4 4.5 4 8a4 4 0 0 1-8 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3-1-5 0-7z"/><path d="M5 20h14"/></svg></button>
@@ -2693,6 +2696,8 @@ function setActiveScene(id){
     try { applySceneTableMap(); } catch(e){}
   } else applyRemoteState({ adventure:S.adventure });
   _boardScene = S.scene.id;
+  /* each scene has its own history of changes; a switch starts the new scene's afresh */
+  _undo = []; _redo = []; try { undoRebase(); undoBtnsPaint(); } catch(e){}
   /* the story's own record of the active scene follows, so a reload opens where you were */
   try { advPersistTree(); } catch(e){}
   pushLog({ kind:'sys', html:'Scene set to <b>' + esc(S.scene.name) + '</b>.' });
@@ -15283,27 +15288,35 @@ document.addEventListener('keydown', function(e){ if (_tokAim && e.key === 'Esca
    undo only ever walks back the LoreMaster's own work, and restores it for everyone. */
 var _undo = [], _redo = [], _undoBase = null, _undoQuiet = false;
 function undoTake(){
-  try { return JSON.stringify({ tokens:S.tokens || [], walls:S.walls || {}, lights:S.lights || {}, fog:S.fog || {}, draw:S.draw || { strokes:[], gone:[] } }); } catch(e){ return null; }
+  try { return JSON.stringify({ scene:(S.scene && S.scene.id) || '', tokens:S.tokens || [], walls:S.walls || {}, lights:S.lights || {}, fog:S.fog || {}, draw:S.draw || { strokes:[], gone:[] },
+    effects:S.effects || {}, notes:S.notes || {}, weather:S.weather || {} }); } catch(e){ return null; }
 }
 function undoRebase(){ _undoBase = undoTake(); }
+function undoBtnsPaint(){
+  var u = document.getElementById('undoBtn'), r = document.getElementById('redoBtn');
+  if (u) u.disabled = !_undo.length; if (r) r.disabled = !_redo.length;
+}
 function undoPut(snap){
   var o = JSON.parse(snap);
   _undoQuiet = true;
+  /* never across a scene change: a step from another scene would lay its board on this one */
+  if (o.scene && S.scene && o.scene !== S.scene.id){ _undoQuiet = false; return; }
   S.tokens = o.tokens; S.walls = o.walls; S.lights = o.lights; S.fog = o.fog; S.draw = o.draw;
+  if (o.effects) S.effects = o.effects; if (o.notes) S.notes = o.notes; if (o.weather) S.weather = o.weather;
   try { _fvMemo = null; } catch(e){}
   applyRemoteState({ tokens:S.tokens });
-  try { wallPaint(); fogPaint(); drawPaint(); } catch(e){}
-  renderTokens(); schedulePush();
+  try { wallPaint(); fogPaint(); drawPaint(); notesDraw(); weatherRun(); fxPanelPaint(); } catch(e){}
+  renderTokens(); schedulePush(); undoBtnsPaint();
   _undoBase = undoTake(); _undoQuiet = false;
 }
 setInterval(function(){
   if (!isLM() || _undoQuiet || _tokAim) return;
   var cur = undoTake(); if (cur === null) return;
   if (_undoBase === null){ _undoBase = cur; return; }
-  if (cur !== _undoBase){ _undo.push(_undoBase); if (_undo.length > 40) _undo.shift(); _redo = []; _undoBase = cur; }
+  if (cur !== _undoBase){ _undo.push(_undoBase); if (_undo.length > 40) _undo.shift(); _redo = []; _undoBase = cur; undoBtnsPaint(); }
 }, 350);
-function mapUndo(){ if (!_undo.length) return false; _redo.push(undoTake()); undoPut(_undo.pop()); return true; }
-function mapRedo(){ if (!_redo.length) return false; _undo.push(undoTake()); undoPut(_redo.pop()); return true; }
+function mapUndo(){ if (!_undo.length) return false; _redo.push(undoTake()); undoPut(_undo.pop()); undoBtnsPaint(); return true; }
+function mapRedo(){ if (!_redo.length) return false; _undo.push(undoTake()); undoPut(_redo.pop()); undoBtnsPaint(); return true; }
 document.addEventListener('keydown', function(e){
   if (!isLM() || !(e.ctrlKey || e.metaKey)) return;
   var tag = (document.activeElement && document.activeElement.tagName) || '';
