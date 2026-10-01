@@ -1,3 +1,7 @@
+## 2026-09-28 - A new scene comes up with its own board
+
+Switching scenes could leave the last scene's board on the table: the LoreMaster's table took the scene and board from pulled copies, and a copy still in flight (saved before the switch) put the old scene's tokens, map and grid back, or even the old scene itself. Once the LoreMaster's table is loaded, a pulled copy no longer moves the scene, and for twelve seconds after a switch a pulled copy's tokens, map and grid are not taken. A scene with no layout of its own yet now starts clear, keeping only the Fell's tokens; its stage or remembered map is laid as before, and once a map is clicked on a stage for it, it keeps its own layout from then on.
+
 ## 2026-09-28 - The shelf lays out properly; drag a box to select
 
 The shelf's tiles carried the class token, which is also the class of a token on the map (sized, placed absolutely and rotated), so saved tokens came out in one narrow column that ran off the bottom of the window and drew stray diagonal lines; the shelf's kind classes are now shk-token and shk-map, and the grid lays out as it should. Dragging a box across empty space in either shelf now selects every tile it touches (with Ctrl or Cmd held it adds to the selection), and a click on empty space clears it. The Select button reads Select all.
