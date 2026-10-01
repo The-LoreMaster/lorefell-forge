@@ -4795,6 +4795,8 @@ function saveEntry(ref, id){
   var handle = (type==='clue' && hdlEl) ? clueSlug(hdlEl.value) : '';
   if (!title && !body && !img) return;
   var entries = levelEntries(ref);
+  /* whoever speaks in a scene is in its roster */
+  if (speaker){ var _lv = levelByRef(ref); if (_lv && Array.isArray(_lv.combatants)) fwRosterAdd(_lv, speaker); }
   if (id){
     entries.forEach(function(x){ if(x.id===id){ x.title=title||'Untitled'; x.type=type; x.body=body; x.img=img; x.speaker=speaker; x.handle=handle; } });
   } else {
@@ -6298,6 +6300,7 @@ function attachFoe(libId){
 function attachRef(libId){
   var sc = curSc();
   if (sc.refs.indexOf(libId) < 0) sc.refs.push(libId);
+  fwRosterAdd(sc, libId);   /* an attached NPC or foe is in the scene's roster */
   closeModal(); save(); render();
 }
 function attachNpcCombatant(libId){
@@ -8851,6 +8854,33 @@ function affChips(kind, id, affs){
 
 function typeGlyph(t){ return t==='monster' ? '\u2620' : (t==='item' ? '\u25C6' : '\u25C9'); }
 function sceneInScene(sc, rid){ return (sc.combatants||[]).some(function(c){ return c.libId===rid; }); }
+/* A scene's attached NPCs and foes, and anyone who speaks in its dialogue, are in its roster:
+   they are the people in the scene, and the table needs them there to put them on the map. An
+   attach or a speaker set puts them in at once; an adventure opened for the first time since
+   this rule puts in everyone it was missing, once (rosterSynced), so a removal afterwards is
+   left alone. */
+function fwRosterAdd(sc, rid){
+  var e = libGet(rid); if (!e || (e.type !== 'npc' && e.type !== 'monster')) return false;
+  sc.combatants = sc.combatants || [];
+  if (sc.combatants.some(function(c){ return String(c.libId) === String(rid); })) return false;
+  if (e.type === 'monster') sc.combatants.push(fwMakeMonCombatant(e, e.name));
+  else sc.combatants.push({ id: uid(), libId: rid, type:'npc', side:'npc', name: e.name, sr:'', maxVit: e.maxVit||0, curVit: e.maxVit||0,
+    attrs: JSON.parse(JSON.stringify(e.attrs || blankAttrs())), inv: (e.inv || []).slice(), abilities: JSON.parse(JSON.stringify(e.abilities || [])),
+    img: e.img || '', act:'', target:'', done:false, affs:[] });
+  return true;
+}
+function fwRosterFromScene(sc){
+  if (!sc) return 0; var n = 0;
+  (sc.refs || []).forEach(function(rid){ if (fwRosterAdd(sc, rid)) n++; });
+  (sc.entries || []).forEach(function(en){ if (en && en.type === 'dialogue' && en.speaker && fwRosterAdd(sc, en.speaker)) n++; });
+  return n;
+}
+function fwRosterSyncCampaign(c){
+  if (!c || c.rosterSynced) return 0; var n = 0;
+  (c.acts || []).forEach(function(a){ (a.sessions || []).forEach(function(se){ (se.scenes || []).forEach(function(sc){ n += fwRosterFromScene(sc); }); }); });
+  c.rosterSynced = 1;
+  return n;
+}
 function sceneAddRef(rid){
   var e = libGet(rid); if(!e) return;
   var sc = curSc();
@@ -11842,7 +11872,11 @@ function scrData(){
 /* ---------- main render ---------- */
 
 function mast(){ return '<div class="fw-mast">The Fate<span class="fw-well">Well</span></div>'; }
+function fwRosterSyncCurrent(){
+  try { var c = curC(); if (c && !c.rosterSynced && S.library && S.library.length){ var n = fwRosterSyncCampaign(c); if (n) save(); else c.rosterSynced = 1; } } catch(e){}
+}
 function render(){
+  fwRosterSyncCurrent();
   fwRequestJournal();
   renderSavedTag();
   var runner = (V.screen==='runner');
