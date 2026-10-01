@@ -7733,7 +7733,13 @@ var _boardScene = null;
 function boardSync(){
   if (!isLM() || !S.scene) return;
   if (!_boardScene){ _boardScene = S.scene.id; return; }
-  if (S.scene.id === _boardScene) { boardMapFill(); return; }
+  if (S.scene.id === _boardScene){
+    /* the scene's saved layout is the truth about it: if the board that arrived disagrees with
+       it (a map left over from another scene), the scene's own layout is laid */
+    var bdx = (_bindTaken && S.instance && S.instance.bindings) ? S.instance.bindings[S.scene.id] : null;
+    if (bdx && bdx.mapId && S.scene.background && bdx.mapId !== S.scene.background){ try { sceneLayoutRestore(); } catch(e){} }
+    boardMapFill(); return;
+  }
   var hit = (typeof tsSceneById === 'function') ? tsSceneById(_boardScene) : null;
   if (hit){
     /* the board's own scene, as the story now holds it */
@@ -8347,7 +8353,6 @@ function applyRemoteSnapshot(snap){
   if (isLM() && !_mapStateLoaded){ _boardScene = snap.activeSceneId || (S.scene && S.scene.id) || null; }
   if (snap.draw){ S.draw = drawMerge(S.draw, snap.draw); try { drawPaint(); } catch(e){} }
   mapStateArrived();
-  try { boardSync(); } catch(e){}
   if (snap.walls && !(isLM() && _wallDrag)){ S.walls = snap.walls; _fvMemo = null; try { wallPaint(); } catch(e){} }
   if (snap.lights && !(isLM() && _lightDrag)){ S.lights = snap.lights; _fvMemo = null; try { wallPaint(); } catch(e){} }
   /* the LoreMaster writes the music and takes the stored copy once, on arrival; after that
@@ -8476,6 +8481,8 @@ function applyRemoteSnapshot(snap){
     }
     if (typeof renderLog === 'function') renderLog();
   }
+  /* last, once the scene, its map and the layouts have all been taken */
+  try { boardSync(); } catch(e){}
   applyRemoteState({ scene:S.scene, tokens:S.tokens, grid:S.grid, map:S.map });
 }
 var _stateFeedTimer = null;
@@ -15222,7 +15229,10 @@ function multiBarPaint(){
   var b = document.getElementById('multiBar');
   if (!b){ b = document.createElement('div'); b.id = 'multiBar'; document.body.appendChild(b); }
   if (!isLM() || n < 2){ b.style.display = 'none'; return; }
-  b.innerHTML = n + ' tokens <button onclick="tokAimStart()">Rotate</button><button onclick="tokToggle(\'hidden\')">Hide</button><button onclick="tokToggle(\'nameHidden\')">Name</button><button onclick="tokToggle(\'locked\')">Lock</button><button onclick="tokDuplicate()">Duplicate</button><button class="danger" onclick="tokRemoveChosen()">Remove</button>';
+  /* drawn only when it changes: rebuilt every half second, its buttons were replaced between
+     the press and the release, so a click on one landed on nothing */
+  var html = n + ' tokens <button onclick="tokAimStart()">Rotate</button><button onclick="tokToggle(\'hidden\')">Hide</button><button onclick="tokToggle(\'nameHidden\')">Name</button><button onclick="tokToggle(\'locked\')">Lock</button><button onclick="tokDuplicate()">Duplicate</button><button class="danger" onclick="tokRemoveChosen()">Remove</button>';
+  if (b._html !== html){ b.innerHTML = html; b._html = html; }
   b.style.display = 'flex';
 }
 setInterval(function(){ try { multiBarPaint(); } catch(e){} }, 500);
@@ -15417,13 +15427,15 @@ function tokExtrasPaint(){
   var box = document.getElementById('tmExtras'); if (!box) return;
   var t = sel ? tokById(sel) : null; if (!t){ box.innerHTML = ''; return; }
   var b = function(icon, title, fn, on, cls){ return '<button class="tmi' + (on ? ' on' : '') + (cls ? ' ' + cls : '') + '" title="' + title + '" aria-label="' + title + '" onclick="' + fn + '">' + icon + '</button>'; };
-  box.innerHTML = b(t.hidden ? TM_ICON.hidden : TM_ICON.hide, t.hidden ? 'Hidden from players (show)' : 'Hide from players', "tokToggle('hidden')", t.hidden)
+  var html = b(t.hidden ? TM_ICON.hidden : TM_ICON.hide, t.hidden ? 'Hidden from players (show)' : 'Hide from players', "tokToggle('hidden')", t.hidden)
     + b(t.nameHidden ? TM_ICON.nameoff : TM_ICON.name, t.nameHidden ? 'Name hidden from players (show it)' : 'Hide the name from players', "tokToggle('nameHidden')", t.nameHidden)
     + b(t.locked ? TM_ICON.lock : TM_ICON.unlock, t.locked ? 'Locked (unlock)' : 'Lock in place', "tokToggle('locked')", t.locked)
     + b(TM_ICON.light + (t.light ? '<i>' + t.light + '</i>' : ''), t.light ? 'Carries light, ' + t.light + ' spaces (tap for more, then off)' : 'Carry a light', 'tokLight()', !!t.light)
     + b(TM_ICON.front, 'Bring to front', 'tokLayer(1)') + b(TM_ICON.back, 'Send to back', 'tokLayer(-1)')
     + b(TM_ICON.dup, 'Duplicate (Ctrl+D)', 'tokDuplicate()')
     + b(TM_ICON.del, 'Remove from the map (Delete)', 'tokRemoveChosen()', false, 'danger');
+  /* only when it changes, or a click lands on a button that was just replaced */
+  if (box._html !== html){ box.innerHTML = html; box._html = html; }
 }
 
 /* ---- bring everyone here: every player's view goes to what the LoreMaster sees ---- */
@@ -15841,6 +15853,11 @@ var _noteAdd = false, _wxTaken = false, _notesTaken = false;
 function notesHere(){ var k = mapKey(); S.notes = S.notes || {}; return S.notes[k] || (S.notes[k] = []); }
 function notesDraw(){
   var layer = document.getElementById('tokenLayer'); if (!layer) return;
+  /* redrawn only when the pins or the view change, so a click is never lost to a redraw */
+  var _sig = JSON.stringify((S.notes && S.notes[mapKey()]) || []) + '|' + cam.x + ',' + cam.y + ',' + cam.zoom + '|' + seesAsLM();
+  if (layer._noteSig === _sig && layer.querySelector('.mnote, .mnote-none') !== null) return;
+  if (layer._noteSig === _sig && !((S.notes && S.notes[mapKey()]) || []).length) return;
+  layer._noteSig = _sig;
   layer.querySelectorAll('.mnote').forEach(function(n){ n.remove(); });
   var list = (S.notes && S.notes[mapKey()]) || [];
   list.forEach(function(n){
