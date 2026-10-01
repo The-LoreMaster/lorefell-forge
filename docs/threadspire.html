@@ -13388,6 +13388,10 @@ function tokenIsMine(t){
   return !!myName && tn.toLowerCase() === String(myName).toLowerCase();
 }
 /* the foe behind a token takes the token's new name, in the roster, the fight and the store */
+/* What the LoreMaster sees of the map as a player would: in Player view, a hidden token, a
+   hidden name, a lock mark and an unrevealed map note are drawn the way a player's screen
+   draws them (not at all), not the LoreMaster's way. */
+function seesAsLM(){ return isLM() && !document.body.classList.contains('pview'); }
 function tokRenameFoe(t, name){
   if (!isLM() || !name) return;
   var f = (S.scene.foes || []).filter(function(x){ return sameId(x.id, t.refId) || sameId(x.id, t.id); })[0];
@@ -13518,7 +13522,7 @@ function renderTokens(){
   }
   /* drawn back to front (z), and a hidden token is the LoreMaster's alone to see */
   S.tokens.slice().sort(function(a, b){ return (a.z || 0) - (b.z || 0); }).forEach(function(t){
-    if (t.hidden && !isLM()) return;
+    if (t.hidden && !seesAsLM()) return;
     var el = document.createElement('div');
     /* a Fell's token is the player's to move, found by the record it carries */
     var ownFell = tokenIsMine(t);
@@ -13575,14 +13579,14 @@ function renderTokens(){
        label, since letters alone do not say much. Every other token keeps its name. */
     /* a name the LoreMaster has hidden is not shown to players; the LoreMaster still sees it,
        dimmed and struck through, so they know it is hidden */
-    var showLabel = full && !(t.kind === 'marker' && art) && t.kind !== 'vshard' && !(t.nameHidden && !isLM());
+    var showLabel = full && !(t.kind === 'marker' && art) && t.kind !== 'vshard' && !(t.nameHidden && !seesAsLM());
     /* A shard shows its Vitality in a corner badge, so the LoreMaster reads its health as
        the feeder raises it and an attacker lowers it - the whole point of the object. */
     var vitBadge = (t.kind === 'shard')
       ? '<span class="shard-vit">' + Math.max(0, (t.vit || 1) - (t.dmg || 0)) + '</span>' : '';
     el.innerHTML = '<span class="tok-face">' + face + '</span>'
       + (showLabel ? '<span class="tok-label' + (t.nameHidden ? ' name-hid' : '') + '"' + (t.nameHidden ? ' title="Name hidden from players"' : '') + '>' + esc(full) + '</span>' : '') + vitBadge + tokAffBadges(t)
-      + (isLM() && t.locked ? '<span class="tok-lock" title="Locked">\u26bf</span>' : '');
+      + (seesAsLM() && t.locked ? '<span class="tok-lock" title="Locked">\u26bf</span>' : '');
     place(el, t);
     /* moved OR aimed at: a foe is the second without ever being the first */
     if (draggable || tokenTargetable(t)) wireToken(el, t, draggable);
@@ -15165,7 +15169,7 @@ function tokLight(){
 }
 /* a light carried by a token moves with it; drawn into the same light as any other */
 function carriedLights(){
-  return (S.tokens || []).filter(function(t){ return Number(t.light) > 0 && !(t.hidden && !isLM()); })
+  return (S.tokens || []).filter(function(t){ return Number(t.light) > 0 && !(t.hidden && !seesAsLM()); })
     .map(function(t){ return { id:'carry-' + t.id, x:t.x, y:t.y, r:Number(t.light), b:1 }; });
 }
 var TM_ICON = {
@@ -15611,7 +15615,7 @@ function notesDraw(){
   layer.querySelectorAll('.mnote').forEach(function(n){ n.remove(); });
   var list = (S.notes && S.notes[mapKey()]) || [];
   list.forEach(function(n){
-    if (!isLM() && !n.shown) return;
+    if (!seesAsLM() && !n.shown) return;
     var el = document.createElement('div');
     el.className = 'mnote ' + (n.shown ? 'shown' : 'lmonly');
     el.title = n.text + (isLM() ? (n.shown ? '  (shown to the table)' : '  (only you see this)') : '');

@@ -1,3 +1,7 @@
+## 2026-09-28 - Player view shows tokens as players see them
+
+Player view hid the fog and walls the way a player's screen does, but drew tokens the LoreMaster's way: hidden tokens faint, hidden names struck through, lock marks, unrevealed map notes, and lights carried by hidden tokens. In Player view all of these are now drawn as a player sees them (hidden tokens and names gone, no lock marks, only revealed notes); leaving Player view brings the LoreMaster's marks back.
+
 ## 2026-09-28 - Hide a token's name
 
 The token menu gains a name toggle (and the selection bar a Name button): with the name hidden, players see the token without its label, and the LoreMaster sees the label dimmed and struck through, so it is plain which names are hidden. It can be changed at any time, is kept with the token (nameHidden) for everyone, and travels in an export.
