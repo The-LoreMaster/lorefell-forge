@@ -1,3 +1,7 @@
+## 2026-09-28 - Apply the grid to chosen scenes
+
+The Grid panel gains Apply to scenes: the grid as it stands (cell, fade, shift) given to whichever scenes are ticked, a whole session at a tick, kept on each scene's layout so it returns with the scene. A scene given a grid but no map yet still takes its grid.
+
 ## 2026-09-28 - Each scene keeps its own map and tokens
 
 A stage held one chosen map for every scene that used it, and the active stage was the adventure's alone, so the last map clicked showed in every scene (The Green Chapel everywhere); and laying a map with no stage active quietly made a new stage, which is what kept adding stages. Now each scene keeps its own layout on its binding: the map chosen for it (from any stage), the tokens where they stand, the grid and the map's size. Clicking a map on a stage sets it for the scene you are in and makes that stage the scene's; another scene can use another map from the same or a different stage. The layout is recorded whenever the table saves and when the LoreMaster leaves a scene, and laid again on return. It lives in the table's saved state, so it survives a reload, another browser (incognito included) and an export and import. Laying a map from the Maps window no longer makes a stage. A scene with no layout of its own still falls back to its stage, then to the map remembered for it or its session.
