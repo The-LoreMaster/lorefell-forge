@@ -2692,6 +2692,9 @@ function setActiveScene(id){
     /* the map this scene (or its session) remembers, when it has no layout of its own */
     try { applySceneTableMap(); } catch(e){}
   } else applyRemoteState({ adventure:S.adventure });
+  _boardScene = S.scene.id;
+  /* the story's own record of the active scene follows, so a reload opens where you were */
+  try { advPersistTree(); } catch(e){}
   pushLog({ kind:'sys', html:'Scene set to <b>' + esc(S.scene.name) + '</b>.' });
   applyRemoteState({ log:S.log });
   closeWin();
@@ -7719,8 +7722,39 @@ function sceneBinding(){
    they stand, and the grid. It lives on the scene's binding, inside the table's saved state, so
    it survives a reload, another browser and an export. A scene records its layout while the
    LoreMaster works in it, and gets it back on return. */
+/* Whose board is on the table. The tokens, the map and the grid on screen belong to one
+   scene; when anything other than a scene switch changes which scene object is current (the
+   story standing up again from the account after the table's state arrived, with its own idea
+   of the active scene), the board was saved into the wrong scene and shown under the wrong
+   map: scene one's tokens and effects over scene two's map, and scene one emptied. Now the
+   board is only ever saved into the scene it belongs to, and when the story stands up it is
+   put back on that scene. */
+var _boardScene = null;
+function boardSync(){
+  if (!isLM() || !S.scene) return;
+  if (!_boardScene){ _boardScene = S.scene.id; return; }
+  if (S.scene.id === _boardScene) { boardMapFill(); return; }
+  var hit = (typeof tsSceneById === 'function') ? tsSceneById(_boardScene) : null;
+  if (hit){
+    /* the board's own scene, as the story now holds it */
+    S.scene = hit.scene; S.adventure.activeSceneId = _boardScene;
+    boardMapFill();
+  } else {
+    /* that scene is gone from the story: take the one the story chose, with its own layout */
+    _boardScene = S.scene.id;
+    try { if (!sceneLayoutRestore()) applySceneTableMap(); } catch(e){}
+  }
+}
+/* a scene object fresh from the story has no map on it; give it its own, and the shelf */
+function boardMapFill(){
+  if (S._shelfAll && S._shelfAll.length) S.scene.maps = S._shelfAll;
+  var bd = (S.instance && S.instance.bindings && S.instance.bindings[S.scene.id]) || null;
+  if (!S.scene.background && bd && bd.mapId){ S.scene.background = bd.mapId; var m = mapById(bd.mapId); if (m && m.url) S.remoteMapUrl = m.url; }
+  try { paintMapArt(); } catch(e){}
+}
 function sceneLayoutSave(){
   if (!isLM() || !S.scene || !S.instance || !S.instance.bindings) return;
+  if (_boardScene && _boardScene !== S.scene.id) return;   /* never into a scene the board is not */
   var bd = sceneBinding();
   if (!bd.mapId && !S.scene.background) return;   /* nothing laid down here yet */
   bd.mapId = S.scene.background || bd.mapId || null;
@@ -8310,8 +8344,10 @@ function applyRemoteSnapshot(snap){
     }
   }
   if (snap.tokens) S.tokens = snap.tokens;
+  if (isLM() && !_mapStateLoaded){ _boardScene = snap.activeSceneId || (S.scene && S.scene.id) || null; }
   if (snap.draw){ S.draw = drawMerge(S.draw, snap.draw); try { drawPaint(); } catch(e){} }
   mapStateArrived();
+  try { boardSync(); } catch(e){}
   if (snap.walls && !(isLM() && _wallDrag)){ S.walls = snap.walls; _fvMemo = null; try { wallPaint(); } catch(e){} }
   if (snap.lights && !(isLM() && _lightDrag)){ S.lights = snap.lights; _fvMemo = null; try { wallPaint(); } catch(e){} }
   /* the LoreMaster writes the music and takes the stored copy once, on arrival; after that
@@ -8672,7 +8708,7 @@ function advReset(nextId){
   S.campaignId = (nextId === '') ? '' : (nextId || S.campaignId);
   _lmBattleAsked = false; S._lmAt = 0; S._lmSeenAt = 0; S._leftAdv = '';
   /* the next adventure's stored state has not been heard yet */
-  _mapStateLoaded = false; _pullEmpty = 0; _pushWaitingLoad = false;
+  _mapStateLoaded = false; _pullEmpty = 0; _pushWaitingLoad = false; _boardScene = null;
   /* the new adventure's stored layouts, music, weather and notes are taken afresh */
   _bindTaken = false; _fxTaken = false; S.effects = {}; _musicTaken = false; try { _wxTaken = false; _notesTaken = false; } catch(e){}
   S.music = null; S.weather = {}; S.notes = {};
@@ -9528,6 +9564,7 @@ function loadAdventureSpine(spine, why){
     hit = (typeof tsSceneById === 'function') ? tsSceneById(activeId) : null;
   }
   if (hit) S.scene = hit.scene;
+  try { boardSync(); } catch(e){}
 }
 /* What actually happened at the seam, kept so the seams panel can say it. Every failure
    in this pipeline used to be swallowed, which is why a broken link could only be found
