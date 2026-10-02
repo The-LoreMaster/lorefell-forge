@@ -1,3 +1,7 @@
+## 2026-09-28 - Pop-up windows sit in the middle of the screen
+
+Every pop-up window (Disruptions, Summon a foe, Continue the story, the dice, the afflictions picker, confirmations and the rest) now sits in the middle of the screen, across and down, at any screen size and in full screen, and scrolls inside itself when it is taller than the screen. They used to sit a set distance down from the top, which in full screen left them high and off to one side of the eye. The map bar's own panels (grid, fog and the like) are unchanged.
+
 ## 2026-09-28 - Disruptions: the DP on the LoreMaster's frame
 
 The DP on the LoreMaster's frame is now the Disruptions pool from the LoreVault: Party Size plus Average Party Level, filled when a Crucible begins. A tap opens the spend menu (Environmental Disruption 8, Magical Disruption 15, Fuel a React 3, Escalate a Foe 5, Loose a Discordant again 12), with what the pool cannot afford greyed out; each spend lowers the pool and is noted in the log for the LoreMaster alone, the last can be undone, the pool can be nudged up or down or filled again by hand, and it is kept with the table's saved state. Log lines marked for the LoreMaster alone no longer reach players.
