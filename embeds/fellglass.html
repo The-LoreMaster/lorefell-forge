@@ -4318,6 +4318,18 @@ function quickSkillRoll(name){
   let n=1+Math.floor(Math.random()*6), note="";
   if(skillIsLucky(name)){ const a=n, c=1+Math.floor(Math.random()*6); n=Math.max(a,c); note="Lucky "+a+" | "+c; }
   tableRoll("skill",n,[{label:name,value:b}],n+b,note);
+  /* FellGuide: a Fellmark on a skill check raises that skill by 1. Automatic, or asked first,
+     as the player chooses at the table. */
+  if(n===6){ if((window._fellGrowMode||"auto")==="ask"){ try{ window.parent.postMessage({type:"ts-fellmark-ask",skill:name},"*"); }catch(e){} } else skillGrowFellmark(name); }
+}
+/* one skill up by 1 for a Fellmark; at its last rank it stands ready to master instead */
+function skillGrowFellmark(name){
+  const sk=(C.skills||{})[name]; if(!sk) return;
+  const g=(typeof skillGrant==="function")?(skillGrant(name)||0):0;
+  let msg;
+  if(((sk.rank||0)+g)>=5){ msg={type:"ts-skill-grew",skill:name,ready:true}; }
+  else { sk.rank=(sk.rank||0)+1; try{ renderSkills(); }catch(e){} scheduleSave(); msg={type:"ts-skill-grew",skill:name,rank:(sk.rank||0)+g+(sk.mastery||0)}; }
+  try{ window.parent.postMessage(msg,"*"); }catch(e){}
 }
 function heldWeapons(){ return (C.weapons||[]).map((w,i)=>({w,i})).filter(x=>x.w.tree&&x.w.equipped); }
 function quickAttackRoll(i){
@@ -7681,6 +7693,8 @@ window.onmessage=ev=>{
   const d=ev&&ev.data;
   if(!d||typeof d!=="object"||!d.type)return;
   if(d.type==="ts-charge-tap"){ chargeTap(d.tier); return; }
+  if(d.type==="ts-fellgrow-mode"){ window._fellGrowMode=d.mode==="ask"?"ask":"auto"; return; }
+  if(d.type==="ts-skill-grow"){ skillGrowFellmark(String(d.skill||"")); return; }
   if(d.type==="ts-notes-saved"){ if(!d.charId||d.charId===CUR_WIX_ID) lmNotesSaved(d); return; }
   if(d.type==="ts-sealed"){ if(god && (!d.charId || d.charId===CUR_WIX_ID)) sealPaint(d); return; }
   if(d.type==="archive-result"){ archiveResult(d); return; }
