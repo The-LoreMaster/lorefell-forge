@@ -2263,6 +2263,17 @@ body.drop-ready #map::after{ content:'Drop images to add them as maps'; position
 #win[data-sec="journal"] .jx{ opacity:0; border:0; background:none; color:#93a3b6; font-size:1rem; cursor:pointer; } #win[data-sec="journal"] .jentry:hover .jx, #win[data-sec="journal"] .jx:focus-visible{ opacity:1; }
 @media (hover:none){ #win[data-sec="journal"] .jx{ opacity:1; } }
 @media (max-width:520px){ #win .set-row{ flex-wrap:wrap; } #win .set-act{ width:100%; justify-content:flex-end; } }
+
+/* ---- the Stream view ---- */
+body.stream #mapTools, body.stream #lmstrip, body.stream #devbar, body.stream #tokmenu, body.stream #multiBar, body.stream #selBar, body.stream .tm-ring, body.stream #storyWin, body.stream #undoBtn{ display:none !important; }
+body.stream:not(.stream-frame) #rail, body.stream:not(.stream-frame) #hud, body.stream:not(.stream-frame) #log, body.stream:not(.stream-frame) #win, body.stream:not(.stream-frame) .frame-art, body.stream:not(.stream-frame) #lmFrame, body.stream:not(.stream-frame) .scene-strip, body.stream:not(.stream-frame) #sceneStrip{ display:none !important; }
+#streamCtl{ position:fixed; top:14px; right:14px; z-index:500; display:flex; align-items:center; gap:8px; padding:8px 10px; border:1px solid rgba(201,168,76,.6); border-radius:12px; background:rgba(10,14,28,.92); opacity:0; pointer-events:none; transition:opacity .25s; font-family:'Crimson Pro',Georgia,serif; }
+#streamCtl.show{ opacity:1; pointer-events:auto; }
+#streamCtl .sc-t{ font-family:Cinzel,serif; font-size:.78rem; letter-spacing:.06em; color:#c9a84c; margin-right:2px; }
+#streamCtl .sc-seg{ display:flex; border:1px solid #2c3a58; border-radius:9px; overflow:hidden; }
+#streamCtl .sc-seg button{ padding:6px 10px; border:0; background:none; color:#b8c4d0; font-family:Cinzel,serif; font-size:.62rem; letter-spacing:.05em; cursor:pointer; } #streamCtl .sc-seg button + button{ border-left:1px solid #2c3a58; }
+#streamCtl .sc-seg button.on{ background:#c9a84c; color:#0b1020; }
+@media (prefers-reduced-motion: reduce){ #streamCtl{ transition:none; } }
 </style>
 </head>
 <body>
@@ -7892,7 +7903,7 @@ function sceneBinding(){
    put back on that scene. */
 var _boardScene = null;
 function boardSync(){
-  if (!isLM() || !S.scene) return;
+  if (!isLM() || !S.scene || S.stream) return;
   if (!_boardScene){ _boardScene = S.scene.id; return; }
   if (S.scene.id === _boardScene){
     /* the scene's saved layout is the truth about it: if the board that arrived disagrees with
@@ -8419,6 +8430,7 @@ function pushState(){
      and marks the version seen, so the real state is both destroyed and never pulled.
      That is the worst bug this file can have, so the gate is absolute. */
   if (_advSwitching) return;
+  if (S.stream) return;   /* a stream only watches */
   /* The LoreMaster's table says nothing until it has heard what is stored. A freshly loaded
      table holds the empty board and the empty scene layouts it starts with, and a push from
      it then wrote those over the stored ones (merged in, but a key that is sent replaces the
@@ -8461,7 +8473,7 @@ function mapStateArrived(){
   if (!was && _pushWaitingLoad){ _pushWaitingLoad = false; setTimeout(function(){ try { schedulePush(); } catch(e){} }, 300); }
 }
 function lmPullHeld(){
-  if (!isLM() || !_mapStateLoaded) return false;
+  if (!isLM() || !_mapStateLoaded || S.stream) return false;
   if (_pushFailingSince && Date.now() - _pushFailingSince > 60000) return false;
   return _pushesOut > 0 || !!_pushT || !!_pushFailingSince;
 }
@@ -8475,11 +8487,12 @@ function seamWarn(){
 }
 /* apply a remote snapshot as truth */
 function applyRemoteSnapshot(snap){
+  if (S.stream){ _bindTaken = false; _fxTaken = false; _wxTaken = false; _notesTaken = false; _musicTaken = false; }
   /* The scene on the table is the LoreMaster's choice. Once their table is loaded, a pulled
      copy never moves it, and for a few seconds after they switch scenes a pulled copy's
      board (tokens, map, grid), which can still be the scene just left, is not taken either:
      that stale board is what made a new scene come up wearing the old one's tokens. */
-  if (snap && isLM() && _mapStateLoaded){
+  if (snap && isLM() && _mapStateLoaded && !S.stream){
     snap = Object.assign({}, snap);
     delete snap.activeSceneId;
     if (S._sceneSwitchAt && Date.now() - S._sceneSwitchAt < 12000){ delete snap.tokens; delete snap.background; delete snap.backgroundUrl; delete snap.grid; delete snap.map; }
@@ -9330,6 +9343,7 @@ function settingsBody(){
     + (mine
         ? setRow('Published as ' + esc(mine.title || 'this adventure'), 'On the directory for others to run.', setBtn('Update', 'publishOpen()') + setBtn('Take down', 'unpublishNow(\'' + esc(mine._id || mine.id || '') + '\')'))
         : setRow('Publish', 'Put it on the directory for others to run.', setBtn('Publish', 'publishOpen()'))));
+  h += setGroup('Streaming', setRow('Stream view', 'A window that follows this table for capture: the players\u2019 view without the fog, or everything.', setBtn('Copy link', 'streamCopy()')));
   h += setGroup('Under the hood', setRow('The seams', 'What the table is doing right now, for when two tables disagree.', setBtn('Show', 'openWin(\'seams\')')));
   return h;
 }
@@ -9843,6 +9857,8 @@ function nudgePull(){ if (_pullNow) setTimeout(function(){ try { _pullNow(); } c
 var _tsReq = 0, _tsPending = {};
 function tsEmbedded(){ try { return window.parent && window.parent !== window; } catch(e){ return false; } }
 function tsAsk(type, payload){
+  /* a stream only reads: anything that would write is answered here and goes nowhere */
+  if (S.stream && !/(PULL|GET|LIST|LOAD|READ|PENDING|CONTEXT|MINE|FIND|SEARCH|ROSTER|JOURNAL_GET|FORGE_DATA|ASSETS?_LIST|PARTY_LIST|CHAR_LOAD|SHEET|PORTRAIT)/.test(String(type))) return Promise.resolve(null);
   return new Promise(function(res, rej){
     var id = 'r' + (++_tsReq);
     _tsPending[id] = { res:res, rej:rej };
@@ -9855,6 +9871,7 @@ window.onmessage = function(ev){
   if (_prevOnMessage) try { _prevOnMessage(ev); } catch(e){}
   var d = ev && ev.data;
   if (d && d.type === 'THREADSPIRE_ROLE_HINT'){
+    if (d.stream) streamStart(d);
     if (!S.roleReady && (d.role === 'lm' || d.role === 'player')){
       S.role = d.role; document.body.classList.remove('roleboot'); render();
     }
@@ -9862,7 +9879,7 @@ window.onmessage = function(ev){
        cast. So open the chooser here, at once, for a bookmark or direct open. Waiting for the
        context, which can be slow while a large adventure is read, is what made it appear many
        seconds late. A cast skips it and deep-links in. */
-    if (!d.fromCast && !S._pickerShown && (d.role === 'lm' || d.role === 'player')){
+    if (!d.fromCast && !S.stream && !S._pickerShown && (d.role === 'lm' || d.role === 'player')){
       S._pickerShown = true;
       S._fromCast = false;
       setTimeout(function(){ try { tsOpenOnLoadPicker(); } catch(e){} }, 30);
@@ -9870,6 +9887,9 @@ window.onmessage = function(ev){
     return;
   }
   if (d && d.type === 'THREADSPIRE_CONTEXT'){
+    if (d.stream) streamStart(d);
+    /* a stream with no adventure named asks which, once */
+    if (S.stream && !d.campaignId && !S._pickerShown){ S._pickerShown = true; setTimeout(function(){ try { tsOpenOnLoadPicker(); } catch(e){} }, 30); }
     /* A context carrying a different adventure is a change of table, not a correction
        of this one. Everything held here belongs to the adventure that was open, so it
        is put down before the new one is picked up. */
@@ -13832,7 +13852,7 @@ function tokenIsMine(t){
 /* What the LoreMaster sees of the map as a player would: in Player view, a hidden token, a
    hidden name, a lock mark and an unrevealed map note are drawn the way a player's screen
    draws them (not at all), not the LoreMaster's way. */
-function seesAsLM(){ return isLM() && !document.body.classList.contains('pview'); }
+function seesAsLM(){ if (S.stream) return !!S.stream.all; return isLM() && !document.body.classList.contains('pview'); }
 function tokRenameFoe(t, name){
   if (!isLM() || !name) return;
   var f = (S.scene.foes || []).filter(function(x){ return sameId(x.id, t.refId) || sameId(x.id, t.id); })[0];
@@ -14142,7 +14162,7 @@ function mapKey(){ return ((S.scene && S.scene.id) || 'scene') + '|' + mapOnlyKe
    map's walls and lights (from before, or from another scene on the same map), to keep or
    change. Run by the LoreMaster, whose table writes them. */
 function sceneKeysSettle(){
-  if (!isLM() || !_mapStateLoaded || !S.scene) return;
+  if (!isLM() || !_mapStateLoaded || !S.scene || S.stream) return;
   var k = mapKey(), old = mapOnlyKey(), changed = false;
   ['effects', 'notes', 'fog'].forEach(function(st){
     var o = S[st]; if (!o || o[k] !== undefined || o[old] === undefined) return;
@@ -14475,6 +14495,7 @@ function behindCreature(ax, ay, bx, by, o){
 var _seen = {};   /* per map: cells ever inside the party's sight, this session */
 var _fvMemo = null;
 function fogView(){
+  if (S.stream) return null;   /* a stream shows the whole map */
   /* many callers in one repaint; work it out once per moment */
   var sig = mapKey() + '|' + ((fogRec() || {}).v || 0) + '|' + JSON.stringify((S.lights && S.lights[mapKey()]) || 0) + '|' + JSON.stringify(((S.walls && S.walls[mapKey()]) || []).map(function(w){ return w.id + (w.open ? 'o' : ''); })) + '|' + (S.tokens || []).map(function(t){ return t.id + ':' + Math.round(t.x) + ':' + Math.round(t.y) + ':' + tokAffs(t).join('+'); }).join(',');
   if (_fvMemo && _fvMemo.sig === sig && Date.now() - _fvMemo.at < 250) return _fvMemo.v;
@@ -14570,6 +14591,7 @@ function fogTexture(){
 }
 var _fogMask = null;
 function fogPaint(){
+  if (S.stream){ var _fl = document.getElementById('fogLayer'); if (_fl){ var _fg = _fl.getContext('2d'); _fg.clearRect(0, 0, _fl.width, _fl.height); } return; }
   var cv = document.getElementById('fogLayer'); if (!cv) return;
   var fc = fogView();
   if (!fc){ cv.classList.remove('on'); return; }
@@ -17119,6 +17141,47 @@ function pubPendingCheck(){
   }).catch(function(){});
 }
 setInterval(function(){ try { if (S.roleReady && isLM()) pubPendingCheck(); } catch(e){} }, 2000);
+
+
+/* ================= the Stream view =================
+   The ThreadSpire page opened with view=stream (Settings has the link) is a window to capture:
+   it follows the LoreMaster's table live (scene, map, tokens, effects, weather, dice, music)
+   and never writes. It shows what the players see, without the fog: hidden tokens, hidden
+   names and unrevealed notes stay hidden. Two switches, on a small panel that appears when the
+   mouse moves and fades when it rests (so it stays out of the capture), or from the address:
+   Everything (see=all) shows what the LoreMaster sees; With the table (frame=1) shows the
+   table's frame, menus and log around the map instead of the map alone. */
+function streamStart(d){
+  if (S.stream) return;
+  S.stream = { all: d.see === 'all', frame: d.frame === '1' || d.frame === 1 || d.frame === true };
+  document.body.classList.add('stream'); streamApply();
+  var el = document.createElement('div'); el.id = 'streamCtl'; document.body.appendChild(el); streamCtlPaint();
+  var t = null;
+  document.addEventListener('mousemove', function(){ el.classList.add('show'); clearTimeout(t); t = setTimeout(function(){ el.classList.remove('show'); }, 2500); });
+}
+function streamApply(){
+  document.body.classList.toggle('stream-frame', !!S.stream.frame);
+  _fvMemo = null;
+  try { renderTokens(); fogPaint(); notesDraw && (document.getElementById('tokenLayer')._noteSig = null, notesDraw()); paintMapArt(); } catch(e){}
+}
+function streamSet(k, v){ if (!S.stream) return; S.stream[k] = v; streamApply(); streamCtlPaint(); }
+function streamCtlPaint(){
+  var el = document.getElementById('streamCtl'); if (!el || !S.stream) return;
+  el.innerHTML = '<span class="sc-t">Stream</span>'
+    + '<div class="sc-seg"><button class="' + (!S.stream.all ? 'on' : '') + '" onclick="streamSet(\'all\',false)">Players\u2019 view</button><button class="' + (S.stream.all ? 'on' : '') + '" onclick="streamSet(\'all\',true)">Everything</button></div>'
+    + '<div class="sc-seg"><button class="' + (!S.stream.frame ? 'on' : '') + '" onclick="streamSet(\'frame\',false)">Map only</button><button class="' + (S.stream.frame ? 'on' : '') + '" onclick="streamSet(\'frame\',true)">With the table</button></div>';
+}
+/* the link to open in a second tab or a capture source */
+function streamLink(){
+  var base = 'https://www.lorefell.com/the-threadspire';
+  try { if (document.referrer && /^https?:\/\//.test(document.referrer)) base = document.referrer.split('?')[0]; } catch(e){}
+  return base + '?view=stream' + (S.campaignId ? '&campaign=' + encodeURIComponent(S.campaignId) : '');
+}
+function streamCopy(){
+  var url = streamLink();
+  var done = function(){ tsModal('<h3 class="tsm-title">Stream link copied</h3><p class="lc-p">Open it in another tab or add it to your streaming software as a browser source. It follows this table and never changes it.</p><input class="tsm-inp" readonly value="' + esc(url) + '" onclick="this.select()"><p class="tsm-note">Add <b>&amp;see=all</b> to show everything, or <b>&amp;frame=1</b> to show the table around the map. Both can also be switched on the stream itself.</p><div class="tsm-row"><button class="tsm-btn" onclick="tsCloseModal()">Done</button></div>'); };
+  try { navigator.clipboard.writeText(url).then(done, done); } catch(e){ done(); }
+}
 
 /* ================= rests =================
    A rest comes from the LoreMaster, and only outside a fight: Call a rest opens it for the

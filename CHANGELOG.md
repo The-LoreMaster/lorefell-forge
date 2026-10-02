@@ -1,3 +1,7 @@
+## 2026-09-28 - The Stream view
+
+Settings gains Streaming, Copy link: the ThreadSpire page with view=stream (and this adventure) is a window to capture, in another tab or as a browser source. It follows the LoreMaster's table live (scene, map, tokens, effects, weather, dice and music) and never writes: no state is pushed and every saving request is answered on the spot and goes nowhere, so it cannot overwrite the table. It shows what the players see, without the fog (hidden tokens, hidden names and unrevealed notes stay hidden), and none of the LoreMaster's tools. A small panel, shown when the mouse moves and faded when it rests so it stays out of the capture, switches Players' view or Everything, and Map only or With the table (the table's frame, menus and log around the map); see=all and frame=1 in the address do the same. Paste velo/page-threadspire.js.
+
 ## 2026-09-28 - Change an adventure's type and world after it is made
 
 The type and world can now be changed after an adventure is made: Settings has a Type and world row (Change, or Set when they never were), and the Story window's adventure page has Change beside them. It opens the same choices as a new adventure (the four types; Unwritten or one of the 36 worlds, with a name and a line for an Unwritten one), saves onto the adventure, and notes the change in the log.

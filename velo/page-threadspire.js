@@ -183,7 +183,7 @@ $w.onReady(async function () {
 
     if (msg.type === 'THREADSPIRE_READY') {
       // Paint the right side straight away; the confirmed context follows and corrects it.
-      embed.postMessage({ type: 'THREADSPIRE_ROLE_HINT', role: q.role === 'lm' ? 'lm' : 'player', fromCast: cameFromCast });
+      embed.postMessage({ type: 'THREADSPIRE_ROLE_HINT', role: q.role === 'lm' ? 'lm' : 'player', fromCast: cameFromCast, stream: q.view === 'stream', see: q.see || '', frame: q.frame || '' });
       let ctx = await buildContext(characterId, campaignId);
       // Entry point requests LM (Cast carries ?role=lm); ownership must confirm it.
       let role = 'player';
@@ -197,7 +197,8 @@ $w.onReady(async function () {
         try { const a = await charAdventure(characterId); cur = (a && a.campaignId) || ''; } catch (e) { cur = campaignId; }
         if (cur !== campaignId) { campaignId = cur; ctx = await buildContext(characterId, campaignId); }
       }
-      embed.postMessage(Object.assign({ type: 'THREADSPIRE_CONTEXT', role: role, campaignId: campaignId, characterId: characterId, fromCast: cameFromCast }, ctx));
+      // view=stream: a capture window that follows this table and never writes (see, frame: its two switches)
+      embed.postMessage(Object.assign({ type: 'THREADSPIRE_CONTEXT', role: role, campaignId: campaignId, characterId: characterId, fromCast: cameFromCast, stream: q.view === 'stream', see: q.see || '', frame: q.frame || '' }, ctx));
     } else if (msg.type === 'THREADSPIRE_WANT_LORE') {
       let character = null;
       try { character = await threadspirePublicChar(msg.characterId); } catch (e) { character = null; }
