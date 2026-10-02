@@ -3671,6 +3671,7 @@ function rowToAsset(r){
     var fm = jp(pick('foeMeta'), {});
     e.sig = pick('signatureAffliction','sig') || fm.sig || '';
     if (fm.attrsHand) e.attrsHand = true;
+    if (fm.kitAt) e.kitAt = Number(fm.kitAt) || 0;
     if (fm.mobility != null) e.mobility = fm.mobility; if (fm.range != null) e.range = fm.range; if (fm.atkPref) e.atkPref = fm.atkPref;
     e.source = pick('source') || fm.source || '';
     e.build = fm.build || pick('build') || '';
@@ -4148,7 +4149,7 @@ function foeCbCtx(id, sceneId){
 function foeForge(libId, sceneId){
   if (libId && libGet(libId) && !sceneId){ if (!FORGE.loaded){ forgeLoad().then(function(){ entrySheet('lib', '', 'foe', libId); }); return; } entrySheet('lib', '', 'foe', libId); return; }
   if (!libId && !sceneId){
-    var ne = { id:mkId(), type:'monster', name:'New foe', desc:'', sr:'Elite', build:'', stance:'', sig:'', attrs:blankAttrs(), maxVit:0, abilities:[], inv:[], infusions:[], augments:[], source:'mine', origin:'forged' };
+    var ne = { kitAt:Date.now(), id:mkId(), type:'monster', name:'New foe', desc:'', sr:'Elite', build:'', stance:'', sig:'', attrs:blankAttrs(), maxVit:0, abilities:[], inv:[], infusions:[], augments:[], source:'mine', origin:'forged' };
     if (S.campaignId){ ne.campaignId = S.campaignId; ne.campaignName = advNameNow(); }
     S.library = (S.library || []).concat([ne]);
     if (assetBackend && assetBackend.save) assetBackend.save(assetToRow(ne)).catch(function(){});
@@ -4871,7 +4872,7 @@ function sheetAddRelic(v){
   sheetLiveSave(); sheetReopen();
 }
 function sheetDelRelic(i){ var t = curSheet(); if (!t) return; (t.obj.inv || []).splice(i, 1); sheetLiveSave(); sheetReopen(); }
-function sheetLiveSave(){ var t = curSheet(); if (t){ sheetSync(t); if (window._sheet && window._sheet.sceneId) advMarkScene(window._sheet.sceneId); storySave(); } }
+function sheetLiveSave(){ var t = curSheet(); if (t){ t.obj.kitAt = Date.now(); sheetSync(t); if (window._sheet && window._sheet.sceneId) advMarkScene(window._sheet.sceneId); storySave(); } }
 var FW_WEAPON_BONUS = { 1:1, 2:1, 3:3, 4:3, 5:6, 6:6, 7:10, 8:10, 9:15, 10:15 };
 var FW_BASE_INF  = { Brutal:'Power', Sharp:'Precision', Potent:'Magic' };
 var FW_BONUS_INF = { Mauling:'Power', Wounding:'Precision', Blighting:'Magic' };
@@ -5088,7 +5089,7 @@ function assetToRow(e){
     role: e.role || '', image: e.img || '', origin: e.origin || '',
     attrs: JSON.stringify(e.attrs || {}), inventory: JSON.stringify(e.inv || []),
     abilities: JSON.stringify(e.abilities || []), foeWeight: e.foeWeight || 0,
-    foeMeta: JSON.stringify({ build:e.build||'', stance:e.stance||'', sig:e.sig||'', source:e.source||'', attrsHand:!!e.attrsHand,
+    foeMeta: JSON.stringify({ build:e.build||'', stance:e.stance||'', sig:e.sig||'', source:e.source||'', attrsHand:!!e.attrsHand, kitAt:e.kitAt||0,
       augments:e.augments||[], infusions:e.infusions||[], atkPref:e.atkPref||'', mobility:e.mobility, range:e.range,
       campaignId:e.campaignId||'', campaignName:e.campaignName||'' })
   };
@@ -5280,6 +5281,7 @@ function sheetSave(){
   var ab = list('rsAb');
   if (ab) e.abilities = ab.map(function(l){ var p = l.split('::'); return { name:(p[0]||'').replace(/^\s+|\s+$/g,''), body:(p[1]||'').replace(/^\s+|\s+$/g,'') }; });
   if (e.curVit === undefined || e.curVit > e.maxVit) e.curVit = e.maxVit;
+  e.kitAt = Date.now();
   sheetSync(t);
   if (s.sceneId) advMarkScene(s.sceneId);
   storySave(); render();
@@ -5315,7 +5317,7 @@ function sheetSync(t){
     e.abilities = JSON.parse(JSON.stringify(c.abilities || []));
     e.inv = (c.inv || []).slice(); e.infusions = (c.infusions || []).slice();
     e.augments = (c.augments || []).slice(); e.sig = c.sig || '';
-    e.build = c.build || ''; e.stance = c.stance || ''; e.mobility = c.mobility; e.range = c.range; e.atkPref = c.atkPref || '';
+    e.build = c.build || ''; e.stance = c.stance || ''; e.mobility = c.mobility; e.range = c.range; e.atkPref = c.atkPref || ''; e.kitAt = c.kitAt || Date.now();
     if (c.attrsHand) e.attrsHand = true; else delete e.attrsHand;
     e.name = String(c.name || '').replace(/\s+\d+$/, '') || e.name;
     libSave(e);
@@ -5347,6 +5349,7 @@ function libPropagate(libId, e){
             x.augments = (e.augments || []).slice(); x.sig = e.sig || '';
             x.build = e.build || ''; x.stance = e.stance || ''; if (e.attrsHand) x.attrsHand = true; else delete x.attrsHand;
             if (e.mobility != null) x.mobility = e.mobility; if (e.range != null) x.range = e.range; if (e.atkPref) x.atkPref = e.atkPref;
+            if (e.kitAt) x.kitAt = e.kitAt;
             if (x.curVit > x.maxVit) x.curVit = x.maxVit;
             var after = JSON.stringify(LIB_KIT.map(function(f){ return x[f]; })) + '|' + x.name + '|' + !!x.attrsHand + '|' + x.maxVit;
             if (after !== before) changed = true;
@@ -5358,9 +5361,28 @@ function libPropagate(libId, e){
   });
 }
 /* once the library is read, every library foe's copies in the story take its kit */
+function libCopies(libId){
+  var out = [];
+  ((S.adventure && S.adventure.acts) || []).forEach(function(a){ (a.sessions || []).forEach(function(se){ (se.scenes || []).forEach(function(sc){
+    ['foes','npcs','combatants'].forEach(function(k){ (sc[k] || []).forEach(function(x){ if (x && sameId(x.libId, libId) && out.indexOf(x) < 0) out.push(x); }); });
+  }); }); });
+  return out;
+}
 function libHydrateStory(){
   if (!isLM() || !S.adventure) return;
-  (S.library || []).forEach(function(e){ if (e && (e.type === 'monster' || e.type === 'npc')) libPropagate(e.id, e); });
+  (S.library || []).forEach(function(e){
+    if (!e || (e.type !== 'monster' && e.type !== 'npc')) return;
+    /* whichever was edited last wins: a scene copy edited after the library entry gives the
+       library its kit (and the library is saved), then every copy takes it */
+    var newest = null; libCopies(e.id).forEach(function(x){ if ((x.kitAt || 0) > ((newest && newest.kitAt) || 0)) newest = x; });
+    if (newest && (newest.kitAt || 0) > (e.kitAt || 0)){
+      LIB_KIT.forEach(function(f){ if (newest[f] !== undefined) e[f] = JSON.parse(JSON.stringify(newest[f])); });
+      if (newest.attrsHand) e.attrsHand = true; else delete e.attrsHand;
+      e.name = String(newest.name || e.name).replace(/\s+\d+$/, '') || e.name; e.kitAt = newest.kitAt;
+      libSave(e);
+    }
+    libPropagate(e.id, e);
+  });
   try { if (Object.keys(_advDirty).length) storySave(); } catch(x){}
 }
 function questWindow(sceneId){
