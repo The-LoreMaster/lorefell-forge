@@ -1,3 +1,7 @@
+## 2026-09-28 - The stream link opens the stream
+
+The copied stream link pointed at the site's home page: the table is told only the site's address, not the page it sits on, so the link lost /the-threadspire. It is now the site's address with the ThreadSpire page's path added.
+
 ## 2026-09-28 - The Stream view
 
 Settings gains Streaming, Copy link: the ThreadSpire page with view=stream (and this adventure) is a window to capture, in another tab or as a browser source. It follows the LoreMaster's table live (scene, map, tokens, effects, weather, dice and music) and never writes: no state is pushed and every saving request is answered on the spot and goes nowhere, so it cannot overwrite the table. It shows what the players see, without the fog (hidden tokens, hidden names and unrevealed notes stay hidden), and none of the LoreMaster's tools. A small panel, shown when the mouse moves and faded when it rests so it stays out of the capture, switches Players' view or Everything, and Map only or With the table (the table's frame, menus and log around the map); see=all and frame=1 in the address do the same. Paste velo/page-threadspire.js.
