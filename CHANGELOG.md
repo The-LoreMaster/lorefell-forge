@@ -1,3 +1,7 @@
+## 2026-09-28 - A held Fell's sections on a rail; the Fell list stops overlapping
+
+Opening a player's Fell from the Fell window put eight sections and a way back in two crowded rows of tabs over the sheet. They now run down a rail on the left, each a mark over its name (All Fell, Lore, Attributes, Condition, Weapons, Armor, Lorebounds, Skills, Inventory), with the sheet beside it; the open section is gold. On a narrow screen the rail runs across the top and scrolls. In the Fell list, a long name or line of details wrapped under the role and the buttons; names and details now keep to one line each and end with an ellipsis, and on a narrow window the role steps aside.
+
 ## 2026-09-28 - Level 1 Vitality counts Vigor
 
 Nate's ruling: a level 1 Fell's maximum Vitality is 5 plus their Vigor at level 1 (the starting crystal, the motivation and any other lasting grant), not a flat 5. FellGlass now forges a Fell with that, and a level 1 Fell forged before this gets it once when its sheet next opens (current Vitality rises by the same). Fell above level 1 are left as they are, since their level 1 Vigor cannot be read back; the LoreMaster can set any Fell's maximum by hand. Level ups were already d6 plus Vigor each.
