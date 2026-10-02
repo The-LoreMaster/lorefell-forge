@@ -1,3 +1,7 @@
+## 2026-09-28 - One foe editor everywhere
+
+The Library's edit button and Forge a new foe, and Summon a foe's Edit, opened an older foe forge, not the editor the Story roster opens. They now open the same editor. The older forge also trimmed a foe's infusions and augmentations to its rating's slice every time it was opened or saved, which threw away the rest of its kit (one way augmentations went missing); it is no longer used for library foes. Forge a new foe makes a new library entry (tied to the open adventure) and opens it in the editor.
+
 ## 2026-09-28 - The foe editor's attributes, back
 
 The rebuilt foe editor lost the attributes; they are back, all eight as steppers. Left alone they come from the build and rating and the Crucible scales them to the party as it begins; change one and the foe's attributes are kept as set, by the editor, by a change of rating, and by the Crucible (which still scales its Vitality and works out its strike from them), until Use the build's gives them back.
