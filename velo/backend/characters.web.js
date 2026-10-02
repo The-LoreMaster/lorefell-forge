@@ -137,6 +137,8 @@ export const threadspirePublicChar = webMethod(Permissions.Anyone, async (charId
       echosight: ((data.armor && data.armor.augs) || []).indexOf('Echosight') >= 0,
       everWatchful: talents.indexOf('Ever-Watchful') >= 0
     },
+    // the sheet's afflictions by name, for the table's fog (Masked narrows a Fell's sight)
+    afflictions: [].concat(data.afflictions || [], data.effects || [], data.impairments || []).map((a) => a && (a.name || a)).filter(Boolean),
     locationId: idn.locationId || '',
     worldId: idn.worldId || '',
     isOwner: !!(me && ownerId && me === ownerId)
