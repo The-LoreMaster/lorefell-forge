@@ -1,3 +1,7 @@
+## 2026-09-28 - Removing from the roster: a clean choice, and several at once
+
+Removing a foe or NPC from the Story window's roster asks cleanly: From this scene (the library keeps it), or From the scene and the library (every copy here goes and it leaves every shelf; for your own library entries), each a full-width choice saying what it does, with Cancel beneath; the three cramped buttons are gone. The roster gains Select: tick any number of foes and NPCs (or All), then Remove, which takes them from the scene's roster after one confirmation.
+
 ## 2026-09-28 - Invested Lore opens for the LoreMaster at once
 
 When the LoreMaster opened a player's Fell, its Invested Lore (level, Lore Points, paragon points), the strip and mobility stayed in the player's read-only form until some later redraw: switching the sheet into the LoreMaster's mode redrew the arsenal and identity but not those. They now redraw the moment the mode turns on, so they can be edited as soon as the tab opens.
