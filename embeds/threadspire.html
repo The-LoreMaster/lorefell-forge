@@ -2421,6 +2421,7 @@ body.stream:not(.stream-frame) #rail, body.stream:not(.stream-frame) #hud, body.
 .fa-rule{ margin:4px 0 0; color:#dce8ef; }
 .sw-rm:hover{ border-color:#e3a193 !important; color:#e3a193 !important; }
 #tsModal .tsm-btn.danger{ border-color:#b04050; color:#ffd7cf; background:rgba(110,30,40,.5); }
+.sm-sig{ display:inline-flex; width:20px; height:20px; border-radius:50%; align-items:center; justify-content:center; background:rgba(98,20,30,.96); vertical-align:middle; } .sm-sig svg{ fill:none; stroke:#ffe1d6; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
 </style>
 </head>
 <body>
@@ -17482,7 +17483,7 @@ function summonSystemBuild(P, b){
     + 'Afflictions (name|cost|family): ' + SIGIL_COMPONENTS.filter(function(c){ return c.category === 'Affliction*'; }).map(function(c){ return c.component.replace(/\*$/, '') + '|' + c.cost + '|' + c.family; }).join('; ') + '. '
     + 'Answer with JSON only, no other text, in this shape: '
     + '{"name":"evocative name, not generic","desc":"two or three sentences: how it looks and how it fights","build":"one build","stance":"one stance","atk":"phys or magic","range":1,"mobility":5,'
-    + '"affliction":"one affliction or none","signature":"the name of its signature move","infusions":["..."],"augmentations":["..."],'
+    + '"affliction":"its signature affliction, one from its own family","infusions":["..."],"augmentations":["..."],'
     + '"family":"Precision, Power or Magic","acts":[{"name":"act name","tier":1,"damage":"a damage package","target":"a target inlay","effect":"one combat effect or affliction by name","flavor":"one sentence of how it looks, no rules"}]}'
     + '\nBuilds: ' + summonNames(P.builds).join(', ')
     + '\nStances: ' + summonNames(P.stances).join(', ')
@@ -17545,7 +17546,10 @@ function summonMake(j){
   var rec = {
     id:mkId(), type:'monster', side:'monster', name:String(j.name).slice(0, 60), desc:String(j.desc || ''), description:String(j.desc || ''),
     build:pick(j.build, P.builds, builds[0] || 'Juggernaut'), stance:pick(j.stance, P.stances, ''), affliction:pick(j.affliction, P.afflictions, ''),
-    sig:String(j.signature || '').slice(0, 60), atkPref:(j.atk === 'magic' ? 'magic' : 'phys'),
+    /* sig is the Foe's signature affliction (what its Discordant lays at Epic and Forsaken, and
+       what the editor and the fight read); the AI's "signature" was a move name, saved in its
+       place, so the affliction never reached the foe */
+    sig:'', atkPref:(j.atk === 'magic' ? 'magic' : 'phys'),
     range:Math.max(1, Math.min(30, parseInt(j.range, 10) || 1)), mobility:Math.max(1, Math.min(30, parseInt(j.mobility, 10) || 5)),
     full:{ infusions:only(j.infusions, P.infusions), augments:only(j.augmentations, P.augmentations),
            abilities:(j.acts || []).filter(function(a){ return a && (a.name || a.premade); }).map(function(a){
@@ -17558,6 +17562,10 @@ function summonMake(j){
     family:summonFamily(j), origin:'summoned', source:'mine'
   };
   if (S.campaignId){ rec.campaignId = S.campaignId; rec.campaignName = advNameNow(); }
+  /* the signature affliction comes from the Foe's own family when the AI's pick is outside it */
+  var fam = summonFamily(j), famAffs = SIGIL_COMPONENTS.filter(function(c){ return c.category === 'Affliction*' && c.family === fam; }).map(function(c){ return c.component.replace(/\*$/, ''); });
+  rec.sig = rec.affliction && famAffs.indexOf(rec.affliction) >= 0 ? rec.affliction : (rec.affliction || famAffs[0] || '');
+  rec.affliction = rec.sig;
   summonRate(rec, 'Epic');
   return rec;
 }
@@ -17629,7 +17637,7 @@ function summonPaint(){
   var srs = ['Minion','Elite','Champion','Epic','Forsaken'];
   var list = function(lbl, arr){ return arr && arr.length ? '<div class="sm-line"><b>' + lbl + ':</b> ' + arr.map(esc).join(', ') + '</div>' : ''; };
   h += '<div class="sm-card"><div class="sm-top"><div class="sm-id"><span class="sm-name">' + esc(R.name) + '</span>'
-    + '<span class="sm-meta">' + esc(R.build) + (R.stance ? ' \u00b7 ' + esc(R.stance) : '') + (R.sig ? ' \u00b7 Signature: ' + esc(R.sig) : '') + '</span></div>'
+    + '<span class="sm-meta">' + esc(R.build) + (R.stance ? ' \u00b7 ' + esc(R.stance) : '') + '</span></div>'
     + '<label class="sm-sr"><span>Shatter Rating</span><select onchange="summonSetSR(this.value)">' + srs.map(function(x){ return '<option' + (x === R.sr ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select></label></div>'
     + '<p class="sm-desc">' + esc(R.desc) + '</p>'
     + '<div class="sm-stats"><span><i>Vitality</i>' + R.maxVit + '</span>' + (b.attributes || []).map(function(a){ return '<span><i>' + esc(a) + '</i>' + (R.attrs[a] || 0) + '</span>'; }).join('')
@@ -17637,7 +17645,7 @@ function summonPaint(){
     + (R.abilities.length ? '<div class="sm-acts">' + R.abilities.map(function(a){ var fi = R.full.abilities.indexOf(a); return '<div class="sm-act"><b>' + esc(a.name) + '</b> <em>tier ' + a.tier + (a.sigil ? ' \u00b7 cost ' + a.sigil.cost : '') + (a.premade ? ' \u00b7 premade' : '') + '</em><button class="sm-swap" onclick="summonSwap(' + fi + ')" title="Swap for a premade ability">Swap</button>'
         + (a.sigil ? '<span class="sm-inlays">' + esc(a.sigil.damage + ' \u00b7 ' + a.sigil.target + ' \u00b7 ' + a.sigil.effect) + '</span>' : '')
         + '<span>' + esc(a.effect) + '</span>' + (a.flavor ? '<i class="sm-flav">' + esc(a.flavor) + '</i>' : '') + '</div>'; }).join('') + '</div>' : '<div class="sm-line"><i>A ' + esc(R.sr) + ' brings only its Standard Attack.</i></div>')
-    + kitLine('Infusions', R.full.infusions, R.infusions, 'inf') + kitLine('Augmentations', R.full.augments, R.augments, 'aug') + (R.affliction ? '<div class="sm-line"><b>Affliction:</b> ' + esc(R.affliction) + '</div>' : '')
+    + kitLine('Infusions', R.full.infusions, R.infusions, 'inf') + kitLine('Augmentations', R.full.augments, R.augments, 'aug') + (R.sig ? '<div class="sm-line"><b>Signature affliction:</b> <span class="sm-sig">' + affSvg(R.sig, 13) + '</span> ' + esc(R.sig) + ((TS_EFFECT_INFO[R.sig] || {}).e ? ' <i class="sm-flav">' + esc(TS_EFFECT_INFO[R.sig].e) + '</i>' : '') + '</div>' : '')
     + '</div><p class="tsm-note">Saved to your library' + (R.campaignName ? ', tagged ' + esc(R.campaignName) : '') + '. At party level ' + apl + '; it scales with the party.</p>'
     + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal();foeForge(\'' + R.id + '\')">Edit</button><button class="tsm-btn ghost" onclick="SUMMON.rec=null;SUMMON.text=\'\';summonPaint()">Summon another</button>'
     + (SUMMON.sceneId ? '<span class="sm-count"><button onclick="summonCount(-1)" aria-label="One fewer">\u2212</button><b id="smCount">' + (SUMMON.count || 1) + '</b><button onclick="summonCount(1)" aria-label="One more">+</button></span><button class="tsm-btn" onclick="summonAdd()">Add ' + ((SUMMON.count || 1) > 1 ? (SUMMON.count) + ' ' : '') + 'to this scene</button>' : '') + '</div>';

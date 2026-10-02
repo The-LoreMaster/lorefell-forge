@@ -1,3 +1,7 @@
+## 2026-09-28 - A summoned foe keeps its signature affliction
+
+A summoned foe's signature affliction never reached it: the AI's name for a signature move was saved in the foe's signature affliction field, and the affliction it chose was kept only on the card. The summoner now asks for the signature affliction from the Foe's own family, saves it as the foe's signature affliction (what the editor shows and its Discordant lays at Epic and Forsaken), and shows it on the card with its mark and rule. A foe summoned before this has a move's name there or nothing: set its Signature affliction in the editor.
+
 ## 2026-09-28 - Forge all three acts fills every tier
 
 Forge all three acts could come back with one act of three. An act that does not stand by the SigilForge rules is now mended where the fault is plain (a damage package that cannot carry its effect: an attack effect or a physical affliction is given damage, a support effect none; a target or damage name the forge does not know falls back to the plainest one), then fitted to its tier; and the tiers still empty are asked for again, with the faults of the last answer, up to twice. Summon a foe's acts are mended the same way.
