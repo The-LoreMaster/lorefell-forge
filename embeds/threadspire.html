@@ -2466,6 +2466,16 @@ body.stream:not(.stream-frame) #rail, body.stream:not(.stream-frame) #hud, body.
 @keyframes svmPulse{ 50%{ opacity:.3; } } @media (prefers-reduced-motion: reduce){ .svm.saving i{ animation:none; } }
 .fe-savemark{ margin-right:auto; display:flex; align-items:center; }
 body.clean #saveMark, body.stream #saveMark{ display:none; }
+
+.rm-acts{ display:flex; flex-direction:column; gap:8px; margin-top:6px; }
+.rm-opt{ display:flex; flex-direction:column; align-items:flex-start; gap:2px; width:100%; padding:11px 14px; border:1px solid #2c3a58; border-radius:10px; background:rgba(14,19,36,.7); color:#dce8ef; text-align:left; cursor:pointer; font-family:'Crimson Pro',Georgia,serif; }
+.rm-opt b{ font-family:Cinzel,serif; font-weight:500; font-size:.82rem; letter-spacing:.04em; } .rm-opt span{ font-size:.9rem; color:#93a3b6; }
+.rm-opt:hover{ border-color:#c9a84c; } .rm-opt.danger b{ color:#ffb4a8; } .rm-opt.danger:hover{ border-color:#e05a4f; background:rgba(110,30,40,.35); }
+.rm-cancel{ align-self:center; margin-top:2px; padding:6px 14px; border:0; background:none; color:#93a3b6; font-family:Cinzel,serif; font-size:.68rem; letter-spacing:.08em; cursor:pointer; } .rm-cancel:hover{ color:#dce8ef; }
+.rm-acts .tsm-btn{ width:100%; }
+.sw-rsel{ display:flex; align-items:center; gap:6px; margin:-2px 0 8px; } .sw-mini.danger{ border-color:#7a3340; color:#ffb4a8; } .sw-mini:disabled{ opacity:.45; cursor:not-allowed; }
+.sw-pick{ gap:10px; padding:6px 8px; border:1px solid transparent; border-radius:9px; cursor:pointer; } .sw-pick.on{ border-color:rgba(201,168,76,.5); background:rgba(201,168,76,.08); }
+.sw-pick input{ width:17px; height:17px; accent-color:#c9a84c; flex-shrink:0; } .sw-pick img, .sw-pick .sw-cast-ph{ width:30px; height:30px; border-radius:50%; object-fit:cover; flex-shrink:0; } .sw-pick span:last-child{ flex:1; min-width:0; color:#dce8ef; }
 </style>
 </head>
 <body>
@@ -4448,16 +4458,31 @@ function rosterAdd(sceneId, kind){
     advMarkScene(sceneId); storySave(); rosterRefresh(); render();
   }});
 }
+function swRosterSelect(sid){ SW.rsel = (SW.rsel && SW.rsel.scene === sid) ? null : { scene:sid, ids:{} }; swPaint(); }
+function swRosterPick(sid, key, on){ if (!SW.rsel) return; SW.rsel.ids[key] = !!on; swPaint(); }
+function swRosterPickAll(sid, on){ var f = storyFind('scene', sid); if (!f || !SW.rsel) return; SW.rsel.ids = {}; if (on) castList(f.scene).forEach(function(c){ SW.rsel.ids[c.kind + ':' + c.id] = true; }); swPaint(); }
+function swRosterRemovePicked(sid){
+  if (!SW.rsel) return; var keys = Object.keys(SW.rsel.ids).filter(function(k){ return SW.rsel.ids[k]; }); if (!keys.length) return;
+  window._rmMany = { scene:sid, keys:keys };
+  tsModal('<h3 class="tsm-title">Remove ' + keys.length + ' from this scene?</h3><p class="tsm-note">They leave this scene\u2019s roster. Your library keeps them.</p>'
+    + '<div class="rm-acts"><button class="tsm-btn" onclick="swRosterRemoveGo()">Remove ' + keys.length + '</button><button class="rm-cancel" onclick="tsCloseModal()">Cancel</button></div>');
+}
+function swRosterRemoveGo(){
+  var m = window._rmMany; if (!m) return; tsCloseModal();
+  m.keys.forEach(function(k){ var i = k.indexOf(':'); rosterRemove(m.scene, k.slice(0, i), k.slice(i + 1)); });
+  SW.rsel = null; swPaint();
+  pushLog({ kind:'sys', lmOnly:true, html:m.keys.length + ' removed from the scene\u2019s roster.' }); applyRemoteState({ log:S.log });
+}
 function rosterRemoveAsk(sceneId, kind, id){
   var f = storyFind('scene', sceneId); if (!f) return;
   var c = (f.scene[kind === 'npc' ? 'npcs' : 'foes'] || []).concat(f.scene.combatants || []).filter(function(x){ return sameId(x.id, id) || sameId(tsFoeId(x, 0), id); })[0]; if (!c) return;
   var e = c.libId ? libGet(c.libId) : null, mine = e && (e.source === 'mine' || !e.source || e.origin === 'summoned');
   window._rmCtx = { sceneId:sceneId, kind:kind, id:id, libId:c.libId || '' };
   tsModal('<h3 class="tsm-title">Remove ' + esc(c.name || 'this') + '?</h3>'
-    + '<p class="tsm-note">From this scene\u2019s roster' + (e ? ', or from your library as well, so it leaves every shelf' : '') + '.</p>'
-    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button>'
-    + '<button class="tsm-btn" onclick="tsCloseModal();rosterRemove(window._rmCtx.sceneId,window._rmCtx.kind,window._rmCtx.id)">Remove from the scene</button>'
-    + (e && mine ? '<button class="tsm-btn danger" onclick="rosterRemoveAndDelete()">Remove and delete from the library</button>' : '') + '</div>');
+    + '<div class="rm-acts">'
+    + '<button class="rm-opt" onclick="tsCloseModal();rosterRemove(window._rmCtx.sceneId,window._rmCtx.kind,window._rmCtx.id)"><b>From this scene</b><span>It leaves this roster. Your library keeps it.</span></button>'
+    + (e && mine ? '<button class="rm-opt danger" onclick="rosterRemoveAndDelete()"><b>From the scene and the library</b><span>Every copy here goes, and it leaves every shelf.</span></button>' : '')
+    + '<button class="rm-cancel" onclick="tsCloseModal()">Cancel</button></div>');
 }
 function rosterRemoveAndDelete(){
   var m = window._rmCtx; if (!m) return; tsCloseModal();
@@ -17367,9 +17392,19 @@ function swKids(kind, node){
 }
 /* the right side, for a scene: who is in it, its quests, and running it */
 function swSide(sc){
-  var cast = castList(sc), h = '<div class="sw-sec"><span>Roster <b>' + cast.length + '</b></span></div><div class="sw-cast">';
+  var cast = castList(sc), selOn = SW.rsel && SW.rsel.scene === sc.id, picked = selOn ? SW.rsel.ids : {};
+  var npick = Object.keys(picked).filter(function(k){ return picked[k]; }).length;
+  var h = '<div class="sw-sec"><span>Roster <b>' + cast.length + '</b></span><span class="sw-grow"></span>'
+    + (cast.length ? '<button class="sw-mini" onclick="swRosterSelect(\'' + sc.id + '\')">' + (selOn ? 'Done' : 'Select') + '</button>' : '') + '</div>';
+  if (selOn) h += '<div class="sw-rsel"><button class="sw-mini" onclick="swRosterPickAll(\'' + sc.id + '\',' + (npick < cast.length) + ')">' + (npick < cast.length ? 'All' : 'None') + '</button>'
+    + '<span class="sw-grow"></span><button class="sw-mini danger" onclick="swRosterRemovePicked(\'' + sc.id + '\')"' + (npick ? '' : ' disabled') + '>Remove ' + (npick || '') + '</button></div>';
+  h += '<div class="sw-cast">';
   cast.forEach(function(c){
     var art = c.img || (c.lib && c.lib.img) || '';
+    if (selOn){ var on = !!picked[c.kind + ':' + c.id];
+      h += '<label class="sw-castline sw-pick' + (on ? ' on' : '') + '"><input type="checkbox"' + (on ? ' checked' : '') + ' onchange="swRosterPick(\'' + sc.id + '\',\'' + c.kind + ':' + String(c.id).replace(/'/g, "\\'") + '\',this.checked)">'
+        + (art ? '<img src="' + esc(art) + '" alt="">' : '<span class="sw-cast-ph">' + esc(initials(c.name)) + '</span>') + '<span>' + esc(c.name) + '</span></label>';
+      return; }
     h += '<div class="sw-castline"><button class="sw-castrow" onclick="entrySheet(\'roster\',\'' + sc.id + '\',\'' + c.kind + '\',\'' + String(c.id).replace(/'/g, "\\'") + '\')">' + (art ? '<img src="' + esc(art) + '" alt="">' : '<span class="sw-cast-ph">' + esc(initials(c.name)) + '</span>') + '<span>' + esc(c.name) + '</span></button>'
       + '<button class="sw-more sw-rm" onclick="rosterRemoveAsk(\'' + sc.id + '\',\'' + c.kind + '\',\'' + String(c.id).replace(/'/g, "\\'") + '\')" title="Remove" aria-label="Remove">\u00d7</button>'
       + (c.kind === 'foe' ? '<button class="sw-more" onclick="rosterMore(\'' + sc.id + '\',\'' + String(c.id).replace(/'/g, "\\'") + '\')" title="Add more of this foe" aria-label="Add more of this foe">+</button>' : '') + '</div>';
