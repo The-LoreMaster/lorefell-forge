@@ -1,3 +1,7 @@
+## 2026-09-28 - The Hearth's ThreadSpire mark
+
+The ThreadSpire mark on the Hearth read as a Christmas tree. It is now a slender spire on a stepped plinth with a needle's eye at its tip, a thread drawn through the eye and wound down around it.
+
 ## 2026-09-28 - The scene reader on a phone; the LoreMaster's bottom bar starts with the Story
 
 On a phone the scene reader's bar is laid out in two rows: the scene's name between its arrows with minimize at the end, and its controls (Maps, Tokens, Begin combat, the party level, or the battle's own) beneath in one even row that scrolls sideways if it must; it was wrapping into a cramped, uneven block. The LoreMaster's bottom bar on a phone now runs Story, Fell, Library, Stages, Journal. The All saved mark moves to the top left on a phone, clear of the bottom bar.
