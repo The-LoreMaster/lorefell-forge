@@ -1,3 +1,7 @@
+## 2026-09-28 - A mark that says whether everything is saved
+
+A small mark in the corner of the LoreMaster's table, and beside the foe editor's Save, says whether every change has reached the site: Saving while anything is on its way or waiting its turn (a scene, the story, a library foe, an act, the table's own state), All saved with the time once nothing is left, and Not saved in red, naming what, when a save was refused, until a later one lands. When it says All saved, a refresh loses nothing.
+
 ## 2026-09-28 - A foe's library entry and its scene copies keep whichever was edited last
 
 A library foe and its copies in scenes now sync both ways, whichever was edited last. Every edit stamps the foe it was made on (in the library row's foeMeta as kitAt, and on a scene copy), a roster edit carries its stamp to the library, and copies carry the stamp of the kit they took. When the library is read, a scene copy edited after its library entry hands its kit to the library (which is saved) before every copy takes it; otherwise the library's kit goes out to the copies. A copy still keeps its own number, wounds and place in a fight.
