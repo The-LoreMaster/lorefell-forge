@@ -842,7 +842,8 @@ async function diceGrant(memberId, key) {
 export const lmGiveDice = webMethod(Permissions.Anyone, async (campaignId, charId, key) => {
   const m = await currentMember.getMember().catch(() => null);
   if (!m || !m._id) return { ok: false, error: 'sign in' };
-  if (['spindle', 'whip'].indexOf(String(key)) < 0) return { ok: false, error: 'those dice are not the LoreMaster\'s to give' };
+  // any set the LoreMaster chooses to give (the table offers only sets they hold themselves)
+  if (!/^[a-z0-9_-]{2,40}$/i.test(String(key || ''))) return { ok: false, error: 'no such dice' };
   const cid = String(campaignId || '');
   const camp = await wixData.get('Campaigns', cid, { suppressAuth: true }).catch(() => null);
   if (!camp) return { ok: false, error: 'no such adventure' };
@@ -852,6 +853,26 @@ export const lmGiveDice = webMethod(Permissions.Anyone, async (campaignId, charI
   const ch = await wixData.get('Characters', String(charId || ''), { suppressAuth: true }).catch(() => null);
   if (!ch || String(ch.campaignId || '') !== cid || !ch.ownerMemberId) return { ok: false, error: 'that Fell is not at this table' };
   try { return await diceGrant(ch.ownerMemberId, String(key)); } catch (e) { return { ok: false, error: String(e) }; }
+});
+// The LoreMaster gives a set to every player with a Fell at the table, at once.
+export const lmGiveDiceAll = webMethod(Permissions.Anyone, async (campaignId, key) => {
+  const m = await currentMember.getMember().catch(() => null);
+  if (!m || !m._id) return { ok: false, error: 'sign in' };
+  if (!/^[a-z0-9_-]{2,40}$/i.test(String(key || ''))) return { ok: false, error: 'no such dice' };
+  const cid = String(campaignId || '');
+  const camp = await wixData.get('Campaigns', cid, { suppressAuth: true }).catch(() => null);
+  if (!camp) return { ok: false, error: 'no such adventure' };
+  let lm = camp.ownerMemberId === m._id;
+  if (!lm) { try { const rm = await wixData.query('AdventureMembers').eq('campaignId', cid).eq('memberId', m._id).limit(1).find({ suppressAuth: true }); lm = !!(rm.items[0] && (rm.items[0].role === 'loremaster' || rm.items[0].role === 'lorekeeper')); } catch (e) {} }
+  if (!lm) return { ok: false, error: 'only the LoreMaster can give these' };
+  const r = await wixData.query('Characters').eq('campaignId', cid).limit(100).find({ suppressAuth: true });
+  const seen = {}; let given = 0, fresh = 0;
+  for (const ch of r.items) {
+    if (!ch.ownerMemberId || seen[ch.ownerMemberId] || ch.ownerMemberId === m._id) continue;
+    seen[ch.ownerMemberId] = 1;
+    try { const g = await diceGrant(ch.ownerMemberId, String(key)); if (g && g.ok){ given++; if (g.fresh) fresh++; } } catch (e) {}
+  }
+  return { ok: true, given: given, fresh: fresh };
 });
 // A player earns the Discord dice when their own Fell falls to 0 Vitality. The site checks
 // the Fell's saved Vitality, so it cannot be claimed without it.
