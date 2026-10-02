@@ -2391,6 +2391,14 @@ body.stream:not(.stream-frame) #rail, body.stream:not(.stream-frame) #hud, body.
 #tsModal .tsm-x:hover{ border-color:#c9a84c; color:#e8cf86; }
 .sm-inlays{ flex-basis:100%; font-family:Cinzel,serif; font-size:.6rem; letter-spacing:.06em; color:#a88a3e; }
 .sm-flav{ flex-basis:100%; color:#93a3b6; font-size:.9rem; }
+
+.sm-mode{ display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin:8px 0 2px; } .sm-mode span{ font-family:Cinzel,serif; font-size:.6rem; letter-spacing:.12em; text-transform:uppercase; color:#a88a3e; margin-right:4px; }
+.sm-mode button{ padding:6px 10px; border:1px solid #2c3a58; border-radius:8px; background:none; color:#b8c4d0; font-family:'Crimson Pro',Georgia,serif; font-size:.92rem; cursor:pointer; } .sm-mode button.on{ border-color:#c9a84c; color:#e8cf86; background:rgba(201,168,76,.1); } .sm-mode button:disabled{ opacity:.45; cursor:not-allowed; }
+.sm-act{ position:relative; } .sm-swap{ margin-left:auto; padding:2px 8px; border:1px solid #2c3a58; border-radius:6px; background:none; color:#b8c4d0; font-family:Cinzel,serif; font-size:.56rem; letter-spacing:.06em; cursor:pointer; } .sm-swap:hover{ border-color:#c9a84c; color:#e8cf86; }
+.sm-swap-bar{ display:flex; gap:8px; } .sm-swap-bar input{ flex:1; } .sm-swap-bar select{ width:auto; }
+.sm-swap-list{ display:flex; flex-direction:column; gap:6px; max-height:52vh; overflow-y:auto; margin:8px 0; }
+.sm-swap-opt{ display:flex; flex-wrap:wrap; gap:2px 8px; padding:8px 10px; border:1px solid #26324c; border-radius:9px; background:rgba(14,19,36,.7); color:#dce8ef; text-align:left; font-family:'Crimson Pro',Georgia,serif; cursor:pointer; } .sm-swap-opt:hover{ border-color:#c9a84c; }
+.sm-swap-opt em{ font-style:normal; color:#c9a84c; font-size:.82rem; } .sm-swap-opt span{ flex-basis:100%; color:#b8c4d0; font-size:.9rem; }
 </style>
 </head>
 <body>
@@ -17227,15 +17235,28 @@ function aiCall(system, user, maxTokens){
     .then(function(res){ if (res.status === 429) throw { rate:true }; if (!res.ok) throw new Error('worker http ' + res.status); return res.json(); })
     .then(function(d){ if (!d || d.ok === false) throw new Error((d && d.error) ? String(d.error).slice(0, 120) : 'no text'); return d.text || ''; });
 }
-var SUMMON = { sceneId:'', rec:null, busy:false, err:'', text:'' };
+var SUMMON = { sceneId:'', rec:null, busy:false, err:'', text:'', acts:'build' };
 function summonOpen(sceneId){
   if (!isLM()) return;
-  SUMMON = { sceneId:sceneId || (S.scene && S.scene.id) || '', rec:null, busy:false, err:'', text:'' };
+  SUMMON = { sceneId:sceneId || (S.scene && S.scene.id) || '', rec:null, busy:false, err:'', text:'', acts:(SUMMON && SUMMON.acts) || 'build' };
+  if (!(FORGE.acts || []).length){ try { forgeLoad(); } catch(e){} }
   summonPaint();
 }
 function summonNames(list){ return (list || []).map(function(x){ return typeof x === 'string' ? x : x.name; }).filter(Boolean); }
+function summonPremadeList(){
+  return [1, 2, 3].map(function(t){ return 'Tier ' + t + ' premade abilities (name|what it does): ' + actsForTier(t).slice(0, 60).map(function(a){ return a.name + '|' + String(a.desc || a.effect || '').replace(/\s+/g, ' ').slice(0, 90); }).join('; '); }).join('\n');
+}
 function summonSystem(){
   var P = FORGE.pack || {}, b = (P.tierBudget || {}).Epic || { inf:3, aug:1, acts:3 };
+  if (SUMMON.acts === 'premade') return summonSystemPremade(P, b);
+  return summonSystemBuild(P, b);
+}
+function summonSystemPremade(P, b){
+  return summonSystemBuild(P, b).replace(/ACTS ARE BUILT BY THE SIGILFORGE RULES[\s\S]*?Afflictions \(name\|cost\|family\): [^\n]*?\. /, '')
+    .replace('"acts":[{"name":"act name","tier":1,"damage":"a damage package","target":"a target inlay","effect":"one combat effect or affliction by name","flavor":"one sentence of how it looks, no rules"}]', '"acts":[{"premade":"the exact name of a premade ability","tier":1,"flavor":"one sentence of how this foe does it"}]')
+    + '\nACTS ARE CHOSEN FROM THE PREMADE ABILITIES BELOW, never invented or renamed: one at each tier 1, 2 and 3, each the one that best fits this foe, written by its exact name.\n' + summonPremadeList();
+}
+function summonSystemBuild(P, b){
   return 'You build one foe for LoreFell, a dark fantasy tabletop game, from the LoreMaster\'s description. '
     + 'Voice: dark, grounded, specific. Short declarative sentences. No em dashes, no semicolons, no ellipses. '
     + 'Choose ONLY from the lists given; never invent a build, stance, affliction, infusion or augmentation. '
@@ -17261,7 +17282,9 @@ function summonGo(){
   if (!t){ SUMMON.err = 'Describe the foe first.'; summonPaint(); return; }
   SUMMON.text = t; SUMMON.busy = true; SUMMON.err = ''; summonPaint();
   var read = function(text){ var m = String(text).match(/\{[\s\S]*\}/); try { return JSON.parse(m ? m[0] : text); } catch(e){ return null; } };
-  var problems = function(j){ var fam = summonFamily(j), out = []; (j.acts || []).forEach(function(a, i){ var r = sigilAct(a, fam); if (r.errs.length) out.push('Act ' + (i + 1) + ' (' + (a.name || '') + '): ' + r.errs.join('; ')); }); return out; };
+  var problems = function(j){ var fam = summonFamily(j), out = []; (j.acts || []).forEach(function(a, i){
+      if (SUMMON.acts === 'premade'){ if (!premadeByName(a.premade)) out.push('Act ' + (i + 1) + ': "' + (a.premade || '') + '" is not a premade ability; use an exact name from the list'); return; }
+      var r = sigilAct(a, fam); if (r.errs.length) out.push('Act ' + (i + 1) + ' (' + (a.name || '') + '): ' + r.errs.join('; ')); }); return out; };
   aiCall(summonSystem(), 'Describe this foe: ' + t, 1500).then(function(text){
     var j = read(text); if (!j || !j.name) throw new Error('the answer could not be read');
     var p = problems(j);
@@ -17278,6 +17301,28 @@ function summonGo(){
   });
 }
 /* hold the AI to the rules: names it chose that are not in the lists are dropped, budgets enforced */
+function premadeByName(n){ n = String(n || '').trim().toLowerCase(); return (FORGE.acts || []).filter(function(a){ return String(a.name).toLowerCase() === n; })[0] || null; }
+function premadeAct(pm, flavor){ return { name:pm.name, tier:Number(pm.tier) || 1, effect:pm.effect || pm.desc || '', flavor:String(flavor || '').slice(0, 300), premade:pm.id || pm.name }; }
+/* swap one of the summoned foe's acts for a premade ability */
+function summonSwap(i){
+  var R = SUMMON.rec; if (!R) return; var cur = R.full.abilities[i] || R.abilities[i]; if (!cur) return;
+  SUMMON.swap = { i:i, tier:cur.tier, q:'' }; summonSwapPaint();
+}
+function summonSwapPaint(){
+  var w = SUMMON.swap, q = String(w.q || '').toLowerCase();
+  var list = (FORGE.acts || []).filter(function(a){ return (w.tier === 0 || (Number(a.tier) || 1) === w.tier) && (!q || (a.name + ' ' + (a.desc || a.effect || '')).toLowerCase().indexOf(q) >= 0); }).slice(0, 80);
+  tsModal('<h3 class="tsm-title">A premade ability</h3><div class="sm-swap-bar"><input class="tsm-inp" id="smSwapQ" placeholder="Search abilities" value="' + esc(w.q || '') + '" oninput="SUMMON.swap.q=this.value;summonSwapPaint()">'
+    + '<select class="tsm-inp" onchange="SUMMON.swap.tier=+this.value;summonSwapPaint()">' + [[0,'Any tier'],[1,'Tier 1'],[2,'Tier 2'],[3,'Tier 3']].map(function(o){ return '<option value="' + o[0] + '"' + (w.tier === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div>'
+    + '<div class="sm-swap-list">' + (list.length ? list.map(function(a){ return '<button class="sm-swap-opt" onclick="summonSwapPick(\'' + esc(String(a.id)).replace(/'/g, "\\'") + '\')"><b>' + esc(a.name) + '</b> <em>tier ' + (a.tier || 1) + (a.source === 'canon' ? '' : ' \u00b7 yours') + '</em><span>' + esc(String(a.desc || a.effect || '').slice(0, 220)) + '</span></button>'; }).join('') : '<p class="sw-empty">Nothing matches.</p>') + '</div>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="SUMMON.swap=null;summonPaint()">Back</button></div>');
+  summonWide(); var qi = document.getElementById('smSwapQ'); if (qi){ qi.focus(); qi.setSelectionRange(qi.value.length, qi.value.length); }
+}
+function summonSwapPick(id){
+  var R = SUMMON.rec, w = SUMMON.swap; if (!R || !w) return;
+  var pm = (FORGE.acts || []).filter(function(a){ return String(a.id) === String(id); })[0]; if (!pm) return;
+  var old = R.full.abilities[w.i] || {}; R.full.abilities[w.i] = premadeAct(pm, old.flavor);
+  SUMMON.swap = null; summonRate(R, R.sr); summonPaint();
+}
 function summonFamily(j){ var f = String((j && j.family) || ''); if (/^(Precision|Power|Magic)$/.test(f)) return f; return (j && j.atk === 'magic') ? 'Magic' : 'Power'; }
 function summonMake(j){
   var P = FORGE.pack || {};
@@ -17290,7 +17335,8 @@ function summonMake(j){
     sig:String(j.signature || '').slice(0, 60), atkPref:(j.atk === 'magic' ? 'magic' : 'phys'),
     range:Math.max(1, Math.min(30, parseInt(j.range, 10) || 1)), mobility:Math.max(1, Math.min(30, parseInt(j.mobility, 10) || 5)),
     full:{ infusions:only(j.infusions, P.infusions), augments:only(j.augmentations, P.augmentations),
-           abilities:(j.acts || []).filter(function(a){ return a && a.name; }).map(function(a){
+           abilities:(j.acts || []).filter(function(a){ return a && (a.name || a.premade); }).map(function(a){
+             if (a.premade !== undefined){ var pm = premadeByName(a.premade); return pm ? premadeAct(pm, a.flavor) : null; }
              /* only an act that stands by the rules is kept; its tier is what its cost makes it */
              var r = sigilAct(Object.assign({}, a, { tier:0 }), summonFamily(j)); if (r.errs.length) return null;
              return { name:String(a.name).slice(0, 60), tier:r.tier, effect:r.text, flavor:String(a.flavor || '').slice(0, 300), sigil:r.build };
@@ -17330,7 +17376,8 @@ function summonPaint(){
   var R = SUMMON.rec, h = '<h3 class="tsm-title">Summon a foe</h3>';
   if (!R){
     h += '<label class="tsm-lbl" for="smText">Describe it</label><textarea id="smText" class="tsm-inp tsm-ta" rows="3" placeholder="A wax-fused choirmaster who sings the dead awake and smothers light with tallow.">' + esc(SUMMON.text) + '</textarea>'
-      + '<p class="tsm-note">Built at Epic, by the build rules. One foe. You can set its Shatter Rating after.</p>'
+      + '<div class="sm-mode"><span>Its acts</span><button class="' + (SUMMON.acts === 'build' ? 'on' : '') + '" onclick="SUMMON.text=document.getElementById(\'smText\').value;SUMMON.acts=\'build\';summonPaint()">Build new by the SigilForge rules</button><button class="' + (SUMMON.acts === 'premade' ? 'on' : '') + '" onclick="SUMMON.text=document.getElementById(\'smText\').value;SUMMON.acts=\'premade\';summonPaint()"' + ((FORGE.acts || []).length ? '' : ' disabled title="No premade abilities are loaded yet"') + '>Choose from premade abilities' + ((FORGE.acts || []).length ? ' (' + FORGE.acts.length + ')' : '') + '</button></div>'
+      + '<p class="tsm-note">Built at Epic, by the build rules. One foe. You can set its Shatter Rating after, and swap any act for a premade one.</p>'
       + (SUMMON.err ? '<p class="sm-err">' + esc(SUMMON.err) + '</p>' : '')
       + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button><button class="tsm-btn" onclick="summonGo()"' + (SUMMON.busy ? ' disabled' : '') + '>' + (SUMMON.busy ? 'Summoning\u2026' : 'Summon') + '</button></div>';
     tsModal(h); summonWide(); var ta = document.getElementById('smText'); if (ta && !SUMMON.busy) ta.focus(); return;
@@ -17346,7 +17393,7 @@ function summonPaint(){
     + '<p class="sm-desc">' + esc(R.desc) + '</p>'
     + '<div class="sm-stats"><span><i>Vitality</i>' + R.maxVit + '</span>' + (b.attributes || []).map(function(a){ return '<span><i>' + esc(a) + '</i>' + (R.attrs[a] || 0) + '</span>'; }).join('')
     + '<span><i>Damage</i>' + d.base + ' + ' + d.bonus + '</span><span><i>Move \u00b7 reach</i>' + R.mobility + ' \u00b7 ' + R.range + '</span></div>'
-    + (R.abilities.length ? '<div class="sm-acts">' + R.abilities.map(function(a){ return '<div class="sm-act"><b>' + esc(a.name) + '</b> <em>tier ' + a.tier + (a.sigil ? ' \u00b7 cost ' + a.sigil.cost : '') + '</em>'
+    + (R.abilities.length ? '<div class="sm-acts">' + R.abilities.map(function(a){ var fi = R.full.abilities.indexOf(a); return '<div class="sm-act"><b>' + esc(a.name) + '</b> <em>tier ' + a.tier + (a.sigil ? ' \u00b7 cost ' + a.sigil.cost : '') + (a.premade ? ' \u00b7 premade' : '') + '</em><button class="sm-swap" onclick="summonSwap(' + fi + ')" title="Swap for a premade ability">Swap</button>'
         + (a.sigil ? '<span class="sm-inlays">' + esc(a.sigil.damage + ' \u00b7 ' + a.sigil.target + ' \u00b7 ' + a.sigil.effect) + '</span>' : '')
         + '<span>' + esc(a.effect) + '</span>' + (a.flavor ? '<i class="sm-flav">' + esc(a.flavor) + '</i>' : '') + '</div>'; }).join('') + '</div>' : '<div class="sm-line"><i>A ' + esc(R.sr) + ' brings only its Standard Attack.</i></div>')
     + list('Infusions', R.infusions) + list('Augmentations', R.augments) + (R.affliction ? '<div class="sm-line"><b>Affliction:</b> ' + esc(R.affliction) + '</div>' : '')
