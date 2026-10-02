@@ -10733,6 +10733,29 @@ function partyFind(memberId, charId){
   });
   return hit;
 }
+/* The LoreMaster sets a Fell's maximum Vitality by hand. It is written to the sheet and kept
+   there even if the player's open sheet saves its old number; current Vitality is brought down
+   to the new maximum if it was over. */
+function lmVitAsk(memberId, charId){
+  var p = partyFind(memberId, charId); if (!p) return;
+  tsModal('<h3 class="tsm-title">Maximum Vitality</h3><p class="tsm-note">For ' + esc(p.charName || p.name || 'this Fell') + '. Their sheet takes it, and keeps it until they level or you change it again.</p>'
+    + '<label class="tsm-lbl" for="lmVitIn">Maximum Vitality</label><input class="tsm-inp" id="lmVitIn" type="number" min="1" max="9999" step="1" value="' + esc(String(p.maxVit || '')) + '">'
+    + '<div id="lmVitMsg" class="tsm-note"></div>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button><button class="tsm-btn" onclick="lmVitSave(\'' + esc(charId) + '\')">Set</button></div>');
+  setTimeout(function(){ var el = document.getElementById('lmVitIn'); if (el){ el.focus(); el.select(); } }, 50);
+}
+function lmVitSave(charId){
+  var v = Math.round(Number((document.getElementById('lmVitIn') || {}).value) || 0), msg = document.getElementById('lmVitMsg');
+  if (v < 1){ if (msg) msg.textContent = 'Enter a number of 1 or more.'; return; }
+  if (msg) msg.textContent = 'Setting\u2026';
+  tsAsk('TS_LM_SET_VIT', { charId:charId, max:v }).then(function(){
+    (S.party || []).forEach(function(p){ if (sameId(p.charId, charId)){ p.maxVit = v; if (p.curVit > v) p.curVit = v; } });
+    var f = fellByCharId(charId); if (f){ f.maxVit = v; if (f.curVit > v) f.curVit = v; }
+    tsCloseModal(); pushLog({ kind:'sys', html:'Maximum Vitality set to <b>' + v + '</b>.' }); applyRemoteState({ log:S.log, scene:S.scene });
+    if (S.openSection === 'fell') refreshWinBody();
+    try { partyRefresh(); } catch(e){}
+  }).catch(function(e){ if (msg) msg.textContent = 'It was not set (' + String((e && e.message) || e || 'error').slice(0, 80) + ').'; });
+}
 function partyMenu(memberId, charId){
   var p = partyFind(memberId, charId); if (!p) return;
   var who = p.charName || p.name || 'this player';
@@ -10744,6 +10767,7 @@ function partyMenu(memberId, charId){
     + (atTable ? '<p class="tsm-note">At the table, not on a device. This Fell is kept by the adventure, so there is no account to give a role to.</p>' : '')
     + '<div class="menu-list">';
   if (cid) h += '<button class="tsm-btn ghost wide" onclick="tsCloseModal();lmOpenFell(\'' + esc(cid) + '\')">Open their Fell</button>';
+  if (cid && !p.kept) h += '<button class="tsm-btn ghost wide" onclick="lmVitAsk(\'' + esc(mid) + '\',\'' + esc(cid) + '\')">Set maximum Vitality' + (p.maxVit ? ' (now ' + p.maxVit + ')' : '') + '</button>';
   /* A Fell the adventure keeps has no player behind it to promote. Offering it anyway
      aimed the role change at the loremaster's own account, which is why the roster read
      loremaster for every such Fell and put the label straight back on refresh. */

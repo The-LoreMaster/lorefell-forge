@@ -2,7 +2,7 @@
 // Paste into the ThreadSpire page. Set the embed element ID to match EMBED.
 // Feeds the character-first view: the player's character card, the party at their
 // location, revealed nodes, quest-board goals, world issues, and map art.
-import { threadspirePublicChar, listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter, threadspireSaveMeta, lmLoadCharacter, lmSaveCharacter, lmCreateOfflineFell, lmRemoveFromAdventure, charAdventure, leaveAdventure, lmWipeFell, giveRecord, consultArchive, lmSealedGet, lmSealedWeave, lmNotesSave, myDice, saveDicePicks, lmGiveDice, earnDice } from 'backend/characters.web.js';
+import { threadspirePublicChar, listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter, threadspireSaveMeta, lmLoadCharacter, lmSaveCharacter, lmSetVitality, lmCreateOfflineFell, lmRemoveFromAdventure, charAdventure, leaveAdventure, lmWipeFell, giveRecord, consultArchive, lmSealedGet, lmSealedWeave, lmNotesSave, myDice, saveDicePicks, lmGiveDice, earnDice } from 'backend/characters.web.js';
 import { getLmPortrait, saveLmPortrait, getForgePools, getForgeLibrary, listMyCampaigns, saveCampaign, submitAct, submitItem, deleteAsset, listGlossary , setMemberRole, detachCharacter, loadCampaign, restoreRoster } from 'backend/fatewell.web.js';
 import { createInvite, revokeInvite, myJoinedAdventures, attachCharacter } from 'backend/invites.web.js';
 let _pubHanded = false;
@@ -486,6 +486,8 @@ $w.onReady(async function () {
             try { const r = await saveCampaignState(campaignId, msg.snap); reply(!!(r && r.ok), r, r && r.error); }
             catch (e) { reply(false, null, String(e)); }
           }
+        } else if (msg.type === 'TS_LM_SET_VIT') {
+          try { const r = await lmSetVitality(msg.charId || '', msg.max); reply(!!(r && r.ok), r, r && r.error); } catch (e) { reply(false, null, String(e)); }
         } else if (msg.type === 'TS_PUBLISHED_PENDING') {
           // an adventure chosen in the directory arrives as ?import=<id>; hand its pack over once
           let pack = null;
