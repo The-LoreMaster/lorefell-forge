@@ -2203,6 +2203,8 @@ body.drop-ready #map::after{ content:'Drop images to add them as maps'; position
 .sm-line{ font-size:.92rem; color:#b8c4d0; } .sm-line b{ color:var(--silver,#dce8ef); font-weight:500; }
 #tsModal .tsm-panel.sm-panel{ width:min(580px, calc(100vw - 32px)); max-height:calc(100vh - 60px); overflow-y:auto; margin-top:30px; }
 .sw-row-btns{ flex-wrap:wrap; } .sw-row-btns .tsm-btn{ white-space:nowrap; padding:6px 10px; }
+.ct-h{ font-family:Cinzel,serif; font-size:.62rem; letter-spacing:.14em; text-transform:uppercase; color:#a88a3e; margin:12px 0 6px; }
+.ct-beat{ display:flex; gap:10px; align-items:flex-start; padding:10px 12px; margin-bottom:6px; border:1px solid var(--line); border-left:3px solid #8fa0b3; border-radius:10px; background:rgba(20,28,51,.85); cursor:pointer; } .ct-beat input{ margin-top:4px; accent-color:var(--gold); width:17px; height:17px; flex-shrink:0; } .ct-b{ display:flex; flex-direction:column; gap:2px; }
 </style>
 </head>
 <body>
@@ -16614,7 +16616,7 @@ function swDescSave(){ var node = swNode(); if (!node) return; node.desc = ((doc
 function swBeats(sc){
   var list = sc.beats || [];
   var h = '<div class="sw-sec"><span>Beats <b>' + list.length + '</b></span><span class="sw-grow"></span>'
-    + '<button class="tsm-btn ghost" onclick="storyBeatAdd(\'' + sc.id + '\')">+ Beat</button></div>';
+    + '<button class="tsm-btn ghost" onclick="contOpen(\'' + sc.id + '\')">Continue the story</button><button class="tsm-btn ghost" onclick="storyBeatAdd(\'' + sc.id + '\')">+ Beat</button></div>';
   if (!list.length) h += '<p class="sw-empty">No beats yet. Add one to start writing this scene.</p>';
   list.forEach(function(b, i){
     var m = beatMeta(b.kind || 'general'), sp = (b.kind === 'dialogue' && b.speaker) ? beatSpeaker(b, sc) : null;
@@ -16831,6 +16833,144 @@ function summonPaint(){
     + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal();foeForge(\'' + R.id + '\')">Edit</button><button class="tsm-btn ghost" onclick="SUMMON.rec=null;SUMMON.text=\'\';summonPaint()">Summon another</button>'
     + (SUMMON.sceneId ? '<button class="tsm-btn" onclick="summonAdd()"' + (R._added ? ' disabled' : '') + '>' + (R._added ? 'In the scene' : 'Add to this scene') + '</button>' : '') + '</div>';
   tsModal(h); summonWide();
+}
+
+
+/* ================= Continue the story =================
+   Drafts beats for the scene that is open, from everything that came before it in the story
+   (every earlier scene, in every earlier session and act, in reading order) and the
+   LoreMaster's word on what happens next. Secrets go along as hidden context, marked never to
+   be revealed in what is read or said; lore checks are left out. The most recent scenes go
+   whole and the older ones condensed, so a long adventure still fits what the AI can read at
+   once. The draft comes back as beats to keep or discard one by one; kept beats join the scene. */
+var CONT = { sceneId:'', prompt:'', busy:false, err:'', draft:null, keep:{}, info:'' };
+function contOpen(sceneId){ if (!isLM()) return; CONT = { sceneId:sceneId, prompt:'', busy:false, err:'', draft:null, keep:{}, info:contContext(sceneId).info }; contPaint(); }
+function contBeatText(b, full){
+  var k = b.kind || b.type || 'general'; if (k === 'lorecheck' || k === 'check') return '';
+  var sp = '';
+  if (k === 'dialogue' && b.speaker){ var e = libGet(b.speaker); sp = (e && e.name) || b.speaker; }
+  var body = String(b.body || ''); if (!full && body.length > 170) body = body.slice(0, 170) + '\u2026';
+  var tag = k === 'secret' ? 'SECRET (hidden from the players; never reveal)' : beatMeta(k)[0];
+  return '- ' + tag + (b.title ? ': ' + b.title : '') + (sp ? ' [' + sp + ']' : '') + (body ? ' | ' + body.replace(/\s+/g, ' ') : '');
+}
+/* the story before the open scene, newest in full and the older condensed, inside a budget */
+function contContext(sceneId){
+  var A = S.adventure || { acts:[] }, before = [], cur = null, stop = false;
+  (A.acts || []).forEach(function(a){ (a.sessions || []).forEach(function(se){ (se.scenes || []).forEach(function(sc){
+    if (stop) return; if (sc.id === sceneId){ cur = { act:a, ses:se, sc:sc }; stop = true; return; }
+    before.push({ act:a, ses:se, sc:sc });
+  }); }); });
+  var FULL = 5, BUDGET = 14000, lines = [], lastAct = null, lastSes = null, condensed = 0;
+  var block = function(x, full){
+    var out = [];
+    if (x.act !== lastAct){ out.push('ACT: ' + (x.act.name || '') + (x.act.desc ? ' | ' + x.act.desc : '')); lastAct = x.act; }
+    if (x.ses !== lastSes){ out.push('SESSION: ' + (x.ses.name || '') + (x.ses.desc ? ' | ' + x.ses.desc : '')); lastSes = x.ses; }
+    out.push('SCENE: ' + (x.sc.name || '') + (x.sc.desc ? ' | ' + x.sc.desc : ''));
+    var beats = (x.sc.beats || x.sc.entries || []).map(function(b){ return contBeatText(b, full); }).filter(Boolean);
+    if (!full) beats = beats.slice(0, 6);
+    return out.concat(beats).join('\n');
+  };
+  var recent = before.slice(-FULL), older = before.slice(0, Math.max(0, before.length - FULL));
+  var olderText = older.map(function(x){ return block(x, false); });
+  lastAct = null; lastSes = null;
+  var recentText = recent.map(function(x){ return block(x, true); });
+  /* trim the oldest first until it fits */
+  var total = function(){ return olderText.join('\n').length + recentText.join('\n').length; };
+  while (olderText.length && total() > BUDGET){ olderText.shift(); condensed++; }
+  var parts = [];
+  if (A.name) parts.push('ADVENTURE: ' + A.name + (A.desc ? ' | ' + A.desc : ''));
+  if (condensed) parts.push('(The ' + condensed + ' earliest scenes are left out for length.)');
+  parts = parts.concat(olderText, recentText);
+  var here = '';
+  if (cur){
+    here = 'THE SCENE TO CONTINUE\nACT: ' + (cur.act.name || '') + '\nSESSION: ' + (cur.ses.name || '') + '\nSCENE: ' + (cur.sc.name || '') + (cur.sc.desc ? ' | ' + cur.sc.desc : '')
+      + '\n' + ((cur.sc.beats || []).map(function(b){ return contBeatText(b, true); }).filter(Boolean).join('\n') || '(no beats yet)');
+  }
+  var cast = castList(cur ? cur.sc : null).map(function(c){ return c.name; });
+  var info = before.length ? ('Reads ' + before.length + ' earlier scene' + (before.length === 1 ? '' : 's') + (older.length ? ' (the ' + Math.min(FULL, before.length) + ' most recent in full, the rest condensed' + (condensed ? ', ' + condensed + ' left out for length' : '') + ')' : ', in full') + '.')
+    : 'This is the first scene, so it reads only the scene itself.';
+  return { text:parts.join('\n\n'), here:here, cast:cast, info:info };
+}
+function contSystem(){
+  return 'You draft beats for one scene of a LoreFell adventure, a dark fantasy tabletop game. '
+    + 'Voice: dark, grounded, specific. Short declarative sentences. No em dashes, no semicolons, no ellipses, no rhetorical triples. '
+    + 'Continue the story from what came before and the scene so far, toward what the LoreMaster asks for next. Stay consistent with names, places and events already written. '
+    + 'Lines marked SECRET are hidden from the players: use them to stay consistent, but never reveal them in read-aloud or dialogue, and never have a character say them outright. '
+    + 'Read-aloud is three sentences or fewer, concrete and sensory, never telling the players what they feel. Dialogue is spoken by a named character; prefer characters already in the scene. '
+    + 'Output plain text only. Give 3 to 6 blocks, each in this exact shape:\n@@BLOCK\ntype: <readaloud|dialogue|crucible|clue|quest|secret|beat|reminder|general>\ntitle: <short title>\nspeaker: <the character who speaks, dialogue only>\nbody: <the text>\n@@END';
+}
+function contParse(text){
+  var out = [];
+  String(text).split(/@@BLOCK/).slice(1).forEach(function(ch){
+    var body = ch.split('@@END')[0], rec = { kind:'general', title:'', speaker:'', body:'' }, inBody = false, bl = [];
+    body.split(/\r?\n/).forEach(function(ln){
+      if (inBody){ bl.push(ln); return; }
+      var m = ln.match(/^(type|title|speaker|body)\s*:\s*(.*)$/i);
+      if (m){ var k = m[1].toLowerCase(); if (k === 'body'){ inBody = true; if (m[2]) bl.push(m[2]); } else if (k === 'type') rec.kind = m[2].trim().toLowerCase(); else rec[k] = m[2].trim(); }
+    });
+    rec.body = bl.join('\n').trim();
+    if (!BEAT_TYPES[rec.kind] || rec.kind === 'read' || rec.kind === 'check' || rec.kind === 'choice') rec.kind = 'general';
+    if (rec.title || rec.body) out.push(rec);
+  });
+  return out;
+}
+function contGo(){
+  var p = ((document.getElementById('ctPrompt') || {}).value || '').trim();
+  if (!p){ CONT.err = 'Say what happens next first.'; contPaint(); return; }
+  CONT.prompt = p; CONT.busy = true; CONT.err = ''; contPaint();
+  var cx = contContext(CONT.sceneId);
+  var user = 'THE STORY SO FAR\n' + (cx.text || '(nothing before this scene)') + '\n\n' + cx.here
+    + (cx.cast.length ? '\n\nCHARACTERS IN THIS SCENE: ' + cx.cast.join(', ') : '')
+    + '\n\nWHAT THE LOREMASTER WANTS NEXT: ' + p;
+  aiCall(contSystem(), user, 1400).then(function(text){
+    var d = contParse(text);
+    if (!d.length) throw new Error('nothing usable came back');
+    CONT.draft = d; CONT.keep = {}; d.forEach(function(_, i){ CONT.keep[i] = true; }); CONT.busy = false; contPaint();
+  }).catch(function(e){
+    CONT.busy = false;
+    CONT.err = e && e.rate ? 'The forge is busy. Try again in a minute.' : ('The draft did not come through (' + ((e && e.message) || 'error') + '). Try again.');
+    contPaint();
+  });
+}
+/* kept beats join the scene; a speaker the library knows is linked to their record */
+function contAdd(){
+  var f = storyFind('scene', CONT.sceneId); if (!f || !CONT.draft) return;
+  f.scene.beats = f.scene.beats || [];
+  var n = 0;
+  CONT.draft.forEach(function(b, i){
+    if (!CONT.keep[i]) return;
+    var sp = '';
+    if (b.kind === 'dialogue' && b.speaker){
+      var lib = (S.library || []).filter(function(e){ return (e.type === 'npc' || e.type === 'monster') && String(e.name).toLowerCase() === b.speaker.toLowerCase(); })[0];
+      sp = lib ? lib.id : '';
+      if (!lib) b.body = b.speaker + ': ' + b.body;
+    }
+    f.scene.beats.push({ id:mkId(), kind:b.kind, title:b.title || beatMeta(b.kind)[0], body:b.body, speaker:sp, handle:'', img:'', pinned:false, open:false });
+    n++;
+  });
+  advMarkScene(CONT.sceneId); storySave(); tsCloseModal();
+  pushLog({ kind:'sys', html:n + ' beat' + (n === 1 ? '' : 's') + ' added to <b>' + esc(f.scene.name || 'the scene') + '</b>.' }); applyRemoteState({ log:S.log });
+}
+function contPaint(){
+  var f = storyFind('scene', CONT.sceneId), nm = f ? f.scene.name : 'the scene';
+  var h = '<h3 class="tsm-title">Continue the story</h3><p class="tsm-note">Into <b>' + esc(nm) + '</b>. ' + esc(CONT.info) + ' Secrets inform it but are never revealed. Lore checks are left out.</p>'
+    + '<label class="tsm-lbl" for="ctPrompt">What happens next</label><textarea id="ctPrompt" class="tsm-inp tsm-ta" rows="3" placeholder="The Fell are invited to the funeral feast; Edda tries to warn them without Halvek noticing.">' + esc(CONT.prompt) + '</textarea>'
+    + (CONT.err ? '<p class="sm-err">' + esc(CONT.err) + '</p>' : '');
+  if (CONT.draft){
+    var kept = Object.keys(CONT.keep).filter(function(k){ return CONT.keep[k]; }).length;
+    h += '<div class="ct-h">Draft \u00b7 keep what you want</div>' + CONT.draft.map(function(b, i){
+      var m = beatMeta(b.kind);
+      return '<label class="ct-beat" style="border-left-color:' + m[1] + '"><input type="checkbox"' + (CONT.keep[i] ? ' checked' : '') + ' onchange="CONT.keep[' + i + ']=this.checked;contPaint()">'
+        + '<span class="ct-b"><span class="sw-kind" style="color:' + m[1] + '">' + m[0] + (b.speaker ? ' <em>' + esc(b.speaker) + '</em>' : '') + '</span><span class="sw-btitle">' + esc(b.title || m[0]) + '</span><span class="sw-bbody">' + esc(b.body) + '</span></span></label>';
+    }).join('')
+      + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="CONT.draft=null;contPaint()">Discard</button><button class="tsm-btn ghost" onclick="contGo()"' + (CONT.busy ? ' disabled' : '') + '>' + (CONT.busy ? 'Drafting\u2026' : 'Try again') + '</button>'
+      + '<button class="tsm-btn" onclick="contAdd()"' + (kept ? '' : ' disabled') + '>Add ' + kept + ' beat' + (kept === 1 ? '' : 's') + ' to the scene</button></div>';
+  } else {
+    h += '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button><button class="tsm-btn" onclick="contGo()"' + (CONT.busy ? ' disabled' : '') + '>' + (CONT.busy ? 'Drafting\u2026' : 'Draft beats') + '</button></div>';
+  }
+  var keepScroll = (document.querySelector('#tsModal .tsm-panel') || {}).scrollTop || 0;
+  tsModal(h); summonWide();
+  var pnl = document.querySelector('#tsModal .tsm-panel'); if (pnl) pnl.scrollTop = keepScroll;
 }
 
 /* ================= rests =================
