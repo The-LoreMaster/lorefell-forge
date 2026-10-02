@@ -9199,6 +9199,24 @@ var WORLD_LIST = [{"id": "world:akkoroka", "name": "Akkoroka"}, {"id": "world:am
 var ADV_TYPES = [['tale','Tale','One session','A single sitting. One deed or rumor, complete on its own.'],['story','Story','3 to 6 sessions','A short, focused arc for a chosen few Fell.'],
   ['legacy','Legacy','10 to 12 sessions','The backbone saga. Characters endure and grow.'],['chronicle','Chronicle','Open table','A living world many hands shape across the year.']];
 var NEWADV = { name:'', type:'', world:'', wName:'', wDesc:'', img:'', file:null, err:'', fromPicker:false };
+function advTypeWorldEdit(){
+  var A = S.adventure || {};
+  NEWADV = { edit:true, name:A.name || '', type:A.type || '', world:A.worldId || '', wName:A.worldId === 'unwritten' ? (A.worldName || '') : '', wDesc:A.worldDesc || '', img:'', file:null, err:'', fromPicker:false };
+  advNewPaint();
+}
+function advTypeWorldSave(){
+  advNewKeep();
+  var N = NEWADV;
+  var miss = !N.type ? 'Choose its type.' : !N.world ? 'Choose its world, or Unwritten for one of your own.' : (N.world === 'unwritten' && !String(N.wName || '').trim()) ? 'Name your world.' : '';
+  if (miss){ N.err = miss; advNewPaint(); return; }
+  var w = WORLD_LIST.filter(function(x){ return x.id === N.world; })[0], A = S.adventure;
+  A.type = N.type; A.worldId = N.world === 'unwritten' ? 'unwritten' : N.world;
+  A.worldName = N.world === 'unwritten' ? String(N.wName).trim() : (w ? w.name : '');
+  A.worldDesc = N.world === 'unwritten' ? String(N.wDesc || '').trim() : '';
+  tsCloseModal(); storySave(); advPersistTree();
+  pushLog({ kind:'sys', html:'<b>' + esc(A.name || 'The adventure') + '</b> is now a ' + esc(((ADV_TYPES.filter(function(x){ return x[0] === A.type; })[0]) || [])[1] || 'story') + ' in ' + esc(A.worldName || 'its world') + '.' }); applyRemoteState({ log:S.log });
+  if (S.openSection === 'settings') refreshWinBody();
+}
 function advNewHere(fromPicker){
   window._tsYes = null;
   NEWADV = { name:'', type:'', world:'', wName:'', wDesc:'', img:'', file:null, err:'', fromPicker:!!fromPicker };
@@ -9215,8 +9233,9 @@ function advNewCover(){
 }
 function advNewPaint(){
   var N = NEWADV, cancel = N.fromPicker ? 'tsAdventurePicker()' : 'tsCloseModal()';
-  var h = '<h3 class="tsm-title">A new adventure</h3>'
-    + '<label class="tsm-lbl" for="advNewName">Name</label><input class="tsm-inp" id="advNewName" value="' + esc(N.name) + '" placeholder="The Sundering of Sarn" autocomplete="off">'
+  var h = (N.edit ? '<h3 class="tsm-title">Type and world</h3><p class="tsm-note">For ' + esc(N.name || 'this adventure') + '.</p><input type="hidden" id="advNewName" value="' + esc(N.name) + '">'
+      : '<h3 class="tsm-title">A new adventure</h3>'
+    + '<label class="tsm-lbl" for="advNewName">Name</label><input class="tsm-inp" id="advNewName" value="' + esc(N.name) + '" placeholder="The Sundering of Sarn" autocomplete="off">')
     + '<div class="tsm-lbl">Type</div><div class="na-types">' + ADV_TYPES.map(function(t){
         return '<button type="button" class="na-type' + (N.type === t[0] ? ' on' : '') + '" onclick="advNewPick(\'type\',\'' + t[0] + '\')"><b>' + t[1] + '</b><i>' + t[2] + '</i><span>' + t[3] + '</span></button>'; }).join('') + '</div>'
     + '<div class="tsm-lbl">World</div><div class="na-worlds">'
@@ -9224,9 +9243,9 @@ function advNewPaint(){
     + WORLD_LIST.map(function(w){ return '<button type="button" class="na-world' + (N.world === w.id ? ' on' : '') + '" onclick="advNewPick(\'world\',\'' + w.id + '\')">' + esc(w.name) + '</button>'; }).join('') + '</div>'
     + (N.world === 'unwritten' ? '<div class="na-unwritten"><label class="tsm-lbl" for="advNewWName">Your world\u2019s name</label><input class="tsm-inp" id="advNewWName" value="' + esc(N.wName) + '" placeholder="The Drowned March">'
         + '<label class="tsm-lbl" for="advNewWDesc">What it is like</label><textarea class="tsm-inp tsm-ta" id="advNewWDesc" rows="2" placeholder="A line or two about it">' + esc(N.wDesc) + '</textarea></div>' : '')
-    + '<div class="tsm-lbl">Cover <span class="na-opt">optional</span></div><div class="na-cover">' + (N.img ? '<img src="' + esc(N.img) + '" alt="">' : '') + '<button type="button" class="tsm-btn ghost" onclick="advNewCover()">' + (N.img ? 'Change' : 'Add a cover') + '</button></div>'
+    + (N.edit ? '' : '<div class="tsm-lbl">Cover <span class="na-opt">optional</span></div><div class="na-cover">' + (N.img ? '<img src="' + esc(N.img) + '" alt="">' : '') + '<button type="button" class="tsm-btn ghost" onclick="advNewCover()">' + (N.img ? 'Change' : 'Add a cover') + '</button></div>')
     + (N.err ? '<p class="sm-err">' + esc(N.err) + '</p>' : '')
-    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="' + cancel + '">Cancel</button><button class="tsm-btn" onclick="advCreate()">Make it and open it</button></div>';
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="' + cancel + '">Cancel</button>' + (N.edit ? '<button class="tsm-btn" onclick="advTypeWorldSave()">Save</button>' : '<button class="tsm-btn" onclick="advCreate()">Make it and open it</button>') + '</div>';
   tsModal(h); summonWide();
 }
 function advNew(){
@@ -9296,6 +9315,7 @@ function settingsBody(){
   } else {
     adv += setRow('Switch adventure', 'This is the only adventure you run.');
   }
+  adv += setRow('Type and world', (tName || wName) ? esc([tName, wName].filter(Boolean).join(' in ')) : 'Not set yet.', setBtn((tName || wName) ? 'Change' : 'Set', 'advTypeWorldEdit()'));
   adv += setRow('New adventure', 'Name it, choose its type and world.', setBtn('Make one', 'advNewHere()'));
   h += setGroup('Adventure', adv);
   var cur = diceMine('generic');
@@ -16794,7 +16814,7 @@ function swAdvMeta(A){
   var t = (ADV_TYPES.filter(function(x){ return x[0] === A.type; })[0] || [])[1] || '';
   var w = A.worldName || ((WORLD_LIST.filter(function(x){ return x.id === A.worldId; })[0] || {}).name) || (A.worldId === 'unwritten' ? 'Unwritten' : '');
   return '<div class="sw-meta">' + (t ? '<span><i>Type</i>' + esc(t) + '</span>' : '') + (w ? '<span><i>World</i>' + esc(w) + '</span>' : '')
-    + '<span class="sw-grow"></span><button class="tsm-btn ghost" onclick="advNewHere()">New adventure</button></div>'
+    + '<button class="tsm-btn ghost" onclick="advTypeWorldEdit()">' + ((t || w) ? 'Change' : 'Set type and world') + '</button><span class="sw-grow"></span><button class="tsm-btn ghost" onclick="advNewHere()">New adventure</button></div>'
     + (A.worldDesc ? '<p class="sw-empty" style="font-style:normal">' + esc(A.worldDesc) + '</p>' : '');
 }
 function swPaint(){

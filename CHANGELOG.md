@@ -1,3 +1,7 @@
+## 2026-09-28 - Change an adventure's type and world after it is made
+
+The type and world can now be changed after an adventure is made: Settings has a Type and world row (Change, or Set when they never were), and the Story window's adventure page has Change beside them. It opens the same choices as a new adventure (the four types; Unwritten or one of the 36 worlds, with a name and a line for an Unwritten one), saves onto the adventure, and notes the change in the log.
+
 ## 2026-09-28 - The adventure's cover survives a reload
 
 The adventure's own cover (and its description, notes, type and world) was saved, but dropped when the story was built from the account on load, so it vanished on every hard refresh while the acts', sessions' and scenes' covers stayed. The story now keeps the adventure's own fields when it loads.
