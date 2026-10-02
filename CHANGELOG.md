@@ -1,3 +1,7 @@
+## 2026-09-28 - The Hearth's ThreadSpire opens the LoreMaster's table
+
+The Hearth's ThreadSpire button opened the table as a player with no Fell, so a LoreMaster was offered a Fell to choose, which leads to FellGlass. It now opens the table as the LoreMaster (role=lm): someone who runs adventures arrives at the LoreMaster's table and chooses an adventure; anyone else is still a player and chooses their Fell. Paste velo/page-threadspire.js.
+
 ## 2026-09-28 - Each player sees what their own Fell sees
 
 The fog showed each player the whole party's sight: every Fell's view, pooled. A player now sees only what their own Fell sees (its vision, the light it can see, its own Echosight), so a wall, the dark or an affliction between two Fell means something. Places the party has already explored stay dimmed for everyone, since that memory is shared. The LoreMaster's Player view still shows the whole party's sight.
