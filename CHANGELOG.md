@@ -1,3 +1,7 @@
+## 2026-09-28 - The foe editor's attributes, back
+
+The rebuilt foe editor lost the attributes; they are back, all eight as steppers. Left alone they come from the build and rating and the Crucible scales them to the party as it begins; change one and the foe's attributes are kept as set, by the editor, by a change of rating, and by the Crucible (which still scales its Vitality and works out its strike from them), until Use the build's gives them back.
+
 ## 2026-09-28 - The foe editor, rebuilt; foe edits save on every scene
 
 The foe editor is one clean window in the order a foe is built: who it is (picture, name, description, adventure); what it is (build, stance and signature affliction, each with what it means: the LoreVault's build table, the FellGuide's Armor Stances, the affliction's rule); how it fights (rating, moves and reach, and what that makes it against this party, read only); its kit (infusions, augmentations and relics, each with its rule); and its three Acts in place, one per tier with a Forge beside each and Forge all three from its description. Gone: Derive from build and rating (the Crucible derives a foe's numbers as it begins, and changing the rating here derives them at once), the attribute and maximum Vitality steppers, and the notes. Edits to a foe in a scene's roster, and library edits carried to every scene that holds the foe, were saved only for the scene on the table; every scene touched is now saved. A library edit carried to a scene no longer strips a copy's number (Grimgrit 2 stays Grimgrit 2).
