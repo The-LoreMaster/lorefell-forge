@@ -1,3 +1,7 @@
+## 2026-09-28 - The Hearth's ThreadSpire mark: three spires
+
+Nate's pick: the ThreadSpire mark on the Hearth is three spires on a single base, the middle one tallest. It replaces the wound spire, which was too busy.
+
 ## 2026-09-28 - The Hearth's ThreadSpire mark
 
 The ThreadSpire mark on the Hearth read as a Christmas tree. It is now a slender spire on a stepped plinth with a needle's eye at its tip, a thread drawn through the eye and wound down around it.
