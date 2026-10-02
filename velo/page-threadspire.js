@@ -197,7 +197,10 @@ $w.onReady(async function () {
       let ctx = await buildContext(characterId, campaignId);
       // Entry point requests LM (Cast carries ?role=lm); ownership must confirm it.
       let role = 'player';
-      if (q.role === 'lm' && campaignId) {
+      // Whoever runs this adventure arrives as its LoreMaster, whatever the link said (a link
+      // without role=lm used to open the LoreMaster's own table as a player, stuck that way),
+      // unless they opened it as one of their own Fell (a character in the address).
+      if (campaignId && (q.role === 'lm' || !characterId)) {
         try { const ar = await myAdventureRole(campaignId); if (ar === 'loremaster' || ar === 'lorekeeper') role = 'lm'; } catch (e) {}
       }
       // From the Hearth (role=lm, no adventure named): someone who runs adventures arrives as the

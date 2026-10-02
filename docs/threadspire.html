@@ -2320,6 +2320,23 @@ body.stream:not(.stream-frame) #rail, body.stream:not(.stream-frame) #hud, body.
 /* framing */
 .fr-wrap{ display:flex; justify-content:center; padding:10px 0; } .fr-circle{ width:220px; height:220px; border-radius:50%; background:#1b2440 no-repeat; box-shadow:0 0 0 3px rgba(201,168,76,.6); cursor:grab; touch-action:none; } .fr-circle:active{ cursor:grabbing; }
 .fr-zoom{ display:flex; align-items:center; gap:10px; } .fr-zoom span{ font-family:Cinzel,serif; font-size:.62rem; letter-spacing:.1em; text-transform:uppercase; color:#a88a3e; } .fr-zoom input{ flex:1; accent-color:var(--gold); }
+
+/* the moment: rolls and gains at the top of the screen */
+#playToasts{ position:fixed; top:calc(12px + env(safe-area-inset-top, 0px)); left:50%; transform:translateX(-50%); z-index:520; display:flex; flex-direction:column; align-items:center; gap:6px; pointer-events:none; width:min(640px, calc(100vw - 24px)); }
+.pt-toast{ display:flex; align-items:center; gap:10px; padding:9px 16px; border:1px solid rgba(201,168,76,.65); border-radius:14px; background:rgba(10,14,28,.94); box-shadow:0 10px 26px rgba(0,0,0,.5); color:#dce8ef; font-family:'Crimson Pro',Georgia,serif; font-size:1.05rem; animation:ptIn .28s ease-out; }
+.pt-toast.out{ opacity:0; transform:translateY(-8px); transition:opacity .4s, transform .4s; }
+.pt-tag{ font-family:Cinzel,serif; font-size:.66rem; letter-spacing:.12em; text-transform:uppercase; color:#0b1020; background:#c9a84c; padding:3px 8px; border-radius:8px; }
+.pt-die{ display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; margin:0 2px; border-radius:7px; background:#1b2440; border:1px solid #2c3a58; font-family:Cinzel,serif; font-size:1.05rem; color:#fff; }
+.pt-die.six{ background:#c9a84c; color:#0b1020; border-color:#e8cf86; } .pt-die.one{ background:#6e1e28; border-color:#b04050; }
+.pt-mod{ color:#c9a84c; margin-left:6px; font-size:.95rem; } .pt-eq{ color:#93a3b6; } .pt-total{ font-family:Cinzel,serif; font-size:1.2rem; color:#f0e6c8; }
+.pt-on{ color:#93a3b6; font-size:.92rem; } .pt-hid{ font-size:.75rem; color:#e3a193; border:1px solid #e3a193; border-radius:6px; padding:0 5px; }
+@keyframes ptIn{ from{ opacity:0; transform:translateY(-10px); } to{ opacity:1; transform:none; } }
+/* a Lore Point arriving */
+.lp-burst{ position:fixed; left:-30vw; top:38%; z-index:530; display:flex; align-items:center; gap:14px; padding:14px 26px; border-radius:40px; background:linear-gradient(90deg, rgba(10,14,28,0), rgba(10,14,28,.92) 20%, rgba(10,14,28,.92) 80%, rgba(10,14,28,0)); pointer-events:none; animation:lpFly 3.4s cubic-bezier(.2,.7,.2,1) forwards; }
+.lp-gem{ width:34px; height:34px; transform:rotate(45deg); background:linear-gradient(135deg,#f5e3a1,#c9a84c 50%,#7a5d1d); box-shadow:0 0 24px rgba(240,210,120,.9); border-radius:5px; }
+.lp-n{ font-family:Cinzel,serif; font-size:2rem; color:#f5e3a1; text-shadow:0 0 14px rgba(240,210,120,.7); } .lp-t{ font-family:Cinzel,serif; font-size:1rem; letter-spacing:.14em; text-transform:uppercase; color:#dce8ef; }
+@keyframes lpFly{ 0%{ left:-30vw; opacity:0; } 18%{ opacity:1; } 35%{ left:calc(50% - 150px); } 70%{ left:calc(50% - 150px); opacity:1; } 100%{ left:110vw; opacity:0; } }
+@media (prefers-reduced-motion: reduce){ .lp-burst{ animation:none; left:calc(50% - 150px); } .pt-toast{ animation:none; } }
 </style>
 </head>
 <body>
@@ -2792,7 +2809,7 @@ function rollEntry(evt){
   var who = isLM() ? 'LoreMaster' : ((S.character && S.character.name) || '');
   return { kind:'roll', who:who, rollType:evt.rollType, n:evt.n,
     mods:evt.mods || [], total:(typeof evt.total === 'number') ? evt.total : evt.n, note:evt.note || '',
-    skin:skinKey(evt.rollType, who) };
+    skin:skinKey(evt.rollType, who), hidden:(isLM() && lmHiddenRolls()) || undefined };
 }
 
 /* ---- the seam ---- */
@@ -9401,6 +9418,7 @@ function settingsBody(){
     + (mine
         ? setRow('Published as ' + esc(mine.title || 'this adventure'), 'On the directory for others to run.', setBtn('Update', 'publishOpen()') + setBtn('Take down', 'unpublishNow(\'' + esc(mine._id || mine.id || '') + '\')'))
         : setRow('Publish', 'Put it on the directory for others to run.', setBtn('Publish', 'publishOpen()'))));
+  if (isLM()) h += setGroup('Rolls', setRow('Hide my rolls', 'Your rolls show only on your screen and in your log, marked hidden.', setBtn(lmHiddenRolls() ? 'On' : 'Off', 'lmHiddenRollsSet(!lmHiddenRolls())', lmHiddenRolls())));
   h += setGroup('Streaming', setRow('Stream view', 'A window that follows this table for capture: the players\u2019 view without the fog, or everything.', setBtn('Copy link', 'streamCopy()')));
   h += setGroup('Under the hood', setRow('The seams', 'What the table is doing right now, for when two tables disagree.', setBtn('Show', 'openWin(\'seams\')')));
   return h;
@@ -9448,6 +9466,8 @@ function menuBody(){
   h += '<div class="win-note" style="margin-top:14px">Settings</div>';
   if (!S._diceAsked){ S._diceAsked = true; diceLoad(); }
   h += diceSettingsLine();
+  if (!lm){ var _fg = fellGrowMode();
+    h += '<div class="lb-row" style="cursor:pointer" onclick="fellGrowSet(\'' + (_fg === 'auto' ? 'ask' : 'auto') + '\')" title="A Fellmark on a skill check raises that skill by 1"><span class="lb-name">Fellmarks raise skills</span><span class="lb-meta">' + (_fg === 'auto' ? 'Automatically' : 'Ask me') + '</span></div>'; }
   h += '<div class="lb-row" style="cursor:pointer" onclick="openWin(\'seams\')"><span class="lb-name">Show the seams</span><span class="lb-meta">Live</span></div>';
   setTimeout(loadCharList, 30);
   return h;
@@ -17307,7 +17327,7 @@ function streamCopy(){
    their tokens out, so an older copy can no longer pull a token back or swap its picture. */
 var ROOM = { ws:null, on:false, want:false, tries:0, t:null, cid:'', role:'', sentToks:'', sentScene:'', live:{}, sceneAt:0, hb:null, sentParts:{} };
 /* the rest of the table the LoreMaster's table sends through the room, each when it changes */
-var ROOM_PARTS = ['fog', 'walls', 'lights', 'effects', 'notes', 'weather', 'music', 'rest', 'viewCall', 'loreGrants', 'combatPhase', 'draw', 'portraits'];
+var ROOM_PARTS = ['fog', 'walls', 'lights', 'effects', 'notes', 'weather', 'music', 'rest', 'viewCall', 'loreGrants', 'combatPhase', 'draw', 'portraits', 'party'];
 function roomSend(msg){ if (ROOM.on && ROOM.ws && ROOM.ws.readyState === 1 && !S.stream){ try { ROOM.ws.send(JSON.stringify(msg)); return true; } catch(e){} } return false; }
 function roomConnect(){
   if (!tsEmbedded() || !S.campaignId) return;
@@ -17346,6 +17366,7 @@ function roomLmSync(force){
 }
 function roomPartValue(k){
   if (k === 'combatPhase') return (S.scene && S.scene.combatPhase) || '';
+  if (k === 'party') return (S.party && S.party.length) ? partyPublic() : undefined;
   if (k === 'portraits'){ var o = {}; Object.keys(_portraits).forEach(function(c){ var u = String(_portraits[c] || ''); if (/^https?:/.test(u)) o[c] = u; }); return o; }
   return S[k];
 }
@@ -17364,7 +17385,8 @@ function roomPartsSync(force){
 function roomPartsApply(p){
   if (!p) return;
   if (p.portraits){ Object.keys(p.portraits).forEach(function(c){ rememberPortrait(c, p.portraits[c]); }); }
-  var snap = Object.assign({}, p); delete snap.portraits;
+  if (p.party && Array.isArray(p.party)){ S.party = p.party; _partyLoaded = true; SEAM.partyWhy = 'from the live room'; harvestPortraits(p.party); try { mergeFellSheets(); } catch(e){} }
+  var snap = Object.assign({}, p); delete snap.portraits; delete snap.party;
   if (snap.combatPhase !== undefined && S.scene) S.scene.combatPhase = snap.combatPhase;
   if (Object.keys(snap).length){ ROOM._applying = true; try { applyRemoteSnapshot(snap); } finally { ROOM._applying = false; } }
   try { renderTokens(); } catch(e){}
@@ -17373,7 +17395,7 @@ function roomPartsApply(p){
 function roomLogApply(e){
   if (!e || !e.id || (S.log || []).some(function(x){ return x && x.id === e.id; })) return;
   S.log = (S.log || []).concat([e]); applyRemoteState({ log:S.log });
-  try { if (e.kind === 'roll' && typeof rollShow === 'function') rollShow(e); } catch(x){}
+  try { rollShow(e); } catch(x){}
 }
 /* a token being dragged here is not moved by what arrives for it until it is dropped */
 var _roomDrag = {};
@@ -17425,7 +17447,7 @@ function roomGot(m){
     (m.log || []).forEach(roomLogApply);
     return;
   }
-  if (m.t === 'peers'){ SEAM.roomPeers = m.n; seamPaint(); return; }
+  if (m.t === 'peers'){ if (m.n > _peersSeen) partyQuietReload(); _peersSeen = m.n; SEAM.roomPeers = m.n; seamPaint(); return; }
   if (m.t === 'tok') return roomTokApply(m.id, m.p);
   if (m.t === 'toks') return roomTokensApply(m.list);
   if (m.t === 'scene'){ if (!isLM() || S.stream) roomSceneApply(m.b); return; }
@@ -17554,6 +17576,75 @@ document.addEventListener('contextmenu', function(e){
   var el = e.target.closest && e.target.closest('.token'); if (!el) return;
   var id = el.getAttribute('data-tok'); if (id) tokCtx(e, id);
 });
+
+
+/* ================= play: from the first session =================
+   New people at the table appear on everyone's screen without a refresh; a Fellmark on a skill
+   raises it (or asks first, the player's choice); every roll shows to everyone at the top of
+   the screen with its bonus, for a few seconds; the LoreMaster may roll hidden; a Lore Point
+   arriving for a player crosses their screen. */
+/* -- the party, live: when someone joins the room every table asks again who is at the table,
+      and the LoreMaster's table sends the party's public sheets through the room -- */
+var _peersSeen = 0, _partyQuietT = null;
+function partyQuietReload(){ clearTimeout(_partyQuietT); _partyQuietT = setTimeout(function(){ try { _partyLoaded = false; _partyLoading = false; partyLoad(); } catch(e){} }, 1800); }
+function partyPublic(){ return (S.party || []).map(function(p){ var img = String(p.img || p.image || ''); return { charId:p.charId, charName:p.charName, name:p.name, level:p.level, curVit:p.curVit, maxVit:p.maxVit, afflictions:p.afflictions, role:p.role, img:/^https?:/.test(img) ? img : '' }; }); }
+/* -- Fellmarks raise skills: automatically, or asked; a setting each player keeps -- */
+function fellGrowMode(){ try { return localStorage.getItem('ts_fellgrow') === 'ask' ? 'ask' : 'auto'; } catch(e){ return 'auto'; } }
+function fellGrowSet(m){ try { localStorage.setItem('ts_fellgrow', m); } catch(e){} try { sheet.postMessage({ type:'ts-fellgrow-mode', mode:m }); } catch(e){} if (S.openSection === 'settings') refreshWinBody(); }
+setTimeout(function(){ try { if (!isLM()) sheet.postMessage({ type:'ts-fellgrow-mode', mode:fellGrowMode() }); } catch(e){} }, 4000);
+window.addEventListener('message', function(ev){
+  var d = ev.data || {}; if (isLM()) return;
+  if (d.type === 'ts-skill-grew'){
+    var who = (S.character && S.character.name) || 'A Fell';
+    var line = d.ready ? esc(who) + '\u2019s <b>' + esc(d.skill) + '</b> stands ready to master (Fellmark).' : esc(who) + '\u2019s <b>' + esc(d.skill) + '</b> grows to ' + d.rank + ' (Fellmark).';
+    pushLog({ kind:'sys', html:line }); applyRemoteState({ log:S.log });
+    playToast(d.ready ? d.skill + ' stands ready to master' : d.skill + ' grows to ' + d.rank, 'Fellmark');
+  }
+  if (d.type === 'ts-fellmark-ask'){
+    tsModal('<h3 class="tsm-title">Fellmark on ' + esc(d.skill) + '</h3><p class="lc-p">A Fellmark on a skill check raises that skill by 1.</p>'
+      + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Not now</button><button class="tsm-btn" onclick="tsCloseModal();sheet.postMessage({type:\'ts-skill-grow\',skill:\'' + esc(String(d.skill)).replace(/'/g, "\\'") + '\'})">Raise ' + esc(d.skill) + '</button></div>');
+  }
+});
+/* -- the moment: a banner at the top for a roll, a toast for a gain -- */
+function playToast(text, tag, kind){
+  var box = document.getElementById('playToasts'); if (!box){ box = document.createElement('div'); box.id = 'playToasts'; document.body.appendChild(box); }
+  var el = document.createElement('div'); el.className = 'pt-toast' + (kind ? ' ' + kind : '');
+  el.innerHTML = (tag ? '<span class="pt-tag">' + esc(tag) + '</span>' : '') + '<span class="pt-text">' + text + '</span>';
+  box.appendChild(el); while (box.children.length > 4) box.removeChild(box.firstChild);
+  setTimeout(function(){ el.classList.add('out'); setTimeout(function(){ el.remove(); }, 450); }, kind === 'roll' ? 5500 : 4500);
+}
+var _rollShown = {};
+function rollShow(e){
+  if (!e || e.kind !== 'roll' || _rollShown[e.id]) return; _rollShown[e.id] = 1;
+  if (e.hidden && !isLM()) return;
+  var mods = (e.mods || []).filter(function(m){ return m && Number(m.value); });
+  var sum = mods.map(function(m){ return '<span class="pt-mod">' + (Number(m.value) >= 0 ? '+' : '\u2212') + Math.abs(Number(m.value)) + ' ' + esc(m.label) + '</span>'; }).join('');
+  var mark = e.n === 6 ? 'Fellmark' : e.n === 1 ? 'Fellstrike' : '';
+  playToast('<b>' + esc(e.who || 'Someone') + '</b> <span class="pt-die' + (e.n === 6 ? ' six' : e.n === 1 ? ' one' : '') + '">' + e.n + '</span>' + sum
+    + (mods.length ? ' <span class="pt-eq">=</span> <span class="pt-total">' + e.total + '</span>' : '') + ' <span class="pt-on">' + esc(rollLabel(e.rollType)) + (e.note ? ' \u00b7 ' + esc(String(e.note).slice(0, 60)) : '') + '</span>'
+    + (e.hidden ? ' <span class="pt-hid">hidden</span>' : ''), mark, 'roll');
+}
+/* -- the LoreMaster's hidden rolls -- */
+function lmHiddenRolls(){ try { return localStorage.getItem('ts_lm_hidden_rolls') === '1'; } catch(e){ return false; } }
+function lmHiddenRollsSet(on){ try { localStorage.setItem('ts_lm_hidden_rolls', on ? '1' : '0'); } catch(e){} if (S.openSection === 'settings') refreshWinBody(); }
+/* -- a Lore Point arriving for this player crosses their screen -- */
+var _lpSeen = null, _lpBorn = Date.now();
+setInterval(function(){
+  try {
+    if (isLM() || !S.characterId) return;
+    var mine = (S.loreGrants || []).filter(function(g){ return g && (g.to || []).indexOf(S.characterId) >= 0; });
+    /* grants already there when the table loads (or arriving in its first seconds, as the
+       saved state lands) are history, not news: only later ones cross the screen */
+    if (_lpSeen === null) _lpSeen = {};
+    if (Date.now() - _lpBorn < 10000){ mine.forEach(function(g){ _lpSeen[g.id] = 1; }); return; }
+    mine.forEach(function(g){ if (_lpSeen[g.id]) return; _lpSeen[g.id] = 1; lpAnimate(g.amount || 1); });
+  } catch(e){}
+}, 700);
+function lpAnimate(n){
+  var el = document.createElement('div'); el.className = 'lp-burst';
+  el.innerHTML = '<span class="lp-gem"></span><span class="lp-n">+' + n + '</span><span class="lp-t">Lore Point' + (n === 1 ? '' : 's') + '</span>';
+  document.body.appendChild(el); setTimeout(function(){ el.remove(); }, 3600);
+}
 
 /* ================= rests =================
    A rest comes from the LoreMaster, and only outside a fight: Call a rest opens it for the
@@ -18243,10 +18334,11 @@ function sayFrom(id){
 var logSeq = 0;
 function mkId(){ return 'e' + (++logSeq) + '-' + Date.now().toString(36); }
 var _logPushT = null;
-function pushLog(e){ e.id = mkId(); S.log.push(e); try { roomSend({ t:'log', e:e }); } catch(x){} applyRemoteState({ log:S.log }); if (_logPushT) clearTimeout(_logPushT); _logPushT = setTimeout(function(){ try { pushState(); } catch(err){} }, 600); }
+function pushLog(e){ e.id = mkId(); S.log.push(e); try { roomSend({ t:'log', e:e }); } catch(x){} try { rollShow(e); } catch(x){} applyRemoteState({ log:S.log }); if (_logPushT) clearTimeout(_logPushT); _logPushT = setTimeout(function(){ try { pushState(); } catch(err){} }, 600); }
 function entryHtml(e){
   if (e.kind === 'say') return '<div class="le say"><b>' + esc(e.who) + '</b> ' + esc(e.text) + '</div>';
   if (e.kind === 'roll'){
+    if (e.hidden && !isLM()) return '';
     var m = e.n === 6 ? ' <span class="mark">Fellmark</span>'
           : e.n === 1 ? ' <span class="strike">Fellstrike</span>' : '';
     var sum = (e.mods || []).map(function(x){ return ' + ' + esc(x.label) + ' ' + x.value; }).join('');
