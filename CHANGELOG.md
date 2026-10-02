@@ -1,3 +1,7 @@
+## 2026-09-28 - Each player sees what their own Fell sees
+
+The fog showed each player the whole party's sight: every Fell's view, pooled. A player now sees only what their own Fell sees (its vision, the light it can see, its own Echosight), so a wall, the dark or an affliction between two Fell means something. Places the party has already explored stay dimmed for everyone, since that memory is shared. The LoreMaster's Player view still shows the whole party's sight.
+
 ## 2026-09-28 - The stream link opens the stream
 
 The copied stream link pointed at the site's home page: the table is told only the site's address, not the page it sits on, so the link lost /the-threadspire. It is now the site's address with the ThreadSpire page's path added.
