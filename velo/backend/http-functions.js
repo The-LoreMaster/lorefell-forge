@@ -386,3 +386,28 @@ function htmlHeaders() {
   };
 }
 
+// The web app manifest, so browsers offer to install LoreFell as an app (desktop, Android,
+// tablets). It is served from the site itself (lorefell.com/_functions/manifest) because an
+// installed app must live on the site's own address; the icons are on table.lorefell.com.
+// The site links to it from its head (Settings, Custom code), see CHANGELOG.
+export function get_manifest(request) {
+  const body = {
+    name: 'LoreFell',
+    short_name: 'LoreFell',
+    description: 'LoreFell: the Hearth, the ThreadSpire table and your Fell.',
+    start_url: '/the-hearth?source=app',
+    scope: '/',
+    display: 'standalone',
+    orientation: 'any',
+    background_color: '#0a0f1c',
+    theme_color: '#0a0f1c',
+    icons: [
+      { src: 'https://table.lorefell.com/assets/app-icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+      { src: 'https://table.lorefell.com/assets/app-icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
+    ],
+    shortcuts: [
+      { name: 'ThreadSpire', url: '/the-threadspire?role=lm', icons: [{ src: 'https://table.lorefell.com/assets/app-icon-192.png', sizes: '192x192' }] }
+    ]
+  };
+  return ok({ headers: { 'Content-Type': 'application/manifest+json', 'Cache-Control': 'public, max-age=3600', 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify(body) });
+}
