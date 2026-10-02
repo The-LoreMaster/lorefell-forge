@@ -428,7 +428,8 @@ export const getForgeLibrary = webMethod(Permissions.Anyone, async () => {
 export const submitAct = webMethod(Permissions.SiteMember, async (act) => {
   const mid = await memberId();
   if (!mid) return { ok: false, error: 'not a member' };
-  const name = String((act && act.name) || '').trim();
+  // the table sent title, this read name: every Act forged at the table was refused unnamed
+  const name = String((act && (act.name || act.title)) || '').trim();
   if (!name) return { ok: false, error: 'an Act needs a name' };
   const tier = Math.min(3, Math.max(1, Number(act && act.tier) || 1));
   const effect = String((act && act.effect) || '').trim();
