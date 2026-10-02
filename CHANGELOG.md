@@ -1,3 +1,7 @@
+## 2026-09-28 - The Story window: fold acts and sessions; read beats in full
+
+In the Story outline each act and session has a fold beside it; a folded one hides what is under it and shows how many sessions or scenes it holds (and the table's mark if the scene on the table is inside). Open all and Fold all sit at the top of the outline, and what is folded is remembered per adventure on that screen. A scene's beats now open in place to be read in full, line breaks and all, with a click, and fold again with another; the pencil on a beat (on hover, always on a touch screen) opens it to edit. Open all and Fold all sit beside the Beats heading.
+
 ## 2026-09-28 - Deleting a large adventure; Story cards without pictures
 
 Deleting a large adventure could report it was not deleted when it had been: the page answered only after clearing the whole story tree and its library rows, which outlasted the fifteen seconds the table waits. The page now answers as soon as the adventure itself is gone and clears the rest after; and if no answer comes in time, the table says it is still deleting and checks the list of adventures for up to a minute before calling it a failure. In the Story window, a card for an act, session or scene with no cover no longer shows an empty picture box: just its name and description. Paste velo/page-threadspire.js.
