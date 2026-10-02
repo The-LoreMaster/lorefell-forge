@@ -17,6 +17,10 @@
                     toks  { list }             the whole token list (LoreMaster)
                     scene { b }                a scene switch, everything at once (LoreMaster)
                     ping  { x, y, ... }        a ping on the map
+                    part  { p }                the rest of the table, by key (LoreMaster):
+                                               fog, walls, lights, effects, notes, weather,
+                                               music, rest, combatPhase, portraits ...
+                    log   { e }                a log line (anyone: a roll, a say)
                     hb                         keep-alive
      from the room: init  { tokens, scene, seq, peers }   on joining
                     tok / toks / scene / ping, with seq and from (member)
@@ -70,11 +74,13 @@ export default {
 export class TableRoom {
   constructor(ctx, env) {
     this.ctx = ctx; this.env = env;
-    this.tokens = null; this.scene = null; this.seq = 0; this.moved = {};
+    this.tokens = null; this.scene = null; this.seq = 0; this.moved = {}; this.parts = {}; this.log = [];
     this.ready = ctx.blockConcurrencyWhile(async () => {
       this.tokens = (await ctx.storage.get('tokens')) || null;
       this.scene = (await ctx.storage.get('scene')) || null;
       this.seq = (await ctx.storage.get('seq')) || 0;
+      this.parts = (await ctx.storage.get('parts')) || {};
+      this.log = (await ctx.storage.get('log')) || [];
     });
   }
   async fetch(req) {
@@ -84,7 +90,7 @@ export class TableRoom {
     const [client, server] = Object.values(pair);
     this.ctx.acceptWebSocket(server);
     server.serializeAttachment(who);
-    server.send(JSON.stringify({ t: 'init', tokens: this.tokens, scene: this.scene, seq: this.seq, peers: this.ctx.getWebSockets().length, you: { role: who.role } }));
+    server.send(JSON.stringify({ t: 'init', tokens: this.tokens, scene: this.scene, parts: this.parts, log: this.log, seq: this.seq, peers: this.ctx.getWebSockets().length, you: { role: who.role } }));
     this.peers();
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -119,8 +125,9 @@ export class TableRoom {
       if (i < 0) return;
       const t = list[i];
       /* a player moves only their own Fell's tokens; the LoreMaster anything */
-      if (!lm && !(t.charId && who.chars.indexOf(String(t.charId)) >= 0)) { try { ws.send(JSON.stringify({ t: 'deny', id: msg.id, back: t })); } catch (e) {} return; }
-      const p = lm ? msg.p : { x: msg.p.x, y: msg.p.y, rot: msg.p.rot };
+      const own = !!(t.charId && who.chars.indexOf(String(t.charId)) >= 0);
+      if (!lm && !own && !t.free) { try { ws.send(JSON.stringify({ t: 'deny', id: msg.id, back: t })); } catch (e) {} return; }
+      const p = lm ? msg.p : (own ? { x: msg.p.x, y: msg.p.y, rot: msg.p.rot, imgPos: msg.p.imgPos } : { x: msg.p.x, y: msg.p.y });
       Object.keys(p).forEach((k) => { if (p[k] !== undefined && k !== 'id') t[k] = p[k]; });
       this.moved[msg.id] = Date.now();
       this.seq++; this.send({ t: 'tok', id: msg.id, p: p, seq: this.seq, from: who.member }, ws);
@@ -137,6 +144,21 @@ export class TableRoom {
       this.scene = msg.b; if (Array.isArray(msg.b.tokens)) this.tokens = msg.b.tokens; this.moved = {}; this.seq++;
       this.send({ t: 'scene', b: this.scene, seq: this.seq, from: who.member }, ws);
       await this.keep(); return;
+    }
+    if (msg.t === 'part') {
+      if (!lm || !msg.p || typeof msg.p !== 'object') return;
+      Object.keys(msg.p).forEach((k) => { this.parts[k] = msg.p[k]; });
+      this.seq++; this.send({ t: 'part', p: msg.p, seq: this.seq, from: who.member }, ws);
+      this.ctx.storage.put('parts', this.parts); this.ctx.storage.put('seq', this.seq);
+      return;
+    }
+    if (msg.t === 'log') {
+      const e = msg.e; if (!e || !e.id || typeof e !== 'object') return;
+      if (this.log.some((x) => x && x.id === e.id)) return;
+      this.log.push(e); if (this.log.length > 200) this.log = this.log.slice(-200);
+      this.send({ t: 'log', e: e, from: who.member }, ws);
+      this.ctx.storage.put('log', this.log);
+      return;
     }
     if (msg.t === 'ping') {
       this.send({ t: 'ping', x: msg.x, y: msg.y, c: msg.c, n: msg.n, k: msg.k, from: who.member }, ws);
