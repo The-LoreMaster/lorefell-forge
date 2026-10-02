@@ -1,3 +1,7 @@
+## 2026-09-28 - The adventure's cover survives a reload
+
+The adventure's own cover (and its description, notes, type and world) was saved, but dropped when the story was built from the account on load, so it vanished on every hard refresh while the acts', sessions' and scenes' covers stayed. The story now keeps the adventure's own fields when it loads.
+
 ## 2026-09-28 - Settings, Stages, Fell and Journal, cleaned up
 
 The four side windows share one quiet system: groups of rows on a single panel, separated by hairlines, each row saying what it is on the left and what it does on the right, with compact buttons rather than dashed placeholders. Settings opens on a plaque naming the adventure you are running (over its cover, with its type and world), then Adventure (switch, new), Your table (dice, player view, clean view, full screen, each with its key), Keep and share (back up, import, publish or update and take down), and Under the hood. Fell lists each person on one panel with a larger portrait and an Open button that says what it does; Add a player and Refresh sit at the foot. Stages gain a clearer card for the stage on the table and a New stage button. The Journal takes notes in a growing box (Enter adds, Shift+Enter for a new line) and lists them newest first under day headings (Today, Yesterday, then the date), with the time beside each.
