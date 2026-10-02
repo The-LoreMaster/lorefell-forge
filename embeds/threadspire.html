@@ -2352,6 +2352,21 @@ body.stream:not(.stream-frame) #rail, body.stream:not(.stream-frame) #hud, body.
 /* ping colours */
 .pc-row{ display:flex; gap:8px; flex-wrap:wrap; padding:2px 0 6px; } .pc-sw{ width:26px; height:26px; border-radius:50%; border:2px solid rgba(255,255,255,.15); background:var(--c); cursor:pointer; } .pc-sw.on{ border-color:#fff; box-shadow:0 0 0 3px rgba(201,168,76,.6); }
 .sw-kid.noimg{ justify-content:flex-start; padding:12px 14px; } .sw-kid.noimg .sw-kid-name{ font-size:1.02rem; }
+
+/* folding the outline; reading beats in full */
+.sw-fold{ width:20px; height:20px; padding:0; margin-left:-6px; border:0; background:none; color:#93a3b6; cursor:pointer; flex-shrink:0; display:flex; align-items:center; justify-content:center; border-radius:5px; }
+.sw-fold svg{ width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; transition:transform .15s; }
+.sw-fold.shut svg{ transform:rotate(-90deg); } .sw-fold:hover{ color:#c9a84c; background:rgba(201,168,76,.1); }
+.sw-count{ font-style:normal; font-size:.72rem; color:#93a3b6; border:1px solid #2c3a58; border-radius:8px; padding:0 6px; }
+.sw-foldall{ display:flex; gap:6px; padding:0 8px 8px; } .sw-foldall button, .sw-mini{ padding:4px 9px; border:1px solid #2c3a58; border-radius:7px; background:none; color:#b8c4d0; font-family:Cinzel,serif; font-size:.56rem; letter-spacing:.06em; cursor:pointer; }
+.sw-foldall button:hover, .sw-mini:hover{ border-color:#c9a84c; color:#e8cf86; }
+.sw-beat{ position:relative; }
+.sw-bedit{ position:absolute; top:8px; right:8px; width:28px; height:28px; padding:0; border:1px solid #2c3a58; border-radius:7px; background:rgba(10,14,26,.85); color:#b8c4d0; display:flex; align-items:center; justify-content:center; cursor:pointer; opacity:0; transition:opacity .12s; }
+.sw-bedit svg{ width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linejoin:round; }
+.sw-beat:hover .sw-bedit, .sw-bedit:focus-visible{ opacity:1; } .sw-bedit:hover{ border-color:#c9a84c; color:#e8cf86; }
+@media (hover:none){ .sw-bedit{ opacity:1; } }
+.sw-bbody.full{ white-space:pre-wrap; }
+.sw-beat.open{ border-color:rgba(201,168,76,.45); }
 </style>
 </head>
 <body>
@@ -16833,7 +16848,17 @@ function sceneCopyGo(){
    for a scene its roster, quests and Run this scene down the right. A search runs across the
    whole story. A window by default, full screen on a button. It writes to the shared story,
    as everything else here does. */
-var SW = { open:false, kind:'scene', id:'', q:'', full:false, drag:null, pane:'page' };
+var SW = { open:false, kind:'scene', id:'', q:'', full:false, drag:null, pane:'page', shut:null, beatOpen:{} };
+/* acts and sessions folded in the outline, kept per adventure on this screen */
+function swShutLoad(){ var k = 'ts_sw_shut_' + (S.campaignId || 'demo'); if (!SW.shut || SW.shut._k !== k){ var o = {}; try { o = JSON.parse(localStorage.getItem(k) || '{}'); } catch(e){} o._k = k; SW.shut = o; } return SW.shut; }
+function swShutSave(){ try { var o = Object.assign({}, SW.shut); delete o._k; localStorage.setItem(SW.shut._k, JSON.stringify(o)); } catch(e){} }
+function swFold(id){ var sh = swShutLoad(); if (sh[id]) delete sh[id]; else sh[id] = 1; swShutSave(); swPaint(); }
+function swFoldAll(shut){ var sh = swShutLoad(); Object.keys(sh).forEach(function(k){ if (k !== '_k') delete sh[k]; });
+  if (shut) (S.adventure.acts || []).forEach(function(a){ sh[a.id] = 1; (a.sessions || []).forEach(function(se){ sh[se.id] = 1; }); });
+  swShutSave(); swPaint(); }
+/* a beat opened to read in full, here, without the editor */
+function swBeatToggle(sceneId, i){ var k = sceneId + ':' + i; if (SW.beatOpen[k]) delete SW.beatOpen[k]; else SW.beatOpen[k] = 1; swPaint(); }
+function swBeatsAll(sceneId, open){ var f = storyFind('scene', sceneId); if (!f) return; (f.scene.beats || []).forEach(function(_, i){ var k = sceneId + ':' + i; if (open) SW.beatOpen[k] = 1; else delete SW.beatOpen[k]; }); swPaint(); }
 function swOpen(){
   SW.open = true;
   if (!SW.id || !storyNode(SW.kind === 'adv' ? 'scene' : SW.kind, SW.id)){ SW.kind = 'scene'; SW.id = (S.scene && S.scene.id) || ''; }
@@ -16848,20 +16873,26 @@ function swNode(){ return SW.kind === 'adv' ? S.adventure : storyNode(SW.kind, S
 /* the outline: every level open, a row per node, tools on hover, rows draggable among their siblings */
 function swOutline(){
   var A = S.adventure || { acts:[] }, h = '';
+  var sh = swShutLoad();
   var row = function(kind, id, name, depth, extra){
     var on = SW.kind === kind && sameId(SW.id, id), sid = String(id).replace(/'/g, "\\'");
+    var fold = (kind === 'act' || kind === 'session') ? '<button class="sw-fold' + (sh[id] ? ' shut' : '') + '" onclick="event.stopPropagation();swFold(\'' + sid + '\')" aria-label="' + (sh[id] ? 'Open' : 'Fold') + '" title="' + (sh[id] ? 'Open' : 'Fold') + '"><svg viewBox="0 0 24 24"><path d="M8 10l4 4 4-4"/></svg></button>' : '';
     var k2 = kind === 'scene' ? 'scene' : kind === 'session' ? 'session' : 'act';
     return '<div class="sw-row sw-' + kind + (on ? ' on' : '') + '" style="padding-left:' + (10 + depth * 16) + 'px" draggable="true"'
       + ' ondragstart="swDragStart(event,\'' + kind + '\',\'' + sid + '\')" ondragover="swDragOver(event,this,\'' + kind + '\')" ondragleave="this.classList.remove(\'drop\')" ondrop="swDrop(event,this,\'' + kind + '\',\'' + sid + '\')"'
-      + ' onclick="swSel(\'' + kind + '\',\'' + sid + '\')"><span class="sw-name">' + esc(name || (kind === 'scene' ? 'Scene' : kind === 'session' ? 'Session' : 'Act')) + '</span>'
+      + ' onclick="swSel(\'' + kind + '\',\'' + sid + '\')">' + fold + '<span class="sw-name">' + esc(name || (kind === 'scene' ? 'Scene' : kind === 'session' ? 'Session' : 'Act')) + '</span>'
       + (extra || '')
       + '<span class="sw-tools"><button title="Rename" onclick="event.stopPropagation();storyRename(\'' + k2 + '\',\'' + sid + '\')">\u270e</button><button title="Delete" onclick="event.stopPropagation();storyDelete(\'' + k2 + '\',\'' + sid + '\')">\u2715</button></span></div>';
   };
+  h += '<div class="sw-foldall"><button onclick="swFoldAll(false)">Open all</button><button onclick="swFoldAll(true)">Fold all</button></div>';
   h += '<div class="sw-row sw-adv' + (SW.kind === 'adv' ? ' on' : '') + '" onclick="swSel(\'adv\',\'\')"><span class="sw-name">' + esc(A.name || 'Adventure') + '</span></div>';
   (A.acts || []).forEach(function(a){
-    h += row('act', a.id, a.name, 0);
+    h += row('act', a.id, a.name, 0, sh[a.id] ? '<i class="sw-count">' + (a.sessions || []).length + '</i>' : '');
+    if (sh[a.id]) return;
     (a.sessions || []).forEach(function(se){
-      h += row('session', se.id, se.name, 1);
+      var live = (se.scenes || []).some(function(sc){ return sc.id === (S.scene && S.scene.id); });
+      h += row('session', se.id, se.name, 1, sh[se.id] ? (live ? '<i class="sw-live" title="On the table"></i>' : '') + '<i class="sw-count">' + (se.scenes || []).length + '</i>' : '');
+      if (sh[se.id]) return;
       (se.scenes || []).forEach(function(sc){ h += row('scene', sc.id, sc.name, 2, sc.id === (S.scene && S.scene.id) ? '<i class="sw-live" title="On the table"></i>' : ''); });
       h += '<button class="sw-add" style="padding-left:' + (10 + 2 * 16) + 'px" onclick="swAdd(\'scene\',\'' + se.id + '\')">+ Scene</button>';
     });
@@ -16925,15 +16956,18 @@ function swDescSave(){ var node = swNode(); if (!node) return; node.desc = ((doc
 function swBeats(sc){
   var list = sc.beats || [];
   var h = '<div class="sw-sec"><span>Beats <b>' + list.length + '</b></span><span class="sw-grow"></span>'
+    + (list.length ? '<button class="sw-mini" onclick="swBeatsAll(\'' + sc.id + '\',true)">Open all</button><button class="sw-mini" onclick="swBeatsAll(\'' + sc.id + '\',false)">Fold all</button>' : '')
     + '<button class="tsm-btn ghost" onclick="contOpen(\'' + sc.id + '\')">Continue the story</button><button class="tsm-btn ghost" onclick="storyBeatAdd(\'' + sc.id + '\')">+ Beat</button></div>';
   if (!list.length) h += '<p class="sw-empty">No beats yet. Add one to start writing this scene.</p>';
   list.forEach(function(b, i){
     var m = beatMeta(b.kind || 'general'), sp = (b.kind === 'dialogue' && b.speaker) ? beatSpeaker(b, sc) : null;
-    h += '<div class="sw-beat" draggable="true" style="border-left-color:' + m[1] + '" ondragstart="SW.beat=' + i + '" ondragover="event.preventDefault();this.classList.add(\'drop\')" ondragleave="this.classList.remove(\'drop\')" ondrop="this.classList.remove(\'drop\');swBeatDrop(\'' + sc.id + '\',' + i + ')" onclick="storyBeatOpen(\'' + sc.id + '\',' + i + ')">'
+    var bo = !!SW.beatOpen[sc.id + ':' + i];
+    h += '<div class="sw-beat' + (bo ? ' open' : '') + '" draggable="true" style="border-left-color:' + m[1] + '" ondragstart="SW.beat=' + i + '" ondragover="event.preventDefault();this.classList.add(\'drop\')" ondragleave="this.classList.remove(\'drop\')" ondrop="this.classList.remove(\'drop\');swBeatDrop(\'' + sc.id + '\',' + i + ')" onclick="swBeatToggle(\'' + sc.id + '\',' + i + ')" title="' + (bo ? 'Fold' : 'Read it all') + '">'
+      + '<button class="sw-bedit" onclick="event.stopPropagation();storyBeatOpen(\'' + sc.id + '\',' + i + ')" title="Edit this beat" aria-label="Edit this beat"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg></button>'
       + (sp ? (sp.img ? '<img class="sw-spk" src="' + esc(sp.img) + '" alt="">' : '<span class="sw-spk" style="background:' + sp.color + '"></span>') : '')
       + '<div class="sw-bt"><span class="sw-kind" style="color:' + m[1] + '">' + m[0] + (sp ? ' <em>' + esc(sp.name) + '</em>' : '') + '</span>'
       + '<span class="sw-btitle">' + esc(b.title || m[0]) + '</span>'
-      + (b.body ? '<span class="sw-bbody">' + esc(String(b.body).slice(0, 220)) + (String(b.body).length > 220 ? '\u2026' : '') + '</span>' : '') + '</div></div>';
+      + (b.body ? '<span class="sw-bbody' + (bo ? ' full' : '') + '">' + (bo ? esc(String(b.body)) : esc(String(b.body).slice(0, 220)) + (String(b.body).length > 220 ? '\u2026' : '')) + '</span>' : '') + '</div></div>';
   });
   return h;
 }
