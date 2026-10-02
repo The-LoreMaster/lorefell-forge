@@ -2413,6 +2413,12 @@ body.stream:not(.stream-frame) #rail, body.stream:not(.stream-frame) #hud, body.
 .sm-count.big{ display:flex; width:max-content; margin:8px auto; } .sm-count.big button{ width:40px; height:40px; font-size:1.3rem; } .sm-count.big b{ min-width:44px; font-size:1.5rem; }
 .sw-castline{ display:flex; align-items:center; gap:4px; } .sw-castline .sw-castrow{ flex:1; min-width:0; }
 .sw-more{ width:24px; height:24px; padding:0; border:1px solid #2c3a58; border-radius:6px; background:none; color:#b8c4d0; cursor:pointer; flex-shrink:0; } .sw-more:hover{ border-color:#c9a84c; color:#e8cf86; }
+
+.fa-ask{ display:flex; gap:8px; } .fa-ask input{ flex:1; }
+.fa-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; } .fa-grid label{ display:flex; flex-direction:column; }
+.fa-out{ margin:8px 0; padding:8px 10px; border:1px solid #26324c; border-radius:9px; background:rgba(14,19,36,.7); }
+.fa-v{ font-family:Cinzel,serif; font-size:.68rem; letter-spacing:.05em; color:#93a3b6; } .fa-v.ok{ color:#8fd694; } .fa-v.warn{ color:#e8cf86; } .fa-v.bad{ color:#e3a193; font-family:'Crimson Pro',Georgia,serif; font-size:.9rem; letter-spacing:0; }
+.fa-rule{ margin:4px 0 0; color:#dce8ef; }
 </style>
 </head>
 <body>
@@ -3001,6 +3007,8 @@ var storyOpen = { act:{}, ses:{}, scene:{} };
 /* Persist the spine. Bumps a revision so a returning snapshot cannot roll it back. */
 function storySave(){
   S._advTouch = Date.now();
+  /* and whatever scene the Story window has open is saved with it */
+  try { if (SW.open && SW.kind === 'scene' && SW.id) advMarkScene(SW.id); } catch(e){}
   if (SW.open) setTimeout(function(){ try { swPaint(); } catch(e){} }, 0);
   S.advRev = (S.advRev || 0) + 1;
   try { pushState(); } catch(e){}
@@ -3342,6 +3350,9 @@ function tsBeatSave(){
   else { var _nb = { id:mkId(), kind:kind, title:title, body:body, speaker:spk, handle:handle, img:img, pinned:false, open:false };
     /* added between two beats, it goes in there; otherwise at the end */
     if (typeof c.at === 'number' && c.at >= 0 && c.at <= f.scene.beats.length) f.scene.beats.splice(c.at, 0, _nb); else f.scene.beats.push(_nb); }
+  /* the scene edited is saved, whichever it is: only the scene on the table was, so beats
+     written into any other scene were lost on a reload */
+  advMarkScene(c.sceneId);
   tsCloseModal(); storySave(); refreshWinBody();
   if (typeof paintLmStrip === 'function' && isLM()) paintLmStrip();
 }
@@ -3349,6 +3360,7 @@ function tsBeatDelete(){
   var c = window._beatCtx; if (!c) return;
   var f = storyFind('scene', c.sceneId); if (!f) return;
   (f.scene.beats || []).splice(c.idx, 1);
+  advMarkScene(c.sceneId);
   tsCloseModal(); storySave(); refreshWinBody();
   if (typeof paintLmStrip === 'function' && isLM()) paintLmStrip();
 }
@@ -4769,27 +4781,79 @@ function foeLive(f){
   return { attrs: (f && f.attrs) || {}, dmg: (f && f.dmg) || {}, maxVit: (f && f.maxVit) || 0 };
 }
 /* Forge an Act or a relic from the table. Both land in the same shelves the forges fill. */
+/* Forging an Act for a foe, by the SigilForge's rules: a name, one damage package, one target
+   inlay, one effect (a combat effect, or one affliction of the foe's own family), the cost
+   shown as the pieces are chosen and the tier it makes, the rule text written from the
+   pieces; or describe it and the forge builds it for the tier. Saved as the LoreMaster's own
+   Act (yours) and set on the foe at its tier. */
+var FA = null;
+function foeFamilyOf(f){
+  if (f && /^(Precision|Power|Magic)$/.test(f.family || '')) return f.family;
+  if (f && f.atkPref === 'magic') return 'Magic';
+  var b = f && foeBuild(f.build), at = (b && b.attributes) || [];
+  return at[0] === 'Precision' ? 'Precision' : (at.indexOf('Magic') >= 0 && f.atkPref === 'magic') ? 'Magic' : 'Power';
+}
 function forgeCustomAct(tier){
-  window._actTier = tier;
-  tsModal('<h3 class="tsm-title">Forge an Act</h3>'
-    + '<label class="tsm-lbl">Name</label><input class="tsm-inp" id="faName">'
-    + '<label class="tsm-lbl">Tier</label><input class="tsm-inp rs-anum" id="faTier" type="number" min="1" max="3" value="' + (tier || 1) + '">'
-    + '<label class="tsm-lbl">What it does</label><textarea class="tsm-inp tsm-ta" id="faText"></textarea>'
-    + '<p class="tsm-note">Saved as yours, and it appears wherever Acts are offered.</p>'
-    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="sheetActs()">Cancel</button>'
-    + '<button class="tsm-btn" onclick="forgeActSave()">Forge</button></div>');
+  var t = curSheet(); var f = t ? t.obj : {};
+  FA = { tier:tier || 1, family:foeFamilyOf(f), name:'', damage:'Standard Damage', target:'One Target', effect:'', flavor:'', ask:'', busy:false, err:'' };
+  forgeActPaint();
+}
+function forgeActKeep(){ var g = function(id){ var el = document.getElementById(id); return el ? el.value : null; };
+  ['name','damage','target','effect','flavor','ask'].forEach(function(k){ var v = g('fa_' + k); if (v !== null) FA[k] = v; }); }
+function forgeActSet(){ forgeActKeep(); forgeActPaint(); }
+function forgeActPaint(){
+  var D = SIGIL_COMPONENTS.filter(function(c){ return c.category === 'Damage'; }), T = SIGIL_COMPONENTS.filter(function(c){ return c.category === 'Targeting'; });
+  var E = SIGIL_COMPONENTS.filter(function(c){ return c.category === 'Effect'; }), A = SIGIL_COMPONENTS.filter(function(c){ return c.category === 'Affliction*' && c.family === FA.family; });
+  var opt = function(c, cur){ var n = c.component.replace(/\*$/, ''); return '<option value="' + esc(n) + '"' + (n === cur ? ' selected' : '') + '>' + esc(n) + ' (' + c.cost + ')</option>'; };
+  var r = FA.effect ? sigilAct({ damage:FA.damage, target:FA.target, effect:FA.effect, tier:0 }, FA.family) : null;
+  var band = SIGIL_TIER_BUDGETS[FA.tier] || [1, 2];
+  var verdict = !r ? '<span class="fa-v">Choose an effect.</span>'
+    : r.errs.length ? '<span class="fa-v bad">' + esc(r.errs.join('; ')) + '</span>'
+    : '<span class="fa-v' + (r.tier === FA.tier ? ' ok' : ' warn') + '">Cost ' + r.cost + ': Tier ' + r.tier + (r.tier === FA.tier ? '' : ' (this slot is Tier ' + FA.tier + ', ' + band[0] + (band[1] > 50 ? '+' : ' to ' + band[1]) + ')') + '</span>';
+  var h = '<h3 class="tsm-title">Forge a Tier ' + FA.tier + ' Act</h3><p class="tsm-note">By the SigilForge rules. This foe is ' + FA.family + ', so its afflictions are ' + FA.family + '.</p>'
+    + '<label class="tsm-lbl" for="fa_ask">Describe it, and the forge builds it</label><div class="fa-ask"><input class="tsm-inp" id="fa_ask" value="' + esc(FA.ask) + '" placeholder="It slams its shield and sends the Fell reeling"><button class="tsm-btn ghost" onclick="forgeActAsk()"' + (FA.busy ? ' disabled' : '') + '>' + (FA.busy ? 'Forging\u2026' : 'Build') + '</button></div>'
+    + (FA.err ? '<p class="sm-err">' + esc(FA.err) + '</p>' : '')
+    + '<label class="tsm-lbl" for="fa_name">Name</label><input class="tsm-inp" id="fa_name" value="' + esc(FA.name) + '" maxlength="60">'
+    + '<div class="fa-grid"><label><span class="tsm-lbl">Damage</span><select class="tsm-inp" id="fa_damage" onchange="forgeActSet()">' + D.map(function(c){ return opt(c, FA.damage); }).join('') + '</select></label>'
+    + '<label><span class="tsm-lbl">Targets</span><select class="tsm-inp" id="fa_target" onchange="forgeActSet()">' + T.map(function(c){ return opt(c, FA.target); }).join('') + '</select></label></div>'
+    + '<label class="tsm-lbl" for="fa_effect">Effect</label><select class="tsm-inp" id="fa_effect" onchange="forgeActSet()"><option value="">Choose one</option>'
+    + '<optgroup label="Combat effects">' + E.map(function(c){ return opt(c, FA.effect); }).join('') + '</optgroup><optgroup label="' + FA.family + ' afflictions">' + A.map(function(c){ return opt(c, FA.effect); }).join('') + '</optgroup></select>'
+    + '<div class="fa-out">' + verdict + (r && !r.errs.length ? '<p class="fa-rule">' + esc(r.text) + '</p>' : '') + '</div>'
+    + '<label class="tsm-lbl" for="fa_flavor">How it looks <span class="na-opt">optional</span></label><input class="tsm-inp" id="fa_flavor" value="' + esc(FA.flavor) + '" maxlength="300">'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="sheetActs()">Cancel</button><button class="tsm-btn" onclick="forgeActSave()"' + (r && !r.errs.length && r.tier === FA.tier ? '' : ' disabled') + '>Forge</button></div>';
+  tsModal(h); summonWide();
+}
+function forgeActAsk(){
+  forgeActKeep(); if (!String(FA.ask || '').trim()){ FA.err = 'Describe it first.'; forgeActPaint(); return; }
+  FA.busy = true; FA.err = ''; forgeActPaint();
+  var sys = summonSystemBuild(FORGE.pack || {}, { inf:0, aug:0, acts:1 }).replace(/You build one foe[\s\S]*?Choose ONLY/, 'You build one Act for a ' + FA.family + ' Foe in LoreFell, a dark fantasy tabletop game, by the SigilForge rules. Voice: dark, grounded, specific. No em dashes. Choose ONLY')
+    + '\nAnswer with JSON only: {"name":"evocative name","damage":"a damage package","target":"a target inlay","effect":"one combat effect or one ' + FA.family + ' affliction","flavor":"one sentence of how it looks"}. It must cost within Tier ' + FA.tier + '.';
+  aiCall(sys, 'Build this Tier ' + FA.tier + ' Act: ' + FA.ask, 500).then(function(text){
+    var m = String(text).match(/\{[\s\S]*\}/), j = null; try { j = JSON.parse(m ? m[0] : text); } catch(e){}
+    if (!j || !j.effect) throw new Error('the answer could not be read');
+    j = sigilFit(j, FA.family, FA.tier);
+    FA.name = j.name || FA.name; FA.damage = j.damage || FA.damage; FA.target = j.target || FA.target; FA.effect = String(j.effect || '').replace(/\*$/, ''); FA.flavor = j.flavor || ''; FA.busy = false; forgeActPaint();
+  }).catch(function(e){ FA.busy = false; FA.err = 'The forge could not build it (' + ((e && e.message) || 'error') + ').'; forgeActPaint(); });
 }
 function forgeActSave(){
-  var nm = ((document.getElementById('faName') || {}).value || '').replace(/^\s+|\s+$/g,'');
-  if (!nm) return;
-  var tier = Math.max(1, Math.min(3, Number((document.getElementById('faTier') || {}).value) || 1));
-  var tx = (document.getElementById('faText') || {}).value || '';
-  tsModal('<h3 class="tsm-title">Forging...</h3>');
+  if (!FA) return;
+  forgeActKeep();
+  var r = sigilAct({ damage:FA.damage, target:FA.target, effect:FA.effect, tier:0 }, FA.family);
+  if (r.errs.length || r.tier !== FA.tier){ forgeActPaint(); return; }
+  var nm = String(FA.name || '').trim(); if (!nm){ FA.err = 'Give it a name.'; forgeActPaint(); return; }
+  var tier = FA.tier, tx = r.text + (FA.flavor ? ' ' + String(FA.flavor).trim() : '');
+  tsModal('<h3 class="tsm-title">Forging\u2026</h3>');
   tsAsk('TS_FORGE_ACT', { act:{ name:nm, title:nm, tier:tier, effect:tx, use:'Act', source:'mine' } }).then(function(acts){
     if (acts) FORGE.acts = acts.map(normAct).filter(function(a){ return a.name; });
     var made = null;
-    FORGE.acts.forEach(function(a){ if (a.name === nm) made = a; });
-    if (made) sheetPickAct(tier, made.id); else sheetActs();
+    (FORGE.acts || []).forEach(function(a){ if (a.name === nm && (Number(a.tier) || 1) === tier) made = a; });
+    if (made) sheetPickAct(tier, made.id);
+    else {
+      /* the library did not answer: the act still goes on the foe, and saves with it */
+      var t = curSheet(); if (t){ var f = t.obj; f.abilities = (f.abilities || []).filter(function(a){ return (Number(a.tier) || 1) !== tier; });
+        f.abilities.push({ id:mkId(), name:nm, tier:tier, use:'Act', desc:tx, effect:tx, source:'mine', sigil:r.build }); sheetLiveSave(); }
+      sheetActs();
+    }
   }).catch(function(){ sheetActs(); });
 }
 function forgeCustomRelic(){
