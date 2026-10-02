@@ -2205,6 +2205,14 @@ body.drop-ready #map::after{ content:'Drop images to add them as maps'; position
 .sw-row-btns{ flex-wrap:wrap; } .sw-row-btns .tsm-btn{ white-space:nowrap; padding:6px 10px; }
 .ct-h{ font-family:Cinzel,serif; font-size:.62rem; letter-spacing:.14em; text-transform:uppercase; color:#a88a3e; margin:12px 0 6px; }
 .ct-beat{ display:flex; gap:10px; align-items:flex-start; padding:10px 12px; margin-bottom:6px; border:1px solid var(--line); border-left:3px solid #8fa0b3; border-radius:10px; background:rgba(20,28,51,.85); cursor:pointer; } .ct-beat input{ margin-top:4px; accent-color:var(--gold); width:17px; height:17px; flex-shrink:0; } .ct-b{ display:flex; flex-direction:column; gap:2px; }
+.na-types{ display:grid; grid-template-columns:repeat(2,1fr); gap:8px; } .na-type{ display:flex; flex-direction:column; gap:2px; text-align:left; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:none; color:var(--silver,#dce8ef); font-family:'Crimson Pro',Georgia,serif; cursor:pointer; }
+.na-type b{ font-family:Cinzel,serif; font-weight:500; font-size:.9rem; } .na-type i{ font-style:normal; font-size:.82rem; color:var(--muted,#9aabbb); } .na-type span{ font-size:.88rem; color:#b8c4d0; }
+.na-type.on, .na-world.on{ border-color:var(--gold); background:rgba(201,168,76,.12); } .na-type.on b, .na-world.on{ color:var(--gold); }
+.na-worlds{ display:grid; grid-template-columns:repeat(auto-fill, minmax(104px,1fr)); gap:6px; max-height:180px; overflow-y:auto; padding-right:4px; }
+.na-world{ padding:7px 6px; border:1px solid var(--line); border-radius:8px; background:none; color:var(--silver,#dce8ef); font-family:Cinzel,serif; font-size:.66rem; letter-spacing:.04em; cursor:pointer; } .na-world.unwritten{ border-style:dashed; }
+.na-unwritten{ margin-top:8px; padding:10px 12px; border:1px dashed rgba(201,168,76,.5); border-radius:10px; }
+.na-cover{ display:flex; align-items:center; gap:10px; } .na-cover img{ width:120px; height:68px; object-fit:cover; border-radius:8px; } .na-opt{ text-transform:none; letter-spacing:0; color:var(--muted,#9aabbb); font-family:'Crimson Pro',Georgia,serif; }
+.sw-meta{ display:flex; align-items:center; gap:10px; margin-bottom:6px; } .sw-meta span{ display:flex; flex-direction:column; padding:6px 10px; border:1px solid var(--line); border-radius:8px; } .sw-meta i{ font-style:normal; font-family:Cinzel,serif; font-size:.54rem; letter-spacing:.12em; text-transform:uppercase; color:var(--muted,#9aabbb); }
 </style>
 </head>
 <body>
@@ -8959,15 +8967,19 @@ function advVeiled(){
    which is the least FateWell can still open and enough to start running. Anything
    richer is authoring, and authoring is FateWell's job. */
 function advCreate(){
-  var nm = ((document.getElementById('advNewName') || {}).value || '').replace(/^\s+|\s+$/g, '');
-  if (!nm){
-    var el = document.getElementById('advNewName');
-    if (el) el.focus();
-    return;
-  }
+  advNewKeep();
+  var N = NEWADV, nm = String(N.name || '').trim();
+  /* name, type and world are required; an Unwritten world needs its name */
+  var miss = !nm ? 'Give it a name.' : !N.type ? 'Choose its type.' : !N.world ? 'Choose its world, or Unwritten for one of your own.' : (N.world === 'unwritten' && !String(N.wName || '').trim()) ? 'Name your world.' : '';
+  if (miss){ N.err = miss; advNewPaint(); return; }
+  var w = WORLD_LIST.filter(function(x){ return x.id === N.world; })[0];
+  var meta = { type:N.type, worldId:N.world === 'unwritten' ? 'unwritten' : N.world,
+    worldName:N.world === 'unwritten' ? String(N.wName).trim() : (w ? w.name : ''), worldDesc:N.world === 'unwritten' ? String(N.wDesc || '').trim() : '' };
   tsCloseModal();
   advGoing(nm);
-  tsAsk('TS_ADVENTURE_CREATE', { name:nm }).then(function(r){
+  /* the cover goes up first (when there is one), so the adventure is made with it */
+  var up = N.file ? assetBackend.upload(N.file, nm + ' cover').catch(function(){ return ''; }) : Promise.resolve('');
+  up.then(function(img){ if (img) meta.img = img; return tsAsk('TS_ADVENTURE_CREATE', { name:nm, meta:meta }); }).then(function(r){
     if (!r || !r.id) throw new Error('no id');
     return tsAsk('TS_CAMPAIGN_SET', { campaignId:r.id });
   }).catch(function(){
@@ -9123,16 +9135,44 @@ function sheetLogBody(){
 }
 function openSheetLog(){ tsModal('<h3 class="tsm-title">Sheet changes</h3>' + sheetLogBody()); }
 function clearSheetLog(){ _sheetLog = []; _sheetLogPrev = {}; tsCloseModal(); if (S.openSection === 'seams') seamPaint(); }
+/* ---- a new adventure ----
+   One form wherever a new adventure is begun (Settings, the adventure picker on a first visit,
+   the Story window): its name, its type, its world (one of the Sphere's, or Unwritten, a world
+   of your own, named and described), and an optional cover. Name, type and world are required.
+   The type and world are asked here and only here. */
+var WORLD_LIST = [{"id": "world:akkoroka", "name": "Akkoroka"}, {"id": "world:amaranthia", "name": "Amaranthia"}, {"id": "world:avemriol", "name": "Avemriol"}, {"id": "world:brimsever", "name": "Brimsever"}, {"id": "world:burhallow", "name": "Burhallow"}, {"id": "world:crixalis", "name": "Crixalis"}, {"id": "world:eldarwyn", "name": "Eldarwyn"}, {"id": "world:elysara", "name": "Elysara"}, {"id": "world:felidae", "name": "Felidae"}, {"id": "world:garyx", "name": "Garyx"}, {"id": "world:karn", "name": "Karn"}, {"id": "world:kwuhara", "name": "Kwuhara"}, {"id": "world:mireleor", "name": "Mireleor"}, {"id": "world:mireth", "name": "Mireth"}, {"id": "world:mortavia", "name": "Mortavia"}, {"id": "world:natbakka", "name": "Natbakka"}, {"id": "world:neriad", "name": "Neriad"}, {"id": "world:oroniel", "name": "Oroniel"}, {"id": "world:pandemonium", "name": "Pandemonium"}, {"id": "world:sable", "name": "Sable"}, {"id": "world:scitnix", "name": "Scitnix"}, {"id": "world:sellenia", "name": "Sellenia"}, {"id": "world:shadakar", "name": "Shadakar"}, {"id": "world:shervinaw", "name": "Shervinaw"}, {"id": "world:sporion", "name": "Sporion"}, {"id": "world:sylvanoth", "name": "Sylvanoth"}, {"id": "world:thaloryn", "name": "Thaloryn"}, {"id": "world:the-scere", "name": "The Scere"}, {"id": "world:therion", "name": "Therion"}, {"id": "world:ursathar", "name": "Ursathar"}, {"id": "world:valoria", "name": "Valoria"}, {"id": "world:verdantia", "name": "Verdantia"}, {"id": "world:vulkaris", "name": "Vulkaris"}, {"id": "world:vyrathis", "name": "Vyrathis"}, {"id": "world:wildermire", "name": "Wildermire"}, {"id": "world:wylv", "name": "Wylv"}];
+var ADV_TYPES = [['tale','Tale','One session','A single sitting. One deed or rumor, complete on its own.'],['story','Story','3 to 6 sessions','A short, focused arc for a chosen few Fell.'],
+  ['legacy','Legacy','10 to 12 sessions','The backbone saga. Characters endure and grow.'],['chronicle','Chronicle','Open table','A living world many hands shape across the year.']];
+var NEWADV = { name:'', type:'', world:'', wName:'', wDesc:'', img:'', file:null, err:'', fromPicker:false };
 function advNewHere(fromPicker){
   window._tsYes = null;
-  var cancel = fromPicker ? 'tsAdventurePicker()' : 'tsCloseModal()';
-  tsModal('<h3 class="tsm-title">A new adventure</h3>'
-    + '<p class="tsm-note">It opens here with one act, session and scene, ready to run and to build out in the Story tab.</p>'
-    + '<label class="tsm-lbl">Call it</label>'
-    + '<input class="tsm-inp" id="advNewName" placeholder="The Sundering of Sarn" autocomplete="off">'
-    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="' + cancel + '">Cancel</button>'
-    + '<button class="tsm-btn" onclick="advCreate()">Make it and open it</button></div>');
+  NEWADV = { name:'', type:'', world:'', wName:'', wDesc:'', img:'', file:null, err:'', fromPicker:!!fromPicker };
+  advNewPaint();
   setTimeout(function(){ var el = document.getElementById('advNewName'); if (el) el.focus(); }, 60);
+}
+function advNewKeep(){ var g = function(id){ return ((document.getElementById(id) || {}).value || ''); }; NEWADV.name = g('advNewName'); NEWADV.wName = g('advNewWName'); NEWADV.wDesc = g('advNewWDesc'); }
+function advNewPick(k, v){ advNewKeep(); NEWADV[k] = v; NEWADV.err = ''; advNewPaint(); }
+function advNewCover(){
+  advNewKeep();
+  var inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*';
+  inp.onchange = function(){ var f = inp.files && inp.files[0]; if (!f) return; NEWADV.file = f; NEWADV.img = URL.createObjectURL(f); advNewPaint(); };
+  inp.click();
+}
+function advNewPaint(){
+  var N = NEWADV, cancel = N.fromPicker ? 'tsAdventurePicker()' : 'tsCloseModal()';
+  var h = '<h3 class="tsm-title">A new adventure</h3>'
+    + '<label class="tsm-lbl" for="advNewName">Name</label><input class="tsm-inp" id="advNewName" value="' + esc(N.name) + '" placeholder="The Sundering of Sarn" autocomplete="off">'
+    + '<div class="tsm-lbl">Type</div><div class="na-types">' + ADV_TYPES.map(function(t){
+        return '<button type="button" class="na-type' + (N.type === t[0] ? ' on' : '') + '" onclick="advNewPick(\'type\',\'' + t[0] + '\')"><b>' + t[1] + '</b><i>' + t[2] + '</i><span>' + t[3] + '</span></button>'; }).join('') + '</div>'
+    + '<div class="tsm-lbl">World</div><div class="na-worlds">'
+    + '<button type="button" class="na-world unwritten' + (N.world === 'unwritten' ? ' on' : '') + '" onclick="advNewPick(\'world\',\'unwritten\')">Unwritten</button>'
+    + WORLD_LIST.map(function(w){ return '<button type="button" class="na-world' + (N.world === w.id ? ' on' : '') + '" onclick="advNewPick(\'world\',\'' + w.id + '\')">' + esc(w.name) + '</button>'; }).join('') + '</div>'
+    + (N.world === 'unwritten' ? '<div class="na-unwritten"><label class="tsm-lbl" for="advNewWName">Your world\u2019s name</label><input class="tsm-inp" id="advNewWName" value="' + esc(N.wName) + '" placeholder="The Drowned March">'
+        + '<label class="tsm-lbl" for="advNewWDesc">What it is like</label><textarea class="tsm-inp tsm-ta" id="advNewWDesc" rows="2" placeholder="A line or two about it">' + esc(N.wDesc) + '</textarea></div>' : '')
+    + '<div class="tsm-lbl">Cover <span class="na-opt">optional</span></div><div class="na-cover">' + (N.img ? '<img src="' + esc(N.img) + '" alt="">' : '') + '<button type="button" class="tsm-btn ghost" onclick="advNewCover()">' + (N.img ? 'Change' : 'Add a cover') + '</button></div>'
+    + (N.err ? '<p class="sm-err">' + esc(N.err) + '</p>' : '')
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="' + cancel + '">Cancel</button><button class="tsm-btn" onclick="advCreate()">Make it and open it</button></div>';
+  tsModal(h); summonWide();
 }
 function advNew(){
   window._tsYes = function(){
@@ -16686,6 +16726,14 @@ function swSearch(q){
     return '<button class="sw-hit" onclick="swSel(\'' + r.kind + '\',\'' + String(r.id).replace(/'/g, "\\'") + '\')"><span class="sw-kind">' + esc(r.what) + '</span><span class="sw-btitle">' + esc(r.title || '') + '</span><span class="sw-bbody">' + esc(r.where.replace(/^ \u203a /, '')) + '</span></button>';
   }).join('');
 }
+/* the adventure's type and world, read only here (they are chosen when it is made), and a new one */
+function swAdvMeta(A){
+  var t = (ADV_TYPES.filter(function(x){ return x[0] === A.type; })[0] || [])[1] || '';
+  var w = A.worldName || ((WORLD_LIST.filter(function(x){ return x.id === A.worldId; })[0] || {}).name) || (A.worldId === 'unwritten' ? 'Unwritten' : '');
+  return '<div class="sw-meta">' + (t ? '<span><i>Type</i>' + esc(t) + '</span>' : '') + (w ? '<span><i>World</i>' + esc(w) + '</span>' : '')
+    + '<span class="sw-grow"></span><button class="tsm-btn ghost" onclick="advNewHere()">New adventure</button></div>'
+    + (A.worldDesc ? '<p class="sw-empty" style="font-style:normal">' + esc(A.worldDesc) + '</p>' : '');
+}
 function swPaint(){
   if (!SW.open || !isLM()) return;
   var el = document.getElementById('storyWin');
@@ -16695,7 +16743,7 @@ function swPaint(){
   var main = '', side = '';
   if (SW.q.trim()) main = swSearch(SW.q.trim());
   else if (SW.kind === 'scene'){ main = swCover(node, 'scene') + '<div class="sw-body">' + swBeats(node) + '</div>'; side = swSide(node); }
-  else main = swCover(node, SW.kind) + '<div class="sw-body">' + swKids(SW.kind, node) + swNotes(SW.kind, node) + '</div>';
+  else main = swCover(node, SW.kind) + '<div class="sw-body">' + (SW.kind === 'adv' ? swAdvMeta(node) : '') + swKids(SW.kind, node) + swNotes(SW.kind, node) + '</div>';
   var keepQ = document.activeElement && document.activeElement.id === 'swSearch';
   var outlineScroll = (el.querySelector('.sw-outline') || {}).scrollTop || 0, mainScroll = (el.querySelector('.sw-main') || {}).scrollTop || 0;
   el.innerHTML = '<div class="sw-box' + (side ? '' : ' noside') + (SW.pane === 'outline' && !SW.q.trim() ? ' m-outline' : ' m-page') + '">'
