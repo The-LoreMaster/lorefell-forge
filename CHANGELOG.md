@@ -1,3 +1,7 @@
+## 2026-09-28 - Invested Lore opens for the LoreMaster at once
+
+When the LoreMaster opened a player's Fell, its Invested Lore (level, Lore Points, paragon points), the strip and mobility stayed in the player's read-only form until some later redraw: switching the sheet into the LoreMaster's mode redrew the arsenal and identity but not those. They now redraw the moment the mode turns on, so they can be edited as soon as the tab opens.
+
 ## 2026-09-28 - A mark that says whether everything is saved
 
 A small mark in the corner of the LoreMaster's table, and beside the foe editor's Save, says whether every change has reached the site: Saving while anything is on its way or waiting its turn (a scene, the story, a library foe, an act, the table's own state), All saved with the time once nothing is left, and Not saved in red, naming what, when a save was refused, until a later one lands. When it says All saved, a refresh loses nothing.
