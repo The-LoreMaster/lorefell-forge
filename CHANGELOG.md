@@ -1,3 +1,7 @@
+## 2026-09-28 - Masked reaches the fog from the sheet
+
+A Fell made Masked on their sheet still saw as far as anyone: the fog read afflictions only from what the LoreMaster set on the Fell at the table. It now also reads the Fell's own sheet, which FellGlass reports to its player's table with the rest of the hand (afflictions, effects and impairments by name), and the party's public sheets, which now carry the same, for everyone else's view. A Masked Fell's own screen shows only their space and the spaces beside it, and they add only those to the party's sight. Paste velo/backend/characters.web.js.
+
 ## 2026-09-28 - FateWell retired: ThreadSpire on the Hearth, publishing at the table
 
 The Hearth's FateWell button is now ThreadSpire (Write and run your adventures), with a spire for its mark. ThreadSpire's Settings already had Published (publish, update, take down), but it sent the adventure in a shape the directory could not bring back in; it now sends a real pack, as FateWell did (the story, its foes and NPCs, never the table, journal or players), with its images inlined to media. The directory now sends a chosen adventure to ThreadSpire, which offers to bring it in as a fresh adventure. Settings no longer offers Write one in FateWell. FateWell stays reachable at its address as a fallback, with a banner saying it is retired; its saves stay in its own copy and no longer write the shared story, so opening it cannot undo work done in ThreadSpire. Paste velo/page-threadspire.js, velo/page-adventures.js and velo/page-fatewell.js.
