@@ -2300,6 +2300,26 @@ body.stream:not(.stream-frame) #rail, body.stream:not(.stream-frame) #hud, body.
 #win[data-sec="fell"] .pt-name, #win[data-sec="fell"] .pt-meta{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 #win[data-sec="fell"] .pt-role, #win[data-sec="fell"] .pt-row > .set-b, #win[data-sec="fell"] .pt-more{ flex-shrink:0; }
 @media (max-width:520px){ #win[data-sec="fell"] .pt-role{ display:none; } }
+
+/* affliction marks at a token's crown */
+.tok-affs{ gap:1px !important; top:-11px !important; }
+.tok-aff{ width:17px; min-width:17px !important; height:17px !important; padding:0 !important; border-radius:50% !important; display:flex !important; align-items:center; justify-content:center; background:rgba(98,20,30,.96) !important; border:1px solid rgba(255,170,160,.55); box-shadow:0 1px 3px rgba(0,0,0,.5); }
+.tok-aff svg{ fill:none; stroke:#ffe1d6; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
+.tok-aff.good{ background:rgba(22,84,52,.96) !important; border-color:rgba(160,240,190,.55); } .tok-aff.good svg{ stroke:#dcffe9; }
+.tok-aff.more{ width:auto; padding:0 4px !important; border-radius:9px !important; font-size:8px; }
+/* the token's right-click menu */
+#tokCtx{ position:fixed; z-index:600; display:none; flex-direction:column; min-width:200px; padding:6px; border:1px solid rgba(201,168,76,.6); border-radius:10px; background:rgba(12,17,32,.97); box-shadow:0 12px 30px rgba(0,0,0,.55); font-family:'Crimson Pro',Georgia,serif; }
+#tokCtx .tc-name{ padding:4px 8px 6px; font-family:Cinzel,serif; font-size:.72rem; letter-spacing:.06em; color:#c9a84c; border-bottom:1px solid #1f2a42; margin-bottom:4px; }
+#tokCtx button{ text-align:left; padding:7px 10px; border:0; border-radius:7px; background:none; color:#dce8ef; font-family:inherit; font-size:.95rem; cursor:pointer; } #tokCtx button:hover{ background:rgba(201,168,76,.12); }
+#tokCtx button i{ float:right; font-style:normal; font-size:.75rem; color:#8fd694; }
+/* the afflictions picker */
+.aff-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(150px,1fr)); gap:4px; max-height:52vh; overflow-y:auto; margin:6px 0; }
+.aff-opt{ display:flex; align-items:center; gap:7px; padding:5px 7px; border:1px solid #1f2a42; border-radius:8px; font-size:.92rem; cursor:pointer; } .aff-opt input{ accent-color:var(--gold); }
+.aff-opt.from{ opacity:.55; } .aff-ic{ width:22px; height:22px; border-radius:50%; background:rgba(98,20,30,.96); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.aff-ic svg{ fill:none; stroke:#ffe1d6; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+/* framing */
+.fr-wrap{ display:flex; justify-content:center; padding:10px 0; } .fr-circle{ width:220px; height:220px; border-radius:50%; background:#1b2440 no-repeat; box-shadow:0 0 0 3px rgba(201,168,76,.6); cursor:grab; touch-action:none; } .fr-circle:active{ cursor:grabbing; }
+.fr-zoom{ display:flex; align-items:center; gap:10px; } .fr-zoom span{ font-family:Cinzel,serif; font-size:.62rem; letter-spacing:.1em; text-transform:uppercase; color:#a88a3e; } .fr-zoom input{ flex:1; accent-color:var(--gold); }
 </style>
 </head>
 <body>
@@ -14062,7 +14082,7 @@ function renderTokens(){
     var el = document.createElement('div');
     /* a Fell's token is the player's to move, found by the record it carries */
     var ownFell = tokenIsMine(t);
-    var draggable = (t.mine || ownFell || S.role === 'lm') && !t.locked;
+    var draggable = (t.mine || ownFell || t.free || S.role === 'lm') && !t.locked && !S.stream;
     var art = tokenThumb(tokenArt(t));
     /* a Fell's own token wears the gold rim on that Fell's table, so its player can see
        at a glance which one answers to them */
@@ -14108,7 +14128,10 @@ function renderTokens(){
         }
       }
       else if (t.kind === 'shard') el.style.setProperty('--marker-art', 'url(' + art + ')');
-      else el.style.backgroundImage = 'url(' + art + ')';
+      else {
+        el.style.backgroundImage = 'url(' + art + ')';
+        if (t.imgPos){ var _fs = frameStyle(t.imgPos); el.style.backgroundSize = _fs.size; el.style.backgroundPosition = _fs.pos; }
+      }
     }
     /* An art marker wears no text label: the picture names it, and five "Caltrops" tags
        across a cluster was noise the map could not carry. A marker WITHOUT art keeps its
@@ -14494,7 +14517,7 @@ function tokAffs(t){
   var out = [];
   try {
     var c = (typeof findC === 'function' && findC(t.id)) || (t.charId && typeof fellByCharId === 'function' && fellByCharId(t.charId));
-    out = out.concat((c && c.affs) || []);
+    out = out.concat((c && c.affs) || [], t.affs || []);
     if (t.kind === 'p'){
       if (!isLM() && typeof tokenIsMine === 'function' && tokenIsMine(t) && S._hand && Array.isArray(S._hand.afflictions)) out = out.concat(S._hand.afflictions);
       var pub = (S.party || []).filter(function(p){ return p && t.charId && sameId(p.charId || p.id, t.charId); })[0];
@@ -15679,11 +15702,12 @@ document.addEventListener('keydown', function(e){
 var AFF_GOOD = ['Empowered','Hastened','Warded','Shielded','Inspired','Fortified','Blessed','Mended','Restored'];
 function tokAffBadges(t){
   var a = []; try { a = tokAffs(t) || []; } catch(e){ a = []; }
+  var seen = {}; a = a.map(function(n){ return String((n && n.name) || n || '').trim(); }).filter(function(n){ if (!n || seen[n.toLowerCase()]) return false; seen[n.toLowerCase()] = 1; return true; });
   if (!a.length) return '';
-  var shown = a.slice(0, 3), more = a.length - shown.length;
+  var shown = a.slice(0, 5), more = a.length - shown.length;
   return '<span class="tok-affs">' + shown.map(function(n){
-      return '<span class="tok-aff' + (AFF_GOOD.indexOf(n) >= 0 ? ' good' : '') + '" title="' + esc(n) + '">' + esc(String(n).slice(0, 2)) + '</span>'; }).join('')
-    + (more > 0 ? '<span class="tok-aff more" title="' + esc(a.slice(3).join(', ')) + '">+' + more + '</span>' : '') + '</span>';
+      return '<span class="tok-aff' + (AFF_GOOD.indexOf(n) >= 0 ? ' good' : '') + '" title="' + esc(n + ((TS_EFFECT_INFO[n] || {}).e ? ': ' + TS_EFFECT_INFO[n].e : '')) + '">' + affSvg(n, 11) + '</span>'; }).join('')
+    + (more > 0 ? '<span class="tok-aff more" title="' + esc(a.slice(5).join(', ')) + '">+' + more + '</span>' : '') + '</span>';
 }
 
 /* ---- movement and range, around the chosen Fell ----
@@ -17411,6 +17435,125 @@ function roomGot(m){
   if (m.t === 'deny' && m.back){ roomTokApply(m.id, { x:m.back.x, y:m.back.y }); return; }
 }
 setInterval(function(){ try { if (S.campaignId && tsEmbedded() && (!ROOM.ws || ROOM.cid !== S.campaignId) && !ROOM.t) roomConnect(); } catch(e){} }, 3000);
+
+
+/* ================= affliction marks, the token's right-click menu, free tokens, framing =================
+   Each affliction has its own small mark, shown at the token's crown only for what that
+   token is afflicted with (named on hover); duplicates from the table, the sheet and the
+   party are shown once. The LoreMaster's right click on a token opens a menu: Afflictions
+   (tick to set or clear, a mark beside each), Let the players move it (a token set free can be
+   dragged by anyone, the room allowing it), and Frame the picture. A player's right click on
+   their own Fell offers Frame my picture. Framing slides and zooms the picture inside the
+   token's circle; it travels with the token. */
+var AFF_ICON = {
+  Accursed:'<circle cx="12" cy="10" r="6"/><path d="M9.5 9.5h.01M14.5 9.5h.01M9 17v3M12 17v3M15 17v3"/>',
+  Agonized:'<path d="M4 12l3-5 3 10 3-12 3 12 3-5 1 0"/>',
+  Bleeding:'<path d="M12 3c3 5 6 8 6 12a6 6 0 0 1-12 0c0-4 3-7 6-12z"/>',
+  Bruised:'<circle cx="12" cy="12" r="8"/><circle cx="10" cy="10" r="1.6"/><circle cx="14.5" cy="13.5" r="2"/>',
+  Conjoined:'<circle cx="9" cy="12" r="5"/><circle cx="15" cy="12" r="5"/>',
+  Crippled:'<path d="M6 4l5 7-2 2 6 7M14 4l-2 4"/>',
+  Dazzled:'<path d="M12 3v5M12 16v5M3 12h5M16 12h5M6 6l3 3M15 15l3 3M6 18l3-3M15 9l3-3"/>',
+  Diminished:'<path d="M12 4v14M6 12l6 6 6-6"/><path d="M8 4h8"/>',
+  Disarmed:'<path d="M5 19L15 9M15 9l4-4M13 7l4 4"/><path d="M4 4l16 16"/>',
+  Disenchanted:'<path d="M12 3l2 6 6 2-6 2-2 6-2-6-6-2 6-2z"/><path d="M4 20L20 4"/>',
+  Disoriented:'<path d="M12 12a2 2 0 1 0 2 2 4 4 0 1 0-4-4 6 6 0 1 0 6 6"/>',
+  Disrupted:'<path d="M13 3L6 13h5l-1 8 7-10h-5z"/>',
+  Enfeebled:'<path d="M5 18h14M8 18v-4M12 18v-7M16 18v-2"/>',
+  Ensnared:'<path d="M4 4h16v16H4zM4 9.3h16M4 14.6h16M9.3 4v16M14.6 4v16"/>',
+  Frenzied:'<path d="M4 16l3-8 3 6 2-9 2 9 3-6 3 8"/>',
+  Frozen:'<path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M10 5l2 2 2-2M10 19l2-2 2 2"/>',
+  Harvested:'<path d="M5 20c0-8 5-14 14-15-5 3-8 6-9 11"/><path d="M5 20l3-3"/>',
+  Hunted:'<circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>',
+  Ignited:'<path d="M12 3c1 4 5 5 5 10a5 5 0 0 1-10 0c0-3 2-4 2-7 2 1 3 3 3 5"/>',
+  Immobilized:'<rect x="6" y="11" width="12" height="9" rx="1.5"/><path d="M9 11V8a3 3 0 0 1 6 0v3"/>',
+  Impeded:'<path d="M4 8h16M4 16h16M7 6v12M12 6v12M17 6v12"/>',
+  Jinxed:'<path d="M6 19V11a6 6 0 0 1 12 0v8"/><path d="M4 19h4M16 19h4"/>',
+  Lacerated:'<path d="M7 4l-2 16M12 4l-2 16M17 4l-2 16"/>',
+  Mangled:'<path d="M4 9l2 3 2-3 2 3 2-3 2 3 2-3 2 3 2-3M4 15l2-3 2 3 2-3 2 3 2-3 2 3 2-3 2 3"/>',
+  Masked:'<path d="M3 9c3-2 6-1 9 1 3-2 6-3 9-1 0 5-3 7-6 7-2 0-3-2-3-2s-1 2-3 2c-3 0-6-2-6-7z"/><path d="M7.5 11h2M14.5 11h2"/>',
+  Plagued:'<circle cx="12" cy="7" r="3"/><circle cx="7" cy="15" r="3"/><circle cx="17" cy="15" r="3"/><circle cx="12" cy="12" r="1"/>',
+  Reapt:'<path d="M7 3h10M7 21h10M8 3c0 5 8 5 8 9s-8 4-8 9M16 3c0 5-8 5-8 9"/>',
+  Slashed:'<path d="M5 19L19 5"/><path d="M8 19l11-11"/>',
+  Staggered:'<path d="M3 9c3-3 6 3 9 0s6 3 9 0M3 15c3-3 6 3 9 0s6 3 9 0"/>',
+  Strung:'<path d="M4 4h16M7 4v7M12 4v10M17 4v6"/><circle cx="12" cy="17" r="3"/>',
+  Synchronized:'<path d="M5 9a7 7 0 0 1 13-2M19 15a7 7 0 0 1-13 2"/><path d="M18 3v4h-4M6 21v-4h4"/>',
+  Terrorized:'<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="1.6"/>',
+  Unclad:'<path d="M12 3l7 3v5c0 5-3 8.5-7 10-4-1.5-7-5-7-10V6z"/><path d="M12 6l-2 5 3 2-2 5"/>',
+  Unlucky:'<rect x="5" y="5" width="14" height="14" rx="3"/><circle cx="12" cy="12" r="1.4"/>',
+  Vitiated:'<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/><path d="M12 7l-1.5 4 3 2-1.5 4"/>',
+  Vulnerable:'<circle cx="12" cy="12" r="8"/><path d="M12 4v4M12 16v4M4 12h4M16 12h4"/>',
+  Worn:'<rect x="4" y="8" width="14" height="8" rx="1.5"/><path d="M20 11v2M7 11v2"/>'
+};
+function affSvg(n, size){ var p = AFF_ICON[n]; return p ? '<svg viewBox="0 0 24 24" width="' + (size || 12) + '" height="' + (size || 12) + '" aria-hidden="true">' + p + '</svg>' : '<b>' + esc(String(n).slice(0, 1)) + '</b>'; }
+function affNames(){ return Object.keys(TS_EFFECT_INFO || {}).filter(function(k){ return AFF_ICON[k]; }).sort(); }
+/* the right-click menu on a token */
+function tokCtx(e, id){
+  var t = (S.tokens || []).filter(function(x){ return x.id === id; })[0]; if (!t) return;
+  var lm = isLM() && !S.stream, own = !lm && tokenIsMine(t);
+  if (!lm && !own) return;
+  e.preventDefault(); e.stopPropagation();
+  var m = document.getElementById('tokCtx'); if (!m){ m = document.createElement('div'); m.id = 'tokCtx'; document.body.appendChild(m); document.addEventListener('pointerdown', function(ev){ if (!ev.target.closest('#tokCtx')) m.style.display = 'none'; }, true); }
+  var b = function(label, fn, on){ return '<button onclick="document.getElementById(\'tokCtx\').style.display=\'none\';' + fn + '">' + label + (on ? ' <i>on</i>' : '') + '</button>'; };
+  m.innerHTML = '<div class="tc-name">' + esc(t.name || 'Token') + '</div>'
+    + (lm ? b('Afflictions\u2026', 'affPick(\'' + id + '\')') + b('Let the players move it', 'tokFree(\'' + id + '\')', !!t.free) : '')
+    + (t.img || tokenArt(t) !== DEFAULT_ART ? b(own ? 'Frame my picture\u2026' : 'Frame the picture\u2026', 'frameOpen(\'' + id + '\')') : '');
+  m.style.display = 'flex'; m.style.left = Math.min(e.clientX, innerWidth - 220) + 'px'; m.style.top = Math.min(e.clientY, innerHeight - 160) + 'px';
+}
+function tokFree(id){
+  var t = (S.tokens || []).filter(function(x){ return x.id === id; })[0]; if (!t || !isLM()) return;
+  if (t.free) delete t.free; else t.free = true;
+  applyRemoteState({ tokens:S.tokens }); schedulePush(); renderTokens();
+  pushLog({ kind:'sys', html:'<b>' + esc(t.name || 'A token') + '</b> ' + (t.free ? 'may be moved by anyone.' : 'is the LoreMaster\u2019s again.') }); applyRemoteState({ log:S.log });
+}
+/* the LoreMaster ticks a token's afflictions; they are kept on the token and shown to all */
+function affPick(id){
+  var t = (S.tokens || []).filter(function(x){ return x.id === id; })[0]; if (!t) return;
+  var have = {}; (t.affs || []).forEach(function(n){ have[n] = 1; });
+  var other = {}; (tokAffs(t) || []).forEach(function(n){ if (!have[n]) other[n] = 1; });
+  var h = '<h3 class="tsm-title">Afflictions on ' + esc(t.name || 'this token') + '</h3><p class="tsm-note">Tick to show a mark on the token. Afflictions from the sheet or a fight show too, greyed here.</p><div class="aff-grid">'
+    + affNames().map(function(n){ var info = TS_EFFECT_INFO[n] || {};
+        return '<label class="aff-opt' + (other[n] ? ' from' : '') + '" title="' + esc(info.e || '') + '"><input type="checkbox" value="' + esc(n) + '"' + (have[n] || other[n] ? ' checked' : '') + (other[n] ? ' disabled' : '') + '><span class="aff-ic">' + affSvg(n, 16) + '</span>' + esc(n) + '</label>'; }).join('')
+    + '</div><div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button><button class="tsm-btn" onclick="affSave(\'' + id + '\')">Save</button></div>';
+  tsModal(h); summonWide();
+}
+function affSave(id){
+  var t = (S.tokens || []).filter(function(x){ return x.id === id; })[0]; if (!t) return;
+  var list = [].slice.call(document.querySelectorAll('#tsModal .aff-opt input:not([disabled])')).filter(function(c){ return c.checked; }).map(function(c){ return c.value; });
+  if (list.length) t.affs = list; else delete t.affs;
+  tsCloseModal(); _fvMemo = null; applyRemoteState({ tokens:S.tokens }); schedulePush(); renderTokens(); try { fogPaint(); } catch(e){}
+}
+/* framing: drag the picture inside the circle, zoom with the slider */
+var FRAME = null;
+function frameOpen(id){
+  var t = (S.tokens || []).filter(function(x){ return x.id === id; })[0]; if (!t) return;
+  var art = tokenArt(t), p = t.imgPos || { x:50, y:50, z:1 };
+  FRAME = { id:id, x:p.x, y:p.y, z:p.z || 1, o:p.o || 'w', art:art };
+  var probe = new Image(); probe.onload = function(){ FRAME.o = probe.naturalWidth > probe.naturalHeight ? 'h' : 'w'; framePaint(); }; probe.src = art;
+  tsModal('<h3 class="tsm-title">Frame the picture</h3><p class="tsm-note">Drag the picture to move it in the circle. Zoom to bring a face close.</p>'
+    + '<div class="fr-wrap"><div id="frCircle" class="fr-circle"></div></div>'
+    + '<label class="fr-zoom"><span>Zoom</span><input type="range" id="frZoom" min="1" max="3" step="0.05" value="' + FRAME.z + '" oninput="FRAME.z=+this.value;framePaint()"></label>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="FRAME.x=50;FRAME.y=50;FRAME.z=1;document.getElementById(\'frZoom\').value=1;framePaint()">Reset</button><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button><button class="tsm-btn" onclick="frameSave()">Save</button></div>');
+  var c = document.getElementById('frCircle'), drag = null;
+  c.addEventListener('pointerdown', function(e){ drag = { sx:e.clientX, sy:e.clientY, x:FRAME.x, y:FRAME.y }; c.setPointerCapture(e.pointerId); });
+  c.addEventListener('pointermove', function(e){ if (!drag) return; var k = 100 / c.clientWidth / Math.max(0.2, FRAME.z - 0.9);
+    FRAME.x = Math.max(0, Math.min(100, drag.x - (e.clientX - drag.sx) * k)); FRAME.y = Math.max(0, Math.min(100, drag.y - (e.clientY - drag.sy) * k)); framePaint(); });
+  c.addEventListener('pointerup', function(){ drag = null; });
+  c.addEventListener('wheel', function(e){ e.preventDefault(); FRAME.z = Math.max(1, Math.min(3, FRAME.z - e.deltaY * 0.002)); var zr = document.getElementById('frZoom'); if (zr) zr.value = FRAME.z; framePaint(); }, { passive:false });
+  framePaint();
+}
+function frameStyle(p){ var z = (p.z || 1) * 100; return { size: p.o === 'h' ? 'auto ' + z + '%' : z + '% auto', pos: p.x + '% ' + p.y + '%' }; }
+function framePaint(){ var c = document.getElementById('frCircle'); if (!c || !FRAME) return; var st = frameStyle(FRAME); c.style.backgroundImage = 'url(' + FRAME.art + ')'; c.style.backgroundSize = st.size; c.style.backgroundPosition = st.pos; }
+function frameSave(){
+  var t = (S.tokens || []).filter(function(x){ return x.id === FRAME.id; })[0]; if (!t) return;
+  var p = { x:Math.round(FRAME.x), y:Math.round(FRAME.y), z:Math.round(FRAME.z * 100) / 100, o:FRAME.o };
+  /* every token of the same Fell takes the same framing */
+  (S.tokens || []).forEach(function(o){ if (o === t || (t.charId && o.charId === t.charId)){ o.imgPos = p; roomSend({ t:'tok', id:o.id, p:{ imgPos:p } }); } });
+  tsCloseModal(); applyRemoteState({ tokens:S.tokens }); schedulePush(); renderTokens();
+}
+document.addEventListener('contextmenu', function(e){
+  var el = e.target.closest && e.target.closest('.token'); if (!el) return;
+  var id = el.getAttribute('data-tok'); if (id) tokCtx(e, id);
+});
 
 /* ================= rests =================
    A rest comes from the LoreMaster, and only outside a fight: Call a rest opens it for the
