@@ -5,7 +5,8 @@
 import { threadspirePublicChar, listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter, threadspireSaveMeta, lmLoadCharacter, lmSaveCharacter, lmCreateOfflineFell, lmRemoveFromAdventure, charAdventure, leaveAdventure, lmWipeFell, giveRecord, consultArchive, lmSealedGet, lmSealedWeave, lmNotesSave, myDice, saveDicePicks, lmGiveDice, earnDice } from 'backend/characters.web.js';
 import { getLmPortrait, saveLmPortrait, getForgePools, getForgeLibrary, listMyCampaigns, saveCampaign, submitAct, submitItem, deleteAsset, listGlossary , setMemberRole, detachCharacter, loadCampaign, restoreRoster } from 'backend/fatewell.web.js';
 import { createInvite, revokeInvite } from 'backend/invites.web.js';
-import { publishAdventure, unpublishAdventure, myPublishedAdventures } from 'backend/published.web.js';
+let _pubHanded = false;
+import { publishAdventure, unpublishAdventure, myPublishedAdventures, getPublishedPack } from 'backend/published.web.js';
 import { getFoePack } from 'backend/forge.web.js';
 import { listQuests, listDiscovered, getWorldMeta, saveAsset, listAssets, getCampaignPlayers, getClueCards, upsertQuest, getShelves, saveShelves } from 'backend/fatewell.web.js';
 import { getCombatForChar, saveCombatDeclare, syncCombatPlayer, publishCombatState, applyCombatToChar, dealDamageToChar, setCombatCharge, getCombatDeclares } from 'backend/combat.web.js';
@@ -470,6 +471,11 @@ $w.onReady(async function () {
             try { const r = await saveCampaignState(campaignId, msg.snap); reply(!!(r && r.ok), r, r && r.error); }
             catch (e) { reply(false, null, String(e)); }
           }
+        } else if (msg.type === 'TS_PUBLISHED_PENDING') {
+          // an adventure chosen in the directory arrives as ?import=<id>; hand its pack over once
+          let pack = null;
+          try { const id = (wixLocation.query && wixLocation.query.import) || ''; if (id && !_pubHanded) { _pubHanded = true; pack = await getPublishedPack(id); } } catch (e) { pack = null; }
+          reply(true, pack);
         } else if (msg.type === 'TS_STATE_PULL') {
           // Say which adventure the answer is for. A pull in flight across a switch
           // comes back holding the old one, and it used to be believed.
@@ -532,7 +538,8 @@ $w.onReady(async function () {
           reply(true, items);
         } else if (msg.type === 'TS_PUBLISH') {
           let res = null;
-          try { res = await publishAdventure(msg.title, msg.blurb, msg.pack, campaignId); } catch (e) { res = null; }
+          // images inlined to media first, as FateWell did, so the stored pack stays small
+          try { res = await publishAdventure(msg.title, msg.blurb, await tsInlineImages(msg.pack || {}), campaignId); } catch (e) { res = null; }
           reply(!!(res && res.ok), res);
         } else if (msg.type === 'TS_UNPUBLISH') {
           let ok = false;
