@@ -2351,6 +2351,7 @@ body.stream:not(.stream-frame) #rail, body.stream:not(.stream-frame) #hud, body.
 #quickChoose .qc-x:hover{ background:#c9a84c !important; color:#0b1020 !important; }
 /* ping colours */
 .pc-row{ display:flex; gap:8px; flex-wrap:wrap; padding:2px 0 6px; } .pc-sw{ width:26px; height:26px; border-radius:50%; border:2px solid rgba(255,255,255,.15); background:var(--c); cursor:pointer; } .pc-sw.on{ border-color:#fff; box-shadow:0 0 0 3px rgba(201,168,76,.6); }
+.sw-kid.noimg{ justify-content:flex-start; padding:12px 14px; } .sw-kid.noimg .sw-kid-name{ font-size:1.02rem; }
 </style>
 </head>
 <body>
@@ -8850,16 +8851,33 @@ function advDeleteNow(){
   if (!id) return;
   var nm = advNameOf(id), wasOpen = sameId(id, S.campaignId);
   tsModalLocked('<h3 class="tsm-title">Deleting ' + esc(nm) + '...</h3>');
-  tsAsk('TS_ADVENTURE_DELETE', { campaignId:id }).then(function(){
+  var done = function(){
     S._advList = (Array.isArray(S._advList) ? S._advList : []).filter(function(c){ return !sameId(c.id, id); });
     if (wasOpen){ try { advReset(''); } catch(e){} _advSwitching = false; advGoingStop(); }
     tsAdventurePicker();
-  }).catch(function(err){
+  };
+  tsAsk('TS_ADVENTURE_DELETE', { campaignId:id }).then(done).catch(function(err){
     var why = String((err && err.message) || '');
+    /* no answer in time is not a refusal: a large adventure may still be going. Look at the
+       list of adventures for a while before calling it a failure. */
+    if (/timeout/i.test(why)){
+      tsModalLocked('<h3 class="tsm-title">Still deleting ' + esc(nm) + '\u2026</h3><p class="lc-p">A large adventure takes a moment.</p>');
+      var tries = 0;
+      var look = function(){
+        tsAsk('TS_CAMPAIGN_LIST', {}).then(function(rows){
+          if (!(rows || []).some(function(c){ return sameId(c.id, id); })){ done(); return; }
+          if (++tries < 10) setTimeout(look, 4000); else fail('It is still listed after a minute.');
+        }).catch(function(){ if (++tries < 10) setTimeout(look, 4000); else fail(''); });
+      };
+      setTimeout(look, 3000); return;
+    }
+    fail(why);
+  });
+  function fail(why){
     tsModalLocked('<h3 class="tsm-title">' + esc(nm) + ' was not deleted</h3>'
       + '<p class="lc-p">' + (/owned by another/.test(why) ? 'It belongs to another LoreMaster. Only its owner can delete it.' : 'Nothing changed. Try again in a moment. If this keeps happening, the ThreadSpire page code may need pasting again.') + '</p>'
       + '<div class="tsm-row"><button class="tsm-btn" onclick="tsAdventurePicker()">Back</button></div>');
-  });
+  }
 }
 function tsAdventurePicker(){
   // Open at once, with a loading line, then fill in as the list arrives. Waiting for the list
@@ -16944,7 +16962,7 @@ function swKids(kind, node){
   var label = kk === 'act' ? 'Acts' : kk === 'session' ? 'Sessions' : 'Scenes';
   var h = '<div class="sw-sec"><span>' + label + ' <b>' + kids.length + '</b></span><span class="sw-grow"></span><button class="tsm-btn ghost" onclick="swAdd(\'' + kk + '\',\'' + String(node.id || '') + '\')">+ ' + label.slice(0, -1) + '</button></div><div class="sw-kids">';
   kids.forEach(function(k){
-    h += '<button class="sw-kid" onclick="swSel(\'' + kk + '\',\'' + String(k.id).replace(/'/g, "\\'") + '\')">' + (k.img ? '<img src="' + esc(k.img) + '" alt="">' : '<span class="sw-kid-ph"></span>')
+    h += '<button class="sw-kid' + (k.img ? '' : ' noimg') + '" onclick="swSel(\'' + kk + '\',\'' + String(k.id).replace(/'/g, "\\'") + '\')">' + (k.img ? '<img src="' + esc(k.img) + '" alt="">' : '')
       + '<span class="sw-kid-name">' + esc(k.name || '') + '</span>' + (k.desc ? '<span class="sw-kid-desc">' + esc(String(k.desc).slice(0, 90)) + '</span>' : '') + '</button>';
   });
   return h + '</div>';

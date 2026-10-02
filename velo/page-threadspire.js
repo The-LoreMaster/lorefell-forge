@@ -434,6 +434,11 @@ $w.onReady(async function () {
           try {
             const id = msg.campaignId || '';
             const d = await deleteCampaign(id);
+            // The adventure is gone once its campaign row is: answer now. Clearing a big story
+            // tree and its library rows can take longer than the table waits for an answer,
+            // which reported a deletion that had in fact happened as a failure; that clearing
+            // carries on here after the answer.
+            reply(!!(d && d.ok), d, d && d.error);
             let removed = 0;
             if (d && d.ok) {
               try { await removeAdventure(id); } catch (e) {}
@@ -448,7 +453,6 @@ $w.onReady(async function () {
                 }
               } catch (e) {}
             }
-            reply(!!(d && d.ok), Object.assign({}, d, { assetsRemoved: removed }), d && d.error);
           } catch (e) { reply(false, null, String(e)); }
         } else if (msg.type === 'TS_NEW_ADVENTURE') {
           // FateWell authors adventures; ThreadSpire runs them. The route is the one

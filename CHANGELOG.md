@@ -1,3 +1,7 @@
+## 2026-09-28 - Deleting a large adventure; Story cards without pictures
+
+Deleting a large adventure could report it was not deleted when it had been: the page answered only after clearing the whole story tree and its library rows, which outlasted the fifteen seconds the table waits. The page now answers as soon as the adventure itself is gone and clears the rest after; and if no answer comes in time, the table says it is still deleting and checks the list of adventures for up to a minute before calling it a failure. In the Story window, a card for an act, session or scene with no cover no longer shows an empty picture box: just its name and description. Paste velo/page-threadspire.js.
+
 ## 2026-09-28 - The LoreMaster's room ticket; Player view is fog only; the app icon filled
 
 The live room refused the LoreMaster's ticket for an adventure the role helper could not find ("off (not at this adventure)"): the ticket now reads ownership directly, from Campaigns or from the shared story's root, then a membership, then a Fell in the adventure, and says which it could not find. Player view now changes only the fog: tokens, hidden names, notes and the token menus stay the LoreMaster's whatever the view, so nothing can be left stuck in the players' version. The app icon is filled edge to edge in navy, with no rim, so no light edge shows when a device rounds or masks it. Paste velo/backend/tableroom.web.js.
