@@ -1,3 +1,7 @@
+## 2026-09-28 - The scene roster and the library chooser, given room
+
+The scene's Roster window and Add from library, opened from the Story, are wide windows now (up to a thousand pixels) that scroll as a whole instead of in a small inner box. The roster names its scene, lays the Fell out as a grid of attending chips and the cast as a grid of cards, and counts the cast; the library lays its foes and NPCs in grids, counted, with the search focused, the scope switch beside the title and Forge a new foe beside Close.
+
 ## 2026-09-28 - The Hearth's ThreadSpire mark: three spires
 
 Nate's pick: the ThreadSpire mark on the Hearth is three spires on a single base, the middle one tallest. It replaces the wound spire, which was too busy.
