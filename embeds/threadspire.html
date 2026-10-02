@@ -18515,6 +18515,46 @@ function sheetSetStanceKeep(v){ feKeep(); sheetSetField('stance', v); }
 function sheetSetSigKeep(v){ feKeep(); sheetSetField('sig', v); }
 function sheetSetSRKeep(v){ feKeep(); var t = curSheet(); if (!t) return; t.obj.sr = v; var k = deriveKit(t.obj, v); if (!t.obj.attrsHand){ t.obj.attrs = k.attrs; window._feSkipAttrs = true; } t.obj.maxVit = k.maxVit; sheetLiveSave(); sheetReopen(); }
 
+
+/* ================= every dropdown in alphabetical order =================
+   Every list of names in a dropdown is put in alphabetical order as it appears, wherever it
+   is drawn, so nothing has to be hunted for. What has an order of its own is left alone: a
+   placeholder (None, No act, Any adventure, Choose...) stays first, an action (Forge a
+   custom..., New...) stays last, option groups keep their order with each group sorted
+   within, and a list that is a ladder (ratings Minion to Forsaken, tiers, numbers, damage
+   and target costs) is not touched. A select marked data-order="keep" is not touched. */
+(function(){
+  var LADDER = { Minion:1, Elite:1, Champion:1, Epic:1, Forsaken:1 };
+  var KEEP_IDS = { fa_damage:1, fa_target:1 };
+  function isHead(o){ var v = String(o.value || ''), t = String(o.textContent || '').trim(); return v === '' || /^(No |None\b|Any |Choose|Select|Pick |Add |All |Every |\u2014|--)/i.test(t); }
+  function isTail(o){ var v = String(o.value || ''), t = String(o.textContent || '').trim(); return v.indexOf('__') === 0 || /^(Forge |New |\+ )/i.test(t); }
+  function ladder(opts){ var body = opts.filter(function(o){ return !isHead(o) && !isTail(o); }); if (body.length < 2) return true;
+    return body.every(function(o){ var t = String(o.textContent || '').trim(); return /^(\d|Tier\b|T\d\b|Level\b|Rank\b)/i.test(t) || LADDER[t] || /^[-+]?\d/.test(o.value); }); }
+  function sortGroup(parent){
+    var opts = [].slice.call(parent.children).filter(function(o){ return o.tagName === 'OPTION'; }); if (opts.length < 3 || ladder(opts)) return;
+    var head = opts.filter(isHead), tail = opts.filter(function(o){ return !isHead(o) && isTail(o); }), body = opts.filter(function(o){ return !isHead(o) && !isTail(o); });
+    body.sort(function(a, b){ return String(a.textContent).trim().localeCompare(String(b.textContent).trim(), undefined, { numeric:true, sensitivity:'base' }); });
+    var want = head.concat(body, tail); if (want.every(function(o, i){ return opts[i] === o; })) return;
+    var first = parent.querySelector(':scope > optgroup');
+    want.forEach(function(o){ if (first) parent.insertBefore(o, first); else parent.appendChild(o); });
+  }
+  function sortSelect(sel){
+    if (!sel || sel.multiple || sel.dataset.order === 'keep' || KEEP_IDS[sel.id]) return;
+    var sig = sel.options.length + '|' + [].map.call(sel.options, function(o){ return o.value; }).join('\u0001');
+    if (sel._sortSig === sig) return;
+    var cur = sel.value; sortGroup(sel); [].forEach.call(sel.querySelectorAll('optgroup'), sortGroup);
+    if (sel.value !== cur) sel.value = cur;
+    sel._sortSig = sel.options.length + '|' + [].map.call(sel.options, function(o){ return o.value; }).join('\u0001');
+  }
+  var queued = false;
+  function sweep(){ queued = false; [].forEach.call(document.querySelectorAll('select'), sortSelect); }
+  function queue(){ if (queued) return; queued = true; (window.requestAnimationFrame || setTimeout)(sweep); }
+  try { new MutationObserver(queue).observe(document.documentElement, { childList:true, subtree:true }); } catch(e){}
+  document.addEventListener('focusin', function(e){ if (e.target && e.target.tagName === 'SELECT') sortSelect(e.target); }, true);
+  document.addEventListener('mousedown', function(e){ if (e.target && e.target.tagName === 'SELECT') sortSelect(e.target); }, true);
+  if (document.readyState !== 'loading') queue(); else document.addEventListener('DOMContentLoaded', queue);
+})();
+
 /* ================= rests =================
    A rest comes from the LoreMaster, and only outside a fight: Call a rest opens it for the
    whole table. Each player chooses to rest or to skip it; resting runs the FellGuide's rest
