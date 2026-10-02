@@ -2703,6 +2703,9 @@ const fatigueMobility=()=>{
   return ef>=2?Math.floor((C.mobility||0)/2):(C.mobility||0);
 };
 const attrTotal=a=>C.attrs[a].base+C.attrs[a].mod+attrGrant(a)+stanceBonus(a)+fatiguePenalty(a);
+/* Level 1 Vitality: 5, plus the Fell's Vigor at level 1 (the crystal, the motivation and any
+   other lasting grant; not a stance's or fatigue's passing change). Nate's ruling, 2026-10-02. */
+function l1Vitality(){ var v=C.attrs.vigor; return 5+Math.max(0,(v.base||0)+(v.mod||0)+(attrGrant("vigor")||0)); }
 /* Lore Points crystallise in groups the size of the NEXT level's cost (Leveling: 2 for
    1 to 2, 3 for 2 to 3, +1 per level). Saving them up and spending several crystals at
    once is the cheaper way up, by canon, so every crystal in one ascension is priced at the
@@ -3515,7 +3518,7 @@ function ccApply(){
   ensureOption($("f-lineage"),C.identity.lineage);$("f-lineage").value=C.identity.lineage||"";
   ensureOption($("f-origin"),C.identity.origin);$("f-origin").value=C.identity.origin||"";
   ensureOption($("f-motivation"),C.identity.motivation);$("f-motivation").value=C.identity.motivation||"";
-  C.vitality.max=5;C.vitality.current=5;C.mobility=5;C.lore.level=1;
+  C.vitality.max=l1Vitality();C.vitality.current=C.vitality.max;C.mobility=5;C.lore.level=1;C.vitL1=1;
   C.created=true;
   syncIdentityLock();
   ccClose();
@@ -5940,6 +5943,11 @@ function loadCharacter(rec){
   let _arcFilled=false; try{ _arcFilled=archiveBackfill(); }catch(e){}
   /* a Fell forged before Motivations granted skills gets its +1s once, and saves them */
   const _motBackfill=motGrantSkills();
+  /* a level 1 Fell forged before level 1 counted Vigor gets it once: its maximum rises to 5 plus
+     its Vigor (current rises by the same), and the sheet notes it was done */
+  let _vitL1=false;
+  try{ if(C.created && !C.vitL1){ C.vitL1=1; _vitL1=true;
+    if((C.lore&&C.lore.level||1)===1 && !C.lmVit){ const want=l1Vitality(), add=want-(C.vitality.max||5); if(add>0){ C.vitality.max+=add; C.vitality.current=Math.min(C.vitality.max,(C.vitality.current||0)+add); } } } }catch(e){}
   $("f-name").value=(C.identity&&C.identity.name)||"";
   $("f-desc").value=(C.identity&&C.identity.desc)||"";
   /* These three were painted only when the libraries arrived and by the forging wizard,
@@ -5957,7 +5965,7 @@ function loadCharacter(rec){
   renderAll();
   try { renderMotivation(); syncIdentityLock(); } catch(e){}
   // release the guard after this tick, once all programmatic field writes have settled
-  setTimeout(function(){ setLoading(false); if(_motBackfill||_arcFilled) scheduleSave(); try{ sealLoad(); }catch(e){} },0);
+  setTimeout(function(){ setLoading(false); if(_motBackfill||_arcFilled||_vitL1) scheduleSave(); try{ sealLoad(); }catch(e){} },0);
 }
 /* A new character opens the forging immediately, but only once we know it
    IS new: either Velo says so, or no bridge message arrives at all

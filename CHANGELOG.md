@@ -1,3 +1,7 @@
+## 2026-09-28 - Level 1 Vitality counts Vigor
+
+Nate's ruling: a level 1 Fell's maximum Vitality is 5 plus their Vigor at level 1 (the starting crystal, the motivation and any other lasting grant), not a flat 5. FellGlass now forges a Fell with that, and a level 1 Fell forged before this gets it once when its sheet next opens (current Vitality rises by the same). Fell above level 1 are left as they are, since their level 1 Vigor cannot be read back; the LoreMaster can set any Fell's maximum by hand. Level ups were already d6 plus Vigor each.
+
 ## 2026-09-28 - The LoreMaster sets a Fell's maximum Vitality
 
 The Fell window's options for a player (the ⋯ beside them) gain Set maximum Vitality, showing the number now. It writes to the Fell's sheet through a new backend method, lmSetVitality, open only to the LoreMaster of that Fell's adventure; current Vitality is brought down to the new maximum if it was over. The LoreMaster's word is kept on the sheet with a time, so the player's open sheet saving its old number cannot undo it: a save carrying an older word takes the LoreMaster's newer one. After that the sheet carries the same word, so a level gained raises Vitality as usual. Paste velo/backend/characters.web.js and velo/page-threadspire.js.
