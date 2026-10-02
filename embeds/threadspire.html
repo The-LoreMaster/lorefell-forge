@@ -8515,9 +8515,12 @@ function seamWarn(){
 }
 /* apply a remote snapshot as truth */
 function applyRemoteSnapshot(snap){
-  if (snap && ROOM.on){
+  if (snap && ROOM.on && !ROOM._applying){
     snap = Object.assign({}, snap);
     delete snap.tokens;
+    /* the room carries these now; a log from Wix is merged line by line, not laid over */
+    if (!isLM() || S.stream) ['fog', 'walls', 'lights', 'effects', 'notes', 'weather', 'music', 'rest', 'viewCall', 'loreGrants', 'combatPhase'].forEach(function(k){ delete snap[k]; });
+    if (snap.log){ var _have = {}; (S.log || []).forEach(function(x){ if (x && x.id) _have[x.id] = 1; }); var _add = snap.log.filter(function(x){ return x && x.id && !_have[x.id]; }); delete snap.log; if (_add.length){ S.log = (S.log || []).concat(_add); applyRemoteState({ log:S.log }); } }
     if (!isLM() || S.stream){ delete snap.activeSceneId; delete snap.background; delete snap.backgroundUrl; delete snap.grid; delete snap.map; }
   }
   if (S.stream){ _bindTaken = false; _fxTaken = false; _wxTaken = false; _notesTaken = false; _musicTaken = false; }
@@ -17278,7 +17281,9 @@ function streamCopy(){
    together, so a switch arrives as one); and pings. While the room is up, the token list and
    the scene are taken from it and not from Wix's slower copy, and a player's saves leave
    their tokens out, so an older copy can no longer pull a token back or swap its picture. */
-var ROOM = { ws:null, on:false, want:false, tries:0, t:null, cid:'', role:'', sentToks:'', sentScene:'', live:{}, sceneAt:0, hb:null };
+var ROOM = { ws:null, on:false, want:false, tries:0, t:null, cid:'', role:'', sentToks:'', sentScene:'', live:{}, sceneAt:0, hb:null, sentParts:{} };
+/* the rest of the table the LoreMaster's table sends through the room, each when it changes */
+var ROOM_PARTS = ['fog', 'walls', 'lights', 'effects', 'notes', 'weather', 'music', 'rest', 'viewCall', 'loreGrants', 'combatPhase', 'draw', 'portraits'];
 function roomSend(msg){ if (ROOM.on && ROOM.ws && ROOM.ws.readyState === 1 && !S.stream){ try { ROOM.ws.send(JSON.stringify(msg)); return true; } catch(e){} } return false; }
 function roomConnect(){
   if (!tsEmbedded() || !S.campaignId) return;
@@ -17297,7 +17302,7 @@ function roomConnect(){
   }).catch(function(e){ SEAM.room = 'off (' + String((e && e.message) || e).slice(0, 60) + ')'; seamPaint(); roomRetry(); });
 }
 function roomRetry(){ clearTimeout(ROOM.t); ROOM.tries++; ROOM.t = setTimeout(roomConnect, Math.min(30000, 1500 * Math.pow(1.6, ROOM.tries))); }
-function roomClose(){ ROOM.want = false; clearTimeout(ROOM.t); clearInterval(ROOM.hb); if (ROOM.ws){ try { ROOM.ws.close(); } catch(e){} } ROOM.ws = null; ROOM.on = false; ROOM.sentToks = ''; ROOM.sentScene = ''; }
+function roomClose(){ ROOM.sentParts = {}; ROOM.want = false; clearTimeout(ROOM.t); clearInterval(ROOM.hb); if (ROOM.ws){ try { ROOM.ws.close(); } catch(e){} } ROOM.ws = null; ROOM.on = false; ROOM.sentToks = ''; ROOM.sentScene = ''; }
 /* the shape of the board, without positions (those travel one token at a time) */
 function roomTokSig(){ try { return JSON.stringify((S.tokens || []).map(function(t){ var c = Object.assign({}, t); delete c.x; delete c.y; delete c._gx; delete c._gy; return c; })); } catch(e){ return ''; } }
 function roomSceneBundle(){
@@ -17313,6 +17318,38 @@ function roomLmSync(force){
   var b = roomSceneBundle(), ss = roomSceneSig(b), ts = roomTokSig();
   if (force || ss !== ROOM.sentScene){ if (roomSend({ t:'scene', b:b })){ ROOM.sentScene = ss; ROOM.sentToks = ts; } return; }
   if (ts !== ROOM.sentToks){ if (roomSend({ t:'toks', list:slimTokens(S.tokens) })) ROOM.sentToks = ts; }
+  roomPartsSync(force);
+}
+function roomPartValue(k){
+  if (k === 'combatPhase') return (S.scene && S.scene.combatPhase) || '';
+  if (k === 'portraits'){ var o = {}; Object.keys(_portraits).forEach(function(c){ var u = String(_portraits[c] || ''); if (/^https?:/.test(u)) o[c] = u; }); return o; }
+  return S[k];
+}
+function roomPartsSync(force){
+  var out = {}, any = false;
+  ROOM_PARTS.forEach(function(k){
+    var v = roomPartValue(k); if (v === undefined) return;
+    var sig = ''; try { sig = JSON.stringify(v); } catch(e){ return; }
+    if (sig.length > 300000) return;                 /* too big for one message: Wix carries it */
+    if (!force && ROOM.sentParts[k] === sig) return;
+    out[k] = v; ROOM.sentParts[k] = sig; any = true;
+  });
+  if (any && !roomSend({ t:'part', p:out })) ROOM.sentParts = {};
+}
+/* what arrives is taken the way a copy from Wix would be, a key at a time */
+function roomPartsApply(p){
+  if (!p) return;
+  if (p.portraits){ Object.keys(p.portraits).forEach(function(c){ rememberPortrait(c, p.portraits[c]); }); }
+  var snap = Object.assign({}, p); delete snap.portraits;
+  if (snap.combatPhase !== undefined && S.scene) S.scene.combatPhase = snap.combatPhase;
+  if (Object.keys(snap).length){ ROOM._applying = true; try { applyRemoteSnapshot(snap); } finally { ROOM._applying = false; } }
+  try { renderTokens(); } catch(e){}
+}
+/* a log line goes to everyone at once; the log is merged by line, never replaced */
+function roomLogApply(e){
+  if (!e || !e.id || (S.log || []).some(function(x){ return x && x.id === e.id; })) return;
+  S.log = (S.log || []).concat([e]); applyRemoteState({ log:S.log });
+  try { if (e.kind === 'roll' && typeof rollShow === 'function') rollShow(e); } catch(x){}
 }
 /* a token being dragged here is not moved by what arrives for it until it is dropped */
 var _roomDrag = {};
@@ -17360,12 +17397,16 @@ function roomGot(m){
     if (isLM() && !S.stream){ roomLmSync(true); return; }   /* the LoreMaster's table is the board */
     if (m.scene) roomSceneApply(Object.assign({}, m.scene, { tokens:m.tokens || m.scene.tokens }));
     else if (m.tokens) roomTokensApply(m.tokens);
+    if (m.parts) roomPartsApply(m.parts);
+    (m.log || []).forEach(roomLogApply);
     return;
   }
   if (m.t === 'peers'){ SEAM.roomPeers = m.n; seamPaint(); return; }
   if (m.t === 'tok') return roomTokApply(m.id, m.p);
   if (m.t === 'toks') return roomTokensApply(m.list);
   if (m.t === 'scene'){ if (!isLM() || S.stream) roomSceneApply(m.b); return; }
+  if (m.t === 'part'){ if (!isLM() || S.stream) roomPartsApply(m.p); return; }
+  if (m.t === 'log') return roomLogApply(m.e);
   if (m.t === 'ping'){ try { if (!_pingSeen[m.k]) pingShow({ id:m.k, x:m.x, y:m.y, c:m.c, who:m.n, k:mapKey(), at:Date.now() }); _pingSeen[m.k] = 1; } catch(e){} return; }
   if (m.t === 'deny' && m.back){ roomTokApply(m.id, { x:m.back.x, y:m.back.y }); return; }
 }
@@ -18059,7 +18100,7 @@ function sayFrom(id){
 var logSeq = 0;
 function mkId(){ return 'e' + (++logSeq) + '-' + Date.now().toString(36); }
 var _logPushT = null;
-function pushLog(e){ e.id = mkId(); S.log.push(e); applyRemoteState({ log:S.log }); if (_logPushT) clearTimeout(_logPushT); _logPushT = setTimeout(function(){ try { pushState(); } catch(err){} }, 600); }
+function pushLog(e){ e.id = mkId(); S.log.push(e); try { roomSend({ t:'log', e:e }); } catch(x){} applyRemoteState({ log:S.log }); if (_logPushT) clearTimeout(_logPushT); _logPushT = setTimeout(function(){ try { pushState(); } catch(err){} }, 600); }
 function entryHtml(e){
   if (e.kind === 'say') return '<div class="le say"><b>' + esc(e.who) + '</b> ' + esc(e.text) + '</div>';
   if (e.kind === 'roll'){
