@@ -2403,6 +2403,16 @@ body.stream:not(.stream-frame) #rail, body.stream:not(.stream-frame) #hud, body.
 #tsModal .tsm-panel.sheet-big{ width:min(820px, calc(100vw - 32px)); max-height:calc(100vh - 32px); max-height:calc(100dvh - 32px); }
 #tsModal .tsm-panel.sheet-big .rs-edit{ max-height:none !important; overflow:visible !important; }
 #tsModal .tsm-panel.sheet-big .tsm-ta.short{ min-height:110px; }
+
+.sw-ins{ display:flex; align-items:center; width:100%; height:12px; margin:-3px 0; padding:0; border:0; background:none; cursor:pointer; opacity:0; transition:opacity .12s, height .12s; }
+.sw-ins span{ flex:1; position:relative; font-family:Cinzel,serif; font-size:.56rem; letter-spacing:.08em; color:#c9a84c; text-align:center; }
+.sw-ins span::before, .sw-ins span::after{ content:''; position:absolute; top:50%; width:calc(50% - 46px); border-top:1px dashed rgba(201,168,76,.6); } .sw-ins span::before{ left:0; } .sw-ins span::after{ right:0; }
+.sw-ins:hover, .sw-ins:focus-visible{ opacity:1; height:22px; }
+@media (hover:none){ .sw-ins{ opacity:.55; height:20px; } }
+.sm-count{ display:inline-flex; align-items:center; gap:2px; border:1px solid #2c3a58; border-radius:9px; margin-right:6px; } .sm-count button{ width:28px; height:30px; border:0; background:none; color:#dce8ef; font-size:1rem; cursor:pointer; } .sm-count b{ min-width:22px; text-align:center; font-family:Cinzel,serif; color:#e8cf86; }
+.sm-count.big{ display:flex; width:max-content; margin:8px auto; } .sm-count.big button{ width:40px; height:40px; font-size:1.3rem; } .sm-count.big b{ min-width:44px; font-size:1.5rem; }
+.sw-castline{ display:flex; align-items:center; gap:4px; } .sw-castline .sw-castrow{ flex:1; min-width:0; }
+.sw-more{ width:24px; height:24px; padding:0; border:1px solid #2c3a58; border-radius:6px; background:none; color:#b8c4d0; cursor:pointer; flex-shrink:0; } .sw-more:hover{ border-color:#c9a84c; color:#e8cf86; }
 </style>
 </head>
 <body>
@@ -3279,13 +3289,13 @@ function storyMove(kind, id, dir){
   var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
   storySave(); advPersistTree(); refreshWinBody(); render();
 }
-function storyBeatAdd(sceneId){ tsBeatModal(sceneId, -1); }
+function storyBeatAdd(sceneId, at){ tsBeatModal(sceneId, -1, at); }
 function storyBeatOpen(sceneId, idx){ tsBeatModal(sceneId, idx); }
-function tsBeatModal(sceneId, idx){
+function tsBeatModal(sceneId, idx, at){
   var f = storyFind('scene', sceneId); if (!f) return;
   var b = idx >= 0 ? (f.scene.beats || [])[idx] : { kind:'readaloud', title:'', body:'', speaker:'', handle:'', img:'' };
   if (!b) return;
-  window._beatCtx = { sceneId:sceneId, idx:idx };
+  window._beatCtx = { sceneId:sceneId, idx:idx, at:(typeof at === 'number' ? at : null) };
   var opts = '';
   Object.keys(BEAT_TYPES).forEach(function(k){
     opts += '<option value="' + k + '"' + (b.kind === k ? ' selected' : '') + '>' + BEAT_TYPES[k][0] + '</option>';
@@ -3329,7 +3339,9 @@ function tsBeatSave(){
   var img = ((document.getElementById('tsmImg') || {}).value) || '';
   f.scene.beats = f.scene.beats || [];
   if (c.idx >= 0){ var b = f.scene.beats[c.idx]; if (b){ b.kind = kind; b.title = title; b.body = body; b.speaker = spk; b.handle = handle; b.img = img; } }
-  else f.scene.beats.push({ id:mkId(), kind:kind, title:title, body:body, speaker:spk, handle:handle, img:img, pinned:false, open:false });
+  else { var _nb = { id:mkId(), kind:kind, title:title, body:body, speaker:spk, handle:handle, img:img, pinned:false, open:false };
+    /* added between two beats, it goes in there; otherwise at the end */
+    if (typeof c.at === 'number' && c.at >= 0 && c.at <= f.scene.beats.length) f.scene.beats.splice(c.at, 0, _nb); else f.scene.beats.push(_nb); }
   tsCloseModal(); storySave(); refreshWinBody();
   if (typeof paintLmStrip === 'function' && isLM()) paintLmStrip();
 }
@@ -4310,6 +4322,35 @@ function libAttach(sceneId, libId){
   f.scene.combatants = f.scene.combatants || [];
   f.scene.combatants.push(cb);
   advMarkScene(sceneId); storySave(); rosterReopenAfter(); render();
+}
+/* more of a foe already in the roster: copies of it, numbered on, each at full Vitality */
+function rosterMore(sceneId, foeId){
+  var f = storyFind('scene', sceneId); if (!f) return;
+  var src = (f.scene.foes || []).concat(f.scene.combatants || []).filter(function(c){ return sameId(c.id, foeId); })[0]; if (!src) return;
+  window._moreCtx = { sceneId:sceneId, foeId:foeId, n:1 };
+  rosterMorePaint(src);
+}
+function rosterMorePaint(src){
+  var m = window._moreCtx;
+  tsModal('<h3 class="tsm-title">More of ' + esc(String(src.name || 'this foe').replace(/\s+\d+$/, '')) + '</h3><p class="tsm-note">Each a copy at full Vitality, numbered on.</p>'
+    + '<div class="sm-count big"><button onclick="window._moreCtx.n=Math.max(1,window._moreCtx.n-1);rosterMorePaint(' + "rosterMoreSrc()" + ')" aria-label="One fewer">\u2212</button><b>' + m.n + '</b><button onclick="window._moreCtx.n=Math.min(20,window._moreCtx.n+1);rosterMorePaint(rosterMoreSrc())" aria-label="One more">+</button></div>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button><button class="tsm-btn" onclick="rosterMoreGo()">Add ' + m.n + '</button></div>');
+}
+function rosterMoreSrc(){ var m = window._moreCtx, f = storyFind('scene', m.sceneId); return f ? (f.scene.foes || []).concat(f.scene.combatants || []).filter(function(c){ return sameId(c.id, m.foeId); })[0] : null; }
+function rosterMoreGo(){
+  var m = window._moreCtx, f = storyFind('scene', m.sceneId), src = rosterMoreSrc(); if (!f || !src) return;
+  if (src.libId && libGet(src.libId)){ for (var k = 0; k < m.n; k++) libAttach(m.sceneId, src.libId); }
+  else {
+    var base = String(src.name || 'Foe').replace(/\s+\d+$/, '');
+    var same = (f.scene.foes || []).filter(function(c){ return String(c.name || '').replace(/\s+\d+$/, '') === base; });
+    if (same.length === 1 && same[0].name === base) same[0].name = base + ' 1';
+    for (var j = 0; j < m.n; j++){
+      var cb = JSON.parse(JSON.stringify(src)); cb.id = mkId(); cb.name = base + ' ' + (same.length + j + 1); cb.curVit = cb.maxVit; cb.affs = []; cb.charge = 0;
+      f.scene.foes = f.scene.foes || []; f.scene.foes.push(cb); f.scene.combatants = f.scene.combatants || []; f.scene.combatants.push(cb);
+    }
+    advMarkScene(m.sceneId); storySave(); render();
+  }
+  tsCloseModal(); pushLog({ kind:'sys', html:m.n + ' more <b>' + esc(String(src.name || '').replace(/\s+\d+$/, '')) + '</b> join the scene\u2019s roster.' }); applyRemoteState({ log:S.log });
 }
 function rosterAdd(sceneId, kind){
   var f = storyFind('scene', sceneId); if (!f) return;
@@ -17005,6 +17046,7 @@ function swBeats(sc){
   if (!list.length) h += '<p class="sw-empty">No beats yet. Add one to start writing this scene.</p>';
   list.forEach(function(b, i){
     var m = beatMeta(b.kind || 'general'), sp = (b.kind === 'dialogue' && b.speaker) ? beatSpeaker(b, sc) : null;
+    h += '<button class="sw-ins" onclick="storyBeatAdd(\'' + sc.id + '\',' + i + ')" title="Add a beat here" aria-label="Add a beat here"><span>+ Beat here</span></button>';
     var bo = !!SW.beatOpen[sc.id + ':' + i];
     h += '<div class="sw-beat' + (bo ? ' open' : '') + '" draggable="true" style="border-left-color:' + m[1] + '" ondragstart="SW.beat=' + i + '" ondragover="event.preventDefault();this.classList.add(\'drop\')" ondragleave="this.classList.remove(\'drop\')" ondrop="this.classList.remove(\'drop\');swBeatDrop(\'' + sc.id + '\',' + i + ')" onclick="swBeatToggle(\'' + sc.id + '\',' + i + ')" title="' + (bo ? 'Fold' : 'Read it all') + '">'
       + '<button class="sw-bedit" onclick="event.stopPropagation();storyBeatOpen(\'' + sc.id + '\',' + i + ')" title="Edit this beat" aria-label="Edit this beat"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg></button>'
@@ -17015,6 +17057,7 @@ function swBeats(sc){
   });
   return h;
 }
+function swBeatsTail(sc){ return (sc.beats || []).length ? '<button class="sw-ins" onclick="storyBeatAdd(\'' + sc.id + '\',' + sc.beats.length + ')" title="Add a beat at the end" aria-label="Add a beat at the end"><span>+ Beat here</span></button>' : ''; }
 function swBeatDrop(sceneId, to){
   var from = SW.beat; SW.beat = null; if (from === null || from === undefined || from === to) return;
   var f = storyFind('scene', sceneId); if (!f) return;
@@ -17050,7 +17093,8 @@ function swSide(sc){
   var cast = castList(sc), h = '<div class="sw-sec"><span>Roster <b>' + cast.length + '</b></span></div><div class="sw-cast">';
   cast.forEach(function(c){
     var art = c.img || (c.lib && c.lib.img) || '';
-    h += '<button class="sw-castrow" onclick="entrySheet(\'roster\',\'' + sc.id + '\',\'' + c.kind + '\',\'' + String(c.id).replace(/'/g, "\\'") + '\')">' + (art ? '<img src="' + esc(art) + '" alt="">' : '<span class="sw-cast-ph">' + esc(initials(c.name)) + '</span>') + '<span>' + esc(c.name) + '</span></button>';
+    h += '<div class="sw-castline"><button class="sw-castrow" onclick="entrySheet(\'roster\',\'' + sc.id + '\',\'' + c.kind + '\',\'' + String(c.id).replace(/'/g, "\\'") + '\')">' + (art ? '<img src="' + esc(art) + '" alt="">' : '<span class="sw-cast-ph">' + esc(initials(c.name)) + '</span>') + '<span>' + esc(c.name) + '</span></button>'
+      + (c.kind === 'foe' ? '<button class="sw-more" onclick="rosterMore(\'' + sc.id + '\',\'' + String(c.id).replace(/'/g, "\\'") + '\')" title="Add more of this foe" aria-label="Add more of this foe">+</button>' : '') + '</div>';
   });
   h += '</div><div class="sw-row-btns"><button class="tsm-btn ghost" onclick="rosterAddFromLib(\'' + sc.id + '\')">+ Library</button><button class="tsm-btn ghost" onclick="summonOpen(\'' + sc.id + '\')">Summon foe</button><button class="tsm-btn ghost" onclick="rosterWindow(\'' + sc.id + '\')">Roster\u2026</button></div>';
   var qs = (sc.beats || []).filter(function(b){ return b.kind === 'quest'; });
@@ -17089,7 +17133,7 @@ function swPaint(){
   var node = swNode(); if (!node && SW.kind !== 'adv'){ SW.kind = 'adv'; node = S.adventure; }
   var main = '', side = '';
   if (SW.q.trim()) main = swSearch(SW.q.trim());
-  else if (SW.kind === 'scene'){ main = swCover(node, 'scene') + '<div class="sw-body">' + swBeats(node) + '</div>'; side = swSide(node); }
+  else if (SW.kind === 'scene'){ main = swCover(node, 'scene') + '<div class="sw-body">' + swBeats(node) + swBeatsTail(node) + '</div>'; side = swSide(node); }
   else main = swCover(node, SW.kind) + '<div class="sw-body">' + (SW.kind === 'adv' ? swAdvMeta(node) : '') + swKids(SW.kind, node) + swNotes(SW.kind, node) + '</div>';
   var keepQ = document.activeElement && document.activeElement.id === 'swSearch';
   var outlineScroll = (el.querySelector('.sw-outline') || {}).scrollTop || 0, mainScroll = (el.querySelector('.sw-main') || {}).scrollTop || 0;
@@ -17386,10 +17430,13 @@ function kitLine(lbl, all, shown, kind){
   }).join(', ') + '</div>';
 }
 function summonSetSR(sr){ if (!SUMMON.rec) return; summonRate(SUMMON.rec, sr); summonPaint(); }
+function summonCount(d){ SUMMON.count = Math.max(1, Math.min(20, (SUMMON.count || 1) + d)); summonPaint(); }
 function summonAdd(){
   var r = SUMMON.rec; if (!r || !SUMMON.sceneId) return;
-  libAttach(SUMMON.sceneId, r.id); r._added = true;
-  pushLog({ kind:'sys', html:'<b>' + esc(r.name) + '</b> joins the scene\u2019s roster.' }); applyRemoteState({ log:S.log });
+  var n = SUMMON.count || 1;
+  for (var k = 0; k < n; k++) libAttach(SUMMON.sceneId, r.id);
+  r._added = true; SUMMON.count = 1;
+  pushLog({ kind:'sys', html:(n > 1 ? n + ' \u00d7 ' : '') + '<b>' + esc(r.name) + '</b> join' + (n > 1 ? '' : 's') + ' the scene\u2019s roster.' }); applyRemoteState({ log:S.log });
   tsCloseModal(); SUMMON.rec = null;
 }
 function summonPaint(){
@@ -17419,7 +17466,7 @@ function summonPaint(){
     + kitLine('Infusions', R.full.infusions, R.infusions, 'inf') + kitLine('Augmentations', R.full.augments, R.augments, 'aug') + (R.affliction ? '<div class="sm-line"><b>Affliction:</b> ' + esc(R.affliction) + '</div>' : '')
     + '</div><p class="tsm-note">Saved to your library' + (R.campaignName ? ', tagged ' + esc(R.campaignName) : '') + '. At party level ' + apl + '; it scales with the party.</p>'
     + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal();foeForge(\'' + R.id + '\')">Edit</button><button class="tsm-btn ghost" onclick="SUMMON.rec=null;SUMMON.text=\'\';summonPaint()">Summon another</button>'
-    + (SUMMON.sceneId ? '<button class="tsm-btn" onclick="summonAdd()"' + (R._added ? ' disabled' : '') + '>' + (R._added ? 'In the scene' : 'Add to this scene') + '</button>' : '') + '</div>';
+    + (SUMMON.sceneId ? '<span class="sm-count"><button onclick="summonCount(-1)" aria-label="One fewer">\u2212</button><b id="smCount">' + (SUMMON.count || 1) + '</b><button onclick="summonCount(1)" aria-label="One more">+</button></span><button class="tsm-btn" onclick="summonAdd()">Add ' + ((SUMMON.count || 1) > 1 ? (SUMMON.count) + ' ' : '') + 'to this scene</button>' : '') + '</div>';
   tsModal(h); summonWide();
 }
 
