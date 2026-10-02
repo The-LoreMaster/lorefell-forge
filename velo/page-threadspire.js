@@ -190,6 +190,11 @@ $w.onReady(async function () {
       if (q.role === 'lm' && campaignId) {
         try { const ar = await myAdventureRole(campaignId); if (ar === 'loremaster' || ar === 'lorekeeper') role = 'lm'; } catch (e) {}
       }
+      // From the Hearth (role=lm, no adventure named): someone who runs adventures arrives as the
+      // LoreMaster and chooses one; anyone else is a player and chooses their Fell.
+      if (q.role === 'lm' && !campaignId) {
+        try { const mine = await listMyCampaigns(); if (mine && mine.length) role = 'lm'; } catch (e) {}
+      }
       // A player's table is the adventure their Fell is in now. The address can still name
       // one they have left, and reading that one kept them in its battle.
       if (role === 'player' && characterId) {
