@@ -4514,6 +4514,7 @@ function sheetActs(){
     h += '<label class="tsm-lbl">Tier ' + tier + '</label>'
       + '<select class="tsm-inp" onchange="sheetActPick(' + tier + ',this.value)">'
       + '<option value="">No Act</option>'
+      + ((cur && !pool.some(function(a){ return a.name === cur.name; })) ? '<option value="__keep" selected>' + esc(cur.name) + ' (this foe\u2019s)</option>' : '')
       + pool.map(function(a){
           return '<option value="' + esc(a.id) + '"' + (cur && cur.name === a.name ? ' selected' : '') + '>'
             + esc(a.name) + (a.source === 'mine' ? ' (yours)' : '') + '</option>';
@@ -4784,7 +4785,7 @@ function forgeActSave(){
   var tier = Math.max(1, Math.min(3, Number((document.getElementById('faTier') || {}).value) || 1));
   var tx = (document.getElementById('faText') || {}).value || '';
   tsModal('<h3 class="tsm-title">Forging...</h3>');
-  tsAsk('TS_FORGE_ACT', { act:{ title:nm, tier:tier, effect:tx, use:'Act', source:'mine' } }).then(function(acts){
+  tsAsk('TS_FORGE_ACT', { act:{ name:nm, title:nm, tier:tier, effect:tx, use:'Act', source:'mine' } }).then(function(acts){
     if (acts) FORGE.acts = acts.map(normAct).filter(function(a){ return a.name; });
     var made = null;
     FORGE.acts.forEach(function(a){ if (a.name === nm) made = a; });
@@ -4809,7 +4810,7 @@ function forgeRelicSave(){
   }).catch(function(){ sheetReopen(); });
 }
 function sheetRelicPick(v){ if (v === '__custom') forgeCustomRelic(); else sheetAddRelic(v); }
-function sheetActPick(tier, v){ if (v === '__custom') forgeCustomAct(tier); else sheetPickAct(tier, v); }
+function sheetActPick(tier, v){ if (v === '__keep') return; if (v === '__custom') forgeCustomAct(tier); else sheetPickAct(tier, v); }
 /* Which adventure a figure belongs to. Untied, it sits on every shelf. */
 function advTitleOf(id){ var t = ''; if (!id) return ''; (FORGE.campaigns || []).forEach(function(c){ if (sameId(c._id || c.id, id)) t = c.title || c.name || ''; }); return t; }
 function sheetSetCampaignByName(nm){
@@ -17258,6 +17259,20 @@ var SIGIL_TIER_BUDGETS = {1:[1,2], 2:[3,4], 3:[5,99]};
    Magic one may ride No Damage. The act's rule text is written from the components' own
    rules, never invented. */
 function sigilBy(name){ var n = String(name || '').replace(/\*$/, '').toLowerCase(); return SIGIL_COMPONENTS.filter(function(c){ return c.component.replace(/\*$/, '').toLowerCase() === n; })[0] || null; }
+/* bring an act into the budget of the tier it was meant for: fewer targets or a lighter damage
+   package when it costs too much, more targets when too little; the effect is kept */
+function sigilFit(a, family, want){
+  var r = sigilAct(Object.assign({}, a, { tier:0 }), family); if (r.errs.length || !want || r.tier === want) return a;
+  var band = SIGIL_TIER_BUDGETS[want]; if (!band) return a;
+  var T = ['One Target', 'Two Targets', 'Three Targets', 'All Targets'], D = ['Standard Damage', 'Double Base', 'Double Standard'];
+  var tries = [];
+  T.forEach(function(t){ tries.push(Object.assign({}, a, { target:t })); if (a.damage !== 'No Damage') D.forEach(function(d){ tries.push(Object.assign({}, a, { target:t, damage:d })); }); });
+  var best = null;
+  tries.forEach(function(x){ var q = sigilAct(Object.assign({}, x, { tier:0 }), family); if (q.errs.length || q.cost < band[0] || q.cost > band[1]) return;
+    var change = (x.target !== a.target ? 1 : 0) + (x.damage !== a.damage ? 1 : 0);
+    if (!best || change < best.change || (change === best.change && q.cost > best.cost)) best = { x:x, change:change, cost:q.cost }; });
+  return best ? best.x : a;
+}
 function sigilTier(cost){ var t = 1; Object.keys(SIGIL_TIER_BUDGETS).forEach(function(k){ var b = SIGIL_TIER_BUDGETS[k]; if (cost >= b[0] && cost <= b[1]) t = +k; }); return t; }
 function sigilAct(a, family){
   var errs = [], dmg = sigilBy(a.damage), tgt = sigilBy(a.target || a.targets), eff = sigilBy(a.effect);
@@ -17347,7 +17362,7 @@ function summonGo(){
     return aiCall(summonSystem(), 'Describe this foe: ' + t + '\n\nYour last answer broke the SigilForge rules. Fix these acts and answer with the whole foe again:\n' + p.join('\n') + '\n\nYour last answer:\n' + JSON.stringify(j), 1500)
       .then(function(t2){ var j2 = read(t2); return (j2 && j2.name) ? j2 : j; });
   }).then(function(j){
-    SUMMON.rec = summonMake(j); SUMMON.busy = false; summonPaint();
+    SUMMON.rec = summonMake(j); SUMMON.busy = false; summonPaint(); summonForgeActs(SUMMON.rec);
   }).catch(function(e){
     SUMMON.busy = false;
     SUMMON.err = e && e.rate ? 'The forge is busy. Try again in a minute.' : ('The forge could not build it (' + ((e && e.message) || 'error') + '). Try again.');
@@ -17392,6 +17407,7 @@ function summonMake(j){
            abilities:(j.acts || []).filter(function(a){ return a && (a.name || a.premade); }).map(function(a){
              if (a.premade !== undefined){ var pm = premadeByName(a.premade); return pm ? premadeAct(pm, a.flavor) : null; }
              /* only an act that stands by the rules is kept; its tier is what its cost makes it */
+             a = sigilFit(a, summonFamily(j), parseInt(a.tier, 10) || 0);
              var r = sigilAct(Object.assign({}, a, { tier:0 }), summonFamily(j)); if (r.errs.length) return null;
              return { name:String(a.name).slice(0, 60), tier:r.tier, effect:r.text, flavor:String(a.flavor || '').slice(0, 300), sigil:r.build };
            }).filter(Boolean) },
@@ -17408,7 +17424,7 @@ function summonRate(rec, sr){
   rec.infusions = rec.full.infusions.slice(0, foeInfBudget(sr));
   rec.augments = rec.full.augments.slice(0, foeAugBudget(sr));
   var cap = foeTierCap(sr);
-  rec.abilities = rec.full.abilities.filter(function(a){ return a.tier <= Math.max(cap, 0); }).slice(0, foeActsBudget(sr));
+  rec.abilities = rec.full.abilities.filter(function(a){ return a.tier <= Math.max(cap, 0); }).slice(0, foeActsBudget(sr)).map(function(a){ return Object.assign({ use:'Act', desc:a.effect }, a); });
   rec.attrs = foeForgeAttrs(rec.build, sr, apl);
   rec.maxVit = LF_COMBAT.vitality(apl, sr);
   rec.lp = (SR_TABLE[sr] || {}).lp; rec.sp = (SR_TABLE[sr] || {}).sp;
@@ -17428,6 +17444,20 @@ function kitLine(lbl, all, shown, kind){
     var at = ladder.filter(function(r){ return (kind === 'aug' ? foeAugBudget(r) : foeInfBudget(r)) > i; })[0] || 'Forsaken';
     return '<span class="sm-hid" title="Revealed at ' + at + ', or by escalating">' + esc(n) + ' <i>' + at + '</i></span>';
   }).join(', ') + '</div>';
+}
+function summonForgeActs(rec){
+  var mine = (rec.full.abilities || []).filter(function(a){ return a && !a.premade && !a.forged; });
+  if (!mine.length) return;
+  var go = function(i){
+    if (i >= mine.length){ summonRate(rec, rec.sr); if (SUMMON.rec === rec) summonPaint(); return; }
+    var a = mine[i];
+    tsAsk('TS_FORGE_ACT', { act:{ name:a.name, title:a.name, tier:a.tier, effect:a.effect, use:'Act', source:'mine' } }).then(function(acts){
+      if (acts && acts.length) FORGE.acts = acts.map(normAct).filter(function(x){ return x.name; });
+      var made = (FORGE.acts || []).filter(function(x){ return x.name === a.name && (Number(x.tier) || 1) === a.tier; })[0];
+      if (made){ a.id = made.id; a.source = 'mine'; } a.forged = true;
+    }).catch(function(){}).then(function(){ go(i + 1); });
+  };
+  go(0);
 }
 function summonSetSR(sr){ if (!SUMMON.rec) return; summonRate(SUMMON.rec, sr); summonPaint(); }
 function summonCount(d){ SUMMON.count = Math.max(1, Math.min(20, (SUMMON.count || 1) + d)); summonPaint(); }
