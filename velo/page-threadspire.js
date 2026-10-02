@@ -322,7 +322,10 @@ $w.onReady(async function () {
           try {
             const nm = String(msg.name || 'New adventure').slice(0, 120);
             const now = Date.now();
+            // the type, world and cover chosen in the new-adventure form ride on the adventure itself
+            const meta = (msg.meta && typeof msg.meta === 'object') ? msg.meta : {};
             const spine = {
+              type: meta.type || '', worldId: meta.worldId || '', worldName: meta.worldName || '', worldDesc: meta.worldDesc || '', img: meta.img || '',
               name: nm,
               acts: [{
                 id: 'act-' + now, name: 'Act I',
