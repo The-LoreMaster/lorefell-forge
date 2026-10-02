@@ -214,6 +214,22 @@ async function storePortrait(character) {
 // carries, and drops only what someone dismissed (data.givenGone, kept as a tombstone
 // list so a dismissal also survives a stale save).
 function parseData(row) { try { return row && row.data ? JSON.parse(row.data) : {}; } catch (e) { return {}; } }
+// The LoreMaster's word on a Fell's maximum Vitality, kept apart so a player's own sheet, saving
+// with the number it had before, cannot undo it: a save that carries an older word (or none)
+// takes the LoreMaster's newer one, and the sheet's maximum with it. After that the player's
+// sheet carries the same word, so its own changes (a level gained) stand as usual.
+function mergeLmVit(prev, next) {
+  const p = prev && prev.lmVit;
+  if (!p || !next) return next;
+  const n = next.lmVit;
+  if (!n || (Number(n.at) || 0) < (Number(p.at) || 0)) {
+    next.lmVit = p;
+    next.vitality = next.vitality || {};
+    next.vitality.max = p.max;
+    if (Number(next.vitality.current) > p.max) next.vitality.current = p.max;
+  }
+  return next;
+}
 function mergeGiven(prev, next) {
   const gone = Array.from(new Set([].concat((prev && prev.givenGone) || [], (next && next.givenGone) || []))).slice(-500);
   const out = [], seen = {};
@@ -236,7 +252,7 @@ export const saveCharacter = webMethod(Permissions.Anyone, async (charId, charac
     row = { ownerMemberId: id };
   }
   await storePortrait(c);
-  if (charId) mergeGiven(parseData(row), c);
+  if (charId) { const _prev = parseData(row); mergeGiven(_prev, c); mergeLmVit(_prev, c); }
   row.data = JSON.stringify(c);
   row.charName = (c.identity && c.identity.name) || row.charName || 'Unnamed Fell';
   row.level = (c.lore && c.lore.level) || 1;
@@ -678,7 +694,9 @@ export const lmSaveCharacter = webMethod(Permissions.Anyone, async (charId, char
   const row = gate.row;
   const c = character || {};
   await storePortrait(c);
-  mergeGiven(parseData(row), c);
+  const _prevLm = parseData(row);
+  mergeGiven(_prevLm, c);
+  mergeLmVit(_prevLm, c);
   row.data = JSON.stringify(c);
   row.charName = (c.identity && c.identity.name) || row.charName || 'Unnamed Fell';
   row.level = (c.lore && c.lore.level) || row.level || 1;
@@ -847,4 +865,23 @@ export const earnDice = webMethod(Permissions.Anyone, async (key, charId) => {
   const v = data.vitality || {};
   if (!(Number(v.max) > 0 && Number(v.current) <= 0)) return { ok: false, error: 'this Fell has not fallen' };
   try { return await diceGrant(m._id, 'discord'); } catch (e) { return { ok: false, error: String(e) }; }
+});
+
+// The LoreMaster sets a Fell's maximum Vitality by hand (only the LoreMaster of that Fell's
+// adventure may). Current Vitality is kept, or brought down to the new maximum.
+export const lmSetVitality = webMethod(Permissions.Anyone, async (charId, max) => {
+  if (!charId) return { ok: false, error: 'no Fell given' };
+  const m = Math.max(1, Math.min(9999, Math.round(Number(max) || 0)));
+  if (!m) return { ok: false, error: 'no number given' };
+  const gate = await lmMayTouch(charId);
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const row = gate.row;
+  const data = parseData(row) || {};
+  data.vitality = data.vitality || {};
+  data.vitality.max = m;
+  if (Number(data.vitality.current) > m || data.vitality.current === undefined) data.vitality.current = Math.min(Number(data.vitality.current) || m, m);
+  data.lmVit = { max: m, at: Date.now() };
+  row.data = JSON.stringify(data);
+  await wixData.save(COLLECTION, row, { suppressAuth: true });
+  return { ok: true, max: m };
 });

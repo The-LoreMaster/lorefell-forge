@@ -1,3 +1,7 @@
+## 2026-09-28 - The LoreMaster sets a Fell's maximum Vitality
+
+The Fell window's options for a player (the ⋯ beside them) gain Set maximum Vitality, showing the number now. It writes to the Fell's sheet through a new backend method, lmSetVitality, open only to the LoreMaster of that Fell's adventure; current Vitality is brought down to the new maximum if it was over. The LoreMaster's word is kept on the sheet with a time, so the player's open sheet saving its old number cannot undo it: a save carrying an older word takes the LoreMaster's newer one. After that the sheet carries the same word, so a level gained raises Vitality as usual. Paste velo/backend/characters.web.js and velo/page-threadspire.js.
+
 ## 2026-09-28 - A player who joins comes to the adventure
 
 A player who joined through an invite could land on an empty lobby map with their Fell instead of the adventure, and stay there. The join page sent a player forging a new Fell to /fellforge, which is not the site's FellForge page (/the-fellforge), so the new Fell was forged without the adventure; and nothing afterwards brought a Fell with no adventure to the one its player had joined. The join page now forges at the right address, and when a player opens the table with a Fell that has no adventure but they have joined one through an invite, the Fell is attached to the adventure they joined most recently and the table opens on it. Paste velo/backend/invites.web.js, velo/page-threadspire.js and velo/page-join.js.
