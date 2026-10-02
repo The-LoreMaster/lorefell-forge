@@ -2373,6 +2373,14 @@ body.stream:not(.stream-frame) #rail, body.stream:not(.stream-frame) #hud, body.
 .dg-list{ display:flex; flex-direction:column; gap:6px; max-height:46vh; overflow-y:auto; margin:6px 0; }
 .dg-who{ display:flex; align-items:center; gap:10px; padding:8px 10px; border:1px solid #26324c; border-radius:10px; background:rgba(14,19,36,.7); color:#dce8ef; text-align:left; font-family:'Crimson Pro',Georgia,serif; cursor:pointer; } .dg-who:hover{ border-color:#c9a84c; }
 .dg-who img{ width:36px; height:36px; border-radius:50%; object-fit:cover; box-shadow:0 0 0 2px rgba(201,168,76,.4); } .dg-who span{ display:flex; flex-direction:column; } .dg-who small{ color:#93a3b6; }
+
+.hud.lm .hLvl{ cursor:pointer; }
+.dp-top{ display:flex; align-items:baseline; gap:8px; margin:4px 0 6px; } .dp-big{ font-family:Cinzel,serif; font-size:2.2rem; color:#f0e6c8; line-height:1; } .dp-of{ color:#93a3b6; }
+.dp-list{ display:flex; flex-direction:column; gap:6px; margin:8px 0; }
+.dp-opt{ display:flex; align-items:center; gap:12px; padding:9px 12px; border:1px solid #26324c; border-radius:10px; background:rgba(14,19,36,.7); color:#dce8ef; text-align:left; font-family:'Crimson Pro',Georgia,serif; cursor:pointer; }
+.dp-opt:hover:not(:disabled){ border-color:#c9a84c; } .dp-opt:disabled{ opacity:.4; cursor:not-allowed; }
+.dp-cost{ min-width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:Cinzel,serif; font-size:1.05rem; color:#0b1020; background:#c9a84c; }
+.dp-txt{ display:flex; flex-direction:column; } .dp-txt small{ color:#93a3b6; font-size:.86rem; }
 </style>
 </head>
 <body>
@@ -8406,6 +8414,7 @@ function sharedSnapshot(){
     lmAt: isLM() ? Date.now() : (S._lmAt || 0),   /* the LoreMaster is at the table; see battleFresh */
     sheetRev: S.sheetRev || {},   /* who has been written to, and when */
     log: (S.log || []).slice(-40),
+    dp: isLM() ? S.dp : undefined,
     advRev: S.advRev || 0,
     instance: (function(){
       /* every scene ever opened was leaving an empty binding behind */
@@ -8590,6 +8599,7 @@ function seamWarn(){
 }
 /* apply a remote snapshot as truth */
 function applyRemoteSnapshot(snap){
+  if (snap && snap.dp && isLM() && !S._dpTaken){ S._dpTaken = true; S.dp = snap.dp; }
   if (snap && ROOM.on && !ROOM._applying){
     snap = Object.assign({}, snap);
     delete snap.tokens;
@@ -11106,7 +11116,8 @@ function paintHud(){
     var limg = artOr((sp && sp.portrait) ? sp.portrait : L.portrait);
     if (lpor) lpor.style.backgroundImage = 'url(' + limg + ')';
     setT('hudLvlLbl', 'DP');
-    setT('hudLvl', (L.dp !== undefined && L.dp !== null) ? L.dp : '');
+    setT('hudLvl', String(dpState().cur));
+    var _dpEl = document.querySelector('.hLvl'); if (_dpEl){ _dpEl.title = 'Disruptions: ' + dpState().cur + ' of ' + (dpState().max || dpPoolSize()) + '. Tap to spend.'; _dpEl.style.cursor = 'pointer'; }
   } else {
     hud.classList.remove('lm');
     setT('hudVlbl', 'TEMP \u00b7 CURRENT \u00b7 MAX'); setT('hudTotalLbl', 'TOTAL'); setT('hudLvlLbl', 'LVL');
@@ -13814,7 +13825,7 @@ function refreshFoeKits(){
   });
   return touched;
 }
-function lmBeginCombat(){ if (!_partyLoaded && !_partyLoading) partyLoad(); syncSceneFell(); refreshFoeKits(); S.scene.combatPhase = 'commit'; applyRemoteState({ mode:'combat', scene:S.scene }); combatPublish(); declaresLoad(); }
+function lmBeginCombat(){ if (!_partyLoaded && !_partyLoading) partyLoad(); syncSceneFell(); refreshFoeKits(); try { dpFill(); } catch(e){} S.scene.combatPhase = 'commit'; applyRemoteState({ mode:'combat', scene:S.scene }); combatPublish(); declaresLoad(); }
 function lmEndCombat(){ S.declares = null; S.scene.combatPhase = null; S.scene.foes.concat(S.scene.fell).forEach(function(c){ c.act=''; c.locked=false; c.spot=null; }); S.scene.fell = (S.scene.fell || []).filter(function(p){ return !p._auto; }); applyRemoteState({ mode:'explore', scene:S.scene });  combatPublish(); }
 function lmLockActs(){ S.scene.combatPhase = 'resolve'; S.scene.foes.concat(S.scene.fell).forEach(function(c){ if(c.act) c.locked = true; }); applyRemoteState({ scene:S.scene }); lmMaterialisePlacements(); }
 function lmUnlock(){ S.scene.combatPhase = 'commit'; S.scene.foes.concat(S.scene.fell).forEach(function(c){ c.locked=false; c.spot=null; }); applyRemoteState({ scene:S.scene }); }
@@ -17807,6 +17818,53 @@ document.addEventListener('contextmenu', function(e){
   e.preventDefault(); diceGiveOpen(b.getAttribute('data-key'));
 });
 
+
+/* ================= Disruptions: the LoreMaster's pool =================
+   LoreVault, Disruptions: the pool is Party Size + Average Party Level, refreshing at the
+   start of each Crucible, spent on the battlefield (Environmental 8, Magical 15) and on the
+   Foes (fuel a React 3, escalate a Foe 5, loose a Discordant again 12). Set pieces are free.
+   DP on the LoreMaster's frame is the pool: it fills when a Crucible begins, a tap opens the
+   spend menu (what the pool cannot afford is greyed), each spend is noted in the log for the
+   LoreMaster alone, and the last can be undone. Kept with the table's saved state. */
+var DP_COSTS = [['env','Environmental Disruption','Fire, flood, collapse, a clinging mire.',8], ['mag','Magical Disruption','A curse, a ward, a boon, anything supernatural.',15],
+  ['react','Fuel a React','Hand a Foe a React it has spent or never had.',3], ['esc','Escalate a Foe','Reveal its next rung of kit without waiting on the charge.',5],
+  ['disc','Loose a Discordant again','Re-lay an Epic or Forsaken\u2019s Affliction across the table.',12]];
+function dpPartySize(){ try { return attendingParty(S.scene).length || (S.party || []).filter(function(p){ return p && p.charId; }).length; } catch(e){ return 0; } }
+function dpPoolSize(){ return dpPartySize() + partyApl(); }
+function dpState(){ if (!S.dp) S.dp = { cur:0, max:0, spent:[] }; return S.dp; }
+function dpFill(){
+  var d = dpState(), n = dpPoolSize(); d.max = n; d.cur = n; d.spent = [];
+  pushLog({ kind:'sys', lmOnly:true, html:'Disruptions: the pool fills to <b>' + n + '</b> (' + dpPartySize() + ' Fell + average level ' + partyApl() + ').' });
+  dpChanged();
+}
+function dpSpend(key){
+  var d = dpState(), c = DP_COSTS.filter(function(x){ return x[0] === key; })[0]; if (!c || d.cur < c[3]) return;
+  d.cur -= c[3]; d.spent.push({ k:key, n:c[3], at:Date.now() });
+  pushLog({ kind:'sys', lmOnly:true, html:'Disruptions: <b>' + esc(c[1]) + '</b> for ' + c[3] + '. ' + d.cur + ' left.' });
+  dpChanged(); dpOpen();
+}
+function dpUndo(){
+  var d = dpState(), last = d.spent.pop(); if (!last) return;
+  d.cur = Math.min(d.max || 9999, d.cur + last.n);
+  pushLog({ kind:'sys', lmOnly:true, html:'Disruptions: the last spend is taken back. ' + d.cur + ' left.' });
+  dpChanged(); dpOpen();
+}
+function dpAdjust(n){ var d = dpState(); d.cur = Math.max(0, d.cur + n); if (d.cur > d.max) d.max = d.cur; dpChanged(); dpOpen(); }
+function dpChanged(){ applyRemoteState({ log:S.log }); schedulePush(); try { paintHud(); } catch(e){} }
+function dpOpen(){
+  if (!isLM()) return;
+  var d = dpState(), pool = dpPoolSize();
+  var h = '<h3 class="tsm-title">Disruptions</h3>'
+    + '<div class="dp-top"><span class="dp-big">' + d.cur + '</span><span class="dp-of">of ' + (d.max || pool) + '</span>'
+    + '<span class="sw-grow"></span><button class="tsm-btn ghost" onclick="dpAdjust(-1)" aria-label="One less">\u2212</button><button class="tsm-btn ghost" onclick="dpAdjust(1)" aria-label="One more">+</button></div>'
+    + '<p class="tsm-note">The pool is ' + dpPartySize() + ' Fell + average level ' + partyApl() + ' = ' + pool + '. It fills when a Crucible begins. Anything already part of the scene when the fight begins is free.</p>'
+    + '<div class="dp-list">' + DP_COSTS.map(function(c){ var can = d.cur >= c[3];
+        return '<button class="dp-opt"' + (can ? '' : ' disabled') + ' onclick="dpSpend(\'' + c[0] + '\')"><span class="dp-cost">' + c[3] + '</span><span class="dp-txt"><b>' + esc(c[1]) + '</b><small>' + esc(c[2]) + '</small></span></button>'; }).join('') + '</div>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="dpUndo()"' + (d.spent.length ? '' : ' disabled') + '>Undo last</button><button class="tsm-btn ghost" onclick="dpFill();dpOpen()">Fill the pool</button><button class="tsm-btn" onclick="tsCloseModal()">Done</button></div>';
+  tsModal(h); summonWide();
+}
+document.addEventListener('click', function(e){ if (isLM() && e.target.closest && e.target.closest('.hLvl') && document.getElementById('hud') && document.getElementById('hud').classList.contains('lm')) dpOpen(); });
+
 /* ================= rests =================
    A rest comes from the LoreMaster, and only outside a fight: Call a rest opens it for the
    whole table. Each player chooses to rest or to skip it; resting runs the FellGuide's rest
@@ -18498,6 +18556,7 @@ var _logPushT = null;
 function pushLog(e){ e.id = mkId(); S.log.push(e); try { roomSend({ t:'log', e:e }); } catch(x){} try { rollShow(e); } catch(x){} applyRemoteState({ log:S.log }); if (_logPushT) clearTimeout(_logPushT); _logPushT = setTimeout(function(){ try { pushState(); } catch(err){} }, 600); }
 function entryHtml(e){
   if (e.kind === 'say') return '<div class="le say"><b>' + esc(e.who) + '</b> ' + esc(e.text) + '</div>';
+  if (e.lmOnly && !isLM()) return '';
   if (e.kind === 'roll'){
     if (e.hidden && !isLM()) return '';
     var m = e.n === 6 ? ' <span class="mark">Fellmark</span>'

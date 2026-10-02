@@ -1,3 +1,7 @@
+## 2026-09-28 - Disruptions: the DP on the LoreMaster's frame
+
+The DP on the LoreMaster's frame is now the Disruptions pool from the LoreVault: Party Size plus Average Party Level, filled when a Crucible begins. A tap opens the spend menu (Environmental Disruption 8, Magical Disruption 15, Fuel a React 3, Escalate a Foe 5, Loose a Discordant again 12), with what the pool cannot afford greyed out; each spend lowers the pool and is noted in the log for the LoreMaster alone, the last can be undone, the pool can be nudged up or down or filled again by hand, and it is kept with the table's saved state. Log lines marked for the LoreMaster alone no longer reach players.
+
 ## 2026-09-28 - The LoreMaster gives dice from the table
 
 Right-click a set you hold in Your dice (or open it and choose Give these to a player) to give it: pick a Fell at the table, or Give to everyone at the table. A set is the player's, for every Fell they play, and the log says who was given what. The LoreMaster may now give any set (the table offers only sets they hold themselves), not just Spindle's Web and The Double; giving to everyone uses a new backend method, lmGiveDiceAll, open only to the adventure's LoreMaster, which gives each player with a Fell in the adventure the set once. Paste velo/backend/characters.web.js and velo/page-threadspire.js.
