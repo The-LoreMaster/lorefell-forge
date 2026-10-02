@@ -1028,6 +1028,7 @@ button.ax-fact{cursor:pointer}
         <img id="portraitImg" alt="" style="display:none">
         <input type="file" id="portraitFile" accept="image/*">
       </label>
+      <span class="paste-hint" style="display:block;font-size:.72rem;color:var(--muted,#8fa3b3);margin-top:4px;max-width:110px;line-height:1.2">Click to upload, or paste a picture</span>
       <div style="flex:1">
         <label class="fld">Name</label><input id="f-name" placeholder="Character name">
         <button class="btn small gold" id="ccBtn" style="margin-top:8px">Fell Forging</button>
@@ -3099,8 +3100,16 @@ function showPortrait(src){
   $("portraitImg").src=src;$("portraitImg").style.display="block";$("portraitPh").style.display="none";
   $("hdImg").src=src;$("hdImg").style.display="block";$("hdPh").style.display="none";
 }
-$("portraitFile").addEventListener("change",e=>{
-  const f=e.target.files[0];if(!f)return;
+$("portraitFile").addEventListener("change",e=>{ portraitFromFile(e.target.files[0]); });
+/* a picture pasted anywhere on the sheet (not into a text box) becomes the portrait, so it need
+   not be saved to a file first; the table hands over one pasted while the sheet is open */
+document.addEventListener("paste",e=>{
+  const t=e.target; if(t&&(t.tagName==="INPUT"||t.tagName==="TEXTAREA"||t.isContentEditable)) return;
+  const items=(e.clipboardData&&e.clipboardData.items)||[];
+  for(let i=0;i<items.length;i++){ if(items[i].kind==="file"&&/^image\//.test(items[i].type)){ e.preventDefault(); portraitFromFile(items[i].getAsFile()); return; } }
+});
+function portraitFromFile(f){
+  if(!f)return;
   const img=new Image();
   img.onload=()=>{
     const MAX=256;
@@ -3114,7 +3123,7 @@ $("portraitFile").addEventListener("change",e=>{
     scheduleSave();
   };
   img.src=URL.createObjectURL(f);
-});
+}
 
 /* ---------- invested lore ---------- */
 function renderLore(){
@@ -7693,6 +7702,7 @@ window.onmessage=ev=>{
   const d=ev&&ev.data;
   if(!d||typeof d!=="object"||!d.type)return;
   if(d.type==="ts-charge-tap"){ chargeTap(d.tier); return; }
+  if(d.type==="ts-paste-portrait"){ if(d.file) portraitFromFile(d.file); return; }
   if(d.type==="ts-fellgrow-mode"){ window._fellGrowMode=d.mode==="ask"?"ask":"auto"; return; }
   if(d.type==="ts-skill-grow"){ skillGrowFellmark(String(d.skill||"")); return; }
   if(d.type==="ts-notes-saved"){ if(!d.charId||d.charId===CUR_WIX_ID) lmNotesSaved(d); return; }
