@@ -14,7 +14,7 @@ let CAMPAIGN_ID = '';
 let CAMPAIGN_NAME = '';
 let IS_OWNER = false;
 // The page slug that hosts FellForge. Change to match your site if it differs.
-const FELLFORGE_PATH = '/fellforge';
+const FELLFORGE_PATH = '/the-fellforge';   // the Hearth's route; /fellforge did not reach it, so a Fell forged from an invite never joined
 // Where a player lands after attaching a Fell: its sheet. The route is the Hearth's, in
 // docs/the_hearth.html (FACTS.md lists it).
 const FELLGLASS_PATH = '/the-fellglass';

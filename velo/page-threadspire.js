@@ -4,7 +4,7 @@
 // location, revealed nodes, quest-board goals, world issues, and map art.
 import { threadspirePublicChar, listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter, threadspireSaveMeta, lmLoadCharacter, lmSaveCharacter, lmCreateOfflineFell, lmRemoveFromAdventure, charAdventure, leaveAdventure, lmWipeFell, giveRecord, consultArchive, lmSealedGet, lmSealedWeave, lmNotesSave, myDice, saveDicePicks, lmGiveDice, earnDice } from 'backend/characters.web.js';
 import { getLmPortrait, saveLmPortrait, getForgePools, getForgeLibrary, listMyCampaigns, saveCampaign, submitAct, submitItem, deleteAsset, listGlossary , setMemberRole, detachCharacter, loadCampaign, restoreRoster } from 'backend/fatewell.web.js';
-import { createInvite, revokeInvite } from 'backend/invites.web.js';
+import { createInvite, revokeInvite, myJoinedAdventures, attachCharacter } from 'backend/invites.web.js';
 let _pubHanded = false;
 import { publishAdventure, unpublishAdventure, myPublishedAdventures, getPublishedPack } from 'backend/published.web.js';
 import { getFoePack } from 'backend/forge.web.js';
@@ -112,6 +112,15 @@ $w.onReady(async function () {
   // rather than sitting at an adventure of nobody and receiving nothing.
   if (!campaignId && characterId) {
     try { const a = await charAdventure(characterId); if (a && a.campaignId) campaignId = a.campaignId; } catch (e) {}
+    // A Fell with no adventure, whose player has joined one through an invite: it is attached to
+    // the adventure they joined most recently, so the table opens on that adventure and not on
+    // an empty lobby map (a Fell forged before it was attached, or forged away from the invite).
+    if (!campaignId) {
+      try {
+        const joined = await myJoinedAdventures();
+        if (joined && joined.length) { const r = await attachCharacter(joined[0].campaignId, characterId); if (r && r.ok) campaignId = joined[0].campaignId; }
+      } catch (e) {}
+    }
   }
   // A LoreMaster who deletes an adventure and reimports it gets a new id, but the old
   // one is still in the address bar from before. The page then opened a campaign that no
