@@ -1,3 +1,7 @@
+## 2026-09-28 - Summon a foe builds the full kit; adding it closes the summoner
+
+Summon a foe now builds a Foe's full kit, as the LoreVault's Building Crucibles has it (every Foe is built to its Forsaken kit and its Shatter Rating reveals a slice): three infusions, two augmentations and an act at each tier. The card shows the whole kit, with what the chosen rating hides greyed and marked with the rating that reveals it (an Epic shows one augmentation and the second marked Forsaken); raising the rating, or escalating it in play, brings the rest out. Add to this scene now closes the summoner once the foe is in the roster.
+
 ## 2026-09-28 - Summon a foe can take premade abilities
 
 Summon a foe now asks how its acts are made: built new by the SigilForge rules (as before), or chosen from the premade abilities in the SigilForge library (canon, and the LoreMaster's own), one at each tier, the AI picking by exact name from the list and only names that exist being taken. Every act on a summoned foe can also be swapped for a premade ability by hand: Swap opens the library at that act's tier, with a search and a tier choice; a premade act is marked on the card and keeps its own text, and the Shatter Rating rescale treats it like any other act.

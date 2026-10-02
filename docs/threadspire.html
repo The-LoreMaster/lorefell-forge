@@ -2399,6 +2399,7 @@ body.stream:not(.stream-frame) #rail, body.stream:not(.stream-frame) #hud, body.
 .sm-swap-list{ display:flex; flex-direction:column; gap:6px; max-height:52vh; overflow-y:auto; margin:8px 0; }
 .sm-swap-opt{ display:flex; flex-wrap:wrap; gap:2px 8px; padding:8px 10px; border:1px solid #26324c; border-radius:9px; background:rgba(14,19,36,.7); color:#dce8ef; text-align:left; font-family:'Crimson Pro',Georgia,serif; cursor:pointer; } .sm-swap-opt:hover{ border-color:#c9a84c; }
 .sm-swap-opt em{ font-style:normal; color:#c9a84c; font-size:.82rem; } .sm-swap-opt span{ flex-basis:100%; color:#b8c4d0; font-size:.9rem; }
+.sm-hid{ color:#6f7f93; } .sm-hid i{ font-style:normal; font-size:.72rem; border:1px solid #3a4866; border-radius:5px; padding:0 4px; margin-left:2px; }
 </style>
 </head>
 <body>
@@ -17247,7 +17248,10 @@ function summonPremadeList(){
   return [1, 2, 3].map(function(t){ return 'Tier ' + t + ' premade abilities (name|what it does): ' + actsForTier(t).slice(0, 60).map(function(a){ return a.name + '|' + String(a.desc || a.effect || '').replace(/\s+/g, ' ').slice(0, 90); }).join('; '); }).join('\n');
 }
 function summonSystem(){
-  var P = FORGE.pack || {}, b = (P.tierBudget || {}).Epic || { inf:3, aug:1, acts:3 };
+  /* LoreVault, Building Crucibles: every Foe is built to its full Forsaken kit and its Shatter
+     Rating reveals a slice of it; escalation can ungray the rest. So the kit asked for is the
+     Forsaken one (two augmentations), and Epic shows its slice of it. */
+  var P = FORGE.pack || {}, b = (P.tierBudget || {}).Forsaken || { inf:3, aug:2, acts:3 };
   if (SUMMON.acts === 'premade') return summonSystemPremade(P, b);
   return summonSystemBuild(P, b);
 }
@@ -17260,7 +17264,7 @@ function summonSystemBuild(P, b){
   return 'You build one foe for LoreFell, a dark fantasy tabletop game, from the LoreMaster\'s description. '
     + 'Voice: dark, grounded, specific. Short declarative sentences. No em dashes, no semicolons, no ellipses. '
     + 'Choose ONLY from the lists given; never invent a build, stance, affliction, infusion or augmentation. '
-    + 'It is an Epic foe: exactly ' + b.inf + ' infusions, ' + b.aug + ' augmentation' + (b.aug === 1 ? '' : 's') + ', and ' + b.acts + ' acts, one act at each tier 1, 2 and 3. '
+    + 'Build its full kit: exactly ' + b.inf + ' infusions, ' + b.aug + ' augmentation' + (b.aug === 1 ? '' : 's') + ', and ' + b.acts + ' acts, one act at each tier 1, 2 and 3. '
     + 'ACTS ARE BUILT BY THE SIGILFORGE RULES, never invented: each act is exactly one damage package, one target inlay, and one effect (one combat effect OR one affliction). '
     + 'Damage packages (cost): Standard Damage 0, Double Base 2, Double Standard 3, No Damage 0. Targets (cost): One Target 0, Two Targets 1, Three Targets 2, All Targets 4. '
     + 'The total cost sets the tier: Tier 1 costs 1 to 2, Tier 2 costs 3 to 4, Tier 3 costs 5 or more. Spend near the top of each tier. '
@@ -17365,12 +17369,22 @@ function summonRate(rec, sr){
   if (assetBackend && assetBackend.save) assetBackend.save(assetToRow(row)).catch(function(){});
 }
 function summonWide(){ var p = document.querySelector('#tsModal .tsm-panel'); if (p) p.classList.add('sm-panel'); }
+/* a kit line: what the rating shows, and the rest greyed with the rating that reveals it */
+function kitLine(lbl, all, shown, kind){
+  if (!all || !all.length) return '';
+  var ladder = ['Minion','Elite','Champion','Epic','Forsaken'];
+  return '<div class="sm-line"><b>' + lbl + ':</b> ' + all.map(function(n, i){
+    if (shown.indexOf(n) >= 0) return esc(n);
+    var at = ladder.filter(function(r){ return (kind === 'aug' ? foeAugBudget(r) : foeInfBudget(r)) > i; })[0] || 'Forsaken';
+    return '<span class="sm-hid" title="Revealed at ' + at + ', or by escalating">' + esc(n) + ' <i>' + at + '</i></span>';
+  }).join(', ') + '</div>';
+}
 function summonSetSR(sr){ if (!SUMMON.rec) return; summonRate(SUMMON.rec, sr); summonPaint(); }
 function summonAdd(){
   var r = SUMMON.rec; if (!r || !SUMMON.sceneId) return;
   libAttach(SUMMON.sceneId, r.id); r._added = true;
   pushLog({ kind:'sys', html:'<b>' + esc(r.name) + '</b> joins the scene\u2019s roster.' }); applyRemoteState({ log:S.log });
-  summonPaint();
+  tsCloseModal(); SUMMON.rec = null;
 }
 function summonPaint(){
   var R = SUMMON.rec, h = '<h3 class="tsm-title">Summon a foe</h3>';
@@ -17396,7 +17410,7 @@ function summonPaint(){
     + (R.abilities.length ? '<div class="sm-acts">' + R.abilities.map(function(a){ var fi = R.full.abilities.indexOf(a); return '<div class="sm-act"><b>' + esc(a.name) + '</b> <em>tier ' + a.tier + (a.sigil ? ' \u00b7 cost ' + a.sigil.cost : '') + (a.premade ? ' \u00b7 premade' : '') + '</em><button class="sm-swap" onclick="summonSwap(' + fi + ')" title="Swap for a premade ability">Swap</button>'
         + (a.sigil ? '<span class="sm-inlays">' + esc(a.sigil.damage + ' \u00b7 ' + a.sigil.target + ' \u00b7 ' + a.sigil.effect) + '</span>' : '')
         + '<span>' + esc(a.effect) + '</span>' + (a.flavor ? '<i class="sm-flav">' + esc(a.flavor) + '</i>' : '') + '</div>'; }).join('') + '</div>' : '<div class="sm-line"><i>A ' + esc(R.sr) + ' brings only its Standard Attack.</i></div>')
-    + list('Infusions', R.infusions) + list('Augmentations', R.augments) + (R.affliction ? '<div class="sm-line"><b>Affliction:</b> ' + esc(R.affliction) + '</div>' : '')
+    + kitLine('Infusions', R.full.infusions, R.infusions, 'inf') + kitLine('Augmentations', R.full.augments, R.augments, 'aug') + (R.affliction ? '<div class="sm-line"><b>Affliction:</b> ' + esc(R.affliction) + '</div>' : '')
     + '</div><p class="tsm-note">Saved to your library' + (R.campaignName ? ', tagged ' + esc(R.campaignName) : '') + '. At party level ' + apl + '; it scales with the party.</p>'
     + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal();foeForge(\'' + R.id + '\')">Edit</button><button class="tsm-btn ghost" onclick="SUMMON.rec=null;SUMMON.text=\'\';summonPaint()">Summon another</button>'
     + (SUMMON.sceneId ? '<button class="tsm-btn" onclick="summonAdd()"' + (R._added ? ' disabled' : '') + '>' + (R._added ? 'In the scene' : 'Add to this scene') + '</button>' : '') + '</div>';
