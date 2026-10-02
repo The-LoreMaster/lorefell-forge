@@ -2367,6 +2367,12 @@ body.stream:not(.stream-frame) #rail, body.stream:not(.stream-frame) #hud, body.
 @media (hover:none){ .sw-bedit{ opacity:1; } }
 .sw-bbody.full{ white-space:pre-wrap; }
 .sw-beat.open{ border-color:rgba(201,168,76,.45); }
+
+.da-give{ margin-top:8px; width:100%; padding:7px; border:1px dashed rgba(201,168,76,.6); border-radius:9px; background:none; color:#e8cf86; font-family:Cinzel,serif; font-size:.62rem; letter-spacing:.06em; cursor:pointer; } .da-give:hover{ background:rgba(201,168,76,.1); }
+.dg-face{ display:flex; justify-content:center; padding:4px 0 8px; }
+.dg-list{ display:flex; flex-direction:column; gap:6px; max-height:46vh; overflow-y:auto; margin:6px 0; }
+.dg-who{ display:flex; align-items:center; gap:10px; padding:8px 10px; border:1px solid #26324c; border-radius:10px; background:rgba(14,19,36,.7); color:#dce8ef; text-align:left; font-family:'Crimson Pro',Georgia,serif; cursor:pointer; } .dg-who:hover{ border-color:#c9a84c; }
+.dg-who img{ width:36px; height:36px; border-radius:50%; object-fit:cover; box-shadow:0 0 0 2px rgba(201,168,76,.4); } .dg-who span{ display:flex; flex-direction:column; } .dg-who small{ color:#93a3b6; }
 </style>
 </head>
 <body>
@@ -5632,7 +5638,7 @@ function diceSettingsHtml(){
   all.forEach(function(k){
     var d = DICE_CAT[k], got = diceOwns(k);
     if (!got){ h += '<span class="dk-sw shadow" data-tip="' + esc(d.name) + '" data-how="' + esc(diceHow(k, false)) + '"><span class="dk-shadow"></span></span>'; return; }
-    h += '<button class="dk-sw got' + ((used[k] || []).length ? ' inuse' : '') + (S._diceOpen === k ? ' open' : '') + '" data-tip="' + esc(d.name) + '" data-how="' + esc(diceHow(k, true)) + '" onclick="diceOpenPick(\'' + esc(k) + '\')">'
+    h += '<button class="dk-sw got' + ((used[k] || []).length ? ' inuse' : '') + (S._diceOpen === k ? ' open' : '') + '" data-key="' + esc(k) + '" data-tip="' + esc(d.name) + '" data-how="' + esc(diceHow(k, true)) + '" onclick="diceOpenPick(\'' + esc(k) + '\')">'
       + diceFace(k, 5) + '</button>';
   });
   h += '</div>';
@@ -5641,6 +5647,7 @@ function diceSettingsHtml(){
     var k2 = S._diceOpen, d2 = DICE_CAT[k2];
     panel = '<div class="dice-assign"><button class="da-x" onclick="diceOpenPick(null)" aria-label="Close">\u00d7</button><div class="da-h">' + diceFace(k2, 5) + '<span><b>' + esc(d2.name) + '</b><small>' + esc(diceHow(k2, true)) + '</small></span></div>'
       + '<div class="da-note">Choosing a kind moves it here from whichever die had it.</div>'
+      + (isLM() ? '<button class="da-give" onclick="diceGiveOpen(\'' + esc(k2) + '\')">Give these to a player\u2026</button>' : '')
       + '<div class="da-kinds">' + ROLL_KINDS.map(function(rk){ var on = diceMine(rk[0]) === k2;
           return '<button class="da-k' + (on ? ' on' : '') + '" onclick="dicePick(\'' + rk[0] + '\',\'' + esc(k2) + '\')">' + (on ? '\u2713 ' : '') + rk[1] + '</button>'; }).join('')
       + '</div></div>';
@@ -10926,6 +10933,7 @@ function partyMenu(memberId, charId){
 function lmGiveDice(charId, key){
   var p = partyFind('', charId), who = (p && (p.charName || p.name)) || 'this Fell';
   tsAsk('TS_DICE_GIVE', { campaignId:S.campaignId, charId:charId, key:key }).then(function(r){
+    if (r && r.ok){ pushLog({ kind:'sys', html:'The LoreMaster gives ' + esc(who) + ' <b>' + esc(DICE_CAT[key].name) + '</b> dice.' }); applyRemoteState({ log:S.log }); }
     tsModal('<h3 class="tsm-title">' + (r && r.ok ? 'Given' : 'Not given') + '</h3><p class="lc-p">' + (r && r.ok
       ? esc(DICE_CAT[key].name) + ' dice are now ' + esc(who) + '\u2019s player\u2019s, for every Fell they play.'
       : 'The site did not give them. ' + esc((r && r.error) || 'Try again.')) + '</p><div class="tsm-row"><button class="tsm-btn" onclick="tsCloseModal()">Close</button></div>');
@@ -17770,6 +17778,34 @@ document.addEventListener('paste', function(e){
 /* -- the skill picker: Escape or a tap elsewhere closes it -- */
 document.addEventListener('keydown', function(e){ if (e.key === 'Escape'){ var q = document.getElementById('quickChoose'); if (q && q.classList.contains('open')) q.classList.remove('open'); } });
 document.addEventListener('pointerdown', function(e){ var q = document.getElementById('quickChoose'); if (q && q.classList.contains('open') && !e.target.closest('#quickChoose') && !e.target.closest('#dieBtn, .die, #tray')) q.classList.remove('open'); }, true);
+
+
+/* ---- the LoreMaster gives a set of dice ----
+   Right-click a die you hold in Your dice (or open it and choose Give these to a player): pick
+   a Fell at the table, or give the set to everyone at the table at once. A set is given to
+   the player, for every Fell they play. */
+function diceGiveOpen(key){
+  var d = DICE_CAT[key]; if (!d || !isLM()) return;
+  var fell = (S.party || []).filter(function(p){ return p && p.charId; });
+  var h = '<h3 class="tsm-title">Give ' + esc(d.name) + ' dice</h3><div class="dg-face">' + diceFace(key, 6) + '</div>'
+    + '<p class="tsm-note">They become the player\u2019s, for every Fell they play.</p><div class="dg-list">'
+    + (fell.length ? fell.map(function(p){ return '<button class="dg-who" onclick="diceGiveTo(\'' + esc(p.charId) + '\',\'' + esc(key) + '\')"><img src="' + esc(p.img || portraitFor(p.charId) || DEFAULT_ART) + '" alt=""><span><b>' + esc(p.charName || p.name || 'A Fell') + '</b><small>' + esc(p.name || '') + '</small></span></button>'; }).join('')
+      : '<p class="sw-empty">No one is at the table yet.</p>')
+    + '</div><div class="tsm-row"><button class="tsm-btn ghost" onclick="diceWindow()">Back</button>' + (fell.length ? '<button class="tsm-btn" onclick="diceGiveAll(\'' + esc(key) + '\')">Give to everyone at the table</button>' : '') + '</div>';
+  tsModal(h);
+}
+function diceGiveTo(charId, key){ lmGiveDice(charId, key); }
+function diceGiveAll(key){
+  tsModal('<h3 class="tsm-title">Giving ' + esc(DICE_CAT[key].name) + ' dice\u2026</h3>');
+  tsAsk('TS_DICE_GIVE_ALL', { campaignId:S.campaignId, key:key }).then(function(r){
+    tsModal('<h3 class="tsm-title">Given</h3><p class="lc-p">' + esc(DICE_CAT[key].name) + ' dice are now with ' + ((r && r.given) || 0) + ' player' + (((r && r.given) || 0) === 1 ? '' : 's') + ' at the table' + ((r && r.given && r.fresh < r.given) ? ' (some already had them)' : '') + '.</p><div class="tsm-row"><button class="tsm-btn" onclick="tsCloseModal()">Close</button></div>');
+    pushLog({ kind:'sys', html:'The LoreMaster gives everyone at the table <b>' + esc(DICE_CAT[key].name) + '</b> dice.' }); applyRemoteState({ log:S.log });
+  }).catch(function(e){ tsModal('<h3 class="tsm-title">Not given</h3><p class="lc-p">' + esc((e && e.message) || 'Try again.') + '</p><div class="tsm-row"><button class="tsm-btn" onclick="tsCloseModal()">Close</button></div>'); });
+}
+document.addEventListener('contextmenu', function(e){
+  var b = e.target.closest && e.target.closest('#diceWin .dk-sw.got'); if (!b || !isLM()) return;
+  e.preventDefault(); diceGiveOpen(b.getAttribute('data-key'));
+});
 
 /* ================= rests =================
    A rest comes from the LoreMaster, and only outside a fight: Call a rest opens it for the

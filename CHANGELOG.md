@@ -1,3 +1,7 @@
+## 2026-09-28 - The LoreMaster gives dice from the table
+
+Right-click a set you hold in Your dice (or open it and choose Give these to a player) to give it: pick a Fell at the table, or Give to everyone at the table. A set is the player's, for every Fell they play, and the log says who was given what. The LoreMaster may now give any set (the table offers only sets they hold themselves), not just Spindle's Web and The Double; giving to everyone uses a new backend method, lmGiveDiceAll, open only to the adventure's LoreMaster, which gives each player with a Fell in the adventure the set once. Paste velo/backend/characters.web.js and velo/page-threadspire.js.
+
 ## 2026-09-28 - The Story window: fold acts and sessions; read beats in full
 
 In the Story outline each act and session has a fold beside it; a folded one hides what is under it and shows how many sessions or scenes it holds (and the table's mark if the scene on the table is inside). Open all and Fold all sit at the top of the outline, and what is folded is remembered per adventure on that screen. A scene's beats now open in place to be read in full, line breaks and all, with a click, and fold again with another; the pencil on a beat (on hover, always on a touch screen) opens it to edit. Open all and Fold all sit beside the Beats heading.
