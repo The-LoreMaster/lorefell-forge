@@ -9248,10 +9248,10 @@ function settingsBody(){
   h += '<div class="nb-scene">Under the hood</div>'
     + '<div class="rs-adds"><button class="st-add" onclick="openWin(\'seams\')">Show the seams</button></div>';
   h += '<div class="nb-scene">A new adventure</div>'
-    + '<div class="rs-adds"><button class="st-add" onclick="advNewHere()">Make one here</button>'
-    + '<button class="st-add" onclick="advNew()">Write one in FateWell</button></div>';
+    + '<div class="rs-adds"><button class="st-add" onclick="advNewHere()">Make one here</button></div>';
+
   h += '<div class="nb-scene">Backup</div>'
-    + '<div class="win-note">Download this adventure as a pack, or bring one in. A pack opens in FateWell too.</div>'
+    + '<div class="win-note">Download this adventure as a pack, or bring one in.</div>'
     + '<div class="rs-adds"><button class="st-add" onclick="tsExportAdventure()">Back up this adventure</button>'
     + '<button class="st-add" onclick="tsImportAdventure()">Import an adventure</button></div>';
   h += '<div class="nb-scene">Published</div>'
@@ -9289,7 +9289,8 @@ function publishNow(){
   if (!t) return;
   var b = (document.getElementById('pbBlurb') || {}).value || '';
   tsModal('<h3 class="tsm-title">Publishing...</h3>');
-  tsAsk('TS_PUBLISH', { title:t, blurb:b, pack:{ adventure:S.adventure } }).then(function(){
+  var _pk = tsBuildPack(); delete _pk.table; delete _pk.journal; delete _pk.roster;   /* the story, its foes and NPCs; never the table, journal or players */
+  tsAsk('TS_PUBLISH', { title:t, blurb:b, pack:_pk }).then(function(){
     tsCloseModal(); S.published = null; refreshWinBody(); publishLoad();
   }).catch(function(){ tsCloseModal(); });
 }
@@ -17020,6 +17021,22 @@ function contPaint(){
   tsModal(h); summonWide();
   var pnl = document.querySelector('#tsModal .tsm-panel'); if (pnl) pnl.scrollTop = keepScroll;
 }
+
+
+/* ================= a published adventure, brought in from the directory =================
+   The directory now sends a chosen adventure here (it went to FateWell). */
+/* a published adventure chosen from the directory, waiting for this table: offer to bring it in */
+var _pubAsked = false;
+function pubPendingCheck(){
+  if (_pubAsked || !tsEmbedded() || !isLM()) return; _pubAsked = true;
+  tsAsk('TS_PUBLISHED_PENDING', {}).then(function(pack){
+    if (!pack || !pack.campaign) return;
+    tsModal('<h3 class="tsm-title">Bring in ' + esc((pack.campaign && pack.campaign.name) || 'this adventure') + '?</h3><p class="lc-p">It lands as a fresh adventure of your own, with its foes and NPCs in your library.</p>'
+      + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Not now</button><button class="tsm-btn" onclick="tsCloseModal();tsImportPack(window._pubPack)">Bring it in</button></div>');
+    window._pubPack = pack;
+  }).catch(function(){});
+}
+setInterval(function(){ try { if (S.roleReady && isLM()) pubPendingCheck(); } catch(e){} }, 2000);
 
 /* ================= rests =================
    A rest comes from the LoreMaster, and only outside a fight: Call a rest opens it for the

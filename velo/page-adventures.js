@@ -12,7 +12,7 @@ const EMBED = '#html1';
 
 // The page slug that hosts the FateWell (loremaster) embed. Change this to match your
 // site if the FateWell page lives at a different path.
-const FATEWELL_PATH = '/fatewell';
+const FATEWELL_PATH = '/the-threadspire';   // the directory's adventures now land in ThreadSpire
 
 $w.onReady(() => {
   const embed = $w(EMBED);

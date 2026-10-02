@@ -406,8 +406,10 @@ $w.onReady(() => {
           // at most once every few seconds per adventure, so a burst of autosaves is one tree
           // write, not many.
           const camp = (m.data && m.data.campaign) ? m.data.campaign : null;
-          if (camp) scheduleDualWrite(r.id || cid, camp);
-          else if (m.data && m.data.campaignGz) scheduleDualWriteCompressed(r.id || cid);
+          // FateWell is retired: its saves stay in its own copy and no longer write the shared
+          // story, which ThreadSpire now writes, so opening it as a fallback cannot undo that work.
+          // if (camp) scheduleDualWrite(r.id || cid, camp);
+          // else if (m.data && m.data.campaignGz) scheduleDualWriteCompressed(r.id || cid);
           if (m.data && m.data.campaign) {
             embed.postMessage({ type: 'lmtool-campaigns-slimmed', campaigns: [{ id: cid, campaign: m.data.campaign }] });
           }
