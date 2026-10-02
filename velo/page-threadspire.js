@@ -5,6 +5,7 @@
 import { threadspirePublicChar, listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter, threadspireSaveMeta, lmLoadCharacter, lmSaveCharacter, lmSetVitality, lmCreateOfflineFell, lmRemoveFromAdventure, charAdventure, leaveAdventure, lmWipeFell, giveRecord, consultArchive, lmSealedGet, lmSealedWeave, lmNotesSave, myDice, saveDicePicks, lmGiveDice, earnDice } from 'backend/characters.web.js';
 import { getLmPortrait, saveLmPortrait, getForgePools, getForgeLibrary, listMyCampaigns, saveCampaign, submitAct, submitItem, deleteAsset, listGlossary , setMemberRole, detachCharacter, loadCampaign, restoreRoster } from 'backend/fatewell.web.js';
 import { createInvite, revokeInvite, myJoinedAdventures, attachCharacter } from 'backend/invites.web.js';
+import { tableRoomTicket } from 'backend/tableroom.web.js';
 let _pubHanded = false;
 import { publishAdventure, unpublishAdventure, myPublishedAdventures, getPublishedPack } from 'backend/published.web.js';
 import { getFoePack } from 'backend/forge.web.js';
@@ -488,6 +489,9 @@ $w.onReady(async function () {
           }
         } else if (msg.type === 'TS_LM_SET_VIT') {
           try { const r = await lmSetVitality(msg.charId || '', msg.max); reply(!!(r && r.ok), r, r && r.error); } catch (e) { reply(false, null, String(e)); }
+        } else if (msg.type === 'TS_ROOM_TICKET') {
+          // a ticket into this adventure's live table room
+          try { const r = await tableRoomTicket(msg.campaignId || campaignId); reply(!!(r && r.ok), r, r && r.error); } catch (e) { reply(false, null, String(e)); }
         } else if (msg.type === 'TS_PUBLISHED_PENDING') {
           // an adventure chosen in the directory arrives as ?import=<id>; hand its pack over once
           let pack = null;

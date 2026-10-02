@@ -8466,6 +8466,8 @@ function pushState(){
   try { if (isLM() && _mapStateLoaded) sceneLayoutSave(); } catch(e){}
   try {
     var snap = sharedSnapshot();
+    try { roomLmSync(false); } catch(e){}
+    if (ROOM.on && !isLM()) delete snap.tokens;
     try { SEAM.pushKB = Math.round(JSON.stringify(snap).length / 1024); } catch(e){ SEAM.pushKB = 0; }
     _pushesOut++;
     stateBackend.push(snap).then(function(r){
@@ -8513,6 +8515,11 @@ function seamWarn(){
 }
 /* apply a remote snapshot as truth */
 function applyRemoteSnapshot(snap){
+  if (snap && ROOM.on){
+    snap = Object.assign({}, snap);
+    delete snap.tokens;
+    if (!isLM() || S.stream){ delete snap.activeSceneId; delete snap.background; delete snap.backgroundUrl; delete snap.grid; delete snap.map; }
+  }
   if (S.stream){ _bindTaken = false; _fxTaken = false; _wxTaken = false; _notesTaken = false; _musicTaken = false; }
   /* The scene on the table is the LoreMaster's choice. Once their table is loaded, a pulled
      copy never moves it, and for a few seconds after they switch scenes a pulled copy's
@@ -8916,6 +8923,7 @@ function advReset(nextId){
   _lmBattleAsked = false; S._lmAt = 0; S._lmSeenAt = 0; S._leftAdv = '';
   /* the next adventure's stored state has not been heard yet */
   _mapStateLoaded = false; _pullEmpty = 0; _pushWaitingLoad = false; _boardScene = null;
+  try { roomClose(); } catch(e){}
   /* the new adventure's stored layouts, music, weather and notes are taken afresh */
   _bindTaken = false; _fxTaken = false; S.effects = {}; _musicTaken = false; try { _wxTaken = false; _notesTaken = false; } catch(e){}
   S.music = null; S.weather = {}; S.notes = {};
@@ -9118,6 +9126,7 @@ function seamsBody(){
         return acts.length + ' act' + (acts.length===1?'':'s') + ', ' + scenes + ' scene' + (scenes===1?'':'s');
       })()],
     ['Fell', S.characterId ? String(S.characterId).slice(0,12) : 'none'],
+    ['Live room', (SEAM.room || 'not started') + (ROOM.on ? ' \u00b7 ' + (SEAM.roomPeers || 1) + ' at the table' : '')],
     ['Last push', SEAM.pushAt ? ('v' + SEAM.pushV + ' \u00b7 ' + (SEAM.pushKB || 0) + 'KB \u00b7 ' + age(SEAM.pushAt) + (SEAM.pushOk === false ? ' \u00b7 FAILED: ' + SEAM.pushWhy : ' \u00b7 ok')) : (isLM() ? 'never, nothing has been sent yet' : 'not this side\u2019s job')],
     ['Last pull', SEAM.pullAt ? (age(SEAM.pullAt) + ' \u00b7 ' + (SEAM.pullGot || '')) : 'never, the feed has not run'],
     ['Pulls made', String(SEAM.pulls)],
@@ -14167,6 +14176,7 @@ function wireToken(el, t, draggable){
       if (t._gx === undefined){ t._gx = t.x; t._gy = t.y; }
       t.x = clamp(p.x + ox, 0, S.map.w); t.y = clamp(p.y + oy, 0, S.map.h);
       moved = true; place(el, t);
+      roomTokLive(t);
       dragReadout(t, ev.clientX, ev.clientY);
       if (multiSel[t.id]) groupMove(t, t.x - t._gx, t.y - t._gy, false);
     }
@@ -14194,8 +14204,8 @@ function wireToken(el, t, draggable){
       place(el, t);
       var _grp = multiSel[t.id] ? groupMove(t, t.x - t._gx, t.y - t._gy, true) : [];
       delete t._gx; delete t._gy;
-      send({ type:'token-move', id:t.id, x:t.x, y:t.y });
-      _grp.forEach(function(o){ send({ type:'token-move', id:o.id, x:o.x, y:o.y }); });
+      send({ type:'token-move', id:t.id, x:t.x, y:t.y }); roomTokDrop(t);
+      _grp.forEach(function(o){ send({ type:'token-move', id:o.id, x:o.x, y:o.y }); roomTokDrop(o); });
     }
     el.addEventListener('pointermove', mv); el.addEventListener('pointerup', upfn);
   });
@@ -14400,6 +14410,7 @@ function pingTake(list){
 function pingAt(mx, my){
   var p = { id:'pg' + Date.now().toString(36) + Math.random().toString(36).slice(2,5), x:Math.round(mx), y:Math.round(my), k:mapKey(), who:myName(), c:pingColor(myName()), at:Date.now() };
   _pingSeen[p.id] = 1; pingShow(p);
+  roomSend({ t:'ping', x:p.x, y:p.y, c:p.c, n:p.who, k:p.id });
   S.pings = (S.pings || []).concat([p]).slice(-20);
   drawShare();
 }
@@ -17253,6 +17264,112 @@ function streamCopy(){
   var done = function(){ tsModal('<h3 class="tsm-title">Stream link copied</h3><p class="lc-p">Open it in another tab or add it to your streaming software as a browser source. It follows this table and never changes it.</p><input class="tsm-inp" readonly value="' + esc(url) + '" onclick="this.select()"><p class="tsm-note">Add <b>&amp;see=all</b> to show everything, or <b>&amp;frame=1</b> to show the table around the map. Both can also be switched on the stream itself.</p><div class="tsm-row"><button class="tsm-btn" onclick="tsCloseModal()">Done</button></div>'); };
   try { navigator.clipboard.writeText(url).then(done, done); } catch(e){ done(); }
 }
+
+
+/* ================= the live table room =================
+   Every device holds a WebSocket to its adventure's room (cloudflare/table-room), where
+   token moves, pings and scene switches travel between devices in a fraction of a second.
+   Wix stays the saved copy: the LoreMaster's table still saves there, and if the room cannot
+   be reached the table carries on as before, through Wix alone.
+
+   What goes through the room: a token move (one token's position, sent as it is dragged and
+   when it is dropped); the LoreMaster's whole token list when it changes shape (a token added,
+   removed, renamed, resized, hidden); the LoreMaster's scene (map, grid, size and tokens
+   together, so a switch arrives as one); and pings. While the room is up, the token list and
+   the scene are taken from it and not from Wix's slower copy, and a player's saves leave
+   their tokens out, so an older copy can no longer pull a token back or swap its picture. */
+var ROOM = { ws:null, on:false, want:false, tries:0, t:null, cid:'', role:'', sentToks:'', sentScene:'', live:{}, sceneAt:0, hb:null };
+function roomSend(msg){ if (ROOM.on && ROOM.ws && ROOM.ws.readyState === 1 && !S.stream){ try { ROOM.ws.send(JSON.stringify(msg)); return true; } catch(e){} } return false; }
+function roomConnect(){
+  if (!tsEmbedded() || !S.campaignId) return;
+  if (ROOM.ws && ROOM.cid === S.campaignId && ROOM.ws.readyState <= 1) return;
+  roomClose();
+  ROOM.want = true; ROOM.cid = S.campaignId;
+  tsAsk('TS_ROOM_TICKET', { campaignId:S.campaignId }).then(function(r){
+    if (!r || !r.url || !r.ticket || ROOM.cid !== S.campaignId) throw new Error((r && r.error) || 'no ticket');
+    var ws = new WebSocket(r.url + '?t=' + encodeURIComponent(r.ticket));
+    ROOM.ws = ws; ROOM.role = r.role || '';
+    ws.onopen = function(){ ROOM.on = true; ROOM.tries = 0; SEAM.room = 'connected'; seamPaint();
+      clearInterval(ROOM.hb); ROOM.hb = setInterval(function(){ try { ws.send('{"t":"hb"}'); } catch(e){} }, 25000); };
+    ws.onmessage = function(e){ var m = null; try { m = JSON.parse(e.data); } catch(x){ return; } try { roomGot(m); } catch(x){} };
+    ws.onclose = function(){ ROOM.on = false; clearInterval(ROOM.hb); SEAM.room = 'reconnecting'; seamPaint(); if (ROOM.want) roomRetry(); };
+    ws.onerror = function(){};
+  }).catch(function(e){ SEAM.room = 'off (' + String((e && e.message) || e).slice(0, 60) + ')'; seamPaint(); roomRetry(); });
+}
+function roomRetry(){ clearTimeout(ROOM.t); ROOM.tries++; ROOM.t = setTimeout(roomConnect, Math.min(30000, 1500 * Math.pow(1.6, ROOM.tries))); }
+function roomClose(){ ROOM.want = false; clearTimeout(ROOM.t); clearInterval(ROOM.hb); if (ROOM.ws){ try { ROOM.ws.close(); } catch(e){} } ROOM.ws = null; ROOM.on = false; ROOM.sentToks = ''; ROOM.sentScene = ''; }
+/* the shape of the board, without positions (those travel one token at a time) */
+function roomTokSig(){ try { return JSON.stringify((S.tokens || []).map(function(t){ var c = Object.assign({}, t); delete c.x; delete c.y; delete c._gx; delete c._gy; return c; })); } catch(e){ return ''; } }
+function roomSceneBundle(){
+  var m = activeMap();
+  return { activeSceneId:(S.scene && S.scene.id) || '', background:(S.scene && S.scene.background) || null, mapUrl:(m && m.url) || S.remoteMapUrl || '',
+    map:{ w:S.map.w, h:S.map.h }, grid:Object.assign({}, S.grid), tokens:slimTokens(S.tokens) };
+}
+function roomSceneSig(b){ return [b.activeSceneId, b.background, b.mapUrl, b.map.w, b.map.h, b.grid.size, b.grid.offX, b.grid.offY, b.grid.show].join('|'); }
+/* the LoreMaster's table says what the board is: on each save, the scene when it changed, the
+   token list when its shape changed */
+function roomLmSync(force){
+  if (!ROOM.on || !isLM() || S.stream || !_mapStateLoaded) return;
+  var b = roomSceneBundle(), ss = roomSceneSig(b), ts = roomTokSig();
+  if (force || ss !== ROOM.sentScene){ if (roomSend({ t:'scene', b:b })){ ROOM.sentScene = ss; ROOM.sentToks = ts; } return; }
+  if (ts !== ROOM.sentToks){ if (roomSend({ t:'toks', list:slimTokens(S.tokens) })) ROOM.sentToks = ts; }
+}
+/* a token being dragged here is not moved by what arrives for it until it is dropped */
+var _roomDrag = {};
+function roomTokLive(t){
+  var now = Date.now(); _roomDrag[t.id] = now;
+  if (ROOM.live[t.id] && now - ROOM.live[t.id] < 70) return;
+  ROOM.live[t.id] = now; roomSend({ t:'tok', id:t.id, p:{ x:Math.round(t.x), y:Math.round(t.y) } });
+}
+function roomTokDrop(t){ delete _roomDrag[t.id]; roomSend({ t:'tok', id:t.id, p:{ x:Math.round(t.x), y:Math.round(t.y), rot:t.rot } }); }
+function roomTokApply(id, p){
+  if (_roomDrag[id] && Date.now() - _roomDrag[id] < 1500) return;
+  var t = (S.tokens || []).filter(function(x){ return x.id === id; })[0]; if (!t) return;
+  Object.keys(p || {}).forEach(function(k){ if (p[k] !== undefined) t[k] = p[k]; });
+  try { placeTokens(); } catch(e){ renderTokens(); }
+  if (isLM()) schedulePush();   /* the LoreMaster's table saves where a player put their Fell */
+}
+function roomTokensApply(list){
+  if (!Array.isArray(list)) return;
+  var mine = {}; (S.tokens || []).forEach(function(t){ if (_roomDrag[t.id] && Date.now() - _roomDrag[t.id] < 1500) mine[t.id] = t; });
+  S.tokens = list.map(function(t){ return mine[t.id] ? Object.assign({}, t, { x:mine[t.id].x, y:mine[t.id].y }) : Object.assign({}, t); });
+  _fvMemo = null; renderTokens(); try { fogPaint(); } catch(e){}
+}
+/* a scene arrives whole: its map picture is loaded first, then the scene, map, grid and tokens
+   are laid at once, so there is no moment of the new map under the old grid and tokens */
+function roomSceneApply(b){
+  if (!b || !b.activeSceneId) return;
+  ROOM.sceneAt = Date.now();
+  var lay = function(){
+    var hit = tsSceneById(b.activeSceneId);
+    if (hit && S.scene.id !== b.activeSceneId){ var shelf = S.scene.maps; S.scene = hit.scene; if (shelf && shelf.length) S.scene.maps = shelf; S.adventure.activeSceneId = b.activeSceneId; }
+    S.scene.background = b.background || null;
+    if (b.mapUrl) S.remoteMapUrl = b.mapUrl;
+    if (b.map && b.map.w) S.map = { w:b.map.w, h:b.map.h };
+    if (b.grid) S.grid = Object.assign({}, S.grid, b.grid);
+    if (Array.isArray(b.tokens)) S.tokens = b.tokens.map(function(t){ return Object.assign({}, t); });
+    _fvMemo = null;
+    try { render(); paintMapArt(); renderTokens(); drawGrid(); fogPaint(); wallPaint(); } catch(e){}
+  };
+  if (b.mapUrl){ var img = new Image(); var done = false; var go = function(){ if (!done){ done = true; lay(); } }; img.onload = go; img.onerror = go; setTimeout(go, 2500); img.src = b.mapUrl; }
+  else lay();
+}
+function roomGot(m){
+  if (m.t === 'init'){
+    SEAM.roomPeers = m.peers;
+    if (isLM() && !S.stream){ roomLmSync(true); return; }   /* the LoreMaster's table is the board */
+    if (m.scene) roomSceneApply(Object.assign({}, m.scene, { tokens:m.tokens || m.scene.tokens }));
+    else if (m.tokens) roomTokensApply(m.tokens);
+    return;
+  }
+  if (m.t === 'peers'){ SEAM.roomPeers = m.n; seamPaint(); return; }
+  if (m.t === 'tok') return roomTokApply(m.id, m.p);
+  if (m.t === 'toks') return roomTokensApply(m.list);
+  if (m.t === 'scene'){ if (!isLM() || S.stream) roomSceneApply(m.b); return; }
+  if (m.t === 'ping'){ try { if (!_pingSeen[m.k]) pingShow({ id:m.k, x:m.x, y:m.y, c:m.c, who:m.n, k:mapKey(), at:Date.now() }); _pingSeen[m.k] = 1; } catch(e){} return; }
+  if (m.t === 'deny' && m.back){ roomTokApply(m.id, { x:m.back.x, y:m.back.y }); return; }
+}
+setInterval(function(){ try { if (S.campaignId && tsEmbedded() && (!ROOM.ws || ROOM.cid !== S.campaignId) && !ROOM.t) roomConnect(); } catch(e){} }, 3000);
 
 /* ================= rests =================
    A rest comes from the LoreMaster, and only outside a fight: Call a rest opens it for the
