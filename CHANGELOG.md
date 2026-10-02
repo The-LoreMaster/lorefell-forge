@@ -1,3 +1,7 @@
+## 2026-09-28 - Several foes at once; more of a foe in the roster; beats added between beats
+
+Summon a foe's Add to this scene takes a count (the minus and plus beside it), adding that many, numbered on (Grimgrit 1, Grimgrit 2...). Each foe in the Story window's roster has a + that adds more of it, any number, each a copy at full Vitality numbered on from those already there (a library foe through the library, so its art and kit come with it). A scene's beats can be added at any place: an insert line (+ Beat here) sits above each beat and after the last, showing on hover (always, faintly, on a touch screen), and the new beat goes in exactly there.
+
 ## 2026-09-28 - Foes and NPCs belong to the adventure they are made in; a bigger foe editor; Epic shows two augmentations
 
 The foe editor's Adventure picker showed Any adventure for a foe that was tied to one (it compared the adventure's id with the adventures' names); it now shows the adventure. A foe or NPC opened in the editor while an adventure is open, and not yet tied to one, is tied to it, and NPCs gain the Adventure picker too. The foe and NPC editor is wider and taller (it scrolls as a whole rather than in a small box). Nate's ruling: an Epic Foe shows two augmentations, as a Forsaken does; the table's ratings, the foe pack's budget and the LoreVault's Building Crucibles table are updated to match.
