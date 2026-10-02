@@ -1,3 +1,7 @@
+## 2026-09-28 - Foe edits reach the library; a new build brings its attributes
+
+Read straight from the site's data, library foes were saving, but not every edit was reaching them: a foe edited in a scene's roster before the library had loaded could not find its library entry, so its acts, augmentations, afflictions and the rest were written to the scene but never to the library, and the library's older copy came back the next time it was opened. The library is now read before any foe is edited, a roster foe whose entry is still not in the list writes to it by its id, and an edit reaching the library carries mobility, reach, the tie-break and hand-set attributes too (and the library row keeps mobility and reach). A library save that does not land is tried again, then says so on screen instead of failing silently. Choosing a new build gives the foe that build's attributes. scripts/assetDoctor.js (doctor mode assets) lists the library foes as stored, with their kit.
+
 ## 2026-09-28 - One foe editor everywhere
 
 The Library's edit button and Forge a new foe, and Summon a foe's Edit, opened an older foe forge, not the editor the Story roster opens. They now open the same editor. The older forge also trimmed a foe's infusions and augmentations to its rating's slice every time it was opened or saved, which threw away the rest of its kit (one way augmentations went missing); it is no longer used for library foes. Forge a new foe makes a new library entry (tied to the open adventure) and opens it in the editor.
