@@ -1,3 +1,7 @@
+## 2026-09-28 - Foes and NPCs belong to the adventure they are made in; a bigger foe editor; Epic shows two augmentations
+
+The foe editor's Adventure picker showed Any adventure for a foe that was tied to one (it compared the adventure's id with the adventures' names); it now shows the adventure. A foe or NPC opened in the editor while an adventure is open, and not yet tied to one, is tied to it, and NPCs gain the Adventure picker too. The foe and NPC editor is wider and taller (it scrolls as a whole rather than in a small box). Nate's ruling: an Epic Foe shows two augmentations, as a Forsaken does; the table's ratings, the foe pack's budget and the LoreVault's Building Crucibles table are updated to match.
+
 ## 2026-09-28 - Summon a foe builds the full kit; adding it closes the summoner
 
 Summon a foe now builds a Foe's full kit, as the LoreVault's Building Crucibles has it (every Foe is built to its Forsaken kit and its Shatter Rating reveals a slice): three infusions, two augmentations and an act at each tier. The card shows the whole kit, with what the chosen rating hides greyed and marked with the rating that reveals it (an Epic shows one augmentation and the second marked Forsaken); raising the rating, or escalating it in play, brings the rest out. Add to this scene now closes the summoner once the foe is in the roster.

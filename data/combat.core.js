@@ -12,7 +12,7 @@
     Minion:   { offset:-2, share:0.5, lore:1, inf:0, aug:0 },
     Elite:    { offset:0,  share:1.0, lore:2, inf:1, aug:0 },
     Champion: { offset:1,  share:1.5, lore:3, inf:2, aug:1 },
-    Epic:     { offset:2,  share:2.0, lore:4, inf:3, aug:1 },
+    Epic:     { offset:2,  share:2.0, lore:4, inf:3, aug:2 },
     Forsaken: { offset:3,  share:2.5, lore:5, inf:3, aug:2 }
   };
   // Only these six infusions change the numbers; the rest are combat effects.
