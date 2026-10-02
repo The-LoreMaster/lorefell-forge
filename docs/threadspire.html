@@ -4571,11 +4571,25 @@ function forgeAllActs(){
   window._faAllBusy = true; window._faAllErr = ''; sheetActs();
   var sys = summonSystemBuild(FORGE.pack || {}, { inf:0, aug:0, acts:3 }).replace(/You build one foe[\s\S]*?Choose ONLY/, 'You build the three Acts of one ' + fam + ' Foe in LoreFell, a dark fantasy tabletop game, by the SigilForge rules: one at Tier 1, one at Tier 2, one at Tier 3. Voice: dark, grounded, specific. No em dashes. Choose ONLY')
     + '\nThis Foe is ' + fam + ': take afflictions only from the ' + fam + ' list. Answer with JSON only: {"acts":[{"name":"evocative name","tier":1,"damage":"a damage package","target":"a target inlay","effect":"one combat effect or one ' + fam + ' affliction","flavor":"one sentence of how it looks"},{...tier 2},{...tier 3}]}';
-  aiCall(sys, 'The foe: ' + (f.name || '') + '. ' + desc + (f.build ? ' Build: ' + f.build + '.' : ''), 900).then(function(text){
-    var m = String(text).match(/\{[\s\S]*\}/), j = null; try { j = JSON.parse(m ? m[0] : text); } catch(e){}
-    var acts = ((j && j.acts) || []).map(function(a){ var want = parseInt(a.tier, 10) || 0; a = sigilFit(a, fam, want); var r = sigilAct(Object.assign({}, a, { tier:0 }), fam);
-      return r.errs.length ? null : { name:String(a.name || 'Act').slice(0, 60), tier:r.tier, text:r.text + (a.flavor ? ' ' + String(a.flavor).slice(0, 300) : ''), sigil:r.build }; }).filter(Boolean);
-    var byTier = {}; acts.forEach(function(a){ if (!byTier[a.tier]) byTier[a.tier] = a; });
+  var ask = 'The foe: ' + (f.name || '') + '. ' + desc + (f.build ? ' Build: ' + f.build + '.' : '');
+  var byTier = {};
+  var round = function(prompt, n){
+    return aiCall(sys, prompt, 900).then(function(text){
+      var m = String(text).match(/\{[\s\S]*\}/), j = null; try { j = JSON.parse(m ? m[0] : text); } catch(e){}
+      var faults = [];
+      ((j && j.acts) || []).forEach(function(a){
+        var want = parseInt(a.tier, 10) || 0; var fit = sigilFit(a, fam, want); var r = sigilAct(Object.assign({}, fit, { tier:0 }), fam);
+        if (r.errs.length){ faults.push((a.name || 'An act') + ' (Tier ' + want + '): ' + r.errs.join('; ')); return; }
+        if (want && r.tier !== want){ faults.push((a.name || 'An act') + ' costs ' + r.cost + ', which is Tier ' + r.tier + ', not Tier ' + want); }
+        if (!byTier[r.tier]) byTier[r.tier] = { name:String(fit.name || 'Act').slice(0, 60), tier:r.tier, text:r.text + (fit.flavor ? ' ' + String(fit.flavor).slice(0, 300) : ''), sigil:r.build };
+      });
+      var missing = [1, 2, 3].filter(function(k){ return !byTier[k]; });
+      if (!missing.length || n >= 2) return;
+      return round(ask + '\n\nStill needed: an act at Tier ' + missing.join(' and Tier ') + '. ' + (faults.length ? 'Your last answer broke the SigilForge rules: ' + faults.join(' | ') + '. ' : '')
+        + 'Use only the exact component names given, an effect\'s type must suit the damage, and the costs must land in each tier\'s budget. Answer with only the acts still needed.', n + 1);
+    });
+  };
+  round(ask, 0).then(function(){
     var list = [1, 2, 3].map(function(k){ return byTier[k]; }).filter(Boolean);
     if (!list.length) throw new Error('nothing that stands by the rules came back');
     var go = function(i){
@@ -17381,6 +17395,17 @@ function sigilBy(name){ var n = String(name || '').replace(/\*$/, '').toLowerCas
 /* bring an act into the budget of the tier it was meant for: fewer targets or a lighter damage
    package when it costs too much, more targets when too little; the effect is kept */
 function sigilFit(a, family, want){
+  /* first mend a damage package that cannot carry the effect (the commonest miss): an attack
+     effect or a physical affliction needs damage, a support effect needs none */
+  var eff = sigilBy(a.effect);
+  if (eff){
+    var hurts = a.damage && a.damage !== 'No Damage';
+    if (eff.category === 'Effect' && eff.type === 'attack' && !hurts) a = Object.assign({}, a, { damage:'Standard Damage' });
+    if (eff.category === 'Effect' && eff.type === 'support' && hurts) a = Object.assign({}, a, { damage:'No Damage' });
+    if (eff.category === 'Affliction*' && eff.family !== 'Magic' && !hurts) a = Object.assign({}, a, { damage:'Standard Damage' });
+  }
+  if (!sigilBy(a.target)) a = Object.assign({}, a, { target:'One Target' });
+  if (!sigilBy(a.damage)) a = Object.assign({}, a, { damage:'Standard Damage' });
   var r = sigilAct(Object.assign({}, a, { tier:0 }), family); if (r.errs.length || !want || r.tier === want) return a;
   var band = SIGIL_TIER_BUDGETS[want]; if (!band) return a;
   var T = ['One Target', 'Two Targets', 'Three Targets', 'All Targets'], D = ['Standard Damage', 'Double Base', 'Double Standard'];

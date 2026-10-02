@@ -1,3 +1,7 @@
+## 2026-09-28 - Forge all three acts fills every tier
+
+Forge all three acts could come back with one act of three. An act that does not stand by the SigilForge rules is now mended where the fault is plain (a damage package that cannot carry its effect: an attack effect or a physical affliction is given damage, a support effect none; a target or damage name the forge does not know falls back to the plainest one), then fitted to its tier; and the tiers still empty are asked for again, with the faults of the last answer, up to twice. Summon a foe's acts are mended the same way.
+
 ## 2026-09-28 - Forge all three acts from the foe; remove a foe from the roster, or from the library too
 
 A foe's Acts editor gains Forge all three acts: from the foe's name, description and build, the forge builds its three Acts by the SigilForge rules, one at each tier (each brought into its tier's budget, afflictions only from the foe's own family), forges them into the LoreMaster's library as yours and sets them on the foe; any that will not stand by the rules are named so they can be forged by hand. Each foe and NPC in the Story window's roster has a remove (the cross): Remove from the scene, or, for one of your own library entries, Remove and delete from the library (every copy of it in the scene goes, then the library entry).
