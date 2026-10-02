@@ -2458,6 +2458,7 @@ body.stream:not(.stream-frame) #rail, body.stream:not(.stream-frame) #hud, body.
 .fe-attrs label > span{ font-family:Cinzel,serif; font-size:.6rem; letter-spacing:.1em; text-transform:uppercase; color:#a88a3e; }
 .fe-attr-foot{ display:flex; align-items:center; gap:10px; margin-top:10px; } .fe-attr-foot .fe-def{ flex:1; margin:0; }
 @media (max-width:640px){ .fe-attrs{ grid-template-columns:repeat(2, minmax(0,1fr)); } }
+.pt-toast.bad{ border-color:#b04050; } .pt-toast.bad .pt-tag{ background:#b04050; color:#fff; }
 </style>
 </head>
 <body>
@@ -3670,6 +3671,7 @@ function rowToAsset(r){
     var fm = jp(pick('foeMeta'), {});
     e.sig = pick('signatureAffliction','sig') || fm.sig || '';
     if (fm.attrsHand) e.attrsHand = true;
+    if (fm.mobility != null) e.mobility = fm.mobility; if (fm.range != null) e.range = fm.range; if (fm.atkPref) e.atkPref = fm.atkPref;
     e.source = pick('source') || fm.source || '';
     e.build = fm.build || pick('build') || '';
     e.stance = fm.stance || pick('stance') || '';
@@ -5086,7 +5088,7 @@ function assetToRow(e){
     attrs: JSON.stringify(e.attrs || {}), inventory: JSON.stringify(e.inv || []),
     abilities: JSON.stringify(e.abilities || []), foeWeight: e.foeWeight || 0,
     foeMeta: JSON.stringify({ build:e.build||'', stance:e.stance||'', sig:e.sig||'', source:e.source||'', attrsHand:!!e.attrsHand,
-      augments:e.augments||[], infusions:e.infusions||[], atkPref:e.atkPref||'',
+      augments:e.augments||[], infusions:e.infusions||[], atkPref:e.atkPref||'', mobility:e.mobility, range:e.range,
       campaignId:e.campaignId||'', campaignName:e.campaignName||'' })
   };
 }
@@ -5094,6 +5096,10 @@ function assetToRow(e){
    roster. Same fields, same editing. Live vitality and charges are not here,
    they belong to the foe card in battle. */
 function entrySheet(src, sceneId, kind, id){
+  /* the library is read first: a roster foe edited before it had loaded could not find its
+     library entry, so its edits never reached the library and the library's older copy came
+     back, which is how acts, augmentations and afflictions kept being forgotten */
+  if (!S.libLoaded){ tsModal('<h3 class="tsm-title">Opening\u2026</h3>'); libLoad().then(function(){ entrySheet(src, sceneId, kind, id); }); return; }
   var t = sheetTarget(src, sceneId, kind, id);
   if (!t) return;
   if (!FORGE.loaded){
@@ -5277,12 +5283,28 @@ function sheetSave(){
   storySave(); render();
   if (s.src === 'roster') sheetBack(); else { tsCloseModal(); refreshWinBody(); }
 }
+/* a foe's library row is saved, and a save that does not land says so and is tried again,
+   rather than failing silently as it did */
+function libSave(e){
+  if (!assetBackend || !assetBackend.save || !e) return Promise.resolve(false);
+  var row = assetToRow(e), tries = 0;
+  var go = function(){
+    return assetBackend.save(row).then(function(r){ if (r && r.ok === false) throw new Error(r.error || 'the site said no'); return true; })
+      .catch(function(err){ if (++tries < 3) return new Promise(function(res){ setTimeout(res, 2000 * tries); }).then(go);
+        playToast('<b>' + esc(e.name || 'A foe') + '</b> did not save to your library (' + esc(String((err && err.message) || err || 'error').slice(0, 60)) + '). Your changes are still here; save again.', 'Not saved', 'bad'); return false; });
+  };
+  return go();
+}
 /* push the figure back to the library and out to every scene that holds it */
 function sheetSync(t){
   if (!t) return;
   if (window._sheet && window._sheet.src === 'lib'){
-    if (assetBackend && assetBackend.save) assetBackend.save(assetToRow(t.obj)).catch(function(){});
+    libSave(t.obj);
     libPropagate(t.obj.id, t.obj);
+  } else if (!t.lib && t.obj && t.obj.libId && (t.obj.type === 'monster' || (window._sheet || {}).kind === 'foe')){
+    /* a roster foe whose library entry is not in this list still writes to it, by its id */
+    var nl = JSON.parse(JSON.stringify(t.obj)); nl.id = t.obj.libId; nl.type = 'monster'; nl.name = String(nl.name || '').replace(/\s+\d+$/, '');
+    delete nl.libId; delete nl.curVit; delete nl.charge; S.library = (S.library || []).concat([nl]); libSave(nl);
   } else if (t.lib){
     var e = t.lib, c = t.obj;
     e.name = c.name; e.desc = c.desc || ''; e.img = c.img || ''; e.sr = c.sr || '';
@@ -5291,8 +5313,10 @@ function sheetSync(t){
     e.abilities = JSON.parse(JSON.stringify(c.abilities || []));
     e.inv = (c.inv || []).slice(); e.infusions = (c.infusions || []).slice();
     e.augments = (c.augments || []).slice(); e.sig = c.sig || '';
-    e.build = c.build || ''; e.stance = c.stance || '';
-    if (assetBackend && assetBackend.save) assetBackend.save(assetToRow(e)).catch(function(){});
+    e.build = c.build || ''; e.stance = c.stance || ''; e.mobility = c.mobility; e.range = c.range; e.atkPref = c.atkPref || '';
+    if (c.attrsHand) e.attrsHand = true; else delete e.attrsHand;
+    e.name = String(c.name || '').replace(/\s+\d+$/, '') || e.name;
+    libSave(e);
     libPropagate(e.id, e);
   }
 }
@@ -5313,6 +5337,7 @@ function libPropagate(libId, e){
             x.inv = (e.inv || []).slice(); x.infusions = (e.infusions || []).slice();
             x.augments = (e.augments || []).slice(); x.sig = e.sig || '';
             x.build = e.build || ''; x.stance = e.stance || ''; if (e.attrsHand) x.attrsHand = true; else delete x.attrsHand;
+            if (e.mobility != null) x.mobility = e.mobility; if (e.range != null) x.range = e.range; if (e.atkPref) x.atkPref = e.atkPref;
             if (x.curVit > x.maxVit) x.curVit = x.maxVit;
           });
         });
@@ -18472,17 +18497,23 @@ function entrySheetFoe(e, src, lib, img){
 function feKeep(){ var t = curSheet(); if (!t) return; var e = t.obj, g = function(id){ var el = document.getElementById(id); return el ? el.value : undefined; };
   if (g('rsName') !== undefined && g('rsName').trim()) e.name = g('rsName').trim(); if (g('rsDesc') !== undefined) e.desc = g('rsDesc');
   if (g('rsMob') !== undefined) e.mobility = Math.max(1, parseInt(g('rsMob'), 10) || 5); if (g('rsRange') !== undefined) e.range = Math.max(1, parseInt(g('rsRange'), 10) || 1);
+  if (window._feSkipAttrs){ window._feSkipAttrs = false; return; }
   if (g('rsA_' + ATTR_LIST[0]) !== undefined){ var nv = {}; ATTR_LIST.forEach(function(a){ nv[a] = parseInt(g('rsA_' + a), 10) || 0; }); feAttrsTake(e, nv); } }
 function feAttrsTake(e, nv){
   var was = e.attrs || deriveKit(e, e.sr || 'Elite').attrs, changed = ATTR_LIST.some(function(a){ return (was[a] || 0) !== (nv[a] || 0); });
   e.attrs = nv; if (changed) e.attrsHand = true;
 }
 /* attributes set by hand are kept; this gives them back to the build and rating */
-function feAttrsFromBuild(){ feKeep(); var t = curSheet(); if (!t) return; delete t.obj.attrsHand; var k = deriveKit(t.obj, t.obj.sr || 'Elite'); t.obj.attrs = k.attrs; sheetLiveSave(); sheetReopen(); }
-function sheetSetBuildKeep(v){ feKeep(); sheetSetField('build', v); }
+function feAttrsFromBuild(){ feKeep(); var t = curSheet(); if (!t) return; delete t.obj.attrsHand; var k = deriveKit(t.obj, t.obj.sr || 'Elite'); t.obj.attrs = k.attrs; window._feSkipAttrs = true; sheetLiveSave(); sheetReopen(); }
+function sheetSetBuildKeep(v){
+  feKeep(); var t = curSheet(); if (!t) return;
+  t.obj.build = v || ''; delete t.obj.attrsHand;
+  var k = deriveKit(t.obj, t.obj.sr || 'Elite'); t.obj.attrs = k.attrs;   /* a new build brings its own attributes */
+  window._feSkipAttrs = true; sheetLiveSave(); sheetReopen();
+}
 function sheetSetStanceKeep(v){ feKeep(); sheetSetField('stance', v); }
 function sheetSetSigKeep(v){ feKeep(); sheetSetField('sig', v); }
-function sheetSetSRKeep(v){ feKeep(); var t = curSheet(); if (!t) return; t.obj.sr = v; var k = deriveKit(t.obj, v); if (!t.obj.attrsHand) t.obj.attrs = k.attrs; t.obj.maxVit = k.maxVit; sheetLiveSave(); sheetReopen(); }
+function sheetSetSRKeep(v){ feKeep(); var t = curSheet(); if (!t) return; t.obj.sr = v; var k = deriveKit(t.obj, v); if (!t.obj.attrsHand){ t.obj.attrs = k.attrs; window._feSkipAttrs = true; } t.obj.maxVit = k.maxVit; sheetLiveSave(); sheetReopen(); }
 
 /* ================= rests =================
    A rest comes from the LoreMaster, and only outside a fight: Call a rest opens it for the
