@@ -133,3 +133,14 @@ export const detachOwnCharacter = webMethod(Permissions.Anyone, async (charId) =
     return { ok: true };
   } catch (e) { return { ok: false, error: String(e) }; }
 });
+
+// The adventures the signed-in member has joined through an invite, newest first. The table uses
+// it to bring a Fell with no adventure to the one its player joined.
+export const myJoinedAdventures = webMethod(Permissions.Anyone, async () => {
+  const mid = await memberId();
+  if (!mid) return [];
+  try {
+    const r = await wixData.query('AdventureMembers').eq('memberId', mid).descending('_createdDate').limit(50).find({ suppressAuth: true });
+    return r.items.filter((it) => (it.status || 'active') === 'active').map((it) => ({ campaignId: it.campaignId }));
+  } catch (e) { return []; }
+});

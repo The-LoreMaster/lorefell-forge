@@ -1,3 +1,7 @@
+## 2026-09-28 - A player who joins comes to the adventure
+
+A player who joined through an invite could land on an empty lobby map with their Fell instead of the adventure, and stay there. The join page sent a player forging a new Fell to /fellforge, which is not the site's FellForge page (/the-fellforge), so the new Fell was forged without the adventure; and nothing afterwards brought a Fell with no adventure to the one its player had joined. The join page now forges at the right address, and when a player opens the table with a Fell that has no adventure but they have joined one through an invite, the Fell is attached to the adventure they joined most recently and the table opens on it. Paste velo/backend/invites.web.js, velo/page-threadspire.js and velo/page-join.js.
+
 ## 2026-09-28 - The Hearth's ThreadSpire opens the LoreMaster's table
 
 The Hearth's ThreadSpire button opened the table as a player with no Fell, so a LoreMaster was offered a Fell to choose, which leads to FellGlass. It now opens the table as the LoreMaster (role=lm): someone who runs adventures arrives at the LoreMaster's table and chooses an adventure; anyone else is still a player and chooses their Fell. Paste velo/page-threadspire.js.
