@@ -2419,6 +2419,8 @@ body.stream:not(.stream-frame) #rail, body.stream:not(.stream-frame) #hud, body.
 .fa-out{ margin:8px 0; padding:8px 10px; border:1px solid #26324c; border-radius:9px; background:rgba(14,19,36,.7); }
 .fa-v{ font-family:Cinzel,serif; font-size:.68rem; letter-spacing:.05em; color:#93a3b6; } .fa-v.ok{ color:#8fd694; } .fa-v.warn{ color:#e8cf86; } .fa-v.bad{ color:#e3a193; font-family:'Crimson Pro',Georgia,serif; font-size:.9rem; letter-spacing:0; }
 .fa-rule{ margin:4px 0 0; color:#dce8ef; }
+.sw-rm:hover{ border-color:#e3a193 !important; color:#e3a193 !important; }
+#tsModal .tsm-btn.danger{ border-color:#b04050; color:#ffd7cf; background:rgba(110,30,40,.5); }
 </style>
 </head>
 <body>
@@ -4381,6 +4383,25 @@ function rosterAdd(sceneId, kind){
     advMarkScene(sceneId); storySave(); rosterRefresh(); render();
   }});
 }
+function rosterRemoveAsk(sceneId, kind, id){
+  var f = storyFind('scene', sceneId); if (!f) return;
+  var c = (f.scene[kind === 'npc' ? 'npcs' : 'foes'] || []).concat(f.scene.combatants || []).filter(function(x){ return sameId(x.id, id) || sameId(tsFoeId(x, 0), id); })[0]; if (!c) return;
+  var e = c.libId ? libGet(c.libId) : null, mine = e && (e.source === 'mine' || !e.source || e.origin === 'summoned');
+  window._rmCtx = { sceneId:sceneId, kind:kind, id:id, libId:c.libId || '' };
+  tsModal('<h3 class="tsm-title">Remove ' + esc(c.name || 'this') + '?</h3>'
+    + '<p class="tsm-note">From this scene\u2019s roster' + (e ? ', or from your library as well, so it leaves every shelf' : '') + '.</p>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button>'
+    + '<button class="tsm-btn" onclick="tsCloseModal();rosterRemove(window._rmCtx.sceneId,window._rmCtx.kind,window._rmCtx.id)">Remove from the scene</button>'
+    + (e && mine ? '<button class="tsm-btn danger" onclick="rosterRemoveAndDelete()">Remove and delete from the library</button>' : '') + '</div>');
+}
+function rosterRemoveAndDelete(){
+  var m = window._rmCtx; if (!m) return; tsCloseModal();
+  /* every copy of it in this scene goes, then the library entry */
+  var f = storyFind('scene', m.sceneId);
+  if (f && m.libId){ (f.scene.foes || []).concat(f.scene.npcs || [], f.scene.combatants || []).filter(function(x){ return sameId(x.libId, m.libId); }).forEach(function(x){ rosterRemove(m.sceneId, m.kind, x.id); }); }
+  else rosterRemove(m.sceneId, m.kind, m.id);
+  if (m.libId) tsAsk('TS_ASSET_DELETE', { assetId:m.libId }).then(function(){ S.library = (S.library || []).filter(function(x){ return !sameId(x.id, m.libId); }); refreshWinBody(); }).catch(function(){});
+}
 function rosterRemove(sceneId, kind, id){
   var f = storyFind('scene', sceneId); if (!f){ rosterRefresh(); return; }
   var key = kind === 'npc' ? 'npcs' : 'foes';
@@ -4536,8 +4557,41 @@ function sheetActs(){
     if (cur) h += '<p class="tsm-note">' + esc(cur.effect || cur.desc || 'No text on this Act.') + '</p>';
     else if (!pool.length) h += '<p class="tsm-note">No tier ' + tier + ' Acts forged yet. SigilForge fills this shelf.</p>';
   });
-  h += '</div><div class="tsm-row"><button class="tsm-btn ghost" onclick="sheetReopen()">Back to the foe</button></div>';
+  h += '</div>' + (window._faAllErr ? '<p class="sm-err">' + esc(window._faAllErr) + '</p>' : '')
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="sheetReopen()">Back to the foe</button><button class="tsm-btn" onclick="forgeAllActs()"' + (window._faAllBusy ? ' disabled' : '') + '>' + (window._faAllBusy ? 'Forging\u2026' : 'Forge all three acts') + '</button></div>';
   tsModal(h);
+}
+/* all three of a foe's acts at once, from its name and description, by the SigilForge rules:
+   one at each tier, fitted to its tier, forged into the LoreMaster's library (yours) and set
+   on the foe */
+function forgeAllActs(){
+  var t = curSheet(); if (!t) return; var f = t.obj, fam = foeFamilyOf(f);
+  var desc = String(f.desc || f.description || '').trim();
+  if (!desc && !f.name){ window._faAllErr = 'Give the foe a name or a description first.'; sheetActs(); return; }
+  window._faAllBusy = true; window._faAllErr = ''; sheetActs();
+  var sys = summonSystemBuild(FORGE.pack || {}, { inf:0, aug:0, acts:3 }).replace(/You build one foe[\s\S]*?Choose ONLY/, 'You build the three Acts of one ' + fam + ' Foe in LoreFell, a dark fantasy tabletop game, by the SigilForge rules: one at Tier 1, one at Tier 2, one at Tier 3. Voice: dark, grounded, specific. No em dashes. Choose ONLY')
+    + '\nThis Foe is ' + fam + ': take afflictions only from the ' + fam + ' list. Answer with JSON only: {"acts":[{"name":"evocative name","tier":1,"damage":"a damage package","target":"a target inlay","effect":"one combat effect or one ' + fam + ' affliction","flavor":"one sentence of how it looks"},{...tier 2},{...tier 3}]}';
+  aiCall(sys, 'The foe: ' + (f.name || '') + '. ' + desc + (f.build ? ' Build: ' + f.build + '.' : ''), 900).then(function(text){
+    var m = String(text).match(/\{[\s\S]*\}/), j = null; try { j = JSON.parse(m ? m[0] : text); } catch(e){}
+    var acts = ((j && j.acts) || []).map(function(a){ var want = parseInt(a.tier, 10) || 0; a = sigilFit(a, fam, want); var r = sigilAct(Object.assign({}, a, { tier:0 }), fam);
+      return r.errs.length ? null : { name:String(a.name || 'Act').slice(0, 60), tier:r.tier, text:r.text + (a.flavor ? ' ' + String(a.flavor).slice(0, 300) : ''), sigil:r.build }; }).filter(Boolean);
+    var byTier = {}; acts.forEach(function(a){ if (!byTier[a.tier]) byTier[a.tier] = a; });
+    var list = [1, 2, 3].map(function(k){ return byTier[k]; }).filter(Boolean);
+    if (!list.length) throw new Error('nothing that stands by the rules came back');
+    var go = function(i){
+      if (i >= list.length){ window._faAllBusy = false; window._faAllErr = list.length < 3 ? 'Only ' + list.length + ' of three stood by the rules; forge the rest by hand or try again.' : ''; sheetLiveSave(); sheetActs(); return; }
+      var a = list[i];
+      tsAsk('TS_FORGE_ACT', { act:{ name:a.name, title:a.name, tier:a.tier, effect:a.text, use:'Act', source:'mine' } }).then(function(rows){
+        if (rows && rows.length) FORGE.acts = rows.map(normAct).filter(function(x){ return x.name; });
+      }).catch(function(){}).then(function(){
+        var made = (FORGE.acts || []).filter(function(x){ return x.name === a.name && (Number(x.tier) || 1) === a.tier; })[0];
+        f.abilities = (f.abilities || []).filter(function(x){ return (Number(x.tier) || 1) !== a.tier; });
+        f.abilities.push({ id:made ? made.id : mkId(), name:a.name, tier:a.tier, use:'Act', desc:a.text, effect:a.text, source:'mine', sigil:a.sigil });
+        go(i + 1);
+      });
+    };
+    go(0);
+  }).catch(function(e){ window._faAllBusy = false; window._faAllErr = 'The forge could not build them (' + ((e && e.message) || 'error') + ').'; sheetActs(); });
 }
 function sheetPickAct(tier, id){
   var t = curSheet(); if (!t) return;
@@ -17159,6 +17213,7 @@ function swSide(sc){
   cast.forEach(function(c){
     var art = c.img || (c.lib && c.lib.img) || '';
     h += '<div class="sw-castline"><button class="sw-castrow" onclick="entrySheet(\'roster\',\'' + sc.id + '\',\'' + c.kind + '\',\'' + String(c.id).replace(/'/g, "\\'") + '\')">' + (art ? '<img src="' + esc(art) + '" alt="">' : '<span class="sw-cast-ph">' + esc(initials(c.name)) + '</span>') + '<span>' + esc(c.name) + '</span></button>'
+      + '<button class="sw-more sw-rm" onclick="rosterRemoveAsk(\'' + sc.id + '\',\'' + c.kind + '\',\'' + String(c.id).replace(/'/g, "\\'") + '\')" title="Remove" aria-label="Remove">\u00d7</button>'
       + (c.kind === 'foe' ? '<button class="sw-more" onclick="rosterMore(\'' + sc.id + '\',\'' + String(c.id).replace(/'/g, "\\'") + '\')" title="Add more of this foe" aria-label="Add more of this foe">+</button>' : '') + '</div>';
   });
   h += '</div><div class="sw-row-btns"><button class="tsm-btn ghost" onclick="rosterAddFromLib(\'' + sc.id + '\')">+ Library</button><button class="tsm-btn ghost" onclick="summonOpen(\'' + sc.id + '\')">Summon foe</button><button class="tsm-btn ghost" onclick="rosterWindow(\'' + sc.id + '\')">Roster\u2026</button></div>';
