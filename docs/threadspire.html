@@ -3718,6 +3718,7 @@ function libLoad(force){
     var keep = (rows || []).filter(function(a){ return !a || !a.kind || (a.kind !== 'map' && a.kind !== 'token'); });
     S.library = keep.map(rowToAsset).filter(function(a){ return a.name; });
     S.libLoaded = true;
+    try { libHydrateStory(); } catch(e){}
     return S.library;
   }).catch(function(){ S.libLoaded = true; return []; });
 }
@@ -5218,7 +5219,8 @@ function sheetTarget(src, sceneId, kind, id){
   if (src === 'lib'){ var e = libGet(id); return e ? { obj:e, lib:null } : null; }
   var f = storyFind('scene', sceneId); if (!f) return null;
   var key = kind === 'npc' ? 'npcs' : 'foes';
-  var c = (f.scene[key] || []).filter(function(x){ return sameId(x.id, id); })[0];
+  /* a scene not on the table holds only its stored roster */
+  var c = (f.scene[key] || []).concat(f.scene.combatants || []).filter(function(x){ return sameId(x.id, id); })[0];
   if (!c) return null;
   return { obj:c, lib: c.libId ? libGet(c.libId) : null };
 }
@@ -5320,18 +5322,25 @@ function sheetSync(t){
     libPropagate(e.id, e);
   }
 }
+/* The library is the one record of a library foe's kit. Every copy of it in every scene (the
+   board lists and the stored roster, combatants, which is what a scene saves) takes the
+   library's kit; a copy keeps only what is its own: its id, its number, its wounds and its
+   place in a fight. It reached only the board lists, which a scene not on the table does not
+   have, so stored copies kept older acts and kits and came back on a reload. Scenes are
+   marked for saving only when a copy actually changed. */
+var LIB_KIT = ['desc','img','sr','role','attrs','abilities','inv','infusions','augments','sig','build','stance','mobility','range','atkPref'];
 function libPropagate(libId, e){
   ((S.adventure && S.adventure.acts) || []).forEach(function(a){
     (a.sessions || []).forEach(function(se){
       (se.scenes || []).forEach(function(sc){
-        ['foes','npcs'].forEach(function(k){
+        var seen = [], changed = false;
+        ['foes','npcs','combatants'].forEach(function(k){
           (sc[k] || []).forEach(function(x){
-            if (!sameId(x.libId, libId)) return;
-            /* the scene holding it is saved too, and a numbered copy keeps its number */
-            advMarkScene(sc.id);
+            if (!x || !sameId(x.libId, libId) || seen.indexOf(x) >= 0) return; seen.push(x);
+            var before = JSON.stringify(LIB_KIT.map(function(f){ return x[f]; })) + '|' + x.name + '|' + !!x.attrsHand + '|' + x.maxVit;
             var _num = String(x.name || '').match(/\s(\d+)$/);
             x.name = e.name + (_num ? ' ' + _num[1] : ''); x.desc = e.desc || ''; x.img = e.img || ''; x.sr = e.sr || '';
-            x.maxVit = e.maxVit || 0; x.role = e.role || '';
+            x.maxVit = e.maxVit || x.maxVit || 0; x.role = e.role || '';
             x.attrs = JSON.parse(JSON.stringify(e.attrs || blankAttrs()));
             x.abilities = JSON.parse(JSON.stringify(e.abilities || []));
             x.inv = (e.inv || []).slice(); x.infusions = (e.infusions || []).slice();
@@ -5339,11 +5348,20 @@ function libPropagate(libId, e){
             x.build = e.build || ''; x.stance = e.stance || ''; if (e.attrsHand) x.attrsHand = true; else delete x.attrsHand;
             if (e.mobility != null) x.mobility = e.mobility; if (e.range != null) x.range = e.range; if (e.atkPref) x.atkPref = e.atkPref;
             if (x.curVit > x.maxVit) x.curVit = x.maxVit;
+            var after = JSON.stringify(LIB_KIT.map(function(f){ return x[f]; })) + '|' + x.name + '|' + !!x.attrsHand + '|' + x.maxVit;
+            if (after !== before) changed = true;
           });
         });
+        if (changed) advMarkScene(sc.id);
       });
     });
   });
+}
+/* once the library is read, every library foe's copies in the story take its kit */
+function libHydrateStory(){
+  if (!isLM() || !S.adventure) return;
+  (S.library || []).forEach(function(e){ if (e && (e.type === 'monster' || e.type === 'npc')) libPropagate(e.id, e); });
+  try { if (Object.keys(_advDirty).length) storySave(); } catch(x){}
 }
 function questWindow(sceneId){
   var f = storyFind('scene', sceneId); if (!f) return;
