@@ -2459,6 +2459,13 @@ body.stream:not(.stream-frame) #rail, body.stream:not(.stream-frame) #hud, body.
 .fe-attr-foot{ display:flex; align-items:center; gap:10px; margin-top:10px; } .fe-attr-foot .fe-def{ flex:1; margin:0; }
 @media (max-width:640px){ .fe-attrs{ grid-template-columns:repeat(2, minmax(0,1fr)); } }
 .pt-toast.bad{ border-color:#b04050; } .pt-toast.bad .pt-tag{ background:#b04050; color:#fff; }
+
+#saveMark{ position:fixed; left:78px; bottom:calc(16px + env(safe-area-inset-bottom, 0px)); z-index:150; pointer-events:none; }
+.svm{ display:inline-flex; align-items:center; gap:7px; padding:5px 11px; border:1px solid #2c3a58; border-radius:20px; background:rgba(10,14,28,.88); font-family:'Crimson Pro',Georgia,serif; font-size:.88rem; color:#b8c4d0; }
+.svm i{ width:8px; height:8px; border-radius:50%; background:#8fd694; } .svm.saving i{ background:#e8cf86; animation:svmPulse 1s ease-in-out infinite; } .svm.bad{ border-color:#b04050; color:#ffd7cf; } .svm.bad i{ background:#e05a4f; }
+@keyframes svmPulse{ 50%{ opacity:.3; } } @media (prefers-reduced-motion: reduce){ .svm.saving i{ animation:none; } }
+.fe-savemark{ margin-right:auto; display:flex; align-items:center; }
+body.clean #saveMark, body.stream #saveMark{ display:none; }
 </style>
 </head>
 <body>
@@ -8886,8 +8893,8 @@ function pushState(){
     stateBackend.push(snap).then(function(r){
       _pushesOut = Math.max(0, _pushesOut - 1);
       SEAM.pushAt = Date.now();
-      if (r && r.version){ _stateSeen = Math.max(_stateSeen, r.version); SEAM.pushV = r.version; SEAM.pushOk = true; SEAM.pushWhy = ''; _pushFailingSince = 0; pushAdventure(); nudgePull(); }
-      else { SEAM.pushOk = false; SEAM.pushWhy = (r && r.error) || 'the site said no'; pushRetry(); seamWarn(); }
+      if (r && r.version){ _stateSeen = Math.max(_stateSeen, r.version); SEAM.pushV = r.version; SEAM.pushOk = true; SEAM.pushWhy = ''; _pushFailingSince = 0; if (SAVEMARK.failed === 'the table') SAVEMARK.failed = ''; SAVEMARK.at = Date.now(); pushAdventure(); nudgePull(); }
+      else { SEAM.pushOk = false; SEAM.pushWhy = (r && r.error) || 'the site said no'; SAVEMARK.failed = 'the table'; pushRetry(); seamWarn(); }
       seamPaint();
     }).catch(function(e){
       _pushesOut = Math.max(0, _pushesOut - 1);
@@ -10331,6 +10338,13 @@ function nudgePull(){ if (_pullNow) setTimeout(function(){ try { _pullNow(); } c
 var _tsReq = 0, _tsPending = {};
 function tsEmbedded(){ try { return window.parent && window.parent !== window; } catch(e){ return false; } }
 function tsAsk(type, payload){
+  if (/^TS_(ADV_SAVE_|ASSET_SAVE|FORGE_ACT|ADV_DELETE)/.test(String(type)) && !S.stream){
+    var _what = /SCENE/.test(type) ? 'a scene' : /ASSET/.test(type) ? 'the library' : /FORGE_ACT/.test(type) ? 'an act' : 'the story';
+    return saveTrack(tsAskRaw(type, payload), _what);
+  }
+  return tsAskRaw(type, payload);
+}
+function tsAskRaw(type, payload){
   /* a stream only reads: anything that would write is answered here and goes nowhere */
   if (S.stream && !/(PULL|GET|LIST|LOAD|READ|PENDING|CONTEXT|MINE|FIND|SEARCH|ROSTER|JOURNAL_GET|FORGE_DATA|ASSETS?_LIST|PARTY_LIST|CHAR_LOAD|SHEET|PORTRAIT)/.test(String(type))) return Promise.resolve(null);
   return new Promise(function(res, rej){
@@ -18530,7 +18544,7 @@ function entrySheetFoe(e, src, lib, img){
           + relics.map(function(x){ return '<option value="' + esc(x) + '">' + esc(x) + '</option>'; }).join('') + '<option value="__custom">Forge a custom relic\u2026</option></select>';
       })())
     + feSec('Acts', feActs(e), 'one at each tier; a scene shows those its rating reaches')
-    + '</div><div class="tsm-row"><button class="tsm-btn ghost" onclick="sheetBack()">Cancel</button><button class="tsm-btn" onclick="sheetSave()">Save</button></div>';
+    + '</div><div class="tsm-row"><span id="feSaveMark" class="fe-savemark">' + saveMarkHtml() + '</span><button class="tsm-btn ghost" onclick="sheetBack()">Cancel</button><button class="tsm-btn" onclick="sheetSave()">Save</button></div>';
   return h;
 }
 /* the editor's pickers keep what has been typed above them before they redraw */
@@ -18594,6 +18608,36 @@ function sheetSetSRKeep(v){ feKeep(); var t = curSheet(); if (!t) return; t.obj.
   document.addEventListener('mousedown', function(e){ if (e.target && e.target.tagName === 'SELECT') sortSelect(e.target); }, true);
   if (document.readyState !== 'loading') queue(); else document.addEventListener('DOMContentLoaded', queue);
 })();
+
+
+/* ================= is it saved? =================
+   A small mark in the corner of the LoreMaster's table says whether every change has reached
+   the site: Saving while anything is on its way (a scene, the story, a library foe, an act, the
+   table itself) or waiting its turn to go, All saved with the time once nothing is left, and
+   Not saved, in red, when a save was refused, until a later one lands. The foe editor shows
+   the same beside its Save. Safe to refresh when it says All saved. */
+var SAVEMARK = { out:0, failed:'', at:0 };
+function saveTrack(p, what){
+  SAVEMARK.out++; saveMarkPaint();
+  return p.then(function(r){ SAVEMARK.out = Math.max(0, SAVEMARK.out - 1); if (r && r.ok === false){ SAVEMARK.failed = what; } else { SAVEMARK.failed = ''; SAVEMARK.at = Date.now(); } saveMarkPaint(); return r; },
+    function(e){ SAVEMARK.out = Math.max(0, SAVEMARK.out - 1); SAVEMARK.failed = what; saveMarkPaint(); throw e; });
+}
+function saveWaiting(){
+  try { return SAVEMARK.out > 0 || !!_advSaveTimer || Object.keys(_advDirty).length > 0 || !!_pushT || _pushesOut > 0; } catch(e){ return SAVEMARK.out > 0; }
+}
+function saveMarkHtml(){
+  var t = new Date(SAVEMARK.at || Date.now()), hm = t.toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' });
+  if (saveWaiting()) return '<span class="svm saving"><i></i>Saving\u2026</span>';
+  if (SAVEMARK.failed) return '<span class="svm bad"><i></i>Not saved (' + esc(SAVEMARK.failed) + ')</span>';
+  return '<span class="svm ok"><i></i>All saved' + (SAVEMARK.at ? ' \u00b7 ' + hm : '') + '</span>';
+}
+function saveMarkPaint(){
+  if (!isLM() || S.stream) return;
+  var el = document.getElementById('saveMark'); if (!el){ el = document.createElement('div'); el.id = 'saveMark'; el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite'); document.body.appendChild(el); }
+  var h = saveMarkHtml(); if (el._h !== h){ el._h = h; el.innerHTML = h; }
+  var fe = document.getElementById('feSaveMark'); if (fe && fe._h !== h){ fe._h = h; fe.innerHTML = h; }
+}
+setInterval(function(){ try { saveMarkPaint(); } catch(e){} }, 400);
 
 /* ================= rests =================
    A rest comes from the LoreMaster, and only outside a fight: Call a rest opens it for the
