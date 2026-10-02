@@ -2453,6 +2453,11 @@ body.stream:not(.stream-frame) #rail, body.stream:not(.stream-frame) #hud, body.
 .fe-mini{ padding:7px 10px; border:1px solid #2c3a58; border-radius:8px; background:none; color:#b8c4d0; font-family:Cinzel,serif; font-size:.58rem; letter-spacing:.06em; cursor:pointer; } .fe-mini:hover{ border-color:#c9a84c; color:#e8cf86; }
 .fe-wide{ width:100%; margin-top:10px; }
 @media (max-width:640px){ .fe-grid3{ grid-template-columns:1fr; } .fe-who{ grid-template-columns:80px 1fr; } .fe-face{ width:80px; height:80px; } }
+
+.fe-attrs{ display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:10px 12px; } .fe-attrs label{ display:flex; flex-direction:column; gap:4px; }
+.fe-attrs label > span{ font-family:Cinzel,serif; font-size:.6rem; letter-spacing:.1em; text-transform:uppercase; color:#a88a3e; }
+.fe-attr-foot{ display:flex; align-items:center; gap:10px; margin-top:10px; } .fe-attr-foot .fe-def{ flex:1; margin:0; }
+@media (max-width:640px){ .fe-attrs{ grid-template-columns:repeat(2, minmax(0,1fr)); } }
 </style>
 </head>
 <body>
@@ -3664,6 +3669,7 @@ function rowToAsset(r){
     e.abilities = jp(pick('abilities'), []);
     var fm = jp(pick('foeMeta'), {});
     e.sig = pick('signatureAffliction','sig') || fm.sig || '';
+    if (fm.attrsHand) e.attrsHand = true;
     e.source = pick('source') || fm.source || '';
     e.build = fm.build || pick('build') || '';
     e.stance = fm.stance || pick('stance') || '';
@@ -4876,7 +4882,7 @@ function foeLive(f){
   var bn = foeInferBuild(f);
   if (bn && foeBuild(bn)){
     var apl = partyApl();
-    var attrs = deriveKit(f, sr, apl).attrs;
+    var attrs = (f.attrsHand && f.attrs) ? f.attrs : deriveKit(f, sr, apl).attrs;   /* attributes set by hand are kept */
     var d = foeDamage(Object.assign({}, f, { attrs: attrs }), attrs, apl);
     return { attrs: attrs,
              dmg: { base: d.base || 0, bonus: d.bonus || 0, type: (d.type === 'magic' ? 'magical' : 'physical'), acc: d.acc || '' },
@@ -5063,7 +5069,7 @@ function assetToRow(e){
     role: e.role || '', image: e.img || '', origin: e.origin || '',
     attrs: JSON.stringify(e.attrs || {}), inventory: JSON.stringify(e.inv || []),
     abilities: JSON.stringify(e.abilities || []), foeWeight: e.foeWeight || 0,
-    foeMeta: JSON.stringify({ build:e.build||'', stance:e.stance||'', sig:e.sig||'', source:e.source||'',
+    foeMeta: JSON.stringify({ build:e.build||'', stance:e.stance||'', sig:e.sig||'', source:e.source||'', attrsHand:!!e.attrsHand,
       augments:e.augments||[], infusions:e.infusions||[], atkPref:e.atkPref||'',
       campaignId:e.campaignId||'', campaignName:e.campaignName||'' })
   };
@@ -5242,7 +5248,7 @@ function sheetSave(){
   var rgv = val('rsRange'); if (rgv !== undefined) e.range = Math.max(1, parseInt(rgv, 10) || 1);
   var mbv = val('rsMob'); if (mbv !== undefined) e.mobility = Math.max(1, parseInt(mbv, 10) || 5);
   e.attrs = e.attrs || blankAttrs();
-  if (document.getElementById('rsA_' + ATTR_LIST[0])) ATTR_LIST.forEach(function(a){ e.attrs[a] = num('rsA_' + a); });
+  if (document.getElementById('rsA_' + ATTR_LIST[0])){ var _nv = {}; ATTR_LIST.forEach(function(a){ _nv[a] = num('rsA_' + a); }); if (document.querySelector('#tsModal .fe')) feAttrsTake(e, _nv); else e.attrs = _nv; }
   else if (e.build && e.sr){ var _k = deriveKit(e, e.sr); e.attrs = _k.attrs; if (!e.maxVit) e.maxVit = _k.maxVit; }
   var inf = list('rsInf'); if (inf) e.infusions = inf;
   var aug = list('rsAug'); if (aug) e.augments = aug;
@@ -5290,7 +5296,7 @@ function libPropagate(libId, e){
             x.abilities = JSON.parse(JSON.stringify(e.abilities || []));
             x.inv = (e.inv || []).slice(); x.infusions = (e.infusions || []).slice();
             x.augments = (e.augments || []).slice(); x.sig = e.sig || '';
-            x.build = e.build || ''; x.stance = e.stance || '';
+            x.build = e.build || ''; x.stance = e.stance || ''; if (e.attrsHand) x.attrsHand = true; else delete x.attrsHand;
             if (x.curVit > x.maxVit) x.curVit = x.maxVit;
           });
         });
@@ -14051,7 +14057,7 @@ function refreshFoeKits(){
     var bn = foeInferBuild(f);
     if (!(bn && foeBuild(bn))) return;
     var sr = f.sr || 'Elite';
-    var attrs = deriveKit(f, sr, apl).attrs;
+    var attrs = (f.attrsHand && f.attrs) ? f.attrs : deriveKit(f, sr, apl).attrs;   /* attributes set by hand are kept */
     var d = foeDamage(Object.assign({}, f, { attrs: attrs }), attrs, apl);
     f.build = bn;   // pin the resolved build so it stays derivable
     f.attrs = attrs;
@@ -18429,6 +18435,10 @@ function entrySheetFoe(e, src, lib, img){
         + '<label><span>Moves</span>' + feStep('rsMob', e.mobility != null ? e.mobility : 5) + '</label><label><span>Reach</span>' + feStep('rsRange', e.range != null ? e.range : 1) + '</label></div>'
         + (isTie(e.attrs || kit.attrs) ? '<label class="fe-inline"><span>On a tie it strikes</span>' + feSel('rsAtk', e.atkPref || '', ['phys','magic'], 'sheetSetAtkPref', 'Physical') + '</label>' : '')
         + stats, 'against this party, at level ' + apl + '; the Crucible sets these as it begins')
+    + feSec('Attributes', '<div class="fe-attrs">' + ATTR_LIST.map(function(a){ var v = (e.attrs || kit.attrs || {})[a] || 0;
+        return '<label><span>' + a + '</span>' + feStep('rsA_' + a, v, 0) + '</label>'; }).join('') + '</div>'
+        + '<div class="fe-attr-foot"><span class="fe-def">' + (e.attrsHand ? 'Set by hand: the Crucible keeps them as they are.' : 'From the build and rating: the Crucible scales them to the party as it begins. Change one and they are kept as set.') + '</span>'
+        + (e.attrsHand ? '<button class="fe-mini" onclick="feAttrsFromBuild()">Use the build\u2019s</button>' : '') + '</div>', '')
     + feSec('Infusions', feKitList('infusions', e.infusions, infusionNames(), 'sheetDropInf', 'sheetPickInf', 'Add an infusion'))
     + feSec('Augmentations', feKitList('augmentations', e.augments, augmentNames(), 'sheetDropAug', 'sheetPickAug', 'Add an augmentation'))
     + feSec('Relics', (function(){
@@ -18445,11 +18455,18 @@ function entrySheetFoe(e, src, lib, img){
 /* the editor's pickers keep what has been typed above them before they redraw */
 function feKeep(){ var t = curSheet(); if (!t) return; var e = t.obj, g = function(id){ var el = document.getElementById(id); return el ? el.value : undefined; };
   if (g('rsName') !== undefined && g('rsName').trim()) e.name = g('rsName').trim(); if (g('rsDesc') !== undefined) e.desc = g('rsDesc');
-  if (g('rsMob') !== undefined) e.mobility = Math.max(1, parseInt(g('rsMob'), 10) || 5); if (g('rsRange') !== undefined) e.range = Math.max(1, parseInt(g('rsRange'), 10) || 1); }
+  if (g('rsMob') !== undefined) e.mobility = Math.max(1, parseInt(g('rsMob'), 10) || 5); if (g('rsRange') !== undefined) e.range = Math.max(1, parseInt(g('rsRange'), 10) || 1);
+  if (g('rsA_' + ATTR_LIST[0]) !== undefined){ var nv = {}; ATTR_LIST.forEach(function(a){ nv[a] = parseInt(g('rsA_' + a), 10) || 0; }); feAttrsTake(e, nv); } }
+function feAttrsTake(e, nv){
+  var was = e.attrs || deriveKit(e, e.sr || 'Elite').attrs, changed = ATTR_LIST.some(function(a){ return (was[a] || 0) !== (nv[a] || 0); });
+  e.attrs = nv; if (changed) e.attrsHand = true;
+}
+/* attributes set by hand are kept; this gives them back to the build and rating */
+function feAttrsFromBuild(){ feKeep(); var t = curSheet(); if (!t) return; delete t.obj.attrsHand; var k = deriveKit(t.obj, t.obj.sr || 'Elite'); t.obj.attrs = k.attrs; sheetLiveSave(); sheetReopen(); }
 function sheetSetBuildKeep(v){ feKeep(); sheetSetField('build', v); }
 function sheetSetStanceKeep(v){ feKeep(); sheetSetField('stance', v); }
 function sheetSetSigKeep(v){ feKeep(); sheetSetField('sig', v); }
-function sheetSetSRKeep(v){ feKeep(); var t = curSheet(); if (!t) return; t.obj.sr = v; var k = deriveKit(t.obj, v); t.obj.attrs = k.attrs; t.obj.maxVit = k.maxVit; sheetLiveSave(); sheetReopen(); }
+function sheetSetSRKeep(v){ feKeep(); var t = curSheet(); if (!t) return; t.obj.sr = v; var k = deriveKit(t.obj, v); if (!t.obj.attrsHand) t.obj.attrs = k.attrs; t.obj.maxVit = k.maxVit; sheetLiveSave(); sheetReopen(); }
 
 /* ================= rests =================
    A rest comes from the LoreMaster, and only outside a fight: Call a rest opens it for the
