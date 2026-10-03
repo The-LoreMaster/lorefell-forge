@@ -1,0 +1,30 @@
+name: Weekly Backup Check
+# Every Monday: takes a fresh backup and proves it can be used (every board and story parses,
+# the collections the table needs are there). A failure emails, as any failed run does.
+on:
+  schedule:
+    - cron: '0 9 * * 1'
+  workflow_dispatch: {}
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      WIX_API_KEY: ${{ secrets.WIX_API_KEY }}
+      WIX_SITE_ID: ${{ secrets.WIX_SITE_ID }}
+      WIX_ACCOUNT_ID: ${{ secrets.WIX_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Backup
+        run: node scripts/backup.js
+      - name: Check it
+        run: node scripts/backupCheck.js
+      - name: Keep it
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checked-backup-${{ github.run_id }}
+          path: backups/
+          retention-days: 60
