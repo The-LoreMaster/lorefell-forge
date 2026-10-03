@@ -1,3 +1,7 @@
+## 2026-10-03 - A steady Spotlight glow; the Treasure Phase centred; doors in Player view
+
+The Spotlight on the map is a soft ring of light around each token in the Spotlight the battle runner is on, gold for a Fell and red for a foe, with no beam and no pulse; it is drawn with the token, so it no longer flickers when the map repaints. The Treasure Phase window sits in the middle of the screen (and still scrolls when tall). The LoreMaster's Player view shows the door and window handles the way players see them.
+
 ## 2026-10-03 - The scene runner's scene picker and gear; the fight clock; the Spotlight lit
 
 The scene runner's scene name opens the scenes of its session, to put another on the table without opening the Story. Pictures on or off moves under the runner's gear, which is Scene settings outside a fight. A fight clock, the LoreMaster's alone, sits under the Fellmark from Begin combat: time in the fight and the round, amber past twelve minutes and red past fifteen (the LoreVault's aim is under fifteen). In the Spotlights, the fighters in the Spotlight the battle runner is on stand in light on the LoreMaster's map: a warm glow and a soft beam from above.
