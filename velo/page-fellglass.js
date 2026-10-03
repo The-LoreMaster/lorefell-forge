@@ -14,6 +14,7 @@ import { getClueCards, listQuests } from 'backend/fatewell.web.js';
 import { getCombatForChar, saveCombatDeclare, syncCombatPlayer } from 'backend/combat.web.js';
 import { getLibraries } from 'backend/libraries.web.js';
 import { handleSheetMessage } from 'public/fgSheetBridge.js';
+import { betweenRestFor } from 'backend/campaignview.web.js';
 import wixLocation from 'wix-location';
 
 const EMBED = '#html1';   // change to your Embed a Site element ID
@@ -21,7 +22,7 @@ const EMBED = '#html1';   // change to your Embed a Site element ID
 const api = {
   listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter,
   leaveAdventure, getClueCards, listQuests, getCombatForChar, saveCombatDeclare,
-  syncCombatPlayer, getLibraries, consultArchive
+  syncCombatPlayer, getLibraries, consultArchive, betweenRestFor
 };
 
 $w.onReady(() => {

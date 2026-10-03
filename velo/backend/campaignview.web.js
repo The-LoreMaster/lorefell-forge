@@ -188,6 +188,30 @@ export const restoreBoardHistory = webMethod(Permissions.Anyone, async (campaign
 
 // The Journal and Saved versions are the LoreMaster's alone: a lorekeeper helps with the map
 // and the Fell, and neither reads the LoreMaster's notes nor puts the board back.
+// A rest between sessions, for a Fell's own sheet opened away from the table: whether its
+// adventure has one open (the board's rest, written by the LoreMaster's table), and the Skill
+// Difficulty an inspection is rolled against (the party's average level divided by 5).
+// Only the Fell's owner asks; nothing else of the board is returned.
+export const betweenRestFor = webMethod(Permissions.Anyone, async (charId) => {
+  const mid = await memberId(); if (!mid || !charId) return { rest: null };
+  let ch = null; try { ch = await wixData.get('Characters', String(charId), { suppressAuth: true }); } catch (e) {}
+  if (!ch || ch.ownerMemberId !== mid || !ch.campaignId) return { rest: null };
+  let rest = null;
+  try {
+    const cv = await wixData.query(CV).eq('campaignId', String(ch.campaignId)).limit(1).find({ suppressAuth: true });
+    const snap = cv.items[0] ? JSON.parse(cv.items[0].snapshot || '{}') : {};
+    if (snap.rest && snap.rest.open && snap.rest.between) rest = { id: String(snap.rest.id || ''), open: true, between: true, at: snap.rest.at || 0 };
+  } catch (e) {}
+  if (!rest) return { rest: null };
+  let apl = 0;
+  try {
+    const r = await wixData.query('Characters').eq('campaignId', String(ch.campaignId)).limit(100).find({ suppressAuth: true });
+    const lv = r.items.map((c) => Number(c.level) || 1);
+    apl = lv.length ? Math.floor((lv.reduce((a, b) => a + b, 0) / lv.length) / 5) : 0;
+  } catch (e) {}
+  return { rest: rest, apl: apl };
+});
+
 async function lmOnly(campaignId) {
   try { const r = await myAdventureRole(campaignId); return r === 'loremaster'; }
   catch (e) { return false; }

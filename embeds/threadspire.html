@@ -19675,7 +19675,8 @@ function restAsk(op, extra){
   var seq = ++_restSeq;
   return new Promise(function(res, rej){
     _restWait[seq] = res;
-    f.contentWindow.postMessage({ type:'ts-rest-op', op:op, seq:seq, idx:(extra || {}).idx, apl:(extra || {}).apl }, '*');
+    var e = extra || {};
+    f.contentWindow.postMessage({ type:'ts-rest-op', op:op, seq:seq, idx:e.idx, apl:e.apl, rid:e.rid, choice:e.choice, bits:e.bits, on:e.on, between:e.between }, '*');
     setTimeout(function(){ if (_restWait[seq]){ delete _restWait[seq]; rej(new Error('the sheet did not answer')); } }, 8000);
   });
 }
@@ -19692,14 +19693,51 @@ function restCall(){ if (keeperNo()) return;
   pushLog({ kind:'sys', html:'The LoreMaster calls a rest.' }); applyRemoteState({ log:S.log });
   schedulePush(); restPaintLM();
 }
-function restEnd(){ if (!isLM() || !S.rest) return; S.rest.open = false; pushLog({ kind:'sys', html:'The rest is over.' }); applyRemoteState({ log:S.log }); schedulePush(); restPaintLM(); }
+function restEnd(){ if (!isLM() || keeperNo() || !S.rest) return; var b = !!S.rest.between; S.rest.open = false; pushLog({ kind:'sys', html:b ? 'The rest between sessions is over.' : 'The rest is over.' }); applyRemoteState({ log:S.log }); schedulePush(); restPaintLM(); }
+/* ---- Rest Between Sessions ----
+   Opened by the LoreMaster and left open through the week. Each player is asked the moment
+   their table (or their Fell's own page) loads, and chooses Rest, Keep watch or Later; the
+   sheet rolls, and what each did is kept on their Fell (restsDone) and told to the
+   LoreMaster's log alone. Crystals can be spent the whole time it is open. It ends only when
+   the LoreMaster ends it: their table asks each time it opens while one is under way. */
+function restCallBetween(){ if (keeperNo()) return;
+  if (!isLM() || S.mode === 'combat') return;
+  S.rest = { id:'rb' + Date.now().toString(36), open:true, between:true, at:Date.now() };
+  pushLog({ kind:'sys', lmOnly:true, html:'A rest between sessions is under way. Each player is asked when they next open their table.' }); applyRemoteState({ log:S.log });
+  schedulePush(); restPaintLM();
+}
+/* what a Fell did at this rest: from the log line, or from the Fell itself (it may have rested on its own page) */
+function restStatusOf(p, rid){
+  var nm = p.charName || p.name || 'A Fell', out = null;
+  restReplies(rid).forEach(function(e){ if (e.rest.who === nm) out = { choice:e.rest.choice, bits:e.rest.bits || [] }; });
+  var d = p.restsDone && p.restsDone[rid]; if (d) out = { choice:d.choice, bits:d.bits || [] };
+  return out;
+}
+var _betweenAsked = false;
+function restBetweenAskLM(){
+  if (_betweenAsked || !isLM() || isKeeper() || S.stream || !_mapStateLoaded) return;
+  var r = S.rest; if (!r || !r.open || !r.between) return;
+  _betweenAsked = true;
+  var party = (S.party || []).filter(function(p){ return p && p.charId && !p.kept; }), done = party.filter(function(p){ return restStatusOf(p, r.id); }).length;
+  tsModal('<h3 class="tsm-title">A rest between sessions is under way</h3>'
+    + '<p class="lc-p">' + (party.length ? done + ' of ' + party.length + ' Fell have answered it. ' : '') + 'End it when you are ready to play; keep it going while you prep, and players can still rest and level up.</p>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Keep it going</button><button class="tsm-btn" onclick="tsCloseModal();restEnd()">End the rest</button></div>');
+}
 function restPaintLM(){
   var box = document.getElementById('restOpts'); if (!box) return;
   var r = S.rest, open = !!(r && r.open);
-  var h = '<div class="mu-now"><span class="mu-lab">Rest</span><b>' + (open ? 'A rest is under way' : 'No rest called') + '</b></div>';
+  var h = '<div class="mu-now"><span class="mu-lab">Rest</span><b>' + (open ? (r.between ? 'A rest between sessions' : 'A rest is under way') : 'No rest called') + '</b></div>';
   if (!open){
     h += (S.mode === 'combat' ? '<div class="mu-from">A rest waits until the fight is over.</div>' : '')
-      + '<button class="mu-manage" ' + (S.mode === 'combat' ? 'disabled' : '') + ' onclick="restCall()">Call a rest</button>';
+      + '<button class="mu-manage" ' + (S.mode === 'combat' ? 'disabled' : '') + ' onclick="restCall()">Call a rest</button>'
+      + '<button class="mu-manage" ' + (S.mode === 'combat' ? 'disabled' : '') + ' onclick="restCallBetween()" title="Open all week: each player is asked when they next open their table">Rest between sessions</button>';
+  } else if (r.between){
+    var bparty = (S.party || []).filter(function(p){ return p && p.charId && !p.kept; });
+    h += '<div class="mu-from">Each player is asked when they next open their table. Crystals can be spent while it is on.</div>'
+      + '<div class="rest-who">' + (bparty.length ? bparty.map(function(p){ var st = restStatusOf(p, r.id);
+          return '<div' + (st && st.bits && st.bits.length ? ' title="' + esc(st.bits.join(', ')) + '"' : '') + '><span>' + esc(p.charName || p.name || 'A Fell') + '</span><b class="' + (st ? st.choice : 'wait') + '">' + (!st ? 'Not yet' : st.choice === 'skip' ? 'Kept watch' : 'Rested') + '</b></div>'
+            + (st && st.choice === 'rest' && st.bits && st.bits.length ? '<div class="mu-from" style="margin:-2px 0 6px">' + esc(st.bits.join(', ')) + '</div>' : ''); }).join('') : '<div class="mu-from">No players at the table.</div>') + '</div>'
+      + '<button class="mu-manage" onclick="partyRefresh();restPaintLM()">Refresh</button><button class="mu-manage" onclick="restEnd()">End the rest</button>';
   } else {
     var rep = restReplies(r.id), seen = {};
     rep.forEach(function(e){ seen[e.rest.who] = e.rest.choice; });
@@ -19714,7 +19752,8 @@ function restPaintLM(){
 function restWatch(){
   if (isLM()) return;
   var r = S.rest;
-  if (!r || !r.open){ if (_restMine){ if (document.getElementById('restWin')) tsCloseModal(); restResumeShow(false); restAsk('rest-over').catch(function(){}); _restState = null; } _restMine = null; return; }
+  if (!r || !r.open){ if (_restMine){ if (document.getElementById('restWin')) tsCloseModal(); restResumeShow(false); restAsk('rest-over', { between:true }).catch(function(){}); _restState = null; } _restMine = null; return; }
+  if (r.between) return restWatchBetween(r);
   var done = null; try { done = localStorage.getItem('ts_rest_done'); } catch(e){}
   if (done === r.id || _restMine === r.id) return;
   _restMine = r.id;
@@ -19725,11 +19764,29 @@ function restWatch(){
 function restSay(choice, bits){
   var r = S.rest; if (!r) return;
   var who = (S.character && S.character.name) || 'A Fell';
-  pushLog({ kind:'sys', html:esc(who) + (choice === 'skip' ? ' kept watch and skipped the rest.' : ' rested' + (bits && bits.length ? ': ' + bits.map(esc).join(', ') : '') + '.'), rest:{ rid:r.id, who:who, choice:choice } });
+  /* between sessions, the line is the LoreMaster's alone, and the Fell keeps what it did */
+  pushLog({ kind:'sys', lmOnly:!!r.between, html:esc(who) + (choice === 'skip' ? ' kept watch and skipped the rest' + (r.between ? ' between sessions.' : '.') : ' rested' + (r.between ? ' between sessions' : '') + (bits && bits.length ? ': ' + bits.map(esc).join(', ') : '') + '.'), rest:{ rid:r.id, who:who, choice:choice, bits:(bits || []).slice(0, 12) } });
   applyRemoteState({ log:S.log });
-  try { localStorage.setItem('ts_rest_done', r.id); } catch(e){}
+  if (r.between) restAsk('rest-mark', { rid:r.id, choice:choice, bits:(bits || []).slice(0, 12) }).catch(function(){});
+  else { try { localStorage.setItem('ts_rest_done', r.id); } catch(e){} }
 }
-function restSkip(){ restSay('skip'); tsCloseModal(); restAsk('rest-over').catch(function(){}); }
+function restSkip(){ var b = S.rest && S.rest.between; restSay('skip'); tsCloseModal(); if (!b) restAsk('rest-over').catch(function(){}); }
+/* Between sessions: asked once the Fell's sheet is up (it holds what this Fell already did),
+   the moment the table loads. Later puts it off until the next load. */
+function restWatchBetween(r){
+  if (_restMine === r.id) return;
+  if (!S.characterId){ return; }
+  if (!_sheetLoaded) ensureSheet();
+  if (!sheet.ready) return;
+  _restMine = r.id;
+  restAsk('between', { on:true }).catch(function(){});
+  restAsk('info').then(function(i){
+    if (i && i.restsDone && i.restsDone[r.id]) return;
+    tsModal('<div id="restWin"><h3 class="tsm-title">A rest between sessions</h3>'
+      + '<p class="lc-p">Your LoreMaster has called a rest between sessions. Rest to recover, shed Fatigue and look over what you carry, or keep watch and let it pass.</p>'
+      + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Later</button><button class="tsm-btn ghost" onclick="restSkip()">Keep watch</button><button class="tsm-btn" onclick="restBegin()">Rest</button></div></div>');
+  }).catch(function(){ _restMine = null; });
+}
 var _restState = null;
 function restBegin(){
   _restState = { bits:[], inspected:{}, inspections:0, food:0, info:null };
@@ -19737,11 +19794,14 @@ function restBegin(){
   restAsk('recover').then(function(r){
     _restState.info = r.info;
     send({ type:'roll', rollType:'generic', n:r.n, mods:[{ label:'Renewal', value:r.r }], total:r.total, note:'Rest: ' + (r.full ? 'full Vitality' : '+' + r.healed + ' Vitality') });
-    _restState.bits.push(r.full ? 'full Vitality' : ('+' + r.healed + ' Vitality'));
+    _restState.bits.push((r.full ? 'full Vitality' : ('+' + r.healed + ' Vitality')) + ' (rolled ' + r.n + ' + ' + r.r + ' Renewal)');
     return restAsk('fatigue-1');
   }).then(function(f){
     _restState.info = f.info;
     if (f.was > f.now) _restState.bits.push('Fatigue ' + FATIGUE_WORDS[f.was] + ' to ' + FATIGUE_WORDS[f.now]);
+    /* between sessions the rest is kept on the Fell the moment it is rolled, so closing the
+       window early never lets the recovery roll be taken twice */
+    if (S.rest && S.rest.between) restAsk('rest-mark', { rid:S.rest.id, choice:'rest', bits:_restState.bits.slice() }).catch(function(){});
     restPaint();
   }).catch(function(e){ var b = document.getElementById('restWin'); if (b) b.innerHTML = '<h3 class="tsm-title">The rest did not start</h3><p class="lc-p">' + esc((e && e.message) || 'Open your Fell and try again.') + '</p><div class="tsm-row"><button class="tsm-btn" onclick="tsCloseModal()">Close</button></div>'; });
 }
@@ -19794,7 +19854,7 @@ function restInspect(idx){
     restPaint();
   }).catch(function(){ restPaint(); });
 }
-function restFinish(){ restSay('rest', _restState ? _restState.bits : []); _restState = null; tsCloseModal(); restResumeShow(false); restAsk('rest-over').catch(function(){}); }
+function restFinish(){ var b = S.rest && S.rest.between; restSay('rest', _restState ? _restState.bits : []); _restState = null; tsCloseModal(); restResumeShow(false); if (!b) restAsk('rest-over').catch(function(){}); }
 /* after levelling up in the sheet, a way back to the rest that is still under way */
 function restResumeShow(on){
   var b = document.getElementById('restResume');
@@ -19806,7 +19866,7 @@ function restResume(){ restResumeShow(false); closeWin(); tsModal('<div id="rest
 var _kettleSeen = {};
 setInterval(function(){
   try {
-    if (!isLM()) restWatch(); else restPaintLM();
+    if (!isLM()) restWatch(); else { restPaintLM(); restBetweenAskLM(); }
     if (isLM() || !S.rest || !S.rest.open) return;
     (S.log || []).forEach(function(e){
       if (e && e.kettle === S.rest.id && !_kettleSeen[e.id] && e.html && e.html.indexOf(esc(S.character.name || '')) !== 0){

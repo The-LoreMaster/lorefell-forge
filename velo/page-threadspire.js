@@ -15,6 +15,7 @@ import { getLibraries } from 'backend/libraries.web.js';
 import { listSphereArt } from 'backend/sphereart.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
 import { listStages, saveStage, deleteStage } from 'backend/threadspire.web.js';
+import { betweenRestFor } from 'backend/campaignview.web.js';
 import { getCampaignState, saveCampaignState, getJournal, saveJournal, musicUploadUrl, musicLibrary, listBoardHistory, restoreBoardHistory, saveBoardVersionNow } from 'backend/campaignview.web.js';
 
 import { loadAdventure, saveAdventureRoot, saveAdvAct, saveAdvSession, saveAdvScene, removeAdvScene, removeAdvSession, removeAdvAct, migrateCampaign } from 'backend/adventures.web.js';
@@ -176,7 +177,7 @@ $w.onReady(async function () {
   const fgApi = {
     listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter,
     leaveAdventure, getClueCards, listQuests, getCombatForChar, saveCombatDeclare,
-    syncCombatPlayer, getLibraries, lmSaveCharacter, consultArchive
+    syncCombatPlayer, getLibraries, lmSaveCharacter, consultArchive, betweenRestFor
   };
   async function fgBridge(m, reply) {
     await handleSheetMessage(m, {

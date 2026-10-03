@@ -177,6 +177,12 @@ export async function handleSheetMessage(m, ctx) {
     reply({ type: 'archive-result', reqId: m.reqId || 0, ok: !!(r && r.ok), description: (r && r.description) || '',
       firstImpression: (r && r.firstImpression) || '', tips: (r && r.tips) || [], fragments: (r && r.fragments) || [], error: (r && r.error) || '' });
 
+  } else if (m.type === 'between-rest-get') {
+    // a rest between sessions, asked for by the sheet when it is open on its own page
+    let r = null;
+    try { r = api.betweenRestFor ? await api.betweenRestFor(m.charId || getId()) : null; } catch (e) { r = null; }
+    reply({ type: 'between-rest', rest: (r && r.rest) || null, apl: (r && r.apl) || 0 });
+
   } else if (m.type === 'threadspire-open') {
     if (ctx.onThreadspireOpen) ctx.onThreadspireOpen(m);
 
