@@ -12223,10 +12223,46 @@ function handStandardAttack(){
    misclick was a spent Act. Choosing the target and committing to it are two steps now,
    and the roll is the one that commits. Returns false when there is nothing to aim or
    nothing to aim it at, so the caller can fall through. */
+/* ---- Masked: only what is next to you ----
+   The FellGuide (Afflictions, Masked): the target may only see spaces and targets in its
+   own space or adjacent spaces. A Masked Fell may therefore only aim at a token that
+   touches its own: diagonals count, the way the ruler counts, and a big token touches
+   along its whole footprint. The fog already draws the same limit (fogViewNow). */
+function tokTouches(a, b){
+  if (!a || !b) return false;
+  var g = (S.grid && S.grid.size) || 100;
+  var ha = Math.max(1, a.cells || 1) * g / 2, hb = Math.max(1, b.cells || 1) * g / 2;
+  var gx = Math.max(0, Math.abs(a.x - b.x) - ha - hb) / g, gy = Math.max(0, Math.abs(a.y - b.y) - ha - hb) / g;
+  return gx <= 1.01 && gy <= 1.01;
+}
+function maskedMe(){ var me = myFellTok(); return (me && tokHas(me, 'Masked')) ? me : null; }
+/* true when Masked keeps this Fell from aiming at token t (never for its own token) */
+function maskedBlocks(t){
+  var me = maskedMe(); if (!me || !t || t.id === me.id) return false;
+  return !tokTouches(me, t);
+}
+var MASKED_SAY = 'Masked: you can only target what is next to you.';
+/* The sheet's own target list (the fight banner) cannot see the board, so the table tells
+   it which fighters a Masked Fell can reach. Said only when it changes. */
+var _maskedSig = '';
+function maskedReachSend(){
+  if (isLM() || typeof sheet === 'undefined') return;
+  var me = maskedMe(), keys = [];
+  if (me) (S.tokens || []).forEach(function(t){
+    if (t.id === me.id || !tokTouches(me, t)) return;
+    var f = null; try { f = tokenFighter(t); } catch(e){}
+    if (f && f.key) keys.push(f.key);
+  });
+  var sig = (me ? '1|' : '0|') + keys.sort().join(',');
+  if (sig === _maskedSig) return; _maskedSig = sig;
+  sheet.postMessage({ type:'ts-masked-reach', masked:!!me, keys:keys });
+}
+setInterval(function(){ try { if (_sheetLoaded) maskedReachSend(); } catch(e){} }, 800);
 function handAim(t){
   if (!armed) return false;
   var f = tokenFighter(t);
   if (!f){ handAimMiss(t); return false; }
+  if (maskedBlocks(t)){ handSay(MASKED_SAY); return true; }
   if (!handReady({ ignoreTarget:true })){
     handSay(armed.need && !armed[armed.need]
       ? ('Choose a ' + handNeedWord(armed.need) + ' first.') : 'That card is not ready.');
@@ -12356,6 +12392,7 @@ function handAimByMenu(t){
   if (!hand || hand.active === false) return false;    /* no fight: the picker's */
   var f = tokenFighter(t);
   if (!f){ handAimMiss(t); return false; }             /* not a fighter: the picker's */
+  if (maskedBlocks(t)){ handSay(MASKED_SAY); return true; }
   /* Nothing held is not nothing meant. Right-clicking a foe with an empty hand opens the
      choice of what to do to it rather than assuming a standard attack: the player still
      picks, and still rolls, so nothing is committed behind their back. */

@@ -1,3 +1,7 @@
+## 2026-10-03 - Masked: only what is next to you
+
+A Masked Fell may only target what touches its own token (diagonals count, and a large token touches along its whole footprint), per the FellGuide's Masked. A tap or right-click on anything further away says "Masked: you can only target what is next to you" and aims at nothing. The sheet's own target list in the fight banner offers only the fighters next to the Fell (the table tells it, through a new ts-masked-reach message), and says so plainly when nothing is.
+
 ## 2026-10-03 - Lore Drops
 
 The Sealed Past is now Lore Drops on the LoreMaster's side of the sheet: the card's title, its note, Weave Lore Drops and Weave anew, and the log line when one is granted. A granted Lore Drop reaches the player as a plain Secret under From the LoreMaster, with no heading (earlier grants titled From your sealed past now show without it too). The stored field and message names are unchanged, so nothing moves.
