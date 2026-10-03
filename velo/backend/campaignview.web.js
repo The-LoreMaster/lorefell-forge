@@ -161,6 +161,16 @@ export const listBoardHistory = webMethod(Permissions.Anyone, async (campaignId)
   let now = null; try { now = boardSummary(JSON.parse(cv.items[0].snapshot)); } catch (e) {}
   return { ok: true, now: now, items: r.items.map((it) => ({ id: it._id, at: it.at, version: it.version, reason: it.reason || '', byYou: it.savedBy === mid, summary: (() => { try { return JSON.parse(it.summary); } catch (e) { return {}; } })() })) };
 });
+// a version kept by hand, from Saved versions
+export const saveBoardVersionNow = webMethod(Permissions.Anyone, async (campaignId) => {
+  if (!(await lmOnly(campaignId))) return { ok: false, error: 'only the LoreMaster' };
+  const mid = await memberId();
+  const cv = await wixData.query(CV).eq('campaignId', String(campaignId)).limit(1).find({ suppressAuth: true });
+  const cur = cv.items[0]; if (!cur) return { ok: false, error: 'no board yet' };
+  let snap = {}; try { snap = JSON.parse(cur.snapshot) || {}; } catch (e) { return { ok: false, error: 'unreadable' }; }
+  await historyPut(String(campaignId), snap, cur.version, mid, 'saved by hand');
+  return { ok: true, summary: boardSummary(snap) };
+});
 export const restoreBoardHistory = webMethod(Permissions.Anyone, async (campaignId, historyId) => {
   if (!(await lmOnly(campaignId))) return { ok: false, error: 'only the LoreMaster' };
   const mid = await memberId();

@@ -739,6 +739,7 @@ export const upsertQuest = webMethod(Permissions.Anyone, async (campaignId, ques
     assignedTo: JSON.stringify(Array.isArray(quest.assignedTo) ? quest.assignedTo.map(String) : []),
     assignedNames: JSON.stringify(Array.isArray(quest.assignedNames) ? quest.assignedNames.map(String) : []),
     questKind: quest.kind || 'quest',
+    questImage: quest.image || '',
     postedAt: (ex.items[0] && ex.items[0].postedAt) || Date.now()
   };
   try {
@@ -762,7 +763,7 @@ export const listQuests = webMethod(Permissions.Anyone, async (campaignId) => {
     if (!lm) { try { const mid = await memberId(); const c = await wd.query('Characters').eq('ownerMemberId', mid).eq('campaignId', campaignId).limit(20).find({ suppressAuth: true }); mine = c.items.map((x) => String(x._id)); } catch (e) {} }
     const jp = (v) => { try { const a = JSON.parse(v || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } };
     const quests = r.items.map(function (q) {
-      return { entryId: q.entryId, title: q.questTitle || '', body: q.questBody || '', status: q.questStatus || 'open', kind: q.questKind || 'quest', assignedTo: jp(q.assignedTo), assignedNames: jp(q.assignedNames), postedAt: q.postedAt || 0 };
+      return { entryId: q.entryId, title: q.questTitle || '', body: q.questBody || '', status: q.questStatus || 'open', kind: q.questKind || 'quest', image: q.questImage || '', assignedTo: jp(q.assignedTo), assignedNames: jp(q.assignedNames), postedAt: q.postedAt || 0 };
     }).filter((q) => lm || !q.assignedTo.length || q.assignedTo.some((id) => mine.indexOf(String(id)) >= 0));
     return { ok: true, quests: quests, lm: lm };
   } catch (e) { return { ok: false, quests: [], error: 'The board could not be reached.' }; }

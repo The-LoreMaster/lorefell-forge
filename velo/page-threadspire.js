@@ -15,7 +15,7 @@ import { getLibraries } from 'backend/libraries.web.js';
 import { listSphereArt } from 'backend/sphereart.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
 import { listStages, saveStage, deleteStage } from 'backend/threadspire.web.js';
-import { getCampaignState, saveCampaignState, getJournal, saveJournal, musicUploadUrl, musicLibrary, listBoardHistory, restoreBoardHistory } from 'backend/campaignview.web.js';
+import { getCampaignState, saveCampaignState, getJournal, saveJournal, musicUploadUrl, musicLibrary, listBoardHistory, restoreBoardHistory, saveBoardVersionNow } from 'backend/campaignview.web.js';
 
 import { loadAdventure, saveAdventureRoot, saveAdvAct, saveAdvSession, saveAdvScene, removeAdvScene, removeAdvSession, removeAdvAct, migrateCampaign } from 'backend/adventures.web.js';
 import { myAdventureRole, deleteCampaign } from 'backend/fatewell.web.js';
@@ -491,6 +491,8 @@ $w.onReady(async function () {
           catch (e) { reply(false, null, String(e)); }
         } else if (msg.type === 'TS_BOARD_HISTORY') {
           try { const r = await listBoardHistory(msg.campaignId || campaignId); reply(!!(r && r.ok), r, r && r.error); } catch (e) { reply(false, null, String(e)); }
+        } else if (msg.type === 'TS_BOARD_SAVE_NOW') {
+          try { const r = await saveBoardVersionNow(msg.campaignId || campaignId); reply(!!(r && r.ok), r, r && r.error); } catch (e) { reply(false, null, String(e)); }
         } else if (msg.type === 'TS_BOARD_RESTORE') {
           try { const r = await restoreBoardHistory(msg.campaignId || campaignId, msg.id); reply(!!(r && r.ok), r, r && r.error); } catch (e) { reply(false, null, String(e)); }
         } else if (msg.type === 'TS_STATE_PUSH') {
