@@ -2511,6 +2511,15 @@ body.clean #saveMark, body.stream #saveMark{ display:none; }
 .lib-grid .lib-row:hover, .lib-grid .lib-rowx:hover{ border-color:#c9a84c !important; }
 .lib-grid .lib-av{ width:38px; height:38px; } .lib-grid .lib-nm{ font-size:1rem; }
 @media (max-width:640px){ #tsModal .lib-wide .lib-scope{ position:static; margin:0 0 6px; } }
+
+#moveMark{ position:absolute; z-index:6; border:2px dashed #c9a84c; border-radius:10px; background:rgba(201,168,76,.12); box-sizing:border-box; pointer-events:none; }
+#moveMark.far{ border:2px solid #e05a4f; background:rgba(224,90,79,.14); }
+#moveMark .mm-ask{ position:absolute; left:50%; bottom:calc(100% + 8px); transform:translateX(-50%); display:flex; align-items:center; gap:6px; padding:6px 6px 6px 10px; border:1px solid rgba(201,168,76,.65); border-radius:10px; background:rgba(10,14,28,.95); box-shadow:0 8px 20px rgba(0,0,0,.5); white-space:nowrap; pointer-events:auto; font-family:'Crimson Pro',Georgia,serif; font-size:.9rem; color:#dce8ef; }
+#moveMark.far .mm-ask{ border-color:#b04050; } #moveMark.far .mm-ask span{ color:#ffb4a8; }
+#moveMark .mm-go{ padding:5px 10px; border:0; border-radius:7px; background:#c9a84c; color:#0b1020; font-family:Cinzel,serif; font-size:.62rem; letter-spacing:.06em; cursor:pointer; } #moveMark.far .mm-go{ background:#e05a4f; color:#fff; }
+#moveMark .mm-no{ width:26px; height:26px; padding:0; border:1px solid #2c3a58; border-radius:7px; background:none; color:#b8c4d0; cursor:pointer; }
+.token.glide{ transition:left .09s linear, top .09s linear; }
+@media (prefers-reduced-motion: reduce){ .token.glide{ transition:none; } }
 </style>
 </head>
 <body>
@@ -14296,6 +14305,7 @@ function place(el, t){
    again, and it keeps a token being dragged in hand. */
 function placeTokens(){
   var layer = document.getElementById('tokenLayer'); if (!layer) return;
+  if (MOVEMARK){ if (!sel || sel !== MOVEMARK.id) moveMarkClear(); else moveMarkPaint(); }
   var byId = {}; (S.tokens || []).forEach(function(t){ byId[t.id] = t; });
   layer.querySelectorAll('.token').forEach(function(el){
     var t = byId[el.getAttribute('data-tok')];
@@ -18163,6 +18173,10 @@ function roomTokDrop(t){ delete _roomDrag[t.id]; roomSend({ t:'tok', id:t.id, p:
 function roomTokApply(id, p){
   if (_roomDrag[id] && Date.now() - _roomDrag[id] < 1500) return;
   var t = (S.tokens || []).filter(function(x){ return x.id === id; })[0]; if (!t) return;
+  /* someone else's drag arrives as steps a few hundredths of a second apart; the token glides
+     between them rather than jumping, which read as a twitch over longer moves */
+  var _el = document.querySelector('.token[data-tok="' + id + '"]');
+  if (_el && (p.x !== undefined || p.y !== undefined)){ _el.classList.add('glide'); clearTimeout(_el._glideT); _el._glideT = setTimeout(function(){ _el.classList.remove('glide'); }, 260); }
   Object.keys(p || {}).forEach(function(k){ if (p[k] !== undefined) t[k] = p[k]; });
   try { placeTokens(); } catch(e){ renderTokens(); }
   if (isLM()) schedulePush();   /* the LoreMaster's table saves where a player put their Fell */
@@ -18720,6 +18734,52 @@ function saveMarkPaint(){
 }
 setInterval(function(){ try { saveMarkPaint(); } catch(e){} }, 400);
 
+
+/* ================= tap a token, tap a space, confirm =================
+   With a token selected that the person may move, a tap on an empty space marks that space
+   (outlined to the token's size) with a small Move here / Cancel; a second tap on the marked
+   space, or Move here, moves the token there, snapped to the grid like a drag, and it travels
+   to everyone through the live room. Past the token's Mobility (counted the way the ruler
+   counts, a diagonal is one space) the mark turns red and says so, and the move is still
+   allowed. A tap anywhere else moves the mark; Cancel, Escape or another token clears it. */
+var MOVEMARK = null;
+function tokMayMove(t){
+  if (!t || t.locked || S.stream) return false;
+  var ownFell = !isLM() && t.kind === 'p' && tokenIsMine(t);
+  return !!(t.mine || ownFell || t.free || S.role === 'lm');
+}
+function moveMarkClear(){ MOVEMARK = null; var el = document.getElementById('moveMark'); if (el) el.remove(); }
+function moveMarkAt(mx, my){
+  var t = sel ? tokById(sel) : null; if (!tokMayMove(t)) return false;
+  var c = t.cells || 1, g = S.grid.size || 100;
+  var x = clamp(snapAxis(mx, S.grid.offX || 0, c), 0, S.map.w), y = clamp(snapAxis(my, S.grid.offY || 0, c), 0, S.map.h);
+  if (MOVEMARK && MOVEMARK.id === t.id && Math.abs(MOVEMARK.x - x) < 1 && Math.abs(MOVEMARK.y - y) < 1){ moveMarkGo(); return true; }
+  var spaces = Math.max(Math.round(Math.abs(x - t.x) / g), Math.round(Math.abs(y - t.y) / g));
+  var r = reachOf(t), mob = r && r.mobility ? Number(r.mobility) : 0;
+  MOVEMARK = { id:t.id, x:x, y:y, spaces:spaces, mob:mob, far:!!(mob && spaces > mob) };
+  moveMarkPaint(); return true;
+}
+function moveMarkPaint(){
+  var m = MOVEMARK, el = document.getElementById('moveMark'); if (!m){ if (el) el.remove(); return; }
+  var t = tokById(m.id); if (!t){ moveMarkClear(); return; }
+  if (!el){ el = document.createElement('div'); el.id = 'moveMark'; (document.getElementById('tokenLayer') || document.body).appendChild(el);
+    /* the mark's own buttons are not taps on the map */
+    ['pointerdown','pointerup','click'].forEach(function(ev){ el.addEventListener(ev, function(e){ if (e.target.closest('.mm-ask')) e.stopPropagation(); }); }); }
+  var px = tokenPx(t) * cam.zoom;
+  el.className = m.far ? 'far' : '';
+  el.style.width = el.style.height = px + 'px';
+  el.style.left = (cam.x + m.x * cam.zoom - px / 2) + 'px'; el.style.top = (cam.y + m.y * cam.zoom - px / 2) + 'px';
+  el.innerHTML = '<div class="mm-ask"><span>' + (m.far ? 'Out of range: ' + m.spaces + ' sp, Mobility ' + m.mob + '. Move anyway?' : m.spaces + ' sp' + (m.mob ? ' of ' + m.mob : '')) + '</span>'
+    + '<button class="mm-go" onclick="event.stopPropagation();moveMarkGo()">' + (m.far ? 'Yes, move' : 'Move here') + '</button><button class="mm-no" onclick="event.stopPropagation();moveMarkClear()" aria-label="Cancel">\u00d7</button></div>';
+}
+function moveMarkGo(){
+  var m = MOVEMARK; if (!m) return; var t = tokById(m.id); moveMarkClear(); if (!t || !tokMayMove(t)) return;
+  t.x = m.x; t.y = m.y;
+  send({ type:'token-move', id:t.id, x:t.x, y:t.y }); roomTokDrop(t);
+  renderTokens();
+}
+document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && MOVEMARK) moveMarkClear(); });
+
 /* ================= rests =================
    A rest comes from the LoreMaster, and only outside a fight: Call a rest opens it for the
    whole table. Each player chooses to rest or to skip it; resting runs the FellGuide's rest
@@ -19271,7 +19331,8 @@ function mid(a, b){ return { x:(a.x + b.x) / 2, y:(a.y + b.y) / 2 }; }
            hand: right-click on empty map is the roll picker and stays the roll picker. */
         var mp = toMap(pan.x, pan.y);
         if (typeof handPlaceAt === 'function' && handPlaceAt(mp.x, mp.y)){ pan = null; return; }
-        if (sel){ sel = null; renderTokens(); paintTokMenu(); }
+        if (sel && moveMarkAt(mp.x, mp.y)){ pan = null; return; }
+        if (sel){ sel = null; moveMarkClear(); renderTokens(); paintTokMenu(); }
         if (!isMobile() && S.openSection) closeWin();
       }
       pan = null;
