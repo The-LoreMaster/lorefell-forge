@@ -1,3 +1,7 @@
+## 2026-10-03 - The players' moments on the stream
+
+The stream view now shows what the players see as it happens: a beat's picture as it reaches them, large in the middle and titled; a handout given to the whole party (never one given to a single Fell); the roll banners at the top, never the LoreMaster's hidden rolls; and the Lore Point moment for any Fell, named. Nothing of the Journal, Lore Drops, the Story, unread beats, foe stats or Settings. The stream's panel gains Close the picture (or its cross) to clear a picture so the map can be seen, and Pause pictures until switched back; both change the stream alone.
+
 ## 2026-10-03 - Everyone's drawings through the live room
 
 A stroke now reaches every table through the live room the moment it is drawn, from players as well as the LoreMaster, and an eraser the same; the site keeps its copy as before (mergeDraw). The room keeps the drawings with the same union-and-erased rule, so a table joining later gets them all, and knows who drew each stroke: a player can erase only their own, the LoreMaster's side any. The LoreMaster's table saves what arrives and no longer sends the whole drawing back.

@@ -2282,6 +2282,14 @@ body.stream #mapTools, body.stream #lmstrip, body.stream #devbar, body.stream #t
 body.stream:not(.stream-frame) #rail, body.stream:not(.stream-frame) #hud, body.stream:not(.stream-frame) #log, body.stream:not(.stream-frame) #win, body.stream:not(.stream-frame) .frame-art, body.stream:not(.stream-frame) #lmFrame, body.stream:not(.stream-frame) .scene-strip, body.stream:not(.stream-frame) #sceneStrip{ display:none !important; }
 #streamCtl{ position:fixed; top:14px; right:14px; z-index:500; display:flex; align-items:center; gap:8px; padding:8px 10px; border:1px solid rgba(201,168,76,.6); border-radius:12px; background:rgba(10,14,28,.92); opacity:0; pointer-events:none; transition:opacity .25s; font-family:'Crimson Pro',Georgia,serif; }
 #streamCtl.show{ opacity:1; pointer-events:auto; }
+#streamCtl .sc-seg button[disabled]{ opacity:.4; cursor:default; }
+#streamPic{ position:fixed; inset:0; z-index:400; display:none; align-items:center; justify-content:center; pointer-events:none; }
+#streamPic.on{ display:flex; }
+#streamPic .sp-box{ pointer-events:auto; max-width:min(78vw, 1100px); max-height:78vh; display:flex; flex-direction:column; border:1px solid rgba(201,168,76,.7); border-radius:14px; background:rgba(10,14,28,.94); box-shadow:0 18px 50px rgba(0,0,0,.6); overflow:hidden; }
+#streamPic .sp-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 14px; font-family:Cinzel,serif; letter-spacing:.06em; color:#c9a84c; }
+#streamPic .sp-head button{ border:0; background:none; color:#b8c4d0; font-size:1.3rem; cursor:pointer; opacity:.35; } #streamPic .sp-head button:hover{ opacity:1; }
+#streamPic img{ display:block; max-width:100%; max-height:calc(78vh - 46px); object-fit:contain; }
+@media (prefers-reduced-motion: no-preference){ #streamPic.on .sp-box{ animation:spIn .35s ease-out; } @keyframes spIn{ from{ opacity:0; transform:scale(.97); } } }
 #streamCtl .sc-t{ font-family:Cinzel,serif; font-size:.78rem; letter-spacing:.06em; color:#c9a84c; margin-right:2px; }
 #streamCtl .sc-seg{ display:flex; border:1px solid #2c3a58; border-radius:9px; overflow:hidden; }
 #streamCtl .sc-seg button{ padding:6px 10px; border:0; background:none; color:#b8c4d0; font-family:Cinzel,serif; font-size:.62rem; letter-spacing:.05em; cursor:pointer; } #streamCtl .sc-seg button + button{ border-left:1px solid #2c3a58; }
@@ -9358,6 +9366,7 @@ function seamWarn(){
 /* apply a remote snapshot as truth */
 function applyRemoteSnapshot(snap){
   if (snap && snap.beatPic !== undefined && !isLM()){ S.beatPic = snap.beatPic; try { beatPicPlayer(); } catch(e){} }
+  if (snap && S.stream){ if (snap.beatPic !== undefined){ S.beatPic = snap.beatPic; try { streamBeatPic(); } catch(e){} } if (snap.handouts !== undefined){ try { streamHandouts(snap.handouts); } catch(e){} } }
   if (snap && snap.handouts !== undefined && (!isLM() || !S._hoTaken)){ S._hoTaken = true; S.handouts = snap.handouts || []; if (S.openSection === 'board') refreshWinBody(); if (BOARD.modal && document.querySelector('#tsModal .bd-tabs')) boardModalPaint(); }
   if (snap && snap.questRev !== undefined && !isLM()) S.questRev = snap.questRev;
   if (snap && snap.dp && isLM() && !S._dpTaken){ S._dpTaken = true; S.dp = snap.dp; }
@@ -9421,7 +9430,7 @@ function applyRemoteSnapshot(snap){
   if (snap.effects && !(isLM() && _fxTaken)){ S.effects = snap.effects; if (isLM()) _fxTaken = true; _fvMemo = null; }
   if (snap.notes && !(isLM() && _notesTaken)){ S.notes = snap.notes; if (isLM()) _notesTaken = true; }
   if (snap.viewCall && !isLM()) S.viewCall = snap.viewCall;
-  if (snap.loreGrants){ if (!isLM() || !S.loreGrants) S.loreGrants = snap.loreGrants; }
+  if (snap.loreGrants){ if (!isLM() || S.stream || !S.loreGrants) S.loreGrants = snap.loreGrants; }
   if (snap.music && !(isLM() && _musicTaken)){ S.music = snap.music; if (isLM()) _musicTaken = true; try { musicApply(); musicPaintPanel(); } catch(e){} }
   if (snap.fog && !(isLM() && _fogPainting)){
     S.fog = snap.fog; _fogCache = {};
@@ -18549,10 +18558,45 @@ function streamApply(){
   _fvMemo = null;
   try { renderTokens(); fogPaint(); notesDraw && (document.getElementById('tokenLayer')._noteSig = null, notesDraw()); paintMapArt(); } catch(e){}
 }
+/* ---- the players' moments, on the stream ----
+   A beat's picture, and a handout given to the whole party, show on the stream as they reach
+   the players: large, in the middle, titled. Never a handout given to one Fell, never the
+   LoreMaster's own windows. The LoreMaster can close a picture on the stream (its cross, or
+   Close the picture on the panel) to let a moment on the map be seen, and pause pictures for
+   the stream until switched back. Both are the stream's alone: no player's screen changes. */
+var _streamPicKey = '', _streamHoSeen = null;
+function streamPicShow(p){
+  if (!S.stream || !p || !p.url) return;
+  if (S.stream.pausePics) return;
+  var el = document.getElementById('streamPic');
+  if (!el){ el = document.createElement('div'); el.id = 'streamPic'; document.body.appendChild(el); }
+  el.innerHTML = '<div class="sp-box"><div class="sp-head"><span>' + esc(p.title || 'The scene') + '</span><button onclick="streamPicClose()" aria-label="Close the picture" title="Close the picture">\u00d7</button></div><img src="' + esc(p.url) + '" alt=""></div>';
+  el.classList.add('on'); streamCtlPaint();
+}
+function streamPicClose(){ var el = document.getElementById('streamPic'); if (el) el.classList.remove('on'); streamCtlPaint(); }
+function streamPicOpen(){ var el = document.getElementById('streamPic'); return !!(el && el.classList.contains('on')); }
+function streamBeatPic(){
+  var p = S.beatPic;
+  if (!p || !p.url){ if (_streamPicKey && _streamPicKey.indexOf('bp:') === 0) streamPicClose(); _streamPicKey = ''; return; }
+  var k = 'bp:' + (p.key || p.url); if (k === _streamPicKey) return; _streamPicKey = k;
+  streamPicShow({ url:p.url, title:p.title });
+}
+function streamHandouts(list){
+  list = Array.isArray(list) ? list : [];
+  if (_streamHoSeen === null){ _streamHoSeen = {}; list.forEach(function(h){ if (h && h.id) _streamHoSeen[h.id] = 1; }); return; }
+  list.forEach(function(h){
+    if (!h || !h.id || _streamHoSeen[h.id]) return; _streamHoSeen[h.id] = 1;
+    if ((h.to || []).length) return;                    /* one Fell's handout is private */
+    if (String(h.id).indexOf('bp:') === 0) return;      /* a beat's picture, already shown */
+    if (h.url){ _streamPicKey = 'ho:' + h.id; streamPicShow({ url:h.url, title:h.title || 'A handout' }); }
+  });
+}
+function streamPausePics(on){ if (!S.stream) return; S.stream.pausePics = !!on; if (on) streamPicClose(); streamCtlPaint(); }
 function streamSet(k, v){ if (!S.stream) return; S.stream[k] = v; streamApply(); streamCtlPaint(); }
 function streamCtlPaint(){
   var el = document.getElementById('streamCtl'); if (!el || !S.stream) return;
-  el.innerHTML = '<span class="sc-t">Stream</span>'
+  var pics = '<div class="sc-seg"><button' + (streamPicOpen() ? '' : ' disabled') + ' onclick="streamPicClose()">Close the picture</button><button class="' + (S.stream.pausePics ? 'on' : '') + '" onclick="streamPausePics(' + (S.stream.pausePics ? 'false' : 'true') + ')">' + (S.stream.pausePics ? 'Pictures paused' : 'Pause pictures') + '</button></div>';
+  el.innerHTML = '<span class="sc-t">Stream</span>' + pics
     + '<div class="sc-seg"><button class="' + (!S.stream.all ? 'on' : '') + '" onclick="streamSet(\'all\',false)">Players\u2019 view</button><button class="' + (S.stream.all ? 'on' : '') + '" onclick="streamSet(\'all\',true)">Everything</button></div>'
     + '<div class="sc-seg"><button class="' + (!S.stream.frame ? 'on' : '') + '" onclick="streamSet(\'frame\',false)">Map only</button><button class="' + (S.stream.frame ? 'on' : '') + '" onclick="streamSet(\'frame\',true)">With the table</button></div>';
 }
@@ -18989,7 +19033,7 @@ function playToast(text, tag, kind){
 var _rollShown = {};
 function rollShow(e){
   if (!e || e.kind !== 'roll' || _rollShown[e.id]) return; _rollShown[e.id] = 1;
-  if (e.hidden && !isLM()) return;
+  if (e.hidden && (!isLM() || S.stream)) return;
   var mods = (e.mods || []).filter(function(m){ return m && Number(m.value); });
   var sum = mods.map(function(m){ return '<span class="pt-mod">' + (Number(m.value) >= 0 ? '+' : '\u2212') + Math.abs(Number(m.value)) + ' ' + esc(m.label) + '</span>'; }).join('');
   var mark = e.n === 6 ? 'Fellmark' : e.n === 1 ? 'Fellstrike' : '';
@@ -19013,9 +19057,23 @@ setInterval(function(){
     mine.forEach(function(g){ if (_lpSeen[g.id]) return; _lpSeen[g.id] = 1; lpAnimate(g.amount || 1); });
   } catch(e){}
 }, 700);
-function lpAnimate(n){
+/* the stream sees every Fell's Lore Point moment, named, as each is granted */
+var _lpStreamSeen = null;
+setInterval(function(){
+  try {
+    if (!S.stream) return;
+    var all = S.loreGrants || [];
+    if (_lpStreamSeen === null || Date.now() - _lpBorn < 10000){ _lpStreamSeen = _lpStreamSeen || {}; all.forEach(function(g){ if (g) _lpStreamSeen[g.id] = 1; }); return; }
+    all.forEach(function(g){
+      if (!g || _lpStreamSeen[g.id]) return; _lpStreamSeen[g.id] = 1;
+      var names = (g.to || []).map(function(cid){ var nm = ''; (S.party || []).forEach(function(p){ if (p && sameId(p.charId, cid)) nm = p.charName || p.name || ''; }); return nm; }).filter(Boolean);
+      lpAnimate(g.amount || 1, names.join(', '));
+    });
+  } catch(e){}
+}, 700);
+function lpAnimate(n, who){
   var el = document.createElement('div'); el.className = 'lp-burst';
-  el.innerHTML = '<span class="lp-gem"></span><span class="lp-n">+' + n + '</span><span class="lp-t">Lore Point' + (n === 1 ? '' : 's') + '</span>';
+  el.innerHTML = '<span class="lp-gem"></span><span class="lp-n">+' + n + '</span><span class="lp-t">Lore Point' + (n === 1 ? '' : 's') + (who ? ' for ' + esc(who) : '') + '</span>';
   document.body.appendChild(el); setTimeout(function(){ el.remove(); }, 3600);
 }
 
