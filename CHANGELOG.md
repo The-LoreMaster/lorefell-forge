@@ -1,3 +1,7 @@
+## 2026-10-03 - Walls off the grid, walls that stop a player, the FellGuide in the HUD
+
+Walls go where they are drawn, like doors and windows already did; their ends still catch on a wall's end nearby so runs join, and the Walls panel gains Snap to grid for when they should follow the lines. A move that crosses a wall, a window or a closed door turns the mark, the dotted line and the drag readout red and says a wall is in the way: a player cannot make it (the mark offers no Move, and a dragged Fell goes back where it stood), the LoreMaster's side may still move past it. The LoreMaster's red circle in the HUD is a gold book that opens the FellGuide (www.fellguide.com) in a new tab, in place of a foe's Vitality.
+
 ## 2026-10-03 - The players' moments on the stream
 
 The stream view now shows what the players see as it happens: a beat's picture as it reaches them, large in the middle and titled; a handout given to the whole party (never one given to a single Fell); the roll banners at the top, never the LoreMaster's hidden rolls; and the Lore Point moment for any Fell, named. Nothing of the Journal, Lore Drops, the Story, unread beats, foe stats or Settings. The stream's panel gains Close the picture (or its cross) to clear a picture so the map can be seen, and Pause pictures until switched back; both change the stream alone.
