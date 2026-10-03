@@ -71,12 +71,22 @@ export default {
   }
 };
 
+/* drawings: kept as a union of strokes with a list of erased ids, the same rule the site's
+   mergeDraw keeps, so the room and the saved copy always agree */
+function mergeDraw(a, b) {
+  a = a || {}; b = b || {};
+  const gone = Array.from(new Set([].concat(a.gone || [], b.gone || []))).slice(-3000);
+  const goneSet = {}; gone.forEach((g) => { goneSet[g] = 1; });
+  const seen = {}, strokes = [];
+  [].concat(a.strokes || [], b.strokes || []).forEach((s) => { if (!s || !s.id || seen[s.id] || goneSet[s.id]) return; seen[s.id] = 1; strokes.push(s); });
+  return { strokes: strokes.slice(-600), gone: gone };
+}
 const KEEPER_PARTS = ['fog', 'walls', 'lights', 'effects', 'notes', 'weather', 'draw', 'portraits'];
 
 export class TableRoom {
   constructor(ctx, env) {
     this.ctx = ctx; this.env = env;
-    this.tokens = null; this.scene = null; this.seq = 0; this.moved = {}; this.parts = {}; this.log = []; this.reach = {};
+    this.tokens = null; this.scene = null; this.seq = 0; this.moved = {}; this.parts = {}; this.log = []; this.reach = {}; this.draw = null; this.drawBy = {};
     this.ready = ctx.blockConcurrencyWhile(async () => {
       this.tokens = (await ctx.storage.get('tokens')) || null;
       this.scene = (await ctx.storage.get('scene')) || null;
@@ -84,6 +94,8 @@ export class TableRoom {
       this.parts = (await ctx.storage.get('parts')) || {};
       this.log = (await ctx.storage.get('log')) || [];
       this.reach = (await ctx.storage.get('reach')) || {};
+      this.draw = (await ctx.storage.get('draw')) || null;
+      this.drawBy = (await ctx.storage.get('drawBy')) || {};
     });
   }
   async fetch(req) {
@@ -93,7 +105,7 @@ export class TableRoom {
     const [client, server] = Object.values(pair);
     this.ctx.acceptWebSocket(server);
     server.serializeAttachment(who);
-    server.send(JSON.stringify({ t: 'init', tokens: this.tokens, scene: this.scene, parts: this.parts, log: this.log, seq: this.seq, peers: this.ctx.getWebSockets().length, lms: this.lmCount(), you: { role: who.role, keeper: !!who.keeper }, reach: who.role === 'lm' ? this.reach : undefined }));
+    server.send(JSON.stringify({ t: 'init', tokens: this.tokens, scene: this.scene, parts: this.parts, log: this.log, seq: this.seq, peers: this.ctx.getWebSockets().length, lms: this.lmCount(), draw: this.draw, you: { role: who.role, keeper: !!who.keeper }, reach: who.role === 'lm' ? this.reach : undefined }));
     this.peers();
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -162,6 +174,7 @@ export class TableRoom {
       /* a lorekeeper sends the map layers only, never the run-the-game parts */
       if (who.keeper) { const p = {}; Object.keys(msg.p).forEach((k) => { if (KEEPER_PARTS.indexOf(k) >= 0) p[k] = msg.p[k]; }); if (!Object.keys(p).length) return; msg.p = p; }
       Object.keys(msg.p).forEach((k) => { this.parts[k] = msg.p[k]; });
+      if (msg.p.draw) { this.draw = mergeDraw(this.draw, msg.p.draw); this.ctx.storage.put('draw', this.draw); }
       this.seq++; this.send({ t: 'part', p: msg.p, seq: this.seq, from: who.member }, ws);
       this.ctx.storage.put('parts', this.parts); this.ctx.storage.put('seq', this.seq);
       return;
@@ -188,6 +201,26 @@ export class TableRoom {
         const a = s.deserializeAttachment() || {};
         if (a.role === 'lm') { try { s.send(out); } catch (e) {} }
       }
+      return;
+    }
+    /* A stroke from anyone at the table, and an eraser: everyone's drawings travel here as
+       they are made. A player erases only their own strokes; the LoreMaster's side any. */
+    if (msg.t === 'stroke') {
+      const s = msg.s;
+      if (!s || typeof s !== 'object' || typeof s.id !== 'string' || !Array.isArray(s.p) || s.p.length > 6000) return;
+      this.draw = mergeDraw(this.draw, { strokes: [s] });
+      if (who.member) this.drawBy[s.id] = who.member;
+      const keep = {}; (this.draw.strokes || []).forEach((x) => { if (this.drawBy[x.id]) keep[x.id] = this.drawBy[x.id]; }); this.drawBy = keep;
+      this.send({ t: 'stroke', s: s, from: who.member }, ws);
+      this.ctx.storage.put('draw', this.draw); this.ctx.storage.put('drawBy', this.drawBy);
+      return;
+    }
+    if (msg.t === 'erase') {
+      const ids = (Array.isArray(msg.ids) ? msg.ids : []).map(String).slice(0, 600).filter((id) => lm || this.drawBy[id] === who.member);
+      if (!ids.length) return;
+      this.draw = mergeDraw(this.draw, { gone: ids });
+      this.send({ t: 'erase', ids: ids, from: who.member }, ws);
+      this.ctx.storage.put('draw', this.draw);
       return;
     }
     if (msg.t === 'ping') {
