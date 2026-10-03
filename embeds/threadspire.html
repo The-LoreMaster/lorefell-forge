@@ -8963,6 +8963,17 @@ function pushState(){
   try { if (isLM() && _mapStateLoaded) sceneLayoutSave(); } catch(e){}
   try {
     var snap = sharedSnapshot();
+    /* a guard against the worst loss: a LoreMaster's board that loaded full (maps and tokens
+       across scenes) and has since come up all but empty, in one go, is not saved over the
+       stored one; the table says so instead. Clearing a board on purpose is done a scene at a
+       time and never trips it. */
+    if (isLM() && _boardLoaded && _boardLoaded.placed >= 6 && _boardLoaded.maps >= 2){
+      var _now = boardWeight(snap.instance, snap.tokens, snap.effects, snap.notes);
+      if (_now.placed === 0 && _now.maps <= 1 && _now.tokens === 0){
+        SAVEMARK.failed = 'the board came up empty; refresh, nothing was overwritten';
+        SEAM.pushOk = false; SEAM.pushWhy = 'held: the board came up empty after loading full'; seamPaint(); return;
+      }
+    }
     try { roomLmSync(false); } catch(e){}
     if (ROOM.on && !isLM()) delete snap.tokens;
     try { SEAM.pushKB = Math.round(JSON.stringify(snap).length / 1024); } catch(e){ SEAM.pushKB = 0; }
@@ -8993,8 +9004,16 @@ function pushRetry(){
   clearTimeout(_pushRetryT); _pushRetryT = setTimeout(function(){ try { pushState(); } catch(e){} }, 4000);
 }
 /* the stored state has been heard (or there is none to hear): from here the table may write */
+function boardWeight(inst, tokens, effects, notes){
+  var b = (inst && inst.bindings) || {}, placed = 0, maps = 0;
+  Object.keys(b).forEach(function(k){ if (b[k]){ placed += (b[k].tokens || []).length; if (b[k].mapId) maps++; } });
+  var fx = 0; Object.keys(effects || {}).forEach(function(k){ fx += ((effects[k] || []).length || 0); });
+  return { placed:placed, maps:maps, scenes:Object.keys(b).length, tokens:(tokens || []).length, fx:fx, notes:Object.keys(notes || {}).length };
+}
+var _boardLoaded = null;
 function mapStateArrived(){
   var was = _mapStateLoaded; _mapStateLoaded = true;
+  if (!was){ try { _boardLoaded = boardWeight(S.instance, S.tokens, S.effects, S.notes); } catch(e){} }
   if (!was && _pushWaitingLoad){ _pushWaitingLoad = false; setTimeout(function(){ try { schedulePush(); } catch(e){} }, 300); }
 }
 function lmPullHeld(){
@@ -9015,7 +9034,9 @@ function applyRemoteSnapshot(snap){
   if (snap && snap.dp && isLM() && !S._dpTaken){ S._dpTaken = true; S.dp = snap.dp; }
   if (snap && ROOM.on && !ROOM._applying){
     snap = Object.assign({}, snap);
-    delete snap.tokens;
+    /* the LoreMaster's table still takes the stored board when it loads (an adventure opened or
+       switched to while a room was up lost its tokens here, and then saved the empty board) */
+    if (!(isLM() && !S.stream && !_mapStateLoaded)) delete snap.tokens;
     /* the room carries these now; a log from Wix is merged line by line, not laid over */
     if (!isLM() || S.stream) ['fog', 'walls', 'lights', 'effects', 'notes', 'weather', 'music', 'rest', 'viewCall', 'loreGrants', 'combatPhase'].forEach(function(k){ delete snap[k]; });
     if (snap.log){ var _have = {}; (S.log || []).forEach(function(x){ if (x && x.id) _have[x.id] = 1; }); var _add = snap.log.filter(function(x){ return x && x.id && !_have[x.id]; }); delete snap.log; if (_add.length){ S.log = (S.log || []).concat(_add); applyRemoteState({ log:S.log }); } }
@@ -9442,6 +9463,7 @@ function advReset(nextId){
   /* the next adventure's stored state has not been heard yet */
   _mapStateLoaded = false; _pullEmpty = 0; _pushWaitingLoad = false; _boardScene = null;
   try { roomClose(); } catch(e){}
+  _boardLoaded = null;
   /* the new adventure's stored layouts, music, weather and notes are taken afresh */
   _bindTaken = false; _fxTaken = false; S.effects = {}; _musicTaken = false; try { _wxTaken = false; _notesTaken = false; } catch(e){}
   S.music = null; S.weather = {}; S.notes = {};
