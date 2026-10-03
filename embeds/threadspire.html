@@ -15314,9 +15314,18 @@ function drawPathD(p){
   return h;
 }
 var _stroke = null;
+/* A stroke goes to every table through the live room the moment it is finished, and to the
+   site as the saved copy; an eraser the same. Nobody waits for the site to see a drawing. */
 function drawCommit(stroke){
   S.draw = drawMerge(S.draw, { strokes:[stroke] });
-  drawPaint(); drawShare();
+  drawPaint(); try { roomSend({ t:'stroke', s:stroke }); } catch(e){} drawShare();
+}
+function drawGoneSend(ids){ try { if (ids && ids.length) roomSend({ t:'erase', ids:ids }); } catch(e){} }
+/* a stroke or an eraser from another table: laid on at once, and said as already heard, so
+   the LoreMaster's table does not send the whole drawing back; the saving table saves it */
+function drawTake(add){
+  S.draw = drawMerge(S.draw, add); drawPaint();
+  if (isLM() && !S.stream){ try { ROOM.sentParts.draw = JSON.stringify(roomPartValue('draw')); } catch(e){} if (!isKeeper() || keeperSaves()) schedulePush(); }
 }
 function drawShare(){ if (isLM()) schedulePush(); else { try { pushState(); } catch(e){} } }
 function drawEraseAt(mx, my){
@@ -15326,12 +15335,12 @@ function drawEraseAt(mx, my){
     for (var i = 0; i < s.p.length; i += 2){ var dx = s.p[i] - mx, dy = s.p[i+1] - my, d = dx*dx + dy*dy; if (d < bestD){ bestD = d; best = s; } }
   });
   if (!best || Math.sqrt(bestD) > reach) return;
-  S.draw = drawMerge(S.draw, { gone:[best.id] }); drawPaint(); drawShare();
+  S.draw = drawMerge(S.draw, { gone:[best.id] }); drawPaint(); drawGoneSend([best.id]); drawShare();
 }
 function drawClearMap(){
   var k = mapKey(), ids = ((S.draw && S.draw.strokes) || []).filter(function(s){ return s.k === k; }).map(function(s){ return s.id; });
   if (!ids.length) return;
-  tsConfirm('Clear every drawing on this map?', function(){ S.draw = drawMerge(S.draw, { gone:ids }); drawPaint(); drawShare(); });
+  tsConfirm('Clear every drawing on this map?', function(){ S.draw = drawMerge(S.draw, { gone:ids }); drawPaint(); drawGoneSend(ids); drawShare(); });
 }
 
 /* ---- ruler ---- */
@@ -18768,8 +18777,11 @@ function roomReachApply(c, v){
 }
 function roomGot(m){
   if (m.t === 'reach'){ if (isLM()) roomReachApply(m.c, m); return; }
+  if (m.t === 'stroke'){ if (m.s) drawTake({ strokes:[m.s] }); return; }
+  if (m.t === 'erase'){ if (m.ids) drawTake({ gone:m.ids }); return; }
   if (m.t === 'init'){
     SEAM.roomPeers = m.peers;
+    if (m.draw){ S.draw = drawMerge(S.draw, m.draw); try { drawPaint(); } catch(e){} }
     ROOM.lms = (typeof m.lms === 'number') ? m.lms : null;
     /* a lorekeeper's table takes the board as the room holds it, the way a player's does,
        and says what it already agrees with so nothing is sent back */
