@@ -19,10 +19,19 @@ async function listNativeCollections() {
     .filter(Boolean);
 }
 
+// Every row, a page at a time: Wix answers at most a hundred rows to a query, so a single
+// query backed up only the first hundred of a collection (AdvScenes came back with exactly 100).
 async function queryAll(col) {
-  const r = await req("POST", "/wix-data/v2/items/query", { dataCollectionId: col, query: { paging: { limit: 1000 } } });
-  if (!r.ok) return { ok: false, status: r.status };
-  return { ok: true, items: r.json.dataItems || r.json.items || [] };
+  let items = [], cursor = null;
+  for (let i = 0; i < 200; i++) {
+    const body = { dataCollectionId: col, query: cursor ? { cursorPaging: { cursor: cursor, limit: 100 } } : { cursorPaging: { limit: 100 } } };
+    const r = await req("POST", "/wix-data/v2/items/query", body);
+    if (!r.ok) return items.length ? { ok: true, items: items, partial: true } : { ok: false, status: r.status };
+    items = items.concat(r.json.dataItems || r.json.items || []);
+    cursor = r.json.pagingMetadata && r.json.pagingMetadata.cursors && r.json.pagingMetadata.cursors.next;
+    if (!cursor) break;
+  }
+  return { ok: true, items: items };
 }
 
 (async () => {
