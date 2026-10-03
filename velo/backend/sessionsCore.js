@@ -75,6 +75,27 @@ function zoneParts(ms) {
     .formatToParts(new Date(ms)).forEach((x) => { p[x.type] = x.value; });
   return { day: p.year + '-' + p.month + '-' + p.day, hour: Number(p.hour) };
 }
+// The adventure's header picture as a plain https address an email can load. Wix's own
+// wix:image:// form becomes its public address; anything else that is not https is left out,
+// which means a clear one-pixel strip, so the email reads as if there were no picture slot.
+export const BLANK_IMAGE = 'https://table.lorefell.com/assets/email-blank.png';
+export function emailImage(u) {
+  u = String(u || '').trim();
+  const m = u.match(/^wix:image:\/\/v1\/([^/#]+)/);
+  if (m) return 'https://static.wixstatic.com/media/' + m[1];
+  if (/^https:\/\//.test(u)) return u;
+  return BLANK_IMAGE;
+}
+// The picture set on the adventure itself (its root's meta.img), for emails sent without a
+// table open, such as the morning reminder.
+export async function adventureImage(campaignId) {
+  try {
+    const r = await wixData.query('Adventures').eq('advId', String(campaignId)).limit(1).find(OPTS);
+    const a = r.items[0]; if (!a || !a.meta) return '';
+    const meta = typeof a.meta === 'string' ? JSON.parse(a.meta) : a.meta;
+    return (meta && meta.img) || '';
+  } catch (e) { return ''; }
+}
 export function tableLink(campaignId) { return SITE_URL + TABLE_PATH + '?campaign=' + encodeURIComponent(campaignId); }
 // A player's own way in: their Fell in this adventure, so the table opens on the player's
 // side with that Fell in hand (a link naming only the adventure would leave them choosing).
@@ -116,8 +137,9 @@ export async function sendDueReminders() {
     const off = optOutOf(row);
     const players = (await playersOf(row.campaignId)).filter((p) => off.indexOf(p.memberId) < 0);
     const { name } = await ownerOf(row.campaignId);
+    const image = emailImage(await adventureImage(row.campaignId));
     const r = await emailEach(REMINDER_TEMPLATE_ID, players.map((p) => p.memberId), {
-      adventure: name || 'Your adventure', when: whenText(row.nextAt), note: row.nextNote || '', link: tableLink(row.campaignId)
+      adventure: name || 'Your adventure', when: whenText(row.nextAt), note: row.nextNote || '', image: image, link: tableLink(row.campaignId)
     }, row.campaignId);
     sent += r.sent;
     row.remindedFor = row.nextAt;

@@ -1,3 +1,7 @@
+## 2026-10-03 - The reminder email carries the adventure's picture
+
+The session reminder (the morning job and its test) now sends the image variable the recap already had, read from the adventure's own picture, so both templates can show the header. A recap or test sent without a picture from the table falls back to the adventure's stored one. Paste velo/backend/sessionsCore.js and velo/backend/sessions.web.js.
+
 ## 2026-10-03 - Test emails, the library's buttons, one board button, Run this scene
 
 Settings, Sessions gains Test the emails (Recap, Reminder), and the recap window gains Send me a test: each goes to the LoreMaster alone, the recap with the draft in the window (sendTestEmail). The library's Select, New foe, New NPC and New item share even columns, two by two in a narrow window. The Story window's Quest board and Handouts are one button, Quests and handouts, and Run this scene now closes the Story window so the scene runs. Paste velo/backend/sessions.web.js and velo/page-threadspire.js.
