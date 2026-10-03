@@ -50,9 +50,22 @@ export const setRemindersOff = webMethod(Permissions.Anyone, async (campaignId, 
   return { ok: true, remindersOff: !!off };
 });
 
+// The adventure's header picture as a plain https address an email can load. Wix's own
+// wix:image:// form is turned into its public address; anything else that is not https
+// (a picture still on the LoreMaster's device) is left out. Left out means a clear one-pixel
+// strip, so the email reads as if there were no picture slot at all.
+const BLANK_IMAGE = 'https://table.lorefell.com/assets/email-blank.png';
+function emailImage(u) {
+  u = String(u || '').trim();
+  const m = u.match(/^wix:image:\/\/v1\/([^/#]+)/);
+  if (m) return 'https://static.wixstatic.com/media/' + m[1];
+  if (/^https:\/\//.test(u)) return u;
+  return BLANK_IMAGE;
+}
+
 // Send a recap the LoreMaster has read and edited. Only to players of this adventure,
 // whatever the table asks for.
-export const sendRecap = webMethod(Permissions.Anyone, async (campaignId, text, memberIds, title) => {
+export const sendRecap = webMethod(Permissions.Anyone, async (campaignId, text, memberIds, title, image) => {
   if (!campaignId || !(await isLoreMaster(campaignId))) return { ok: false, error: 'only the LoreMaster' };
   if (!templatesSet()) return { ok: false, error: 'the recap email template is not set up yet' };
   const body = String(text || '').trim().slice(0, 8000);
@@ -62,7 +75,7 @@ export const sendRecap = webMethod(Permissions.Anyone, async (campaignId, text, 
   const to = players.filter((p) => want.indexOf(p.memberId) >= 0).map((p) => p.memberId);
   if (!to.length) return { ok: false, error: 'nobody chosen' };
   const { name } = await ownerOf(campaignId);
-  const r = await emailEach(RECAP_TEMPLATE_ID, to, { adventure: name || 'Your adventure', title: String(title || 'Session recap').slice(0, 120), recap: body, link: tableLink(campaignId) });
+  const r = await emailEach(RECAP_TEMPLATE_ID, to, { adventure: name || 'Your adventure', title: String(title || 'Session recap').slice(0, 120), recap: body, image: emailImage(image), link: tableLink(campaignId) });
   let row = null; try { row = await sessionRow(campaignId); } catch (e) {}
   const recaps = recapsOf(row);
   recaps.unshift({ id: 'r' + Date.now(), at: Date.now(), title: String(title || 'Session recap').slice(0, 120), text: body, sent: r.sent, failed: r.failed.length });

@@ -535,7 +535,7 @@ $w.onReady(async function () {
         } else if (msg.type === 'TS_REMINDERS_OFF') {
           try { reply(true, await setRemindersOff(campaignId, !!msg.off)); } catch (e) { reply(true, { ok: false }); }
         } else if (msg.type === 'TS_RECAP_SEND') {
-          try { reply(true, await sendRecap(campaignId, msg.text, msg.to, msg.title)); } catch (e) { reply(true, { ok: false, error: String(e).slice(0, 80) }); }
+          try { reply(true, await sendRecap(campaignId, msg.text, msg.to, msg.title, msg.image)); } catch (e) { reply(true, { ok: false, error: String(e).slice(0, 80) }); }
         } else if (msg.type === 'TS_JOURNAL_GET') {
           try { const j = await getJournal(campaignId); reply(true, j || []); }
           catch (e) { reply(true, []); }
