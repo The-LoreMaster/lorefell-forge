@@ -501,7 +501,16 @@ $w.onReady(async function () {
           try { const r = await lmSetVitality(msg.charId || '', msg.max); reply(!!(r && r.ok), r, r && r.error); } catch (e) { reply(false, null, String(e)); }
         } else if (msg.type === 'TS_ROOM_TICKET') {
           // a ticket into this adventure's live table room
-          try { const r = await tableRoomTicket(msg.campaignId || campaignId); reply(!!(r && r.ok), r, r && r.error); } catch (e) { reply(false, null, String(e)); }
+          // the table's adventure first; if that is refused, the page's own (from the address
+          // or the context), which is the one this page opened
+          try {
+            let r = await tableRoomTicket(msg.campaignId || campaignId);
+            if (!(r && r.ok) && campaignId && msg.campaignId && campaignId !== msg.campaignId) {
+              const r2 = await tableRoomTicket(campaignId);
+              if (r2 && r2.ok) r = r2; else r = Object.assign({}, r, { error: (r && r.error) + ' | page adventure ' + campaignId + ': ' + ((r2 && r2.error) || 'refused') });
+            }
+            reply(!!(r && r.ok), r, r && r.error);
+          } catch (e) { reply(false, null, String(e)); }
         } else if (msg.type === 'TS_PUBLISHED_PENDING') {
           // an adventure chosen in the directory arrives as ?import=<id>; hand its pack over once
           let pack = null;
