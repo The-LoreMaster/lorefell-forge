@@ -8,8 +8,8 @@ import wixData from 'wix-data';
 import { triggeredEmails } from 'wix-crm-backend';
 
 // ---- paste the two Triggered Email ids here ----
-export const RECAP_TEMPLATE_ID = 'PASTE_RECAP_TEMPLATE_ID';
-export const REMINDER_TEMPLATE_ID = 'PASTE_REMINDER_TEMPLATE_ID';
+export const RECAP_TEMPLATE_ID = 'VX06mcS';
+export const REMINDER_TEMPLATE_ID = 'VX0AdjX';
 
 const SESSIONS = 'AdventureSessions';
 const SITE_URL = 'https://lorefell.com';
@@ -76,11 +76,25 @@ function zoneParts(ms) {
   return { day: p.year + '-' + p.month + '-' + p.day, hour: Number(p.hour) };
 }
 export function tableLink(campaignId) { return SITE_URL + TABLE_PATH + '?campaign=' + encodeURIComponent(campaignId); }
+// A player's own way in: their Fell in this adventure, so the table opens on the player's
+// side with that Fell in hand (a link naming only the adventure would leave them choosing).
+// Someone with no Fell there gets the adventure's link.
+export async function playerLink(campaignId, memberId) {
+  try {
+    const r = await wixData.query('Characters').eq('campaignId', String(campaignId)).eq('ownerMemberId', String(memberId)).limit(1).find(OPTS);
+    const c = r.items[0];
+    if (c && c._id) return SITE_URL + TABLE_PATH + '?character=' + encodeURIComponent(c._id) + '&campaign=' + encodeURIComponent(campaignId);
+  } catch (e) {}
+  return tableLink(campaignId);
+}
 
-export async function emailEach(templateId, memberIds, variables) {
+// Each member gets the same words and their own link.
+export async function emailEach(templateId, memberIds, variables, campaignId) {
   let sent = 0; const failed = [];
   for (const id of memberIds) {
-    try { await triggeredEmails.emailMember(templateId, id, { variables: variables }); sent++; }
+    const v = Object.assign({}, variables);
+    if (campaignId) v.link = await playerLink(campaignId, id);
+    try { await triggeredEmails.emailMember(templateId, id, { variables: v }); sent++; }
     catch (e) { failed.push(String(id)); }
   }
   return { sent: sent, failed: failed };
@@ -104,7 +118,7 @@ export async function sendDueReminders() {
     const { name } = await ownerOf(row.campaignId);
     const r = await emailEach(REMINDER_TEMPLATE_ID, players.map((p) => p.memberId), {
       adventure: name || 'Your adventure', when: whenText(row.nextAt), note: row.nextNote || '', link: tableLink(row.campaignId)
-    });
+    }, row.campaignId);
     sent += r.sent;
     row.remindedFor = row.nextAt;
     try { await wixData.update(SESSIONS, row, OPTS); } catch (e) {}
