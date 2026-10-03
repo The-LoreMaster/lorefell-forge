@@ -2524,6 +2524,20 @@ body.clean #saveMark, body.stream #saveMark{ display:none; }
 #moveLine{ position:absolute; z-index:5; height:0; border-top:3px dashed var(--mc, #c9a84c); transform-origin:0 50%; pointer-events:none; opacity:.95; filter:drop-shadow(0 0 2px rgba(0,0,0,.7)); }
 #moveMark{ border-color:var(--mc, #c9a84c) !important; }
 #moveMark.far{ border-color:#e05a4f !important; }
+
+#beatPic{ position:fixed; left:50%; transform:translate(-50%, -8px); z-index:140; display:flex; align-items:flex-start; opacity:0; pointer-events:none; transition:opacity .25s, transform .25s; }
+#beatPic.on{ opacity:1; transform:translate(-50%, 0); pointer-events:auto; }
+#beatPic figure{ margin:0; display:flex; flex-direction:column; max-height:inherit; padding:8px; border:1px solid rgba(201,168,76,.65); border-radius:12px; background:rgba(10,14,28,.92); box-shadow:0 14px 36px rgba(0,0,0,.55); }
+#beatPic img{ max-width:min(560px, 70vw); max-height:calc(100% - 26px); min-height:0; object-fit:contain; border-radius:8px; flex:1; }
+#beatPic figcaption{ padding:6px 4px 0; font-family:Cinzel,serif; font-size:.68rem; letter-spacing:.06em; color:#e8cf86; } #beatPic figcaption i{ font-family:'Crimson Pro',Georgia,serif; font-style:italic; letter-spacing:0; color:#93a3b6; margin-left:6px; }
+#beatPic > button{ margin-left:-14px; margin-top:-10px; width:28px; height:28px; padding:0; border:1px solid #2c3a58; border-radius:50%; background:#0b1020; color:#dce8ef; cursor:pointer; }
+#beatPicP{ position:fixed; z-index:505; display:none; flex-direction:column; min-width:200px; min-height:160px; resize:both; overflow:hidden; border:1px solid rgba(201,168,76,.6); border-radius:12px; background:rgba(10,14,28,.94); box-shadow:0 12px 30px rgba(0,0,0,.5); }
+#beatPicP .bp-head{ display:flex; align-items:center; gap:8px; padding:6px 8px 6px 12px; cursor:move; border-bottom:1px solid rgba(201,168,76,.25); touch-action:none; }
+#beatPicP .bp-head span{ flex:1; font-family:Cinzel,serif; font-size:.72rem; letter-spacing:.08em; color:#c9a84c; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#beatPicP .bp-head button{ width:28px; height:28px; border:1px solid #2c3a58; border-radius:8px; background:none; color:#dce8ef; cursor:pointer; }
+#beatPicP .bp-img{ flex:1; min-height:0; display:flex; align-items:center; justify-content:center; padding:6px; } #beatPicP img{ max-width:100%; max-height:100%; object-fit:contain; border-radius:8px; }
+@media (prefers-reduced-motion: reduce){ #beatPic{ transition:none; } }
+body.stream #beatPic{ display:none; }
 </style>
 </head>
 <body>
@@ -6874,6 +6888,7 @@ function lmStripHtml(){
       return '<div class="lm-slot ' + pos + '"' + clickAttr + '>' + cardFor(item) + '</div>';
     }).join('');
   }
+  try { if (f !== 'resolve' && S.mode !== 'combat') beatPicFollow(deck[focus]); } catch(e){}
   var dots = deck.length > 1 ? '<div class="lm-dots">' + deck.map(function(_, i){
     return '<span class="lm-dot' + (i === focus ? ' on' : '') + '" onclick="lmGoTo(' + i + ')"></span>';
   }).join('') + '</div>' : '';
@@ -7244,6 +7259,7 @@ function lmPhaseControls(){
     return '<button class="lmbtn" onclick="lmOpenMaps()">Maps</button>'
          + '<button class="lmbtn" onclick="lmOpenTokens()">Tokens</button>'
          + '<button class="lmbtn" onclick="lmBeginCombat()">Begin combat</button>'
+         + '<button class="lmbtn' + (beatPicsOn() ? ' gold' : '') + '" onclick="beatPicsToggle()" title="Show a beat\u2019s picture on screen and to the players">Pictures ' + (beatPicsOn() ? 'on' : 'off') + '</button>'
          + lmAplGear();
   if (S.scene.combatPhase === 'commit')
     return '<button class="lmbtn gold" onclick="lmLockActs()">Lock acts into Spotlights</button>'
@@ -8828,6 +8844,7 @@ function sharedSnapshot(){
     sheetRev: S.sheetRev || {},   /* who has been written to, and when */
     log: (S.log || []).slice(-40),
     dp: isLM() ? S.dp : undefined,
+    beatPic: S.beatPic || null,
     advRev: S.advRev || 0,
     instance: (function(){
       /* every scene ever opened was leaving an empty binding behind */
@@ -9031,6 +9048,7 @@ function seamWarn(){
 }
 /* apply a remote snapshot as truth */
 function applyRemoteSnapshot(snap){
+  if (snap && snap.beatPic !== undefined && !isLM()){ S.beatPic = snap.beatPic; try { beatPicPlayer(); } catch(e){} }
   if (snap && snap.dp && isLM() && !S._dpTaken){ S._dpTaken = true; S.dp = snap.dp; }
   if (snap && ROOM.on && !ROOM._applying){
     snap = Object.assign({}, snap);
@@ -9969,6 +9987,7 @@ function menuBody(){
   h += diceSettingsLine();
   if (!lm){ var _fg = fellGrowMode();
     h += '<div class="lb-row" style="cursor:pointer" onclick="fellGrowSet(\'' + (_fg === 'auto' ? 'ask' : 'auto') + '\')" title="A Fellmark on a skill check raises that skill by 1"><span class="lb-name">Fellmarks raise skills</span><span class="lb-meta">' + (_fg === 'auto' ? 'Automatically' : 'Ask me') + '</span></div>'; }
+  if (!lm) h += '<div class="lb-row" style="cursor:pointer" onclick="beatPicsPlayerToggle()"><span class="lb-name">Scene pictures</span><span class="lb-meta">' + (beatPicsPlayerOn() ? 'Shown' : 'Off') + '</span></div>';
   h += '<div class="lb-row"><span class="lb-name">Your ping colour</span></div>' + pingColorRow();
   h += '<div class="lb-row" style="cursor:pointer" onclick="openWin(\'seams\')"><span class="lb-name">Show the seams</span><span class="lb-meta">Live</span></div>';
   setTimeout(loadCharList, 30);
@@ -18135,7 +18154,7 @@ function streamCopy(){
    their tokens out, so an older copy can no longer pull a token back or swap its picture. */
 var ROOM = { ws:null, on:false, want:false, tries:0, t:null, cid:'', role:'', sentToks:'', sentScene:'', live:{}, sceneAt:0, hb:null, sentParts:{} };
 /* the rest of the table the LoreMaster's table sends through the room, each when it changes */
-var ROOM_PARTS = ['fog', 'walls', 'lights', 'effects', 'notes', 'weather', 'music', 'rest', 'viewCall', 'loreGrants', 'combatPhase', 'draw', 'portraits', 'party'];
+var ROOM_PARTS = ['fog', 'walls', 'lights', 'effects', 'notes', 'weather', 'music', 'rest', 'viewCall', 'loreGrants', 'combatPhase', 'draw', 'portraits', 'party', 'beatPic'];
 function roomSend(msg){ if (ROOM.on && ROOM.ws && ROOM.ws.readyState === 1 && !S.stream){ try { ROOM.ws.send(JSON.stringify(msg)); return true; } catch(e){} } return false; }
 function roomConnect(){
   if (!tsEmbedded() || !S.campaignId) return;
@@ -18175,6 +18194,7 @@ function roomLmSync(force){
 function roomPartValue(k){
   if (k === 'combatPhase') return (S.scene && S.scene.combatPhase) || '';
   if (k === 'party') return (S.party && S.party.length) ? partyPublic() : undefined;
+  if (k === 'beatPic') return S.beatPic || null;
   if (k === 'portraits'){ var o = {}; Object.keys(_portraits).forEach(function(c){ var u = String(_portraits[c] || ''); if (/^https?:/.test(u)) o[c] = u; }); return o; }
   return S[k];
 }
@@ -18839,6 +18859,72 @@ function moveMarkGo(){
   renderTokens();
 }
 document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && MOVEMARK) moveMarkClear(); });
+
+
+/* ================= a beat's picture, shown =================
+   When the scene runner comes to a beat that has a picture, the picture rises in the middle
+   of the LoreMaster's screen, between the map bar and the runner, and goes out to the players
+   (a secret or a note never does). The runner's picture switch turns this off for everyone. On
+   a player's table the picture opens in its own window, moved and resized like the floating
+   log and remembered on that screen; a player may close it, or turn scene pictures off. */
+var BEAT_PIC_LM_ONLY = { secret:1, note:1, lorecheck:1, check:1 };
+function beatPicsOn(){ try { return localStorage.getItem('ts_beat_pics') !== '0'; } catch(e){ return true; } }
+function beatPicsToggle(){ try { localStorage.setItem('ts_beat_pics', beatPicsOn() ? '0' : '1'); } catch(e){} if (!beatPicsOn()){ beatPicHideLm(); S.beatPic = null; schedulePush(); } paintLmStrip(); }
+var _beatPicShown = '';
+function beatPicFollow(item){
+  if (!isLM() || S.stream) return;
+  var b = item && item.kind === 'beat' ? item.data : null;
+  var key = b && b.img ? (S.scene.id + ':' + (b.id || b.title) + ':' + b.img) : '';
+  if (key === _beatPicShown) return; _beatPicShown = key;
+  if (!key || !beatPicsOn()){ beatPicHideLm(); if (S.beatPic){ S.beatPic = null; schedulePush(); } return; }
+  beatPicShowLm(b);
+  if (!BEAT_PIC_LM_ONLY[b.kind]){ S.beatPic = { url:b.img, title:b.title || '', key:key, at:Date.now() }; schedulePush(); }
+  else if (S.beatPic){ S.beatPic = null; schedulePush(); }
+}
+function beatPicShowLm(b){
+  var el = document.getElementById('beatPic'); if (!el){ el = document.createElement('div'); el.id = 'beatPic'; document.body.appendChild(el); }
+  el.innerHTML = '<figure><img src="' + esc(b.img) + '" alt="' + esc(b.title || 'The beat\u2019s picture') + '"><figcaption>' + esc(b.title || '') + (BEAT_PIC_LM_ONLY[b.kind] ? ' <i>yours alone</i>' : ' <i>shown to the players</i>') + '</figcaption></figure><button onclick="beatPicHideLm()" aria-label="Close the picture" title="Close">\u00d7</button>';
+  beatPicPlace(); el.classList.add('on');
+}
+function beatPicHideLm(){ var el = document.getElementById('beatPic'); if (el) el.classList.remove('on'); }
+/* between the map bar and the runner */
+function beatPicPlace(){
+  var el = document.getElementById('beatPic'); if (!el) return;
+  var bar = document.getElementById('mapTools'), tb = document.querySelector('.lm-topbar') || document.getElementById('lmstrip');
+  var top = bar ? Math.max(70, bar.getBoundingClientRect().bottom + 12) : 90;
+  var bottom = tb && tb.getBoundingClientRect().height ? tb.getBoundingClientRect().top - 12 : innerHeight - 40;
+  var h = Math.max(140, bottom - top);
+  el.style.top = top + 'px'; el.style.maxHeight = h + 'px';
+  var im = el.querySelector('img'); if (im) im.style.maxHeight = Math.max(90, h - 50) + 'px';
+}
+window.addEventListener('resize', function(){ try { beatPicPlace(); } catch(e){} });
+/* -- the player's window -- */
+function beatPicsPlayerOn(){ try { return localStorage.getItem('ts_beat_pics_p') !== '0'; } catch(e){ return true; } }
+function beatPicsPlayerToggle(){ try { localStorage.setItem('ts_beat_pics_p', beatPicsPlayerOn() ? '0' : '1'); } catch(e){} if (!beatPicsPlayerOn()) beatPicCloseP(); refreshWinBody(); }
+var _beatPicSeen = '';
+function beatPicPlayer(){
+  if (isLM()) return;
+  var p = S.beatPic;
+  if (!p || !p.url){ beatPicCloseP(); _beatPicSeen = ''; return; }
+  if (p.key === _beatPicSeen) return; _beatPicSeen = p.key;
+  if (!beatPicsPlayerOn()) return;
+  var pr = {}; try { pr = JSON.parse(localStorage.getItem('ts_beatpic_win') || '{}'); } catch(e){}
+  var el = document.getElementById('beatPicP');
+  if (!el){
+    el = document.createElement('div'); el.id = 'beatPicP';
+    el.style.left = (pr.x != null ? pr.x : Math.max(12, innerWidth / 2 - 200)) + 'px'; el.style.top = (pr.y != null ? pr.y : 90) + 'px';
+    el.style.width = (pr.w || 400) + 'px'; el.style.height = (pr.h || 340) + 'px';
+    document.body.appendChild(el);
+    new ResizeObserver(function(){ var q = {}; try { q = JSON.parse(localStorage.getItem('ts_beatpic_win') || '{}'); } catch(e){} q.w = el.offsetWidth; q.h = el.offsetHeight; try { localStorage.setItem('ts_beatpic_win', JSON.stringify(q)); } catch(e){} }).observe(el);
+  }
+  el.innerHTML = '<div class="bp-head"><span>' + esc(p.title || 'The scene') + '</span><button onclick="beatPicCloseP()" aria-label="Close" title="Close">\u00d7</button></div><div class="bp-img"><img src="' + esc(p.url) + '" alt="' + esc(p.title || 'A picture from the scene') + '"></div>';
+  el.style.display = 'flex';
+  var head = el.querySelector('.bp-head'), drag = null;
+  head.addEventListener('pointerdown', function(e){ if (e.target.closest('button')) return; drag = { sx:e.clientX, sy:e.clientY, x:el.offsetLeft, y:el.offsetTop }; head.setPointerCapture(e.pointerId); });
+  head.addEventListener('pointermove', function(e){ if (!drag) return; el.style.left = Math.max(0, Math.min(innerWidth - 80, drag.x + e.clientX - drag.sx)) + 'px'; el.style.top = Math.max(0, Math.min(innerHeight - 40, drag.y + e.clientY - drag.sy)) + 'px'; });
+  head.addEventListener('pointerup', function(){ if (!drag) return; drag = null; var q = {}; try { q = JSON.parse(localStorage.getItem('ts_beatpic_win') || '{}'); } catch(e){} q.x = el.offsetLeft; q.y = el.offsetTop; try { localStorage.setItem('ts_beatpic_win', JSON.stringify(q)); } catch(e){} });
+}
+function beatPicCloseP(){ var el = document.getElementById('beatPicP'); if (el) el.style.display = 'none'; }
 
 /* ================= rests =================
    A rest comes from the LoreMaster, and only outside a fight: Call a rest opens it for the
