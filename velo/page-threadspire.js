@@ -21,7 +21,7 @@ import { loadAdventure, saveAdventureRoot, saveAdvAct, saveAdvSession, saveAdvSc
 import { myAdventureRole, deleteCampaign } from 'backend/fatewell.web.js';
 import { removeAdventure } from 'backend/adventures.web.js';
 import { handleSheetMessage } from 'public/fgSheetBridge.js';
-import { getSession, setNextSession, setRemindersOff, sendRecap } from 'backend/sessions.web.js';
+import { getSession, setNextSession, setRemindersOff, sendRecap, sendTestEmail } from 'backend/sessions.web.js';
 import wixLocation from 'wix-location';
 import wixWindow from 'wix-window';
 
@@ -534,6 +534,8 @@ $w.onReady(async function () {
           try { reply(true, await setNextSession(campaignId, msg.at, msg.note)); } catch (e) { reply(true, { ok: false, error: String(e).slice(0, 80) }); }
         } else if (msg.type === 'TS_REMINDERS_OFF') {
           try { reply(true, await setRemindersOff(campaignId, !!msg.off)); } catch (e) { reply(true, { ok: false }); }
+        } else if (msg.type === 'TS_EMAIL_TEST') {
+          try { reply(true, await sendTestEmail(campaignId, msg.kind, msg.text, msg.title, msg.image)); } catch (e) { reply(true, { ok: false, error: String(e).slice(0, 80) }); }
         } else if (msg.type === 'TS_RECAP_SEND') {
           try { reply(true, await sendRecap(campaignId, msg.text, msg.to, msg.title, msg.image)); } catch (e) { reply(true, { ok: false, error: String(e).slice(0, 80) }); }
         } else if (msg.type === 'TS_JOURNAL_GET') {

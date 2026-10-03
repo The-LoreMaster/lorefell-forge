@@ -6,7 +6,7 @@ import { Permissions, webMethod } from 'wix-web-module';
 import wixData from 'wix-data';
 import { currentMember } from 'wix-members-backend';
 import { myAdventureRole } from 'backend/fatewell.web.js';
-import { RECAP_TEMPLATE_ID, templatesSet, sessionRow, sessionSave, optOutOf, recapsOf, ownerOf, playersOf, whenText, tableLink, emailEach } from 'backend/sessionsCore.js';
+import { RECAP_TEMPLATE_ID, REMINDER_TEMPLATE_ID, templatesSet, sessionRow, sessionSave, optOutOf, recapsOf, ownerOf, playersOf, whenText, tableLink, emailEach } from 'backend/sessionsCore.js';
 
 async function memberId() {
   try { const m = await currentMember.getMember(); return m ? m._id : ''; } catch (e) { return ''; }
@@ -81,6 +81,25 @@ export const sendRecap = webMethod(Permissions.Anyone, async (campaignId, text, 
   recaps.unshift({ id: 'r' + Date.now(), at: Date.now(), title: String(title || 'Session recap').slice(0, 120), text: body, sent: r.sent, failed: r.failed.length });
   try { await sessionSave(campaignId, { recaps: JSON.stringify(recaps.slice(0, 40)) }); } catch (e) {}
   return { ok: r.sent > 0, sent: r.sent, failed: r.failed.length, error: r.sent ? '' : 'no email went out' };
+});
+
+// A test of either email, sent to the LoreMaster alone: the recap with what is in the recap
+// window (or a sample), the reminder with the next session as set (or a sample time).
+export const sendTestEmail = webMethod(Permissions.Anyone, async (campaignId, kind, text, title, image) => {
+  if (!campaignId || !(await isLoreMaster(campaignId))) return { ok: false, error: 'only the LoreMaster' };
+  if (!templatesSet()) return { ok: false, error: 'the email templates are not set up yet' };
+  const mid = await memberId(); if (!mid) return { ok: false, error: 'sign in' };
+  const { name } = await ownerOf(campaignId);
+  let r;
+  if (kind === 'reminder') {
+    let row = null; try { row = await sessionRow(campaignId); } catch (e) {}
+    const at = (row && row.nextAt) || (Date.now() + 86400000);
+    r = await emailEach(REMINDER_TEMPLATE_ID, [mid], { adventure: name || 'Your adventure', when: whenText(at), note: (row && row.nextNote) || 'This is a test of the reminder email.', link: tableLink(campaignId) });
+  } else {
+    const body = String(text || '').trim().slice(0, 8000) || 'This is a test of the recap email. The story you write or draft in the recap window goes here, paragraph by paragraph, so you can see how it reads before your players do.';
+    r = await emailEach(RECAP_TEMPLATE_ID, [mid], { adventure: name || 'Your adventure', title: String(title || 'Session recap').slice(0, 120), recap: body, image: emailImage(image), link: tableLink(campaignId) });
+  }
+  return { ok: r.sent > 0, error: r.sent ? '' : 'the email did not go out' };
 });
 
 // For the Hearth: the next session of every adventure this member plays in or runs.
