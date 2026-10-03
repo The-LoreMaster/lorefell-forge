@@ -223,6 +223,16 @@ export class TableRoom {
       this.ctx.storage.put('draw', this.draw);
       return;
     }
+    /* a door or window opened or closed from any table: kept in the walls the room holds, so a
+       table joining later finds it as it stands, and passed to every other table */
+    if (msg.t === 'door') {
+      const k = String(msg.k || ''), id = String(msg.id || '');
+      if (!k || !id) return;
+      const walls = this.parts.walls && this.parts.walls[k];
+      if (Array.isArray(walls)) { walls.forEach((w) => { if (w && w.id === id) w.open = msg.open ? 1 : 0; }); this.ctx.storage.put('parts', this.parts); }
+      this.send({ t: 'door', k: k, id: id, open: msg.open ? 1 : 0, from: who.member }, ws);
+      return;
+    }
     if (msg.t === 'ping') {
       this.send({ t: 'ping', x: msg.x, y: msg.y, c: msg.c, n: msg.n, k: msg.k, from: who.member }, ws);
       return;

@@ -1,3 +1,7 @@
+## 2026-10-03 - Doors and windows anyone can open; the FellGuide link
+
+Every door and window carries a small handle: a door or window mark, gray and faded, lit gold on hover, its open shape when open. Players see the handles of the doors and windows they can see (never the wall lines) and open or close them from their own table: it changes on their screen at once, goes through the live room (a new door message, kept in the room's walls), every table follows, and the LoreMaster's table saves it. Fog, light and movement follow it everywhere; an open window now lets a body through as an open door does. The HUD's FellGuide book opens fellguide.com/The+FellGuide/Overview.
+
 ## 2026-10-03 - Walls off the grid, walls that stop a player, the FellGuide in the HUD
 
 Walls go where they are drawn, like doors and windows already did; their ends still catch on a wall's end nearby so runs join, and the Walls panel gains Snap to grid for when they should follow the lines. A move that crosses a wall, a window or a closed door turns the mark, the dotted line and the drag readout red and says a wall is in the way: a player cannot make it (the mark offers no Move, and a dragged Fell goes back where it stood), the LoreMaster's side may still move past it. The LoreMaster's red circle in the HUD is a gold book that opens the FellGuide (www.fellguide.com) in a new tab, in place of a foe's Vitality.
