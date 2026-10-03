@@ -32,6 +32,33 @@ export async function sessionSave(campaignId, patch) {
   const row = Object.assign(cur || { campaignId: String(campaignId) }, patch);
   return cur ? wixData.update(SESSIONS, row, OPTS) : wixData.insert(SESSIONS, row, OPTS);
 }
+/* A session that repeats every week: from its first time, a week at a time, past any week
+   the LoreMaster skipped, up to an end if one is set. The next one is the first that has not
+   finished (taken as three hours after it starts). Arizona has no daylight saving, so a week
+   is always the same hour on the clock. */
+export const WEEK = 7 * 86400000;
+export function skipsOf(row) { return parseList(row && row.skips).map(Number).filter(Boolean); }
+export function nextOccurrence(row, now) {
+  if (!row || !row.nextAt) return 0;
+  now = now || Date.now();
+  let t = Number(row.nextAt);
+  if (!row.repeatWeekly) return t;
+  const skips = skipsOf(row), until = Number(row.repeatUntil) || 0;
+  let guard = 0;
+  while (t < now - 3 * 3600000 && guard++ < 600) t += WEEK;
+  while (skips.indexOf(t) >= 0 && guard++ < 700) t += WEEK;
+  if (until && t > until) return 0;
+  return t;
+}
+/* the next few weeks of a repeating session, for choosing which to skip */
+export function upcoming(row, n) {
+  if (!row || !row.repeatWeekly || !row.nextAt) return [];
+  const out = [], until = Number(row.repeatUntil) || 0, skips = skipsOf(row);
+  let t = Number(row.nextAt), guard = 0;
+  while (t < Date.now() - 3 * 3600000 && guard++ < 600) t += WEEK;
+  while (out.length < (n || 6) && (!until || t <= until)) { out.push({ at: t, skipped: skips.indexOf(t) >= 0 }); t += WEEK; }
+  return out;
+}
 export function optOutOf(row) { return parseList(row && row.optOut).map(String); }
 export function recapsOf(row) { return parseList(row && row.recaps); }
 
@@ -129,20 +156,21 @@ export async function sendDueReminders() {
   const now = Date.now(), today = zoneParts(now);
   if (today.hour < REMIND_HOUR) return { ok: true, sent: 0 };
   let rows = [];
-  try { const r = await wixData.query(SESSIONS).gt('nextAt', now).limit(1000).find(OPTS); rows = r.items; } catch (e) { return { ok: false, error: String(e) }; }
+  try { const r = await wixData.query(SESSIONS).gt('nextAt', 0).limit(1000).find(OPTS); rows = r.items; } catch (e) { return { ok: false, error: String(e) }; }
   let sent = 0;
   for (const row of rows) {
-    if (!row.nextAt || Number(row.remindedFor) === Number(row.nextAt)) continue;
-    if (zoneParts(row.nextAt).day !== today.day) continue;
+    const at = nextOccurrence(row, now);
+    if (!at || at < now || Number(row.remindedFor) === at) continue;
+    if (zoneParts(at).day !== today.day) continue;
     const off = optOutOf(row);
     const players = (await playersOf(row.campaignId)).filter((p) => off.indexOf(p.memberId) < 0);
     const { name } = await ownerOf(row.campaignId);
     const image = emailImage(await adventureImage(row.campaignId));
     const r = await emailEach(REMINDER_TEMPLATE_ID, players.map((p) => p.memberId), {
-      adventure: name || 'Your adventure', when: whenText(row.nextAt), note: row.nextNote || '', image: image, link: tableLink(row.campaignId)
+      adventure: name || 'Your adventure', when: whenText(at), note: row.nextNote || '', image: image, link: tableLink(row.campaignId)
     }, row.campaignId);
     sent += r.sent;
-    row.remindedFor = row.nextAt;
+    row.remindedFor = at;
     try { await wixData.update(SESSIONS, row, OPTS); } catch (e) {}
   }
   return { ok: true, sent: sent };

@@ -1,3 +1,7 @@
+## 2026-10-03 - Weekly sessions; a wider adventure chooser
+
+The next session can repeat every week at its day and time, with an end date if wanted. Settings shows "Every Saturday at 9:00 PM. Next: ..." and the coming six weeks as chips: tap one to skip that week, tap again to bring it back. The reminder email, the players' menus, the Hearth and the test email all follow the next week that is not skipped and has not ended; nothing needs setting again each week. AdventureSessions gains repeatWeekly, repeatUntil and skips; a new method, skipSessionWeek. The adventure chooser's pictures take half of each card, "You run it" is gone (a lorekeeper's adventure still says so), and New's second button is Import. Paste velo/backend/sessionsCore.js, velo/backend/sessions.web.js and velo/page-threadspire.js.
+
 ## 2026-10-03 - Every adventure with its picture; switches beside their words
 
 The adventure chooser shows each adventure's picture, wide (168 by 84), in Yours (read from each story's root, in one look-up by listMyCampaigns) and in Published (kept on the published row when it is published, read from the pack for ones published before). In a narrow window the picture goes on top and the words beneath it. A Settings or menu row whose only control is a switch keeps the switch beside its words at any width. Paste velo/page-threadspire.js, velo/backend/fatewell.web.js and velo/backend/published.web.js.

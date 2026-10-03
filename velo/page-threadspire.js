@@ -22,7 +22,7 @@ import { loadAdventure, saveAdventureRoot, saveAdvAct, saveAdvSession, saveAdvSc
 import { myAdventureRole, deleteCampaign } from 'backend/fatewell.web.js';
 import { removeAdventure } from 'backend/adventures.web.js';
 import { handleSheetMessage } from 'public/fgSheetBridge.js';
-import { getSession, setNextSession, setRemindersOff, sendRecap, sendTestEmail } from 'backend/sessions.web.js';
+import { getSession, setNextSession, setRemindersOff, sendRecap, sendTestEmail, skipSessionWeek } from 'backend/sessions.web.js';
 import wixLocation from 'wix-location';
 import wixWindow from 'wix-window';
 
@@ -532,7 +532,9 @@ $w.onReady(async function () {
         } else if (msg.type === 'TS_SESSION_GET') {
           try { reply(true, await getSession(campaignId)); } catch (e) { reply(true, { ok: false }); }
         } else if (msg.type === 'TS_SESSION_SET') {
-          try { reply(true, await setNextSession(campaignId, msg.at, msg.note)); } catch (e) { reply(true, { ok: false, error: String(e).slice(0, 80) }); }
+          try { reply(true, await setNextSession(campaignId, msg.at, msg.note, { repeat: !!msg.repeat, until: msg.until || 0 })); } catch (e) { reply(true, { ok: false, error: String(e).slice(0, 80) }); }
+        } else if (msg.type === 'TS_SESSION_SKIP') {
+          try { reply(true, await skipSessionWeek(campaignId, msg.at, !!msg.skip)); } catch (e) { reply(true, { ok: false, error: String(e).slice(0, 80) }); }
         } else if (msg.type === 'TS_REMINDERS_OFF') {
           try { reply(true, await setRemindersOff(campaignId, !!msg.off)); } catch (e) { reply(true, { ok: false }); }
         } else if (msg.type === 'TS_EMAIL_TEST') {

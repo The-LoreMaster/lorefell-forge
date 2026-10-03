@@ -6,7 +6,7 @@ import { Permissions, webMethod } from 'wix-web-module';
 import wixData from 'wix-data';
 import { currentMember } from 'wix-members-backend';
 import { myAdventureRole } from 'backend/fatewell.web.js';
-import { RECAP_TEMPLATE_ID, REMINDER_TEMPLATE_ID, templatesSet, sessionRow, sessionSave, optOutOf, recapsOf, ownerOf, playersOf, whenText, tableLink, emailEach, emailImage, adventureImage } from 'backend/sessionsCore.js';
+import { RECAP_TEMPLATE_ID, REMINDER_TEMPLATE_ID, templatesSet, sessionRow, sessionSave, optOutOf, recapsOf, ownerOf, playersOf, whenText, tableLink, emailEach, emailImage, adventureImage, nextOccurrence, upcoming, skipsOf } from 'backend/sessionsCore.js';
 
 async function memberId() {
   try { const m = await currentMember.getMember(); return m ? m._id : ''; } catch (e) { return ''; }
@@ -25,19 +25,36 @@ export const getSession = webMethod(Permissions.Anyone, async (campaignId) => {
   const isPlayer = players.some((p) => p.memberId === mid);
   if (!role && !isPlayer) return { ok: false, error: 'not at this adventure' };
   let row = null; try { row = await sessionRow(campaignId); } catch (e) {}
-  const out = { ok: true, nextAt: (row && row.nextAt) || 0, note: (row && row.nextNote) || '', when: row && row.nextAt ? whenText(row.nextAt) : '',
+  const nx = nextOccurrence(row);
+  const out = { ok: true, nextAt: nx, note: (row && row.nextNote) || '', when: nx ? whenText(nx) : '',
+    repeat: !!(row && row.repeatWeekly), firstAt: (row && row.nextAt) || 0, until: (row && row.repeatUntil) || 0, weeks: upcoming(row, 6),
     remindersOff: optOutOf(row).indexOf(mid) >= 0, emailReady: templatesSet() };
   if (role === 'loremaster') { out.recaps = recapsOf(row); out.players = players; }
   return out;
 });
 
-export const setNextSession = webMethod(Permissions.Anyone, async (campaignId, atMs, note) => {
+// The next session, once or every week (with an end if wanted). opts: { repeat, until }.
+export const setNextSession = webMethod(Permissions.Anyone, async (campaignId, atMs, note, opts) => {
   if (!campaignId || !(await isLoreMaster(campaignId))) return { ok: false, error: 'only the LoreMaster' };
-  const at = Number(atMs) || 0;
+  const at = Number(atMs) || 0, o = opts || {};
   if (at && at < Date.now() - 3600 * 1000) return { ok: false, error: 'that time has passed' };
-  try { await sessionSave(campaignId, { nextAt: at, nextNote: String(note || '').slice(0, 300) }); }
-  catch (e) { return { ok: false, error: 'not saved' }; }
-  return { ok: true, nextAt: at, when: at ? whenText(at) : '' };
+  const patch = { nextAt: at, nextNote: String(note || '').slice(0, 300), repeatWeekly: !!(at && o.repeat), repeatUntil: Number(o.until) || 0 };
+  if (!at || !o.repeat) patch.skips = '[]';
+  let row = null;
+  try { row = await sessionSave(campaignId, patch); } catch (e) { return { ok: false, error: 'not saved' }; }
+  const nx = nextOccurrence(row);
+  return { ok: true, nextAt: nx, when: nx ? whenText(nx) : '', repeat: patch.repeatWeekly, firstAt: at, until: patch.repeatUntil, weeks: upcoming(row, 6) };
+});
+// Skip one week of a repeating session, or bring it back.
+export const skipSessionWeek = webMethod(Permissions.Anyone, async (campaignId, weekMs, skip) => {
+  if (!campaignId || !(await isLoreMaster(campaignId))) return { ok: false, error: 'only the LoreMaster' };
+  let row = null; try { row = await sessionRow(campaignId); } catch (e) {}
+  if (!row || !row.repeatWeekly) return { ok: false, error: 'not a weekly session' };
+  const w = Number(weekMs) || 0; let list = skipsOf(row).filter((x) => x !== w && x > Date.now() - 86400000 * 8);
+  if (skip) list.push(w);
+  try { row = await sessionSave(campaignId, { skips: JSON.stringify(list) }); } catch (e) { return { ok: false, error: 'not saved' }; }
+  const nx = nextOccurrence(row);
+  return { ok: true, nextAt: nx, when: nx ? whenText(nx) : '', weeks: upcoming(row, 6) };
 });
 
 // A player's own choice; anyone at the adventure may set it for themselves only.
@@ -80,7 +97,7 @@ export const sendTestEmail = webMethod(Permissions.Anyone, async (campaignId, ki
   let r;
   if (kind === 'reminder') {
     let row = null; try { row = await sessionRow(campaignId); } catch (e) {}
-    const at = (row && row.nextAt) || (Date.now() + 86400000);
+    const at = nextOccurrence(row) || (Date.now() + 86400000);
     r = await emailEach(REMINDER_TEMPLATE_ID, [mid], { adventure: name || 'Your adventure', when: whenText(at), note: (row && row.nextNote) || 'This is a test of the reminder email.', image: emailImage(image || await adventureImage(campaignId)), link: tableLink(campaignId) });
   } else {
     const body = String(text || '').trim().slice(0, 8000) || 'This is a test of the recap email. The story you write or draft in the recap window goes here, paragraph by paragraph, so you can see how it reads before your players do.';
@@ -98,8 +115,8 @@ export const myNextSessions = webMethod(Permissions.Anyone, async () => {
   try { const r = await wixData.query('Campaigns').eq('ownerMemberId', mid).limit(200).find({ suppressAuth: true }); r.items.forEach((c) => { ids[c._id] = 1; }); } catch (e) {}
   const list = Object.keys(ids); if (!list.length) return [];
   let rows = [];
-  try { const r = await wixData.query('AdventureSessions').hasSome('campaignId', list).gt('nextAt', Date.now()).limit(100).find({ suppressAuth: true }); rows = r.items; } catch (e) { rows = []; }
+  try { const r = await wixData.query('AdventureSessions').hasSome('campaignId', list).gt('nextAt', 0).limit(100).find({ suppressAuth: true }); rows = r.items; } catch (e) { rows = []; }
   const out = [];
-  for (const row of rows) { const { name } = await ownerOf(row.campaignId); out.push({ campaignId: row.campaignId, adventure: name || 'Adventure', nextAt: row.nextAt, when: whenText(row.nextAt), note: row.nextNote || '', link: tableLink(row.campaignId) }); }
+  for (const row of rows) { const nx = nextOccurrence(row); if (!nx || nx < Date.now()) continue; const { name } = await ownerOf(row.campaignId); out.push({ campaignId: row.campaignId, adventure: name || 'Adventure', nextAt: nx, when: whenText(nx), note: row.nextNote || '', link: tableLink(row.campaignId), weekly: !!row.repeatWeekly }); }
   return out.sort((a, b) => a.nextAt - b.nextAt);
 });
