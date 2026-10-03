@@ -107,12 +107,67 @@ export const saveCampaignState = webMethod(Permissions.Anyone, async (campaignId
         }
       } catch (e) {}
     }
+    // Saved versions: the board is kept every so often, and the board as it was is kept
+    // whenever a save would empty most of it, so any loss can be undone from the table.
+    try { await historyKeep(String(campaignId), cur, body, mid, version); } catch (e) {}
     const base = cur ? Object.assign({}, cur) : {};
     const row = Object.assign(base, { campaignId: String(campaignId), version: version, snapshot: JSON.stringify(body), updatedBy: mid });
     if (cur) { row._id = cur._id; await wd.update(CV, row, { suppressAuth: true }); }
     else { await wd.insert(CV, row, { suppressAuth: true }); }
     return { ok: true, version: version, tele: TELE_CV };
   } catch (e) { return { ok: false, error: String(e) }; }
+});
+
+/* ---- saved versions of a board ----
+   BoardHistory keeps an adventure's board (the table's saved state) as it was: every fifteen
+   minutes while it is being changed, and always just before a save that would take most of it
+   away (most of its placed tokens, maps or effects at once). Thirty are kept per adventure,
+   the oldest let go. The LoreMaster can list them, with what each held, and put one back; the
+   board as it stood is kept first, so a restore can itself be undone. */
+const BH = 'BoardHistory';
+const BOARD_KEYS = ['instance', 'tokens', 'effects', 'fog', 'walls', 'lights', 'notes', 'weather', 'draw', 'grid', 'map', 'background', 'backgroundUrl', 'music', 'activeSceneId'];
+function boardSummary(snap) {
+  const s = snap || {}; const b = (s.instance && s.instance.bindings) || {};
+  let placed = 0, maps = 0; Object.keys(b).forEach((k) => { if (b[k]) { placed += (b[k].tokens || []).length; if (b[k].mapId) maps++; } });
+  let fx = 0; Object.keys(s.effects || {}).forEach((k) => { fx += ((s.effects[k] || []).length || 0); });
+  return { scenes: Object.keys(b).length, maps: maps, placed: placed, tokens: (s.tokens || []).length, effects: fx, notes: Object.keys(s.notes || {}).length, stages: ((s.instance && s.instance.stages) || []).length };
+}
+async function historyPut(campaignId, snap, version, mid, reason) {
+  await wixData.insert(BH, { campaignId: campaignId, at: Date.now(), version: version || 0, summary: JSON.stringify(boardSummary(snap)), reason: reason, savedBy: mid || '', snapshot: JSON.stringify(snap) }, { suppressAuth: true });
+  const old = await wixData.query(BH).eq('campaignId', campaignId).descending('at').skip(30).limit(50).find({ suppressAuth: true });
+  for (const it of old.items) { try { await wixData.remove(BH, it._id, { suppressAuth: true }); } catch (e) {} }
+}
+async function historyKeep(campaignId, cur, next, mid, version) {
+  if (!cur || !cur.snapshot) return;
+  let prev = null; try { prev = JSON.parse(cur.snapshot); } catch (e) { return; }
+  const a = boardSummary(prev), b = boardSummary(next);
+  const big = (x, y) => x >= 4 && y < x / 2;
+  if (big(a.placed, b.placed) || big(a.maps, b.maps) || big(a.effects, b.effects)) { await historyPut(campaignId, prev, cur.version, cur.updatedBy, 'before a large loss'); return; }
+  const last = await wixData.query(BH).eq('campaignId', campaignId).descending('at').limit(1).find({ suppressAuth: true });
+  const lastAt = last.items[0] ? last.items[0].at : 0;
+  if (Date.now() - lastAt > 15 * 60 * 1000) await historyPut(campaignId, next, version, mid, 'kept');
+}
+export const listBoardHistory = webMethod(Permissions.Anyone, async (campaignId) => {
+  if (!(await lmOnly(campaignId))) return { ok: false, error: 'only the LoreMaster' };
+  const mid = await memberId();
+  const r = await wixData.query(BH).eq('campaignId', String(campaignId)).descending('at').limit(30).find({ suppressAuth: true });
+  const cv = await wixData.query(CV).eq('campaignId', String(campaignId)).limit(1).find({ suppressAuth: true });
+  let now = null; try { now = boardSummary(JSON.parse(cv.items[0].snapshot)); } catch (e) {}
+  return { ok: true, now: now, items: r.items.map((it) => ({ id: it._id, at: it.at, version: it.version, reason: it.reason || '', byYou: it.savedBy === mid, summary: (() => { try { return JSON.parse(it.summary); } catch (e) { return {}; } })() })) };
+});
+export const restoreBoardHistory = webMethod(Permissions.Anyone, async (campaignId, historyId) => {
+  if (!(await lmOnly(campaignId))) return { ok: false, error: 'only the LoreMaster' };
+  const mid = await memberId();
+  const h = await wixData.get(BH, String(historyId), { suppressAuth: true }).catch(() => null);
+  if (!h || h.campaignId !== String(campaignId)) return { ok: false, error: 'no such saved version' };
+  const cv = await wixData.query(CV).eq('campaignId', String(campaignId)).limit(1).find({ suppressAuth: true });
+  const cur = cv.items[0]; if (!cur) return { ok: false, error: 'no board to restore into' };
+  let curSnap = {}, old = {}; try { curSnap = JSON.parse(cur.snapshot) || {}; old = JSON.parse(h.snapshot) || {}; } catch (e) { return { ok: false, error: 'unreadable' }; }
+  await historyPut(String(campaignId), curSnap, cur.version, mid, 'before a restore');
+  BOARD_KEYS.forEach((k) => { if (old[k] !== undefined) curSnap[k] = old[k]; });
+  cur.snapshot = JSON.stringify(curSnap); cur.version = (cur.version || 0) + 1; cur.updatedBy = mid;
+  await wixData.update(CV, cur, { suppressAuth: true });
+  return { ok: true, version: cur.version, summary: boardSummary(curSnap) };
 });
 
 async function lmOnly(campaignId) {

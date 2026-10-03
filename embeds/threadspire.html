@@ -2538,6 +2538,13 @@ body.clean #saveMark, body.stream #saveMark{ display:none; }
 #beatPicP .bp-img{ flex:1; min-height:0; display:flex; align-items:center; justify-content:center; padding:6px; } #beatPicP img{ max-width:100%; max-height:100%; object-fit:contain; border-radius:8px; }
 @media (prefers-reduced-motion: reduce){ #beatPic{ transition:none; } }
 body.stream #beatPic{ display:none; }
+
+.bh-now{ display:flex; gap:10px; align-items:baseline; padding:8px 12px; margin:6px 0 10px; border:1px solid rgba(201,168,76,.5); border-radius:10px; background:rgba(201,168,76,.06); } .bh-now b{ font-family:Cinzel,serif; font-size:.7rem; letter-spacing:.1em; text-transform:uppercase; color:#c9a84c; } .bh-now span{ color:#dce8ef; }
+.bh-list{ display:flex; flex-direction:column; gap:6px; } .bh-row{ display:flex; align-items:center; gap:12px; padding:9px 12px; border:1px solid #26324c; border-radius:10px; background:rgba(14,19,36,.6); } .bh-row.warn{ border-color:rgba(224,90,79,.55); }
+.bh-txt{ flex:1; display:flex; flex-direction:column; gap:2px; } .bh-txt b{ font-weight:600; color:#dce8ef; } .bh-txt > span{ color:#93a3b6; font-size:.9rem; }
+.bh-tag{ font-family:Cinzel,serif; font-size:.56rem; letter-spacing:.08em; text-transform:uppercase; color:#ffb4a8; border:1px solid rgba(224,90,79,.55); border-radius:6px; padding:1px 6px; margin-left:6px; }
+.bh-ds{ display:flex; flex-wrap:wrap; gap:6px; } .bh-d{ font-size:.82rem; border-radius:6px; padding:0 6px; } .bh-d.up{ color:#8fd694; background:rgba(143,214,148,.1); } .bh-d.down{ color:#ffb4a8; background:rgba(224,90,79,.12); }
+.bh-when{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; } .bh-btn{ flex-shrink:0; }
 </style>
 </head>
 <body>
@@ -9933,7 +9940,8 @@ function settingsBody(){
     + '<div class="set-row set-col"><div class="set-txt"><span class="set-t">Your ping colour</span><span class="set-h">Double-click the map to ping.</span></div>' + pingColorRow() + '</div>');
   var mine = (S.published || []).filter(function(p){ return sameId(p.campaignId, S.campaignId); })[0];
   h += setGroup('Keep and share',
-      setRow('Back up', 'Download this adventure as a pack, or bring one in.', setBtn('Download', 'tsExportAdventure()') + setBtn('Import', 'tsImportAdventure()'))
+      setRow('Saved versions', 'Put the board back as it was: kept every fifteen minutes, and before any large loss.', setBtn('Open', 'bhOpen()'))
+    + setRow('Back up', 'Download this adventure as a pack, or bring one in.', setBtn('Download', 'tsExportAdventure()') + setBtn('Import', 'tsImportAdventure()'))
     + (mine
         ? setRow('Published as ' + esc(mine.title || 'this adventure'), 'On the directory for others to run.', setBtn('Update', 'publishOpen()') + setBtn('Take down', 'unpublishNow(\'' + esc(mine._id || mine.id || '') + '\')'))
         : setRow('Publish', 'Put it on the directory for others to run.', setBtn('Publish', 'publishOpen()'))));
@@ -18925,6 +18933,50 @@ function beatPicPlayer(){
   head.addEventListener('pointerup', function(){ if (!drag) return; drag = null; var q = {}; try { q = JSON.parse(localStorage.getItem('ts_beatpic_win') || '{}'); } catch(e){} q.x = el.offsetLeft; q.y = el.offsetTop; try { localStorage.setItem('ts_beatpic_win', JSON.stringify(q)); } catch(e){} });
 }
 function beatPicCloseP(){ var el = document.getElementById('beatPicP'); if (el) el.style.display = 'none'; }
+
+
+/* ================= saved versions of the board =================
+   Settings, Keep and share, Saved versions: the adventure's board as the site has kept it
+   (every fifteen minutes while it changes, and always just before a save that would empty
+   most of it), newest first, each with what it held and what changed since the one before
+   it, and Restore. Restoring keeps the board as it stands first, so a restore can be undone,
+   and then reloads the table. */
+function bhLine(m){ m = m || {}; return (m.scenes || 0) + ' scenes \u00b7 ' + (m.maps || 0) + ' with maps \u00b7 ' + (m.placed || 0) + ' tokens placed \u00b7 ' + (m.effects || 0) + ' effects \u00b7 ' + (m.notes || 0) + ' notes'; }
+function bhDelta(a, b){
+  if (!a || !b) return '';
+  var out = []; [['placed','tokens'],['maps','maps'],['effects','effects'],['notes','notes'],['scenes','scenes']].forEach(function(k){
+    var d = (a[k[0]] || 0) - (b[k[0]] || 0); if (d) out.push('<span class="bh-d ' + (d > 0 ? 'up' : 'down') + '">' + (d > 0 ? '+' : '\u2212') + Math.abs(d) + ' ' + k[1] + '</span>'); });
+  return out.join('');
+}
+function bhOpen(){
+  tsModal('<h3 class="tsm-title">Saved versions</h3><p class="tsm-note">Looking\u2026</p>');
+  tsAsk('TS_BOARD_HISTORY', { campaignId:S.campaignId }).then(function(r){
+    var items = (r && r.items) || [];
+    var h = '<h3 class="tsm-title">Saved versions <span class="rs-scene">' + esc(advName()) + '</span></h3>'
+      + '<p class="tsm-note">The board as the site kept it: every fifteen minutes while it changes, and just before any save that would empty most of it. Restoring keeps the board as it is now first, so a restore can be undone.</p>'
+      + '<div class="bh-now"><b>Now</b><span>' + bhLine(r && r.now) + '</span></div>';
+    if (!items.length) h += '<p class="sw-empty">No saved versions yet. The first is kept within fifteen minutes of a change.</p>';
+    h += '<div class="bh-list">' + items.map(function(it, i){
+      var d = new Date(it.at), when = d.toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric' }) + ', ' + d.toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' });
+      var older = items[i + 1];
+      return '<div class="bh-row' + (/loss/.test(it.reason) ? ' warn' : '') + '"><div class="bh-txt"><div class="bh-when"><b>' + esc(when) + '</b>'
+        + (/loss/.test(it.reason) ? '<span class="bh-tag">kept before a large loss</span>' : /restore/.test(it.reason) ? '<span class="bh-tag">kept before a restore</span>' : '') + '</div>'
+        + '<span>' + bhLine(it.summary) + '</span>' + (older ? '<span class="bh-ds">' + bhDelta(it.summary, older.summary) + '</span>' : '') + '</div>'
+        + '<button class="tsm-btn ghost bh-btn" onclick="bhRestoreAsk(\'' + esc(it.id) + '\',\'' + esc(when) + '\')">Restore</button></div>';
+    }).join('') + '</div><div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>';
+    tsModal(h); var p = document.querySelector('#tsModal .tsm-panel'); if (p) p.classList.add('wide-list');
+  }).catch(function(e){ tsModal('<h3 class="tsm-title">Saved versions</h3><p class="lc-p">They could not be read (' + esc(String((e && e.message) || e).slice(0, 80)) + '). Paste velo/backend/campaignview.web.js and velo/page-threadspire.js if you have not.</p><div class="tsm-row"><button class="tsm-btn" onclick="tsCloseModal()">Close</button></div>'); });
+}
+function bhRestoreAsk(id, when){
+  window._bhId = id;
+  tsModal('<h3 class="tsm-title">Restore the board from ' + esc(when) + '?</h3><p class="lc-p">Every scene\u2019s map, tokens, effects, fog, walls, lights, notes, weather and music go back to how they were then. The story, the library and the log are not touched. The board as it is now is kept first, so this can be undone. The table reloads.</p>'
+    + '<div class="rm-acts"><button class="tsm-btn" onclick="bhRestoreGo()">Restore</button><button class="rm-cancel" onclick="bhOpen()">Back</button></div>');
+}
+function bhRestoreGo(){
+  tsModalLocked('<h3 class="tsm-title">Restoring\u2026</h3>');
+  tsAsk('TS_BOARD_RESTORE', { campaignId:S.campaignId, id:window._bhId }).then(function(){ setTimeout(function(){ location.reload(); }, 400); })
+    .catch(function(e){ tsModal('<h3 class="tsm-title">Not restored</h3><p class="lc-p">' + esc(String((e && e.message) || e).slice(0, 120)) + '</p><div class="tsm-row"><button class="tsm-btn" onclick="bhOpen()">Back</button></div>'); });
+}
 
 /* ================= rests =================
    A rest comes from the LoreMaster, and only outside a fight: Call a rest opens it for the
