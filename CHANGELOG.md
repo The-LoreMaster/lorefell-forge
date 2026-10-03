@@ -1,3 +1,7 @@
+## 2026-09-28 - The sealed past, granted to the player a truth at a time
+
+Each truth of a Fell's sealed past, in the LoreMaster's view of the sheet, has Grant to the player: it is given to that Fell's Secrets, under From the LoreMaster (titled From your sealed past), through the same give the beats use, so it survives the player's own saves and reaches their open sheet; the truth then shows as Granted, and the log notes it for the LoreMaster alone. The player may dismiss it from their Secrets as with anything given.
+
 ## 2026-09-28 - Tap a token, tap a space, confirm; smoother moves for everyone watching
 
 With a token selected that you may move, a tap on an empty space marks it (outlined to the token's size) with Move here and a cancel; tapping the marked space again, or Move here, moves the token there, snapped like a drag, and it reaches everyone through the live room. Past the token's Mobility (counted as the ruler counts, a diagonal one space) the mark turns red and asks Move anyway?, and the move is still allowed. Another tap moves the mark; Cancel, Escape or another token clears it. A token someone else is dragging now glides between the steps the room sends rather than jumping from one to the next, which read as a twitch over longer moves.

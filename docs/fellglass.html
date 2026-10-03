@@ -968,6 +968,7 @@ button.ax-fact{cursor:pointer}
 .ax-opt:hover{border-color:var(--gold)}.ax-opt b{display:block;font-family:var(--head);font-weight:500;letter-spacing:.04em;margin-bottom:2px}.ax-opt span{font-size:13px;color:var(--silver-dim)}
 .ax-from{font-style:normal;color:var(--gold);font-size:11.5px;margin-left:4px}
 .ax-row .pill{text-transform:none;font-style:normal;letter-spacing:.02em;font-size:13px}
+.seal-list li{ display:flex; align-items:flex-start; gap:10px; margin-bottom:8px; } .seal-list .seal-txt{ flex:1; } .seal-grant{ flex-shrink:0; white-space:nowrap; } .seal-given{ flex-shrink:0; font-family:Cinzel,serif; font-size:.6rem; letter-spacing:.08em; text-transform:uppercase; color:#8fd694; border:1px solid rgba(143,214,148,.5); border-radius:6px; padding:3px 7px; }
 </style>
 </head>
 <body>
@@ -5350,9 +5351,25 @@ function sealPaint(d){
     if(w) w.textContent="Weave the seal";
     return;
   }
-  body.innerHTML='<ol class="seal-list">'+rev.map(r=>'<li>'+cbEsc(r)+'</li>').join("")+'</ol>'
+  /* each truth can be handed to the player on its own: it lands in their Secrets, under
+     From the LoreMaster, and shows here as granted */
+  const givenIds=new Set((C.given||[]).filter(g=>g&&g.kind==="secrets").map(g=>g.id));
+  body.innerHTML='<ol class="seal-list">'+rev.map((r,i)=>{ const gid="seal:"+CUR_WIX_ID+":"+i, on=givenIds.has(gid);
+      return '<li><span class="seal-txt">'+cbEsc(r)+'</span>'+(on?'<span class="seal-given">Granted</span>':'<button class="btn small seal-grant" data-i="'+i+'">Grant to the player</button>')+'</li>'; }).join("")+'</ol>'
     +(fr.length?'<div class="seal-frag">Fragments the player holds: '+fr.map(f=>cbEsc((f.type?f.type+": ":"")+(f.text||f))).join(" &middot; ")+'</div>':'');
   if(w) w.textContent="Weave it anew";
+  body.querySelectorAll(".seal-grant").forEach(b=>b.addEventListener("click",()=>{
+    const i=+b.getAttribute("data-i"); b.disabled=true; b.textContent="Granting...";
+    postToVelo({type:"seal-grant",charId:CUR_WIX_ID,index:i,text:rev[i]});
+  }));
+  _sealLast=d;
+}
+let _sealLast=null;
+function sealGranted(d){
+  if(!d||!d.ok){ const b=document.querySelector('.seal-grant[data-i="'+(d&&d.index)+'"]'); if(b){ b.disabled=false; b.textContent="Not granted. Try again"; } return; }
+  C.given=(C.given||[]).filter(g=>g&&g.id!==d.entry.id).concat([d.entry]);
+  if(_sealLast) sealPaint(_sealLast);
+  try{ renderRecords("secrets"); }catch(e){}
 }
 /* LoreMaster's notes save a moment after typing stops, straight to the backend */
 let _lmNotesT=null;
@@ -7707,6 +7724,7 @@ window.onmessage=ev=>{
   if(d.type==="ts-skill-grow"){ skillGrowFellmark(String(d.skill||"")); return; }
   if(d.type==="ts-notes-saved"){ if(!d.charId||d.charId===CUR_WIX_ID) lmNotesSaved(d); return; }
   if(d.type==="ts-sealed"){ if(god && (!d.charId || d.charId===CUR_WIX_ID)) sealPaint(d); return; }
+  if(d.type==="ts-seal-granted"){ if(god && (!d.charId || d.charId===CUR_WIX_ID)) sealGranted(d); return; }
   if(d.type==="archive-result"){ archiveResult(d); return; }
   if(d.type==="ts-vit-op"){ vitOp(d.op,d.amt); return; }
   if(d.type==="ts-fatigue-step"){ fatigueSet((C.fatigue||0)+(Number(d.delta)||0)); return; }
