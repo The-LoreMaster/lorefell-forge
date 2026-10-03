@@ -11913,6 +11913,7 @@ function tsHandTake(h){
   if (!h || typeof h !== 'object') return;
   hand = h;
   _handSeen = Date.now();
+  try { roomReachSend(false); } catch(e){}
   /* the row that draws this does not exist yet; when it does it repaints from here */
   if (typeof renderHand === 'function') renderHand();
 }
@@ -16412,6 +16413,9 @@ function reachOf(t){
     return { mobility:Number(fc.mobility) || 5, range:Number(fc.range) || 1 };
   }
   if (!isLM() && tokenIsMine(t) && hand && hand.reach) return hand.reach;
+  /* the Fell's own sheet, said live through the room by the player who holds it */
+  var _cid = t.charId || (t.kind === 'p' ? t.refId : '');
+  if (_cid && typeof ROOM_REACH !== 'undefined' && ROOM_REACH[String(_cid)]) return ROOM_REACH[String(_cid)];
   var p = (S.party || []).filter(function(x){ return x && t.charId && sameId(x.charId, t.charId); })[0];
   return (p && p.reach) || null;
 }
@@ -18415,9 +18419,34 @@ function roomSceneApply(b){
   if (b.mapUrl){ var img = new Image(); var done = false; var go = function(){ if (!done){ done = true; lay(); } }; img.onload = go; img.onerror = go; setTimeout(go, 2500); img.src = b.mapUrl; }
   else lay();
 }
+/* ---- a Fell's reach, live ----
+   A player's sheet already works out its Fell's Mobility (halved by Fatigue) and weapon
+   reach for the hand. Each time that changes, the player's table says it to the room, which
+   keeps it and passes it to the LoreMaster only. The LoreMaster's table then measures that
+   Fell's moves, and draws its rings, from the sheet's own numbers the moment they change,
+   rather than from the roster's last reading. The room takes it only from the player who
+   owns that Fell. */
+var ROOM_REACH = {};          /* charId -> { mobility, range, at } (LoreMaster's table) */
+var _reachSentSig = '';
+function roomReachSend(force){
+  if (isLM() || S.stream || !hand || !hand.reach || !S.characterId) return;
+  var r = hand.reach, sig = String(S.characterId) + '|' + (Number(r.mobility) || 0) + '|' + (Number(r.range) || 0);
+  if (!force && sig === _reachSentSig) return;
+  if (roomSend({ t:'reach', c:String(S.characterId), m:Number(r.mobility) || 0, r:Number(r.range) || 0 })) _reachSentSig = sig;
+}
+function roomReachApply(c, v){
+  if (!c || !v) return;
+  ROOM_REACH[String(c)] = { mobility:Number(v.m) || 0, range:Number(v.r) || 0, at:v.at || Date.now() };
+  try { drawRings(); } catch(e){}
+  /* a mark already on the map is re-measured against the new number, never re-placed */
+  try { if (MOVEMARK && tokById(MOVEMARK.id)){ MOVEMARK.mob = moveLimitOf(tokById(MOVEMARK.id)); MOVEMARK.far = MOVEMARK.spaces > MOVEMARK.mob; moveMarkPaint(); } } catch(e){}
+}
 function roomGot(m){
+  if (m.t === 'reach'){ if (isLM()) roomReachApply(m.c, m); return; }
   if (m.t === 'init'){
     SEAM.roomPeers = m.peers;
+    if (m.reach && isLM()) Object.keys(m.reach).forEach(function(c){ roomReachApply(c, m.reach[c]); });
+    if (!isLM()) { _reachSentSig = ''; setTimeout(function(){ try { roomReachSend(true); } catch(e){} }, 300); }
     if (isLM() && !S.stream){ roomLmSync(true); return; }   /* the LoreMaster's table is the board */
     if (m.scene) roomSceneApply(Object.assign({}, m.scene, { tokens:m.tokens || m.scene.tokens }));
     else if (m.tokens) roomTokensApply(m.tokens);
