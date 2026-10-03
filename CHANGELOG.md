@@ -1,3 +1,7 @@
+## 2026-10-03 - A recap carries the adventure's picture and its session's name
+
+Write a recap opens with the session the running scene belongs to as its title (still editable), and sends the adventure's header picture with it as the email's image variable: a Wix picture becomes its public address, and with no picture the email gets a clear one-pixel strip (assets/email-blank.png) so nothing shows. Paste velo/backend/sessions.web.js and velo/page-threadspire.js.
+
 ## 2026-10-03 - The next session, its reminder, and recaps
 
 Settings gains Sessions: the LoreMaster sets the next session (day, time and a note) and reads the recaps sent. Players see it in their menu with Email me a reminder (on unless they turn it off), and on the Hearth, which opens that adventure. One reminder email goes out the morning of (from 8:00 AM Arizona time), once per session, from a new hourly Wix job. The Journal gains Write a recap: drafted from the Journal only (since the last recap, today, the last 7 days, or everything), edited by the LoreMaster, sent to the players chosen, and kept on the adventure. Both emails are Wix Triggered Emails sent by member id; their two template ids go at the top of backend/sessionsCore.js. A new collection, AdventureSessions, holds it. Setting the session and sending a recap are the LoreMaster's alone. Paste velo/backend/sessionsCore.js, velo/backend/sessions.web.js, velo/backend/jobs.config, velo/page-threadspire.js and velo/page-the_hearth.js.
