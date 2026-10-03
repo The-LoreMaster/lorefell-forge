@@ -149,7 +149,7 @@ export class TableRoom {
       /* a player moves only their own Fell's tokens; the LoreMaster anything */
       const own = !!(t.charId && who.chars.indexOf(String(t.charId)) >= 0);
       if (!lm && !own && !t.free) { try { ws.send(JSON.stringify({ t: 'deny', id: msg.id, back: t })); } catch (e) {} return; }
-      const p = lm ? msg.p : (own ? { x: msg.p.x, y: msg.p.y, rot: msg.p.rot, imgPos: msg.p.imgPos } : { x: msg.p.x, y: msg.p.y });
+      const p = lm ? msg.p : (own ? { x: msg.p.x, y: msg.p.y, rot: msg.p.rot, imgPos: msg.p.imgPos, elev: msg.p.elev, climb: msg.p.climb } : { x: msg.p.x, y: msg.p.y });
       Object.keys(p).forEach((k) => { if (p[k] !== undefined && k !== 'id') t[k] = p[k]; });
       this.moved[msg.id] = Date.now();
       this.seq++; this.send({ t: 'tok', id: msg.id, p: p, seq: this.seq, from: who.member }, ws);

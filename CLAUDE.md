@@ -36,7 +36,8 @@ How it is wired, so the rule can be kept rather than remembered:
   3. `GOD_TABS` in `threadspire.html`: the LoreMaster's tab bar. It reaches every FellGlass
      panel in `PANELS` once, same order, same names, with Weapons, Lorebounds and Armor
      gathered under one Arsenal tab and drawn inside the sheet (`ARSENAL_TABS`, the same
-     `ts-subtabs` row the player gets). Nate's ruling, 2026-10-03. The sheet reports its panel back with a
+     `ts-subtabs` row the player gets). Nate's ruling, 2026-10-03. Condition (`battle`) is left off the
+     bar, as it is off the player's tabs: the cards are the fight now (Nate, 2026-10-03). The sheet reports its panel back with a
      `sheet-panel` message so the bar stays lit on the right tab.
 - Host plumbing that is not sheet design and may stay: height reporting
   (`tsPostHeight`), no automatic character creation in the frame, and `cbOnTable`

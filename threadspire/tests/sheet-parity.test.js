@@ -39,12 +39,15 @@ if (PANELS && GOD_TABS && ARSENAL_TABS){
      drawn inside the sheet the way the player sees them. Opened out, the bar is still
      every FellGlass panel exactly once, under FellGlass's name. */
   const flat = [];
+  /* Condition (battle) is the sheet's old combat tracker; the card row and the cards are the
+     fight now, so neither the player's tabs nor the LoreMaster's bar carry it (Nate, 2026-10-03). */
+  flat.push(['battle', 'Condition']);
   GOD_TABS.forEach(t => { if (t[0] === 'arsenal') ARSENAL_TABS.forEach(a => flat.push(a)); else flat.push(t); });
   const want = PANELS.map(p => p[0] + ':' + p[1]).sort().join(', ');
   const got = flat.map(t => t[0] + ':' + t[1]).sort().join(', ');
   check('LoreMaster tabs reach every FellGlass panel once, under the same names', want === got,
     'fellglass: ' + want + '\n          threadspire: ' + got);
-  const order = PANELS.map(p => p[0]).filter(k => !ARSENAL_TABS.some(a => a[0] === k));
+  const order = PANELS.map(p => p[0]).filter(k => !ARSENAL_TABS.some(a => a[0] === k) && k !== 'battle');
   const barOrder = GOD_TABS.map(t => t[0]).filter(k => k !== 'arsenal');
   check('the bar keeps FellGlass\'s order', order.join(',') === barOrder.join(','), order.join(',') + ' vs ' + barOrder.join(','));
 }
