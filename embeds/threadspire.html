@@ -1601,6 +1601,12 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 /* choosing several at once on the shelf */
 .lib-bar{ display:flex; align-items:center; gap:7px; flex-wrap:wrap; margin:8px 0 4px; }
 .lib-bar .tsm-btn{ margin:0; }
+/* Select and the three New buttons share even columns: four across when there is room,
+   two by two in a narrow window, never one left hanging on its own line */
+#win[data-sec="library"] #winBody{ container:libwin / inline-size; }
+.lib-bar.lib-make{ display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:7px; }
+.lib-bar.lib-make .tsm-btn{ width:100%; padding-left:6px; padding-right:6px; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+@container libwin (max-width:430px){ .lib-bar.lib-make{ grid-template-columns:repeat(2, minmax(0, 1fr)); } }
 .lib-bar .tsm-btn[disabled]{ opacity:.4; cursor:default; }
 .lib-count{ font-size:.62rem; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); margin-left:auto; }
 .vcard.picking{ cursor:pointer; }
@@ -5833,7 +5839,7 @@ function libraryBody(){
     var shown = libShown();
     var picked = libSelCount();
     var allOn = shown.length && shown.every(function(e){ return S.libSel && S.libSel[e.id]; });
-    h += '<div class="lib-bar">'
+    h += '<div class="lib-bar' + (libSelOn() ? '' : ' lib-make') + '">'
       + '<button class="tsm-btn ghost" onclick="libSelToggleMode()">' + (libSelOn() ? 'Done' : 'Select') + '</button>';
     /* The library could be searched, opened and deleted from, but never added to, so a foe
        thought of at the table had to be made in FateWell and waited for. The save path and
@@ -5930,6 +5936,7 @@ function sessionSettingsGroup(){
                   : 'Not set. Players see it in their menu and on the Hearth, and get one email the morning of.';
   if (!SESS.emailReady && SESS.loaded) help += ' Emails are not set up yet: the template ids still need pasting into backend/sessionsCore.js.';
   var rows = setRow('Next session', help, setBtn(next ? 'Change' : 'Set', 'sessionEdit()') + (next ? setBtn('Clear', 'sessionClear()') : ''));
+  rows += setRow('Test the emails', 'Sends one to you alone, to see how it reads.', setBtn('Recap', 'emailTest(\'recap\')') + setBtn('Reminder', 'emailTest(\'reminder\')'));
   rows += setRow('Recaps', SESS.recaps.length ? (SESS.recaps.length + ' sent. Write one from the Journal.') : 'Write one from the Journal, from your notes only.', (SESS.recaps.length ? setBtn('Read', 'recapList()') : '') + setBtn('Write', 'recapOpen()'));
   return setGroup('Sessions', rows);
 }
@@ -6021,7 +6028,7 @@ function recapPaint(){
         return '<label class="rc-who"><input type="checkbox"' + (on ? ' checked' : '') + ' onchange="recapTo(\'' + esc(p.memberId) + '\',this.checked)"> ' + esc(p.name) + '</label>'; }).join('') + '</div>'
       : '<p class="tsm-note">' + (SESS.loaded ? 'No players with an account at this adventure yet.' : 'Reading who is at the table...') + '</p>')
     + '<p class="tsm-note" id="rcMsg">' + esc(RECAP.msg) + '</p>'
-    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button><button class="tsm-btn" onclick="recapSend()"' + (RECAP.busy ? ' disabled' : '') + '>Send</button></div>';
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button><button class="tsm-btn ghost" onclick="emailTest(\'recap\', true)"' + (RECAP.busy ? ' disabled' : '') + '>Send me a test</button><button class="tsm-btn" onclick="recapSend()"' + (RECAP.busy ? ' disabled' : '') + '>Send</button></div>';
   tsModal(h, true);
 }
 /* What Draft does depends on what it has: the chosen Journal notes, what is already
@@ -6075,6 +6082,20 @@ function recapSend(){
     tsModal('<h3 class="tsm-title">Recap sent</h3><p class="lc-p">It went to ' + r.sent + ' player' + (r.sent === 1 ? '' : 's') + (r.failed ? ', and ' + r.failed + ' could not be reached' : '') + '. It is kept under Settings, Sessions, Recaps.</p><div class="tsm-row"><button class="tsm-btn" onclick="tsCloseModal()">Done</button></div>');
     if (S.openSection === 'settings') refreshWinBody();
   }).catch(function(e){ RECAP.busy = false; RECAP.msg = 'Not sent: ' + String((e && e.message) || e).slice(0, 80); recapPaint(); });
+}
+/* a test of either email, to the LoreMaster only; from the recap window it carries the draft */
+function emailTest(kind, fromRecap){
+  if (!isLM() || keeperNo()) return;
+  var p = { kind:kind };
+  if (kind === 'recap'){
+    var t = document.getElementById('rcText');
+    p.text = fromRecap && t ? t.value : ''; p.title = fromRecap ? (RECAP.title || '') : (recapSessionName() || 'Session recap');
+    p.image = (S.adventure && S.adventure.img) || '';
+  }
+  var say = function(msg){ if (fromRecap){ var m = document.getElementById('rcMsg'); if (m) m.textContent = msg; } else { try { playToast(msg, 'Email'); } catch(e){} } };
+  say('Sending you a test...');
+  tsAsk('TS_EMAIL_TEST', p).then(function(r){ say(r && r.ok ? 'A test ' + (kind === 'recap' ? 'recap' : 'reminder') + ' is on its way to you.' : 'Not sent' + (r && r.error ? ': ' + r.error : '') + '.'); })
+    .catch(function(e){ say('Not sent: ' + String((e && e.message) || e).slice(0, 80)); });
 }
 function recapList(){
   var h = '<h3 class="tsm-title">Recaps sent</h3>';
@@ -17761,6 +17782,8 @@ function swOpen(){
   if (!SW.id || !storyNode(SW.kind === 'adv' ? 'scene' : SW.kind, SW.id)){ SW.kind = 'scene'; SW.id = (S.scene && S.scene.id) || ''; }
   swPaint();
 }
+/* Run this scene puts it on the table and steps the Story window aside, so the scene runs */
+function swRunScene(id){ if (keeperNo()) return; setActiveScene(id); swClose(); try { paintRails(); } catch(e){} }
 function swClose(){ SW.open = false; var el = document.getElementById('storyWin'); if (el) el.style.display = 'none'; }
 function swSel(kind, id){ SW.kind = kind; SW.id = id; SW.q = ''; SW.pane = 'page'; swPaint(); }
 /* on a phone the outline and the page take turns: the outline is one tap away */
@@ -17922,9 +17945,9 @@ function swSide(sc){
   h += '</div><div class="sw-row-btns"><button class="tsm-btn ghost" onclick="rosterAddFromLib(\'' + sc.id + '\')">+ Library</button><button class="tsm-btn ghost" onclick="summonOpen(\'' + sc.id + '\')">Summon foe</button><button class="tsm-btn ghost" onclick="rosterWindow(\'' + sc.id + '\')">Roster\u2026</button></div>';
   var qs = (sc.beats || []).filter(function(b){ return b.kind === 'quest'; });
   h += '<div class="sw-sec" style="margin-top:14px"><span>Quests <b>' + qs.length + '</b></span></div>' + (qs.length ? qs.map(function(q){ return '<div class="sw-q">' + esc(q.title || 'Quest') + '</div>'; }).join('') : '<p class="sw-empty">None in this scene.</p>')
-    + '<div class="sw-qb"><button class="sw-mini" onclick="boardOpenModal(\'quests\')">Quest board</button><button class="sw-mini" onclick="boardOpenModal(\'handouts\')">Handouts</button></div>';
+    + '<div class="sw-qb"><button class="sw-mini" onclick="boardOpenModal(\'quests\')">Quests and handouts</button></div>';
   var on = sc.id === (S.scene && S.scene.id);
-  h += '<span class="sw-grow"></span><button class="tsm-btn sw-run" onclick="setActiveScene(\'' + sc.id + '\');swPaint()"' + (on ? ' disabled' : '') + '>' + (on ? 'On the table' : '\u25b6 Run this scene') + '</button>';
+  h += '<span class="sw-grow"></span><button class="tsm-btn sw-run" onclick="swRunScene(\'' + sc.id + '\')"' + (on ? ' disabled' : '') + '>' + (on ? 'On the table' : '\u25b6 Run this scene') + '</button>';
   return h;
 }
 /* search: names, descriptions and every beat and note, across the whole story */
@@ -19497,7 +19520,7 @@ function boardOpen(tab){ if (tab) BOARD.tab = tab; openWin('board'); boardLoad()
 /* the LoreMaster's board, over the Story window */
 function boardRepaint(){ if (BOARD.modal && document.querySelector('#tsModal .bd-tabs')) boardModalPaint(); else refreshWinBody(); }
 function boardOpenModal(tab){ if (tab) BOARD.tab = tab; BOARD.modal = true; boardModalPaint(); if (BOARD.list === null) boardLoad(); }
-function boardModalPaint(){ if (!BOARD.modal) return; tsModal('<h3 class="tsm-title">Quest board</h3>' + boardBody()); var p = document.querySelector('#tsModal .tsm-panel'); if (p) p.classList.add('wide-list'); }
+function boardModalPaint(){ if (!BOARD.modal) return; tsModal('<h3 class="tsm-title">Quests and handouts</h3>' + boardBody()); var p = document.querySelector('#tsModal .tsm-panel'); if (p) p.classList.add('wide-list'); }
 function boardLoad(){
   BOARD.busy = true;
   tsAsk('TS_QUEST_LIST', {}).then(function(r){ BOARD.list = (r && r.quests) || (Array.isArray(r) ? r : []); BOARD.busy = false; boardNotice(); if (S.openSection === 'board') refreshWinBody(); if (BOARD.modal && document.querySelector('#tsModal .bd-tabs')) boardModalPaint(); })
