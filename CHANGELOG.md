@@ -1,3 +1,7 @@
+## 2026-09-28 - Handouts in a player's menu
+
+With the Board button gone from the phone's top bar, a player on a phone had no way to their handouts; Handouts is now in every player's menu, with how many there are, as well as in the log's gear.
+
 ## 2026-09-28 - A version saved by hand; the log's box full wide; the board where it belongs; a quest's picture
 
 Saved versions gains Save a version now (a new backend method, saveBoardVersionNow, the LoreMaster's only). The log's box runs the full width again with Say and a gear beside it; the gear holds Full log and Float the log (and, for a player, Handouts), and the Board button is gone from the log and the phone's top bar. A player's quests are in their Records, under Quests, where they can add their own: the LoreMaster's quests show there as From the LoreMaster, marked The party or For you, with a picture when there is one (the sheet always asked for the board; it now shows whose a quest is and its picture), and a quest notice offers Records. The LoreMaster's quest board opens from the Story window, under Quests (Quest board, Handouts). A quest can carry a picture: uploaded when it is posted, shown on the board and in the player's Records, and kept under Handouts as From the quest, for whoever the quest is for; taking the quest down takes the handout back. Paste velo/backend/campaignview.web.js, velo/backend/fatewell.web.js and velo/page-threadspire.js.
