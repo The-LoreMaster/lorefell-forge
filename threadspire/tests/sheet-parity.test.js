@@ -1,9 +1,11 @@
 /* One character sheet. ThreadSpire shows the FellGlass sheet exactly, player and
  * LoreMaster alike (CLAUDE.md, standing rule 1). Two ways that drifts, both pinned here:
  *
- *   TABS. The LoreMaster's tab bar (GOD_TABS in threadspire.html) is every FellGlass panel
- *   (PANELS in fellglass.html), in the same order, under the same names. A panel added,
- *   renamed or reordered in FellGlass fails this until ThreadSpire follows.
+ *   TABS. The LoreMaster's tab bar (GOD_TABS in threadspire.html) reaches every FellGlass
+ *   panel (PANELS in fellglass.html) exactly once, under the same names and in the same
+ *   order, with Weapons, Lorebounds and Armor gathered under Arsenal (ARSENAL_TABS) as the
+ *   player has them. A panel added, renamed or reordered in FellGlass fails this until
+ *   ThreadSpire follows.
  *
  *   LOOK. The ?host=threadspire style block may hide FellGlass's own navigation and style
  *   the frame's scrollbar. Nothing else. Restyling a card, hiding a title or a header
@@ -30,11 +32,21 @@ const GOD_TABS = arrayLiteral(TS, /var GOD_TABS = (\[[\s\S]*?\]\s*\]);/);
 
 check('PANELS found in fellglass.html', Array.isArray(PANELS), 'pattern did not match');
 check('GOD_TABS found in threadspire.html', Array.isArray(GOD_TABS), 'pattern did not match');
-if (PANELS && GOD_TABS){
-  const want = PANELS.map(p => p[0] + ':' + p[1]).join(', ');
-  const got = GOD_TABS.map(t => t[0] + ':' + t[1]).join(', ');
-  check('LoreMaster tabs are every FellGlass panel, same order, same names', want === got,
+const ARSENAL_TABS = arrayLiteral(TS, /var ARSENAL_TABS = (\[[\s\S]*?\]\s*\]);/);
+check('ARSENAL_TABS found in threadspire.html', Array.isArray(ARSENAL_TABS), 'pattern did not match');
+if (PANELS && GOD_TABS && ARSENAL_TABS){
+  /* The bar may gather Weapons, Lorebounds and Armor under one Arsenal tab, the three
+     drawn inside the sheet the way the player sees them. Opened out, the bar is still
+     every FellGlass panel exactly once, under FellGlass's name. */
+  const flat = [];
+  GOD_TABS.forEach(t => { if (t[0] === 'arsenal') ARSENAL_TABS.forEach(a => flat.push(a)); else flat.push(t); });
+  const want = PANELS.map(p => p[0] + ':' + p[1]).sort().join(', ');
+  const got = flat.map(t => t[0] + ':' + t[1]).sort().join(', ');
+  check('LoreMaster tabs reach every FellGlass panel once, under the same names', want === got,
     'fellglass: ' + want + '\n          threadspire: ' + got);
+  const order = PANELS.map(p => p[0]).filter(k => !ARSENAL_TABS.some(a => a[0] === k));
+  const barOrder = GOD_TABS.map(t => t[0]).filter(k => k !== 'arsenal');
+  check('the bar keeps FellGlass\'s order', order.join(',') === barOrder.join(','), order.join(',') + ' vs ' + barOrder.join(','));
 }
 
 const sm = FG.match(/get\('host'\)==='threadspire'\)\{\s*var st=document\.createElement\('style'\);\s*st\.textContent='([^']*)'/);

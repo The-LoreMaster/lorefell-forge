@@ -33,8 +33,10 @@ How it is wired, so the rule can be kept rather than remembered:
   2. `ts-god` in `fellglass.html`: the LoreMaster flag. It is the same LoreMaster mode
      FellGlass has on its own page, so what it adds (such as Max Vitality (LM)) shows in
      both places alike.
-  3. `GOD_TABS` in `threadspire.html`: the LoreMaster's tab bar. It is every FellGlass
-     panel in `PANELS`, same order, same names. The sheet reports its panel back with a
+  3. `GOD_TABS` in `threadspire.html`: the LoreMaster's tab bar. It reaches every FellGlass
+     panel in `PANELS` once, same order, same names, with Weapons, Lorebounds and Armor
+     gathered under one Arsenal tab and drawn inside the sheet (`ARSENAL_TABS`, the same
+     `ts-subtabs` row the player gets). Nate's ruling, 2026-10-03. The sheet reports its panel back with a
      `sheet-panel` message so the bar stays lit on the right tab.
 - Host plumbing that is not sheet design and may stay: height reporting
   (`tsPostHeight`), no automatic character creation in the frame, and `cbOnTable`
