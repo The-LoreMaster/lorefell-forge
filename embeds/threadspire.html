@@ -202,7 +202,7 @@ body:not(.lm-role) #mapTools .lmonly{ display:none; }
 /* On a desktop the bar runs across the top, and each tool's panel drops down beneath it, so
    a longer bar does not climb down the side of the table. Phones keep the column. */
 @media (min-width:701px){
-  #mapTools{ flex-direction:row; align-items:center; }
+  #mapTools{ flex-direction:row; align-items:center; flex-wrap:wrap; max-width:calc(84vw - 70px); row-gap:4px; }
   #mapTools .mt-sep{ width:1px; height:24px; margin:0 3px; }
   #mapTools > #drawOpts, #mapTools > #fogOpts, #mapTools > #wallOpts, #mapTools > #lightOpts, #mapTools > #musicOpts, #mapTools > #restOpts, #mapTools > #weatherOpts{ left:0 !important; top:calc(100% + 8px) !important; }
   #mapTools:not(.folded) #mtToggle{ border-bottom-color:transparent; border-right-color:rgba(201,168,76,.25); border-radius:8px 0 0 8px; }
@@ -657,7 +657,11 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 #win.sheeting #sheetFrame{ display:block; }
 #tsModal{ display:none; position:fixed; inset:0; z-index:90; }
 #tsModal .tsm-back{ position:absolute; inset:0; background:rgba(6,10,20,.72); }
+/* window widths: 460 on a desktop for an ordinary window, 720 for the wide ones (writing,
+   recaps, lists); the specially sized ones (sm-panel, sheet-big) keep their own */
 #tsModal .tsm-panel{ position:relative; width:min(340px,86%); margin:14vh auto 0; background:var(--navy2,#10162a); border:1.5px solid var(--gold); border-radius:10px; padding:14px; box-shadow:0 18px 50px rgba(0,0,0,.6); }
+@media (min-width:900px){ #tsModal .tsm-panel{ width:min(460px, calc(100vw - 32px)); } }
+#tsModal .tsm-panel.tsm-wide{ width:min(720px, calc(100vw - 32px)); max-width:none; }
 .tsm-title{ margin:0 0 10px; font-family:Cinzel,serif; font-size:.9rem; letter-spacing:.1em; color:var(--gold); font-weight:400; }
 .tsm-lbl{ display:block; font-family:Cinzel,serif; font-size:.64rem; letter-spacing:.12em; text-transform:uppercase; color:var(--muted,#7e8a99); margin:8px 0 3px; }
 .tsm-inp{ width:100%; background:rgba(10,16,32,.6); border:1px solid var(--line2,#2a3552); border-radius:6px; color:var(--silver); font:inherit; font-size:.85rem; padding:7px 8px; }
@@ -2377,7 +2381,7 @@ body.drop-ready #map::after{ content:'Drop images to add them as maps'; position
 .vid-how{ margin:2px 0 6px; font-size:.92rem; color:#cbd5df; } .vid-how summary{ cursor:pointer; color:#c9a84c; font-family:Cinzel,serif; font-size:.74rem; letter-spacing:.05em; }
 .vid-how ol{ margin:8px 0 0 18px; padding:0; display:flex; flex-direction:column; gap:5px; line-height:1.45; }
 .vid-fixes{ display:flex; flex-direction:column; gap:6px; max-height:46vh; overflow:auto; padding:2px; } .vid-fixes s{ color:#93a3b6; }
-.rc-ta{ min-height:220px; line-height:1.5; }
+.rc-ta{ min-height:300px; line-height:1.5; }
 .rc-to{ display:flex; flex-wrap:wrap; gap:6px 14px; }
 .rc-who{ display:flex; align-items:center; gap:6px; color:var(--silver); font-size:.9rem; cursor:pointer; }
 .rc-item{ padding:10px 0; border-bottom:1px solid #1f2a42; } .rc-item:last-of-type{ border-bottom:0; }
@@ -2397,6 +2401,12 @@ body.drop-ready #map::after{ content:'Drop images to add them as maps'; position
 #win[data-sec="journal"] .jx{ opacity:0; border:0; background:none; color:#93a3b6; font-size:1rem; cursor:pointer; } #win[data-sec="journal"] .jentry:hover .jx, #win[data-sec="journal"] .jx:focus-visible{ opacity:1; }
 @media (hover:none){ #win[data-sec="journal"] .jx{ opacity:1; } }
 @media (max-width:520px){ #win .set-row{ flex-wrap:wrap; } #win .set-act{ width:100%; justify-content:flex-end; } }
+#win[data-sec="settings"] #winBody, #win[data-sec="menu"] #winBody{ container:setwin / inline-size; }
+@container setwin (max-width:540px){
+  #win .set-row{ flex-direction:column; align-items:stretch; gap:8px; }
+  #win .set-row .set-txt{ width:100%; }
+  #win .set-row .set-act{ width:100%; justify-content:flex-start; flex-wrap:wrap; }
+}
 
 /* ---- the Stream view ---- */
 body.stream #mapTools, body.stream #lmstrip, body.stream #devbar, body.stream #tokmenu, body.stream #multiBar, body.stream #selBar, body.stream .tm-ring, body.stream #storyWin, body.stream #undoBtn{ display:none !important; }
@@ -6145,6 +6155,7 @@ function recapEntries(range){
   if (range === 'week') since = Date.now() - 7 * 86400000;
   if (range === 'all') since = 0;
   if (range === 'none') return [];
+  if (range === 'one') return all.filter(function(e){ return e.id === RECAP.one; });
   return all.filter(function(e){ return (e.ts || 0) >= since; });
 }
 function recapPlayers(){
@@ -6164,7 +6175,8 @@ function recapSessionName(){
 function recapOpen(){ if (keeperNo()) return;
   if (!isLM()) return;
   if (!SESS.loaded) sessionLoad();
-  RECAP = { range:(SESS.recaps.length ? 'last' : 'today'), draft:'', title:recapSessionName() || 'Session recap', busy:false, msg:'', to:null };
+  RECAP = { range:(SESS.recaps.length ? 'last' : 'today'), draft:'', title:recapSessionName() || 'Session recap', busy:false, msg:'', to:null, one:'' };
+  var _newest = (S.journal || []).slice().sort(function(a, b){ return (b.ts || 0) - (a.ts || 0); })[0]; if (_newest) RECAP.one = _newest.id;
   recapPaint();
 }
 function recapPaint(){
@@ -6173,7 +6185,10 @@ function recapPaint(){
   var opt = function(v, l){ return '<option value="' + v + '"' + (RECAP.range === v ? ' selected' : '') + '>' + l + '</option>'; };
   var h = '<h3 class="tsm-title">Write a recap</h3>'
     + '<label class="tsm-lbl" for="rcRange">From your Journal</label><select class="tsm-inp" id="rcRange" onchange="RECAP.range=this.value;recapPaint()">'
-    + opt('none', 'Nothing, just what I write') + (SESS.recaps.length ? opt('last', 'Since the last recap') : '') + opt('today', 'Today') + opt('week', 'The last 7 days') + opt('all', 'Everything') + '</select>'
+    + opt('none', 'Nothing, just what I write') + opt('one', 'One entry') + (SESS.recaps.length ? opt('last', 'Since the last recap') : '') + opt('today', 'Today') + opt('week', 'The last 7 days') + opt('all', 'Everything') + '</select>'
+    + (RECAP.range === 'one' ? '<label class="tsm-lbl" for="rcOne">The entry</label><select class="tsm-inp" id="rcOne" onchange="RECAP.one=this.value;recapPaint()">'
+        + (S.journal || []).slice().sort(function(a, b){ return (b.ts || 0) - (a.ts || 0); }).map(function(e){ var d = new Date(e.ts || 0), t = String(e.text || '').replace(/\s+/g, ' ');
+            return '<option value="' + esc(e.id) + '"' + (RECAP.one === e.id ? ' selected' : '') + '>' + esc(d.toLocaleDateString(undefined, { month:'short', day:'numeric' }) + ', ' + d.toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' }) + ': ' + (t.length > 70 ? t.slice(0, 70) + '\u2026' : t)) + '</option>'; }).join('') + '</select>' : '')
     + '<p class="tsm-note">' + (RECAP.range === 'none' ? 'No notes. The draft works from what you write below.' : n + ' note' + (n === 1 ? '' : 's') + '. Only the Journal is used, never the log.') + '</p>'
     + '<label class="tsm-lbl" for="rcTitle">Session</label><input class="tsm-inp" id="rcTitle" maxlength="120" value="' + esc(RECAP.title) + '" oninput="RECAP.title=this.value">'
     + '<label class="tsm-lbl" for="rcText">Recap</label><textarea class="tsm-inp tsm-ta rc-ta" id="rcText" oninput="RECAP.draft=this.value;recapDraftSync()" placeholder="Draft it from your notes, or write your own.">' + esc(RECAP.draft) + '</textarea>'
