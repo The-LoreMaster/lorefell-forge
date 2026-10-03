@@ -5978,6 +5978,7 @@ function recapEntries(range){
   if (range === 'today'){ var d = new Date(now); d.setHours(0, 0, 0, 0); since = d.getTime(); }
   if (range === 'week') since = Date.now() - 7 * 86400000;
   if (range === 'all') since = 0;
+  if (range === 'none') return [];
   return all.filter(function(e){ return (e.ts || 0) >= since; });
 }
 function recapPlayers(){
@@ -6006,11 +6007,12 @@ function recapPaint(){
   var opt = function(v, l){ return '<option value="' + v + '"' + (RECAP.range === v ? ' selected' : '') + '>' + l + '</option>'; };
   var h = '<h3 class="tsm-title">Write a recap</h3>'
     + '<label class="tsm-lbl" for="rcRange">From your Journal</label><select class="tsm-inp" id="rcRange" onchange="RECAP.range=this.value;recapPaint()">'
-    + (SESS.recaps.length ? opt('last', 'Since the last recap') : '') + opt('today', 'Today') + opt('week', 'The last 7 days') + opt('all', 'Everything') + '</select>'
-    + '<p class="tsm-note">' + n + ' note' + (n === 1 ? '' : 's') + '. Only the Journal is used, never the log.</p>'
+    + opt('none', 'Nothing, just what I write') + (SESS.recaps.length ? opt('last', 'Since the last recap') : '') + opt('today', 'Today') + opt('week', 'The last 7 days') + opt('all', 'Everything') + '</select>'
+    + '<p class="tsm-note">' + (RECAP.range === 'none' ? 'No notes. The draft works from what you write below.' : n + ' note' + (n === 1 ? '' : 's') + '. Only the Journal is used, never the log.') + '</p>'
     + '<label class="tsm-lbl" for="rcTitle">Session</label><input class="tsm-inp" id="rcTitle" maxlength="120" value="' + esc(RECAP.title) + '" oninput="RECAP.title=this.value">'
-    + '<label class="tsm-lbl" for="rcText">Recap</label><textarea class="tsm-inp tsm-ta rc-ta" id="rcText" oninput="RECAP.draft=this.value" placeholder="Draft it from your notes, or write your own.">' + esc(RECAP.draft) + '</textarea>'
-    + '<div class="tsm-row" style="justify-content:flex-start;margin-top:6px"><button class="tsm-btn ghost" onclick="recapDraft()"' + (RECAP.busy || !n ? ' disabled' : '') + '>' + (RECAP.busy ? 'Drafting...' : (RECAP.draft ? 'Draft again' : 'Draft from my notes')) + '</button></div>'
+    + '<label class="tsm-lbl" for="rcText">Recap</label><textarea class="tsm-inp tsm-ta rc-ta" id="rcText" oninput="RECAP.draft=this.value;recapDraftSync()" placeholder="Draft it from your notes, or write your own.">' + esc(RECAP.draft) + '</textarea>'
+    + '<div class="tsm-row" style="justify-content:flex-start;margin-top:6px"><button class="tsm-btn ghost" id="rcDraftB" onclick="recapDraft()"' + (RECAP.busy || (!n && !RECAP.draft.trim()) ? ' disabled' : '') + '>' + (RECAP.busy ? 'Drafting...' : recapDraftLabel(n, RECAP.draft)) + '</button></div>'
+    + '<p class="tsm-note">' + recapDraftHelp(n, RECAP.draft) + '</p>'
     + '<p class="tsm-note">Read it before it goes: your Journal is yours alone, and a draft can carry something the players should not know yet.</p>'
     + '<label class="tsm-lbl">Send to</label>'
     + (pl.length ? '<div class="rc-to">' + pl.map(function(p){ var on = RECAP.to.indexOf(p.memberId) >= 0;
@@ -6020,16 +6022,40 @@ function recapPaint(){
     + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button><button class="tsm-btn" onclick="recapSend()"' + (RECAP.busy ? ' disabled' : '') + '>Send</button></div>';
   tsModal(h, true);
 }
+/* What Draft does depends on what it has: the chosen Journal notes, what is already
+   written in the box, or both. Either way it writes into the box for the LoreMaster to
+   edit, and nothing is sent until Send. */
+function recapDraftLabel(n, text){
+  var t = String(text || '').trim();
+  if (n && t) return 'Draft from my notes and what I wrote';
+  if (n) return 'Draft from my notes';
+  if (t) return 'Polish what I wrote';
+  return 'Draft';
+}
+function recapDraftHelp(n, text){
+  var t = String(text || '').trim();
+  if (n && t) return 'Writes a recap from your notes, keeping what you wrote and weaving it in. It replaces the box, so you can Undo with Ctrl+Z.';
+  if (n) return 'Writes a recap from your notes into the box, for you to edit.';
+  if (t) return 'Tidies what you wrote into a recap, keeping your facts. Or just Send it as it is.';
+  return 'Choose notes above or write something below. You can always just write it yourself and Send.';
+}
+function recapDraftSync(){
+  var b = document.getElementById('rcDraftB'), n = recapEntries(RECAP.range).length; if (!b || RECAP.busy) return;
+  b.disabled = !n && !String(RECAP.draft || '').trim(); b.textContent = recapDraftLabel(n, RECAP.draft);
+  var h = b.parentNode && b.parentNode.nextElementSibling; if (h) h.textContent = recapDraftHelp(n, RECAP.draft);
+}
 function recapTo(id, on){ RECAP.to = (RECAP.to || []).filter(function(x){ return x !== id; }); if (on) RECAP.to.push(id); }
 function recapDraft(){
-  var notes = recapEntries(RECAP.range); if (!notes.length || RECAP.busy) return;
+  var notes = recapEntries(RECAP.range), own = String(((document.getElementById('rcText') || {}).value) || RECAP.draft || '').trim();
+  if ((!notes.length && !own) || RECAP.busy) return;
   RECAP.busy = true; RECAP.msg = ''; recapPaint();
   var sys = 'You write a session recap email for the players of a LoreFell tabletop game, from the LoreMaster\u2019s own journal notes. '
-    + 'Use only what the notes say happened; never invent events, names, places or outcomes. Leave out anything that reads as the LoreMaster\u2019s private planning, a secret, or something the players did not witness. '
+    + 'Use only what the notes and the LoreMaster\u2019s own words say happened; never invent events, names, places or outcomes. When the LoreMaster has written something, keep their facts, names and turns of phrase, and build around them. Leave out anything that reads as the LoreMaster\u2019s private planning, a secret, or something the players did not witness. '
     + 'Write it for the players, in past tense, as a short story of what the party did, in the order it happened. Grounded and warm, with dark fantasy weight where the notes earn it. '
     + 'No clich\u00e9s, no purple prose, no em dashes, no headings, no bullet points. Plain paragraphs, 120 to 350 words. Return only the recap text.';
-  var user = 'Adventure: ' + advName() + '\nScene: ' + ((S.scene && S.scene.name) || '') + '\nJournal notes, oldest first:\n'
-    + notes.map(function(e){ return '- ' + String(e.text || '').replace(/\s+/g, ' '); }).join('\n');
+  var user = 'Adventure: ' + advName() + '\nSession: ' + (RECAP.title || '') + '\nScene: ' + ((S.scene && S.scene.name) || '')
+    + (notes.length ? '\nJournal notes, oldest first:\n' + notes.map(function(e){ return '- ' + String(e.text || '').replace(/\s+/g, ' '); }).join('\n') : '')
+    + (own ? '\nWhat the LoreMaster has written so far:\n' + own : '');
   aiCall(sys, user, 900).then(function(t){
     RECAP.busy = false; RECAP.draft = String(t || '').replace(/\s*\u2014\s*/g, ', ').trim(); recapPaint();
   }).catch(function(e){ RECAP.busy = false; RECAP.msg = (e && e.rate) ? 'Too many drafts just now. Wait a minute and try again.' : 'The draft did not come back. Try again, or write it yourself.'; recapPaint(); });

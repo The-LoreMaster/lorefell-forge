@@ -1,3 +1,7 @@
+## 2026-10-03 - A recap from the Journal, from what you write, or both
+
+Write a recap's Journal choice gains Nothing, just what I write. Draft works from whatever it has and says so: the chosen notes (Draft from my notes), what is already in the box (Polish what I wrote, keeping its facts), or both (Draft from my notes and what I wrote, weaving the written words in). It always writes into the box for editing, and a recap can still be written by hand and sent with no draft at all.
+
 ## 2026-10-03 - Each player's email opens their own Fell
 
 The recap and reminder emails now give each player their own link, to the table with their Fell in this adventure (?character=...&campaign=...), so it opens on the player's side with their Fell in hand; someone with no Fell there gets the adventure's link. The two Triggered Email ids are filled in. Paste velo/backend/sessionsCore.js and velo/backend/sessions.web.js.
