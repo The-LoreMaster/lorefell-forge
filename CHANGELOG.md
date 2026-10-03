@@ -1,3 +1,7 @@
+## 2026-09-28 - Switching adventure moves the table to the new adventure's room
+
+A table that switched adventure stayed off the live room: switching closed the old room, but a retry timer left from before was never cleared, and the watcher that opens the room waits while a retry is pending, so it never opened the new one (and the seams kept the old adventure's refusal). A fired or cancelled retry now clears itself, closing the room resets it, and the watcher moves the room to whatever adventure the table is on within two seconds of a switch.
+
 ## 2026-09-28 - The room ticket: the page's own adventure, and the whole reason
 
 When the live room refuses the LoreMaster's ticket, the page now tries again with its own adventure (the one it opened, from the address or the context) if the table asked with a different one, and the seams show the whole reason along with the adventure the table asked for; it was cut off at sixty characters, which hid the adventure's id. Paste velo/page-threadspire.js.

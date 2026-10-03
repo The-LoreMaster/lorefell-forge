@@ -18100,8 +18100,8 @@ function roomConnect(){
     ws.onerror = function(){};
   }).catch(function(e){ SEAM.room = 'off (' + String((e && e.message) || e).slice(0, 260) + '; this table\u2019s adventure: ' + (S.campaignId || 'none') + ')'; seamPaint(); roomRetry(); });
 }
-function roomRetry(){ clearTimeout(ROOM.t); ROOM.tries++; ROOM.t = setTimeout(roomConnect, Math.min(30000, 1500 * Math.pow(1.6, ROOM.tries))); }
-function roomClose(){ ROOM.sentParts = {}; ROOM.want = false; clearTimeout(ROOM.t); clearInterval(ROOM.hb); if (ROOM.ws){ try { ROOM.ws.close(); } catch(e){} } ROOM.ws = null; ROOM.on = false; ROOM.sentToks = ''; ROOM.sentScene = ''; }
+function roomRetry(){ clearTimeout(ROOM.t); ROOM.tries++; ROOM.t = setTimeout(function(){ ROOM.t = null; roomConnect(); }, Math.min(30000, 1500 * Math.pow(1.6, ROOM.tries))); }
+function roomClose(){ ROOM.sentParts = {}; ROOM.want = false; clearTimeout(ROOM.t); ROOM.t = null; ROOM.tries = 0; SEAM.room = 'switching adventure'; ROOM.cid = ''; clearInterval(ROOM.hb); if (ROOM.ws){ try { ROOM.ws.close(); } catch(e){} } ROOM.ws = null; ROOM.on = false; ROOM.sentToks = ''; ROOM.sentScene = ''; }
 /* the shape of the board, without positions (those travel one token at a time) */
 function roomTokSig(){ try { return JSON.stringify((S.tokens || []).map(function(t){ var c = Object.assign({}, t); delete c.x; delete c.y; delete c._gx; delete c._gy; return c; })); } catch(e){ return ''; } }
 function roomSceneBundle(){
@@ -18211,7 +18211,14 @@ function roomGot(m){
   if (m.t === 'ping'){ try { if (!_pingSeen[m.k]) pingShow({ id:m.k, x:m.x, y:m.y, c:m.c, who:m.n, k:mapKey(), at:Date.now() }); _pingSeen[m.k] = 1; } catch(e){} return; }
   if (m.t === 'deny' && m.back){ roomTokApply(m.id, { x:m.back.x, y:m.back.y }); return; }
 }
-setInterval(function(){ try { if (S.campaignId && tsEmbedded() && (!ROOM.ws || ROOM.cid !== S.campaignId) && !ROOM.t) roomConnect(); } catch(e){} }, 3000);
+/* the watcher keeps the room on the adventure the table is on: switching adventure closes the
+   old room and this opens the new one (a retry timer left from before had kept it from ever
+   reconnecting, so a switched table stayed off its new adventure's room) */
+setInterval(function(){ try {
+  if (!S.campaignId || !tsEmbedded()) return;
+  if (ROOM.cid && ROOM.cid !== S.campaignId){ roomClose(); }
+  if ((!ROOM.ws || ROOM.cid !== S.campaignId) && !ROOM.t) roomConnect();
+} catch(e){} }, 2000);
 
 
 /* ================= affliction marks, the token's right-click menu, free tokens, framing =================
