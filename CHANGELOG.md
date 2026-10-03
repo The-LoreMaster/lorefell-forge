@@ -1,3 +1,7 @@
+## 2026-10-03 - Gold file pickers; a second way into a video's captions
+
+Every file picker across the tools (ThreadSpire, FellGlass, FateWell, BondForge, BrandForge, FoeForge, RelicForge) wears the gold of the primary buttons instead of the browser's white. When YouTube's watch page refuses the room (it asks servers to sign in), the room now asks the way YouTube's own Android and iPhone apps do, and reads the captions in either of YouTube's forms. Upload and paste are unchanged.
+
 ## 2026-10-03 - A session's recap from its video; Journal entries can be edited
 
 The Journal gains From the session's video: the transcript comes from the YouTube link (the live room fetches the video's captions, nothing kept), an uploaded file (.txt, .srt or .vtt, timestamps stripped) or pasted text. The AI checks every name in it against the Story (acts, sessions, scenes, NPCs, foes, speakers), the Library and the Fell and their players, and lists what looks misheard; the LoreMaster unticks any that are right. Then it writes one recap of the session, 170 to 230 words (about half a minute to read), from the corrected transcript and the Journal's notes, using the names as spelled. It can be edited or written again, and Add to the Journal keeps it as an entry marked From the session's video; the transcript itself is not kept. Every Journal entry can now be edited in place.

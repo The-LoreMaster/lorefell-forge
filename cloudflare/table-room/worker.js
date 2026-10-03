@@ -69,14 +69,30 @@ async function transcript(req, url) {
     const page = await fetch('https://www.youtube.com/watch?v=' + v[0] + '&hl=en', { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36', 'Accept-Language': 'en-US,en;q=0.9' } });
     const html = await page.text();
     const i = html.indexOf('"captionTracks":');
-    if (i < 0) return out({ ok: false, error: html.indexOf('confirm you') >= 0 ? 'YouTube asked the server to sign in' : 'this video has no captions' });
-    const end = html.indexOf(']', i);
-    let tracks = []; try { tracks = JSON.parse(html.slice(i + 16, end + 1)); } catch (e) { return out({ ok: false, error: 'the captions could not be read' }); }
+    let tracks = [];
+    if (i >= 0) { const end = html.indexOf(']', i); try { tracks = JSON.parse(html.slice(i + 16, end + 1)); } catch (e) { tracks = []; } }
+    /* the watch page refuses servers it suspects; YouTube's own phone app asks a different door */
+    if (!tracks.length) {
+      for (const c of [{ clientName: 'ANDROID', clientVersion: '19.09.37', androidSdkVersion: 30, ua: 'com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip' },
+                       { clientName: 'IOS', clientVersion: '19.09.3', deviceModel: 'iPhone14,3', ua: 'com.google.ios.youtube/19.09.3 (iPhone14,3; U; CPU iOS 15_6 like Mac OS X)' }]) {
+        try {
+          const ua = c.ua; const client = Object.assign({ hl: 'en', gl: 'US' }, c); delete client.ua;
+          const pr = await fetch('https://www.youtube.com/youtubei/v1/player?prettyPrint=false', { method: 'POST', headers: { 'Content-Type': 'application/json', 'User-Agent': ua }, body: JSON.stringify({ context: { client: client }, videoId: v[0] }) });
+          const pj = await pr.json();
+          tracks = (((pj.captions || {}).playerCaptionsTracklistRenderer || {}).captionTracks) || [];
+          if (tracks.length) break;
+        } catch (e) {}
+      }
+    }
+    if (!tracks.length) return out({ ok: false, error: html.indexOf('confirm you') >= 0 ? 'YouTube asked the server to sign in' : 'this video has no captions' });
     const tr = tracks.filter((t) => /^en/.test(t.languageCode || ''))[0] || tracks[0];
     if (!tr || !tr.baseUrl) return out({ ok: false, error: 'this video has no captions' });
-    const cap = await fetch(tr.baseUrl.replace(/\\u0026/g, '&') + '&fmt=json3');
-    const j = await cap.json();
-    const text = (j.events || []).map((e) => (e.segs || []).map((s) => s.utf8 || '').join('')).join(' ').replace(/\s+/g, ' ').trim();
+    const base = tr.baseUrl.replace(/\\u0026/g, '&');
+    let text = '';
+    try { const cap = await fetch(base + '&fmt=json3'); const j = await cap.json(); text = (j.events || []).map((e) => (e.segs || []).map((s) => s.utf8 || '').join('')).join(' ').replace(/\s+/g, ' ').trim(); } catch (e) { text = ''; }
+    if (!text) {
+      try { const x = await (await fetch(base)).text(); text = x.replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, ' ').trim(); } catch (e) { text = ''; }
+    }
     const tm = html.match(/<title>([^<]*)<\/title>/);
     return out({ ok: !!text, text: text.slice(0, 600000), title: tm ? tm[1].replace(/ - YouTube$/, '') : '', error: text ? '' : 'the captions were empty' });
   } catch (e) { return out({ ok: false, error: 'YouTube could not be reached' }); }
