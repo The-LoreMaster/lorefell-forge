@@ -58,13 +58,84 @@ async function readTicket(t, campaignId) {
    else the first there is) and returns the words. YouTube may refuse a server, and a video
    with no captions has none to give; either way the table says so and the upload still works.
    Nothing is kept. */
-async function transcript(req, url) {
+/* ---- YouTube, signed in: a LoreMaster connects their own channel once (Google sign-in),
+   the room keeps its refresh token, and fetches that channel's captions through YouTube's
+   official API. Only the caption list and caption text are ever asked for. ---- */
+const YT_REDIRECT = 'https://lorefell-table.nate8-johnson.workers.dev/yt/callback';
+async function ytStore(env, body) {
+  const stub = env.ROOMS.get(env.ROOMS.idFromName('__yt'));
+  const r = await stub.fetch('https://room/yt', { method: 'POST', headers: { 'X-YT-Store': '1' }, body: JSON.stringify(body) });
+  return r.json();
+}
+async function ytWho(url) {
+  const c = String(url.searchParams.get('c') || ''), t = String(url.searchParams.get('t') || '');
+  if (!c || !t) return null;
+  const who = await readTicket(t, c);
+  return who && who.role === 'lm' && !who.keeper && who.member ? who : null;
+}
+async function ytAccess(env, member) {
+  const s = await ytStore(env, { op: 'tok-get', m: member }); if (!s.rt) return '';
+  const r = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ client_id: env.YT_CLIENT_ID, client_secret: env.YT_CLIENT_SECRET, refresh_token: s.rt, grant_type: 'refresh_token' }) });
+  const j = await r.json(); return j.access_token || '';
+}
+function ytPage(title, text) {
+  return new Response('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + title + '</title><body style="margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0b1020;color:#dce8ef;font-family:Georgia,serif"><div style="max-width:420px;padding:28px;border:1px solid #c9a84c;border-radius:14px;text-align:center"><h1 style="font-size:1.3rem;color:#c9a84c;margin:0 0 10px">' + title + '</h1><p style="margin:0;line-height:1.5">' + text + '</p></div></body>', { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+}
+async function youtube(req, url, env) {
+  const origin = req.headers.get('Origin') || '';
+  const h = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': ALLOW.indexOf(origin) >= 0 ? origin : ALLOW[0], 'Vary': 'Origin' };
+  const out = (o, s) => new Response(JSON.stringify(o), { status: s || 200, headers: h });
+  if (!env.YT_CLIENT_ID || !env.YT_CLIENT_SECRET) return url.pathname === '/yt/status' ? out({ ok: true, ready: false, connected: false }) : ytPage('Not set up yet', 'The room has no YouTube keys yet.');
+  if (url.pathname === '/yt/connect') {
+    const who = await ytWho(url); if (!who) return ytPage('Sign in again', 'This link has expired. Press Connect YouTube again from the table.');
+    const n = crypto.randomUUID(); await ytStore(env, { op: 'nonce-set', n: n, m: who.member });
+    const q = new URLSearchParams({ client_id: env.YT_CLIENT_ID, redirect_uri: YT_REDIRECT, response_type: 'code', scope: 'https://www.googleapis.com/auth/youtube.force-ssl', access_type: 'offline', prompt: 'consent', include_granted_scopes: 'true', state: n });
+    return Response.redirect('https://accounts.google.com/o/oauth2/v2/auth?' + q.toString(), 302);
+  }
+  if (url.pathname === '/yt/callback') {
+    const code = url.searchParams.get('code'), n = url.searchParams.get('state') || '';
+    if (!code) return ytPage('Not connected', 'Google did not give permission. You can try again from the table.');
+    const who = await ytStore(env, { op: 'nonce-take', n: n }); if (!who.m) return ytPage('Sign in again', 'That sign-in took too long. Press Connect YouTube again from the table.');
+    const r = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ client_id: env.YT_CLIENT_ID, client_secret: env.YT_CLIENT_SECRET, code: code, grant_type: 'authorization_code', redirect_uri: YT_REDIRECT }) });
+    const j = await r.json();
+    if (!j.refresh_token) return ytPage('Not connected', 'Google did not hand over a lasting sign-in. Remove LoreFell from your Google account\u2019s third-party access, then connect again.');
+    await ytStore(env, { op: 'tok-set', m: who.m, rt: j.refresh_token });
+    return ytPage('YouTube is connected', 'LoreFell can now read the captions of your channel\u2019s videos for session recaps. You can close this tab.');
+  }
+  if (ALLOW.indexOf(origin) < 0) return out({ ok: false, error: 'origin not allowed' }, 403);
+  const who = await ytWho(url); if (!who) return out({ ok: false, error: 'sign in again' }, 401);
+  if (url.pathname === '/yt/status') { const s = await ytStore(env, { op: 'tok-get', m: who.member }); return out({ ok: true, ready: true, connected: !!s.rt }); }
+  if (url.pathname === '/yt/disconnect') { await ytStore(env, { op: 'tok-del', m: who.member }); return out({ ok: true, connected: false }); }
+  return out({ ok: false, error: 'not found' }, 404);
+}
+async function ytCaptions(env, member, vid) {
+  const at = await ytAccess(env, member); if (!at) return null;
+  const auth = { Authorization: 'Bearer ' + at };
+  const list = await (await fetch('https://www.googleapis.com/youtube/v3/captions?part=snippet&videoId=' + vid, { headers: auth })).json();
+  if (list.error) return { ok: false, error: list.error.code === 403 ? 'that video is not on your connected channel' : (list.error.message || 'YouTube refused') };
+  const items = list.items || [];
+  const pick = items.filter((c) => /^en/.test(c.snippet.language) && c.snippet.trackKind !== 'asr')[0] || items.filter((c) => /^en/.test(c.snippet.language))[0] || items[0];
+  if (!pick) return { ok: false, error: 'this video has no captions yet (YouTube makes them a while after upload)' };
+  const r = await fetch('https://www.googleapis.com/youtube/v3/captions/' + pick.id + '?tfmt=srt', { headers: auth });
+  if (!r.ok) return { ok: false, error: 'the captions could not be downloaded' };
+  const srt = await r.text();
+  const text = srt.replace(/^\d+\s*$/gm, '').replace(/\d{2}:\d{2}:\d{2},\d{3}\s*-->\s*\d{2}:\d{2}:\d{2},\d{3}/g, '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+  return { ok: !!text, text: text.slice(0, 600000), title: '', error: text ? '' : 'the captions were empty' };
+}
+async function transcript(req, url, env) {
   const origin = req.headers.get('Origin') || '';
   const h = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': ALLOW.indexOf(origin) >= 0 ? origin : ALLOW[0], 'Vary': 'Origin' };
   const out = (o, s) => new Response(JSON.stringify(o), { status: s || 200, headers: h });
   if (ALLOW.indexOf(origin) < 0) return out({ ok: false, error: 'origin not allowed' }, 403);
   const v = String(url.searchParams.get('v') || '').match(/^[A-Za-z0-9_-]{6,20}$/);
   if (!v) return out({ ok: false, error: 'no video id' }, 400);
+  /* a connected channel first, through YouTube's own API */
+  try {
+    const who = env.YT_CLIENT_ID ? await ytWho(url) : null;
+    if (who) { const got = await ytCaptions(env, who.member, v[0]); if (got) return out(got); }
+  } catch (e) {}
   try {
     const page = await fetch('https://www.youtube.com/watch?v=' + v[0] + '&hl=en', { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36', 'Accept-Language': 'en-US,en;q=0.9' } });
     const html = await page.text();
@@ -103,7 +174,8 @@ export default {
     const url = new URL(req.url);
     const m = url.pathname.match(/^\/room\/([A-Za-z0-9_-]{3,80})$/);
     if (url.pathname === '/' || url.pathname === '/health') return new Response('lorefell table room', { status: 200 });
-    if (url.pathname === '/transcript') return transcript(req, url);
+    if (url.pathname === '/transcript') return transcript(req, url, env);
+    if (url.pathname.indexOf('/yt/') === 0) return youtube(req, url, env);
     if (!m) return new Response('not found', { status: 404 });
     if (req.headers.get('Upgrade') !== 'websocket') return new Response('expected a websocket', { status: 426 });
     const origin = req.headers.get('Origin') || 'null';
@@ -112,6 +184,7 @@ export default {
     if (!who) return new Response('ticket refused', { status: 401 });
     const id = env.ROOMS.idFromName(m[1]);
     const r = new Request(req, { headers: new Headers(req.headers) });
+    r.headers.delete('X-YT-Store');
     r.headers.set('X-Room-Who', JSON.stringify(who));
     return env.ROOMS.get(id).fetch(r);
   }
@@ -146,6 +219,17 @@ export class TableRoom {
   }
   async fetch(req) {
     await this.ready;
+    /* the YouTube keeper (one room named __yt, reached only from this worker): sign-ins
+       waiting to finish, and each LoreMaster's refresh token, by member */
+    if (req.headers.get('X-YT-Store')) {
+      const b = await req.json(), st = this.ctx.storage;
+      if (b.op === 'nonce-set') { await st.put('yt:n:' + b.n, { m: b.m, at: Date.now() }); return Response.json({ ok: true }); }
+      if (b.op === 'nonce-take') { const v = await st.get('yt:n:' + b.n); await st.delete('yt:n:' + b.n); return Response.json({ m: v && Date.now() - v.at < 15 * 60000 ? v.m : '' }); }
+      if (b.op === 'tok-set') { await st.put('yt:t:' + b.m, b.rt); return Response.json({ ok: true }); }
+      if (b.op === 'tok-get') { return Response.json({ rt: (await st.get('yt:t:' + b.m)) || '' }); }
+      if (b.op === 'tok-del') { await st.delete('yt:t:' + b.m); return Response.json({ ok: true }); }
+      return Response.json({ ok: false });
+    }
     const who = JSON.parse(req.headers.get('X-Room-Who') || '{}');
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
