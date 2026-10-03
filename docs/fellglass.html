@@ -135,6 +135,11 @@ body.god .god-only{display:initial}
 body.god .god-lock{pointer-events:auto;opacity:1}
 /* stat strip */
 .statstrip{display:flex;border-top:1px solid var(--line)}
+.br-log{margin:6px 0 10px;color:var(--silver);font-size:.95rem;line-height:1.5}
+.br-opt{display:flex;flex-direction:column;gap:2px;width:100%;text-align:left;margin:6px 0;padding:9px 12px;border:1px solid var(--line2,#2a3552);border-radius:8px;background:rgba(10,16,32,.5);color:var(--silver);cursor:pointer}
+.br-opt:hover{border-color:var(--gold)} .br-opt[disabled]{opacity:.4;cursor:default} .br-opt span{font-size:.85rem;color:var(--silver-dim,#8fa3b3)}
+.br-h{margin:12px 0 2px;font-family:'Cinzel',serif;font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--gold)} .br-h span{color:var(--silver-dim,#8fa3b3);text-transform:none;letter-spacing:0;margin-left:6px}
+.br-note{font-size:.82rem;color:var(--silver-dim,#8fa3b3);margin:2px 0 4px}
 #tsSubtabs{display:flex;flex-wrap:nowrap;gap:6px;padding:8px 12px;border-top:1px solid var(--line)}
 /* the three share one line, each as wide as its name plus an even share of what is left, so a narrow sheet never sends one to a second row */
 #tsSubtabs .ts-subtab{flex:1 1 auto;min-width:0;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -3583,7 +3588,9 @@ function luFresh(batch){
 /* Levelling happens at a rest, and a rest comes from the LoreMaster (FellGuide, Leveling:
    crystals are spent while resting). So a player's sheet levels only while ThreadSpire's rest
    has opened it (ts-rest-op levelup), and the LoreMaster can level any Fell at any time. */
-function levelAllowed(){ return !!god || !!window._restLevelOK; }
+/* a rest called at the table, or a rest between sessions (open all week, so a crystal can be
+   spent any time it is on, at the table or on this page) */
+function levelAllowed(){ return !!god || !!window._restLevelOK || !!window._restBetween; }
 function luOpen(){
   if(crystals()<1)return;
   if(!levelAllowed()){ fgTell("Level up at a rest","<p>You have an Ascension Crystal to spend. Crystals are spent while resting, so you level up when the LoreMaster calls a rest.</p>"); return; }
@@ -4209,11 +4216,15 @@ function restInfo(){
     return { idx, known, name:known?(e.name||""):"", veiled:e.veiled||"something you have not seen before", use:e.use||"", desc:known?(e.desc||""):"" }; });
   return { renewal:skillBonusOf("Renewal"), lore:skillBonusOf("Lore"), vigor:attrTotal("vigor"), wit:attrTotal("wit"),
     fatigue:C.fatigue||0, vit:{cur:C.vitality.current||0,max:C.vitality.max||0}, crystals:(typeof crystals==="function"?crystals():0),
-    shards:restCount("Skyvault Shard"), food:restCount("Food Portion"), kettle:restCount("Camp Kettle"), items };
+    shards:restCount("Skyvault Shard"), food:restCount("Food Portion"), kettle:restCount("Camp Kettle"), items, restsDone:C.restsDone||{} };
 }
 window.addEventListener("message",ev=>{
   const d=ev.data; if(!d||d.type!=="ts-rest-op") return;
-  const reply=(data)=>{ try{ window.parent.postMessage({type:"ts-rest-result",op:d.op,seq:d.seq,data:data},"*"); }catch(e){} };
+  restOpRun(d,(data)=>{ try{ window.parent.postMessage({type:"ts-rest-result",op:d.op,seq:d.seq,data:data},"*"); }catch(e){} });
+});
+/* One rest op, answered through reply: from the table's rest window, or from this page's
+   own Rest Between Sessions window when the sheet is open on its own. */
+function restOpRun(d,reply){
   const after=()=>{ try{ renderAll(); }catch(e){} scheduleSave(); };
   const d6=()=>1+Math.floor(Math.random()*6);
   if(d.op==="info"){ reply(restInfo()); return; }
@@ -4233,8 +4244,77 @@ window.addEventListener("message",ev=>{
     reply({ok:true,won,n,lore,m,apl,name:won?(e.name||""):"",veiled:e.veiled||"",info:restInfo()}); return;
   }
   if(d.op==="levelup"){ window._restLevelOK=true; try{ renderLore(); switchPanel("lore"); luOpen(); }catch(e){} reply({ok:true}); return; }
-  if(d.op==="rest-over"){ window._restLevelOK=false; try{ renderLore(); }catch(e){} reply({ok:true}); return; }
-});
+  if(d.op==="rest-over"){ window._restLevelOK=false; if(d.between) window._restBetween=false; try{ renderLore(); }catch(e){} reply({ok:true}); return; }
+  /* a rest between sessions is on (or over): crystals may be spent while it is */
+  if(d.op==="between"){ window._restBetween=!!d.on; try{ renderLore(); }catch(e){} reply({ok:true}); return; }
+  /* what this Fell did at a rest, kept on the Fell so every device and the LoreMaster agree */
+  if(d.op==="rest-mark"){
+    if(d.rid){ C.restsDone=C.restsDone||{}; C.restsDone[d.rid]={ choice:d.choice==="skip"?"skip":"rest", bits:(d.bits||[]).slice(0,12).map(String), at:Date.now() };
+      const ks=Object.keys(C.restsDone).sort((a,b)=>(C.restsDone[b].at||0)-(C.restsDone[a].at||0)); ks.slice(6).forEach(k=>delete C.restsDone[k]); scheduleSave(); }
+    reply({ok:true}); return;
+  }
+}
+
+/* ---------- Rest Between Sessions, on this page ----------
+   At the table, ThreadSpire runs the rest window. On this page alone, the sheet does: when
+   its adventure has a rest between sessions open and this Fell has not answered it, a window
+   offers Rest, Keep watch or Later. Rest rolls recovery and takes a rank of Fatigue off, then
+   offers a Shard, Food, inspecting up to 1 + Wit, and levelling; the Camp Kettle is shared at
+   the table, where the party is. While the rest is open, crystals can be spent at any time. */
+let BR=null;
+function brTake(d){
+  const r=d&&d.rest;
+  if(!r||!r.open||!r.between){ window._restBetween=false; try{ renderLore(); }catch(e){} return; }
+  window._restBetween=true; try{ renderLore(); }catch(e){}
+  if((C.restsDone||{})[r.id]) return;
+  try{ if(sessionStorage.getItem("fg_br_later")===r.id) return; }catch(e){}
+  BR={ rid:r.id, apl:Number(d.apl)||0, bits:[], inspected:{}, inspections:0, food:0, info:restInfo() };
+  brAsk();
+}
+function brOp(op,extra){ return new Promise(res=>restOpRun(Object.assign({op:op},extra||{}),res)); }
+function brAsk(){
+  fgTell("A rest between sessions", `<p class="note" style="font-size:1rem">Your LoreMaster has called a rest between sessions. Rest to recover, shed Fatigue and look over what you carry, or keep watch and let it pass.</p>
+    <div class="row" style="gap:8px;justify-content:flex-end;margin-top:12px"><button type="button" class="btn small" onclick="brLater()">Later</button><button type="button" class="btn small" onclick="brSkip()">Keep watch</button><button type="button" class="btn small gold" onclick="brRest()">Rest</button></div>`);
+}
+function brLater(){ try{ sessionStorage.setItem("fg_br_later",BR.rid); }catch(e){} fgTellClose(); }
+function brSkip(){ brOp("rest-mark",{rid:BR.rid,choice:"skip"}); fgTellClose(); BR=null; }
+async function brRest(){
+  const r=await brOp("recover"); BR.info=r.info; BR.bits.push((r.full?"full Vitality":"+"+r.healed+" Vitality")+" (rolled "+r.n+" + "+r.r+" Renewal)");
+  const f=await brOp("fatigue-1"); BR.info=f.info; if(f.was>f.now) BR.bits.push("Fatigue "+FATIGUE_NAMES[f.was]+" to "+FATIGUE_NAMES[f.now]);
+  brOp("rest-mark",{rid:BR.rid,choice:"rest",bits:BR.bits});
+  brPaint();
+}
+function brPaint(){
+  if(!BR) return; const i=BR.info||restInfo(), wit=Math.max(0,i.wit||0), left=Math.max(0,1+wit-BR.inspections), foodLeft=Math.max(0,1+Math.max(0,i.vigor||0)-BR.food);
+  let h=`<p class="note" style="font-size:1rem">Vitality <b>${i.vit.cur} / ${i.vit.max}</b> &nbsp; Fatigue <b>${FATIGUE_NAMES[i.fatigue||0]||""}</b></p>`;
+  h+=`<div class="br-log">${BR.bits.map(b=>"<div>\u2713 "+cbEsc(b)+"</div>").join("")}</div>`;
+  if(i.shards) h+=`<button type="button" class="br-opt" onclick="brDo('shard')"><b>Spend a Skyvault Shard</b><span>Full Vitality, and 1d6 more ranks of Fatigue gone. ${i.shards} carried.</span></button>`;
+  if(i.food&&foodLeft) h+=`<button type="button" class="br-opt" onclick="brDo('food')"><b>Eat a Food Portion</b><span>Another Renewal roll. ${foodLeft} more this rest, ${i.food} carried.</span></button>`;
+  if(i.kettle) h+=`<div class="br-note">A Camp Kettle is shared at the table, with the party.</div>`;
+  if(i.crystals) h+=`<button type="button" class="br-opt" onclick="brLevel()"><b>Level up</b><span>${i.crystals} Ascension Crystal${i.crystals===1?"":"s"} to spend.</span></button>`;
+  const unknown=(i.items||[]).filter(it=>!it.known&&!BR.inspected[it.idx]);
+  if(unknown.length){
+    h+=`<div class="br-h">Inspect utilities <span>${left} of ${1+wit} left</span></div><div class="br-note">A Lore check each: 1d6 + Lore against the LoreMaster's 1d6 + the Skill Difficulty (+${BR.apl}).</div>`;
+    h+=unknown.map(it=>`<button type="button" class="br-opt" ${left?"":"disabled"} onclick="brInspect(${it.idx})"><b>? ? ?</b><span>${cbEsc(it.veiled)}</span></button>`).join("");
+  }
+  h+=`<div class="row" style="justify-content:flex-end;margin-top:12px"><button type="button" class="btn small gold" onclick="brDone()">Finish resting</button></div>`;
+  fgTell("Resting between sessions",h);
+}
+async function brDo(op){
+  const r=await brOp(op); if(r.info) BR.info=r.info;
+  if(op==="shard"&&r.ok) BR.bits.push("a Skyvault Shard: full Vitality, Fatigue "+FATIGUE_NAMES[r.was]+" to "+FATIGUE_NAMES[r.now]);
+  if(op==="food"&&r.ok){ BR.food++; BR.bits.push("a Food Portion: "+(r.full?"full Vitality":"+"+r.healed+" Vitality")); }
+  brOp("rest-mark",{rid:BR.rid,choice:"rest",bits:BR.bits}); brPaint();
+}
+async function brInspect(idx){
+  const i=BR.info||restInfo(); if(BR.inspections>=1+Math.max(0,i.wit||0)) return;
+  BR.inspections++; BR.inspected[idx]=true;
+  const r=await brOp("inspect",{idx:idx,apl:BR.apl}); if(r.info) BR.info=r.info;
+  BR.bits.push(r.won?("discovered "+r.name+" (rolled "+(r.n+r.lore)+" against "+(r.m+r.apl)+")"):("an item that stays unknown (rolled "+(r.n+r.lore)+" against "+(r.m+r.apl)+")"));
+  brOp("rest-mark",{rid:BR.rid,choice:"rest",bits:BR.bits}); brPaint();
+}
+function brLevel(){ fgTellClose(); try{ renderLore(); switchPanel("lore"); luOpen(); }catch(e){} }
+function brDone(){ fgTellClose(); BR=null; try{ renderAll(); }catch(e){} }
 
 /* ---------- the Arsenal: one card shape for Weapons, Lorebounds and Armor ----------
    Each item is a row: its kind's symbol, the name with its type under it and the level at the
@@ -7916,7 +7996,9 @@ window.onmessage=ev=>{
     window._handKind=null; window._stanceRound=null; window._stanceApplied=false; window._draft=null;
     CUR_WIX_ID=d.charId||""; CUR_LOCAL_ID=uid(); if(CC)ccClose(); loadCharacter(d.character); if(window._tsPanel) switchPanel(window._tsPanel);
     if(CUR_WIX_ID){ refreshClues(); startCluePolling(); refreshCombat(); startCombatPolling(); }
+    if(CUR_WIX_ID && !document.body.classList.contains("tsembed") && !god){ try{ postToVelo({type:"between-rest-get",charId:CUR_WIX_ID}); }catch(e){} }
   }
+  else if(d.type==="between-rest"){ if(!document.body.classList.contains("tsembed")) brTake(d); }
   else if(d.type==="clues"){ var sig=JSON.stringify(d.clues||[]); if(sig!==_clueSig){ _clueSig=sig; CLUES=d.clues||[]; renderClues(); } }
   else if(d.type==="quests"){ if(d.ok===false){ cbPing("The quest board could not be reached. Showing the last board.", true); } else { var qsig=JSON.stringify(d.quests||[]); if(qsig!==_questSig){ _questSig=qsig; QUESTS=d.quests||[]; renderQuests(); } } }
   else if(d.type==="combat-declare-ack"){

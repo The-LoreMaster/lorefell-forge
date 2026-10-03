@@ -298,7 +298,7 @@ export const getCampaignPlayers = webMethod(Permissions.Anyone, async (campaignI
     // The row carries an indexed `level` column that saveCharacter keeps in step with the
     // sheet. Read it FIRST and outside the try, so a data blob that fails to parse costs
     // the vitality reading rather than flattening every Fell in the party to level 1.
-    let lvl = Number(it.level) || 1, maxVit = 0, mobility = 0, baseMobility = 0;
+    let lvl = Number(it.level) || 1, maxVit = 0, mobility = 0, baseMobility = 0, restsDone = null;
     try {
       const dat = typeof it.data === 'string' ? JSON.parse(it.data) : (it.data || {});
       const blobLvl = Number(dat.level || (dat.lore && dat.lore.level) || (dat.identity && dat.identity.level)) || 0;
@@ -309,6 +309,8 @@ export const getCampaignPlayers = webMethod(Permissions.Anyone, async (campaignI
       // falls back to its default of 5.
       baseMobility = Math.max(0, Number(dat.mobility) || 0);
       mobility = (Number(dat.fatigue) || 0) >= 2 ? Math.floor(baseMobility / 2) : baseMobility;
+      // what this Fell did at its last few rests (a rest between sessions is read from here)
+      if (dat.restsDone && typeof dat.restsDone === 'object') restsDone = dat.restsDone;
     } catch (e) {}
     const mid = it.ownerMemberId || '';
     withChar[mid] = true;
@@ -316,7 +318,7 @@ export const getCampaignPlayers = webMethod(Permissions.Anyone, async (campaignI
     // one the table holds for someone, not a player with a role, and saying otherwise
     // reported the loremaster's own role once for every Fell they keep.
     const kept = !mid || (!!ownerId && mid === ownerId);
-    out.push({ id: mid, memberId: mid, memberName: nameOf[mid] || '', charId: it._id, name: it.charName || '', level: lvl, maxVit: maxVit, mobility: mobility, baseMobility: baseMobility, role: roleAt(mid), kept: kept });
+    out.push({ id: mid, memberId: mid, memberName: nameOf[mid] || '', charId: it._id, name: it.charName || '', level: lvl, maxVit: maxVit, mobility: mobility, baseMobility: baseMobility, restsDone: restsDone, role: roleAt(mid), kept: kept });
   });
   // joined members who have not attached a character yet
   members.forEach((m) => {
