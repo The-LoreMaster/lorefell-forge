@@ -1,3 +1,7 @@
+## 2026-10-03 - The next session, its reminder, and recaps
+
+Settings gains Sessions: the LoreMaster sets the next session (day, time and a note) and reads the recaps sent. Players see it in their menu with Email me a reminder (on unless they turn it off), and on the Hearth, which opens that adventure. One reminder email goes out the morning of (from 8:00 AM Arizona time), once per session, from a new hourly Wix job. The Journal gains Write a recap: drafted from the Journal only (since the last recap, today, the last 7 days, or everything), edited by the LoreMaster, sent to the players chosen, and kept on the adventure. Both emails are Wix Triggered Emails sent by member id; their two template ids go at the top of backend/sessionsCore.js. A new collection, AdventureSessions, holds it. Setting the session and sending a recap are the LoreMaster's alone. Paste velo/backend/sessionsCore.js, velo/backend/sessions.web.js, velo/backend/jobs.config, velo/page-threadspire.js and velo/page-the_hearth.js.
+
 ## 2026-10-03 - Masked: only what is next to you
 
 A Masked Fell may only target what touches its own token (diagonals count, and a large token touches along its whole footprint), per the FellGuide's Masked. A tap or right-click on anything further away says "Masked: you can only target what is next to you" and aims at nothing. The sheet's own target list in the fight banner offers only the fighters next to the Fell (the table tells it, through a new ts-masked-reach message), and says so plainly when nothing is.

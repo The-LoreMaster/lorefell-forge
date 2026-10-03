@@ -2257,6 +2257,13 @@ body.drop-ready #map::after{ content:'Drop images to add them as maps'; position
 #win[data-sec="journal"] .jrow textarea{ flex:1; resize:vertical; min-height:44px; padding:9px 12px; border:1px solid #2c3a58; border-radius:10px; background:rgba(10,14,26,.75); color:#dce8ef; font-family:'Crimson Pro',Georgia,serif; font-size:1rem; line-height:1.4; outline:none; }
 #win[data-sec="journal"] .jrow textarea:focus{ border-color:#c9a84c; }
 #win[data-sec="journal"] .jday{ margin:14px 0 6px 2px; font-family:Cinzel,serif; font-weight:500; font-size:.82rem; letter-spacing:.06em; color:#c9a84c; }
+#win[data-sec="journal"] .j-recap{ display:flex; justify-content:flex-end; margin:-2px 0 10px; }
+.rc-ta{ min-height:220px; line-height:1.5; }
+.rc-to{ display:flex; flex-wrap:wrap; gap:6px 14px; }
+.rc-who{ display:flex; align-items:center; gap:6px; color:var(--silver); font-size:.9rem; cursor:pointer; }
+.rc-item{ padding:10px 0; border-bottom:1px solid #1f2a42; } .rc-item:last-of-type{ border-bottom:0; }
+.rc-h{ display:flex; justify-content:space-between; gap:10px; margin-bottom:6px; color:#dce8ef; } .rc-h span{ color:#93a3b6; font-size:.8rem; }
+.rc-b{ white-space:pre-wrap; color:#b8c4d0; font-size:.92rem; line-height:1.5; max-height:260px; overflow:auto; }
 #win[data-sec="journal"] .jentry{ position:relative; display:grid; grid-template-columns:64px 1fr 24px; gap:10px; align-items:baseline; padding:9px 4px 9px 2px; border:0; border-bottom:1px solid #1f2a42; border-radius:0; background:none; margin:0; }
 #win[data-sec="journal"] .jtime{ font-size:.82rem; color:#93a3b6; letter-spacing:0; text-transform:none; font-family:'Crimson Pro',Georgia,serif; }
 #win[data-sec="journal"] .jtext{ font-size:1.02rem; line-height:1.5; color:#dce8ef; }
@@ -5879,6 +5886,7 @@ function libraryBody(){
 function jTime(ts){ try { return new Date(ts).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}); } catch(e){ return ''; } }
 function journalBody(){
   var h = '<div class="win-note">What happens as you play, in roleplay and in battle. Only you see it. It is here for your recaps.</div>';
+  if (isLM()) h += '<div class="j-recap"><button class="set-b" onclick="recapOpen()">Write a recap</button></div>';
   h += '<div class="jrow"><textarea id="jInput" maxlength="600" rows="2" placeholder="What just happened" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();journalAdd();}"></textarea><button class="set-b pri" onclick="journalAdd()">Add</button></div>';
   var entries = (S.journal||[]).slice().reverse();
   if (!entries.length) h += '<div class="jempty">Nothing yet. Your first note lands here.</div>';
@@ -5892,6 +5900,153 @@ function journalBody(){
       + '<button class="jx" onclick="journalDelete(\'' + e.id + '\')" title="Delete this note" aria-label="Delete this note">\u00d7</button></div>';
   });
   return h;
+}
+/* ================= sessions: the next one, its reminder, and recaps =================
+   The LoreMaster sets the next session in Settings; players see it in their menu (and on
+   the Hearth) and get one email the morning of, unless they turn it off. A recap is
+   drafted from the Journal only, never the log, read and edited by the LoreMaster, and
+   sent to the players chosen. The site sends both as Wix Triggered Emails
+   (backend/sessions.web.js); nothing goes out that the LoreMaster has not seen. */
+var SESS = { loaded:false, busy:false, nextAt:0, when:'', note:'', remindersOff:false, recaps:[], players:[], emailReady:false };
+function sessionLoad(){
+  if (!tsEmbedded() || !S.campaignId || SESS.busy) return;
+  SESS.busy = true;
+  tsAsk('TS_SESSION_GET', {}).then(function(r){
+    SESS.busy = false; SESS.loaded = true;
+    if (r && r.ok) Object.assign(SESS, { nextAt:r.nextAt || 0, when:r.when || '', note:r.note || '', remindersOff:!!r.remindersOff, recaps:r.recaps || [], players:r.players || [], emailReady:!!r.emailReady });
+    if (S.openSection === 'settings' || S.openSection === 'menu') refreshWinBody();
+  }).catch(function(){ SESS.busy = false; SESS.loaded = true; });
+}
+function sessionWhenShort(){
+  if (!SESS.nextAt) return '';
+  try { var d = new Date(SESS.nextAt); return d.toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric' }) + ', ' + d.toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' }); } catch(e){ return SESS.when; }
+}
+function sessionSettingsGroup(){
+  if (!SESS.loaded) sessionLoad();
+  var next = SESS.nextAt && SESS.nextAt > Date.now() - 3600000;
+  var help = next ? esc(sessionWhenShort()) + (SESS.note ? '. ' + esc(SESS.note) : '') + '. Players get one email that morning, unless they turn it off.'
+                  : 'Not set. Players see it in their menu and on the Hearth, and get one email the morning of.';
+  if (!SESS.emailReady && SESS.loaded) help += ' Emails are not set up yet: the template ids still need pasting into backend/sessionsCore.js.';
+  var rows = setRow('Next session', help, setBtn(next ? 'Change' : 'Set', 'sessionEdit()') + (next ? setBtn('Clear', 'sessionClear()') : ''));
+  rows += setRow('Recaps', SESS.recaps.length ? (SESS.recaps.length + ' sent. Write one from the Journal.') : 'Write one from the Journal, from your notes only.', (SESS.recaps.length ? setBtn('Read', 'recapList()') : '') + setBtn('Write', 'recapOpen()'));
+  return setGroup('Sessions', rows);
+}
+function sessionLocalValue(ms){
+  var d = new Date(ms || (Date.now() + 7 * 86400000)); var p = function(n){ return (n < 10 ? '0' : '') + n; };
+  if (!ms){ d.setHours(19, 0, 0, 0); }
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+function sessionEdit(){
+  if (!isLM()) return;
+  tsModal('<h3 class="tsm-title">Next session</h3>'
+    + '<label class="tsm-lbl" for="sessAt">When</label><input class="tsm-inp" id="sessAt" type="datetime-local" value="' + sessionLocalValue(SESS.nextAt) + '">'
+    + '<label class="tsm-lbl" for="sessNote">A note for the players (optional)</label><input class="tsm-inp" id="sessNote" maxlength="300" placeholder="Where, or what to bring" value="' + esc(SESS.note || '') + '">'
+    + '<p class="tsm-note">Your own clock\u2019s time. The reminder email gives it in Arizona time.</p><p class="tsm-note" id="sessMsg"></p>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button><button class="tsm-btn" onclick="sessionSave()">Save</button></div>');
+}
+function sessionSave(){
+  var v = (document.getElementById('sessAt') || {}).value, n = ((document.getElementById('sessNote') || {}).value || '').trim(), m = document.getElementById('sessMsg');
+  var at = v ? new Date(v).getTime() : 0;
+  if (!at || isNaN(at)){ if (m) m.textContent = 'Choose a day and time.'; return; }
+  if (at < Date.now()){ if (m) m.textContent = 'That time has passed.'; return; }
+  if (m) m.textContent = 'Saving...';
+  tsAsk('TS_SESSION_SET', { at:at, note:n }).then(function(r){
+    if (!r || !r.ok){ if (m) m.textContent = 'Not saved' + (r && r.error ? ': ' + r.error : '') + '.'; return; }
+    SESS.nextAt = r.nextAt; SESS.when = r.when || ''; SESS.note = n; tsCloseModal(); refreshWinBody();
+  }).catch(function(e){ if (m) m.textContent = 'Not saved: ' + String((e && e.message) || e).slice(0, 80); });
+}
+function sessionClear(){
+  tsAsk('TS_SESSION_SET', { at:0, note:'' }).then(function(r){ if (r && r.ok){ SESS.nextAt = 0; SESS.when = ''; SESS.note = ''; refreshWinBody(); } }).catch(function(){});
+}
+function sessionMenuRows(){
+  if (!SESS.loaded) sessionLoad();
+  var next = SESS.nextAt && SESS.nextAt > Date.now() - 3600000;
+  return '<div class="lb-row" style="flex-wrap:wrap"><span class="lb-name">Next session</span><span class="lb-meta">' + (next ? esc(sessionWhenShort()) : 'Not set yet') + '</span>'
+    + (next && SESS.note ? '<span style="flex-basis:100%;margin-top:3px;font-size:.88rem;color:#93a3b6">' + esc(SESS.note) + '</span>' : '') + '</div>'
+    + '<div class="lb-row" style="cursor:pointer" onclick="sessionRemindToggle()" title="One email the morning of each session"><span class="lb-name">Email me a reminder</span><span class="lb-meta">' + (SESS.remindersOff ? 'Off' : 'On') + '</span></div>';
+}
+function sessionRemindToggle(){
+  var off = !SESS.remindersOff; SESS.remindersOff = off; refreshWinBody();
+  tsAsk('TS_REMINDERS_OFF', { off:off }).then(function(r){ if (!r || !r.ok){ SESS.remindersOff = !off; refreshWinBody(); } }).catch(function(){ SESS.remindersOff = !off; refreshWinBody(); });
+}
+/* ---- the recap ---- */
+var RECAP = { range:'last', draft:'', title:'Session recap', busy:false, msg:'', to:null };
+function recapEntries(range){
+  var all = (S.journal || []).slice().sort(function(a, b){ return (a.ts || 0) - (b.ts || 0); });
+  var since = 0, now = new Date();
+  if (range === 'last'){ since = (SESS.recaps[0] && SESS.recaps[0].at) || 0; if (!since) range = 'today'; }
+  if (range === 'today'){ var d = new Date(now); d.setHours(0, 0, 0, 0); since = d.getTime(); }
+  if (range === 'week') since = Date.now() - 7 * 86400000;
+  if (range === 'all') since = 0;
+  return all.filter(function(e){ return (e.ts || 0) >= since; });
+}
+function recapPlayers(){
+  return (SESS.players || []).map(function(p){
+    var nm = p.name;
+    if (!nm) (S.party || []).forEach(function(x){ if (x && sameId(x.memberId, p.memberId)) nm = x.memberName || x.name || ''; });
+    return { memberId:p.memberId, name:nm || 'A player' };
+  });
+}
+function recapOpen(){
+  if (!isLM()) return;
+  if (!SESS.loaded) sessionLoad();
+  RECAP = { range:(SESS.recaps.length ? 'last' : 'today'), draft:'', title:'Session recap', busy:false, msg:'', to:null };
+  recapPaint();
+}
+function recapPaint(){
+  var n = recapEntries(RECAP.range).length, pl = recapPlayers();
+  if (RECAP.to === null) RECAP.to = pl.map(function(p){ return p.memberId; });
+  var opt = function(v, l){ return '<option value="' + v + '"' + (RECAP.range === v ? ' selected' : '') + '>' + l + '</option>'; };
+  var h = '<h3 class="tsm-title">Write a recap</h3>'
+    + '<label class="tsm-lbl" for="rcRange">From your Journal</label><select class="tsm-inp" id="rcRange" onchange="RECAP.range=this.value;recapPaint()">'
+    + (SESS.recaps.length ? opt('last', 'Since the last recap') : '') + opt('today', 'Today') + opt('week', 'The last 7 days') + opt('all', 'Everything') + '</select>'
+    + '<p class="tsm-note">' + n + ' note' + (n === 1 ? '' : 's') + '. Only the Journal is used, never the log.</p>'
+    + '<label class="tsm-lbl" for="rcTitle">Title</label><input class="tsm-inp" id="rcTitle" maxlength="120" value="' + esc(RECAP.title) + '" oninput="RECAP.title=this.value">'
+    + '<label class="tsm-lbl" for="rcText">Recap</label><textarea class="tsm-inp tsm-ta rc-ta" id="rcText" oninput="RECAP.draft=this.value" placeholder="Draft it from your notes, or write your own.">' + esc(RECAP.draft) + '</textarea>'
+    + '<div class="tsm-row" style="justify-content:flex-start;margin-top:6px"><button class="tsm-btn ghost" onclick="recapDraft()"' + (RECAP.busy || !n ? ' disabled' : '') + '>' + (RECAP.busy ? 'Drafting...' : (RECAP.draft ? 'Draft again' : 'Draft from my notes')) + '</button></div>'
+    + '<p class="tsm-note">Read it before it goes: your Journal is yours alone, and a draft can carry something the players should not know yet.</p>'
+    + '<label class="tsm-lbl">Send to</label>'
+    + (pl.length ? '<div class="rc-to">' + pl.map(function(p){ var on = RECAP.to.indexOf(p.memberId) >= 0;
+        return '<label class="rc-who"><input type="checkbox"' + (on ? ' checked' : '') + ' onchange="recapTo(\'' + esc(p.memberId) + '\',this.checked)"> ' + esc(p.name) + '</label>'; }).join('') + '</div>'
+      : '<p class="tsm-note">' + (SESS.loaded ? 'No players with an account at this adventure yet.' : 'Reading who is at the table...') + '</p>')
+    + '<p class="tsm-note" id="rcMsg">' + esc(RECAP.msg) + '</p>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button><button class="tsm-btn" onclick="recapSend()"' + (RECAP.busy ? ' disabled' : '') + '>Send</button></div>';
+  tsModal(h, true);
+}
+function recapTo(id, on){ RECAP.to = (RECAP.to || []).filter(function(x){ return x !== id; }); if (on) RECAP.to.push(id); }
+function recapDraft(){
+  var notes = recapEntries(RECAP.range); if (!notes.length || RECAP.busy) return;
+  RECAP.busy = true; RECAP.msg = ''; recapPaint();
+  var sys = 'You write a session recap email for the players of a LoreFell tabletop game, from the LoreMaster\u2019s own journal notes. '
+    + 'Use only what the notes say happened; never invent events, names, places or outcomes. Leave out anything that reads as the LoreMaster\u2019s private planning, a secret, or something the players did not witness. '
+    + 'Write it for the players, in past tense, as a short story of what the party did, in the order it happened. Grounded and warm, with dark fantasy weight where the notes earn it. '
+    + 'No clich\u00e9s, no purple prose, no em dashes, no headings, no bullet points. Plain paragraphs, 120 to 350 words. Return only the recap text.';
+  var user = 'Adventure: ' + advName() + '\nScene: ' + ((S.scene && S.scene.name) || '') + '\nJournal notes, oldest first:\n'
+    + notes.map(function(e){ return '- ' + String(e.text || '').replace(/\s+/g, ' '); }).join('\n');
+  aiCall(sys, user, 900).then(function(t){
+    RECAP.busy = false; RECAP.draft = String(t || '').replace(/\s*\u2014\s*/g, ', ').trim(); recapPaint();
+  }).catch(function(e){ RECAP.busy = false; RECAP.msg = (e && e.rate) ? 'Too many drafts just now. Wait a minute and try again.' : 'The draft did not come back. Try again, or write it yourself.'; recapPaint(); });
+}
+function recapSend(){
+  var t = ((document.getElementById('rcText') || {}).value || '').trim(), m = document.getElementById('rcMsg');
+  RECAP.draft = t;
+  if (!t){ if (m) m.textContent = 'Nothing to send yet.'; return; }
+  if (!(RECAP.to || []).length){ if (m) m.textContent = 'Choose who gets it.'; return; }
+  RECAP.busy = true; if (m) m.textContent = 'Sending...';
+  tsAsk('TS_RECAP_SEND', { text:t, title:RECAP.title || 'Session recap', to:RECAP.to }).then(function(r){
+    RECAP.busy = false;
+    if (!r || !r.ok){ RECAP.msg = 'Not sent' + (r && r.error ? ': ' + r.error : '') + '.'; recapPaint(); return; }
+    SESS.recaps.unshift({ id:'r' + Date.now(), at:Date.now(), title:RECAP.title, text:t, sent:r.sent });
+    tsModal('<h3 class="tsm-title">Recap sent</h3><p class="lc-p">It went to ' + r.sent + ' player' + (r.sent === 1 ? '' : 's') + (r.failed ? ', and ' + r.failed + ' could not be reached' : '') + '. It is kept under Settings, Sessions, Recaps.</p><div class="tsm-row"><button class="tsm-btn" onclick="tsCloseModal()">Done</button></div>');
+    if (S.openSection === 'settings') refreshWinBody();
+  }).catch(function(e){ RECAP.busy = false; RECAP.msg = 'Not sent: ' + String((e && e.message) || e).slice(0, 80); recapPaint(); });
+}
+function recapList(){
+  var h = '<h3 class="tsm-title">Recaps sent</h3>';
+  (SESS.recaps || []).forEach(function(r){
+    h += '<div class="rc-item"><div class="rc-h"><b>' + esc(r.title || 'Session recap') + '</b><span>' + esc(jTime(r.at)) + (r.sent ? ', to ' + r.sent : '') + '</span></div><div class="rc-b">' + esc(r.text || '') + '</div></div>';
+  });
+  tsModal(h + '<div class="tsm-row"><button class="tsm-btn" onclick="tsCloseModal()">Close</button></div>', true);
 }
 function journalAdd(){
   var el = document.getElementById('jInput'); if (!el) return;
@@ -9573,6 +9728,7 @@ function advReset(nextId){
   S._advFullLoaded = false; /* a new table means the full adventure has NOT loaded yet; leaving
                                this true made every load path skip the new adventure entirely */
   S.journal = null; S.quests = null; S.library = null; S.published = null;
+  try { SESS = { loaded:false, busy:false, nextAt:0, when:'', note:'', remindersOff:false, recaps:[], players:[], emailReady:false }; } catch(e){}
   S.declares = null; S.mode = 'explore'; S.round = 0;
   S.tokens = []; S.log = [];
   _stageGone = {};
@@ -10021,6 +10177,7 @@ function settingsBody(){
     + (mine
         ? setRow('Published as ' + esc(mine.title || 'this adventure'), 'On the directory for others to run.', setBtn('Update', 'publishOpen()') + setBtn('Take down', 'unpublishNow(\'' + esc(mine._id || mine.id || '') + '\')'))
         : setRow('Publish', 'Put it on the directory for others to run.', setBtn('Publish', 'publishOpen()'))));
+  if (isLM()) h += sessionSettingsGroup();
   if (isLM()) h += setGroup('Rolls', setRow('Hide my rolls', 'Your rolls show only on your screen and in your log, marked hidden.', setBtn(lmHiddenRolls() ? 'On' : 'Off', 'lmHiddenRollsSet(!lmHiddenRolls())', lmHiddenRolls())));
   h += setGroup('Streaming', setRow('Stream view', 'A window that follows this table for capture: the players\u2019 view without the fog, or everything.', setBtn('Copy link', 'streamCopy()')));
   h += setGroup('Under the hood', setRow('The seams', 'What the table is doing right now, for when two tables disagree.', setBtn('Show', 'openWin(\'seams\')')));
@@ -10071,6 +10228,7 @@ function menuBody(){
   h += diceSettingsLine();
   if (!lm){ var _fg = fellGrowMode();
     h += '<div class="lb-row" style="cursor:pointer" onclick="fellGrowSet(\'' + (_fg === 'auto' ? 'ask' : 'auto') + '\')" title="A Fellmark on a skill check raises that skill by 1"><span class="lb-name">Fellmarks raise skills</span><span class="lb-meta">' + (_fg === 'auto' ? 'Automatically' : 'Ask me') + '</span></div>'; }
+  if (!lm) h += sessionMenuRows();
   if (!lm) h += '<div class="lb-row" style="cursor:pointer" onclick="boardOpen(\'handouts\')"><span class="lb-name">Handouts</span><span class="lb-meta">' + handoutsMine().length + '</span></div>';
   if (!lm) h += '<div class="lb-row" style="cursor:pointer" onclick="beatPicsPlayerToggle()"><span class="lb-name">Scene pictures</span><span class="lb-meta">' + (beatPicsPlayerOn() ? 'Shown' : 'Off') + '</span></div>';
   h += '<div class="lb-row"><span class="lb-name">Your ping colour</span></div>' + pingColorRow();
