@@ -1,3 +1,7 @@
+## 2026-10-03 - YouTube connected: a session video's link brings its captions
+
+A LoreMaster can connect their own YouTube channel once (Settings, Sessions, YouTube: a Google sign-in), and From the session's video takes the link again: the live room reads that video's captions through YouTube's own API (the caption list and the caption text, nothing else) and the recap flow goes on as before. The room keeps each LoreMaster's sign-in privately, by member; Disconnect forgets it. An i beside the link explains it, and the steps for copying a transcript by hand stay for anyone else's video. The room's deploy sets the YouTube keys from the repository's YT_CLIENT_ID and YT_CLIENT_SECRET.
+
 ## 2026-10-03 - The Journal reads well in a narrow window; YouTube's transcript, by hand
 
 In a narrow window a Journal entry puts its time above the note, and the note takes the full width instead of a thin column. YouTube will not hand a video's captions to a server, so From the session's video drops the link and shows how to bring the transcript instead: Show transcript under the video, timestamps off, copy and paste; or download it from YouTube Studio's Subtitles on your own channel and upload it. Upload and paste are unchanged.

@@ -2372,6 +2372,8 @@ body.drop-ready #map::after{ content:'Drop images to add them as maps'; position
 #win[data-sec="journal"] .jedit-row{ display:flex; justify-content:flex-end; gap:8px; margin-top:6px; }
 #win[data-sec="journal"] .jtag{ display:block; font-family:Cinzel,serif; font-size:.66rem; letter-spacing:.06em; color:#c9a84c; margin-bottom:3px; }
 .vid-row{ display:flex; gap:8px; } .vid-row input{ flex:1; min-width:0; }
+.vid-i{ width:20px; height:20px; margin-left:6px; border-radius:50%; border:1px solid #c9a84c; background:none; color:#c9a84c; font-family:Georgia,serif; font-style:italic; font-size:.78rem; line-height:1; cursor:pointer; vertical-align:middle; padding:0; }
+.vid-info{ margin:2px 0 8px; padding:9px 11px; border-radius:8px; background:rgba(201,168,76,.08); border:1px solid rgba(201,168,76,.3); font-size:.9rem; line-height:1.45; color:#cbd5df; }
 .vid-how{ margin:2px 0 6px; font-size:.92rem; color:#cbd5df; } .vid-how summary{ cursor:pointer; color:#c9a84c; font-family:Cinzel,serif; font-size:.74rem; letter-spacing:.05em; }
 .vid-how ol{ margin:8px 0 0 18px; padding:0; display:flex; flex-direction:column; gap:5px; line-height:1.45; }
 .vid-fixes{ display:flex; flex-direction:column; gap:6px; max-height:46vh; overflow:auto; padding:2px; } .vid-fixes s{ color:#93a3b6; }
@@ -6088,6 +6090,9 @@ function sessionSettingsGroup(){
                   : 'Not set. Players see it in their menu and on the Hearth, and get one email the morning of.';
   if (!SESS.emailReady && SESS.loaded) help += ' Emails are not set up yet: the template ids still need pasting into backend/sessionsCore.js.';
   var rows = setRow('Next session', help, setBtn(next ? 'Change' : 'Set', 'sessionEdit()') + (next ? setBtn('Clear', 'sessionClear()') : ''));
+  if (!YT.loaded) ytStatus();
+  rows += setRow('YouTube', YT.connected ? 'Your channel is connected: a session video\u2019s link brings its captions straight into a recap.' : (YT.loaded && !YT.ready ? 'The room\u2019s YouTube keys are not set yet.' : 'Connect your channel once, and a session video\u2019s link brings its captions into a recap.'),
+    YT.connected ? setBtn('Disconnect', 'ytDisconnect()') : setBtn('Connect', 'ytConnect()'));
   rows += setRow('Test the emails', 'Sends one to you alone, to see how it reads.', setBtn('Recap', 'emailTest(\'recap\')') + setBtn('Reminder', 'emailTest(\'reminder\')'));
   rows += setRow('Recaps', SESS.recaps.length ? (SESS.recaps.length + ' sent. Write one from the Journal.') : 'Write one from the Journal, from your notes only.', (SESS.recaps.length ? setBtn('Read', 'recapList()') : '') + setBtn('Write', 'recapOpen()'));
   return setGroup('Sessions', rows);
@@ -6283,16 +6288,19 @@ function journalEditSave(id){
    transcript is let go. */
 var ROOM_HTTP = 'https://lorefell-table.nate8-johnson.workers.dev';
 var VID = { text:'', title:'', busy:false, msg:'', fixes:[], keep:{}, recap:'', step:'in' };
-function vidOpen(){ if (!isLM() || keeperNo()) return; VID = { text:'', title:'', busy:false, msg:'', fixes:[], keep:{}, recap:'', step:'in' }; vidPaint(); }
+function vidOpen(){ if (!isLM() || keeperNo()) return; if (!YT.loaded) ytStatus(); VID = { text:'', title:'', busy:false, msg:'', fixes:[], keep:{}, recap:'', step:'in' }; vidPaint(); }
 function vidPaint(){
   var h = '<h3 class="tsm-title">From the session\u2019s video</h3>';
   if (VID.step === 'in'){
-    h += '<details class="vid-how"><summary>Getting the transcript from YouTube</summary><ol>'
+    h += '<label class="tsm-lbl" for="vidUrl">The YouTube link <button type="button" class="vid-i" onclick="var d=document.getElementById(\'vidInfo\');d.hidden=!d.hidden" aria-label="How the link works" title="How the link works">i</button></label>'
+      + '<div id="vidInfo" class="vid-info" hidden>The link works for videos on a YouTube channel you have connected (Settings, Sessions, YouTube): LoreFell signs in to that channel once and reads its captions through YouTube\u2019s own service. ' + (YT.connected ? 'Your channel is connected.' : 'No channel is connected yet.') + ' For anyone else\u2019s video, copy its transcript in below.</div>'
+      + '<div class="vid-row"><input class="tsm-inp" id="vidUrl" placeholder="https://youtube.com/watch?v=\u2026"><button class="tsm-btn" onclick="vidFetch()"' + (VID.busy ? ' disabled' : '') + '>Get it</button></div>'
+      + '<details class="vid-how"><summary>Copying a transcript from YouTube</summary><ol>'
       + '<li>Open the video on YouTube, and under it press <b>\u2026more</b>, then <b>Show transcript</b>.</li>'
       + '<li>In the transcript panel, use its menu (\u22ee) to <b>Toggle timestamps</b> off.</li>'
       + '<li>Click into the transcript, select it all (drag from the first line to the last), copy, and paste it below.</li>'
       + '<li>On your own channel, YouTube Studio, <b>Subtitles</b>, can also download it as a file to upload here.</li></ol></details>'
-      + '<label class="tsm-lbl" for="vidFile">The transcript file</label><input class="tsm-inp" id="vidFile" type="file" accept=".txt,.srt,.vtt,text/plain" onchange="vidFile(this)">'
+      + '<label class="tsm-lbl" for="vidFile">Or the transcript file</label><input class="tsm-inp" id="vidFile" type="file" accept=".txt,.srt,.vtt,text/plain" onchange="vidFile(this)">'
       + '<label class="tsm-lbl" for="vidText">Or paste it</label><textarea class="tsm-inp tsm-ta" id="vidText" rows="6" placeholder="Paste the transcript here" oninput="VID.text=this.value">' + esc(VID.text.slice(0, 20000)) + (VID.text.length > 20000 ? '\u2026' : '') + '</textarea>'
       + '<p class="tsm-note">' + (VID.text ? Math.round(VID.text.length / 1000) + 'k characters' + (VID.title ? ' from \u201c' + esc(VID.title) + '\u201d' : '') + '. ' : '') + esc(VID.msg) + '</p>'
       + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button><button class="tsm-btn" onclick="vidNames()"' + (VID.busy ? ' disabled' : '') + '>' + (VID.busy ? 'Reading\u2026' : 'Check the names') + '</button></div>';
@@ -6309,6 +6317,32 @@ function vidPaint(){
   }
   tsModal(h, true);
 }
+/* ---- the LoreMaster's YouTube channel, connected once through the live room ---- */
+var YT = { loaded:false, ready:false, connected:false };
+function ytTicket(){
+  if (!tsEmbedded() || !S.campaignId) return Promise.resolve('');
+  return tsAsk('TS_ROOM_TICKET', { campaignId:S.campaignId }).then(function(r){ return (r && r.ticket) || ''; }).catch(function(){ return ''; });
+}
+function ytStatus(){
+  if (YT.busy) return; YT.busy = true;
+  ytTicket().then(function(tk){ if (!tk) throw 0; return fetch(ROOM_HTTP + '/yt/status?c=' + encodeURIComponent(S.campaignId) + '&t=' + encodeURIComponent(tk)).then(function(r){ return r.json(); }); })
+    .then(function(d){ YT = { loaded:true, ready:!!(d && d.ready), connected:!!(d && d.connected) }; if (S.openSection === 'settings') refreshWinBody(); })
+    .catch(function(){ YT = { loaded:true, ready:false, connected:false }; });
+}
+function ytConnect(){
+  if (keeperNo()) return;
+  var w = window.open('', '_blank');   /* opened now, while the click still counts, then sent on */
+  ytTicket().then(function(tk){
+    if (!tk){ if (w) w.close(); playToast('Open the table from the site to connect YouTube.', 'YouTube'); return; }
+    var u = ROOM_HTTP + '/yt/connect?c=' + encodeURIComponent(S.campaignId) + '&t=' + encodeURIComponent(tk);
+    if (w) w.location = u; else window.open(u, '_blank');
+    var tries = 0, iv = setInterval(function(){ tries++; YT.busy = false; ytStatus(); if (YT.connected || tries > 40) clearInterval(iv); }, 4000);
+  });
+}
+function ytDisconnect(){
+  ytTicket().then(function(tk){ return fetch(ROOM_HTTP + '/yt/disconnect?c=' + encodeURIComponent(S.campaignId) + '&t=' + encodeURIComponent(tk)); })
+    .then(function(){ YT.connected = false; if (S.openSection === 'settings') refreshWinBody(); }).catch(function(){});
+}
 function vidClean(t){
   return String(t || '').replace(/^WEBVTT.*$/m, '').replace(/^\d+\s*$/gm, '').replace(/\d{1,2}:\d{2}(:\d{2})?[.,]\d{1,3}\s*-->\s*\d{1,2}:\d{2}(:\d{2})?[.,]\d{1,3}.*$/gm, '').replace(/<[^>]+>/g, '').replace(/\[(music|applause|laughter)\]/gi, '').replace(/\s+/g, ' ').trim();
 }
@@ -6321,7 +6355,7 @@ function vidFetch(){
   var m = u.match(/(?:v=|youtu\.be\/|\/live\/|\/shorts\/|\/embed\/)([A-Za-z0-9_-]{6,20})/) || u.match(/^([A-Za-z0-9_-]{11})$/);
   if (!m){ VID.msg = 'That does not look like a YouTube link.'; vidPaint(); return; }
   VID.busy = true; VID.msg = 'Fetching the captions\u2026'; vidPaint();
-  fetch(ROOM_HTTP + '/transcript?v=' + encodeURIComponent(m[1])).then(function(r){ return r.json(); }).then(function(d){
+  ytTicket().then(function(tk){ return fetch(ROOM_HTTP + '/transcript?v=' + encodeURIComponent(m[1]) + (tk ? '&c=' + encodeURIComponent(S.campaignId) + '&t=' + encodeURIComponent(tk) : '')); }).then(function(r){ return r.json(); }).then(function(d){
     VID.busy = false;
     if (d && d.ok){ VID.text = vidClean(d.text); VID.title = d.title || ''; VID.msg = ''; }
     else VID.msg = 'The captions did not come: ' + ((d && d.error) || 'no answer') + '. Upload or paste the transcript instead.';
