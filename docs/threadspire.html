@@ -2360,14 +2360,20 @@ body.drop-ready #map::after{ content:'Drop images to add them as maps'; position
 #win[data-sec="journal"] .jrow textarea{ flex:1; resize:vertical; min-height:44px; padding:9px 12px; border:1px solid #2c3a58; border-radius:10px; background:rgba(10,14,26,.75); color:#dce8ef; font-family:'Crimson Pro',Georgia,serif; font-size:1rem; line-height:1.4; outline:none; }
 #win[data-sec="journal"] .jrow textarea:focus{ border-color:#c9a84c; }
 #win[data-sec="journal"] .jday{ margin:14px 0 6px 2px; font-family:Cinzel,serif; font-weight:500; font-size:.82rem; letter-spacing:.06em; color:#c9a84c; }
-#win[data-sec="journal"] .j-recap{ display:flex; justify-content:flex-start; margin:-2px 0 10px; }
+#win[data-sec="journal"] .j-recap{ display:flex; justify-content:flex-start; flex-wrap:wrap; gap:8px; margin:-2px 0 10px; }
+#win[data-sec="journal"] .jacts{ display:flex; gap:4px; align-items:flex-start; }
+#win[data-sec="journal"] .jedit textarea{ width:100%; box-sizing:border-box; min-height:110px; resize:vertical; background:rgba(10,16,32,.6); border:1px solid #2c3a58; border-radius:8px; color:#dce8ef; font:inherit; font-size:1rem; line-height:1.5; padding:8px 10px; }
+#win[data-sec="journal"] .jedit-row{ display:flex; justify-content:flex-end; gap:8px; margin-top:6px; }
+#win[data-sec="journal"] .jtag{ display:block; font-family:Cinzel,serif; font-size:.66rem; letter-spacing:.06em; color:#c9a84c; margin-bottom:3px; }
+.vid-row{ display:flex; gap:8px; } .vid-row input{ flex:1; min-width:0; }
+.vid-fixes{ display:flex; flex-direction:column; gap:6px; max-height:46vh; overflow:auto; padding:2px; } .vid-fixes s{ color:#93a3b6; }
 .rc-ta{ min-height:220px; line-height:1.5; }
 .rc-to{ display:flex; flex-wrap:wrap; gap:6px 14px; }
 .rc-who{ display:flex; align-items:center; gap:6px; color:var(--silver); font-size:.9rem; cursor:pointer; }
 .rc-item{ padding:10px 0; border-bottom:1px solid #1f2a42; } .rc-item:last-of-type{ border-bottom:0; }
 .rc-h{ display:flex; justify-content:space-between; gap:10px; margin-bottom:6px; color:#dce8ef; } .rc-h span{ color:#93a3b6; font-size:.8rem; }
 .rc-b{ white-space:pre-wrap; color:#b8c4d0; font-size:.92rem; line-height:1.5; max-height:260px; overflow:auto; }
-#win[data-sec="journal"] .jentry{ position:relative; display:grid; grid-template-columns:64px 1fr 24px; gap:10px; align-items:baseline; padding:9px 4px 9px 2px; border:0; border-bottom:1px solid #1f2a42; border-radius:0; background:none; margin:0; }
+#win[data-sec="journal"] .jentry{ position:relative; display:grid; grid-template-columns:64px 1fr 52px; gap:10px; align-items:baseline; padding:9px 4px 9px 2px; border:0; border-bottom:1px solid #1f2a42; border-radius:0; background:none; margin:0; }
 #win[data-sec="journal"] .jtime{ font-size:.82rem; color:#93a3b6; letter-spacing:0; text-transform:none; font-family:'Crimson Pro',Georgia,serif; }
 #win[data-sec="journal"] .jtext{ font-size:1.02rem; line-height:1.5; color:#dce8ef; }
 #win[data-sec="journal"] .jx{ opacity:0; border:0; background:none; color:#93a3b6; font-size:1rem; cursor:pointer; } #win[data-sec="journal"] .jentry:hover .jx, #win[data-sec="journal"] .jx:focus-visible{ opacity:1; }
@@ -6021,7 +6027,7 @@ function libraryBody(){
 function jTime(ts){ try { return new Date(ts).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}); } catch(e){ return ''; } }
 function journalBody(){
   var h = '<div class="win-note">What happens as you play, in roleplay and in battle. Only you see it. It is here for your recaps.</div>';
-  if (isLM()) h += '<div class="j-recap"><button class="set-b" onclick="recapOpen()">Write a recap</button></div>';
+  if (isLM()) h += '<div class="j-recap"><button class="set-b" onclick="recapOpen()">Write a recap</button><button class="set-b" onclick="vidOpen()">From the session\u2019s video</button></div>';
   h += '<div class="jrow"><textarea id="jInput" maxlength="1200" rows="4" placeholder="What just happened" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();journalAdd();}"></textarea><button class="set-b pri" onclick="journalAdd()">Add</button></div>';
   var entries = (S.journal||[]).slice().reverse();
   if (!entries.length) h += '<div class="jempty">Nothing yet. Your first note lands here.</div>';
@@ -6030,9 +6036,12 @@ function journalBody(){
     var d = new Date(e.ts || 0), key = d.toDateString();
     if (key !== day){ day = key; var today = new Date().toDateString(), yd = new Date(Date.now() - 86400000).toDateString();
       h += '<h4 class="jday">' + (key === today ? 'Today' : key === yd ? 'Yesterday' : d.toLocaleDateString(undefined, { weekday:'long', month:'long', day:'numeric' })) + '</h4>'; }
-    h += '<div class="jentry"><span class="jtime">' + d.toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' }) + '</span>'
-      + '<div class="jtext">' + esc(e.text) + '</div>'
-      + '<button class="jx" onclick="journalDelete(\'' + e.id + '\')" title="Delete this note" aria-label="Delete this note">\u00d7</button></div>';
+    var editing = _jEdit === e.id;
+    h += '<div class="jentry' + (e.kind === 'video' ? ' jvideo' : '') + '"><span class="jtime">' + d.toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' }) + '</span>'
+      + (editing ? '<div class="jedit"><textarea id="jEditIn" maxlength="3000" rows="5">' + esc(e.text) + '</textarea><div class="jedit-row"><button class="set-b" onclick="journalEditCancel()">Cancel</button><button class="set-b pri" onclick="journalEditSave(\'' + e.id + '\')">Save</button></div></div>'
+                 : '<div class="jtext">' + (e.kind === 'video' ? '<span class="jtag">From the session\u2019s video</span>' : '') + esc(e.text) + '</div>')
+      + '<span class="jacts">' + (editing ? '' : '<button class="jx" onclick="journalEdit(\'' + e.id + '\')" title="Edit this note" aria-label="Edit this note">\u270e</button>')
+      + '<button class="jx" onclick="journalDelete(\'' + e.id + '\')" title="Delete this note" aria-label="Delete this note">\u00d7</button></span></div>';
   });
   return h;
 }
@@ -6238,6 +6247,113 @@ function journalAdd(){
   S.journal.push({ id:'j' + Date.now(), ts:Date.now(), text:text });
   journalBackend.save(S.journal).catch(function(){});
   if (S.openSection === 'journal') openWin('journal');
+}
+var _jEdit = null;
+function journalEdit(id){ _jEdit = id; if (S.openSection === 'journal') openWin('journal'); setTimeout(function(){ var t = document.getElementById('jEditIn'); if (t){ t.focus(); t.setSelectionRange(t.value.length, t.value.length); } }, 30); }
+function journalEditCancel(){ _jEdit = null; if (S.openSection === 'journal') openWin('journal'); }
+function journalEditSave(id){
+  var t = document.getElementById('jEditIn'), v = t ? t.value.trim() : '';
+  if (!v){ journalEditCancel(); return; }
+  (S.journal || []).forEach(function(e){ if (e.id === id){ e.text = v; e.edited = Date.now(); } });
+  journalBackend.save(S.journal).catch(function(){});
+  journalEditCancel();
+}
+/* ================= a session's recap, from its video =================
+   The transcript comes from the video's link (the live room fetches its captions), a file
+   (.txt, .srt or .vtt) or pasted text. The AI checks every name in it against the Story,
+   the Library and the Fell, the LoreMaster ticks the fixes to keep, and then writes one
+   recap of the session, from the transcript and the Journal, long enough to tell it and short
+   enough to read in half a minute. Only the recap is kept, as a Journal entry; the
+   transcript is let go. */
+var ROOM_HTTP = 'https://lorefell-table.nate8-johnson.workers.dev';
+var VID = { text:'', title:'', busy:false, msg:'', fixes:[], keep:{}, recap:'', step:'in' };
+function vidOpen(){ if (!isLM() || keeperNo()) return; VID = { text:'', title:'', busy:false, msg:'', fixes:[], keep:{}, recap:'', step:'in' }; vidPaint(); }
+function vidPaint(){
+  var h = '<h3 class="tsm-title">From the session\u2019s video</h3>';
+  if (VID.step === 'in'){
+    h += '<label class="tsm-lbl" for="vidUrl">The YouTube link</label><div class="vid-row"><input class="tsm-inp" id="vidUrl" placeholder="https://youtube.com/watch?v=\u2026"><button class="tsm-btn ghost" onclick="vidFetch()"' + (VID.busy ? ' disabled' : '') + '>Get it</button></div>'
+      + '<label class="tsm-lbl" for="vidFile">Or the transcript file</label><input class="tsm-inp" id="vidFile" type="file" accept=".txt,.srt,.vtt,text/plain" onchange="vidFile(this)">'
+      + '<label class="tsm-lbl" for="vidText">Or paste it</label><textarea class="tsm-inp tsm-ta" id="vidText" rows="6" placeholder="Paste the transcript here" oninput="VID.text=this.value">' + esc(VID.text.slice(0, 20000)) + (VID.text.length > 20000 ? '\u2026' : '') + '</textarea>'
+      + '<p class="tsm-note">' + (VID.text ? Math.round(VID.text.length / 1000) + 'k characters' + (VID.title ? ' from \u201c' + esc(VID.title) + '\u201d' : '') + '. ' : '') + esc(VID.msg) + '</p>'
+      + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button><button class="tsm-btn" onclick="vidNames()"' + (VID.busy ? ' disabled' : '') + '>' + (VID.busy ? 'Reading\u2026' : 'Check the names') + '</button></div>';
+  } else if (VID.step === 'names'){
+    h += '<p class="lc-p">' + (VID.fixes.length ? 'Names that look misheard. Untick any that are right as they are.' : 'Every name matches the Story, the Library and the Fell.') + '</p>'
+      + '<div class="vid-fixes">' + VID.fixes.map(function(f, i){ return '<label class="rc-who"><input type="checkbox"' + (VID.keep[i] !== false ? ' checked' : '') + ' onchange="VID.keep[' + i + ']=this.checked"> <s>' + esc(f.heard) + '</s> \u2192 <b>' + esc(f.name) + '</b>' + (f.what ? ' <span class="tsm-note" style="display:inline">' + esc(f.what) + '</span>' : '') + '</label>'; }).join('') + '</div>'
+      + '<p class="tsm-note">' + esc(VID.msg) + '</p>'
+      + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="VID.step=\'in\';vidPaint()">Back</button><button class="tsm-btn" onclick="vidRecap()"' + (VID.busy ? ' disabled' : '') + '>' + (VID.busy ? 'Writing\u2026' : 'Write the recap') + '</button></div>';
+  } else {
+    var words = (VID.recap.trim().match(/\S+/g) || []).length;
+    h += '<label class="tsm-lbl" for="vidRecapIn">The recap</label><textarea class="tsm-inp tsm-ta rc-ta" id="vidRecapIn" oninput="VID.recap=this.value">' + esc(VID.recap) + '</textarea>'
+      + '<p class="tsm-note">' + words + ' words, about ' + Math.max(1, Math.round(words / 4)) + ' seconds to read. ' + esc(VID.msg) + '</p>'
+      + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="VID.step=\'names\';vidPaint()">Back</button><button class="tsm-btn ghost" onclick="vidRecap()"' + (VID.busy ? ' disabled' : '') + '>' + (VID.busy ? 'Writing\u2026' : 'Write it again') + '</button><button class="tsm-btn" onclick="vidSave()">Add to the Journal</button></div>';
+  }
+  tsModal(h, true);
+}
+function vidClean(t){
+  return String(t || '').replace(/^WEBVTT.*$/m, '').replace(/^\d+\s*$/gm, '').replace(/\d{1,2}:\d{2}(:\d{2})?[.,]\d{1,3}\s*-->\s*\d{1,2}:\d{2}(:\d{2})?[.,]\d{1,3}.*$/gm, '').replace(/<[^>]+>/g, '').replace(/\[(music|applause|laughter)\]/gi, '').replace(/\s+/g, ' ').trim();
+}
+function vidFile(inp){
+  var f = inp.files && inp.files[0]; if (!f) return;
+  var r = new FileReader(); r.onload = function(){ VID.text = vidClean(r.result); VID.title = f.name; VID.msg = ''; vidPaint(); }; r.readAsText(f);
+}
+function vidFetch(){
+  var u = ((document.getElementById('vidUrl') || {}).value || '').trim();
+  var m = u.match(/(?:v=|youtu\.be\/|\/live\/|\/shorts\/|\/embed\/)([A-Za-z0-9_-]{6,20})/) || u.match(/^([A-Za-z0-9_-]{11})$/);
+  if (!m){ VID.msg = 'That does not look like a YouTube link.'; vidPaint(); return; }
+  VID.busy = true; VID.msg = 'Fetching the captions\u2026'; vidPaint();
+  fetch(ROOM_HTTP + '/transcript?v=' + encodeURIComponent(m[1])).then(function(r){ return r.json(); }).then(function(d){
+    VID.busy = false;
+    if (d && d.ok){ VID.text = vidClean(d.text); VID.title = d.title || ''; VID.msg = ''; }
+    else VID.msg = 'The captions did not come: ' + ((d && d.error) || 'no answer') + '. Upload or paste the transcript instead.';
+    vidPaint();
+  }).catch(function(){ VID.busy = false; VID.msg = 'The captions did not come. Upload or paste the transcript instead.'; vidPaint(); });
+}
+/* every name the table knows, by what it is */
+function vidGlossary(){
+  var seen = {}, out = [];
+  function add(n, what){ n = String(n || '').trim(); if (!n || n.length < 3 || seen[n.toLowerCase()]) return; seen[n.toLowerCase()] = 1; out.push(n + ' (' + what + ')'); }
+  ((S.adventure || {}).acts || []).forEach(function(a){ add(a.name, 'act'); (a.sessions || []).forEach(function(se){ add(se.name, 'session'); (se.scenes || []).forEach(function(sc){ add(sc.name, 'scene');
+    (sc.npcs || []).forEach(function(x){ add(x.name, 'NPC'); }); (sc.foes || []).forEach(function(x){ add(x.name, 'foe'); });
+    (sc.beats || []).forEach(function(b){ if (b.speaker) add(b.speaker, 'speaker'); }); }); }); });
+  add(advName(), 'adventure');
+  (S.library || []).forEach(function(e){ add(e.name, e.type === 'npc' ? 'NPC' : e.type === 'item' ? 'item' : 'foe'); });
+  (S.party || []).forEach(function(p){ add(p.name || p.charName, 'Fell'); if (p.memberName) add(p.memberName, 'player'); });
+  (S.scene && S.scene.fell || []).forEach(function(p){ add(p.name, 'Fell'); });
+  return out;
+}
+function vidJournalNotes(){ return recapEntries(SESS.recaps && SESS.recaps.length ? 'last' : 'week').map(function(e){ return '- ' + String(e.text || '').replace(/\s+/g, ' '); }).join('\n'); }
+function vidNames(){
+  var t = (VID.text || ((document.getElementById('vidText') || {}).value) || '').trim(); VID.text = vidClean(t);
+  if (VID.text.length < 200){ VID.msg = 'There is not enough transcript to read yet.'; vidPaint(); return; }
+  VID.busy = true; VID.msg = ''; vidPaint();
+  var sys = 'You check a tabletop session transcript (auto-captions, often mishearing names) against the canonical names of the game. Return ONLY a JSON array, no other text: [{"heard":"exact text as it appears in the transcript","name":"the canonical name","what":"what it is"}]. List only words or phrases in the transcript that are clearly a mishearing or misspelling of a canonical name. Never list a correct name, never guess a match you are not sure of, and never list ordinary words. At most 60 entries.';
+  var user = 'Canonical names:\n' + vidGlossary().join('\n') + '\n\nTranscript:\n' + VID.text.slice(0, 400000);
+  aiCall(sys, user, 2500).then(function(raw){
+    VID.busy = false; var list = [];
+    try { list = JSON.parse(String(raw).replace(/```json|```/g, '').trim()); } catch(e){ var mm = String(raw).match(/\[[\s\S]*\]/); try { list = mm ? JSON.parse(mm[0]) : []; } catch(e2){ list = []; } }
+    VID.fixes = (Array.isArray(list) ? list : []).filter(function(f){ return f && f.heard && f.name && f.heard !== f.name; });
+    VID.keep = {}; VID.step = 'names'; VID.msg = ''; vidPaint();
+  }).catch(function(e){ VID.busy = false; VID.msg = (e && e.rate) ? 'Too many requests just now. Wait a minute and try again.' : 'The names could not be checked. Try again.'; vidPaint(); });
+}
+function vidFixed(){
+  var t = VID.text;
+  VID.fixes.forEach(function(f, i){ if (VID.keep[i] === false) return; var re = new RegExp(f.heard.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'); t = t.replace(re, f.name); });
+  return t;
+}
+function vidRecap(){
+  VID.busy = true; VID.msg = ''; if (VID.step !== 'recap') vidPaint(); else vidPaint();
+  var sys = 'You write one recap of a LoreFell tabletop session for its players, from the session\u2019s transcript and the LoreMaster\u2019s journal notes. One paragraph, 170 to 230 words: what the party did and what came of it, in the order it happened, past tense. Use only what the transcript and notes say happened; never invent events, names or outcomes. Leave out table talk, rules discussion, breaks, and anything that is the LoreMaster\u2019s private planning or a secret the players did not learn. Grounded and warm, with dark fantasy weight where it is earned. No cliches, no purple prose, no em dashes, no headings, no lists. Spell every name exactly as given. Return only the paragraph.';
+  var user = 'Adventure: ' + advName() + '\nNames, spelled right: ' + vidGlossary().map(function(x){ return x.replace(/ \(.*\)$/, ''); }).join(', ')
+    + '\n\nThe LoreMaster\u2019s journal notes:\n' + (vidJournalNotes() || '(none)') + '\n\nTranscript:\n' + vidFixed().slice(0, 400000);
+  aiCall(sys, user, 900).then(function(t){ VID.busy = false; VID.recap = String(t || '').replace(/\s*\u2014\s*/g, ', ').trim(); VID.step = 'recap'; vidPaint(); })
+    .catch(function(e){ VID.busy = false; VID.msg = (e && e.rate) ? 'Too many requests just now. Wait a minute and try again.' : 'The recap did not come back. Try again.'; vidPaint(); });
+}
+function vidSave(){
+  var v = ((document.getElementById('vidRecapIn') || {}).value || VID.recap || '').trim(); if (!v) return;
+  S.journal = S.journal || []; S.journal.push({ id:'j' + Date.now(), ts:Date.now(), text:v, kind:'video' });
+  journalBackend.save(S.journal).catch(function(){});
+  VID = { text:'', title:'', busy:false, msg:'', fixes:[], keep:{}, recap:'', step:'in' };
+  tsCloseModal(); if (S.openSection === 'journal') openWin('journal'); else openWin('journal');
 }
 function journalDelete(id){
   S.journal = (S.journal||[]).filter(function(e){ return e.id !== id; });
