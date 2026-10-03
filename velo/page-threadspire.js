@@ -7,7 +7,7 @@ import { getLmPortrait, saveLmPortrait, getForgePools, getForgeLibrary, listMyCa
 import { createInvite, revokeInvite, myJoinedAdventures, attachCharacter } from 'backend/invites.web.js';
 import { tableRoomTicket } from 'backend/tableroom.web.js';
 let _pubHanded = false;
-import { publishAdventure, unpublishAdventure, myPublishedAdventures, getPublishedPack } from 'backend/published.web.js';
+import { publishAdventure, unpublishAdventure, myPublishedAdventures, getPublishedPack, listPublishedAdventures } from 'backend/published.web.js';
 import { getFoePack } from 'backend/forge.web.js';
 import { listQuests, listDiscovered, getWorldMeta, saveAsset, listAssets, getCampaignPlayers, getClueCards, upsertQuest, getShelves, saveShelves } from 'backend/fatewell.web.js';
 import { getCombatForChar, saveCombatDeclare, syncCombatPlayer, publishCombatState, applyCombatToChar, dealDamageToChar, setCombatCharge, getCombatDeclares } from 'backend/combat.web.js';
@@ -590,6 +590,15 @@ $w.onReady(async function () {
           let list = [];
           try { list = await listQuests(campaignId); } catch (e) { list = []; }
           reply(true, list);
+        } else if (msg.type === 'TS_PUBLISHED_ALL') {
+          // the Adventures page's list, for the table's adventure chooser
+          let items = [];
+          try { items = await listPublishedAdventures(); } catch (e) { items = []; }
+          reply(true, items);
+        } else if (msg.type === 'TS_PUBLISHED_PACK') {
+          let pack = null;
+          try { pack = await getPublishedPack(msg.id); } catch (e) { pack = null; }
+          reply(true, pack);
         } else if (msg.type === 'TS_PUBLISH_LIST') {
           let items = [];
           try { items = await myPublishedAdventures(); } catch (e) { items = []; }
