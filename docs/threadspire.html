@@ -16440,14 +16440,41 @@ function drawRings(){
   box.innerHTML = h;
 }
 
+/* How far a token may move before its move reads as too far, for every token on the map:
+   a Fell, a foe, an NPC, anything placed. Its own Mobility when anything knows it (the hand
+   the sheet sends, the roster, the Fell's record if the LoreMaster has opened it, the
+   foe's or NPC's record in the scene, the token itself); 5 when nothing does, which is the
+   rule's default. reachOf stays as it was: it also decides whether rings are drawn, and an
+   unknown reach must not draw them. */
+var MOVE_DEFAULT = 5;
+function moveLimitOf(t){
+  if (!t) return MOVE_DEFAULT;
+  var found = 0;
+  function take(v){ v = Number(v) || 0; if (v > 0 && !found) found = v; }
+  try { var r = reachOf(t); if (r) take(r.mobility); } catch(e){}
+  var cid = t.charId || (t.kind === 'p' ? t.refId : '');
+  if (!found && cid){
+    (S.party || []).forEach(function(p){ if (p && sameId(p.charId, cid)){ take(p.reach && p.reach.mobility); take(p.mobility); } });
+    try { var rec = _godCache[cid]; if (rec) take(rec.mobility); } catch(e){}
+  }
+  if (!found){
+    var ids = [t.refId, t.id].filter(Boolean), sc = S.scene || {};
+    (sc.foes || []).concat(sc.npcs || [], sc.combatants || [], sc.fell || []).forEach(function(c){
+      if (c && ids.some(function(id){ return sameId(c.id, id); })) take(c.mobility);
+    });
+  }
+  if (!found) take(t.mobility);
+  return found || MOVE_DEFAULT;
+}
+
 /* ---- distance while dragging ---- */
 function dragReadout(t, x, y){
   var b = document.getElementById('dragDist');
   if (!b){ b = document.createElement('div'); b.id = 'dragDist'; document.body.appendChild(b); }
   if (!t || t._gx === undefined){ b.style.display = 'none'; return; }
   var g = (S.grid && S.grid.size) || 100, d = Math.round(Math.hypot(t.x - t._gx, t.y - t._gy) / g);
-  var r = reachOf(t), over = !!(r && r.mobility && d > r.mobility);
-  b.textContent = d + ' sp' + (r && r.mobility ? ' of ' + r.mobility : '');
+  var mob = moveLimitOf(t), over = d > mob;
+  b.textContent = d + ' sp of ' + mob;
   b.classList.toggle('over', over);
   b.style.left = (x + 16) + 'px'; b.style.top = (y - 28) + 'px'; b.style.display = 'block';
 }
@@ -18948,8 +18975,8 @@ function moveMarkAt(mx, my){
   var x = clamp(snapAxis(mx, S.grid.offX || 0, c), 0, S.map.w), y = clamp(snapAxis(my, S.grid.offY || 0, c), 0, S.map.h);
   if (MOVEMARK && MOVEMARK.id === t.id && Math.abs(MOVEMARK.x - x) < 1 && Math.abs(MOVEMARK.y - y) < 1){ moveMarkGo(); return true; }
   var spaces = Math.max(Math.round(Math.abs(x - t.x) / g), Math.round(Math.abs(y - t.y) / g));
-  var r = reachOf(t), mob = r && r.mobility ? Number(r.mobility) : 0;
-  MOVEMARK = { id:t.id, x:x, y:y, spaces:spaces, mob:mob, far:!!(mob && spaces > mob) };
+  var mob = moveLimitOf(t);
+  MOVEMARK = { id:t.id, x:x, y:y, spaces:spaces, mob:mob, far:spaces > mob };
   moveMarkPaint(); return true;
 }
 function moveMarkPaint(){
