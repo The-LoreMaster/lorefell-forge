@@ -1,3 +1,7 @@
+## 2026-10-03 - A session's recap from its video; Journal entries can be edited
+
+The Journal gains From the session's video: the transcript comes from the YouTube link (the live room fetches the video's captions, nothing kept), an uploaded file (.txt, .srt or .vtt, timestamps stripped) or pasted text. The AI checks every name in it against the Story (acts, sessions, scenes, NPCs, foes, speakers), the Library and the Fell and their players, and lists what looks misheard; the LoreMaster unticks any that are right. Then it writes one recap of the session, 170 to 230 words (about half a minute to read), from the corrected transcript and the Journal's notes, using the names as spelled. It can be edited or written again, and Add to the Journal keeps it as an entry marked From the session's video; the transcript itself is not kept. Every Journal entry can now be edited in place.
+
 ## 2026-10-03 - The Spotlight on every screen
 
 The LoreMaster's table says which tokens stand in the current Spotlight (a new spot part, through the room and the saved state), and every player's table and the stream light the same ones, gold for a Fell and red for a foe. The toolbar list opens under the wrench, lined up with it (beside it when the bar runs down a narrow screen). The FellGuide's Survival page gains Height and Falling.

@@ -53,11 +53,41 @@ async function readTicket(t, campaignId) {
   return { campaignId: j.c, member: String(j.m || ''), role: j.r === 'lm' ? 'lm' : 'player', keeper: j.r === 'lm' && !!j.k, chars: Array.isArray(j.ch) ? j.ch.map(String) : [] };
 }
 
+/* A YouTube video's captions as plain text, for the Journal's recap. The browser cannot read
+   them itself, so the room fetches the watch page, finds its caption tracks (English first,
+   else the first there is) and returns the words. YouTube may refuse a server, and a video
+   with no captions has none to give; either way the table says so and the upload still works.
+   Nothing is kept. */
+async function transcript(req, url) {
+  const origin = req.headers.get('Origin') || '';
+  const h = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': ALLOW.indexOf(origin) >= 0 ? origin : ALLOW[0], 'Vary': 'Origin' };
+  const out = (o, s) => new Response(JSON.stringify(o), { status: s || 200, headers: h });
+  if (ALLOW.indexOf(origin) < 0) return out({ ok: false, error: 'origin not allowed' }, 403);
+  const v = String(url.searchParams.get('v') || '').match(/^[A-Za-z0-9_-]{6,20}$/);
+  if (!v) return out({ ok: false, error: 'no video id' }, 400);
+  try {
+    const page = await fetch('https://www.youtube.com/watch?v=' + v[0] + '&hl=en', { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36', 'Accept-Language': 'en-US,en;q=0.9' } });
+    const html = await page.text();
+    const i = html.indexOf('"captionTracks":');
+    if (i < 0) return out({ ok: false, error: html.indexOf('confirm you') >= 0 ? 'YouTube asked the server to sign in' : 'this video has no captions' });
+    const end = html.indexOf(']', i);
+    let tracks = []; try { tracks = JSON.parse(html.slice(i + 16, end + 1)); } catch (e) { return out({ ok: false, error: 'the captions could not be read' }); }
+    const tr = tracks.filter((t) => /^en/.test(t.languageCode || ''))[0] || tracks[0];
+    if (!tr || !tr.baseUrl) return out({ ok: false, error: 'this video has no captions' });
+    const cap = await fetch(tr.baseUrl.replace(/\\u0026/g, '&') + '&fmt=json3');
+    const j = await cap.json();
+    const text = (j.events || []).map((e) => (e.segs || []).map((s) => s.utf8 || '').join('')).join(' ').replace(/\s+/g, ' ').trim();
+    const tm = html.match(/<title>([^<]*)<\/title>/);
+    return out({ ok: !!text, text: text.slice(0, 600000), title: tm ? tm[1].replace(/ - YouTube$/, '') : '', error: text ? '' : 'the captions were empty' });
+  } catch (e) { return out({ ok: false, error: 'YouTube could not be reached' }); }
+}
+
 export default {
   async fetch(req, env) {
     const url = new URL(req.url);
     const m = url.pathname.match(/^\/room\/([A-Za-z0-9_-]{3,80})$/);
     if (url.pathname === '/' || url.pathname === '/health') return new Response('lorefell table room', { status: 200 });
+    if (url.pathname === '/transcript') return transcript(req, url);
     if (!m) return new Response('not found', { status: 404 });
     if (req.headers.get('Upgrade') !== 'websocket') return new Response('expected a websocket', { status: 426 });
     const origin = req.headers.get('Origin') || 'null';
