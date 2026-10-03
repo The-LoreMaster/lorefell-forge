@@ -1,3 +1,7 @@
+## 2026-09-28 - Backups take every row
+
+The first weekly backup check showed AdvScenes backed up with exactly 100 rows: Wix answers at most a hundred rows to a query, and the backup asked once, so every collection over a hundred rows (the story's scenes above all) was only partly backed up. The backup now pages through every row.
+
 ## 2026-09-28 - Saved versions of the board, and a weekly backup check
 
 Settings, Keep and share, gains Saved versions: the adventure's board as the site has kept it, newest first, each with when, what it held (scenes, maps, tokens placed, effects, notes) and what changed from the one before, marked when it was kept before a large loss or before a restore, with Restore (which puts back every scene's map, tokens, effects, fog, walls, lights, notes, weather and music, leaves the story, library and log alone, keeps the board as it stood first so the restore can be undone, and reloads the table). The site keeps them in a new collection, BoardHistory: every fifteen minutes while a board changes, and always the board as it was just before a save that would take most of its tokens, maps or effects away; thirty per adventure. A new Weekly Backup Check workflow takes a fresh backup every Monday and proves it can be used (every board and story parses, the collections the table needs are present, what each board holds), failing (and so emailing) when it cannot; the checked backup is kept sixty days. Paste velo/backend/campaignview.web.js and velo/page-threadspire.js.
