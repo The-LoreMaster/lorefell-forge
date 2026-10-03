@@ -108,7 +108,15 @@ body.lm-role #wallLayer{ display:block; }
 #wallLayer line.d{ stroke:#e3a193; stroke-linecap:round; stroke-dasharray:10 7; }
 #wallLayer line.d.open{ stroke:#8fd694; stroke-dasharray:3 9; }
 #wallLayer line.pv{ stroke:#fff; stroke-dasharray:6 6; stroke-linecap:round; }
-#wallLayer .dh{ pointer-events:auto; cursor:pointer; }
+#wallLayer .dh{ pointer-events:auto; cursor:pointer; transition:opacity .15s; }
+#wallLayer .dh circle{ fill:rgba(10,14,26,.78); stroke:#8a93a3; }
+#wallLayer .dh path{ fill:none; stroke:#aab3c2; stroke-linecap:round; stroke-linejoin:round; }
+#wallLayer .dh:hover{ opacity:1 !important; } #wallLayer .dh:hover circle{ stroke:#c9a84c; fill:rgba(10,14,26,.94); } #wallLayer .dh:hover path{ stroke:#f0d48a; }
+#wallLayer .dh.open circle{ stroke:#7f9a86; }
+body:not(.lm-role) #wallLayer{ display:block; }
+body:not(.lm-role) #wallLayer line, body:not(.lm-role) #wallLayer .lt{ display:none; }
+body:not(.lm-role) #wallLayer .dh{ opacity:.45; }
+body.stream #wallLayer .dh{ display:none; }
 #map.tool-walls{ cursor:crosshair; }
 #fogOpts > button{ width:34px; height:34px; border-radius:8px; border:1px solid transparent; color:var(--silver,#c8d0dc); display:flex; align-items:center; justify-content:center; padding:0; }
 #fogOpts > button.on{ border-color:var(--gold); color:var(--gold); background:rgba(201,168,76,.12); }
@@ -11901,7 +11909,7 @@ function paintHud(){
     /* the LoreMaster's red circle is the FellGuide, a tap away; a foe's Vitality is on its card */
     setT('hudTotalLbl', '');
     var _ht = document.getElementById('hudTotal');
-    if (_ht && !_ht._book){ _ht._book = true; _ht.innerHTML = '<a class="hud-book" href="https://www.fellguide.com" target="_blank" rel="noopener" title="Open the FellGuide" aria-label="Open the FellGuide"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5C6.5 4.2 9.3 4.2 12 6c2.7-1.8 5.5-1.8 8-.5V19c-2.5-1.3-5.3-1.3-8 .5-2.7-1.8-5.5-1.8-8-.5z"/><path d="M12 6v13.5"/></svg></a>'; }
+    if (_ht && !_ht._book){ _ht._book = true; _ht.innerHTML = '<a class="hud-book" href="https://fellguide.com/The+FellGuide/Overview" target="_blank" rel="noopener" title="Open the FellGuide" aria-label="Open the FellGuide"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5C6.5 4.2 9.3 4.2 12 6c2.7-1.8 5.5-1.8 8-.5V19c-2.5-1.3-5.3-1.3-8 .5-2.7-1.8-5.5-1.8-8-.5z"/><path d="M12 6v13.5"/></svg></a>'; }
     [['hudTemp',1],['hudCur',2],['hudMax',3]].forEach(function(p){
       var e = document.getElementById(p[0]); if (!e) return;
       e.textContent = '';
@@ -15811,7 +15819,7 @@ function fogAll(what){
 var wallMode = 'wall', _wallDrag = null, _mapStateLoaded = false;
 function wallList(){ var k = mapKey(); S.walls = S.walls || {}; return S.walls[k] || (S.walls[k] = []); }
 /* what stops a body (not sight): walls, windows and closed doors */
-function moveBlockers(){ var k = mapKey(); return ((S.walls && S.walls[k]) || []).filter(function(w){ return !(w.door && w.open); }); }
+function moveBlockers(){ var k = mapKey(); return ((S.walls && S.walls[k]) || []).filter(function(w){ return !((w.door || w.win) && w.open); }); }
 function moveCrossesWall(ax, ay, bx, by){ var segs = moveBlockers(); return !!(segs.length && losBlocked(ax, ay, bx, by, segs)); }
 function wallBlockers(){ var k = mapKey(); return ((S.walls && S.walls[k]) || []).filter(function(w){ return !(w.door && w.open) && !w.win; }); }
 /* Walls snap to the grid's corners. Doors go at any angle: they land exactly where they are
@@ -15840,10 +15848,14 @@ function wallPaint(){
   svg.classList.toggle('lighting', mapTool === 'light');
   ((S.walls && S.walls[mapKey()]) || []).forEach(function(w){
     h += '<line class="' + (w.door ? ('d' + (w.open ? ' open' : '')) : (w.win ? 'win walls-only' : 'w walls-only')) + '" x1="' + w.x1 + '" y1="' + w.y1 + '" x2="' + w.x2 + '" y2="' + w.y2 + '" stroke-width="' + sw + '"/>';
-    if (w.door){
+    if (w.door || w.win){
       var mx = (w.x1 + w.x2) / 2, my = (w.y1 + w.y2) / 2, rr = sw * 2.6;
-      h += '<g class="dh" data-door="' + esc(w.id) + '"><circle cx="' + mx + '" cy="' + my + '" r="' + rr + '" fill="rgba(10,14,26,.92)" stroke="' + (w.open ? '#8fd694' : '#e3a193') + '" stroke-width="' + (sw * .6) + '"/>'
-        + '<text x="' + mx + '" y="' + (my + rr * .38) + '" text-anchor="middle" font-size="' + (rr * 1.05) + '" fill="#fff" font-family="Cinzel,serif">' + (w.open ? 'O' : 'D') + '</text></g>';
+      if (!isLM() && !doorSeen(mx, my)) return;
+      var sc = (rr * 1.3) / 12, ix = mx - 12 * sc, iy = my - 12 * sc;
+      var glyph = w.door ? (w.open ? DOOR_GLYPH.doorOpen : DOOR_GLYPH.door) : (w.open ? DOOR_GLYPH.winOpen : DOOR_GLYPH.win);
+      h += '<g class="dh' + (w.open ? ' open' : '') + '" data-door="' + esc(w.id) + '"><title>' + (w.open ? 'Close the ' : 'Open the ') + (w.door ? 'door' : 'window') + '</title>'
+        + '<circle cx="' + mx + '" cy="' + my + '" r="' + rr + '" stroke-width="' + (sw * .45) + '"/>'
+        + '<g transform="translate(' + ix + ' ' + iy + ') scale(' + sc + ')"><path d="' + glyph + '" stroke-width="1.8"/></g></g>';
     }
   });
   if (_wallDrag && _wallDrag.b) h += '<line class="pv" x1="' + _wallDrag.a.x + '" y1="' + _wallDrag.a.y + '" x2="' + _wallDrag.b.x + '" y2="' + _wallDrag.b.y + '" stroke-width="' + sw + '"/>';
@@ -15872,10 +15884,41 @@ function wallRemoveAt(x, y){
   });
   if (best >= 0 && bd <= reach){ list.splice(best, 1); wallShare(); }
 }
+/* Doors and windows open from anyone's table. The LoreMaster's side writes the walls as
+   always; a player's table opens it at once on their own screen and says so through the room,
+   which keeps it, every table follows, and the LoreMaster's table saves it. Fog and light
+   follow the open door on every screen. */
+var DOOR_GLYPH = {
+  door:'M6 21V4h12v17M3 21h18M14.5 12.5h.01',
+  doorOpen:'M3 21h18M6 21V4h4M10 4l7 2.5V21l-7-2.5zM14 12.5h.01',
+  win:'M5 4h14v16H5zM12 4v16M5 12h14',
+  winOpen:'M5 4h14v16H5zM5 4l5 3v10l-5 3M19 4l-5 3v10l5 3'
+};
+/* a door's handle shows on a player's map only where they can see it */
+function doorSeen(x, y){
+  var fv = null; try { fv = fogView(); } catch(e){ fv = null; }
+  if (!fv || !fv.d) return true;
+  var d = fv.d, c = Math.floor(x / d.c), r = Math.floor(y / d.c);
+  for (var dy = -1; dy <= 1; dy++) for (var dx = -1; dx <= 1; dx++){
+    var cc = c + dx, rr = r + dy; if (cc < 0 || rr < 0 || cc >= d.cols || rr >= d.rows) continue;
+    if (fv.vis[rr * d.cols + cc]) return true;
+  }
+  return false;
+}
 function doorToggle(id){
-  if (!isLM()) return;
-  wallList().forEach(function(w){ if (w.id === id) w.open = w.open ? 0 : 1; });
-  wallShare();
+  if (S.stream) return;
+  var hit = null; wallList().forEach(function(w){ if (w.id === id){ w.open = w.open ? 0 : 1; hit = w; } });
+  if (!hit) return;
+  if (isLM()){ wallShare(); return; }
+  _fvMemo = null; wallPaint(); try { fogPaint(); renderTokens(); } catch(e){}
+  try { roomSend({ t:'door', k:mapKey(), id:id, open:hit.open }); } catch(e){}
+}
+function doorTake(m){
+  var list = (S.walls && S.walls[m.k]) || [], hit = false;
+  list.forEach(function(w){ if (w.id === m.id){ w.open = m.open ? 1 : 0; hit = true; } });
+  if (!hit) return;
+  _fvMemo = null; wallPaint(); try { fogPaint(); renderTokens(); } catch(e){}
+  if (isLM() && !S.stream){ try { ROOM.sentParts.walls = JSON.stringify(roomPartValue('walls')); } catch(e){} if (!isKeeper() || keeperSaves()) schedulePush(); }
 }
 (function(){
   var svg = document.getElementById('wallLayer'); if (!svg) return;
@@ -18844,6 +18887,7 @@ function roomReachApply(c, v){
 function roomGot(m){
   if (m.t === 'reach'){ if (isLM()) roomReachApply(m.c, m); return; }
   if (m.t === 'stroke'){ if (m.s) drawTake({ strokes:[m.s] }); return; }
+  if (m.t === 'door'){ doorTake(m); return; }
   if (m.t === 'erase'){ if (m.ids) drawTake({ gone:m.ids }); return; }
   if (m.t === 'init'){
     SEAM.roomPeers = m.peers;
