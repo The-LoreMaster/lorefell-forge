@@ -6644,7 +6644,10 @@ function cbFocusOptions(sel){
   var h='<option value="">No target</option>';
   if(me) h+='<option value="'+cbEsc(me.key)+'"'+(sel===me.key?" selected":"")+'>Yourself</option>';
   h+='<option value="space"'+(sel==="space"?" selected":"")+'>Space</option>';
-  ((COMBAT&&COMBAT.fighters)||[]).forEach(function(f){ if(me && f.key===me.key) return; var lbl=f.side==="monster"?"Foe":f.side==="npc"?"NPC":"Fell"; h+='<option value="'+cbEsc(f.key)+'"'+(sel===f.key?" selected":"")+'>'+cbEsc(f.name)+(f.side?" ("+lbl+")":"")+'</option>'; });
+  /* Masked (told by the table, which can see the board): only fighters next to this Fell */
+  var mk=window._tsMasked, shown=0;
+  ((COMBAT&&COMBAT.fighters)||[]).forEach(function(f){ if(me && f.key===me.key) return; if(mk && mk.masked && mk.keys.indexOf(f.key)<0 && sel!==f.key) return; shown++; var lbl=f.side==="monster"?"Foe":f.side==="npc"?"NPC":"Fell"; h+='<option value="'+cbEsc(f.key)+'"'+(sel===f.key?" selected":"")+'>'+cbEsc(f.name)+(f.side?" ("+lbl+")":"")+'</option>'; });
+  if(mk && mk.masked && !shown) h+='<option value="" disabled>Masked: nothing is next to you</option>';
   return h;
 }
 function cbRoundDigest(){
@@ -7742,6 +7745,11 @@ window.onmessage=ev=>{
   if(d.type==="archive-result"){ archiveResult(d); return; }
   if(d.type==="ts-vit-op"){ vitOp(d.op,d.amt); return; }
   if(d.type==="ts-fatigue-step"){ fatigueSet((C.fatigue||0)+(Number(d.delta)||0)); return; }
+  if(d.type==="ts-masked-reach"){
+    window._tsMasked={ masked:!!d.masked, keys:Array.isArray(d.keys)?d.keys.map(String):[] };
+    try{ var fs=$("cbFocus"); if(fs){ var v=fs.value; fs.innerHTML=cbFocusOptions(v); } }catch(e){}
+    return;
+  }
   if(d.type==="ts-subtabs"){
     TS_SUB = (d.tabs&&d.tabs.length) ? { tabs:d.tabs, active:d.active } : null;
     var cur=(document.querySelector(".panel.active")||{}).id||"";
