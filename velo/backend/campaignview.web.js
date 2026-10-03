@@ -91,6 +91,12 @@ export const saveCampaignState = webMethod(Permissions.Anyone, async (campaignId
     // carries only what it is about, and the row remembers everything else it was ever
     // given. To clear a thing, send it empty; to leave it alone, do not send it.
     let body = snap || null;
+    // The board is the LoreMaster's alone to write: a player's table may send only what is
+    // its own (token moves, drawings, pings, the log). A player's whole snapshot, saved over the
+    // LoreMaster's, emptied every scene of The Ashen Hands.
+    let lmHere = false;
+    try { const role = await myAdventureRole(campaignId); lmHere = role === 'loremaster' || role === 'lorekeeper'; } catch (e) {}
+    if (body && !lmHere) { const mine = {}; ['tokens', 'draw', 'pings', 'log'].forEach((k) => { if (body[k] !== undefined) mine[k] = body[k]; }); body = mine; }
     if (body && cur && cur.snapshot) {
       try {
         const prev = JSON.parse(cur.snapshot);
