@@ -1,3 +1,7 @@
+## 2026-09-28 - The Board: quests for the party or for chosen Fell, and handouts
+
+A Board window for the LoreMaster and the players, opened from Board beside the log (and in a phone's top bar), with two tabs. Quests: the party's, and side quests for one or more Fell, each saying whose it is. The LoreMaster posts a quest at any time, for the party or chosen Fell, marks it done, edits it or takes it down; a player sees the party's quests and their own, never another player's side quest (the site filters them: QuestBoard gains assignedTo, assignedNames and questKind, only the adventure's LoreMaster may post), and is told on screen when a quest arrives for them, with Board to open it. Quests written into scenes and offered from the runner land on the same board for the party. Handouts: every picture shown to the players from a beat is kept, with anything the LoreMaster hands out (a title, a picture, a few words, for the party or chosen Fell); a player sees the party's and their own, is told when one arrives, and taps one to see it large in the picture window. Paste velo/backend/fatewell.web.js (and velo/page-fellglass.js has nothing new).
+
 ## 2026-09-28 - Backups take every row
 
 The first weekly backup check showed AdvScenes backed up with exactly 100 rows: Wix answers at most a hundred rows to a query, and the backup asked once, so every collection over a hundred rows (the story's scenes above all) was only partly backed up. The backup now pages through every row.
