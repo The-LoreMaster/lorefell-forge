@@ -726,6 +726,8 @@ export const assignClue = webMethod(Permissions.Anyone, async (campaignId, charI
    the full record since a partial update replaces the row. */
 export const upsertQuest = webMethod(Permissions.Anyone, async (campaignId, quest) => {
   if (!campaignId || !quest || !quest.entryId) return { ok: false };
+  // only the adventure's LoreMaster posts, changes or takes down a quest
+  try { const role = await myAdventureRole(campaignId); if (role !== 'loremaster' && role !== 'lorekeeper') return { ok: false, error: 'only the LoreMaster' }; } catch (e) { return { ok: false }; }
   const ex = await wd.query('QuestBoard')
     .eq('campaignId', campaignId).eq('entryId', quest.entryId)
     .limit(1).find({ suppressAuth: true });
@@ -733,6 +735,10 @@ export const upsertQuest = webMethod(Permissions.Anyone, async (campaignId, ques
     campaignId: campaignId, entryId: quest.entryId,
     questTitle: quest.title || '', questBody: quest.body || '',
     questStatus: quest.status || 'open',
+    // for one or more Fell (their ids, and their names to show), or for the party (empty)
+    assignedTo: JSON.stringify(Array.isArray(quest.assignedTo) ? quest.assignedTo.map(String) : []),
+    assignedNames: JSON.stringify(Array.isArray(quest.assignedNames) ? quest.assignedNames.map(String) : []),
+    questKind: quest.kind || 'quest',
     postedAt: (ex.items[0] && ex.items[0].postedAt) || Date.now()
   };
   try {
@@ -746,12 +752,19 @@ export const listQuests = webMethod(Permissions.Anyone, async (campaignId) => {
   if (!campaignId) return { ok: true, quests: [] };
   try {
     const r = await wd.query('QuestBoard').eq('campaignId', campaignId)
-      .ne('questStatus', 'removed').ascending('postedAt').limit(50)
+      .ne('questStatus', 'removed').ascending('postedAt').limit(100)
       .find({ suppressAuth: true });
+    // The LoreMaster sees every quest and who holds it; a player sees the party's and their own
+    // Fell's, never another player's side quest.
+    let role = '', mine = [];
+    try { role = await myAdventureRole(campaignId); } catch (e) {}
+    const lm = role === 'loremaster' || role === 'lorekeeper';
+    if (!lm) { try { const mid = await memberId(); const c = await wd.query('Characters').eq('ownerMemberId', mid).eq('campaignId', campaignId).limit(20).find({ suppressAuth: true }); mine = c.items.map((x) => String(x._id)); } catch (e) {} }
+    const jp = (v) => { try { const a = JSON.parse(v || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } };
     const quests = r.items.map(function (q) {
-      return { entryId: q.entryId, title: q.questTitle || '', body: q.questBody || '', status: q.questStatus || 'open' };
-    });
-    return { ok: true, quests: quests };
+      return { entryId: q.entryId, title: q.questTitle || '', body: q.questBody || '', status: q.questStatus || 'open', kind: q.questKind || 'quest', assignedTo: jp(q.assignedTo), assignedNames: jp(q.assignedNames), postedAt: q.postedAt || 0 };
+    }).filter((q) => lm || !q.assignedTo.length || q.assignedTo.some((id) => mine.indexOf(String(id)) >= 0));
+    return { ok: true, quests: quests, lm: lm };
   } catch (e) { return { ok: false, quests: [], error: 'The board could not be reached.' }; }
 });
 
