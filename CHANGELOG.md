@@ -1,3 +1,7 @@
+## 2026-10-03 - The Journal reads well in a narrow window; YouTube's transcript, by hand
+
+In a narrow window a Journal entry puts its time above the note, and the note takes the full width instead of a thin column. YouTube will not hand a video's captions to a server, so From the session's video drops the link and shows how to bring the transcript instead: Show transcript under the video, timestamps off, copy and paste; or download it from YouTube Studio's Subtitles on your own channel and upload it. Upload and paste are unchanged.
+
 ## 2026-10-03 - Gold file pickers; a second way into a video's captions
 
 Every file picker across the tools (ThreadSpire, FellGlass, FateWell, BondForge, BrandForge, FoeForge, RelicForge) wears the gold of the primary buttons instead of the browser's white. When YouTube's watch page refuses the room (it asks servers to sign in), the room now asks the way YouTube's own Android and iPhone apps do, and reads the captions in either of YouTube's forms. Upload and paste are unchanged.
