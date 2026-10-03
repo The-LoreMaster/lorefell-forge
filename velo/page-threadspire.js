@@ -197,12 +197,12 @@ $w.onReady(async function () {
       embed.postMessage({ type: 'THREADSPIRE_ROLE_HINT', role: q.role === 'lm' ? 'lm' : 'player', fromCast: cameFromCast, stream: q.view === 'stream', see: q.see || '', frame: q.frame || '' });
       let ctx = await buildContext(characterId, campaignId);
       // Entry point requests LM (Cast carries ?role=lm); ownership must confirm it.
-      let role = 'player';
+      let role = 'player', keeper = false;
       // Whoever runs this adventure arrives as its LoreMaster, whatever the link said (a link
       // without role=lm used to open the LoreMaster's own table as a player, stuck that way),
       // unless they opened it as one of their own Fell (a character in the address).
       if (campaignId && (q.role === 'lm' || !characterId)) {
-        try { const ar = await myAdventureRole(campaignId); if (ar === 'loremaster' || ar === 'lorekeeper') role = 'lm'; } catch (e) {}
+        try { const ar = await myAdventureRole(campaignId); if (ar === 'loremaster' || ar === 'lorekeeper') role = 'lm'; keeper = ar === 'lorekeeper'; } catch (e) {}
       }
       // From the Hearth (role=lm, no adventure named): someone who runs adventures arrives as the
       // LoreMaster and chooses one; anyone else is a player and chooses their Fell.
@@ -217,7 +217,7 @@ $w.onReady(async function () {
         if (cur !== campaignId) { campaignId = cur; ctx = await buildContext(characterId, campaignId); }
       }
       // view=stream: a capture window that follows this table and never writes (see, frame: its two switches)
-      embed.postMessage(Object.assign({ type: 'THREADSPIRE_CONTEXT', role: role, campaignId: campaignId, characterId: characterId, fromCast: cameFromCast, stream: q.view === 'stream', see: q.see || '', frame: q.frame || '' }, ctx));
+      embed.postMessage(Object.assign({ type: 'THREADSPIRE_CONTEXT', role: role, keeper: role === 'lm' && keeper, campaignId: campaignId, characterId: characterId, fromCast: cameFromCast, stream: q.view === 'stream', see: q.see || '', frame: q.frame || '' }, ctx));
     } else if (msg.type === 'THREADSPIRE_WANT_LORE') {
       let character = null;
       try { character = await threadspirePublicChar(msg.characterId); } catch (e) { character = null; }
@@ -294,9 +294,9 @@ $w.onReady(async function () {
             else {
               campaignId = next;
               const ctx = await buildContext(characterId, campaignId);
-              let role = 'player';
-              try { const ar = await myAdventureRole(campaignId); if (ar === 'loremaster' || ar === 'lorekeeper') role = 'lm'; } catch (e) {}
-              embed.postMessage(Object.assign({ type: 'THREADSPIRE_CONTEXT', role: role, campaignId: campaignId, characterId: characterId, switched: true }, ctx));
+              let role = 'player', keeper = false;
+              try { const ar = await myAdventureRole(campaignId); if (ar === 'loremaster' || ar === 'lorekeeper') role = 'lm'; keeper = ar === 'lorekeeper'; } catch (e) {}
+              embed.postMessage(Object.assign({ type: 'THREADSPIRE_CONTEXT', role: role, keeper: role === 'lm' && keeper, campaignId: campaignId, characterId: characterId, switched: true }, ctx));
               reply(true, { ok: true, campaignId: campaignId });
             }
           } catch (e) { reply(false, null, String(e)); }

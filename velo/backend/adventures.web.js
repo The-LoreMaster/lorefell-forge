@@ -71,11 +71,14 @@ async function recentTombstones(advId) {
   for (const id of stale) { try { await wd.remove(DEL, id, { suppressAuth: true }); } catch (e) {} }
   return live;
 }
+// Writing the story (acts, sessions, scenes, the root) is the LoreMaster's alone; a lorekeeper
+// reads it (mayKeep) but does not write it (mayWrite).
+async function mayWrite(id, advId, ownerId) { return (await roleFor(id, advId, ownerId)) === 'loremaster'; }
 async function ownerBlocked(advId) {
   const id = await memberId();
   const root = await wd.get(ADV, advId, { suppressAuth: true }).catch(() => null);
   if (root && root.ownerMemberId && id && root.ownerMemberId !== id) {
-    if (!(await mayKeep(id, advId, root.ownerMemberId))) return true;
+    if (!(await mayWrite(id, advId, root.ownerMemberId))) return true;
   }
   return false;
 }
@@ -233,7 +236,7 @@ export const saveAdventureRoot = webMethod(Permissions.Anyone, async (advId, roo
   if (!advId || !root) return { ok: false, error: 'no adventure' };
   const existing = await wd.get(ADV, advId, { suppressAuth: true }).catch(() => null);
   if (existing && existing.ownerMemberId && id && existing.ownerMemberId !== id) {
-    if (!(await mayKeep(id, advId, existing.ownerMemberId))) return { ok: false, error: 'owned by another member' };
+    if (!(await mayWrite(id, advId, existing.ownerMemberId))) return { ok: false, error: 'owned by another member' };
   }
   const row = existing || { _id: advId, advId: advId, ownerMemberId: id };
   if (root.name !== undefined) row.name = root.name || 'Adventure';
@@ -252,7 +255,7 @@ async function saveChild(coll, idKey, advId, keyVal, fields) {
   const id = await memberId();
   const root = await wd.get(ADV, advId, { suppressAuth: true }).catch(() => null);
   if (root && root.ownerMemberId && id && root.ownerMemberId !== id) {
-    if (!(await mayKeep(id, advId, root.ownerMemberId))) return { ok: false, error: 'owned by another member' };
+    if (!(await mayWrite(id, advId, root.ownerMemberId))) return { ok: false, error: 'owned by another member' };
   }
   const q = await wd.query(coll).eq(idKey, keyVal).eq('advId', advId).limit(1).find({ suppressAuth: true, consistentRead: true });
   const existing = q.items[0] || null;

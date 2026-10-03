@@ -848,7 +848,7 @@ export const lmGiveDice = webMethod(Permissions.Anyone, async (campaignId, charI
   const camp = await wixData.get('Campaigns', cid, { suppressAuth: true }).catch(() => null);
   if (!camp) return { ok: false, error: 'no such adventure' };
   let lm = camp.ownerMemberId === m._id;
-  if (!lm) { try { const rm = await wixData.query('AdventureMembers').eq('campaignId', cid).eq('memberId', m._id).limit(1).find({ suppressAuth: true }); lm = !!(rm.items[0] && rm.items[0].role === 'loremaster'); } catch (e) {} }
+  // the LoreMaster's alone: owning the adventure, not helping run it
   if (!lm) return { ok: false, error: 'only the LoreMaster can give these' };
   const ch = await wixData.get('Characters', String(charId || ''), { suppressAuth: true }).catch(() => null);
   if (!ch || String(ch.campaignId || '') !== cid || !ch.ownerMemberId) return { ok: false, error: 'that Fell is not at this table' };
@@ -863,7 +863,7 @@ export const lmGiveDiceAll = webMethod(Permissions.Anyone, async (campaignId, ke
   const camp = await wixData.get('Campaigns', cid, { suppressAuth: true }).catch(() => null);
   if (!camp) return { ok: false, error: 'no such adventure' };
   let lm = camp.ownerMemberId === m._id;
-  if (!lm) { try { const rm = await wixData.query('AdventureMembers').eq('campaignId', cid).eq('memberId', m._id).limit(1).find({ suppressAuth: true }); lm = !!(rm.items[0] && (rm.items[0].role === 'loremaster' || rm.items[0].role === 'lorekeeper')); } catch (e) {} }
+  // the LoreMaster's alone: owning the adventure, not helping run it
   if (!lm) return { ok: false, error: 'only the LoreMaster can give these' };
   const r = await wixData.query('Characters').eq('campaignId', cid).limit(100).find({ suppressAuth: true });
   const seen = {}; let given = 0, fresh = 0;

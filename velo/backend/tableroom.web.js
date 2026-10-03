@@ -49,9 +49,11 @@ export const tableRoomTicket = webMethod(Permissions.Anyone, async (campaignId) 
   let pem = '';
   try { pem = await getSecret('TABLE_ROOM_KEY'); } catch (e) { pem = ''; }
   if (!pem) return { ok: false, error: 'TABLE_ROOM_KEY is not set in Secrets Manager' };
-  const body = b64u(JSON.stringify({ c: campaignId, m: mid, r: lm ? 'lm' : 'player', ch: chars, x: Date.now() + HOURS * 3600 * 1000 }));
+  // k marks a lorekeeper: the room lets them move and edit the map like the LoreMaster, but
+  // not switch the scene or send the run-the-game parts, and counts only LoreMasters as present.
+  const body = b64u(JSON.stringify({ c: campaignId, m: mid, r: lm ? 'lm' : 'player', k: role === 'lorekeeper' ? 1 : 0, ch: chars, x: Date.now() + HOURS * 3600 * 1000 }));
   let sig = '';
   try { sig = b64u(crypto.sign('sha256', Buffer.from(body), { key: pem.replace(/\\n/g, '\n'), dsaEncoding: 'ieee-p1363' })); }
   catch (e) { return { ok: false, error: 'the key in TABLE_ROOM_KEY could not sign (' + String(e).slice(0, 60) + ')' }; }
-  return { ok: true, url: ROOM_URL + encodeURIComponent(campaignId), ticket: body + '.' + sig, role: lm ? 'lm' : 'player' };
+  return { ok: true, url: ROOM_URL + encodeURIComponent(campaignId), ticket: body + '.' + sig, role: lm ? 'lm' : 'player', keeper: role === 'lorekeeper' };
 });

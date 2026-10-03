@@ -50,7 +50,7 @@ async function readTicket(t, campaignId) {
   if (!ok) return null;
   let j = null; try { j = JSON.parse(new TextDecoder().decode(b64urlToBytes(body))); } catch (e) { return null; }
   if (!j || j.c !== campaignId || !(Number(j.x) > Date.now())) return null;
-  return { campaignId: j.c, member: String(j.m || ''), role: j.r === 'lm' ? 'lm' : 'player', chars: Array.isArray(j.ch) ? j.ch.map(String) : [] };
+  return { campaignId: j.c, member: String(j.m || ''), role: j.r === 'lm' ? 'lm' : 'player', keeper: j.r === 'lm' && !!j.k, chars: Array.isArray(j.ch) ? j.ch.map(String) : [] };
 }
 
 export default {
@@ -70,6 +70,8 @@ export default {
     return env.ROOMS.get(id).fetch(r);
   }
 };
+
+const KEEPER_PARTS = ['fog', 'walls', 'lights', 'effects', 'notes', 'weather', 'draw', 'portraits'];
 
 export class TableRoom {
   constructor(ctx, env) {
@@ -91,11 +93,18 @@ export class TableRoom {
     const [client, server] = Object.values(pair);
     this.ctx.acceptWebSocket(server);
     server.serializeAttachment(who);
-    server.send(JSON.stringify({ t: 'init', tokens: this.tokens, scene: this.scene, parts: this.parts, log: this.log, seq: this.seq, peers: this.ctx.getWebSockets().length, you: { role: who.role }, reach: who.role === 'lm' ? this.reach : undefined }));
+    server.send(JSON.stringify({ t: 'init', tokens: this.tokens, scene: this.scene, parts: this.parts, log: this.log, seq: this.seq, peers: this.ctx.getWebSockets().length, lms: this.lmCount(), you: { role: who.role, keeper: !!who.keeper }, reach: who.role === 'lm' ? this.reach : undefined }));
     this.peers();
     return new Response(null, { status: 101, webSocket: client });
   }
-  peers() { const n = this.ctx.getWebSockets().length; this.send({ t: 'peers', n: n }); }
+  /* LoreMasters at the table, lorekeepers not counted: a lorekeeper's table saves the board
+     only while this is 0, so there is one writer at a time */
+  lmCount(except) {
+    let n = 0;
+    for (const s of this.ctx.getWebSockets()) { if (s === except) continue; const a = s.deserializeAttachment() || {}; if (a.role === 'lm' && !a.keeper) n++; }
+    return n;
+  }
+  peers(except) { const n = this.ctx.getWebSockets().filter((s) => s !== except).length; this.send({ t: 'peers', n: n, lms: this.lmCount(except) }, except); }
   send(msg, except) {
     const s = JSON.stringify(msg);
     for (const ws of this.ctx.getWebSockets()) { if (ws === except) continue; try { ws.send(s); } catch (e) {} }
@@ -142,12 +151,16 @@ export class TableRoom {
     }
     if (msg.t === 'scene') {
       if (!lm || !msg.b || typeof msg.b !== 'object') return;
+      /* a lorekeeper edits the scene on the table (grid, map, tokens) but never switches it */
+      if (who.keeper && this.scene && msg.b.activeSceneId !== this.scene.activeSceneId) return;
       this.scene = msg.b; if (Array.isArray(msg.b.tokens)) this.tokens = msg.b.tokens; this.moved = {}; this.seq++;
       this.send({ t: 'scene', b: this.scene, seq: this.seq, from: who.member }, ws);
       await this.keep(); return;
     }
     if (msg.t === 'part') {
       if (!lm || !msg.p || typeof msg.p !== 'object') return;
+      /* a lorekeeper sends the map layers only, never the run-the-game parts */
+      if (who.keeper) { const p = {}; Object.keys(msg.p).forEach((k) => { if (KEEPER_PARTS.indexOf(k) >= 0) p[k] = msg.p[k]; }); if (!Object.keys(p).length) return; msg.p = p; }
       Object.keys(msg.p).forEach((k) => { this.parts[k] = msg.p[k]; });
       this.seq++; this.send({ t: 'part', p: msg.p, seq: this.seq, from: who.member }, ws);
       this.ctx.storage.put('parts', this.parts); this.ctx.storage.put('seq', this.seq);
@@ -182,6 +195,6 @@ export class TableRoom {
       return;
     }
   }
-  async webSocketClose(ws) { try { ws.close(); } catch (e) {} this.peers(); }
-  async webSocketError(ws) { try { ws.close(); } catch (e) {} this.peers(); }
+  async webSocketClose(ws) { try { ws.close(); } catch (e) {} this.peers(ws); }
+  async webSocketError(ws) { try { ws.close(); } catch (e) {} this.peers(ws); }
 }
