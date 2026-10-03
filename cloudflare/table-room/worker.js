@@ -74,13 +74,14 @@ export default {
 export class TableRoom {
   constructor(ctx, env) {
     this.ctx = ctx; this.env = env;
-    this.tokens = null; this.scene = null; this.seq = 0; this.moved = {}; this.parts = {}; this.log = [];
+    this.tokens = null; this.scene = null; this.seq = 0; this.moved = {}; this.parts = {}; this.log = []; this.reach = {};
     this.ready = ctx.blockConcurrencyWhile(async () => {
       this.tokens = (await ctx.storage.get('tokens')) || null;
       this.scene = (await ctx.storage.get('scene')) || null;
       this.seq = (await ctx.storage.get('seq')) || 0;
       this.parts = (await ctx.storage.get('parts')) || {};
       this.log = (await ctx.storage.get('log')) || [];
+      this.reach = (await ctx.storage.get('reach')) || {};
     });
   }
   async fetch(req) {
@@ -90,7 +91,7 @@ export class TableRoom {
     const [client, server] = Object.values(pair);
     this.ctx.acceptWebSocket(server);
     server.serializeAttachment(who);
-    server.send(JSON.stringify({ t: 'init', tokens: this.tokens, scene: this.scene, parts: this.parts, log: this.log, seq: this.seq, peers: this.ctx.getWebSockets().length, you: { role: who.role } }));
+    server.send(JSON.stringify({ t: 'init', tokens: this.tokens, scene: this.scene, parts: this.parts, log: this.log, seq: this.seq, peers: this.ctx.getWebSockets().length, you: { role: who.role }, reach: who.role === 'lm' ? this.reach : undefined }));
     this.peers();
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -158,6 +159,22 @@ export class TableRoom {
       this.log.push(e); if (this.log.length > 200) this.log = this.log.slice(-200);
       this.send({ t: 'log', e: e, from: who.member }, ws);
       this.ctx.storage.put('log', this.log);
+      return;
+    }
+    /* A Fell's Mobility and reach, from its own player's sheet. Only the player who owns that
+       Fell may say it; it is kept, so a LoreMaster joining later has it, and it goes to the
+       LoreMaster's devices only, since no other player has a use for it. */
+    if (msg.t === 'reach') {
+      const c = String(msg.c || '');
+      if (lm || !c || (who.chars || []).indexOf(c) < 0) return;
+      const v = { m: Math.max(0, Math.min(99, Number(msg.m) || 0)), r: Math.max(0, Math.min(99, Number(msg.r) || 0)), at: Date.now() };
+      this.reach[c] = v;
+      this.ctx.storage.put('reach', this.reach);
+      const out = JSON.stringify({ t: 'reach', c: c, m: v.m, r: v.r, at: v.at });
+      for (const s of this.ctx.getWebSockets()) {
+        const a = s.deserializeAttachment() || {};
+        if (a.role === 'lm') { try { s.send(out); } catch (e) {} }
+      }
       return;
     }
     if (msg.t === 'ping') {
