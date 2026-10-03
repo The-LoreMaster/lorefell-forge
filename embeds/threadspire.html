@@ -9473,6 +9473,7 @@ function sharedSnapshot(){
     walls: (isLM() && _mapStateLoaded) ? (S.walls || {}) : undefined,
     elev: (isLM() && _mapStateLoaded) ? (S.elev || {}) : undefined,
     pales: (isLM() && _mapStateLoaded) ? (S.pales || {}) : undefined,
+    spot: isLM() ? (S.spot || []) : undefined,
     lights: (isLM() && _mapStateLoaded) ? (S.lights || {}) : undefined,
     loreGrants: isLM() ? (S.loreGrants || undefined) : undefined,
     music: (isLM() && _mapStateLoaded) ? (S.music || undefined) : undefined,
@@ -9770,6 +9771,7 @@ function applyRemoteSnapshot(snap){
   if (isLM() && !_mapStateLoaded){ _boardScene = snap.activeSceneId || (S.scene && S.scene.id) || null; }
   if (snap.draw){ S.draw = drawMerge(S.draw, snap.draw); try { drawPaint(); } catch(e){} }
   mapStateArrived();
+  if (snap.spot !== undefined && (!isLM() || S.stream)) S.spot = Array.isArray(snap.spot) ? snap.spot : [];
   if (snap.pales && !(isLM() && _mapStateLoaded && S.pales)){ S.pales = snap.pales; try { palePaint(); } catch(e){} }
   if (snap.elev && !(isLM() && _mapStateLoaded && S.elev)){ S.elev = snap.elev; try { elevPaint(); } catch(e){} }
   if (snap.walls && !(isLM() && _wallDrag)){ S.walls = snap.walls; _fvMemo = null; try { wallPaint(); } catch(e){} }
@@ -16431,10 +16433,20 @@ function spotlightIds(){
     (S.tokens || []).forEach(function(t){ if ((c.charId && t.charId && sameId(c.charId, t.charId)) || sameId(t.refId, c.id) || sameId(t.id, c.id)) ids.push(t.id); }); });
   return ids;
 }
+/* The LoreMaster's table says which tokens are in the Spotlight (S.spot, through the room
+   and the saved state), and every player's table and the stream light the same ones. */
 var _spotOn = {}, _spotSig = '';
 setInterval(function(){
   try {
-    var ids = spotlightIds(), sig = ids.slice().sort().join(',');
+    var ids;
+    if (isLM() && !S.stream && !isKeeper()){
+      ids = spotlightIds();
+      var mine = ids.slice().sort().join(',');
+      if (mine !== ((S.spot || []).slice().sort().join(','))){ S.spot = ids.slice(); try { roomPartsSync(false); } catch(e){} schedulePush(); }
+    } else {
+      ids = (S.mode === 'combat' && Array.isArray(S.spot)) ? S.spot : [];
+    }
+    var sig = ids.slice().sort().join(',');
     if (sig === _spotSig) return;
     _spotSig = sig; _spotOn = {}; ids.forEach(function(i){ _spotOn[i] = 1; });
     renderTokens();
@@ -16790,7 +16802,9 @@ function toolbarMenuPaint(){
   toolbarsBuild();
   var m = document.createElement('div'); m.id = 'mtMenu'; m.setAttribute('role', 'group'); m.setAttribute('aria-label', 'Choose toolbars'); document.body.appendChild(m);
   var t = null;
-  function show(){ clearTimeout(t); toolbarMenuPaint(); var r = (document.getElementById('mapTools') || tg).getBoundingClientRect(), rt = tg.getBoundingClientRect(); m.style.left = rt.left + 'px'; m.style.top = (r.bottom + 8) + 'px'; m.classList.add('on'); }
+  function show(){ clearTimeout(t); toolbarMenuPaint(); var bar = document.getElementById('mapTools') || tg, r = bar.getBoundingClientRect(), rt = tg.getBoundingClientRect();
+    var across = getComputedStyle(bar).flexDirection === 'row';
+    m.style.left = Math.round(across ? rt.left : r.right + 8) + 'px'; m.style.top = Math.round(across ? r.bottom + 8 : rt.top) + 'px'; m.classList.add('on'); }
   function hideSoon(){ clearTimeout(t); t = setTimeout(function(){ m.classList.remove('on'); }, 350); }
   tg.addEventListener('mouseenter', show); tg.addEventListener('mouseleave', hideSoon);
   m.addEventListener('mouseenter', function(){ clearTimeout(t); }); m.addEventListener('mouseleave', hideSoon);
@@ -19475,7 +19489,7 @@ var ROOM = { ws:null, on:false, want:false, tries:0, t:null, cid:'', role:'', se
 var KEEPER_SENDS = ['pales', 'elev', 'fog', 'walls', 'lights', 'effects', 'notes', 'weather', 'draw', 'portraits'];
 var KEEPER_TAKES = KEEPER_SENDS.concat(['combatPhase', 'music', 'party', 'rest', 'loreGrants']);
 /* the rest of the table the LoreMaster's table sends through the room, each when it changes */
-var ROOM_PARTS = ['pales', 'elev', 'fog', 'walls', 'lights', 'effects', 'notes', 'weather', 'music', 'rest', 'viewCall', 'loreGrants', 'combatPhase', 'draw', 'portraits', 'party', 'beatPic', 'handouts', 'questRev'];
+var ROOM_PARTS = ['spot', 'pales', 'elev', 'fog', 'walls', 'lights', 'effects', 'notes', 'weather', 'music', 'rest', 'viewCall', 'loreGrants', 'combatPhase', 'draw', 'portraits', 'party', 'beatPic', 'handouts', 'questRev'];
 function roomSend(msg){ if (ROOM.on && ROOM.ws && ROOM.ws.readyState === 1 && !S.stream){ try { ROOM.ws.send(JSON.stringify(msg)); return true; } catch(e){} } return false; }
 function roomConnect(){
   if (!tsEmbedded() || !S.campaignId) return;
