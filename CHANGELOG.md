@@ -1,3 +1,7 @@
+## 2026-10-03 - Roomier windows, settings buttons under their words, the toolbar in two rows, a recap from one entry
+
+Windows have one width on a desktop: 460 for an ordinary window and 720 for the wide ones (the recap, the session's video, recaps sent), which were held at 340 by an older rule. In a narrow window every Settings and menu row puts its buttons under its words. In a window too narrow for it, the toolbar wraps onto a second row rather than running under the menu on the right. Write a recap can draft from one Journal entry, picked from a list, and its box is taller.
+
 ## 2026-10-03 - YouTube connected: a session video's link brings its captions
 
 A LoreMaster can connect their own YouTube channel once (Settings, Sessions, YouTube: a Google sign-in), and From the session's video takes the link again: the live room reads that video's captions through YouTube's own API (the caption list and the caption text, nothing else) and the recap flow goes on as before. The room keeps each LoreMaster's sign-in privately, by member; Disconnect forgets it. An i beside the link explains it, and the steps for copying a transcript by hand stay for anyone else's video. The room's deploy sets the YouTube keys from the repository's YT_CLIENT_ID and YT_CLIENT_SECRET.
