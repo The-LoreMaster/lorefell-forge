@@ -2596,6 +2596,12 @@ body.stream #beatPic{ display:none; }
 /* the log: the box full wide, Say, and a gear */
 #log .lchat{ display:flex; gap:4px; } #log .lchat input{ flex:1; min-width:0; } #log .lchat button{ flex:none; }
 .log-gear{ width:26px; padding:0 !important; display:flex; align-items:center; justify-content:center; }
+/* In the corner log the Say button scales with the window, so the gear scales with it: the
+   same type size, the same padding top and bottom, a mark one line tall. Same height as
+   Say at any size, square. */
+#log .lchat button{ line-height:1.2; }
+#log .lchat .log-gear{ width:auto; padding:0.2vh 0.35vh !important; font-size:min(1.1vh, 0.619vw); }
+#log .lchat .log-gear svg{ display:block; width:1.2em; height:1.2em; }
 #logGear{ position:fixed; z-index:700; display:flex; flex-direction:column; min-width:170px; padding:6px; border:1px solid rgba(201,168,76,.6); border-radius:10px; background:rgba(12,17,32,.97); box-shadow:0 12px 30px rgba(0,0,0,.55); }
 #logGear button{ text-align:left; padding:8px 10px; border:0; border-radius:7px; background:none; color:#dce8ef; font-family:'Crimson Pro',Georgia,serif; font-size:.95rem; cursor:pointer; } #logGear button:hover{ background:rgba(201,168,76,.12); }
 .sw-qb{ display:flex; gap:6px; margin-top:8px; }
@@ -6648,7 +6654,7 @@ function openWin(key){
   if (key === 'fell' && isLM() && S.godChar){
     ensureSheet();
     win.classList.add('sheeting'); win.classList.add('arsenal'); win.classList.add('godhold');
-    paintGodBar(); sheetGoto(S.godPanel || 'lore');
+    godGoto(S.godPanel || 'lore');
   }
   else if (panel){
     ensureSheet(); win.classList.add('sheeting');
@@ -11726,11 +11732,15 @@ var SHEET_PANELS = { attributes:'attributes', skills:'skills', inventory:'invent
    reimplemented here: the panels are FellGlass's own, reached the way the player
    reaches them, so a change to the sheet is a change to this. What the LoreMaster may
    do is decided by the site against the adventure, not by this list of tabs. */
-/* Every FellGlass panel, in FellGlass's order, under FellGlass's names (PANELS in
-   fellglass.html). The p1 harness spec fails if the two lists ever differ. */
+/* Every FellGlass panel, under FellGlass's names (PANELS in fellglass.html). Weapons,
+   Lorebounds and Armor sit under one Arsenal tab, the way the player has them: the tab bar
+   names Arsenal, and the three are drawn inside the sheet under the stat strip
+   (ARSENAL_TABS, the ts-subtabs row). sheet-parity.test.js fails if any panel is missing,
+   doubled or renamed. */
 var GOD_TABS = [['lore','The Lore'],['attributes','Attributes'],['battle','Condition'],
-                ['weapons','Weapons'],['armor','Armor'],['lorebounds','Lorebounds'],
+                ['arsenal','Arsenal'],
                 ['skills','Skills'],['inventory','Inventory']];
+function godIsArsenal(panel){ return ARSENAL_TABS.some(function(t){ return t[0] === panel; }); }
 /* the rail's marks, one per section */
 var GOD_ICON = {
   back:'<svg viewBox="0 0 24 24"><path d="M14 6l-6 6 6 6"/></svg>',
@@ -11739,6 +11749,7 @@ var GOD_ICON = {
   battle:'<svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/><path d="M7 12h3l1.5-2.5 2 5 1.5-2.5h2"/></svg>',
   weapons:'<svg viewBox="0 0 24 24"><path d="M19 4l-9.5 9.5M19 4h-4M19 4v4"/><path d="M8 14l2 2-4 4-2-2z"/><path d="M6.5 11.5l6 6"/></svg>',
   armor:'<svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 5-3 8.5-7 10-4-1.5-7-5-7-10V6z"/></svg>',
+  arsenal:'<svg viewBox="0 0 24 24"><path d="M10 4.5l5.5 2.3v4c0 4-2.4 6.8-5.5 8-3.1-1.2-5.5-4-5.5-8v-4z"/><path d="M20 3l-6.5 6.5M20 3h-3M20 3v3"/><path d="M12.5 10.5l1.5 1.5"/></svg>',
   lorebounds:'<svg viewBox="0 0 24 24"><circle cx="7" cy="9" r="1.8"/><circle cx="12" cy="6.5" r="1.8"/><circle cx="17" cy="9" r="1.8"/><path d="M8 17c0-2.8 1.8-5 4-5s4 2.2 4 5c0 1.7-1.4 2.5-4 2.5S8 18.7 8 17z"/></svg>',
   skills:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/></svg>',
   inventory:'<svg viewBox="0 0 24 24"><path d="M6 8h12l-1 12H7z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>'
@@ -11748,7 +11759,7 @@ function lmOpenFell(charId){
   if (!charId || !isLM()) return;
   var who = (S.party || []).filter(function(p){ return sameId(p.charId, charId); })[0] || {};
   S.godChar = { id:charId, name: who.name || who.charName || 'this Fell' };
-  S.godPanel = 'lore';
+  S.godPanel = 'lore'; S.godSub = null;
   ensureSheet();
   openWin('fell');
   /* Seen once, shown at once. The record is kept from the first open, so coming back
@@ -11785,7 +11796,7 @@ function godShow(charId, rec){
   godWait(false);
   sheet.postMessage({ type:'init', charId:charId, character: rec });
   sheet.postMessage({ type:'ts-god', on:true });
-  paintGodBar(); sheetGoto(S.godPanel || 'lore');
+  godGoto(S.godPanel || 'lore');
 }
 /* Closing tells the site to forget which Fell was open, which is also the only thing
    authorising a save for it. The sheet's last edit may still be in its debounce, so
@@ -11806,7 +11817,19 @@ function lmCloseFell(){
   sheet.postMessage({ type:'ts-god', on:false });
   openWin('fell');
 }
-function godGoto(panel){ S.godPanel = panel; sheetGoto(panel); paintGodBar(); }
+/* Arsenal opens on whichever of its three was last looked at (Weapons the first time) and
+   puts the three tabs inside the sheet; every other tab takes them away. */
+function godGoto(panel){
+  if (panel === 'arsenal' || godIsArsenal(panel)){
+    var sub = godIsArsenal(panel) ? panel : (S.godSub || 'weapons');
+    S.godPanel = 'arsenal'; S.godSub = sub;
+    sheetSubtabs(sub); sheetGoto(sub);
+  } else {
+    S.godPanel = panel;
+    sheetSubtabs(null); sheetGoto(panel);
+  }
+  paintGodBar();
+}
 function godWait(on){
   var w = document.getElementById('win'); if (!w) return;
   var el = document.getElementById('godWait');
@@ -13317,7 +13340,13 @@ window.addEventListener('message', function(ev){
   if (f && ev.source === f.contentWindow && ev.data && ev.data.type){
     if (ev.data.type === 'sheet-height'){ sheetSetHeight(ev.data.h); return; }
     if (ev.data.type === 'sheet-panel'){
-      if (ev.data.panel){ S.sheetPanel = ev.data.panel; if (S.godChar){ S.godPanel = ev.data.panel; paintGodBar(); } }
+      if (ev.data.panel){ S.sheetPanel = ev.data.panel;
+        if (S.godChar){
+          /* a tab picked inside the sheet: one of the Arsenal's three keeps Arsenal lit */
+          if (godIsArsenal(ev.data.panel)){ S.godPanel = 'arsenal'; S.godSub = ev.data.panel; }
+          else S.godPanel = ev.data.panel;
+          paintGodBar();
+        } }
       return;
     }
     /* The player's Acts and Reacts, as the sheet derives them. Kept between this frame
