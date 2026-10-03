@@ -2520,6 +2520,10 @@ body.clean #saveMark, body.stream #saveMark{ display:none; }
 #moveMark .mm-no{ width:26px; height:26px; padding:0; border:1px solid #2c3a58; border-radius:7px; background:none; color:#b8c4d0; cursor:pointer; }
 .token.glide{ transition:left .09s linear, top .09s linear; }
 @media (prefers-reduced-motion: reduce){ .token.glide{ transition:none; } }
+
+#moveLine{ position:absolute; z-index:5; height:0; border-top:3px dashed var(--mc, #c9a84c); transform-origin:0 50%; pointer-events:none; opacity:.95; filter:drop-shadow(0 0 2px rgba(0,0,0,.7)); }
+#moveMark{ border-color:var(--mc, #c9a84c) !important; }
+#moveMark.far{ border-color:#e05a4f !important; }
 </style>
 </head>
 <body>
@@ -14717,9 +14721,13 @@ function wireToken(el, t, draggable){
     function mv(ev){
       if (!draggable){
         /* a finger that wandered is not a tap, even on something that cannot be moved */
-        if (Math.abs(ev.clientX - sx) > 6 || Math.abs(ev.clientY - sy) > 6) moved = true;
+        var _ts = ev.pointerType === 'touch' ? 12 : 6;
+        if (Math.abs(ev.clientX - sx) > _ts || Math.abs(ev.clientY - sy) > _ts) moved = true;
         return;
       }
+      /* a drag starts only once the pointer has really travelled: a finger's wobble on a tap
+         used to start a tiny drag on one's own token, so it was never selected */
+      if (!moved){ var _ds = ev.pointerType === 'touch' ? 12 : 4; if (Math.abs(ev.clientX - sx) <= _ds && Math.abs(ev.clientY - sy) <= _ds) return; }
       var p = toMap(ev.clientX, ev.clientY);
       if (t._gx === undefined){ t._gx = t.x; t._gy = t.y; }
       t.x = clamp(p.x + ox, 0, S.map.w); t.y = clamp(p.y + oy, 0, S.map.h);
@@ -18761,7 +18769,18 @@ function tokMayMove(t){
   var ownFell = !isLM() && t.kind === 'p' && tokenIsMine(t);
   return !!(t.mine || ownFell || t.free || S.role === 'lm');
 }
-function moveMarkClear(){ MOVEMARK = null; var el = document.getElementById('moveMark'); if (el) el.remove(); }
+function moveMarkClear(){ MOVEMARK = null; var el = document.getElementById('moveMark'); if (el) el.remove(); var ln = document.getElementById('moveLine'); if (ln) ln.remove(); }
+function moveLinePaint(t){
+  var m = MOVEMARK, ln = document.getElementById('moveLine'); if (!m || !t){ if (ln) ln.remove(); return; }
+  if (!ln){ ln = document.createElement('div'); ln.id = 'moveLine'; var lay = document.getElementById('tokenLayer') || document.body; lay.insertBefore(ln, lay.firstChild); }
+  var x1 = cam.x + t.x * cam.zoom, y1 = cam.y + t.y * cam.zoom, x2 = cam.x + m.x * cam.zoom, y2 = cam.y + m.y * cam.zoom;
+  var dx = x2 - x1, dy = y2 - y1, len = Math.sqrt(dx * dx + dy * dy), r = tokenPx(t) * cam.zoom / 2;
+  /* from the token's edge to the mark's edge, in the mover's ping colour (red past Mobility) */
+  var a = Math.atan2(dy, dx), start = Math.min(r, len / 2), end = Math.max(start, len - r);
+  ln.style.left = (x1 + Math.cos(a) * start) + 'px'; ln.style.top = (y1 + Math.sin(a) * start) + 'px';
+  ln.style.width = Math.max(0, end - start) + 'px'; ln.style.transform = 'rotate(' + a + 'rad)';
+  ln.style.setProperty('--mc', m.far ? '#e05a4f' : myPingColor());
+}
 function moveMarkAt(mx, my){
   var t = sel ? tokById(sel) : null; if (!tokMayMove(t)) return false;
   var c = t.cells || 1, g = S.grid.size || 100;
@@ -18780,10 +18799,16 @@ function moveMarkPaint(){
     ['pointerdown','pointerup','click'].forEach(function(ev){ el.addEventListener(ev, function(e){ if (e.target.closest('.mm-ask')) e.stopPropagation(); }); }); }
   var px = tokenPx(t) * cam.zoom;
   el.className = m.far ? 'far' : '';
+  moveLinePaint(t); if (!m.far) el.style.setProperty('--mc', myPingColor()); else el.style.removeProperty('--mc');
   el.style.width = el.style.height = px + 'px';
   el.style.left = (cam.x + m.x * cam.zoom - px / 2) + 'px'; el.style.top = (cam.y + m.y * cam.zoom - px / 2) + 'px';
   el.innerHTML = '<div class="mm-ask"><span>' + (m.far ? 'Out of range: ' + m.spaces + ' sp, Mobility ' + m.mob + '. Move anyway?' : m.spaces + ' sp' + (m.mob ? ' of ' + m.mob : '')) + '</span>'
     + '<button class="mm-go" onclick="event.stopPropagation();moveMarkGo()">' + (m.far ? 'Yes, move' : 'Move here') + '</button><button class="mm-no" onclick="event.stopPropagation();moveMarkClear()" aria-label="Cancel">\u00d7</button></div>';
+  /* the prompt stays on screen: nudged in from an edge, or set below the mark near the top */
+  var ask = el.querySelector('.mm-ask'); if (ask){ var rr = ask.getBoundingClientRect(), dx = 0;
+    if (rr.right > innerWidth - 8) dx = innerWidth - 8 - rr.right; if (rr.left + dx < 8) dx = 8 - rr.left;
+    if (dx) ask.style.transform = 'translateX(calc(-50% + ' + Math.round(dx) + 'px))';
+    if (rr.top < 70){ ask.style.bottom = 'auto'; ask.style.top = 'calc(100% + 8px)'; } }
 }
 function moveMarkGo(){
   var m = MOVEMARK; if (!m) return; var t = tokById(m.id); moveMarkClear(); if (!t || !tokMayMove(t)) return;
@@ -19322,7 +19347,8 @@ function mid(a, b){ return { x:(a.x + b.x) / 2, y:(a.y + b.y) / 2 }; }
     } else if (pan){
       cam.x = pan.cx + (e.clientX - pan.x);
       cam.y = pan.cy + (e.clientY - pan.y);
-      if (Math.abs(e.clientX - pan.x) > 4 || Math.abs(e.clientY - pan.y) > 4) pan.moved = true;
+      var _slop = e.pointerType === 'touch' ? 12 : 4;   /* a finger wobbles; a tap on a phone was read as a pan */
+      if (Math.abs(e.clientX - pan.x) > _slop || Math.abs(e.clientY - pan.y) > _slop) pan.moved = true;
       clampCam(); applyCam();
     }
   });
