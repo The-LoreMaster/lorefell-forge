@@ -1,3 +1,7 @@
+## 2026-09-28 - Tap to move on a phone; a line toward the marked space
+
+On a phone a tap on the map or a token was often read as a pan or a drag, because a finger moves a few pixels while it taps (the allowance was four pixels): a touch now allows twelve, so tapping a token and then a space marks it. A dotted line in the mover's ping colour runs from the token's edge toward the marked space, red with the mark when the move is past the token's Mobility, and follows the map as it is panned or zoomed. A drag on one's own token starts only once the pointer has really travelled, so a tap on it selects it; the mark's prompt stays on screen, nudged in from an edge.
+
 ## 2026-09-28 - The sealed past, granted to the player a truth at a time
 
 Each truth of a Fell's sealed past, in the LoreMaster's view of the sheet, has Grant to the player: it is given to that Fell's Secrets, under From the LoreMaster (titled From your sealed past), through the same give the beats use, so it survives the player's own saves and reaches their open sheet; the truth then shows as Granted, and the log notes it for the LoreMaster alone. The player may dismiss it from their Secrets as with anything given.
