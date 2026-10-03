@@ -1499,6 +1499,8 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .fc-hbtns{ display:flex; gap:5px; } .fc-ib{ width:36px; height:36px; border-radius:9px; border:1px solid #26324c; background:none; color:#93a3b6; display:flex; align-items:center; justify-content:center; cursor:pointer; }
 .fc-ib svg, .fc-tab svg{ fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; } .fc-ib.on{ color:#e3a193; border-color:#6a3a3a; } .fc-ib:hover{ color:#dce8ef; }
 .fc-vit{ display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; align-items:center; padding:0 12px; }
+.fc-bar.fell i{ background:#5a8fb8; } .fc-selin{ height:36px; border-radius:8px; border:1px solid #26324c; background:#0b1020; color:#dce8ef; font-family:inherit; font-size:.9rem; width:100%; min-width:0; }
+.lmcard.fell.expanded.fc{ width:min(400px, calc(100vw - 150px)); max-height:62vh; padding:0; display:flex; flex-direction:column; overflow:hidden; font-family:'Crimson Pro',Georgia,serif; color:#dce8ef; border-color:rgba(90,143,184,.7); }
 .fc-bar{ height:10px; border-radius:6px; background:#241a24; overflow:hidden; } .fc-bar i{ display:block; height:100%; background:#b8423a; border-radius:6px; }
 .fc-vin{ display:flex; align-items:center; gap:5px; font-family:Cinzel,serif; color:#93a3b6; } .fc-vin input{ width:52px; height:32px; text-align:center; border-radius:8px; border:1px solid #3a4a6a; background:#0b1020; color:#dce8ef; font-family:Cinzel,serif; font-size:1rem; }
 .fc-vin input:focus{ outline:2px solid #c9a84c; outline-offset:1px; }
@@ -7082,7 +7084,7 @@ function lmCardDown(){
   if (lmExpanded){ lmExpanded = null; paintLmStrip(); paintHud(); return; }
   lmMinimize();
 }
-function lmToggleCard(id){ if (lmExpanded && id !== lmExpanded && foeById(lmExpanded) && !foeById(id) && foeAimAt(findC(id))) return; lmExpanded = (lmExpanded === id) ? null : id; if (lmExpanded && S.openSection) closeWin(); lmTab = 'about'; paintLmStrip(); paintHud(); }
+function lmToggleCard(id){ if (lmExpanded && id !== lmExpanded && foeById(lmExpanded) && !foeById(id) && foeAimAt(findC(id))) return; lmExpanded = (lmExpanded === id) ? null : id; if (lmExpanded && lmFace() === 'commit'){ try { var _dk = lmDeck(); for (var _i = 0; _i < _dk.length; _i++){ if (_dk[_i].data && _dk[_i].data.id === id){ lmFocus.commit = _i; break; } } } catch(e){} } if (lmExpanded && S.openSection) closeWin(); lmTab = 'about'; paintLmStrip(); paintHud(); }
 function lmSetTab(id, tab){ lmExpanded = id; lmTab = tab; paintLmStrip(); paintHud(); }
 function lmFace(){ return S.mode === 'combat' ? (S.scene.combatPhase || 'commit') : 'scene'; }
 /* A Fell sent home keeps their record, because it may have been placed by hand and
@@ -7176,6 +7178,9 @@ function paintLmStrip(){
   try {
     var openCard = el.querySelector('.lmcard.expanded');
     if (openCard) prevScroll = openCard.scrollTop;
+    /* the rebuilt cards scroll their body, not the card: keep that place too, per card and tab */
+    var fcb = el.querySelector('.lmcard.fc .fc-body');
+    if (fcb){ window._fcScroll = window._fcScroll || {}; window._fcScroll[(lmExpanded || '') + '|' + lmTab] = fcb.scrollTop; }
     /* The centre beat card scrolls its own body (a long read-aloud, a dialogue, a note). The
        repaint rebuilt it too, so a roll - which repaints the strip to show the die - threw the
        LoreMaster back to the top of whatever they were reading. Capture and restore it as well. */
@@ -7188,6 +7193,9 @@ function paintLmStrip(){
     if (spotBox) prevSpotScroll = spotBox.scrollTop;
   } catch(e){}
   el.innerHTML = lmStripHtml();
+  try { var fcb2 = el.querySelector('.lmcard.fc .fc-body'), fk = (lmExpanded || '') + '|' + lmTab;
+    if (fcb2 && window._fcScroll && window._fcScroll[fk]) fcb2.scrollTop = window._fcScroll[fk];
+    if (fcb2 && !fcb2._fcw){ fcb2._fcw = true; fcb2.addEventListener('scroll', function(){ window._fcScroll = window._fcScroll || {}; window._fcScroll[fk] = fcb2.scrollTop; }, { passive:true }); } } catch(e){}
   if (prevScroll){
     try {
       var newCard = el.querySelector('.lmcard.expanded');
@@ -8117,19 +8125,92 @@ function fellCardCompact(p){
 function compactPipsFell(p){
   var h=''; for(var t=1;t<=3;t++) h+='<span class="lmc-cpip'+((p.charge||0)>=t?' lit':'')+'"></span>'; return h;
 }
+/* The Fell's card on the LoreMaster's side, in the foe card's shape: who they are, their
+   Vitality and charge, their stance and conditions, then the same icon tabs. Plan in Commit
+   (what they declared and who is coming for them), Resolve in the Spotlights (their roll and
+   damage to land, and a hit to send them, filled from the foe striking them), Acts, Stats,
+   Conditions and their Lore. Their sheet stays the authority: hits go to it, it applies its
+   own defenses. */
 function fellCardOpen(p){
-  var tabs = ['about','attributes','attack','acts','stats'];
-  var labels = { about:'About', attributes:'Attributes', attack:'Attack', acts:'Acts', stats:'Stats' };
-  var head = '<div class="lmc-top"><span class="lmc-name' + (cDown(p) ? ' struck' : '') + '">' + esc(p.name) + '</span>'
-    + (cDown(p) ? '<span class="lmc-down">Down</span>' : '')
-    + '<button class="lmc-downbtn' + (cDown(p) ? ' on' : '') + '" onclick="event.stopPropagation();lmToggleDown(\'' + p.id + '\')" title="'
-      + (cDown(p) ? 'Back on their feet' : 'Mark down') + '">\u2620</button>'
-    + '<button class="lmc-close" onclick="lmToggleCard(\'' + p.id + '\')">\u00d7</button></div>';
-  var tabrow = '<div class="lmc-tabs">' + tabs.map(function(t){
-    return '<button class="lmc-tab' + (lmTab === t ? ' on' : '') + '" onclick="lmSetTab(\'' + p.id + '\',\'' + t + '\')">' + labels[t] + '</button>';
-  }).join('') + '</div>';
-  return '<div class="lmcard fell expanded' + (p.locked ? ' locked' : '') + '">' + head + tabrow
-    + '<div class="lmc-tabbody">' + fellTabBody(p, lmTab) + '</div></div>';
+  var tab = (lmTab === 'about' || !FC_ICON[lmTab]) ? 'round' : lmTab;
+  var resolve = S.scene && S.scene.combatPhase === 'resolve';
+  var names = { round:resolve ? 'Resolve' : 'Plan', acts:'Acts', stats:'Stats', cond:'Conditions', tell:'Lore' };
+  var cid = p.charId || p.id, img = portraitFor(cid) || p.img || '';
+  var d = declareFor(cid) || {}, g = d.gear || {};
+  var who = ''; (S.party || []).forEach(function(x){ if (x && sameId(x.charId, cid)) who = x.memberName || ''; });
+  var vit = shownVit(p), pct = p.maxVit ? Math.max(0, Math.min(100, Math.round(vit / p.maxVit * 100))) : 0;
+  var stance = p.stance || g.stance || '', st = FOE_STANCE[stance], tier = st ? Math.max(0, Math.min(3, p.charge || 0)) : 0;
+  var affs = (p.affs || []).concat(pendFor(p.id).affs || []);
+  return '<div class="lmcard fell expanded fc' + (p.locked ? ' locked' : '') + (cDown(p) ? ' down' : '') + '">'
+    + '<header class="fc-head"><span class="fc-face"' + (img ? ' style="background-image:url(\'' + esc(img) + '\')"' : '') + '></span>'
+    + '<div class="fc-who"><div><span class="fc-name' + (cDown(p) ? ' struck' : '') + '">' + esc(p.name) + '</span> <span class="fc-sr">Level ' + (p.level || 1) + '</span></div>'
+    + '<div class="fc-build">' + (who ? esc(who) : 'Kept at the table') + '</div></div>'
+    + '<div class="fc-hbtns"><button class="fc-ib' + (cDown(p) ? ' on' : '') + '" onclick="event.stopPropagation();lmToggleDown(\'' + p.id + '\')" title="' + (cDown(p) ? 'Back on their feet' : 'Mark down') + '" aria-label="' + (cDown(p) ? 'Back on their feet' : 'Mark down') + '"><svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><circle cx="12" cy="10" r="6"/><path d="M9 21v-3h6v3M10 10h.01M14 10h.01"/></svg></button>'
+    + '<button class="fc-ib" onclick="lmToggleCard(\'' + p.id + '\')" title="Close" aria-label="Close"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div></header>'
+    + '<div class="fc-vit"><div class="fc-bar fell"><i style="width:' + pct + '%"></i></div><div class="fc-vin"><b style="color:#dce8ef">' + vit + '</b><span>/ ' + (p.maxVit || 0) + '</span></div></div>'
+    + '<div class="fc-sub"><span>' + pendTag(p) + tsFatigueChip(p) + '</span>' + chargePips(p, 'fell') + '</div>'
+    + '<div class="fc-chips">' + (st ? '<span class="fc-chip st" title="' + esc([st.t1, st.t2, st.t3].join('. ')) + '">' + esc(stance) + (tier ? ' T' + [1,2,3].slice(0, tier).join(', T') + ' live' : ', not yet charged') + '</span>' : '')
+    + affs.map(function(a){ return '<span class="fc-chip af" title="' + esc((TS_EFFECT_INFO[a] || {}).e || a) + '">' + esc(a) + '</span>'; }).join('') + '</div>'
+    + '<nav class="fc-tabs" aria-label="Card sections">' + ['round','acts','stats','cond','tell'].map(function(k){ var on = k === tab;
+        return '<button class="fc-tab' + (on ? ' on' : '') + '" onclick="lmSetTab(\'' + p.id + '\',\'' + k + '\')" title="' + names[k] + '" aria-label="' + names[k] + '"' + (on ? ' aria-current="true"' : '') + '>' + fcSvg(k) + (on ? '<span>' + names[k] + '</span>' : '') + '</button>'; }).join('') + '</nav>'
+    + '<div class="fc-body">' + fellCardBody(p, tab, resolve) + '</div></div>';
+}
+/* the foes aiming at this Fell this round, each with the damage it would land */
+function fellAttackers(p){
+  return ((S.scene && S.scene.foes) || []).filter(function(f){ return !cDown(f) && f.act && (sameId(f.target, p.id) || sameId(f.target, p.charId)); });
+}
+function fellSendFrom(cid, base, bonus, type, from){
+  lmDealDamage(cid, base, bonus, type);
+  var p = fellByCharId(cid);
+  pushLog({ kind:'sys', html:'<b>' + esc((p && p.name) || 'A Fell') + '</b> is struck for ' + base + ' + ' + bonus + ' ' + (type === 'magic' ? 'Magical' : 'Physical') + (from ? ' by ' + esc(from) : '') + '. Their sheet applies their defenses.' });
+  applyRemoteState({ log:S.log });
+}
+function fellCardBody(p, tab, resolve){
+  var cid = p.charId || p.id, dcl = declareFor(cid) || {}, dm = p.dmg || {}, esCid = esc(cid);
+  var attackers = fellAttackers(p);
+  var tgtName = ''; if (dcl.target) ((S.scene && S.scene.foes) || []).forEach(function(f){ if (sameId(f.id, dcl.target) || f.name === dcl.target) tgtName = f.name; });
+  var declared = dcl.act ? esc(dcl.act) + (tgtName ? ' \u2192 ' + esc(tgtName) : '') : '<span class="fc-muted">Nothing declared yet.</span>';
+  var strike = '<div class="fc-strike"><div><span>Damage</span><b>' + (dm.base || 0) + ' + ' + (dm.bonus || 0) + ' <i>' + (dm.type === 'magical' ? 'Magical' : 'Physical') + '</i></b></div><div><span>To hit</span><b>' + esc(dm.acc || '') + '</b></div></div>';
+  var coming = attackers.length ? attackers.map(function(f){ var fd = foeLive(f).dmg || {};
+      return '<div class="fc-cond"><div><b style="color:#dce8ef">' + esc(f.name) + '</b> ' + esc(f.act) + ': ' + (fd.base || 0) + ' + ' + (fd.bonus || 0) + ' ' + (fd.type === 'magical' ? 'Magical' : 'Physical') + '</div>'
+        + (resolve ? '<button class="fc-btn" onclick="fellSendFrom(\'' + esCid + '\',' + (fd.base || 0) + ',' + (fd.bonus || 0) + ',\'' + (fd.type === 'magical' ? 'magic' : 'phys') + '\',\'' + esc(f.name).replace(/'/g, '') + '\')">Send</button>' : '') + '</div>'; }).join('')
+    : '<div class="fc-muted">No foe is aiming at them.</div>';
+  if (tab === 'round' && !resolve){
+    return fcSec('Declared', '<div class="fc-intent">' + declared + '</div>' + declarePlacesHtml(dcl, cid))
+      + fcSec('Their strike', strike)
+      + fcSec('Coming for them', coming)
+      + fcSec('Reacts on hand', p.react ? '<div class="fc-prose">Used: ' + esc(p.react) + '</div>' : '<div class="fc-prose">' + ((p.reacts || []).map(esc).join(', ') || 'None listed') + '</div>');
+  }
+  if (tab === 'round'){
+    var landed = dcl.dmg ? '<div class="fc-hitrow"><div><b class="fc-big">' + (dcl.base || 0) + ' + ' + Math.max(0, (dcl.dmg || 0) - (dcl.base || 0)) + '</b> <span class="fc-muted">to ' + esc(tgtName || 'the target') + '</span></div><button class="fc-apply" onclick="resolveOnFoe(\'' + esCid + '\')">Land it</button></div>' : '';
+    return fcSec('Their act', '<div class="fc-intent">' + declared + '</div>'
+        + (dcl.roll ? '<div class="fc-prose">Rolled ' + dcl.roll + (dcl.acc ? ' against ' + dcl.acc : '') + (dcl.fellstrike ? ' \u00b7 <b style="color:#e3a193">Fellstrike</b>' : '') + '</div>' : '<div class="fc-muted">No roll yet.</div>') + landed)
+      + fcSec('Hits coming for them', coming)
+      + fcSec('Send a hit', '<div class="fc-hitin"><label><span>Base</span><input inputmode="numeric" id="dmgB_' + esCid + '"></label><label><span>Bonus</span><input inputmode="numeric" id="dmgN_' + esCid + '"></label>'
+          + '<label><span>Type</span><select id="dmgT_' + esCid + '" class="fc-selin"><option value="phys">Physical</option><option value="magic">Magical</option></select></label></div>'
+          + '<button class="fc-btn" onclick="strikeFell(\'' + esCid + '\')">Send to their sheet</button><div class="fc-muted">Their sheet applies their own defenses and stance.</div>')
+      + fcSec('Their defenses', '<div class="fc-attrs">' + ['Evasion','Durability','Resistance','Precision'].map(function(k){ return '<div><span>' + k.slice(0, 4) + '</span><b>' + ((p.attrs || {})[k] || 0) + '</b></div>'; }).join('') + '</div>');
+  }
+  if (tab === 'acts'){
+    var acts = (p.acts || []).slice().sort(function(x, y){ return (x.tier || 0) - (y.tier || 0); }), ch = p.charge || 0, h = '';
+    acts.forEach(function(a){ var t = a.tier || 0, locked = t > ch;
+      h += '<div class="fc-act' + (locked ? ' gray' : '') + '"><span class="fc-t">T' + t + '</span><div><b>' + esc(a.name) + '</b>' + (locked ? ' <i>at charge ' + t + '</i>' : '') + '<div>' + esc(a.effect || '') + '</div></div></div>'; });
+    return fcSec('Acts', h || '<div class="fc-muted">No Acts.</div>') + fcSec('Skills', '<div class="fc-prose">' + ((p.skills || []).map(esc).join(', ') || 'None') + '</div>');
+  }
+  if (tab === 'stats'){
+    var a = p.attrs || {};
+    return fcSec('Attributes', '<div class="fc-attrs">' + ['Precision','Evasion','Power','Durability','Magic','Resistance','Vigor','Wit'].map(function(k){ return '<div class="' + ((a[k] || 0) ? '' : 'zero') + '"><span>' + k.slice(0, 4) + '</span><b>' + (a[k] || 0) + '</b></div>'; }).join('') + '</div>')
+      + fcSec('Arsenal', (p.arsenal || []).length ? (p.arsenal || []).map(function(x){ return '<div class="fc-prose">' + esc(x) + '</div>'; }).join('') : '<div class="fc-muted">Nothing listed.</div>');
+  }
+  if (tab === 'cond'){
+    var on = (p.affs || []), staged = (pendFor(p.id).affs || []);
+    return fcSec('Conditions on them', (on.length || staged.length ? on.concat(staged).map(function(x){ return '<div class="fc-cond"><div><b>' + esc(x) + '</b> ' + esc((TS_EFFECT_INFO[x] || {}).e || '') + '</div></div>'; }).join('') : '<div class="fc-muted">Nothing is on them.</div>')
+      + '<button class="fc-btn" onclick="affFell(\'' + esCid + '\')">Apply an affliction or effect</button><div class="fc-muted">Lift one from their sheet in the Fell window.</div>');
+  }
+  if (tab === 'tell'){
+    return fcSec('Their Lore', (p.lore || []).length ? (p.lore || []).map(function(x){ return '<div class="fc-prose">' + esc(x) + '</div>'; }).join('') : '<div class="fc-muted">Nothing shared.</div>');
+  }
+  return '';
 }
 function fellTabBody(p, tab){
   var d = p.dmg;
