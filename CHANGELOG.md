@@ -1,3 +1,11 @@
+## 2026-10-03 - Lore Drops
+
+The Sealed Past is now Lore Drops on the LoreMaster's side of the sheet: the card's title, its note, Weave Lore Drops and Weave anew, and the log line when one is granted. A granted Lore Drop reaches the player as a plain Secret under From the LoreMaster, with no heading (earlier grants titled From your sealed past now show without it too). The stored field and message names are unchanged, so nothing moves.
+
+## 2026-10-03 - Fell window, Arsenal tab, moves past Mobility, live reach
+
+The LoreMaster's Fell list: each row opens its Fell (the Open button is gone), the Fell's name once with the player beneath, level under the portrait in a narrow window. A held Fell's sections sit in one bar across the top (back chevron, section marks, the lit one named) and Weapons, Lorebounds and Armor gather under Arsenal, drawn inside the sheet the way the player has them (sheet-parity test and CLAUDE.md rule 3 updated). Closing a held Fell takes its bar with it. Inside the sheet: the portrait's upload hint moved to its tooltip, Lore Drops read full width with Grant Lore under each, the Arsenal's three tabs keep to one line. The log's gear matches Say at every size. Every token's move turns red past its Mobility (5 when none is set, halved by Fatigue for a Fell): the roster carries each Fell's Mobility (getCampaignPlayers), and a player's table says its Fell's Mobility and reach live through the room (a new reach message, kept by the room and sent to the LoreMaster only).
+
 ## 2026-09-28 - Handouts in a player's menu
 
 With the Board button gone from the phone's top bar, a player on a phone had no way to their handouts; Handouts is now in every player's menu, with how many there are, as well as in the log's gear.

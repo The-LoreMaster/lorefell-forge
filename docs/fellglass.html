@@ -1077,10 +1077,10 @@ button.ax-fact{cursor:pointer}
        by ThreadSpire from a backend that refuses the Fell's own player. Nothing of it is
        ever stored on the sheet's record. -->
   <section class="card" id="sealCard">
-    <h2><span class="orn">❖</span> The Sealed Past</h2>
-    <p class="note" id="sealNote">Threads of this Fell's forgotten life, for the LoreMaster only. The player never sees this.</p>
+    <h2><span class="orn">❖</span> Lore Drops</h2>
+    <p class="note" id="sealNote">Truths of this Fell's forgotten life, for you alone. Grant one and it becomes a Secret on the player's sheet.</p>
     <div id="sealBody"></div>
-    <div class="row seal-row"><button type="button" class="btn small" id="sealWeaveBtn" style="display:none">Weave the seal</button></div>
+    <div class="row seal-row"><button type="button" class="btn small" id="sealWeaveBtn" style="display:none">Weave Lore Drops</button></div>
   </section>
   <!-- The LoreMaster's notes on this Fell: how they mean to handle the player and its lore.
        Same keeping as the Sealed Past: LoreMaster only, never on the sheet's record. -->
@@ -5146,7 +5146,9 @@ function renderGiven(cat){
   w.appendChild(el("div","clue-hd","From the LoreMaster"));
   list.forEach(g=>{
     const card=el("div","clue-card given-card");
-    if(g.title) card.appendChild(el("div","clue-title",g.title));
+    /* a granted Lore Drop is simply a Secret: its words, no heading (older grants were
+       titled "From your sealed past", which is the LoreMaster's word, not the player's) */
+    if(g.title && String(g.id||"").indexOf("seal:")!==0) card.appendChild(el("div","clue-title",g.title));
     if(g.body) card.appendChild(el("div","clue-body",g.body));
     if(g.scene) card.appendChild(el("div","clue-scene","From "+g.scene));
     const x=el("button","given-x","\u2715");x.title="Dismiss";
@@ -5331,10 +5333,10 @@ function archiveResult(d){
   if($("f-desc").classList.contains("grown")) descFold(true);
   scheduleSave();
 }
-/* ---------- the Sealed Past (LoreMaster only) ----------
+/* ---------- Lore Drops (LoreMaster only; stored as the sealed past) ----------
    Shown only in LoreMaster mode, and there it simply shows: opening a Fell asks for its
-   sealed past and lays it out for review. A Fell with none offers Weave the seal; one
-   that has it offers Weave it anew. The sheet never holds it: ThreadSpire asks a backend
+   Lore Drops and lays them out for review. A Fell with none offers Weave Lore Drops; one
+   that has them offers Weave anew. The sheet never holds them: ThreadSpire asks a backend
    that refuses the Fell's own player, and it is cleared when the Fell closes. */
 let _sealFor="";
 function sealReset(){
@@ -5346,7 +5348,7 @@ function sealReset(){
 function sealLoad(){
   if(!god || !CUR_WIX_ID || _sealFor===CUR_WIX_ID) return;
   _sealFor=CUR_WIX_ID;
-  const body=$("sealBody"); if(body) body.innerHTML='<p class="note">Reading the seal...</p>';
+  const body=$("sealBody"); if(body) body.innerHTML='<p class="note">Reading the Lore Drops...</p>';
   postToVelo({type:"seal-request",charId:CUR_WIX_ID});
 }
 function sealPaint(d){
@@ -5356,11 +5358,11 @@ function sealPaint(d){
   if(d&&d.forbidden){ document.body.classList.remove("lmown"); body.innerHTML=""; return; }
   document.body.classList.add("lmown");
   if(d&&d.ok&&typeof d.notes==="string"){ const n=$("lmNotes"); if(n && document.activeElement!==n) n.value=d.notes; }
-  if(!d||!d.ok){ body.innerHTML='<p class="note" style="color:var(--danger)">'+cbEsc((d&&d.error)||"The seal could not be read.")+'</p>'; if(w) w.textContent="Weave the seal"; return; }
+  if(!d||!d.ok){ body.innerHTML='<p class="note" style="color:var(--danger)">'+cbEsc((d&&d.error)||"The Lore Drops could not be read.")+'</p>'; if(w) w.textContent="Weave Lore Drops"; return; }
   const rev=d.reveals||[], fr=d.fragments||[];
   if(!rev.length){
-    body.innerHTML='<p class="note">No past is sealed for this Fell yet.</p>';
-    if(w) w.textContent="Weave the seal";
+    body.innerHTML='<p class="note">No Lore Drops for this Fell yet.</p>';
+    if(w) w.textContent="Weave Lore Drops";
     return;
   }
   /* each truth can be handed to the player on its own: it lands in their Secrets, under
@@ -5369,7 +5371,7 @@ function sealPaint(d){
   body.innerHTML='<ol class="seal-list">'+rev.map((r,i)=>{ const gid="seal:"+CUR_WIX_ID+":"+i, on=givenIds.has(gid);
       return '<li><span class="seal-txt">'+cbEsc(r)+'</span><span class="seal-act">'+(on?'<span class="seal-given">Granted</span>':'<button class="btn small seal-grant" data-i="'+i+'" title="Give this to the player, in their Secrets">Grant Lore</button>')+'</span></li>'; }).join("")+'</ol>'
     +(fr.length?'<div class="seal-frag">Fragments the player holds: '+fr.map(f=>cbEsc((f.type?f.type+": ":"")+(f.text||f))).join(" &middot; ")+'</div>':'');
-  if(w) w.textContent="Weave it anew";
+  if(w) w.textContent="Weave anew";
   body.querySelectorAll(".seal-grant").forEach(b=>b.addEventListener("click",()=>{
     const i=+b.getAttribute("data-i"); b.disabled=true; b.textContent="Granting...";
     postToVelo({type:"seal-grant",charId:CUR_WIX_ID,index:i,text:rev[i]});
@@ -5402,8 +5404,8 @@ function lmNotesSaved(d){
   const w=$("sealWeaveBtn"); if(!w) return;
   w.addEventListener("click",()=>{
     if(!god) return;
-    const anew=w.textContent==="Weave it anew";
-    if(anew && !confirm("Weave this Fell's sealed past anew? The truths written now replace the ones here.")) return;
+    const anew=w.textContent==="Weave anew";
+    if(anew && !confirm("Weave this Fell's Lore Drops anew? The ones written now replace the ones here.")) return;
     w.disabled=true; w.textContent="Weaving...";
     postToVelo({type:"seal-weave",charId:CUR_WIX_ID});
   });
