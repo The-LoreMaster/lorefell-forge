@@ -271,6 +271,9 @@ body.lm .hVitTap{ cursor:default; }
 .vh-amt{ width:70px; margin:0; }
 .hTotal .hlbl{ font-size:min(1.1vh, 0.619vw); color:#e6c9c0; letter-spacing:.05em; }
 .hTotal #hudTotal{ font-size:min(2.6vh, 1.463vw); color:#fff; }
+.hud-book{ display:flex; align-items:center; justify-content:center; width:min(4.2vh, 2.36vw); height:min(4.2vh, 2.36vw); color:#c9a84c; border-radius:50%; transition:color .15s, transform .15s; }
+.hud-book svg{ width:100%; height:100%; fill:none; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; filter:drop-shadow(0 0 4px rgba(201,168,76,.45)); }
+.hud-book:hover{ color:#f0d48a; transform:scale(1.06); } .hud-book:focus-visible{ outline:2px solid #c9a84c; outline-offset:2px; }
 .hNum{ top:54.028%; width:1.832%; height:4.328%; font-size:min(1.8vh, 1.012vw); color:#f0e0d8; }
 .hTemp{ left:90.966%; } .hCur{ left:93.508%; } .hMax{ left:96.624%; }
 .hNum.charged{ color:var(--gold); text-shadow:0 0 8px rgba(201,168,76,.85); }
@@ -2678,6 +2681,7 @@ body.stream #beatPic{ display:none; }
       <button data-wall="door" title="Draw a door: drag across the doorway" aria-label="Door"><svg viewBox="0 0 24 24"><path d="M6 21V4h10v17M13 12h.01M3 21h18"/></svg></button>
       <button data-wall="window" title="Draw a window: blocks the way, not the view" aria-label="Window"><svg viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="1"/><path d="M12 4v16M5 12h14"/></svg></button>
       <button data-wall="remove" title="Remove: tap a wall, window or door" aria-label="Remove"><svg viewBox="0 0 24 24"><path d="M5 5l14 14M19 5L5 19"/></svg></button>
+      <button data-wallsnap title="Snap to grid: walls follow the grid lines (off, they go where you draw)" aria-label="Snap to grid"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M4 12h16M12 4v16"/><circle cx="12" cy="12" r="2.2"/></svg></button>
       <button data-wallclear title="Remove every wall, window and door on this map" aria-label="Remove all"><svg viewBox="0 0 24 24"><path d="M5 7h14M9 7V4h6v3M7 7l1 13h8l1-13"/></svg></button>
     </div>
     <button data-tool="light" class="lmonly" title="Light sources" aria-label="Light sources"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg></button>
@@ -11894,8 +11898,10 @@ function paintHud(){
     var _ssEl = document.getElementById('hudVlbl');
     if (_ssEl){ _ssEl.classList.add('lm-ss'); _ssEl.classList.toggle('waiting', !!_pend.length); _ssEl.title = _pend.length ? 'Place the Skyvault Shards found' : 'Skyvault Shards: place some on the field';
       if (!_ssEl._ss){ _ssEl._ss = true; _ssEl.addEventListener('click', function(){ if (isLM()) shardGemClick(); }); } }
-    setT('hudTotalLbl', 'VIT');
-    setT('hudTotal', foe ? foe.curVit : '');
+    /* the LoreMaster's red circle is the FellGuide, a tap away; a foe's Vitality is on its card */
+    setT('hudTotalLbl', '');
+    var _ht = document.getElementById('hudTotal');
+    if (_ht && !_ht._book){ _ht._book = true; _ht.innerHTML = '<a class="hud-book" href="https://www.fellguide.com" target="_blank" rel="noopener" title="Open the FellGuide" aria-label="Open the FellGuide"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5C6.5 4.2 9.3 4.2 12 6c2.7-1.8 5.5-1.8 8-.5V19c-2.5-1.3-5.3-1.3-8 .5-2.7-1.8-5.5-1.8-8-.5z"/><path d="M12 6v13.5"/></svg></a>'; }
     [['hudTemp',1],['hudCur',2],['hudMax',3]].forEach(function(p){
       var e = document.getElementById(p[0]); if (!e) return;
       e.textContent = '';
@@ -11918,6 +11924,7 @@ function paintHud(){
   } else {
     hud.classList.remove('lm');
     setT('hudVlbl', 'TEMP \u00b7 CURRENT \u00b7 MAX'); setT('hudTotalLbl', 'TOTAL'); setT('hudLvlLbl', 'LVL');
+    var _htp = document.getElementById('hudTotal'); if (_htp && _htp._book){ _htp._book = false; _htp.innerHTML = ''; }
     ['hudTemp','hudCur','hudMax'].forEach(function(id){ var e=document.getElementById(id); if(e) e.classList.remove('charged'); });
     var C = S.character || {};
     var emb = tsEmbedded();
@@ -15197,6 +15204,12 @@ function wireToken(el, t, draggable){
       } else {
         t.x = clamp(t.x, 0, S.map.w); t.y = clamp(t.y, 0, S.map.h);
       }
+      /* a player's Fell does not pass through a wall: it goes back where it stood */
+      if (!isLM() && t._gx !== undefined && moveCrossesWall(t._gx, t._gy, t.x, t.y)){
+        t.x = t._gx; t.y = t._gy; place(el, t); delete t._gx; delete t._gy;
+        try { playToast('A wall is in the way.', 'Move'); } catch(e){}
+        roomTokDrop(t); return;
+      }
       place(el, t);
       var _grp = multiSel[t.id] ? groupMove(t, t.x - t._gx, t.y - t._gy, true) : [];
       delete t._gx; delete t._gy;
@@ -15290,6 +15303,7 @@ function setMapTool(t){
     if (b.hasAttribute('data-fogall')) fogAll(b.getAttribute('data-fogall'));
     if (b.hasAttribute('data-fogvision')){ fogVisionToggle(); return; }
     if (b.hasAttribute('data-wallclear')){ wallClearAll(); return; }
+    if (b.hasAttribute('data-wallsnap')){ wallGridToggle(); return; }
     if (b.hasAttribute('data-light')){ lightMode = b.getAttribute('data-light'); bar.querySelectorAll('[data-light]').forEach(function(x){ x.classList.toggle('on', x === b); }); return; }
     if (b.hasAttribute('data-lightsall')){ lightClearAll(); return; }
     if (b.hasAttribute('data-lightall')){ lightAllBright(); return; }
@@ -15796,10 +15810,18 @@ function fogAll(what){
    by the LoreMaster, like the fog. */
 var wallMode = 'wall', _wallDrag = null, _mapStateLoaded = false;
 function wallList(){ var k = mapKey(); S.walls = S.walls || {}; return S.walls[k] || (S.walls[k] = []); }
+/* what stops a body (not sight): walls, windows and closed doors */
+function moveBlockers(){ var k = mapKey(); return ((S.walls && S.walls[k]) || []).filter(function(w){ return !(w.door && w.open); }); }
+function moveCrossesWall(ax, ay, bx, by){ var segs = moveBlockers(); return !!(segs.length && losBlocked(ax, ay, bx, by, segs)); }
 function wallBlockers(){ var k = mapKey(); return ((S.walls && S.walls[k]) || []).filter(function(w){ return !(w.door && w.open) && !w.win; }); }
 /* Walls snap to the grid's corners. Doors go at any angle: they land exactly where they are
    drawn, and only catch on the end of a wall already there, so a door still meets its wall. */
+/* Walls go where they are drawn. Their ends still catch on the end of a wall already there,
+   so runs join cleanly; the grid holds them only with Snap to grid on (Walls panel). */
+function wallGridSnap(){ try { return localStorage.getItem('ts_wall_grid') === '1'; } catch(e){ return false; } }
+function wallGridToggle(){ try { localStorage.setItem('ts_wall_grid', wallGridSnap() ? '0' : '1'); } catch(e){} var b = document.querySelector('[data-wallsnap]'); if (b) b.classList.toggle('on', wallGridSnap()); }
 function wallSnap(x, y, free){
+  free = free || !wallGridSnap();
   var g = (S.grid && S.grid.size) || 100, ox = (S.grid && S.grid.offX) || 0, oy = (S.grid && S.grid.offY) || 0, near = 14 / cam.zoom;
   var best = null;
   wallList().forEach(function(w){ [[w.x1, w.y1], [w.x2, w.y2]].forEach(function(p){ var dd = Math.hypot(p[0] - x, p[1] - y); if (dd < near && (!best || dd < best.d)) best = { d:dd, x:p[0], y:p[1] }; }); });
@@ -16766,8 +16788,8 @@ function dragReadout(t, x, y){
   if (!b){ b = document.createElement('div'); b.id = 'dragDist'; document.body.appendChild(b); }
   if (!t || t._gx === undefined){ b.style.display = 'none'; return; }
   var g = (S.grid && S.grid.size) || 100, d = Math.round(Math.hypot(t.x - t._gx, t.y - t._gy) / g);
-  var mob = moveLimitOf(t), over = d > mob;
-  b.textContent = d + ' sp of ' + mob;
+  var mob = moveLimitOf(t), walled = moveCrossesWall(t._gx, t._gy, t.x, t.y), over = d > mob || walled;
+  b.textContent = walled ? 'A wall is in the way' : d + ' sp of ' + mob;
   b.classList.toggle('over', over);
   b.style.left = (x + 16) + 'px'; b.style.top = (y - 28) + 'px'; b.style.display = 'block';
 }
@@ -19412,16 +19434,16 @@ function moveLinePaint(t){
   var a = Math.atan2(dy, dx), start = Math.min(r, len / 2), end = Math.max(start, len - r);
   ln.style.left = (x1 + Math.cos(a) * start) + 'px'; ln.style.top = (y1 + Math.sin(a) * start) + 'px';
   ln.style.width = Math.max(0, end - start) + 'px'; ln.style.transform = 'rotate(' + a + 'rad)';
-  ln.style.setProperty('--mc', m.far ? '#e05a4f' : myPingColor());
+  ln.style.setProperty('--mc', (m.far || m.wall) ? '#e05a4f' : myPingColor());
 }
 function moveMarkAt(mx, my){
   var t = sel ? tokById(sel) : null; if (!tokMayMove(t)) return false;
   var c = t.cells || 1, g = S.grid.size || 100;
   var x = clamp(snapAxis(mx, S.grid.offX || 0, c), 0, S.map.w), y = clamp(snapAxis(my, S.grid.offY || 0, c), 0, S.map.h);
-  if (MOVEMARK && MOVEMARK.id === t.id && Math.abs(MOVEMARK.x - x) < 1 && Math.abs(MOVEMARK.y - y) < 1){ moveMarkGo(); return true; }
+  if (MOVEMARK && MOVEMARK.id === t.id && Math.abs(MOVEMARK.x - x) < 1 && Math.abs(MOVEMARK.y - y) < 1){ if (!(MOVEMARK.wall && !isLM())) moveMarkGo(); return true; }
   var spaces = Math.max(Math.round(Math.abs(x - t.x) / g), Math.round(Math.abs(y - t.y) / g));
   var mob = moveLimitOf(t);
-  MOVEMARK = { id:t.id, x:x, y:y, spaces:spaces, mob:mob, far:spaces > mob };
+  MOVEMARK = { id:t.id, x:x, y:y, spaces:spaces, mob:mob, far:spaces > mob, wall:moveCrossesWall(t.x, t.y, x, y) };
   moveMarkPaint(); return true;
 }
 function moveMarkPaint(){
@@ -19431,12 +19453,18 @@ function moveMarkPaint(){
     /* the mark's own buttons are not taps on the map */
     ['pointerdown','pointerup','click'].forEach(function(ev){ el.addEventListener(ev, function(e){ if (e.target.closest('.mm-ask')) e.stopPropagation(); }); }); }
   var px = tokenPx(t) * cam.zoom;
-  el.className = m.far ? 'far' : '';
-  moveLinePaint(t); if (!m.far) el.style.setProperty('--mc', myPingColor()); else el.style.removeProperty('--mc');
+  var red = m.far || m.wall;
+  el.className = red ? 'far' : '';
+  moveLinePaint(t); if (!red) el.style.setProperty('--mc', myPingColor()); else el.style.removeProperty('--mc');
   el.style.width = el.style.height = px + 'px';
   el.style.left = (cam.x + m.x * cam.zoom - px / 2) + 'px'; el.style.top = (cam.y + m.y * cam.zoom - px / 2) + 'px';
-  el.innerHTML = '<div class="mm-ask"><span>' + (m.far ? 'Out of range: ' + m.spaces + ' sp, Mobility ' + m.mob + '. Move anyway?' : m.spaces + ' sp' + (m.mob ? ' of ' + m.mob : '')) + '</span>'
-    + '<button class="mm-go" onclick="event.stopPropagation();moveMarkGo()">' + (m.far ? 'Yes, move' : 'Move here') + '</button><button class="mm-no" onclick="event.stopPropagation();moveMarkClear()" aria-label="Cancel">\u00d7</button></div>';
+  /* a wall in the way stops a player outright; the LoreMaster's side may still move past it */
+  var stopped = m.wall && !isLM();
+  var say = m.wall ? (stopped ? 'A wall is in the way.' : 'A wall is in the way. Move anyway?')
+          : m.far ? 'Out of range: ' + m.spaces + ' sp, Mobility ' + m.mob + '. Move anyway?' : m.spaces + ' sp' + (m.mob ? ' of ' + m.mob : '');
+  el.innerHTML = '<div class="mm-ask"><span>' + say + '</span>'
+    + (stopped ? '' : '<button class="mm-go" onclick="event.stopPropagation();moveMarkGo()">' + (m.far || m.wall ? 'Yes, move' : 'Move here') + '</button>')
+    + '<button class="mm-no" onclick="event.stopPropagation();moveMarkClear()" aria-label="Cancel">\u00d7</button></div>';
   /* the prompt stays on screen: nudged in from an edge, or set below the mark near the top */
   var ask = el.querySelector('.mm-ask'); if (ask){ var rr = ask.getBoundingClientRect(), dx = 0;
     if (rr.right > innerWidth - 8) dx = innerWidth - 8 - rr.right; if (rr.left + dx < 8) dx = 8 - rr.left;
@@ -19444,7 +19472,7 @@ function moveMarkPaint(){
     if (rr.top < 70){ ask.style.bottom = 'auto'; ask.style.top = 'calc(100% + 8px)'; } }
 }
 function moveMarkGo(){
-  var m = MOVEMARK; if (!m) return; var t = tokById(m.id); moveMarkClear(); if (!t || !tokMayMove(t)) return;
+  var m = MOVEMARK; if (!m) return; if (m.wall && !isLM()) return; var t = tokById(m.id); moveMarkClear(); if (!t || !tokMayMove(t)) return;
   t.x = m.x; t.y = m.y;
   send({ type:'token-move', id:t.id, x:t.x, y:t.y }); roomTokDrop(t);
   renderTokens();
