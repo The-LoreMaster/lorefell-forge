@@ -75,7 +75,7 @@ export const sendRecap = webMethod(Permissions.Anyone, async (campaignId, text, 
   const to = players.filter((p) => want.indexOf(p.memberId) >= 0).map((p) => p.memberId);
   if (!to.length) return { ok: false, error: 'nobody chosen' };
   const { name } = await ownerOf(campaignId);
-  const r = await emailEach(RECAP_TEMPLATE_ID, to, { adventure: name || 'Your adventure', title: String(title || 'Session recap').slice(0, 120), recap: body, image: emailImage(image), link: tableLink(campaignId) });
+  const r = await emailEach(RECAP_TEMPLATE_ID, to, { adventure: name || 'Your adventure', title: String(title || 'Session recap').slice(0, 120), recap: body, image: emailImage(image), link: tableLink(campaignId) }, campaignId);
   let row = null; try { row = await sessionRow(campaignId); } catch (e) {}
   const recaps = recapsOf(row);
   recaps.unshift({ id: 'r' + Date.now(), at: Date.now(), title: String(title || 'Session recap').slice(0, 120), text: body, sent: r.sent, failed: r.failed.length });

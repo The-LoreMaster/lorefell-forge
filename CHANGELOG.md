@@ -1,3 +1,7 @@
+## 2026-10-03 - Each player's email opens their own Fell
+
+The recap and reminder emails now give each player their own link, to the table with their Fell in this adventure (?character=...&campaign=...), so it opens on the player's side with their Fell in hand; someone with no Fell there gets the adventure's link. The two Triggered Email ids are filled in. Paste velo/backend/sessionsCore.js and velo/backend/sessions.web.js.
+
 ## 2026-10-03 - A recap carries the adventure's picture and its session's name
 
 Write a recap opens with the session the running scene belongs to as its title (still editable), and sends the adventure's header picture with it as the email's image variable: a Wix picture becomes its public address, and with no picture the email gets a clear one-pixel strip (assets/email-blank.png) so nothing shows. Paste velo/backend/sessions.web.js and velo/page-threadspire.js.
