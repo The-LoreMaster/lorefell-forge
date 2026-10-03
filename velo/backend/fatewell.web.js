@@ -732,7 +732,7 @@ export const assignClue = webMethod(Permissions.Anyone, async (campaignId, charI
 export const upsertQuest = webMethod(Permissions.Anyone, async (campaignId, quest) => {
   if (!campaignId || !quest || !quest.entryId) return { ok: false };
   // only the adventure's LoreMaster posts, changes or takes down a quest
-  try { const role = await myAdventureRole(campaignId); if (role !== 'loremaster' && role !== 'lorekeeper') return { ok: false, error: 'only the LoreMaster' }; } catch (e) { return { ok: false }; }
+  try { const role = await myAdventureRole(campaignId); if (role !== 'loremaster') return { ok: false, error: 'only the LoreMaster' }; } catch (e) { return { ok: false }; }
   const ex = await wd.query('QuestBoard')
     .eq('campaignId', campaignId).eq('entryId', quest.entryId)
     .limit(1).find({ suppressAuth: true });

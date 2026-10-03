@@ -50,3 +50,13 @@ Verification for any sheet change: the ThreadSpire harness sheet specs
 (`threadspire/harness/specs/_sheet.js` and the `*sheet*` specs) pass, and the change is
 checked in ThreadSpire both as the player and as the LoreMaster opening that Fell.
 `docs/` and `embeds/` copies of both tools stay byte-identical.
+
+### 2. The Lorekeeper: the LoreMaster's table, without running the game
+
+A lorekeeper's table sets `S.keeper` and keeps `isLM()` true, so every map, token and Fell
+power works as it does for the LoreMaster. Anything that runs the game checks `isKeeper()`
+(scene runner, scene switching, battle, the Story, the Journal, quests and handouts, rests,
+sessions and recaps, saved versions, publishing, roles, dice gifts), and the site refuses the
+same things to a lorekeeper. A new run-the-game power needs both. One table saves the board:
+the LoreMaster's while one is in the room, the lorekeeper's only when the room reports none
+(`keeperSaves()`), and then only the board on the table, never `instance` or the run keys.

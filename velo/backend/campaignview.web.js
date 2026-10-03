@@ -186,8 +186,10 @@ export const restoreBoardHistory = webMethod(Permissions.Anyone, async (campaign
   return { ok: true, version: cur.version, summary: boardSummary(curSnap) };
 });
 
+// The Journal and Saved versions are the LoreMaster's alone: a lorekeeper helps with the map
+// and the Fell, and neither reads the LoreMaster's notes nor puts the board back.
 async function lmOnly(campaignId) {
-  try { const r = await myAdventureRole(campaignId); return r === 'loremaster' || r === 'lorekeeper'; }
+  try { const r = await myAdventureRole(campaignId); return r === 'loremaster'; }
   catch (e) { return false; }
 }
 

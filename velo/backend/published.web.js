@@ -6,6 +6,7 @@
 import { Permissions, webMethod } from 'wix-web-module';
 import wixData from 'wix-data';
 import { currentMember } from 'wix-members-backend';
+import { myAdventureRole } from 'backend/fatewell.web.js';
 
 async function me() {
   try { const m = await currentMember.getMember(); return m ? m._id : ''; } catch (e) { return ''; }
@@ -25,6 +26,10 @@ export const publishAdventure = webMethod(Permissions.SiteMember, async (title, 
   const mid = await me();
   if (!mid) return { ok: false, error: 'You need to be signed in.' };
   if (!pack || !pack.campaign) return { ok: false, error: 'Nothing to publish.' };
+  // an adventure is published by its LoreMaster, not by a lorekeeper helping run it
+  if (sourceCampaignId) {
+    try { const role = await myAdventureRole(sourceCampaignId); if (role && role !== 'loremaster') return { ok: false, error: 'Only the LoreMaster can publish this adventure.' }; } catch (e) {}
+  }
   const row = {
     title: String(title || pack.campaign.name || 'Adventure'),
     blurb: String(blurb || ''),
