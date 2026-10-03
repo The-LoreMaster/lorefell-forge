@@ -283,7 +283,7 @@ $w.onReady(async function () {
           // needs the id, the name and which one is open.
           let list = [];
           try { list = await listMyCampaigns(); } catch (e) { list = []; }
-          reply(true, (list || []).map((c) => ({ id: c.id, name: c.name, role: c.role })));
+          reply(true, (list || []).map((c) => ({ id: c.id, name: c.name, role: c.role, img: c.img || '' })));
         } else if (msg.type === 'TS_CAMPAIGN_SET') {
           // Switch in place. The context now carries the adventure itself, read from the
           // account by buildContext, so rebinding and sending a fresh context brings the

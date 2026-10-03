@@ -37,6 +37,7 @@ export const publishAdventure = webMethod(Permissions.SiteMember, async (title, 
     authorMemberId: mid,
     sourceCampaignId: String(sourceCampaignId || ''),
     pack: JSON.stringify(pack),
+    image: String((pack.campaign && (pack.campaign.img || (pack.campaign.meta && pack.campaign.meta.img))) || ''),
     publishedAt: new Date().toISOString()
   };
   try {
@@ -69,10 +70,12 @@ export const unpublishAdventure = webMethod(Permissions.SiteMember, async (id) =
 export const listPublishedAdventures = webMethod(Permissions.Anyone, async () => {
   try {
     const r = await wixData.query('PublishedAdventures').descending('publishedAt').limit(200).find({ suppressAuth: true });
-    return r.items.map((it) => ({
-      id: it._id, title: it.title || 'Adventure', blurb: it.blurb || '',
-      author: it.authorName || '', publishedAt: it.publishedAt || ''
-    }));
+    return r.items.map((it) => {
+      // its picture: kept when it was published, or read from the pack for one published before
+      let image = it.image || '';
+      if (!image && it.pack) { try { const c = (JSON.parse(it.pack) || {}).campaign || {}; image = c.img || (c.meta && c.meta.img) || ''; } catch (e) {} }
+      return { id: it._id, title: it.title || 'Adventure', blurb: it.blurb || '', author: it.authorName || '', publishedAt: it.publishedAt || '', image: image };
+    });
   } catch (e) { return []; }
 });
 

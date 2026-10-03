@@ -76,6 +76,15 @@ export const listMyCampaigns = webMethod(Permissions.Anyone, async () => {
       out.push({ id: it._id, name: it.name || 'Adventure', data: data, role: 'loremaster' });
     });
   } catch (e) {}
+  // each one's picture, from its story's root (meta.img), in one read
+  try {
+    const ids = out.map((o) => o.id);
+    if (ids.length) {
+      const ar = await wd.query('Adventures').hasSome('advId', ids).limit(100).find({ suppressAuth: true });
+      const pic = {}; ar.items.forEach((a) => { try { const mt = typeof a.meta === 'string' ? JSON.parse(a.meta) : (a.meta || {}); if (mt && mt.img) pic[a.advId] = mt.img; } catch (e) {} });
+      out.forEach((o) => { o.img = pic[o.id] || ''; });
+    }
+  } catch (e) {}
   // Nate's rule: a LoreMaster's list is their own adventures and nobody else's. Keeper roles
   // on other people's adventures no longer add them here; a lorekeeper still reaches one they
   // help run through its link or a cast, where myAdventureRole decides. Published adventures
