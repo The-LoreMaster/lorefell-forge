@@ -219,6 +219,9 @@ body:not(.lm-role) #mapTools .lmonly{ display:none; }
 @keyframes tokDrop{ 0%{ box-shadow:0 0 0 0 var(--gold); } 50%{ box-shadow:0 0 0 7px rgba(201,168,76,.55); } 100%{ box-shadow:0 0 0 0 rgba(201,168,76,0); } }
 .token.in-spot{ box-shadow:0 0 0 2px rgba(201,168,76,.85), 0 0 14px 3px rgba(201,168,76,.45); }
 .token.in-spot.spot-foe{ box-shadow:0 0 0 2px rgba(214,96,82,.85), 0 0 14px 3px rgba(214,96,82,.42); }
+#mapVid{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; pointer-events:none; display:block; }
+.sh-face.map.vid, .mp-thumb.vid, .sm-thumb.vid{ position:relative; }
+.sh-face.map.vid::after, .mp-thumb.vid::after, .sm-thumb.vid::after{ content:'\25b6'; position:absolute; right:6px; bottom:6px; width:22px; height:22px; border-radius:50%; background:rgba(10,14,26,.82); border:1px solid #c9a84c; color:#f0d48a; font-size:10px; display:flex; align-items:center; justify-content:center; padding-left:2px; box-sizing:border-box; }
 #tokmenu .tm-x{ position:absolute; top:-12px; right:-12px; width:28px; height:28px; border-radius:50%; border:1.5px solid var(--gold); background:#0b1020; color:#dce8ef; display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0; z-index:2; }
 #tokmenu .tm-x:hover{ color:#f0d48a; } #tokmenu .tm-x:focus-visible{ outline:2px solid var(--gold); outline-offset:2px; }
 #tokmenu{ position:fixed; z-index:58; width:204px; background:rgba(10,14,26,.96); border:1.5px solid var(--gold); border-radius:8px; padding:9px; display:none; }
@@ -2807,7 +2810,7 @@ body.stream #beatPic{ display:none; }
       <svg id="drawLayer" xmlns="http://www.w3.org/2000/svg"></svg>
       <canvas id="fogLayer"></canvas>
       <svg id="wallLayer" xmlns="http://www.w3.org/2000/svg"></svg>
-  <input type="file" id="mapFileInput" accept="image/*" multiple style="display:none" onchange="lmMapFilePicked(this)">
+  <input type="file" id="mapFileInput" accept="image/*,video/mp4,video/webm" multiple style="display:none" onchange="lmMapFilePicked(this)">
   <input type="file" id="tokFileInput" accept="image/*" multiple style="display:none" onchange="lmTokenFilePicked(this)">
     </div>
     <div id="tokenLayer"></div>
@@ -9698,6 +9701,7 @@ function sharedSnapshot(){
        a picture they could not find. The address travels with it. */
     /* never send an empty address just because the shelf has not arrived yet */
     backgroundUrl: (function(){ try { var m = activeMap(); return (m && m.url) || S.remoteMapUrl || ''; } catch(e){ return S.remoteMapUrl || ''; } })(),
+    backgroundPoster: (function(){ try { var m = activeMap(); return (m && mapIsVideo(m)) ? (m.poster || '') : (m ? '' : (S.remoteMapPoster || '')); } catch(e){ return ''; } })(),
     mapName: (function(){ try { var m = activeMap(); return (m && m.name) || ''; } catch(e){ return ''; } })(),
     activeSceneId: S.adventure ? S.adventure.activeSceneId : S.scene.id,
     activeStageId: (function(){ try { return activeStageId(); } catch(e){ return null; } })(),
@@ -10059,6 +10063,7 @@ function applyRemoteSnapshot(snap){
   /* after the scene is settled, or the map is written onto the scene being left */
   if (snap.background !== undefined) S.scene.background = snap.background;
   if (snap.backgroundUrl !== undefined) S.remoteMapUrl = snap.backgroundUrl || '';
+  if (snap.backgroundPoster !== undefined) S.remoteMapPoster = snap.backgroundPoster || '';
   if (!isLM() && snap.backgroundUrl && snap.background){
     /* keep it on the shelf this table can see, so the ordinary painter finds it */
     S.scene.maps = S.scene.maps || [];
@@ -10823,6 +10828,7 @@ function settingsBody(){
     + setRow('Player view', 'See the fog as the players do.', '<kbd>P</kbd>' + setSwitch(!!S._pv, 'pviewSet(!S._pv)', 'Player view'))
     + setRow('Clean view', 'Hide the widgets to show the map alone.', '<kbd>H</kbd>' + setSwitch(document.body.classList.contains('clean'), 'toggleClean();refreshWinBody()', 'Clean view'))
     + setRow('Full screen', '', '<kbd>F</kbd>' + setSwitch(!!document.fullscreenElement, 'toggleFull();setTimeout(refreshWinBody,300)', 'Full screen'))
+    + setRow('Still maps', 'Show a video map as its still picture, for a slower screen.', setSwitch(stillMaps(), 'stillMapsSet(!stillMaps())', 'Still maps'))
     + (isKeeper() ? setRow('Stream view', 'A window that follows this table for capture.', setBtn('Copy link', 'streamCopy()')) : '')
     + '<div class="set-row set-col"><div class="set-txt"><span class="set-t">Your ping colour</span><span class="set-h">Double-click the map to ping.</span></div>' + pingColorRow() + '</div>');
   h += '<div class="set-seams"><button onclick="openWin(\'seams\')">The seams: what the table is doing right now</button></div>';
@@ -10925,6 +10931,7 @@ function menuBody(){
       '<div class="set-row"><div class="set-txt"><span class="set-t">Your dice</span><span class="set-h">A set for each kind of roll.</span></div><div class="set-act"><button class="set-dice" onclick="diceWindow()" title="Choose your dice">' + diceFace(cur, 5) + '</button>' + setBtn('Choose', 'diceWindow()') + '</div></div>'
     + setRow('Fellmarks raise skills', fg === 'auto' ? 'A Fellmark on a skill check raises it by 1, at once.' : 'A Fellmark on a skill check asks before raising it.', setBtn(fg === 'auto' ? 'Automatically' : 'Ask me', 'fellGrowSet(\'' + (fg === 'auto' ? 'ask' : 'auto') + '\')'))
     + setRow('Scene pictures', 'Show a beat\u2019s picture when it comes.', setSwitch(beatPicsPlayerOn(), 'beatPicsPlayerToggle()', 'Scene pictures'))
+    + setRow('Still maps', 'Show a moving map as its still picture, for a phone or a slower screen.', setSwitch(stillMaps(), 'stillMapsSet(!stillMaps())', 'Still maps'))
     + '<div class="set-row set-col"><div class="set-txt"><span class="set-t">Your ping colour</span><span class="set-h">Double-click the map to ping.</span></div>' + pingColorRow() + '</div>');
   h += '<div class="set-seams"><button onclick="openWin(\'seams\')">The seams</button></div>';
   return h;
@@ -14608,7 +14615,7 @@ function folderDrop(ev, el, name){
 function mapSetFolder(id, folder){
   var m = mapById(id); if (!m) return;
   m.folder = folder || '';
-  if (m.assetId && assetBackend.save) assetBackend.save({ assetId:m.assetId, kind:'map', name:m.name, image:m.url, w:m.w, h:m.h, folder:m.folder }).catch(function(){});
+  if (m.assetId && assetBackend.save) assetBackend.save({ assetId:m.assetId, kind:'map', name:m.name, image:mapStill(m), video:mapVideo(m), w:m.w, h:m.h, folder:m.folder }).catch(function(){});
   applyRemoteState({ scene:S.scene }); paintMapPicker();
 }
 function tokenSetFolder(assetId, folder){
@@ -14635,7 +14642,7 @@ function lmFolderPick(id){
 function lmFolderSave(id){
   var m = mapById(id); if (!m) return;
   m.folder = ((document.getElementById('mpFolder') || {}).value || '').replace(/^\s+|\s+$/g,'');
-  if (m.assetId && assetBackend.save) assetBackend.save({ assetId:m.assetId, kind:'map', name:m.name, image:m.url, w:m.w, h:m.h, folder:m.folder }).catch(function(){});
+  if (m.assetId && assetBackend.save) assetBackend.save({ assetId:m.assetId, kind:'map', name:m.name, image:mapStill(m), video:mapVideo(m), w:m.w, h:m.h, folder:m.folder }).catch(function(){});
   tsCloseModal(); applyRemoteState({ scene:S.scene }); paintMapPicker();
 }
 /* Renaming a folder moves its whole branch. The children carry the path, so every
@@ -14690,7 +14697,7 @@ function mapById(id){ var m = null; (S.scene.maps || []).forEach(function(x){ if
 /* Write a map's row back whole, so a change to one field never drops another. */
 function mapSaveRow(m){
   if (!m || !m.assetId || !assetBackend.save) return;
-  assetBackend.save({ assetId:m.assetId, kind:'map', name:m.name, image:m.url,
+  assetBackend.save({ assetId:m.assetId, kind:'map', name:m.name, image:mapStill(m), video:mapVideo(m),
                       w:m.w, h:m.h, folder:m.folder || '' }).catch(function(){});
 }
 
@@ -14770,7 +14777,7 @@ function stagePickPaint(){
   }) : pool;
   function opt(m){
     return '<button type="button" class="sm-opt" onclick="lmStageMapAdd(\'' + stageId + '\',\'' + m.id + '\')">'
-      + (m.url ? '<span class="sm-thumb" style="background-image:url(' + m.url + ')"></span>' : '<span class="sm-thumb sd-ph"></span>')
+      + (mapStill(m) ? '<span class="sm-thumb' + (mapIsVideo(m) ? ' vid' : '') + '" style="background-image:url(' + mapStill(m) + ')"></span>' : '<span class="sm-thumb sd-ph' + (mapIsVideo(m) ? ' vid' : '') + '"></span>')
       + '<span class="sm-oname">' + esc(m.name) + '</span>'
       + '<span class="sm-osize">' + m.w + ' \u00d7 ' + m.h + '</span></button>';
   }
@@ -14836,7 +14843,7 @@ function lmRenameMap(id){
   tsAsk2({ title:'Rename the map', label:'Name', value:m.name, onSave:function(n){
     if (!n) return;
     m.name = n;
-    if (m.assetId && assetBackend.save) assetBackend.save({ assetId:m.assetId, kind:'map', name:n, image:m.url, w:m.w, h:m.h }).catch(function(){});
+    if (m.assetId && assetBackend.save) assetBackend.save({ assetId:m.assetId, kind:'map', name:n, image:mapStill(m), video:mapVideo(m), w:m.w, h:m.h }).catch(function(){});
     applyRemoteState({ scene:S.scene }); paintMapPicker();
   }});
 }
@@ -14964,7 +14971,7 @@ function loadAccountAssets(){
       var have = null;
       S.scene.maps.forEach(function(m){ if (m.id === r.assetId) have = m; });
       if (!have){
-        S.scene.maps.push({ id:r.assetId, assetId:r.assetId, folder:r.folder || '', name:r.name, url:r.image, w:r.w||2400, h:r.h||1600, campaignId:r.campaignId || '', source:'account' });
+        S.scene.maps.push({ id:r.assetId, assetId:r.assetId, folder:r.folder || '', name:r.name, url:r.video || r.image, poster:r.video ? r.image : '', kind:r.video ? 'video' : undefined, w:r.w||2400, h:r.h||1600, campaignId:r.campaignId || '', source:'account' });
         return;
       }
       /* the account is the record. Skipping a row we already had a copy of let a
@@ -15012,6 +15019,7 @@ function paintMapArt(){
   /* the map's own record if it is on the shelf; otherwise the address the table last carried,
      for the LoreMaster too, whose shelf arrives later than the table after a reload */
   var url = (m && m.url) || S.remoteMapUrl || ((S.scene && S.scene.tableMap && S.scene.background === S.scene.tableMap.id) ? S.scene.tableMap.url : '') || '';
+  if (mapVideoPaint(art, m, url)) return;
   if (url){
     art.style.backgroundImage = 'url(' + url + ')'; art.style.backgroundSize = 'cover';
     /* the stored size of a map is often wrong, so read the picture's true shape once and
@@ -15050,7 +15058,7 @@ function paintMapPicker(){
   function mapCard(m){
     var on = m.id === S.scene.background;
     var thumb = m.url
-      ? '<div class="mp-thumb"><img src="' + esc(m.url) + '" alt="" loading="lazy" decoding="async"></div>'
+      ? '<div class="mp-thumb' + (mapIsVideo(m) ? ' vid' : '') + '">' + (mapStill(m) ? '<img src="' + esc(mapStill(m)) + '" alt="" loading="lazy" decoding="async">' : '') + '</div>'
       : '<div class="mp-thumb mp-' + m.source + '"></div>';
     return '<div class="mp-card' + (on?' on':'') + '" draggable="true" ondragstart="folderDragStart(event,\'map\',\'' + m.id + '\')">'
       + '<button class="mp-main" onclick="lmSetMap(\'' + m.id + '\')">' + thumb
@@ -15143,7 +15151,7 @@ document.addEventListener('drop', function(e){
   document.body.classList.remove('drop-ready');
   if (!isLM() || !e.dataTransfer || !e.dataTransfer.files || !e.dataTransfer.files.length) return;
   e.preventDefault();
-  var files = [].slice.call(e.dataTransfer.files).filter(function(f){ return /^image\//.test(f.type); });
+  var files = [].slice.call(e.dataTransfer.files).filter(function(f){ return /^(image\/|video\/(mp4|webm))/.test(f.type); });
   if (!files.length) return;
   lmMapFilePicked({ files:files, value:'' });
 });
@@ -15153,11 +15161,11 @@ function lmMapFilePicked(input){
   for (var i = 0; i < (input.files ? input.files.length : 0); i++) files.push(input.files[i]);
   input.value = '';
   if (!files.length) return;
-  var bad = files.filter(function(f){ return !/^image\//.test(f.type); }).length;
-  files = files.filter(function(f){ return /^image\//.test(f.type); });
+  var bad = files.filter(function(f){ return !(/^(image\/|video\/(mp4|webm))/.test(f.type)); }).length;
+  files = files.filter(function(f){ return /^(image\/|video\/(mp4|webm))/.test(f.type); });
   if (bad){
-    pushLog({ kind:'sys', html: bad === 1 ? 'One file was not an image and was left out.'
-      : bad + ' files were not images and were left out.' });
+    pushLog({ kind:'sys', html: bad === 1 ? 'One file was not a picture or an MP4 video and was left out.'
+      : bad + ' files were not pictures or MP4 videos and were left out.' });
     applyRemoteState({ log:S.log });
   }
   if (!files.length) return;
@@ -15168,9 +15176,122 @@ function lmMapFilePicked(input){
   var added = [];
   function next(k){
     if (k >= files.length){ mapUploadsDone(waiting, added); return; }
-    mapReadOne(files[k], k, function(m){ if (m) added.push(m); next(k + 1); });
+    (/^video\//.test(files[k].type) ? mapReadVideo : mapReadOne)(files[k], k, function(m){ if (m) added.push(m); next(k + 1); });
   }
   next(0);
+}
+/* ================= video maps =================
+   An MP4 (or WebM) can be a map: it plays under everything, muted and looping, for the
+   LoreMaster, the players and the stream. Its record keeps the video's address as its url,
+   with kind 'video', its true size, and a poster (its first frame, uploaded as a picture),
+   which every thumbnail shows and which stands in for the video under Still maps. The video
+   goes straight from the browser to the site's Media Manager (LoreFell Maps), as music does. */
+var MAP_VIDEO_MAX = 100 * 1024 * 1024;
+function isVideoUrl(u){ u = String(u || ''); return /\.(mp4|webm)(\?|#|$)/i.test(u) || u.indexOf('video.wixstatic.com') >= 0; }
+function mapIsVideo(m){ return !!(m && (m.kind === 'video' || isVideoUrl(m.url))); }
+function mapStill(m){ return m ? (mapIsVideo(m) ? (m.poster || '') : (m.url || '')) : ''; }
+function mapVideo(m){ return mapIsVideo(m) ? (m.url || '') : ''; }
+/* a phone or a slow machine can show a video map as its still picture; a screen that asks
+   for less motion starts that way */
+function stillMaps(){ try { var v = localStorage.getItem('ts_still_maps'); if (v === null) return !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches); return v === '1'; } catch(e){ return false; } }
+function stillMapsSet(on){ try { localStorage.setItem('ts_still_maps', on ? '1' : '0'); } catch(e){} _measuredMap = ''; paintMapArt(); refreshWinBody(); }
+/* draws the map when it is a video (moving, or still); true when it did */
+function mapVideoPaint(art, m, url){
+  var vidMap = (m && mapIsVideo(m)) || (!m && isVideoUrl(url));
+  var v = document.getElementById('mapVid');
+  if (!url || !vidMap){ if (v) v.remove(); return false; }
+  var poster = (m && m.poster) || (!m ? S.remoteMapPoster : '') || '';
+  art.style.backgroundSize = 'cover';
+  if (stillMaps()){
+    if (v) v.remove();
+    art.style.backgroundImage = poster ? 'url(' + poster + ')' : 'none';
+  } else {
+    art.style.backgroundImage = 'none';
+    if (!v){
+      v = document.createElement('video'); v.id = 'mapVid'; v.muted = true; v.defaultMuted = true; v.loop = true; v.autoplay = true; v.playsInline = true;
+      v.setAttribute('muted', ''); v.setAttribute('playsinline', ''); v.setAttribute('loop', ''); v.setAttribute('autoplay', ''); v.setAttribute('preload', 'auto'); v.setAttribute('aria-hidden', 'true');
+      art.insertBefore(v, art.firstChild);
+    }
+    if (poster && v.getAttribute('poster') !== poster) v.setAttribute('poster', poster);
+    if (v.getAttribute('src') !== url){ v.setAttribute('src', url); try { var pl = v.play(); if (pl && pl.catch) pl.catch(function(){}); } catch(e){} }
+  }
+  /* the board takes the video's own shape, as it does a picture's */
+  if (_measuredMap !== url){
+    _measuredMap = url;
+    var probe = document.createElement('video'); probe.muted = true; probe.preload = 'metadata';
+    probe.onloadedmetadata = function(){
+      var w = probe.videoWidth || 0, h = probe.videoHeight || 0;
+      if (w && h && (w !== S.map.w || h !== S.map.h)){ S.map = { w:w, h:h }; if (m){ m.w = w; m.h = h; } art.style.width = w + 'px'; art.style.height = h + 'px'; }
+      try { coverCam(); drawGrid(); renderTokens(); } catch(e){}
+      probe.removeAttribute('src'); try { probe.load(); } catch(e){}
+    };
+    probe.src = url;
+  }
+  try { coverCam(); drawGrid(); } catch(e){}
+  return true;
+}
+/* the video's first moment, as a JPEG for its poster */
+function videoPosterFrom(url){
+  return new Promise(function(res){
+    var v = document.createElement('video'); v.muted = true; v.playsInline = true; v.preload = 'auto'; v.src = url;
+    var done = false, fin = function(f){ if (!done){ done = true; res(f); } };
+    v.onloadedmetadata = function(){ try { v.currentTime = Math.min(0.5, (v.duration || 1) / 4); } catch(e){ fin(null); } };
+    v.onseeked = function(){
+      try {
+        var W = v.videoWidth, H = v.videoHeight, k = Math.min(1, 1600 / Math.max(W, H)), c = document.createElement('canvas');
+        c.width = Math.round(W * k); c.height = Math.round(H * k); c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+        c.toBlob(function(b){ fin(b ? { blob:b, w:W, h:H } : null); }, 'image/jpeg', 0.82);
+      } catch(e){ fin(null); }
+    };
+    v.onerror = function(){ fin(null); }; setTimeout(function(){ fin(null); }, 15000);
+  });
+}
+/* Wix answers an upload with the file's record; a video's address is on it, or built from its name */
+function videoWixUrl(res){
+  var o = Array.isArray(res) ? res[0] : res; o = (o && (o.file || o.fileDescriptor)) || o || {};
+  var direct = o.file_url || o.fileUrl || o.url || '';
+  if (/^https?:\/\//i.test(direct)) return direct;
+  var fn = o.file_name || o.fileName || o.id || '';
+  if (fn) return 'https://video.wixstatic.com/video/' + fn + '/file';
+  return '';
+}
+function mapReadVideo(file, seq, done){
+  var nm = file.name.replace(/\.[^.]+$/, '');
+  var say = function(t){ try { playToast(t, 'Map'); } catch(e){} };
+  if (file.size > MAP_VIDEO_MAX){ say(esc(file.name) + ' is ' + Math.round(file.size / 1048576) + ' MB. A video map can be up to 100 MB.'); done(null); return; }
+  var local = URL.createObjectURL(file), id = 'up-' + Date.now() + '-' + seq;
+  var m = { id:id, assetId:id, folder:(SHELF.map.path || ''), name:nm, url:local, kind:'video', poster:'', w:1920, h:1080, source:'account', local:true, pct:0 };
+  S.scene.maps.push(m); paintMapPicker();
+  say('Uploading ' + esc(nm) + '\u2026');
+  videoPosterFrom(local).then(function(pf){
+    if (pf){ m.w = pf.w; m.h = pf.h; }
+    var posterUp = pf ? assetBackend.upload(new File([pf.blob], nm + '-poster.jpg', { type:'image/jpeg' }), nm + ' poster').then(function(r){ return String(r || ''); }).catch(function(){ return ''; }) : Promise.resolve('');
+    return Promise.all([posterUp, tsAsk('TS_MAP_VIDEO_UPLOAD_URL', { name:file.name, mime:file.type })]);
+  }).then(function(r){
+    var poster = r[0], u = r[1];
+    if (poster && poster.indexOf('blob:') !== 0) m.poster = poster;
+    if (!u || !u.uploadUrl) throw new Error((u && u.error) || 'the site gave no upload address');
+    return new Promise(function(res, rej){
+      var fd = new FormData(); fd.append('upload_token', u.uploadToken || ''); fd.append('file', file, u.fileName || file.name);
+      var x = new XMLHttpRequest(); x.open('POST', u.uploadUrl);
+      x.upload.onprogress = function(e){ if (e.lengthComputable){ var pc = Math.round(e.loaded / e.total * 100); if (pc - (m.pct || 0) >= 10 || pc === 100){ m.pct = pc; say('Uploading ' + esc(nm) + ': ' + pc + '%'); } } };
+      x.onload = function(){ if (x.status >= 200 && x.status < 300){ var j = {}; try { j = JSON.parse(x.responseText); } catch(e){} res(j); } else rej(new Error('the site answered ' + x.status)); };
+      x.onerror = function(){ rej(new Error('the upload was cut off')); };
+      x.send(fd);
+    });
+  }).then(function(j){
+    try { console.log('[ThreadSpire] video map upload answered', JSON.stringify(j)); } catch(e){}
+    var url = videoWixUrl(j);
+    if (!url) throw new Error('it uploaded, but no address came back (it is in Media Manager, LoreFell Maps)');
+    m.url = url; m.local = false; m.pct = 100; try { URL.revokeObjectURL(local); } catch(e){}
+    return assetBackend.save({ assetId:id, kind:'map', name:nm, image:m.poster || '', video:url, w:m.w, h:m.h, folder:m.folder || '' });
+  }).then(function(){
+    say(esc(nm) + ' is on your shelf as a video map.'); paintMapPicker(); refreshStagesWin(); paintMapArt(); done(m);
+  }).catch(function(err){
+    var i = S.scene.maps.indexOf(m); if (i >= 0) S.scene.maps.splice(i, 1); paintMapPicker();
+    pushLog({ kind:'sys', lmOnly:true, html:'The video map <b>' + esc(nm) + '</b> did not upload: ' + esc((err && err.message) || 'try again') + '.' }); applyRemoteState({ log:S.log });
+    say('The video map did not upload. The log says why.'); done(null);
+  });
 }
 /* one file: measure it, put it on the shelf, then send it to the account */
 function mapReadOne(file, seq, done){
@@ -18636,7 +18757,7 @@ var SHELF_ICON = {
 };
 function shelfItems(kind){
   if (kind === 'token') return (S.accountTokens || []).map(function(t){ return { id:t.assetId, name:t.name, img:t.img, folder:t.folder || '', raw:t }; });
-  return (S.scene.maps || []).map(function(m){ return { id:m.id, name:m.name, img:m.url, folder:m.folder || '', meta:(m.w + ' \u00d7 ' + m.h), on:m.id === S.scene.background, bad:!m.url, raw:m }; });
+  return (S.scene.maps || []).map(function(m){ return { id:m.id, name:m.name, img:mapStill(m), video:mapIsVideo(m), folder:m.folder || '', meta:(m.w + ' \u00d7 ' + m.h), on:m.id === S.scene.background, bad:!m.url, raw:m }; });
 }
 function shelfFolders(kind){ return kind === 'token' ? assetFolders(S.accountTokens || [], 'token') : mapFolders(); }
 function shelfRepaint(kind){ if (kind === 'token') paintTokenPalette(); else paintMapPicker(); }
@@ -18784,7 +18905,7 @@ function shelfHtml(kind, query){
     var on = !!st.sel[it.id], sid = String(it.id).replace(/'/g, "\\'");
     var face = kind === 'token'
       ? '<span class="sh-face tok"' + (it.img ? ' style="background-image:url(' + esc(it.img) + ')"' : '') + '>' + (it.img ? '' : esc(initials(it.name))) + '</span>'
-      : '<span class="sh-face map">' + (it.img ? '<img src="' + esc(it.img) + '" alt="" loading="lazy" decoding="async">' : '<i>No picture</i>') + '</span>';
+      : '<span class="sh-face map' + (it.video ? ' vid' : '') + '">' + (it.img ? '<img src="' + esc(it.img) + '" alt="" loading="lazy" decoding="async">' : '<i>' + (it.video ? 'Video' : 'No picture') + '</i>') + '</span>';
     var tools = kind === 'token'
       ? '<span class="sh-acts"><button title="Rename" onclick="event.stopPropagation();lmRenameToken(\'' + sid + '\')">\u270e</button><button title="Remove" onclick="event.stopPropagation();lmDeleteToken(\'' + sid + '\')">\u2715</button></span>'
       : '<span class="sh-acts"><button title="Rename" onclick="event.stopPropagation();lmRenameMap(\'' + sid + '\')">\u270e</button><button title="Remove" onclick="event.stopPropagation();lmDeleteMap(\'' + sid + '\')">\u2715</button></span>';
@@ -19769,7 +19890,7 @@ function roomClose(){ ROOM.keeperReady = false; ROOM.lms = null; ROOM.sentParts 
 function roomTokSig(){ try { return JSON.stringify((S.tokens || []).map(function(t){ var c = Object.assign({}, t); delete c.x; delete c.y; delete c._gx; delete c._gy; return c; })); } catch(e){ return ''; } }
 function roomSceneBundle(){
   var m = activeMap();
-  return { activeSceneId:(S.scene && S.scene.id) || '', background:(S.scene && S.scene.background) || null, mapUrl:(m && m.url) || S.remoteMapUrl || '',
+  return { activeSceneId:(S.scene && S.scene.id) || '', background:(S.scene && S.scene.background) || null, mapUrl:(m && m.url) || S.remoteMapUrl || '', mapPoster:(m && mapIsVideo(m)) ? (m.poster || '') : (m ? '' : (S.remoteMapPoster || '')),
     map:{ w:S.map.w, h:S.map.h }, grid:Object.assign({}, S.grid), tokens:slimTokens(S.tokens) };
 }
 function roomSceneSig(b){ return [b.activeSceneId, b.background, b.mapUrl, b.map.w, b.map.h, b.grid.size, b.grid.offX, b.grid.offY, b.grid.show].join('|'); }
@@ -19850,6 +19971,7 @@ function roomPeerSceneApply(b){
   if (b.map && b.map.w) S.map = { w:b.map.w, h:b.map.h };
   if (b.background !== undefined && S.scene) S.scene.background = b.background;
   if (b.mapUrl) S.remoteMapUrl = b.mapUrl;
+  if (b.mapPoster !== undefined) S.remoteMapPoster = b.mapPoster || '';
   if (Array.isArray(b.tokens)) roomTokensApply(b.tokens);
   _fvMemo = null;
   try { render(); paintMapArt(); renderTokens(); drawGrid(); fogPaint(); wallPaint(); } catch(e){}
@@ -19898,14 +20020,17 @@ function roomSceneApply(b){
     var hit = tsSceneById(b.activeSceneId);
     if (hit && S.scene.id !== b.activeSceneId){ var shelf = S.scene.maps; S.scene = hit.scene; if (shelf && shelf.length) S.scene.maps = shelf; S.adventure.activeSceneId = b.activeSceneId; }
     S.scene.background = b.background || null;
-    if (b.mapUrl) S.remoteMapUrl = b.mapUrl;
+    if (b.mapUrl){ S.remoteMapUrl = b.mapUrl; if (b.mapPoster !== undefined) S.remoteMapPoster = b.mapPoster || ""; }
     if (b.map && b.map.w) S.map = { w:b.map.w, h:b.map.h };
     if (b.grid) S.grid = Object.assign({}, S.grid, b.grid);
     if (Array.isArray(b.tokens)) S.tokens = b.tokens.map(function(t){ return Object.assign({}, t); });
     _fvMemo = null;
     try { render(); paintMapArt(); renderTokens(); drawGrid(); fogPaint(); wallPaint(); } catch(e){}
   };
-  if (b.mapUrl){ var img = new Image(); var done = false; var go = function(){ if (!done){ done = true; lay(); } }; img.onload = go; img.onerror = go; setTimeout(go, 2500); img.src = b.mapUrl; }
+  /* a video map waits for its poster (or nothing), never for the whole video */
+  var _pre = isVideoUrl(b.mapUrl) ? (b.mapPoster || '') : b.mapUrl;
+  if (b.mapUrl && !_pre) lay();
+  else if (_pre){ var img = new Image(); var done = false; var go = function(){ if (!done){ done = true; lay(); } }; img.onload = go; img.onerror = go; setTimeout(go, 2500); img.src = _pre; }
   else lay();
 }
 /* ---- a Fell's reach, live ----
@@ -20229,7 +20354,7 @@ function pingColorRow(){
 document.addEventListener('paste', function(e){
   var t = e.target; if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
   var items = (e.clipboardData && e.clipboardData.items) || [], files = [];
-  for (var i = 0; i < items.length; i++){ if (items[i].kind === 'file' && /^image\//.test(items[i].type)) files.push(items[i].getAsFile()); }
+  for (var i = 0; i < items.length; i++){ if (items[i].kind === 'file' && /^(image\/|video\/(mp4|webm))/.test(items[i].type)) files.push(items[i].getAsFile()); }
   if (!files.length) return;
   if (document.getElementById('tokPalette') && document.getElementById('tokPalette').style.display !== 'none' && isLM()){ e.preventDefault(); lmTokenFilesSave(files); return; }
   var mp = document.getElementById('mapPicker');

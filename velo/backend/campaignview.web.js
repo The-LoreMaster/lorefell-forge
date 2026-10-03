@@ -29,6 +29,24 @@ export const musicUploadUrl = webMethod(Permissions.Anyone, async (name, mime) =
   } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
 });
 
+// A video map (MP4 or WebM), uploaded straight from the browser into Media Manager, LoreFell
+// Maps, the way music is: members only, video only. The browser posts the file to the address.
+export const mapVideoUploadUrl = webMethod(Permissions.Anyone, async (name, mime) => {
+  try {
+    const m = await currentMember.getMember().catch(() => null);
+    if (!m || !m._id) return { ok: false, error: 'sign in to upload a map' };
+    const type = String(mime || '');
+    if (!/^video\/(mp4|webm)$/i.test(type)) return { ok: false, error: 'a video map must be an MP4 or WebM' };
+    const fileName = String(name || 'map').replace(/[^\w .()-]+/g, '').slice(0, 120) || 'map';
+    const r = await mediaManager.getUploadUrl('/LoreFell Maps', {
+      mediaOptions: { mimeType: type, mediaType: 'video' },
+      metadataOptions: { isPrivate: false, isVisitorUpload: false, fileName: fileName }
+    });
+    if (!r || !r.uploadUrl) return { ok: false, error: 'no upload address' };
+    return { ok: true, uploadUrl: r.uploadUrl, uploadToken: r.uploadToken || '', fileName: fileName };
+  } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+});
+
 // TELEMETRY. The 2-second table-state poll runs through here, so this is the steady baseline
 // of calls that everything else stacks on top of. Counting it shows how much quota the poll
 // alone spends per minute, which matters because the quota is a per-minute budget.

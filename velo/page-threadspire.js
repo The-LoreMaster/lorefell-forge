@@ -16,7 +16,7 @@ import { listSphereArt } from 'backend/sphereart.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
 import { listStages, saveStage, deleteStage } from 'backend/threadspire.web.js';
 import { betweenRestFor } from 'backend/campaignview.web.js';
-import { getCampaignState, saveCampaignState, getJournal, saveJournal, musicUploadUrl, musicLibrary, listBoardHistory, restoreBoardHistory, saveBoardVersionNow } from 'backend/campaignview.web.js';
+import { getCampaignState, saveCampaignState, getJournal, saveJournal, musicUploadUrl, mapVideoUploadUrl, musicLibrary, listBoardHistory, restoreBoardHistory, saveBoardVersionNow } from 'backend/campaignview.web.js';
 
 import { loadAdventure, saveAdventureRoot, saveAdvAct, saveAdvSession, saveAdvScene, removeAdvScene, removeAdvSession, removeAdvAct, migrateCampaign } from 'backend/adventures.web.js';
 import { myAdventureRole, deleteCampaign } from 'backend/fatewell.web.js';
@@ -669,6 +669,8 @@ $w.onReady(async function () {
           let r = { ok: false };
           try { r = await musicUploadUrl(msg.name || '', msg.mime || ''); } catch (e) { r = { ok: false, error: String(e) }; }
           reply(!!(r && r.ok), r, r && r.error);
+        } else if (msg.type === 'TS_MAP_VIDEO_UPLOAD_URL') {
+          try { reply(true, await mapVideoUploadUrl(msg.name, msg.mime)); } catch (e) { reply(true, { ok: false, error: String(e).slice(0, 80) }); }
         } else if (msg.type === 'TS_LM_NOTES_SAVE') {
           let r = { ok: false };
           try { r = await lmNotesSave(msg.charId || '', msg.text || ''); } catch (e) { r = { ok: false, error: String(e) }; }
