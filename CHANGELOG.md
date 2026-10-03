@@ -1,3 +1,7 @@
+## 2026-09-28 - The room ticket: the page's own adventure, and the whole reason
+
+When the live room refuses the LoreMaster's ticket, the page now tries again with its own adventure (the one it opened, from the address or the context) if the table asked with a different one, and the seams show the whole reason along with the adventure the table asked for; it was cut off at sixty characters, which hid the adventure's id. Paste velo/page-threadspire.js.
+
 ## 2026-09-28 - The scene roster and the library chooser, given room
 
 The scene's Roster window and Add from library, opened from the Story, are wide windows now (up to a thousand pixels) that scroll as a whole instead of in a small inner box. The roster names its scene, lays the Fell out as a grid of attending chips and the cast as a grid of cards, and counts the cast; the library lays its foes and NPCs in grids, counted, with the search focused, the scope switch beside the title and Forge a new foe beside Close.
