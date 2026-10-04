@@ -40,6 +40,15 @@ button{ font:inherit; color:inherit; background:none; border:none; cursor:pointe
 }
 .fire-k{ position:relative; text-align:center; font-family:'Cinzel',serif; font-size:.62rem; letter-spacing:.26em; text-transform:uppercase; color:var(--ember); margin-bottom:14px; }
 .next{ position:relative; display:grid; gap:8px; margin:0 0 14px; }
+/* several adventures: one card at a time, sliding on every 3 seconds, with dots to pick one */
+.next-track{ position:relative; overflow:hidden; border-radius:12px; }
+.next-rail{ display:flex; transition:transform .55s ease; }
+.next-rail .next-s{ flex:0 0 100%; }
+.next-dots{ display:flex; justify-content:center; gap:7px; }
+.next-dots button{ width:8px; height:8px; padding:0; border-radius:50%; border:1px solid var(--emberline); background:none; cursor:pointer; }
+.next-dots button.on{ background:var(--ember); border-color:var(--ember); }
+.next-dots button:focus-visible{ outline:2px solid var(--gold); outline-offset:2px; }
+@media (prefers-reduced-motion: reduce){ .next-rail{ transition:none; } }
 .next-s{ display:flex; flex-wrap:wrap; align-items:baseline; justify-content:center; gap:4px 10px; width:100%; padding:10px 14px; border:1px solid var(--emberline); border-radius:12px; background:rgba(217,138,95,.06); text-align:center; }
 .next-s:hover{ border-color:var(--ember); background:rgba(217,138,95,.1); }
 .next-s:focus-visible{ outline:2px solid var(--gold); outline-offset:2px; }
@@ -205,10 +214,14 @@ function fill(id, list){
 fill("crown", CROWN);
 /* The next session of each adventure this member plays in or runs, asked of the page.
    Nothing shows until there is one. */
+var _nextTimer=null;
 function paintNext(list){
   var host=document.getElementById("next"); if(!host) return;
-  list=(list||[]).slice(0,3); host.innerHTML="";
+  list=(list||[]).slice(0,8); host.innerHTML=""; clearInterval(_nextTimer);
   if(!list.length){ host.hidden=true; return; }
+  var many=list.length>1, track=document.createElement("div"), rail=document.createElement("div");
+  track.className="next-track"; rail.className="next-rail"; track.appendChild(rail);
+  if(many){ track.setAttribute("role","region"); track.setAttribute("aria-roledescription","carousel"); track.setAttribute("aria-label","Your next sessions"); }
   list.forEach(function(s){
     var b=document.createElement("button"); b.className="next-s";
     b.setAttribute("aria-label","Open "+s.adventure+", next session "+s.when);
@@ -217,8 +230,22 @@ function paintNext(list){
     b.appendChild(a); b.appendChild(w);
     if(s.note){ var n=document.createElement("span"); n.className="next-n"; n.textContent=s.note; b.appendChild(n); }
     b.addEventListener("click", function(){ go(b, { label:s.adventure, route:"/the-threadspire?campaign="+encodeURIComponent(s.campaignId) }); });
-    host.appendChild(b);
+    rail.appendChild(b);
   });
+  host.appendChild(track);
+  if(many){
+    var at=0, dots=document.createElement("div"); dots.className="next-dots";
+    var show=function(i){ at=(i+list.length)%list.length; rail.style.transform="translateX("+(-100*at)+"%)";
+      Array.prototype.forEach.call(rail.children,function(c,k){ c.tabIndex=k===at?0:-1; c.setAttribute("aria-hidden",k===at?"false":"true"); });
+      Array.prototype.forEach.call(dots.children,function(d,k){ d.classList.toggle("on",k===at); d.setAttribute("aria-current",k===at?"true":"false"); }); };
+    list.forEach(function(s,k){ var d=document.createElement("button"); d.type="button"; d.setAttribute("aria-label","Show "+s.adventure); d.addEventListener("click",function(){ show(k); }); dots.appendChild(d); });
+    host.appendChild(dots); show(0);
+    /* every 3 seconds, unless the reader is pointing at it, on it, or asked for less motion */
+    var still=window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches, hold=false;
+    host.addEventListener("mouseenter",function(){ hold=true; }); host.addEventListener("mouseleave",function(){ hold=false; });
+    host.addEventListener("focusin",function(){ hold=true; }); host.addEventListener("focusout",function(){ hold=false; });
+    if(!still) _nextTimer=setInterval(function(){ if(!hold && !document.hidden) show(at+1); },3000);
+  }
   host.hidden=false;
 }
 window.addEventListener("message", function(e){ var d=e.data; if(d && d.type==="HEARTH_SESSIONS") paintNext(d.list); });

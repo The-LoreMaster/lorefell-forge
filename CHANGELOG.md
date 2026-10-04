@@ -1,3 +1,7 @@
+## 2026-10-03 - One picture width in the chooser; the Hearth's sessions take turns
+
+The adventure chooser's pictures are all the same width (a fixed share of the card), whatever is written beside them. On the Hearth, a member in several adventures sees their next sessions one at a time, sliding on every three seconds, with dots to pick one; it holds still while pointed at or focused, and does not move at all for a screen that asks for less motion. One adventure shows one card, as before.
+
 ## 2026-10-03 - Lore Drops' weave on top; one rule above Mobility
 
 On the LoreMaster's view of a Fell, Weave Lore Drops (Weave anew) is a gold button under the Lore Drops title, set off from the truths by a rule. In the Attributes card, Mobility no longer draws a second rule over the one under Resistance (the same sheet for player and LoreMaster).
