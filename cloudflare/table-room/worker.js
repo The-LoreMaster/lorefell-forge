@@ -133,9 +133,14 @@ async function youtube(req, url, env) {
     const at = await ytAccess(env, who.member); if (!at) return out({ ok: false, error: 'not connected' });
     const v = String(url.searchParams.get('v') || '').match(/^[A-Za-z0-9_-]{6,20}$/); if (!v) return out({ ok: false, error: 'no video id' });
     const auth = { Authorization: 'Bearer ' + at };
-    const got = await (await fetch('https://www.googleapis.com/youtube/v3/videos?part=snippet&id=' + v[0], { headers: auth })).json();
+    const got = await (await fetch('https://www.googleapis.com/youtube/v3/videos?part=snippet,liveStreamingDetails,contentDetails&id=' + v[0], { headers: auth })).json();
     const it = got.items && got.items[0]; if (!it) return out({ ok: false, error: 'that video is not on your connected channel' });
-    if (url.pathname === '/yt/video') return out({ ok: true, title: it.snippet.title || '', description: it.snippet.description || '' });
+    if (url.pathname === '/yt/video') {
+      // when the stream really began (a live one), so a moment marked at the table finds its place
+      const live = it.liveStreamingDetails || {}, dm = String((it.contentDetails || {}).duration || '').match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+      const dur = dm ? (+(dm[1] || 0)) * 3600 + (+(dm[2] || 0)) * 60 + (+(dm[3] || 0)) : 0;
+      return out({ ok: true, title: it.snippet.title || '', description: it.snippet.description || '', start: live.actualStartTime || '', published: it.snippet.publishedAt || '', duration: dur, live: !!live.actualStartTime });
+    }
     let body = {}; try { body = JSON.parse(await req.text()); } catch (e) {}
     const title = String(body.title || '').slice(0, 100), description = String(body.description || '').slice(0, 5000);
     if (!title) return out({ ok: false, error: 'a title is needed' });

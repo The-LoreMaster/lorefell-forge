@@ -1,3 +1,7 @@
+## 2026-10-03 - Moment marks
+
+During a session the LoreMaster presses M (never while typing) or Mark on the scene and battle runners, just after something worth keeping. A mark reaches back, 45 seconds by default and 10 on, with 30, 60 and 90 a tap away in the bar that confirms it, along with a kind (funny, triumph, disaster, epic); it takes the scene's name. Marks are kept with the LoreMaster's table. The log's own big beats (a Fellmark or Fellstrike, the fallen, Lore Points, a level) are offered as suggestions, unticked. Moments, beside each session video in From the session's video, lines the marks up with the video (a live stream says when it began; a five-second nudge covers the stream's delay), lets each be kept, renamed and given a kind, with a link to watch from it, and Tighten with the captions trims each to where it really starts. Kept moments go into the Journal as links for clipping and into the video's description as a Moments list the next time it is updated. The room hands back when a live stream began and how long a video runs. Only for the site's own channel.
+
 ## 2026-10-03 - Update any session video
 
 Every session video in the list has Update the video, recap written or not; without one written from it, the Retelling's recap (or the newest sent) gives the description its story.
