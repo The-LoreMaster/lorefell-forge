@@ -334,6 +334,21 @@ body.lm-role .hCodexP, body.stream .hCodexP, body.clean .hCodexP{ display:none !
 .mv-tags{ display:flex; flex-wrap:wrap; gap:3px; } .mv-tags button{ height:24px; padding:0 7px; border-radius:6px; border:1px solid #2c3a58; background:#141b31; color:#93a3b6; font:inherit; font-size:.78rem; cursor:pointer; } .mv-tags button.on{ border-color:#c9a84c; color:#f0d48a; background:rgba(201,168,76,.12); }
 .mv-row{ display:grid; grid-template-columns:20px 64px minmax(140px,1fr) auto auto; gap:8px; align-items:center; } .mv-row.off{ opacity:.55; }
 .mv-row a{ color:#c9a84c; font-family:Cinzel,serif; font-size:.85rem; } .mv-row i{ font-style:normal; font-size:.8rem; color:#93a3b6; } .mv-row input[type=checkbox]{ width:16px; height:16px; accent-color:#c9a84c; }
+#lobbyScreen{ position:fixed; inset:0; z-index:50; overflow:hidden; background:#070b17; }
+#lobbyScreen .lb-bg{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; background:#070b17 center/cover no-repeat; }
+#lobbyScreen .lb-veil{ position:absolute; inset:0; background:linear-gradient(180deg, rgba(7,11,23,.25) 0%, rgba(7,11,23,.1) 45%, rgba(7,11,23,.82) 100%); }
+#lobbyScreen .lb-body{ position:absolute; left:8%; right:24%; bottom:14%; display:flex; flex-direction:column; gap:10px; color:#f3ead2; font-family:'Crimson Pro',Georgia,serif; text-shadow:0 2px 14px rgba(0,0,0,.7); }
+#lobbyScreen .lb-title{ font-family:Cinzel,serif; font-weight:600; font-size:clamp(2rem, 4.4vw, 4.2rem); line-height:1.05; letter-spacing:.02em; }
+#lobbyScreen .lb-note{ font-size:clamp(1.1rem, 1.6vw, 1.5rem); max-width:52ch; }
+#lobbyScreen .lb-wait{ font-size:1rem; color:#d8c99b; }
+body.in-lobby #lmstrip, body.in-lobby #mapTools{ display:none !important; }
+#lobbyBar{ position:fixed; top:12px; left:50%; transform:translateX(-50%); z-index:430; display:flex; align-items:center; gap:10px; padding:8px 10px 8px 16px; border-radius:12px; border:1px solid #c9a84c; background:rgba(10,14,26,.95); color:#dce8ef; font-family:'Crimson Pro',Georgia,serif; box-shadow:0 10px 30px rgba(0,0,0,.45); }
+#lobbyBar button{ height:32px; padding:0 12px; border-radius:8px; border:1px solid #2c3a58; background:#141b31; color:#dce8ef; font-family:Cinzel,serif; font-size:.72rem; letter-spacing:.05em; cursor:pointer; } #lobbyBar button.pri{ background:#c9a84c; border-color:#c9a84c; color:#0a0e1a; }
+.lb-state{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border-radius:10px; border:1px solid #26324c; background:#0c1222; margin-bottom:6px; } .lb-state.on{ border-color:#c9a84c; }
+.lb-maps{ display:grid; grid-template-columns:repeat(auto-fill, minmax(130px, 1fr)); gap:8px; max-height:40vh; overflow:auto; padding:2px; }
+.lb-map{ position:relative; aspect-ratio:16 / 10; border-radius:9px; border:2px solid transparent; background:#121a31; overflow:hidden; cursor:pointer; padding:0; color:#93a3b6; font:inherit; font-size:.85rem; }
+.lb-map img{ width:100%; height:100%; object-fit:cover; display:block; } .lb-map.on{ border-color:#c9a84c; }
+.lb-map.vid::after{ content:'\25b6'; position:absolute; right:6px; bottom:6px; width:20px; height:20px; border-radius:50%; background:rgba(10,14,26,.82); border:1px solid #c9a84c; color:#f0d48a; font-size:9px; display:flex; align-items:center; justify-content:center; }
 #retellCard{ position:fixed; inset:0; z-index:420; display:none; align-items:center; justify-content:center; pointer-events:none; }
 #retellCard.on{ display:flex; }
 #retellCard .rt-box{ position:relative; pointer-events:auto; width:min(92vw, max(560px, 50vw)); max-height:84vh; overflow:auto; border-radius:16px; border:1px solid #c9a84c; background:#0b1020; box-shadow:0 22px 60px rgba(0,0,0,.6); font-family:'Crimson Pro',Georgia,serif; color:#dce8ef; }
@@ -6996,6 +7011,70 @@ function momSave(){
   MOMV = null;
   tsModal('<h3 class="tsm-title">' + kept.length + ' moment' + (kept.length === 1 ? '' : 's') + ' kept</h3><p class="lc-p">They are in the Journal as links, and go into the video\u2019s description the next time you update it.</p><div class="tsm-row"><button class="tsm-btn" onclick="tsCloseModal()">Done</button></div>');
 }
+/* ================= the lobby =================
+   Where everyone lands before the LoreMaster takes them in: a picture or a video from the
+   map shelf, filling the screen, with the adventure's name, a line from the LoreMaster, and
+   the next session. The rail, the HUD and the sheet stay usable around it. The LoreMaster
+   sets it from the runner (Lobby) and brings everyone in with one press; it travels through
+   the live room and the saved state, and the stream shows it too. */
+function lobbyOn(){ return !!(S.lobby && S.lobby.on); }
+function lobbyShare(){ try { roomPartsSync(false); } catch(e){} schedulePush(); lobbyPaint(); try { paintLmStrip(); } catch(e){} }
+function lobbySet(on){
+  if (!isLM() || keeperNo()) return;
+  S.lobby = Object.assign({ title:'', note:'', url:'', poster:'', kind:'' }, S.lobby || {}, { on:!!on, at:Date.now() });
+  lobbyShare();
+  pushLog({ kind:'sys', html:on ? 'Everyone is in the lobby.' : 'The LoreMaster brings everyone in.' }); applyRemoteState({ log:S.log });
+}
+function lobbyBtn(){ return (isLM() && !isKeeper()) ? '<button class="lmbtn' + (lobbyOn() ? ' gold' : '') + '" onclick="lobbyWin()" title="The lobby: where everyone waits before the scene">Lobby</button>' : ''; }
+function lobbyWin(){
+  if (!isLM() || keeperNo()) return;
+  var L = S.lobby || {}, maps = (S.scene && S.scene.maps || []).filter(function(m){ return m.url; });
+  var h = '<h3 class="tsm-title">The lobby</h3>'
+    + '<div class="lb-state ' + (lobbyOn() ? 'on' : '') + '"><b>' + (lobbyOn() ? 'Everyone is in the lobby.' : 'Everyone is at the table.') + '</b>'
+    + (lobbyOn() ? '<button class="tsm-btn" onclick="lobbySet(false);tsCloseModal()">Bring everyone in</button>' : '<button class="tsm-btn" onclick="lobbySet(true);lobbyWin()">Send everyone to the lobby</button>') + '</div>'
+    + '<label class="tsm-lbl" for="lbTitle">Its title</label><input class="tsm-inp" id="lbTitle" maxlength="80" placeholder="' + esc(advName()) + '" value="' + esc(L.title || '') + '" oninput="lobbyField(\'title\',this.value)">'
+    + '<label class="tsm-lbl" for="lbNote">A line for the players</label><input class="tsm-inp" id="lbNote" maxlength="160" placeholder="Gather round. We begin soon." value="' + esc(L.note || '') + '" oninput="lobbyField(\'note\',this.value)">'
+    + '<div class="tsm-lbl">Its picture or video, from your map shelf</div>'
+    + (maps.length ? '<div class="lb-maps">' + maps.map(function(m, i){ var still = mapStill(m), on = L.url === m.url;
+        return '<button class="lb-map' + (on ? ' on' : '') + (mapIsVideo(m) ? ' vid' : '') + '" onclick="lobbyPick(' + i + ')" aria-pressed="' + on + '" title="' + esc(m.name) + '">' + (still ? '<img src="' + esc(still) + '" alt="">' : '<span>' + esc(m.name) + '</span>') + '</button>'; }).join('') + '</div>'
+      : '<p class="tsm-note">Add a picture or video to your map shelf, and it can be the lobby.</p>')
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Done</button></div>';
+  tsModal(h, true);
+}
+var _lbT = null;
+function lobbyField(k, v){ S.lobby = Object.assign({}, S.lobby || {}); S.lobby[k] = v; clearTimeout(_lbT); _lbT = setTimeout(lobbyShare, 500); }
+function lobbyPick(i){
+  var m = (S.scene.maps || []).filter(function(x){ return x.url; })[i]; if (!m) return;
+  S.lobby = Object.assign({}, S.lobby || {}, { url:m.url, poster:mapStill(m), kind:mapIsVideo(m) ? 'video' : 'image' });
+  lobbyShare(); lobbyWin();
+}
+function lobbyPaint(){
+  var show = lobbyOn() && (!isLM() || S.stream);
+  var el = document.getElementById('lobbyScreen');
+  document.body.classList.toggle('in-lobby', show);
+  if (!show){ if (el) el.remove(); lobbyLmBar(); return; }
+  var L = S.lobby || {};
+  if (!el){ el = document.createElement('div'); el.id = 'lobbyScreen'; el.setAttribute('role', 'region'); el.setAttribute('aria-label', 'The lobby'); document.body.appendChild(el); }
+  var key = [L.url, L.title, L.note, stillMaps(), SESS.nextAt].join('|');
+  if (el._k === key) return; el._k = key;
+  var vid = L.kind === 'video' && L.url && !stillMaps();
+  var next = SESS.nextAt && SESS.nextAt > Date.now() - 3 * 3600000 ? sessionWhenShort() : '';
+  el.innerHTML = (vid ? '<video class="lb-bg" src="' + esc(L.url) + '"' + (L.poster ? ' poster="' + esc(L.poster) + '"' : '') + ' muted loop autoplay playsinline aria-hidden="true"></video>'
+      : '<div class="lb-bg" style="background-image:' + ((L.kind === 'video' ? L.poster : L.url) ? 'url(\'' + esc(L.kind === 'video' ? L.poster : L.url) + '\')' : 'none') + '"></div>')
+    + '<div class="lb-veil"></div><div class="lb-body"><div class="lb-title">' + esc(L.title || advName()) + '</div>'
+    + (L.note ? '<div class="lb-note">' + esc(L.note) + '</div>' : '')
+    + '<div class="lb-wait">The LoreMaster will bring you in.' + (next ? ' Next session: ' + esc(next) + '.' : '') + '</div></div>';
+  var v = el.querySelector('video'); if (v){ v.muted = true; try { var pl = v.play(); if (pl && pl.catch) pl.catch(function(){}); } catch(e){} }
+}
+/* the LoreMaster sees a slim bar while the players wait, with the way to bring them in */
+function lobbyLmBar(){
+  var on = lobbyOn() && isLM() && !S.stream && !isKeeper();
+  var b = document.getElementById('lobbyBar');
+  if (!on){ if (b) b.remove(); return; }
+  if (!b){ b = document.createElement('div'); b.id = 'lobbyBar'; b.setAttribute('role', 'status'); document.body.appendChild(b);
+    b.innerHTML = '<span>Everyone is in the lobby.</span><button onclick="lobbyWin()">Set it</button><button class="pri" onclick="lobbySet(false)">Bring everyone in</button>'; }
+}
+setInterval(function(){ try { lobbyPaint(); } catch(e){} }, 1000);
 /* ---- a new session video, noticed ----
    When the LoreMaster opens the table, the room looks at the connected channel's newest
    uploads for one whose title names this adventure (the part before the pipe, or the whole
@@ -8705,12 +8784,12 @@ function lmPhaseControls(){
     return '<button class="lmbtn" onclick="lmOpenMaps()">Maps</button>'
          + '<button class="lmbtn" onclick="lmOpenTokens()">Tokens</button>'
          + '<button class="lmbtn" onclick="lmBeginCombat()">Begin combat</button>'
-         + momBtn() + lmAplGear();
+         + lobbyBtn() + momBtn() + lmAplGear();
   if (S.scene.combatPhase === 'commit')
     return '<button class="lmbtn gold" onclick="lmLockActs()">Lock acts into Spotlights</button>'
          + '<button class="lmbtn" onclick="declaresLoad(true)">Read declares</button>'
          + '<button class="lmbtn" onclick="lmEndCombat()">End combat</button>'
-         + momBtn() + lmAplGear();
+         + lobbyBtn() + momBtn() + lmAplGear();
   return '<button class="lmbtn' + (S.scene.spotMode==='auto'?' gold':'') + '" onclick="lmSpotMode(\'auto\')">Auto</button>'
        + '<button class="lmbtn' + (S.scene.spotMode==='manual'?' gold':'') + '" onclick="lmSpotMode(\'manual\')">Manual</button>'
        + '<button class="lmbtn" onclick="lmUnlock()">Back to Commit</button>'
@@ -10486,6 +10565,7 @@ function sharedSnapshot(){
     elev: (isLM() && _mapStateLoaded) ? (S.elev || {}) : undefined,
     pales: (isLM() && _mapStateLoaded) ? (S.pales || {}) : undefined,
     retell: isLM() && !isKeeper() ? (S.retell || null) : undefined,
+    lobby: isLM() && !isKeeper() ? (S.lobby || null) : undefined,
     retellPick: isLM() && !isKeeper() ? (S.retellPick || null) : undefined,
     marks: isLM() && !isKeeper() ? (S.marks || []) : undefined,
     ytDrafts: isLM() && !isKeeper() ? (S.ytDrafts || {}) : undefined,
@@ -10792,6 +10872,7 @@ function applyRemoteSnapshot(snap){
   mapStateArrived();
   if (snap.spot !== undefined && (!isLM() || S.stream)) S.spot = Array.isArray(snap.spot) ? snap.spot : [];
   if (snap.retell !== undefined && (!isLM() || S.stream)) S.retell = snap.retell;
+  if (snap.lobby !== undefined && (!isLM() || S.stream || !S.lobby)) S.lobby = snap.lobby;
   if (snap.retellPick !== undefined && isLM() && !S.retellPick) S.retellPick = snap.retellPick;
   if (Array.isArray(snap.marks) && isLM() && !(S.marks && S.marks.length)) S.marks = snap.marks;
   if (snap.ytDrafts && isLM() && !(S.ytDrafts && Object.keys(S.ytDrafts).length)) S.ytDrafts = snap.ytDrafts;
@@ -20676,7 +20757,7 @@ var ROOM = { ws:null, on:false, want:false, tries:0, t:null, cid:'', role:'', se
 var KEEPER_SENDS = ['pales', 'elev', 'fog', 'walls', 'lights', 'effects', 'notes', 'weather', 'draw', 'portraits'];
 var KEEPER_TAKES = KEEPER_SENDS.concat(['combatPhase', 'music', 'party', 'rest', 'loreGrants']);
 /* the rest of the table the LoreMaster's table sends through the room, each when it changes */
-var ROOM_PARTS = ['retell', 'spot', 'pales', 'elev', 'fog', 'walls', 'lights', 'effects', 'notes', 'weather', 'music', 'rest', 'viewCall', 'loreGrants', 'combatPhase', 'draw', 'portraits', 'party', 'beatPic', 'handouts', 'questRev'];
+var ROOM_PARTS = ['lobby', 'retell', 'spot', 'pales', 'elev', 'fog', 'walls', 'lights', 'effects', 'notes', 'weather', 'music', 'rest', 'viewCall', 'loreGrants', 'combatPhase', 'draw', 'portraits', 'party', 'beatPic', 'handouts', 'questRev'];
 function roomSend(msg){ if (ROOM.on && ROOM.ws && ROOM.ws.readyState === 1 && !S.stream){ try { ROOM.ws.send(JSON.stringify(msg)); return true; } catch(e){} } return false; }
 function roomConnect(){
   if (!tsEmbedded() || !S.campaignId) return;
