@@ -1,3 +1,7 @@
+## 2026-10-04 - A quiet visit
+
+The LoreMaster can step into another scene to set it up while the players stay where they are and see nothing of it: Visit quietly beside each scene in the scene runner's list (not in the middle of a fight). While visiting, the LoreMaster's table says nothing to anyone (nothing to the live room, nothing saved, the saved table not taken in), a bar says where they are and that the players see none of it, and what the players do at the table meanwhile waits in a queue. Back to the table saves the visited scene's layout to that scene, puts the table back as it was, plays the queue over it, and only then speaks again. A scene with no map yet keeps the tokens set out in it, and they are there when everyone is taken to it.
+
 ## 2026-10-04 - The lobby
 
 The scene and battle runners gain Lobby: the LoreMaster sends everyone to the lobby, sets it (a picture or video from the map shelf, a title, the adventure's name unless another is given, and a line for the players) and brings everyone in with one press. Players and the stream see it fill the screen beneath the frame, the rail and the HUD (so the sheet and windows still open), with the next session when one is set; a video plays muted and looping, and Still maps shows its still. The LoreMaster keeps the map and sees a slim bar while the players wait, with Set it and Bring everyone in. The lobby is kept with the table, so players opening it later land there until they are brought in, and it travels through the live room.

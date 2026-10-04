@@ -1548,7 +1548,12 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .lm-scenebtn{ font-family:Cinzel,serif; letter-spacing:.1em; font-size:.68rem; color:var(--gold); text-transform:uppercase; background:none; border:none; cursor:pointer; padding:2px 4px; }
 .sp-list{ display:flex; flex-direction:column; gap:6px; margin:6px 0 4px; }
 .sp-scene{ display:flex; justify-content:space-between; align-items:center; gap:10px; padding:11px 13px; border-radius:9px; border:1px solid var(--line2,#2a3552); background:rgba(10,16,32,.5); color:var(--silver); font:inherit; font-size:1rem; text-align:left; cursor:pointer; }
-.sp-scene:hover{ border-color:var(--gold); } .sp-scene.on{ border-color:var(--gold); background:rgba(201,168,76,.10); cursor:default; } .sp-scene i{ font-style:normal; font-size:.8rem; color:var(--gold); }
+.sp-scene:hover{ border-color:var(--gold); } .sp-scene.on{ border-color:var(--gold); background:rgba(201,168,76,.10); cursor:default; } .sp-line{ display:grid; grid-template-columns:minmax(0,1fr) auto; gap:6px; }
+.sp-visit{ padding:0 12px; border-radius:9px; border:1px solid var(--line2,#2a3552); background:none; color:#93a3b6; font-family:Cinzel,serif; font-size:.7rem; letter-spacing:.04em; cursor:pointer; } .sp-visit:hover{ color:#f0d48a; border-color:#c9a84c; }
+#visitBar{ position:fixed; top:12px; left:50%; transform:translateX(-50%); z-index:440; display:flex; align-items:center; gap:12px; max-width:min(860px, 92vw); padding:8px 10px 8px 16px; border-radius:12px; border:1px solid #7fb3a3; background:rgba(10,14,26,.96); color:#dce8ef; font-family:'Crimson Pro',Georgia,serif; box-shadow:0 10px 30px rgba(0,0,0,.45); }
+#visitBar b{ color:#9fd0b0; font-weight:600; } #visitBar button{ height:32px; padding:0 12px; border-radius:8px; border:1px solid #7fb3a3; background:#7fb3a3; color:#0a0e1a; font-family:Cinzel,serif; font-size:.72rem; letter-spacing:.05em; cursor:pointer; flex:none; }
+body.visiting #stage{ outline:3px solid rgba(127,179,163,.55); outline-offset:-3px; }
+.sp-scene i{ font-style:normal; font-size:.8rem; color:var(--gold); }
 .lm-scenebtn span{ font-size:.7em; opacity:.7; }
 .lm-scenebtn:hover{ text-shadow:0 0 8px rgba(201,168,76,.6); }
 .lm-chev{ font-size:.6rem; }
@@ -7075,6 +7080,64 @@ function lobbyLmBar(){
     b.innerHTML = '<span>Everyone is in the lobby.</span><button onclick="lobbyWin()">Set it</button><button class="pri" onclick="lobbySet(false)">Bring everyone in</button>'; }
 }
 setInterval(function(){ try { lobbyPaint(); } catch(e){} }, 1000);
+/* ================= a quiet visit =================
+   The LoreMaster steps into another scene to set it up (move tokens, lay a map, fog, walls)
+   while the players stay where they are and see nothing of it. While visiting, this table
+   says nothing to anyone: nothing goes to the live room and nothing is saved, and what the
+   players do at the table meanwhile waits in a queue. Back to the table saves the visited
+   scene's layout to that scene, puts the table back as it was, plays the queue over it, and
+   only then speaks again. Not in the middle of a fight. */
+function visitOn(){ return !!S.visit; }
+function sceneVisit(id){
+  if (!isLM() || keeperNo() || S.stream) return;
+  if (S.mode === 'combat'){ playToast('Not in the middle of a fight. End it first, or move them all together.', 'A quiet visit'); return; }
+  if (S.visit){ if (S.visit.home === id){ sceneVisitBack(); } return; }
+  if (S.scene && S.scene.id === id) return;
+  var hit = tsSceneById(id); if (!hit) return;
+  try { sceneLayoutSave(); lmSaveCurrentStage(); } catch(e){}
+  try { pushState(); } catch(e){}
+  S.visit = { home:S.scene.id, homeName:S.scene.name, q:[], at:Date.now() };
+  sceneVisitGo(hit.scene);
+  document.body.classList.add('visiting');
+  visitBar();
+  try { tsCloseModal(); closeWin(); } catch(e){}
+}
+function sceneVisitGo(scene){
+  var shelf = S.scene.maps;
+  S.scene = scene;
+  if (shelf && shelf.length) S.scene.maps = shelf;
+  if (!sceneLayoutRestore()){
+    S.tokens = (S.tokens || []).filter(function(t){ return t.kind === 'p' || t.charId; });
+    try { applySceneTableMap(); } catch(e){}
+  }
+  _boardScene = S.scene.id;
+  _measuredMap = '';
+  try { paintMapArt(); renderTokens(); fogPaint(); wallPaint(); drawGrid(); paintLmStrip(); } catch(e){}
+}
+function sceneVisitBack(){
+  var v = S.visit; if (!v) return;
+  try { sceneLayoutSave(); } catch(e){}   /* what was set up stays with the visited scene */
+  /* a scene with no map yet still keeps the tokens set out in it */
+  try { var _bd = sceneBinding(); if (!_bd.mapId && !S.scene.background){ _bd.tokens = (S.tokens || []).map(function(t){ return Object.assign({}, t); }); _bd.grid = Object.assign({}, S.grid); } } catch(e){}
+  var home = tsSceneById(v.home);
+  if (home) sceneVisitGo(home.scene);
+  var q = v.q || [];
+  S.visit = null;
+  document.body.classList.remove('visiting');
+  visitBar();
+  q.forEach(function(m){ try { roomGot(m); } catch(e){} });   /* what the players did meanwhile */
+  try { schedulePush(); roomPartsSync(true); } catch(e){}
+  pushLog({ kind:'sys', lmOnly:true, html:'Back at the table, in <b>' + esc(v.homeName || 'the scene') + '</b>.' }); applyRemoteState({ log:S.log });
+}
+/* the room's news while away: what changes the board waits; talk and rolls come through */
+var VISIT_HOLD = { tok:1, toks:1, part:1, scene:1, stroke:1, erase:1, door:1, reach:1 };
+function visitHold(m){ if (S.visit && m && VISIT_HOLD[m.t]){ S.visit.q.push(m); return true; } return false; }
+function visitBar(){
+  var b = document.getElementById('visitBar');
+  if (!S.visit){ if (b) b.remove(); return; }
+  if (!b){ b = document.createElement('div'); b.id = 'visitBar'; b.setAttribute('role', 'status'); document.body.appendChild(b); }
+  b.innerHTML = '<span>Quietly visiting <b>' + esc(S.scene.name || 'a scene') + '</b>. The players are still in ' + esc(S.visit.homeName || 'their scene') + ' and see none of this.</span><button class="pri" onclick="sceneVisitBack()">Back to the table</button>';
+}
 /* ---- a new session video, noticed ----
    When the LoreMaster opens the table, the room looks at the connected channel's newest
    uploads for one whose title names this adventure (the part before the pipe, or the whole
@@ -8254,7 +8317,8 @@ function lmScenePick(){
   var cur = S.scene && S.scene.id;
   tsModal('<h3 class="tsm-title">' + esc(live.ses.name || 'This session') + '</h3>'
     + '<div class="sp-list">' + (live.ses.scenes || []).map(function(sc){ var on = sameId(sc.id, cur);
-        return '<button class="sp-scene' + (on ? ' on' : '') + '" onclick="tsCloseModal();' + (on ? '' : 'setActiveScene(\'' + esc(sc.id) + '\')') + '"' + (on ? ' aria-current="true"' : '') + '><span>' + esc(sc.name || 'Untitled scene') + '</span>' + (on ? '<i>On the table</i>' : '') + '</button>'; }).join('') + '</div>'
+        return '<div class="sp-line"><button class="sp-scene' + (on ? ' on' : '') + '" onclick="tsCloseModal();' + (on ? '' : 'setActiveScene(\'' + esc(sc.id) + '\')') + '"' + (on ? ' aria-current="true"' : '') + '><span>' + esc(sc.name || 'Untitled scene') + '</span>' + (on ? '<i>On the table</i>' : '<i>Take everyone</i>') + '</button>'
+          + (on || S.mode === 'combat' ? '' : '<button class="sp-visit" onclick="sceneVisit(\'' + esc(sc.id) + '\')" title="Set it up without the players seeing">Visit quietly</button>') + '</div>'; }).join('') + '</div>'
     + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal();swOpen()">Open the Story</button><button class="tsm-btn" onclick="tsCloseModal()">Close</button></div>');
 }
 function liveSession(){
@@ -10224,6 +10288,15 @@ function sceneLayoutRestore(){
   if (!bd.mapId){
     /* a scene given a grid but no map yet still takes its grid */
     if (bd.grid){ S.grid = Object.assign({}, bd.grid); applyRemoteState({ grid:S.grid }); }
+    /* and the tokens set out in it on a quiet visit, with the Fell at the table */
+    if (Array.isArray(bd.tokens) && bd.tokens.some(function(t){ return !(t.kind === 'p' || t.charId); })){
+      var _fell0 = (S.tokens || []).filter(function(t){ return t.kind === 'p' || t.charId; });
+      var _own = bd.tokens.map(function(t){ return Object.assign({}, t); });
+      _fell0.forEach(function(f){ if (!_own.some(function(t){ return t.id === f.id || (t.charId && t.charId === f.charId); })) _own.push(f); });
+      S.tokens = _own; applyRemoteState({ tokens:S.tokens });
+      try { applySceneTableMap(); } catch(e){}
+      return true;
+    }
     return false;
   }
   if (bd.activeStageId) setActiveStage(bd.activeStageId);
@@ -10724,6 +10797,7 @@ function pushState(){
      That is the worst bug this file can have, so the gate is absolute. */
   if (_advSwitching) return;
   if (S.stream) return;   /* a stream only watches */
+  if (S.visit) return;    /* a quiet visit is said to no one until it is over */
   /* The LoreMaster's table says nothing until it has heard what is stored. A freshly loaded
      table holds the empty board and the empty scene layouts it starts with, and a push from
      it then wrote those over the stored ones (merged in, but a key that is sent replaces the
@@ -10815,6 +10889,7 @@ function seamWarn(){
 }
 /* apply a remote snapshot as truth */
 function applyRemoteSnapshot(snap){
+  if (S.visit) return;   /* the saved table waits until the LoreMaster is back from a quiet visit */
   if (snap && snap.beatPic !== undefined && !isLM()){ S.beatPic = snap.beatPic; try { beatPicPlayer(); } catch(e){} }
   if (snap && S.stream){ if (snap.beatPic !== undefined){ S.beatPic = snap.beatPic; try { streamBeatPic(); } catch(e){} } if (snap.handouts !== undefined){ try { streamHandouts(snap.handouts); } catch(e){} } }
   if (snap && snap.handouts !== undefined && (!isLM() || !S._hoTaken)){ S._hoTaken = true; S.handouts = snap.handouts || []; if (S.openSection === 'board') refreshWinBody(); if (BOARD.modal && document.querySelector('#tsModal .bd-tabs')) boardModalPaint(); }
@@ -20758,7 +20833,7 @@ var KEEPER_SENDS = ['pales', 'elev', 'fog', 'walls', 'lights', 'effects', 'notes
 var KEEPER_TAKES = KEEPER_SENDS.concat(['combatPhase', 'music', 'party', 'rest', 'loreGrants']);
 /* the rest of the table the LoreMaster's table sends through the room, each when it changes */
 var ROOM_PARTS = ['lobby', 'retell', 'spot', 'pales', 'elev', 'fog', 'walls', 'lights', 'effects', 'notes', 'weather', 'music', 'rest', 'viewCall', 'loreGrants', 'combatPhase', 'draw', 'portraits', 'party', 'beatPic', 'handouts', 'questRev'];
-function roomSend(msg){ if (ROOM.on && ROOM.ws && ROOM.ws.readyState === 1 && !S.stream){ try { ROOM.ws.send(JSON.stringify(msg)); return true; } catch(e){} } return false; }
+function roomSend(msg){ if (S.visit && msg && msg.t !== 'hb' && msg.t !== 'log') return false; if (ROOM.on && ROOM.ws && ROOM.ws.readyState === 1 && !S.stream){ try { ROOM.ws.send(JSON.stringify(msg)); return true; } catch(e){} } return false; }
 function roomConnect(){
   if (!tsEmbedded() || !S.campaignId) return;
   if (ROOM.ws && ROOM.cid === S.campaignId && ROOM.ws.readyState <= 1) return;
@@ -20955,6 +21030,7 @@ function roomReachApply(c, v){
   try { if (MOVEMARK && tokById(MOVEMARK.id)){ MOVEMARK.mob = moveLimitOf(tokById(MOVEMARK.id)); MOVEMARK.far = MOVEMARK.spaces > MOVEMARK.mob; moveMarkPaint(); } } catch(e){}
 }
 function roomGot(m){
+  if (visitHold(m)) return;
   if (m.t === 'reach'){ if (isLM()) roomReachApply(m.c, m); return; }
   if (m.t === 'stroke'){ if (m.s) drawTake({ strokes:[m.s] }); return; }
   if (m.t === 'door'){ doorTake(m); return; }
