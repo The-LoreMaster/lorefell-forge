@@ -143,9 +143,131 @@ function paint(){
   document.getElementById('app').innerHTML = h;
   var lg = document.getElementById('axlog'); if (lg) lg.scrollTop = lg.scrollHeight;
 }
-function paintVideos(){
-  return '<div class="empty">Titles, descriptions, chapters and moments for your stream videos come here next. Until then they live in ThreadSpire: Settings, Sessions, YouTube.</div>';
+/* ================= the videos: titles and descriptions, past and present =================
+   Every video on the channel (or one playlist), oldest first. Each gets a title of
+   "Adventure | Episode" and a description written to be found and shared: a hook, a teaser,
+   chapters from the timed captions, an invitation to LoreFell and a few hashtags. The episode
+   name is read from the captions, or chosen from a History's chapters in the FellGuide. Drafts
+   are kept in the room; nothing goes up until Update the video. */
+var VD = { list:null, from:'all', busy:false, msg:'', open:null, drafting:false, histChapters:{} };
+function vdKey(id){ return 'v:' + id; }
+function vdTime(s){ s = Math.max(0, s | 0); var h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return (h ? h + ':' + (m < 10 ? '0' : '') : '') + m + ':' + (x < 10 ? '0' : '') + x; }
+function vdLoad(){
+  VD.list = 'loading'; paint();
+  var go = VD.from === 'all' ? api('/ax/uploads') : api('/ax/playlist', { id:VD.from });
+  go.then(function(d){
+    var items = (d.items || []).slice().sort(function(a, b){ return new Date(a.at) - new Date(b.at); });
+    return api('/ax/drafts', { prefix:'v' }).then(function(k){
+      var keys = k.keys || [];
+      items.forEach(function(v){ v.draft = keys.indexOf('v:' + v.id) >= 0; v.done = keys.indexOf('vd:' + v.id) >= 0; });
+      VD.list = items; paint();
+    });
+  }).catch(function(e){ VD.list = []; VD.msg = e.message; paint(); });
 }
+function paintVideos(){
+  if (VD.list === null) vdLoad();
+  var pls = Array.isArray(AX.playlists) ? AX.playlists : [];
+  if (AX.playlists === null){ AX.playlists = 'loading'; api('/ax/playlists').then(function(d){ AX.playlists = d.items; paint(); }).catch(function(){ AX.playlists = []; }); }
+  if (VD.open) return paintVideoOpen();
+  var h = '<div class="panel"><h2>The videos</h2><p class="lead">Give each video its title, Adventure | Episode, and a description made to be found: a hook, a teaser, chapters, an invitation and hashtags. Open one to write it, or draft the rest and read each before it goes up.</p>'
+    + '<div class="row"><label class="f">Which videos<select class="t" onchange="VD.from=this.value;vdLoad()"><option value="all"' + (VD.from === 'all' ? ' selected' : '') + '>Every video on the channel</option>' + pls.map(function(p){ return '<option value="' + esc(p.id) + '"' + (VD.from === p.id ? ' selected' : '') + '>' + esc(p.title) + '</option>'; }).join('') + '</select></label></div>';
+  if (VD.list === 'loading') h += '<p class="lead">Reading the channel…</p>';
+  else if (!VD.list.length) h += '<div class="empty">' + esc(VD.msg || 'No videos here.') + '</div>';
+  else h += '<div class="list">' + VD.list.map(function(v, i){ return '<div class="it"><span class="num">' + (i + 1) + '</span><span class="ti">' + esc(v.title) + '<small>' + esc(new Date(v.at).toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' })) + '</small></span>'
+      + '<span class="row" style="margin:0"><span class="mark ' + (v.done ? 'done' : v.draft ? 'wait' : 'wait') + '">' + (v.done ? 'updated' : v.draft ? 'draft saved' : '') + '</span><button class="btn' + (v.draft ? ' pri' : '') + '" onclick="vdOpen(' + i + ')">' + (v.draft ? 'Open the draft' : v.done ? 'Again' : 'Write it') + '</button></span></div>'; }).join('') + '</div>'
+      + '<div class="row"><button class="btn pri" onclick="vdDraftRest()"' + (VD.drafting ? ' disabled' : '') + '>' + (VD.drafting ? 'Drafting…' : 'Draft the rest') + '</button></div>';
+  return h + '<div class="log" id="axlog" aria-live="polite">' + esc(VD.msg || '') + '</div></div>';
+}
+/* a History's chapter titles from the FellGuide, to name an episode by */
+function vdHistories(){ return AX.histories || []; }
+function vdChapters(hist){
+  if (VD.histChapters[hist]) return VD.histChapters[hist];
+  VD.histChapters[hist] = [];
+  var pre = BASE + hist + '/Storyline/';
+  VD.histChapters[hist] = (AX.vaultFiles || []).filter(function(p){ return p.indexOf(pre) === 0; }).map(function(p){ return p.slice(pre.length).replace(/\.md$/, '').replace(/^\d+\s*-\s*/, ''); });
+  return VD.histChapters[hist];
+}
+function vdOpen(i, fresh){
+  var v = VD.list[i]; if (!v) return;
+  VD.open = { i:i, v:v, busy:true, msg:'Reading the video…', adv:String(v.title).split('|')[0].trim(), ep:(String(v.title).split('|').slice(1).join('|') || '').trim(), title:'', desc:'', hist:'' };
+  paint();
+  (fresh ? Promise.resolve({ v:'' }) : api('/ax/draft', { k:vdKey(v.id) })).then(function(d){
+    if (d.v){ var dr = JSON.parse(d.v); Object.assign(VD.open, dr, { busy:false, msg:'Your draft from ' + new Date(dr.at).toLocaleDateString(undefined, { month:'short', day:'numeric' }) + '.' }); paint(); return; }
+    return vdWrite(VD.open).then(paint);
+  }).catch(function(e){ VD.open.busy = false; VD.open.msg = e.message; paint(); });
+}
+function vdWrite(o){
+  return api('/ax/video', { v:o.v.id, captions:1 }).then(function(d){
+    var segs = d.segments || [], hist = o.hist || vdGuessHistory(o.adv), chs = hist ? vdChapters(hist) : [];
+    o.hist = hist;
+    var sys = 'You write the YouTube title part and description for an actual-play episode of LoreFell, a dark fantasy tabletop roleplaying game, to help it be found and shared. Return ONLY JSON, no other text: '
+      + '{"episode":"the episode\u2019s name, a few words, from what happens in it' + (chs.length ? ' (if it matches one of the History\u2019s chapter titles given, use that title exactly)' : '') + '","hook":"one gripping line under 110 characters","teaser":"two or three sentences on what happens, vivid and plain, ending on a question or a turn, no spoilers of the very end","chapters":[{"s":seconds,"title":"two to five words"}],"hashtags":["#LoreFell","#TTRPG","..."]} '
+      + 'Chapters: from the timed caption pieces, where the story turns, 5 to 12, the first at 0 called Opening, at least a minute apart; none if there are no timings. Hashtags: 4 to 6, always #LoreFell and #TTRPG, plus #ActualPlay and fitting ones. No em dashes, no cliches, no emoji, never invent what did not happen.' + styleRules();
+    var user = 'Adventure: ' + (o.adv || '(unknown)') + '\nIts title now: ' + o.v.title + '\nIts description now:\n' + String(d.description || '').slice(0, 2000)
+      + (chs.length ? '\n\nThe History\u2019s chapter titles, in order:\n' + chs.join('\n') : '')
+      + (segs.length ? '\n\nTimed caption pieces (seconds: words):\n' + segs.map(function(g){ return g.s + ': ' + String(g.t).slice(0, 160); }).join('\n').slice(0, 60000) : '\n\nTranscript:\n' + String(d.captions || '').slice(0, 60000) + '\n(No timings: return an empty chapters list.)');
+    return ai(sys, user, 1600, true).then(function(raw){
+      var j = {}; try { j = JSON.parse(String(raw).replace(/```json|```/g, '').trim()); } catch(e){ var m = String(raw).match(/\{[\s\S]*\}/); try { j = m ? JSON.parse(m[0]) : {}; } catch(e2){ j = {}; } }
+      var ch = (Array.isArray(j.chapters) ? j.chapters : []).map(function(c){ return { s:Math.max(0, parseInt(c.s, 10) || 0), t:noDash(c.title).trim() }; }).filter(function(c){ return c.t; }).sort(function(a, b){ return a.s - b.s; });
+      if (ch.length){ ch[0].s = 0; ch = ch.filter(function(c, i){ return i === 0 || c.s - ch[i - 1].s >= 10; }); }
+      var tags = (Array.isArray(j.hashtags) ? j.hashtags : ['#LoreFell', '#TTRPG', '#ActualPlay']).map(function(t){ t = String(t).replace(/\s+/g, ''); return t.charAt(0) === '#' ? t : '#' + t; }).slice(0, 6);
+      var lines = [noDash(j.hook).trim(), '', noDash(j.teaser).trim()];
+      if (ch.length >= 3) lines.push('', 'Chapters', ch.map(function(c){ return vdTime(c.s) + ' ' + c.t; }).join('\n'));
+      lines.push('', 'Run your own adventure, or catch up on this one: https://www.lorefell.com', '', tags.join(' '));
+      o.ep = noDash(j.episode || o.ep).trim(); o.title = vdTitle(o); o.desc = lines.join('\n');
+      o.busy = false; o.msg = ch.length >= 3 ? '' : (segs.length ? '' : 'No chapters: this video has no timed captions yet.');
+    });
+  });
+}
+function vdGuessHistory(adv){ var a = String(adv || '').toLowerCase(); return vdHistories().filter(function(h){ return h.toLowerCase() === a; })[0] || ''; }
+function vdTitle(o){ return (String(o.adv || '').trim() + (o.ep ? ' | ' + String(o.ep).trim() : '')).slice(0, 100); }
+function paintVideoOpen(){
+  var o = VD.open, h = '<div class="panel"><div class="row" style="justify-content:space-between"><h2 style="margin:0">' + esc(o.v.title) + '</h2><button class="btn" onclick="VD.open=null;paint()">Back to the videos</button></div>';
+  if (o.busy) return h + '<p class="lead">' + esc(o.msg) + '</p></div>';
+  var chs = o.hist ? vdChapters(o.hist) : [];
+  h += '<div class="row"><label class="f">The adventure<input class="t" id="vdAdv" value="' + esc(o.adv) + '" oninput="VD.open.adv=this.value;vdRetitle()"></label>'
+    + '<label class="f">Its History in the FellGuide<select class="t" onchange="VD.open.hist=this.value;paint()"><option value="">None</option>' + vdHistories().map(function(n){ return '<option' + (o.hist === n ? ' selected' : '') + '>' + esc(n) + '</option>'; }).join('') + '</select></label></div>'
+    + '<div class="row">' + (chs.length ? '<label class="f">A chapter of that History<select class="t" onchange="if(this.value){VD.open.ep=this.value;document.getElementById(\'vdEp\').value=this.value;vdRetitle();}"><option value="">Choose a chapter…</option>' + chs.map(function(c){ return '<option' + (o.ep === c ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join('') + '</select></label>' : '')
+    + '<label class="f">The episode<input class="t" id="vdEp" value="' + esc(o.ep) + '" oninput="VD.open.ep=this.value;vdRetitle()"></label></div>'
+    + '<label class="f" style="margin-top:6px">Title<input class="t" id="vdTitle" maxlength="100" value="' + esc(o.title) + '" oninput="VD.open.title=this.value"></label>'
+    + '<label class="f" style="margin-top:10px">Description<textarea class="t" id="vdDesc" rows="16" oninput="VD.open.desc=this.value">' + esc(o.desc) + '</textarea></label>'
+    + '<p class="lead" style="margin-top:6px">This replaces the video\u2019s whole title and description. ' + esc(o.msg || '') + '</p>'
+    + '<div class="row"><button class="btn" onclick="vdOpen(' + o.i + ',true)">Write it again</button><button class="btn" onclick="vdSaveDraft()">Save draft</button><button class="btn pri" onclick="vdSend()">Update the video</button></div>';
+  return h + '</div>';
+}
+function vdRetitle(){ var o = VD.open; o.title = vdTitle(o); var t = document.getElementById('vdTitle'); if (t) t.value = o.title; }
+function vdSaveDraft(quiet){
+  var o = VD.open; if (!o) return Promise.resolve();
+  var dr = { adv:o.adv, ep:o.ep, hist:o.hist, title:o.title, desc:o.desc, at:Date.now() };
+  o.v.draft = true;
+  return api('/ax/draft', { k:vdKey(o.v.id) }, JSON.stringify(dr)).then(function(){ if (!quiet){ o.msg = 'Draft saved.'; paint(); } });
+}
+function vdSend(){
+  var o = VD.open; if (!o) return;
+  if (!confirm('Put this title and description up on YouTube? It replaces what is there now.')) return;
+  o.busy = true; o.msg = 'Putting it up…'; paint();
+  api('/ax/video/update', { v:o.v.id }, { title:o.title, description:o.desc }).then(function(){
+    api('/ax/draft', { k:vdKey(o.v.id) }, ''); api('/ax/draft', { k:'vd:' + o.v.id }, String(Date.now()));
+    o.v.title = o.title; o.v.draft = false; o.v.done = true; VD.msg = '\u201c' + o.title + '\u201d is up on YouTube.'; VD.open = null; paint();
+  }).catch(function(e){ o.busy = false; o.msg = 'Not updated: ' + e.message; paint(); });
+}
+/* one after another, each kept as a draft, never put up */
+function vdDraftRest(){
+  if (VD.drafting || !Array.isArray(VD.list)) return;
+  var todo = VD.list.map(function(v, i){ return i; }).filter(function(i){ return !VD.list[i].draft && !VD.list[i].done; });
+  if (!todo.length){ VD.msg = 'Every video here has a draft or is updated.'; paint(); return; }
+  VD.drafting = true; var n = 0;
+  var step = function(){
+    if (!todo.length){ VD.drafting = false; VD.msg = n + ' drafted. Open each to read it and put it up.'; paint(); return; }
+    var i = todo.shift(), v = VD.list[i];
+    VD.msg = 'Drafting ' + v.title + '… (' + todo.length + ' to go)'; paint();
+    var o = { i:i, v:v, adv:String(v.title).split('|')[0].trim(), ep:(String(v.title).split('|').slice(1).join('|') || '').trim(), hist:'' };
+    vdWrite(o).then(function(){ VD.open = o; return vdSaveDraft(true); }).then(function(){ VD.open = null; n++; setTimeout(step, 300); })
+      .catch(function(e){ VD.open = null; VD.drafting = false; VD.msg = 'Stopped at ' + v.title + ': ' + e.message + (/quota/i.test(e.message) ? '. YouTube\u2019s allowance is spent for today; Draft the rest tomorrow.' : ''); paint(); });
+  };
+  step();
+}
+
 function stepBtn(n, t, d){ return '<li><button class="' + (AX.step === n ? 'on' : '') + '" onclick="AX.step=' + n + ';paint()"' + (AX.step === n ? ' aria-current="step"' : '') + '><span class="n">' + n + '</span><span><b>' + t + '</b><span class="d">' + d + '</span></span></button></li>'; }
 function paintHistories(){
   var h = '<div class="steps"><ol>'
