@@ -41,7 +41,14 @@ jobs:
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             echo "ref=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_OUTPUT"
           else
-            echo "ref=${{ github.event.before }}" >> "$GITHUB_OUTPUT"
+            # A branch's first push has no "before" (all zeros), and a forced push can name a
+            # commit this checkout does not have. Either way, compare against where the branch
+            # left main instead, so a new branch is judged on its own changes.
+            b="${{ github.event.before }}"
+            if [ -z "$b" ] || echo "$b" | grep -qE '^0+$' || ! git cat-file -e "$b^{commit}" 2>/dev/null; then
+              b="$(git merge-base HEAD origin/main 2>/dev/null || echo origin/main)"
+            fi
+            echo "ref=$b" >> "$GITHUB_OUTPUT"
           fi
       # Vault-to-seed staleness (v2 item 1). The vault is a separate private repo, so this
       # step needs a VAULT_TOKEN secret with read access to The-LoreMaster/lorefell-fellguide.

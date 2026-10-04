@@ -1,3 +1,7 @@
+## 2026-10-03 - The canon gate on a new branch
+
+The Canon Drift Gate's push run compared a branch's first push against an empty "before" (all zeros), and could fail with no reason given. It now compares a new branch, or a forced push it cannot follow, against where the branch left main, so it judges the branch on its own changes like the pull request run does.
+
 ## 2026-10-03 - One picture width in the chooser; the Hearth's sessions take turns
 
 The adventure chooser's pictures are all the same width (a fixed share of the card), whatever is written beside them. On the Hearth, a member in several adventures sees their next sessions one at a time, sliding on every three seconds, with dots to pick one; it holds still while pointed at or focused, and does not move at all for a screen that asks for less motion. One adventure shows one card, as before.
