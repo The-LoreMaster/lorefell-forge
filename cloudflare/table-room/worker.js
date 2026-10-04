@@ -290,6 +290,17 @@ async function anexanum(req, url, env) {
       return out(await ytStore(env, { op: 'ax-get', k: key }));
     }
     if (p === '/ax/drafts') return out(await ytStore(env, { op: 'ax-list', k: String(url.searchParams.get('prefix') || '') }));
+    if (p === '/ax/auto') {
+      const ks = await ytStore(env, { op: 'ax-list', k: 'auto:' }); const out2 = {};
+      for (const k of (ks.keys || []).slice(0, 60)) { const r = await ytStore(env, { op: 'ax-get', k: k }); try { out2[k.slice(5)] = JSON.parse(r.v); } catch (e) {} }
+      return out({ ok: true, states: out2 });
+    }
+    if (p === '/ax/auto/hold') {
+      const v = String(url.searchParams.get('v') || '').match(/^[A-Za-z0-9_-]{6,20}$/); if (!v) return out({ ok: false });
+      const st = await autoState(env, v[0]); if (st && st.state === 'draft') { st.state = 'held'; st.heldAt = Date.now(); await autoSave(env, v[0], st); }
+      return out({ ok: true });
+    }
+    if (p === '/ax/auto/run') { await autoVideos(env); return out({ ok: true }); }
   } catch (e) { return out({ ok: false, error: String((e && e.message) || e).slice(0, 200) }); }
   return out({ ok: false, error: 'not found' }, 404);
 }
@@ -392,7 +403,93 @@ async function transcript(req, url, env) {
   } catch (e) { return out({ ok: false, error: 'YouTube could not be reached' }); }
 }
 
+/* ================= the Anexanum's own round =================
+   Every two hours, for the channel's owner: the newest uploads of the last seven days that
+   are session videos (over twenty minutes, no pipe in the title yet) are looked after, one
+   step a round. First it waits for YouTube's captions (they come the day after a stream).
+   Then it writes the title, Adventure | Episode, and a description made to be found, and
+   keeps them as a draft the Anexanum shows. Twelve hours later, if Nate has not opened that
+   draft, it puts them up as written; once he opens it, it is his to put up. */
+const AUTO_HOLD = 12 * 3600 * 1000, AUTO_WINDOW = 7 * 86400 * 1000, AUTO_MIN = 20 * 60;
+async function autoState(env, vid) { try { const r = await ytStore(env, { op: 'ax-get', k: 'auto:' + vid }); return r.v ? JSON.parse(r.v) : null; } catch (e) { return null; } }
+async function autoSave(env, vid, st) { await ytStore(env, { op: 'ax-set', k: 'auto:' + vid, v: JSON.stringify(st) }); }
+function isoDur(d) { const m = String(d || '').match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/); return m ? (+(m[1] || 0)) * 3600 + (+(m[2] || 0)) * 60 + (+(m[3] || 0)) : 0; }
+function autoTime(s) { s = Math.max(0, s | 0); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return (h ? h + ':' + (m < 10 ? '0' : '') : '') + m + ':' + (x < 10 ? '0' : '') + x; }
+async function autoAi(env, system, user, max) {
+  const body = JSON.stringify({ system: system, messages: [{ role: 'user', content: user }], max_tokens: max || 1600, model: 'smart' });
+  const req = new Request('https://lorefell-ai/', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://table.lorefell.com' }, body: body });
+  const res = env.AIW ? await env.AIW.fetch(req) : await fetch('https://lorefell-ai.nate8-johnson.workers.dev/', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://table.lorefell.com' }, body: body });
+  const d = await res.json(); if (!d || d.ok === false) throw new Error((d && d.error) || 'no text'); return d.text || '';
+}
+async function autoWrite(env, owner, v) {
+  const cap = await ytCaptions(env, owner, v.id);
+  if (!cap || !cap.ok) return null;
+  let moments = []; try { const mo = await ytStore(env, { op: 'ax-get', k: 'mo:' + v.id }); moments = JSON.parse(mo.v || '[]').filter((m) => m.kept); } catch (e) {}
+  const adv = String(v.title).split('|')[0].trim();
+  const sys = 'You write the YouTube title part and description for an actual-play episode of LoreFell, a dark fantasy tabletop roleplaying game, to help it be found and shared. Return ONLY JSON, no other text: '
+    + '{"episode":"the episode\u2019s name, a few words, from what happens in it","hook":"one gripping line under 110 characters","teaser":"two or three sentences on what happens, vivid and plain, ending on a question or a turn, no spoilers of the very end","chapters":[{"s":seconds,"title":"two to five words"}],"hashtags":["#LoreFell","#TTRPG","..."]} '
+    + 'Chapters: from the timed caption pieces, where the story turns, 5 to 12, the first at 0 called Opening, at least a minute apart. Hashtags: 4 to 6, always #LoreFell and #TTRPG, plus #ActualPlay and fitting ones. No em dashes, no cliches, no emoji, never invent what did not happen.';
+  const user = 'Adventure: ' + adv + '\nIts title now: ' + v.title + '\nIts description now:\n' + String(v.description || '').slice(0, 2000)
+    + '\n\nTimed caption pieces (seconds: words):\n' + (cap.segments || []).map((g) => g.s + ': ' + String(g.t).slice(0, 160)).join('\n').slice(0, 60000);
+  const raw = await autoAi(env, sys, user, 1600);
+  let j = {}; try { j = JSON.parse(String(raw).replace(/```json|```/g, '').trim()); } catch (e) { const m = String(raw).match(/\{[\s\S]*\}/); try { j = m ? JSON.parse(m[0]) : {}; } catch (e2) { j = {}; } }
+  const nd = (t) => String(t || '').replace(/\s*\u2014\s*/g, ', ').replace(/\s*\u2013\s*/g, ', ').trim();
+  let ch = (Array.isArray(j.chapters) ? j.chapters : []).map((c) => ({ s: Math.max(0, parseInt(c.s, 10) || 0), t: nd(c.title) })).filter((c) => c.t).sort((a, b) => a.s - b.s);
+  if (ch.length) { ch[0].s = 0; ch = ch.filter((c, i) => i === 0 || c.s - ch[i - 1].s >= 10); }
+  const tags = (Array.isArray(j.hashtags) ? j.hashtags : ['#LoreFell', '#TTRPG', '#ActualPlay']).map((t) => { t = String(t).replace(/\s+/g, ''); return t.charAt(0) === '#' ? t : '#' + t; }).slice(0, 6);
+  const lines = [nd(j.hook), '', nd(j.teaser)];
+  if (ch.length >= 3) lines.push('', 'Chapters', ch.map((c) => autoTime(c.s) + ' ' + c.t).join('\n'));
+  if (moments.length) lines.push('', 'Moments', moments.map((m) => autoTime(m.t) + ' ' + m.name).join('\n'));
+  lines.push('', 'Run your own adventure, or catch up on this one: https://www.lorefell.com', '', tags.join(' '));
+  const ep = nd(j.episode);
+  return { adv: adv, ep: ep, hist: '', title: (adv + (ep ? ' | ' + ep : '')).slice(0, 100), desc: lines.join('\n'), at: Date.now(), auto: true };
+}
+async function autoVideos(env) {
+  const o = await ytStore(env, { op: 'owner-get' }); const owner = o.owner; if (!owner) return;
+  const at = await ytAccess(env, owner); if (!at) return;
+  const auth = { Authorization: 'Bearer ' + at };
+  const ch = await ytJson(await fetch('https://www.googleapis.com/youtube/v3/channels?part=contentDetails&mine=true', { headers: auth }));
+  const pl = ch.items && ch.items[0] && ch.items[0].contentDetails.relatedPlaylists.uploads; if (!pl) return;
+  const li = await ytJson(await fetch('https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&maxResults=15&playlistId=' + pl, { headers: auth }));
+  const now = Date.now();
+  const ids = (li.items || []).map((it) => it.contentDetails).filter((c) => c && c.videoId && now - Date.parse(c.videoPublishedAt || 0) < AUTO_WINDOW).map((c) => c.videoId);
+  if (!ids.length) return;
+  const vs = await ytJson(await fetch('https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails&id=' + ids.join(','), { headers: auth }));
+  for (const it of (vs.items || [])) {
+    const v = { id: it.id, title: it.snippet.title || '', description: it.snippet.description || '' };
+    let st = await autoState(env, v.id);
+    if (st && (st.state === 'done' || st.state === 'held' || st.state === 'skipped')) continue;
+    if (!st) {
+      const live = it.snippet.liveBroadcastContent && it.snippet.liveBroadcastContent !== 'none';
+      if (live) continue;   /* still streaming: next round */
+      if (v.title.indexOf('|') >= 0 || isoDur(it.contentDetails.duration) < AUTO_MIN) { await autoSave(env, v.id, { state: 'skipped', at: now }); continue; }
+      st = { state: 'waiting', at: now, title: v.title };
+    }
+    try {
+      if (st.state === 'waiting') {
+        const dr = await autoWrite(env, owner, v);
+        if (!dr) { st.tries = (st.tries || 0) + 1; st.last = now; await autoSave(env, v.id, st); continue; }   /* captions not ready yet */
+        await ytStore(env, { op: 'ax-set', k: 'v:' + v.id, v: JSON.stringify(dr) });
+        await autoSave(env, v.id, { state: 'draft', at: now, draftAt: now, title: dr.title });
+        break;   /* one written a round is plenty */
+      }
+      if (st.state === 'draft' && now - st.draftAt >= AUTO_HOLD) {
+        const d = await ytStore(env, { op: 'ax-get', k: 'v:' + v.id }); if (!d.v) { await autoSave(env, v.id, Object.assign(st, { state: 'held' })); continue; }
+        const dr = JSON.parse(d.v);
+        const snip = { title: String(dr.title || '').slice(0, 100), description: String(dr.desc || '').slice(0, 5000), categoryId: it.snippet.categoryId || '20' };
+        if (it.snippet.tags) snip.tags = it.snippet.tags; if (it.snippet.defaultLanguage) snip.defaultLanguage = it.snippet.defaultLanguage;
+        const up = await (await fetch('https://www.googleapis.com/youtube/v3/videos?part=snippet', { method: 'PUT', headers: Object.assign({ 'Content-Type': 'application/json' }, auth), body: JSON.stringify({ id: v.id, snippet: snip }) })).json();
+        if (up.error) { st.err = ytWhy(up.error); await autoSave(env, v.id, st); continue; }
+        await ytStore(env, { op: 'ax-del', k: 'v:' + v.id });
+        await ytStore(env, { op: 'ax-set', k: 'vd:' + v.id, v: String(now) });
+        await autoSave(env, v.id, { state: 'done', at: now, title: snip.title, auto: true });
+      }
+    } catch (e) { st.err = String((e && e.message) || e).slice(0, 160); await autoSave(env, v.id, st); if (/allowance/.test(st.err)) return; }
+  }
+}
+
 export default {
+  async scheduled(event, env, ctx) { ctx.waitUntil(autoVideos(env).catch(() => {})); },
   async fetch(req, env) {
     const url = new URL(req.url);
     const m = url.pathname.match(/^\/room\/([A-Za-z0-9_-]{3,80})$/);

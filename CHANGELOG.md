@@ -1,3 +1,7 @@
+## 2026-10-04 - New session videos titled and described on their own
+
+The table room runs a round every two hours (a Cloudflare cron) for the channel's owner. It looks at the uploads of the last seven days; a session video (over twenty minutes, no pipe in its title yet, not still streaming) is waited on until YouTube has made its captions, then given a title, Adventure | Episode, and a description (hook, teaser, chapters, any moments kept at the table, the invitation, hashtags), kept as a draft. Twelve hours later, if Nate has not opened the draft in the Anexanum, it goes up as written; opening it holds it for him to put up. Shorts, clips and videos already titled are left alone. The Anexanum's videos show each one's state (waiting for captions, draft ready and when it goes up, held, updated automatically) and a Check now. The room reaches the AI proxy through a service binding.
+
 ## 2026-10-04 - A new History gets its row on The Histories
 
 Writing the world for a new History also adds its row to the table on The Histories' own page ([[Name]], Campaign), shown as a changed page in the review like the order map.

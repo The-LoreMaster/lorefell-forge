@@ -362,13 +362,24 @@ function vdLoad(){
   var go = VD.from === 'all' ? api('/ax/uploads') : api('/ax/playlist', { id:VD.from });
   go.then(function(d){
     var items = (d.items || []).slice().sort(function(a, b){ return new Date(a.at) - new Date(b.at); });
-    return api('/ax/drafts', { prefix:'v' }).then(function(k){
-      var keys = k.keys || [];
-      items.forEach(function(v){ v.draft = keys.indexOf('v:' + v.id) >= 0; v.done = keys.indexOf('vd:' + v.id) >= 0; });
+    return Promise.all([api('/ax/drafts', { prefix:'v' }), api('/ax/auto').catch(function(){ return { states:{} }; })]).then(function(r){
+      var keys = r[0].keys || [], au = r[1].states || {};
+      items.forEach(function(v){ v.draft = keys.indexOf('v:' + v.id) >= 0; v.done = keys.indexOf('vd:' + v.id) >= 0; v.auto = au[v.id] || null; });
       VD.list = items; paint();
     });
   }).catch(function(e){ VD.list = []; VD.msg = e.message; paint(); });
 }
+/* what the Anexanum's own round says of a video */
+function vdAutoWord(v){
+  var a = v.auto;
+  if (a && a.state === 'done' && a.auto) return 'updated automatically ' + new Date(a.at).toLocaleDateString(undefined, { month:'short', day:'numeric' });
+  if (v.done) return 'updated';
+  if (a && a.state === 'draft') return 'draft ready, goes up ' + new Date(a.draftAt + 12 * 3600000).toLocaleString(undefined, { weekday:'short', hour:'numeric', minute:'2-digit' }) + ' unless you open it';
+  if (a && a.state === 'held') return 'draft held for you';
+  if (a && a.state === 'waiting') return 'waiting for captions' + (a.err ? ' (' + a.err + ')' : '');
+  return v.draft ? 'draft saved' : '';
+}
+function vdRunNow(){ VD.msg = 'Checking the channel now…'; paint(); api('/ax/auto/run').then(function(){ VD.msg = 'Checked.'; vdLoad(); }).catch(function(e){ VD.msg = e.message; paint(); }); }
 function paintVideos(){
   if (VD.list === null) vdLoad();
   var pls = Array.isArray(AX.playlists) ? AX.playlists : [];
@@ -376,11 +387,12 @@ function paintVideos(){
   if (RP) return paintRecap();
   if (VD.open) return paintVideoOpen();
   var h = '<div class="panel"><h2>The videos</h2><p class="lead">Give each video its title, Adventure | Episode, and a description made to be found: a hook, a teaser, chapters, an invitation and hashtags. Open one to write it, or draft the rest and read each before it goes up.</p>'
+    + '<p class="lead">New session videos look after themselves: every two hours the Anexanum checks the channel, waits for a new video\u2019s captions, writes its title and description, and puts them up twelve hours later unless you open the draft first. Opening it holds it for you. <button class="btn" onclick="vdRunNow()">Check now</button></p>'
     + '<div class="row"><label class="f">Which videos<select class="t" onchange="VD.from=this.value;vdLoad()"><option value="all"' + (VD.from === 'all' ? ' selected' : '') + '>Every video on the channel</option>' + pls.map(function(p){ return '<option value="' + esc(p.id) + '"' + (VD.from === p.id ? ' selected' : '') + '>' + esc(p.title) + '</option>'; }).join('') + '</select></label></div>';
   if (VD.list === 'loading') h += '<p class="lead">Reading the channel…</p>';
   else if (!VD.list.length) h += '<div class="empty">' + esc(VD.msg || 'No videos here.') + '</div>';
   else h += '<div class="list">' + VD.list.map(function(v, i){ return '<div class="it"><span class="num">' + (i + 1) + '</span><span class="ti">' + esc(v.title) + '<small>' + esc(new Date(v.at).toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' })) + '</small></span>'
-      + '<span class="row" style="margin:0"><span class="mark ' + (v.done ? 'done' : v.draft ? 'wait' : 'wait') + '">' + (v.done ? 'updated' : v.draft ? 'draft saved' : '') + '</span><button class="btn" onclick="rpOpen(' + i + ')" title="Plan a 30 to 40 second recap video">Recap video</button><button class="btn' + (v.draft ? ' pri' : '') + '" onclick="vdOpen(' + i + ')">' + (v.draft ? 'Open the draft' : v.done ? 'Again' : 'Write it') + '</button></span></div>'; }).join('') + '</div>'
+      + '<span class="row" style="margin:0"><span class="mark ' + (v.done ? 'done' : v.draft ? 'wait' : 'wait') + '">' + vdAutoWord(v) + '</span><button class="btn" onclick="rpOpen(' + i + ')" title="Plan a 30 to 40 second recap video">Recap video</button><button class="btn' + (v.draft ? ' pri' : '') + '" onclick="vdOpen(' + i + ')">' + (v.draft ? 'Open the draft' : v.done ? 'Again' : 'Write it') + '</button></span></div>'; }).join('') + '</div>'
       + '<div class="row"><button class="btn pri" onclick="vdDraftRest()"' + (VD.drafting ? ' disabled' : '') + '>' + (VD.drafting ? 'Drafting…' : 'Draft the rest') + '</button></div>';
   h += '<div class="row"><span class="lead" style="margin:0">A recap video from a transcript file, for any session:</span>' + rpFileBtn() + '</div>';
   return h + '<div class="log" id="axlog" aria-live="polite">' + esc(VD.msg || '') + '</div></div>';
@@ -396,6 +408,7 @@ function vdChapters(hist){
 }
 function vdOpen(i, fresh){
   var v = VD.list[i]; if (!v) return;
+  if (v.auto && v.auto.state === 'draft'){ api('/ax/auto/hold', { v:v.id }).catch(function(){}); v.auto.state = 'held'; }
   VD.open = { i:i, v:v, busy:true, msg:'Reading the video…', adv:String(v.title).split('|')[0].trim(), ep:(String(v.title).split('|').slice(1).join('|') || '').trim(), title:'', desc:'', hist:'' };
   paint();
   (fresh ? Promise.resolve({ v:'' }) : api('/ax/draft', { k:vdKey(v.id) })).then(function(d){
@@ -432,6 +445,7 @@ function paintVideoOpen(){
   var o = VD.open, h = '<div class="panel"><div class="row" style="justify-content:space-between"><h2 style="margin:0">' + esc(o.v.title) + '</h2><button class="btn" onclick="VD.open=null;paint()">Back to the videos</button></div>';
   if (o.busy) return h + '<p class="lead">' + esc(o.msg) + '</p></div>';
   var chs = o.hist ? vdChapters(o.hist) : [];
+  if (o.v.auto && (o.v.auto.state === 'held' || o.v.auto.state === 'draft')) h += '<p class="lead">Written automatically. Opening it held it: it will not go up on its own now, so press Update the video when it reads right.</p>';
   h += '<div class="row"><label class="f">The adventure<input class="t" id="vdAdv" value="' + esc(o.adv) + '" oninput="VD.open.adv=this.value;vdRetitle()"></label>'
     + '<label class="f">Its History in the FellGuide<select class="t" onchange="VD.open.hist=this.value;paint()"><option value="">None</option>' + vdHistories().map(function(n){ return '<option' + (o.hist === n ? ' selected' : '') + '>' + esc(n) + '</option>'; }).join('') + '</select></label></div>'
     + '<div class="row">' + (chs.length ? '<label class="f">A chapter of that History<select class="t" onchange="if(this.value){VD.open.ep=this.value;document.getElementById(\'vdEp\').value=this.value;vdRetitle();}"><option value="">Choose a chapter…</option>' + chs.map(function(c){ return '<option' + (o.ep === c ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join('') + '</select></label>' : '')
