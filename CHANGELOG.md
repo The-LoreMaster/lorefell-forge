@@ -1,3 +1,7 @@
+## 2026-10-04 - The channel's campaigns page is The Histories
+
+The public page of the channel's campaigns is The Histories (embeds/the_histories.html, for a page at /the-histories), since The Adventures is already the page of published adventures.
+
 ## 2026-10-04 - The Adventures: every campaign on the channel, for anyone
 
 A public page (embeds/adventures_watch.html) lists every playlist on the LoreFell channel except the Lorebounds and the Shorts, newest first, each as a wide banner from its own art with its episode count, its dates and a snippet (the playlist's description, or the opening of its FellGuide History when the playlist has none). Opened, it lists the episodes in order, each named by the part after the pipe, linked to YouTube within the playlist, with Watch from the start, the playlist, and Read its History when the History is in the vault. The room gathers it with the owner's connection and keeps it for six hours (/pub/adventures), so visitors cost nothing of YouTube's allowance.
