@@ -106,6 +106,39 @@ export const sendTestEmail = webMethod(Permissions.Anyone, async (campaignId, ki
   return { ok: r.sent > 0, error: r.sent ? '' : 'the email did not go out' };
 });
 
+/* ---- the Codex: the story so far, as the LoreMaster shared it ----
+   Each entry is a recap the players were meant to read (sent, or added from a session's
+   video), with the names it mentions (checked against the Story when it was added), so the
+   Codex never shows anything the recaps did not. Anyone at the adventure reads it; only the
+   LoreMaster adds to it or takes from it. */
+function codexOf(row) { try { const v = JSON.parse((row && row.codex) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
+export const getCodex = webMethod(Permissions.Anyone, async (campaignId) => {
+  const mid = await memberId(); if (!mid || !campaignId) return { ok: false };
+  const role = await roleAt(campaignId);
+  if (!role) { const pl = await playersOf(campaignId); if (!pl.some((p) => p.memberId === mid)) return { ok: false, error: 'not at this adventure' }; }
+  let row = null; try { row = await sessionRow(campaignId); } catch (e) {}
+  return { ok: true, entries: codexOf(row), lm: role === 'loremaster' };
+});
+export const addCodexEntry = webMethod(Permissions.Anyone, async (campaignId, entry) => {
+  if (!campaignId || !(await isLoreMaster(campaignId))) return { ok: false, error: 'only the LoreMaster' };
+  const e = entry || {};
+  const clean = { id: String(e.id || ('cx' + Date.now())).slice(0, 40), at: Number(e.at) || Date.now(), session: String(e.session || '').slice(0, 120), text: String(e.text || '').slice(0, 6000),
+    videoId: String(e.videoId || '').slice(0, 20), names: (Array.isArray(e.names) ? e.names : []).slice(0, 80).map((n) => ({ n: String(n.n || '').slice(0, 80), k: String(n.k || '').slice(0, 12) })) };
+  if (!clean.text) return { ok: false, error: 'nothing to add' };
+  let row = null; try { row = await sessionRow(campaignId); } catch (e2) {}
+  let list = codexOf(row).filter((x) => x.id !== clean.id && !(clean.session && x.session === clean.session));
+  list.push(clean); list.sort((a, b) => a.at - b.at); list = list.slice(-200);
+  try { await sessionSave(campaignId, { codex: JSON.stringify(list) }); } catch (e3) { return { ok: false, error: 'not saved' }; }
+  return { ok: true, entries: list };
+});
+export const removeCodexEntry = webMethod(Permissions.Anyone, async (campaignId, id) => {
+  if (!campaignId || !(await isLoreMaster(campaignId))) return { ok: false, error: 'only the LoreMaster' };
+  let row = null; try { row = await sessionRow(campaignId); } catch (e) {}
+  const list = codexOf(row).filter((x) => x.id !== String(id));
+  try { await sessionSave(campaignId, { codex: JSON.stringify(list) }); } catch (e2) { return { ok: false }; }
+  return { ok: true, entries: list };
+});
+
 // For the Hearth: the next session of every adventure this member plays in or runs.
 export const myNextSessions = webMethod(Permissions.Anyone, async () => {
   const mid = await memberId(); if (!mid) return [];
