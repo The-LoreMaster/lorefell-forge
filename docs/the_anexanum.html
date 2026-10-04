@@ -155,7 +155,7 @@ function rpOpen(i){
   RP = { v:v, busy:true, msg:'Reading the captions and the moments…', clips:[], moments:[], lines:[] };
   VD.open = null; paint();
   Promise.all([api('/ax/video', { v:v.id, captions:1, lines:1 }), api('/ax/draft', { k:'mo:' + v.id }), api('/ax/draft', { k:'rp:' + v.id })]).then(function(r){
-    RP.lines = r[0].lines || [];
+    RP.lines = r[0].lines || []; RP._ends = null; RP._starts = null;
     try { RP.moments = JSON.parse(r[1].v || '[]'); } catch(e){ RP.moments = []; }
     if (r[2].v){ try { var dr = JSON.parse(r[2].v); RP.clips = dr.clips || []; RP.recap = dr.recap || ''; RP.busy = false; RP.msg = 'Your plan from ' + new Date(dr.at).toLocaleDateString(undefined, { month:'short', day:'numeric' }) + '.'; paint(); return; } catch(e){} }
     return rpRecap().then(function(){ if (RP.recap) return rpPick(); });
@@ -187,27 +187,56 @@ function rpPick(){
   var user = 'Video: ' + RP.v.title + '\n\nThe recap, the spine:\n' + RP.recap + '\n\nMoments marked at the table:\n' + (mom || '(none)') + '\n\nCaptions, by the second they start:\n' + lines;
   return ai(sys, user, 1500, true).then(function(raw){
     var arr = []; try { arr = JSON.parse(String(raw).replace(/```json|```/g, '').trim()); } catch(e){ var m = String(raw).match(/\[[\s\S]*\]/); try { arr = m ? JSON.parse(m[0]) : []; } catch(e2){ arr = []; } }
-    RP.clips = (Array.isArray(arr) ? arr : []).map(function(c){ var s = Math.max(0, +c.start || 0), e = Math.max(s + 1, +c.end || s + 5); if (e - s > 9) e = s + 9; return { start:Math.round(s * 10) / 10, end:Math.round(e * 10) / 10, label:noDash(c.label || '').trim(), beat:noDash(c.beat || '').trim(), kind:c.kind === 'highlight' ? 'highlight' : 'story', tags:Array.isArray(c.tags) ? c.tags : [] }; }).sort(function(a, b){ return a.start - b.start; });
+    RP.clips = (Array.isArray(arr) ? arr : []).map(function(c){ var s = Math.max(0, +c.start || 0), e = Math.max(s + 1, +c.end || s + 5); if (e - s > 9) e = s + 9; return { start:Math.round(s * 10) / 10, end:Math.round(e * 10) / 10, label:noDash(c.label || '').trim(), beat:noDash(c.beat || '').trim(), kind:c.kind === 'highlight' ? 'highlight' : 'story', tags:Array.isArray(c.tags) ? c.tags : [] }; }).map(rpSnap).sort(function(a, b){ return a.start - b.start; });
     RP.busy = false; RP.msg = RP.clips.length ? '' : 'No clips came back. Try Choose again.'; rpSave(); paint();
   }).catch(function(e){ RP.busy = false; RP.msg = 'Not chosen: ' + e.message; paint(); });
 }
 function rpSave(){ if (RP) return api('/ax/draft', { k:'rp:' + RP.v.id }, JSON.stringify({ clips:RP.clips, recap:RP.recap || '', at:Date.now() })).catch(function(){}); }
+/* ---- clips that start on a line and end on a sentence ----
+   Auto-captions are cut into lines that do not always carry punctuation, so a sentence ends
+   where a line ends with . ! or ?, or where the speaker pauses (a gap before the next line).
+   A clip starts a breath before its first line and ends a breath after its sentence. */
+var RP_LEAD = 0.2, RP_TAIL = 0.35, RP_GAP = 0.6;
+function rpEnds(){
+  if (RP._ends) return RP._ends;
+  var L = RP.lines, out = [];
+  for (var i = 0; i < L.length; i++){
+    var nx = L[i + 1], punct = /[.!?\u2026]["\u201d']?\s*$/.test(L[i].t), gap = nx ? (nx.s - L[i].e) : 99;
+    if (punct || gap >= RP_GAP) out.push(L[i].e);
+  }
+  return (RP._ends = out);
+}
+function rpStarts(){ return RP._starts || (RP._starts = RP.lines.map(function(l){ return l.s; })); }
+function rpSnapStart(t){ var st = rpStarts(), best = null; st.forEach(function(s){ if (s <= t + 0.25 && (best === null || s > best)) best = s; }); return best === null ? t : Math.max(0, best - RP_LEAD); }
+function rpSnapEnd(t){ var en = rpEnds(), best = null; en.forEach(function(e){ if (e >= t - 0.25 && (best === null || e < best)) best = e; }); if (best === null || best - t > 8) best = t; return best + RP_TAIL; }
+function rpSnap(c){ c.start = Math.round(rpSnapStart(c.start) * 10) / 10; c.end = Math.round(rpSnapEnd(Math.max(c.end, c.start + 1)) * 10) / 10; return c; }
+/* step a clip's start to the line before or after, or its end to the sentence before or after */
+function rpStep(i, k, dir){
+  var c = RP.clips[i]; if (!c) return;
+  if (k === 'start'){ var st = rpStarts().map(function(s){ return Math.max(0, s - RP_LEAD); }), cur = c.start;
+    var nxt = dir < 0 ? st.filter(function(s){ return s < cur - 0.05; }).pop() : st.filter(function(s){ return s > cur + 0.05; })[0];
+    if (nxt !== undefined && nxt < c.end - 0.5) c.start = Math.round(nxt * 10) / 10; }
+  else { var en = rpEnds().map(function(e){ return e + RP_TAIL; }), cur2 = c.end;
+    var nx2 = dir < 0 ? en.filter(function(e){ return e < cur2 - 0.05; }).pop() : en.filter(function(e){ return e > cur2 + 0.05; })[0];
+    if (nx2 !== undefined && nx2 > c.start + 0.5) c.end = Math.round(nx2 * 10) / 10; }
+  rpSave(); paint();
+}
 function rpTotal(){ return RP.clips.reduce(function(a, c){ return a + Math.max(0, c.end - c.start); }, 0); }
 function rpNudge(i, k, d){ var c = RP.clips[i]; c[k] = Math.max(0, Math.round((c[k] + d) * 10) / 10); if (c.end <= c.start) c.end = c.start + 1; rpSave(); paint(); }
 function rpDrop(i){ RP.clips.splice(i, 1); rpSave(); paint(); }
-function rpAdd(j){ var m = RP.moments[j]; if (!m) return; RP.clips.push({ start:Math.max(0, m.t - 1), end:m.t + 3, label:m.name, tags:m.tags || [], kind:'highlight', beat:'' }); RP.clips.sort(function(a, b){ return a.start - b.start; }); rpSave(); paint(); }
-function rpLine(c){ var l = RP.lines.filter(function(x){ return x.s >= c.start - 0.5 && x.s < c.end; }).map(function(x){ return x.t; }).join(' '); return l.slice(0, 220); }
+function rpAdd(j){ var m = RP.moments[j]; if (!m) return; RP.clips.push(rpSnap({ start:Math.max(0, m.t - 1), end:m.t + 3, label:m.name, tags:m.tags || [], kind:'highlight', beat:'' })); RP.clips.sort(function(a, b){ return a.start - b.start; }); rpSave(); paint(); }
+function rpLine(c){ var l = RP.lines.filter(function(x){ return x.s >= c.start - 0.05 && x.e <= c.end + 0.05; }).map(function(x){ return x.t; }).join(' '); return l.slice(0, 260); }
 function paintRecap(){
   var h = '<div class="panel"><div class="row" style="justify-content:space-between"><h2 style="margin:0">A recap video: ' + esc(RP.v.title) + '</h2><button class="btn" onclick="RP=null;paint()">Back to the videos</button></div>';
   if (RP.busy) return h + '<p class="lead">' + esc(RP.msg) + '</p></div>';
   var tot = rpTotal();
-  h += '<p class="lead">The recap is the spine: each story clip shows one of its beats, and a highlight or two is laid in where it happened. Change the recap and Choose the clips again, or watch each pick, trim it, drop it, add a marked moment. Then download the plan for the Recap Cutter.</p>'
+  h += '<p class="lead">The recap is the spine: each story clip shows one of its beats, and a highlight or two is laid in where it happened. Change the recap and Choose the clips again, or watch each pick, step its start a line at a time and its end a sentence at a time, drop it, add a marked moment. Then download the plan for the Recap Cutter.</p>'
     + '<label class="f">The recap<textarea class="t" id="rpRecap" rows="5" oninput="RP.recap=this.value;clearTimeout(window._rps);window._rps=setTimeout(rpSave,800)">' + esc(RP.recap || '') + '</textarea></label>'
     + '<div class="row"><button class="btn" onclick="rpRecap()">Write the recap again</button><button class="btn pri" onclick="rpPick()">Choose the clips from this recap</button></div>'
     + '<div class="list">' + RP.clips.map(function(c, i){ return '<div class="it" style="grid-template-columns:44px minmax(0,1fr) auto"><span class="num">' + (i + 1) + '</span>'
       + '<span class="ti"><span class="mark ' + (c.kind === 'highlight' ? 'wait' : 'done') + '">' + (c.kind === 'highlight' ? 'Highlight' : 'Story') + '</span> <a href="https://youtu.be/' + esc(RP.v.id) + '?t=' + Math.floor(c.start) + '" target="_blank" rel="noopener">' + vdTime(c.start) + '</a> to ' + vdTime(c.end) + ' (' + (Math.round((c.end - c.start) * 10) / 10) + 's) ' + esc(c.label) + (c.tags && c.tags.length ? ' <small style="display:inline">' + esc(c.tags.join(', ')) + '</small>' : '')
         + (c.beat ? '<small>Shows: ' + esc(c.beat) + '</small>' : '') + '<small>Says: ' + esc(rpLine(c)) + '</small></span>'
-      + '<span class="row" style="margin:0;gap:4px"><button class="btn" onclick="rpNudge(' + i + ',\'start\',-1)" title="Start a second earlier">\u2212 start</button><button class="btn" onclick="rpNudge(' + i + ',\'start\',1)" title="Start a second later">+ start</button><button class="btn" onclick="rpNudge(' + i + ',\'end\',-1)" title="End a second earlier">\u2212 end</button><button class="btn" onclick="rpNudge(' + i + ',\'end\',1)" title="End a second later">+ end</button><button class="btn" onclick="rpDrop(' + i + ')">Drop</button></span></div>'; }).join('') + '</div>'
+      + '<span class="row" style="margin:0;gap:4px"><button class="btn" onclick="rpStep(' + i + ',\'start\',-1)" title="Start a line earlier">\u25c2 start</button><button class="btn" onclick="rpStep(' + i + ',\'start\',1)" title="Start a line later">start \u25b8</button><button class="btn" onclick="rpStep(' + i + ',\'end\',-1)" title="End a sentence earlier">\u25c2 end</button><button class="btn" onclick="rpStep(' + i + ',\'end\',1)" title="End a sentence later">end \u25b8</button><button class="btn" onclick="rpDrop(' + i + ')">Drop</button></span></div>'; }).join('') + '</div>'
     + '<p class="lead" style="margin-top:8px">' + RP.clips.length + ' clips, ' + Math.round(tot) + ' seconds' + (tot > 45 ? ': over 45, drop or trim one.' : tot < 30 ? ': under 30, add a moment if one is missing.' : '.') + '</p>'
     + (RP.moments.length ? '<div class="row"><label class="f">Add a marked moment<select class="t" onchange="if(this.value!==\'\'){rpAdd(+this.value);}"><option value="">Choose one\u2026</option>' + RP.moments.map(function(m, j){ return '<option value="' + j + '">' + esc(vdTime(m.t) + ' ' + m.name + (m.kept ? '' : ' (suggested)')) + '</option>'; }).join('') + '</select></label></div>' : '<p class="lead">No moments came from the table for this video. Mark them with M during a session, and keep them in Moments.</p>')
     + '<div class="row"><button class="btn" onclick="rpPick()">Choose the clips again</button><button class="btn pri" onclick="rpDownload()"' + (RP.clips.length ? '' : ' disabled') + '>Download the plan</button></div>'

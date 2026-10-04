@@ -1,3 +1,7 @@
+## 2026-10-04 - Recap clips start on a line and end on a sentence
+
+Every clip of a recap video lands on the captions: it starts a breath (0.2s) before the line it opens on, and ends a breath (0.35s) after the end of a sentence, a line ending in . ! ? or followed by a pause of 0.6s or more (auto-captions do not always punctuate). The trims step the start a line at a time and the end a sentence at a time, instead of a second, and Says shows exactly the lines inside the clip. Picks, added moments and reopened plans all land this way.
+
 ## 2026-10-04 - A recap video built on the story
 
 Recap video now starts from the story: it first writes a short recap of the session from its captions (100 to 140 words, the kind ThreadSpire writes, ending where the story stopped), shown and editable, then takes the recap's beats in order and finds, for each, the few seconds in the captions where it is shown happening in the fiction (characters speaking in the story, choices, reveals, consequences, not a long stretch of one narrator, never rules talk or banter), lays in one or two highlights (funny, triumph or drama, from the marked moments first) where they happened, and ends on the session's final minutes. Each clip is marked Story or Highlight, with the beat it shows and what is said in it. Thirty to forty-five seconds. Write the recap again, and Choose the clips from this recap; the recap is kept with the plan.
