@@ -1,3 +1,7 @@
+## 2026-10-03 - Update any session video
+
+Every session video in the list has Update the video, recap written or not; without one written from it, the Retelling's recap (or the newest sent) gives the description its story.
+
 ## 2026-10-03 - YouTube is the site's own channel only; Update the video, easier to find
 
 The YouTube connection belongs to one channel: the site owner's, the first LoreMaster to connect (Nate). For anyone else the room refuses to connect and the table shows nothing of it: no Settings row, no link field, no prompts, no channel list (the copy-a-transcript steps stay for everyone). Update the video is easier to find: Settings, Sessions, YouTube has Update a video, which opens the session videos with their buttons, and each Codex entry that came from a video has Update the video beside Watch.
