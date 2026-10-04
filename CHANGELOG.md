@@ -1,3 +1,7 @@
+## 2026-10-04 - The Adventures: every campaign on the channel, for anyone
+
+A public page (embeds/adventures_watch.html) lists every playlist on the LoreFell channel except the Lorebounds and the Shorts, newest first, each as a wide banner from its own art with its episode count, its dates and a snippet (the playlist's description, or the opening of its FellGuide History when the playlist has none). Opened, it lists the episodes in order, each named by the part after the pipe, linked to YouTube within the playlist, with Watch from the start, the playlist, and Read its History when the History is in the vault. The room gathers it with the owner's connection and keeps it for six hours (/pub/adventures), so visitors cost nothing of YouTube's allowance.
+
 ## 2026-10-04 - Lobby uploads stay the lobby's; the lobby's picture cannot be deleted
 
 An upload begun for the lobby carries that with it, so a long video that finishes after the Maps window was closed still goes to the lobby, never into a stage waiting for a map or onto the table (it had landed in a stage). The lobby's picture or video cannot be removed from the shelf, singly or in a batch, while it is the lobby's: removing it deleted the file and left the lobby empty.
