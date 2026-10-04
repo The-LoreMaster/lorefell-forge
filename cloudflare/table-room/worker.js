@@ -200,12 +200,38 @@ async function anexanum(req, url, env) {
   const p = url.pathname;
   try {
     if (p === '/ax/whoami') return out({ ok: true, vault: !!env.FELLGUIDE_TOKEN, youtube: !!env.YT_CLIENT_ID });
-    if (p === '/ax/playlists' || p === '/ax/playlist' || p === '/ax/video') {
+    if (p === '/ax/playlists' || p === '/ax/playlist' || p === '/ax/video' || p === '/ax/uploads' || p === '/ax/video/update') {
       const at = await ytAccess(env, who.member); if (!at) return out({ ok: false, error: 'YouTube is not connected (connect it from ThreadSpire, Settings, Sessions)' });
       const auth = { Authorization: 'Bearer ' + at };
       if (p === '/ax/playlists') {
         const j = await (await fetch('https://www.googleapis.com/youtube/v3/playlists?part=snippet,contentDetails&mine=true&maxResults=50', { headers: auth })).json();
         return out({ ok: true, items: (j.items || []).map((x) => ({ id: x.id, title: x.snippet.title, count: (x.contentDetails || {}).itemCount || 0 })) });
+      }
+      /* every upload on the channel, newest first, a page of fifty at a time, up to four hundred */
+      if (p === '/ax/uploads') {
+        const ch = await (await fetch('https://www.googleapis.com/youtube/v3/channels?part=contentDetails&mine=true', { headers: auth })).json();
+        const pl = ch.items && ch.items[0] && ch.items[0].contentDetails.relatedPlaylists.uploads;
+        if (!pl) return out({ ok: false, error: 'no uploads list' });
+        let tok = '', all = [];
+        for (let i = 0; i < 8; i++) {
+          const j = await (await fetch('https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&maxResults=50&playlistId=' + pl + (tok ? '&pageToken=' + tok : ''), { headers: auth })).json();
+          (j.items || []).forEach((it) => all.push({ id: (it.contentDetails || {}).videoId, title: it.snippet.title, at: (it.contentDetails || {}).videoPublishedAt || it.snippet.publishedAt }));
+          tok = j.nextPageToken || ''; if (!tok) break;
+        }
+        return out({ ok: true, items: all.filter((x) => x.id) });
+      }
+      if (p === '/ax/video/update') {
+        const v = String(url.searchParams.get('v') || '').match(/^[A-Za-z0-9_-]{6,20}$/); if (!v) return out({ ok: false, error: 'no video id' });
+        const got = await (await fetch('https://www.googleapis.com/youtube/v3/videos?part=snippet&id=' + v[0], { headers: auth })).json();
+        const it = got.items && got.items[0]; if (!it) return out({ ok: false, error: 'that video is not on your channel' });
+        let body = {}; try { body = JSON.parse(await req.text()); } catch (e) {}
+        const title = String(body.title || '').slice(0, 100), description = String(body.description || '').slice(0, 5000);
+        if (!title) return out({ ok: false, error: 'a title is needed' });
+        const snip = { title: title, description: description, categoryId: it.snippet.categoryId || '20' };
+        if (it.snippet.tags) snip.tags = it.snippet.tags; if (it.snippet.defaultLanguage) snip.defaultLanguage = it.snippet.defaultLanguage;
+        const up = await (await fetch('https://www.googleapis.com/youtube/v3/videos?part=snippet', { method: 'PUT', headers: Object.assign({ 'Content-Type': 'application/json' }, auth), body: JSON.stringify({ id: v[0], snippet: snip }) })).json();
+        if (up.error) return out({ ok: false, error: up.error.message || 'YouTube refused' });
+        return out({ ok: true });
       }
       if (p === '/ax/playlist') {
         const id = String(url.searchParams.get('id') || '').replace(/[^A-Za-z0-9_-]/g, ''); let tok = '', all = [];
@@ -220,7 +246,7 @@ async function anexanum(req, url, env) {
       const vj = await (await fetch('https://www.googleapis.com/youtube/v3/videos?part=snippet&id=' + v[0], { headers: auth })).json();
       const it = vj.items && vj.items[0];
       const cap = url.searchParams.get('captions') ? await ytCaptions(env, who.member, v[0]) : null;
-      return out({ ok: true, title: it ? it.snippet.title : '', description: it ? it.snippet.description : '', captions: cap ? (cap.ok ? cap.text : '') : '', captionError: cap && !cap.ok ? cap.error : '' });
+      return out({ ok: true, title: it ? it.snippet.title : '', description: it ? it.snippet.description : '', captions: cap ? (cap.ok ? cap.text : '') : '', segments: cap && cap.ok ? (cap.segments || []) : [], captionError: cap && !cap.ok ? cap.error : '' });
     }
     if (p.indexOf('/ax/vault') === 0) {
       if (!env.FELLGUIDE_TOKEN) return out({ ok: false, error: 'the vault key (FELLGUIDE_TOKEN) is not set' });
