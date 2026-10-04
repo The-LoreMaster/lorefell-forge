@@ -1,3 +1,7 @@
+## 2026-10-04 - YouTube's allowance named when it runs out; captions read once
+
+When YouTube refuses because its daily allowance is spent (each video's captions cost 250 of its 10,000 daily units), the Anexanum and the table now say so plainly and when it resets, instead of an empty list or "that video is not on your connected channel". A video's captions are read from YouTube once and kept in the room in pieces, so writing its title and description, planning its recap video, writing its chapter and transcribing it again cost nothing more.
+
 ## 2026-10-04 - The Anexanum on a phone; F for full screen
 
 On a phone the Anexanum runs in one column: the header stacks, the two tabs share the width, the steps scroll sideways, every list row puts its words on top and its buttons beneath at a touch size, fields are full width (16px text, so a phone does not zoom), and the review's ledger sits above the page. On a desktop, F (anywhere but a text box) or the Full screen button toggles full screen.
