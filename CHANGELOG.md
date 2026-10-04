@@ -1,3 +1,7 @@
+## 2026-10-04 - The lobby kept, not rebuilt; the runner keeps its shape
+
+The lobby is kept while hidden instead of being taken down and built again, so its video carries on where it was when the LoreMaster looks at it again (a rebuilt video sat on its still). While the lobby is up, the runner and the toolbar are hidden without leaving the layout, so the runner's cards keep their size and do not come back squeezed into a narrow column; leaving the lobby view repaints the runner.
+
 ## 2026-10-04 - The scene's stage map is never overlaid; the Retelling keeps its paragraphs
 
 The cause of the lobby's picture appearing under the tokens: an earlier lobby upload wrote its picture into the map the scene (or its session) remembers, and on every load that remembered map was laid over the stage's own. A scene's stage map now always wins over a remembered map that differs from it, and choosing the lobby's picture puts back whatever the scene showed before, if anything moved it. The Retelling and the Codex keep a recap's paragraphs and line breaks.
