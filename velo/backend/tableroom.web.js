@@ -57,3 +57,18 @@ export const tableRoomTicket = webMethod(Permissions.Anyone, async (campaignId) 
   catch (e) { return { ok: false, error: 'the key in TABLE_ROOM_KEY could not sign (' + String(e).slice(0, 60) + ')' }; }
   return { ok: true, url: ROOM_URL + encodeURIComponent(campaignId), ticket: body + '.' + sig, role: lm ? 'lm' : 'player', keeper: role === 'lorekeeper' };
 });
+
+// A ticket into the Anexanum, Nate's lore desk: it names the member, and the room lets in only
+// the member who owns the connected YouTube channel. Signed with the same key as the table's.
+export const anexanumTicket = webMethod(Permissions.Anyone, async () => {
+  const mid = await memberId();
+  if (!mid) return { ok: false, error: 'not signed in' };
+  let pem = '';
+  try { pem = await getSecret('TABLE_ROOM_KEY'); } catch (e) { pem = ''; }
+  if (!pem) return { ok: false, error: 'TABLE_ROOM_KEY is not set in Secrets Manager' };
+  const body = b64u(JSON.stringify({ c: '__anexanum', m: mid, r: 'lm', k: 0, ch: [], x: Date.now() + HOURS * 3600 * 1000 }));
+  let sig = '';
+  try { sig = b64u(crypto.sign('sha256', Buffer.from(body), { key: pem.replace(/\\n/g, '\n'), dsaEncoding: 'ieee-p1363' })); }
+  catch (e) { return { ok: false, error: 'could not sign' }; }
+  return { ok: true, ticket: body + '.' + sig };
+});

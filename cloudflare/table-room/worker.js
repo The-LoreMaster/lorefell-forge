@@ -169,6 +169,99 @@ function srtSegments(srt) {
   });
   return out.slice(0, 400);
 }
+/* ================= The Anexanum =================
+   Nate's own lore desk: his YouTube channel and the FellGuide vault, behind a ticket for the
+   member who owns the channel. It lists playlists and their videos, reads a video's
+   description and captions, reads the vault (The Histories, STYLE.md, the order map), keeps
+   drafts in the room's own storage until they are sent, and commits the pages Nate approved
+   to the vault's main branch, which Obsidian pulls. Nothing posts without him. */
+const VAULT = 'The-LoreMaster/lorefell-fellguide';
+async function axWho(url, env) {
+  const t = String(url.searchParams.get('t') || '');
+  const who = await readTicket(t, '__anexanum');
+  if (!who || !who.member) return null;
+  return (await ytAllowed(env, who.member)) ? who : null;
+}
+async function gh(env, path, opts) {
+  const r = await fetch('https://api.github.com/repos/' + VAULT + path, Object.assign({}, opts || {}, { headers: Object.assign({ Authorization: 'Bearer ' + env.FELLGUIDE_TOKEN, 'User-Agent': 'the-anexanum', Accept: 'application/vnd.github+json' }, (opts && opts.headers) || {}) }));
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error((j && j.message) || ('GitHub ' + r.status));
+  return j;
+}
+function b64utf8(s) { const bytes = new TextEncoder().encode(s); let bin = ''; bytes.forEach((b) => { bin += String.fromCharCode(b); }); return btoa(bin); }
+function utf8b64(b) { const bin = atob(String(b || '').replace(/\n/g, '')); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new TextDecoder().decode(u); }
+async function anexanum(req, url, env) {
+  const origin = req.headers.get('Origin') || '';
+  const h = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': ALLOW.indexOf(origin) >= 0 ? origin : ALLOW[0], 'Vary': 'Origin' };
+  const out = (o, s) => new Response(JSON.stringify(o), { status: s || 200, headers: h });
+  if (ALLOW.indexOf(origin) < 0) return out({ ok: false, error: 'origin not allowed' }, 403);
+  const who = await axWho(url, env);
+  if (!who) return out({ ok: false, error: 'The Anexanum is not open to you.' }, 401);
+  const p = url.pathname;
+  try {
+    if (p === '/ax/whoami') return out({ ok: true, vault: !!env.FELLGUIDE_TOKEN, youtube: !!env.YT_CLIENT_ID });
+    if (p === '/ax/playlists' || p === '/ax/playlist' || p === '/ax/video') {
+      const at = await ytAccess(env, who.member); if (!at) return out({ ok: false, error: 'YouTube is not connected (connect it from ThreadSpire, Settings, Sessions)' });
+      const auth = { Authorization: 'Bearer ' + at };
+      if (p === '/ax/playlists') {
+        const j = await (await fetch('https://www.googleapis.com/youtube/v3/playlists?part=snippet,contentDetails&mine=true&maxResults=50', { headers: auth })).json();
+        return out({ ok: true, items: (j.items || []).map((x) => ({ id: x.id, title: x.snippet.title, count: (x.contentDetails || {}).itemCount || 0 })) });
+      }
+      if (p === '/ax/playlist') {
+        const id = String(url.searchParams.get('id') || '').replace(/[^A-Za-z0-9_-]/g, ''); let tok = '', all = [];
+        for (let i = 0; i < 8; i++) {
+          const j = await (await fetch('https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&maxResults=50&playlistId=' + id + (tok ? '&pageToken=' + tok : ''), { headers: auth })).json();
+          (j.items || []).forEach((it) => all.push({ id: (it.contentDetails || {}).videoId, title: it.snippet.title, at: (it.contentDetails || {}).videoPublishedAt || it.snippet.publishedAt, pos: it.snippet.position }));
+          tok = j.nextPageToken || ''; if (!tok) break;
+        }
+        return out({ ok: true, items: all.filter((x) => x.id) });
+      }
+      const v = String(url.searchParams.get('v') || '').match(/^[A-Za-z0-9_-]{6,20}$/); if (!v) return out({ ok: false, error: 'no video id' });
+      const vj = await (await fetch('https://www.googleapis.com/youtube/v3/videos?part=snippet&id=' + v[0], { headers: auth })).json();
+      const it = vj.items && vj.items[0];
+      const cap = url.searchParams.get('captions') ? await ytCaptions(env, who.member, v[0]) : null;
+      return out({ ok: true, title: it ? it.snippet.title : '', description: it ? it.snippet.description : '', captions: cap ? (cap.ok ? cap.text : '') : '', captionError: cap && !cap.ok ? cap.error : '' });
+    }
+    if (p.indexOf('/ax/vault') === 0) {
+      if (!env.FELLGUIDE_TOKEN) return out({ ok: false, error: 'the vault key (FELLGUIDE_TOKEN) is not set' });
+      if (p === '/ax/vault/list') {
+        const prefix = String(url.searchParams.get('prefix') || '');
+        const ref = await gh(env, '/git/ref/heads/main');
+        const tree = await gh(env, '/git/trees/' + ref.object.sha + '?recursive=1');
+        return out({ ok: true, files: (tree.tree || []).filter((x) => x.type === 'blob' && x.path.indexOf(prefix) === 0).map((x) => x.path) });
+      }
+      if (p === '/ax/vault/file') {
+        const path = String(url.searchParams.get('path') || '');
+        try { const j = await gh(env, '/contents/' + path.split('/').map(encodeURIComponent).join('/') + '?ref=main'); return out({ ok: true, exists: true, content: utf8b64(j.content) }); }
+        catch (e) { return out({ ok: true, exists: false, content: '' }); }
+      }
+      if (p === '/ax/vault/commit') {
+        let body = {}; try { body = JSON.parse(await req.text()); } catch (e) {}
+        const files = (Array.isArray(body.files) ? body.files : []).filter((f) => f && f.path && typeof f.content === 'string' && !/^(Archive|_Canon\/CANON|\.)/.test(f.path)).slice(0, 300);
+        if (!files.length) return out({ ok: false, error: 'nothing to send' });
+        const ref = await gh(env, '/git/ref/heads/main');
+        const base = await gh(env, '/git/commits/' + ref.object.sha);
+        const entries = [];
+        for (const f of files) {
+          const blob = await gh(env, '/git/blobs', { method: 'POST', body: JSON.stringify({ content: b64utf8(f.content), encoding: 'base64' }) });
+          entries.push({ path: f.path, mode: '100644', type: 'blob', sha: blob.sha });
+        }
+        const tree = await gh(env, '/git/trees', { method: 'POST', body: JSON.stringify({ base_tree: base.tree.sha, tree: entries }) });
+        const commit = await gh(env, '/git/commits', { method: 'POST', body: JSON.stringify({ message: String(body.message || 'The Anexanum: lore').slice(0, 200), tree: tree.sha, parents: [ref.object.sha], author: { name: 'The-LoreMaster', email: '293674967+The-LoreMaster@users.noreply.github.com' } }) });
+        await gh(env, '/git/refs/heads/main', { method: 'PATCH', body: JSON.stringify({ sha: commit.sha }) });
+        return out({ ok: true, commit: commit.sha, files: files.length });
+      }
+    }
+    /* drafts: kept by key in the room's storage until they are sent or dropped */
+    if (p === '/ax/draft') {
+      const key = String(url.searchParams.get('k') || '').slice(0, 300); if (!key) return out({ ok: false });
+      if (req.method === 'POST') { const v = await req.text(); const r = await ytStore(env, { op: v ? 'ax-set' : 'ax-del', k: key, v: v }); return out(r); }
+      return out(await ytStore(env, { op: 'ax-get', k: key }));
+    }
+    if (p === '/ax/drafts') return out(await ytStore(env, { op: 'ax-list', k: String(url.searchParams.get('prefix') || '') }));
+  } catch (e) { return out({ ok: false, error: String((e && e.message) || e).slice(0, 200) }); }
+  return out({ ok: false, error: 'not found' }, 404);
+}
 async function ytCaptions(env, member, vid) {
   const at = await ytAccess(env, member); if (!at) return null;
   const auth = { Authorization: 'Bearer ' + at };
@@ -235,6 +328,7 @@ export default {
     if (url.pathname === '/' || url.pathname === '/health') return new Response('lorefell table room', { status: 200 });
     if (url.pathname === '/transcript') return transcript(req, url, env);
     if (url.pathname.indexOf('/yt/') === 0) return youtube(req, url, env);
+    if (url.pathname.indexOf('/ax/') === 0) return anexanum(req, url, env);
     if (!m) return new Response('not found', { status: 404 });
     if (req.headers.get('Upgrade') !== 'websocket') return new Response('expected a websocket', { status: 426 });
     const origin = req.headers.get('Origin') || 'null';
@@ -287,6 +381,10 @@ export class TableRoom {
       if (b.op === 'tok-set') { await st.put('yt:t:' + b.m, b.rt); return Response.json({ ok: true }); }
       if (b.op === 'tok-get') { return Response.json({ rt: (await st.get('yt:t:' + b.m)) || '' }); }
       if (b.op === 'tok-del') { await st.delete('yt:t:' + b.m); return Response.json({ ok: true }); }
+      if (b.op === 'ax-set') { await st.put('ax:' + b.k, String(b.v || '').slice(0, 120000)); return Response.json({ ok: true }); }
+      if (b.op === 'ax-get') { return Response.json({ ok: true, v: (await st.get('ax:' + b.k)) || '' }); }
+      if (b.op === 'ax-del') { await st.delete('ax:' + b.k); return Response.json({ ok: true }); }
+      if (b.op === 'ax-list') { const m = await st.list({ prefix: 'ax:' + (b.k || ''), limit: 1000 }); return Response.json({ ok: true, keys: Array.from(m.keys()).map((k) => k.slice(3)) }); }
       if (b.op === 'owner-get') { return Response.json({ owner: (await st.get('yt:owner')) || '' }); }
       if (b.op === 'owner-set') { if (!(await st.get('yt:owner'))) await st.put('yt:owner', b.m); return Response.json({ owner: (await st.get('yt:owner')) || '' }); }
       return Response.json({ ok: false });
