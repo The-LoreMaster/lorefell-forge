@@ -2488,6 +2488,7 @@ button.set-hero:hover, .set-fell:hover{ border-color:#f0d48a; } button.set-hero:
 #win[data-sec="journal"] .jedit textarea{ width:100%; box-sizing:border-box; min-height:110px; resize:vertical; background:rgba(10,16,32,.6); border:1px solid #2c3a58; border-radius:8px; color:#dce8ef; font:inherit; font-size:1rem; line-height:1.5; padding:8px 10px; }
 #win[data-sec="journal"] .jedit-row{ display:flex; justify-content:flex-end; gap:8px; margin-top:6px; }
 #win[data-sec="journal"] .jtag{ display:block; font-family:Cinzel,serif; font-size:.66rem; letter-spacing:.06em; color:#c9a84c; margin-bottom:3px; }
+.vid-all{ margin-top:10px; padding:10px 12px; border-radius:10px; border:1px solid #26324c; background:#0c1222; } .vid-all .rc-who{ display:block; margin:4px 0; }
 .vid-more{ display:flex; flex-wrap:wrap; gap:6px; margin:4px 0 8px; } .vid-more .tsm-btn{ height:32px; }
 .vid-chan{ display:flex; flex-direction:column; gap:6px; margin-bottom:6px; } .vid-chrow{ display:grid; grid-template-columns:minmax(0,1fr) auto auto auto; gap:10px; align-items:center; padding:8px 10px; border-radius:9px; border:1px solid #26324c; background:#0c1222; }
 .vid-chrow span{ display:flex; flex-direction:column; min-width:0; } .vid-chrow i{ font-style:normal; font-size:.82rem; color:#93a3b6; }
@@ -6531,8 +6532,15 @@ function vidPaint(){
     if (VID.more && !VID.busy) h += '<div class="vid-more" role="group" aria-label="Write it again">' + [['shorter','Shorter'],['longer','Longer'],['fresh','A fresh take'],['vivid','More vivid'],['plain','Plainer']].map(function(o){ return '<button class="tsm-btn ghost" onclick="vidRecap(\'' + o[0] + '\')">' + o[1] + '</button>'; }).join('') + '</div>';
     h += '<label class="tsm-lbl" for="vidRecapIn">The recap</label><textarea class="tsm-inp tsm-ta rc-ta" id="vidRecapIn" oninput="VID.recap=this.value">' + esc(VID.recap) + '</textarea>'
       + '<p class="tsm-note">' + words + ' words, about ' + Math.max(1, Math.round(words / 4)) + ' seconds to read. ' + esc(VID.msg) + '</p>'
-      + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="VID.step=\'names\';vidPaint()">Back</button><button class="tsm-btn ghost" onclick="VID.more=!VID.more;vidPaint()"' + (VID.busy ? ' disabled' : '') + ' aria-expanded="' + (VID.more ? 'true' : 'false') + '">' + (VID.busy ? 'Writing\u2026' : 'Write it again') + '</button><button class="tsm-btn" onclick="vidSave()">Add to the Journal</button></div>'
-      + '<label class="rc-who" style="margin-top:8px"><input type="checkbox" id="vidToCodex" checked> Add it to the Codex too, where the players can read it</label>';
+      + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="VID.step=\'names\';vidPaint()">Back</button><button class="tsm-btn ghost" onclick="VID.more=!VID.more;vidPaint()"' + (VID.busy ? ' disabled' : '') + ' aria-expanded="' + (VID.more ? 'true' : 'false') + '">' + (VID.busy ? 'Writing\u2026' : 'Write it again') + '</button><button class="tsm-btn" onclick="vidSave()">' + (VID.review ? 'Approve' : 'Add to the Journal') + '</button></div>'
+      + (VID.review
+        ? '<div class="vid-all"><div class="tsm-lbl">Approve does all of this</div>'
+          + '<label class="rc-who"><input type="checkbox" checked disabled> Add it to the Journal</label>'
+          + '<label class="rc-who"><input type="checkbox" id="vidToCodex" checked> Add it to the Codex, where the players can read it</label>'
+          + '<label class="rc-who"><input type="checkbox" id="vidRetell" checked> Make it the Retelling</label>'
+          + '<label class="rc-who"><input type="checkbox" id="vidSendAll"' + (SESS.emailReady ? ' checked' : ' disabled') + '> Email it to the players' + ((SESS.players || []).length ? ' (' + SESS.players.length + ')' : '') + (SESS.emailReady ? '' : ': the recap email is not set up') + '</label>'
+          + '<p class="tsm-note">Then the video\u2019s title and description, to approve and put up.</p></div>'
+        : '<label class="rc-who" style="margin-top:8px"><input type="checkbox" id="vidToCodex" checked> Add it to the Codex too, where the players can read it</label>');
   }
   tsModal(h, true);
 }
@@ -7373,7 +7381,8 @@ function ytReviewStart(vid){
     var title = (d && d.title) || '';
     try { if (window._lobbyLook) lobbyLook(false); } catch(e){}
     window._vidAuto = { id:vid, title:title, session:(String(title).split('|').slice(1).join('|') || '').trim() };
-    vidAutoGo();
+    if (!SESS.loaded) sessionLoad();
+    vidAutoGo(); VID.review = true;
   }).catch(function(){ playToast('The session video could not be opened for review.', 'YouTube'); });
 }
 function vidAutoAsk(v){
@@ -7495,7 +7504,15 @@ function vidSave(){
   S.journal = S.journal || []; S.journal.push({ id:'j' + Date.now(), ts:Date.now(), text:v, kind:'video', videoId:VID.videoId || '', session:VID.session || '' });
   var _cxid = 'cx' + Date.now();
   if ((document.getElementById('vidToCodex') || { checked:true }).checked) codexAdd({ id:_cxid, at:Date.now(), session:VID.session || '', text:v, videoId:VID.videoId || '' });
-  S.retellPick = { id:_cxid, session:VID.session || '', text:v, at:Date.now() }; schedulePush();
+  if ((document.getElementById('vidRetell') || { checked:true }).checked){ S.retellPick = { id:_cxid, session:VID.session || '', text:v, at:Date.now() }; schedulePush(); }
+  /* from the email's review: the recap goes to every player too, as the recap email does */
+  if (VID.review && (document.getElementById('vidSendAll') || {}).checked){
+    var _to = (SESS.players || []).map(function(p){ return p.memberId; }).filter(Boolean), _ttl = VID.session || 'Session recap';
+    if (_to.length) tsAsk('TS_RECAP_SEND', { text:v, title:_ttl, to:_to, image:(S.adventure && S.adventure.img) || '' }).then(function(r){
+      if (r && r.ok){ SESS.recaps.unshift({ id:'r' + Date.now(), at:Date.now(), title:_ttl, text:v, sent:r.sent }); playToast('The recap went to ' + r.sent + ' player' + (r.sent === 1 ? '' : 's') + '.', 'Recap'); }
+      else playToast('The recap did not go to the players' + (r && r.error ? ': ' + r.error : '') + '. Send it from Settings, Sessions, Recaps.', 'Recap');
+    }).catch(function(){});
+  }
   var _yv = VID.videoId, _ys = VID.session || '', _yg = VID.segments || [];
   journalBackend.save(S.journal).catch(function(){});
   VID = { text:'', title:'', busy:false, msg:'', fixes:[], keep:{}, recap:'', step:'in' };
