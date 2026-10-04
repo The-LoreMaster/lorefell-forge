@@ -6756,6 +6756,11 @@ function ytdSessionGuess(){
   for (var i = 0; i < c.length; i++){ var v = ytdSessionClean(c[i]); if (v && v.toLowerCase() !== 'session recap' && !/^session\s*\d+$/i.test(v)) return v; }
   return '';
 }
+function storyScenes(){
+  var out = [];
+  ((S.adventure || {}).acts || []).forEach(function(a){ (a.sessions || []).forEach(function(se){ (se.scenes || []).forEach(function(sc){ if (sc.name) out.push({ session:se.name || '', scene:sc.name }); }); }); });
+  return out;
+}
 function ytdTitle(session){ session = ytdSessionClean(session); return (advName() + (session ? ' | ' + session : '')).slice(0, 100); }
 function ytDescribe(videoId, session, recap, segments){
   if (!isLM() || keeperNo() || !videoId) return;
@@ -6765,9 +6770,12 @@ function ytDescribe(videoId, session, recap, segments){
     if (!cur || !cur.ok) throw new Error((cur && cur.error) || 'the video could not be read');
     YTD.old = cur.description || '';
     var sys = 'You write the YouTube description for an actual-play episode of LoreFell, a dark fantasy tabletop roleplaying game, to help it be found and shared. Return ONLY JSON, no other text: '
-      + '{"hook":"one gripping line, under 110 characters, that makes someone stop scrolling","teaser":"two or three sentences on what happens, vivid and plain, ending on a question or a turn, no spoilers of the very end","chapters":[{"s":seconds,"title":"two to five words"}],"hashtags":["#LoreFell","#TTRPG", "..."]} '
+      + '{"scene":"from the outline, the scene this episode mostly played out in, written exactly as it is in the outline (empty if there is no outline)","hook":"one gripping line, under 110 characters, that makes someone stop scrolling","teaser":"two or three sentences on what happens, vivid and plain, ending on a question or a turn, no spoilers of the very end","chapters":[{"s":seconds,"title":"two to five words"}],"hashtags":["#LoreFell","#TTRPG", "..."]} '
       + 'Chapters: from the timed caption pieces, mark where the story turns (a new place, a fight starts, a revelation, a death, the ending); 5 to 12 of them; the first at 0 called Opening; at least a minute apart. Hashtags: 4 to 6, always #LoreFell and #TTRPG, plus #ActualPlay and fitting ones. No em dashes, no cliches, no emoji, never invent what did not happen.';
-    var user = 'Adventure: ' + advName() + '\nSession: ' + YTD.session + '\nRecap:\n' + YTD.recap
+    var scenes = storyScenes();
+    var user = 'Adventure: ' + advName() + '\nSession given: ' + (YTD.session || '(none)') + '\nRecap:\n' + YTD.recap
+      + (scenes.length ? '\n\nThe Story\u2019s outline, session: scenes in order:\n' + scenes.map(function(x){ return x.session + ': ' + x.scene; }).join('\n') : '')
+      + '\n\nThe LoreMaster\u2019s journal notes:\n' + (vidJournalNotes() || '(none)')
       + (YTD.segs.length ? '\n\nTimed caption pieces (seconds: words):\n' + YTD.segs.map(function(g){ return g.s + ': ' + String(g.t).slice(0, 160); }).join('\n').slice(0, 60000) : '\n\n(No timings: return an empty chapters list.)');
     return aiCall(sys, user, 1500);
   }).then(function(raw){
@@ -6780,7 +6788,13 @@ function ytDescribe(videoId, session, recap, segments){
     var mo = ((S.moments || {})[YTD.vid] || {}).list || [];
     if (mo.length) lines.push('', 'Moments', mo.map(function(m){ return ytdTime(m.t) + ' ' + m.name; }).join('\n'));
     lines.push('', 'Run your own adventure, or catch up on this one: https://www.lorefell.com', '', tags.join(' '));
-    if (!YTD.session) YTD.session = ytdSessionGuess();
+    /* the episode's name: the scene it mostly played out in, read from the recap, the captions
+       and the Journal against the Story's outline (a session often runs over several episodes,
+       so its own name says too little); else what was given; else the newest recap's */
+    var sc = String(j.scene || '').trim(), known = storyScenes().map(function(x){ return x.scene; });
+    if (sc && known.indexOf(sc) < 0){ var low = sc.toLowerCase(); sc = known.filter(function(k){ return k.toLowerCase() === low || k.toLowerCase().indexOf(low) >= 0 || low.indexOf(k.toLowerCase()) >= 0; })[0] || ''; }
+    YTD.scene = sc;
+    YTD.session = sc || YTD.session || ytdSessionGuess();
     YTD.title = ytdTitle(YTD.session);
     YTD.desc = lines.join('\n').replace(/\s*\u2014\s*/g, ', ');
     YTD.busy = false; YTD.msg = ch.length >= 3 ? '' : 'No chapters: they come from the video\u2019s timed captions, which a pasted transcript does not carry.';
@@ -6792,7 +6806,11 @@ function ytdPaint(){
   var h = '<h3 class="tsm-title">Update the video</h3>';
   if (d.busy) h += '<p class="tsm-note">' + esc(d.msg) + '</p>';
   else {
-    h += '<label class="tsm-lbl" for="ytdSess">The session\u2019s name</label><input class="tsm-inp" id="ytdSess" maxlength="80" value="' + esc(ytdSessionClean(d.session)) + '" oninput="YTD.session=this.value;YTD.title=ytdTitle(this.value);document.getElementById(\'ytdTitle\').value=YTD.title">'
+    var scs = storyScenes();
+    if (scs.length) h += '<label class="tsm-lbl" for="ytdScene">Where this episode played out</label><select class="tsm-inp" id="ytdScene" onchange="if(this.value){var v=this.value;document.getElementById(\'ytdSess\').value=v;YTD.session=v;YTD.title=ytdTitle(v);document.getElementById(\'ytdTitle\').value=YTD.title;}">'
+      + '<option value="">Choose a scene\u2026</option>' + scs.map(function(x){ return '<option value="' + esc(x.scene) + '"' + (x.scene === d.scene ? ' selected' : '') + '>' + esc(x.session + ': ' + x.scene) + '</option>'; }).join('') + '</select>'
+      + (d.scene ? '<p class="tsm-note">Matched from the recap, the captions and your Journal.</p>' : '');
+    h += '<label class="tsm-lbl" for="ytdSess">The name after the pipe</label><input class="tsm-inp" id="ytdSess" maxlength="80" value="' + esc(ytdSessionClean(d.session)) + '" oninput="YTD.session=this.value;YTD.title=ytdTitle(this.value);document.getElementById(\'ytdTitle\').value=YTD.title">'
       + '<label class="tsm-lbl" for="ytdTitle">Title</label><input class="tsm-inp" id="ytdTitle" maxlength="100" value="' + esc(d.title) + '" oninput="YTD.title=this.value">'
       + '<label class="tsm-lbl" for="ytdDesc">Description</label><textarea class="tsm-inp tsm-ta" id="ytdDesc" rows="16" oninput="YTD.desc=this.value">' + esc(d.desc) + '</textarea>'
       + '<p class="tsm-note">This replaces the video\u2019s whole description. ' + esc(d.msg) + '</p>';

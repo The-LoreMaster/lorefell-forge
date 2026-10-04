@@ -1,3 +1,7 @@
+## 2026-10-03 - A video is named for the scene it played out in
+
+Update the video names the episode by scene, not session, since a session often runs over several episodes: the AI reads the recap, the captions and the Journal against the Story's outline and picks the scene the episode mostly played out in, written exactly as the outline has it, and the title becomes "Adventure | Scene". The window shows Where this episode played out, a list of every scene by its session with the match chosen, and changing it rewrites the title; the name after the pipe can still be typed freely.
+
 ## 2026-10-03 - Moment tags; a video's title always carries its session
 
 A moment's kinds are Tags now, several at once, with Drama added (Funny, Triumph, Disaster, Epic, Drama), in the mark bar, the Moments review and the Journal's links. Update the video always finds the session's name (the recap's, the Story's, the Retelling's, or the newest sent recap's, past a bare "Session 1"), shows it in its own box that rewrites the title as "Adventure | Session" as you type, and replaces the whole description rather than a marked section of it.
