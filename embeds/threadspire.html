@@ -7023,6 +7023,16 @@ function momSave(){
    sets it from the runner (Lobby) and brings everyone in with one press; it travels through
    the live room and the saved state, and the stream shows it too. */
 function lobbyOn(){ return !!(S.lobby && S.lobby.on); }
+/* A player sees the lobby unless the LoreMaster is at the table and has brought everyone in:
+   with no LoreMaster in the live room (between sessions, or before one starts), or with the
+   room not reached, the map is out of reach, so a Fell opened to level up during a rest
+   between sessions cannot touch a token. The stream follows the same rule. */
+function lobbyForMe(){
+  if (isLM() && !S.stream) return false;
+  if (lobbyOn()) return true;
+  if (!tsEmbedded()) return false;
+  return !(ROOM.on && typeof ROOM.lms === 'number' && ROOM.lms > 0);
+}
 function lobbyShare(){ try { roomPartsSync(false); } catch(e){} schedulePush(); lobbyPaint(); try { paintLmStrip(); } catch(e){} }
 function lobbySet(on){
   if (!isLM() || keeperNo()) return;
@@ -7054,13 +7064,13 @@ function lobbyPick(i){
   lobbyShare(); lobbyWin();
 }
 function lobbyPaint(){
-  var show = lobbyOn() && (!isLM() || S.stream);
+  var show = lobbyForMe();
   var el = document.getElementById('lobbyScreen');
   document.body.classList.toggle('in-lobby', show);
   if (!show){ if (el) el.remove(); lobbyLmBar(); return; }
   var L = S.lobby || {};
   if (!el){ el = document.createElement('div'); el.id = 'lobbyScreen'; el.setAttribute('role', 'region'); el.setAttribute('aria-label', 'The lobby'); document.body.appendChild(el); }
-  var key = [L.url, L.title, L.note, stillMaps(), SESS.nextAt].join('|');
+  var key = [L.url, L.title, L.note, stillMaps(), SESS.nextAt, lobbyOn()].join('|');
   if (el._k === key) return; el._k = key;
   var vid = L.kind === 'video' && L.url && !stillMaps();
   var next = SESS.nextAt && SESS.nextAt > Date.now() - 3 * 3600000 ? sessionWhenShort() : '';
@@ -7068,7 +7078,7 @@ function lobbyPaint(){
       : '<div class="lb-bg" style="background-image:' + ((L.kind === 'video' ? L.poster : L.url) ? 'url(\'' + esc(L.kind === 'video' ? L.poster : L.url) + '\')' : 'none') + '"></div>')
     + '<div class="lb-veil"></div><div class="lb-body"><div class="lb-title">' + esc(L.title || advName()) + '</div>'
     + (L.note ? '<div class="lb-note">' + esc(L.note) + '</div>' : '')
-    + '<div class="lb-wait">The LoreMaster will bring you in.' + (next ? ' Next session: ' + esc(next) + '.' : '') + '</div></div>';
+    + '<div class="lb-wait">' + (lobbyOn() ? 'The LoreMaster will bring you in.' : 'The table opens when the LoreMaster is here.') + (next ? ' Next session: ' + esc(next) + '.' : '') + ' Your Fell is open from the menu on the right.</div></div>';
   var v = el.querySelector('video'); if (v){ v.muted = true; try { var pl = v.play(); if (pl && pl.catch) pl.catch(function(){}); } catch(e){} }
 }
 /* the LoreMaster sees a slim bar while the players wait, with the way to bring them in */
@@ -7080,7 +7090,21 @@ function lobbyLmBar(){
     b.innerHTML = '<span>Everyone is in the lobby.</span><button onclick="lobbyWin()">Set it</button><button class="pri" onclick="lobbySet(false)">Bring everyone in</button>'; }
 }
 setInterval(function(){ try { lobbyPaint(); } catch(e){} }, 1000);
-/* ================= a quiet visit =================
+/* The LoreMaster's table marks that it is in use; opened again after three hours away (a new
+   session, not a reload), it puts everyone in the lobby to be brought in. */
+var _lobbyArmed = false;
+setInterval(function(){
+  try {
+    if (!isLM() || isKeeper() || S.stream || !_mapStateLoaded || S.visit) return;
+    var now = Date.now(), L = S.lobby || {};
+    if (!_lobbyArmed){
+      _lobbyArmed = true;
+      if (!L.on && (!L.lmSeen || now - L.lmSeen > 3 * 3600000)){ S.lobby = Object.assign({ title:'', note:'', url:'', poster:'', kind:'' }, L, { on:true, at:now, lmSeen:now }); lobbyShare(); return; }
+    }
+    if (!L.lmSeen || now - L.lmSeen > 5 * 60000){ S.lobby = Object.assign({}, L, { lmSeen:now }); schedulePush(); }
+  } catch(e){}
+}, 15000);
+/* ================= Threadwalk: a quiet visit =================
    The LoreMaster steps into another scene to set it up (move tokens, lay a map, fog, walls)
    while the players stay where they are and see nothing of it. While visiting, this table
    says nothing to anyone: nothing goes to the live room and nothing is saved, and what the
@@ -7090,7 +7114,7 @@ setInterval(function(){ try { lobbyPaint(); } catch(e){} }, 1000);
 function visitOn(){ return !!S.visit; }
 function sceneVisit(id){
   if (!isLM() || keeperNo() || S.stream) return;
-  if (S.mode === 'combat'){ playToast('Not in the middle of a fight. End it first, or move them all together.', 'A quiet visit'); return; }
+  if (S.mode === 'combat'){ playToast('Not in the middle of a fight. End it first, or move them all together.', 'Threadwalk'); return; }
   if (S.visit){ if (S.visit.home === id){ sceneVisitBack(); } return; }
   if (S.scene && S.scene.id === id) return;
   var hit = tsSceneById(id); if (!hit) return;
@@ -7136,7 +7160,7 @@ function visitBar(){
   var b = document.getElementById('visitBar');
   if (!S.visit){ if (b) b.remove(); return; }
   if (!b){ b = document.createElement('div'); b.id = 'visitBar'; b.setAttribute('role', 'status'); document.body.appendChild(b); }
-  b.innerHTML = '<span>Quietly visiting <b>' + esc(S.scene.name || 'a scene') + '</b>. The players are still in ' + esc(S.visit.homeName || 'their scene') + ' and see none of this.</span><button class="pri" onclick="sceneVisitBack()">Back to the table</button>';
+  b.innerHTML = '<span>Threadwalking in <b>' + esc(S.scene.name || 'a scene') + '</b>. The players are still in ' + esc(S.visit.homeName || 'their scene') + ' and see none of this.</span><button class="pri" onclick="sceneVisitBack()">Back to the table</button>';
 }
 /* ---- a new session video, noticed ----
    When the LoreMaster opens the table, the room looks at the connected channel's newest
@@ -8318,7 +8342,7 @@ function lmScenePick(){
   tsModal('<h3 class="tsm-title">' + esc(live.ses.name || 'This session') + '</h3>'
     + '<div class="sp-list">' + (live.ses.scenes || []).map(function(sc){ var on = sameId(sc.id, cur);
         return '<div class="sp-line"><button class="sp-scene' + (on ? ' on' : '') + '" onclick="tsCloseModal();' + (on ? '' : 'setActiveScene(\'' + esc(sc.id) + '\')') + '"' + (on ? ' aria-current="true"' : '') + '><span>' + esc(sc.name || 'Untitled scene') + '</span>' + (on ? '<i>On the table</i>' : '<i>Take everyone</i>') + '</button>'
-          + (on || S.mode === 'combat' ? '' : '<button class="sp-visit" onclick="sceneVisit(\'' + esc(sc.id) + '\')" title="Set it up without the players seeing">Visit quietly</button>') + '</div>'; }).join('') + '</div>'
+          + (on || S.mode === 'combat' ? '' : '<button class="sp-visit" onclick="sceneVisit(\'' + esc(sc.id) + '\')" title="Threadwalk: set it up without the players seeing">Threadwalk</button>') + '</div>'; }).join('') + '</div>'
     + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal();swOpen()">Open the Story</button><button class="tsm-btn" onclick="tsCloseModal()">Close</button></div>');
 }
 function liveSession(){
