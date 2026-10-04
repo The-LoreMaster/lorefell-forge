@@ -1,3 +1,7 @@
+## 2026-10-04 - The lobby beneath the frame; the right adventure's; everyone starts there
+
+The lobby sits inside the table's stage, beneath Joel's frame, the rail and the HUD, so a player in it can open their Fell and do everything with it while they wait (it had covered them). A lobby belongs to its adventure: none shows while an adventure is still arriving, and an adventure being left takes its lobby with it. Opening the LoreMaster's table fresh (not a reload within twenty minutes) puts everyone in the lobby and the LoreMaster with them, looking as the players do, with Threadwalk to set up scenes (Open in the lobby, in Settings, is on unless turned off). Threadwalk closes the scene list at once and leaves the lobby view. The lobby's video is made as a muted element before it is given its source, so it plays on its own.
+
 ## 2026-10-04 - The lobby: nothing behind the picker; one bar; uploads stay out of the scene
 
 While the adventure picker is open (on opening the table, or choosing another), there is no lobby behind it, only the blank table. Seeing the lobby as the LoreMaster puts away the lobby bar, so the two no longer overlap, and its own bar stays on one line. An upload made for the lobby never becomes the scene's map: it waits until it has landed and goes to the lobby, and a map still uploading cannot be chosen for the lobby (its temporary address stops working, which froze the lobby's video on a still). The lobby's video starts again if it stalls.
