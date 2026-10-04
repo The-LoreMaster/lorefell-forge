@@ -12,6 +12,7 @@ fade at each cut. It writes two files beside the recording:
 Needs Python 3 and ffmpeg (see README.md). Run "Recap Cutter.bat", or from a terminal:
     python recap_cutter.py                       (opens the window)
     python recap_cutter.py PLAN.json VIDEO.mp4   (no window; add --shift 2.5 to move every clip)
+    python recap_cutter.py --transcribe VIDEO.mp4 [--quick]   (a timed .srt of the recording)
 """
 import json, os, shutil, subprocess, sys, tempfile, threading, glob
 
@@ -39,6 +40,47 @@ def run(cmd, log):
     if p.returncode != 0:
         tail = '\n'.join(p.stdout.strip().splitlines()[-8:])
         raise RuntimeError('ffmpeg stopped:\n' + tail)
+
+
+def srt_time(t):
+    t = max(0.0, float(t)); h = int(t // 3600); m = int(t % 3600 // 60); s = int(t % 60); ms = int(round((t - int(t)) * 1000)) % 1000
+    return '%02d:%02d:%02d,%03d' % (h, m, s, ms)
+
+
+def transcribe(video_path, log=print, careful=True):
+    """A timed transcript (.srt) of the recording, made on this machine, for the Anexanum's
+    recap video when YouTube's captions are not to be had. Uses faster-whisper (see README);
+    the first run downloads its model. A 2.5 hour session takes a while on a CPU: the careful
+    model is better with names, the quick one is several times faster."""
+    try:
+        from faster_whisper import WhisperModel
+    except ImportError:
+        raise RuntimeError('Making a transcript needs faster-whisper. In PowerShell: pip install faster-whisper')
+    name = 'small.en' if careful else 'base.en'
+    log('Loading the %s model (the first time, it downloads)…' % ('careful' if careful else 'quick'))
+    try:
+        model = WhisperModel(name, device='auto', compute_type='int8')
+    except Exception:
+        model = WhisperModel(name, device='cpu', compute_type='int8')
+    segs, info = model.transcribe(video_path, vad_filter=True, beam_size=1 if not careful else 5, condition_on_previous_text=False)
+    out = os.path.splitext(video_path)[0] + '.srt'
+    total = float(getattr(info, 'duration', 0) or 0)
+    last = -1
+    n = 0
+    with open(out, 'w', encoding='utf-8') as f:
+        for sg in segs:
+            text = (sg.text or '').strip()
+            if not text:
+                continue
+            n += 1
+            f.write('%d\n%s --> %s\n%s\n\n' % (n, srt_time(sg.start), srt_time(sg.end), text))
+            if total:
+                pc = int(sg.end / total * 100)
+                if pc // 5 != last // 5:
+                    last = pc
+                    log('Transcribing: %d%%' % pc)
+    log('Transcript written:\n%s\nUse it in the Anexanum: The videos, Use a transcript file.' % out)
+    return out
 
 
 def cut(plan_path, video_path, shift=0.0, log=print, vertical=True):
@@ -95,7 +137,7 @@ def window():
     from tkinter import filedialog, ttk
     root = tk.Tk()
     root.title('The Recap Cutter')
-    root.geometry('640x460')
+    root.geometry('680x520')
     root.configure(bg='#0d1222')
     st = {'plan': '', 'video': ''}
     style = ttk.Style(root)
@@ -149,12 +191,32 @@ def window():
         threading.Thread(target=work, daemon=True).start()
     btn = ttk.Button(root, text='Cut the recap', command=go)
     btn.grid(row=5, column=0, **pad)
+    careful = tk.BooleanVar(value=True)
+
+    def make_tx():
+        if not st['video']:
+            log('Choose the recording first.'); return
+        tbtn.config(state='disabled')
+
+        def work():
+            try:
+                transcribe(st['video'], log, careful.get())
+            except Exception as e:
+                log(str(e))
+            finally:
+                root.after(0, lambda: tbtn.config(state='normal'))
+        threading.Thread(target=work, daemon=True).start()
+    tbtn = ttk.Button(root, text='Make a transcript', command=make_tx)
+    tbtn.grid(row=7, column=0, **pad)
+    ttk.Checkbutton(root, text='Careful (better with names, slower)', variable=careful).grid(row=7, column=1, **pad)
     root.mainloop()
 
 
 if __name__ == '__main__':
     args = [a for a in sys.argv[1:]]
-    if len(args) >= 2 and not args[0].startswith('--'):
+    if len(args) >= 2 and args[0] == '--transcribe':
+        transcribe(args[1], print, '--quick' not in args)
+    elif len(args) >= 2 and not args[0].startswith('--'):
         sh = 0.0
         if '--shift' in args:
             sh = float(args[args.index('--shift') + 1])

@@ -1,3 +1,7 @@
+## 2026-10-04 - Recaps from any timed transcript, or one made from the recording
+
+The Anexanum reads text transcripts that put a time at the start of each line ("00:01:23 words", "[1:23] Name: words", and the like), as well as .srt, .vtt and .sbv, so the recap's clips can be chosen from them. The Recap Cutter gains Make a transcript: from the recording alone it writes a timed .srt beside it on Nate's machine (faster-whisper; Careful is better with names, quick is faster), to use in the Anexanum's Use a transcript file.
+
 ## 2026-10-04 - A recap video from a transcript file
 
 The Anexanum's recap video can work from a transcript file instead of YouTube's captions: Use a transcript file on the recap screen (offered at once when YouTube cannot give the captions, as when its daily allowance is spent), or A recap video from a transcript file on the videos tab, for any session, on the channel or not. An .srt, .vtt or .sbv file (Restream or YouTube Studio) carries the times the clips need; a .txt file gives the recap alone. A plan from a file with no video on YouTube shows its times without watch links, and the Recap Cutter cuts it from the recording the same way.

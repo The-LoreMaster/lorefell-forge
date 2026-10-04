@@ -12,6 +12,19 @@ Open PowerShell and run:
 
 Close and reopen PowerShell afterwards so both are found.
 
+To make transcripts from a recording on this machine (when YouTube's captions are not to be
+had), also run:
+
+    pip install faster-whisper
+
+## A transcript from the recording
+
+If YouTube cannot give the captions, choose the recording in the Cutter and press **Make a
+transcript**. It writes `<recording>.srt` beside it. **Careful** is better with names; leave it
+off for a quicker pass. On a CPU, a 2.5 hour session takes a while (expect most of an hour on
+Careful), and the first run downloads the model. Then in the Anexanum: The videos, Use a
+transcript file, and choose that .srt.
+
 ## Each time
 
 1. In the Anexanum, open The videos, press Recap video on the session, check the clips, and
