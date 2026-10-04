@@ -85,7 +85,7 @@ function inline(s) {
     hold(`<a href="${esc(url)}" target="_blank" rel="noopener">${esc(text)}</a>`));
   s = esc(s)
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    .replace(/(^|[^*])\*([^*\s][^*]*?)\*(?!\*)/g, '$1<em>$2</em>');
+    .replace(/(^|[\s(\[\u201c])\*([^*\s](?:[^*]*?[^*\s])?)\*(?=[\s.,:!?)\]\u201d]|$)/g, '$1<em>$2</em>');
   return s.replace(/\u0000(\d+)\u0000/g, (m, i) => keep[+i]);
 }
 const plain = (s) => String(s)
@@ -250,6 +250,49 @@ if (lbDir) {
   }
 }
 
+/* ------------------------------------------------------------------ related pages */
+// The FellGuide keeps a world's people, magic, figures and powers on their own pages.
+// The Sphere gathers them back onto the world.
+const pagesIn = (re) => Object.values(PAGES).filter((r) => re.test(r));
+const LINEAGE_PAGES = pagesIn(/\/The Lineages\/(?!The Lineages\.md$)[^/]+\.md$/);
+const BRAND_PAGES = pagesIn(/\/Brands of Magic\/(?!Brands of Magic\.md$)[^/]+\.md$/);
+const LORE_PEOPLE = pagesIn(/\/Characters\/.+\.md$/);
+const stem = (rel) => path.basename(rel, '.md');
+const norm = (s) => plain(s).replace(/\s+/g, ' ').trim().toLowerCase();
+
+function lineagePage(word) {
+  const w = word.toLowerCase();
+  return LINEAGE_PAGES.find((r) => {
+    const n = stem(r).replace(/^The\s+/, '').toLowerCase();
+    return n === w || n.startsWith(w) || w.startsWith(n);
+  }) || null;
+}
+function brandPage(brand) {
+  return BRAND_PAGES.find((r) => stem(r).toLowerCase() === String(brand).toLowerCase()) || null;
+}
+// Body of a stand-alone page, minus its title, profile and spoiler callouts.
+function pageBody(rel) {
+  return blocks(clean(read(rel))).filter((b) => !(b.t === 'callout' && /(profile|at a glance|spoiler)/i.test(b.title + ' ' + b.kind)));
+}
+function firstProse(rel) { return firstSentence(pageBody(rel)); }
+
+// Who and what belongs to each world: characters by their Home World line, factions and
+// Aspects of Discord by the world named in their At a Glance callout.
+const RELATED = {};
+for (const rel of LORE_PEOPLE) {
+  const name = stem(rel);
+  if (path.basename(path.dirname(rel)) === name) continue;          // folder index pages
+  const md = clean(read(rel));
+  const home = md.match(/\*\*Home World:\*\*\s*(.+)/);
+  const glance = (md.match(/^> \[!note\][^\n]*at a Glance\n((?:>.*\n?)+)/im) || [])[1] || '';
+  const kind = /Canon Characters/.test(rel) ? 'Figures' : /Aspects of Discord/.test(rel) ? 'Aspects of Discord' : 'Powers';
+  const hits = new Set();
+  if (home) hits.add(home[1].trim());
+  for (const w of worldNamesAll()) if (glance && new RegExp('\\b' + w + '\\b').test(glance)) hits.add(w);
+  for (const w of hits) (RELATED[w] = RELATED[w] || []).push({ name, kind, url: publishUrl(rel), line: firstProse(rel) });
+}
+function worldNamesAll() { return fs.readdirSync(path.join(VAULT, STRATUMS)).filter((f) => f.endsWith('.md') && f !== 'Stratums.md').map((f) => f.slice(0, -3)); }
+
 /* ------------------------------------------------------------------ worlds */
 const RUNE = { world: '\u16a0', brand: '\u16b9', lineage: '\u16d6', lorebound: '\u16c8', campaign: '\u16df', factions: '\u16a8', challenges: '\u16be', lore: '\u16d2' };
 const titleCase = (s) => s.replace(/^the\s+/i, 'The ');
@@ -278,7 +321,7 @@ function buildWorld(name) {
   const lbs = (LOREBOUNDS[name] || []).slice();
   const core = [], rest = [];
   for (const s of sections) {
-    const h = s.title, card = { title: h, html: render(s.blocks), teaser: firstSentence(s.blocks), url };
+    const h = s.title, card = { title: h, html: render(s.blocks), teaser: firstSentence(s.blocks), url, _paras: s.blocks.filter((b) => b.t === 'para').map((b) => b.text) };
     if (/^realm overview$/i.test(h)) core[0] = { ...card, key: 'world', tag: 'The Realm', title: 'The World', rune: RUNE.world };
     else if (!core[1] && [brand, art].some((b) => b && h.toLowerCase() === b.toLowerCase()))
       core[1] = { ...card, key: 'brand', tag: 'Brand of Magic', lead: 'Brand of ' + name + (art ? ' \u00b7 the art of ' + art : ''), rune: RUNE.brand };
@@ -308,7 +351,37 @@ function buildWorld(name) {
     html += `<p><a class="watch-link" href="${esc(camp.url)}" target="_blank" rel="noopener">&#9654;&nbsp; Watch ${esc(camp.name)} on YouTube</a></p>`;
     core.push({ key: 'campaign', tag: 'The Fell', rune: RUNE.campaign, title: camp.name, teaser, html, url: curl, linkLabel: label });
   }
-  const cards = [core[0], core[1], core[2], ...core.slice(3)].filter(Boolean).concat(rest);
+  // Lineage: the lineage's own FellGuide page, with what the world page adds about them.
+  const lp = lineagePage(lineageWord);
+  if (lp) {
+    const body = pageBody(lp), own = core[2];
+    core[2] = { key: 'lineage', tag: 'Lineage', rune: RUNE.lineage, title: lineage, lead: 'Lineage of ' + name,
+      teaser: firstSentence(body), url: publishUrl(lp), linkLabel: lineage,
+      html: render(body) + (own ? `<div class="sub">${esc(lineage)} of ${esc(name)}</div>` + own.html : '') };
+  }
+  // Brand: the Brand's own page (lore, in battle, outside battle). The world page's copy is
+  // usually the same lore paragraph, so it is only kept when it says something the page does not.
+  const bp = brandPage(brand);
+  if (bp) {
+    const body = pageBody(bp), own = core[1];
+    const pageText = norm(body.map((b) => b.text || '').join(' '));
+    const extra = own && own.html && !own._paras.every((p) => pageText.includes(norm(p)));
+    core[1] = { key: 'brand', tag: 'Brand of Magic', rune: RUNE.brand, title: brand,
+      lead: 'Brand of ' + name + (art ? ' \u00b7 the art of ' + art : ''),
+      teaser: firstSentence(body.filter((b) => b.t === 'para' && !/^\*Also called/i.test(b.text))), url: publishUrl(bp), linkLabel: brand,
+      html: render(body) + (extra ? `<div class="sub">${esc(brand)} in ${esc(name)}</div>` + own.html : '') };
+  }
+  // Figures and powers tied to this world.
+  const tied = (RELATED[name] || []).slice().sort((a, b) => a.name.localeCompare(b.name));
+  if (tied.length) {
+    const groups = ['Figures', 'Powers', 'Aspects of Discord'].map((k) => [k, tied.filter((r) => r.kind === k)]).filter(([, l]) => l.length);
+    const html = groups.map(([k, l]) => `<div class="sub">${esc(k)}</div>` + l.map((r) =>
+      `<div class="chal"><div class="ch-t"><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.name)}</a></div>${r.line ? `<p>${esc(r.line)}</p>` : ''}</div>`).join('')).join('');
+    const names = tied.map((r) => r.name);
+    rest.unshift({ key: 'people', tag: 'People and Powers', rune: RUNE.factions, title: 'Figures and Forces', url,
+      teaser: (names.length > 3 ? names.slice(0, 3).join(', ') + ', and more' : names.join(', ').replace(/, ([^,]*)$/, ' and $1')) + '.', html });
+  }
+  const cards = [core[0], core[1], core[2], ...core.slice(3)].filter(Boolean).concat(rest).map(({ _paras, ...c }) => c);
   return {
     name, url, lineage, brand, art,
     glance: glance.filter(([k]) => !/^(lineage|brand)$/i.test(k)),

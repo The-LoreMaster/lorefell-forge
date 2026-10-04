@@ -4,7 +4,11 @@ The world map on lorefell.com, served at `https://table.lorefell.com/the_sphere.
 
 **Every word in it comes from the FellGuide vault.** World cards are the `##` sections of each
 page in `The Lore (Contains Spoilers)/The Sphere/Stratums/`, in the page's own wording. The
-header comes from the page's At a Glance callout and opening saying. Lorebounds come from
+header comes from the page's At a Glance callout and opening saying. The Lineage card is the
+lineage's own page in `The Characters/The Lineages/`, and the Brand card is the Brand's page in
+`Brands of Magic/` (lore, In Battle, Outside Battle). Figures and Forces gathers canon
+characters by their Home World line, and factions and Aspects of Discord whose At a Glance
+names the world. Lorebounds come from
 `The Arsenal/Lorebounds/Lorebound Types/` (a lorebound belongs to the first world its text
 names). The About panel is `The Sphere.md` and `The Skyvault.md`. A `Canon coming soon`
 callout shows once, quietly, on the world's hub.
