@@ -1,3 +1,7 @@
+## 2026-10-04 - The lobby: nothing behind the picker; one bar; uploads stay out of the scene
+
+While the adventure picker is open (on opening the table, or choosing another), there is no lobby behind it, only the blank table. Seeing the lobby as the LoreMaster puts away the lobby bar, so the two no longer overlap, and its own bar stays on one line. An upload made for the lobby never becomes the scene's map: it waits until it has landed and goes to the lobby, and a map still uploading cannot be chosen for the lobby (its temporary address stops working, which froze the lobby's video on a still). The lobby's video starts again if it stalls.
+
 ## 2026-10-04 - The lobby from the Maps shelf; the LoreMaster in the lobby; quieter uploads; marks you can change
 
 No lobby shows before an adventure is open and the table knows who you are (the last adventure's lobby showed behind the adventure picker). The lobby's picture or video is chosen in the Maps window itself, folders and all, which says it is choosing for the lobby, or uploaded from there and picked as soon as it lands; No picture clears it. A video upload says only that it uploaded, or that it did not. The LoreMaster can look at the lobby as the players see it (See it, on the lobby bar), with a bar there to Threadwalk to a scene, set the lobby, bring everyone in or go back to the map; Open in the lobby (Settings, Your table) opens the table that way whenever everyone is in it. A new mark can be undone from its bar, and in Moments each mark can be moved five seconds either way or removed for good.

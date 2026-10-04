@@ -345,7 +345,7 @@ body.lm-role .hCodexP, body.stream .hCodexP, body.clean .hCodexP{ display:none !
 #lobbyScreen .lb-wait{ font-size:1rem; color:#d8c99b; }
 body.in-lobby #lmstrip, body.in-lobby #mapTools{ display:none !important; }
 .lb-now{ width:220px; aspect-ratio:16 / 10; border-radius:9px; overflow:hidden; background:#121a31; display:flex; align-items:center; justify-content:center; color:#93a3b6; margin-bottom:6px; } .lb-now img{ width:100%; height:100%; object-fit:cover; }
-#lobbyScreen .lb-lm{ position:absolute; top:14px; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:8px 10px 8px 16px; border-radius:12px; border:1px solid #c9a84c; background:rgba(10,14,26,.94); color:#dce8ef; font-family:'Crimson Pro',Georgia,serif; z-index:2; }
+#lobbyScreen .lb-lm{ position:absolute; top:14px; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:8px; flex-wrap:nowrap; white-space:nowrap; max-width:calc(100vw - 40px); overflow-x:auto; padding:8px 10px 8px 16px; border-radius:12px; border:1px solid #c9a84c; background:rgba(10,14,26,.94); color:#dce8ef; font-family:'Crimson Pro',Georgia,serif; z-index:2; }
 #lobbyScreen .lb-lm button{ height:32px; padding:0 12px; border-radius:8px; border:1px solid #2c3a58; background:#141b31; color:#dce8ef; font-family:Cinzel,serif; font-size:.72rem; letter-spacing:.05em; cursor:pointer; } #lobbyScreen .lb-lm button.pri{ background:#c9a84c; border-color:#c9a84c; color:#0a0e1a; }
 #lobbyBar{ position:fixed; top:12px; left:50%; transform:translateX(-50%); z-index:430; display:flex; align-items:center; gap:10px; padding:8px 10px 8px 16px; border-radius:12px; border:1px solid #c9a84c; background:rgba(10,14,26,.95); color:#dce8ef; font-family:'Crimson Pro',Georgia,serif; box-shadow:0 10px 30px rgba(0,0,0,.45); }
 #lobbyBar button{ height:32px; padding:0 12px; border-radius:8px; border:1px solid #2c3a58; background:#141b31; color:#dce8ef; font-family:Cinzel,serif; font-size:.72rem; letter-spacing:.05em; cursor:pointer; } #lobbyBar button.pri{ background:#c9a84c; border-color:#c9a84c; color:#0a0e1a; }
@@ -7040,7 +7040,7 @@ function lobbyOn(){ return !!(S.lobby && S.lobby.on); }
    room not reached, the map is out of reach, so a Fell opened to level up during a rest
    between sessions cannot touch a token. The stream follows the same rule. */
 function lobbyForMe(){
-  if (!S.campaignId || !S.roleReady || _advSwitching) return false;   /* no adventure open yet: no lobby */
+  if (!S.campaignId || !S.roleReady || _advSwitching || S._pickerLive) return false;   /* no adventure open yet, or one being chosen: no lobby */
   if (isLM() && !S.stream) return !!window._lobbyLook;                /* the LoreMaster, looking as the players do */
   if (lobbyOn()) return true;
   if (!tsEmbedded()) return false;
@@ -7077,6 +7077,7 @@ var LOBBY_PICK = false;
 function lobbyFromMaps(upload){ LOBBY_PICK = true; tsCloseModal(); lmOpenMaps(); if (upload) setTimeout(function(){ try { lmMapUploadStub(); } catch(e){} }, 60); }
 function lobbyUseMap(id){
   var m = (S.scene.maps || []).filter(function(x){ return x.id === id; })[0]; if (!m || !m.url) return false;
+  if (m.local || /^blob:/.test(m.url)){ playToast(esc(m.name) + ' is still uploading. Choose it once it has landed.', 'The lobby'); return true; }
   S.lobby = Object.assign({}, S.lobby || {}, { url:m.url, poster:mapStill(m), kind:mapIsVideo(m) ? 'video' : 'image' });
   LOBBY_PICK = false; lmCloseMaps(); lobbyShare(); lobbyWin(); return true;
 }
@@ -7088,6 +7089,7 @@ function lobbyPick(i){
 }
 function lobbyPaint(){
   var show = lobbyForMe();
+  lobbyLmBar();
   var el = document.getElementById('lobbyScreen');
   document.body.classList.toggle('in-lobby', show);
   if (!show){ if (el) el.remove(); lobbyLmBar(); return; }
@@ -7102,7 +7104,9 @@ function lobbyPaint(){
     + '<div class="lb-veil"></div><div class="lb-body"><div class="lb-title">' + esc(L.title || advName()) + '</div>'
     + (L.note ? '<div class="lb-note">' + esc(L.note) + '</div>' : '')
     + '<div class="lb-wait">' + (lobbyOn() ? 'The LoreMaster will bring you in.' : 'The table opens when the LoreMaster is here.') + (next ? ' Next session: ' + esc(next) + '.' : '') + ' Your Fell is open from the menu on the right.</div></div>' + lobbyLmPanel();
-  var v = el.querySelector('video'); if (v){ v.muted = true; try { var pl = v.play(); if (pl && pl.catch) pl.catch(function(){}); } catch(e){} }
+  var v = el.querySelector('video'); if (v){ v.muted = true; v.defaultMuted = true; try { var pl = v.play(); if (pl && pl.catch) pl.catch(function(){}); } catch(e){}
+    v.addEventListener('pause', function(){ if (document.body.contains(v)) setTimeout(function(){ try { v.play(); } catch(e){} }, 200); });
+    v.addEventListener('ended', function(){ try { v.currentTime = 0; v.play(); } catch(e){} }); }
 }
 /* the LoreMaster sees a slim bar while the players wait, with the way to bring them in */
 /* the LoreMaster in the lobby, as the players see it, with the way to work behind it */
@@ -16364,7 +16368,11 @@ function mapReadOne(file, seq, done){
    shelf was opened on its own and a single map was chosen */
 function mapUploadsDone(waiting, added){
   if (!added.length) return;
-  if (LOBBY_PICK && added[0] && added[0].url && !added[0].local){ lobbyUseMap(added[0].id); return; }
+  if (LOBBY_PICK && added[0]){
+    var _lm = added[0], _tries = 0;
+    var _wait = function(){ if (!_lm.local && _lm.url && !/^blob:/.test(_lm.url)){ lobbyUseMap(_lm.id); return; } if (++_tries < 240) setTimeout(_wait, 500); else { LOBBY_PICK = false; playToast('The upload did not land in time for the lobby. Choose it from your maps.', 'The lobby'); } };
+    _wait(); return;
+  }
   if (waiting){
     var st = stageById(waiting);
     if (st){
