@@ -153,6 +153,11 @@ async function youtube(req, url, env) {
     if (uj.error) return out({ ok: false, error: uj.error.message || 'YouTube refused' });
     return out({ ok: true, title: uj.snippet && uj.snippet.title });
   }
+  if (url.pathname === '/yt/moments') {
+    const v = String(url.searchParams.get('v') || '').match(/^[A-Za-z0-9_-]{6,20}$/); if (!v) return out({ ok: false, error: 'no video id' });
+    const body = await req.text();
+    return out(await ytStore(env, { op: 'ax-set', k: 'mo:' + v[0], v: body.slice(0, 100000) }));
+  }
   if (url.pathname === '/yt/disconnect') { await ytStore(env, { op: 'tok-del', m: who.member }); return out({ ok: true, connected: false }); }
   return out({ ok: false, error: 'not found' }, 404);
 }
@@ -246,7 +251,7 @@ async function anexanum(req, url, env) {
       const vj = await (await fetch('https://www.googleapis.com/youtube/v3/videos?part=snippet&id=' + v[0], { headers: auth })).json();
       const it = vj.items && vj.items[0];
       const cap = url.searchParams.get('captions') ? await ytCaptions(env, who.member, v[0]) : null;
-      return out({ ok: true, title: it ? it.snippet.title : '', description: it ? it.snippet.description : '', captions: cap ? (cap.ok ? cap.text : '') : '', segments: cap && cap.ok ? (cap.segments || []) : [], captionError: cap && !cap.ok ? cap.error : '' });
+      return out({ ok: true, title: it ? it.snippet.title : '', description: it ? it.snippet.description : '', captions: cap ? (cap.ok ? cap.text : '') : '', segments: cap && cap.ok ? (cap.segments || []) : [], lines: cap && cap.ok && url.searchParams.get('lines') ? (cap.lines || []) : [], captionError: cap && !cap.ok ? cap.error : '' });
     }
     if (p.indexOf('/ax/vault') === 0) {
       if (!env.FELLGUIDE_TOKEN) return out({ ok: false, error: 'the vault key (FELLGUIDE_TOKEN) is not set' });
@@ -288,6 +293,17 @@ async function anexanum(req, url, env) {
   } catch (e) { return out({ ok: false, error: String((e && e.message) || e).slice(0, 200) }); }
   return out({ ok: false, error: 'not found' }, 404);
 }
+/* every caption line with the second it starts and ends, for cutting clips */
+function srtLines(srt) {
+  const out = [];
+  String(srt || '').split(/\r?\n\r?\n/).forEach((blk) => {
+    const m = blk.match(/(\d{2}):(\d{2}):(\d{2}),(\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2}),(\d{3})/); if (!m) return;
+    const s = (+m[1]) * 3600 + (+m[2]) * 60 + (+m[3]) + (+m[4]) / 1000, e = (+m[5]) * 3600 + (+m[6]) * 60 + (+m[7]) + (+m[8]) / 1000;
+    const t = blk.split(/\r?\n/).filter((l) => l && !/-->/.test(l) && !/^\d+$/.test(l)).join(' ').replace(/<[^>]+>/g, '').trim();
+    if (t) out.push({ s: Math.round(s * 10) / 10, e: Math.round(e * 10) / 10, t: t.slice(0, 200) });
+  });
+  return out.slice(0, 12000);
+}
 async function ytCaptions(env, member, vid) {
   const at = await ytAccess(env, member); if (!at) return null;
   const auth = { Authorization: 'Bearer ' + at };
@@ -300,7 +316,7 @@ async function ytCaptions(env, member, vid) {
   if (!r.ok) return { ok: false, error: 'the captions could not be downloaded' };
   const srt = await r.text();
   const text = srt.replace(/^\d+\s*$/gm, '').replace(/\d{2}:\d{2}:\d{2},\d{3}\s*-->\s*\d{2}:\d{2}:\d{2},\d{3}/g, '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
-  return { ok: !!text, text: text.slice(0, 600000), segments: srtSegments(srt), title: '', error: text ? '' : 'the captions were empty' };
+  return { ok: !!text, text: text.slice(0, 600000), segments: srtSegments(srt), lines: srtLines(srt), title: '', error: text ? '' : 'the captions were empty' };
 }
 async function transcript(req, url, env) {
   const origin = req.headers.get('Origin') || '';
