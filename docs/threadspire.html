@@ -314,7 +314,7 @@ body.roleboot #mhud .mid, body.roleboot #mhud .gem, body.roleboot #mhud .portrai
    share, and a slot's text stays on one line. */
 .hName, .hLP, .hVlbl, .plaque{ white-space:nowrap; text-overflow:ellipsis; }
 /* seated in the round opening of the frame, left of the Lore Points */
-.hCodexP{ left:calc(90.5% - min(1.45vh, 0.815vw)); top:calc(46.55% - min(1.45vh, 0.815vw)); width:min(2.9vh, 1.63vw); height:min(2.9vh, 1.63vw); pointer-events:auto; cursor:pointer; padding:0; border-radius:50%; border:1.5px solid #a88a4e; background:rgba(10,14,26,.85); color:#c9a96a; box-shadow:none; }
+.hCodexP{ left:calc(90.5% - min(1.45vh, 0.815vw)); top:calc(46.85% - min(1.45vh, 0.815vw)); width:min(2.9vh, 1.63vw); height:min(2.9vh, 1.63vw); pointer-events:auto; cursor:pointer; padding:0; border-radius:50%; border:1.5px solid #8a6c38; background:rgba(10,14,26,.88); color:#a8884a; box-shadow:none; }
 .hCodexP svg{ width:62%; height:62%; } .hcx-b svg{ width:96%; height:96%; } .hCodexP svg, .hcx-b svg{ fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
 .hCodexP:hover{ background:rgba(201,168,76,.2); } .hCodexP:focus-visible, .hcx-b:focus-visible{ outline:2px solid #c9a84c; outline-offset:2px; }
 body.lm-role .hCodexP, body.stream .hCodexP, body.clean .hCodexP{ display:none !important; }
@@ -6502,7 +6502,7 @@ function ytDisconnect(){
    recap up as a card on the stream and every player's screen: the LoreMaster turns it on and
    off for everyone; anyone can close it on their own screen, and it closes itself after a
    minute. */
-var CODEX = { loaded:false, busy:false, entries:[], records:[], tab:'story', pick:'' };
+var CODEX = { loaded:false, busy:false, entries:[], records:[], items:[], me:'', tab:'story', pick:'' };
 var CX_ICON = {
   retell:'<path d="M4.5 9A8 8 0 1 1 4 13.5"/><path d="M4.5 4.5V9H9"/><path d="M12 8.5c1.6 1.6 2.4 2.9 2.4 4.1a2.4 2.4 0 0 1-4.8 0c0-.9.4-1.6 1-2.3.2.9.6 1.3 1.1 1.4-.2-1.1 0-2.1.3-3.2z"/>',
   codex:'<path d="M5 4.5h11a3 3 0 0 1 3 3V20H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h11"/><circle cx="12" cy="9" r="2.2"/><path d="M8.5 9h1.3M14.2 9h1.3"/>',
@@ -6512,7 +6512,7 @@ function cxSvg(k){ return '<svg viewBox="0 0 24 24" aria-hidden="true">' + CX_IC
 function codexLoad(then){
   if (!tsEmbedded() || !S.campaignId){ CODEX.loaded = true; if (then) then(); return; }
   if (CODEX.busy) return; CODEX.busy = true;
-  tsAsk('TS_CODEX_GET', {}).then(function(r){ CODEX.busy = false; CODEX.loaded = true; if (r && r.ok){ CODEX.entries = r.entries || []; CODEX.records = r.records || []; } if (then) then(); })
+  tsAsk('TS_CODEX_GET', {}).then(function(r){ CODEX.busy = false; CODEX.loaded = true; if (r && r.ok){ CODEX.entries = r.entries || []; CODEX.records = r.records || []; CODEX.items = r.items || []; CODEX.me = r.me || ''; } if (then) then(); })
     .catch(function(){ CODEX.busy = false; CODEX.loaded = true; if (then) then(); });
 }
 /* the names a recap mentions, from the table's own names, sorted into people, scenes and things */
@@ -6535,7 +6535,7 @@ function codexAdd(entry, then){
 function codexOpen(tab){
   if (tab) CODEX.tab = tab;
   if (!CODEX.loaded){ codexLoad(function(){ codexOpen(); }); tsModal('<h3 class="tsm-title">The Codex</h3><p class="tsm-note">Opening the Codex\u2026</p>'); return; }
-  var tabs = [['story','The Story So Far'],['person','People'],['place','Places'],['thing','Things'],['quests','Quests'],['clues','Clues']];
+  var tabs = [['story','The Story'],['person','People'],['place','Places'],['thing','Things'],['quests','Quests'],['clues','Clues']];
   /* opening it again reads it again, so a Fell's new Records show */
   if (!tab && !CODEX._fresh){ CODEX._fresh = true; codexLoad(function(){ CODEX._fresh = false; if (document.getElementById('codexWin')) codexOpen(CODEX.tab); }); }
   var h = '<div id="codexWin"><h3 class="tsm-title cx-title">' + cxSvg('codex') + ' The Codex of ' + esc(advName()) + '</h3>'
@@ -6550,12 +6550,13 @@ function codexOpen(tab){
           + '<div class="cx-foot">' + (e.videoId ? '<a href="https://youtu.be/' + esc(e.videoId) + '" target="_blank" rel="noopener">Watch</a>' : '')
           + (isLM() && !isKeeper() ? ((S.retellPick && S.retellPick.id === e.id) ? '<span class="rc-live">The Retelling</span>' : '<button class="cx-link" onclick="retellPickSet(\'' + esc(e.id) + '\')">Make it the Retelling</button>') + '<button class="cx-link" onclick="codexRemove(\'' + esc(e.id) + '\')">Take out of the Codex</button>' : '') + '</div></article>'; }).join('') + '</div>'
       : '<p class="tsm-note">Nothing yet. ' + (isLM() ? 'A recap you send, or one you add from a session\u2019s video, lands here.' : 'The recaps land here as the story goes on.') + '</p>';
-    if (isLM() && !isKeeper() && !CODEX.pick) h += '<div class="tsm-row" style="justify-content:flex-start"><button class="tsm-btn ghost" onclick="codexWrite()">Write an entry yourself</button></div>';
+    if (!CODEX.pick) h += codexItemsHtml('story');
   } else if (CODEX.tab === 'quests' || CODEX.tab === 'clues'){
     var rk = CODEX.tab, rows = [];
     (CODEX.records || []).forEach(function(r){ (r[rk] || []).forEach(function(t){ rows.push({ fell:r.fell, t:t }); }); });
     h += rows.length ? '<div class="cx-list">' + rows.map(function(x){ return '<article class="cx-entry"><p style="margin:0">' + esc(x.t) + '</p><div class="cx-foot"><span class="cx-by">Kept by ' + esc(x.fell) + '</span></div></article>'; }).join('') + '</div>'
-      : '<p class="tsm-note">No ' + (rk === 'quests' ? 'quests' : 'clues') + ' in any Fell\u2019s Records yet. What a Fell writes under ' + (rk === 'quests' ? 'Quests' : 'Clues') + ' on their sheet shows here.</p>';
+      : (codexItemsOf(rk).length ? '' : '<p class="tsm-note">No ' + (rk === 'quests' ? 'quests' : 'clues') + ' yet. What a Fell writes under ' + (rk === 'quests' ? 'Quests' : 'Clues') + ' on their sheet shows here too.</p>');
+    h += codexItemsHtml(rk);
   } else {
     var map = {};
     list.forEach(function(e, idx){ (e.names || []).forEach(function(n){ if (n.k !== CODEX.tab) return; (map[n.n] = map[n.n] || []).push(idx + 1); }); });
@@ -6565,9 +6566,51 @@ function codexOpen(tab){
     if (recs.length) h += '<div class="cx-sub">From the Fell\u2019s Records</div><div class="cx-list" style="max-height:24vh;margin-bottom:10px">' + recs.map(function(x){ return '<article class="cx-entry"><p style="margin:0">' + esc(x.t) + '</p><div class="cx-foot"><span class="cx-by">Kept by ' + esc(x.fell) + '</span></div></article>'; }).join('') + '</div>' + (names.length ? '<div class="cx-sub">Named in the recaps</div>' : '');
     h += names.length ? '<div class="cx-names">' + names.map(function(n){ var ss = map[n].filter(function(v, i, a){ return a.indexOf(v) === i; });
         return '<button class="cx-name" onclick="CODEX.pick=\'' + esc(n).replace(/'/g, '') + '\';codexOpen(\'story\')"><b>' + esc(n) + '</b><span>Session' + (ss.length === 1 ? ' ' : 's ') + ss.join(', ') + '</span></button>'; }).join('') + '</div>'
-      : '<p class="tsm-note">None named in the recaps yet.</p>';
+      : (codexItemsOf(CODEX.tab).length || recs.length ? '' : '<p class="tsm-note">None named in the recaps yet.</p>');
+    h += codexItemsHtml(CODEX.tab);
   }
   tsModal(h + '</div>', true);
+}
+/* lines anyone at the table added to the Codex, by tab */
+function codexItemsOf(kind){ return (CODEX.items || []).filter(function(i){ return i.kind === kind; }); }
+function codexItemsHtml(kind){
+  var list = codexItemsOf(kind), h = '';
+  if (list.length) h += '<div class="cx-sub">Added at the table</div><div class="cx-list" style="max-height:30vh">' + list.map(function(i){
+      var mine = i.by && i.by === CODEX.me, may = mine || (isLM() && !isKeeper());
+      return '<article class="cx-entry">' + (i.name ? '<div class="cx-h"><b>' + esc(i.name) + '</b></div>' : '') + (i.text ? '<p' + (i.name ? '' : ' style="margin:0"') + '>' + esc(i.text) + '</p>' : '')
+        + '<div class="cx-foot"><span class="cx-by">Added by ' + esc(i.byName || 'the table') + '</span>' + (may ? '<button class="cx-link" onclick="codexItemDel(\'' + esc(i.id) + '\')">Remove</button>' : '') + '</div></article>'; }).join('') + '</div>';
+  return h + '<div class="tsm-row" style="justify-content:flex-start;margin-top:8px"><button class="tsm-btn ghost" onclick="codexWriteFor(\'' + kind + '\')">Write an Entry</button></div>';
+}
+var CX_KIND_WORD = { story:'the Story', person:'People', place:'Places', thing:'Things', quests:'Quests', clues:'Clues' };
+/* Write an Entry: the LoreMaster's on the Story is a full entry (a session's recap, the
+   Retelling can use it); anything else is a line with an optional name. A player's person,
+   quest or clue goes into their own Fell's Records, which the Codex reads, so it is kept in
+   both places at once. */
+function codexWriteFor(kind){
+  if (kind === 'story' && isLM() && !isKeeper()) return codexWrite();
+  var named = kind !== 'story' && kind !== 'quests' && kind !== 'clues';
+  var toSheet = !isLM() && (kind === 'person' || kind === 'quests' || kind === 'clues');
+  tsModal('<h3 class="tsm-title">Write an Entry: ' + CX_KIND_WORD[kind] + '</h3>'
+    + (named ? '<label class="tsm-lbl" for="cxName">Name</label><input class="tsm-inp" id="cxName" maxlength="80">' : '')
+    + '<label class="tsm-lbl" for="cxText">' + (named ? 'What you know' : kind === 'quests' ? 'The quest' : kind === 'clues' ? 'The clue' : 'Your note on the story') + '</label><textarea class="tsm-inp tsm-ta" id="cxText" maxlength="2000" rows="5"></textarea>'
+    + (toSheet ? '<p class="tsm-note">It goes into your Fell\u2019s Records too, under ' + (kind === 'person' ? 'Characters' : CX_KIND_WORD[kind]) + '.</p>' : '<p class="tsm-note">Everyone at the table can read it.</p>')
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="codexOpen()">Back</button><button class="tsm-btn" onclick="codexWriteGo(\'' + kind + '\')">Add</button></div>', true);
+}
+function codexWriteGo(kind){
+  var n = ((document.getElementById('cxName') || {}).value || '').trim(), t = ((document.getElementById('cxText') || {}).value || '').trim();
+  if (!n && !t) return;
+  if (!isLM() && (kind === 'person' || kind === 'quests' || kind === 'clues')){
+    var cat = kind === 'person' ? 'characters' : kind;
+    try { sheet.postMessage({ type:'ts-record-add', cat:cat, text:(n ? n + (t ? ': ' + t : '') : t) }); } catch(e){}
+    playToast('Kept in your Records, and in the Codex.', 'The Codex');
+    setTimeout(function(){ codexLoad(function(){ codexOpen(kind); }); }, 2500);
+    return;
+  }
+  var me = isLM() ? (isKeeper() ? 'the Lorekeeper' : 'the LoreMaster') : ((S.character && S.character.name) || 'a player');
+  tsAsk('TS_CODEX_ITEM_ADD', { item:{ kind:kind, name:n, text:t, byName:me } }).then(function(r){ if (r && r.ok){ CODEX.items = r.items || CODEX.items; } codexOpen(kind); }).catch(function(){ codexOpen(kind); });
+}
+function codexItemDel(id){
+  tsAsk('TS_CODEX_ITEM_DEL', { id:id }).then(function(r){ if (r && r.ok) CODEX.items = r.items || []; codexOpen(); }).catch(function(){});
 }
 function codexWrite(){
   if (!isLM() || keeperNo()) return;
@@ -6605,7 +6648,7 @@ function retellShare(){
 var _retellShown = '', _retellTimer = null;
 function retellWatch(){
   var r = S.retell;
-  if (isLM() && !S.stream){ hudCodexPaint(); return; }
+  if (isLM() && !S.stream) hudCodexPaint();
   var key = r && r.on ? (r.id + '|' + r.at) : '';
   if (key === _retellShown) return;
   _retellShown = key;
