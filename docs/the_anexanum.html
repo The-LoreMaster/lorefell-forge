@@ -207,7 +207,19 @@ function txParse(name, text){
     var t = rows.slice(ti + 1).join(' ').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
     if (t) lines.push({ s:Math.round(s * 10) / 10, e:Math.round((e === null ? s + 2 : e) * 10) / 10, t:t.slice(0, 200) });
   });
-  if (!lines.length && ext !== 'srt' && ext !== 'vtt' && ext !== 'sbv') return { lines:[], text:text.replace(/\s+/g, ' ').trim() };
+  if (!lines.length){
+    var stamped = [];
+    text.split('\n').forEach(function(row){
+      var m = row.match(/^\s*[\[(]?\s*((?:\d+:)?\d{1,2}:\d{2}(?:[.,]\d{1,3})?)\s*[\])]?\s*[-\u2013:|]?\s*(.*)$/);
+      if (m && m[2].trim()){ var st = txTime(m[1]); if (st !== null) stamped.push({ s:Math.round(st * 10) / 10, t:m[2].replace(/<[^>]+>/g, '').trim().slice(0, 200) }); }
+      else if (stamped.length && row.trim()) stamped[stamped.length - 1].t = (stamped[stamped.length - 1].t + ' ' + row.trim()).slice(0, 200);
+    });
+    if (stamped.length >= 3){
+      stamped.forEach(function(l, i){ var nx = stamped[i + 1]; l.e = nx ? Math.max(l.s + 0.5, Math.min(nx.s, l.s + Math.max(2, l.t.split(/\s+/).length * 0.4))) : l.s + 3; l.e = Math.round(l.e * 10) / 10; });
+      lines = stamped;
+    }
+  }
+  if (!lines.length) return { lines:[], text:text.replace(/\s+/g, ' ').trim() };
   return { lines:lines, text:lines.map(function(l){ return l.t; }).join(' ') };
 }
 function rpFromFile(input, vidIndex){
@@ -220,7 +232,7 @@ function rpFromFile(input, vidIndex){
     VD.open = null;
     if (!got.lines.length && !got.text){ RP.msg = 'Nothing readable in that file.'; paint(); return; }
     if (v.id) api('/ax/draft', { k:'mo:' + v.id }).then(function(d){ try { RP.moments = JSON.parse(d.v || '[]'); } catch(e){} }).catch(function(){});
-    rpRecap().then(function(){ if (RP.recap && RP.lines.length) return rpPick(); if (RP.recap && !RP.lines.length){ RP.msg = 'This file has no times in it, so the recap is written but clips cannot be chosen. Use an .srt, .vtt or .sbv file for the clips.'; paint(); } });
+    rpRecap().then(function(){ if (RP.recap && RP.lines.length) return rpPick(); if (RP.recap && !RP.lines.length){ RP.msg = 'This file has no times in it, so the recap is written but clips cannot be chosen. Make a timed transcript from the recording with the Recap Cutter (Make a transcript), then use that .srt here.'; paint(); } });
   };
   rd.readAsText(f);
 }
@@ -314,7 +326,7 @@ function paintRecap(){
   var h = '<div class="panel"><div class="row" style="justify-content:space-between"><h2 style="margin:0">A recap video: ' + esc(RP.v.title) + '</h2><button class="btn" onclick="RP=null;paint()">Back to the videos</button></div>';
   if (RP.busy) return h + '<p class="lead">' + esc(RP.msg) + '</p></div>';
   if (RP.fromFile) h += '<p class="lead">From the transcript file <b>' + esc(RP.fromFile) + '</b>.</p>';
-  if (!RP.lines.length && !RP.recap) return h + '<p class="lead">' + esc(RP.capErr || RP.msg || 'No captions came from YouTube for this video.') + '</p><div class="row">' + rpFileBtn(RP.idx) + '</div><p class="lead">An .srt, .vtt or .sbv file (Restream or YouTube Studio can give you one) carries the times the clips need. A .txt file is enough for the recap alone.</p></div>';
+  if (!RP.lines.length && !RP.recap) return h + '<p class="lead">' + esc(RP.capErr || RP.msg || 'No captions came from YouTube for this video.') + '</p><div class="row">' + rpFileBtn(RP.idx) + '</div><p class="lead">An .srt, .vtt or .sbv file, or a text transcript with a time at the start of each line, carries the times the clips need. Have only the recording? The Recap Cutter\u2019s Make a transcript writes an .srt from it.</p></div>';
   var tot = rpTotal();
   h += '<p class="lead">The recap is the spine: each story clip shows one of its beats, and a highlight or two is laid in where it happened. Change the recap and Choose the clips again, or watch each pick, step its start a line at a time and its end a sentence at a time, drop it, add a marked moment. Then download the plan for the Recap Cutter.</p>'
     + '<label class="f">The recap<textarea class="t" id="rpRecap" rows="5" oninput="RP.recap=this.value;clearTimeout(window._rps);window._rps=setTimeout(rpSave,800)">' + esc(RP.recap || '') + '</textarea></label>'
