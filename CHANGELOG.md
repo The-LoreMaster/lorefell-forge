@@ -1,3 +1,7 @@
+## 2026-10-03 - Recaps start short
+
+A recap from a session's video is written short to begin with, 100 to 140 words; Shorter takes it to 70 to 100, Longer to 170 to 230, and A fresh take stays short.
+
 ## 2026-10-03 - Write it again, five ways
 
 In the recap from a session's video, Write it again opens five choices: Shorter (100 to 140 words), Longer (260 to 340), A fresh take, More vivid and Plainer. Shorter, Longer, More vivid and Plainer rework the recap on screen, edits included, keeping its events; A fresh take writes it anew.
