@@ -7041,15 +7041,17 @@ function lobbyOn(){ return !!(S.lobby && S.lobby.on); }
    between sessions cannot touch a token. The stream follows the same rule. */
 function lobbyForMe(){
   if (!S.campaignId || !S.roleReady || _advSwitching || S._pickerLive) return false;   /* no adventure open yet, or one being chosen: no lobby */
+  var _veil = document.getElementById('advGo'); if (_veil && _veil.style.display !== 'none' && _veil.innerHTML) return false;   /* an adventure still arriving */
+  if (S.lobby && S.lobby.cid && !sameId(S.lobby.cid, S.campaignId)) return false;                                       /* another adventure's lobby */
   if (isLM() && !S.stream) return !!window._lobbyLook;                /* the LoreMaster, looking as the players do */
   if (lobbyOn()) return true;
   if (!tsEmbedded()) return false;
   return !(ROOM.on && typeof ROOM.lms === 'number' && ROOM.lms > 0);
 }
-function lobbyShare(){ try { roomPartsSync(false); } catch(e){} schedulePush(); lobbyPaint(); try { paintLmStrip(); } catch(e){} }
+function lobbyShare(){ if (S.lobby) S.lobby.cid = S.campaignId; try { roomPartsSync(false); } catch(e){} schedulePush(); lobbyPaint(); try { paintLmStrip(); } catch(e){} }
 function lobbySet(on){
   if (!isLM() || keeperNo()) return;
-  S.lobby = Object.assign({ title:'', note:'', url:'', poster:'', kind:'' }, S.lobby || {}, { on:!!on, at:Date.now() });
+  S.lobby = Object.assign({ title:'', note:'', url:'', poster:'', kind:'' }, S.lobby || {}, { on:!!on, at:Date.now(), cid:S.campaignId });
   lobbyShare();
   pushLog({ kind:'sys', html:on ? 'Everyone is in the lobby.' : 'The LoreMaster brings everyone in.' }); applyRemoteState({ log:S.log });
 }
@@ -7094,17 +7096,25 @@ function lobbyPaint(){
   document.body.classList.toggle('in-lobby', show);
   if (!show){ if (el) el.remove(); lobbyLmBar(); return; }
   var L = S.lobby || {};
-  if (!el){ el = document.createElement('div'); el.id = 'lobbyScreen'; el.setAttribute('role', 'region'); el.setAttribute('aria-label', 'The lobby'); document.body.appendChild(el); }
+  if (!el){ el = document.createElement('div'); el.id = 'lobbyScreen'; el.setAttribute('role', 'region'); el.setAttribute('aria-label', 'The lobby'); (document.getElementById('stage') || document.body).appendChild(el); }
   var key = [L.url, L.title, L.note, stillMaps(), SESS.nextAt, lobbyOn(), !!window._lobbyLook].join('|');
   if (el._k === key) return; el._k = key;
   var vid = L.kind === 'video' && L.url && !stillMaps();
   var next = SESS.nextAt && SESS.nextAt > Date.now() - 3 * 3600000 ? sessionWhenShort() : '';
-  el.innerHTML = (vid ? '<video class="lb-bg" src="' + esc(L.url) + '"' + (L.poster ? ' poster="' + esc(L.poster) + '"' : '') + ' muted loop autoplay playsinline aria-hidden="true"></video>'
+  el.innerHTML = (vid ? '<div class="lb-vidslot"></div>'
       : '<div class="lb-bg" style="background-image:' + ((L.kind === 'video' ? L.poster : L.url) ? 'url(\'' + esc(L.kind === 'video' ? L.poster : L.url) + '\')' : 'none') + '"></div>')
     + '<div class="lb-veil"></div><div class="lb-body"><div class="lb-title">' + esc(L.title || advName()) + '</div>'
     + (L.note ? '<div class="lb-note">' + esc(L.note) + '</div>' : '')
     + '<div class="lb-wait">' + (lobbyOn() ? 'The LoreMaster will bring you in.' : 'The table opens when the LoreMaster is here.') + (next ? ' Next session: ' + esc(next) + '.' : '') + ' Your Fell is open from the menu on the right.</div></div>' + lobbyLmPanel();
-  var v = el.querySelector('video'); if (v){ v.muted = true; v.defaultMuted = true; try { var pl = v.play(); if (pl && pl.catch) pl.catch(function(){}); } catch(e){}
+  var slot = el.querySelector('.lb-vidslot'), v = null;
+  if (slot){
+    v = document.createElement('video'); v.className = 'lb-bg'; v.muted = true; v.defaultMuted = true; v.loop = true; v.autoplay = true; v.playsInline = true;
+    v.setAttribute('muted', ''); v.setAttribute('playsinline', ''); v.setAttribute('aria-hidden', 'true'); v.preload = 'auto';
+    if (L.poster) v.poster = L.poster;
+    v.src = L.url; slot.replaceWith(v);
+    v.addEventListener('canplay', function(){ try { var p2 = v.play(); if (p2 && p2.catch) p2.catch(function(){}); } catch(e){} }, { once:true });
+  }
+  if (v){ try { var pl = v.play(); if (pl && pl.catch) pl.catch(function(){}); } catch(e){}
     v.addEventListener('pause', function(){ if (document.body.contains(v)) setTimeout(function(){ try { v.play(); } catch(e){} }, 200); });
     v.addEventListener('ended', function(){ try { v.currentTime = 0; v.play(); } catch(e){} }); }
 }
@@ -7134,8 +7144,11 @@ setInterval(function(){
     var now = Date.now(), L = S.lobby || {};
     if (!_lobbyArmed){
       _lobbyArmed = true;
-      try { if (localStorage.getItem('ts_lobby_start') === '1') setTimeout(function(){ if (lobbyOn()) lobbyLook(true); }, 400); } catch(e){}
-      if (!L.on && (!L.lmSeen || now - L.lmSeen > 3 * 3600000)){ S.lobby = Object.assign({ title:'', note:'', url:'', poster:'', kind:'' }, L, { on:true, at:now, lmSeen:now }); lobbyShare(); return; }
+      var _fresh = !L.lmSeen || now - L.lmSeen > 20 * 60000;
+      if (_fresh && !L.on){ S.lobby = Object.assign({ title:'', note:'', url:'', poster:'', kind:'' }, L, { on:true, at:now, lmSeen:now, cid:S.campaignId }); lobbyShare(); }
+      var _look = true; try { _look = localStorage.getItem('ts_lobby_start') !== '0'; } catch(e){}
+      if (_look && (_fresh || lobbyOn())) setTimeout(function(){ if (lobbyOn()) lobbyLook(true); }, 400);
+      if (_fresh) return;
     }
     if (!L.lmSeen || now - L.lmSeen > 5 * 60000){ S.lobby = Object.assign({}, L, { lmSeen:now }); schedulePush(); }
   } catch(e){}
@@ -7149,6 +7162,7 @@ setInterval(function(){
    only then speaks again. Not in the middle of a fight. */
 function visitOn(){ return !!S.visit; }
 function sceneVisit(id){
+  try { tsCloseModal(); } catch(e){}
   if (!isLM() || keeperNo() || S.stream) return;
   if (S.mode === 'combat'){ playToast('Not in the middle of a fight. End it first, or move them all together.', 'Threadwalk'); return; }
   if (S.visit){ if (S.visit.home === id){ sceneVisitBack(); } return; }
@@ -7156,6 +7170,7 @@ function sceneVisit(id){
   var hit = tsSceneById(id); if (!hit) return;
   try { sceneLayoutSave(); lmSaveCurrentStage(); } catch(e){}
   try { pushState(); } catch(e){}
+  if (window._lobbyLook) lobbyLook(false);
   S.visit = { home:S.scene.id, homeName:S.scene.name, q:[], at:Date.now() };
   sceneVisitGo(hit.scene);
   document.body.classList.add('visiting');
@@ -11388,6 +11403,7 @@ function advSwitch(id){
 /* Put down everything that belonged to the adventure being left. Anything not cleared
    here shows up on the new table wearing the old one's face. */
 function advReset(nextId){
+  S.lobby = null; window._lobbyLook = false;   /* the lobby belongs to the adventure being left */
   try { console.log('%c[RESET] advReset(' + (nextId||'') + ') from campaignId=' + (S.campaignId||''), 'color:#e6a07a;font-weight:bold'); } catch(e){}
   _advSwitching = true;
   _advPushedRev = -1; _advTooBig = false; SEAM.advSent = '';
@@ -11858,7 +11874,7 @@ function settingsBody(){
     + setRow('Clean view', 'Hide the widgets to show the map alone.', '<kbd>H</kbd>' + setSwitch(document.body.classList.contains('clean'), 'toggleClean();refreshWinBody()', 'Clean view'))
     + setRow('Full screen', '', '<kbd>F</kbd>' + setSwitch(!!document.fullscreenElement, 'toggleFull();setTimeout(refreshWinBody,300)', 'Full screen'))
     + setRow('Still maps', 'Show a video map as its still picture, for a slower screen.', setSwitch(stillMaps(), 'stillMapsSet(!stillMaps())', 'Still maps'))
-    + (isLM() && !isKeeper() ? setRow('Open in the lobby', 'When everyone is in the lobby, open the table seeing it as they do. Threadwalk from there to set up your scenes.', setSwitch((function(){ try { return localStorage.getItem('ts_lobby_start') === '1'; } catch(e){ return false; } })(), 'try{localStorage.setItem(\'ts_lobby_start\',localStorage.getItem(\'ts_lobby_start\')===\'1\'?\'0\':\'1\')}catch(e){};refreshWinBody()', 'Open in the lobby')) : '')
+    + (isLM() && !isKeeper() ? setRow('Open in the lobby', 'When everyone is in the lobby, open the table seeing it as they do. Threadwalk from there to set up your scenes.', setSwitch((function(){ try { return localStorage.getItem('ts_lobby_start') !== '0'; } catch(e){ return true; } })(), 'try{localStorage.setItem(\'ts_lobby_start\',localStorage.getItem(\'ts_lobby_start\')===\'0\'?\'1\':\'0\')}catch(e){};refreshWinBody()', 'Open in the lobby')) : '')
     + (isKeeper() ? setRow('Stream view', 'A window that follows this table for capture.', setBtn('Copy link', 'streamCopy()')) : '')
     + '<div class="set-row set-col"><div class="set-txt"><span class="set-t">Your ping colour</span><span class="set-h">Double-click the map to ping.</span></div>' + pingColorRow() + '</div>');
   h += '<div class="set-seams"><button onclick="openWin(\'seams\')">The seams: what the table is doing right now</button></div>';
