@@ -1,3 +1,7 @@
+## 2026-10-03 - Drafts for a video's update; tidying the old videos
+
+Update the video has Save draft: the title, description and scene are kept with the table and the video opens on its draft next time (Write it again starts fresh); updating the video clears its draft and marks it updated. Settings, Sessions, YouTube gains Tidy old videos: every video on the channel that names this adventure, oldest first (read in pages of fifty, up to four hundred), each marked updated or draft saved, opened one by one, or Draft the rest, which writes a draft for each video without one, one after another, never putting any up: the LoreMaster reads each and updates it. The room's uploads list reads more than fifteen when asked.
+
 ## 2026-10-03 - A video is named for the scene it played out in
 
 Update the video names the episode by scene, not session, since a session often runs over several episodes: the AI reads the recap, the captions and the Journal against the Story's outline and picks the scene the episode mostly played out in, written exactly as the outline has it, and the title becomes "Adventure | Scene". The window shows Where this episode played out, a list of every scene by its session with the match chosen, and changing it rewrites the title; the name after the pipe can still be typed freely.
