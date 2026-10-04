@@ -1,3 +1,7 @@
+## 2026-10-04 - From the email, one Approve does it all
+
+The review opened from the session video's email ends its recap step with Approve, which does all of it at once, each part listed and able to be left out: adds the recap to the Journal, adds it to the Codex, makes it the Retelling, and emails it to the adventure's players (as the recap email does, titled with the session's scene); then the title and description come up to approve and put up.
+
 ## 2026-10-04 - An email when a session video is ready to review
 
 When the room's round writes a new session video's draft, it asks the site to email Nate (get_anexanumReady; the site asks the room's /ax-pending what to say, answered once per draft, so nothing else can send it). The email, on the recap template, links to ThreadSpire with the adventure (the room learns each adventure's name from the LoreMaster's table) and the video: opening it holds the round, and the review starts at once: the names to check, the recap, then the title and description (from the Story's own scenes) to approve and put up, which marks the round done. Left alone, it still goes up on its own twelve hours after the draft. Paste velo/backend/http-functions.js and velo/page-threadspire.js.
