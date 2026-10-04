@@ -602,8 +602,21 @@ function writeRoot(){
       AX.files[root] = { content:md, original:cur.exists ? cur.content : null, status:cur.exists ? 'changed' : 'new', approved:true };
       return saveFile(root);
     });
-  }).then(function(){ return writeNavMap(); }).then(function(){ AX.busy = false; say('The world is written. Review it before anything is sent.'); AX.step = 4; paint(); })
+  }).then(function(){ return writeNavMap(); }).then(function(){ return writeHistoriesIndex(); }).then(function(){ AX.busy = false; say('The world is written. Review it before anything is sent.'); AX.step = 4; paint(); })
     .catch(function(e){ AX.busy = false; say('Stopped: ' + e.message); paint(); });
+}
+/* The Histories' own page lists every History in its table: a new one gets its row */
+function writeHistoriesIndex(){
+  var path = BASE + 'The Histories.md';
+  return api('/ax/vault/file', { path:path }).then(function(cur){
+    if (!cur.exists || cur.content.indexOf('[[' + hist() + ']]') >= 0) return;
+    var lines = cur.content.split('\n'), last = -1;
+    lines.forEach(function(l, i){ if (/^\|\s*\[\[.+\]\]\s*\|/.test(l)) last = i; });
+    if (last < 0) return;
+    lines.splice(last + 1, 0, '| [[' + hist() + ']] | Campaign |');
+    AX.files[path] = { content:lines.join('\n'), original:cur.content, status:'changed', approved:true };
+    return saveFile(path).then(saveManifest);
+  });
 }
 /* the order map: this History's block under The Histories, rebuilt from its pages */
 function writeNavMap(){
