@@ -1,3 +1,7 @@
+## 2026-10-04 - The Histories page, gathered a part at a time
+
+The Histories page could not be gathered on a channel with many playlists: a worker may make only so many outside calls per request (fifty on the free plan), and each playlist took one. The room now builds the list a part at a time, the never-read playlists first and then the longest unread, within a budget per pass, keeping the rest from the last pass; the page asks again until it is whole, and the two-hourly round runs a pass too so visitors find it ready. When it cannot be gathered, the page says why.
+
 ## 2026-10-04 - Adventure, not campaign
 
 LoreFell does not say campaign. The Histories page speaks of adventures, and the Anexanum writes a new History's note as Adventure and its row on The Histories as Adventure.
