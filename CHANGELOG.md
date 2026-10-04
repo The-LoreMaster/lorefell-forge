@@ -1,3 +1,7 @@
+## 2026-10-04 - A new History gets its row on The Histories
+
+Writing the world for a new History also adds its row to the table on The Histories' own page ([[Name]], Campaign), shown as a changed page in the review like the order map.
+
 ## 2026-10-04 - Make a transcript on the graphics card, or the processor
 
 Make a transcript tries an NVIDIA graphics card first, finding its libraries in Python's own folders once installed (pip install nvidia-cublas-cu12 nvidia-cudnn-cu12), and if they are missing or the card fails ("cublas64_12.dll is not found") the processor takes over for the rest of the session, with a line saying so.
