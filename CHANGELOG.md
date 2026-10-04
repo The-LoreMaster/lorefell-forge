@@ -1,3 +1,7 @@
+## 2026-10-04 - The Anexanum on a phone; F for full screen
+
+On a phone the Anexanum runs in one column: the header stacks, the two tabs share the width, the steps scroll sideways, every list row puts its words on top and its buttons beneath at a touch size, fields are full width (16px text, so a phone does not zoom), and the review's ledger sits above the page. On a desktop, F (anywhere but a text box) or the Full screen button toggles full screen.
+
 ## 2026-10-04 - Every adventure opens in the lobby
 
 Every time an adventure opens on the LoreMaster's table (a fresh open, a reload, or a switch to another adventure), everyone is sent to the lobby and the LoreMaster opens looking at it, within a second or two of the board arriving; the twenty-minute window that let a quick reload skip it is gone. Players keep landing in the lobby whenever no LoreMaster is at the table.

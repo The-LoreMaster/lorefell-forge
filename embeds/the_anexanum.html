@@ -19,7 +19,7 @@ a{ color:var(--gold); } a:hover{ color:var(--gold2); }
 header.top{ display:flex; align-items:flex-end; justify-content:space-between; gap:16px; padding-bottom:18px; border-bottom:1px solid var(--line); margin-bottom:22px; }
 h1{ margin:0; font-family:Cinzel, serif; font-weight:600; font-size:2.1rem; letter-spacing:.04em; color:var(--gold); }
 .sub{ color:var(--dim); font-size:1rem; margin-top:2px; }
-.status{ display:flex; gap:14px; font-size:.95rem; color:var(--dim); flex-wrap:wrap; }
+.status{ display:flex; gap:14px; align-items:center; font-size:.95rem; color:var(--dim); flex-wrap:wrap; }
 .status b{ font-weight:500; } .status .ok{ color:var(--verd); } .status .no{ color:var(--rust); }
 nav.tabs{ display:flex; gap:6px; margin-bottom:22px; }
 nav.tabs button{ height:40px; padding:0 18px; border-radius:9px; border:1px solid var(--line); background:none; color:var(--dim); font-family:Cinzel, serif; font-size:.85rem; letter-spacing:.05em; cursor:pointer; }
@@ -65,7 +65,38 @@ textarea.t{ width:100%; resize:vertical; line-height:1.55; font-size:1rem; }
 .diff .a{ background:rgba(127,179,163,.16); display:block; } .diff .d{ background:rgba(208,138,110,.16); text-decoration:line-through; display:block; color:var(--dim); }
 .empty{ padding:28px; border:1px dashed var(--line); border-radius:12px; color:var(--dim); }
 .gate{ max-width:560px; margin:12vh auto; text-align:center; } .gate h1{ font-size:2.6rem; }
-@media (max-width:860px){ .steps, .review{ grid-template-columns:1fr; } .steps ol{ flex-direction:row; overflow:auto; } .steps li button{ min-width:180px; } }
+@media (max-width:860px){
+  .steps, .review{ grid-template-columns:1fr; }
+  .steps ol{ flex-direction:row; overflow-x:auto; scroll-snap-type:x mandatory; padding-bottom:4px; }
+  .steps li button{ min-width:190px; scroll-snap-align:start; }
+  .ledger{ max-height:40vh; }
+}
+@media (max-width:640px){
+  html, body{ font-size:17px; }
+  .wrap{ padding:16px 14px 48px; }
+  header.top{ flex-direction:column; align-items:flex-start; gap:8px; }
+  h1{ font-size:1.7rem; }
+  nav.tabs{ display:grid; grid-template-columns:1fr 1fr; }
+  nav.tabs button{ height:44px; }
+  .btn{ height:44px; }
+  .row{ gap:8px; }
+  .row .btn{ flex:1 1 auto; }
+  label.f{ min-width:0; flex:1 1 100%; }
+  input.t, select.t{ min-height:44px; font-size:16px; }
+  textarea.t{ font-size:16px; }
+  /* a list row: the words on top, its buttons wrapping beneath */
+  .list .it{ grid-template-columns:30px minmax(0,1fr); align-items:start; }
+  .list .it > :last-child:not(.ti){ grid-column:1 / -1; justify-self:stretch; }
+  .list .it > .row:last-child{ display:flex; flex-wrap:wrap; }
+  .list .it > .row:last-child .btn{ flex:1 1 calc(33% - 6px); min-width:0; padding:0 8px; font-size:.72rem; }
+  .pick{ grid-template-columns:1fr; }
+  .page{ padding:12px; }
+  .diff{ max-height:50vh; }
+  .log{ max-height:160px; }
+}
+.fsbtn{ height:36px; padding:0 12px; border-radius:9px; border:1px solid var(--line); background:none; color:var(--dim); font-family:Cinzel, serif; font-size:.72rem; letter-spacing:.05em; cursor:pointer; }
+.fsbtn:hover{ color:var(--gold); border-color:rgba(201,168,76,.6); }
+@media (max-width:860px), (pointer:coarse){ .fsbtn{ display:none; } }
 @media (prefers-reduced-motion: reduce){ *{ transition:none !important; } }
 </style>
 </head>
@@ -117,6 +148,20 @@ function loadDraft(){
 }
 
 /* ---- the start ---- */
+/* F, anywhere but a text box, toggles full screen on a desktop */
+function toggleFull(){
+  try {
+    var el = document.documentElement, rf = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (!document.fullscreenElement && !document.webkitFullscreenElement){ if (rf){ var pr = rf.call(el); if (pr && pr.catch) pr.catch(function(){}); } }
+    else (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+  } catch(e){}
+}
+document.addEventListener('keydown', function(e){
+  if (e.key !== 'f' && e.key !== 'F') return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  var t = e.target; if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+  e.preventDefault(); toggleFull();
+});
 function boot(){
   askPage('AX_TICKET').then(function(r){ TICKET = r.ticket; return api('/ax/whoami'); })
     .then(function(w){ AX.who = w; paint(); loadVaultBasics(); })
@@ -137,7 +182,7 @@ function loadVaultBasics(){
 function paint(){
   var w = AX.who || {};
   var h = '<header class="top"><div><h1>The Anexanum</h1><div class="sub">Where the lore is kept. Nothing reaches the FellGuide until you send it.</div></div>'
-    + '<div class="status"><span>YouTube <b class="' + (w.youtube ? 'ok' : 'no') + '">' + (w.youtube ? 'connected' : 'not set') + '</b></span><span>The vault <b class="' + (w.vault ? 'ok' : 'no') + '">' + (w.vault ? 'open' : 'no key yet') + '</b></span></div></header>'
+    + '<div class="status"><button class="fsbtn" onclick="toggleFull()" title="Full screen (F)">Full screen</button><span>YouTube <b class="' + (w.youtube ? 'ok' : 'no') + '">' + (w.youtube ? 'connected' : 'not set') + '</b></span><span>The vault <b class="' + (w.vault ? 'ok' : 'no') + '">' + (w.vault ? 'open' : 'no key yet') + '</b></span></div></header>'
     + '<nav class="tabs" aria-label="The Anexanum"><button class="' + (AX.tab === 'histories' ? 'on' : '') + '" onclick="AX.tab=\'histories\';paint()">The Histories</button><button class="' + (AX.tab === 'videos' ? 'on' : '') + '" onclick="AX.tab=\'videos\';paint()">The videos</button></nav>';
   h += AX.tab === 'histories' ? paintHistories() : paintVideos();
   document.getElementById('app').innerHTML = h;
@@ -233,7 +278,7 @@ function paintRecap(){
   h += '<p class="lead">The recap is the spine: each story clip shows one of its beats, and a highlight or two is laid in where it happened. Change the recap and Choose the clips again, or watch each pick, step its start a line at a time and its end a sentence at a time, drop it, add a marked moment. Then download the plan for the Recap Cutter.</p>'
     + '<label class="f">The recap<textarea class="t" id="rpRecap" rows="5" oninput="RP.recap=this.value;clearTimeout(window._rps);window._rps=setTimeout(rpSave,800)">' + esc(RP.recap || '') + '</textarea></label>'
     + '<div class="row"><button class="btn" onclick="rpRecap()">Write the recap again</button><button class="btn pri" onclick="rpPick()">Choose the clips from this recap</button></div>'
-    + '<div class="list">' + RP.clips.map(function(c, i){ return '<div class="it" style="grid-template-columns:44px minmax(0,1fr) auto"><span class="num">' + (i + 1) + '</span>'
+    + '<div class="list">' + RP.clips.map(function(c, i){ return '<div class="it"><span class="num">' + (i + 1) + '</span>'
       + '<span class="ti"><span class="mark ' + (c.kind === 'highlight' ? 'wait' : 'done') + '">' + (c.kind === 'highlight' ? 'Highlight' : 'Story') + '</span> <a href="https://youtu.be/' + esc(RP.v.id) + '?t=' + Math.floor(c.start) + '" target="_blank" rel="noopener">' + vdTime(c.start) + '</a> to ' + vdTime(c.end) + ' (' + (Math.round((c.end - c.start) * 10) / 10) + 's) ' + esc(c.label) + (c.tags && c.tags.length ? ' <small style="display:inline">' + esc(c.tags.join(', ')) + '</small>' : '')
         + (c.beat ? '<small>Shows: ' + esc(c.beat) + '</small>' : '') + '<small>Says: ' + esc(rpLine(c)) + '</small></span>'
       + '<span class="row" style="margin:0;gap:4px"><button class="btn" onclick="rpStep(' + i + ',\'start\',-1)" title="Start a line earlier">\u25c2 start</button><button class="btn" onclick="rpStep(' + i + ',\'start\',1)" title="Start a line later">start \u25b8</button><button class="btn" onclick="rpStep(' + i + ',\'end\',-1)" title="End a sentence earlier">\u25c2 end</button><button class="btn" onclick="rpStep(' + i + ',\'end\',1)" title="End a sentence later">end \u25b8</button><button class="btn" onclick="rpDrop(' + i + ')">Drop</button></span></div>'; }).join('') + '</div>'
