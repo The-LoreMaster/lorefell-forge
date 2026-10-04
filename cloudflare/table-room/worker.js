@@ -514,26 +514,36 @@ const PUB_TTL = 6 * 3600 * 1000;
 const HIST_BASE = 'The FellGuide/The FellGuide/The Lore (Contains Spoilers)/The Histories/';
 function fgUrlOf(path) { return 'https://fellguide.com/' + path.replace(/\.md$/, '').split('/').map((p) => encodeURIComponent(p).replace(/%20/g, '+')).join('/'); }
 function thumbOf(sn) { const t = (sn && sn.thumbnails) || {}; return ((t.maxres || t.standard || t.high || t.medium || t.default) || {}).url || ''; }
-async function pubBuild(env) {
-  const o = await ytStore(env, { op: 'owner-get' }); if (!o.owner) return { ok: false, error: 'no channel' };
-  const at = await ytAccess(env, o.owner); if (!at) return { ok: false, error: 'no channel' };
+/* A worker may make only so many outside calls per request (50 on the free plan), and each
+   playlist takes one, as does each History read; so the list is built a part at a time: each
+   pass refreshes the playlists longest unread (up to a budget), keeps the rest as they were,
+   and saves the whole. The two-hourly round runs a pass too, so visitors find it ready. */
+async function pubBuild(env, prev) {
+  let calls = 0; const BUDGET = 36;
+  const o = await ytStore(env, { op: 'owner-get' }); calls++; if (!o.owner) return { ok: false, error: 'no channel connected' };
+  const at = await ytAccess(env, o.owner); calls += 2; if (!at) return { ok: false, error: 'the channel connection has lapsed' };
   const auth = { Authorization: 'Bearer ' + at };
-  const pl = await ytJson(await fetch('https://www.googleapis.com/youtube/v3/playlists?part=snippet,contentDetails,status&mine=true&maxResults=50', { headers: auth }));
-  let hist = {};
-  if (env.FELLGUIDE_TOKEN) {
+  const pl = await ytJson(await fetch('https://www.googleapis.com/youtube/v3/playlists?part=snippet,contentDetails,status&mine=true&maxResults=50', { headers: auth })); calls++;
+  const old = {}; ((prev && prev.adventures) || []).forEach((a) => { old[a.id] = a; });
+  let hist = (prev && prev.hist) || null;
+  if (!hist && env.FELLGUIDE_TOKEN) {
+    hist = {};
     try {
-      const ref = await gh(env, '/git/ref/heads/main'); const tree = await gh(env, '/git/trees/' + ref.object.sha + '?recursive=1');
+      const ref = await gh(env, '/git/ref/heads/main'); const tree = await gh(env, '/git/trees/' + ref.object.sha + '?recursive=1'); calls += 2;
       (tree.tree || []).forEach((x) => { if (x.type !== 'blob' || x.path.indexOf(HIST_BASE) !== 0) return; const rest = x.path.slice(HIST_BASE.length).split('/'); if (rest.length === 2 && rest[1] === rest[0] + '.md') hist[rest[0].toLowerCase()] = x.path; });
     } catch (e) {}
   }
-  const out = [];
-  for (const p of (pl.items || [])) {
+  hist = hist || {};
+  const lists = (pl.items || []).filter((p) => !/lorebound|shorts?\b/i.test(p.snippet.title || '') && !(p.status && p.status.privacyStatus === 'private'));
+  /* the ones never read come first, then the longest unread */
+  lists.sort((a, b) => ((old[a.id] && old[a.id].read) || 0) - ((old[b.id] && old[b.id].read) || 0));
+  const out = {}; let more = false;
+  for (const p of lists) {
     const title = p.snippet.title || '';
-    if (/lorebound|shorts?\b/i.test(title)) continue;
-    if (p.status && p.status.privacyStatus === 'private') continue;
+    if (calls >= BUDGET) { if (old[p.id]) out[p.id] = old[p.id]; else more = true; continue; }   /* only the never-read leave it unfinished */
     const items = []; let tok = '';
-    for (let i = 0; i < 4; i++) {
-      const j = await ytJson(await fetch('https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails,status&maxResults=50&playlistId=' + p.id + (tok ? '&pageToken=' + tok : ''), { headers: auth }));
+    for (let i = 0; i < 4 && calls < BUDGET + 4; i++) {
+      const j = await ytJson(await fetch('https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails,status&maxResults=50&playlistId=' + p.id + (tok ? '&pageToken=' + tok : ''), { headers: auth })); calls++;
       (j.items || []).forEach((it) => { if (it.status && it.status.privacyStatus !== 'public' && it.status.privacyStatus !== 'unlisted') return; if (!it.contentDetails || !it.contentDetails.videoId) return;
         items.push({ id: it.contentDetails.videoId, title: it.snippet.title, at: it.contentDetails.videoPublishedAt || it.snippet.publishedAt, pos: it.snippet.position, thumb: thumbOf(it.snippet) }); });
       tok = j.nextPageToken || ''; if (!tok) break;
@@ -543,23 +553,33 @@ async function pubBuild(env) {
     const hp = hist[title.toLowerCase()] || '';
     let blurb = String(p.snippet.description || '').trim();
     if (!blurb && hp) {
-      try { const f = await gh(env, '/contents/' + hp.split('/').map(encodeURIComponent).join('/') + '?ref=main'); const md = utf8b64(f.content);
-        blurb = md.split(/\n\s*\n/).map((x) => x.trim()).filter((x) => x && !/^#|^>|^\|/.test(x))[0] || ''; } catch (e) {}
+      if (old[p.id] && old[p.id].blurb) blurb = old[p.id].blurb;
+      else if (calls < BUDGET) {
+        try { const f = await gh(env, '/contents/' + hp.split('/').map(encodeURIComponent).join('/') + '?ref=main'); calls++; const md = utf8b64(f.content);
+          blurb = md.split(/\n\s*\n/).map((x) => x.trim()).filter((x) => x && !/^#|^>|^\|/.test(x))[0] || ''; } catch (e) {}
+      }
     }
-    out.push({ id: p.id, title: title, blurb: blurb.slice(0, 600), thumb: thumbOf(p.snippet) || items[0].thumb, count: items.length, first: items[0].at, last: items[items.length - 1].at, history: hp ? fgUrlOf(hp) : '', episodes: items });
+    out[p.id] = { id: p.id, title: title, blurb: blurb.slice(0, 600), thumb: thumbOf(p.snippet) || items[0].thumb, count: items.length, first: items[0].at, last: items[items.length - 1].at, history: hp ? fgUrlOf(hp) : '', episodes: items, read: Date.now() };
   }
-  out.sort((a, b) => Date.parse(b.last || 0) - Date.parse(a.last || 0));
-  return { ok: true, at: Date.now(), adventures: out };
+  const adventures = Object.keys(out).map((k) => out[k]).sort((a, b) => Date.parse(b.last || 0) - Date.parse(a.last || 0));
+  return { ok: true, at: Date.now(), more: more, hist: hist, adventures: adventures };
+}
+function pubShape(d) { return d && d.ok ? { ok: true, at: d.at, more: !!d.more, adventures: d.adventures } : d; }
+async function pubSave(env, got) {
+  let s = JSON.stringify(got);
+  /* too big to keep in one piece: drop the oldest episodes' thumbnails, which the page can do without */
+  if (s.length >= 118000) { got.adventures.forEach((a) => a.episodes.forEach((e, i) => { if (i > 0) e.thumb = ''; })); s = JSON.stringify(got); }
+  if (s.length < 118000) await ytStore(env, { op: 'ax-set', k: 'pub:adventures', v: s });
 }
 async function pubPlaylists(req, url, env) {
   const origin = req.headers.get('Origin') || '';
   const h = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': ALLOW.indexOf(origin) >= 0 ? origin : '*', 'Cache-Control': 'public, max-age=600' };
   let cached = null; try { const c = await ytStore(env, { op: 'ax-get', k: 'pub:adventures' }); cached = c.v ? JSON.parse(c.v) : null; } catch (e) {}
-  if (cached && Date.now() - cached.at < PUB_TTL && !url.searchParams.get('fresh')) return new Response(JSON.stringify(cached), { headers: h });
+  if (cached && cached.ok && !cached.more && Date.now() - cached.at < PUB_TTL && !url.searchParams.get('fresh')) return new Response(JSON.stringify(pubShape(cached)), { headers: h });
   try {
-    const got = await pubBuild(env);
-    if (got.ok) { const s = JSON.stringify(got); if (s.length < 118000) await ytStore(env, { op: 'ax-set', k: 'pub:adventures', v: s }); }
-    return new Response(JSON.stringify(got.ok ? got : (cached || got)), { headers: h });
+    const got = await pubBuild(env, cached);
+    if (got.ok) await pubSave(env, got);
+    return new Response(JSON.stringify(pubShape(got.ok ? got : (cached || got))), { headers: h });
   } catch (e) { return new Response(JSON.stringify(cached || { ok: false, error: String((e && e.message) || e).slice(0, 160) }), { headers: h }); }
 }
 function advKey(n) { return String(n || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
@@ -575,7 +595,13 @@ async function axPending(url, env) {
   return new Response(JSON.stringify({ ok: true, owner: o.owner || '', title: st.title || '', adv: st.adv || '', campaignId: map.v || '', goesUpAt: st.draftAt + AUTO_HOLD }), { headers: h });
 }
 export default {
-  async scheduled(event, env, ctx) { ctx.waitUntil(autoVideos(env).catch(() => {})); },
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil((async () => {
+      try { await autoVideos(env); } catch (e) {}
+      try { let c = null; try { const r = await ytStore(env, { op: 'ax-get', k: 'pub:adventures' }); c = r.v ? JSON.parse(r.v) : null; } catch (e) {}
+        const got = await pubBuild(env, c); if (got.ok) await pubSave(env, got); } catch (e) {}
+    })());
+  },
   async fetch(req, env) {
     const url = new URL(req.url);
     const m = url.pathname.match(/^\/room\/([A-Za-z0-9_-]{3,80})$/);
