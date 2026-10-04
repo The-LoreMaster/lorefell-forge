@@ -363,7 +363,8 @@ body.in-lobby #lmstrip, body.in-lobby #mapTools{ display:none !important; }
 #retellCard .rt-k{ display:flex; align-items:center; gap:8px; color:#c9a84c; font-family:Cinzel,serif; font-size:.78rem; letter-spacing:.1em; }
 #retellCard .rt-k svg{ width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
 #retellCard .rt-h{ font-family:Cinzel,serif; font-size:1.6rem; line-height:1.15; color:#f3ead2; } #retellCard .rt-s{ font-style:italic; color:#c9a84c; }
-#retellCard p{ margin:4px 0 0; font-size:1.06rem; line-height:1.55; }
+#retellCard p{ margin:4px 0 0; font-size:1.06rem; line-height:1.55; } #retellCard .rt-text p + p{ margin-top:.7em; }
+.cx-text p{ margin:6px 0 0; font-size:1rem; line-height:1.55; color:#cbd5df; } .cx-text p + p{ margin-top:.6em; }
 #retellCard .rt-box.over{ border-color:#c0473c; box-shadow:0 0 0 1px #c0473c, 0 22px 60px rgba(0,0,0,.6); } #retellCard .rt-box.over .rt-bar i{ background:#c0473c; }
 #retellCard .rt-bar{ height:3px; border-radius:2px; background:#1f2a42; overflow:hidden; margin-top:6px; } #retellCard .rt-bar i{ display:block; height:100%; width:100%; background:#c9a84c; transform-origin:left; animation:rtCount 60s linear forwards; }
 @keyframes rtCount{ to{ transform:scaleX(0); } }
@@ -6612,7 +6613,7 @@ function codexOpen(tab){
     if (CODEX.pick) h += '<p class="tsm-note">The sessions that name <b>' + esc(CODEX.pick) + '</b>. <button class="cx-link" onclick="CODEX.pick=\'\';codexOpen()">Show every session</button></p>';
     h += shown.length ? '<div class="cx-list">' + shown.map(function(e){ var i = list.indexOf(e) + 1;
         return '<article class="cx-entry"><div class="cx-h"><b>Session ' + i + (e.session ? ' | ' + esc(e.session) : '') + '</b><span>' + esc(new Date(e.at).toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' })) + '</span></div>'
-          + '<p>' + esc(e.text) + '</p>'
+          + '<div class="cx-text">' + paras(e.text) + '</div>'
           + '<div class="cx-foot">' + (e.videoId ? '<a href="https://youtu.be/' + esc(e.videoId) + '" target="_blank" rel="noopener">Watch</a>' : '')
           + (e.videoId && isLM() && !isKeeper() && YT.connected && YT.allowed ? '<button class="cx-link" onclick="ytDescribeEntry(\'' + esc(e.id) + '\')">Update the video</button>' : '')
           + (isLM() && !isKeeper() ? '<button class="cx-link" onclick="codexRename(\'' + esc(e.id) + '\')">Rename</button>' : '')
@@ -6708,6 +6709,7 @@ function codexRemove(id){
   tsAsk('TS_CODEX_DEL', { id:id }).then(function(r){ if (r && r.ok){ CODEX.entries = r.entries || []; codexOpen(); } }).catch(function(){});
 }
 /* ---- the Retelling ---- */
+function paras(t){ return String(t || '').trim().split(/\n\s*\n/).map(function(p){ return '<p>' + esc(p.trim()).replace(/\n/g, '<br>') + '</p>'; }).join(''); }
 function retellToggle(){
   if (!isLM() || keeperNo()) return;
   if (S.retell && S.retell.on){ S.retell = { on:false, at:Date.now() }; retellShare(); return; }
@@ -6739,7 +6741,7 @@ function retellWatch(){
   if (!el){ el = document.createElement('div'); el.id = 'retellCard'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'The Retelling'); document.body.appendChild(el); }
   el.innerHTML = '<div class="rt-box"' + (r.img ? ' style="--rtimg:url(\'' + esc(r.img) + '\')"' : '') + '><div class="rt-art"></div><button class="rt-x" onclick="retellClose()" aria-label="Close">\u00d7</button>'
     + '<div class="rt-body"><div class="rt-k">' + cxSvg('retell') + ' The Retelling</div><div class="rt-h">Previously, in ' + esc(r.adv || advName()) + '</div>'
-    + (r.session ? '<div class="rt-s">' + esc(r.session) + '</div>' : '') + '<p>' + esc(r.text) + '</p><div class="rt-bar"><i></i></div></div></div>';
+    + (r.session ? '<div class="rt-s">' + esc(r.session) + '</div>' : '') + '<div class="rt-text">' + paras(r.text) + '</div><div class="rt-bar"><i></i></div></div></div>';
   el.classList.add('on');
   /* it never closes itself: when its minute is up, the LoreMaster's copy turns its edge red,
      so they know, and they decide when it comes down */
@@ -7076,12 +7078,19 @@ function lobbyField(k, v){ S.lobby = Object.assign({}, S.lobby || {}); S.lobby[k
 /* the Maps window, in its folders, choosing for the lobby: a click picks it for the lobby, and
    an upload made from here is picked as soon as it lands */
 var LOBBY_PICK = false;
-function lobbyFromMaps(upload){ LOBBY_PICK = true; tsCloseModal(); lmOpenMaps(); if (upload) setTimeout(function(){ try { lmMapUploadStub(); } catch(e){} }, 60); }
+function lobbyFromMaps(upload){ LOBBY_PICK = true; window._lobbyBgBefore = { id:S.scene && S.scene.background, tm:S.scene && S.scene.tableMap ? JSON.parse(JSON.stringify(S.scene.tableMap)) : null, scene:S.scene && S.scene.id }; tsCloseModal(); lmOpenMaps(); if (upload) setTimeout(function(){ try { lmMapUploadStub(); } catch(e){} }, 60); }
 function lobbyUseMap(id){
   var m = (S.scene.maps || []).filter(function(x){ return x.id === id; })[0]; if (!m || !m.url) return false;
   if (m.local || /^blob:/.test(m.url)){ playToast(esc(m.name) + ' is still uploading. Choose it once it has landed.', 'The lobby'); return true; }
   S.lobby = Object.assign({}, S.lobby || {}, { url:m.url, poster:mapStill(m), kind:mapIsVideo(m) ? 'video' : 'image' });
-  LOBBY_PICK = false; lmCloseMaps(); lobbyShare(); lobbyWin(); return true;
+  LOBBY_PICK = false; lmCloseMaps(); lobbyShare(); lobbyKeepScene(); lobbyWin(); return true;
+}
+/* if anything laid the lobby's choice on the scene while choosing, the scene gets its own back */
+function lobbyKeepScene(){
+  var b = window._lobbyBgBefore; window._lobbyBgBefore = null;
+  if (!b || !S.scene || b.scene !== S.scene.id) return;
+  if (b.tm) S.scene.tableMap = b.tm;
+  if (b.id && S.scene.background !== b.id){ var was = LOBBY_PICK; LOBBY_PICK = false; lmSetMap(b.id, true); LOBBY_PICK = was; }
 }
 function lobbyClearPic(){ S.lobby = Object.assign({}, S.lobby || {}, { url:'', poster:'', kind:'' }); lobbyShare(); lobbyWin(); }
 function lobbyPick(i){
@@ -15973,6 +15982,10 @@ function applySceneTableMap(){
   if (!isLM()) return;
   var tm = sceneTableMap(); if (!tm || !tm.id) return;
   if (S.scene.background === tm.id) return;
+  /* the scene's own layout (its stage's map) is the truer word: a remembered map that differs
+     from it never lays itself over the stage (a lobby upload once wrote its picture into the
+     remembered map, and every load put it back under the tokens) */
+  try { var _bd = sceneBinding(); if (_bd && _bd.mapId && S.scene.background && sameId(S.scene.background, _bd.mapId)) return; } catch(e){}
   S.scene.maps = S.scene.maps || [];
   if (!S.scene.maps.some(function(x){ return x.id === tm.id; })) S.scene.maps.push({ id:tm.id, name:tm.name, url:tm.url, w:tm.w, h:tm.h, source:'account' });
   lmSetMap(tm.id, true);

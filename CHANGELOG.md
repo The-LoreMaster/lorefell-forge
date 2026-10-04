@@ -1,3 +1,7 @@
+## 2026-10-04 - The scene's stage map is never overlaid; the Retelling keeps its paragraphs
+
+The cause of the lobby's picture appearing under the tokens: an earlier lobby upload wrote its picture into the map the scene (or its session) remembers, and on every load that remembered map was laid over the stage's own. A scene's stage map now always wins over a remembered map that differs from it, and choosing the lobby's picture puts back whatever the scene showed before, if anything moved it. The Retelling and the Codex keep a recap's paragraphs and line breaks.
+
 ## 2026-10-04 - The lobby beneath the frame; the right adventure's; everyone starts there
 
 The lobby sits inside the table's stage, beneath Joel's frame, the rail and the HUD, so a player in it can open their Fell and do everything with it while they wait (it had covered them). A lobby belongs to its adventure: none shows while an adventure is still arriving, and an adventure being left takes its lobby with it. Opening the LoreMaster's table fresh (not a reload within twenty minutes) puts everyone in the lobby and the LoreMaster with them, looking as the players do, with Threadwalk to set up scenes (Open in the lobby, in Settings, is on unless turned off). Threadwalk closes the scene list at once and leaves the lobby view. The lobby's video is made as a muted element before it is given its source, so it plays on its own.
