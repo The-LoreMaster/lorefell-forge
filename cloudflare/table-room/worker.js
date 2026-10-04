@@ -125,9 +125,10 @@ async function youtube(req, url, env) {
     const ch = await (await fetch('https://www.googleapis.com/youtube/v3/channels?part=contentDetails&mine=true', { headers: auth })).json();
     const pl = ch.items && ch.items[0] && ch.items[0].contentDetails && ch.items[0].contentDetails.relatedPlaylists && ch.items[0].contentDetails.relatedPlaylists.uploads;
     if (!pl) return out({ ok: false, error: 'no uploads list' });
-    const li = await (await fetch('https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&maxResults=15&playlistId=' + encodeURIComponent(pl), { headers: auth })).json();
+    const per = url.searchParams.get('all') ? 50 : 15, pt = String(url.searchParams.get('page') || '').replace(/[^A-Za-z0-9_-]/g, '');
+    const li = await (await fetch('https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&maxResults=' + per + '&playlistId=' + encodeURIComponent(pl) + (pt ? '&pageToken=' + pt : ''), { headers: auth })).json();
     const items = (li.items || []).map((it) => ({ id: (it.contentDetails && it.contentDetails.videoId) || '', title: (it.snippet && it.snippet.title) || '', at: (it.contentDetails && it.contentDetails.videoPublishedAt) || (it.snippet && it.snippet.publishedAt) || '' })).filter((x) => x.id);
-    return out({ ok: true, items: items });
+    return out({ ok: true, items: items, next: li.nextPageToken || '' });
   }
   if (url.pathname === '/yt/video' || url.pathname === '/yt/video/update') {
     const at = await ytAccess(env, who.member); if (!at) return out({ ok: false, error: 'not connected' });

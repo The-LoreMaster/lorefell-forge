@@ -6222,7 +6222,7 @@ function sessionSettingsGroup(){
   var rows = setRow('Next session', help, setBtn(next ? 'Change' : 'Set', 'sessionEdit()') + (next ? setBtn('Clear', 'sessionClear()') : ''));
   if (!YT.loaded) ytStatus();
   if (YT.loaded && YT.ready && YT.allowed) rows += setRow('YouTube', YT.connected ? 'Your channel is connected: a session video\u2019s link brings its captions straight into a recap.' : (YT.loaded && !YT.ready ? 'The room\u2019s YouTube keys are not set yet.' : 'Connect your channel once, and a session video\u2019s link brings its captions into a recap.'),
-    YT.connected ? setBtn('Update a video', 'vidOpen()') + setBtn('Disconnect', 'ytDisconnect()') : setBtn('Connect', 'ytConnect()'));
+    YT.connected ? setBtn('Update a video', 'vidOpen()') + setBtn('Tidy old videos', 'tidyOpen()') + setBtn('Disconnect', 'ytDisconnect()') : setBtn('Connect', 'ytConnect()'));
   rows += setRow('Test the emails', 'Sends one to you alone, to see how it reads.', setBtn('Recap', 'emailTest(\'recap\')') + setBtn('Reminder', 'emailTest(\'reminder\')'));
   rows += setRow('Recaps', SESS.recaps.length ? (SESS.recaps.length + ' sent. Write one from the Journal.') : 'Write one from the Journal, from your notes only.', (SESS.recaps.length ? setBtn('Read', 'recapList()') : '') + setBtn('Write', 'recapOpen()'));
   rows += setRow('Stream view', 'A window that follows this table for capture: the players\u2019 view without the fog, or everything.', setBtn('Copy link', 'streamCopy()'));
@@ -6762,8 +6762,11 @@ function storyScenes(){
   return out;
 }
 function ytdTitle(session){ session = ytdSessionClean(session); return (advName() + (session ? ' | ' + session : '')).slice(0, 100); }
-function ytDescribe(videoId, session, recap, segments){
+function ytDescribe(videoId, session, recap, segments, fresh){
   if (!isLM() || keeperNo() || !videoId) return;
+  /* a draft kept for this video opens as it was left, unless a fresh one is asked for */
+  var dr = !fresh && (S.ytDrafts || {})[videoId];
+  if (dr){ YTD = { vid:videoId, session:dr.session || '', scene:dr.scene || '', recap:recap || dr.recap || '', segs:segments || [], busy:false, msg:'Your draft from ' + new Date(dr.at).toLocaleDateString(undefined, { month:'short', day:'numeric' }) + '.', title:dr.title, desc:dr.desc, old:'', fromDraft:true }; ytdPaint(); return; }
   YTD = { vid:videoId, session:session || '', recap:recap || '', segs:segments || [], busy:true, msg:'Reading the video and writing its description\u2026', title:'', desc:'', old:'' };
   ytdPaint();
   ytdCall('/yt/video', videoId).then(function(cur){
@@ -6815,8 +6818,17 @@ function ytdPaint(){
       + '<label class="tsm-lbl" for="ytdDesc">Description</label><textarea class="tsm-inp tsm-ta" id="ytdDesc" rows="16" oninput="YTD.desc=this.value">' + esc(d.desc) + '</textarea>'
       + '<p class="tsm-note">This replaces the video\u2019s whole description. ' + esc(d.msg) + '</p>';
   }
-  h += '<div class="tsm-row"><button class="tsm-btn ghost" onclick="YTD=null;tsCloseModal()">Not now</button>' + (d.busy ? '' : '<button class="tsm-btn ghost" onclick="ytDescribe(YTD.vid,YTD.session,YTD.recap,YTD.segs)">Write it again</button><button class="tsm-btn" onclick="ytdSend()">Update the video</button>') + '</div>';
+  h += '<div class="tsm-row"><button class="tsm-btn ghost" onclick="YTD=null;tsCloseModal()">Not now</button>' + (d.busy ? '' : '<button class="tsm-btn ghost" onclick="ytDescribe(YTD.vid,YTD.session,YTD.recap,YTD.segs,true)">Write it again</button><button class="tsm-btn ghost" onclick="ytdDraft()">Save draft</button><button class="tsm-btn" onclick="ytdSend()">Update the video</button>') + '</div>';
   tsModal(h, true);
+}
+function ytdDraft(quiet){
+  var d = YTD; if (!d) return;
+  var ti = document.getElementById('ytdTitle'), de = document.getElementById('ytdDesc');
+  if (ti) d.title = ti.value; if (de) d.desc = de.value;
+  S.ytDrafts = S.ytDrafts || {};
+  S.ytDrafts[d.vid] = { title:d.title, desc:d.desc, session:d.session || '', scene:d.scene || '', recap:String(d.recap || '').slice(0, 4000), at:Date.now() };
+  schedulePush();
+  if (!quiet){ playToast('Draft saved. It opens as you left it next time.', 'YouTube'); if (TIDY) tidyPaint(); }
 }
 function ytdSend(){
   var d = YTD; if (!d) return;
@@ -6825,6 +6837,8 @@ function ytdSend(){
   ytdCall('/yt/video/update', d.vid, { title:d.title, description:d.desc }).then(function(r){
     if (!r || !r.ok) throw new Error((r && r.error) || 'YouTube refused');
     pushLog({ kind:'sys', lmOnly:true, html:'YouTube: <b>' + esc(d.title) + '</b> has its new title and description.' }); applyRemoteState({ log:S.log });
+    if (S.ytDrafts && S.ytDrafts[d.vid]){ delete S.ytDrafts[d.vid]; } S.ytDone = S.ytDone || {}; S.ytDone[d.vid] = Date.now(); schedulePush();
+    if (TIDY){ TIDY.list.forEach(function(v){ if (v.id === d.vid) v.title = d.title; }); }
     YTD = null; tsModal('<h3 class="tsm-title">The video is updated</h3><p class="lc-p">Its title and description are up on YouTube.</p><div class="tsm-row"><a class="tsm-btn ghost" href="https://youtu.be/' + esc(d.vid) + '" target="_blank" rel="noopener">See it</a><button class="tsm-btn" onclick="tsCloseModal()">Done</button></div>');
   }).catch(function(e){ d.busy = false; d.msg = 'Not updated: ' + String((e && e.message) || e).slice(0, 120); ytdPaint(); });
 }
@@ -6983,6 +6997,67 @@ function ytDescribeVideo(vid, session, recap){
     .catch(function(){ ytDescribe(vid, session, recap, []); });
 }
 function ytDescribeEntry(id){ var e = (CODEX.entries || []).filter(function(x){ return x.id === id; })[0]; if (e) ytDescribeVideo(e.videoId, e.session || '', e.text); }
+var TIDY = null;
+function tidyOpen(){
+  if (!(YT.connected && YT.allowed)) return;
+  TIDY = { list:[], busy:true, msg:'Reading your channel\u2026', drafting:false };
+  tidyPaint();
+  var name = vidNorm(advName()), all = [], pages = 0;
+  var next = function(tok){
+    ytTicket().then(function(tk){ return fetch(ROOM_HTTP + '/yt/uploads?all=1&c=' + encodeURIComponent(S.campaignId) + '&t=' + encodeURIComponent(tk) + (tok ? '&page=' + encodeURIComponent(tok) : '')).then(function(r){ return r.json(); }); })
+      .then(function(d){
+        if (!d || !d.ok) throw new Error((d && d.error) || 'the channel could not be read');
+        all = all.concat(d.items || []); pages++;
+        if (d.next && pages < 8) return next(d.next);
+        TIDY.list = all.filter(function(v){ var head = vidNorm(String(v.title).split('|')[0]); return head === name || head.indexOf(name) >= 0 || vidNorm(v.title).indexOf(name) >= 0; })
+          .sort(function(a, b){ return new Date(a.at) - new Date(b.at); });
+        TIDY.busy = false; TIDY.msg = TIDY.list.length ? '' : 'No videos on your channel name this adventure.'; tidyPaint();
+      }).catch(function(e){ TIDY.busy = false; TIDY.msg = 'Not read: ' + String((e && e.message) || e).slice(0, 120); tidyPaint(); });
+  };
+  next('');
+}
+function tidyPaint(){
+  var t = TIDY; if (!t) return;
+  var h = '<h3 class="tsm-title">Tidy the old videos</h3><p class="tsm-note">Every video on your channel for ' + esc(advName()) + ', oldest first. Open one to write its title and description, or draft them all and go through the drafts.</p>';
+  if (t.busy) h += '<p class="tsm-note">' + esc(t.msg) + '</p>';
+  else {
+    h += t.list.length ? '<div class="vid-chan" style="max-height:52vh;overflow:auto">' + t.list.map(function(v, i){
+        var dr = (S.ytDrafts || {})[v.id], done = (S.ytDone || {})[v.id];
+        return '<div class="vid-chrow"><span>' + esc(v.title) + '<i>' + esc(new Date(v.at).toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' })) + (done ? ' \u00b7 updated' : dr ? ' \u00b7 draft saved' : '') + '</i></span>'
+          + '<button class="tsm-btn' + (dr ? '' : ' ghost') + '" onclick="tidyOne(' + i + ')">' + (dr ? 'Open the draft' : done ? 'Again' : 'Write it') + '</button></div>'; }).join('') + '</div>' : '';
+    h += '<p class="tsm-note">' + esc(t.msg) + '</p>';
+  }
+  h += '<div class="tsm-row"><button class="tsm-btn ghost" onclick="TIDY=null;tsCloseModal()">Close</button>' + (t.busy || !t.list.length ? '' : '<button class="tsm-btn" onclick="tidyDraftAll()"' + (t.drafting ? ' disabled' : '') + '>' + (t.drafting ? 'Drafting\u2026' : 'Draft the rest') + '</button>') + '</div>';
+  tsModal(h, true);
+}
+function tidyOne(i){
+  var v = TIDY && TIDY.list[i]; if (!v) return;
+  var e = (S.journal || []).filter(function(x){ return x.videoId === v.id; }).pop();
+  ytDescribeVideo(v.id, (e && e.session) || (String(v.title).split('|')[1] || '').trim(), e ? e.text : '');
+}
+/* one after another, each drafted and kept, never put up: the LoreMaster reads each first */
+function tidyDraftAll(){
+  var t = TIDY; if (!t || t.drafting) return;
+  var todo = t.list.filter(function(v){ return !(S.ytDrafts || {})[v.id] && !(S.ytDone || {})[v.id]; });
+  if (!todo.length){ t.msg = 'Every video here has a draft or is updated.'; tidyPaint(); return; }
+  t.drafting = true; var n = 0;
+  var step = function(){
+    if (!TIDY || !todo.length){ if (TIDY){ TIDY.drafting = false; TIDY.msg = n + ' drafted. Open each to read it and put it up.'; tidyPaint(); } return; }
+    var v = todo.shift(), e = (S.journal || []).filter(function(x){ return x.videoId === v.id; }).pop();
+    t.msg = 'Drafting ' + v.title + '\u2026 (' + todo.length + ' to go)'; tidyPaint();
+    var keep = YTD;
+    ytTicket().then(function(tk){ return fetch(ROOM_HTTP + '/transcript?v=' + encodeURIComponent(v.id) + '&c=' + encodeURIComponent(S.campaignId) + '&t=' + encodeURIComponent(tk)).then(function(r){ return r.json(); }); })
+      .then(function(d){
+        return new Promise(function(res){
+          var recap = e ? e.text : (d && d.ok ? String(d.text || '').slice(0, 12000) : '');
+          var _paint = ytdPaint; ytdPaint = function(){ if (YTD && !YTD.busy){ ytdPaint = _paint; if (YTD.desc){ ytdDraft(true); n++; } YTD = keep; res(); } };
+          ytDescribe(v.id, (e && e.session) || (String(v.title).split('|')[1] || '').trim(), recap, (d && d.segments) || [], true);
+          setTimeout(function(){ if (ytdPaint !== _paint){ ytdPaint = _paint; YTD = keep; res(); } }, 90000);
+        });
+      }).catch(function(){}).then(function(){ setTimeout(step, 400); });
+  };
+  step();
+}
 function vidFromChannel(i){ var v = VID_CHANNEL[i]; if (!v) return; window._vidAuto = { id:v.id, title:v.title, session:(String(v.title).split('|').slice(1).join('|') || '').trim() }; vidAutoGo(); }
 /* the adventure's own videos on the connected channel, newest first, for the video window */
 function vidChannelList(){
@@ -10360,6 +10435,8 @@ function sharedSnapshot(){
     retell: isLM() && !isKeeper() ? (S.retell || null) : undefined,
     retellPick: isLM() && !isKeeper() ? (S.retellPick || null) : undefined,
     marks: isLM() && !isKeeper() ? (S.marks || []) : undefined,
+    ytDrafts: isLM() && !isKeeper() ? (S.ytDrafts || {}) : undefined,
+    ytDone: isLM() && !isKeeper() ? (S.ytDone || {}) : undefined,
     moments: isLM() && !isKeeper() ? (S.moments || {}) : undefined,
     spot: isLM() ? (S.spot || []) : undefined,
     lights: (isLM() && _mapStateLoaded) ? (S.lights || {}) : undefined,
@@ -10664,6 +10741,8 @@ function applyRemoteSnapshot(snap){
   if (snap.retell !== undefined && (!isLM() || S.stream)) S.retell = snap.retell;
   if (snap.retellPick !== undefined && isLM() && !S.retellPick) S.retellPick = snap.retellPick;
   if (Array.isArray(snap.marks) && isLM() && !(S.marks && S.marks.length)) S.marks = snap.marks;
+  if (snap.ytDrafts && isLM() && !(S.ytDrafts && Object.keys(S.ytDrafts).length)) S.ytDrafts = snap.ytDrafts;
+  if (snap.ytDone && isLM() && !(S.ytDone && Object.keys(S.ytDone).length)) S.ytDone = snap.ytDone;
   if (snap.moments && isLM() && !(S.moments && Object.keys(S.moments).length)) S.moments = snap.moments;
   if (snap.pales && !(isLM() && _mapStateLoaded && S.pales)){ S.pales = snap.pales; try { palePaint(); } catch(e){} }
   if (snap.elev && !(isLM() && _mapStateLoaded && S.elev)){ S.elev = snap.elev; try { elevPaint(); } catch(e){} }
