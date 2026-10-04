@@ -1,3 +1,7 @@
+## 2026-10-04 - The lobby is home; Threadwalk
+
+A player (and the stream) sees the lobby whenever the LoreMaster is not running the table: with no LoreMaster in the live room, or the room not reached, the map is out of reach, so a Fell opened to level up during a rest between sessions cannot touch a token; the sheet still opens from the menu. With the LoreMaster there, the lobby follows Send everyone to the lobby and Bring everyone in. The LoreMaster's table, opened after three hours away (a new session, not a reload), puts everyone in the lobby to be brought in. A quiet visit is called Threadwalk.
+
 ## 2026-10-04 - A quiet visit
 
 The LoreMaster can step into another scene to set it up while the players stay where they are and see nothing of it: Visit quietly beside each scene in the scene runner's list (not in the middle of a fight). While visiting, the LoreMaster's table says nothing to anyone (nothing to the live room, nothing saved, the saved table not taken in), a bar says where they are and that the players see none of it, and what the players do at the table meanwhile waits in a queue. Back to the table saves the visited scene's layout to that scene, puts the table back as it was, plays the queue over it, and only then speaks again. A scene with no map yet keeps the tokens set out in it, and they are there when everyone is taken to it.
