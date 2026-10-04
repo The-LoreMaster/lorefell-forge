@@ -17,6 +17,12 @@ had), also run:
 
     pip install faster-whisper
 
+With an NVIDIA graphics card, this makes transcripts many times faster (optional):
+
+    pip install nvidia-cublas-cu12 nvidia-cudnn-cu12
+
+Without it the Cutter uses the processor, which is slower but always works.
+
 ## A transcript from the recording
 
 If YouTube cannot give the captions, choose the recording in the Cutter and press **Make a

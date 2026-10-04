@@ -1,3 +1,7 @@
+## 2026-10-04 - Make a transcript on the graphics card, or the processor
+
+Make a transcript tries an NVIDIA graphics card first, finding its libraries in Python's own folders once installed (pip install nvidia-cublas-cu12 nvidia-cudnn-cu12), and if they are missing or the card fails ("cublas64_12.dll is not found") the processor takes over for the rest of the session, with a line saying so.
+
 ## 2026-10-04 - The Recap Cutter reads the recording's sound itself
 
 Make a transcript failed with "open() got an unexpected keyword argument 'metadata_errors'": a newer PyAV refuses the way faster-whisper opens a file. The Cutter now reads the sound with ffmpeg, ten minutes at a time, and hands it to faster-whisper directly, carrying each piece's times through, so memory stays small on a long session and progress shows by the minute.
