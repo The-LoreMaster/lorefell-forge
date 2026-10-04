@@ -22,7 +22,7 @@ import { loadAdventure, saveAdventureRoot, saveAdvAct, saveAdvSession, saveAdvSc
 import { myAdventureRole, deleteCampaign } from 'backend/fatewell.web.js';
 import { removeAdventure } from 'backend/adventures.web.js';
 import { handleSheetMessage } from 'public/fgSheetBridge.js';
-import { getSession, setNextSession, setRemindersOff, sendRecap, sendTestEmail, skipSessionWeek, getCodex, addCodexEntry, removeCodexEntry } from 'backend/sessions.web.js';
+import { getSession, setNextSession, setRemindersOff, sendRecap, sendTestEmail, skipSessionWeek, getCodex, addCodexEntry, removeCodexEntry, deleteRecap } from 'backend/sessions.web.js';
 import wixLocation from 'wix-location';
 import wixWindow from 'wix-window';
 
@@ -533,6 +533,8 @@ $w.onReady(async function () {
           try { reply(true, await getSession(campaignId)); } catch (e) { reply(true, { ok: false }); }
         } else if (msg.type === 'TS_SESSION_SET') {
           try { reply(true, await setNextSession(campaignId, msg.at, msg.note, { repeat: !!msg.repeat, until: msg.until || 0 })); } catch (e) { reply(true, { ok: false, error: String(e).slice(0, 80) }); }
+        } else if (msg.type === 'TS_RECAP_DEL') {
+          try { reply(true, await deleteRecap(campaignId, msg.id)); } catch (e) { reply(true, { ok: false }); }
         } else if (msg.type === 'TS_CODEX_GET') {
           try { reply(true, await getCodex(campaignId)); } catch (e) { reply(true, { ok: false }); }
         } else if (msg.type === 'TS_CODEX_ADD') {

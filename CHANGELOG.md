@@ -1,3 +1,7 @@
+## 2026-10-03 - Choosing the Retelling; quieter HUD marks
+
+The Retelling uses the recap the LoreMaster chose: Recaps sent (Settings) and the Codex each offer Make it the Retelling, marked when it is; a recap written from a session's video becomes it on its own. With none chosen it falls back to the newest in the Codex, then the newest recap sent, so recaps sent before the Codex existed count. A sent recap can be deleted from the list (deleteRecap). The LoreMaster's chevron marks sit a little further into their slant and are a quieter gold, below the FellGuide book; the player's Codex button is quieter too, a touch higher and further right in its opening. Paste velo/backend/sessions.web.js and velo/page-threadspire.js.
+
 ## 2026-10-03 - The LoreMaster's HUD buttons show; no old dice on opening; the player's Codex seated
 
 The LoreMaster's three chevrons stayed numbers because the player's Vitality numbers were written into them on every repaint, over the buttons; they are the Retelling, the Codex and the LoreVault now, and clickable. Opening an adventure no longer throws the rolls already in its log: a log that arrives before the table has thrown anything is marked as seen, and only later rolls are thrown (lines the table wrote as it opened used to throw the old rolls with them). The player's Codex button sits in the round opening of the frame, left of the Lore Points.
