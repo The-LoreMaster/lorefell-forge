@@ -1,3 +1,7 @@
+## 2026-10-03 - Lore Drops' weave on top; one rule above Mobility
+
+On the LoreMaster's view of a Fell, Weave Lore Drops (Weave anew) is a gold button under the Lore Drops title, set off from the truths by a rule. In the Attributes card, Mobility no longer draws a second rule over the one under Resistance (the same sheet for player and LoreMaster).
+
 ## 2026-10-03 - Weekly sessions; a wider adventure chooser
 
 The next session can repeat every week at its day and time, with an end date if wanted. Settings shows "Every Saturday at 9:00 PM. Next: ..." and the coming six weeks as chips: tap one to skip that week, tap again to bring it back. The reminder email, the players' menus, the Hearth and the test email all follow the next week that is not skipped and has not ended; nothing needs setting again each week. AdventureSessions gains repeatWeekly, repeatUntil and skips; a new method, skipSessionWeek. The adventure chooser's pictures take half of each card, "You run it" is gone (a lorekeeper's adventure still says so), and New's second button is Import. Paste velo/backend/sessionsCore.js, velo/backend/sessions.web.js and velo/page-threadspire.js.
