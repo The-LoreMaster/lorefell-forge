@@ -58,10 +58,34 @@ def transcribe(video_path, log=print, careful=True):
         raise RuntimeError('Making a transcript needs faster-whisper. In PowerShell: pip install faster-whisper')
     name = 'small.en' if careful else 'base.en'
     log('Loading the %s model (the first time, it downloads)…' % ('careful' if careful else 'quick'))
+    # An NVIDIA card is used when its libraries are installed (pip install nvidia-cublas-cu12
+    # nvidia-cudnn-cu12); they are found in Python's own folders. Without them, or if the card
+    # fails, the processor does the work: slower, but it always works.
     try:
-        model = WhisperModel(name, device='auto', compute_type='int8')
+        import site
+        for base in site.getsitepackages() + [site.getusersitepackages()]:
+            for sub in ('cublas', 'cudnn', 'cuda_runtime'):
+                d = os.path.join(base, 'nvidia', sub, 'bin')
+                if os.path.isdir(d) and hasattr(os, 'add_dll_directory'):
+                    os.add_dll_directory(d)
+                    os.environ['PATH'] = d + os.pathsep + os.environ.get('PATH', '')
     except Exception:
-        model = WhisperModel(name, device='cpu', compute_type='int8')
+        pass
+    state = {'model': None, 'gpu': False}
+
+    def load(gpu):
+        if gpu:
+            state['model'] = WhisperModel(name, device='cuda', compute_type='int8_float16')
+            state['gpu'] = True
+        else:
+            state['model'] = WhisperModel(name, device='cpu', compute_type='int8')
+            state['gpu'] = False
+    try:
+        load(True)
+        log('Using the graphics card.')
+    except Exception:
+        load(False)
+        log('Using the processor (slower). For the graphics card: pip install nvidia-cublas-cu12 nvidia-cudnn-cu12')
     # The audio is read by ffmpeg, ten minutes at a time, rather than by faster-whisper's own
     # reader (a newer PyAV refuses the way faster-whisper opens files: "unexpected keyword
     # argument 'metadata_errors'"), and memory stays small on a long session.
@@ -89,13 +113,25 @@ def transcribe(video_path, log=print, careful=True):
             if not raw or len(raw) < 3200:
                 break
             audio = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
-            segs, _ = model.transcribe(audio, vad_filter=True, beam_size=5 if careful else 1, condition_on_previous_text=False, language='en')
-            for sg in segs:
-                text = (sg.text or '').strip()
+
+            def run_chunk():
+                segs, _ = state['model'].transcribe(audio, vad_filter=True, beam_size=5 if careful else 1, condition_on_previous_text=False, language='en')
+                return [(sg.start, sg.end, (sg.text or '').strip()) for sg in segs]
+            try:
+                got = run_chunk()
+            except Exception as e:
+                # the card's libraries missing or failing ("cublas64_12.dll is not found"): the
+                # processor takes over for the rest of the session
+                if not state['gpu']:
+                    raise
+                log('The graphics card could not be used (%s). Using the processor (slower).' % str(e)[:80])
+                load(False)
+                got = run_chunk()
+            for a, b, text in got:
                 if not text:
                     continue
                 n += 1
-                f.write('%d\n%s --> %s\n%s\n\n' % (n, srt_time(start + sg.start), srt_time(start + sg.end), text))
+                f.write('%d\n%s --> %s\n%s\n\n' % (n, srt_time(start + a), srt_time(start + b), text))
             f.flush()
             start += CHUNK
             if total:
