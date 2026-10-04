@@ -504,6 +504,64 @@ async function autoVideos(env) {
   }
 }
 
+/* ================= the public Adventures page =================
+   Every playlist on the LoreFell channel but the Lorebounds and the Shorts, with its episodes,
+   for anyone to browse. Read with the owner's connection (a few units of YouTube's allowance)
+   and kept in the room for six hours, so visitors cost nothing. Each adventure carries its
+   FellGuide History when one is in the vault, with the History's opening as its snippet if the
+   playlist has no description of its own. */
+const PUB_TTL = 6 * 3600 * 1000;
+const HIST_BASE = 'The FellGuide/The FellGuide/The Lore (Contains Spoilers)/The Histories/';
+function fgUrlOf(path) { return 'https://fellguide.com/' + path.replace(/\.md$/, '').split('/').map((p) => encodeURIComponent(p).replace(/%20/g, '+')).join('/'); }
+function thumbOf(sn) { const t = (sn && sn.thumbnails) || {}; return ((t.maxres || t.standard || t.high || t.medium || t.default) || {}).url || ''; }
+async function pubBuild(env) {
+  const o = await ytStore(env, { op: 'owner-get' }); if (!o.owner) return { ok: false, error: 'no channel' };
+  const at = await ytAccess(env, o.owner); if (!at) return { ok: false, error: 'no channel' };
+  const auth = { Authorization: 'Bearer ' + at };
+  const pl = await ytJson(await fetch('https://www.googleapis.com/youtube/v3/playlists?part=snippet,contentDetails,status&mine=true&maxResults=50', { headers: auth }));
+  let hist = {};
+  if (env.FELLGUIDE_TOKEN) {
+    try {
+      const ref = await gh(env, '/git/ref/heads/main'); const tree = await gh(env, '/git/trees/' + ref.object.sha + '?recursive=1');
+      (tree.tree || []).forEach((x) => { if (x.type !== 'blob' || x.path.indexOf(HIST_BASE) !== 0) return; const rest = x.path.slice(HIST_BASE.length).split('/'); if (rest.length === 2 && rest[1] === rest[0] + '.md') hist[rest[0].toLowerCase()] = x.path; });
+    } catch (e) {}
+  }
+  const out = [];
+  for (const p of (pl.items || [])) {
+    const title = p.snippet.title || '';
+    if (/lorebound|shorts?\b/i.test(title)) continue;
+    if (p.status && p.status.privacyStatus === 'private') continue;
+    const items = []; let tok = '';
+    for (let i = 0; i < 4; i++) {
+      const j = await ytJson(await fetch('https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails,status&maxResults=50&playlistId=' + p.id + (tok ? '&pageToken=' + tok : ''), { headers: auth }));
+      (j.items || []).forEach((it) => { if (it.status && it.status.privacyStatus !== 'public' && it.status.privacyStatus !== 'unlisted') return; if (!it.contentDetails || !it.contentDetails.videoId) return;
+        items.push({ id: it.contentDetails.videoId, title: it.snippet.title, at: it.contentDetails.videoPublishedAt || it.snippet.publishedAt, pos: it.snippet.position, thumb: thumbOf(it.snippet) }); });
+      tok = j.nextPageToken || ''; if (!tok) break;
+    }
+    if (!items.length) continue;
+    items.sort((a, b) => (a.pos || 0) - (b.pos || 0));
+    const hp = hist[title.toLowerCase()] || '';
+    let blurb = String(p.snippet.description || '').trim();
+    if (!blurb && hp) {
+      try { const f = await gh(env, '/contents/' + hp.split('/').map(encodeURIComponent).join('/') + '?ref=main'); const md = utf8b64(f.content);
+        blurb = md.split(/\n\s*\n/).map((x) => x.trim()).filter((x) => x && !/^#|^>|^\|/.test(x))[0] || ''; } catch (e) {}
+    }
+    out.push({ id: p.id, title: title, blurb: blurb.slice(0, 600), thumb: thumbOf(p.snippet) || items[0].thumb, count: items.length, first: items[0].at, last: items[items.length - 1].at, history: hp ? fgUrlOf(hp) : '', episodes: items });
+  }
+  out.sort((a, b) => Date.parse(b.last || 0) - Date.parse(a.last || 0));
+  return { ok: true, at: Date.now(), adventures: out };
+}
+async function pubPlaylists(req, url, env) {
+  const origin = req.headers.get('Origin') || '';
+  const h = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': ALLOW.indexOf(origin) >= 0 ? origin : '*', 'Cache-Control': 'public, max-age=600' };
+  let cached = null; try { const c = await ytStore(env, { op: 'ax-get', k: 'pub:adventures' }); cached = c.v ? JSON.parse(c.v) : null; } catch (e) {}
+  if (cached && Date.now() - cached.at < PUB_TTL && !url.searchParams.get('fresh')) return new Response(JSON.stringify(cached), { headers: h });
+  try {
+    const got = await pubBuild(env);
+    if (got.ok) { const s = JSON.stringify(got); if (s.length < 118000) await ytStore(env, { op: 'ax-set', k: 'pub:adventures', v: s }); }
+    return new Response(JSON.stringify(got.ok ? got : (cached || got)), { headers: h });
+  } catch (e) { return new Response(JSON.stringify(cached || { ok: false, error: String((e && e.message) || e).slice(0, 160) }), { headers: h }); }
+}
 function advKey(n) { return String(n || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
 /* asked by the site once per draft: what to tell the owner, then never again for that video */
 async function axPending(url, env) {
@@ -526,6 +584,7 @@ export default {
     if (url.pathname.indexOf('/yt/') === 0) return youtube(req, url, env);
     if (url.pathname.indexOf('/ax/') === 0) return anexanum(req, url, env);
     if (url.pathname === '/ax-pending') return axPending(url, env);
+    if (url.pathname === '/pub/adventures') return pubPlaylists(req, url, env);
     if (!m) return new Response('not found', { status: 404 });
     if (req.headers.get('Upgrade') !== 'websocket') return new Response('expected a websocket', { status: 426 });
     const origin = req.headers.get('Origin') || 'null';
