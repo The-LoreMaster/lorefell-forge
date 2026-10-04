@@ -188,6 +188,43 @@ function paint(){
   document.getElementById('app').innerHTML = h;
   var lg = document.getElementById('axlog'); if (lg) lg.scrollTop = lg.scrollHeight;
 }
+/* ---- a transcript file instead of YouTube's captions ----
+   An .srt, .vtt or .sbv file (from Restream, YouTube Studio, or anywhere) gives the lines with
+   their times, so the recap and its clips work without spending YouTube's allowance; a plain
+   .txt gives the words alone, enough for the recap but not for choosing clips. */
+function txTime(t){ var m = String(t).trim().replace(',', '.').match(/^(?:(\d+):)?(\d{1,2}):(\d{1,2})(?:\.(\d{1,3}))?$/); if (!m) return null; return (+(m[1] || 0)) * 3600 + (+m[2]) * 60 + (+m[3]) + (m[4] ? +('0.' + m[4]) : 0); }
+function txParse(name, text){
+  text = String(text || '').replace(/\r/g, '');
+  var lines = [], ext = (String(name).split('.').pop() || '').toLowerCase();
+  text.split(/\n\s*\n/).forEach(function(blk){
+    var rows = blk.split('\n').filter(function(r){ return r.trim(); }); if (!rows.length) return;
+    var ti = -1, s = null, e = null;
+    for (var i = 0; i < rows.length; i++){
+      var m = rows[i].match(/^\s*([\d:.,]+)\s*-->\s*([\d:.,]+)/) || rows[i].match(/^\s*(\d+:\d{2}:\d{2}\.\d{1,3}),(\d+:\d{2}:\d{2}\.\d{1,3})\s*$/);
+      if (m){ s = txTime(m[1]); e = txTime(m[2]); ti = i; break; }
+    }
+    if (ti < 0 || s === null) return;
+    var t = rows.slice(ti + 1).join(' ').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+    if (t) lines.push({ s:Math.round(s * 10) / 10, e:Math.round((e === null ? s + 2 : e) * 10) / 10, t:t.slice(0, 200) });
+  });
+  if (!lines.length && ext !== 'srt' && ext !== 'vtt' && ext !== 'sbv') return { lines:[], text:text.replace(/\s+/g, ' ').trim() };
+  return { lines:lines, text:lines.map(function(l){ return l.t; }).join(' ') };
+}
+function rpFromFile(input, vidIndex){
+  var f = input.files && input.files[0]; if (!f) return;
+  var rd = new FileReader();
+  rd.onload = function(){
+    var got = txParse(f.name, rd.result);
+    var v = (vidIndex !== undefined && VD.list && VD.list[vidIndex]) ? VD.list[vidIndex] : { id:'', title:f.name.replace(/\.[^.]+$/, '') };
+    RP = { v:v, busy:false, msg:'', clips:[], moments:(RP && RP.v && RP.v.id === v.id) ? RP.moments : [], lines:got.lines, plain:got.lines.length ? '' : got.text, fromFile:f.name, recap:'' };
+    VD.open = null;
+    if (!got.lines.length && !got.text){ RP.msg = 'Nothing readable in that file.'; paint(); return; }
+    if (v.id) api('/ax/draft', { k:'mo:' + v.id }).then(function(d){ try { RP.moments = JSON.parse(d.v || '[]'); } catch(e){} }).catch(function(){});
+    rpRecap().then(function(){ if (RP.recap && RP.lines.length) return rpPick(); if (RP.recap && !RP.lines.length){ RP.msg = 'This file has no times in it, so the recap is written but clips cannot be chosen. Use an .srt, .vtt or .sbv file for the clips.'; paint(); } });
+  };
+  rd.readAsText(f);
+}
+function rpFileBtn(vidIndex){ return '<label class="btn" style="display:inline-flex;align-items:center;cursor:pointer">Use a transcript file<input type="file" accept=".srt,.vtt,.sbv,.txt" style="display:none" onchange="rpFromFile(this' + (vidIndex !== undefined ? ',' + vidIndex : '') + ')"></label>'; }
 /* ================= a recap video, planned =================
    For one session video: the moments marked at the table (kept and suggested), and the
    captions line by line. The AI picks six to eight clips of three to five seconds, in story
@@ -199,7 +236,9 @@ function rpOpen(i){
   var v = VD.list[i]; if (!v) return;
   RP = { v:v, busy:true, msg:'Reading the captions and the moments…', clips:[], moments:[], lines:[] };
   VD.open = null; paint();
-  Promise.all([api('/ax/video', { v:v.id, captions:1, lines:1 }), api('/ax/draft', { k:'mo:' + v.id }), api('/ax/draft', { k:'rp:' + v.id })]).then(function(r){
+  RP.idx = i;
+  Promise.all([api('/ax/video', { v:v.id, captions:1, lines:1 }).catch(function(e){ return { lines:[], captionError:e.message }; }), api('/ax/draft', { k:'mo:' + v.id }), api('/ax/draft', { k:'rp:' + v.id })]).then(function(r){
+    if (r[0].captionError) RP.capErr = r[0].captionError;
     RP.lines = r[0].lines || []; RP._ends = null; RP._starts = null;
     try { RP.moments = JSON.parse(r[1].v || '[]'); } catch(e){ RP.moments = []; }
     if (r[2].v){ try { var dr = JSON.parse(r[2].v); RP.clips = dr.clips || []; RP.recap = dr.recap || ''; RP.busy = false; RP.msg = 'Your plan from ' + new Date(dr.at).toLocaleDateString(undefined, { month:'short', day:'numeric' }) + '.'; paint(); return; } catch(e){} }
@@ -211,9 +250,9 @@ function rpOpen(i){
    then a clip for each of its beats, and one or two highlights laid in where they happened. */
 function rpRecap(){
   RP.busy = true; RP.msg = 'Writing the session\u2019s recap…'; paint();
-  if (!RP.lines.length){ RP.busy = false; RP.msg = 'This video has no timed captions yet. Try again once YouTube has made them.'; paint(); return Promise.resolve(); }
+  if (!RP.lines.length && !RP.plain){ RP.busy = false; RP.msg = 'No captions came from YouTube for this video. Use a transcript file instead.'; paint(); return Promise.resolve(); }
   var sys = 'You write one recap of a LoreFell tabletop session for its players, from the session\u2019s transcript. One paragraph, 100 to 140 words: what the party did and what came of it, in the order it happened, past tense, ending on where the story stopped so the players know where to pick up. Use only what the transcript says happened; never invent events, names or outcomes. Leave out table talk, rules discussion and breaks. Grounded, no cliches, no em dashes. Return only the paragraph.' + styleRules();
-  var text = RP.lines.map(function(l){ return l.t; }).join(' ').slice(0, 300000);
+  var text = (RP.lines.length ? RP.lines.map(function(l){ return l.t; }).join(' ') : RP.plain).slice(0, 300000);
   return ai(sys, 'Video: ' + RP.v.title + '\n\nTranscript:\n' + text, 700, true).then(function(t){ RP.recap = noDash(t).trim(); RP.busy = false; RP.msg = ''; rpSave(); paint(); })
     .catch(function(e){ RP.busy = false; RP.msg = 'The recap did not come: ' + e.message; paint(); });
 }
@@ -221,7 +260,7 @@ function rpPick(){
   var rc = document.getElementById('rpRecap'); if (rc) RP.recap = rc.value.trim();
   if (!RP.recap){ return rpRecap().then(function(){ if (RP.recap) return rpPick(); }); }
   RP.busy = true; RP.msg = 'Finding the story in the video…'; paint();
-  if (!RP.lines.length){ RP.busy = false; RP.msg = 'This video has no timed captions yet, so the clips cannot be found. Try again once YouTube has made them.'; paint(); return Promise.resolve(); }
+  if (!RP.lines.length){ RP.busy = false; RP.msg = 'There are no timed lines, so the clips cannot be found. Use an .srt, .vtt or .sbv transcript file.'; paint(); return Promise.resolve(); }
   var mom = RP.moments.map(function(m){ return vdTime(m.t) + ' (' + m.t + 's) ' + m.name + (m.tags && m.tags.length ? ' [' + m.tags.join(', ') + ']' : '') + (m.kept ? ' KEPT' : ' suggested'); }).join('\n');
   var lines = RP.lines.map(function(l){ return Math.round(l.s) + ': ' + l.t; }).join('\n');
   if (lines.length > 300000) lines = lines.slice(0, 300000);
@@ -236,7 +275,7 @@ function rpPick(){
     RP.busy = false; RP.msg = RP.clips.length ? '' : 'No clips came back. Try Choose again.'; rpSave(); paint();
   }).catch(function(e){ RP.busy = false; RP.msg = 'Not chosen: ' + e.message; paint(); });
 }
-function rpSave(){ if (RP) return api('/ax/draft', { k:'rp:' + RP.v.id }, JSON.stringify({ clips:RP.clips, recap:RP.recap || '', at:Date.now() })).catch(function(){}); }
+function rpSave(){ if (RP && RP.v && RP.v.id) return api('/ax/draft', { k:'rp:' + RP.v.id }, JSON.stringify({ clips:RP.clips, recap:RP.recap || '', at:Date.now() })).catch(function(){}); }
 /* ---- clips that start on a line and end on a sentence ----
    Auto-captions are cut into lines that do not always carry punctuation, so a sentence ends
    where a line ends with . ! or ?, or where the speaker pauses (a gap before the next line).
@@ -274,12 +313,14 @@ function rpLine(c){ var l = RP.lines.filter(function(x){ return x.s >= c.start -
 function paintRecap(){
   var h = '<div class="panel"><div class="row" style="justify-content:space-between"><h2 style="margin:0">A recap video: ' + esc(RP.v.title) + '</h2><button class="btn" onclick="RP=null;paint()">Back to the videos</button></div>';
   if (RP.busy) return h + '<p class="lead">' + esc(RP.msg) + '</p></div>';
+  if (RP.fromFile) h += '<p class="lead">From the transcript file <b>' + esc(RP.fromFile) + '</b>.</p>';
+  if (!RP.lines.length && !RP.recap) return h + '<p class="lead">' + esc(RP.capErr || RP.msg || 'No captions came from YouTube for this video.') + '</p><div class="row">' + rpFileBtn(RP.idx) + '</div><p class="lead">An .srt, .vtt or .sbv file (Restream or YouTube Studio can give you one) carries the times the clips need. A .txt file is enough for the recap alone.</p></div>';
   var tot = rpTotal();
   h += '<p class="lead">The recap is the spine: each story clip shows one of its beats, and a highlight or two is laid in where it happened. Change the recap and Choose the clips again, or watch each pick, step its start a line at a time and its end a sentence at a time, drop it, add a marked moment. Then download the plan for the Recap Cutter.</p>'
     + '<label class="f">The recap<textarea class="t" id="rpRecap" rows="5" oninput="RP.recap=this.value;clearTimeout(window._rps);window._rps=setTimeout(rpSave,800)">' + esc(RP.recap || '') + '</textarea></label>'
-    + '<div class="row"><button class="btn" onclick="rpRecap()">Write the recap again</button><button class="btn pri" onclick="rpPick()">Choose the clips from this recap</button></div>'
+    + '<div class="row"><button class="btn" onclick="rpRecap()">Write the recap again</button><button class="btn pri" onclick="rpPick()"' + (RP.lines.length ? '' : ' disabled') + '>Choose the clips from this recap</button>' + rpFileBtn(RP.idx) + '</div>'
     + '<div class="list">' + RP.clips.map(function(c, i){ return '<div class="it"><span class="num">' + (i + 1) + '</span>'
-      + '<span class="ti"><span class="mark ' + (c.kind === 'highlight' ? 'wait' : 'done') + '">' + (c.kind === 'highlight' ? 'Highlight' : 'Story') + '</span> <a href="https://youtu.be/' + esc(RP.v.id) + '?t=' + Math.floor(c.start) + '" target="_blank" rel="noopener">' + vdTime(c.start) + '</a> to ' + vdTime(c.end) + ' (' + (Math.round((c.end - c.start) * 10) / 10) + 's) ' + esc(c.label) + (c.tags && c.tags.length ? ' <small style="display:inline">' + esc(c.tags.join(', ')) + '</small>' : '')
+      + '<span class="ti"><span class="mark ' + (c.kind === 'highlight' ? 'wait' : 'done') + '">' + (c.kind === 'highlight' ? 'Highlight' : 'Story') + '</span> ' + (RP.v.id ? '<a href="https://youtu.be/' + esc(RP.v.id) + '?t=' + Math.floor(c.start) + '" target="_blank" rel="noopener">' + vdTime(c.start) + '</a>' : vdTime(c.start)) + ' to ' + vdTime(c.end) + ' (' + (Math.round((c.end - c.start) * 10) / 10) + 's) ' + esc(c.label) + (c.tags && c.tags.length ? ' <small style="display:inline">' + esc(c.tags.join(', ')) + '</small>' : '')
         + (c.beat ? '<small>Shows: ' + esc(c.beat) + '</small>' : '') + '<small>Says: ' + esc(rpLine(c)) + '</small></span>'
       + '<span class="row" style="margin:0;gap:4px"><button class="btn" onclick="rpStep(' + i + ',\'start\',-1)" title="Start a line earlier">\u25c2 start</button><button class="btn" onclick="rpStep(' + i + ',\'start\',1)" title="Start a line later">start \u25b8</button><button class="btn" onclick="rpStep(' + i + ',\'end\',-1)" title="End a sentence earlier">\u25c2 end</button><button class="btn" onclick="rpStep(' + i + ',\'end\',1)" title="End a sentence later">end \u25b8</button><button class="btn" onclick="rpDrop(' + i + ')">Drop</button></span></div>'; }).join('') + '</div>'
     + '<p class="lead" style="margin-top:8px">' + RP.clips.length + ' clips, ' + Math.round(tot) + ' seconds' + (tot > 45 ? ': over 45, drop or trim one.' : tot < 30 ? ': under 30, add a moment if one is missing.' : '.') + '</p>'
@@ -329,6 +370,7 @@ function paintVideos(){
   else h += '<div class="list">' + VD.list.map(function(v, i){ return '<div class="it"><span class="num">' + (i + 1) + '</span><span class="ti">' + esc(v.title) + '<small>' + esc(new Date(v.at).toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' })) + '</small></span>'
       + '<span class="row" style="margin:0"><span class="mark ' + (v.done ? 'done' : v.draft ? 'wait' : 'wait') + '">' + (v.done ? 'updated' : v.draft ? 'draft saved' : '') + '</span><button class="btn" onclick="rpOpen(' + i + ')" title="Plan a 30 to 40 second recap video">Recap video</button><button class="btn' + (v.draft ? ' pri' : '') + '" onclick="vdOpen(' + i + ')">' + (v.draft ? 'Open the draft' : v.done ? 'Again' : 'Write it') + '</button></span></div>'; }).join('') + '</div>'
       + '<div class="row"><button class="btn pri" onclick="vdDraftRest()"' + (VD.drafting ? ' disabled' : '') + '>' + (VD.drafting ? 'Drafting…' : 'Draft the rest') + '</button></div>';
+  h += '<div class="row"><span class="lead" style="margin:0">A recap video from a transcript file, for any session:</span>' + rpFileBtn() + '</div>';
   return h + '<div class="log" id="axlog" aria-live="polite">' + esc(VD.msg || '') + '</div></div>';
 }
 /* a History's chapter titles from the FellGuide, to name an episode by */
