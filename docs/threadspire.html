@@ -6497,6 +6497,10 @@ function vidPaint(){
       + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="VID.step=\'in\';vidPaint()">Back</button><button class="tsm-btn" onclick="vidRecap()"' + (VID.busy ? ' disabled' : '') + '>' + (VID.busy ? 'Writing\u2026' : 'Write the recap') + '</button></div>';
   } else {
     var words = (VID.recap.trim().match(/\S+/g) || []).length;
+    var _scs = storyScenes();
+    h += '<label class="tsm-lbl" for="vidScene">Its scene, the name it takes in the Codex</label>'
+      + (_scs.length ? '<select class="tsm-inp" id="vidScene" onchange="if(this.value){VID.session=this.value;document.getElementById(\'vidSessIn\').value=this.value;}"><option value="">Choose a scene\u2026</option>' + _scs.map(function(x){ return '<option value="' + esc(x.scene) + '"' + (x.scene === VID.session ? ' selected' : '') + '>' + esc(x.session + ': ' + x.scene) + '</option>'; }).join('') + '</select>' : '')
+      + '<input class="tsm-inp" id="vidSessIn" maxlength="120" placeholder="Its name" value="' + esc(VID.session || '') + '" oninput="VID.session=this.value" style="margin-top:6px">';
     h += '<label class="tsm-lbl" for="vidRecapIn">The recap</label><textarea class="tsm-inp tsm-ta rc-ta" id="vidRecapIn" oninput="VID.recap=this.value">' + esc(VID.recap) + '</textarea>'
       + '<p class="tsm-note">' + words + ' words, about ' + Math.max(1, Math.round(words / 4)) + ' seconds to read. ' + esc(VID.msg) + '</p>'
       + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="VID.step=\'names\';vidPaint()">Back</button><button class="tsm-btn ghost" onclick="vidRecap()"' + (VID.busy ? ' disabled' : '') + '>' + (VID.busy ? 'Writing\u2026' : 'Write it again') + '</button><button class="tsm-btn" onclick="vidSave()">Add to the Journal</button></div>'
@@ -6584,6 +6588,7 @@ function codexOpen(tab){
           + '<p>' + esc(e.text) + '</p>'
           + '<div class="cx-foot">' + (e.videoId ? '<a href="https://youtu.be/' + esc(e.videoId) + '" target="_blank" rel="noopener">Watch</a>' : '')
           + (e.videoId && isLM() && !isKeeper() && YT.connected && YT.allowed ? '<button class="cx-link" onclick="ytDescribeEntry(\'' + esc(e.id) + '\')">Update the video</button>' : '')
+          + (isLM() && !isKeeper() ? '<button class="cx-link" onclick="codexRename(\'' + esc(e.id) + '\')">Rename</button>' : '')
           + (isLM() && !isKeeper() ? ((S.retellPick && S.retellPick.id === e.id) ? '<span class="rc-live">The Retelling</span>' : '<button class="cx-link" onclick="retellPickSet(\'' + esc(e.id) + '\')">Make it the Retelling</button>') + '<button class="cx-link" onclick="codexRemove(\'' + esc(e.id) + '\')">Take out of the Codex</button>' : '') + '</div></article>'; }).join('') + '</div>'
       : '<p class="tsm-note">Nothing yet. ' + (isLM() ? 'A recap you send, or one you add from a session\u2019s video, lands here.' : 'The recaps land here as the story goes on.') + '</p>';
     if (!CODEX.pick) h += codexItemsHtml('story');
@@ -6657,6 +6662,19 @@ function codexWrite(){
 function codexWriteSave(){
   var t = ((document.getElementById('cxText') || {}).value || '').trim(); if (!t) return;
   codexAdd({ id:'cx' + Date.now(), at:Date.now(), session:((document.getElementById('cxSess') || {}).value || '').trim(), text:t }, function(){ CODEX.tab = 'story'; codexOpen('story'); });
+}
+function codexRename(id){
+  var e = (CODEX.entries || []).filter(function(x){ return x.id === id; })[0]; if (!e || !isLM() || keeperNo()) return;
+  tsModal('<h3 class="tsm-title">Rename the entry</h3><label class="tsm-lbl" for="cxRen">Its name</label><input class="tsm-inp" id="cxRen" maxlength="120" value="' + esc(e.session || '') + '">'
+    + (storyScenes().length ? '<label class="tsm-lbl" for="cxRenSc">Or a scene</label><select class="tsm-inp" id="cxRenSc" onchange="if(this.value)document.getElementById(\'cxRen\').value=this.value"><option value="">Choose a scene\u2026</option>' + storyScenes().map(function(x){ return '<option value="' + esc(x.scene) + '">' + esc(x.session + ': ' + x.scene) + '</option>'; }).join('') + '</select>' : '')
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="codexOpen()">Back</button><button class="tsm-btn" onclick="codexRenameSave(\'' + esc(id) + '\')">Save</button></div>');
+}
+function codexRenameSave(id){
+  var e = (CODEX.entries || []).filter(function(x){ return x.id === id; })[0]; if (!e) return;
+  var v = ((document.getElementById('cxRen') || {}).value || '').trim();
+  var copy = Object.assign({}, e, { session:v });
+  /* the Codex keeps one entry per name: the same id, saved again, replaces it */
+  tsAsk('TS_CODEX_ADD', { entry:copy }).then(function(r){ if (r && r.ok) CODEX.entries = r.entries || CODEX.entries; if (S.retellPick && S.retellPick.id === id){ S.retellPick.session = v; schedulePush(); } codexOpen('story'); }).catch(function(){ codexOpen('story'); });
 }
 function codexRemove(id){
   if (keeperNo()) return;
@@ -6734,7 +6752,7 @@ setInterval(function(){ try { hudCodexPaint(); } catch(e){} }, 1000);
    written; anything else in the description stays as it was. Nothing goes up until the
    LoreMaster has read it and pressed Update the video. */
 var YTD_START = '\u25be The session \u25be', YTD_END = '\u25b4 lorefell.com \u25b4';
-var YTD = null;
+var YTD = null, YTD_FOREIGN = null;
 function ytdTime(s){ s = Math.max(0, s | 0); var h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return (h ? h + ':' + (m < 10 ? '0' : '') : '') + m + ':' + (x < 10 ? '0' : '') + x; }
 function ytdCall(path, vid, body){
   return ytTicket().then(function(tk){
@@ -6761,13 +6779,14 @@ function storyScenes(){
   ((S.adventure || {}).acts || []).forEach(function(a){ (a.sessions || []).forEach(function(se){ (se.scenes || []).forEach(function(sc){ if (sc.name) out.push({ session:se.name || '', scene:sc.name }); }); }); });
   return out;
 }
-function ytdTitle(session){ session = ytdSessionClean(session); return (advName() + (session ? ' | ' + session : '')).slice(0, 100); }
+function ytdTitle(session){ session = ytdSessionClean(session); return (((YTD && YTD.adv) || advName()) + (session ? ' | ' + session : '')).slice(0, 100); }
 function ytDescribe(videoId, session, recap, segments, fresh){
   if (!isLM() || keeperNo() || !videoId) return;
   /* a draft kept for this video opens as it was left, unless a fresh one is asked for */
   var dr = !fresh && (S.ytDrafts || {})[videoId];
-  if (dr){ YTD = { vid:videoId, session:dr.session || '', scene:dr.scene || '', recap:recap || dr.recap || '', segs:segments || [], busy:false, msg:'Your draft from ' + new Date(dr.at).toLocaleDateString(undefined, { month:'short', day:'numeric' }) + '.', title:dr.title, desc:dr.desc, old:'', fromDraft:true }; ytdPaint(); return; }
-  YTD = { vid:videoId, session:session || '', recap:recap || '', segs:segments || [], busy:true, msg:'Reading the video and writing its description\u2026', title:'', desc:'', old:'' };
+  if (dr){ YTD = { vid:videoId, session:dr.session || '', scene:dr.scene || '', recap:recap || dr.recap || '', segs:segments || [], busy:false, msg:'Your draft from ' + new Date(dr.at).toLocaleDateString(undefined, { month:'short', day:'numeric' }) + '.', title:dr.title, desc:dr.desc, old:'', fromDraft:true, adv:dr.adv || '', foreign:dr.foreign ? { adv:dr.adv } : null }; ytdPaint(); return; }
+  YTD = { vid:videoId, session:session || '', recap:recap || '', segs:segments || [], busy:true, msg:'Reading the video and writing its description\u2026', title:'', desc:'', old:'', foreign:YTD_FOREIGN, adv:YTD_FOREIGN ? YTD_FOREIGN.adv : '' };
+  YTD_FOREIGN = null;
   ytdPaint();
   ytdCall('/yt/video', videoId).then(function(cur){
     if (!cur || !cur.ok) throw new Error((cur && cur.error) || 'the video could not be read');
@@ -6775,10 +6794,10 @@ function ytDescribe(videoId, session, recap, segments, fresh){
     var sys = 'You write the YouTube description for an actual-play episode of LoreFell, a dark fantasy tabletop roleplaying game, to help it be found and shared. Return ONLY JSON, no other text: '
       + '{"scene":"from the outline, the scene this episode mostly played out in, written exactly as it is in the outline (empty if there is no outline)","hook":"one gripping line, under 110 characters, that makes someone stop scrolling","teaser":"two or three sentences on what happens, vivid and plain, ending on a question or a turn, no spoilers of the very end","chapters":[{"s":seconds,"title":"two to five words"}],"hashtags":["#LoreFell","#TTRPG", "..."]} '
       + 'Chapters: from the timed caption pieces, mark where the story turns (a new place, a fight starts, a revelation, a death, the ending); 5 to 12 of them; the first at 0 called Opening; at least a minute apart. Hashtags: 4 to 6, always #LoreFell and #TTRPG, plus #ActualPlay and fitting ones. No em dashes, no cliches, no emoji, never invent what did not happen.';
-    var scenes = storyScenes();
-    var user = 'Adventure: ' + advName() + '\nSession given: ' + (YTD.session || '(none)') + '\nRecap:\n' + YTD.recap
+    var scenes = YTD.foreign ? [] : storyScenes();
+    var user = 'Adventure: ' + (YTD.adv || advName()) + '\nSession given: ' + (YTD.session || '(none)') + '\nRecap:\n' + YTD.recap
       + (scenes.length ? '\n\nThe Story\u2019s outline, session: scenes in order:\n' + scenes.map(function(x){ return x.session + ': ' + x.scene; }).join('\n') : '')
-      + '\n\nThe LoreMaster\u2019s journal notes:\n' + (vidJournalNotes() || '(none)')
+      + (YTD.foreign ? '' : '\n\nThe LoreMaster\u2019s journal notes:\n' + (vidJournalNotes() || '(none)'))
       + (YTD.segs.length ? '\n\nTimed caption pieces (seconds: words):\n' + YTD.segs.map(function(g){ return g.s + ': ' + String(g.t).slice(0, 160); }).join('\n').slice(0, 60000) : '\n\n(No timings: return an empty chapters list.)');
     return aiCall(sys, user, 1500);
   }).then(function(raw){
@@ -6809,7 +6828,8 @@ function ytdPaint(){
   var h = '<h3 class="tsm-title">Update the video</h3>';
   if (d.busy) h += '<p class="tsm-note">' + esc(d.msg) + '</p>';
   else {
-    var scs = storyScenes();
+    var scs = d.foreign ? [] : storyScenes();
+    h += '<label class="tsm-lbl" for="ytdAdv">The adventure</label><input class="tsm-inp" id="ytdAdv" maxlength="80" value="' + esc(d.adv || advName()) + '" oninput="YTD.adv=this.value;YTD.title=ytdTitle(document.getElementById(\'ytdSess\').value);document.getElementById(\'ytdTitle\').value=YTD.title">';
     if (scs.length) h += '<label class="tsm-lbl" for="ytdScene">Where this episode played out</label><select class="tsm-inp" id="ytdScene" onchange="if(this.value){var v=this.value;document.getElementById(\'ytdSess\').value=v;YTD.session=v;YTD.title=ytdTitle(v);document.getElementById(\'ytdTitle\').value=YTD.title;}">'
       + '<option value="">Choose a scene\u2026</option>' + scs.map(function(x){ return '<option value="' + esc(x.scene) + '"' + (x.scene === d.scene ? ' selected' : '') + '>' + esc(x.session + ': ' + x.scene) + '</option>'; }).join('') + '</select>'
       + (d.scene ? '<p class="tsm-note">Matched from the recap, the captions and your Journal.</p>' : '');
@@ -6826,7 +6846,7 @@ function ytdDraft(quiet){
   var ti = document.getElementById('ytdTitle'), de = document.getElementById('ytdDesc');
   if (ti) d.title = ti.value; if (de) d.desc = de.value;
   S.ytDrafts = S.ytDrafts || {};
-  S.ytDrafts[d.vid] = { title:d.title, desc:d.desc, session:d.session || '', scene:d.scene || '', recap:String(d.recap || '').slice(0, 4000), at:Date.now() };
+  S.ytDrafts[d.vid] = { title:d.title, desc:d.desc, session:d.session || '', scene:d.scene || '', adv:d.adv || '', foreign:!!d.foreign, recap:String(d.recap || '').slice(0, 4000), at:Date.now() };
   schedulePush();
   if (!quiet){ playToast('Draft saved. It opens as you left it next time.', 'YouTube'); if (TIDY) tidyPaint(); }
 }
@@ -7000,7 +7020,7 @@ function ytDescribeEntry(id){ var e = (CODEX.entries || []).filter(function(x){ 
 var TIDY = null;
 function tidyOpen(){
   if (!(YT.connected && YT.allowed)) return;
-  TIDY = { list:[], busy:true, msg:'Reading your channel\u2026', drafting:false };
+  TIDY = { list:[], all:[], busy:true, msg:'Reading your channel\u2026', drafting:false, every:!!(TIDY && TIDY.every) };
   tidyPaint();
   var name = vidNorm(advName()), all = [], pages = 0;
   var next = function(tok){
@@ -7009,16 +7029,21 @@ function tidyOpen(){
         if (!d || !d.ok) throw new Error((d && d.error) || 'the channel could not be read');
         all = all.concat(d.items || []); pages++;
         if (d.next && pages < 8) return next(d.next);
-        TIDY.list = all.filter(function(v){ var head = vidNorm(String(v.title).split('|')[0]); return head === name || head.indexOf(name) >= 0 || vidNorm(v.title).indexOf(name) >= 0; })
-          .sort(function(a, b){ return new Date(a.at) - new Date(b.at); });
+        TIDY.all = all.slice().sort(function(a, b){ return new Date(a.at) - new Date(b.at); });
+        TIDY.list = tidyFilter();
         TIDY.busy = false; TIDY.msg = TIDY.list.length ? '' : 'No videos on your channel name this adventure.'; tidyPaint();
       }).catch(function(e){ TIDY.busy = false; TIDY.msg = 'Not read: ' + String((e && e.message) || e).slice(0, 120); tidyPaint(); });
   };
   next('');
 }
+/* this adventure's videos, or every video on the channel (adventures run before ThreadSpire) */
+function tidyMine(v){ var name = vidNorm(advName()), head = vidNorm(String(v.title).split('|')[0]); return !!name && (head === name || head.indexOf(name) >= 0 || vidNorm(v.title).indexOf(name) >= 0); }
+function tidyFilter(){ return (TIDY.all || []).filter(function(v){ return TIDY.every || tidyMine(v); }); }
 function tidyPaint(){
   var t = TIDY; if (!t) return;
-  var h = '<h3 class="tsm-title">Tidy the old videos</h3><p class="tsm-note">Every video on your channel for ' + esc(advName()) + ', oldest first. Open one to write its title and description, or draft them all and go through the drafts.</p>';
+  var h = '<h3 class="tsm-title">Tidy the old videos</h3>'
+    + '<nav class="ach-tabs" aria-label="Which videos"><button class="' + (t.every ? '' : 'on') + '" onclick="TIDY.every=false;TIDY.list=tidyFilter();tidyPaint()">' + esc(advName()) + '</button><button class="' + (t.every ? 'on' : '') + '" onclick="TIDY.every=true;TIDY.list=tidyFilter();tidyPaint()">Every video</button></nav>'
+    + '<p class="tsm-note">' + (t.every ? 'Every video on your channel, oldest first, whatever adventure it is from. A video from an adventure not in ThreadSpire is written from its captions alone; set its adventure\u2019s name in its window.' : 'Every video on your channel for ' + esc(advName()) + ', oldest first.') + ' Open one to write its title and description, or draft the rest and go through the drafts.</p>';
   if (t.busy) h += '<p class="tsm-note">' + esc(t.msg) + '</p>';
   else {
     h += t.list.length ? '<div class="vid-chan" style="max-height:52vh;overflow:auto">' + t.list.map(function(v, i){
@@ -7033,6 +7058,7 @@ function tidyPaint(){
 function tidyOne(i){
   var v = TIDY && TIDY.list[i]; if (!v) return;
   var e = (S.journal || []).filter(function(x){ return x.videoId === v.id; }).pop();
+  YTD_FOREIGN = tidyMine(v) ? null : { adv:String(v.title).split('|')[0].trim() };
   ytDescribeVideo(v.id, (e && e.session) || (String(v.title).split('|')[1] || '').trim(), e ? e.text : '');
 }
 /* one after another, each drafted and kept, never put up: the LoreMaster reads each first */
@@ -7044,6 +7070,7 @@ function tidyDraftAll(){
   var step = function(){
     if (!TIDY || !todo.length){ if (TIDY){ TIDY.drafting = false; TIDY.msg = n + ' drafted. Open each to read it and put it up.'; tidyPaint(); } return; }
     var v = todo.shift(), e = (S.journal || []).filter(function(x){ return x.videoId === v.id; }).pop();
+    YTD_FOREIGN = tidyMine(v) ? null : { adv:String(v.title).split('|')[0].trim() };
     t.msg = 'Drafting ' + v.title + '\u2026 (' + todo.length + ' to go)'; tidyPaint();
     var keep = YTD;
     ytTicket().then(function(tk){ return fetch(ROOM_HTTP + '/transcript?v=' + encodeURIComponent(v.id) + '&c=' + encodeURIComponent(S.campaignId) + '&t=' + encodeURIComponent(tk)).then(function(r){ return r.json(); }); })
@@ -7178,8 +7205,18 @@ function vidRecap(){
   var sys = 'You write one recap of a LoreFell tabletop session for its players, from the session\u2019s transcript and the LoreMaster\u2019s journal notes. One paragraph, 170 to 230 words: what the party did and what came of it, in the order it happened, past tense. Use only what the transcript and notes say happened; never invent events, names or outcomes. Leave out table talk, rules discussion, breaks, and anything that is the LoreMaster\u2019s private planning or a secret the players did not learn. Grounded and warm, with dark fantasy weight where it is earned. No cliches, no purple prose, no em dashes, no headings, no lists. Spell every name exactly as given. Return only the paragraph.';
   var user = 'Adventure: ' + advName() + (VID.session ? '\nSession: ' + VID.session : '') + '\nNames, spelled right: ' + vidGlossary().map(function(x){ return x.replace(/ \(.*\)$/, ''); }).join(', ')
     + '\n\nThe LoreMaster\u2019s journal notes:\n' + (vidJournalNotes() || '(none)') + '\n\nTranscript:\n' + vidFixed().slice(0, 400000);
-  aiCall(sys, user, 900).then(function(t){ VID.busy = false; VID.recap = String(t || '').replace(/\s*\u2014\s*/g, ', ').trim(); VID.step = 'recap'; vidPaint(); })
+  aiCall(sys, user, 900).then(function(t){ VID.recap = String(t || '').replace(/\s*\u2014\s*/g, ', ').trim(); return scenePick(VID.recap); })
+    .then(function(sc){ if (sc) VID.session = sc; VID.busy = false; VID.step = 'recap'; vidPaint(); })
     .catch(function(e){ VID.busy = false; VID.msg = (e && e.rate) ? 'Too many requests just now. Wait a minute and try again.' : 'The recap did not come back. Try again.'; vidPaint(); });
+}
+/* which scene of the Story's outline a recap mostly tells, written exactly as the outline has it */
+function scenePick(text){
+  var scenes = storyScenes(); if (!scenes.length || !text) return Promise.resolve('');
+  var sys = 'From the outline, name the one scene this recap of a tabletop session mostly tells. Return ONLY the scene\u2019s name exactly as written in the outline, nothing else; or nothing if none fits.';
+  return aiCall(sys, 'Outline, session: scene in order:\n' + scenes.map(function(x){ return x.session + ': ' + x.scene; }).join('\n') + '\n\nRecap:\n' + text, 60).then(function(r){
+    var t = String(r || '').trim().replace(/^["\u201c]|["\u201d.]$/g, ''), low = t.toLowerCase(), known = scenes.map(function(x){ return x.scene; });
+    return known.filter(function(k){ return k.toLowerCase() === low; })[0] || known.filter(function(k){ return low && (k.toLowerCase().indexOf(low) >= 0 || low.indexOf(k.toLowerCase()) >= 0); })[0] || '';
+  }).catch(function(){ return ''; });
 }
 function vidSave(){
   var v = ((document.getElementById('vidRecapIn') || {}).value || VID.recap || '').trim(); if (!v) return;

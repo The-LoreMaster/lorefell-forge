@@ -1,3 +1,7 @@
+## 2026-10-03 - Videos from any adventure; Codex entries renamed and named for their scene
+
+Tidy old videos can show Every video on the channel, oldest first, beside this adventure's own: a video from an adventure not in ThreadSpire is written from its captions alone (no outline, no Journal), and the Update window has The adventure, the name before the pipe, taken from the video's title and editable, kept with a draft. A recap written from a session's video is named for the scene of the Story it mostly tells (picked by the AI from the outline, changeable in the recap step, with a box for any other name), and goes into the Codex under that name. The LoreMaster can rename any Codex entry, by typing or by choosing a scene.
+
 ## 2026-10-03 - Drafts for a video's update; tidying the old videos
 
 Update the video has Save draft: the title, description and scene are kept with the table and the video opens on its draft next time (Write it again starts fresh); updating the video clears its draft and marks it updated. Settings, Sessions, YouTube gains Tidy old videos: every video on the channel that names this adventure, oldest first (read in pages of fifty, up to four hundred), each marked updated or draft saved, opened one by one, or Draft the rest, which writes a draft for each video without one, one after another, never putting any up: the LoreMaster reads each and updates it. The room's uploads list reads more than fifteen when asked.
