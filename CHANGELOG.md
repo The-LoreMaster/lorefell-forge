@@ -1,3 +1,7 @@
+## 2026-10-04 - Lobby uploads stay the lobby's; the lobby's picture cannot be deleted
+
+An upload begun for the lobby carries that with it, so a long video that finishes after the Maps window was closed still goes to the lobby, never into a stage waiting for a map or onto the table (it had landed in a stage). The lobby's picture or video cannot be removed from the shelf, singly or in a batch, while it is the lobby's: removing it deleted the file and left the lobby empty.
+
 ## 2026-10-04 - From the email, one Approve does it all
 
 The review opened from the session video's email ends its recap step with Approve, which does all of it at once, each part listed and able to be left out: adds the recap to the Journal, adds it to the Codex, makes it the Retelling, and emails it to the adventure's players (as the recap email does, titled with the session's scene); then the title and description come up to approve and put up.

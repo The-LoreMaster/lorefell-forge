@@ -15949,6 +15949,12 @@ function lmRenameMap(id){
 }
 function lmDeleteMap(id){
   var m = mapById(id); if (!m) return;
+  if (S.lobby && S.lobby.url && (S.lobby.url === m.url || (m.video && S.lobby.url === m.video))){
+    tsModal('<h3 class="tsm-title">That is the lobby\u2019s ' + (mapIsVideo(m) ? 'video' : 'picture') + '</h3>'
+      + '<p class="lc-p">Choose another for the lobby first, then this one can go.</p>'
+      + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button><button class="tsm-btn" onclick="tsCloseModal();lobbyWin()">The lobby</button></div>');
+    return;
+  }
   if (S.scene.background === id){
     tsModal('<h3 class="tsm-title">That map is on the table</h3>'
       + '<p class="lc-p">Put another map down first, then this one can go.</p>'
@@ -16365,7 +16371,7 @@ function mapReadVideo(file, seq, done){
   var say = function(t){ try { playToast(t, 'Map'); } catch(e){} };
   if (file.size > MAP_VIDEO_MAX){ say(esc(file.name) + ' is ' + Math.round(file.size / 1048576) + ' MB. A video map can be up to 100 MB.'); done(null); return; }
   var local = URL.createObjectURL(file), id = 'up-' + Date.now() + '-' + seq;
-  var m = { id:id, assetId:id, folder:(SHELF.map.path || ''), name:nm, url:local, kind:'video', poster:'', w:1920, h:1080, source:'account', local:true, pct:0 };
+  var m = { id:id, assetId:id, folder:(SHELF.map.path || ''), name:nm, url:local, kind:'video', poster:'', w:1920, h:1080, source:'account', local:true, pct:0, forLobby:LOBBY_PICK };
   S.scene.maps.push(m); paintMapPicker();
 
   videoPosterFrom(local).then(function(pf){
@@ -16407,7 +16413,7 @@ function mapReadOne(file, seq, done){
     var nm = file.name.replace(/\.[^.]+$/, '');
     var w = img.naturalWidth || 2400, h = img.naturalHeight || 1600;
     /* uploaded while a folder is open, it lands in that folder */
-    var m = { id:id, assetId:id, folder:(SHELF.map.path || ''), name:nm, url:url, w:w, h:h, source:'account', local:true };
+    var m = { id:id, assetId:id, folder:(SHELF.map.path || ''), name:nm, url:url, w:w, h:h, source:'account', local:true, forLobby:LOBBY_PICK };
     S.scene.maps.push(m);
     var stored = '';
     assetBackend.upload(file, nm).then(function(imgRef){
@@ -16445,8 +16451,13 @@ function mapReadOne(file, seq, done){
    shelf was opened on its own and a single map was chosen */
 function mapUploadsDone(waiting, added){
   if (!added.length) return;
-  if (LOBBY_PICK && added[0]){
-    var _lm = added[0], _tries = 0;
+  /* an upload made for the lobby goes to the lobby only: never to a stage or the table, even
+     if the Maps window was closed while it uploaded (a long video) */
+  var _forLobby = added.filter(function(m){ return m && m.forLobby; });
+  if (_forLobby.length || LOBBY_PICK){
+    var _lm = _forLobby[0] || added[0], _tries = 0;
+    added.forEach(function(m){ delete m.forLobby; });
+    LOBBY_PICK = true;
     var _wait = function(){ if (!_lm.local && _lm.url && !/^blob:/.test(_lm.url)){ lobbyUseMap(_lm.id); return; } if (++_tries < 240) setTimeout(_wait, 500); else { LOBBY_PICK = false; playToast('The upload did not land in time for the lobby. Choose it from your maps.', 'The lobby'); } };
     _wait(); return;
   }
@@ -19931,6 +19942,9 @@ function shelfMoveTo(kind){
 }
 function shelfRemove(kind){
   var ids = shelfSelIds(kind); if (!ids.length) return;
+  /* the lobby's own picture or video stays: removing it would leave the lobby empty */
+  if (kind === 'map' && S.lobby && S.lobby.url){ var _keep = ids.filter(function(id){ var m = mapById(id); return m && (m.url === S.lobby.url || (m.video && m.video === S.lobby.url)); });
+    if (_keep.length){ ids = ids.filter(function(id){ return _keep.indexOf(id) < 0; }); playToast('The lobby\u2019s picture stays; choose another for the lobby first to remove it.', 'Maps'); if (!ids.length) return; } }
   if (kind === 'map' && ids.some(function(id){ return id === S.scene.background; })){
     tsModal('<h3 class="tsm-title">One of them is on the table</h3><p class="lc-p">Put another map down first, then that one can go.</p><div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>'); return;
   }
