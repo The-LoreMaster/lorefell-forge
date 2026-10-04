@@ -313,7 +313,8 @@ body.roleboot #mhud .mid, body.roleboot #mhud .gem, body.roleboot #mhud .portrai
    page zoomed. Every size is now the smaller of its height share and the matching width
    share, and a slot's text stays on one line. */
 .hName, .hLP, .hVlbl, .plaque{ white-space:nowrap; text-overflow:ellipsis; }
-.hCodexP{ left:90.2%; top:45.12%; width:min(3.6vh, 2.03vw); height:min(3.6vh, 2.03vw); pointer-events:auto; cursor:pointer; padding:0; border-radius:50%; border:1.5px solid #c9a84c; background:rgba(10,14,26,.85); color:#f0d48a; box-shadow:0 0 0 3px rgba(201,168,76,.12); }
+/* seated in the round opening of the frame, left of the Lore Points */
+.hCodexP{ left:calc(90.28% - min(1.45vh, 0.815vw)); top:calc(47.3% - min(1.45vh, 0.815vw)); width:min(2.9vh, 1.63vw); height:min(2.9vh, 1.63vw); pointer-events:auto; cursor:pointer; padding:0; border-radius:50%; border:1.5px solid #c9a84c; background:rgba(10,14,26,.85); color:#f0d48a; box-shadow:0 0 0 3px rgba(201,168,76,.12); }
 .hCodexP svg{ width:62%; height:62%; } .hcx-b svg{ width:96%; height:96%; } .hCodexP svg, .hcx-b svg{ fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
 .hCodexP:hover{ background:rgba(201,168,76,.2); } .hCodexP:focus-visible, .hcx-b:focus-visible{ outline:2px solid #c9a84c; outline-offset:2px; }
 body.lm-role .hCodexP, body.stream .hCodexP, body.clean .hCodexP{ display:none !important; }
@@ -3877,13 +3878,22 @@ function applyRemoteState(patch){
   /* every roll that has arrived since the last one thrown, not only the newest, so two players
      rolling in the same second both land; a few at most, a little apart */
   var fresh = [], seenAt = -1;
-  for (var _r = S.log.length - 1; _r >= 0; _r--){
+  /* A log that arrives before the table has thrown anything is history: the rolls already in
+     it are marked as seen, never thrown. Only rolls that come after are. (Lines this table
+     writes as it opens, before the saved log lands, used to throw the old rolls with them.) */
+  if (!flourishedId && !window._rollPrimed){
+    window._rollPrimed = true;
+    for (var _p = (S.log || []).length - 1; _p >= 0; _p--){ var _e = S.log[_p]; if (_e && _e.kind === 'roll'){ flourishedId = _e.id; break; } }
+    var _skipThrow = true;
+  }
+  for (var _r = _skipThrow ? -1 : S.log.length - 1; _r >= 0; _r--){
     var en = S.log[_r];
     if (!en || en.kind !== 'roll') continue;
     if (en.id === flourishedId){ seenAt = _r; break; }
+    if (typeof _rollHistory !== 'undefined' && _rollHistory[en.id]) continue;
     fresh.unshift(en);
   }
-  if (flourishedId === null || flourishedId === undefined || seenAt >= 0 || fresh.length <= 4){
+  if (!_skipThrow && (flourishedId === null || flourishedId === undefined || seenAt >= 0 || fresh.length <= 4)){
     fresh.slice(-4).forEach(function(en, k){
       var go = function(){
         throwFor(en);
@@ -6596,7 +6606,7 @@ function hudCodexPaint(){
     if (!lm){ if (e._cx){ e._cx = false; e.classList.remove('hcx'); e.innerHTML = ''; } return; }
     var lit = b[1] === 'retell' && S.retell && S.retell.on;
     var html = '<button class="hcx-b' + (lit ? ' lit' : '') + (b[3] ? '' : ' off') + '" ' + (b[3] ? 'onclick="event.stopPropagation();' + b[3] + '"' : 'disabled') + ' title="' + b[2] + '" aria-label="' + b[2] + '"' + (b[1] === 'retell' ? ' aria-pressed="' + (lit ? 'true' : 'false') + '"' : '') + '>' + cxSvg(b[1]) + '</button>';
-    if (e._cxh !== html){ e._cxh = html; e._cx = true; e.classList.add('hcx'); e.innerHTML = html; }
+    if (e._cxh !== html || !e.querySelector('.hcx-b')){ e._cxh = html; e._cx = true; e.classList.add('hcx'); e.innerHTML = html; }
   });
   var pc = document.getElementById('hudCodex');
   if (pc) pc.style.display = (!isLM() && !S.stream) ? '' : 'none';
@@ -12844,7 +12854,8 @@ function paintHud(){
     setT('hudName', nameReady ? (C.name||'Fell') : ''); hudNameFit();
     setT('hudLvl', statsReady ? (C.level||1) : '');
     var cur = C.vit||0, mx = C.maxVit||0, temp = C.tempVit || ((S.sheet&&S.sheet.vitality&&S.sheet.vitality.temp)||0);
-    setT('hudTemp', statsReady?temp:''); setT('hudCur', statsReady?cur:''); setT('hudMax', statsReady?mx:''); setT('hudTotal', statsReady?(temp+cur):'');
+    if (!isLM() || S.stream){ setT('hudTemp', statsReady?temp:''); setT('hudCur', statsReady?cur:''); setT('hudMax', statsReady?mx:''); }
+    setT('hudTotal', statsReady?(temp+cur):'');
     setT('hudCharge', statsReady ? (C.charge||0) : '');
     setT('hudLP', statsReady ? ((C.lp!==undefined?C.lp:0) + ' LP') : '');
     var por = document.getElementById('hudPortrait');
@@ -20267,6 +20278,14 @@ function roomPeerSceneApply(b){
   try { ROOM.sentScene = roomSceneSig(roomSceneBundle()); ROOM.sentToks = roomTokSig(); } catch(e){}
   schedulePush();
 }
+/* the log the room holds when this table joins is history: its rolls are neither thrown
+   nor announced again */
+var _rollHistory = {};
+function logHistoryMark(list){
+  var last = null;
+  (list || []).forEach(function(e){ if (e && e.kind === 'roll'){ _rollShown[e.id] = 1; _rollHistory[e.id] = 1; last = e.id; } });
+  if (last !== null) flourishedId = last;
+}
 /* a log line goes to everyone at once; the log is merged by line, never replaced */
 function roomLogApply(e){
   if (!e || !e.id || (S.log || []).some(function(x){ return x && x.id === e.id; })) return;
@@ -20359,7 +20378,7 @@ function roomGot(m){
       if (m.scene) roomSceneApply(Object.assign({}, m.scene, { tokens:m.tokens || m.scene.tokens }));
       else if (m.tokens) roomTokensApply(m.tokens);
       if (m.parts) roomPeerPartsApply(m.parts);
-      (m.log || []).forEach(roomLogApply);
+      logHistoryMark(m.log); (m.log || []).forEach(roomLogApply);
       setTimeout(function(){ try { ROOM.sentScene = roomSceneSig(roomSceneBundle()); ROOM.sentToks = roomTokSig(); roomPartsSyncMark(); } catch(e){} ROOM.keeperReady = true; }, 2800);
       return;
     }
@@ -20369,7 +20388,7 @@ function roomGot(m){
     if (m.scene) roomSceneApply(Object.assign({}, m.scene, { tokens:m.tokens || m.scene.tokens }));
     else if (m.tokens) roomTokensApply(m.tokens);
     if (m.parts) roomPartsApply(m.parts);
-    (m.log || []).forEach(roomLogApply);
+    logHistoryMark(m.log); (m.log || []).forEach(roomLogApply);
     return;
   }
   if (m.t === 'peers'){

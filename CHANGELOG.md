@@ -1,3 +1,7 @@
+## 2026-10-03 - The LoreMaster's HUD buttons show; no old dice on opening; the player's Codex seated
+
+The LoreMaster's three chevrons stayed numbers because the player's Vitality numbers were written into them on every repaint, over the buttons; they are the Retelling, the Codex and the LoreVault now, and clickable. Opening an adventure no longer throws the rolls already in its log: a log that arrives before the table has thrown anything is marked as seen, and only later rolls are thrown (lines the table wrote as it opened used to throw the old rolls with them). The player's Codex button sits in the round opening of the frame, left of the Lore Points.
+
 ## 2026-10-03 - Name fixes you can edit; your channel's session videos in the video window; the Fell's Records in the Codex
 
 The name check never offers an "Unknown": a misheard name with no match in the Story comes with an empty box to type the right name into (it is used only once something is typed), every suggested name can be edited, and a fix of your own can be added (Heard as, Should be). From the session's video lists this adventure's videos on your connected channel, newest first, each with Write its recap (or Again, once written), so a video put off with Later is a tap away. The Codex gains Quests and Clues, and People shows the characters each Fell wrote in their Records, each marked with who kept it (never a Fell's Secrets or Notes); the LoreMaster can write a Codex entry by hand. Paste velo/backend/sessions.web.js.
