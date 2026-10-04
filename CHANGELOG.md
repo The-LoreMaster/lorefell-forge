@@ -1,3 +1,7 @@
+## 2026-10-04 - Adventure, not campaign
+
+LoreFell does not say campaign. The Histories page speaks of adventures, and the Anexanum writes a new History's note as Adventure and its row on The Histories as Adventure.
+
 ## 2026-10-04 - The channel's campaigns page is The Histories
 
 The public page of the channel's campaigns is The Histories (embeds/the_histories.html, for a page at /the-histories), since The Adventures is already the page of published adventures.
