@@ -143,6 +143,66 @@ function paint(){
   document.getElementById('app').innerHTML = h;
   var lg = document.getElementById('axlog'); if (lg) lg.scrollTop = lg.scrollHeight;
 }
+/* ================= a recap video, planned =================
+   For one session video: the moments marked at the table (kept and suggested), and the
+   captions line by line. The AI picks six to eight clips of three to five seconds, in story
+   order, thirty to forty seconds in all: the funny, the triumphs, the disasters, the epic and
+   the drama. Nate watches each, trims or drops any, adds a moment, and downloads the plan for
+   the Recap Cutter on his own machine. Only here, only for him. */
+var RP = null;
+function rpOpen(i){
+  var v = VD.list[i]; if (!v) return;
+  RP = { v:v, busy:true, msg:'Reading the captions and the moments…', clips:[], moments:[], lines:[] };
+  VD.open = null; paint();
+  Promise.all([api('/ax/video', { v:v.id, captions:1, lines:1 }), api('/ax/draft', { k:'mo:' + v.id }), api('/ax/draft', { k:'rp:' + v.id })]).then(function(r){
+    RP.lines = r[0].lines || [];
+    try { RP.moments = JSON.parse(r[1].v || '[]'); } catch(e){ RP.moments = []; }
+    if (r[2].v){ try { var dr = JSON.parse(r[2].v); RP.clips = dr.clips || []; RP.busy = false; RP.msg = 'Your plan from ' + new Date(dr.at).toLocaleDateString(undefined, { month:'short', day:'numeric' }) + '.'; paint(); return; } catch(e){} }
+    return rpPick();
+  }).catch(function(e){ RP.busy = false; RP.msg = e.message; paint(); });
+}
+function rpPick(){
+  RP.busy = true; RP.msg = 'Choosing the clips…'; paint();
+  if (!RP.lines.length){ RP.busy = false; RP.msg = 'This video has no timed captions yet, so the clips cannot be found. Try again once YouTube has made them.'; paint(); return Promise.resolve(); }
+  var mom = RP.moments.map(function(m){ return vdTime(m.t) + ' (' + m.t + 's) ' + m.name + (m.tags && m.tags.length ? ' [' + m.tags.join(', ') + ']' : '') + (m.kept ? ' KEPT' : ' suggested'); }).join('\n');
+  var lines = RP.lines.map(function(l){ return Math.round(l.s) + ': ' + l.t; }).join('\n');
+  if (lines.length > 300000) lines = lines.slice(0, 300000);
+  var sys = 'You cut a 30 to 40 second recap of a tabletop actual-play session from its captions, so someone who missed it understands what happened and wants to watch. Pick 6 to 8 clips, each 3 to 5 seconds, in the order they happened. Choose moments that land on their own: a laugh, a triumph, a disaster, something epic, real drama. Prefer the marked moments (KEPT ones most), and make each clip start on the line that sets it up and end just after the payoff. '
+    + 'Return ONLY JSON: [{"start":seconds,"end":seconds,"label":"a few words","tags":["funny"|"triumph"|"disaster"|"epic"|"drama"]}] using the caption seconds given.';
+  var user = 'Video: ' + RP.v.title + '\n\nMoments marked at the table:\n' + (mom || '(none)') + '\n\nCaptions, by the second they start:\n' + lines;
+  return ai(sys, user, 1500, true).then(function(raw){
+    var arr = []; try { arr = JSON.parse(String(raw).replace(/```json|```/g, '').trim()); } catch(e){ var m = String(raw).match(/\[[\s\S]*\]/); try { arr = m ? JSON.parse(m[0]) : []; } catch(e2){ arr = []; } }
+    RP.clips = (Array.isArray(arr) ? arr : []).map(function(c){ var s = Math.max(0, +c.start || 0), e = Math.max(s + 1, +c.end || s + 4); if (e - s > 8) e = s + 8; return { start:Math.round(s * 10) / 10, end:Math.round(e * 10) / 10, label:noDash(c.label || '').trim(), tags:Array.isArray(c.tags) ? c.tags : [] }; }).sort(function(a, b){ return a.start - b.start; });
+    RP.busy = false; RP.msg = RP.clips.length ? '' : 'No clips came back. Try Choose again.'; rpSave(); paint();
+  }).catch(function(e){ RP.busy = false; RP.msg = 'Not chosen: ' + e.message; paint(); });
+}
+function rpSave(){ if (RP) return api('/ax/draft', { k:'rp:' + RP.v.id }, JSON.stringify({ clips:RP.clips, at:Date.now() })).catch(function(){}); }
+function rpTotal(){ return RP.clips.reduce(function(a, c){ return a + Math.max(0, c.end - c.start); }, 0); }
+function rpNudge(i, k, d){ var c = RP.clips[i]; c[k] = Math.max(0, Math.round((c[k] + d) * 10) / 10); if (c.end <= c.start) c.end = c.start + 1; rpSave(); paint(); }
+function rpDrop(i){ RP.clips.splice(i, 1); rpSave(); paint(); }
+function rpAdd(j){ var m = RP.moments[j]; if (!m) return; RP.clips.push({ start:Math.max(0, m.t - 1), end:m.t + 3, label:m.name, tags:m.tags || [] }); RP.clips.sort(function(a, b){ return a.start - b.start; }); rpSave(); paint(); }
+function rpLine(c){ var l = RP.lines.filter(function(x){ return x.s >= c.start - 0.5 && x.s < c.end; }).map(function(x){ return x.t; }).join(' '); return l.slice(0, 220); }
+function paintRecap(){
+  var h = '<div class="panel"><div class="row" style="justify-content:space-between"><h2 style="margin:0">A recap video: ' + esc(RP.v.title) + '</h2><button class="btn" onclick="RP=null;paint()">Back to the videos</button></div>';
+  if (RP.busy) return h + '<p class="lead">' + esc(RP.msg) + '</p></div>';
+  var tot = rpTotal();
+  h += '<p class="lead">Watch each pick, trim it a second at a time, drop what does not land, add a marked moment. Then download the plan and open it in the Recap Cutter with the session\u2019s recording.</p>'
+    + '<div class="list">' + RP.clips.map(function(c, i){ return '<div class="it" style="grid-template-columns:44px minmax(0,1fr) auto"><span class="num">' + (i + 1) + '</span>'
+      + '<span class="ti"><a href="https://youtu.be/' + esc(RP.v.id) + '?t=' + Math.floor(c.start) + '" target="_blank" rel="noopener">' + vdTime(c.start) + '</a> to ' + vdTime(c.end) + ' (' + (Math.round((c.end - c.start) * 10) / 10) + 's) ' + esc(c.label) + (c.tags && c.tags.length ? ' <small style="display:inline">' + esc(c.tags.join(', ')) + '</small>' : '') + '<small>' + esc(rpLine(c)) + '</small></span>'
+      + '<span class="row" style="margin:0;gap:4px"><button class="btn" onclick="rpNudge(' + i + ',\'start\',-1)" title="Start a second earlier">\u2212 start</button><button class="btn" onclick="rpNudge(' + i + ',\'start\',1)" title="Start a second later">+ start</button><button class="btn" onclick="rpNudge(' + i + ',\'end\',-1)" title="End a second earlier">\u2212 end</button><button class="btn" onclick="rpNudge(' + i + ',\'end\',1)" title="End a second later">+ end</button><button class="btn" onclick="rpDrop(' + i + ')">Drop</button></span></div>'; }).join('') + '</div>'
+    + '<p class="lead" style="margin-top:8px">' + RP.clips.length + ' clips, ' + Math.round(tot) + ' seconds' + (tot > 40 ? ': over 40, drop or trim one.' : tot < 30 ? ': under 30, add a moment if one is missing.' : '.') + '</p>'
+    + (RP.moments.length ? '<div class="row"><label class="f">Add a marked moment<select class="t" onchange="if(this.value!==\'\'){rpAdd(+this.value);}"><option value="">Choose one\u2026</option>' + RP.moments.map(function(m, j){ return '<option value="' + j + '">' + esc(vdTime(m.t) + ' ' + m.name + (m.kept ? '' : ' (suggested)')) + '</option>'; }).join('') + '</select></label></div>' : '<p class="lead">No moments came from the table for this video. Mark them with M during a session, and keep them in Moments.</p>')
+    + '<div class="row"><button class="btn" onclick="rpPick()">Choose again</button><button class="btn pri" onclick="rpDownload()"' + (RP.clips.length ? '' : ' disabled') + '>Download the plan</button></div>'
+    + '<p class="lead">' + esc(RP.msg || '') + '</p></div>';
+  return h;
+}
+function rpDownload(){
+  var plan = { kind:'lorefell-recap-plan', version:1, video:{ id:RP.v.id, title:RP.v.title }, made:new Date().toISOString(), clips:RP.clips.map(function(c){ return { start:c.start, end:c.end, label:c.label, tags:c.tags }; }) };
+  var name = 'recap-plan - ' + String(RP.v.title).replace(/[\\/:*?"<>|]+/g, '').slice(0, 80) + '.json';
+  var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(plan, null, 2)], { type:'application/json' })); a.download = name;
+  document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  RP.msg = 'Downloaded. Open it in the Recap Cutter with the session\u2019s recording.'; paint();
+}
 /* ================= the videos: titles and descriptions, past and present =================
    Every video on the channel (or one playlist), oldest first. Each gets a title of
    "Adventure | Episode" and a description written to be found and shared: a hook, a teaser,
@@ -168,13 +228,14 @@ function paintVideos(){
   if (VD.list === null) vdLoad();
   var pls = Array.isArray(AX.playlists) ? AX.playlists : [];
   if (AX.playlists === null){ AX.playlists = 'loading'; api('/ax/playlists').then(function(d){ AX.playlists = d.items; paint(); }).catch(function(){ AX.playlists = []; }); }
+  if (RP) return paintRecap();
   if (VD.open) return paintVideoOpen();
   var h = '<div class="panel"><h2>The videos</h2><p class="lead">Give each video its title, Adventure | Episode, and a description made to be found: a hook, a teaser, chapters, an invitation and hashtags. Open one to write it, or draft the rest and read each before it goes up.</p>'
     + '<div class="row"><label class="f">Which videos<select class="t" onchange="VD.from=this.value;vdLoad()"><option value="all"' + (VD.from === 'all' ? ' selected' : '') + '>Every video on the channel</option>' + pls.map(function(p){ return '<option value="' + esc(p.id) + '"' + (VD.from === p.id ? ' selected' : '') + '>' + esc(p.title) + '</option>'; }).join('') + '</select></label></div>';
   if (VD.list === 'loading') h += '<p class="lead">Reading the channel…</p>';
   else if (!VD.list.length) h += '<div class="empty">' + esc(VD.msg || 'No videos here.') + '</div>';
   else h += '<div class="list">' + VD.list.map(function(v, i){ return '<div class="it"><span class="num">' + (i + 1) + '</span><span class="ti">' + esc(v.title) + '<small>' + esc(new Date(v.at).toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' })) + '</small></span>'
-      + '<span class="row" style="margin:0"><span class="mark ' + (v.done ? 'done' : v.draft ? 'wait' : 'wait') + '">' + (v.done ? 'updated' : v.draft ? 'draft saved' : '') + '</span><button class="btn' + (v.draft ? ' pri' : '') + '" onclick="vdOpen(' + i + ')">' + (v.draft ? 'Open the draft' : v.done ? 'Again' : 'Write it') + '</button></span></div>'; }).join('') + '</div>'
+      + '<span class="row" style="margin:0"><span class="mark ' + (v.done ? 'done' : v.draft ? 'wait' : 'wait') + '">' + (v.done ? 'updated' : v.draft ? 'draft saved' : '') + '</span><button class="btn" onclick="rpOpen(' + i + ')" title="Plan a 30 to 40 second recap video">Recap video</button><button class="btn' + (v.draft ? ' pri' : '') + '" onclick="vdOpen(' + i + ')">' + (v.draft ? 'Open the draft' : v.done ? 'Again' : 'Write it') + '</button></span></div>'; }).join('') + '</div>'
       + '<div class="row"><button class="btn pri" onclick="vdDraftRest()"' + (VD.drafting ? ' disabled' : '') + '>' + (VD.drafting ? 'Drafting…' : 'Draft the rest') + '</button></div>';
   return h + '<div class="log" id="axlog" aria-live="polite">' + esc(VD.msg || '') + '</div></div>';
 }
