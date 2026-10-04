@@ -119,8 +119,39 @@ async function youtube(req, url, env) {
     const items = (li.items || []).map((it) => ({ id: (it.contentDetails && it.contentDetails.videoId) || '', title: (it.snippet && it.snippet.title) || '', at: (it.contentDetails && it.contentDetails.videoPublishedAt) || (it.snippet && it.snippet.publishedAt) || '' })).filter((x) => x.id);
     return out({ ok: true, items: items });
   }
+  if (url.pathname === '/yt/video' || url.pathname === '/yt/video/update') {
+    const at = await ytAccess(env, who.member); if (!at) return out({ ok: false, error: 'not connected' });
+    const v = String(url.searchParams.get('v') || '').match(/^[A-Za-z0-9_-]{6,20}$/); if (!v) return out({ ok: false, error: 'no video id' });
+    const auth = { Authorization: 'Bearer ' + at };
+    const got = await (await fetch('https://www.googleapis.com/youtube/v3/videos?part=snippet&id=' + v[0], { headers: auth })).json();
+    const it = got.items && got.items[0]; if (!it) return out({ ok: false, error: 'that video is not on your connected channel' });
+    if (url.pathname === '/yt/video') return out({ ok: true, title: it.snippet.title || '', description: it.snippet.description || '' });
+    let body = {}; try { body = JSON.parse(await req.text()); } catch (e) {}
+    const title = String(body.title || '').slice(0, 100), description = String(body.description || '').slice(0, 5000);
+    if (!title) return out({ ok: false, error: 'a title is needed' });
+    const snip = { title: title, description: description, categoryId: it.snippet.categoryId || '20' };
+    if (it.snippet.tags) snip.tags = it.snippet.tags;
+    if (it.snippet.defaultLanguage) snip.defaultLanguage = it.snippet.defaultLanguage;
+    const up = await fetch('https://www.googleapis.com/youtube/v3/videos?part=snippet', { method: 'PUT', headers: Object.assign({ 'Content-Type': 'application/json' }, auth), body: JSON.stringify({ id: v[0], snippet: snip }) });
+    const uj = await up.json();
+    if (uj.error) return out({ ok: false, error: uj.error.message || 'YouTube refused' });
+    return out({ ok: true, title: uj.snippet && uj.snippet.title });
+  }
   if (url.pathname === '/yt/disconnect') { await ytStore(env, { op: 'tok-del', m: who.member }); return out({ ok: true, connected: false }); }
   return out({ ok: false, error: 'not found' }, 404);
+}
+/* the captions in minute-and-a-half pieces, each with where it starts, for chapters */
+function srtSegments(srt) {
+  const out = []; let cur = null;
+  String(srt || '').split(/\r?\n\r?\n/).forEach((blk) => {
+    const m = blk.match(/(\d{2}):(\d{2}):(\d{2}),\d{3}\s*-->/); if (!m) return;
+    const s = (+m[1]) * 3600 + (+m[2]) * 60 + (+m[3]);
+    const t = blk.split(/\r?\n/).filter((l) => l && !/-->/.test(l) && !/^\d+$/.test(l)).join(' ').replace(/<[^>]+>/g, '').trim();
+    if (!t) return;
+    if (!cur || s - cur.s >= 90) { cur = { s: s, t: '' }; out.push(cur); }
+    cur.t = (cur.t + ' ' + t).slice(0, 400);
+  });
+  return out.slice(0, 400);
 }
 async function ytCaptions(env, member, vid) {
   const at = await ytAccess(env, member); if (!at) return null;
@@ -134,7 +165,7 @@ async function ytCaptions(env, member, vid) {
   if (!r.ok) return { ok: false, error: 'the captions could not be downloaded' };
   const srt = await r.text();
   const text = srt.replace(/^\d+\s*$/gm, '').replace(/\d{2}:\d{2}:\d{2},\d{3}\s*-->\s*\d{2}:\d{2}:\d{2},\d{3}/g, '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
-  return { ok: !!text, text: text.slice(0, 600000), title: '', error: text ? '' : 'the captions were empty' };
+  return { ok: !!text, text: text.slice(0, 600000), segments: srtSegments(srt), title: '', error: text ? '' : 'the captions were empty' };
 }
 async function transcript(req, url, env) {
   const origin = req.headers.get('Origin') || '';
