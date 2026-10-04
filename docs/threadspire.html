@@ -331,7 +331,8 @@ body.lm-role .hCodexP, body.stream .hCodexP, body.clean .hCodexP{ display:none !
 .lm-mark{ color:#f0d48a; }
 .mv-nudge{ display:flex; align-items:center; gap:8px; margin:4px 0 10px; font-size:.9rem; color:#93a3b6; } .mv-nudge .tsm-btn{ height:30px; padding:0 10px; } .mv-nudge b{ color:#dce8ef; min-width:44px; text-align:center; }
 .mv-list{ display:flex; flex-direction:column; gap:6px; max-height:50vh; overflow:auto; padding:2px; }
-.mv-row{ display:grid; grid-template-columns:20px 64px minmax(140px,1fr) 110px auto; gap:8px; align-items:center; } .mv-row.off{ opacity:.55; }
+.mv-tags{ display:flex; flex-wrap:wrap; gap:3px; } .mv-tags button{ height:24px; padding:0 7px; border-radius:6px; border:1px solid #2c3a58; background:#141b31; color:#93a3b6; font:inherit; font-size:.78rem; cursor:pointer; } .mv-tags button.on{ border-color:#c9a84c; color:#f0d48a; background:rgba(201,168,76,.12); }
+.mv-row{ display:grid; grid-template-columns:20px 64px minmax(140px,1fr) auto auto; gap:8px; align-items:center; } .mv-row.off{ opacity:.55; }
 .mv-row a{ color:#c9a84c; font-family:Cinzel,serif; font-size:.85rem; } .mv-row i{ font-style:normal; font-size:.8rem; color:#93a3b6; } .mv-row input[type=checkbox]{ width:16px; height:16px; accent-color:#c9a84c; }
 #retellCard{ position:fixed; inset:0; z-index:420; display:none; align-items:center; justify-content:center; pointer-events:none; }
 #retellCard.on{ display:flex; }
@@ -6748,6 +6749,14 @@ function ytdMerge(old, mine){
   if (a >= 0 && b > a) return (old.slice(0, a) + block + old.slice(b + YTD_END.length)).trim();
   return (block + (old.trim() ? '\n\n' + old.trim() : '')).trim();
 }
+/* "Session 1 — The Hands Arrive" reads as "The Hands Arrive" after the pipe */
+function ytdSessionClean(t){ return String(t || '').replace(/^\s*session\s*\d+\s*[\u2014\-:|]\s*/i, '').trim(); }
+function ytdSessionGuess(){
+  var c = [recapSessionName(), S.retellPick && S.retellPick.session, (SESS.recaps || [])[0] && SESS.recaps[0].title];
+  for (var i = 0; i < c.length; i++){ var v = ytdSessionClean(c[i]); if (v && v.toLowerCase() !== 'session recap' && !/^session\s*\d+$/i.test(v)) return v; }
+  return '';
+}
+function ytdTitle(session){ session = ytdSessionClean(session); return (advName() + (session ? ' | ' + session : '')).slice(0, 100); }
 function ytDescribe(videoId, session, recap, segments){
   if (!isLM() || keeperNo() || !videoId) return;
   YTD = { vid:videoId, session:session || '', recap:recap || '', segs:segments || [], busy:true, msg:'Reading the video and writing its description\u2026', title:'', desc:'', old:'' };
@@ -6771,8 +6780,9 @@ function ytDescribe(videoId, session, recap, segments){
     var mo = ((S.moments || {})[YTD.vid] || {}).list || [];
     if (mo.length) lines.push('', 'Moments', mo.map(function(m){ return ytdTime(m.t) + ' ' + m.name; }).join('\n'));
     lines.push('', 'Run your own adventure, or catch up on this one: https://www.lorefell.com', '', tags.join(' '));
-    YTD.title = (advName() + (YTD.session ? ' | ' + YTD.session : '')).slice(0, 100);
-    YTD.desc = ytdMerge(YTD.old, lines.join('\n').replace(/\s*\u2014\s*/g, ', '));
+    if (!YTD.session) YTD.session = ytdSessionGuess();
+    YTD.title = ytdTitle(YTD.session);
+    YTD.desc = lines.join('\n').replace(/\s*\u2014\s*/g, ', ');
     YTD.busy = false; YTD.msg = ch.length >= 3 ? '' : 'No chapters: they come from the video\u2019s timed captions, which a pasted transcript does not carry.';
     ytdPaint();
   }).catch(function(e){ YTD.busy = false; YTD.msg = 'Not written: ' + String((e && e.message) || e).slice(0, 120); ytdPaint(); });
@@ -6782,9 +6792,10 @@ function ytdPaint(){
   var h = '<h3 class="tsm-title">Update the video</h3>';
   if (d.busy) h += '<p class="tsm-note">' + esc(d.msg) + '</p>';
   else {
-    h += '<label class="tsm-lbl" for="ytdTitle">Title</label><input class="tsm-inp" id="ytdTitle" maxlength="100" value="' + esc(d.title) + '" oninput="YTD.title=this.value">'
+    h += '<label class="tsm-lbl" for="ytdSess">The session\u2019s name</label><input class="tsm-inp" id="ytdSess" maxlength="80" value="' + esc(ytdSessionClean(d.session)) + '" oninput="YTD.session=this.value;YTD.title=ytdTitle(this.value);document.getElementById(\'ytdTitle\').value=YTD.title">'
+      + '<label class="tsm-lbl" for="ytdTitle">Title</label><input class="tsm-inp" id="ytdTitle" maxlength="100" value="' + esc(d.title) + '" oninput="YTD.title=this.value">'
       + '<label class="tsm-lbl" for="ytdDesc">Description</label><textarea class="tsm-inp tsm-ta" id="ytdDesc" rows="16" oninput="YTD.desc=this.value">' + esc(d.desc) + '</textarea>'
-      + '<p class="tsm-note">Only the part between ' + esc(YTD_START) + ' and ' + esc(YTD_END) + ' is LoreFell\u2019s; anything else in the description was already there and stays. ' + esc(d.msg) + '</p>';
+      + '<p class="tsm-note">This replaces the video\u2019s whole description. ' + esc(d.msg) + '</p>';
   }
   h += '<div class="tsm-row"><button class="tsm-btn ghost" onclick="YTD=null;tsCloseModal()">Not now</button>' + (d.busy ? '' : '<button class="tsm-btn ghost" onclick="ytDescribe(YTD.vid,YTD.session,YTD.recap,YTD.segs)">Write it again</button><button class="tsm-btn" onclick="ytdSend()">Update the video</button>') + '</div>';
   tsModal(h, true);
@@ -6809,18 +6820,23 @@ function ytdSend(){
    with the video (a live stream says when it began; a nudge covers the stream's delay),
    tightens each against the captions, and the kept ones go into the video's description,
    the Journal, and links for clipping. Only for the site's own channel. */
-var MOM_KINDS = [['funny','Funny'],['triumph','Triumph'],['disaster','Disaster'],['epic','Epic']];
+var MOM_KINDS = [['funny','Funny'],['triumph','Triumph'],['disaster','Disaster'],['epic','Epic'],['drama','Drama']];
+/* a moment's tags: several may apply (an older mark's single kind counts as one) */
+function momTags(m){ return Array.isArray(m.tags) ? m.tags : (m.kind ? [m.kind] : []); }
+function momTagToggle(m, k){ var t = momTags(m).slice(), i = t.indexOf(k); if (i >= 0) t.splice(i, 1); else t.push(k); m.tags = t; delete m.kind; }
+function momTagWords(m){ return momTags(m).map(function(k){ return ((MOM_KINDS.filter(function(x){ return x[0] === k; })[0]) || [k, k])[1]; }).join(', '); }
 function momOn(){ return isLM() && !isKeeper() && !S.stream && YT.connected && YT.allowed; }
 function momentMark(){
   if (!momOn()) return;
   S.marks = S.marks || [];
-  var m = { id:'mk' + Date.now(), at:Date.now(), back:45, fwd:10, kind:'', name:(S.scene && S.scene.name) || 'A moment' };
+  var m = { id:'mk' + Date.now(), at:Date.now(), back:45, fwd:10, tags:[], name:(S.scene && S.scene.name) || 'A moment' };
   S.marks.push(m); S.marks = S.marks.slice(-400); schedulePush();
   momBar(m);
 }
 function momSet(id, k, v){
   var m = (S.marks || []).filter(function(x){ return x.id === id; })[0]; if (!m) return;
-  m[k] = v; schedulePush(); momBar(m, true);
+  if (k === 'tag') momTagToggle(m, v); else m[k] = v;
+  schedulePush(); momBar(m, true);
 }
 var _momBarT = null;
 function momBar(m, keep){
@@ -6828,7 +6844,7 @@ function momBar(m, keep){
   if (!el){ el = document.createElement('div'); el.id = 'momBar'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
   el.innerHTML = '<div class="mb-t">\u2726 Moment marked: <b>' + esc(m.name) + '</b></div>'
     + '<div class="mb-row"><span>Back</span>' + [30,45,60,90].map(function(s){ return '<button class="' + (m.back === s ? 'on' : '') + '" onclick="momSet(\'' + m.id + '\',\'back\',' + s + ')">' + s + 's</button>'; }).join('')
-    + '<span class="mb-gap"></span>' + MOM_KINDS.map(function(k){ return '<button class="' + (m.kind === k[0] ? 'on' : '') + '" onclick="momSet(\'' + m.id + '\',\'kind\',\'' + (m.kind === k[0] ? '' : k[0]) + '\')">' + k[1] + '</button>'; }).join('') + '</div>';
+    + '<span class="mb-gap"></span><span>Tags</span>' + MOM_KINDS.map(function(k){ var on = momTags(m).indexOf(k[0]) >= 0; return '<button class="' + (on ? 'on' : '') + '" aria-pressed="' + on + '" onclick="momSet(\'' + m.id + '\',\'tag\',\'' + k[0] + '\')">' + k[1] + '</button>'; }).join('') + '</div>';
   el.classList.add('on');
   clearTimeout(_momBarT); _momBarT = setTimeout(function(){ el.classList.remove('on'); }, keep ? 6000 : 7000);
 }
@@ -6850,7 +6866,7 @@ function momSuggestions(from, to){
     var name = '';
     if (e.kind === 'roll' && (e.n === 6 || e.n === 1)) name = (e.who || 'A roll') + ': ' + (e.n === 6 ? 'a Fellmark' : 'a Fellstrike');
     else if (/\b(is down|goes down|falls|is slain|Lore Points?\b|reaches level|levels? up|Lore Drop)/i.test(txt) && !e.lmOnly) name = txt.slice(0, 80);
-    if (name) out.push({ id:'sg' + t, at:t, back:20, fwd:15, kind:e.kind === 'roll' ? (e.n === 6 ? 'triumph' : 'disaster') : 'epic', name:name, suggested:true });
+    if (name) out.push({ id:'sg' + t, at:t, back:20, fwd:15, tags:[e.kind === 'roll' ? (e.n === 6 ? 'triumph' : 'disaster') : 'epic'], name:name, suggested:true });
   });
   return out;
 }
@@ -6870,7 +6886,7 @@ function momentsReview(i){
     var marks = (S.marks || []).filter(function(m){ return m.at >= start - 60000 && m.at <= end; }).map(function(m){ return Object.assign({ keep:true }, m); });
     var sugg = momSuggestions(start, end).filter(function(sg){ return !marks.some(function(m){ return Math.abs(m.at - sg.at) < 30000; }); }).map(function(sg){ return Object.assign({ keep:false }, sg); });
     MOMV.list = marks.concat(sugg).sort(function(a, b){ return a.at - b.at; });
-    if (saved && saved.list) saved.list.forEach(function(s){ var hit = MOMV.list.filter(function(x){ return x.id === s.id; })[0]; if (hit){ hit.keep = true; hit.name = s.name; hit.kind = s.kind; hit.back = s.back; if (s.tight !== undefined) hit.tight = s.tight; } });
+    if (saved && saved.list) saved.list.forEach(function(s){ var hit = MOMV.list.filter(function(x){ return x.id === s.id; })[0]; if (hit){ hit.keep = true; hit.name = s.name; hit.tags = momTags(s); hit.back = s.back; if (s.tight !== undefined) hit.tight = s.tight; } });
     MOMV.busy = false; MOMV.msg = MOMV.live ? '' : 'This video was not streamed live, so its start is when it went up: nudge the times until a link lands on its moment.';
     momPaint();
   }).catch(function(e){ MOMV.busy = false; MOMV.msg = 'Not read: ' + String((e && e.message) || e).slice(0, 120); momPaint(); });
@@ -6886,7 +6902,7 @@ function momPaint(){
           return '<div class="mv-row' + (m.keep ? '' : ' off') + '"><input type="checkbox"' + (m.keep ? ' checked' : '') + ' onchange="MOMV.list[' + i + '].keep=this.checked;momPaint()" aria-label="Keep this moment">'
             + '<a href="https://youtu.be/' + esc(d.vid) + '?t=' + t + '" target="_blank" rel="noopener" title="Watch from here">' + ytdTime(t) + '</a>'
             + '<input class="vid-fixin" value="' + esc(m.name) + '" oninput="MOMV.list[' + i + '].name=this.value" aria-label="Its name">'
-            + '<select class="vid-fixin" onchange="MOMV.list[' + i + '].kind=this.value" aria-label="Its kind"><option value="">Kind</option>' + MOM_KINDS.map(function(k){ return '<option value="' + k[0] + '"' + (m.kind === k[0] ? ' selected' : '') + '>' + k[1] + '</option>'; }).join('') + '</select>'
+            + '<span class="mv-tags" role="group" aria-label="Tags">' + MOM_KINDS.map(function(k){ var on = momTags(m).indexOf(k[0]) >= 0; return '<button class="' + (on ? 'on' : '') + '" aria-pressed="' + on + '" onclick="momTagToggle(MOMV.list[' + i + '],\'' + k[0] + '\');momPaint()">' + k[1] + '</button>'; }).join('') + '</span>'
             + (m.suggested ? '<i>suggested</i>' : (m.tight !== undefined ? '<i>tightened</i>' : '<i>' + m.back + 's back</i>')) + '</div>'; }).join('') + '</div>'
         : '<p class="tsm-note">No marks fall within this video. Press M during a session to mark one.</p>')
       + '<p class="tsm-note">' + esc(d.msg) + '</p>';
@@ -6914,13 +6930,13 @@ function momTighten(){
 function momSave(){
   var d = MOMV; if (!d) return;
   S.moments = S.moments || {};
-  S.moments[d.vid] = { nudge:d.nudge, list:d.list.filter(function(m){ return m.keep; }).map(function(m){ return { id:m.id, at:m.at, back:m.back, fwd:m.fwd, tight:m.tight, name:m.name, kind:m.kind, t:momT(m) }; }) };
+  S.moments[d.vid] = { nudge:d.nudge, list:d.list.filter(function(m){ return m.keep; }).map(function(m){ return { id:m.id, at:m.at, back:m.back, fwd:m.fwd, tight:m.tight, name:m.name, tags:momTags(m), t:momT(m) }; }) };
   schedulePush();
   var kept = S.moments[d.vid].list;
   /* the Journal keeps them as links, for clipping */
   if (kept.length){
     S.journal = S.journal || [];
-    S.journal.push({ id:'j' + Date.now(), ts:Date.now(), kind:'moments', videoId:d.vid, text:'Moments in ' + d.title + ':\n' + kept.map(function(m){ return ytdTime(m.t) + ' ' + m.name + (m.kind ? ' (' + m.kind + ')' : '') + ' https://youtu.be/' + d.vid + '?t=' + m.t; }).join('\n') });
+    S.journal.push({ id:'j' + Date.now(), ts:Date.now(), kind:'moments', videoId:d.vid, text:'Moments in ' + d.title + ':\n' + kept.map(function(m){ return ytdTime(m.t) + ' ' + m.name + (momTags(m).length ? ' (' + momTagWords(m) + ')' : '') + ' https://youtu.be/' + d.vid + '?t=' + m.t; }).join('\n') });
     journalBackend.save(S.journal).catch(function(){});
   }
   MOMV = null;
