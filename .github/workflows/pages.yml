@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - 'docs/**'
+      - 'sphere/**'
+      - 'scripts/buildSphere.js'
       - '.github/workflows/pages.yml'
   workflow_dispatch: {}
 
@@ -20,8 +22,30 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      HAS_VAULT_TOKEN: ${{ secrets.VAULT_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v4
+      # The Sphere is baked from the vault at deploy time, so the live page always matches
+      # the FellGuide as it stands. Without the secret, the committed copy ships instead.
+      - name: Check out the vault
+        if: ${{ env.HAS_VAULT_TOKEN == 'true' }}
+        uses: actions/checkout@v4
+        with:
+          repository: The-LoreMaster/lorefell-fellguide
+          token: ${{ secrets.VAULT_TOKEN }}
+          path: .vault-checkout
+      - uses: actions/setup-node@v4
+        if: ${{ env.HAS_VAULT_TOKEN == 'true' }}
+        with:
+          node-version: 20
+      - name: Bake the Sphere from the vault
+        if: ${{ env.HAS_VAULT_TOKEN == 'true' }}
+        continue-on-error: true   # a vault page the Sphere cannot read never blocks the other tools
+        run: VAULT_DIR=.vault-checkout node scripts/buildSphere.js
+      - name: Note when the Sphere is not rebaked
+        if: ${{ env.HAS_VAULT_TOKEN != 'true' }}
+        run: echo '::warning::VAULT_TOKEN secret not set; the Sphere ships as committed, not fresh from the vault.'
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

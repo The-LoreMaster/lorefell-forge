@@ -33,6 +33,7 @@ Website address, then correct this file.
 | threadspire  | PAGES | https://table.lorefell.com/threadspire.html          | Deploy Pages    |
 | fatewell     | PAGES | https://table.lorefell.com/fatewell.html (confirm)   | Deploy Pages    |
 | fellglass    | PAGES | https://table.lorefell.com/fellglass.html (confirm)  | Deploy Pages    |
+| the_sphere   | PAGES | https://table.lorefell.com/the_sphere.html           | Deploy Pages (baked from the vault), kept current by Sphere Sync |
 
 Tools not listed: verify the component's Website address in the Wix editor and add a row
 before assuming either path. A blank row is better than a guessed one.
