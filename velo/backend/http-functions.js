@@ -2,6 +2,8 @@ import { ok, notFound, serverError, badRequest } from 'wix-http-functions';
 import wixData from 'wix-data';
 import { getSecret } from 'wix-secrets-backend';
 import { fetch } from 'wix-fetch';
+import { triggeredEmails } from 'wix-crm-backend';
+import { RECAP_TEMPLATE_ID } from 'backend/sessionsCore.js';
 
 // GET /_functions/embed?slug=sigilforge
 // Returns the stored SiteEmbeds.html verbatim as a full HTML document.
@@ -410,4 +412,26 @@ export function get_manifest(request) {
     ]
   };
   return ok({ headers: { 'Content-Type': 'application/manifest+json', 'Cache-Control': 'public, max-age=3600', 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify(body) });
+}
+
+// The Anexanum's round found a new session video's captions ready and wrote its draft. The
+// room calls here with the video's id; this asks the room itself what is pending (so nothing
+// but a real, not yet announced draft can send anything) and emails the channel's owner a
+// link that opens ThreadSpire on the review: the names, the recap, then the title and
+// description to approve. It uses the recap email's template.
+export async function get_anexanumReady(request) {
+  const v = String((request.query && request.query.v) || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 20);
+  if (!v) return badRequest({ body: { ok: false } });
+  let p = null;
+  try { const r = await fetch('https://lorefell-table.nate8-johnson.workers.dev/ax-pending?v=' + v); p = await r.json(); } catch (e) { p = null; }
+  if (!p || !p.ok || !p.owner) return ok({ headers: { 'Content-Type': 'application/json' }, body: { ok: false } });
+  const link = 'https://www.lorefell.com/the-threadspire?role=lm' + (p.campaignId ? '&campaign=' + encodeURIComponent(p.campaignId) : '') + '&ytreview=' + encodeURIComponent(v);
+  const goes = p.goesUpAt ? new Date(p.goesUpAt).toLocaleString('en-US', { timeZone: 'America/Phoenix', weekday: 'long', hour: 'numeric', minute: '2-digit' }) : 'in twelve hours';
+  const body = 'The captions for "' + p.title + '" are in, and its title and description are written.\n\n'
+    + 'Open ThreadSpire to check the names, read the recap, and approve the title and description before they go up.\n\n'
+    + 'If you do nothing, they go up on their own ' + goes + ' (Arizona time).';
+  try {
+    await triggeredEmails.emailMember(RECAP_TEMPLATE_ID, p.owner, { variables: { adventure: p.adv || 'Your adventure', title: 'Your session video is ready to review', recap: body, image: '', link: link } });
+  } catch (e) { return ok({ headers: { 'Content-Type': 'application/json' }, body: { ok: false, error: String(e).slice(0, 120) } }); }
+  return ok({ headers: { 'Content-Type': 'application/json' }, body: { ok: true } });
 }

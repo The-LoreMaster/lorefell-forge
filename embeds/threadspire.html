@@ -6887,6 +6887,7 @@ function ytdSend(){
     if (!r || !r.ok) throw new Error((r && r.error) || 'YouTube refused');
     pushLog({ kind:'sys', lmOnly:true, html:'YouTube: <b>' + esc(d.title) + '</b> has its new title and description.' }); applyRemoteState({ log:S.log });
     if (S.ytDrafts && S.ytDrafts[d.vid]){ delete S.ytDrafts[d.vid]; } S.ytDone = S.ytDone || {}; S.ytDone[d.vid] = Date.now(); schedulePush();
+    ytTicket().then(function(tk){ return fetch(ROOM_HTTP + '/yt/autodone?v=' + encodeURIComponent(d.vid) + '&c=' + encodeURIComponent(S.campaignId) + '&t=' + encodeURIComponent(tk)); }).catch(function(){});
     if (TIDY){ TIDY.list.forEach(function(v){ if (v.id === d.vid) v.title = d.title; }); }
     YTD = null; tsModal('<h3 class="tsm-title">The video is updated</h3><p class="lc-p">Its title and description are up on YouTube.</p><div class="tsm-row"><a class="tsm-btn ghost" href="https://youtu.be/' + esc(d.vid) + '" target="_blank" rel="noopener">See it</a><button class="tsm-btn" onclick="tsCloseModal()">Done</button></div>');
   }).catch(function(e){ d.busy = false; d.msg = 'Not updated: ' + String((e && e.message) || e).slice(0, 120); ytdPaint(); });
@@ -7340,6 +7341,8 @@ function vidAutoCheck(){
   if (!YT.loaded){ ytStatus(); return; }
   _vidAutoDone = true;
   if (!YT.connected || !YT.allowed) return;
+  ytAdvMap();
+  if (S._ytReview){ ytReviewStart(S._ytReview); S._ytReview = ''; return; }
   var name = vidNorm(advName()); if (!name) return;
   /* the Journal first, so a video already made into a recap is never offered again */
   (journalBackend && journalBackend.get ? journalBackend.get().catch(function(){ return null; }) : Promise.resolve(null)).then(function(rows){ if (Array.isArray(rows)) S.journal = rows; return ytTicket(); }).then(function(tk){
@@ -7355,6 +7358,23 @@ function vidAutoCheck(){
     })[0];
     if (hit) vidAutoAsk(hit);
   }).catch(function(){});
+}
+/* the room learns which adventure this name is, so its email can open the right one */
+function ytAdvMap(){
+  ytTicket().then(function(tk){ if (!tk) return; return fetch(ROOM_HTTP + '/yt/advmap?c=' + encodeURIComponent(S.campaignId) + '&name=' + encodeURIComponent(advName()) + '&t=' + encodeURIComponent(tk)); }).catch(function(){});
+}
+/* opened from the email: the round leaves the video alone, and the review begins at once with
+   the names, then the recap, then the title and description to approve */
+function ytReviewStart(vid){
+  ytTicket().then(function(tk){
+    fetch(ROOM_HTTP + '/yt/autohold?v=' + encodeURIComponent(vid) + '&c=' + encodeURIComponent(S.campaignId) + '&t=' + encodeURIComponent(tk)).catch(function(){});
+    return fetch(ROOM_HTTP + '/yt/video?v=' + encodeURIComponent(vid) + '&c=' + encodeURIComponent(S.campaignId) + '&t=' + encodeURIComponent(tk)).then(function(r){ return r.json(); });
+  }).then(function(d){
+    var title = (d && d.title) || '';
+    try { if (window._lobbyLook) lobbyLook(false); } catch(e){}
+    window._vidAuto = { id:vid, title:title, session:(String(title).split('|').slice(1).join('|') || '').trim() };
+    vidAutoGo();
+  }).catch(function(){ playToast('The session video could not be opened for review.', 'YouTube'); });
 }
 function vidAutoAsk(v){
   var parts = String(v.title).split('|'), sess = parts.length > 1 ? parts.slice(1).join('|').trim() : '';
@@ -12502,6 +12522,7 @@ window.onmessage = function(ev){
     return;
   }
   if (d && d.type === 'THREADSPIRE_CONTEXT'){
+    if (d.ytreview) S._ytReview = String(d.ytreview).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 20);
     if (d.stream) streamStart(d);
     /* a stream with no adventure named asks which, once */
     if (S.stream && !d.campaignId && !S._pickerShown){ S._pickerShown = true; setTimeout(function(){ try { tsOpenOnLoadPicker(); } catch(e){} }, 30); }

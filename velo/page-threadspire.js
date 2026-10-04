@@ -218,7 +218,7 @@ $w.onReady(async function () {
         if (cur !== campaignId) { campaignId = cur; ctx = await buildContext(characterId, campaignId); }
       }
       // view=stream: a capture window that follows this table and never writes (see, frame: its two switches)
-      embed.postMessage(Object.assign({ type: 'THREADSPIRE_CONTEXT', role: role, keeper: role === 'lm' && keeper, campaignId: campaignId, characterId: characterId, fromCast: cameFromCast, stream: q.view === 'stream', see: q.see || '', frame: q.frame || '' }, ctx));
+      embed.postMessage(Object.assign({ type: 'THREADSPIRE_CONTEXT', role: role, keeper: role === 'lm' && keeper, campaignId: campaignId, characterId: characterId, fromCast: cameFromCast, stream: q.view === 'stream', see: q.see || '', frame: q.frame || '', ytreview: q.ytreview || '' }, ctx));
     } else if (msg.type === 'THREADSPIRE_WANT_LORE') {
       let character = null;
       try { character = await threadspirePublicChar(msg.characterId); } catch (e) { character = null; }

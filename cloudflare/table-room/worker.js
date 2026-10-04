@@ -153,6 +153,20 @@ async function youtube(req, url, env) {
     if (uj.error) return out({ ok: false, error: uj.error.message || 'YouTube refused' });
     return out({ ok: true, title: uj.snippet && uj.snippet.title });
   }
+  /* the table tells the room which adventure a name belongs to, so an email can open it */
+  if (url.pathname === '/yt/advmap') {
+    const name = advKey(url.searchParams.get('name')); if (!name) return out({ ok: false });
+    return out(await ytStore(env, { op: 'ax-set', k: 'advmap:' + name, v: String(url.searchParams.get('c') || '').slice(0, 80) }));
+  }
+  /* the review opened at the table: the round leaves it alone; once posted from there, it is done */
+  if (url.pathname === '/yt/autohold' || url.pathname === '/yt/autodone') {
+    const v = String(url.searchParams.get('v') || '').match(/^[A-Za-z0-9_-]{6,20}$/); if (!v) return out({ ok: false });
+    const st = (await autoState(env, v[0])) || { at: Date.now() };
+    if (url.pathname === '/yt/autodone'){ st.state = 'done'; st.at = Date.now(); await ytStore(env, { op: 'ax-del', k: 'v:' + v[0] }); await ytStore(env, { op: 'ax-set', k: 'vd:' + v[0], v: String(Date.now()) }); }
+    else if (st.state === 'draft' || st.state === 'waiting') { st.state = 'held'; st.heldAt = Date.now(); }
+    await autoSave(env, v[0], st);
+    return out({ ok: true });
+  }
   if (url.pathname === '/yt/moments') {
     const v = String(url.searchParams.get('v') || '').match(/^[A-Za-z0-9_-]{6,20}$/); if (!v) return out({ ok: false, error: 'no video id' });
     const body = await req.text();
@@ -470,7 +484,9 @@ async function autoVideos(env) {
         const dr = await autoWrite(env, owner, v);
         if (!dr) { st.tries = (st.tries || 0) + 1; st.last = now; await autoSave(env, v.id, st); continue; }   /* captions not ready yet */
         await ytStore(env, { op: 'ax-set', k: 'v:' + v.id, v: JSON.stringify(dr) });
-        await autoSave(env, v.id, { state: 'draft', at: now, draftAt: now, title: dr.title });
+        await autoSave(env, v.id, { state: 'draft', at: now, draftAt: now, title: dr.title, adv: dr.adv, mailed: false });
+        /* Nate's email: the site asks /ax-pending what it is about before it sends anything */
+        try { await fetch('https://www.lorefell.com/_functions/anexanumReady?v=' + v.id); } catch (e) {}
         break;   /* one written a round is plenty */
       }
       if (st.state === 'draft' && now - st.draftAt >= AUTO_HOLD) {
@@ -488,6 +504,18 @@ async function autoVideos(env) {
   }
 }
 
+function advKey(n) { return String(n || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
+/* asked by the site once per draft: what to tell the owner, then never again for that video */
+async function axPending(url, env) {
+  const h = { 'Content-Type': 'application/json' };
+  const v = String(url.searchParams.get('v') || '').match(/^[A-Za-z0-9_-]{6,20}$/); if (!v) return new Response('{"ok":false}', { headers: h });
+  const st = await autoState(env, v[0]);
+  if (!st || st.state !== 'draft' || st.mailed) return new Response('{"ok":false}', { headers: h });
+  st.mailed = true; await autoSave(env, v[0], st);
+  const o = await ytStore(env, { op: 'owner-get' });
+  const map = await ytStore(env, { op: 'ax-get', k: 'advmap:' + advKey(st.adv) });
+  return new Response(JSON.stringify({ ok: true, owner: o.owner || '', title: st.title || '', adv: st.adv || '', campaignId: map.v || '', goesUpAt: st.draftAt + AUTO_HOLD }), { headers: h });
+}
 export default {
   async scheduled(event, env, ctx) { ctx.waitUntil(autoVideos(env).catch(() => {})); },
   async fetch(req, env) {
@@ -497,6 +525,7 @@ export default {
     if (url.pathname === '/transcript') return transcript(req, url, env);
     if (url.pathname.indexOf('/yt/') === 0) return youtube(req, url, env);
     if (url.pathname.indexOf('/ax/') === 0) return anexanum(req, url, env);
+    if (url.pathname === '/ax-pending') return axPending(url, env);
     if (!m) return new Response('not found', { status: 404 });
     if (req.headers.get('Upgrade') !== 'websocket') return new Response('expected a websocket', { status: 426 });
     const origin = req.headers.get('Origin') || 'null';
