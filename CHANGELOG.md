@@ -1,3 +1,7 @@
+## 2026-10-04 - Every adventure opens in the lobby
+
+Every time an adventure opens on the LoreMaster's table (a fresh open, a reload, or a switch to another adventure), everyone is sent to the lobby and the LoreMaster opens looking at it, within a second or two of the board arriving; the twenty-minute window that let a quick reload skip it is gone. Players keep landing in the lobby whenever no LoreMaster is at the table.
+
 ## 2026-10-04 - The lobby kept, not rebuilt; the runner keeps its shape
 
 The lobby is kept while hidden instead of being taken down and built again, so its video carries on where it was when the LoreMaster looks at it again (a rebuilt video sat on its still). While the lobby is up, the runner and the toolbar are hidden without leaving the layout, so the runner's cards keep their size and do not come back squeezed into a narrow column; leaving the lobby view repaints the runner.
