@@ -62,23 +62,46 @@ def transcribe(video_path, log=print, careful=True):
         model = WhisperModel(name, device='auto', compute_type='int8')
     except Exception:
         model = WhisperModel(name, device='cpu', compute_type='int8')
-    segs, info = model.transcribe(video_path, vad_filter=True, beam_size=1 if not careful else 5, condition_on_previous_text=False)
+    # The audio is read by ffmpeg, ten minutes at a time, rather than by faster-whisper's own
+    # reader (a newer PyAV refuses the way faster-whisper opens files: "unexpected keyword
+    # argument 'metadata_errors'"), and memory stays small on a long session.
+    import numpy as np
+    ffmpeg, ffprobe = find_ffmpeg()
+    if not ffmpeg:
+        raise RuntimeError('ffmpeg is not installed. See README.md: winget install Gyan.FFmpeg')
+    total = 0.0
+    try:
+        pr = subprocess.run([ffprobe, '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=nw=1:nk=1', video_path],
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        total = float(pr.stdout.strip() or 0)
+    except Exception:
+        total = 0.0
+    CHUNK = 600.0
     out = os.path.splitext(video_path)[0] + '.srt'
-    total = float(getattr(info, 'duration', 0) or 0)
-    last = -1
     n = 0
+    start = 0.0
     with open(out, 'w', encoding='utf-8') as f:
-        for sg in segs:
-            text = (sg.text or '').strip()
-            if not text:
-                continue
-            n += 1
-            f.write('%d\n%s --> %s\n%s\n\n' % (n, srt_time(sg.start), srt_time(sg.end), text))
+        while True:
+            pr = subprocess.run([ffmpeg, '-v', 'error', '-ss', '%.2f' % start, '-t', '%.2f' % CHUNK, '-i', video_path,
+                                 '-vn', '-ac', '1', '-ar', '16000', '-f', 's16le', '-'],
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+            raw = pr.stdout
+            if not raw or len(raw) < 3200:
+                break
+            audio = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
+            segs, _ = model.transcribe(audio, vad_filter=True, beam_size=5 if careful else 1, condition_on_previous_text=False, language='en')
+            for sg in segs:
+                text = (sg.text or '').strip()
+                if not text:
+                    continue
+                n += 1
+                f.write('%d\n%s --> %s\n%s\n\n' % (n, srt_time(start + sg.start), srt_time(start + sg.end), text))
+            f.flush()
+            start += CHUNK
             if total:
-                pc = int(sg.end / total * 100)
-                if pc // 5 != last // 5:
-                    last = pc
-                    log('Transcribing: %d%%' % pc)
+                log('Transcribing: %d%% (%d of %d minutes)' % (min(100, int(start / total * 100)), min(int(start // 60), int(total // 60)), int(total // 60)))
+            if total and start >= total:
+                break
     log('Transcript written:\n%s\nUse it in the Anexanum: The videos, Use a transcript file.' % out)
     return out
 
