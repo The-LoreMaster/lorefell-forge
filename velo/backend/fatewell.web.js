@@ -204,8 +204,14 @@ export const myAdventureRole = webMethod(Permissions.Anyone, async (campaignId) 
   const id = await memberId();
   if (!id || !campaignId) return '';
   const camp = await wd.get(COLLECTION, campaignId, { suppressAuth: true }).catch(() => null);
-  if (!camp) return '';
-  return await roleFor(id, campaignId, camp.ownerMemberId);
+  if (camp) return await roleFor(id, campaignId, camp.ownerMemberId);
+  // an adventure that lives only in the shared story (Adventures) has its owner on the story's root
+  try {
+    const r = await wd.query('Adventures').eq('advId', String(campaignId)).limit(1).find({ suppressAuth: true });
+    const a = r.items[0];
+    if (a && a.ownerMemberId) return await roleFor(id, campaignId, a.ownerMemberId);
+  } catch (e) {}
+  return '';
 });
 // Only the loremaster (owner) sets roles. Loremaster is a handoff: the target becomes
 // owner and the previous owner steps down to lorekeeper, so there is always exactly one.

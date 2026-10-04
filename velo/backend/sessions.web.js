@@ -120,6 +120,34 @@ export const deleteRecap = webMethod(Permissions.Anyone, async (campaignId, id) 
   try { await sessionSave(campaignId, { recaps: JSON.stringify(list) }); } catch (e2) { return { ok: false }; }
   return { ok: true, recaps: list };
 });
+function itemsOf(row) { try { const v = JSON.parse((row && row.codexItems) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
+async function atAdventure(campaignId, mid) {
+  const role = await roleAt(campaignId); if (role) return role;
+  const pl = await playersOf(campaignId); return pl.some((p) => p.memberId === mid) ? 'player' : '';
+}
+// A line anyone at the adventure adds to the Codex (a person, a place, a thing, a quest, a
+// clue, or a note on the story), marked with who wrote it. They may take back their own;
+// the LoreMaster may take back any.
+export const addCodexItem = webMethod(Permissions.Anyone, async (campaignId, item) => {
+  const mid = await memberId(); if (!mid || !campaignId) return { ok: false };
+  const role = await atAdventure(campaignId, mid); if (!role) return { ok: false, error: 'not at this adventure' };
+  const i = item || {}, kinds = ['story', 'person', 'place', 'thing', 'quests', 'clues'];
+  const clean = { id: 'ci' + Date.now() + Math.floor(Math.random() * 1000), kind: kinds.indexOf(i.kind) >= 0 ? i.kind : 'story', name: String(i.name || '').slice(0, 80),
+    text: String(i.text || '').slice(0, 2000), by: mid, byName: String(i.byName || '').slice(0, 60), at: Date.now() };
+  if (!clean.text && !clean.name) return { ok: false, error: 'nothing to add' };
+  let row = null; try { row = await sessionRow(campaignId); } catch (e) {}
+  const list = itemsOf(row); list.push(clean);
+  try { await sessionSave(campaignId, { codexItems: JSON.stringify(list.slice(-500)) }); } catch (e) { return { ok: false, error: 'not saved' }; }
+  return { ok: true, items: list };
+});
+export const removeCodexItem = webMethod(Permissions.Anyone, async (campaignId, id) => {
+  const mid = await memberId(); if (!mid || !campaignId) return { ok: false };
+  const lm = await isLoreMaster(campaignId);
+  let row = null; try { row = await sessionRow(campaignId); } catch (e) {}
+  const list = itemsOf(row).filter((x) => !(x.id === String(id) && (lm || x.by === mid)));
+  try { await sessionSave(campaignId, { codexItems: JSON.stringify(list) }); } catch (e) { return { ok: false }; }
+  return { ok: true, items: list };
+});
 export const getCodex = webMethod(Permissions.Anyone, async (campaignId) => {
   const mid = await memberId(); if (!mid || !campaignId) return { ok: false };
   const role = await roleAt(campaignId);
@@ -137,7 +165,7 @@ export const getCodex = webMethod(Permissions.Anyone, async (campaignId) => {
       if (one.characters.length || one.quests.length || one.clues.length) records.push(one);
     });
   } catch (e) {}
-  return { ok: true, entries: codexOf(row), records: records, lm: role === 'loremaster' };
+  return { ok: true, entries: codexOf(row), records: records, items: itemsOf(row), me: mid, lm: role === 'loremaster' };
 });
 export const addCodexEntry = webMethod(Permissions.Anyone, async (campaignId, entry) => {
   if (!campaignId || !(await isLoreMaster(campaignId))) return { ok: false, error: 'only the LoreMaster' };
@@ -170,6 +198,12 @@ export const myNextSessions = webMethod(Permissions.Anyone, async () => {
   let rows = [];
   try { const r = await wixData.query('AdventureSessions').hasSome('campaignId', list).gt('nextAt', 0).limit(100).find({ suppressAuth: true }); rows = r.items; } catch (e) { rows = []; }
   const out = [];
-  for (const row of rows) { const nx = nextOccurrence(row); if (!nx || nx < Date.now()) continue; const { name } = await ownerOf(row.campaignId); out.push({ campaignId: row.campaignId, adventure: name || 'Adventure', nextAt: nx, when: whenText(nx), note: row.nextNote || '', link: tableLink(row.campaignId), weekly: !!row.repeatWeekly }); }
+  for (const row of rows) {
+    const nx = nextOccurrence(row); if (!nx || nx < Date.now()) continue;
+    const { name, owner } = await ownerOf(row.campaignId);
+    let role = owner === mid ? 'loremaster' : '';
+    if (!role) { try { role = await myAdventureRole(row.campaignId); } catch (e) {} }
+    out.push({ campaignId: row.campaignId, adventure: name || 'Adventure', nextAt: nx, when: whenText(nx), note: row.nextNote || '', link: tableLink(row.campaignId), weekly: !!row.repeatWeekly, lm: role === 'loremaster' || role === 'lorekeeper' });
+  }
   return out.sort((a, b) => a.nextAt - b.nextAt);
 });
