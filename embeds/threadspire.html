@@ -6210,8 +6210,8 @@ function sessionSettingsGroup(){
   if (!SESS.emailReady && SESS.loaded) help += ' Emails are not set up yet: the template ids still need pasting into backend/sessionsCore.js.';
   var rows = setRow('Next session', help, setBtn(next ? 'Change' : 'Set', 'sessionEdit()') + (next ? setBtn('Clear', 'sessionClear()') : ''));
   if (!YT.loaded) ytStatus();
-  rows += setRow('YouTube', YT.connected ? 'Your channel is connected: a session video\u2019s link brings its captions straight into a recap.' : (YT.loaded && !YT.ready ? 'The room\u2019s YouTube keys are not set yet.' : 'Connect your channel once, and a session video\u2019s link brings its captions into a recap.'),
-    YT.connected ? setBtn('Disconnect', 'ytDisconnect()') : setBtn('Connect', 'ytConnect()'));
+  if (YT.loaded && YT.ready && YT.allowed) rows += setRow('YouTube', YT.connected ? 'Your channel is connected: a session video\u2019s link brings its captions straight into a recap.' : (YT.loaded && !YT.ready ? 'The room\u2019s YouTube keys are not set yet.' : 'Connect your channel once, and a session video\u2019s link brings its captions into a recap.'),
+    YT.connected ? setBtn('Update a video', 'vidOpen()') + setBtn('Disconnect', 'ytDisconnect()') : setBtn('Connect', 'ytConnect()'));
   rows += setRow('Test the emails', 'Sends one to you alone, to see how it reads.', setBtn('Recap', 'emailTest(\'recap\')') + setBtn('Reminder', 'emailTest(\'reminder\')'));
   rows += setRow('Recaps', SESS.recaps.length ? (SESS.recaps.length + ' sent. Write one from the Journal.') : 'Write one from the Journal, from your notes only.', (SESS.recaps.length ? setBtn('Read', 'recapList()') : '') + setBtn('Write', 'recapOpen()'));
   rows += setRow('Stream view', 'A window that follows this table for capture: the players\u2019 view without the fog, or everything.', setBtn('Copy link', 'streamCopy()'));
@@ -6463,10 +6463,11 @@ function vidPaint(){
   if (VID.step === 'in'){
     if (VID_CHANNEL.length) h += '<div class="tsm-lbl">This adventure\u2019s videos on your channel</div><div class="vid-chan">' + VID_CHANNEL.map(function(v){ var done = (S.journal || []).some(function(e){ return e.videoId === v.id; });
         return '<div class="vid-chrow"><span>' + esc(v.title) + '<i>' + esc(new Date(v.at).toLocaleDateString(undefined, { month:'short', day:'numeric' })) + (done ? ', recap written' : '') + '</i></span><button class="tsm-btn' + (done ? ' ghost' : '') + '" onclick="vidFromChannel(' + VID_CHANNEL.indexOf(v) + ')">' + (done ? 'Again' : 'Write its recap') + '</button>' + (done ? '<button class="tsm-btn ghost" onclick="vidDescribeFrom(' + VID_CHANNEL.indexOf(v) + ')">Update the video</button>' : '') + '</div>'; }).join('') + '</div>';
-    h += '<label class="tsm-lbl" for="vidUrl">The YouTube link <button type="button" class="vid-i" onclick="var d=document.getElementById(\'vidInfo\');d.hidden=!d.hidden" aria-label="How the link works" title="How the link works">i</button></label>'
+    if (YT.connected && YT.allowed) h += '<label class="tsm-lbl" for="vidUrl">The YouTube link <button type="button" class="vid-i" onclick="var d=document.getElementById(\'vidInfo\');d.hidden=!d.hidden" aria-label="How the link works" title="How the link works">i</button></label>'
       + '<div id="vidInfo" class="vid-info" hidden>The link works for videos on a YouTube channel you have connected (Settings, Sessions, YouTube): LoreFell signs in to that channel once and reads its captions through YouTube\u2019s own service. ' + (YT.connected ? 'Your channel is connected.' : 'No channel is connected yet.') + ' For anyone else\u2019s video, copy its transcript in below.</div>'
       + '<div class="vid-row"><input class="tsm-inp" id="vidUrl" placeholder="https://youtube.com/watch?v=\u2026"><button class="tsm-btn" onclick="vidFetch()"' + (VID.busy ? ' disabled' : '') + '>Get it</button></div>'
-      + '<details class="vid-how"><summary>Copying a transcript from YouTube</summary><ol>'
+;
+    h += '<details class="vid-how"><summary>Copying a transcript from YouTube</summary><ol>'
       + '<li>Open the video on YouTube, and under it press <b>\u2026more</b>, then <b>Show transcript</b>.</li>'
       + '<li>In the transcript panel, use its menu (\u22ee) to <b>Toggle timestamps</b> off.</li>'
       + '<li>Click into the transcript, select it all (drag from the first line to the last), copy, and paste it below.</li>'
@@ -6493,7 +6494,7 @@ function vidPaint(){
   tsModal(h, true);
 }
 /* ---- the LoreMaster's YouTube channel, connected once through the live room ---- */
-var YT = { loaded:false, ready:false, connected:false };
+var YT = { loaded:false, ready:false, connected:false, allowed:false };
 function ytTicket(){
   if (!tsEmbedded() || !S.campaignId) return Promise.resolve('');
   return tsAsk('TS_ROOM_TICKET', { campaignId:S.campaignId }).then(function(r){ return (r && r.ticket) || ''; }).catch(function(){ return ''; });
@@ -6501,8 +6502,8 @@ function ytTicket(){
 function ytStatus(){
   if (YT.busy) return; YT.busy = true;
   ytTicket().then(function(tk){ if (!tk) throw 0; return fetch(ROOM_HTTP + '/yt/status?c=' + encodeURIComponent(S.campaignId) + '&t=' + encodeURIComponent(tk)).then(function(r){ return r.json(); }); })
-    .then(function(d){ YT = { loaded:true, ready:!!(d && d.ready), connected:!!(d && d.connected) }; if (S.openSection === 'settings') refreshWinBody(); })
-    .catch(function(){ YT = { loaded:true, ready:false, connected:false }; });
+    .then(function(d){ YT = { loaded:true, ready:!!(d && d.ready), connected:!!(d && d.connected), allowed:!!(d && d.allowed !== false) }; if (S.openSection === 'settings') refreshWinBody(); })
+    .catch(function(){ YT = { loaded:true, ready:false, connected:false, allowed:false }; });
 }
 function ytConnect(){
   if (keeperNo()) return;
@@ -6571,6 +6572,7 @@ function codexOpen(tab){
         return '<article class="cx-entry"><div class="cx-h"><b>Session ' + i + (e.session ? ' | ' + esc(e.session) : '') + '</b><span>' + esc(new Date(e.at).toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' })) + '</span></div>'
           + '<p>' + esc(e.text) + '</p>'
           + '<div class="cx-foot">' + (e.videoId ? '<a href="https://youtu.be/' + esc(e.videoId) + '" target="_blank" rel="noopener">Watch</a>' : '')
+          + (e.videoId && isLM() && !isKeeper() && YT.connected && YT.allowed ? '<button class="cx-link" onclick="ytDescribeEntry(\'' + esc(e.id) + '\')">Update the video</button>' : '')
           + (isLM() && !isKeeper() ? ((S.retellPick && S.retellPick.id === e.id) ? '<span class="rc-live">The Retelling</span>' : '<button class="cx-link" onclick="retellPickSet(\'' + esc(e.id) + '\')">Make it the Retelling</button>') + '<button class="cx-link" onclick="codexRemove(\'' + esc(e.id) + '\')">Take out of the Codex</button>' : '') + '</div></article>'; }).join('') + '</div>'
       : '<p class="tsm-note">Nothing yet. ' + (isLM() ? 'A recap you send, or one you add from a session\u2019s video, lands here.' : 'The recaps land here as the story goes on.') + '</p>';
     if (!CODEX.pick) h += codexItemsHtml('story');
@@ -6795,15 +6797,22 @@ var _vidAutoDone = false, VID_CHANNEL = [];
 function vidDescribeFrom(i){
   var v = VID_CHANNEL[i]; if (!v) return;
   var e = (S.journal || []).filter(function(x){ return x.videoId === v.id; }).pop();
-  /* the timings come with the captions, so read them again (nothing is kept) */
-  ytTicket().then(function(tk){ return fetch(ROOM_HTTP + '/transcript?v=' + encodeURIComponent(v.id) + '&c=' + encodeURIComponent(S.campaignId) + '&t=' + encodeURIComponent(tk)).then(function(r){ return r.json(); }); })
-    .then(function(d){ ytDescribe(v.id, (e && e.session) || (String(v.title).split('|')[1] || '').trim(), e ? e.text : '', (d && d.segments) || []); })
-    .catch(function(){ ytDescribe(v.id, (e && e.session) || '', e ? e.text : '', []); });
+  ytDescribeVideo(v.id, (e && e.session) || (String(v.title).split('|')[1] || '').trim(), e ? e.text : '');
 }
+/* any recap with its video: read the captions' timings again (nothing is kept), then write */
+function ytDescribeVideo(vid, session, recap){
+  if (!(YT.connected && YT.allowed)) return;
+  YTD = { vid:vid, session:session, recap:recap, segs:[], busy:true, msg:'Reading the video\u2019s captions\u2026' }; ytdPaint();
+  ytTicket().then(function(tk){ return fetch(ROOM_HTTP + '/transcript?v=' + encodeURIComponent(vid) + '&c=' + encodeURIComponent(S.campaignId) + '&t=' + encodeURIComponent(tk)).then(function(r){ return r.json(); }); })
+    .then(function(d){ ytDescribe(vid, session, recap, (d && d.segments) || []); })
+    .catch(function(){ ytDescribe(vid, session, recap, []); });
+}
+function ytDescribeEntry(id){ var e = (CODEX.entries || []).filter(function(x){ return x.id === id; })[0]; if (e) ytDescribeVideo(e.videoId, e.session || '', e.text); }
 function vidFromChannel(i){ var v = VID_CHANNEL[i]; if (!v) return; window._vidAuto = { id:v.id, title:v.title, session:(String(v.title).split('|').slice(1).join('|') || '').trim() }; vidAutoGo(); }
 /* the adventure's own videos on the connected channel, newest first, for the video window */
 function vidChannelList(){
   var name = vidNorm(advName()); if (!name || !tsEmbedded()) return;
+  if (YT.loaded && (!YT.connected || !YT.allowed)) return;
   ytTicket().then(function(tk){ if (!tk) return null; return fetch(ROOM_HTTP + '/yt/uploads?c=' + encodeURIComponent(S.campaignId) + '&t=' + encodeURIComponent(tk)).then(function(r){ return r.json(); }); })
     .then(function(d){ if (!d || !d.ok) return; VID_CHANNEL = (d.items || []).filter(function(v){ var head = vidNorm(String(v.title).split('|')[0]); return head === name || head.indexOf(name) >= 0; }).slice(0, 8);
       if (document.getElementById('vidUrl') && VID.step === 'in') vidPaint(); }).catch(function(){});
@@ -6813,7 +6822,9 @@ function vidSkipList(){ try { return JSON.parse(localStorage.getItem('ts_vid_ski
 function vidSkipAdd(id){ var l = vidSkipList(); if (l.indexOf(id) < 0) l.push(id); try { localStorage.setItem('ts_vid_skip_' + S.campaignId, JSON.stringify(l.slice(-60))); } catch(e){} }
 function vidAutoCheck(){
   if (_vidAutoDone || !isLM() || isKeeper() || S.stream || !tsEmbedded() || !S.campaignId || !_mapStateLoaded) return;
+  if (!YT.loaded){ ytStatus(); return; }
   _vidAutoDone = true;
+  if (!YT.connected || !YT.allowed) return;
   var name = vidNorm(advName()); if (!name) return;
   /* the Journal first, so a video already made into a recap is never offered again */
   (journalBackend && journalBackend.get ? journalBackend.get().catch(function(){ return null; }) : Promise.resolve(null)).then(function(rows){ if (Array.isArray(rows)) S.journal = rows; return ytTicket(); }).then(function(tk){

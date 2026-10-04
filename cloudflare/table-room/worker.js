@@ -73,6 +73,12 @@ async function ytWho(url) {
   const who = await readTicket(t, c);
   return who && who.role === 'lm' && !who.keeper && who.member ? who : null;
 }
+async function ytAllowed(env, member) {
+  const o = await ytStore(env, { op: 'owner-get' });
+  if (o.owner) return o.owner === member;
+  const s = await ytStore(env, { op: 'tok-get', m: member });
+  return true;
+}
 async function ytAccess(env, member) {
   const s = await ytStore(env, { op: 'tok-get', m: member }); if (!s.rt) return '';
   const r = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -89,6 +95,7 @@ async function youtube(req, url, env) {
   if (!env.YT_CLIENT_ID || !env.YT_CLIENT_SECRET) return url.pathname === '/yt/status' ? out({ ok: true, ready: false, connected: false }) : ytPage('Not set up yet', 'The room has no YouTube keys yet.');
   if (url.pathname === '/yt/connect') {
     const who = await ytWho(url); if (!who) return ytPage('Sign in again', 'This link has expired. Press Connect YouTube again from the table.');
+    if (!(await ytAllowed(env, who.member))) return ytPage('Not available', 'The YouTube connection is kept for this site\u2019s own channel.');
     const n = crypto.randomUUID(); await ytStore(env, { op: 'nonce-set', n: n, m: who.member });
     const q = new URLSearchParams({ client_id: env.YT_CLIENT_ID, redirect_uri: YT_REDIRECT, response_type: 'code', scope: 'https://www.googleapis.com/auth/youtube.force-ssl', access_type: 'offline', prompt: 'consent', include_granted_scopes: 'true', state: n });
     return Response.redirect('https://accounts.google.com/o/oauth2/v2/auth?' + q.toString(), 302);
@@ -102,11 +109,14 @@ async function youtube(req, url, env) {
     const j = await r.json();
     if (!j.refresh_token) return ytPage('Not connected', 'Google did not hand over a lasting sign-in. Remove LoreFell from your Google account\u2019s third-party access, then connect again.');
     await ytStore(env, { op: 'tok-set', m: who.m, rt: j.refresh_token });
+    await ytStore(env, { op: 'owner-set', m: who.m });
     return ytPage('YouTube is connected', 'LoreFell can now read the captions of your channel\u2019s videos for session recaps. You can close this tab.');
   }
   if (ALLOW.indexOf(origin) < 0) return out({ ok: false, error: 'origin not allowed' }, 403);
   const who = await ytWho(url); if (!who) return out({ ok: false, error: 'sign in again' }, 401);
-  if (url.pathname === '/yt/status') { const s = await ytStore(env, { op: 'tok-get', m: who.member }); return out({ ok: true, ready: true, connected: !!s.rt }); }
+  /* one channel only: the site owner's. The first LoreMaster to connect (Nate) is it. */
+  if (!(await ytAllowed(env, who.member))) return out({ ok: true, ready: true, allowed: false, connected: false });
+  if (url.pathname === '/yt/status') { const s = await ytStore(env, { op: 'tok-get', m: who.member }); if (s.rt) await ytStore(env, { op: 'owner-set', m: who.member }); return out({ ok: true, ready: true, allowed: true, connected: !!s.rt }); }
   /* the channel's newest uploads (two units of the daily allowance), for the table to match
      against its adventure */
   if (url.pathname === '/yt/uploads') {
@@ -177,7 +187,7 @@ async function transcript(req, url, env) {
   /* a connected channel first, through YouTube's own API */
   try {
     const who = env.YT_CLIENT_ID ? await ytWho(url) : null;
-    if (who) { const got = await ytCaptions(env, who.member, v[0]); if (got) return out(got); }
+    if (who && (await ytAllowed(env, who.member))) { const got = await ytCaptions(env, who.member, v[0]); if (got) return out(got); }
   } catch (e) {}
   try {
     const page = await fetch('https://www.youtube.com/watch?v=' + v[0] + '&hl=en', { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36', 'Accept-Language': 'en-US,en;q=0.9' } });
@@ -271,6 +281,8 @@ export class TableRoom {
       if (b.op === 'tok-set') { await st.put('yt:t:' + b.m, b.rt); return Response.json({ ok: true }); }
       if (b.op === 'tok-get') { return Response.json({ rt: (await st.get('yt:t:' + b.m)) || '' }); }
       if (b.op === 'tok-del') { await st.delete('yt:t:' + b.m); return Response.json({ ok: true }); }
+      if (b.op === 'owner-get') { return Response.json({ owner: (await st.get('yt:owner')) || '' }); }
+      if (b.op === 'owner-set') { if (!(await st.get('yt:owner'))) await st.put('yt:owner', b.m); return Response.json({ owner: (await st.get('yt:owner')) || '' }); }
       return Response.json({ ok: false });
     }
     const who = JSON.parse(req.headers.get('X-Room-Who') || '{}');
