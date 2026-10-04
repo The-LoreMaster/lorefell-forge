@@ -107,6 +107,18 @@ async function youtube(req, url, env) {
   if (ALLOW.indexOf(origin) < 0) return out({ ok: false, error: 'origin not allowed' }, 403);
   const who = await ytWho(url); if (!who) return out({ ok: false, error: 'sign in again' }, 401);
   if (url.pathname === '/yt/status') { const s = await ytStore(env, { op: 'tok-get', m: who.member }); return out({ ok: true, ready: true, connected: !!s.rt }); }
+  /* the channel's newest uploads (two units of the daily allowance), for the table to match
+     against its adventure */
+  if (url.pathname === '/yt/uploads') {
+    const at = await ytAccess(env, who.member); if (!at) return out({ ok: false, error: 'not connected' });
+    const auth = { Authorization: 'Bearer ' + at };
+    const ch = await (await fetch('https://www.googleapis.com/youtube/v3/channels?part=contentDetails&mine=true', { headers: auth })).json();
+    const pl = ch.items && ch.items[0] && ch.items[0].contentDetails && ch.items[0].contentDetails.relatedPlaylists && ch.items[0].contentDetails.relatedPlaylists.uploads;
+    if (!pl) return out({ ok: false, error: 'no uploads list' });
+    const li = await (await fetch('https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&maxResults=15&playlistId=' + encodeURIComponent(pl), { headers: auth })).json();
+    const items = (li.items || []).map((it) => ({ id: (it.contentDetails && it.contentDetails.videoId) || '', title: (it.snippet && it.snippet.title) || '', at: (it.contentDetails && it.contentDetails.videoPublishedAt) || (it.snippet && it.snippet.publishedAt) || '' })).filter((x) => x.id);
+    return out({ ok: true, items: items });
+  }
   if (url.pathname === '/yt/disconnect') { await ytStore(env, { op: 'tok-del', m: who.member }); return out({ ok: true, connected: false }); }
   return out({ ok: false, error: 'not found' }, 404);
 }

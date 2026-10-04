@@ -1,3 +1,7 @@
+## 2026-10-03 - The FellGuide from every sheet; session videos noticed
+
+Every Fell sheet's header carries a gold book that opens the FellGuide, beside the Condition button, at the table, in the Fell window and on FellGlass alone. Rules link to their own FellGuide pages: an affliction on you in the fight banner (Read Crippled in the FellGuide), each skill (a small book beside its name), each attribute's breakdown, and on the LoreMaster's cards each condition and the stance's tiers (Armor Stances). The pages are mapped by name from the FellGuide's own files. When the LoreMaster opens the table with a YouTube channel connected, the room reads the channel's newest uploads (a new /yt/uploads), and the first one in the last fourteen days whose title names the adventure (the part before the pipe) and has not been made into a recap or waved off is offered: Write its recap, Later or Not this one. Yes pulls its captions and goes to the name check; the part after the pipe is the session's title, carried into the recap and onto its Journal entry. Captions not ready yet are asked about again next time.
+
 ## 2026-10-03 - The canon gate on a new branch
 
 The Canon Drift Gate's push run compared a branch's first push against an empty "before" (all zeros), and could fail with no reason given. It now compares a new branch, or a forced push it cannot follow, against where the branch left main, so it judges the branch on its own changes like the pull request run does.

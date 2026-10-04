@@ -1586,6 +1586,7 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .fc-role{ display:inline-block; font-style:normal; font-size:.78rem; color:#93a3b6; } .fc-role.auto{ color:#9fd0b0; } .fc-role.attack, .fc-role.struck{ color:#e3c48a; }
 .fc-tiers{ display:flex; flex-direction:column; gap:3px; font-size:.88rem; color:#6c7788; } .fc-tiers .on{ color:#9fd0b0; } .fc-tiers span{ display:inline-block; width:26px; font-family:Cinzel,serif; font-size:.72rem; }
 .fc-attrs{ display:grid; grid-template-columns:repeat(4, 1fr); gap:4px; } .fc-attrs div{ display:flex; justify-content:space-between; padding:4px 7px; border-radius:7px; background:#121a31; font-size:.84rem; } .fc-attrs span{ color:#93a3b6; } .fc-attrs .zero{ opacity:.55; }
+.fg-read{ display:inline-flex; align-items:center; gap:5px; margin-top:4px; font-family:Cinzel,serif; font-size:.68rem; letter-spacing:.04em; color:#c9a84c; text-decoration:none; } .fg-read:hover{ color:#f0d48a; text-decoration:underline; }
 .fc-cond{ display:grid; grid-template-columns:1fr auto; gap:8px; align-items:start; padding:8px 10px; border-radius:8px; background:#121a31; font-size:.9rem; line-height:1.4; } .fc-cond b{ color:#e3a193; }
 .fc .lmc-act.commit{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
 /* A spotlight holds however many fighters the round threw together. It used to size to
@@ -6108,7 +6109,7 @@ function journalBody(){
     var editing = _jEdit === e.id;
     h += '<div class="jentry' + (e.kind === 'video' ? ' jvideo' : '') + '"><span class="jtime">' + d.toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' }) + '</span>'
       + (editing ? '<div class="jedit"><textarea id="jEditIn" maxlength="3000" rows="5">' + esc(e.text) + '</textarea><div class="jedit-row"><button class="set-b" onclick="journalEditCancel()">Cancel</button><button class="set-b pri" onclick="journalEditSave(\'' + e.id + '\')">Save</button></div></div>'
-                 : '<div class="jtext">' + (e.kind === 'video' ? '<span class="jtag">From the session\u2019s video</span>' : '') + esc(e.text) + '</div>')
+                 : '<div class="jtext">' + (e.kind === 'video' ? '<span class="jtag">From the session\u2019s video' + (e.session ? ' \u00b7 ' + esc(e.session) : '') + '</span>' : '') + esc(e.text) + '</div>')
       + '<span class="jacts">' + (editing ? '' : '<button class="jx" onclick="journalEdit(\'' + e.id + '\')" title="Edit this note" aria-label="Edit this note">\u270e</button>')
       + '<button class="jx" onclick="journalDelete(\'' + e.id + '\')" title="Delete this note" aria-label="Delete this note">\u00d7</button></span></div>';
   });
@@ -6417,6 +6418,60 @@ function ytDisconnect(){
   ytTicket().then(function(tk){ return fetch(ROOM_HTTP + '/yt/disconnect?c=' + encodeURIComponent(S.campaignId) + '&t=' + encodeURIComponent(tk)); })
     .then(function(){ YT.connected = false; if (S.openSection === 'settings') refreshWinBody(); }).catch(function(){});
 }
+/* ---- a new session video, noticed ----
+   When the LoreMaster opens the table, the room looks at the connected channel's newest
+   uploads for one whose title names this adventure (the part before the pipe, or the whole
+   title: "The Ashen Hands | The Feast of Ash"), posted in the last fourteen days, that has not
+   been made into a recap or waved off. It asks: Write its recap? Yes pulls the captions and
+   goes to the name check; the part after the pipe becomes the session's title. */
+var _vidAutoDone = false;
+function vidNorm(t){ return String(t || '').toLowerCase().replace(/&amp;/g, '&').replace(/[^a-z0-9]+/g, ' ').trim(); }
+function vidSkipList(){ try { return JSON.parse(localStorage.getItem('ts_vid_skip_' + S.campaignId) || '[]'); } catch(e){ return []; } }
+function vidSkipAdd(id){ var l = vidSkipList(); if (l.indexOf(id) < 0) l.push(id); try { localStorage.setItem('ts_vid_skip_' + S.campaignId, JSON.stringify(l.slice(-60))); } catch(e){} }
+function vidAutoCheck(){
+  if (_vidAutoDone || !isLM() || isKeeper() || S.stream || !tsEmbedded() || !S.campaignId || !_mapStateLoaded) return;
+  _vidAutoDone = true;
+  var name = vidNorm(advName()); if (!name) return;
+  /* the Journal first, so a video already made into a recap is never offered again */
+  (journalBackend && journalBackend.get ? journalBackend.get().catch(function(){ return null; }) : Promise.resolve(null)).then(function(rows){ if (Array.isArray(rows)) S.journal = rows; return ytTicket(); }).then(function(tk){
+    if (!tk) return null;
+    return fetch(ROOM_HTTP + '/yt/uploads?c=' + encodeURIComponent(S.campaignId) + '&t=' + encodeURIComponent(tk)).then(function(r){ return r.json(); });
+  }).then(function(d){
+    if (!d || !d.ok) return;
+    var done = {}; (S.journal || []).forEach(function(e){ if (e.videoId) done[e.videoId] = 1; });
+    var skip = vidSkipList(), since = Date.now() - 14 * 86400000;
+    var hit = (d.items || []).filter(function(v){
+      var head = vidNorm(String(v.title).split('|')[0]);
+      return !done[v.id] && skip.indexOf(v.id) < 0 && new Date(v.at).getTime() > since && (head === name || head.indexOf(name) >= 0 || vidNorm(v.title).indexOf(name) === 0);
+    })[0];
+    if (hit) vidAutoAsk(hit);
+  }).catch(function(){});
+}
+function vidAutoAsk(v){
+  var parts = String(v.title).split('|'), sess = parts.length > 1 ? parts.slice(1).join('|').trim() : '';
+  window._vidAuto = { id:v.id, title:v.title, session:sess };
+  tsModal('<h3 class="tsm-title">A new session video</h3>'
+    + '<p class="lc-p">\u201c' + esc(v.title) + '\u201d went up on your channel' + (v.at ? ' on ' + esc(new Date(v.at).toLocaleDateString(undefined, { weekday:'long', month:'short', day:'numeric' })) : '') + '. Write its recap from the captions and your Journal?</p>'
+    + '<p class="tsm-note">You check the names before anything is written. Only the recap is kept.</p>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="vidSkipAdd(window._vidAuto.id);tsCloseModal()">Not this one</button><button class="tsm-btn ghost" onclick="tsCloseModal()">Later</button><button class="tsm-btn" onclick="vidAutoGo()">Write its recap</button></div>');
+}
+function vidAutoGo(){
+  var a = window._vidAuto; if (!a) return;
+  VID = { text:'', title:a.title, busy:true, msg:'Fetching the captions\u2026', fixes:[], keep:{}, recap:'', step:'in', videoId:a.id, session:a.session };
+  vidPaint();
+  ytTicket().then(function(tk){ return fetch(ROOM_HTTP + '/transcript?v=' + encodeURIComponent(a.id) + '&c=' + encodeURIComponent(S.campaignId) + '&t=' + encodeURIComponent(tk)).then(function(r){ return r.json(); }); })
+    .then(function(d){
+      VID.busy = false;
+      if (!d || !d.ok){
+        var notYet = /no captions|empty/i.test((d && d.error) || '');
+        tsModal('<h3 class="tsm-title">' + (notYet ? 'Captions aren\u2019t ready yet' : 'The captions did not come') + '</h3><p class="lc-p">' + (notYet ? 'YouTube makes captions a while after a video goes up, longer for a long session. I\u2019ll ask again the next time you open the table.' : esc((d && d.error) || 'No answer from YouTube.') + ' Try again later, or paste the transcript from the Journal.') + '</p><div class="tsm-row"><button class="tsm-btn" onclick="tsCloseModal()">Close</button></div>');
+        return;
+      }
+      VID.text = vidClean(d.text); vidNames();
+    }).catch(function(){ VID.busy = false; VID.msg = 'The captions did not come.'; vidPaint(); });
+}
+/* a few seconds after the table has its board, once a load */
+setInterval(function(){ try { if (!_vidAutoDone && _mapStateLoaded && isLM() && !(function(){ var m = document.getElementById('tsModal'); return m && getComputedStyle(m).display !== 'none' && m.innerHTML.trim(); })()) vidAutoCheck(); } catch(e){} }, 8000);
 function vidClean(t){
   return String(t || '').replace(/^WEBVTT.*$/m, '').replace(/^\d+\s*$/gm, '').replace(/\d{1,2}:\d{2}(:\d{2})?[.,]\d{1,3}\s*-->\s*\d{1,2}:\d{2}(:\d{2})?[.,]\d{1,3}.*$/gm, '').replace(/<[^>]+>/g, '').replace(/\[(music|applause|laughter)\]/gi, '').replace(/\s+/g, ' ').trim();
 }
@@ -6471,14 +6526,14 @@ function vidFixed(){
 function vidRecap(){
   VID.busy = true; VID.msg = ''; if (VID.step !== 'recap') vidPaint(); else vidPaint();
   var sys = 'You write one recap of a LoreFell tabletop session for its players, from the session\u2019s transcript and the LoreMaster\u2019s journal notes. One paragraph, 170 to 230 words: what the party did and what came of it, in the order it happened, past tense. Use only what the transcript and notes say happened; never invent events, names or outcomes. Leave out table talk, rules discussion, breaks, and anything that is the LoreMaster\u2019s private planning or a secret the players did not learn. Grounded and warm, with dark fantasy weight where it is earned. No cliches, no purple prose, no em dashes, no headings, no lists. Spell every name exactly as given. Return only the paragraph.';
-  var user = 'Adventure: ' + advName() + '\nNames, spelled right: ' + vidGlossary().map(function(x){ return x.replace(/ \(.*\)$/, ''); }).join(', ')
+  var user = 'Adventure: ' + advName() + (VID.session ? '\nSession: ' + VID.session : '') + '\nNames, spelled right: ' + vidGlossary().map(function(x){ return x.replace(/ \(.*\)$/, ''); }).join(', ')
     + '\n\nThe LoreMaster\u2019s journal notes:\n' + (vidJournalNotes() || '(none)') + '\n\nTranscript:\n' + vidFixed().slice(0, 400000);
   aiCall(sys, user, 900).then(function(t){ VID.busy = false; VID.recap = String(t || '').replace(/\s*\u2014\s*/g, ', ').trim(); VID.step = 'recap'; vidPaint(); })
     .catch(function(e){ VID.busy = false; VID.msg = (e && e.rate) ? 'Too many requests just now. Wait a minute and try again.' : 'The recap did not come back. Try again.'; vidPaint(); });
 }
 function vidSave(){
   var v = ((document.getElementById('vidRecapIn') || {}).value || VID.recap || '').trim(); if (!v) return;
-  S.journal = S.journal || []; S.journal.push({ id:'j' + Date.now(), ts:Date.now(), text:v, kind:'video' });
+  S.journal = S.journal || []; S.journal.push({ id:'j' + Date.now(), ts:Date.now(), text:v, kind:'video', videoId:VID.videoId || '', session:VID.session || '' });
   journalBackend.save(S.journal).catch(function(){});
   VID = { text:'', title:'', busy:false, msg:'', fixes:[], keep:{}, recap:'', step:'in' };
   tsCloseModal(); if (S.openSection === 'journal') openWin('journal'); else openWin('journal');
@@ -8306,6 +8361,10 @@ function foeCardOpen(f){
     + '<div class="fc-body">' + foeTabBody(f, tab, resolve) + '</div></div>';
   return h;
 }
+/* the FellGuide page for a rule the cards name (afflictions, effects, skills, attributes,
+   Armor Stances, Pales, Vision, Survival) */
+var FG_PAGES = {"Armor Stances":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Arsenal/Armor/Armor+Stances","Magic":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Attributes/Offensive+Attributes/Magic","Precision":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Attributes/Offensive+Attributes/Precision","Offensive Attributes":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Attributes/Offensive+Attributes/Offensive+Attributes","Power":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Attributes/Offensive+Attributes/Power","Wit":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Attributes/Core+Attributes/Wit","Vigor":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Attributes/Core+Attributes/Vigor","Core Attributes":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Attributes/Core+Attributes/Core+Attributes","Evasion":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Attributes/Defensive+Attributes/Evasion","Defensive Attributes":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Attributes/Defensive+Attributes/Defensive+Attributes","Resistance":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Attributes/Defensive+Attributes/Resistance","Durability":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Attributes/Defensive+Attributes/Durability","Mobility":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Attributes/Other+Attributes/Mobility","Other Attributes":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Attributes/Other+Attributes/Other+Attributes","Vitality":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Attributes/Other+Attributes/Vitality","Luck":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Attributes/Other+Attributes/Luck","Endurance":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Skills/Vigor+Skills/Endurance","Renewal":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Skills/Vigor+Skills/Renewal","Resolve":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Skills/Vigor+Skills/Resolve","Vigor Skills":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Skills/Vigor+Skills/Vigor+Skills","Guard":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Skills/Durability+Skills/Guard","Durability Skills":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Skills/Durability+Skills/Durability+Skills","Anchor":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Skills/Durability+Skills/Anchor","Temper":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Skills/Durability+Skills/Temper","Resistance Skills":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Skills/Resistance+Skills/Resistance+Skills","Sanctum":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Skills/Resistance+Skills/Sanctum","Conviction":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Skills/Resistance+Skills/Conviction","Resonance":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Skills/Resistance+Skills/Resonance","Presence":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Skills/Precision+Skills/Presence","Finesse":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Skills/Precision+Skills/Finesse","Precision Skills":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Skills/Precision+Skills/Precision+Skills","Trickery":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Skills/Precision+Skills/Trickery","Logic":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Skills/Wit+Skills/Logic","Lore":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Skills/Wit+Skills/Lore","Vigilance":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Skills/Wit+Skills/Vigilance","Wit Skills":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Skills/Wit+Skills/Wit+Skills","Movement":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Skills/Power+Skills/Movement","Bearing":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Skills/Power+Skills/Bearing","Power Skills":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Skills/Power+Skills/Power+Skills","Might":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Skills/Power+Skills/Might","Reflex":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Skills/Evasion+Skills/Reflex","Poise":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Skills/Evasion+Skills/Poise","Evasion Skills":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Skills/Evasion+Skills/Evasion+Skills","Elusion":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Skills/Evasion+Skills/Elusion","Spirit":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Skills/Magic+Skills/Spirit","Magic Skills":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Skills/Magic+Skills/Magic+Skills","Weaving":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Skills/Magic+Skills/Weaving","Creation":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Characters/The+Skills/Magic+Skills/Creation","Survival":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Combat/Survival","Pales":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Combat/The+Afflictions/Pales","Pursued":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Combat/The+Afflictions/Combat+Effects/Pursued","Pulled":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Combat/The+Afflictions/Combat+Effects/Pulled","Drained":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Combat/The+Afflictions/Combat+Effects/Drained","Advanced":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Combat/The+Afflictions/Combat+Effects/Advanced","Transferred":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Combat/The+Afflictions/Combat+Effects/Transferred","Sabotaged":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Combat/The+Afflictions/Combat+Effects/Sabotaged","Warded":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Combat/The+Afflictions/Combat+Effects/Warded","Tracked":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Combat/The+Afflictions/Combat+Effects/Tracked","Guarded":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Combat/The+Afflictions/Combat+Effects/Guarded","Obscured":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Combat/The+Afflictions/Combat+Effects/Obscured","Bound":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Combat/The+Afflictions/Combat+Effects/Bound","Echoed":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Combat/The+Afflictions/Combat+Effects/Echoed","Pierced":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Combat/The+Afflictions/Combat+Effects/Pierced","Crushed":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Combat/The+Afflictions/Combat+Effects/Crushed","Dispelled":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Combat/The+Afflictions/Combat+Effects/Dispelled","Swapped":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Combat/The+Afflictions/Combat+Effects/Swapped","Scattered":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Combat/The+Afflictions/Combat+Effects/Scattered","Refracted":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Combat/The+Afflictions/Combat+Effects/Refracted","Combat Effects":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Combat/The+Afflictions/Combat+Effects/Combat+Effects","Bonus Damage (Effect)":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Combat/The+Afflictions/Combat+Effects/Bonus+Damage+%28Effect%29","Cleaved":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Combat/The+Afflictions/Combat+Effects/Cleaved","Rooted":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Combat/The+Afflictions/Combat+Effects/Rooted","Reinforced":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Combat/The+Afflictions/Combat+Effects/Reinforced","Attuned":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Combat/The+Afflictions/Combat+Effects/Attuned","Purged":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Combat/The+Afflictions/Combat+Effects/Purged","Siphoned":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Combat/The+Afflictions/Combat+Effects/Siphoned","Manifested":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Combat/The+Afflictions/Combat+Effects/Manifested","Restored":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Combat/The+Afflictions/Combat+Effects/Restored","Mended":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Combat/The+Afflictions/Combat+Effects/Mended","Exposed":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Combat/The+Afflictions/Combat+Effects/Exposed","Repositioned":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Combat/The+Afflictions/Combat+Effects/Repositioned","Gathered":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Combat/The+Afflictions/Combat+Effects/Gathered","Lucky":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Combat/The+Afflictions/Combat+Effects/Lucky","Pushed":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Combat/The+Afflictions/Combat+Effects/Pushed","Redirected":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Combat/The+Afflictions/Combat+Effects/Redirected","Placed":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Combat/The+Afflictions/Combat+Effects/Placed","Vision":"https://fellguide.com/The+FellGuide/The+FellGuide/The+Combat/Definitions/Vision"};
+function fgRead(name){ var u = FG_PAGES[String(name || '').replace(/\*+$/, '').trim()]; return u ? '<a class="fg-read" href="' + u + '" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5C6.5 4.2 9.3 4.2 12 6c2.7-1.8 5.5-1.8 8-.5V19c-2.5-1.3-5.3-1.3-8 .5-2.7-1.8-5.5-1.8-8-.5z"/><path d="M12 6v13.5"/></svg> Read ' + esc(name) + ' in the FellGuide</a>' : ''; }
 function foeStrikeLine(f){
   var d = foeLive(f).dmg || {}, a = foeAttrsLive(f), mag = d.type === 'magical';
   return '<div class="fc-strike"><div><span>Damage</span><b>' + (d.base || 0) + ' + ' + (d.bonus || 0) + ' <i>' + (mag ? 'Magical' : 'Physical') + '</i></b></div>'
@@ -8362,12 +8421,12 @@ function foeTabBody(f, tab, resolve){
     var a = foeAttrsLive(f);
     return fcSec('Infusions', sec('Infusion')) + fcSec('Augmentations', sec('Augmentation'))
       + fcSec('Affliction it carries', f.sig ? '<div class="fc-kit"><span></span><div><b>' + esc(f.sig) + '</b> on its Fellmark. ' + esc((TS_EFFECT_INFO[f.sig] || {}).e || '') + (R.disc ? ' <i class="fc-role attack">Discordant: every Fell carries it from the first breath of the fight.</i>' : ' <i class="fc-role passive">Discordant at Epic.</i>') + '</div></div>' : '<div class="fc-muted">None.</div>')
-      + fcSec('Stance', stance ? '<div class="fc-tiers">' + [1,2,3].map(function(t){ return '<div class="' + (tier >= t ? 'on' : '') + '"><span>T' + t + '</span>' + esc(stance['t' + t]) + '</div>'; }).join('') + '</div><div class="fc-muted">' + esc(f.stance) + ': its tiers are applied as its charge reaches them.</div>' : '<div class="fc-muted">No stance.</div>')
+      + fcSec('Stance', stance ? '<div class="fc-tiers">' + [1,2,3].map(function(t){ return '<div class="' + (tier >= t ? 'on' : '') + '"><span>T' + t + '</span>' + esc(stance['t' + t]) + '</div>'; }).join('') + '</div><div class="fc-muted">' + esc(f.stance) + ': its tiers are applied as its charge reaches them.</div>' + fgRead('Armor Stances') : '<div class="fc-muted">No stance.</div>')
       + fcSec('Attributes', '<div class="fc-attrs">' + ['Precision','Evasion','Power','Durability','Magic','Resistance','Vigor','Wit'].map(function(k){ return '<div class="' + ((a[k] || 0) ? '' : 'zero') + '"><span>' + k.slice(0, 4) + '</span><b>' + (a[k] || 0) + '</b></div>'; }).join('') + '</div>');
   }
   if (tab === 'cond'){
     var on = (f.affs || []), staged = (pendFor(f.id).affs || []);
-    var row = function(a, st){ return '<div class="fc-cond"><div><b>' + esc(a) + '</b> ' + esc((TS_EFFECT_INFO[a] || {}).e || '') + (st ? ' <i class="fc-muted">Takes hold when the round stands.</i>' : '') + '</div>'
+    var row = function(a, st){ return '<div class="fc-cond"><div><b>' + esc(a) + '</b> ' + esc((TS_EFFECT_INFO[a] || {}).e || '') + (st ? ' <i class="fc-muted">Takes hold when the round stands.</i>' : '') + '<br>' + fgRead(a) + '</div>'
       + (st ? '' : '<button class="fc-btn" onclick="foeAffDrop(\'' + f.id + '\',\'' + esc(a).replace(/'/g, '') + '\')" aria-label="Lift ' + esc(a) + '">Lift</button>') + '</div>'; };
     return fcSec('Conditions on it', (on.length || staged.length ? on.map(function(a){ return row(a, false); }).join('') + staged.map(function(a){ return row(a, true); }).join('') : '<div class="fc-muted">Nothing is on it.</div>')
       + '<button class="fc-btn" onclick="foeAffAdd(\'' + f.id + '\')">Apply an affliction or effect</button>');
@@ -8522,7 +8581,7 @@ function fellCardBody(p, tab, resolve){
   }
   if (tab === 'cond'){
     var on = (p.affs || []), staged = (pendFor(p.id).affs || []);
-    return fcSec('Conditions on them', (on.length || staged.length ? on.concat(staged).map(function(x){ return '<div class="fc-cond"><div><b>' + esc(x) + '</b> ' + esc((TS_EFFECT_INFO[x] || {}).e || '') + '</div></div>'; }).join('') : '<div class="fc-muted">Nothing is on them.</div>')
+    return fcSec('Conditions on them', (on.length || staged.length ? on.concat(staged).map(function(x){ return '<div class="fc-cond"><div><b>' + esc(x) + '</b> ' + esc((TS_EFFECT_INFO[x] || {}).e || '') + '<br>' + fgRead(x) + '</div></div>'; }).join('') : '<div class="fc-muted">Nothing is on them.</div>')
       + '<button class="fc-btn" onclick="affFell(\'' + esCid + '\')">Apply an affliction or effect</button><div class="fc-muted">Lift one from their sheet in the Fell window.</div>');
   }
   if (tab === 'tell'){
