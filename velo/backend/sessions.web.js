@@ -112,6 +112,14 @@ export const sendTestEmail = webMethod(Permissions.Anyone, async (campaignId, ki
    Codex never shows anything the recaps did not. Anyone at the adventure reads it; only the
    LoreMaster adds to it or takes from it. */
 function codexOf(row) { try { const v = JSON.parse((row && row.codex) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
+// a sent recap taken off the list (the email itself has gone, of course)
+export const deleteRecap = webMethod(Permissions.Anyone, async (campaignId, id) => {
+  if (!campaignId || !(await isLoreMaster(campaignId))) return { ok: false, error: 'only the LoreMaster' };
+  let row = null; try { row = await sessionRow(campaignId); } catch (e) {}
+  const list = recapsOf(row).filter((r) => r.id !== String(id));
+  try { await sessionSave(campaignId, { recaps: JSON.stringify(list) }); } catch (e2) { return { ok: false }; }
+  return { ok: true, recaps: list };
+});
 export const getCodex = webMethod(Permissions.Anyone, async (campaignId) => {
   const mid = await memberId(); if (!mid || !campaignId) return { ok: false };
   const role = await roleAt(campaignId);
