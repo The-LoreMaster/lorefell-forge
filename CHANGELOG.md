@@ -1,3 +1,7 @@
+## 2026-10-04 - A recap video from a transcript file
+
+The Anexanum's recap video can work from a transcript file instead of YouTube's captions: Use a transcript file on the recap screen (offered at once when YouTube cannot give the captions, as when its daily allowance is spent), or A recap video from a transcript file on the videos tab, for any session, on the channel or not. An .srt, .vtt or .sbv file (Restream or YouTube Studio) carries the times the clips need; a .txt file gives the recap alone. A plan from a file with no video on YouTube shows its times without watch links, and the Recap Cutter cuts it from the recording the same way.
+
 ## 2026-10-04 - YouTube's allowance named when it runs out; captions read once
 
 When YouTube refuses because its daily allowance is spent (each video's captions cost 250 of its 10,000 daily units), the Anexanum and the table now say so plainly and when it resets, instead of an empty list or "that video is not on your connected channel". A video's captions are read from YouTube once and kept in the room in pieces, so writing its title and description, planning its recap video, writing its chapter and transcribing it again cost nothing more.
