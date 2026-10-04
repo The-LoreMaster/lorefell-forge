@@ -1,3 +1,7 @@
+## 2026-10-04 - The lobby from the Maps shelf; the LoreMaster in the lobby; quieter uploads; marks you can change
+
+No lobby shows before an adventure is open and the table knows who you are (the last adventure's lobby showed behind the adventure picker). The lobby's picture or video is chosen in the Maps window itself, folders and all, which says it is choosing for the lobby, or uploaded from there and picked as soon as it lands; No picture clears it. A video upload says only that it uploaded, or that it did not. The LoreMaster can look at the lobby as the players see it (See it, on the lobby bar), with a bar there to Threadwalk to a scene, set the lobby, bring everyone in or go back to the map; Open in the lobby (Settings, Your table) opens the table that way whenever everyone is in it. A new mark can be undone from its bar, and in Moments each mark can be moved five seconds either way or removed for good.
+
 ## 2026-10-04 - Recap clips start on a line and end on a sentence
 
 Every clip of a recap video lands on the captions: it starts a breath (0.2s) before the line it opens on, and ends a breath (0.35s) after the end of a sentence, a line ending in . ! ? or followed by a pause of 0.6s or more (auto-captions do not always punctuate). The trims step the start a line at a time and the end a sentence at a time, instead of a second, and Says shows exactly the lines inside the clip. Picks, added moments and reopened plans all land this way.
