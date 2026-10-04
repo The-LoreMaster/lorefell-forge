@@ -1,3 +1,7 @@
+## 2026-10-03 - Write it again, five ways
+
+In the recap from a session's video, Write it again opens five choices: Shorter (100 to 140 words), Longer (260 to 340), A fresh take, More vivid and Plainer. Shorter, Longer, More vivid and Plainer rework the recap on screen, edits included, keeping its events; A fresh take writes it anew.
+
 ## 2026-10-03 - Videos from any adventure; Codex entries renamed and named for their scene
 
 Tidy old videos can show Every video on the channel, oldest first, beside this adventure's own: a video from an adventure not in ThreadSpire is written from its captions alone (no outline, no Journal), and the Update window has The adventure, the name before the pipe, taken from the video's title and editable, kept with a draft. A recap written from a session's video is named for the scene of the Story it mostly tells (picked by the AI from the outline, changeable in the recap step, with a box for any other name), and goes into the Codex under that name. The LoreMaster can rename any Codex entry, by typing or by choosing a scene.

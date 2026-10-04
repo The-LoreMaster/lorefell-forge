@@ -2462,6 +2462,7 @@ button.set-hero:hover, .set-fell:hover{ border-color:#f0d48a; } button.set-hero:
 #win[data-sec="journal"] .jedit textarea{ width:100%; box-sizing:border-box; min-height:110px; resize:vertical; background:rgba(10,16,32,.6); border:1px solid #2c3a58; border-radius:8px; color:#dce8ef; font:inherit; font-size:1rem; line-height:1.5; padding:8px 10px; }
 #win[data-sec="journal"] .jedit-row{ display:flex; justify-content:flex-end; gap:8px; margin-top:6px; }
 #win[data-sec="journal"] .jtag{ display:block; font-family:Cinzel,serif; font-size:.66rem; letter-spacing:.06em; color:#c9a84c; margin-bottom:3px; }
+.vid-more{ display:flex; flex-wrap:wrap; gap:6px; margin:4px 0 8px; } .vid-more .tsm-btn{ height:32px; }
 .vid-chan{ display:flex; flex-direction:column; gap:6px; margin-bottom:6px; } .vid-chrow{ display:grid; grid-template-columns:minmax(0,1fr) auto auto auto; gap:10px; align-items:center; padding:8px 10px; border-radius:9px; border:1px solid #26324c; background:#0c1222; }
 .vid-chrow span{ display:flex; flex-direction:column; min-width:0; } .vid-chrow i{ font-style:normal; font-size:.82rem; color:#93a3b6; }
 .vid-row{ display:flex; gap:8px; } .vid-row input{ flex:1; min-width:0; }
@@ -6501,9 +6502,10 @@ function vidPaint(){
     h += '<label class="tsm-lbl" for="vidScene">Its scene, the name it takes in the Codex</label>'
       + (_scs.length ? '<select class="tsm-inp" id="vidScene" onchange="if(this.value){VID.session=this.value;document.getElementById(\'vidSessIn\').value=this.value;}"><option value="">Choose a scene\u2026</option>' + _scs.map(function(x){ return '<option value="' + esc(x.scene) + '"' + (x.scene === VID.session ? ' selected' : '') + '>' + esc(x.session + ': ' + x.scene) + '</option>'; }).join('') + '</select>' : '')
       + '<input class="tsm-inp" id="vidSessIn" maxlength="120" placeholder="Its name" value="' + esc(VID.session || '') + '" oninput="VID.session=this.value" style="margin-top:6px">';
+    if (VID.more && !VID.busy) h += '<div class="vid-more" role="group" aria-label="Write it again">' + [['shorter','Shorter'],['longer','Longer'],['fresh','A fresh take'],['vivid','More vivid'],['plain','Plainer']].map(function(o){ return '<button class="tsm-btn ghost" onclick="vidRecap(\'' + o[0] + '\')">' + o[1] + '</button>'; }).join('') + '</div>';
     h += '<label class="tsm-lbl" for="vidRecapIn">The recap</label><textarea class="tsm-inp tsm-ta rc-ta" id="vidRecapIn" oninput="VID.recap=this.value">' + esc(VID.recap) + '</textarea>'
       + '<p class="tsm-note">' + words + ' words, about ' + Math.max(1, Math.round(words / 4)) + ' seconds to read. ' + esc(VID.msg) + '</p>'
-      + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="VID.step=\'names\';vidPaint()">Back</button><button class="tsm-btn ghost" onclick="vidRecap()"' + (VID.busy ? ' disabled' : '') + '>' + (VID.busy ? 'Writing\u2026' : 'Write it again') + '</button><button class="tsm-btn" onclick="vidSave()">Add to the Journal</button></div>'
+      + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="VID.step=\'names\';vidPaint()">Back</button><button class="tsm-btn ghost" onclick="VID.more=!VID.more;vidPaint()"' + (VID.busy ? ' disabled' : '') + ' aria-expanded="' + (VID.more ? 'true' : 'false') + '">' + (VID.busy ? 'Writing\u2026' : 'Write it again') + '</button><button class="tsm-btn" onclick="vidSave()">Add to the Journal</button></div>'
       + '<label class="rc-who" style="margin-top:8px"><input type="checkbox" id="vidToCodex" checked> Add it to the Codex too, where the players can read it</label>';
   }
   tsModal(h, true);
@@ -7200,12 +7202,26 @@ function vidFixed(){
   VID.fixes.forEach(function(f, i){ if (VID.keep[i] === false || !String(f.name || '').trim()) return; var re = new RegExp(f.heard.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'); t = t.replace(re, f.name); });
   return t;
 }
-function vidRecap(){
+/* Write it again: shorter or longer than this one (the same events), a fresh take, more vivid
+   or plainer. The first recap aims for 170 to 230 words, about half a minute to read. */
+var VID_REDO = {
+  shorter:'Rewrite the current recap shorter: 100 to 140 words, the same events and order, keeping the turns that matter most.',
+  longer:'Rewrite the current recap longer: 260 to 340 words, the same events in more detail from the transcript, still one paragraph.',
+  fresh:'Write it afresh, 170 to 230 words, a different way into the same events.',
+  vivid:'Rewrite the current recap more vivid: sharper images and stronger verbs, the same events and about the same length, still grounded, never purple.',
+  plain:'Rewrite the current recap plainer: simpler words, clear and direct, the same events and about the same length.'
+};
+function vidRecap(mode){
+  var prev = VID.recap && mode && mode !== 'fresh' ? String((document.getElementById('vidRecapIn') || {}).value || VID.recap) : '';
+  VID.more = false;
   VID.busy = true; VID.msg = ''; if (VID.step !== 'recap') vidPaint(); else vidPaint();
   var sys = 'You write one recap of a LoreFell tabletop session for its players, from the session\u2019s transcript and the LoreMaster\u2019s journal notes. One paragraph, 170 to 230 words: what the party did and what came of it, in the order it happened, past tense. Use only what the transcript and notes say happened; never invent events, names or outcomes. Leave out table talk, rules discussion, breaks, and anything that is the LoreMaster\u2019s private planning or a secret the players did not learn. Grounded and warm, with dark fantasy weight where it is earned. No cliches, no purple prose, no em dashes, no headings, no lists. Spell every name exactly as given. Return only the paragraph.';
   var user = 'Adventure: ' + advName() + (VID.session ? '\nSession: ' + VID.session : '') + '\nNames, spelled right: ' + vidGlossary().map(function(x){ return x.replace(/ \(.*\)$/, ''); }).join(', ')
-    + '\n\nThe LoreMaster\u2019s journal notes:\n' + (vidJournalNotes() || '(none)') + '\n\nTranscript:\n' + vidFixed().slice(0, 400000);
-  aiCall(sys, user, 900).then(function(t){ VID.recap = String(t || '').replace(/\s*\u2014\s*/g, ', ').trim(); return scenePick(VID.recap); })
+    + '\n\nThe LoreMaster\u2019s journal notes:\n' + (vidJournalNotes() || '(none)') + '\n\nTranscript:\n' + vidFixed().slice(0, 400000)
+    + (mode && VID_REDO[mode] ? '\n\n' + VID_REDO[mode] + (prev ? '\n\nThe current recap:\n' + prev : '') : '');
+  if (mode === 'shorter') sys = sys.replace('170 to 230 words', '100 to 140 words');
+  if (mode === 'longer') sys = sys.replace('170 to 230 words', '260 to 340 words');
+  aiCall(sys, user, mode === 'longer' ? 1300 : 900).then(function(t){ VID.recap = String(t || '').replace(/\s*\u2014\s*/g, ', ').trim(); return scenePick(VID.recap); })
     .then(function(sc){ if (sc) VID.session = sc; VID.busy = false; VID.step = 'recap'; vidPaint(); })
     .catch(function(e){ VID.busy = false; VID.msg = (e && e.rate) ? 'Too many requests just now. Wait a minute and try again.' : 'The recap did not come back. Try again.'; vidPaint(); });
 }
