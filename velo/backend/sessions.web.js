@@ -117,7 +117,19 @@ export const getCodex = webMethod(Permissions.Anyone, async (campaignId) => {
   const role = await roleAt(campaignId);
   if (!role) { const pl = await playersOf(campaignId); if (!pl.some((p) => p.memberId === mid)) return { ok: false, error: 'not at this adventure' }; }
   let row = null; try { row = await sessionRow(campaignId); } catch (e) {}
-  return { ok: true, entries: codexOf(row), lm: role === 'loremaster' };
+  // what each Fell keeps in its Records that the table shares: the characters, quests and
+  // clues it wrote down (never its Secrets or its own Notes)
+  const records = [];
+  try {
+    const r = await wixData.query('Characters').eq('campaignId', String(campaignId)).limit(60).find({ suppressAuth: true });
+    r.items.forEach((c) => {
+      let d = {}; try { d = typeof c.data === 'string' ? JSON.parse(c.data) : (c.data || {}); } catch (e) {}
+      const rec = d.records || {}, pick = (k) => (Array.isArray(rec[k]) ? rec[k] : []).map((x) => String(x || '').slice(0, 600)).filter(Boolean).slice(0, 40);
+      const one = { fell: c.charName || d.name || 'A Fell', characters: pick('characters'), quests: pick('quests'), clues: pick('clues') };
+      if (one.characters.length || one.quests.length || one.clues.length) records.push(one);
+    });
+  } catch (e) {}
+  return { ok: true, entries: codexOf(row), records: records, lm: role === 'loremaster' };
 });
 export const addCodexEntry = webMethod(Permissions.Anyone, async (campaignId, entry) => {
   if (!campaignId || !(await isLoreMaster(campaignId))) return { ok: false, error: 'only the LoreMaster' };
