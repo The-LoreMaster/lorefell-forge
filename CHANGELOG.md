@@ -1,3 +1,7 @@
+## 2026-10-04 - Triggers that do it all at once
+
+A trigger now takes several Afflictions and several Pales (each spreading the same distance), damage to the Fell who sets it off (Base and Bonus, physical or magical, as Send a hit deals it), a sound from the music library played for everyone when it fires, a clock to tick, and its line shown across everyone's screen for a few seconds as well as in the log. Everything set happens at once. A log line can carry a banner and a sound, played once by each table that sees it arrive (never for history).
+
 ## 2026-10-04 - Trigger tokens
 
 Any token that is not a Fell can be made a trigger (the LoreMaster's token row): its range (stepping onto it, or up to five spaces), what happens (said in the log), an Affliction for the Fell who sets it off (on their sheet, as the LoreMaster gives one, in a fight or out of one), a Pale that spreads from it (any of the twelve, its own space or up to three around), whether it fires once or every time a Fell comes in again, whether it shows itself when it fires (hide the token for a trap), and whether it is armed. Only the LoreMaster's table watches, never while Threadwalking; the LoreMaster sees each trigger's reach as a dashed red ring, greyed once spent.

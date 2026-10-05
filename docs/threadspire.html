@@ -421,6 +421,12 @@ body.in-lobby #quickBar{ display:none; } #quickBar.fight:not(.mv-placed){ bottom
 #lbLayer .lb-ring.cors{ border-color:rgba(240,212,138,.55); }
 #trigLayer{ position:absolute; left:0; top:0; width:0; height:0; z-index:4; pointer-events:none; }
 #trigLayer .trig-ring{ position:absolute; border-radius:50%; border:2px dashed rgba(224,112,90,.6); } #trigLayer .trig-ring.spent{ border-color:rgba(147,163,182,.35); }
+#cueBanner{ position:fixed; left:50%; top:22%; transform:translate(-50%, -8px); z-index:450; max-width:min(80vw, 760px); padding:14px 26px; border-radius:12px; border:1px solid rgba(201,168,76,.6); background:rgba(10,14,26,.92); color:#f3ead2; font-family:Cinzel,serif; font-size:clamp(1.1rem, 2.2vw, 1.6rem); text-align:center; box-shadow:0 14px 40px rgba(0,0,0,.6); opacity:0; pointer-events:none; transition:opacity .35s, transform .35s; }
+#cueBanner.on{ opacity:1; transform:translate(-50%, 0); }
+.trig-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:2px 10px; max-height:150px; overflow:auto; padding:4px; border:1px solid #26324c; border-radius:9px; }
+.trig-c{ display:flex; align-items:center; gap:6px; font-size:.9rem; color:#dce8ef; } .trig-c input{ accent-color:#c9a84c; }
+.trig-dmg{ display:flex; gap:8px; align-items:center; } .trig-dmg label{ display:flex; align-items:center; gap:6px; font-size:.9rem; color:#93a3b6; } .trig-dmg .tsm-inp{ width:80px; }
+@media (prefers-reduced-motion: reduce){ #cueBanner{ transition:none; } }
 .cx-with{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px; } .cx-chip{ height:32px; padding:0 12px; border-radius:999px; border:1px solid #26324c; background:#0c1222; color:#dce8ef; font:inherit; font-size:.9rem; cursor:pointer; } .cx-chip:hover{ border-color:#c9a84c; color:#f0d48a; }
 .cx-link{ border:0; background:none; padding:0; color:#c9a84c; font:inherit; font-size:.9rem; cursor:pointer; text-decoration:underline; text-underline-offset:3px; }
 .cx-names{ display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:8px; max-height:58vh; overflow:auto; }
@@ -7632,47 +7638,67 @@ setInterval(function(){ try { lbPaint(); } catch(e){} }, 300);
    hold of that Fell (on its sheet, as the LoreMaster gives one), a Pale can spread from where
    it stood, and a hidden one shows itself. It fires once, or every time a Fell comes in
    again. Only the LoreMaster's table watches, and never while Threadwalking. */
+function trigNorm(c){
+  c = c || {};
+  if (!Array.isArray(c.affs)) c.affs = c.aff ? [c.aff] : [];
+  if (!Array.isArray(c.pales)) c.pales = c.pale ? [c.pale] : [];
+  return c;
+}
 function trigWin(id){
   var t = tokById(id); if (!t || !isLM()) return;
-  var c = t.trig || { range:1, once:true, reveal:true, armed:true, paleR:1 };
-  tsModal('<h3 class="tsm-title">Triggered: ' + esc(tokenName(t)) + '</h3><p class="tsm-note">It fires when a Fell comes within range. Hide the token to make it a trap no one sees coming.</p>'
+  var c = trigNorm(t.trig || { range:1, once:true, reveal:true, armed:true, paleR:1, banner:true });
+  var chk = function(name, val, on){ return '<label class="trig-c"><input type="checkbox" name="' + name + '" value="' + esc(val) + '"' + (on ? ' checked' : '') + '> ' + esc(val) + '</label>'; };
+  var refs = [{ r:'', n:'No sound' }].concat((musicState().tracks || []).map(function(tr){ return { r:'t:' + tr.id, n:tr.title || tr.name || 'Track' }; }));
+  tsModal('<h3 class="tsm-title">Triggered: ' + esc(tokenName(t)) + '</h3><p class="tsm-note">Everything set here happens at once when a Fell comes within range. Hide the token to make it a trap no one sees coming.</p>'
     + '<label class="tsm-lbl" for="trR">Range</label><select class="tsm-inp" id="trR">' + [0,1,2,3,4,5].map(function(n){ return '<option value="' + n + '"' + ((c.range || 0) === n ? ' selected' : '') + '>' + (n ? n + ' space' + (n === 1 ? '' : 's') : 'Stepping onto it') + '</option>'; }).join('') + '</select>'
-    + '<label class="tsm-lbl" for="trT">What happens (said in the log)</label><input class="tsm-inp" id="trT" maxlength="200" value="' + esc(c.text || '') + '" placeholder="A blade swings from the wall.">'
-    + '<label class="tsm-lbl" for="trA">An Affliction on the Fell</label><select class="tsm-inp" id="trA"><option value="">None</option>' + affNames().map(function(n){ return '<option' + (c.aff === n ? ' selected' : '') + '>' + esc(n) + '</option>'; }).join('') + '</select>'
-    + '<label class="tsm-lbl" for="trP">A Pale that spreads from it</label><select class="tsm-inp" id="trP"><option value="">None</option>' + PALE_SHELF.map(function(b){ return '<option' + (c.pale === b[0] ? ' selected' : '') + '>' + esc(b[0]) + '</option>'; }).join('') + '</select>'
-    + '<label class="tsm-lbl" for="trPR">How far the Pale spreads</label><select class="tsm-inp" id="trPR">' + [0,1,2,3].map(function(n){ return '<option value="' + n + '"' + ((c.paleR || 0) === n ? ' selected' : '') + '>' + (n ? n + ' space' + (n === 1 ? '' : 's') + ' around' : 'Its own space') + '</option>'; }).join('') + '</select>'
+    + '<label class="tsm-lbl" for="trT">What happens</label><input class="tsm-inp" id="trT" maxlength="200" value="' + esc(c.text || '') + '" placeholder="The floor gives way.">'
+    + '<label class="rc-who"><input type="checkbox" id="trBn"' + (c.banner !== false ? ' checked' : '') + '> Show it across everyone\u2019s screen too</label>'
+    + '<label class="tsm-lbl">Damage to the Fell</label><div class="trig-dmg"><label>Base <input class="tsm-inp" id="trDB" inputmode="numeric" value="' + esc(c.dmg ? c.dmg.b || '' : '') + '"></label><label>Bonus <input class="tsm-inp" id="trDN" inputmode="numeric" value="' + esc(c.dmg ? c.dmg.n || '' : '') + '"></label>'
+      + '<select class="tsm-inp" id="trDT"><option value="phys"' + (!c.dmg || c.dmg.t !== 'mag' ? ' selected' : '') + '>Physical</option><option value="mag"' + (c.dmg && c.dmg.t === 'mag' ? ' selected' : '') + '>Magical</option></select></div>'
+    + '<label class="tsm-lbl">Afflictions on the Fell</label><div class="trig-grid">' + affNames().map(function(n){ return chk('trA', n, c.affs.indexOf(n) >= 0); }).join('') + '</div>'
+    + '<label class="tsm-lbl">Pales that spread from it</label><div class="trig-grid">' + PALE_SHELF.map(function(p){ return chk('trP', p[0], c.pales.indexOf(p[0]) >= 0); }).join('') + '</div>'
+    + '<label class="tsm-lbl" for="trPR">How far they spread</label><select class="tsm-inp" id="trPR">' + [0,1,2,3].map(function(n){ return '<option value="' + n + '"' + ((c.paleR || 0) === n ? ' selected' : '') + '>' + (n ? n + ' space' + (n === 1 ? '' : 's') + ' around' : 'Its own space') + '</option>'; }).join('') + '</select>'
+    + '<label class="tsm-lbl" for="trS">A sound when it fires</label><select class="tsm-inp" id="trS">' + refs.map(function(o){ return '<option value="' + esc(o.r) + '"' + ((c.sfx || '') === o.r ? ' selected' : '') + '>' + esc(o.n) + '</option>'; }).join('') + '</select>'
+    + '<label class="tsm-lbl" for="trC">A clock to tick</label><select class="tsm-inp" id="trC"><option value="">None</option>' + clocksAll().map(function(k){ return '<option value="' + esc(k.id) + '"' + (c.clock === k.id ? ' selected' : '') + '>' + esc(k.name) + '</option>'; }).join('') + '</select>'
     + '<label class="rc-who"><input type="checkbox" id="trO"' + (c.once !== false ? ' checked' : '') + '> Fires once (untick: every time a Fell comes in again)</label>'
     + '<label class="rc-who"><input type="checkbox" id="trV"' + (c.reveal !== false ? ' checked' : '') + '> Shows itself when it fires</label>'
     + '<label class="rc-who"><input type="checkbox" id="trOn"' + (c.armed !== false ? ' checked' : '') + '> Armed</label>'
-    + '<div class="tsm-row">' + (t.trig ? '<button class="tsm-btn ghost" onclick="trigClear(\'' + esc(id) + '\')">Not a trigger</button>' : '') + '<button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button><button class="tsm-btn" onclick="trigSave(\'' + esc(id) + '\')">Save</button></div>');
+    + '<div class="tsm-row">' + (t.trig ? '<button class="tsm-btn ghost" onclick="trigClear(\'' + esc(id) + '\')">Not a trigger</button>' : '') + '<button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button><button class="tsm-btn" onclick="trigSave(\'' + esc(id) + '\')">Save</button></div>', true);
 }
 function trigSave(id){
   var t = tokById(id); if (!t) return; var g = function(i){ return document.getElementById(i) || {}; };
-  t.trig = { range:+g('trR').value || 0, text:String(g('trT').value || '').trim(), aff:g('trA').value || '', pale:g('trP').value || '', paleR:+g('trPR').value || 0, once:!!g('trO').checked, reveal:!!g('trV').checked, armed:!!g('trOn').checked, inside:false };
+  var picked = function(n){ return [].slice.call(document.querySelectorAll('#tsModal input[name="' + n + '"]:checked')).map(function(x){ return x.value; }); };
+  var db = parseInt(g('trDB').value, 10) || 0, dn = parseInt(g('trDN').value, 10) || 0;
+  t.trig = { range:+g('trR').value || 0, text:String(g('trT').value || '').trim(), banner:!!g('trBn').checked, affs:picked('trA'), pales:picked('trP'), paleR:+g('trPR').value || 0,
+    dmg:(db || dn) ? { b:db, n:dn, t:g('trDT').value || 'phys' } : null, sfx:g('trS').value || '', clock:g('trC').value || '',
+    once:!!g('trO').checked, reveal:!!g('trV').checked, armed:!!g('trOn').checked, inside:false };
   tsCloseModal(); trigShare(t);
 }
 function trigClear(id){ var t = tokById(id); if (!t) return; delete t.trig; tsCloseModal(); trigShare(t); }
 function trigShare(t){ roomSend({ t:'tok', id:t.id, p:{ trig:t.trig || null, hidden:!!t.hidden } }); applyRemoteState({ tokens:S.tokens }); renderTokens(); try { paintTokMenu(); } catch(e){} trigPaint(true); }
 function trigFire(t, f){
-  var c = t.trig, who = tokenName(f);
-  pushLog({ kind:'sys', html:'<b>' + esc(tokenName(t)) + '</b> is triggered by <b>' + esc(who) + '</b>.' + (c.text ? ' ' + esc(c.text) : '') });
-  if (c.aff && f.charId){
-    /* in a fight the Fell's record holds it; outside one, its token does; either way the sheet is told */
+  var c = trigNorm(t.trig), who = tokenName(f);
+  /* the line: in the log, across the screen if asked, with its sound */
+  var line = c.text || (tokenName(t) + ' is set off.');
+  pushLog({ kind:'sys', html:'<b>' + esc(tokenName(t)) + '</b> is triggered by <b>' + esc(who) + '</b>.' + (c.text ? ' ' + esc(c.text) : ''), banner:c.banner !== false ? line : '', sfx:c.sfx || '' });
+  if (c.dmg && f.charId){ try { lmDealDamage(f.charId, c.dmg.b || 0, c.dmg.n || 0, c.dmg.t || 'phys'); } catch(e){} pushLog({ kind:'sys', html:'<b>' + esc(who) + '</b> is struck for ' + (c.dmg.b || 0) + ' + ' + (c.dmg.n || 0) + (c.dmg.t === 'mag' ? ' magical' : '') + '.' }); }
+  if (c.affs.length && f.charId){
     var p = fellByCharId(f.charId), list = p ? (p.affs = p.affs || []) : (f.affs = f.affs || []);
-    if (list.indexOf(c.aff) < 0) list.push(c.aff);
-    try { lmApplyEffects(f.charId, list, { msg:c.aff + ' takes hold.', at:Date.now() }); } catch(e){}
-    pushLog({ kind:'sys', html:esc(c.aff) + ' takes hold of <b>' + esc(who) + '</b>.' });
+    c.affs.forEach(function(a){ if (list.indexOf(a) < 0) list.push(a); });
+    try { lmApplyEffects(f.charId, list, { msg:c.affs.join(', ') + ' take' + (c.affs.length === 1 ? 's' : '') + ' hold.', at:Date.now() }); } catch(e){}
+    pushLog({ kind:'sys', html:esc(c.affs.join(', ')) + ' take' + (c.affs.length === 1 ? 's' : '') + ' hold of <b>' + esc(who) + '</b>.' });
   }
-  if (c.pale){
-    var b = paleShelf(c.pale), cc = elevCellOf(t.x, t.y), cells = [];
+  if (c.pales.length){
+    var cc = elevCellOf(t.x, t.y), cells = [];
     for (var dx = -c.paleR; dx <= c.paleR; dx++) for (var dy = -c.paleR; dy <= c.paleR; dy++) if (Math.hypot(dx, dy) <= c.paleR + .5) cells.push((cc.c + dx) + ',' + (cc.r + dy));
-    if (b) paleList().push({ id:'pl' + Date.now().toString(36), base:b[0], name:b[0], type:b[1], trigger:b[2], payload:b[3], amount:'', aff:'', dur:'scene', rounds:0, color:b[5], cells:cells, conjured:false });
+    c.pales.forEach(function(nm, k){ var b2 = paleShelf(nm); if (b2) paleList().push({ id:'pl' + Date.now().toString(36) + k, base:b2[0], name:b2[0], type:b2[1], trigger:b2[2], payload:b2[3], amount:'', aff:'', dur:'scene', rounds:0, color:b2[5], cells:cells.slice(), conjured:false }); });
     try { paleShare(); } catch(e){}
   }
+  if (c.clock){ try { clockTick(c.clock, 1); } catch(e){} }
   if (c.reveal && t.hidden) t.hidden = false;
   if (c.once) c.armed = false; else c.inside = true;
+  t.trig = c;
   applyRemoteState({ log:S.log, scene:S.scene }); trigShare(t);
-  playToast(esc(tokenName(t)) + ' fired: ' + esc(who) + '.', 'Trigger');
 }
 setInterval(function(){
   try {
@@ -21640,6 +21666,20 @@ function roomLogApply(e){
   if (!e || !e.id || (S.log || []).some(function(x){ return x && x.id === e.id; })) return;
   S.log = (S.log || []).concat([e]); applyRemoteState({ log:S.log });
   try { rollShow(e); } catch(x){}
+  try { if (!(typeof _rollHistory !== 'undefined' && _rollHistory[e.id])) logCue(e); } catch(x){}
+}
+/* a line's own moment: its words across the screen for a few seconds, and a sound once */
+function logCue(e){
+  if (!e) return;
+  if (e.banner){
+    var b = document.getElementById('cueBanner');
+    if (!b){ b = document.createElement('div'); b.id = 'cueBanner'; b.setAttribute('role', 'status'); b.setAttribute('aria-live', 'assertive'); document.body.appendChild(b); }
+    b.textContent = e.banner; b.classList.remove('on'); void b.offsetWidth; b.classList.add('on');
+    clearTimeout(logCue._t); logCue._t = setTimeout(function(){ b.classList.remove('on'); }, 5500);
+  }
+  if (e.sfx){
+    try { var tr = musicRefTracks(e.sfx)[0]; if (tr && tr.url){ var me = musicMine(); if (!me.off){ var a = new Audio(tr.url); a.volume = Math.max(0, Math.min(1, (me.vol == null ? 1 : me.vol) * musicTableVol())); var pr = a.play(); if (pr && pr.catch) pr.catch(function(){}); } } } catch(x){}
+  }
 }
 /* a token being dragged here is not moved by what arrives for it until it is dropped */
 var _roomDrag = {};
@@ -23462,7 +23502,7 @@ function whisperSees(e){
 var logSeq = 0;
 function mkId(){ return 'e' + (++logSeq) + '-' + Date.now().toString(36); }
 var _logPushT = null;
-function pushLog(e){ e.id = mkId(); S.log.push(e); try { roomSend({ t:'log', e:e }); } catch(x){} try { rollShow(e); } catch(x){} applyRemoteState({ log:S.log }); if (_logPushT) clearTimeout(_logPushT); _logPushT = setTimeout(function(){ try { pushState(); } catch(err){} }, 600); }
+function pushLog(e){ e.id = mkId(); S.log.push(e); try { roomSend({ t:'log', e:e }); } catch(x){} try { rollShow(e); } catch(x){} try { logCue(e); } catch(x){} applyRemoteState({ log:S.log }); if (_logPushT) clearTimeout(_logPushT); _logPushT = setTimeout(function(){ try { pushState(); } catch(err){} }, 600); }
 function entryHtml(e){
   if (e.kind === 'say'){
     if (e.to){ if (!whisperSees(e)) return ''; return '<div class="le say wh"><b>' + esc(e.who) + '</b> <i>whispers to ' + esc(e.toName || 'someone') + '</i> ' + esc(e.text) + '</div>'; }
