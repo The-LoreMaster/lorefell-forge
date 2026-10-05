@@ -1,3 +1,7 @@
+## 2026-10-04 - Clocks
+
+The scene and battle runners gain Clocks: segmented countdowns (4 to 12) the LoreMaster names and ticks, each seen by everyone or by the LoreMaster alone. They sit at the top of the table, movable by their grip; a tap ticks one, a right-click takes one back, and a full clock turns red and says so in the log. Public clocks show to the players and the stream, through the live room and the saved table.
+
 ## 2026-10-04 - Whispers
 
 Every chat box gains a To chooser beside Say: All, or a whisper to the LoreMaster or any one Fell at the table (the LoreMaster can whisper to any Fell); typing "/w Name words" whispers too. A whisper shows, in its own colour as "whispers to", only to its writer, its reader and the LoreMaster; other players, the stream and the published combat feed never see it.

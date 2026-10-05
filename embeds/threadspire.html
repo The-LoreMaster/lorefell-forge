@@ -394,6 +394,13 @@ body.in-lobby #lmstrip, body.in-lobby #mapTools{ visibility:hidden !important; p
 .wh-menu{ position:fixed; z-index:500; display:flex; flex-direction:column; min-width:200px; padding:4px; border-radius:10px; border:1px solid #26324c; background:rgba(10,14,26,.97); box-shadow:0 10px 30px rgba(0,0,0,.5); }
 .wh-menu button{ text-align:left; padding:8px 10px; border:0; border-radius:7px; background:none; color:#dce8ef; font:inherit; font-size:.9rem; cursor:pointer; } .wh-menu button:hover, .wh-menu button[aria-checked=true]{ background:#141b31; color:#f0d48a; }
 .le.say.wh{ color:#d8c3f0; } .le.say.wh i{ color:#a98fd0; font-style:italic; }
+#clockStrip{ position:fixed; top:calc(9.5% + env(safe-area-inset-top, 0px)); left:50%; transform:translateX(-50%); z-index:57; display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:center; max-width:60vw; pointer-events:auto; }
+#clockStrip .clk-in{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:center; } #clockStrip .clk{ display:flex; align-items:center; gap:8px; padding:5px 12px 5px 6px; border-radius:999px; border:1px solid rgba(201,168,76,.45); background:rgba(10,14,26,.88); color:#dce8ef; font-family:'Crimson Pro',Georgia,serif; cursor:default; }
+body.lm-role #clockStrip .clk{ cursor:pointer; } #clockStrip .clk.secret{ border-style:dashed; opacity:.85; } #clockStrip .clk.full{ border-color:#c0473c; }
+#clockStrip .clk span{ display:flex; flex-direction:column; line-height:1.15; } #clockStrip .clk b{ font-size:.92rem; font-weight:600; } #clockStrip .clk i{ font-style:normal; font-size:.75rem; color:#93a3b6; }
+#clockStrip .clk-add{ width:30px; height:30px; border-radius:50%; border:1px solid rgba(201,168,76,.45); background:rgba(10,14,26,.88); color:#f0d48a; cursor:pointer; }
+.clk-list{ display:flex; flex-direction:column; gap:6px; } .clk-row{ display:grid; grid-template-columns:36px minmax(0,1fr) 70px auto auto auto auto; gap:6px; align-items:center; } .clk-row .tsm-btn{ height:34px; padding:0 10px; }
+@media (max-width:640px){ #clockStrip{ max-width:92vw; } .clk-row{ grid-template-columns:36px minmax(0,1fr) 64px; } }
 .cx-with{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px; } .cx-chip{ height:32px; padding:0 12px; border-radius:999px; border:1px solid #26324c; background:#0c1222; color:#dce8ef; font:inherit; font-size:.9rem; cursor:pointer; } .cx-chip:hover{ border-color:#c9a84c; color:#f0d48a; }
 .cx-link{ border:0; background:none; padding:0; color:#c9a84c; font:inherit; font-size:.9rem; cursor:pointer; text-decoration:underline; text-underline-offset:3px; }
 .cx-names{ display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:8px; max-height:58vh; overflow:auto; }
@@ -7370,6 +7377,62 @@ function imgField(id, val){
     + '<label class="tsm-btn ghost img-up">Upload<input type="file" accept="image/*" style="display:none" onchange="imgUpload(this,\'' + id + '\')"></label></div>'
     + '<img id="' + id + 'Pv" class="img-pv" src="' + esc(val || '') + '" alt=""' + (val ? '' : ' style="display:none"') + '>';
 }
+/* ================= clocks =================
+   Segmented countdowns the LoreMaster ticks: the ritual completes, the guards arrive. Each is
+   seen by everyone or by the LoreMaster alone; the public ones show to the players and the
+   stream. They sit along the top of the table; the LoreMaster ticks one with a tap (a
+   right-click or long press takes one back). */
+function clocksAll(){ return Array.isArray(S.clocks) ? S.clocks : (S.clocks = []); }
+function clocksShare(){ try { roomPartsSync(false); } catch(e){} schedulePush(); clocksPaint(); }
+function clockSvg(c, size){
+  var n = Math.max(2, Math.min(12, c.segs || 6)), f = Math.max(0, Math.min(n, c.filled || 0)), r = size / 2 - 3, cx = size / 2, cy = size / 2, h = '';
+  for (var i = 0; i < n; i++){
+    var a0 = -Math.PI / 2 + i * 2 * Math.PI / n, a1 = a0 + 2 * Math.PI / n;
+    var x0 = cx + r * Math.cos(a0), y0 = cy + r * Math.sin(a0), x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1);
+    h += '<path d="M' + cx + ' ' + cy + ' L' + x0.toFixed(1) + ' ' + y0.toFixed(1) + ' A' + r + ' ' + r + ' 0 0 1 ' + x1.toFixed(1) + ' ' + y1.toFixed(1) + ' Z" fill="' + (i < f ? (f >= n ? '#c0473c' : '#c9a84c') : 'rgba(255,255,255,.06)') + '" stroke="#0a0e1a" stroke-width="1.5"/>';
+  }
+  return '<svg viewBox="0 0 ' + size + ' ' + size + '" width="' + size + '" height="' + size + '" aria-hidden="true">' + h + '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="rgba(201,168,76,.7)" stroke-width="1.5"/></svg>';
+}
+function clocksPaint(){
+  var lm = isLM() && !S.stream;
+  var list = clocksAll().filter(function(c){ return lm || c.pub; });
+  var el = document.getElementById('clockStrip');
+  if (!list.length){ if (el) el.remove(); return; }
+  if (!el){ el = document.createElement('div'); el.id = 'clockStrip'; el.setAttribute('role', 'list'); el.setAttribute('aria-label', 'Clocks'); (document.getElementById('stage') || document.body).appendChild(el); }
+  var key = JSON.stringify(list) + lm; if (el._k === key) return; el._k = key;
+  /* movable like the toolbar, by a grip kept outside the clocks themselves */
+  el.innerHTML = '<span class="clk-in"></span>'; var inner = el.firstChild; el._mv = false; moveBar(el, 'ts_clocks_pos');
+  inner.innerHTML = list.map(function(c){
+    var n = c.segs || 6, f = c.filled || 0;
+    return '<div class="clk' + (c.pub ? '' : ' secret') + (f >= n ? ' full' : '') + '" role="listitem" title="' + esc(c.name) + ': ' + f + ' of ' + n + (lm ? '. Tap to tick, right-click to take one back.' : '') + '"'
+      + (lm ? ' onclick="clockTick(\'' + c.id + '\',1)" oncontextmenu="event.preventDefault();clockTick(\'' + c.id + '\',-1)"' : '') + '>'
+      + clockSvg(c, 44) + '<span><b>' + esc(c.name) + '</b><i>' + f + ' of ' + n + (c.pub ? '' : ' \u00b7 yours alone') + '</i></span></div>'; }).join('')
+    + (lm ? '<button class="clk-add" onclick="clocksWin()" title="Clocks" aria-label="Manage the clocks">+</button>' : '');
+}
+function clockTick(id, d){
+  if (!isLM()) return;
+  var c = clocksAll().filter(function(x){ return x.id === id; })[0]; if (!c) return;
+  c.filled = Math.max(0, Math.min(c.segs || 6, (c.filled || 0) + d));
+  if (c.filled >= (c.segs || 6) && d > 0) pushLog({ kind:'sys', lmOnly:!c.pub, html:'<b>' + esc(c.name) + '</b>: the clock runs out.' }), applyRemoteState({ log:S.log });
+  clocksShare(); if (document.getElementById('clkWin')) clocksWin();
+}
+function clocksWin(){
+  if (!isLM() || keeperNo()) return;
+  var h = '<div id="clkWin"><h3 class="tsm-title">Clocks</h3><p class="tsm-note">Tap a clock on the table to tick it; right-click takes one back.</p>';
+  h += clocksAll().length ? '<div class="clk-list">' + clocksAll().map(function(c){
+      return '<div class="clk-row">' + clockSvg(c, 36) + '<input class="tsm-inp" value="' + esc(c.name) + '" oninput="clockSet(\'' + c.id + '\',\'name\',this.value)" aria-label="Its name">'
+        + '<select class="tsm-inp" onchange="clockSet(\'' + c.id + '\',\'segs\',+this.value)" aria-label="Segments">' + [4,6,8,10,12].map(function(n){ return '<option' + ((c.segs || 6) === n ? ' selected' : '') + '>' + n + '</option>'; }).join('') + '</select>'
+        + '<button class="tsm-btn ghost" onclick="clockTick(\'' + c.id + '\',-1)" aria-label="Take one back">\u2212</button><button class="tsm-btn ghost" onclick="clockTick(\'' + c.id + '\',1)" aria-label="Tick">+</button>'
+        + '<button class="tsm-btn ghost" onclick="clockSet(\'' + c.id + '\',\'pub\',' + (c.pub ? 'false' : 'true') + ');clocksWin()">' + (c.pub ? 'Everyone sees it' : 'Yours alone') + '</button>'
+        + '<button class="tsm-btn ghost" onclick="clockDel(\'' + c.id + '\')" aria-label="Remove">\u2715</button></div>'; }).join('') + '</div>' : '<p class="lc-p">No clocks yet.</p>';
+  h += '<div class="tsm-row"><button class="tsm-btn ghost" onclick="clockNew(false)">A clock for you alone</button><button class="tsm-btn" onclick="clockNew(true)">A clock everyone sees</button></div></div>';
+  tsModal(h, true);
+}
+var _clkT = null;
+function clockSet(id, k, v){ var c = clocksAll().filter(function(x){ return x.id === id; })[0]; if (!c) return; c[k] = v; if (k === 'segs') c.filled = Math.min(c.filled || 0, v); clearTimeout(_clkT); _clkT = setTimeout(clocksShare, k === 'name' ? 500 : 0); }
+function clockNew(pub){ clocksAll().push({ id:'ck' + Date.now(), name:pub ? 'The ritual completes' : 'What only I know', segs:6, filled:0, pub:pub }); clocksShare(); clocksWin(); }
+function clockDel(id){ S.clocks = clocksAll().filter(function(x){ return x.id !== id; }); clocksShare(); clocksWin(); }
+setInterval(function(){ try { clocksPaint(); } catch(e){} }, 1000);
 /* ---- a new session video, noticed ----
    When the LoreMaster opens the table, the room looks at the connected channel's newest
    uploads for one whose title names this adventure (the part before the pipe, or the whole
@@ -9108,12 +9171,12 @@ function lmPhaseControls(){
     return '<button class="lmbtn" onclick="lmOpenMaps()">Maps</button>'
          + '<button class="lmbtn" onclick="lmOpenTokens()">Tokens</button>'
          + '<button class="lmbtn" onclick="lmBeginCombat()">Begin combat</button>'
-         + lobbyBtn() + momBtn() + lmAplGear();
+         + lobbyBtn() + '<button class="lmbtn" onclick="clocksWin()" title="Clocks">Clocks</button>' + momBtn() + lmAplGear();
   if (S.scene.combatPhase === 'commit')
     return '<button class="lmbtn gold" onclick="lmLockActs()">Lock acts into Spotlights</button>'
          + '<button class="lmbtn" onclick="declaresLoad(true)">Read declares</button>'
          + '<button class="lmbtn" onclick="lmEndCombat()">End combat</button>'
-         + lobbyBtn() + momBtn() + lmAplGear();
+         + lobbyBtn() + '<button class="lmbtn" onclick="clocksWin()" title="Clocks">Clocks</button>' + momBtn() + lmAplGear();
   return '<button class="lmbtn' + (S.scene.spotMode==='auto'?' gold':'') + '" onclick="lmSpotMode(\'auto\')">Auto</button>'
        + '<button class="lmbtn' + (S.scene.spotMode==='manual'?' gold':'') + '" onclick="lmSpotMode(\'manual\')">Manual</button>'
        + '<button class="lmbtn" onclick="lmUnlock()">Back to Commit</button>'
@@ -10899,6 +10962,7 @@ function sharedSnapshot(){
     pales: (isLM() && _mapStateLoaded) ? (S.pales || {}) : undefined,
     retell: isLM() && !isKeeper() ? (S.retell || null) : undefined,
     lobby: isLM() && !isKeeper() ? (S.lobby || null) : undefined,
+    clocks: isLM() && !isKeeper() ? (S.clocks || []) : undefined,
     retellPick: isLM() && !isKeeper() ? (S.retellPick || null) : undefined,
     marks: isLM() && !isKeeper() ? (S.marks || []) : undefined,
     ytDrafts: isLM() && !isKeeper() ? (S.ytDrafts || {}) : undefined,
@@ -11208,6 +11272,7 @@ function applyRemoteSnapshot(snap){
   if (snap.spot !== undefined && (!isLM() || S.stream)) S.spot = Array.isArray(snap.spot) ? snap.spot : [];
   if (snap.retell !== undefined && (!isLM() || S.stream)) S.retell = snap.retell;
   if (snap.lobby !== undefined && (!isLM() || S.stream || !S.lobby)) S.lobby = snap.lobby;
+  if (Array.isArray(snap.clocks) && (!isLM() || S.stream || !(S.clocks && S.clocks.length))) S.clocks = snap.clocks;
   if (snap.retellPick !== undefined && isLM() && !S.retellPick) S.retellPick = snap.retellPick;
   if (Array.isArray(snap.marks) && isLM() && !(S.marks && S.marks.length)) S.marks = snap.marks;
   if (snap.ytDrafts && isLM() && !(S.ytDrafts && Object.keys(S.ytDrafts).length)) S.ytDrafts = snap.ytDrafts;
@@ -21177,7 +21242,7 @@ var ROOM = { ws:null, on:false, want:false, tries:0, t:null, cid:'', role:'', se
 var KEEPER_SENDS = ['pales', 'elev', 'fog', 'walls', 'lights', 'effects', 'notes', 'weather', 'draw', 'portraits'];
 var KEEPER_TAKES = KEEPER_SENDS.concat(['combatPhase', 'music', 'party', 'rest', 'loreGrants']);
 /* the rest of the table the LoreMaster's table sends through the room, each when it changes */
-var ROOM_PARTS = ['lobby', 'retell', 'spot', 'pales', 'elev', 'fog', 'walls', 'lights', 'effects', 'notes', 'weather', 'music', 'rest', 'viewCall', 'loreGrants', 'combatPhase', 'draw', 'portraits', 'party', 'beatPic', 'handouts', 'questRev'];
+var ROOM_PARTS = ['clocks', 'lobby', 'retell', 'spot', 'pales', 'elev', 'fog', 'walls', 'lights', 'effects', 'notes', 'weather', 'music', 'rest', 'viewCall', 'loreGrants', 'combatPhase', 'draw', 'portraits', 'party', 'beatPic', 'handouts', 'questRev'];
 function roomSend(msg){ if (S.visit && msg && msg.t !== 'hb' && msg.t !== 'log') return false; if (ROOM.on && ROOM.ws && ROOM.ws.readyState === 1 && !S.stream){ try { ROOM.ws.send(JSON.stringify(msg)); return true; } catch(e){} } return false; }
 function roomConnect(){
   if (!tsEmbedded() || !S.campaignId) return;
