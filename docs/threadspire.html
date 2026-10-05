@@ -416,6 +416,9 @@ body.lm-role #clockStrip .clk{ cursor:pointer; } #clockStrip .clk.secret{ border
 .qb-pick .star{ color:#c9a84c; } .qb-pick i{ margin-left:auto; font-style:normal; font-size:.8rem; color:#93a3b6; }
 body.in-lobby #quickBar{ display:none; } #quickBar.fight:not(.mv-placed){ bottom:calc(150px + env(safe-area-inset-bottom, 0px)); }
 @media (max-width:640px){ #quickBar{ max-width:92vw; bottom:calc(70px + env(safe-area-inset-bottom, 0px)); } }
+#lbLayer{ position:absolute; left:0; top:0; width:0; height:0; z-index:4; pointer-events:none; }
+#lbLayer .lb-ring{ position:absolute; border-radius:50%; border:2px dashed rgba(216,166,255,.55); background:radial-gradient(circle, rgba(216,166,255,.07), rgba(216,166,255,0) 72%); }
+#lbLayer .lb-ring.cors{ border-color:rgba(240,212,138,.55); }
 .cx-with{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px; } .cx-chip{ height:32px; padding:0 12px; border-radius:999px; border:1px solid #26324c; background:#0c1222; color:#dce8ef; font:inherit; font-size:.9rem; cursor:pointer; } .cx-chip:hover{ border-color:#c9a84c; color:#f0d48a; }
 .cx-link{ border:0; background:none; padding:0; color:#c9a84c; font:inherit; font-size:.9rem; cursor:pointer; text-decoration:underline; text-underline-offset:3px; }
 .cx-names{ display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:8px; max-height:58vh; overflow:auto; }
@@ -7582,6 +7585,38 @@ function qbWin(){
     + '<div class="tsm-row"><button class="tsm-btn" onclick="tsCloseModal()">Done</button></div>';
   tsModal(h, true);
 }
+/* ================= lorebounds on the map =================
+   A token marked as a lorebound belongs to a Fell: its player may move it, it moves as far as
+   its Fell (a Corsair twice as far), and a ring shows its Mobility range, where its Aspect (its
+   React) reaches: an Aspect triggers on an event within that range (FellGuide, Lorebounds).
+   The ring shows to everyone in a fight, and to its owner and the LoreMaster otherwise. */
+var LB_FORMS = [['familiar', 'Familiar'], ['companion', 'Companion'], ['corsair', 'Corsair']];
+function lbOwnerName(t){ var o = (S.tokens || []).filter(function(x){ return x.charId && t.lb && sameId(x.charId, t.lb.owner); })[0]; return o ? tokenName(o) : 'a Fell'; }
+function lbWin(id){
+  var t = tokById(id); if (!t || !isLM()) return;
+  var fell = (S.tokens || []).filter(function(x){ return x.kind === 'p' && x.charId; });
+  var cur = t.lb || {};
+  tsModal('<h3 class="tsm-title">A lorebound</h3><p class="tsm-note">Its Fell\u2019s player can move it; it moves as far as its Fell, a Corsair twice as far, and its ring shows where its Aspect reaches.</p>'
+    + '<label class="tsm-lbl" for="lbOwner">Whose it is</label><select class="tsm-inp" id="lbOwner"><option value="">Not a lorebound</option>' + fell.map(function(f){ return '<option value="' + esc(f.charId) + '"' + (sameId(cur.owner, f.charId) ? ' selected' : '') + '>' + esc(tokenName(f)) + '</option>'; }).join('') + '</select>'
+    + '<label class="tsm-lbl" for="lbForm">Its form</label><select class="tsm-inp" id="lbForm">' + LB_FORMS.map(function(f){ return '<option value="' + f[0] + '"' + ((cur.form || 'familiar') === f[0] ? ' selected' : '') + '>' + f[1] + '</option>'; }).join('') + '</select>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button><button class="tsm-btn" onclick="lbSave(\'' + esc(id) + '\')">Save</button></div>');
+}
+function lbSave(id){
+  var t = tokById(id); if (!t) return;
+  var ow = (document.getElementById('lbOwner') || {}).value || '', fm = (document.getElementById('lbForm') || {}).value || 'familiar';
+  if (ow) t.lb = { owner:ow, form:fm }; else delete t.lb;
+  tsCloseModal(); roomSend({ t:'tok', id:t.id, p:{ lb:t.lb || null } }); applyRemoteState({ tokens:S.tokens }); renderTokens(); try { paintTokMenu(); } catch(e){} lbPaint(true);
+}
+function lbPaint(force){
+  var host = mapEl(); if (!host) return;
+  var lay = document.getElementById('lbLayer'); if (!lay){ lay = document.createElement('div'); lay.id = 'lbLayer'; host.appendChild(lay); }
+  var g = (S.grid && S.grid.size) || 100, fight = S.mode === 'combat';
+  var list = (S.tokens || []).filter(function(t){ return t.lb && t.lb.owner && !t.hidden && (fight || isLM() || tokenIsMine(t)) && !(typeof fogHides === 'function' && !isLM() && fogHides(t)); });
+  var html = list.map(function(t){ var r = moveLimitOf(t) * g + ((t.cells || 1) * g) / 2;
+    return '<div class="lb-ring' + (t.lb.form === 'corsair' ? ' cors' : '') + '" style="left:' + (t.x - r) + 'px;top:' + (t.y - r) + 'px;width:' + (2 * r) + 'px;height:' + (2 * r) + 'px" title="' + esc(tokenName(t)) + '\u2019s Aspect reaches here"></div>'; }).join('');
+  if (force || lay._h !== html){ lay._h = html; lay.innerHTML = html; }
+}
+setInterval(function(){ try { lbPaint(); } catch(e){} }, 300);
 /* ---- a new session video, noticed ----
    When the LoreMaster opens the table, the room looks at the connected channel's newest
    uploads for one whose title names this adventure (the part before the pipe, or the whole
@@ -17160,6 +17195,7 @@ function stanceDescFor(name){
 function tokenIsMine(t){
   if (!S.characterId) return false;
   if (t.mine) return true;
+  if (t.lb && t.lb.owner && sameId(t.lb.owner, S.characterId)) return true;   /* their lorebound */
   if (t.charId && sameId(t.charId, S.characterId)) return true;
   if (t.kind !== 'p') return false;
   var myName = '';
@@ -19486,6 +19522,8 @@ function drawRings(){
 var MOVE_DEFAULT = 5;
 function moveLimitOf(t){
   if (!t) return MOVE_DEFAULT;
+  /* a lorebound moves as far as its Fell (a Corsair twice as far): FellGuide, Lorebounds */
+  if (t.lb && t.lb.owner){ var ow = (S.tokens || []).filter(function(x){ return x.charId && sameId(x.charId, t.lb.owner); })[0]; if (ow && ow !== t) return moveLimitOf(ow) * (t.lb.form === 'corsair' ? 2 : 1); }
   var found = 0;
   function take(v){ v = Number(v) || 0; if (v > 0 && !found) found = v; }
   try { var r = reachOf(t); if (r) take(r.mobility); } catch(e){}
@@ -19574,6 +19612,7 @@ function tokExtrasPaint(){
     + b(TM_ICON.front, 'Bring to front', 'tokLayer(1)') + b(TM_ICON.back, 'Send to back', 'tokLayer(-1)')
     + b(TM_ICON.dup, 'Duplicate (Ctrl+D)', 'tokDuplicate()')
     + (t.kind === 'p' && t.charId ? b('<span style="font-size:.95rem" aria-hidden="true">\u2709</span>', 'Whisper to ' + tokenName(t), "whisperToTok('" + t.id + "')") : '')
+    + (!(t.kind === 'p' || t.charId) ? b('<span style="font-size:.9rem" aria-hidden="true">\u2767</span>', t.lb ? 'Lorebound of ' + lbOwnerName(t) : 'Mark as a lorebound', "lbWin('" + t.id + "')", !!t.lb) : '')
     + b(TM_ICON.del, 'Remove from the map (Delete)', 'tokRemoveChosen()', false, 'danger');
   /* only when it changes, or a click lands on a button that was just replaced */
   if (box._html !== html){ box.innerHTML = html; box._html = html; }

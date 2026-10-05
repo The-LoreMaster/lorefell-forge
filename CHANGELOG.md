@@ -1,3 +1,7 @@
+## 2026-10-04 - Lorebounds on the map
+
+Any token that is not a Fell can be marked as a lorebound (the LoreMaster's token row): whose it is and its form, Familiar, Companion or Corsair. Its Fell's player may move it (the room allows it too), it moves as far as its Fell (a Corsair twice as far, FellGuide, Lorebounds), and a dashed ring shows its Mobility range, where its Aspect reaches: to everyone in a fight, to its owner and the LoreMaster otherwise.
+
 ## 2026-10-04 - The quick bar
 
 Each player has a quick bar on the table: they star what they reach for most (Attack, Evade, any skill with its bonus, their Acts, Reacts and utility items) and it sits at the bottom of the table, movable by its grip, raised above the hand row in a fight. A tap rolls the skill or the attack through the sheet as the picker does, or, in a fight, readies the Act or React on the hand row (an item opens the hand row's items); outside a fight an Act says it waits for one. Kept for each Fell on its device; hidden in the lobby.
