@@ -3145,6 +3145,7 @@ body.stream #beatPic{ display:none; }
     <div class="lmrow"><label>Scenes</label><button class="lmtog" onclick="gridApplyOpen()" title="Give these grid settings to other scenes">Apply to scenes…</button></div>
     <div class="lmrow"><label>Inset</label><input type="range" id="gInset" min="60" max="100" step="1"><span id="gInsetV"></span></div>
     <div class="lmrow"><label>Snap</label><button class="lmtog" id="gSnap" onclick="toggleSnap()"></button></div>
+    <div class="lmrow"><label>Shape</label><button class="lmtog" id="gHex" onclick="gridHexToggle()" title="Squares or hexes">Squares</button></div>
   </div>
   <div id="lmstrip" class="hidden"></div>
   <div id="hand" class="hidden" aria-label="Your Acts and Reacts"></div>
@@ -15159,8 +15160,9 @@ function handPlaceAt(mx, my){
      means it lives exactly as long as the player takes to try again, whether the retry is
      good or bad (a bad one sets its own note below). */
   handClearNote();
-  var x = clamp(snapAxis(mx, S.grid.offX, 1), 0, S.map.w);
-  var y = clamp(snapAxis(my, S.grid.offY, 1), 0, S.map.h);
+  var _sp = snapPoint(mx, my, 1);
+  var x = clamp(_sp.x, 0, S.map.w);
+  var y = clamp(_sp.y, 0, S.map.h);
   /* the same square twice is a slip, not a second caltrop */
   for (var i = 0; i < armed.places.length; i++){
     if (armed.places[i].x === x && armed.places[i].y === y) return true;
@@ -17636,13 +17638,37 @@ function renderTokens(){
    because a token left at the pixel it held is no longer centred on anything. */
 function resnapTokens(){
   (S.tokens || []).forEach(function(t){
-    var c = t.cells || 1;
-    t.x = clamp(snapAxis(t.x, S.grid.offX, c), 0, S.map.w);
-    t.y = clamp(snapAxis(t.y, S.grid.offY, c), 0, S.map.h);
+    var c = t.cells || 1, q = snapPoint(t.x, t.y, c);
+    t.x = clamp(q.x, 0, S.map.w);
+    t.y = clamp(q.y, 0, S.map.h);
   });
   renderTokens();
   if (isLM()) applyRemoteState({ tokens:S.tokens });
 }
+/* ---- hexes ----
+   Pointy-topped hexes as wide as a square is (the cell size), rows 0.866 of that apart, every
+   other row set over by half; a step to a neighbour is one cell, as on squares. */
+function isHex(){ return !!(S.grid && S.grid.hex); }
+function hexSnap(x, y){
+  var g = S.grid.size || 100, ox = Number(S.grid.offX) || 0, oy = Number(S.grid.offY) || 0, vs = g * Math.sqrt(3) / 2;
+  var r0 = Math.round((y - oy) / vs), best = null;
+  for (var r = r0 - 1; r <= r0 + 1; r++){
+    var shift = (r % 2 + 2) % 2 ? 0 : g / 2, c0 = Math.round((x - ox - shift) / g);
+    for (var c = c0 - 1; c <= c0 + 1; c++){ var cx = ox + shift + c * g, cy = oy + r * vs, d = (cx - x) * (cx - x) + (cy - y) * (cy - y); if (!best || d < best.d) best = { x:cx, y:cy, d:d }; }
+  }
+  return { x:best.x, y:best.y };
+}
+/* a point on the grid: the nearest hex centre, or the nearest square (for a token of cells) */
+function snapPoint(x, y, cells){
+  if (isHex()){ var h = hexSnap(x, y); return { x:h.x, y:h.y }; }
+  return { x:snapAxis(x, S.grid.offX, cells || 1), y:snapAxis(y, S.grid.offY, cells || 1) };
+}
+function gridHexToggle(){
+  if (!isLM()) return; S.grid.hex = !S.grid.hex; drawGrid(); gridHexPaint();
+  try { resnapTokens(); } catch(e){}
+  send({ type:'grid', grid:{ size:S.grid.size, offX:S.grid.offX || 0, offY:S.grid.offY || 0, opacity:S.grid.opacity, hex:!!S.grid.hex } });
+}
+function gridHexPaint(){ var b = document.getElementById('gHex'); if (b){ b.textContent = isHex() ? 'Hexes' : 'Squares'; b.classList.toggle('on', isHex()); } }
 function snapAxis(v, off, cells){
   var g = S.grid.size, half = (cells % 2) ? g / 2 : 0;
   return Math.round((v - off - half) / g) * g + off + half;
@@ -17704,8 +17730,9 @@ function wireToken(el, t, draggable){
       if (!draggable) return;                 /* it never moved; there is nothing to send */
       var c = t.cells || 1;
       if (snapOn){
-        t.x = clamp(snapAxis(t.x, S.grid.offX, c), 0, S.map.w);
-        t.y = clamp(snapAxis(t.y, S.grid.offY, c), 0, S.map.h);
+        var _sq = snapPoint(t.x, t.y, c);
+        t.x = clamp(_sq.x, 0, S.map.w);
+        t.y = clamp(_sq.y, 0, S.map.h);
       } else {
         t.x = clamp(t.x, 0, S.map.w); t.y = clamp(t.y, 0, S.map.h);
       }
@@ -23082,6 +23109,20 @@ function drawGrid(){
   var gi = document.getElementById('gridInf');
   if (gi){
     var g = S.grid || {}; var op = (g.opacity !== undefined) ? g.opacity : 0.45; var sz = g.size || 60;
+    if (g.hex){
+      /* one tile, two rows tall: a hex centred at the top and bottom (half each) and a hex at
+         each side of the middle row, so tiles meet edge to edge */
+      var W = sz, vs = sz * Math.sqrt(3) / 2, H = 2 * vs, R = sz / Math.sqrt(3);
+      var hx = function(cx, cy){ var pts = []; for (var k = 0; k < 6; k++){ var a = Math.PI / 180 * (60 * k - 30); pts.push((cx + R * Math.cos(a)).toFixed(2) + ',' + (cy + R * Math.sin(a)).toFixed(2)); } return '<polygon points="' + pts.join(' ') + '"/>'; };
+      var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + W.toFixed(2) + '" height="' + H.toFixed(2) + '"><g fill="none" stroke="rgba(255,255,255,' + op + ')" stroke-width="1">' + hx(W / 2, 0) + hx(W / 2, H) + hx(0, vs) + hx(W, vs) + '</g></svg>';
+      gi.style.backgroundImage = 'url("data:image/svg+xml;utf8,' + encodeURIComponent(svg) + '")';
+      gi.style.backgroundSize = W.toFixed(2) + 'px ' + H.toFixed(2) + 'px';
+      /* the tile's first hex centre sits at the map's corner plus the shift, like the squares */
+      var offx = ((20000 + (Number(g.offX) || 0)) % W + W) % W, offy = ((20000 + (Number(g.offY) || 0)) % H + H) % H;
+      gi.style.backgroundPosition = offx.toFixed(2) + 'px ' + offy.toFixed(2) + 'px';
+      var _ma = document.getElementById('mapArt'); if (_ma){ _ma.style.width = S.map.w + 'px'; _ma.style.height = S.map.h + 'px'; }
+      gridHexPaint(); return;
+    }
     gi.style.backgroundImage = 'linear-gradient(rgba(255,255,255,' + op + ') 1px, transparent 1px),linear-gradient(90deg, rgba(255,255,255,' + op + ') 1px, transparent 1px)';
     gi.style.backgroundSize = sz + 'px ' + sz + 'px';
     /* This sheet begins 20000px above and left of the map so the grid can run past every
@@ -23466,7 +23507,7 @@ function paintLmbar(){
 (function wireLmbar(){
   GRID_CTL.forEach(function(c){
     document.getElementById(c[0]).addEventListener('input', function(){
-      var g = { size:S.grid.size, offX:S.grid.offX || 0, offY:S.grid.offY || 0, opacity:S.grid.opacity };
+      var g = { size:S.grid.size, offX:S.grid.offX || 0, offY:S.grid.offY || 0, opacity:S.grid.opacity, hex:!!S.grid.hex };
       g[c[1]] = c[2](this.value);
       /* a shift is kept within one square of the new size */
       g.offX = ((g.offX % g.size) + g.size) % g.size; g.offY = ((g.offY % g.size) + g.size) % g.size;
@@ -23533,7 +23574,7 @@ mapEl().addEventListener('pointermove', function(e){
 mapEl().addEventListener('pointerup', function(e){
   if (!_gridDragOn || !_gridDragFrom) return;
   e.stopPropagation(); _gridDragFrom = null;
-  send({ type:'grid', grid:{ size:S.grid.size, offX:S.grid.offX || 0, offY:S.grid.offY || 0, opacity:S.grid.opacity } });
+  send({ type:'grid', grid:{ size:S.grid.size, offX:S.grid.offX || 0, offY:S.grid.offY || 0, opacity:S.grid.opacity, hex:!!S.grid.hex } });
   try { paintLmbar(); } catch(x){}
 }, true);
 
