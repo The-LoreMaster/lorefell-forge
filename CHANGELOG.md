@@ -1,3 +1,7 @@
+## 2026-10-05 - The lobby bar on a phone sits up top
+
+On a phone the LoreMaster's lobby bar no longer covers the rail at the bottom (Story, Stages): it sits at the top beside the toolbar's wrench, one slim line (LOBBY, See it, Set it, Bring them in, fold) that scrolls sideways rather than wrapping, and folds to a small "In the lobby" pill there.
+
 ## 2026-10-05 - No more boards emptied by a second screen
 
 The cause of the lost maps and tokens: a LoreMaster's table only starts saving once it has heard the stored board, but a second LoreMaster screen (a phone beside the computer) took the live room's pieces (the lobby, music, clocks) as having heard it, and saved its own empty scenes over every map and token. A failed or unchanged read was also counted toward "nothing stored", and six of them did the same. Now only the site's own stored board, read in full, lets a LoreMaster's table write; a failed read answers nothing; and the site itself refuses a LoreMaster's save that would empty most of the board (under a third of its placed tokens and of its scenes' maps, or every scene gone), keeping the board as it was in Saved versions and saying so at the table. Paste velo/backend/campaignview.web.js and velo/page-threadspire.js.
