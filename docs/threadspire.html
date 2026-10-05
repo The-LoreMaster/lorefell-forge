@@ -390,6 +390,10 @@ body.in-lobby #lmstrip, body.in-lobby #mapTools{ visibility:hidden !important; p
 .cx-sub{ font-family:Cinzel,serif; font-size:.7rem; letter-spacing:.08em; color:#93a3b6; margin:4px 0 6px; } .cx-by{ font-size:.85rem; color:#93a3b6; font-style:italic; }
 .ad-list{ display:flex; flex-direction:column; gap:8px; max-height:52vh; overflow:auto; } .ad-row{ display:grid; grid-template-columns:44px minmax(0,1fr) auto; gap:10px; align-items:center; padding:8px 10px; border-radius:10px; border:1px solid #26324c; background:#0c1222; }
 .ad-row img, .ad-ph{ width:44px; height:44px; border-radius:50%; object-fit:cover; background:#1a2338; display:block; } .ad-t{ display:flex; flex-direction:column; min-width:0; } .ad-t i{ font-style:normal; font-size:.85rem; color:#93a3b6; }
+.wh-to{ min-width:42px; } .wh-to.on{ color:#d8a6ff; border-color:#9b6fd0; }
+.wh-menu{ position:fixed; z-index:500; display:flex; flex-direction:column; min-width:200px; padding:4px; border-radius:10px; border:1px solid #26324c; background:rgba(10,14,26,.97); box-shadow:0 10px 30px rgba(0,0,0,.5); }
+.wh-menu button{ text-align:left; padding:8px 10px; border:0; border-radius:7px; background:none; color:#dce8ef; font:inherit; font-size:.9rem; cursor:pointer; } .wh-menu button:hover, .wh-menu button[aria-checked=true]{ background:#141b31; color:#f0d48a; }
+.le.say.wh{ color:#d8c3f0; } .le.say.wh i{ color:#a98fd0; font-style:italic; }
 .cx-with{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px; } .cx-chip{ height:32px; padding:0 12px; border-radius:999px; border:1px solid #26324c; background:#0c1222; color:#dce8ef; font:inherit; font-size:.9rem; cursor:pointer; } .cx-chip:hover{ border-color:#c9a84c; color:#f0d48a; }
 .cx-link{ border:0; background:none; padding:0; color:#c9a84c; font:inherit; font-size:.9rem; cursor:pointer; text-decoration:underline; text-underline-offset:3px; }
 .cx-names{ display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:8px; max-height:58vh; overflow:auto; }
@@ -3016,6 +3020,7 @@ body.stream #beatPic{ display:none; }
     <div class="log-head"><span class="log-h">Log</span><button class="log-x" onclick="toggleLog()" title="Collapse the log">−</button></div>
     <div class="lchat">
       <input id="chatPanel" maxlength="240" placeholder="Say something" onkeydown="if(event.key==='Enter')sayFrom('chatPanel')">
+      <button class="wh-to" onclick="whisperPick(this)" title="Say it to everyone, or whisper to one" aria-label="Who it goes to">All</button>
       <button onclick="sayFrom('chatPanel')">Say</button>
       <button class="log-gear" onclick="logGearMenu(this)" aria-label="Log options" title="Log options"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
     </div>
@@ -4017,7 +4022,7 @@ function send(evt){
     }
     if (evt.type === 'inset'){ applyRemoteState({ inset: evt.inset }); }
     if (evt.type === 'declare'){ pushLog({ kind:'sys', html:'<b>' + esc(S.character.name) + '</b> declares ' + esc(evt.act) + '.' }); }
-    if (evt.type === 'say'){ pushLog({ kind:'say', who:S.character.name, text:evt.text }); }
+    if (evt.type === 'say'){ pushLog(evt.to ? { kind:'say', who:isLM() ? 'The LoreMaster' : S.character.name, text:evt.text, to:evt.to, fromKey:isLM() ? 'lm' : myCharKey(), toName:whisperName(evt.to) } : { kind:'say', who:S.character.name, text:evt.text }); }
     if (evt.type === 'roll'){ pushLog(rollEntry(evt)); }
     /* applyRemoteState above already schedules the push for the loremaster; a player
        moving their own token still needs to send it */
@@ -10174,7 +10179,7 @@ function combatPublish(){
   if (!isLM() || !tsEmbedded()) return;
   /* the party is the fighters list, so it cannot be an afterthought */
   if (!_partyLoaded) partyLoad();
-  var logOut = (S.log || []).slice(-30).reverse().map(function(e){
+  var logOut = (S.log || []).filter(function(e){ return !(e && e.to); }).slice(-30).reverse().map(function(e){
     var t = e.text || String(e.html || '').replace(/<[^>]*>/g, '');
     return { side: e.kind === 'say' ? 'fell' : 'system', text: t };
   }).filter(function(e){ return e.text; });
@@ -21645,7 +21650,7 @@ function floatLogToggle(){
   el.style.left = (p.x != null ? p.x : 80) + 'px'; el.style.top = (p.y != null ? p.y : 90) + 'px';
   el.style.width = (p.w || 340) + 'px'; el.style.height = (p.h || 360) + 'px'; el.style.setProperty('--fl-a', p.a != null ? p.a : 0.88);
   el.innerHTML = '<div class="fl-head"><span>Log</span><label title="How see-through"><input type="range" min="0.25" max="1" step="0.05" value="' + (p.a != null ? p.a : 0.88) + '" oninput="floatLogAlpha(this.value)"></label><button onclick="floatLogToggle()" aria-label="Close the floating log" title="Close">\u00d7</button></div>'
-    + '<div class="lchat"><input id="chatFloat" maxlength="240" placeholder="Say something" onkeydown="if(event.key===\'Enter\')sayFrom(\'chatFloat\')"><button onclick="sayFrom(\'chatFloat\')">Say</button></div>'
+    + '<div class="lchat"><input id="chatFloat" maxlength="240" placeholder="Say something" onkeydown="if(event.key===\'Enter\')sayFrom(\'chatFloat\')"><button class="wh-to" onclick="whisperPick(this)" title="Say it to everyone, or whisper to one">All</button><button onclick="sayFrom(\'chatFloat\')">Say</button></div>'
     + '<div class="logstream" aria-live="polite"></div>';
   document.body.appendChild(el); renderLog();
   var head = el.querySelector('.fl-head'), drag = null;
@@ -23054,7 +23059,7 @@ function esc(s){
 function chatRow(id){
   return '<div class="lchat"><input id="' + id + '" maxlength="240" placeholder="Say something" '
     + 'onkeydown="if(event.key===\'Enter\')sayFrom(\'' + id + '\')">'
-    + '<button onclick="sayFrom(\'' + id + '\')">Say</button></div>';
+    + '<button class="wh-to" onclick="whisperPick(this)" title="Say it to everyone, or whisper to one">All</button><button onclick="sayFrom(\'' + id + '\')">Say</button></div>';
 }
 function sayFrom(id){
   var el = document.getElementById(id);
@@ -23062,14 +23067,47 @@ function sayFrom(id){
   var text = el.value.trim();
   if (!text) return;
   el.value = '';
-  send({ type:'say', text:text });
+  /* "/w Name words" whispers too, to the LoreMaster or a Fell by name */
+  var to = WHISPER.to, m = text.match(/^\/w\s+(\S+)\s+([\s\S]+)$/i);
+  if (m){ var nm = m[1].toLowerCase(); var hit = whisperTargets().filter(function(t){ return t.name.toLowerCase().split(/\s+/)[0] === nm || t.name.toLowerCase() === nm || (nm === 'lm' && t.key === 'lm'); })[0]; if (hit){ to = hit.key; text = m[2]; } }
+  send({ type:'say', text:text, to:to || '' });
+}
+/* ---- whispers ----
+   A line for one person only: the LoreMaster, or one Fell. Only its writer, its reader and the
+   LoreMaster see it; the stream never does. */
+var WHISPER = { to:'' };
+function myCharKey(){ var me = myFellTok(); return me && me.charId ? 'char:' + me.charId : ''; }
+function whisperTargets(){
+  var out = []; if (!isLM()) out.push({ key:'lm', name:'the LoreMaster' });
+  (S.tokens || []).forEach(function(t){ if (t.kind === 'p' && t.charId && 'char:' + t.charId !== myCharKey() && !out.some(function(o){ return o.key === 'char:' + t.charId; })) out.push({ key:'char:' + t.charId, name:t.name || 'A Fell' }); });
+  return out;
+}
+function whisperName(key){ if (!key) return 'Everyone'; if (key === 'lm') return 'the LoreMaster'; var t = (S.tokens || []).filter(function(x){ return 'char:' + x.charId === key; })[0]; return t ? (t.name || 'a Fell') : 'someone'; }
+function whisperPick(btn){
+  var list = [{ key:'', name:'Everyone' }].concat(whisperTargets());
+  var r = btn.getBoundingClientRect(), menu = document.createElement('div'); menu.className = 'wh-menu'; menu.setAttribute('role', 'menu');
+  menu.innerHTML = list.map(function(t){ return '<button role="menuitemradio" aria-checked="' + (WHISPER.to === t.key) + '" onclick="WHISPER.to=\'' + t.key + '\';whisperPaint();this.parentNode.remove()">' + (t.key ? 'Whisper to ' : '') + esc(t.name) + '</button>'; }).join('');
+  menu.style.left = Math.max(8, r.left) + 'px'; menu.style.top = (r.bottom + 4) + 'px';
+  document.body.appendChild(menu);
+  setTimeout(function(){ document.addEventListener('pointerdown', function off(e){ if (!menu.contains(e.target)){ menu.remove(); document.removeEventListener('pointerdown', off, true); } }, true); }, 0);
+}
+function whisperPaint(){
+  document.querySelectorAll('.wh-to').forEach(function(b){ b.textContent = WHISPER.to ? 'To ' + whisperName(WHISPER.to).replace(/^the /, '') : 'All'; b.classList.toggle('on', !!WHISPER.to); });
+  document.querySelectorAll('#chatPanel, #chatFloat').forEach(function(i){ i.placeholder = WHISPER.to ? 'Whisper to ' + whisperName(WHISPER.to) : 'Say something'; });
+}
+function whisperSees(e){
+  if (!e.to) return true; if (S.stream) return false; if (isLM()) return true;
+  var me = myCharKey(); return e.fromKey === me || e.to === me;
 }
 var logSeq = 0;
 function mkId(){ return 'e' + (++logSeq) + '-' + Date.now().toString(36); }
 var _logPushT = null;
 function pushLog(e){ e.id = mkId(); S.log.push(e); try { roomSend({ t:'log', e:e }); } catch(x){} try { rollShow(e); } catch(x){} applyRemoteState({ log:S.log }); if (_logPushT) clearTimeout(_logPushT); _logPushT = setTimeout(function(){ try { pushState(); } catch(err){} }, 600); }
 function entryHtml(e){
-  if (e.kind === 'say') return '<div class="le say"><b>' + esc(e.who) + '</b> ' + esc(e.text) + '</div>';
+  if (e.kind === 'say'){
+    if (e.to){ if (!whisperSees(e)) return ''; return '<div class="le say wh"><b>' + esc(e.who) + '</b> <i>whispers to ' + esc(e.toName || 'someone') + '</i> ' + esc(e.text) + '</div>'; }
+    return '<div class="le say"><b>' + esc(e.who) + '</b> ' + esc(e.text) + '</div>';
+  }
   if (e.lmOnly && !isLM()) return '';
   if (e.kind === 'roll'){
     if (e.hidden && !isLM()) return '';

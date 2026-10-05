@@ -1,3 +1,7 @@
+## 2026-10-04 - Whispers
+
+Every chat box gains a To chooser beside Say: All, or a whisper to the LoreMaster or any one Fell at the table (the LoreMaster can whisper to any Fell); typing "/w Name words" whispers too. A whisper shows, in its own colour as "whispers to", only to its writer, its reader and the LoreMaster; other players, the stream and the published combat feed never see it.
+
 ## 2026-10-04 - A stage's maps are its floors
 
 Moving between maps of the same stage moves between floors: each keeps its own tokens (foes, NPCs, objects), and the Fell go with the party; coming back finds a floor as it was left. Fog, walls, lights, elevation, Pales, effects, notes and drawings were already each map's own; weather now is too (a floor without its own takes the scene's).
