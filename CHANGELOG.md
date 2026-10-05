@@ -1,3 +1,7 @@
+## 2026-10-04 - Hex grids
+
+The grid panel gains Shape: Squares or Hexes. Hexes are pointy-topped, as wide as a square of the cell size, so a step to a neighbour is one cell as on squares; they take the grid's fade and shift, tokens snap to hex centres (dropped, tapped to move, or all at once when the shape changes), and the setting travels with the grid to every table.
+
 ## 2026-10-04 - Triggers: a chance to avoid, ambushes, doors, light, battle and portals
 
 A trigger can give a chance to avoid it: the Fell's player is asked at once to roll a chosen skill, 1d6 + that skill against the LoreMaster's 1d6 + the Skill Difficulty and anything added (the climbing check's way), and their table answers in the log; beating it avoids what it does to them (damage, Afflictions, the portal), while the line, its sound, the Pales and the clock happen regardless. The LoreMaster can roll for a Fell with no player, or say it lands or is avoided. It can spring an ambush (chosen hidden tokens show themselves), open or slam shut chosen doors, bring darkness or light, begin combat, and send the Fell through a portal to a spot marked on the map, the token arriving with a swirl on every screen (none for reduced motion).
