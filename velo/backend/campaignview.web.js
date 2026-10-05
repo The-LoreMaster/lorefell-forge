@@ -94,6 +94,22 @@ function mergeDraw(a, b) {
   });
   return { strokes: strokes.slice(-600), gone: gone };
 }
+function bindingEmpty(b) { return !b || (!b.mapId && !((b.tokens || []).length)); }
+function mergeBindings(prevInst, nextInst) {
+  const out = Object.assign({}, nextInst), pb = prevInst.bindings || {}, nb = nextInst.bindings || {}, b = {};
+  Object.keys(pb).concat(Object.keys(nb)).forEach((k) => {
+    if (b[k] !== undefined) return;
+    const p = pb[k], n = nb[k];
+    if (n === undefined) { b[k] = p; return; }                     // a scene this screen did not send stays
+    if (p === undefined) { b[k] = n; return; }
+    // never emptied (nor stripped of every token) by a copy, unless that screen cleared it on purpose
+    const stripped = bindingEmpty(n) || (!(n.tokens || []).length && (p.tokens || []).length >= 3);
+    if (stripped && !bindingEmpty(p) && !((Number(n.cleared) || 0) >= (Number(p.at) || 0) && n.cleared)) { b[k] = p; return; }
+    b[k] = (Number(p.at) || 0) > (Number(n.at) || 0) ? p : n;       // the newer layout of the scene wins
+  });
+  out.bindings = b;
+  return out;
+}
 function mergePings(a, b) {
   const seen = {}, out = [];
   [].concat(a || [], b || []).forEach((p) => { if (p && p.id && !seen[p.id]) { seen[p.id] = 1; out.push(p); } });
@@ -127,6 +143,17 @@ export const saveCampaignState = webMethod(Permissions.Anyone, async (campaignId
           // (erasures are kept as tombstones so an older copy cannot bring a stroke back),
           // and pings keep only the last few.
           if (body.draw || prev.draw) merged.draw = mergeDraw(prev.draw, body.draw);
+          // Scene by scene, the newer layout wins, and an emptied one never replaces a laid-out
+          // one: with a phone and a computer both open as LoreMaster, each saved its whole copy
+          // of every scene, and the older copy of a scene (or one that had not loaded) put back
+          // or emptied what the other screen had laid out.
+          if (lmHere && body.instance && prev.instance && prev.instance.bindings) merged.instance = mergeBindings(prev.instance, body.instance);
+          // A player's table may move tokens, never add or take them away: its copy of the
+          // table's tokens is only what it was shown, so it moves the stored ones by id.
+          if (!lmHere && Array.isArray(body.tokens) && Array.isArray(prev.tokens)) {
+            const mv = {}; body.tokens.forEach((t) => { if (t && t.id) mv[t.id] = t; });
+            merged.tokens = prev.tokens.map((t) => (t && mv[t.id] ? Object.assign({}, t, { x: mv[t.id].x, y: mv[t.id].y }) : t));
+          }
           if (body.pings || prev.pings) merged.pings = mergePings(prev.pings, body.pings);
           body = merged;
         }
