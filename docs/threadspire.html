@@ -15966,9 +15966,27 @@ function stageMaps(st){
 }
 /* Lay one of the stage's maps down. On the stage being run this changes the table
    for everyone; on any other stage it just sets what that stage will open with. */
+/* ---- a stage's maps are its floors ----
+   Moving between maps of the same stage is moving between floors: each floor keeps its own
+   tokens (foes, NPCs, objects); the Fell go with the party. Fog, walls, lights, elevation,
+   Pales, effects, notes and drawings already belong to each map; weather now does too. */
+function floorSwap(oldId, newId){
+  if (!oldId || !newId || sameId(oldId, newId) || !isLM()) return false;
+  var st = stageById(activeStageId()); if (!st) return false;
+  var ids = stageMapIds(st); if (ids.indexOf(oldId) < 0 || ids.indexOf(newId) < 0) return false;
+  var bd = sceneBinding(); bd.floors = bd.floors || {};
+  var isFell = function(t){ return t.kind === 'p' || t.charId; };
+  bd.floors[oldId] = (S.tokens || []).filter(function(t){ return !isFell(t); }).map(function(t){ return Object.assign({}, t); });
+  var fell = (S.tokens || []).filter(isFell), here = (bd.floors[newId] || []).map(function(t){ return Object.assign({}, t); });
+  S.tokens = fell.concat(here);
+  try { roomSend({ t:'toks', list:slimTokens(S.tokens) }); } catch(e){}
+  return true;
+}
 function lmStageFace(stageId, mapId){
   var st = stageById(stageId); if (!st) return;
   var m = mapById(mapId); if (!m) return;
+  var _floorFrom = S.scene && S.scene.background;
+  if (sameId(activeStageId(), stageId)) floorSwap(_floorFrom, mapId);
   stageTouch();
   st.mapId = mapId; st.mapW = m.w; st.mapH = m.h;
   if (stageMapIds(st).indexOf(mapId) < 0) st.mapIds = stageMapIds(st).concat([mapId]);
@@ -15982,8 +16000,8 @@ function lmStageFace(stageId, mapId){
   {
     S.scene.background = mapId;
     S.map = { w:m.w, h:m.h };
-    applyRemoteState({ scene:S.scene, map:S.map });
-    paintMapArt();
+    applyRemoteState({ scene:S.scene, map:S.map, tokens:S.tokens });
+    paintMapArt(); try { renderTokens(); weatherRun(); } catch(e){}
     pushLog({ kind:'sys', html:esc(m.name) + ': the table changes.' });
     applyRemoteState({ log:S.log });
   }
@@ -16203,6 +16221,7 @@ function lmSetMap(id, quiet){
      single stage to hold it, rather than one per scene. */
   /* a map laid here no longer invents a stage to hold it (that was filling the shelf); the
      scene remembers it on its own layout */
+  floorSwap(S.scene.background, m.id);
   S.scene.background = m.id;
   try { var _bdm = sceneBinding(); _bdm.mapId = m.id; _bdm.mapW = m.w || _bdm.mapW; _bdm.mapH = m.h || _bdm.mapH; } catch(e){}
   if (m.w) S.map.w = m.w;
@@ -19399,7 +19418,7 @@ var WEATHER_ALSO = { snow:'Thaloryn, Ursathar, Valoria, Vulkaris', ash:'Brimseve
   huntersfrost:'Ursathar, Valoria, Vulkaris', mountaincloud:'Thaloryn, Avemriol', faeliri:'Thaloryn, Vulkaris', omenfog:'Shadakar', abysm:'Natbakka', threnody:'Brimsever',
   oldforest:'Sylvanoth, Shervinaw', rootdark:'Sporion, Eldarwyn', pollen:'Verdantia', dawn:'Elysara', crimson:'Karn', spores:'Shervinaw' };
 var _wx = { kind:'', parts:[], cv:null, raf:0 };
-function weatherKind(){ if (wxInLobby()) return S.lobby.weather; var sid = (S.scene && S.scene.id) || ''; return (S.weather && S.weather[sid]) || ''; }
+function weatherKind(){ if (wxInLobby()) return S.lobby.weather; var sid = (S.scene && S.scene.id) || ''; var mk = 'm:' + mapKey(); if (S.weather && S.weather[mk] !== undefined) return S.weather[mk] || ''; return (S.weather && S.weather[sid]) || ''; }
 /* the lobby's own weather, drawn over its picture for whoever is looking at it */
 function wxInLobby(){ try { return !!(S.lobby && S.lobby.weather && lobbyForMe() && document.getElementById('lobbyScreen')); } catch(e){ return false; } }
 function wxHost(){ return wxInLobby() ? document.getElementById('lobbyScreen') : mapEl(); }
@@ -19419,6 +19438,7 @@ function weatherSet(k){
   if (!isLM()) return;
   var sid = (S.scene && S.scene.id) || ''; S.weather = S.weather || {};
   if (k) S.weather[sid] = k; else delete S.weather[sid];
+  S.weather['m:' + mapKey()] = k || '';   /* this map's own, so each floor keeps its weather */
   schedulePush(); weatherRun(); weatherPanelPaint();
 }
 function weatherRun(){
