@@ -5,7 +5,7 @@
 // one sends them to FellForge with this adventure linked.
 
 import { authentication, currentMember } from 'wix-members-frontend';
-import { redeemInvite, listJoinCharacters, attachCharacter, detachOwnCharacter } from 'backend/invites.web.js';
+import { redeemInvite, listJoinCharacters, attachCharacter, detachOwnCharacter, listAdoptableFell, adoptFell } from 'backend/invites.web.js';
 import wixLocation from 'wix-location';
 
 const EMBED = '#html1';   // change to your Embed a Site element ID
@@ -42,7 +42,9 @@ $w.onReady(() => {
       here: c.campaignId === CAMPAIGN_ID,
       elsewhere: !!c.campaignId && c.campaignId !== CAMPAIGN_ID
     }));
-    embed.postMessage({ type: 'JOIN_STATE', signedIn: true, campaignName: CAMPAIGN_NAME, isOwner: IS_OWNER, characters: list });
+    let adoptable = [];
+    if (CAMPAIGN_ID && !IS_OWNER) { try { adoptable = await listAdoptableFell(CAMPAIGN_ID); } catch (e) { adoptable = []; } }
+    embed.postMessage({ type: 'JOIN_STATE', signedIn: true, campaignName: CAMPAIGN_NAME, isOwner: IS_OWNER, characters: list, adoptable });
   }
 
   embed.onMessage(async (event) => {
@@ -65,6 +67,12 @@ $w.onReady(() => {
       await pushState();
     } else if (m.type === 'JOIN_DETACH') {
       try { await detachOwnCharacter(m.charId); } catch (e) {}
+      await pushState();
+    } else if (m.type === 'JOIN_ADOPT') {
+      // a Fell the LoreMaster made, made the player's own; then to its sheet
+      let r = null;
+      try { r = await adoptFell(CAMPAIGN_ID, m.charId); } catch (e) { r = null; }
+      if (r && r.ok) { try { wixLocation.to(FELLGLASS_PATH + '?charId=' + encodeURIComponent(m.charId)); return; } catch (e) {} }
       await pushState();
     } else if (m.type === 'JOIN_FORGE') {
       wixLocation.to(FELLFORGE_PATH + '?campaign=' + encodeURIComponent(CAMPAIGN_ID));

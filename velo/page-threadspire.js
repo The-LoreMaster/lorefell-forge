@@ -4,7 +4,7 @@
 // location, revealed nodes, quest-board goals, world issues, and map art.
 import { threadspirePublicChar, listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter, threadspireSaveMeta, lmLoadCharacter, lmSaveCharacter, lmSetVitality, lmCreateOfflineFell, lmRemoveFromAdventure, charAdventure, leaveAdventure, lmWipeFell, giveRecord, consultArchive, lmSealedGet, lmSealedWeave, lmNotesSave, myDice, saveDicePicks, lmGiveDice, lmGiveDiceAll, earnDice } from 'backend/characters.web.js';
 import { getLmPortrait, saveLmPortrait, getForgePools, getForgeLibrary, listMyCampaigns, saveCampaign, submitAct, submitItem, deleteAsset, listGlossary , setMemberRole, detachCharacter, loadCampaign, restoreRoster } from 'backend/fatewell.web.js';
-import { createInvite, revokeInvite, myJoinedAdventures, attachCharacter } from 'backend/invites.web.js';
+import { createInvite, revokeInvite, myJoinedAdventures, attachCharacter, listMyFellForAdoption, setFellAdoptable } from 'backend/invites.web.js';
 import { tableRoomTicket } from 'backend/tableroom.web.js';
 let _pubHanded = false;
 import { publishAdventure, unpublishAdventure, myPublishedAdventures, getPublishedPack, listPublishedAdventures } from 'backend/published.web.js';
@@ -539,6 +539,10 @@ $w.onReady(async function () {
           try { reply(true, await removeCodexItem(campaignId, msg.id)); } catch (e) { reply(true, { ok: false }); }
         } else if (msg.type === 'TS_RECAP_DEL') {
           try { reply(true, await deleteRecap(campaignId, msg.id)); } catch (e) { reply(true, { ok: false }); }
+        } else if (msg.type === 'TS_ADOPT_LIST') {
+          try { reply(true, await listMyFellForAdoption(campaignId)); } catch (e) { reply(true, { ok: false }); }
+        } else if (msg.type === 'TS_ADOPT_SET') {
+          try { reply(true, await setFellAdoptable(campaignId, msg.charId, !!msg.on)); } catch (e) { reply(true, { ok: false }); }
         } else if (msg.type === 'TS_CODEX_GET') {
           try { reply(true, await getCodex(campaignId)); } catch (e) { reply(true, { ok: false }); }
         } else if (msg.type === 'TS_CODEX_ADD') {
