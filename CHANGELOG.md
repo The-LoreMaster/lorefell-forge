@@ -1,3 +1,7 @@
+## 2026-10-04 - Video maps keep their video; a page for every name in the Codex
+
+A video map's video address was saved to the account but dropped, because the Assets collection had no field for it, so after a reload it came back as its still (and the lobby took the still). Assets gains video. Video maps uploaded before this need uploading again. In the Codex, a person, place or thing opens its own page: what the table wrote of it, what the Fell's Records say, every line of the recaps that names it by session (the name in bold), and the others named alongside it, each a step to their own page, with The sessions that name them and Write about them (the name filled in).
+
 ## 2026-10-04 - The Histories page, gathered a part at a time
 
 The Histories page could not be gathered on a channel with many playlists: a worker may make only so many outside calls per request (fifty on the free plan), and each playlist took one. The room now builds the list a part at a time, the never-read playlists first and then the longest unread, within a budget per pass, keeping the rest from the last pass; the page asks again until it is whole, and the two-hourly round runs a pass too so visitors find it ready. When it cannot be gathered, the page says why.

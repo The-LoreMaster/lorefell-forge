@@ -376,6 +376,7 @@ body.in-lobby #lmstrip, body.in-lobby #mapTools{ visibility:hidden !important; p
 .cx-foot a{ color:#c9a84c; } .cx-foot a:hover{ color:#f0d48a; }
 .cx-entry p{ margin:6px 0 0; font-size:1rem; line-height:1.55; color:#cbd5df; } .cx-foot{ display:flex; gap:14px; margin-top:8px; font-size:.9rem; }
 .cx-sub{ font-family:Cinzel,serif; font-size:.7rem; letter-spacing:.08em; color:#93a3b6; margin:4px 0 6px; } .cx-by{ font-size:.85rem; color:#93a3b6; font-style:italic; }
+.cx-with{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px; } .cx-chip{ height:32px; padding:0 12px; border-radius:999px; border:1px solid #26324c; background:#0c1222; color:#dce8ef; font:inherit; font-size:.9rem; cursor:pointer; } .cx-chip:hover{ border-color:#c9a84c; color:#f0d48a; }
 .cx-link{ border:0; background:none; padding:0; color:#c9a84c; font:inherit; font-size:.9rem; cursor:pointer; text-decoration:underline; text-underline-offset:3px; }
 .cx-names{ display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:8px; max-height:58vh; overflow:auto; }
 .cx-name{ text-align:left; display:flex; flex-direction:column; gap:2px; padding:10px 12px; border-radius:10px; border:1px solid #26324c; background:#0c1222; color:#dce8ef; font:inherit; cursor:pointer; }
@@ -6642,19 +6643,51 @@ function codexOpen(tab){
     var recs = []; if (CODEX.tab === 'person') (CODEX.records || []).forEach(function(r){ (r.characters || []).forEach(function(t){ recs.push({ fell:r.fell, t:t }); }); });
     if (recs.length) h += '<div class="cx-sub">From the Fell\u2019s Records</div><div class="cx-list" style="max-height:24vh;margin-bottom:10px">' + recs.map(function(x){ return '<article class="cx-entry"><p style="margin:0">' + esc(x.t) + '</p><div class="cx-foot"><span class="cx-by">Kept by ' + esc(x.fell) + '</span></div></article>'; }).join('') + '</div>' + (names.length ? '<div class="cx-sub">Named in the recaps</div>' : '');
     h += names.length ? '<div class="cx-names">' + names.map(function(n){ var ss = map[n].filter(function(v, i, a){ return a.indexOf(v) === i; });
-        return '<button class="cx-name" onclick="CODEX.pick=\'' + esc(n).replace(/'/g, '') + '\';codexOpen(\'story\')"><b>' + esc(n) + '</b><span>Session' + (ss.length === 1 ? ' ' : 's ') + ss.join(', ') + '</span></button>'; }).join('') + '</div>'
+        return '<button class="cx-name" onclick="codexDetail(' + esc(JSON.stringify(n)).replace(/"/g, '&quot;') + ',\'' + CODEX.tab + '\')"><b>' + esc(n) + '</b><span>Session' + (ss.length === 1 ? ' ' : 's ') + ss.join(', ') + '</span></button>'; }).join('') + '</div>'
       : (codexItemsOf(CODEX.tab).length || recs.length ? '' : '<p class="tsm-note">None named in the recaps yet.</p>');
     h += codexItemsHtml(CODEX.tab);
   }
   tsModal(h + '</div>', true);
 }
+/* ---- a name's own page in the Codex ----
+   Everything the table knows of one person, place or thing: what was written about them at
+   the table and in the Fell's Records, every line of the recaps that names them (by session),
+   and the others named alongside them, each a step to their own page. The sessions that name
+   them are still a tap away. */
+var CX_KIND_ONE = { person:'Person', place:'Place', thing:'Thing' };
+function cxSentences(text){ return String(text || '').replace(/\s+/g, ' ').split(/(?<=[.!?])\s+/); }
+function codexDetail(name, kind){
+  var low = String(name).toLowerCase(), list = CODEX.entries.slice().sort(function(a, b){ return a.at - b.at; });
+  var seen = [], withMap = {};
+  list.forEach(function(e, i){
+    var hits = cxSentences(e.text).filter(function(snt){ return snt.toLowerCase().indexOf(low) >= 0; });
+    if (!hits.length) return;
+    seen.push({ n:i + 1, session:e.session, lines:hits });
+    (e.names || []).forEach(function(nm){ if (nm.n.toLowerCase() === low) return; if (hits.some(function(h){ return h.toLowerCase().indexOf(nm.n.toLowerCase()) >= 0; })){ var k = nm.n; withMap[k] = withMap[k] || { n:nm.n, k:nm.k, c:0 }; withMap[k].c++; } });
+  });
+  var notes = (CODEX.items || []).filter(function(it){ return it.name && it.name.toLowerCase() === low; });
+  var recs = []; (CODEX.records || []).forEach(function(r){ (r.characters || []).concat(r.quests || [], r.clues || []).forEach(function(t){ if (String(t).toLowerCase().indexOf(low) >= 0) recs.push({ fell:r.fell, t:t }); }); });
+  var withs = Object.keys(withMap).map(function(k){ return withMap[k]; }).sort(function(a, b){ return b.c - a.c; }).slice(0, 12);
+  var h = '<div id="codexWin"><div class="tsm-row" style="justify-content:space-between;margin-top:0"><button class="tsm-btn ghost" onclick="codexOpen(\'' + (kind || 'person') + '\')">\u2039 ' + (CX_KIND_WORD[kind] || 'The Codex') + '</button></div>'
+    + '<h3 class="tsm-title cx-title">' + cxSvg('codex') + ' ' + esc(name) + '</h3>'
+    + '<div class="cx-sub">' + (CX_KIND_ONE[kind] || 'In the Codex') + (seen.length ? ', named in ' + seen.length + ' session' + (seen.length === 1 ? '' : 's') : '') + '</div>';
+  if (notes.length) h += '<div class="cx-list" style="max-height:none">' + notes.map(function(it){ return '<article class="cx-entry"><p style="margin:0">' + esc(it.text) + '</p><div class="cx-foot"><span class="cx-by">Written by ' + esc(it.byName || 'the table') + '</span></div></article>'; }).join('') + '</div>';
+  if (recs.length) h += '<div class="cx-sub">In the Fell\u2019s Records</div><div class="cx-list" style="max-height:none">' + recs.map(function(x){ return '<article class="cx-entry"><p style="margin:0">' + esc(x.t) + '</p><div class="cx-foot"><span class="cx-by">Kept by ' + esc(x.fell) + '</span></div></article>'; }).join('') + '</div>';
+  if (!notes.length && !recs.length) h += '<p class="tsm-note">Nothing written about ' + esc(name) + ' yet beyond the recaps. Write what you know below.</p>';
+  if (seen.length) h += '<div class="cx-sub">In the story</div><div class="cx-list" style="max-height:36vh">' + seen.map(function(x){ return '<article class="cx-entry"><div class="cx-h"><b>Session ' + x.n + (x.session ? ' | ' + esc(x.session) : '') + '</b></div>' + x.lines.map(function(l){ return '<p>' + esc(l).replace(new RegExp('(' + esc(name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'ig'), '<b>$1</b>') + '</p>'; }).join('') + '</article>'; }).join('') + '</div>';
+  if (withs.length) h += '<div class="cx-sub">Named alongside</div><div class="cx-with">' + withs.map(function(w){ return '<button class="cx-chip" onclick="codexDetail(' + esc(JSON.stringify(w.n)).replace(/"/g, '&quot;') + ',\'' + w.k + '\')">' + esc(w.n) + '</button>'; }).join('') + '</div>';
+  h += '<div class="tsm-row" style="justify-content:flex-start">' + (seen.length ? '<button class="tsm-btn ghost" onclick="CODEX.pick=' + esc(JSON.stringify(name)).replace(/"/g, '&quot;') + ';codexOpen(\'story\')">The sessions that name them</button>' : '')
+    + '<button class="tsm-btn ghost" onclick="CX_PREFILL=' + esc(JSON.stringify(name)).replace(/"/g, '&quot;') + ';codexWriteFor(\'' + (kind || 'person') + '\')">Write about them</button></div></div>';
+  tsModal(h, true);
+}
+var CX_PREFILL = '';
 /* lines anyone at the table added to the Codex, by tab */
 function codexItemsOf(kind){ return (CODEX.items || []).filter(function(i){ return i.kind === kind; }); }
 function codexItemsHtml(kind){
   var list = codexItemsOf(kind), h = '';
   if (list.length) h += '<div class="cx-sub">Added at the table</div><div class="cx-list" style="max-height:30vh">' + list.map(function(i){
       var mine = i.by && i.by === CODEX.me, may = mine || (isLM() && !isKeeper());
-      return '<article class="cx-entry">' + (i.name ? '<div class="cx-h"><b>' + esc(i.name) + '</b></div>' : '') + (i.text ? '<p' + (i.name ? '' : ' style="margin:0"') + '>' + esc(i.text) + '</p>' : '')
+      return '<article class="cx-entry">' + (i.name ? '<div class="cx-h"><button class="cx-link" style="font-family:Cinzel,serif;text-decoration:none;color:#f3ead2" onclick="codexDetail(' + esc(JSON.stringify(i.name)).replace(/"/g, '&quot;') + ',\'' + kind + '\')"><b>' + esc(i.name) + '</b></button></div>' : '') + (i.text ? '<p' + (i.name ? '' : ' style="margin:0"') + '>' + esc(i.text) + '</p>' : '')
         + '<div class="cx-foot"><span class="cx-by">Added by ' + esc(i.byName || 'the table') + '</span>' + (may ? '<button class="cx-link" onclick="codexItemDel(\'' + esc(i.id) + '\')">Remove</button>' : '') + '</div></article>'; }).join('') + '</div>';
   return h + '<div class="tsm-row" style="justify-content:flex-start;margin-top:8px"><button class="tsm-btn ghost" onclick="codexWriteFor(\'' + kind + '\')">Write an Entry</button></div>';
 }
@@ -6665,10 +6698,11 @@ var CX_KIND_WORD = { story:'the Story', person:'People', place:'Places', thing:'
    both places at once. */
 function codexWriteFor(kind){
   if (kind === 'story' && isLM() && !isKeeper()) return codexWrite();
+  setTimeout(function(){ CX_PREFILL = ''; }, 0);
   var named = kind !== 'story' && kind !== 'quests' && kind !== 'clues';
   var toSheet = !isLM() && (kind === 'person' || kind === 'quests' || kind === 'clues');
   tsModal('<h3 class="tsm-title">Write an Entry: ' + CX_KIND_WORD[kind] + '</h3>'
-    + (named ? '<label class="tsm-lbl" for="cxName">Name</label><input class="tsm-inp" id="cxName" maxlength="80">' : '')
+    + (named ? '<label class="tsm-lbl" for="cxName">Name</label><input class="tsm-inp" id="cxName" maxlength="80" value="' + esc(CX_PREFILL || '') + '">' : '')
     + '<label class="tsm-lbl" for="cxText">' + (named ? 'What you know' : kind === 'quests' ? 'The quest' : kind === 'clues' ? 'The clue' : 'Your note on the story') + '</label><textarea class="tsm-inp tsm-ta" id="cxText" maxlength="2000" rows="5"></textarea>'
     + (toSheet ? '<p class="tsm-note">It goes into your Fell\u2019s Records too, under ' + (kind === 'person' ? 'Characters' : CX_KIND_WORD[kind]) + '.</p>' : '<p class="tsm-note">Everyone at the table can read it.</p>')
     + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="codexOpen()">Back</button><button class="tsm-btn" onclick="codexWriteGo(\'' + kind + '\')">Add</button></div>', true);
