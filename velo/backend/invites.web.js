@@ -145,10 +145,11 @@ export const myJoinedAdventures = webMethod(Permissions.Anyone, async () => {
   } catch (e) { return []; }
 });
 
-/* ---- a Fell made by the LoreMaster, waiting for a player to adopt ----
-   The LoreMaster marks one of their own Fell as waiting in an adventure (adoptFor). A player
-   who has joined that adventure through the invite sees it on the join page and can make it
-   their own: it becomes theirs, joins the adventure, and is no longer waiting. */
+/* ---- a Fell at the table, waiting for a player to adopt ----
+   A Fell the LoreMaster made at the table (Someone at the table: owned by nobody, governed by
+   the adventure) can be handed to a player: the LoreMaster marks it waiting (adoptFor), a
+   player who has joined through the invite finds it on the join page and makes it their own,
+   and it becomes theirs, an ordinary Fell, no longer the table's. */
 async function ownsAdventure(campaignId, mid) {
   try { const c = await wixData.get('Campaigns', campaignId, { suppressAuth: true }); if (c && c.ownerMemberId === mid) return true; } catch (e) {}
   try { const r = await wixData.query('Adventures').eq('advId', String(campaignId)).limit(1).find({ suppressAuth: true }); if (r.items[0] && r.items[0].ownerMemberId === mid) return true; } catch (e) {}
@@ -159,16 +160,20 @@ function charSummary(it) {
   try { const d = typeof it.data === 'string' ? JSON.parse(it.data) : (it.data || {}); lvl = Number(d.level || (d.identity && d.identity.level)) || 1; img = (d.identity && (d.identity.portrait || d.identity.img)) || d.portrait || ''; role = (d.identity && (d.identity.lineage || d.identity.role)) || ''; } catch (e) {}
   return { charId: it._id, name: it.charName || '', level: lvl, img: String(img || '').slice(0, 500), role: String(role || '').slice(0, 60), adoptFor: it.adoptFor || '', campaignId: it.campaignId || '' };
 }
-// The LoreMaster's own Fell, each marked if it is waiting in this adventure
+function isTableFell(it, campaignId) {
+  if (!it || it.ownerMemberId || it.campaignId !== String(campaignId)) return false;
+  try { const d = typeof it.data === 'string' ? JSON.parse(it.data) : (it.data || {}); return !!d.offline; } catch (e) { return false; }
+}
+// The Fell made at this adventure's table, each marked if it is waiting for a player
 export const listMyFellForAdoption = webMethod(Permissions.Anyone, async (campaignId) => {
   const mid = await memberId(); if (!mid || !campaignId || !(await ownsAdventure(campaignId, mid))) return { ok: false };
-  try { const r = await wixData.query('Characters').eq('ownerMemberId', mid).limit(200).find({ suppressAuth: true });
-    return { ok: true, fell: r.items.map(charSummary).filter((c) => c.name) }; } catch (e) { return { ok: false }; }
+  try { const r = await wixData.query('Characters').eq('campaignId', String(campaignId)).limit(200).find({ suppressAuth: true });
+    return { ok: true, fell: r.items.filter((it) => isTableFell(it, campaignId)).map(charSummary).filter((c) => c.name) }; } catch (e) { return { ok: false }; }
 });
 export const setFellAdoptable = webMethod(Permissions.Anyone, async (campaignId, charId, on) => {
   const mid = await memberId(); if (!mid || !campaignId || !charId || !(await ownsAdventure(campaignId, mid))) return { ok: false };
   try { const row = await wixData.get('Characters', charId, { suppressAuth: true });
-    if (!row || row.ownerMemberId !== mid) return { ok: false, denied: true };
+    if (!isTableFell(row, campaignId)) return { ok: false, denied: true };
     row.adoptFor = on ? String(campaignId) : '';
     await wixData.update('Characters', row, { suppressAuth: true }); return { ok: true }; } catch (e) { return { ok: false, error: String(e).slice(0, 80) }; }
 });
@@ -179,7 +184,7 @@ export const listAdoptableFell = webMethod(Permissions.Anyone, async (campaignId
     const mem = await wixData.query('AdventureMembers').eq('campaignId', campaignId).eq('memberId', mid).limit(1).find({ suppressAuth: true });
     if (!mem.items.length) return [];
     const r = await wixData.query('Characters').eq('adoptFor', String(campaignId)).limit(50).find({ suppressAuth: true });
-    return r.items.filter((it) => it.ownerMemberId !== mid).map(charSummary).filter((c) => c.name);
+    return r.items.filter((it) => isTableFell(it, campaignId)).map(charSummary).filter((c) => c.name);
   } catch (e) { return []; }
 });
 export const adoptFell = webMethod(Permissions.Anyone, async (campaignId, charId) => {
@@ -188,11 +193,12 @@ export const adoptFell = webMethod(Permissions.Anyone, async (campaignId, charId
     const mem = await wixData.query('AdventureMembers').eq('campaignId', campaignId).eq('memberId', mid).limit(1).find({ suppressAuth: true });
     if (!mem.items.length) return { ok: false, error: 'Join through the invite link first.' };
     const row = await wixData.get('Characters', charId, { suppressAuth: true });
-    if (!row || row.adoptFor !== String(campaignId)) return { ok: false, error: 'That Fell has already found its player.' };
+    if (!row || row.adoptFor !== String(campaignId) || !isTableFell(row, campaignId)) return { ok: false, error: 'That Fell has already found its player.' };
     let name = '';
     try { const c = await wixData.get('Campaigns', campaignId, { suppressAuth: true }); if (c && c.name) name = c.name; } catch (e) {}
     row.ownerMemberId = mid; row.adoptFor = ''; row.campaignId = campaignId; row.campaign = name;
-    try { const data = row.data ? JSON.parse(row.data) : null; if (data) { data.identity = data.identity || {}; data.identity.campaignId = campaignId; data.identity.campaign = name; row.data = JSON.stringify(data); } } catch (e) {}
+    /* no longer the table's: an ordinary Fell of its player */
+    try { const data = row.data ? JSON.parse(row.data) : null; if (data) { data.offline = false; data.identity = data.identity || {}; data.identity.campaignId = campaignId; data.identity.campaign = name; row.data = JSON.stringify(data); } } catch (e) {}
     await wixData.update('Characters', row, { suppressAuth: true });
     return { ok: true, charId: charId };
   } catch (e) { return { ok: false, error: String(e).slice(0, 80) }; }
