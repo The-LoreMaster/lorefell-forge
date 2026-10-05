@@ -419,6 +419,8 @@ body.in-lobby #quickBar{ display:none; } #quickBar.fight:not(.mv-placed){ bottom
 #lbLayer{ position:absolute; left:0; top:0; width:0; height:0; z-index:4; pointer-events:none; }
 #lbLayer .lb-ring{ position:absolute; border-radius:50%; border:2px dashed rgba(216,166,255,.55); background:radial-gradient(circle, rgba(216,166,255,.07), rgba(216,166,255,0) 72%); }
 #lbLayer .lb-ring.cors{ border-color:rgba(240,212,138,.55); }
+#trigLayer{ position:absolute; left:0; top:0; width:0; height:0; z-index:4; pointer-events:none; }
+#trigLayer .trig-ring{ position:absolute; border-radius:50%; border:2px dashed rgba(224,112,90,.6); } #trigLayer .trig-ring.spent{ border-color:rgba(147,163,182,.35); }
 .cx-with{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px; } .cx-chip{ height:32px; padding:0 12px; border-radius:999px; border:1px solid #26324c; background:#0c1222; color:#dce8ef; font:inherit; font-size:.9rem; cursor:pointer; } .cx-chip:hover{ border-color:#c9a84c; color:#f0d48a; }
 .cx-link{ border:0; background:none; padding:0; color:#c9a84c; font:inherit; font-size:.9rem; cursor:pointer; text-decoration:underline; text-underline-offset:3px; }
 .cx-names{ display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:8px; max-height:58vh; overflow:auto; }
@@ -7624,6 +7626,77 @@ function lbPaint(force){
   if (force || lay._h !== html){ lay._h = html; lay.innerHTML = html; }
 }
 setInterval(function(){ try { lbPaint(); } catch(e){} }, 300);
+/* ================= trigger tokens =================
+   A token marked Triggered waits on the map (hidden, or plain to see) for a Fell to come
+   within its range. Then it fires: what happens is said in the log, an Affliction can take
+   hold of that Fell (on its sheet, as the LoreMaster gives one), a Pale can spread from where
+   it stood, and a hidden one shows itself. It fires once, or every time a Fell comes in
+   again. Only the LoreMaster's table watches, and never while Threadwalking. */
+function trigWin(id){
+  var t = tokById(id); if (!t || !isLM()) return;
+  var c = t.trig || { range:1, once:true, reveal:true, armed:true, paleR:1 };
+  tsModal('<h3 class="tsm-title">Triggered: ' + esc(tokenName(t)) + '</h3><p class="tsm-note">It fires when a Fell comes within range. Hide the token to make it a trap no one sees coming.</p>'
+    + '<label class="tsm-lbl" for="trR">Range</label><select class="tsm-inp" id="trR">' + [0,1,2,3,4,5].map(function(n){ return '<option value="' + n + '"' + ((c.range || 0) === n ? ' selected' : '') + '>' + (n ? n + ' space' + (n === 1 ? '' : 's') : 'Stepping onto it') + '</option>'; }).join('') + '</select>'
+    + '<label class="tsm-lbl" for="trT">What happens (said in the log)</label><input class="tsm-inp" id="trT" maxlength="200" value="' + esc(c.text || '') + '" placeholder="A blade swings from the wall.">'
+    + '<label class="tsm-lbl" for="trA">An Affliction on the Fell</label><select class="tsm-inp" id="trA"><option value="">None</option>' + affNames().map(function(n){ return '<option' + (c.aff === n ? ' selected' : '') + '>' + esc(n) + '</option>'; }).join('') + '</select>'
+    + '<label class="tsm-lbl" for="trP">A Pale that spreads from it</label><select class="tsm-inp" id="trP"><option value="">None</option>' + PALE_SHELF.map(function(b){ return '<option' + (c.pale === b[0] ? ' selected' : '') + '>' + esc(b[0]) + '</option>'; }).join('') + '</select>'
+    + '<label class="tsm-lbl" for="trPR">How far the Pale spreads</label><select class="tsm-inp" id="trPR">' + [0,1,2,3].map(function(n){ return '<option value="' + n + '"' + ((c.paleR || 0) === n ? ' selected' : '') + '>' + (n ? n + ' space' + (n === 1 ? '' : 's') + ' around' : 'Its own space') + '</option>'; }).join('') + '</select>'
+    + '<label class="rc-who"><input type="checkbox" id="trO"' + (c.once !== false ? ' checked' : '') + '> Fires once (untick: every time a Fell comes in again)</label>'
+    + '<label class="rc-who"><input type="checkbox" id="trV"' + (c.reveal !== false ? ' checked' : '') + '> Shows itself when it fires</label>'
+    + '<label class="rc-who"><input type="checkbox" id="trOn"' + (c.armed !== false ? ' checked' : '') + '> Armed</label>'
+    + '<div class="tsm-row">' + (t.trig ? '<button class="tsm-btn ghost" onclick="trigClear(\'' + esc(id) + '\')">Not a trigger</button>' : '') + '<button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button><button class="tsm-btn" onclick="trigSave(\'' + esc(id) + '\')">Save</button></div>');
+}
+function trigSave(id){
+  var t = tokById(id); if (!t) return; var g = function(i){ return document.getElementById(i) || {}; };
+  t.trig = { range:+g('trR').value || 0, text:String(g('trT').value || '').trim(), aff:g('trA').value || '', pale:g('trP').value || '', paleR:+g('trPR').value || 0, once:!!g('trO').checked, reveal:!!g('trV').checked, armed:!!g('trOn').checked, inside:false };
+  tsCloseModal(); trigShare(t);
+}
+function trigClear(id){ var t = tokById(id); if (!t) return; delete t.trig; tsCloseModal(); trigShare(t); }
+function trigShare(t){ roomSend({ t:'tok', id:t.id, p:{ trig:t.trig || null, hidden:!!t.hidden } }); applyRemoteState({ tokens:S.tokens }); renderTokens(); try { paintTokMenu(); } catch(e){} trigPaint(true); }
+function trigFire(t, f){
+  var c = t.trig, who = tokenName(f);
+  pushLog({ kind:'sys', html:'<b>' + esc(tokenName(t)) + '</b> is triggered by <b>' + esc(who) + '</b>.' + (c.text ? ' ' + esc(c.text) : '') });
+  if (c.aff && f.charId){
+    /* in a fight the Fell's record holds it; outside one, its token does; either way the sheet is told */
+    var p = fellByCharId(f.charId), list = p ? (p.affs = p.affs || []) : (f.affs = f.affs || []);
+    if (list.indexOf(c.aff) < 0) list.push(c.aff);
+    try { lmApplyEffects(f.charId, list, { msg:c.aff + ' takes hold.', at:Date.now() }); } catch(e){}
+    pushLog({ kind:'sys', html:esc(c.aff) + ' takes hold of <b>' + esc(who) + '</b>.' });
+  }
+  if (c.pale){
+    var b = paleShelf(c.pale), cc = elevCellOf(t.x, t.y), cells = [];
+    for (var dx = -c.paleR; dx <= c.paleR; dx++) for (var dy = -c.paleR; dy <= c.paleR; dy++) if (Math.hypot(dx, dy) <= c.paleR + .5) cells.push((cc.c + dx) + ',' + (cc.r + dy));
+    if (b) paleList().push({ id:'pl' + Date.now().toString(36), base:b[0], name:b[0], type:b[1], trigger:b[2], payload:b[3], amount:'', aff:'', dur:'scene', rounds:0, color:b[5], cells:cells, conjured:false });
+    try { paleShare(); } catch(e){}
+  }
+  if (c.reveal && t.hidden) t.hidden = false;
+  if (c.once) c.armed = false; else c.inside = true;
+  applyRemoteState({ log:S.log, scene:S.scene }); trigShare(t);
+  playToast(esc(tokenName(t)) + ' fired: ' + esc(who) + '.', 'Trigger');
+}
+setInterval(function(){
+  try {
+    if (!isLM() || isKeeper() || S.stream || S.visit || !_mapStateLoaded) return;
+    var g = (S.grid && S.grid.size) || 100, fell = (S.tokens || []).filter(function(x){ return x.kind === 'p'; });
+    (S.tokens || []).forEach(function(t){
+      var c = t.trig; if (!c || c.armed === false) return;
+      var reach = ((c.range || 0) + .5 + ((t.cells || 1) - 1) / 2) * g;
+      var hit = fell.filter(function(f){ return Math.hypot(f.x - t.x, f.y - t.y) <= reach; })[0];
+      if (hit && !c.inside) trigFire(t, hit);
+      else if (!hit && c.inside){ c.inside = false; }
+    });
+  } catch(e){}
+}, 300);
+/* the LoreMaster's view: each trigger's reach, dashed red, and a mark when it is spent */
+function trigPaint(force){
+  var host = mapEl(); if (!host) return;
+  var lay = document.getElementById('trigLayer'); if (!lay){ lay = document.createElement('div'); lay.id = 'trigLayer'; host.appendChild(lay); }
+  var g = (S.grid && S.grid.size) || 100;
+  var html = (isLM() && !S.stream) ? (S.tokens || []).filter(function(t){ return t.trig; }).map(function(t){ var r = ((t.trig.range || 0) + .5 + ((t.cells || 1) - 1) / 2) * g;
+    return '<div class="trig-ring' + (t.trig.armed === false ? ' spent' : '') + '" style="left:' + (t.x - r) + 'px;top:' + (t.y - r) + 'px;width:' + (2 * r) + 'px;height:' + (2 * r) + 'px"></div>'; }).join('') : '';
+  if (force || lay._h !== html){ lay._h = html; lay.innerHTML = html; }
+}
+setInterval(function(){ try { trigPaint(); } catch(e){} }, 400);
 /* ---- a new session video, noticed ----
    When the LoreMaster opens the table, the room looks at the connected channel's newest
    uploads for one whose title names this adventure (the part before the pipe, or the whole
@@ -19620,6 +19693,7 @@ function tokExtrasPaint(){
     + b(TM_ICON.front, 'Bring to front', 'tokLayer(1)') + b(TM_ICON.back, 'Send to back', 'tokLayer(-1)')
     + b(TM_ICON.dup, 'Duplicate (Ctrl+D)', 'tokDuplicate()')
     + (t.kind === 'p' && t.charId ? b('<span style="font-size:.95rem" aria-hidden="true">\u2709</span>', 'Whisper to ' + tokenName(t), "whisperToTok('" + t.id + "')") : '')
+    + (!(t.kind === 'p' || t.charId) ? b('<span style="font-size:.9rem" aria-hidden="true">\u26a0</span>', t.trig ? 'Triggered (' + (t.trig.armed === false ? 'spent' : 'armed') + ')' : 'Make it a trigger', "trigWin('" + t.id + "')", !!t.trig) : '')
     + (!(t.kind === 'p' || t.charId) ? b('<span style="font-size:.9rem" aria-hidden="true">\u2767</span>', t.lb ? 'Lorebound of ' + lbOwnerName(t) : 'Mark as a lorebound', "lbWin('" + t.id + "')", !!t.lb) : '')
     + b(TM_ICON.del, 'Remove from the map (Delete)', 'tokRemoveChosen()', false, 'danger');
   /* only when it changes, or a click lands on a button that was just replaced */

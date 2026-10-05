@@ -1,3 +1,7 @@
+## 2026-10-04 - Trigger tokens
+
+Any token that is not a Fell can be made a trigger (the LoreMaster's token row): its range (stepping onto it, or up to five spaces), what happens (said in the log), an Affliction for the Fell who sets it off (on their sheet, as the LoreMaster gives one, in a fight or out of one), a Pale that spreads from it (any of the twelve, its own space or up to three around), whether it fires once or every time a Fell comes in again, whether it shows itself when it fires (hide the token for a trap), and whether it is armed. Only the LoreMaster's table watches, never while Threadwalking; the LoreMaster sees each trigger's reach as a dashed red ring, greyed once spent.
+
 ## 2026-10-04 - Weapons swap on the quick bar
 
 The quick bar takes weapons: a weapon in hand reads Attack and rolls with it; one carried but not held reads Wield, and a tap swaps it into the hand on the sheet, putting the held ones away as the grip needs, and says so (or why not). The sheet's hand now lists every weapon carried, held or not.
