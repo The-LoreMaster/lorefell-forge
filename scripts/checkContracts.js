@@ -16,7 +16,7 @@ const TOOLS = ['fatewell', 'foeforge', 'sigilforge', 'bondforge', 'relicforge', 
 // genuine one-way messages handled outside the paired bridge
 const ALLOW = {
   '*': ['LOREFELL_FEEDBACK_SUBMIT'],
-  fellglass: ['init', 'new', 'libraries', 'ts-hand', 'ts-declare-result', 'ts-undo-result', 'sheet-panel', 'ts-sheet-roll', 'ts-fellmark-ask', 'ts-skill-grew', 'seal-request', 'seal-grant', 'seal-weave', 'seal-notes', 'ts-quick-choose', 'ts-weapon-attack', 'ts-fell-fallen', 'ts-rest-result'],  // FellForge handoff, plus combat replies and the active-panel report handled by docs/threadspire.html not the page bridge
+  fellglass: ['init', 'new', 'libraries', 'ts-hand', 'ts-declare-result', 'ts-undo-result', 'sheet-panel', 'ts-sheet-roll', 'ts-fellmark-ask', 'ts-skill-grew', 'seal-request', 'seal-grant', 'seal-weave', 'seal-notes', 'ts-quick-choose', 'ts-quick-note', 'ts-weapon-attack', 'ts-fell-fallen', 'ts-rest-result'],  // FellForge handoff, plus combat replies and the active-panel report handled by docs/threadspire.html not the page bridge
   // The page answers THREADSPIRE_WANT_LORE for the older build under threadspire/app
   // and threadspire/dist. docs/threadspire.html never asks, so the reply lands nowhere
   // in the live tool. Kept because the older build still reads it.
