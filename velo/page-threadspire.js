@@ -527,7 +527,9 @@ $w.onReady(async function () {
         } else if (msg.type === 'TS_STATE_PULL') {
           // Say which adventure the answer is for. A pull in flight across a switch
           // comes back holding the old one, and it used to be believed.
-          try { const r = await getCampaignState(campaignId, msg.since); reply(true, Object.assign({ campaignId: campaignId }, r || {})); }
+          // a failed or unchanged read answers null, never an empty-looking board: the table
+          // used to count six of those as a new adventure and start saving an empty board over it
+          try { const r = await getCampaignState(campaignId, msg.since); reply(true, r ? Object.assign({ campaignId: campaignId }, r) : null); }
           catch (e) { reply(true, null); }
         } else if (msg.type === 'TS_SESSION_GET') {
           try { reply(true, await getSession(campaignId)); } catch (e) { reply(true, { ok: false }); }
