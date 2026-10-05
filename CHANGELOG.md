@@ -1,3 +1,7 @@
+## 2026-10-04 - Triggers: a chance to avoid, ambushes, doors, light, battle and portals
+
+A trigger can give a chance to avoid it: the Fell's player is asked at once to roll a chosen skill, 1d6 + that skill against the LoreMaster's 1d6 + the Skill Difficulty and anything added (the climbing check's way), and their table answers in the log; beating it avoids what it does to them (damage, Afflictions, the portal), while the line, its sound, the Pales and the clock happen regardless. The LoreMaster can roll for a Fell with no player, or say it lands or is avoided. It can spring an ambush (chosen hidden tokens show themselves), open or slam shut chosen doors, bring darkness or light, begin combat, and send the Fell through a portal to a spot marked on the map, the token arriving with a swirl on every screen (none for reduced motion).
+
 ## 2026-10-04 - Triggers that do it all at once
 
 A trigger now takes several Afflictions and several Pales (each spreading the same distance), damage to the Fell who sets it off (Base and Bonus, physical or magical, as Send a hit deals it), a sound from the music library played for everyone when it fires, a clock to tick, and its line shown across everyone's screen for a few seconds as well as in the log. Everything set happens at once. A log line can carry a banner and a sound, played once by each table that sees it arrive (never for history).
