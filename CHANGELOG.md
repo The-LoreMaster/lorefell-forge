@@ -1,3 +1,7 @@
+## 2026-10-05 - The lobby bar moves again
+
+The LoreMaster's lobby bar has its grip back, folded or open: drag to move it, double-click the grip to put it back, and it stays where it was put when folded or unfolded. Backlog: #730, #733, #734 and #739 closed as not planned.
+
 ## 2026-10-05 - The backlog; Lore Check calls; a tidier lobby, runner, Sounds window and token menu
 
 The backlog lives in GitHub Issues (label backlog), described in BACKLOG.md, with a pull request template asking which issue each change moves. Lore Check beats gain Call for the check: everyone or chosen Fell roll a chosen skill (Lore by default) against the LoreMaster's 1d6 + the Skill Difficulty and anything added, each on their own screen, results in the log; a Fell with no player is rolled for. The runner centres on the table rather than the window (with the frame's rail measured), in full screen too; The table loses its dot. The LoreMaster's lobby bar is a compact pill under the toolbar, centred on the table, that folds to "In the lobby". Players have no toolbar in the lobby after all. A lobby armed before the saved one arrived now takes its picture or video, music and weather from it rather than losing them. Placed sounds, lorebound rings and trigger rings live in the map's moving layer, fixed to the map like tokens. The Sounds window is rebuilt as cards, and the token menu's rows fill its width.
