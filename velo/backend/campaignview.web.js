@@ -135,6 +135,19 @@ export const saveCampaignState = webMethod(Permissions.Anyone, async (campaignId
     // Saved versions: the board is kept every so often, and the board as it was is kept
     // whenever a save would empty most of it, so any loss can be undone from the table.
     try { await historyKeep(String(campaignId), cur, body, mid, version); } catch (e) {}
+    // And such a save is refused outright: a screen whose copy of the board came up nearly
+    // empty (a phone beside the computer, a read that failed) must not write it over the
+    // board. Clearing on purpose goes a scene at a time, or says so (allowShrink).
+    if (lmHere && cur && cur.snapshot && !(snap && snap.allowShrink)) {
+      try {
+        const a = boardSummary(JSON.parse(cur.snapshot)), b = boardSummary(body);
+        const lost = (x, y, min) => x >= min && y < x / 3;
+        if ((lost(a.placed, b.placed, 6) && lost(a.maps, b.maps, 2)) || (a.scenes >= 3 && b.scenes === 0)) {
+          return { ok: false, held: true, error: 'held: that save would have emptied most of the board (' + b.placed + ' of ' + a.placed + ' tokens, ' + b.maps + ' of ' + a.maps + ' maps)' };
+        }
+      } catch (e) {}
+    }
+    if (body && body.allowShrink !== undefined) delete body.allowShrink;
     const base = cur ? Object.assign({}, cur) : {};
     const row = Object.assign(base, { campaignId: String(campaignId), version: version, snapshot: JSON.stringify(body), updatedBy: mid });
     if (cur) { row._id = cur._id; await wd.update(CV, row, { suppressAuth: true }); }

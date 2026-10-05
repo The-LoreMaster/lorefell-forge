@@ -1,3 +1,7 @@
+## 2026-10-05 - No more boards emptied by a second screen
+
+The cause of the lost maps and tokens: a LoreMaster's table only starts saving once it has heard the stored board, but a second LoreMaster screen (a phone beside the computer) took the live room's pieces (the lobby, music, clocks) as having heard it, and saved its own empty scenes over every map and token. A failed or unchanged read was also counted toward "nothing stored", and six of them did the same. Now only the site's own stored board, read in full, lets a LoreMaster's table write; a failed read answers nothing; and the site itself refuses a LoreMaster's save that would empty most of the board (under a third of its placed tokens and of its scenes' maps, or every scene gone), keeping the board as it was in Saved versions and saying so at the table. Paste velo/backend/campaignview.web.js and velo/page-threadspire.js.
+
 ## 2026-10-05 - Sounds have their own folder
 
 Placed sounds and trigger sounds come from a sound shelf of their own, apart from the music: uploads go to the site's LoreFell Sounds folder (Media Manager), straight from the Sounds window (Upload a sound), landing on the sound being edited or the newest one without a sound. The folder's other sounds are listed to join this adventure in a tap. A trigger's sound lists the sounds first, then the music. Paste velo/backend/campaignview.web.js and velo/page-threadspire.js.

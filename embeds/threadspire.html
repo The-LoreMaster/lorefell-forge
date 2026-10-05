@@ -11811,6 +11811,11 @@ function pushState(){
       _pushesOut = Math.max(0, _pushesOut - 1);
       SEAM.pushAt = Date.now();
       if (r && r.version){ _stateSeen = Math.max(_stateSeen, r.version); SEAM.pushV = r.version; SEAM.pushOk = true; SEAM.pushWhy = ''; _pushFailingSince = 0; if (SAVEMARK.failed === 'the table') SAVEMARK.failed = ''; SAVEMARK.at = Date.now(); pushAdventure(); nudgePull(); }
+      else if (r && r.held){
+        /* the site refused a save that would have emptied most of the board; it keeps what it has */
+        SEAM.pushOk = false; SEAM.pushWhy = r.error || 'held'; SAVEMARK.failed = 'this screen\u2019s copy looked emptied; nothing was overwritten. Refresh.';
+        if (!pushState._heldSaid){ pushState._heldSaid = true; pushLog({ kind:'sys', lmOnly:true, html:'This screen\u2019s copy of the board looked emptied, so the site kept the saved board instead of overwriting it. Refresh this screen to load the board.' }); render(); }
+      }
       else { SEAM.pushOk = false; SEAM.pushWhy = (r && r.error) || 'the site said no'; SAVEMARK.failed = 'the table'; pushRetry(); seamWarn(); }
       seamPaint();
     }).catch(function(e){
@@ -11915,7 +11920,11 @@ function applyRemoteSnapshot(snap){
   if (snap.tokens) S.tokens = snap.tokens;
   if (isLM() && !_mapStateLoaded){ _boardScene = snap.activeSceneId || (S.scene && S.scene.id) || null; }
   if (snap.draw){ S.draw = drawMerge(S.draw, snap.draw); try { drawPaint(); } catch(e){} }
-  mapStateArrived();
+  /* Only the site's stored board, read in full, lets a LoreMaster's table start writing. The
+     live room hands a second LoreMaster screen (a phone beside the computer) only pieces (the
+     lobby, the music, clocks); taking those as the board let that screen save its empty scenes
+     over every map and token. */
+  if (!(ROOM._applying && isLM())) mapStateArrived();
   if (snap.spot !== undefined && (!isLM() || S.stream)) S.spot = Array.isArray(snap.spot) ? snap.spot : [];
   if (snap.retell !== undefined && (!isLM() || S.stream)) S.retell = snap.retell;
   if (snap.lobby !== undefined && (!isLM() || S.stream || !S.lobby)) S.lobby = snap.lobby;
@@ -13308,11 +13317,13 @@ function startStateFeed(){
       /* an answer about the adventure we just left is not news, it is the past */
       if (!isLM() && !S.campaignId){ SEAM.pullGot = 'no adventure'; seamPaint(); return; }
       if (res.campaignId && S.campaignId && !sameId(res.campaignId, S.campaignId)){ SEAM.pullGot = 'other adventure (' + String(res.campaignId).slice(0,8) + ')'; seamPaint(); return; }
+      if (res.error){ SEAM.pullGot = 'failed: ' + String(res.error).slice(0, 60); seamPaint(); return; }
+      if (res.version === undefined && !res.none){ SEAM.pullGot = 'nothing newer'; seamPaint(); return; }
       if (res.version === undefined || res.none){
         /* nothing stored for this adventure: a new one. The site says so (none); an older
            backend cannot tell that from a failed read, so six empty answers in a row on a
            table that has heard nothing stand for the same. Only then may it write. */
-        if (!_mapStateLoaded && (res.none || ++_pullEmpty >= 6)) mapStateArrived();
+        if (!_mapStateLoaded && res.none === true) mapStateArrived();
         SEAM.pullGot = res.none ? 'nothing stored yet' : 'no row yet'; seamPaint(); return;
       }
       if (res.version > _stateSeen){ _stateSeen = res.version; SEAM.pullV = res.version; SEAM.pullGot = 'new state v' + res.version; applyRemoteSnapshot(res.snap); }
