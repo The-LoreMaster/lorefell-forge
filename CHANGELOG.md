@@ -1,3 +1,7 @@
+## 2026-10-05 - The players'-view bar fits the window
+
+Seeing the lobby as the players do, the LoreMaster's bar is one slim line centred on the table (PLAYERS' VIEW, Threadwalk, Set the lobby, Bring them in, Back to the map), the same shape as the lobby bar, scrolling sideways rather than running off the edge of a window that is not full screen; on a phone it sits beside the wrench. The chat's To button no longer squeezes the box beside it.
+
 ## 2026-10-05 - Two screens, one board: scene by scene, the newer layout wins
 
 The remaining loss (one scene's map and 25 tokens at a time) came from two LoreMaster screens open at once, a phone and the computer: each saved its whole copy of every scene, so an older copy of a scene, or one that had not loaded, replaced what the other screen had laid out. Each scene's layout is now stamped when it truly changes on a screen, and the site merges scene by scene: the newer layout wins, a scene this screen did not send stays, and a copy never empties a laid-out scene or strips it of every token unless the LoreMaster cleared it on purpose (taking off its last token says so). A player's save now only moves stored tokens by id, never adds or removes them. Paste velo/backend/campaignview.web.js and velo/page-threadspire.js.
