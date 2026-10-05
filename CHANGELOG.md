@@ -1,3 +1,7 @@
+## 2026-10-04 - A table Fell is the one handed to a player
+
+The Fell handed to a player is one made at the table (Someone at the table: owned by nobody, the adventure's), not the LoreMaster's own: Add a player, Hand a table Fell to a player lists the table's Fell, with Make one at the table. Adopted, it becomes its player's ordinary Fell and no longer the table's. Paste velo/backend/invites.web.js.
+
 ## 2026-10-04 - A Fell made for a player to adopt
 
 The LoreMaster can set any of their own Fell waiting in an adventure (Add a player, A Fell waiting for a player; Characters gains adoptFor). A player who has joined through the invite link finds it on the join page, above their own Fell, with Make it mine: it becomes theirs, joins the adventure (its sheet's record too), stops waiting, and its sheet opens. Paste velo/backend/invites.web.js, velo/page-join.js and velo/page-threadspire.js.
