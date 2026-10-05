@@ -7121,6 +7121,9 @@ function lobbyWin(){
     + (lobbyOn() ? '<button class="tsm-btn" onclick="lobbySet(false);tsCloseModal()">Bring everyone in</button>' : '<button class="tsm-btn" onclick="lobbySet(true);lobbyWin()">Send everyone to the lobby</button>') + '</div>'
     + '<label class="tsm-lbl" for="lbTitle">Its title</label><input class="tsm-inp" id="lbTitle" maxlength="80" placeholder="' + esc(advName()) + '" value="' + esc(L.title || '') + '" oninput="lobbyField(\'title\',this.value)">'
     + '<label class="tsm-lbl" for="lbNote">A line for the players</label><input class="tsm-inp" id="lbNote" maxlength="160" placeholder="Gather round. We begin soon." value="' + esc(L.note || '') + '" oninput="lobbyField(\'note\',this.value)">'
+    + '<label class="tsm-lbl" for="lbMu">Its music</label><select class="tsm-inp" id="lbMu" onchange="lobbyField(\'music\',this.value);setTimeout(musicApply,600)"><option value="">None: silence while they wait</option>'
+      + (musicState().lists || []).map(function(l){ var r = 'l:' + l.id; return '<option value="' + esc(r) + '"' + ((L.music || '') === r ? ' selected' : '') + '>Playlist: ' + esc(l.name || l.title || 'Untitled') + '</option>'; }).join('')
+      + (musicState().tracks || []).map(function(t){ var r = 't:' + t.id; return '<option value="' + esc(r) + '"' + ((L.music || '') === r ? ' selected' : '') + '>' + esc(t.title || t.name || 'Track') + '</option>'; }).join('') + '</select>'
     + '<label class="tsm-lbl" for="lbWx">Its weather</label><select class="tsm-inp" id="lbWx" onchange="lobbyField(\'weather\',this.value);setTimeout(weatherRun,600)">' + WEATHERS.map(function(w){ return '<option value="' + w[0] + '"' + ((L.weather || '') === w[0] ? ' selected' : '') + '>' + esc(w[1]) + '</option>'; }).join('') + '</select>'
     + '<div class="tsm-lbl">Its picture or video</div>'
     + '<div class="lb-now">' + (L.url ? (L.poster || (L.kind !== 'video' && L.url) ? '<img src="' + esc(L.kind === 'video' ? L.poster : L.url) + '" alt="">' : '<span>A video</span>') : '<span>None chosen</span>') + '</div>'
@@ -7159,6 +7162,8 @@ function lobbyPaint(){
   lobbyLmBar();
   var _wk = show + '|' + ((S.lobby && S.lobby.weather) || '');
   if (_wk !== lobbyPaint._wk){ lobbyPaint._wk = _wk; setTimeout(function(){ try { weatherRun(); } catch(e){} }, 50); }
+  var _mk = show + '|' + ((S.lobby && S.lobby.music) || '');
+  if (_mk !== lobbyPaint._mk){ lobbyPaint._mk = _mk; setTimeout(function(){ try { musicApply(); } catch(e){} }, 60); }
   var el = document.getElementById('lobbyScreen');
   var _was = document.body.classList.contains('in-lobby');
   document.body.classList.toggle('in-lobby', show);
@@ -7249,7 +7254,7 @@ function sceneVisit(id){
   try { sceneLayoutSave(); lmSaveCurrentStage(); } catch(e){}
   try { pushState(); } catch(e){}
   if (window._lobbyLook) lobbyLook(false);
-  S.visit = { home:S.scene.id, homeName:S.scene.name, q:[], at:Date.now() };
+  S.visit = { home:S.scene.id, homeName:S.scene.name, q:[], at:Date.now(), music:S.music && S.music.live ? JSON.parse(JSON.stringify(S.music.live)) : null };
   sceneVisitGo(hit.scene);
   document.body.classList.add('visiting');
   visitBar();
@@ -7275,7 +7280,11 @@ function sceneVisitBack(){
   var home = tsSceneById(v.home);
   if (home) sceneVisitGo(home.scene);
   var q = v.q || [];
+  /* what the visited scene played stays with the LoreMaster's walk: the table goes on hearing
+     what it heard before */
+  if (v.music && S.music){ S.music.live = v.music; }
   S.visit = null;
+  try { musicApply(); musicPaintPanel(); } catch(e){}
   document.body.classList.remove('visiting');
   visitBar();
   q.forEach(function(m){ try { roomGot(m); } catch(e){} });   /* what the players did meanwhile */
@@ -18553,6 +18562,19 @@ function musicApply(){
   }
   var m = musicState(), L = m.live, t = musicNow(), me = musicMine();
   var should = !!(L.on && L.playing && t && !me.off);
+  var _lobbyT = null, _lobbyL = []; try { if (lobbyForMe() && S.lobby && S.lobby.music){ _lobbyL = musicRefTracks(S.lobby.music); if (!_lobbyL.length && musicTrack(S.lobby.music)) _lobbyL = [musicTrack(S.lobby.music)]; _lobbyT = _lobbyL[(S._lobbyIdx || 0) % Math.max(1, _lobbyL.length)] || null; } } catch(e){}
+  if (_lobbyT){
+    /* one track loops; a playlist plays through and starts again */
+    musicEl.loop = _lobbyL.length < 2;
+    musicEl.onended = _lobbyL.length > 1 ? function(){ S._lobbyIdx = ((S._lobbyIdx || 0) + 1) % _lobbyL.length; musicApply(); } : null; musicEl.volume = Math.max(0, Math.min(1, me.vol * musicTableVol()));
+    if (_musicLoadedSrc !== _lobbyT.url){ _musicLoadedSrc = _lobbyT.url; _musicErr = ''; musicEl.src = _lobbyT.url; }
+    if (!me.off && musicEl.paused){ var _lp = musicEl.play(); if (_lp && _lp.catch) _lp.catch(function(err){ if (err && err.name === 'NotAllowedError') _musicTap = true; musicPaintPrompt(); }); }
+    else if (me.off && !musicEl.paused) musicEl.pause();
+    musicPaintPrompt(); return;
+  }
+  musicEl.loop = false; musicEl.onended = null;
+  /* in the lobby with no music of its own: silence, never the scene the LoreMaster is in */
+  try { if (lobbyForMe() && !(isLM() && !S.stream && !window._lobbyLook)){ if (!musicEl.paused) musicEl.pause(); _musicLoadedSrc = ''; musicPaintPrompt(); return; } } catch(e){}
   musicEl.volume = Math.max(0, Math.min(1, me.vol * musicTableVol()));
   if (!t || !L.on){ if (!musicEl.paused) musicEl.pause(); _musicLoadedSrc = ''; return; }
   if (_musicLoadedSrc !== t.url){ _musicLoadedSrc = t.url; _musicErr = ''; musicEl.src = t.url; }
