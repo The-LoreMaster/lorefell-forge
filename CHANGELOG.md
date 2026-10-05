@@ -1,3 +1,7 @@
+## 2026-10-04 - The audience votes
+
+The runners gain Vote: the LoreMaster asks a question with two to four choices and opens the vote. Viewers vote at table.lorefell.com/vote.html for the adventure (a link and, on the stream, its QR code), on any phone, one vote a browser, no account; the room counts (/pub/vote) and refuses a second vote or one after closing. The table and the stream show the question with its bars filling, movable; closing it marks the winner, says it in the log, and the result stays until the LoreMaster takes it off the screen.
+
 ## 2026-10-04 - Hex grids
 
 The grid panel gains Shape: Squares or Hexes. Hexes are pointy-topped, as wide as a square of the cell size, so a step to a neighbour is one cell as on squares; they take the grid's fade and shift, tokens snap to hex centres (dropped, tapped to move, or all at once when the shape changes), and the setting travels with the grid to every table.

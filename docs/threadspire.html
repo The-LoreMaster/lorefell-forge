@@ -426,6 +426,14 @@ body.in-lobby #quickBar{ display:none; } #quickBar.fight:not(.mv-placed){ bottom
 .token.portal-in{ animation:portalIn 1s ease-out; }
 @keyframes portalIn{ 0%{ opacity:0; transform:scale(.2) rotate(-200deg); filter:drop-shadow(0 0 24px #9b6fd0) brightness(2); } 60%{ opacity:1; transform:scale(1.15) rotate(10deg); filter:drop-shadow(0 0 18px #9b6fd0); } 100%{ transform:scale(1) rotate(0); filter:none; } }
 @media (prefers-reduced-motion: reduce){ .token.portal-in{ animation:none; } }
+#voteOverlay{ position:fixed; right:calc(16% + 10px); top:12%; z-index:59; width:min(320px, 80vw); padding:12px 14px; border-radius:14px; border:1px solid rgba(201,168,76,.55); background:rgba(10,14,26,.94); color:#dce8ef; font-family:'Crimson Pro',Georgia,serif; box-shadow:0 14px 34px rgba(0,0,0,.5); display:flex; flex-direction:column; gap:8px; }
+#voteOverlay .vt-head{ display:flex; justify-content:space-between; align-items:center; font-family:Cinzel,serif; font-size:.68rem; letter-spacing:.1em; color:#c9a84c; text-transform:uppercase; } #voteOverlay .vt-head button{ border:0; background:none; color:#c9a84c; cursor:pointer; }
+#voteOverlay .vt-q{ font-size:1.12rem; line-height:1.25; color:#f3ead2; } #voteOverlay .vt-foot{ font-size:.8rem; color:#93a3b6; }
+.vt-bars{ display:flex; flex-direction:column; gap:5px; } .vt-bar{ position:relative; display:flex; justify-content:space-between; align-items:center; padding:6px 10px; border-radius:8px; border:1px solid #26324c; background:#0c1222; overflow:hidden; }
+.vt-bar .vt-f{ position:absolute; left:0; top:0; bottom:0; background:rgba(201,168,76,.22); transition:width .6s ease; } .vt-bar b, .vt-bar i{ position:relative; font-weight:600; font-style:normal; } .vt-bar i{ color:#f0d48a; }
+.vt-bar.win{ border-color:#c9a84c; } .vt-bar.win .vt-f{ background:rgba(201,168,76,.4); }
+.vt-qr{ align-self:center; padding:6px; border-radius:8px; background:#f3ead2; } .vt-live{ display:flex; flex-direction:column; gap:8px; }
+@media (prefers-reduced-motion: reduce){ .vt-bar .vt-f{ transition:none; } }
 .trig-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:2px 10px; max-height:150px; overflow:auto; padding:4px; border:1px solid #26324c; border-radius:9px; }
 .trig-c{ display:flex; align-items:center; gap:6px; font-size:.9rem; color:#dce8ef; } .trig-c input{ accent-color:#c9a84c; }
 .trig-dmg{ display:flex; gap:8px; align-items:center; } .trig-dmg label{ display:flex; align-items:center; gap:6px; font-size:.9rem; color:#93a3b6; } .trig-dmg .tsm-inp{ width:80px; }
@@ -7828,6 +7836,76 @@ function trigPaint(force){
   if (force || lay._h !== html){ lay._h = html; lay.innerHTML = html; }
 }
 setInterval(function(){ try { trigPaint(); } catch(e){} }, 400);
+/* ================= the audience votes =================
+   The LoreMaster asks a question with two to four choices; anyone watching votes from a link
+   (or the QR code on the stream) on any phone, one vote a browser, no account. The room
+   counts; the stream and the table show the bars filling, and the result when it closes. */
+var VOTE_PAGE = 'https://table.lorefell.com/vote.html';
+var VOTE = { live:null, t:null };
+function voteLink(){ return VOTE_PAGE + '?c=' + encodeURIComponent(S.campaignId || ''); }
+function voteWin(){
+  if (!isLM() || keeperNo()) return;
+  var v = S.vote || {};
+  var h = '<h3 class="tsm-title">Let the audience decide</h3><p class="tsm-note">Viewers vote from a link or the QR code on the stream, one vote each, no account. The bars fill on the stream and here as they come in.</p>';
+  if (v.open){
+    h += '<div class="vt-live"><b>' + esc(v.q) + '</b>' + voteBars(VOTE.live) + '<p class="tsm-note">' + ((VOTE.live && VOTE.live.total) || 0) + ' votes so far. <a href="' + esc(voteLink()) + '" target="_blank" rel="noopener">The voting page</a></p></div>'
+      + '<div class="tsm-row"><button class="tsm-btn" onclick="voteEnd()">Close the vote</button></div>';
+  } else {
+    h += '<label class="tsm-lbl" for="vtQ">The question</label><input class="tsm-inp" id="vtQ" maxlength="120" placeholder="Which door do they open?" value="' + esc(v.open === false && v.q ? '' : '') + '">'
+      + [0,1,2,3].map(function(i){ return '<label class="tsm-lbl" for="vtO' + i + '">Choice ' + (i + 1) + (i > 1 ? ' (optional)' : '') + '</label><input class="tsm-inp" id="vtO' + i + '" maxlength="60">'; }).join('')
+      + (v.q ? '<p class="tsm-note">Last vote: ' + esc(v.q) + (VOTE.live ? ' (' + VOTE.live.total + ' votes)' : '') + ' <button class="cx-link" onclick="voteClear()">Take its result off the screen</button></p>' : '')
+      + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button><button class="tsm-btn" onclick="voteStart()">Open the vote</button></div>';
+  }
+  tsModal(h, true);
+}
+function voteStart(){
+  var q = ((document.getElementById('vtQ') || {}).value || '').trim(), opts = [0,1,2,3].map(function(i){ return ((document.getElementById('vtO' + i) || {}).value || '').trim(); }).filter(Boolean);
+  if (!q || opts.length < 2){ playToast('A question and at least two choices.', 'Vote'); return; }
+  S.vote = { id:'v' + Date.now().toString(36), q:q, opts:opts, open:true, at:Date.now(), show:true };
+  VOTE.live = { counts:opts.map(function(){ return 0; }), total:0, opts:opts, q:q, open:true };
+  try { roomPartsSync(true); } catch(e){} schedulePush(); tsCloseModal(); votePaint(true);
+  pushLog({ kind:'sys', html:'The audience votes: <b>' + esc(q) + '</b>' }); applyRemoteState({ log:S.log });
+}
+function voteEnd(){
+  if (!S.vote) return; S.vote = Object.assign({}, S.vote, { open:false, closedAt:Date.now() });
+  try { roomPartsSync(true); } catch(e){} schedulePush();
+  setTimeout(function(){ votePoll(true); var r = VOTE.live; if (r && r.total){ var top = r.counts.indexOf(Math.max.apply(null, r.counts)); pushLog({ kind:'sys', html:'The audience chose <b>' + esc(r.opts[top]) + '</b> (' + r.counts[top] + ' of ' + r.total + ').' }); applyRemoteState({ log:S.log }); } }, 800);
+  tsCloseModal();
+}
+function voteClear(){ if (!S.vote) return; S.vote = Object.assign({}, S.vote, { show:false }); try { roomPartsSync(true); } catch(e){} schedulePush(); tsCloseModal(); votePaint(true); }
+function voteBars(r){
+  if (!r) return '';
+  var tot = Math.max(1, r.total || 0), top = Math.max.apply(null, (r.counts || []).concat([0]));
+  return '<div class="vt-bars">' + (r.opts || []).map(function(o, i){ var n = (r.counts || [])[i] || 0, pc = Math.round(n / tot * 100);
+    return '<div class="vt-bar' + (!r.open && n === top && n > 0 ? ' win' : '') + '"><span class="vt-f" style="width:' + pc + '%"></span><b>' + esc(o) + '</b><i>' + n + '</i></div>'; }).join('') + '</div>';
+}
+function votePoll(force){
+  if (!S.vote || !S.vote.id || !S.campaignId) return;
+  fetch(ROOM_HTTP + '/pub/vote?c=' + encodeURIComponent(S.campaignId)).then(function(r){ return r.json(); }).then(function(d){ if (d && d.ok && d.vote){ VOTE.live = d.vote; votePaint(force); if (document.querySelector('#tsModal .vt-live')) voteWin(); } }).catch(function(){});
+}
+setInterval(function(){ try { if (S.vote && S.vote.show !== false && (S.vote.open || !VOTE.live || VOTE.live.id !== S.vote.id)) votePoll(); } catch(e){} }, 2000);
+/* the overlay: the question, the bars, and on the stream the link and its QR code */
+function votePaint(force){
+  var v = S.vote, show = v && v.show !== false && v.q;
+  var el = document.getElementById('voteOverlay');
+  if (!show){ if (el) el.remove(); return; }
+  var r = VOTE.live && VOTE.live.id === v.id ? VOTE.live : { q:v.q, opts:v.opts, counts:(v.opts || []).map(function(){ return 0; }), total:0, open:v.open };
+  r.open = v.open;
+  if (!el){ el = document.createElement('div'); el.id = 'voteOverlay'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
+  var key = JSON.stringify(r) + S.stream; if (!force && el._k === key) return; el._k = key;
+  el.innerHTML = '<div class="vt-head"><span>' + (v.open ? 'The audience decides' : 'The audience chose') + '</span>' + (isLM() && !S.stream ? '<button onclick="voteWin()" aria-label="The vote">\u2699</button>' : '') + '</div><b class="vt-q">' + esc(v.q) + '</b>' + voteBars(r)
+    + '<div class="vt-foot">' + (r.total || 0) + ' vote' + (r.total === 1 ? '' : 's') + (v.open ? ' \u00b7 vote at ' + esc(voteLink().replace(/^https:\/\//, '').replace(/\?.*/, '')) : '') + '</div>'
+    + (v.open && S.stream ? '<div class="vt-qr" id="voteQr"></div>' : '');
+  if (v.open && S.stream) voteQr();
+  el._mv = false; moveBar(el, 'ts_vote_pos');
+}
+function voteQr(){
+  var box = document.getElementById('voteQr'); if (!box) return;
+  var draw = function(){ try { box.innerHTML = ''; new QRCode(box, { text:voteLink(), width:120, height:120, colorDark:'#0a0e1a', colorLight:'#f3ead2' }); } catch(e){} };
+  if (typeof QRCode === 'function') return draw();
+  var s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js'; s.onload = draw; document.head.appendChild(s);
+}
+setInterval(function(){ try { votePaint(); } catch(e){} }, 1000);
 /* ---- a new session video, noticed ----
    When the LoreMaster opens the table, the room looks at the connected channel's newest
    uploads for one whose title names this adventure (the part before the pipe, or the whole
@@ -9567,12 +9645,12 @@ function lmPhaseControls(){
     return '<button class="lmbtn" onclick="lmOpenMaps()">Maps</button>'
          + '<button class="lmbtn" onclick="lmOpenTokens()">Tokens</button>'
          + '<button class="lmbtn" onclick="lmBeginCombat()">Begin combat</button>'
-         + lobbyBtn() + '<button class="lmbtn" onclick="clocksWin()" title="Clocks">Clocks</button><button class="lmbtn" onclick="soundsWin()" title="Sounds placed on the map">Sounds</button>' + momBtn() + lmAplGear();
+         + lobbyBtn() + '<button class="lmbtn" onclick="clocksWin()" title="Clocks">Clocks</button><button class="lmbtn" onclick="soundsWin()" title="Sounds placed on the map">Sounds</button><button class="lmbtn" onclick="voteWin()" title="Let the audience decide">Vote</button>' + momBtn() + lmAplGear();
   if (S.scene.combatPhase === 'commit')
     return '<button class="lmbtn gold" onclick="lmLockActs()">Lock acts into Spotlights</button>'
          + '<button class="lmbtn" onclick="declaresLoad(true)">Read declares</button>'
          + '<button class="lmbtn" onclick="lmEndCombat()">End combat</button>'
-         + lobbyBtn() + '<button class="lmbtn" onclick="clocksWin()" title="Clocks">Clocks</button><button class="lmbtn" onclick="soundsWin()" title="Sounds placed on the map">Sounds</button>' + momBtn() + lmAplGear();
+         + lobbyBtn() + '<button class="lmbtn" onclick="clocksWin()" title="Clocks">Clocks</button><button class="lmbtn" onclick="soundsWin()" title="Sounds placed on the map">Sounds</button><button class="lmbtn" onclick="voteWin()" title="Let the audience decide">Vote</button>' + momBtn() + lmAplGear();
   return '<button class="lmbtn' + (S.scene.spotMode==='auto'?' gold':'') + '" onclick="lmSpotMode(\'auto\')">Auto</button>'
        + '<button class="lmbtn' + (S.scene.spotMode==='manual'?' gold':'') + '" onclick="lmSpotMode(\'manual\')">Manual</button>'
        + '<button class="lmbtn" onclick="lmUnlock()">Back to Commit</button>'
@@ -11360,6 +11438,7 @@ function sharedSnapshot(){
     lobby: isLM() && !isKeeper() ? (S.lobby || null) : undefined,
     clocks: isLM() && !isKeeper() ? (S.clocks || []) : undefined,
     sounds: isLM() && !isKeeper() ? (S.sounds || {}) : undefined,
+    vote: isLM() && !isKeeper() ? (S.vote || null) : undefined,
     retellPick: isLM() && !isKeeper() ? (S.retellPick || null) : undefined,
     marks: isLM() && !isKeeper() ? (S.marks || []) : undefined,
     ytDrafts: isLM() && !isKeeper() ? (S.ytDrafts || {}) : undefined,
@@ -11671,6 +11750,7 @@ function applyRemoteSnapshot(snap){
   if (snap.lobby !== undefined && (!isLM() || S.stream || !S.lobby)) S.lobby = snap.lobby;
   if (Array.isArray(snap.clocks) && (!isLM() || S.stream || !(S.clocks && S.clocks.length))) S.clocks = snap.clocks;
   if (snap.sounds && (!isLM() || S.stream || !(S.sounds && Object.keys(S.sounds).length))) S.sounds = snap.sounds;
+  if (snap.vote !== undefined && (!isLM() || S.stream || !S.vote)) S.vote = snap.vote;
   if (snap.retellPick !== undefined && isLM() && !S.retellPick) S.retellPick = snap.retellPick;
   if (Array.isArray(snap.marks) && isLM() && !(S.marks && S.marks.length)) S.marks = snap.marks;
   if (snap.ytDrafts && isLM() && !(S.ytDrafts && Object.keys(S.ytDrafts).length)) S.ytDrafts = snap.ytDrafts;
@@ -21672,7 +21752,7 @@ var ROOM = { ws:null, on:false, want:false, tries:0, t:null, cid:'', role:'', se
 var KEEPER_SENDS = ['pales', 'elev', 'fog', 'walls', 'lights', 'effects', 'notes', 'weather', 'draw', 'portraits'];
 var KEEPER_TAKES = KEEPER_SENDS.concat(['combatPhase', 'music', 'party', 'rest', 'loreGrants']);
 /* the rest of the table the LoreMaster's table sends through the room, each when it changes */
-var ROOM_PARTS = ['sounds', 'clocks', 'lobby', 'retell', 'spot', 'pales', 'elev', 'fog', 'walls', 'lights', 'effects', 'notes', 'weather', 'music', 'rest', 'viewCall', 'loreGrants', 'combatPhase', 'draw', 'portraits', 'party', 'beatPic', 'handouts', 'questRev'];
+var ROOM_PARTS = ['vote', 'sounds', 'clocks', 'lobby', 'retell', 'spot', 'pales', 'elev', 'fog', 'walls', 'lights', 'effects', 'notes', 'weather', 'music', 'rest', 'viewCall', 'loreGrants', 'combatPhase', 'draw', 'portraits', 'party', 'beatPic', 'handouts', 'questRev'];
 function roomSend(msg){ if (S.visit && msg && msg.t !== 'hb' && msg.t !== 'log') return false; if (ROOM.on && ROOM.ws && ROOM.ws.readyState === 1 && !S.stream){ try { ROOM.ws.send(JSON.stringify(msg)); return true; } catch(e){} } return false; }
 function roomConnect(){
   if (!tsEmbedded() || !S.campaignId) return;
