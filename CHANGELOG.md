@@ -1,3 +1,7 @@
+## 2026-10-04 - A quieter runner and token menu; the lobby's words fold away
+
+The runner keeps what is reached for in play (the scene, Maps, Tokens, the fight, Mark) and puts the Lobby, Clocks, Sounds and Vote behind one button, The table, a menu that says where each stands (a gold dot when something is live) and opens above the runner when there is no room below. The token menu shows the often-used row (hide, lock, light, height, a Fell's whisper, and any trigger or lorebound set on it) with the rest under More; every button names itself on hover or focus at once. In the lobby, a player can bring out the toolbar, and the lobby's words fold away to just its name (kept per device).
+
 ## 2026-10-04 - The audience votes
 
 The runners gain Vote: the LoreMaster asks a question with two to four choices and opens the vote. Viewers vote at table.lorefell.com/vote.html for the adventure (a link and, on the stream, its QR code), on any phone, one vote a browser, no account; the room counts (/pub/vote) and refuses a second vote or one after closing. The table and the stream show the question with its bars filling, movable; closing it marks the winner, says it in the log, and the result stays until the LoreMaster takes it off the screen.
