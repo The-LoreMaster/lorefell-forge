@@ -1,3 +1,7 @@
+## 2026-10-04 - The quick bar
+
+Each player has a quick bar on the table: they star what they reach for most (Attack, Evade, any skill with its bonus, their Acts, Reacts and utility items) and it sits at the bottom of the table, movable by its grip, raised above the hand row in a fight. A tap rolls the skill or the attack through the sheet as the picker does, or, in a fight, readies the Act or React on the hand row (an item opens the hand row's items); outside a fight an Act says it waits for one. Kept for each Fell on its device; hidden in the lobby.
+
 ## 2026-10-04 - Whispers from a token; sounds placed on the map
 
 A Fell's token offers a whisper: the LoreMaster's token row gains Whisper to, and a player right-clicking another Fell gets Whisper to or Roll; either sets the chat to that whisper, ready to type. The runners gain Sounds: place a sound on the map from the music library, with a reach in spaces and a loudness. Each player hears it by their own Fell's distance, louder as they close in, muffled through a wall, silent beyond its reach; the stream hears it from the party's middle; the LoreMaster listens as any token, or the party's middle, or not at all, and sees each sound's mark and reach on the map. Each map (each floor) keeps its own sounds; the lobby and a Threadwalk keep them from the players.

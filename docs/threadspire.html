@@ -406,6 +406,16 @@ body.lm-role #clockStrip .clk{ cursor:pointer; } #clockStrip .clk.secret{ border
 #soundLayer .snd-mark{ position:absolute; transform:translate(-50%,-50%); width:30px; height:30px; border-radius:50%; border:1px solid #7fb3a3; background:rgba(10,14,26,.9); color:#9fd0b0; font-size:15px; cursor:pointer; pointer-events:auto; }
 .snd-list{ display:flex; flex-direction:column; gap:8px; margin-top:8px; } .snd-row{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.2fr) auto; gap:6px 8px; align-items:center; padding:8px; border-radius:10px; border:1px solid #26324c; } .snd-row.on{ border-color:#7fb3a3; }
 .snd-reach{ display:flex; align-items:center; gap:6px; font-size:.85rem; color:#93a3b6; grid-column:span 1; } .snd-row .snd-reach:nth-of-type(2){ grid-column:2; }
+#quickBar{ position:fixed; left:50%; bottom:calc(14px + env(safe-area-inset-bottom, 0px)); transform:translateX(-50%); z-index:58; display:flex; align-items:center; gap:4px; padding:5px 6px; border-radius:12px; border:1px solid rgba(201,168,76,.4); background:rgba(10,14,26,.9); max-width:min(70vw, 900px); }
+#quickBar .qb-in{ display:flex; gap:5px; overflow-x:auto; scrollbar-width:none; } #quickBar .qb-in::-webkit-scrollbar{ display:none; }
+.qb-b{ flex:none; display:flex; flex-direction:column; align-items:flex-start; justify-content:center; min-height:40px; padding:3px 10px; border-radius:9px; border:1px solid #2c3a58; background:#141b31; color:#dce8ef; font:inherit; font-family:'Crimson Pro',Georgia,serif; font-size:.92rem; cursor:pointer; white-space:nowrap; }
+.qb-b i{ font-style:normal; font-family:Cinzel,serif; font-size:.58rem; letter-spacing:.08em; color:#c9a84c; } .qb-b:hover{ border-color:#c9a84c; }
+.qb-b.k-react i{ color:#9fd0b0; } .qb-b.k-item i{ color:#d8a6ff; } .qb-add{ align-items:center; color:#f0d48a; }
+.qb-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); gap:6px; margin-bottom:6px; }
+.qb-pick{ display:flex; align-items:center; gap:8px; text-align:left; padding:8px 10px; border-radius:9px; border:1px solid #26324c; background:#0c1222; color:#dce8ef; font:inherit; cursor:pointer; } .qb-pick.on{ border-color:#c9a84c; }
+.qb-pick .star{ color:#c9a84c; } .qb-pick i{ margin-left:auto; font-style:normal; font-size:.8rem; color:#93a3b6; }
+body.in-lobby #quickBar{ display:none; } #quickBar.fight:not(.mv-placed){ bottom:calc(150px + env(safe-area-inset-bottom, 0px)); }
+@media (max-width:640px){ #quickBar{ max-width:92vw; bottom:calc(70px + env(safe-area-inset-bottom, 0px)); } }
 .cx-with{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px; } .cx-chip{ height:32px; padding:0 12px; border-radius:999px; border:1px solid #26324c; background:#0c1222; color:#dce8ef; font:inherit; font-size:.9rem; cursor:pointer; } .cx-chip:hover{ border-color:#c9a84c; color:#f0d48a; }
 .cx-link{ border:0; background:none; padding:0; color:#c9a84c; font:inherit; font-size:.9rem; cursor:pointer; text-decoration:underline; text-underline-offset:3px; }
 .cx-names{ display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:8px; max-height:58vh; overflow:auto; }
@@ -7521,6 +7531,56 @@ function soundPlace(){
     soundsHere().push(sd); soundsShare(); soundsWin(sd.id);
   };
   m.addEventListener('click', once, true);
+}
+/* ================= the quick bar =================
+   Each player pins what they reach for most (skill rolls, Attack, Evade, Acts, Reacts and
+   utility items) to a bar of their own on the table, kept for their Fell. A tap rolls the
+   skill or the attack, or, in a fight, readies the Act, React or item on the hand row the
+   usual way. It sits at the bottom of the table and moves by its grip. */
+var QB_KINDS = { skill:'Skill', attack:'Attack', evade:'Evade', act:'Act', react:'React', item:'Item' };
+function qbKey(){ var me = myFellTok(); return 'ts_quick_' + ((me && me.charId) || (S.character && S.character.name) || 'me'); }
+function qbList(){ try { return JSON.parse(localStorage.getItem(qbKey()) || '[]') || []; } catch(e){ return []; } }
+function qbSave(l){ try { localStorage.setItem(qbKey(), JSON.stringify(l.slice(0, 16))); } catch(e){} qbPaint(true); }
+function qbHas(k, n){ return qbList().some(function(x){ return x.k === k && x.n === n; }); }
+function qbToggle(k, n){ var l = qbList(), i = l.findIndex(function(x){ return x.k === k && x.n === n; }); if (i >= 0) l.splice(i, 1); else l.push({ k:k, n:n }); qbSave(l); qbWin(); }
+function qbUse(i){
+  var x = qbList()[i]; if (!x) return;
+  if (x.k === 'skill') return quickAsk({ kind:'skill', pick:x.n });
+  if (x.k === 'attack') return quickAttack();
+  if (x.k === 'evade') return quickAsk({ kind:'evade' });
+  /* an Act, React or item is played from the hand, in a fight */
+  var inFight = S.mode === 'combat' && hand && hand.active !== false;
+  if (!inFight){ playToast(QB_KINDS[x.k] + 's are played in a fight. ' + x.n + ' will be ready on your hand row then.', 'Quick bar'); return; }
+  if (x.k === 'item'){ handTab = 'item'; try { renderHand(); } catch(e){} playToast('Choose ' + x.n + ' on your hand row.', 'Quick bar'); return; }
+  handTab = x.k === 'react' ? 'react' : 'act'; handArm(x.n, x.k === 'react' ? 'react' : 'act'); try { renderHand(); } catch(e){}
+}
+function qbPaint(force){
+  var on = !isLM() && !S.stream && tsEmbedded() && !!myFellTok();
+  var el = document.getElementById('quickBar');
+  if (!on){ if (el) el.remove(); return; }
+  var l = qbList(), key = JSON.stringify(l);
+  if (!el){ el = document.createElement('div'); el.id = 'quickBar'; el.setAttribute('role', 'toolbar'); el.setAttribute('aria-label', 'Quick bar'); document.body.appendChild(el); el._k = ''; }
+  el.classList.toggle('fight', S.mode === 'combat');
+  if (!force && el._k === key) return; el._k = key;
+  el.innerHTML = '<span class="qb-in">' + l.map(function(x, i){ return '<button class="qb-b k-' + x.k + '" onclick="qbUse(' + i + ')" title="' + esc(QB_KINDS[x.k] + ': ' + x.n) + '"><i>' + QB_KINDS[x.k] + '</i>' + esc(x.n) + '</button>'; }).join('')
+    + '<button class="qb-b qb-add" onclick="qbWin()" title="Choose what is on your quick bar" aria-label="Choose what is on your quick bar">' + (l.length ? '\u2699' : '+ Quick bar') + '</button></span>';
+  el._mv = false; moveBar(el, 'ts_quick_pos');
+}
+setInterval(function(){ try { qbPaint(); } catch(e){} }, 1200);
+function qbWin(){
+  if (isLM()) return;
+  if (!hand){ try { tsHandRequest(); } catch(e){} }
+  var h0 = hand || {};
+  var row = function(k, n, sub){ var on = qbHas(k, n); return '<button class="qb-pick' + (on ? ' on' : '') + '" aria-pressed="' + on + '" onclick="qbToggle(\'' + k + '\',' + esc(JSON.stringify(n)).replace(/"/g, '&quot;') + ')"><span class="star">' + (on ? '\u2605' : '\u2606') + '</span>' + esc(n) + (sub ? '<i>' + esc(sub) + '</i>' : '') + '</button>'; };
+  var skills = Object.keys(h0.skills || {}).sort();
+  var h = '<h3 class="tsm-title">Your quick bar</h3><p class="tsm-note">Star what you want a tap away. It is kept for this Fell on this device.</p>'
+    + '<div class="tsm-lbl">Rolls</div><div class="qb-grid">' + row('attack', 'Attack', 'your weapon') + row('evade', 'Evade', '') + '</div>'
+    + (skills.length ? '<div class="tsm-lbl">Skills</div><div class="qb-grid">' + skills.map(function(n){ return row('skill', n, '+' + h0.skills[n]); }).join('') + '</div>' : '<p class="tsm-note">Your skills appear once your sheet has opened at the table.</p>')
+    + ((h0.acts || []).length ? '<div class="tsm-lbl">Acts</div><div class="qb-grid">' + h0.acts.map(function(a){ return row('act', a.nm, a.tier ? 'tier ' + a.tier : ''); }).join('') + '</div>' : '')
+    + ((h0.reacts || []).length ? '<div class="tsm-lbl">Reacts</div><div class="qb-grid">' + h0.reacts.map(function(a){ return row('react', a.nm, a.tier ? 'tier ' + a.tier : ''); }).join('') + '</div>' : '')
+    + ((h0.items || []).length ? '<div class="tsm-lbl">Utility items</div><div class="qb-grid">' + h0.items.map(function(a){ return row('item', a.name, a.qty ? '\u00d7' + a.qty : ''); }).join('') + '</div>' : '')
+    + '<div class="tsm-row"><button class="tsm-btn" onclick="tsCloseModal()">Done</button></div>';
+  tsModal(h, true);
 }
 /* ---- a new session video, noticed ----
    When the LoreMaster opens the table, the room looks at the connected channel's newest
