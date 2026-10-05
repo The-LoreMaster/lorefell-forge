@@ -1,3 +1,7 @@
+## 2026-10-04 - A Fell made for a player to adopt
+
+The LoreMaster can set any of their own Fell waiting in an adventure (Add a player, A Fell waiting for a player; Characters gains adoptFor). A player who has joined through the invite link finds it on the join page, above their own Fell, with Make it mine: it becomes theirs, joins the adventure (its sheet's record too), stops waiting, and its sheet opens. Paste velo/backend/invites.web.js, velo/page-join.js and velo/page-threadspire.js.
+
 ## 2026-10-04 - The lobby's own music; Threadwalk keeps the table's music
 
 The lobby can have music of its own, a track (looping) or a playlist (played through and around), chosen in the lobby window; whoever is in the lobby hears it, and when they are brought in the table's music takes over. A lobby with no music is silent: players waiting never hear the scene the LoreMaster is working in. Threadwalking never changes what the players hear: the visited scene's music plays for the LoreMaster alone, and coming back puts the table's music back as it was before anything is said to the room again.

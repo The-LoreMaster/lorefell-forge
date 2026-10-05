@@ -144,3 +144,56 @@ export const myJoinedAdventures = webMethod(Permissions.Anyone, async () => {
     return r.items.filter((it) => (it.status || 'active') === 'active').map((it) => ({ campaignId: it.campaignId }));
   } catch (e) { return []; }
 });
+
+/* ---- a Fell made by the LoreMaster, waiting for a player to adopt ----
+   The LoreMaster marks one of their own Fell as waiting in an adventure (adoptFor). A player
+   who has joined that adventure through the invite sees it on the join page and can make it
+   their own: it becomes theirs, joins the adventure, and is no longer waiting. */
+async function ownsAdventure(campaignId, mid) {
+  try { const c = await wixData.get('Campaigns', campaignId, { suppressAuth: true }); if (c && c.ownerMemberId === mid) return true; } catch (e) {}
+  try { const r = await wixData.query('Adventures').eq('advId', String(campaignId)).limit(1).find({ suppressAuth: true }); if (r.items[0] && r.items[0].ownerMemberId === mid) return true; } catch (e) {}
+  return false;
+}
+function charSummary(it) {
+  let lvl = 1, img = '', role = '';
+  try { const d = typeof it.data === 'string' ? JSON.parse(it.data) : (it.data || {}); lvl = Number(d.level || (d.identity && d.identity.level)) || 1; img = (d.identity && (d.identity.portrait || d.identity.img)) || d.portrait || ''; role = (d.identity && (d.identity.lineage || d.identity.role)) || ''; } catch (e) {}
+  return { charId: it._id, name: it.charName || '', level: lvl, img: String(img || '').slice(0, 500), role: String(role || '').slice(0, 60), adoptFor: it.adoptFor || '', campaignId: it.campaignId || '' };
+}
+// The LoreMaster's own Fell, each marked if it is waiting in this adventure
+export const listMyFellForAdoption = webMethod(Permissions.Anyone, async (campaignId) => {
+  const mid = await memberId(); if (!mid || !campaignId || !(await ownsAdventure(campaignId, mid))) return { ok: false };
+  try { const r = await wixData.query('Characters').eq('ownerMemberId', mid).limit(200).find({ suppressAuth: true });
+    return { ok: true, fell: r.items.map(charSummary).filter((c) => c.name) }; } catch (e) { return { ok: false }; }
+});
+export const setFellAdoptable = webMethod(Permissions.Anyone, async (campaignId, charId, on) => {
+  const mid = await memberId(); if (!mid || !campaignId || !charId || !(await ownsAdventure(campaignId, mid))) return { ok: false };
+  try { const row = await wixData.get('Characters', charId, { suppressAuth: true });
+    if (!row || row.ownerMemberId !== mid) return { ok: false, denied: true };
+    row.adoptFor = on ? String(campaignId) : '';
+    await wixData.update('Characters', row, { suppressAuth: true }); return { ok: true }; } catch (e) { return { ok: false, error: String(e).slice(0, 80) }; }
+});
+// For a player who has joined: the Fell waiting for them in this adventure
+export const listAdoptableFell = webMethod(Permissions.Anyone, async (campaignId) => {
+  const mid = await memberId(); if (!mid || !campaignId) return [];
+  try {
+    const mem = await wixData.query('AdventureMembers').eq('campaignId', campaignId).eq('memberId', mid).limit(1).find({ suppressAuth: true });
+    if (!mem.items.length) return [];
+    const r = await wixData.query('Characters').eq('adoptFor', String(campaignId)).limit(50).find({ suppressAuth: true });
+    return r.items.filter((it) => it.ownerMemberId !== mid).map(charSummary).filter((c) => c.name);
+  } catch (e) { return []; }
+});
+export const adoptFell = webMethod(Permissions.Anyone, async (campaignId, charId) => {
+  const mid = await memberId(); if (!mid || !campaignId || !charId) return { ok: false };
+  try {
+    const mem = await wixData.query('AdventureMembers').eq('campaignId', campaignId).eq('memberId', mid).limit(1).find({ suppressAuth: true });
+    if (!mem.items.length) return { ok: false, error: 'Join through the invite link first.' };
+    const row = await wixData.get('Characters', charId, { suppressAuth: true });
+    if (!row || row.adoptFor !== String(campaignId)) return { ok: false, error: 'That Fell has already found its player.' };
+    let name = '';
+    try { const c = await wixData.get('Campaigns', campaignId, { suppressAuth: true }); if (c && c.name) name = c.name; } catch (e) {}
+    row.ownerMemberId = mid; row.adoptFor = ''; row.campaignId = campaignId; row.campaign = name;
+    try { const data = row.data ? JSON.parse(row.data) : null; if (data) { data.identity = data.identity || {}; data.identity.campaignId = campaignId; data.identity.campaign = name; row.data = JSON.stringify(data); } } catch (e) {}
+    await wixData.update('Characters', row, { suppressAuth: true });
+    return { ok: true, charId: charId };
+  } catch (e) { return { ok: false, error: String(e).slice(0, 80) }; }
+});
