@@ -1,3 +1,7 @@
+## 2026-10-04 - Movable bars, weather in the lobby, a focus for Story pictures, uploads for beats
+
+The map toolbar and the lobby's bar each have a grip: drag to move them, double-click to put them back; where they sit is kept on that screen. On a phone the lobby's bar sits along the bottom, its words above and its buttons sharing the width. The lobby has weather of its own (any of the table's), drawn over its picture or video for the players, the stream and the LoreMaster looking at it. A Story cover has Move the focus: drag the picture in a frame of the cover's shape, and the part that stays in view is kept, on the cover and on its card in the lists. Every beat and note can upload its picture as well as take an address, with a preview.
+
 ## 2026-10-04 - Video maps keep their video; a page for every name in the Codex
 
 A video map's video address was saved to the account but dropped, because the Assets collection had no field for it, so after a reload it came back as its still (and the lobby took the still). Assets gains video. Video maps uploaded before this need uploading again. In the Codex, a person, place or thing opens its own page: what the table wrote of it, what the Fell's Records say, every line of the recaps that names it by session (the name in bold), and the others named alongside it, each a step to their own page, with The sessions that name them and Write about them (the name filled in).
