@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Vote | LoreFell</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600&family=Crimson+Pro:wght@400;600&display=swap">
+<style>
+/* The audience's vote: one question from the LoreMaster, a tap to choose, the bars live. */
+:root{ --ink:#0a0e1a; --line:#26324c; --parch:#ece5d2; --dim:#93a3b6; --gold:#c9a84c; --gold2:#f0d48a; }
+*{ box-sizing:border-box; }
+html, body{ margin:0; min-height:100%; background:var(--ink); color:var(--parch); font-family:'Crimson Pro', Georgia, serif; font-size:18px; }
+.wrap{ max-width:520px; margin:0 auto; padding:calc(28px + env(safe-area-inset-top, 0px)) 18px calc(40px + env(safe-area-inset-bottom, 0px)); }
+.k{ font-family:Cinzel, serif; font-size:.72rem; letter-spacing:.14em; text-transform:uppercase; color:var(--gold); }
+h1{ margin:8px 0 18px; font-family:Cinzel, serif; font-weight:600; font-size:clamp(1.4rem, 5vw, 1.9rem); line-height:1.2; }
+.opts{ display:flex; flex-direction:column; gap:10px; }
+.opt{ position:relative; display:flex; justify-content:space-between; align-items:center; width:100%; min-height:56px; padding:12px 16px; border-radius:12px; border:1px solid var(--line); background:#0f1528; color:var(--parch); font:inherit; font-size:1.08rem; text-align:left; cursor:pointer; overflow:hidden; }
+.opt:hover:not(:disabled){ border-color:var(--gold); } .opt:disabled{ cursor:default; }
+.opt .f{ position:absolute; left:0; top:0; bottom:0; background:rgba(201,168,76,.2); transition:width .6s ease; }
+.opt span, .opt i{ position:relative; } .opt i{ font-style:normal; color:var(--gold2); font-weight:600; }
+.opt.mine{ border-color:var(--gold); } .opt.win .f{ background:rgba(201,168,76,.4); }
+.note{ margin-top:16px; color:var(--dim); text-align:center; }
+:focus-visible{ outline:2px solid var(--gold); outline-offset:3px; }
+@media (prefers-reduced-motion: reduce){ .opt .f{ transition:none; } }
+</style>
+</head>
+<body>
+<main class="wrap" aria-live="polite">
+  <div class="k">LoreFell · the audience decides</div>
+  <h1 id="q">Waiting for the LoreMaster…</h1>
+  <div class="opts" id="opts"></div>
+  <p class="note" id="note"></p>
+</main>
+<script>
+var ROOM = 'https://lorefell-table.nate8-johnson.workers.dev';
+var C = (new URLSearchParams(location.search).get('c') || '').replace(/[^A-Za-z0-9_-]/g, '');
+var U = ''; try { U = localStorage.getItem('lf_vote_u') || ''; if (!U){ U = Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('lf_vote_u', U); } } catch(e){ U = Math.random().toString(36).slice(2); }
+var V = null;
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]; }); }
+function paint(){
+  var q = document.getElementById('q'), o = document.getElementById('opts'), n = document.getElementById('note');
+  if (!V){ q.textContent = 'No vote is open right now.'; o.innerHTML = ''; n.textContent = 'Keep this page open; it fills in when the LoreMaster asks.'; return; }
+  q.textContent = V.q;
+  var voted = V.mine !== null && V.mine !== undefined, show = voted || !V.open, tot = Math.max(1, V.total || 0), top = Math.max.apply(null, (V.counts || []).concat([0]));
+  o.innerHTML = (V.opts || []).map(function(t, i){ var c = (V.counts || [])[i] || 0, pc = Math.round(c / tot * 100);
+    return '<button class="opt' + (V.mine === i ? ' mine' : '') + (!V.open && c === top && c > 0 ? ' win' : '') + '" ' + (show ? 'disabled' : '') + ' onclick="cast(' + i + ')">'
+      + (show ? '<span class="f" style="width:' + pc + '%"></span>' : '') + '<span>' + esc(t) + '</span>' + (show ? '<i>' + pc + '%</i>' : '') + '</button>'; }).join('');
+  n.textContent = !V.open ? 'The vote has closed. ' + V.total + ' voted.' : voted ? 'Your vote is in. ' + V.total + ' voted so far.' : 'Tap your choice. One vote each.';
+}
+function load(){ if (!C) return paint(); fetch(ROOM + '/pub/vote?c=' + C + '&u=' + encodeURIComponent(U)).then(function(r){ return r.json(); }).then(function(d){ V = d && d.ok ? d.vote : null; paint(); }).catch(function(){}); }
+function cast(i){ if (!V || !V.open) return; fetch(ROOM + '/pub/vote?c=' + C, { method:'POST', headers:{ 'Content-Type':'text/plain' }, body:JSON.stringify({ o:i, u:U }) }).then(function(r){ return r.json(); }).then(function(d){ if (d && d.vote) V = d.vote; else if (V) V.mine = d && d.mine !== undefined ? d.mine : V.mine; paint(); }).catch(function(){}); }
+load(); setInterval(load, 3000);
+</script>
+</body>
+</html>

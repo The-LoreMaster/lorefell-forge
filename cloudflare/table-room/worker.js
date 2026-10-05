@@ -611,6 +611,16 @@ export default {
     if (url.pathname.indexOf('/ax/') === 0) return anexanum(req, url, env);
     if (url.pathname === '/ax-pending') return axPending(url, env);
     if (url.pathname === '/pub/adventures') return pubPlaylists(req, url, env);
+    /* anyone can see the vote and cast one, from the vote page or the table */
+    if (url.pathname === '/pub/vote') {
+      const h = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' };
+      if (req.method === 'OPTIONS') return new Response(null, { headers: Object.assign({ 'Access-Control-Allow-Methods': 'GET, POST', 'Access-Control-Allow-Headers': 'Content-Type' }, h) });
+      const c = String(url.searchParams.get('c') || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 80); if (!c) return new Response('{"ok":false}', { headers: h });
+      let body = { op: 'get', u: url.searchParams.get('u') || '' };
+      if (req.method === 'POST') { try { body = Object.assign({ op: 'cast' }, JSON.parse(await req.text())); } catch (e) { body = { op: 'get' }; } }
+      const r = await env.ROOMS.get(env.ROOMS.idFromName(c)).fetch(new Request('https://room/vote', { method: 'POST', headers: { 'X-Vote': '1' }, body: JSON.stringify(body) }));
+      return new Response(await r.text(), { headers: h });
+    }
     if (!m) return new Response('not found', { status: 404 });
     if (req.headers.get('Upgrade') !== 'websocket') return new Response('expected a websocket', { status: 426 });
     const origin = req.headers.get('Origin') || 'null';
@@ -654,6 +664,26 @@ export class TableRoom {
   }
   async fetch(req) {
     await this.ready;
+    /* the audience's vote: the question is the LoreMaster's (the vote part), the counts are
+       kept here, one vote a browser */
+    if (req.headers.get('X-Vote')) {
+      const b = await req.json(), st = this.ctx.storage, v = this.parts && this.parts.vote;
+      if (!v || !v.id) return Response.json({ ok: true, vote: null });
+      const key = 'vote:' + v.id;
+      let tally = (await st.get(key)) || { counts: [], who: {} };
+      if (b.op === 'cast') {
+        const o = Number(b.o);
+        if (!v.open) return Response.json({ ok: false, error: 'The vote has closed.' });
+        if (!(o >= 0 && o < (v.opts || []).length)) return Response.json({ ok: false, error: 'No such choice.' });
+        const u = String(b.u || '').slice(0, 40); if (!u) return Response.json({ ok: false });
+        if (tally.who[u] !== undefined) return Response.json({ ok: false, error: 'You have voted.', mine: tally.who[u] });
+        if (Object.keys(tally.who).length > 20000) return Response.json({ ok: false, error: 'The vote is full.' });
+        tally.who[u] = o; tally.counts[o] = (tally.counts[o] || 0) + 1;
+        await st.put(key, tally);
+      }
+      const counts = (v.opts || []).map((x, i) => tally.counts[i] || 0);
+      return Response.json({ ok: true, vote: { id: v.id, q: v.q, opts: v.opts, open: !!v.open, counts: counts, total: counts.reduce((a, c) => a + c, 0), mine: b.u && tally.who[String(b.u)] !== undefined ? tally.who[String(b.u)] : null } });
+    }
     /* the YouTube keeper (one room named __yt, reached only from this worker): sign-ins
        waiting to finish, and each LoreMaster's refresh token, by member */
     if (req.headers.get('X-YT-Store')) {
