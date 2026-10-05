@@ -1,3 +1,7 @@
+## 2026-10-04 - A stage's maps are its floors
+
+Moving between maps of the same stage moves between floors: each keeps its own tokens (foes, NPCs, objects), and the Fell go with the party; coming back finds a floor as it was left. Fog, walls, lights, elevation, Pales, effects, notes and drawings were already each map's own; weather now is too (a floor without its own takes the scene's).
+
 ## 2026-10-04 - A table Fell is the one handed to a player
 
 The Fell handed to a player is one made at the table (Someone at the table: owned by nobody, the adventure's), not the LoreMaster's own: Add a player, Hand a table Fell to a player lists the table's Fell, with Make one at the table. Adopted, it becomes its player's ordinary Fell and no longer the table's. Paste velo/backend/invites.web.js.
