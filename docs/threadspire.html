@@ -423,6 +423,9 @@ body.in-lobby #quickBar{ display:none; } #quickBar.fight:not(.mv-placed){ bottom
 #trigLayer .trig-ring{ position:absolute; border-radius:50%; border:2px dashed rgba(224,112,90,.6); } #trigLayer .trig-ring.spent{ border-color:rgba(147,163,182,.35); }
 #cueBanner{ position:fixed; left:50%; top:22%; transform:translate(-50%, -8px); z-index:450; max-width:min(80vw, 760px); padding:14px 26px; border-radius:12px; border:1px solid rgba(201,168,76,.6); background:rgba(10,14,26,.92); color:#f3ead2; font-family:Cinzel,serif; font-size:clamp(1.1rem, 2.2vw, 1.6rem); text-align:center; box-shadow:0 14px 40px rgba(0,0,0,.6); opacity:0; pointer-events:none; transition:opacity .35s, transform .35s; }
 #cueBanner.on{ opacity:1; transform:translate(-50%, 0); }
+.token.portal-in{ animation:portalIn 1s ease-out; }
+@keyframes portalIn{ 0%{ opacity:0; transform:scale(.2) rotate(-200deg); filter:drop-shadow(0 0 24px #9b6fd0) brightness(2); } 60%{ opacity:1; transform:scale(1.15) rotate(10deg); filter:drop-shadow(0 0 18px #9b6fd0); } 100%{ transform:scale(1) rotate(0); filter:none; } }
+@media (prefers-reduced-motion: reduce){ .token.portal-in{ animation:none; } }
 .trig-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:2px 10px; max-height:150px; overflow:auto; padding:4px; border:1px solid #26324c; border-radius:9px; }
 .trig-c{ display:flex; align-items:center; gap:6px; font-size:.9rem; color:#dce8ef; } .trig-c input{ accent-color:#c9a84c; }
 .trig-dmg{ display:flex; gap:8px; align-items:center; } .trig-dmg label{ display:flex; align-items:center; gap:6px; font-size:.9rem; color:#93a3b6; } .trig-dmg .tsm-inp{ width:80px; }
@@ -7660,6 +7663,14 @@ function trigWin(id){
     + '<label class="tsm-lbl" for="trPR">How far they spread</label><select class="tsm-inp" id="trPR">' + [0,1,2,3].map(function(n){ return '<option value="' + n + '"' + ((c.paleR || 0) === n ? ' selected' : '') + '>' + (n ? n + ' space' + (n === 1 ? '' : 's') + ' around' : 'Its own space') + '</option>'; }).join('') + '</select>'
     + '<label class="tsm-lbl" for="trS">A sound when it fires</label><select class="tsm-inp" id="trS">' + refs.map(function(o){ return '<option value="' + esc(o.r) + '"' + ((c.sfx || '') === o.r ? ' selected' : '') + '>' + esc(o.n) + '</option>'; }).join('') + '</select>'
     + '<label class="tsm-lbl" for="trC">A clock to tick</label><select class="tsm-inp" id="trC"><option value="">None</option>' + clocksAll().map(function(k){ return '<option value="' + esc(k.id) + '"' + (c.clock === k.id ? ' selected' : '') + '>' + esc(k.name) + '</option>'; }).join('') + '</select>'
+    + '<label class="tsm-lbl" for="trK">A chance to avoid it</label><div class="trig-dmg"><select class="tsm-inp" id="trK" style="width:auto"><option value="">None: it lands</option>' + SKILL_NAMES().map(function(n){ return '<option' + (c.avoid && c.avoid.skill === n ? ' selected' : '') + '>' + esc(n) + '</option>'; }).join('') + '</select>'
+      + '<label>Harder by <input class="tsm-inp" id="trKX" inputmode="numeric" value="' + esc(c.avoid ? c.avoid.extra || '' : '') + '"></label></div>'
+      + '<p class="tsm-note">The Fell rolls 1d6 + that skill against your 1d6 + the Skill Difficulty (+' + skillDifficulty() + ') and anything added here. Beat it, and they avoid what it does; the line and its sound still happen.</p>'
+    + (function(){ var hid = (S.tokens || []).filter(function(x){ return x.hidden && x.id !== t.id && !(x.kind === 'p' || x.charId); }); return hid.length ? '<label class="tsm-lbl">Ambush: these hidden tokens show themselves</label><div class="trig-grid">' + hid.map(function(x){ return '<label class="trig-c"><input type="checkbox" name="trAm" value="' + esc(x.id) + '"' + ((c.ambush || []).indexOf(x.id) >= 0 ? ' checked' : '') + '> ' + esc(tokenName(x)) + '</label>'; }).join('') + '</div>' : '<p class="tsm-note">Ambush: hide some foes on the map and they can be listed here to spring out.</p>'; })()
+    + (function(){ var ds = wallList().filter(function(w){ return w.door; }); return ds.length ? '<label class="tsm-lbl">Doors</label><div class="trig-grid">' + ds.map(function(w, i){ var cur = (c.doors || {})[w.id] || ''; return '<label class="trig-c">Door ' + (i + 1) + ' <select name="trDo" data-id="' + esc(w.id) + '" class="tsm-inp" style="height:28px;padding:0 4px"><option value="">Leave it</option><option value="open"' + (cur === 'open' ? ' selected' : '') + '>Open</option><option value="shut"' + (cur === 'shut' ? ' selected' : '') + '>Slam shut</option></select></label>'; }).join('') + '</div><p class="tsm-note">Doors are numbered in the order they were drawn.</p>' : ''; })()
+    + '<label class="tsm-lbl" for="trL">Light</label><select class="tsm-inp" id="trL"><option value="">Leave it</option><option value="dark"' + (c.light === 'dark' ? ' selected' : '') + '>Darkness falls</option><option value="light"' + (c.light === 'light' ? ' selected' : '') + '>Light returns</option></select>'
+    + '<label class="rc-who"><input type="checkbox" id="trB"' + (c.battle ? ' checked' : '') + '> Begin combat</label>'
+    + '<label class="tsm-lbl">Portal</label><div class="trig-dmg"><button class="tsm-btn ghost" onclick="trigPortalPick(\'' + esc(id) + '\')">' + (c.portal ? 'Moves them to the marked spot (change)' : 'Send them to a spot on this map') + '</button>' + (c.portal ? '<button class="tsm-btn ghost" onclick="var t=tokById(\'' + esc(id) + '\');if(t&&t.trig){delete t.trig.portal;}trigWin(\'' + esc(id) + '\')">No portal</button>' : '') + '</div>'
     + '<label class="rc-who"><input type="checkbox" id="trO"' + (c.once !== false ? ' checked' : '') + '> Fires once (untick: every time a Fell comes in again)</label>'
     + '<label class="rc-who"><input type="checkbox" id="trV"' + (c.reveal !== false ? ' checked' : '') + '> Shows itself when it fires</label>'
     + '<label class="rc-who"><input type="checkbox" id="trOn"' + (c.armed !== false ? ' checked' : '') + '> Armed</label>'
@@ -7671,23 +7682,61 @@ function trigSave(id){
   var db = parseInt(g('trDB').value, 10) || 0, dn = parseInt(g('trDN').value, 10) || 0;
   t.trig = { range:+g('trR').value || 0, text:String(g('trT').value || '').trim(), banner:!!g('trBn').checked, affs:picked('trA'), pales:picked('trP'), paleR:+g('trPR').value || 0,
     dmg:(db || dn) ? { b:db, n:dn, t:g('trDT').value || 'phys' } : null, sfx:g('trS').value || '', clock:g('trC').value || '',
+    avoid:g('trK').value ? { skill:g('trK').value, extra:parseInt(g('trKX').value, 10) || 0 } : null, ambush:picked('trAm'),
+    doors:(function(){ var o = {}; [].slice.call(document.querySelectorAll('#tsModal select[name="trDo"]')).forEach(function(x){ if (x.value) o[x.getAttribute('data-id')] = x.value; }); return o; })(),
+    light:g('trL').value || '', battle:!!g('trB').checked, portal:(t.trig && t.trig.portal) || null,
     once:!!g('trO').checked, reveal:!!g('trV').checked, armed:!!g('trOn').checked, inside:false };
   tsCloseModal(); trigShare(t);
+}
+function SKILL_NAMES(){
+  var out = {}; try { Object.keys((hand && hand.skills) || {}).forEach(function(n){ out[n] = 1; }); } catch(e){}
+  ['Perception', 'Movement', 'Temper', 'Lore', 'Stealth', 'Vigor', 'Instinct'].forEach(function(n){ out[n] = 1; });
+  return Object.keys(out).sort();
+}
+/* the portal's far side: the next tap on the map marks it */
+function trigPortalPick(id){
+  var t = tokById(id); if (!t) return;
+  var keep = t.trig ? JSON.parse(JSON.stringify(t.trig)) : {};
+  tsCloseModal(); playToast('Tap where the portal sends them.', 'Trigger');
+  var m = mapEl(); if (!m) return;
+  var once = function(e){ e.stopPropagation(); e.preventDefault(); m.removeEventListener('click', once, true);
+    var q = toMap(e.clientX, e.clientY); t.trig = Object.assign(keep, { portal:{ x:Math.round(q.x), y:Math.round(q.y) } }); trigShare(t); trigWin(id); };
+  m.addEventListener('click', once, true);
 }
 function trigClear(id){ var t = tokById(id); if (!t) return; delete t.trig; tsCloseModal(); trigShare(t); }
 function trigShare(t){ roomSend({ t:'tok', id:t.id, p:{ trig:t.trig || null, hidden:!!t.hidden } }); applyRemoteState({ tokens:S.tokens }); renderTokens(); try { paintTokMenu(); } catch(e){} trigPaint(true); }
 function trigFire(t, f){
   var c = trigNorm(t.trig), who = tokenName(f);
-  /* the line: in the log, across the screen if asked, with its sound */
   var line = c.text || (tokenName(t) + ' is set off.');
   pushLog({ kind:'sys', html:'<b>' + esc(tokenName(t)) + '</b> is triggered by <b>' + esc(who) + '</b>.' + (c.text ? ' ' + esc(c.text) : ''), banner:c.banner !== false ? line : '', sfx:c.sfx || '' });
-  if (c.dmg && f.charId){ try { lmDealDamage(f.charId, c.dmg.b || 0, c.dmg.n || 0, c.dmg.t || 'phys'); } catch(e){} pushLog({ kind:'sys', html:'<b>' + esc(who) + '</b> is struck for ' + (c.dmg.b || 0) + ' + ' + (c.dmg.n || 0) + (c.dmg.t === 'mag' ? ' magical' : '') + '.' }); }
-  if (c.affs.length && f.charId){
-    var p = fellByCharId(f.charId), list = p ? (p.affs = p.affs || []) : (f.affs = f.affs || []);
-    c.affs.forEach(function(a){ if (list.indexOf(a) < 0) list.push(a); });
-    try { lmApplyEffects(f.charId, list, { msg:c.affs.join(', ') + ' take' + (c.affs.length === 1 ? 's' : '') + ' hold.', at:Date.now() }); } catch(e){}
-    pushLog({ kind:'sys', html:esc(c.affs.join(', ')) + ' take' + (c.affs.length === 1 ? 's' : '') + ' hold of <b>' + esc(who) + '</b>.' });
+  if (c.reveal && t.hidden) t.hidden = false;
+  if (c.once) c.armed = false; else c.inside = true;
+  t.trig = c;
+  /* what happens to the world happens either way: ambush, doors, light, battle */
+  trigWorld(t, c);
+  if (c.avoid && f.charId){
+    /* the Fell's player rolls to avoid what it would do to them; their table answers in the log */
+    c.pendingFor = f.charId; c.pendingAt = Date.now();
+    pushLog({ kind:'sys', html:'<b>' + esc(who) + '</b> must roll ' + esc(c.avoid.skill) + ' to avoid it.', trigAsk:{ tok:t.id, charId:f.charId, skill:c.avoid.skill, extra:c.avoid.extra || 0, name:tokenName(t) } });
+    trigPendingPrompt(t, f);
+  } else trigLand(t, f, false);
+  applyRemoteState({ log:S.log, scene:S.scene }); trigShare(t);
+}
+/* what it does to the Fell: unless they avoided it */
+function trigLand(t, f, avoided){
+  var c = trigNorm(t.trig), who = tokenName(f);
+  if (avoided){ pushLog({ kind:'sys', html:'<b>' + esc(who) + '</b> avoids it.' }); }
+  else {
+    if (c.dmg && f.charId){ try { lmDealDamage(f.charId, c.dmg.b || 0, c.dmg.n || 0, c.dmg.t || 'phys'); } catch(e){} pushLog({ kind:'sys', html:'<b>' + esc(who) + '</b> is struck for ' + (c.dmg.b || 0) + ' + ' + (c.dmg.n || 0) + (c.dmg.t === 'mag' ? ' magical' : '') + '.' }); }
+    if (c.affs.length && f.charId){
+      var p = fellByCharId(f.charId), list = p ? (p.affs = p.affs || []) : (f.affs = f.affs || []);
+      c.affs.forEach(function(a){ if (list.indexOf(a) < 0) list.push(a); });
+      try { lmApplyEffects(f.charId, list, { msg:c.affs.join(', ') + ' take' + (c.affs.length === 1 ? 's' : '') + ' hold.', at:Date.now() }); } catch(e){}
+      pushLog({ kind:'sys', html:esc(c.affs.join(', ')) + ' take' + (c.affs.length === 1 ? 's' : '') + ' hold of <b>' + esc(who) + '</b>.' });
+    }
+    if (c.portal){ trigPortal(f, c.portal); pushLog({ kind:'sys', html:'<b>' + esc(who) + '</b> is pulled through.' }); }
   }
+  /* the Pales spread, avoided or not: the ground does not care who stepped aside */
   if (c.pales.length){
     var cc = elevCellOf(t.x, t.y), cells = [];
     for (var dx = -c.paleR; dx <= c.paleR; dx++) for (var dy = -c.paleR; dy <= c.paleR; dy++) if (Math.hypot(dx, dy) <= c.paleR + .5) cells.push((cc.c + dx) + ',' + (cc.r + dy));
@@ -7695,10 +7744,65 @@ function trigFire(t, f){
     try { paleShare(); } catch(e){}
   }
   if (c.clock){ try { clockTick(c.clock, 1); } catch(e){} }
-  if (c.reveal && t.hidden) t.hidden = false;
-  if (c.once) c.armed = false; else c.inside = true;
-  t.trig = c;
+  delete c.pendingFor; t.trig = c;
   applyRemoteState({ log:S.log, scene:S.scene }); trigShare(t);
+}
+function trigWorld(t, c){
+  (c.ambush || []).forEach(function(id){ var x = tokById(id); if (x && x.hidden){ x.hidden = false; try { roomSend({ t:'tok', id:x.id, p:{ hidden:false } }); } catch(e){} } });
+  if ((c.ambush || []).length) pushLog({ kind:'sys', html:'An ambush: ' + esc((c.ambush || []).map(function(id){ var x = tokById(id); return x ? tokenName(x) : ''; }).filter(Boolean).join(', ')) + '.' });
+  var dk = Object.keys(c.doors || {});
+  if (dk.length){ wallList().forEach(function(w){ var v = c.doors[w.id]; if (v) w.open = v === 'open' ? 1 : 0; }); try { wallShare(); } catch(e){} }
+  if (c.light){ try { var r = lightRec(); r.dark = c.light === 'dark' ? 1 : 0; lightPaintOpts(); lightShare(); } catch(e){} }
+  if (c.battle && S.mode !== 'combat'){ try { lmBeginCombat(); } catch(e){} }
+  renderTokens();
+}
+/* through the portal: the token fades out where it stood and in where it lands, on every screen */
+function trigPortal(f, to){
+  f.x = to.x; f.y = to.y;
+  try { roomSend({ t:'tok', id:f.id, p:{ x:f.x, y:f.y, portal:Date.now() } }); } catch(e){}
+  applyRemoteState({ tokens:S.tokens }); portalFx(f.id);
+}
+function portalFx(id){
+  var el = document.querySelector('.token[data-tok="' + id + '"]'); if (!el) return;
+  el.classList.remove('portal-in'); void el.offsetWidth; el.classList.add('portal-in');
+  setTimeout(function(){ el.classList.remove('portal-in'); }, 1100);
+}
+/* the LoreMaster waits on the roll, and can roll for a Fell with no player at the table */
+function trigPendingPrompt(t, f){
+  var c = t.trig || {};
+  tsModal('<h3 class="tsm-title">' + esc(tokenName(f)) + ' rolls to avoid it</h3><p class="lc-p">' + esc(tokenName(f)) + ' rolls ' + esc(c.avoid.skill) + ' against your 1d6 + ' + (skillDifficulty() + (c.avoid.extra || 0)) + '. Their table asks them now; this closes when the roll lands.</p>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="trigForce(\'' + esc(t.id) + '\',\'' + esc(f.id) + '\',false)">It lands</button><button class="tsm-btn ghost" onclick="trigForce(\'' + esc(t.id) + '\',\'' + esc(f.id) + '\',true)">They avoid it</button><button class="tsm-btn" onclick="trigRollFor(\'' + esc(t.id) + '\',\'' + esc(f.id) + '\')">Roll for them</button></div>');
+}
+function trigForce(tid, fid, avoided){ var t = tokById(tid), f = tokById(fid); tsCloseModal(); if (t && f && t.trig && t.trig.pendingFor) trigLand(t, f, avoided); }
+function trigRollFor(tid, fid){
+  var t = tokById(tid), f = tokById(fid); if (!t || !f || !t.trig || !t.trig.pendingFor) return;
+  var c = t.trig, rec = fellByCharId(f.charId) || {}, sk = Number(((rec.skills || {})[c.avoid.skill]) || 0);
+  var n = 1 + Math.floor(Math.random() * 6), lm = 1 + Math.floor(Math.random() * 6), theirs = lm + skillDifficulty() + (c.avoid.extra || 0), ok = n + sk >= theirs;
+  pushLog({ kind:'sys', html:'<b>' + esc(tokenName(f)) + '</b> rolls ' + esc(c.avoid.skill) + ': ' + n + ' + ' + sk + ' = ' + (n + sk) + ' against ' + theirs + '.' });
+  tsCloseModal(); trigLand(t, f, ok);
+}
+/* a player's table: asked to roll, it rolls 1d6 + their skill against the LoreMaster's 1d6 +
+   the Skill Difficulty (the climbing check's way), and puts the answer in the log */
+function trigAskTake(e){
+  var a = e.trigAsk; if (!a || isLM() || S.stream) return;
+  if (myCharKey() !== 'char:' + a.charId) return;
+  window._trigAsk = a;
+  tsModal('<h3 class="tsm-title">' + esc(a.name) + '!</h3><p class="lc-p">Roll ' + esc(a.skill) + ' to avoid it: 1d6 + ' + esc(a.skill) + ' (' + mySkill(a.skill) + ') against the LoreMaster\u2019s 1d6 + ' + (skillDifficulty() + (a.extra || 0)) + '.</p>'
+    + '<div class="tsm-row"><button class="tsm-btn" onclick="trigAskRoll()">Roll ' + esc(a.skill) + '</button></div>');
+}
+function trigAskRoll(){
+  var a = window._trigAsk; if (!a) return; window._trigAsk = null;
+  var sk = mySkill(a.skill), n = 1 + Math.floor(Math.random() * 6), lm = 1 + Math.floor(Math.random() * 6), theirs = lm + skillDifficulty() + (a.extra || 0), mine = n + sk, ok = mine >= theirs;
+  send({ type:'roll', rollType:'skill', n:n, mods:[{ label:a.skill, value:sk }], total:mine, note:'To avoid ' + a.name + ', against ' + theirs + ' (' + lm + ' + ' + (theirs - lm) + ')' });
+  pushLog({ kind:'sys', html:'<b>' + esc((S.character && S.character.name) || 'A Fell') + '</b> ' + (ok ? 'avoids' : 'fails to avoid') + ' ' + esc(a.name) + ' (' + mine + ' against ' + theirs + ').', trigRes:{ tok:a.tok, charId:a.charId, ok:ok } });
+  tsCloseModal();
+}
+/* the LoreMaster's table hears the answer and finishes the trigger */
+function trigResTake(e){
+  var r = e.trigRes; if (!r || !isLM() || S.stream) return;
+  var t = tokById(r.tok); if (!t || !t.trig || !sameId(t.trig.pendingFor, r.charId)) return;
+  var f = (S.tokens || []).filter(function(x){ return x.charId && sameId(x.charId, r.charId); })[0]; if (!f) return;
+  tsCloseModal(); trigLand(t, f, !!r.ok);
 }
 setInterval(function(){
   try {
@@ -21671,6 +21775,8 @@ function roomLogApply(e){
 /* a line's own moment: its words across the screen for a few seconds, and a sound once */
 function logCue(e){
   if (!e) return;
+  if (e.trigAsk) try { trigAskTake(e); } catch(x){}
+  if (e.trigRes) try { trigResTake(e); } catch(x){}
   if (e.banner){
     var b = document.getElementById('cueBanner');
     if (!b){ b = document.createElement('div'); b.id = 'cueBanner'; b.setAttribute('role', 'status'); b.setAttribute('aria-live', 'assertive'); document.body.appendChild(b); }
@@ -21698,6 +21804,7 @@ function roomTokApply(id, p){
   if (_el && (p.x !== undefined || p.y !== undefined)){ _el.classList.add('glide'); clearTimeout(_el._glideT); _el._glideT = setTimeout(function(){ _el.classList.remove('glide'); }, 260); }
   Object.keys(p || {}).forEach(function(k){ if (p[k] !== undefined) t[k] = p[k]; });
   try { placeTokens(); } catch(e){ renderTokens(); }
+  if (p && p.portal) try { portalFx(id); } catch(e){}
   if (isLM()) schedulePush();   /* the LoreMaster's table saves where a player put their Fell */
 }
 function roomTokensApply(list){
