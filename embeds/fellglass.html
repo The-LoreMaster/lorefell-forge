@@ -4467,6 +4467,19 @@ window.addEventListener("message",ev=>{
     try{ window.parent.postMessage({type:"ts-quick-choose",kind:"skill",title:"Roll a skill",options:opts},"*"); }catch(e){}
     return;
   }
+  /* the quick bar's swap: this weapon into the hand, the held ones put away as needed */
+  if(d.kind==="wield" && typeof d.pick==="number"){
+    const w=(C.weapons||[])[d.pick]; if(!w||!w.tree) return;
+    if(!w.equipped){
+      let no=gripRefusal(d.pick);
+      if(no){ (C.weapons||[]).forEach(function(o,j){ if(j!==d.pick && o && o.equipped) o.equipped=false; }); no=gripRefusal(d.pick); }
+      if(no){ try{ window.parent.postMessage({type:"ts-quick-note",text:no},"*"); }catch(e){} return; }
+      w.equipped=true; equipSay(); renderWeapons(); try{ renderBattle(); }catch(e){} scheduleSave();
+      try{ window.parent.postMessage({type:"ts-quick-note",text:weaponName(w)+" is in hand."},"*"); }catch(e){}
+      try{ tsSendHand(); }catch(e){}
+    }
+    return;
+  }
   if(d.kind==="attack"){
     if(typeof d.pick==="number"){ quickAttackRoll(d.pick); return; }
     const held=heldWeapons();
@@ -5087,6 +5100,8 @@ function tsHandPayload(){
                kind:r.kind, bar:r.bar||'', locked: tsHandLocked(r.tier, ch) };
     }),
     skills: skills,
+    /* every weapon carried, held or not, so the quick bar can swap one into the hand */
+    weapons: (C.weapons||[]).map(function(w,i){ return w && w.tree ? { i:i, name:weaponName(w), held:!!w.equipped } : null; }).filter(Boolean),
     /* the same resolver the sheet's own picker uses, so the row and the sheet cannot
        disagree about what this Fell is carrying */
     items: cbActUtilities().map(function(x){

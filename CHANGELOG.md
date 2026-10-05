@@ -1,3 +1,7 @@
+## 2026-10-04 - Weapons swap on the quick bar
+
+The quick bar takes weapons: a weapon in hand reads Attack and rolls with it; one carried but not held reads Wield, and a tap swaps it into the hand on the sheet, putting the held ones away as the grip needs, and says so (or why not). The sheet's hand now lists every weapon carried, held or not.
+
 ## 2026-10-04 - Lorebounds on the map
 
 Any token that is not a Fell can be marked as a lorebound (the LoreMaster's token row): whose it is and its form, Familiar, Companion or Corsair. Its Fell's player may move it (the room allows it too), it moves as far as its Fell (a Corsair twice as far, FellGuide, Lorebounds), and a dashed ring shows its Mobility range, where its Aspect reaches: to everyone in a fight, to its owner and the LoreMaster otherwise.

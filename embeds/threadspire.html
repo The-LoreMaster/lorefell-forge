@@ -410,7 +410,7 @@ body.lm-role #clockStrip .clk{ cursor:pointer; } #clockStrip .clk.secret{ border
 #quickBar .qb-in{ display:flex; gap:5px; overflow-x:auto; scrollbar-width:none; } #quickBar .qb-in::-webkit-scrollbar{ display:none; }
 .qb-b{ flex:none; display:flex; flex-direction:column; align-items:flex-start; justify-content:center; min-height:40px; padding:3px 10px; border-radius:9px; border:1px solid #2c3a58; background:#141b31; color:#dce8ef; font:inherit; font-family:'Crimson Pro',Georgia,serif; font-size:.92rem; cursor:pointer; white-space:nowrap; }
 .qb-b i{ font-style:normal; font-family:Cinzel,serif; font-size:.58rem; letter-spacing:.08em; color:#c9a84c; } .qb-b:hover{ border-color:#c9a84c; }
-.qb-b.k-react i{ color:#9fd0b0; } .qb-b.k-item i{ color:#d8a6ff; } .qb-add{ align-items:center; color:#f0d48a; }
+.qb-b.k-react i{ color:#9fd0b0; } .qb-b.k-weapon i{ color:#e0956a; } .qb-b.k-weapon.held{ border-color:rgba(224,149,106,.6); } .qb-b.k-item i{ color:#d8a6ff; } .qb-add{ align-items:center; color:#f0d48a; }
 .qb-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); gap:6px; margin-bottom:6px; }
 .qb-pick{ display:flex; align-items:center; gap:8px; text-align:left; padding:8px 10px; border-radius:9px; border:1px solid #26324c; background:#0c1222; color:#dce8ef; font:inherit; cursor:pointer; } .qb-pick.on{ border-color:#c9a84c; }
 .qb-pick .star{ color:#c9a84c; } .qb-pick i{ margin-left:auto; font-style:normal; font-size:.8rem; color:#93a3b6; }
@@ -7540,7 +7540,9 @@ function soundPlace(){
    utility items) to a bar of their own on the table, kept for their Fell. A tap rolls the
    skill or the attack, or, in a fight, readies the Act, React or item on the hand row the
    usual way. It sits at the bottom of the table and moves by its grip. */
-var QB_KINDS = { skill:'Skill', attack:'Attack', evade:'Evade', act:'Act', react:'React', item:'Item' };
+var QB_KINDS = { skill:'Skill', attack:'Attack', evade:'Evade', weapon:'Weapon', act:'Act', react:'React', item:'Item' };
+/* a weapon on the bar: held, a tap attacks with it; not held, a tap swaps it into the hand */
+function qbWeapon(name){ return ((hand && hand.weapons) || []).filter(function(w){ return w.name === name; })[0] || null; }
 function qbKey(){ var me = myFellTok(); return 'ts_quick_' + ((me && me.charId) || (S.character && S.character.name) || 'me'); }
 function qbList(){ try { return JSON.parse(localStorage.getItem(qbKey()) || '[]') || []; } catch(e){ return []; } }
 function qbSave(l){ try { localStorage.setItem(qbKey(), JSON.stringify(l.slice(0, 16))); } catch(e){} qbPaint(true); }
@@ -7551,6 +7553,9 @@ function qbUse(i){
   if (x.k === 'skill') return quickAsk({ kind:'skill', pick:x.n });
   if (x.k === 'attack') return quickAttack();
   if (x.k === 'evade') return quickAsk({ kind:'evade' });
+  if (x.k === 'weapon'){ var wq = qbWeapon(x.n); if (!wq){ playToast(x.n + ' is not on your sheet now.', 'Quick bar'); return; }
+    if (wq.held) return quickAsk({ kind:'attack', pick:wq.i });
+    var f = quickSheet(); if (f && f.contentWindow) f.contentWindow.postMessage({ type:'ts-quick-roll', kind:'wield', pick:wq.i }, '*'); wq.held = true; setTimeout(function(){ qbPaint(true); }, 400); return; }
   /* an Act, React or item is played from the hand, in a fight */
   var inFight = S.mode === 'combat' && hand && hand.active !== false;
   if (!inFight){ playToast(QB_KINDS[x.k] + 's are played in a fight. ' + x.n + ' will be ready on your hand row then.', 'Quick bar'); return; }
@@ -7561,11 +7566,12 @@ function qbPaint(force){
   var on = !isLM() && !S.stream && tsEmbedded() && !!myFellTok();
   var el = document.getElementById('quickBar');
   if (!on){ if (el) el.remove(); return; }
-  var l = qbList(), key = JSON.stringify(l);
+  var l = qbList(), key = JSON.stringify(l) + JSON.stringify(((hand && hand.weapons) || []).map(function(w){ return w.held; }));
   if (!el){ el = document.createElement('div'); el.id = 'quickBar'; el.setAttribute('role', 'toolbar'); el.setAttribute('aria-label', 'Quick bar'); document.body.appendChild(el); el._k = ''; }
   el.classList.toggle('fight', S.mode === 'combat');
   if (!force && el._k === key) return; el._k = key;
-  el.innerHTML = '<span class="qb-in">' + l.map(function(x, i){ return '<button class="qb-b k-' + x.k + '" onclick="qbUse(' + i + ')" title="' + esc(QB_KINDS[x.k] + ': ' + x.n) + '"><i>' + QB_KINDS[x.k] + '</i>' + esc(x.n) + '</button>'; }).join('')
+  el.innerHTML = '<span class="qb-in">' + l.map(function(x, i){ var wq = x.k === 'weapon' ? qbWeapon(x.n) : null, lab = x.k === 'weapon' ? (wq && wq.held ? 'Attack' : 'Wield') : QB_KINDS[x.k];
+      return '<button class="qb-b k-' + x.k + (wq && wq.held ? ' held' : '') + '" onclick="qbUse(' + i + ')" title="' + esc((x.k === 'weapon' ? (wq && wq.held ? 'Attack with ' : 'Swap into your hand: ') : QB_KINDS[x.k] + ': ') + x.n) + '"><i>' + lab + '</i>' + esc(x.n) + '</button>'; }).join('')
     + '<button class="qb-b qb-add" onclick="qbWin()" title="Choose what is on your quick bar" aria-label="Choose what is on your quick bar">' + (l.length ? '\u2699' : '+ Quick bar') + '</button></span>';
   el._mv = false; moveBar(el, 'ts_quick_pos');
 }
@@ -7578,6 +7584,7 @@ function qbWin(){
   var skills = Object.keys(h0.skills || {}).sort();
   var h = '<h3 class="tsm-title">Your quick bar</h3><p class="tsm-note">Star what you want a tap away. It is kept for this Fell on this device.</p>'
     + '<div class="tsm-lbl">Rolls</div><div class="qb-grid">' + row('attack', 'Attack', 'your weapon') + row('evade', 'Evade', '') + '</div>'
+    + (((h0.weapons) || []).length ? '<div class="tsm-lbl">Weapons, to swap in on the fly</div><div class="qb-grid">' + h0.weapons.map(function(w){ return row('weapon', w.name, w.held ? 'in hand' : 'carried'); }).join('') + '</div>' : '')
     + (skills.length ? '<div class="tsm-lbl">Skills</div><div class="qb-grid">' + skills.map(function(n){ return row('skill', n, '+' + h0.skills[n]); }).join('') + '</div>' : '<p class="tsm-note">Your skills appear once your sheet has opened at the table.</p>')
     + ((h0.acts || []).length ? '<div class="tsm-lbl">Acts</div><div class="qb-grid">' + h0.acts.map(function(a){ return row('act', a.nm, a.tier ? 'tier ' + a.tier : ''); }).join('') + '</div>' : '')
     + ((h0.reacts || []).length ? '<div class="tsm-lbl">Reacts</div><div class="qb-grid">' + h0.reacts.map(function(a){ return row('react', a.nm, a.tier ? 'tier ' + a.tier : ''); }).join('') + '</div>' : '')
@@ -8547,6 +8554,7 @@ window.addEventListener('message', function(ev){
   var d = ev.data; if (!d || typeof d !== 'object') return;
   var f = quickSheet(); if (!f || ev.source !== f.contentWindow) return;
   /* the sheet asks which one, when there is more than one */
+  if (d.type === 'ts-quick-note' && !isLM()){ playToast(esc(String(d.text || '')), 'Quick bar'); try { tsHandRequest(); } catch(e){} }
   if (d.type === 'ts-quick-choose'){
     quickChoose(d.title || 'Choose', d.options || [], function(v){ quickAsk({ kind:d.kind, pick:v }); });
   }
