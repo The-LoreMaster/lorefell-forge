@@ -1,3 +1,7 @@
+## 2026-10-04 - Whispers from a token; sounds placed on the map
+
+A Fell's token offers a whisper: the LoreMaster's token row gains Whisper to, and a player right-clicking another Fell gets Whisper to or Roll; either sets the chat to that whisper, ready to type. The runners gain Sounds: place a sound on the map from the music library, with a reach in spaces and a loudness. Each player hears it by their own Fell's distance, louder as they close in, muffled through a wall, silent beyond its reach; the stream hears it from the party's middle; the LoreMaster listens as any token, or the party's middle, or not at all, and sees each sound's mark and reach on the map. Each map (each floor) keeps its own sounds; the lobby and a Threadwalk keep them from the players.
+
 ## 2026-10-04 - Clocks
 
 The scene and battle runners gain Clocks: segmented countdowns (4 to 12) the LoreMaster names and ticks, each seen by everyone or by the LoreMaster alone. They sit at the top of the table, movable by their grip; a tap ticks one, a right-click takes one back, and a full clock turns red and says so in the log. Public clocks show to the players and the stream, through the live room and the saved table.
