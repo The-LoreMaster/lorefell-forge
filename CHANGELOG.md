@@ -1,3 +1,7 @@
+## 2026-10-04 - The lobby's own music; Threadwalk keeps the table's music
+
+The lobby can have music of its own, a track (looping) or a playlist (played through and around), chosen in the lobby window; whoever is in the lobby hears it, and when they are brought in the table's music takes over. A lobby with no music is silent: players waiting never hear the scene the LoreMaster is working in. Threadwalking never changes what the players hear: the visited scene's music plays for the LoreMaster alone, and coming back puts the table's music back as it was before anything is said to the room again.
+
 ## 2026-10-04 - Movable bars, weather in the lobby, a focus for Story pictures, uploads for beats
 
 The map toolbar and the lobby's bar each have a grip: drag to move them, double-click to put them back; where they sit is kept on that screen. On a phone the lobby's bar sits along the bottom, its words above and its buttons sharing the width. The lobby has weather of its own (any of the table's), drawn over its picture or video for the players, the stream and the LoreMaster looking at it. A Story cover has Move the focus: drag the picture in a frame of the cover's shape, and the part that stays in view is kept, on the cover and on its card in the lists. Every beat and note can upload its picture as well as take an address, with a preview.
