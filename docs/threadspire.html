@@ -412,6 +412,8 @@ body.lm-role #clockStrip .clk{ cursor:pointer; } #clockStrip .clk.secret{ border
 #soundLayer{ position:absolute; left:0; top:0; width:0; height:0; z-index:6; pointer-events:none; }
 #soundLayer .snd-ring{ position:absolute; border-radius:50%; border:1px dashed rgba(127,179,163,.45); background:radial-gradient(circle, rgba(127,179,163,.10), rgba(127,179,163,0) 70%); }
 #soundLayer .snd-mark{ position:absolute; transform:translate(-50%,-50%); width:30px; height:30px; border-radius:50%; border:1px solid #7fb3a3; background:rgba(10,14,26,.9); color:#9fd0b0; font-size:15px; cursor:pointer; pointer-events:auto; }
+.snd-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; } .snd-up{ display:inline-flex; align-items:center; cursor:pointer; height:36px; }
+.snd-msg{ min-height:1.2em; margin:-4px 0 6px; color:#9fd0b0; font-size:.9rem; }
 .snd-lead{ margin:0 0 10px; color:#93a3b6; font-size:.95rem; line-height:1.45; }
 .snd-listen{ display:flex; align-items:center; gap:10px; margin-bottom:12px; } .snd-listen label{ flex:none; font-family:Cinzel,serif; font-size:.72rem; letter-spacing:.06em; color:#c9a84c; } .snd-listen .tsm-inp{ flex:1; }
 .snd-list{ list-style:none; margin:0 0 4px; padding:0; display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:10px; max-height:52vh; overflow:auto; }
@@ -7599,26 +7601,65 @@ function soundMarksPaint(){
       + '<button class="snd-mark" style="left:' + sd.x + 'px;top:' + sd.y + 'px" onclick="soundsWin(\'' + sd.id + '\')" title="' + esc(sd.name || 'A sound') + '" aria-label="' + esc(sd.name || 'A sound') + '">\u266b</button>'; }).join('');
 }
 setInterval(function(){ try { var k = mapKey() + JSON.stringify(soundsHere()) + isLM(); if (k !== soundMarksPaint._k){ soundMarksPaint._k = k; soundMarksPaint(); } } catch(e){} }, 800);
+/* ---- the sound shelf ----
+   Sounds (a river, a fire, a door) are kept apart from the music: their own list with the
+   adventure, uploaded into the site's LoreFell Sounds folder. A placed sound or a trigger
+   chooses from them; the folder's other sounds are a tap from joining this adventure. */
+function soundLib(){ var m = musicState(); return m.sounds || (m.sounds = []); }
+var SND_OTHERS = null;
+function soundRefs(){
+  var out = [{ r:'', n:'Choose a sound\u2026' }].concat(soundLib().map(function(x){ return { r:'s:' + x.id, n:x.title || 'Sound' }; }));
+  (SND_OTHERS || []).forEach(function(o, i){ if (!soundLib().some(function(x){ return x.url === o.url; })) out.push({ r:'o:' + i, n:'From your sound folder: ' + o.title }); });
+  return out;
+}
 function soundsWin(focusId){
   if (!isLM() || keeperNo()) return;
-  var refs = [{ r:'', n:'Choose a track\u2026' }].concat((musicState().lists || []).map(function(l){ return { r:'l:' + l.id, n:'Playlist: ' + (l.name || l.title || 'Untitled') }; }), (musicState().tracks || []).map(function(t){ return { r:'t:' + t.id, n:t.title || t.name || 'Track' }; }));
+  if (SND_OTHERS === null){ SND_OTHERS = []; tsAsk('TS_MUSIC_LIST', { kind:'sound' }).then(function(r){ SND_OTHERS = (r && Array.isArray(r.files)) ? r.files : []; if (document.querySelector('#tsModal .snd-listen')) soundsWin(focusId); }).catch(function(){}); }
+  var refs = soundRefs();
   var toks = (S.tokens || []).filter(function(t){ return t.kind === 'p' || t.charId || t.kind === 'npc' || t.kind === 'foe'; });
   var list = soundsHere();
-  var h = '<h3 class="tsm-title">Sounds on this map</h3>'
-    + '<p class="snd-lead">Each player hears these from their own Fell: louder up close, muffled through walls, gone past the reach.</p>'
+  var h = '<div class="snd-head"><h3 class="tsm-title">Sounds on this map</h3><label class="tsm-btn ghost snd-up">Upload a sound<input type="file" accept="audio/*" style="display:none" onchange="soundUpload(this,\'' + esc(focusId || '') + '\')"></label></div>'
+    + '<p class="snd-lead">Each player hears these from their own Fell: louder up close, muffled through walls, gone past the reach. They come from your sound folder, apart from the music.</p>'
+    + '<div id="sndMsg" class="snd-msg" role="status"></div>'
     + '<div class="snd-listen"><label for="sndLis">Hear it as</label><select class="tsm-inp" id="sndLis" onchange="SND.listen=this.value;soundsTick(true)"><option value="">Nobody (silent for you)</option><option value="party"' + (SND.listen === 'party' ? ' selected' : '') + '>The party\u2019s middle, as the stream hears it</option>'
     + toks.map(function(t){ return '<option value="' + esc(t.id) + '"' + (SND.listen === t.id ? ' selected' : '') + '>' + esc(tokenName(t)) + '</option>'; }).join('') + '</select></div>';
   h += list.length ? '<ul class="snd-list">' + list.map(function(sd){
       var vol = Math.round((sd.vol == null ? 1 : sd.vol) * 100), reach = sd.reach || 8;
+      var cur = sd.ref || '', opts = refs.slice();
+      if (cur && !opts.some(function(o){ return o.r === cur; })){ var tr = musicRefTracks(cur)[0]; opts.push({ r:cur, n:(tr && (tr.title || tr.name)) || 'Its sound' }); }
       return '<li class="snd-card' + (focusId === sd.id ? ' on' : '') + '">'
         + '<div class="snd-top"><span class="snd-glyph" aria-hidden="true">\u266b</span><input class="snd-name" value="' + esc(sd.name || '') + '" placeholder="Name it" aria-label="Its name" oninput="soundSet(\'' + sd.id + '\',\'name\',this.value)">'
         + '<button class="snd-del" onclick="soundDel(\'' + sd.id + '\')" aria-label="Remove this sound" title="Remove">\u2715</button></div>'
-        + '<select class="tsm-inp snd-src" aria-label="Its sound" onchange="soundSet(\'' + sd.id + '\',\'ref\',this.value)">' + refs.map(function(o){ return '<option value="' + esc(o.r) + '"' + ((sd.ref || '') === o.r ? ' selected' : '') + '>' + esc(o.n) + '</option>'; }).join('') + '</select>'
+        + '<select class="tsm-inp snd-src" aria-label="Its sound" onchange="soundPick(\'' + sd.id + '\',this.value)">' + opts.map(function(o){ return '<option value="' + esc(o.r) + '"' + (cur === o.r ? ' selected' : '') + '>' + esc(o.n) + '</option>'; }).join('') + '</select>'
         + '<div class="snd-dials"><label><span>Reach</span><input type="range" min="2" max="30" value="' + reach + '" oninput="soundSet(\'' + sd.id + '\',\'reach\',+this.value);this.nextElementSibling.textContent=this.value+\' spaces\'"><b>' + reach + ' spaces</b></label>'
         + '<label><span>Loudness</span><input type="range" min="10" max="100" value="' + vol + '" oninput="soundSet(\'' + sd.id + '\',\'vol\',this.value/100);this.nextElementSibling.textContent=this.value+\'%\'"><b>' + vol + '%</b></label></div></li>'; }).join('') + '</ul>'
     : '<div class="snd-empty">No sounds on this map yet. Place one where it should be heard: a fire, a river, a choir behind a wall.</div>';
   h += '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Done</button><button class="tsm-btn" onclick="soundPlace()">Place a sound</button></div>';
   tsModal(h, true);
+}
+/* a choice from the folder joins this adventure's sounds first */
+function soundPick(id, r){
+  if (r.indexOf('o:') === 0){ var o = (SND_OTHERS || [])[+r.slice(2)]; if (!o) return; var x = { id:musicId(), title:o.title, url:o.url }; soundLib().push(x); musicShare(); r = 's:' + x.id; }
+  soundSet(id, 'ref', r);
+}
+/* uploaded from the Sounds window into the sound folder; it goes onto the sound being edited, or the newest */
+function soundUpload(inp, forId){
+  var f = inp && inp.files && inp.files[0], msg = document.getElementById('sndMsg'); if (!f) return;
+  var say = function(t){ if (msg) msg.textContent = t; };
+  if (!/^audio\//i.test(f.type || '')){ say('That is not an audio file.'); return; }
+  if (f.size > 20 * 1024 * 1024){ say('That file is over 20 MB. A sound loop is usually far smaller.'); return; }
+  say('Uploading ' + f.name + '\u2026');
+  tsAsk('TS_MUSIC_UPLOAD_URL', { name:f.name, mime:f.type, kind:'sound' }).then(function(u){
+    if (!u || !u.uploadUrl){ say('The site gave no upload address. Try again.'); return; }
+    var fd = new FormData(); fd.append('upload_token', u.uploadToken || ''); fd.append('file', f, u.fileName || f.name);
+    return fetch(u.uploadUrl, { method:'POST', body:fd }).then(function(res){ if (!res.ok) throw new Error('status ' + res.status); return res.json().catch(function(){ return {}; }); }).then(function(j){
+      var url = musicWixUrl(j, u.fileName); if (!url){ say('It uploaded, but its address did not come back. Find it in Media Manager, LoreFell Sounds.'); return; }
+      var x = { id:musicId(), title:f.name.replace(/\.[a-z0-9]+$/i, ''), url:url }; soundLib().push(x); musicShare();
+      var list = soundsHere(), target = list.filter(function(sd){ return sd.id === forId; })[0] || list.filter(function(sd){ return !sd.ref; })[0];
+      if (target){ target.ref = 's:' + x.id; if (!target.name || target.name === 'A sound') target.name = x.title; soundsShare(); }
+      soundsWin(target ? target.id : forId); var m2 = document.getElementById('sndMsg'); if (m2) m2.textContent = x.title + ' is uploaded' + (target ? ' and playing from ' + (target.name || 'its place') + '.' : '. Choose it on a sound.');
+    });
+  }).catch(function(e){ say('The upload did not finish: ' + ((e && e.message) || 'try again') + '.'); });
 }
 var _sndT = null;
 function soundSet(id, k, v){ var sd = soundsHere().filter(function(x){ return x.id === id; })[0]; if (!sd) return; sd[k] = v; clearTimeout(_sndT); _sndT = setTimeout(soundsShare, k === 'name' ? 500 : 120); }
@@ -7741,7 +7782,7 @@ function trigWin(id){
   var t = tokById(id); if (!t || !isLM()) return;
   var c = trigNorm(t.trig || { range:1, once:true, reveal:true, armed:true, paleR:1, banner:true });
   var chk = function(name, val, on){ return '<label class="trig-c"><input type="checkbox" name="' + name + '" value="' + esc(val) + '"' + (on ? ' checked' : '') + '> ' + esc(val) + '</label>'; };
-  var refs = [{ r:'', n:'No sound' }].concat((musicState().tracks || []).map(function(tr){ return { r:'t:' + tr.id, n:tr.title || tr.name || 'Track' }; }));
+  var refs = [{ r:'', n:'No sound' }].concat(soundLib().map(function(x){ return { r:'s:' + x.id, n:x.title || 'Sound' }; }), (musicState().tracks || []).map(function(tr){ return { r:'t:' + tr.id, n:'Music: ' + (tr.title || tr.name || 'Track') }; }));
   tsModal('<h3 class="tsm-title">Triggered: ' + esc(tokenName(t)) + '</h3><p class="tsm-note">Everything set here happens at once when a Fell comes within range. Hide the token to make it a trap no one sees coming.</p>'
     + '<label class="tsm-lbl" for="trR">Range</label><select class="tsm-inp" id="trR">' + [0,1,2,3,4,5].map(function(n){ return '<option value="' + n + '"' + ((c.range || 0) === n ? ' selected' : '') + '>' + (n ? n + ' space' + (n === 1 ? '' : 's') : 'Stepping onto it') + '</option>'; }).join('') + '</select>'
     + '<label class="tsm-lbl" for="trT">What happens</label><input class="tsm-inp" id="trT" maxlength="200" value="' + esc(c.text || '') + '" placeholder="The floor gives way.">'
@@ -19229,6 +19270,7 @@ function musicList(id){ return (musicState().lists || []).filter(function(l){ re
 function musicRefTracks(ref){
   if (!ref) return [];
   if (ref.indexOf('t:') === 0){ var t = musicTrack(ref.slice(2)); return t ? [t] : []; }
+  if (ref.indexOf('s:') === 0){ var sd = soundLib().filter(function(x){ return x.id === ref.slice(2); })[0]; return sd ? [sd] : []; }
   var l = musicList(ref.slice(2)); return l ? (l.ids || []).map(musicTrack).filter(Boolean) : [];
 }
 function musicRefName(ref){

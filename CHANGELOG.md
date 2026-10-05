@@ -1,3 +1,7 @@
+## 2026-10-05 - Sounds have their own folder
+
+Placed sounds and trigger sounds come from a sound shelf of their own, apart from the music: uploads go to the site's LoreFell Sounds folder (Media Manager), straight from the Sounds window (Upload a sound), landing on the sound being edited or the newest one without a sound. The folder's other sounds are listed to join this adventure in a tap. A trigger's sound lists the sounds first, then the music. Paste velo/backend/campaignview.web.js and velo/page-threadspire.js.
+
 ## 2026-10-05 - The lobby bar moves again
 
 The LoreMaster's lobby bar has its grip back, folded or open: drag to move it, double-click the grip to put it back, and it stays where it was put when folded or unfolded. Backlog: #730, #733, #734 and #739 closed as not planned.

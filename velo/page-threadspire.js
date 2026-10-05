@@ -681,11 +681,11 @@ $w.onReady(async function () {
           reply(true, list);
         } else if (msg.type === 'TS_MUSIC_LIST') {
           let r = { ok: false, files: [] };
-          try { r = await musicLibrary(); } catch (e) { r = { ok: false, files: [] }; }
+          try { r = await musicLibrary(msg.kind || ''); } catch (e) { r = { ok: false, files: [] }; }
           reply(true, r);
         } else if (msg.type === 'TS_MUSIC_UPLOAD_URL') {
           let r = { ok: false };
-          try { r = await musicUploadUrl(msg.name || '', msg.mime || ''); } catch (e) { r = { ok: false, error: String(e) }; }
+          try { r = await musicUploadUrl(msg.name || '', msg.mime || '', msg.kind || ''); } catch (e) { r = { ok: false, error: String(e) }; }
           reply(!!(r && r.ok), r, r && r.error);
         } else if (msg.type === 'TS_MAP_VIDEO_UPLOAD_URL') {
           try { reply(true, await mapVideoUploadUrl(msg.name, msg.mime)); } catch (e) { reply(true, { ok: false, error: String(e).slice(0, 80) }); }

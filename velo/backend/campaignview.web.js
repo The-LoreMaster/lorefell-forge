@@ -13,14 +13,15 @@ import { mediaManager } from 'wix-media-backend';
 // signed and expire, so a copy on the site is what plays for everyone. A song is too big to
 // pass through a backend call (Wix refuses it with 413), so the backend only asks Wix for an
 // upload address and the browser sends the file there itself.
-export const musicUploadUrl = webMethod(Permissions.Anyone, async (name, mime) => {
+// kind 'sound' sends it to LoreFell Sounds (placed sounds and trigger sounds), else LoreFell Music
+export const musicUploadUrl = webMethod(Permissions.Anyone, async (name, mime, kind) => {
   try {
     const m = await currentMember.getMember().catch(() => null);
     if (!m || !m._id) return { ok: false, error: 'sign in to upload music' };
     const type = String(mime || '');
     if (!/^audio\//i.test(type)) return { ok: false, error: 'that is not an audio file' };
     const fileName = String(name || 'track').replace(/[^\w .()-]+/g, '').slice(0, 120) || 'track';
-    const r = await mediaManager.getUploadUrl('/LoreFell Music', {
+    const r = await mediaManager.getUploadUrl(kind === 'sound' ? '/LoreFell Sounds' : '/LoreFell Music', {
       mediaOptions: { mimeType: type, mediaType: 'audio' },
       metadataOptions: { isPrivate: false, isVisitorUpload: false, fileName: fileName }
     });
@@ -264,12 +265,13 @@ export const saveJournal = webMethod(Permissions.Anyone, async (campaignId, entr
 
 // Music at the table: every song uploaded to the site's LoreFell Music folder, for the Manage
 // music window's Show my other adventures' songs. Members only; read-only.
-export const musicLibrary = webMethod(Permissions.Anyone, async () => {
+export const musicLibrary = webMethod(Permissions.Anyone, async (kind) => {
   try {
     const m = await currentMember.getMember().catch(() => null);
     if (!m || !m._id) return { ok: false, files: [] };
     const folders = await mediaManager.listFolders({}, null, { limit: 200 }).catch(() => []);
-    const folder = (folders || []).find((f) => String(f.folderName || f.displayName || '').trim() === 'LoreFell Music');
+    const want = kind === 'sound' ? 'LoreFell Sounds' : 'LoreFell Music';
+    const folder = (folders || []).find((f) => String(f.folderName || f.displayName || '').trim() === want);
     if (!folder) return { ok: true, files: [] };
     const files = await mediaManager.listFiles({ parentFolderId: folder.folderId || folder._id }, null, { limit: 500 }).catch(() => []);
     const out = (files || []).filter((f) => /audio/i.test(String(f.mediaType || f.mimeType || 'audio'))).map((f) => ({
