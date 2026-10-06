@@ -1,3 +1,7 @@
+## 2026-10-05 - Snap stays as it was set
+
+Snap to the grid belonged only to the browser it was set in, and anything that redrew the grid (loading a board, another screen's grid change) snapped every token again regardless. It is now kept with the table's grid, so it holds between sessions and on every screen, a scene's own grid never changes it, and with snap off nothing re-snaps the tokens.
+
 ## 2026-10-05 - Placed sounds stay put, and drag smoothly
 
 Placed sounds were lost on every reload: the table had already made an empty sound list for the map by the time the saved board arrived, took that as having sounds of its own, ignored the saved ones and saved the empty list over them. Only a table with placed sounds now keeps its own (merged with the saved ones by map), and a LoreMaster table that has not yet heard the board sends no sounds at all. A dragged ♫ stopped after half a space because the marks were redrawn under the pointer; they are no longer redrawn mid-drag, and the drag follows the whole page.
