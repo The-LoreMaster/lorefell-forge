@@ -13328,7 +13328,10 @@ function startStateFeed(){
   function pullOnce(){
     if (pan || pinch) return;
     if (lmPullHeld()){ SEAM.pullGot = 'held: our own change is on its way'; seamPaint(); return; }
-    stateBackend.pull(_stateSeen).then(function(res){
+    /* until the stored board has been read once in full, ask for all of it: the adventure's own
+       push on opening moves the version on first, and a "nothing newer" then left the table
+       never hearing the board (the lobby never armed, and nothing it changed was saved) */
+    stateBackend.pull(_mapStateLoaded ? _stateSeen : -1).then(function(res){
       SEAM.pullAt = Date.now(); SEAM.pulls++;
       if (lmPullHeld()){ SEAM.pullGot = 'held: our own change went out meanwhile'; seamPaint(); return; }
       if (!res){ SEAM.pullGot = 'nothing'; seamPaint(); return; }
@@ -13344,7 +13347,7 @@ function startStateFeed(){
         if (!_mapStateLoaded && res.none === true) mapStateArrived();
         SEAM.pullGot = res.none ? 'nothing stored yet' : 'no row yet'; seamPaint(); return;
       }
-      if (res.version > _stateSeen){ _stateSeen = res.version; SEAM.pullV = res.version; SEAM.pullGot = 'new state v' + res.version; applyRemoteSnapshot(res.snap); }
+      if (res.version > _stateSeen || (!_mapStateLoaded && res.snap)){ _stateSeen = Math.max(_stateSeen, res.version); SEAM.pullV = res.version; SEAM.pullGot = 'new state v' + res.version; applyRemoteSnapshot(res.snap); }
       else { SEAM.pullGot = 'nothing newer than v' + _stateSeen; }
       seamPaint();
     }).catch(function(e){ SEAM.pullAt = Date.now(); SEAM.pullGot = 'failed: ' + String(e && e.message || e).slice(0,60); seamPaint(); });

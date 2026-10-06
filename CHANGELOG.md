@@ -1,3 +1,7 @@
+## 2026-10-05 - The LoreMaster's table hears its board again
+
+Since the second-screen fix, a LoreMaster's table could fail to hear the stored board at all: the adventure's own save on opening moved the version on first, so the first read came back "nothing newer", and that no longer counted. The table then never armed the lobby (no lobby bar, no landing in the lobby) and held every save. Until the board has been read once, the table now asks for all of it.
+
 ## 2026-10-05 - The players'-view bar fits the window
 
 Seeing the lobby as the players do, the LoreMaster's bar is one slim line centred on the table (PLAYERS' VIEW, Threadwalk, Set the lobby, Bring them in, Back to the map), the same shape as the lobby bar, scrolling sideways rather than running off the edge of a window that is not full screen; on a phone it sits beside the wrench. The chat's To button no longer squeezes the box beside it.
