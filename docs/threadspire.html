@@ -7576,8 +7576,12 @@ setInterval(function(){ try { clocksPaint(); } catch(e){} }, 1000);
    middle; the LoreMaster listens as a chosen token (Listen as), or not at all. It follows
    each person's own music volume and mute, and is silent in the lobby. */
 var SND = { els:{}, placing:false, listen:'auto', upFor:'', view:null };
+/* whether a sounds record holds any placed sound (an empty list made by looking is not one) */
+function soundsAny(o){ return !!o && Object.keys(o).some(function(k){ return (o[k] || []).length > 0; }); }
+/* the saved sounds, with any map this table has placed sounds on and the saved copy has not */
+function soundsMerge(mine, saved){ var out = Object.assign({}, saved || {}); Object.keys(mine || {}).forEach(function(k){ if ((mine[k] || []).length && !(out[k] || []).length) out[k] = mine[k]; }); return out; }
 function soundsHere(){ var k = mapKey(); S.sounds = S.sounds || {}; return S.sounds[k] || (S.sounds[k] = []); }
-function soundsShare(){ try { roomPartsSync(false); } catch(e){} schedulePush(); soundsTick(true); soundMarksPaint(); }
+function soundsShare(){ try { roomPartsSync(false); } catch(e){} schedulePush(); soundsTick(true); if (!SND.dragging) soundMarksPaint(); }
 function soundPartyMid(){ var p = (S.tokens || []).filter(function(t){ return t.kind === 'p'; }); if (!p.length) return null; return { x:p.reduce(function(a, t){ return a + t.x; }, 0) / p.length, y:p.reduce(function(a, t){ return a + t.y; }, 0) / p.length }; }
 /* where the LoreMaster hears from: by default the token they have selected, else the party's
    middle, else the middle of what they are looking at; so a placed sound is heard at once */
@@ -7649,7 +7653,7 @@ function soundMarksPaint(){
       e.stopPropagation(); e.preventDefault();
       var id = b.getAttribute('data-snd'), sd = soundsHere().filter(function(x){ return x.id === id; })[0]; if (!sd) return;
       var sx = e.clientX, sy = e.clientY, moved = false, ring = b.previousElementSibling;
-      try { b.setPointerCapture(e.pointerId); } catch(x){}
+      SND.dragging = true;
       var mv = function(ev){
         if (!moved && Math.hypot(ev.clientX - sx, ev.clientY - sy) < 5) return;
         moved = true; var p = toMap(ev.clientX, ev.clientY), r = (sd.reach || 8) * g;
@@ -7657,13 +7661,13 @@ function soundMarksPaint(){
         b.style.left = sd.x + 'px'; b.style.top = sd.y + 'px';
         if (ring){ ring.style.left = (sd.x - r) + 'px'; ring.style.top = (sd.y - r) + 'px'; }
       };
-      var up = function(){ b.removeEventListener('pointermove', mv); b.removeEventListener('pointerup', up); b.removeEventListener('pointercancel', up);
-        if (moved) soundsShare(); else soundEdit(id); };
-      b.addEventListener('pointermove', mv); b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up);
+      var up = function(){ document.removeEventListener('pointermove', mv, true); document.removeEventListener('pointerup', up, true); document.removeEventListener('pointercancel', up, true);
+        SND.dragging = false; if (moved) soundsShare(); else soundEdit(id); };
+      document.addEventListener('pointermove', mv, true); document.addEventListener('pointerup', up, true); document.addEventListener('pointercancel', up, true);
     });
   }
 }
-setInterval(function(){ try { var k = mapKey() + JSON.stringify(soundsHere()) + isLM(); if (k !== soundMarksPaint._k){ soundMarksPaint._k = k; soundMarksPaint(); } } catch(e){} }, 800);
+setInterval(function(){ try { if (SND.dragging) return; var k = mapKey() + JSON.stringify(soundsHere()) + isLM(); if (k !== soundMarksPaint._k){ soundMarksPaint._k = k; soundMarksPaint(); } } catch(e){} }, 800);
 /* ---- the sound shelf ----
    Sounds (a river, a fire, a door) are kept apart from the music: their own list with the
    adventure, uploaded into the site's LoreFell Sounds folder. A placed sound or a trigger
@@ -11754,7 +11758,7 @@ function sharedSnapshot(){
     retell: isLM() && !isKeeper() ? (S.retell || null) : undefined,
     lobby: isLM() && !isKeeper() ? (S.lobby || null) : undefined,
     clocks: isLM() && !isKeeper() ? (S.clocks || []) : undefined,
-    sounds: isLM() && !isKeeper() ? (S.sounds || {}) : undefined,
+    sounds: isLM() && !isKeeper() && (_mapStateLoaded || soundsAny(S.sounds)) ? (S.sounds || {}) : undefined,
     vote: isLM() && !isKeeper() ? (S.vote || null) : undefined,
     retellPick: isLM() && !isKeeper() ? (S.retellPick || null) : undefined,
     marks: isLM() && !isKeeper() ? (S.marks || []) : undefined,
@@ -12078,7 +12082,7 @@ function applyRemoteSnapshot(snap){
     ['url', 'poster', 'kind', 'title', 'note', 'music', 'weather'].forEach(function(k){ if (!S.lobby[k] && snap.lobby[k]) S.lobby[k] = snap.lobby[k]; });
   }
   if (Array.isArray(snap.clocks) && (!isLM() || S.stream || !(S.clocks && S.clocks.length))) S.clocks = snap.clocks;
-  if (snap.sounds && (!isLM() || S.stream || !(S.sounds && Object.keys(S.sounds).length))) S.sounds = snap.sounds;
+  if (snap.sounds && (!isLM() || S.stream || !soundsAny(S.sounds))) S.sounds = soundsMerge(S.sounds, snap.sounds);
   if (snap.vote !== undefined && (!isLM() || S.stream || !S.vote)) S.vote = snap.vote;
   if (snap.retellPick !== undefined && isLM() && !S.retellPick) S.retellPick = snap.retellPick;
   if (Array.isArray(snap.marks) && isLM() && !(S.marks && S.marks.length)) S.marks = snap.marks;
