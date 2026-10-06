@@ -2582,9 +2582,9 @@ let ITEMS_LIB=[
 ];
 let LOREBOUND_TYPES=["The Aerostrix","The Alkagoo","The Aquafin","The Boreal","The Cawmarch","The Drakelith","The Felionis","The Grimgrit","The Hexarach","The Lumitoad","The Mordel","The Runesteed","The Slipfang","The Solmera","The Thistlewing","The Vixel","The Worgar","The Xenophis"];
 const LB_FORMS=[
-  {name:"Familiar",desc:"Can move, pick up, or use items."},   /* shown on hover, not printed */
-  {name:"Companion",desc:"Can imprint loot and attempt skill rolls (draft text)."},
-  {name:"Corsair",desc:"A mountable form that carries you using its Mobility (draft text)."}
+  {name:"Familiar",desc:"Moves, picks up, and uses items. Its Mobility equals yours."},   /* shown on hover, not printed */
+  {name:"Companion",desc:"Can imprint loot and attempt lore checks on your behalf, such as breaking free of afflictions. Its Mobility equals yours."},
+  {name:"Corsair",desc:"A mountable form that carries you across the battlefield while you hold an adjacent space. Its Mobility equals double yours."}
 ];
 /* Canon lorebound level rewards (FellGuide) */
 const LOREBOUND_LEVELS=[
@@ -4070,8 +4070,12 @@ function renderCharges(){
 /* One way to move Fatigue, from wherever a player touches it: the stat strip, or the bar
    over ThreadSpire's cards. It re-reads the hand's gates too, since Drained and
    Overwhelmed take the Act and the React away. */
+/* Unbowed (an augmentation): the highest Fatigue rank you can reach is 3 */
+function fatigueCap(){ return cbHasAug("Unbowed")?3:5; }
 function fatigueSet(n){
-  C.fatigue=Math.max(0,Math.min(5,Number(n)||0));
+  var want=Number(n)||0;
+  C.fatigue=Math.max(0,Math.min(fatigueCap(),want));
+  if(want>C.fatigue && fatigueCap()===3) cbPing("Unbowed: your Fatigue goes no higher than "+FATIGUE_NAMES[3]+".");
   renderFatigue();try{renderDials();renderBattle();}catch(e){}fatiguePopPaint();
   scheduleSave();
 }
@@ -6355,18 +6359,19 @@ function cbResolveIncoming(base, bonus, dt){
 function applyPendingHit(hit){
   var base=Math.max(0,(hit&&hit.base)|0), bonus=Math.max(0,(hit&&hit.bonus)|0), dt=(hit&&hit.dt)||"phys";
   window._augUsed = window._augUsed || {};
-  if(cbHasAug("Lastlight") && !window._augUsed.lastlight && (C.vitality.current||0) < Math.floor((C.vitality.max||0)/2)){
+  if(cbHasAug("Lastlight") && !window._augUsed.lastlight && (C.vitality.current||0) < 25){
     window._augUsed.lastlight=true; cbPing("Lastlight: the first attack misses."); cbLogSelf("fell", meName()+": Lastlight turns the first attack aside."); return;
   }
   var r=cbResolveIncoming(base, bonus, dt);
   if(r.total<=0){ cbPing("The hit is turned aside."); cbLogSelf("fell", meName()+": the hit is turned aside."); return; }
-  if(cbHasAug("Threshold")){ var cap=Math.floor((C.vitality.max||0)/2); if(cap>0 && r.total>cap){ r.total=cap; r.marks.push("Threshold cap"); } }
+  /* Threshold: no single hit takes more than half your CURRENT Vitality */
+  if(cbHasAug("Threshold")){ var cap=Math.floor((C.vitality.current||0)/2); if(r.total>cap){ r.cap="Threshold: "+r.total+" becomes "+cap; r.total=cap; } }
   window._staged=window._staged||{hits:[],affs:[]};
   window._staged.hits.push({total:r.total, base:r.base, bonus:r.bonus, marks:r.marks||[]});
   window._dmgTakenRound=true;
   try{edgeGlow("rgba(201,106,90,.9)");}catch(e){}
-  cbPing("Taking "+r.total+(r.marks.length?(" (+"+r.marks.length+" "+r.marks.join(" + ")+")"):"")+" at round end."+(cbHasAug("Driftstep")?" Driftstep: you may move one space now.":""));
-  cbLogSelf("foe", meName()+" takes "+r.total+" ("+r.base+" base + "+r.bonus+" bonus"+(r.marks.length?(" + "+r.marks.length+" from "+r.marks.join(" + ")):"")+") \u00b7 cements at round end.");
+  cbPing("Taking "+r.total+(r.marks.length?(" (+"+r.marks.length+" "+r.marks.join(" + ")+")"):"")+(r.cap?(" ("+r.cap+")"):"")+" at round end."+(cbHasAug("Driftstep")?" Driftstep: you may move one space now.":""));
+  cbLogSelf("foe", meName()+" takes "+r.total+" ("+r.base+" base + "+r.bonus+" bonus"+(r.marks.length?(" + "+r.marks.length+" from "+r.marks.join(" + ")):"")+")"+(r.cap?(", "+r.cap):"")+" \u00b7 cements at round end.");
   try{applyCombatMode();}catch(e){}
 }
 function cbCementStaged(){
@@ -6377,7 +6382,9 @@ function cbCementStaged(){
     var total=h.total|0; if(total<=0) return;
     var t=Math.min(v.temp||0, total); if(t) v.temp=(v.temp||0)-t;
     var newCur=(v.current||0)-(total-t);
-    if(newCur<=0 && (v.current||0)>0 && cbHasAug("Emberhold") && !window._emberUsed){ newCur=1; window._emberUsed=true; cbPing("Emberhold holds you at 1."); }
+    /* Emberhold: every time a hit would drop you to 0 you stay at 1, and each time there
+       is an even chance you die */
+    if(newCur<=0 && (v.current||0)>0 && cbHasAug("Emberhold")){ var _coin=1+Math.floor(Math.random()*2); newCur=_coin===1?0:1; var _em=_coin===1?"Emberhold holds you at 1, but the even chance comes up death.":"Emberhold holds you at 1, and the even chance comes up life."; cbPing(_em, true); cbLogSelf("fell", meName()+": "+_em); }
     v.current=Math.max(0,newCur);
     took+=total;
   });
@@ -6851,7 +6858,7 @@ function cbTickSelf(){
   var affs=C.afflictions||[], notes=[];
   affs.forEach(function(a){
     var c=cbCanon(a.name); if(!c) return;
-    if(a.name==="Worn"){ if(!a._on){ C.fatigue=Math.min(5,(C.fatigue||0)+1); a._on=true; notes.push("Worn: Fatigue rises"); try{renderFatigue();}catch(e){} } return; }
+    if(a.name==="Worn"){ if(!a._on){ var _fw=C.fatigue||0; C.fatigue=Math.min(fatigueCap(),_fw+1); a._on=true; notes.push(C.fatigue>_fw?"Worn: Fatigue rises":"Worn: Unbowed holds your Fatigue at "+FATIGUE_NAMES[C.fatigue]); try{renderFatigue();}catch(e){} } return; }
     if(c.enforce.bucket!=="A" || a._on) return;
     if(c.enforce.op==="maxVitHalved"){ a._save=C.vitality.max; C.vitality.max=Math.max(1,Math.floor(C.vitality.max/2)); if(C.vitality.current>C.vitality.max) C.vitality.current=C.vitality.max; a._on=true; notes.push(c.name+": max Vitality halved"); }
     else if(c.enforce.op==="loseHalfCurrent"){ C.vitality.current=Math.floor(C.vitality.current/2); a._on=true; notes.push(c.name+": lost half Vitality"); }
@@ -6860,13 +6867,14 @@ function cbTickSelf(){
   // augmentation round start
   window._augUsed = window._augUsed || {};
   if(C.armor && C.armor.augs && C.armor.augs.length){
-    var vig=Math.max(0, attrTotal("vigor"));
-    if(cbHasAug("Mendseam") && !window._dmgTakenRound && vig>0){ cbTryHeal(vig); notes.push("Mendseam: recover "+vig); }
-    if(cbHasAug("Scarweave") && vig>0 && (C.vitality.temp||0)<vig){ C.vitality.temp=vig; notes.push("Scarweave: "+vig+" temporary"); }
+    /* both count the highest defensive attribute, every round (FellGuide, Augmentations) */
+    var hd=Math.max(0, attrTotal("evasion"), attrTotal("durability"), attrTotal("resistance"));
+    if(cbHasAug("Mendseam") && hd>0){ var _mb=C.vitality.current||0; cbTryHeal(hd); notes.push("Mendseam: recover "+Math.max(0,(C.vitality.current||0)-_mb)+" of "+hd); }
+    /* Temporary Vitality cannot exceed your Maximum Vitality (Survival) */
+    if(cbHasAug("Scarweave") && hd>0){ var _tb=C.vitality.temp||0; C.vitality.temp=Math.min(C.vitality.max||0, _tb+hd); notes.push("Scarweave: +"+(C.vitality.temp-_tb)+" temporary"+(C.vitality.temp-_tb<hd?" (capped at your Maximum Vitality)":"")); }
   }
   window._dmgTakenRound=false;
   window._augUsed={mistform:false,nullward:false,lastlight:false,hexward:false};
-  if((window._lastTickRound||0)<=1) window._emberUsed=false;
   window._roundStartNotes=notes.slice();
   if(notes.length){ try{renderVit();}catch(e){} try{renderStrip();}catch(e){} scheduleSave(); cbPing("Round start \u00b7 "+notes.join(" \u00b7 ")); cbLogSelf("fell", meName()+" round start \u00b7 "+notes.join(" \u00b7 ")); }
 }
@@ -7146,7 +7154,10 @@ function cbIsFellmark(roll, e){ return roll===6 || (roll===5 && !!(e && e.kind==
 function cbHasAug(name){ return ((C.armor&&C.armor.augs)||[]).indexOf(name)>=0; }
 function cbHasInfusion(name){ return (C.weapons||[]).some(function(w){ return w.tree && (w.infusions||[]).indexOf(name)>=0; }); }
 function cbWeaponHasInf(wname, inf){ return (C.weapons||[]).some(function(w){ return w.tree && weaponName(w)===wname && (w.infusions||[]).indexOf(inf)>=0; }); }
-function cbEffFatigue(){ var red=(cbHasAug("Unbowed")?1:0)+(cbHasInfusion("Unflagging")?1:0); return Math.max(0, (C.fatigue||0) - red); }
+/* Unflagging: Fatigue one rank lower while wielding the weapon. Unbowed is a ceiling (3),
+   kept in fatigueCap, not a rank off. */
+function cbWields(inf){ return (C.weapons||[]).some(function(w){ return w && w.tree && w.equipped && (w.infusions||[]).indexOf(inf)>=0; }); }
+function cbEffFatigue(){ var f=Math.min(fatigueCap(), C.fatigue||0); return Math.max(0, f - (cbWields("Unflagging")?1:0)); }
 function cbWeaponDmg(w){
   var cat=WEAPON_DB[w.tree].category;
   var base=1+attrTotal(cat==='magic'?'magic':'power'), bonus=weaponBonus(w);
@@ -7158,7 +7169,8 @@ function cbWeaponDmg(w){
   if(infs.indexOf('Wounding')>=0) bonus+=a('precision');
   if(infs.indexOf('Mauling')>=0) bonus+=a('power');
   if(infs.indexOf('Blighting')>=0) bonus+=a('magic');
-  if(infs.indexOf('Rebounding')>=0) base+=base;
+  /* Rebounding is not folded in here: its second Base lands only when the weapon deals
+     damage and cannot be reduced, so the table adds it at the hit (resolveOnFoe) */
   return {base:base, bonus:bonus};
 }
 function cbOutDmg(e){
@@ -7805,9 +7817,10 @@ function cbDeclare(){
   }
   var fell=cbIsFellmark(roll, e);
   if(fell && roll===5) infNotes.push("Honed: the 5 counts as a Fellmark.");
-  if(isWpn && cbWeaponHasInf(e.src,"Agile")) infNotes.push("Agile: a free movement rides with this Act, and the React's movement stays.");
-  if(isWpn && /basic|standard/i.test(e.nm||act) && cbWeaponHasInf(e.src,"Swift")) infNotes.push("Swift: a second standard attack on the same target follows when this lands.");
-  window._infNotes=infNotes; window._infAgile=!!(isWpn && cbWeaponHasInf(e.src,"Agile"));
+  /* Agile counts while the weapon is wielded, whatever the Act */
+  if(e && cbWields("Agile")) infNotes.push("Agile: a free movement rides with this Act, and the React's movement stays.");
+  if(isWpn && /basic|standard/i.test(e.nm||act) && cbWeaponHasInf(e.src,"Swift")) infNotes.push("Swift: one more standard attack on the same target follows at once.");
+  window._infNotes=infNotes; window._infAgile=!!(e && cbWields("Agile"));
   window._atkGear=(e && e.src)?{ round:((COMBAT&&COMBAT.round)||1), src:e.src, act:act }:null;
   /* logged without pushing: the declare goes first, and the sync follows its ack, so the
      two writes to the same row never cross */
@@ -8224,7 +8237,7 @@ function tpRollEndurance(){
     var fellmark = (die === 6);
     var rank = 0;
     if (!held){
-      C.fatigue = Math.min(5, (C.fatigue || 0) + 1);
+      C.fatigue = Math.min(fatigueCap(), (C.fatigue || 0) + 1);
       rank = C.fatigue;
       try { renderFatigue(); renderStrip(); } catch(e){}
     }

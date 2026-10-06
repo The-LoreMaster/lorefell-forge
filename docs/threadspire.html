@@ -9646,8 +9646,10 @@ function kitCheckMiss(defId, atkId){
     var c = findC(defId), atk = findC(atkId); if (!c || !atk) return;
     if (S.scene.foes.indexOf(c) >= 0 || S.scene.foes.indexOf(atk) < 0 || !atk._roll) return;
     var ev = (S.scene.eva || {})[tsEvaKey(defId, atkId)]; if (!ev) return;
-    var acc = atk._roll + ((foeLive(atk).attrs.Precision) || 0);
-    if (acc < ev.total) kitMissed(c.charId || c.id, atk);
+    var prec = (foeLive(atk).attrs.Precision) || 0, acc = atk._roll + prec;
+    /* the foe's own Targeted ignores Evasion equal to its Precision */
+    var need = ev.total - (foeHas(atk, 'Targeted') ? Math.min(ev.bonus || 0, prec) : 0);
+    if (acc < need) kitMissed(c.charId || c.id, atk);
   } catch(e){}
 }
 function tsSetEva(defId, atkId, face){
@@ -9743,7 +9745,7 @@ function lmFoeRoll(id){
     if (tgt){ var eva=(tgt.attrs&&tgt.attrs.Evasion)||0, acc=f._roll+prec;
       line += ' + Precision ' + prec + ' = ' + acc + ' vs ' + esc(tgt.name) + ' Evasion ' + eva
         + ' \u2192 <b>' + (acc>=eva?'Hit':'Evaded') + '</b>'; }
-    if (tgt && !(S.scene.eva || {})[tsEvaKey(tgt.id, f.id)]){ var _ev = (tgt.attrs && tgt.attrs.Evasion) || 0; if (f._roll + prec < _ev) setTimeout(function(){ kitMissed(tgt.charId || tgt.id, f); }, 0); }
+    if (tgt && !(S.scene.eva || {})[tsEvaKey(tgt.id, f.id)]){ var _ev = (tgt.attrs && tgt.attrs.Evasion) || 0; if (foeHas(f, 'Targeted')) _ev -= Math.min(_ev, prec); if (f._roll + prec < _ev) setTimeout(function(){ kitMissed(tgt.charId || tgt.id, f); }, 0); }
     else if (tgt) kitCheckMiss(tgt.id, f.id);
   } else { line += ' \u2192 ' + esc(tag); }
   pushLog({ kind:'sys', html:line + '.' });
@@ -10262,7 +10264,12 @@ function foeHitCalc(f, base, bonus, magical, opt){
   if (opt.pierce > 0 && def > 0){ var pc = Math.min(def, opt.pierce | 0); lines.push((opt.pierceBy || 'Pierce') + ': ignores ' + pc + ' of its ' + defName + ', ' + def + ' → ' + (def - pc)); def -= pc; }
   var b = base, bo = bonus;
   if (st && tier >= 2){
-    var R = a[st.stat] || 0, offB = Math.min(b, R), left = R - offB;
+    var R = a[st.stat] || 0;
+    /* what the attacker ignores of that stat is ignored here too: Powerful of Durability
+       (Stalwart), Ethereal of Resistance (Vestments), Targeted of Evasion (Shrouded) */
+    var ig = st.stat === defName ? Math.min(R, opt.pierce | 0) : (st.stat === 'Evasion' ? Math.min(R, opt.targeted | 0) : 0);
+    if (ig){ lines.push((st.stat === 'Evasion' ? 'Targeted' : (opt.pierceBy || 'Pierce')) + ': ignores ' + ig + ' of the ' + st.stat + ' its stance takes off, ' + R + ' \u2192 ' + (R - ig)); R -= ig; }
+    var offB = Math.min(b, R), left = R - offB;
     b -= offB; var offBo = Math.min(bo, left); bo -= offBo;
     lines.push(f.stance + ' T2: ' + R + ' off the damage, Base first: Base ' + base + ' \u2212 ' + offB + ' = ' + b + (offBo ? ', Bonus ' + bonus + ' \u2212 ' + offBo + ' = ' + bo : ''));
   } else lines.push('Base ' + base + ' lands in full');
@@ -10563,7 +10570,8 @@ function fellCardBody(p, tab, resolve){
   if (tab === 'round'){
     var _th = (dcl.dmg && tgtFoe && dcl.acc) ? kitToHit(cid, dcl, tgtFoe, kitAtkWeapon(cid, dcl)) : null;
     var landed = dcl.dmg ? '<div class="fc-hitrow"><div><b class="fc-big">' + (dcl.base || 0) + ' + ' + Math.max(0, (dcl.dmg || 0) - (dcl.base || 0)) + '</b> <span class="fc-muted">to ' + esc(tgtName || 'the target') + '</span></div><button class="fc-apply" onclick="resolveOnFoe(\'' + esCid + '\')">Land it</button></div>'
-      + (_th ? '<div class="fc-note' + (_th.hit ? ' auto' : '') + '">' + esc(_th.line) + '.</div>' : '') + kitAtkNotes(cid, dcl) : '';
+      + (_th ? '<div class="fc-note' + (_th.hit ? ' auto' : '') + '">' + esc(_th.line) + '.</div>' : '') + kitAtkNotes(cid, dcl)
+      + ((wHas(kitAtkWeapon(cid, dcl), 'Swift') && /basic|standard/i.test(dcl.act || '') && !((S.scene.landed || {})[cid + '@' + (S.round || 1) + ':swiftdone'])) ? '<div class="fc-note auto">Swift: one more standard attack, hit or miss. <button class="fc-btn" onclick="kitSwift(\'' + esCid + '\')">Roll it</button></div>' : '') : '';
     return fcSec('Their act', '<div class="fc-intent">' + declared + '</div>'
         + (dcl.roll ? '<div class="fc-prose">Rolled ' + dcl.roll + (dcl.acc ? ' against ' + dcl.acc : '') + (dcl.fellstrike ? ' \u00b7 <b style="color:#e3a193">Fellstrike</b>' : '') + '</div>' : '<div class="fc-muted">No roll yet.</div>') + landed)
       + fcSec('Hits coming for them', coming)
@@ -11123,12 +11131,18 @@ function resolveOnFoe(charId, opt){
   var w = kitAtkWeapon(charId, dcl), known = !!kitOf(charId), wn = w ? w.name : 'their weapon';
   var has = function(n){ return wHas(w, n); };
   var base = Math.max(0, dcl.base || 0), bonus = Math.max(0, (dcl.dmg || 0) - base), mag = dcl.dt === 'magic';
+  /* Swift's extra attack is a standard attack: the weapon's own damage, not the first
+     declare's (which may carry that roll's Fellmark bonus) */
+  if (opt.swift && w){ base = w.base || 0; bonus = w.bonus || 0; mag = w.dt === 'magic'; }
   var wBase = (w && w.base) || base;
-  var r = foeHitCalc(f, base, bonus, mag, { pierce:dcl.pierce || 0, pierceBy:mag ? 'Ethereal' : 'Powerful', goring:has('Goring') });
+  var r = foeHitCalc(f, base, bonus, mag, { pierce:dcl.pierce || 0, pierceBy:mag ? 'Ethereal' : 'Powerful', goring:has('Goring'), targeted:has('Targeted') ? kitAttr(charId, 'Precision') : 0 });
+  /* Rebounding: when it deals damage, its Base again, and nothing reduces that */
+  var rebound = (has('Rebounding') && r.total > 0) ? wBase : 0;
+  if (rebound){ r.lines.push('Rebounding: + ' + rebound + ', its Base Damage again, unreduced'); r.total += rebound; r.after = Math.max(0, r.cur - r.total); if (r.after <= 0 && r.cur > 0 && foeHas(f, 'Emberhold')) r.ember = true; }
   var st = foeStage(f, r), pub = [], ops = [], fx = [];
   var th = kitToHit(charId, dcl, f, w);
   pushLog({ kind:'sys', lmOnly:true, html:'Round ' + rnd + '. <b>' + esc(who) + '</b> lands ' + (opt.swift ? 'Swift’s second attack' : esc(dcl.act || 'an attack')) + ' on <b>' + esc(f.name) + '</b>: ' + base + ' Base + ' + bonus + ' Bonus, ' + (mag ? 'Magical' : 'Physical') + '. ' + (dcl.acc && !opt.swift ? esc(th.line) + '. ' : '') + r.lines.map(esc).join('. ') + '. <b>' + r.total + ' damage</b>, ' + st.cur + ' → ' + st.end + ', staged for the end of the round.' + st.extra });
-  pub.push('<b>' + esc(who) + '</b> ' + (opt.swift ? 'strikes again with Swift' : 'lands ' + esc(dcl.act || 'an attack')) + ' on <b>' + esc(f.name) + '</b> for <b>' + r.total + '</b>' + (has('Goring') && FOE_STANCE[f.stance] ? ', Goring through its ' + esc(f.stance) + ' stance' : '') + (dcl.pierce ? ', ' + (mag ? 'Ethereal' : 'Powerful') + ' ignoring ' + dcl.pierce + ' of its ' + (mag ? 'Resistance' : 'Durability') : '') + '.');
+  pub.push('<b>' + esc(who) + '</b> ' + (opt.swift ? 'strikes again with Swift' : 'lands ' + esc(dcl.act || 'an attack')) + ' on <b>' + esc(f.name) + '</b> for <b>' + r.total + '</b>' + (rebound ? ' (Rebounding adds ' + rebound + ' that nothing reduces)' : '') + (has('Goring') && FOE_STANCE[f.stance] ? ', Goring through its ' + esc(f.stance) + ' stance' : '') + (dcl.pierce ? ', ' + (mag ? 'Ethereal' : 'Powerful') + ' ignoring ' + dcl.pierce + ' of its ' + (mag ? 'Resistance' : 'Durability') : '') + '.');
   if (!known) fx.push('Their sheet has not sent its infusions yet, so only the damage is counted.');
   else if (!w) fx.push('Which weapon made this attack is not known, so its infusions are not counted.');
   var dealt = r.total > 0;
@@ -11170,8 +11184,10 @@ function resolveOnFoe(charId, opt){
   } else if (w && !dealt && ['Siphoning', 'Vorpal', 'Welling', 'Rooting', 'Hooking', 'Forceful', 'Sweeping'].some(has)){
     fx.push(['Siphoning', 'Vorpal', 'Welling', 'Rooting', 'Hooking', 'Forceful', 'Sweeping'].filter(has).join(', ') + ': the hit dealt no damage, so nothing fires.');
   }
-  if (w && has('Coursing')){
-    if (!mag) fx.push('Coursing fires on a spell, and this was not one.');
+  if (w && has('Coursing') && !opt.swift){
+    /* a spell is a charged ability on a magic weapon; a standard swing is not one */
+    var spell = w.dt === 'magic' && (dcl.actTier || 0) > 0;
+    if (!spell) fx.push('Coursing fires on a spell (a charged ability of a magic weapon), and this was not one.');
     else if (!mt) fx.push('Coursing: ' + esc(who) + ' has no token, so who is adjacent is not known.');
     else {
       var adj = ((sc.foes) || []).filter(function(o){ var tk = kitTokFoe(o); return !cDown(o) && tk && kitSpaces(mt, tk) <= 1.01; });
@@ -11194,20 +11210,25 @@ function resolveOnFoe(charId, opt){
   combatPublish(); applyRemoteState({ scene:S.scene, log:S.log }); paintLmStrip(); paintHud();
   /* Swift: one more standard attack against the same target, at once, which does not trigger
      itself again. Offered rather than rolled behind anyone's back. */
-  if (w && has('Swift') && !opt.swift){
+  if (w && has('Swift') && !opt.swift && !(sc.landed[charId + '@' + rnd + ':swiftdone'])){
     if (!/basic|standard/i.test(dcl.act || '')) pushLog({ kind:'sys', lmOnly:true, html:'Swift: ' + esc(who) + '’s Act was not a standard attack, so no second attack.' });
     else tsModal('<h3 class="tsm-title">Swift</h3><p class="tsm-note">' + esc(who) + '’s ' + esc(wn) + ' is Swift: one more standard attack against ' + esc(f.name) + ', at once.</p>'
       + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal();kitSwiftSkip(\'' + esc(charId) + '\')">Skip it</button><button class="tsm-btn" onclick="tsCloseModal();kitSwift(\'' + esc(charId) + '\')">Roll it</button></div>');
   }
 }
-function kitSwiftSkip(charId){ var p = fellByCharId(charId); pushLog({ kind:'sys', html:'Swift: <b>' + esc((p && p.name) || 'A Fell') + '</b>’s second attack is not taken.' }); applyRemoteState({ log:S.log }); }
+function kitSwiftSkip(charId){ var sc = S.scene || {}; sc.landed = sc.landed || {}; sc.landed[charId + '@' + (S.round || 1) + ':swiftdone'] = true; var p = fellByCharId(charId); pushLog({ kind:'sys', html:'Swift: <b>' + esc((p && p.name) || 'A Fell') + '</b>’s second attack is not taken.' }); applyRemoteState({ log:S.log }); }
 /* the second attack, rolled here: a d6 plus Precision against the foe's Evasion (Hunting
    makes it Lucky, Targeted takes its share off), then landed like the first */
 function kitSwift(charId){
   var dcl = declareFor(charId), p = fellByCharId(charId), who = (p && p.name) || 'A Fell'; if (!dcl) return;
   var f = dclFoe(dcl), w = kitAtkWeapon(charId, dcl); if (!f) return;
-  var a = 1 + Math.floor(Math.random() * 6), roll = a, note = '';
-  if (wHas(w, 'Hunting')){ var b = 1 + Math.floor(Math.random() * 6); roll = Math.max(a, b); note = ' (Hunting, a Lucky Roll: ' + a + ' | ' + b + ')'; }
+  var sc = S.scene || {}; sc.landed = sc.landed || {};
+  if (sc.landed[charId + '@' + (S.round || 1) + ':swiftdone']){ playToast('Swift\u2019s second attack has already been taken this round.', 'Swift'); return; }
+  sc.landed[charId + '@' + (S.round || 1) + ':swiftdone'] = true;
+  var a = 1 + Math.floor(Math.random() * 6), roll = a, note = '', unl = !!(p && (p.affs || []).indexOf('Unlucky') >= 0);
+  /* Hunting makes it Lucky; Lucky and Unlucky cancel, the way the sheet counts them */
+  if (wHas(w, 'Hunting') && unl) note = ' (Hunting and Unlucky cancel: one die)';
+  else if (wHas(w, 'Hunting') || unl){ var b = 1 + Math.floor(Math.random() * 6); roll = unl ? Math.min(a, b) : Math.max(a, b); note = unl ? ' (Unlucky: ' + a + ' | ' + b + ')' : ' (Hunting, a Lucky Roll: ' + a + ' | ' + b + ')'; }
   var acc = roll + kitAttr(charId, 'Precision');
   var th = kitToHit(charId, { acc:acc }, f, w);
   var fm = roll === 6 || (roll === 5 && wHas(w, 'Honed'));
@@ -20619,7 +20640,7 @@ var MOVE_DEFAULT = 5;
 function moveLimitOf(t){
   if (!t) return MOVE_DEFAULT;
   /* a lorebound moves as far as its Fell (a Corsair twice as far): FellGuide, Lorebounds */
-  if (t.lb && t.lb.owner){ var ow = (S.tokens || []).filter(function(x){ return x.charId && sameId(x.charId, t.lb.owner); })[0]; if (ow && ow !== t) return moveLimitOf(ow) * (t.lb.form === 'corsair' ? 2 : 1); }
+  if (t.lb && t.lb.owner){ var ow = (S.tokens || []).filter(function(x){ return x.charId && sameId(x.charId, t.lb.owner); })[0]; if (ow && ow !== t) return moveLimitOf(ow) / (agileNow(ow) ? 2 : 1) * (t.lb.form === 'corsair' ? 2 : 1); }
   var found = 0;
   function take(v){ v = Number(v) || 0; if (v > 0 && !found) found = v; }
   try { var r = reachOf(t); if (r) take(r.mobility); } catch(e){}
@@ -20643,7 +20664,9 @@ function agileNow(t){
   if (!t || S.mode !== 'combat' || t.kind !== 'p') return false;
   if (!isLM()) return tokenIsMine(t) && !!_agileRound && _agileRound === ((hand && hand.round) || 0);
   var cid = t.charId || t.refId, d = cid ? declareFor(cid) : null;
-  return !!(d && d.round === (S.round || 1) && wHas(kitAtkWeapon(cid, d), 'Agile'));
+  /* while wielding: any Act made this round, so long as an Agile weapon is in hand */
+  var kk = cid ? kitOf(cid) : null;
+  return !!(d && d.act && d.round === (S.round || 1) && kk && (kk.weapons || []).some(function(w){ return w.held && wHas(w, 'Agile'); }));
 }
 
 /* ---- distance while dragging ---- */
