@@ -6353,8 +6353,9 @@ function cbResolveIncoming(base, bonus, dt){
   bonus = Math.max(0, bonus - def);
   var sr=cbStanceRed();
   if(sr){ var red=sr.value, rb=Math.min(base,red); base-=rb; red-=rb; bonus=Math.max(0, bonus-red); }
-  var marks=[]; if(cbHasAff("Bleeding")) marks.push("Bleeding");
-  return { base: base, bonus: bonus, marks: marks, total: base+bonus+marks.length };
+  /* Bleeding: whenever you take damage, you also take your own Base Damage */
+  var marks=[], bleed=0; if(cbHasAff("Bleeding") && (base+bonus)>0){ bleed=cbOwnBase(); marks.push("Bleeding"); }
+  return { base: base, bonus: bonus, marks: marks, bleed: bleed, total: base+bonus+bleed };
 }
 function applyPendingHit(hit){
   var base=Math.max(0,(hit&&hit.base)|0), bonus=Math.max(0,(hit&&hit.bonus)|0), dt=(hit&&hit.dt)||"phys";
@@ -6364,14 +6365,15 @@ function applyPendingHit(hit){
   }
   var r=cbResolveIncoming(base, bonus, dt);
   if(r.total<=0){ cbPing("The hit is turned aside."); cbLogSelf("fell", meName()+": the hit is turned aside."); return; }
-  /* Threshold: no single hit takes more than half your CURRENT Vitality */
-  if(cbHasAug("Threshold")){ var cap=Math.floor((C.vitality.current||0)/2); if(r.total>cap){ r.cap="Threshold: "+r.total+" becomes "+cap; r.total=cap; } }
+  /* Threshold: no single hit takes more than half your CURRENT Vitality, rounded up, so it
+     halves you down until a hit can kill (Nate, 2026-10-06) */
+  if(cbHasAug("Threshold")){ var cap=Math.ceil((C.vitality.current||0)/2); if(r.total>cap){ r.cap="Threshold: "+r.total+" becomes "+cap; r.total=cap; } }
   window._staged=window._staged||{hits:[],affs:[]};
   window._staged.hits.push({total:r.total, base:r.base, bonus:r.bonus, marks:r.marks||[]});
   window._dmgTakenRound=true;
   try{edgeGlow("rgba(201,106,90,.9)");}catch(e){}
-  cbPing("Taking "+r.total+(r.marks.length?(" (+"+r.marks.length+" "+r.marks.join(" + ")+")"):"")+(r.cap?(" ("+r.cap+")"):"")+" at round end."+(cbHasAug("Driftstep")?" Driftstep: you may move one space now.":""));
-  cbLogSelf("foe", meName()+" takes "+r.total+" ("+r.base+" base + "+r.bonus+" bonus"+(r.marks.length?(" + "+r.marks.length+" from "+r.marks.join(" + ")):"")+")"+(r.cap?(", "+r.cap):"")+" \u00b7 cements at round end.");
+  cbPing("Taking "+r.total+(r.bleed?(" (+"+r.bleed+" Bleeding, your own Base Damage)"):"")+(r.cap?(" ("+r.cap+")"):"")+" at round end."+(cbHasAug("Driftstep")?" Driftstep: you may move one space now.":""));
+  cbLogSelf("foe", meName()+" takes "+r.total+" ("+r.base+" base + "+r.bonus+" bonus"+(r.bleed?(" + "+r.bleed+" Bleeding"):"")+")"+(r.cap?(", "+r.cap):"")+" \u00b7 cements at round end.");
   try{applyCombatMode();}catch(e){}
 }
 function cbCementStaged(){
@@ -7152,8 +7154,11 @@ function cbHasAff(name){ return (C.afflictions||[]).some(function(a){return a.na
 /* a 6, or a 5 with a Honed weapon's attack (Honed: rolls of 5 also count as Fellmarks) */
 function cbIsFellmark(roll, e){ return roll===6 || (roll===5 && !!(e && e.kind==="weapon" && cbWeaponHasInf(e.src,"Honed"))); }
 function cbHasAug(name){ return ((C.armor&&C.armor.augs)||[]).indexOf(name)>=0; }
-function cbHasInfusion(name){ return (C.weapons||[]).some(function(w){ return w.tree && (w.infusions||[]).indexOf(name)>=0; }); }
-function cbWeaponHasInf(wname, inf){ return (C.weapons||[]).some(function(w){ return w.tree && weaponName(w)===wname && (w.infusions||[]).indexOf(inf)>=0; }); }
+/* An infusion counts only while its weapon is equipped (Nate, 2026-10-06) */
+function cbHasInfusion(name){ return (C.weapons||[]).some(function(w){ return w.tree && w.equipped && (w.infusions||[]).indexOf(name)>=0; }); }
+function cbWeaponHasInf(wname, inf){ return (C.weapons||[]).some(function(w){ return w.tree && w.equipped && weaponName(w)===wname && (w.infusions||[]).indexOf(inf)>=0; }); }
+/* this Fell's own Base Damage: the best held weapon's, or an unarmed strike's */
+function cbOwnBase(){ var b=0; (C.weapons||[]).forEach(function(w){ if(w && w.tree && w.equipped && WEAPON_DB[w.tree]){ var d=cbWeaponDmg(w); if(d.base>b) b=d.base; } }); return b || (1+Math.max(0,attrTotal("power"))); }
 /* Unflagging: Fatigue one rank lower while wielding the weapon. Unbowed is a ceiling (3),
    kept in fatigueCap, not a rank off. */
 function cbWields(inf){ return (C.weapons||[]).some(function(w){ return w && w.tree && w.equipped && (w.infusions||[]).indexOf(inf)>=0; }); }
@@ -7831,6 +7836,8 @@ function cbDeclare(){
   var afSel = cbCtl("cbAfflictedSel");
   var chosenAff = (afflicted && afSel) ? afSel.value : "";
   var applies = (fell && foeFocus && e) ? (afflicted ? chosenAff : (e.aff||"")) : "";
+  /* Merciless doubles the Fellmark's effects: its Affliction is applied twice (Nate, 2026-10-06) */
+  if(applies && e && cbWeaponHasInf(e.src,'Merciless')) infNotes.push("Merciless: "+applies+" is applied twice.");
   var merc = !!(e && cbWeaponHasInf(e.src,'Merciless'));
   var fb=(fell && typeof window._fellBonus==="number")?window._fellBonus:0;
   var fbApplied=fb;
