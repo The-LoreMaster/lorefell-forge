@@ -9634,9 +9634,21 @@ function tsSetAttack(id, face){
   var c = findC(id); if (!c) return;
   c._roll = face;
   pushLog({ kind:'sys', html:'<b>' + esc(c.name) + '</b> rolls ' + (face === 6 ? 'a Fellmark' : (face === 1 ? 'a Fellstrike' : face)) + '.' });
+  if (c.target) kitCheckMiss(c.target, c.id);
   applyRemoteState({ scene:S.scene, log:S.log });
   try { combatPublish(); } catch(e){}
   paintLmStrip();
+}
+/* A Fell's Evasion against a foe's attack, both on the board: a miss is answered by the
+   Fell's Guarding and Backlash. Asked whenever either number is set. */
+function kitCheckMiss(defId, atkId){
+  try {
+    var c = findC(defId), atk = findC(atkId); if (!c || !atk) return;
+    if (S.scene.foes.indexOf(c) >= 0 || S.scene.foes.indexOf(atk) < 0 || !atk._roll) return;
+    var ev = (S.scene.eva || {})[tsEvaKey(defId, atkId)]; if (!ev) return;
+    var acc = atk._roll + ((foeLive(atk).attrs.Precision) || 0);
+    if (acc < ev.total) kitMissed(c.charId || c.id, atk);
+  } catch(e){}
 }
 function tsSetEva(defId, atkId, face){
   var c = findC(defId); if (!c) return;
@@ -9644,6 +9656,11 @@ function tsSetEva(defId, atkId, face){
   var evasion = (isFoe ? (foeLive(c).attrs.Evasion) : (c.attrs && c.attrs.Evasion)) || 0;
   S.scene.eva = S.scene.eva || {};
   S.scene.eva[tsEvaKey(defId, atkId)] = { r:face, bonus:evasion, total:face + evasion };
+  if (!isFoe && kitHasAug(c.charId || c.id, 'Afterimage') && (S.scene.afterimg || {})[defId] !== (S.round || 1)){
+    S.scene.afterimg = S.scene.afterimg || {}; S.scene.afterimg[defId] = S.round || 1;
+    pushLog({ kind:'sys', html:'Afterimage: <b>' + esc(c.name) + '</b>\u2019s first Evasion this round is a Lucky Roll. A die entered by hand is taken as the better of the two.' });
+  }
+  kitCheckMiss(defId, atkId);
   applyRemoteState({ scene:S.scene });
   try { combatPublish(); } catch(e){}
   paintLmStrip();
@@ -9696,11 +9713,17 @@ function tsRollEva(defId, atkId){
   var c = findC(defId); if (!c) return;
   var isFoe = S.scene.foes.indexOf(c) >= 0;
   var evasion = (isFoe ? (foeLive(c).attrs.Evasion) : (c.attrs && c.attrs.Evasion)) || 0;
-  var r = 1 + Math.floor(Math.random() * 6);
+  var r = 1 + Math.floor(Math.random() * 6), lucky = '';
+  /* Afterimage: the Fell's first Evasion roll each round is a Lucky Roll */
+  if (!isFoe && kitHasAug(c.charId || c.id, 'Afterimage') && (S.scene.afterimg || {})[defId] !== (S.round || 1)){
+    S.scene.afterimg = S.scene.afterimg || {}; S.scene.afterimg[defId] = S.round || 1;
+    var r2 = 1 + Math.floor(Math.random() * 6); lucky = ' Afterimage makes it a Lucky Roll: ' + r + ' | ' + r2 + '.'; r = Math.max(r, r2);
+  }
   S.scene.eva = S.scene.eva || {};
   S.scene.eva[tsEvaKey(defId, atkId)] = { r:r, bonus:evasion, total:r + evasion };
   var atk = findC(atkId);
-  pushLog({ kind:'sys', html:'<b>' + esc(c.name) + '</b> evades ' + esc((atk && atk.name) || 'the attack') + ', ' + (r + evasion) + ' (' + r + '+' + evasion + ')' + (r === 6 ? ', Fellmark' : (r === 1 ? ', Fellstrike' : '')) + '.' });
+  pushLog({ kind:'sys', html:'<b>' + esc(c.name) + '</b> evades ' + esc((atk && atk.name) || 'the attack') + ', ' + (r + evasion) + ' (' + r + '+' + evasion + ')' + (r === 6 ? ', Fellmark' : (r === 1 ? ', Fellstrike' : '')) + '.' + lucky });
+  kitCheckMiss(defId, atkId);
   applyRemoteState({ scene:S.scene, log:S.log });
   try { combatPublish(); } catch(e){}
   paintLmStrip();
@@ -9720,6 +9743,8 @@ function lmFoeRoll(id){
     if (tgt){ var eva=(tgt.attrs&&tgt.attrs.Evasion)||0, acc=f._roll+prec;
       line += ' + Precision ' + prec + ' = ' + acc + ' vs ' + esc(tgt.name) + ' Evasion ' + eva
         + ' \u2192 <b>' + (acc>=eva?'Hit':'Evaded') + '</b>'; }
+    if (tgt && !(S.scene.eva || {})[tsEvaKey(tgt.id, f.id)]){ var _ev = (tgt.attrs && tgt.attrs.Evasion) || 0; if (f._roll + prec < _ev) setTimeout(function(){ kitMissed(tgt.charId || tgt.id, f); }, 0); }
+    else if (tgt) kitCheckMiss(tgt.id, f.id);
   } else { line += ' \u2192 ' + esc(tag); }
   pushLog({ kind:'sys', html:line + '.' });
   applyRemoteState({ scene:S.scene, log:S.log });
@@ -10224,11 +10249,17 @@ function foeAttrsLive(f){
    (magical) meets only the Bonus. A stance at Tier 2 also takes its stat off the damage,
    Base first, then Bonus. Bleeding adds its own Base Damage; Threshold caps a hit at half
    its current Vitality; Emberhold holds it at 1 (an even chance it dies). Every step is a line. */
-function foeHitCalc(f, base, bonus, magical){
+function foeHitCalc(f, base, bonus, magical, opt){
+  opt = opt || {};
   base = Math.max(0, base | 0); bonus = Math.max(0, bonus | 0);
-  var a = foeAttrsLive(f), st = FOE_STANCE[f.stance], tier = foeStanceTier(f), lines = [], notes = [];
+  /* Goring (an attacker's infusion) ignores the Armor Stance entirely: no T1 bump, no T2 cut */
+  var goring = !!opt.goring && !!FOE_STANCE[f.stance];
+  var a = goring ? Object.assign({}, foeLive(f).attrs || {}) : foeAttrsLive(f), st = goring ? null : FOE_STANCE[f.stance], tier = goring ? 0 : foeStanceTier(f), lines = [], notes = [];
+  if (goring) lines.push('Goring: its ' + f.stance + ' stance is ignored');
   var defName = magical ? 'Resistance' : 'Durability', def = a[defName] || 0;
   if (st && tier >= 1 && st.stat === defName) lines.push(defName + ' ' + (def - 2) + ' + 2 (' + f.stance + ' T1) = ' + def);
+  /* Powerful and Ethereal: the attacker ignores that much of the defense the Bonus meets */
+  if (opt.pierce > 0 && def > 0){ var pc = Math.min(def, opt.pierce | 0); lines.push((opt.pierceBy || 'Pierce') + ': ignores ' + pc + ' of its ' + defName + ', ' + def + ' → ' + (def - pc)); def -= pc; }
   var b = base, bo = bonus;
   if (st && tier >= 2){
     var R = a[st.stat] || 0, offB = Math.min(b, R), left = R - offB;
@@ -10267,12 +10298,17 @@ function foeHitResult(f){
 }
 function foeHitApply(id){
   var f = foeById(id); if (!f) return; var h = _hit[id]; if (!h || (!h.base && !h.bonus)) return;
-  var r = foeHitCalc(f, h.base, h.bonus, h.mag), cur = r.cur, end = Math.max(0, cur - r.total), extra = '';
-  if (r.ember){ var coin = 1 + Math.floor(Math.random() * 2); end = coin === 1 ? 0 : 1; extra = ' Emberhold holds it at 1; the even chance comes up ' + (coin === 1 ? '<b>death</b>' : '<b>life</b>') + '.'; if (coin === 1){ f.down = true; } }
-  var p = pendFor(f.id); p.dvit = (p.dvit || 0) + (end - cur);
+  var r = foeHitCalc(f, h.base, h.bonus, h.mag), st = foeStage(f, r), cur = st.cur, end = st.end, extra = st.extra;
   pushLog({ kind:'sys', lmOnly:true, html:'Round ' + (S.round || 1) + '. <b>' + esc(f.name) + '</b> takes a hit: ' + h.base + ' Base + ' + h.bonus + ' Bonus, ' + (h.mag ? 'Magical' : 'Physical') + '. ' + r.lines.map(esc).join('. ') + '. <b>' + r.total + ' damage</b>, ' + cur + ' \u2192 ' + end + ', staged for the end of the round.' + extra });
   _hit[id] = { base:0, bonus:0, mag:h.mag };
   combatPublish(); applyRemoteState({ scene:S.scene, log:S.log }); paintLmStrip(); paintHud();
+}
+/* A worked hit staged on a foe for the end of the round, Emberhold's even chance rolled here */
+function foeStage(f, r){
+  var cur = r.cur, end = Math.max(0, cur - r.total), extra = '';
+  if (r.ember){ var coin = 1 + Math.floor(Math.random() * 2); end = coin === 1 ? 0 : 1; extra = ' Emberhold holds it at 1; the even chance comes up ' + (coin === 1 ? '<b>death</b>' : '<b>life</b>') + '.'; if (coin === 1){ f.down = true; } }
+  var p = pendFor(f.id); p.dvit = (p.dvit || 0) + (end - cur);
+  return { cur:cur, end:end, extra:extra };
 }
 /* Vitality typed straight in: a correction, so it lands now and clears anything staged */
 function foeVitSet(id, v){
@@ -10352,14 +10388,14 @@ function foeAttackNotes(f){
 function foeTabBody(f, tab, resolve){
   var sr = f.sr || 'Elite', minion = sr === 'Minion', R = foeReveal(f);
   if (tab === 'round' && !resolve){
-    return fcSec('This round', '<div class="fc-muted">Tap a Fell on the map or the strip to make it the target.</div>' + actLine(f, 'foe'))
+    return fcSec('This round', '<div class="fc-muted">Tap a Fell on the map or the strip to make it the target.</div>' + actLine(f, 'foe') + kitBulwarkRow(f))
       + fcSec('Strike', foeStrikeLine(f))
       + (foeAttackNotes(f) ? fcSec('As it attacks', foeAttackNotes(f)) : '')
       + fcSec('React', minion ? '<div class="fc-muted">A Minion has no React.</div>' : foeReactRow(f));
   }
   if (tab === 'round'){
     var h0 = _hit[f.id] || { base:0, bonus:0, mag:false };
-    return fcSec('Its act', '<div class="fc-intent">' + (f.act ? esc(f.act) + (f.target ? ' \u2192 ' + esc(targetName(f.target)) : '') : '<span class="fc-muted">Nothing committed.</span>') + '</div>' + (f.act && f.target ? foeDiceRow(f) : ''))
+    return fcSec('Its act', '<div class="fc-intent">' + (f.act ? esc(f.act) + (f.target ? ' \u2192 ' + esc(targetName(f.target)) : '') : '<span class="fc-muted">Nothing committed.</span>') + '</div>' + (f.act && f.target ? foeDiceRow(f) : '') + kitBulwarkRow(f))
       + fcSec('Damage to read out', foeStrikeLine(f) + foeAttackNotes(f))
       + fcSec('Take a hit', '<div class="fc-hitin"><label><span>Base</span><input inputmode="numeric" id="fhB-' + f.id + '" value="' + (h0.base || '') + '" oninput="foeHitRead(\'' + f.id + '\')"></label>'
           + '<label><span>Bonus</span><input inputmode="numeric" id="fhO-' + f.id + '" value="' + (h0.bonus || '') + '" oninput="foeHitRead(\'' + f.id + '\')"></label>'
@@ -10502,21 +10538,21 @@ function fellCardOpen(p){
 function fellAttackers(p){
   return ((S.scene && S.scene.foes) || []).filter(function(f){ return !cDown(f) && f.act && (sameId(f.target, p.id) || sameId(f.target, p.charId)); });
 }
-function fellSendFrom(cid, base, bonus, type, from){
-  lmDealDamage(cid, base, bonus, type);
-  var p = fellByCharId(cid);
-  pushLog({ kind:'sys', html:'<b>' + esc((p && p.name) || 'A Fell') + '</b> is struck for ' + base + ' + ' + bonus + ' ' + (type === 'magic' ? 'Magical' : 'Physical') + (from ? ' by ' + esc(from) : '') + '. Their sheet applies their defenses.' });
-  applyRemoteState({ log:S.log });
+function fellSendFrom(cid, base, bonus, type, from, foeId){
+  /* who sent it decides what answers it: Vengeful, Backlash and Deathsong strike back at it */
+  var foe = foeId ? foeById(foeId) : null;
+  if (!foe && from) ((S.scene && S.scene.foes) || []).forEach(function(f){ if (!foe && String(f.name).replace(/'/g, '') === from) foe = f; });
+  kitStruck(cid, foe, base, bonus, type);
 }
 function fellCardBody(p, tab, resolve){
   var cid = p.charId || p.id, dcl = declareFor(cid) || {}, dm = p.dmg || {}, esCid = esc(cid);
   var attackers = fellAttackers(p);
-  var tgtName = ''; if (dcl.target) ((S.scene && S.scene.foes) || []).forEach(function(f){ if (sameId(f.id, dcl.target) || f.name === dcl.target) tgtName = f.name; });
+  var tgtFoe = dclFoe(dcl), tgtName = tgtFoe ? tgtFoe.name : '';
   var declared = dcl.act ? esc(dcl.act) + (tgtName ? ' \u2192 ' + esc(tgtName) : '') : '<span class="fc-muted">Nothing declared yet.</span>';
   var strike = '<div class="fc-strike"><div><span>Damage</span><b>' + (dm.base || 0) + ' + ' + (dm.bonus || 0) + ' <i>' + (dm.type === 'magical' ? 'Magical' : 'Physical') + '</i></b></div><div><span>To hit</span><b>' + esc(dm.acc || '') + '</b></div></div>';
   var coming = attackers.length ? attackers.map(function(f){ var fd = foeLive(f).dmg || {};
       return '<div class="fc-cond"><div><b style="color:#dce8ef">' + esc(f.name) + '</b> ' + esc(f.act) + ': ' + (fd.base || 0) + ' + ' + (fd.bonus || 0) + ' ' + (fd.type === 'magical' ? 'Magical' : 'Physical') + '</div>'
-        + (resolve ? '<button class="fc-btn" onclick="fellSendFrom(\'' + esCid + '\',' + (fd.base || 0) + ',' + (fd.bonus || 0) + ',\'' + (fd.type === 'magical' ? 'magic' : 'phys') + '\',\'' + esc(f.name).replace(/'/g, '') + '\')">Send</button>' : '') + '</div>'; }).join('')
+        + (resolve ? '<button class="fc-btn" onclick="fellSendFrom(\'' + esCid + '\',' + (fd.base || 0) + ',' + (fd.bonus || 0) + ',\'' + (fd.type === 'magical' ? 'magic' : 'phys') + '\',\'' + esc(f.name).replace(/'/g, '') + '\',\'' + esc(f.id) + '\')">Send</button>' : '') + '</div>'; }).join('')
     : '<div class="fc-muted">No foe is aiming at them.</div>';
   if (tab === 'round' && !resolve){
     return fcSec('Declared', '<div class="fc-intent">' + declared + '</div>' + declarePlacesHtml(dcl, cid))
@@ -10525,7 +10561,9 @@ function fellCardBody(p, tab, resolve){
       + fcSec('Reacts on hand', p.react ? '<div class="fc-prose">Used: ' + esc(p.react) + '</div>' : '<div class="fc-prose">' + ((p.reacts || []).map(esc).join(', ') || 'None listed') + '</div>');
   }
   if (tab === 'round'){
-    var landed = dcl.dmg ? '<div class="fc-hitrow"><div><b class="fc-big">' + (dcl.base || 0) + ' + ' + Math.max(0, (dcl.dmg || 0) - (dcl.base || 0)) + '</b> <span class="fc-muted">to ' + esc(tgtName || 'the target') + '</span></div><button class="fc-apply" onclick="resolveOnFoe(\'' + esCid + '\')">Land it</button></div>' : '';
+    var _th = (dcl.dmg && tgtFoe && dcl.acc) ? kitToHit(cid, dcl, tgtFoe, kitAtkWeapon(cid, dcl)) : null;
+    var landed = dcl.dmg ? '<div class="fc-hitrow"><div><b class="fc-big">' + (dcl.base || 0) + ' + ' + Math.max(0, (dcl.dmg || 0) - (dcl.base || 0)) + '</b> <span class="fc-muted">to ' + esc(tgtName || 'the target') + '</span></div><button class="fc-apply" onclick="resolveOnFoe(\'' + esCid + '\')">Land it</button></div>'
+      + (_th ? '<div class="fc-note' + (_th.hit ? ' auto' : '') + '">' + esc(_th.line) + '.</div>' : '') + kitAtkNotes(cid, dcl) : '';
     return fcSec('Their act', '<div class="fc-intent">' + declared + '</div>'
         + (dcl.roll ? '<div class="fc-prose">Rolled ' + dcl.roll + (dcl.acc ? ' against ' + dcl.acc : '') + (dcl.fellstrike ? ' \u00b7 <b style="color:#e3a193">Fellstrike</b>' : '') + '</div>' : '<div class="fc-muted">No roll yet.</div>') + landed)
       + fcSec('Hits coming for them', coming)
@@ -10872,10 +10910,17 @@ function resolveOnePlacement(charId, dcl, announce){
     return true;
   }
   var good = places.filter(function(q){ return q && typeof q.x === 'number' && typeof q.y === 'number'; });
+  /* Ironroot: a placed effect cannot target the space an Ironroot Fell holds */
+  var rooted = good.filter(function(q){ return ironrootAt(snapAxis(q.x, S.grid.offX, 1), snapAxis(q.y, S.grid.offY, 1)); });
+  if (rooted.length){
+    good = good.filter(function(q){ return rooted.indexOf(q) < 0; });
+    pushLog({ kind:'sys', html:'Ironroot: ' + rooted.length + ' of the spaces ' + esc(who) + ' chose for ' + esc(util) + (rooted.length === 1 ? ' is' : ' are') + ' held by ' + esc(tokenName(ironrootAt(snapAxis(rooted[0].x, S.grid.offX, 1), snapAxis(rooted[0].y, S.grid.offY, 1))) || 'a Fell') + ' and cannot be targeted, so ' + (rooted.length === 1 ? 'it is' : 'they are') + ' left off.' });
+    applyRemoteState({ log:S.log });
+  }
   /* A square that arrived without numbers is not placed at a guess. a25 already shows it
      as [?] in the readout; here it is refused and counted, because a marker put down at
      0,0 because a field was missing is worse than one square fewer and a line saying so. */
-  var bad = places.length - good.length;
+  var bad = places.length - good.length - rooted.length;
   if (!good.length){
     if (announce){
       pushLog({ kind:'sys', html:'<b>' + esc(who) + '</b> declared ' + esc(util)
@@ -10943,26 +10988,356 @@ function lmMaterialisePlacements(){
 function lmPushPlacement(charId, pid, util, squares){
   tsAsk('TS_COMBAT_PLACED', { charId:charId, pid:pid, util:util, squares:squares }).catch(function(){});
 }
-/* the Fell's declared damage, landed on the foe they aimed at */
-function resolveOnFoe(charId){
-  var dcl = declareFor(charId); if (!dcl) return;
+/* ==== infusions and augmentations at the table (#754) ====
+   What the FellGuide says a weapon's infusions and an armor's augmentations do, done by the
+   table rather than remembered, and said out loud: each one that fires puts a line in the
+   log naming itself and what it did, and each one that cannot fire says why, so the
+   LoreMaster and the player both know. The kit is read off the Fell's own sheet (the gear
+   it syncs: each weapon's infusions and damage, the armor's augmentations, the attributes
+   they count from), and the sheet stamps which weapon an Act was made with. Anything that
+   has to change on the sheet (Vitality, Charges, an Affliction, an effect) goes to it as an
+   op, and the sheet answers in its own log. */
+function kitGear(cid){ var d = declareFor(cid); return (d && d.gear) || null; }
+function kitOf(cid){ var g = kitGear(cid); return (g && g.kit) || null; }
+function kitHasAug(cid, n){ var g = kitGear(cid); return !!(g && (g.augs || []).indexOf(n) >= 0); }
+function kitAttr(cid, k){ var kk = kitOf(cid); return Math.max(0, Number(kk && kk.attrs && kk.attrs[k]) || 0); }
+function kitDef(cid){ return Math.max(kitAttr(cid, 'Evasion'), kitAttr(cid, 'Durability'), kitAttr(cid, 'Resistance')); }
+function kitMob(cid){ var kk = kitOf(cid); return Math.max(0, Number(kk && kk.mobility) || 0) || MOVE_DEFAULT; }
+/* the weapon this round's Act was made with: named by the sheet, or the only one carried */
+function kitAtkWeapon(cid, dcl){
+  var kk = kitOf(cid), g = kitGear(cid); if (!kk) return null;
+  var ws = kk.weapons || [], a = g && g.atk;
+  if (a && a.src && (!dcl || !a.round || !dcl.round || a.round === dcl.round)){ var w = ws.filter(function(x){ return x.name === a.src; })[0]; if (w) return w; }
+  if (ws.length === 1) return ws[0];
+  var held = ws.filter(function(x){ return x.held; });
+  return held.length === 1 ? held[0] : null;
+}
+/* a weapon in hand carrying this infusion (the held one first), for the ones that answer
+   an attack on the Fell rather than one the Fell makes */
+function kitWielded(cid, n){
+  var kk = kitOf(cid); if (!kk) return null;
+  var ws = (kk.weapons || []).filter(function(w){ return (w.infs || []).indexOf(n) >= 0; });
+  return ws.filter(function(w){ return w.held; })[0] || ws[0] || null;
+}
+function wHas(w, n){ return !!(w && (w.infs || []).indexOf(n) >= 0); }
+function kitTokChar(cid){ return (S.tokens || []).filter(function(t){ return t.charId && sameId(t.charId, cid); })[0] || null; }
+function kitTokFoe(f){ return f ? ((S.tokens || []).filter(function(t){ return (t.kind === 'foe' || t.kind === 'npc') && t.refId && sameId(t.refId, f.id); })[0] || null) : null; }
+/* spaces between two tokens the LoreFell way: the larger of the two sides, edge to edge */
+function kitSpaces(a, b){
+  var g = (S.grid && S.grid.size) || 100;
+  var d = Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y)) / g - ((a.cells || 1) - 1) / 2 - ((b.cells || 1) - 1) / 2;
+  return Math.max(0, Math.round(d * 100) / 100);
+}
+function dclFoe(dcl){
+  var t = String((dcl && dcl.target) || ''), id = t.indexOf('m:') === 0 ? t.slice(2) : t, f = null;
+  ((S.scene && S.scene.foes) || []).forEach(function(x){ if (sameId(x.id, id) || sameId(x.id, t) || x.name === t) f = x; });
+  return f;
+}
+/* Back to the Fell's sheet. The LoreMaster's recap is the one durable channel the sheet
+   reads in FellGlass and in ThreadSpire alike, so the ops ride it, each with an id the sheet
+   keeps once done; a reload never runs one twice. The last few go every time, so two sent
+   between the sheet's polls do not overwrite each other. */
+function lmSendOps(charId, ops, text){
+  if (!ops || !ops.length) return;
+  var sc = S.scene || {}; sc.opsQ = sc.opsQ || {};
+  var q = (sc.opsQ[charId] || []).slice(-8);
+  ops.forEach(function(o){ o.id = 'op' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); q.push(o); });
+  sc.opsQ[charId] = q;
   var p = fellByCharId(charId);
-  var f = null;
-  ((S.scene && S.scene.foes) || []).forEach(function(x){ if (sameId(x.id, dcl.target) || x.name === dcl.target) f = x; });
-  if (!f){ pushLog({ kind:'sys', html:'No foe named on that declare.' }); applyRemoteState({ log:S.log }); return; }
-  var total = Math.max(0, dcl.dmg || 0);
-  f.curVit = Math.max(0, (f.curVit || 0) - total);
-  pushLog({ kind:'sys', html:'<b>' + esc((p && p.name) || 'A Fell') + '</b> lands ' + total + ' on <b>' + esc(f.name) + '</b>, now ' + f.curVit + '/' + f.maxVit + '.' });
+  lmApplyEffects(charId, (p && p.affs) || [], { msg:'⁣ops:' + JSON.stringify(q) + '⁣' + (text || ''), at:Date.now() });
+}
+function kitCharge(p, cid, n, why, ops){
+  var was = Math.max(0, Math.min(3, (p && p.charge) || 0)), now = Math.max(0, Math.min(3, was + n));
+  if (now === was) return false;
+  if (p) p.charge = now;
+  ops.push({ op:'charge', n:now - was, why:why });
+  return true;
+}
+/* Pull (toward) or push (away) one space, from where the source stands. Refused by the edge,
+   a wall, ground that cannot be crossed or someone in the space, and said which. */
+function kitShove(tok, from, away){
+  if (!tok || !from) return { moved:false, why:'no token on the map' };
+  var g = (S.grid && S.grid.size) || 100;
+  var dx = Math.round((tok.x - from.x) / g), dy = Math.round((tok.y - from.y) / g);
+  dx = dx > 0 ? 1 : (dx < 0 ? -1 : 0); dy = dy > 0 ? 1 : (dy < 0 ? -1 : 0);
+  if (!dx && !dy) return { moved:false, why:'they share a space' };
+  if (!away){ dx = -dx; dy = -dy; }
+  var nx = tok.x + dx * g, ny = tok.y + dy * g;
+  if (nx < 0 || ny < 0 || nx > S.map.w || ny > S.map.h) return { moved:false, why:'the edge of the map' };
+  if (moveCrossesWall(tok.x, tok.y, nx, ny)) return { moved:false, why:'a wall' };
+  if (paleBlocks(nx, ny)) return { moved:false, why:'ground that cannot be crossed' };
+  var reach = g * ((tok.cells || 1)) / 2;
+  var occ = (S.tokens || []).filter(function(o){ return o !== tok && o.kind !== 'marker' && Math.max(Math.abs(o.x - nx), Math.abs(o.y - ny)) < reach + g * (o.cells || 1) / 2 - 1; })[0];
+  var nm = function(o){ var fc = o.charId ? fellByCharId(o.charId) : null; return tokenName(o) || (fc && fc.name) || o.name || 'something'; };
+  if (occ === from) return { moved:false, why:'already beside ' + nm(from) };
+  if (occ) return { moved:false, why:nm(occ) + ' in the way' };
+  tok.x = nx; tok.y = ny;
+  send({ type:'token-move', id:tok.id, x:tok.x, y:tok.y }); try { roomTokDrop(tok); } catch(e){}
+  try { renderTokens(); } catch(e){}
+  return { moved:true };
+}
+/* Rooting: the struck token cannot move until the round ends. Marked on the token, so every
+   screen shows Rooted and a drag is refused with the reason. */
+function kitRoot(tok, by){
+  if (!tok) return false;
+  tok.rooted = { round:S.round || 1, by:by };
+  applyRemoteState({ tokens:S.tokens }); try { schedulePush(); } catch(e){} try { renderTokens(); } catch(e){}
+  return true;
+}
+function tokRooted(t){ return !!(t && t.rooted && S.mode === 'combat' && t.rooted.round === (S.round || 1)); }
+/* Base Damage landed on another foe, worked and staged the same way as the hit itself */
+function kitFoeTakes(f2, base, bonus, mag, why){
+  var r2 = foeHitCalc(f2, base, bonus, mag), st2 = foeStage(f2, r2);
+  pushLog({ kind:'sys', lmOnly:true, html:esc(why) + ': <b>' + esc(f2.name) + '</b> ' + r2.lines.map(esc).join('. ') + '. ' + r2.total + ' damage, ' + st2.cur + ' → ' + st2.end + ', staged.' + st2.extra });
+  return r2.total;
+}
+/* Accuracy against the foe's Evasion, with Targeted taking its share off */
+function kitToHit(cid, dcl, f, w){
+  var acc = dcl.acc || 0, eva = (foeAttrsLive(f).Evasion) || 0, ign = 0;
+  if (wHas(w, 'Targeted')) ign = Math.min(eva, kitAttr(cid, 'Precision'));
+  var hit = acc >= eva - ign;
+  return { acc:acc, eva:eva, ign:ign, hit:hit, line:'Accuracy ' + acc + ' vs Evasion ' + eva + (ign ? ' (Targeted ignores ' + ign + ', so ' + (eva - ign) + ')' : '') + ': ' + (hit ? 'a hit' : 'a miss') };
+}
+/* What will fire when this Fell's hit lands, so the LoreMaster sees it before pressing */
+function kitAtkNotes(cid, dcl){
+  if (!kitOf(cid)) return '<div class="fc-muted">Their sheet has not sent its infusions yet.</div>';
+  var w = kitAtkWeapon(cid, dcl);
+  if (!w) return '<div class="fc-muted">Which weapon made this attack is not known, so its infusions will not be counted.</div>';
+  var live = ['Goring','Siphoning','Vorpal','Welling','Rooting','Hooking','Forceful','Sweeping','Coursing','Reprieve','Emboldening','Devouring','Swift','Targeted','Hunting','Honed'].filter(function(n){ return wHas(w, n); });
+  if (dcl.pierce) live.unshift(dcl.dt === 'magic' ? 'Ethereal' : 'Powerful');
+  return live.length ? '<div class="fc-note auto">' + esc(w.name) + ': ' + esc(live.join(', ')) + ' worked when it lands.</div>' : '';
+}
+/* the Fell's declared damage, landed on the foe they aimed at: through its defenses, then
+   whatever the weapon's infusions do when it deals damage */
+function resolveOnFoe(charId, opt){
+  opt = opt || {};
+  var dcl = declareFor(charId); if (!dcl) return;
+  var p = fellByCharId(charId), who = (p && p.name) || 'A Fell';
+  var f = dclFoe(dcl);
+  if (!f){ pushLog({ kind:'sys', lmOnly:true, html:'No foe is named on ' + esc(who) + '’s declare.' }); applyRemoteState({ log:S.log }); return; }
+  var sc = S.scene, rnd = S.round || 1;
+  sc.landed = sc.landed || {};
+  var lk = charId + '@' + rnd + (opt.swift ? ':swift' : '');
+  if (sc.landed[lk] && !opt.again){ playToast(esc(who) + '’s ' + (opt.swift ? 'Swift attack' : 'hit') + ' has already landed this round.', 'Land it'); return; }
+  sc.landed[lk] = true;
+  var w = kitAtkWeapon(charId, dcl), known = !!kitOf(charId), wn = w ? w.name : 'their weapon';
+  var has = function(n){ return wHas(w, n); };
+  var base = Math.max(0, dcl.base || 0), bonus = Math.max(0, (dcl.dmg || 0) - base), mag = dcl.dt === 'magic';
+  var wBase = (w && w.base) || base;
+  var r = foeHitCalc(f, base, bonus, mag, { pierce:dcl.pierce || 0, pierceBy:mag ? 'Ethereal' : 'Powerful', goring:has('Goring') });
+  var st = foeStage(f, r), pub = [], ops = [], fx = [];
+  var th = kitToHit(charId, dcl, f, w);
+  pushLog({ kind:'sys', lmOnly:true, html:'Round ' + rnd + '. <b>' + esc(who) + '</b> lands ' + (opt.swift ? 'Swift’s second attack' : esc(dcl.act || 'an attack')) + ' on <b>' + esc(f.name) + '</b>: ' + base + ' Base + ' + bonus + ' Bonus, ' + (mag ? 'Magical' : 'Physical') + '. ' + (dcl.acc && !opt.swift ? esc(th.line) + '. ' : '') + r.lines.map(esc).join('. ') + '. <b>' + r.total + ' damage</b>, ' + st.cur + ' → ' + st.end + ', staged for the end of the round.' + st.extra });
+  pub.push('<b>' + esc(who) + '</b> ' + (opt.swift ? 'strikes again with Swift' : 'lands ' + esc(dcl.act || 'an attack')) + ' on <b>' + esc(f.name) + '</b> for <b>' + r.total + '</b>' + (has('Goring') && FOE_STANCE[f.stance] ? ', Goring through its ' + esc(f.stance) + ' stance' : '') + (dcl.pierce ? ', ' + (mag ? 'Ethereal' : 'Powerful') + ' ignoring ' + dcl.pierce + ' of its ' + (mag ? 'Resistance' : 'Durability') : '') + '.');
+  if (!known) fx.push('Their sheet has not sent its infusions yet, so only the damage is counted.');
+  else if (!w) fx.push('Which weapon made this attack is not known, so its infusions are not counted.');
+  var dealt = r.total > 0;
+  sc.dealt = sc.dealt || {}; if (dealt) sc.dealt[charId] = rnd;
+  var ft = kitTokFoe(f), mt = kitTokChar(charId);
+  if (w && dealt){
+    if (has('Siphoning')){
+      if ((f.charge || 0) > 0 && f.sr !== 'Minion'){ f.charge--; kitCharge(p, charId, 1, 'Siphoning', ops) ? fx.push('Siphoning takes one of ' + esc(f.name) + '’s Charges for ' + esc(who) + '.') : fx.push('Siphoning takes one of ' + esc(f.name) + '’s Charges; ' + esc(who) + ' is already at Tier 3.'); }
+      else fx.push('Siphoning: ' + esc(f.name) + ' has no Charge to take.');
+    }
+    if (has('Vorpal')){
+      var vw = f.charge || 0; f.charge = Math.max(0, vw - 2);
+      fx.push(vw ? 'Vorpal: ' + esc(f.name) + ' loses ' + (vw - f.charge) + ' Charge' + (vw - f.charge === 1 ? '' : 's') + ' (' + vw + ' → ' + f.charge + ').' : 'Vorpal: ' + esc(f.name) + ' has no Charges to lose.');
+    }
+    if (has('Welling')) fx.push(kitCharge(p, charId, 1, 'Welling', ops) ? 'Welling charges ' + esc(who) + ' one more tier.' : 'Welling: ' + esc(who) + ' is already at Tier 3.');
+    if (has('Rooting')){
+      f.rootedRound = rnd;
+      fx.push(ft && kitRoot(ft, who + '’s Rooting') ? 'Rooting: ' + esc(f.name) + ' cannot move until the round ends.' : 'Rooting: ' + esc(f.name) + ' cannot move until the round ends (it has no token on the map to lock).');
+    }
+    ['Hooking', 'Forceful'].forEach(function(n){
+      if (!has(n)) return;
+      var verb = n === 'Hooking' ? 'pull' : 'push', why;
+      if (foeHas(f, 'Oakspine')) why = 'Oakspine holds it in place';
+      else if (!ft || !mt) why = 'the map has no token for ' + (!ft ? esc(f.name) : esc(who));
+      else { var sv = kitShove(ft, mt, n === 'Forceful'); if (sv.moved){ fx.push(n + ' ' + verb + 's ' + esc(f.name) + ' one space ' + (n === 'Hooking' ? 'toward ' : 'away from ') + esc(who) + '.'); return; } why = sv.why; }
+      if (!ft || !mt){ fx.push(n + ': ' + why + ', so move it by hand.'); return; }
+      var hd = kitFoeTakes(f, wBase, 0, mag, n + ' (blocked)');
+      fx.push(n + ' cannot ' + verb + ' ' + esc(f.name) + ' (' + why + '), so it takes ' + esc(wn) + '’s Base Damage instead: ' + hd + '.');
+    });
+    if (has('Sweeping')){
+      var others = ((sc.foes) || []).filter(function(o){ return o !== f && !cDown(o) && kitTokFoe(o); });
+      if (!ft || !others.length) fx.push('Sweeping: ' + (others.length ? esc(f.name) + ' has no token, so the nearest cannot be found' : 'no other enemy is on the map') + '.');
+      else {
+        others.sort(function(a, b){ return kitSpaces(ft, kitTokFoe(a)) - kitSpaces(ft, kitTokFoe(b)); });
+        var sd = kitFoeTakes(others[0], wBase, 0, mag, 'Sweeping');
+        fx.push('Sweeping: the nearest other enemy, <b>' + esc(others[0].name) + '</b>, takes ' + sd + '.');
+      }
+    }
+  } else if (w && !dealt && ['Siphoning', 'Vorpal', 'Welling', 'Rooting', 'Hooking', 'Forceful', 'Sweeping'].some(has)){
+    fx.push(['Siphoning', 'Vorpal', 'Welling', 'Rooting', 'Hooking', 'Forceful', 'Sweeping'].filter(has).join(', ') + ': the hit dealt no damage, so nothing fires.');
+  }
+  if (w && has('Coursing')){
+    if (!mag) fx.push('Coursing fires on a spell, and this was not one.');
+    else if (!mt) fx.push('Coursing: ' + esc(who) + ' has no token, so who is adjacent is not known.');
+    else {
+      var adj = ((sc.foes) || []).filter(function(o){ var tk = kitTokFoe(o); return !cDown(o) && tk && kitSpaces(mt, tk) <= 1.01; });
+      if (!adj.length) fx.push('Coursing: no enemy stands adjacent to ' + esc(who) + '.');
+      else fx.push('Coursing: ' + adj.map(function(o){ return esc(o.name) + ' takes ' + kitFoeTakes(o, wBase, 0, true, 'Coursing'); }).join(', ') + '.');
+    }
+  }
+  /* reduced to 0, counting everything this weapon dealt it just now (a blocked Hooking,
+     Coursing), not only the first number */
+  var endNow = shownVit(f); st.end = Math.min(st.end, endNow);
+  if (w && st.end <= 0 && st.cur > 0){
+    if (has('Reprieve')){ ops.push({ op:'clearAff', why:'Reprieve' }); if (p && (p.affs || []).length) p.affs.shift(); fx.push('Reprieve: ' + esc(f.name) + ' drops, and one Affliction leaves ' + esc(who) + '.'); }
+    if (has('Emboldening')){ var pw = kitAttr(charId, 'Power'); if (pw){ ops.push({ op:'temp', n:pw, why:'Emboldening' }); fx.push('Emboldening: ' + esc(who) + ' gains ' + pw + ' temporary Vitality.'); } else fx.push('Emboldening: ' + esc(who) + '’s Power is 0, so it grants nothing.'); }
+    if (has('Devouring')){ var mg = kitAttr(charId, 'Magic'); if (mg){ ops.push({ op:'heal', n:mg, why:'Devouring' }); fx.push('Devouring: ' + esc(who) + ' restores ' + mg + ' Vitality.'); } else fx.push('Devouring: ' + esc(who) + '’s Magic is 0, so it restores nothing.'); }
+  } else if (w && ['Reprieve', 'Emboldening', 'Devouring'].some(has) && st.cur > 0){
+    fx.push(['Reprieve', 'Emboldening', 'Devouring'].filter(has).join(', ') + ': ' + esc(f.name) + ' is still standing (' + st.end + '), so ' + (['Reprieve', 'Emboldening', 'Devouring'].filter(has).length > 1 ? 'they wait' : 'it waits') + ' for the blow that drops it.');
+  }
+  pushLog({ kind:'sys', html:pub.concat(fx).join(' ') });
+  if (ops.length) lmSendOps(charId, ops, fx.filter(function(x){ return /Siphoning|Welling|Reprieve|Emboldening|Devouring/.test(x); }).join(' ').replace(/<[^>]*>/g, ''));
   combatPublish(); applyRemoteState({ scene:S.scene, log:S.log }); paintLmStrip(); paintHud();
+  /* Swift: one more standard attack against the same target, at once, which does not trigger
+     itself again. Offered rather than rolled behind anyone's back. */
+  if (w && has('Swift') && !opt.swift){
+    if (!/basic|standard/i.test(dcl.act || '')) pushLog({ kind:'sys', lmOnly:true, html:'Swift: ' + esc(who) + '’s Act was not a standard attack, so no second attack.' });
+    else tsModal('<h3 class="tsm-title">Swift</h3><p class="tsm-note">' + esc(who) + '’s ' + esc(wn) + ' is Swift: one more standard attack against ' + esc(f.name) + ', at once.</p>'
+      + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal();kitSwiftSkip(\'' + esc(charId) + '\')">Skip it</button><button class="tsm-btn" onclick="tsCloseModal();kitSwift(\'' + esc(charId) + '\')">Roll it</button></div>');
+  }
+}
+function kitSwiftSkip(charId){ var p = fellByCharId(charId); pushLog({ kind:'sys', html:'Swift: <b>' + esc((p && p.name) || 'A Fell') + '</b>’s second attack is not taken.' }); applyRemoteState({ log:S.log }); }
+/* the second attack, rolled here: a d6 plus Precision against the foe's Evasion (Hunting
+   makes it Lucky, Targeted takes its share off), then landed like the first */
+function kitSwift(charId){
+  var dcl = declareFor(charId), p = fellByCharId(charId), who = (p && p.name) || 'A Fell'; if (!dcl) return;
+  var f = dclFoe(dcl), w = kitAtkWeapon(charId, dcl); if (!f) return;
+  var a = 1 + Math.floor(Math.random() * 6), roll = a, note = '';
+  if (wHas(w, 'Hunting')){ var b = 1 + Math.floor(Math.random() * 6); roll = Math.max(a, b); note = ' (Hunting, a Lucky Roll: ' + a + ' | ' + b + ')'; }
+  var acc = roll + kitAttr(charId, 'Precision');
+  var th = kitToHit(charId, { acc:acc }, f, w);
+  var fm = roll === 6 || (roll === 5 && wHas(w, 'Honed'));
+  pushLog({ kind:'sys', html:'Swift: <b>' + esc(who) + '</b> rolls ' + roll + note + ' + Precision ' + kitAttr(charId, 'Precision') + '. ' + esc(th.line) + '.' + (fm ? ' A Fellmark' + (roll === 5 ? ' (Honed counts the 5)' : '') + ': its effect is the LoreMaster’s to apply.' : '') });
+  applyRemoteState({ log:S.log });
+  if (th.hit) resolveOnFoe(charId, { swift:true });
+}
+/* A foe's attack lands on a Fell. Runeguard first (it cuts the Base before it goes), then
+   the Fell's own answers: Vengeful and Backlash on a hit, Deathsong once damage lands, and
+   Driftstep's step. The foe's own infusions that move or drain the Fell follow. */
+function kitStruck(cid, foe, base, bonus, dt){
+  var p = fellByCharId(cid), who = (p && p.name) || 'A Fell', sc = S.scene || {}, rnd = S.round || 1, fx = [], ops = [];
+  sc.augUsed = sc.augUsed || {};
+  var me = kitTokChar(cid);
+  /* Runeguard: an ally within its holder's Mobility range is hit, once each round */
+  ((sc.fell) || []).forEach(function(o){
+    var oc = o.charId || o.id; if (sameId(oc, cid) || cDown(o) || !kitHasAug(oc, 'Runeguard') || base <= 0) return;
+    if (sc.augUsed['rg:' + oc] === rnd) return;
+    var ot = kitTokChar(oc); if (!ot || !me) return;
+    var far = kitSpaces(ot, me), mob = kitMob(oc);
+    if (far > mob){ fx.push('Runeguard: ' + esc(o.name) + ' is ' + Math.round(far) + ' spaces away, beyond their Mobility ' + mob + '.'); return; }
+    sc.augUsed['rg:' + oc] = rnd;
+    var cut = Math.min(base, kitDef(oc)); base -= cut;
+    fx.push('Runeguard: ' + esc(o.name) + ' (' + Math.round(far) + ' spaces away) takes ' + cut + ' off the Base, ' + (base + cut) + ' → ' + base + '.');
+  });
+  if (base > 0 || bonus > 0) lmDealDamage(cid, base, bonus, dt);
+  fx.unshift('<b>' + esc(who) + '</b> is struck for ' + base + ' + ' + bonus + ' ' + (dt === 'magic' ? 'Magical' : 'Physical') + (foe ? ' by <b>' + esc(foe.name) + '</b>' : '') + '. Their sheet applies their defenses.');
+  if (foe && kitOf(cid)){
+    var mag = function(w){ return w && w.dt === 'magic'; };
+    var vg = kitWielded(cid, 'Vengeful');
+    if (vg) fx.push('Vengeful: ' + esc(foe.name) + ' takes ' + esc(vg.name) + '’s standard damage back, ' + kitFoeTakes(foe, vg.base || 0, vg.bonus || 0, mag(vg), 'Vengeful') + '.');
+    var bl = kitWielded(cid, 'Backlash');
+    if (bl) fx.push('Backlash: ' + esc(foe.name) + ' takes ' + esc(bl.name) + '’s Base Damage, ' + kitFoeTakes(foe, bl.base || 0, 0, mag(bl), 'Backlash') + '.');
+    if (kitHasAug(cid, 'Deathsong') && (base + bonus) > 0){
+      var ds = kitDef(cid);
+      fx.push('Deathsong: ' + esc(foe.name) + ' takes Base Damage equal to ' + esc(who) + '’s highest defense, ' + kitFoeTakes(foe, ds, 0, false, 'Deathsong') + '.');
+      pushLog({ kind:'sys', lmOnly:true, html:'Deathsong is staged as the hit goes. If ' + esc(who) + '’s sheet turns the hit aside (Mistform, Nullward, Lastlight), take it back from ' + esc(foe.name) + '’s Vitality.' });
+    }
+  } else if (foe && !kitOf(cid)) fx.push('(' + esc(who) + '’s sheet has not sent its kit yet, so their answers to a hit are not counted.)');
+  if (kitHasAug(cid, 'Driftstep')) fx.push('Driftstep: ' + esc(who) + ' may move one space at once.');
+  /* the foe's own infusions, when its strike deals damage */
+  if (foe && (base + bonus) > 0){
+    var ft = kitTokFoe(foe), tg = foeHas.bind(null, foe);
+    if (tg('Siphoning')){ if ((p && p.charge) > 0){ kitCharge(p, cid, -1, 'Siphoning', ops); foe.charge = Math.min(3, (foe.charge || 0) + 1); fx.push('Siphoning: ' + esc(foe.name) + ' takes one of ' + esc(who) + '’s Charges.'); } else fx.push('Siphoning: ' + esc(who) + ' has no Charge to take.'); }
+    if (tg('Vorpal')){ var had = (p && p.charge) || 0; if (had){ kitCharge(p, cid, -2, 'Vorpal', ops); fx.push('Vorpal: ' + esc(who) + ' loses ' + Math.min(2, had) + ' Charge' + (Math.min(2, had) === 1 ? '' : 's') + '.'); } else fx.push('Vorpal: ' + esc(who) + ' has no Charges to lose.'); }
+    if (tg('Welling') && foe.sr !== 'Minion'){ var fw = foe.charge || 0; foe.charge = Math.min(3, fw + 1); fx.push(foe.charge > fw ? 'Welling charges ' + esc(foe.name) + ' to Tier ' + foe.charge + '.' : 'Welling: ' + esc(foe.name) + ' is already at Tier 3.'); }
+    if (tg('Rooting')) fx.push(me && kitRoot(me, foe.name + '’s Rooting') ? 'Rooting: ' + esc(who) + ' cannot move until the round ends.' : 'Rooting: ' + esc(who) + ' cannot move until the round ends.');
+    ['Hooking', 'Forceful'].forEach(function(n){
+      if (!tg(n)) return; var verb = n === 'Hooking' ? 'pull' : 'push', why;
+      if (kitHasAug(cid, 'Oakspine')) why = 'Oakspine holds them in place';
+      else if (!me || !ft) why = 'the map has no token for ' + (!me ? esc(who) : esc(foe.name));
+      else { var sv = kitShove(me, ft, n === 'Forceful'); if (sv.moved){ fx.push(n + ' ' + verb + 's ' + esc(who) + ' one space ' + (n === 'Hooking' ? 'toward ' : 'away from ') + esc(foe.name) + '.'); return; } why = sv.why; }
+      if (!me || !ft){ fx.push(n + ': ' + why + ', so move them by hand.'); return; }
+      var fb = (foeLive(foe).dmg || {}).base || 0;
+      lmDealDamage(cid, fb, 0, (foeLive(foe).dmg || {}).type === 'magical' ? 'magic' : 'phys');
+      fx.push(n + ' cannot ' + verb + ' ' + esc(who) + ' (' + why + '), so they take ' + esc(foe.name) + '’s Base Damage, ' + fb + ', instead.');
+    });
+    if (tg('Sweeping') && me){
+      var others = ((sc.fell) || []).filter(function(o){ return !sameId(o.charId || o.id, cid) && !cDown(o) && kitTokChar(o.charId || o.id); });
+      if (others.length){
+        others.sort(function(a, b){ return kitSpaces(me, kitTokChar(a.charId || a.id)) - kitSpaces(me, kitTokChar(b.charId || b.id)); });
+        var sb = (foeLive(foe).dmg || {}).base || 0, oc2 = others[0].charId || others[0].id;
+        lmDealDamage(oc2, sb, 0, (foeLive(foe).dmg || {}).type === 'magical' ? 'magic' : 'phys');
+        fx.push('Sweeping: the nearest other Fell, <b>' + esc(others[0].name) + '</b>, takes ' + esc(foe.name) + '’s Base Damage, ' + sb + '.');
+      }
+    }
+  }
+  pushLog({ kind:'sys', html:fx.join(' ') });
+  if (ops.length) lmSendOps(cid, ops, fx.filter(function(x){ return /Siphoning|Vorpal/.test(x); }).join(' ').replace(/<[^>]*>/g, ''));
+  sc.hitOn = sc.hitOn || {}; sc.hitOn[cid] = rnd;
+  combatPublish(); applyRemoteState({ scene:S.scene, log:S.log }); paintLmStrip(); paintHud();
+}
+/* An attack on a Fell misses: Guarding answers with the weapon's standard damage, Backlash
+   with its Base. Once for each attacker and round, whichever way the miss was found. */
+function kitMissed(cid, foe){
+  if (!foe || !kitOf(cid)) return;
+  var sc = S.scene || {}, rnd = S.round || 1, k = cid + '<' + foe.id + '@' + rnd;
+  sc.missed = sc.missed || {}; if (sc.missed[k]) return; sc.missed[k] = true;
+  var p = fellByCharId(cid), who = (p && p.name) || 'A Fell', fx = [];
+  var gd = kitWielded(cid, 'Guarding'), bl = kitWielded(cid, 'Backlash');
+  if (gd) fx.push('Guarding: ' + esc(foe.name) + '’s attack misses ' + esc(who) + ', and it takes ' + esc(gd.name) + '’s standard damage, ' + kitFoeTakes(foe, gd.base || 0, gd.bonus || 0, gd.dt === 'magic', 'Guarding') + '.');
+  if (bl) fx.push('Backlash: the miss still costs ' + esc(foe.name) + ' ' + esc(bl.name) + '’s Base Damage, ' + kitFoeTakes(foe, bl.base || 0, 0, bl.dt === 'magic', 'Backlash') + '.');
+  if (!fx.length) return;
+  pushLog({ kind:'sys', html:fx.join(' ') });
+  combatPublish(); applyRemoteState({ scene:S.scene, log:S.log }); paintLmStrip();
+}
+/* Bulwark: an ally within the holder's Mobility range is targeted; the holder may take the
+   attack instead, once each round. Offered on the attacking foe's card. */
+function kitBulwarkRow(f){
+  if (!f || !f.target || !f.act) return '';
+  var sc = S.scene || {}, rnd = S.round || 1, tgt = fellByCharId(f.target); if (!tgt) return '';
+  var tc = tgt.charId || tgt.id, tt = kitTokChar(tc); sc.augUsed = sc.augUsed || {};
+  return ((sc.fell) || []).map(function(o){
+    var oc = o.charId || o.id; if (sameId(oc, tc) || cDown(o) || !kitHasAug(oc, 'Bulwark')) return '';
+    var ot = kitTokChar(oc), far = (ot && tt) ? kitSpaces(ot, tt) : null, mob = kitMob(oc);
+    if (sc.augUsed['bw:' + oc] === rnd) return '<div class="fc-note">Bulwark: ' + esc(o.name) + ' has already stepped in this round.</div>';
+    if (far === null) return '<div class="fc-note">Bulwark: ' + esc(o.name) + ' could take this attack if within ' + mob + ' spaces of ' + esc(tgt.name) + ' (no tokens to measure).</div>';
+    if (far > mob) return '<div class="fc-note">Bulwark: ' + esc(o.name) + ' is ' + Math.round(far) + ' spaces from ' + esc(tgt.name) + ', beyond their Mobility ' + mob + '.</div>';
+    return '<div class="fc-note auto">Bulwark: <b>' + esc(o.name) + '</b> is ' + Math.round(far) + ' spaces from ' + esc(tgt.name) + ' and may take this attack. <button class="fc-btn" onclick="sel=\'' + esc(ot.id) + '\';renderTokens()">Show their reach</button> <button class="fc-btn" onclick="kitBulwark(\'' + f.id + '\',\'' + esc(oc) + '\')">Step in</button></div>';
+  }).join('');
+}
+function kitBulwark(foeId, oc){
+  var f = foeById(foeId), o = fellByCharId(oc), sc = S.scene || {}; if (!f || !o) return;
+  var was = fellByCharId(f.target);
+  sc.augUsed = sc.augUsed || {}; sc.augUsed['bw:' + oc] = S.round || 1;
+  f.target = o.id;
+  pushLog({ kind:'sys', html:'Bulwark: <b>' + esc(o.name) + '</b> steps in, and ' + esc(f.name) + '’s attack on ' + esc((was && was.name) || 'their ally') + ' is theirs to take.' });
+  combatPublish(); applyRemoteState({ scene:S.scene, log:S.log }); paintLmStrip();
+}
+/* Shadowmeld: a Fell who dealt no damage this round is Obscured as it ends */
+function kitRoundEnd(){
+  var sc = S.scene || {}, rnd = S.round || 1;
+  ((sc.fell) || []).forEach(function(p){
+    var cid = p.charId || p.id; if (cDown(p) || !kitHasAug(cid, 'Shadowmeld')) return;
+    if ((sc.dealt || {})[cid] === rnd){ pushLog({ kind:'sys', lmOnly:true, html:'Shadowmeld: ' + esc(p.name) + ' dealt damage this round, so stays in plain sight.' }); return; }
+    p.affs = p.affs || []; if (p.affs.indexOf('Obscured') < 0) p.affs.push('Obscured');
+    lmSendOps(cid, [{ op:'effect', name:'Obscured', why:'Shadowmeld' }], 'Shadowmeld: you dealt no damage this round, so you are Obscured.');
+    pushLog({ kind:'sys', html:'Shadowmeld: <b>' + esc(p.name) + '</b> dealt no damage this round and slips out of sight (Obscured).' });
+  });
+  (S.tokens || []).forEach(function(t){ if (t.rooted) delete t.rooted; });
 }
 function strikeFell(charId){
   var b = Number((document.getElementById('dmgB_' + charId) || {}).value) || 0;
   var n = Number((document.getElementById('dmgN_' + charId) || {}).value) || 0;
   var t = (document.getElementById('dmgT_' + charId) || {}).value || 'phys';
   if (!b && !n) return;
-  lmDealDamage(charId, b, n, t);
-  var p = fellByCharId(charId);
-  pushLog({ kind:'sys', html:'<b>' + esc((p && p.name) || 'A Fell') + '</b> is struck for ' + b + ' + ' + n + '.' });
+  /* the attacker, when only one foe is aiming at them: its answers depend on knowing who */
+  var p = fellByCharId(charId), atk = p ? fellAttackers(p) : [];
+  kitStruck(charId, atk.length === 1 ? atk[0] : null, b, n, t);
+  if (atk.length !== 1 && kitOf(charId)) pushLog({ kind:'sys', lmOnly:true, html:'Sent by hand with ' + (atk.length ? atk.length + ' foes' : 'no foe') + ' aiming at ' + esc((p && p.name) || 'them') + ', so their answers to the attacker (Vengeful, Backlash, Deathsong) were not worked. Use Send on the attacker’s row for those.' });
   applyRemoteState({ log:S.log });
   ['dmgB_','dmgN_'].forEach(function(k){ var e = document.getElementById(k + charId); if (e) e.value = ''; });
 }
@@ -15260,11 +15635,21 @@ function maskedReachSend(){
   sheet.postMessage({ type:'ts-masked-reach', masked:!!me, keys:keys });
 }
 setInterval(function(){ try { if (_sheetLoaded) maskedReachSend(); } catch(e){} }, 800);
+/* the hand's word on this Fell's kit: each weapon's infusions, the armor's augmentations */
+function handWeaponInfs(name){ var w = ((hand && hand.weapons) || []).filter(function(x){ return x && x.name === name; })[0]; return (w && w.infs) || []; }
+function handHasAug(n){ return ((hand && hand.augs) || []).indexOf(n) >= 0; }
+var _agileRound = 0;
 function handAim(t){
   if (!armed) return false;
   var f = tokenFighter(t);
   if (!f){ handAimMiss(t); return false; }
   if (maskedBlocks(t)){ handSay(MASKED_SAY); return true; }
+  /* Blinking: the weapon's Range is In Sight, so a wall between the two is what refuses it */
+  if (armed.entry && armed.entry.kind === 'weapon' && handWeaponInfs(armed.entry.src).indexOf('Blinking') >= 0){
+    var _me = (S.tokens || []).filter(function(x){ return tokenIsMine(x) && x.kind === 'p'; })[0], _segs = [];
+    try { _segs = wallBlockers(); } catch(e){}
+    if (_me && _segs.length && losBlocked(_me.x, _me.y, t.x, t.y, _segs)){ handSay('Blinking reaches anything In Sight, and a wall hides ' + (f.name || 'that one') + ' from you.'); return true; }
+  }
   if (!handReady({ ignoreTarget:true })){
     handSay(armed.need && !armed[armed.need]
       ? ('Choose a ' + handNeedWord(armed.need) + ' first.') : 'That card is not ready.');
@@ -15588,6 +15973,8 @@ function handPlaceAt(mx, my){
   /* and where the book asks for an open space, an occupied one is refused rather than
      quietly accepted - the tap is answered, so the player learns the rule from the board
      instead of from a square that did nothing */
+  var _ir = ironrootAt(x, y);
+  if (_ir){ handSay('Ironroot: ' + (tokenName(_ir) || 'that Fell') + '\u2019s space cannot be targeted.'); return true; }
   if (handPlaceNeedsEmpty()){
     var taken = handSquareTaken(x, y);
     if (taken){
@@ -15689,6 +16076,12 @@ function handDeclareResult(res){
                 shardSearch:{ id:mkId(), who:S.character.name || '', charId:S.characterId || '', n:nn } });
       applyRemoteState({ log:S.log });
     }
+    /* what the weapon's infusions did to the roll or the turn, said where everyone reads it */
+    if (res.notes && res.notes.length){
+      pushLog({ kind:'sys', html:'<b>' + esc(S.character.name || 'A Fell') + '</b>: ' + res.notes.map(esc).join(' ') });
+      applyRemoteState({ log:S.log });
+    }
+    _agileRound = res.agile ? (res.round || (hand && hand.round) || 0) : 0;
     declaredAs = { act: armed ? armed.entry.nm : '', key: armed ? armed.key : '',
                    target: armed ? armed.target : '',
                    targetName: armed ? armed.targetName : '', round: res.round || (hand && hand.round) || 0 };
@@ -17630,7 +18023,7 @@ function lmBeginCombat(){ if (keeperNo()) return; if (S.scene) S.scene.fightAt =
 function lmEndCombat(){ S.declares = null; S.scene.combatPhase = null; S.scene.foes.concat(S.scene.fell).forEach(function(c){ c.act=''; c.locked=false; c.spot=null; }); S.scene.fell = (S.scene.fell || []).filter(function(p){ return !p._auto; }); applyRemoteState({ mode:'explore', scene:S.scene });  combatPublish(); }
 function lmLockActs(){ S.scene.combatPhase = 'resolve'; S.scene.foes.concat(S.scene.fell).forEach(function(c){ if(c.act) c.locked = true; }); applyRemoteState({ scene:S.scene }); lmMaterialisePlacements(); }
 function lmUnlock(){ S.scene.combatPhase = 'commit'; S.scene.foes.concat(S.scene.fell).forEach(function(c){ c.locked=false; c.spot=null; }); applyRemoteState({ scene:S.scene }); }
-function lmNextRound(){ try { paleRoundTick(); } catch(e){} pendCement(); setTimeout(function(){ S.declares = null; combatPublish(); declaresLoad(); }, 60); S.scene.combatPhase = 'commit'; S.scene.foes.concat(S.scene.fell).forEach(function(c){ c.act=''; c.locked=false; c.spot=null; c._roll=null; }); applyRemoteState({ round:S.round+1, scene:S.scene }); }
+function lmNextRound(){ try { paleRoundTick(); } catch(e){} try { kitRoundEnd(); } catch(e){} pendCement(); setTimeout(function(){ S.declares = null; combatPublish(); declaresLoad(); }, 60); S.scene.combatPhase = 'commit'; S.scene.foes.concat(S.scene.fell).forEach(function(c){ c.act=''; c.locked=false; c.spot=null; c._roll=null; }); applyRemoteState({ round:S.round+1, scene:S.scene }); }
 function lmResolveSpot(id){ var c = findC(id); if(c){ c.spot = c.spot === 'done' ? null : 'done'; applyRemoteState({ scene:S.scene }); } }
 function lmSpotMode(m){ S.scene.spotMode = m; S.scene.spotOrder = []; applyRemoteState({ scene:S.scene }); }
 function lmToggleManual(key){ S.scene.manual[key] = !S.scene.manual[key]; S.scene.spotOrder = []; applyRemoteState({ scene:S.scene }); }
@@ -18165,6 +18558,13 @@ function wireToken(el, t, draggable){
         var _tx = t.x, _ty = t.y; t.x = t._gx; t.y = t._gy; place(el, t); delete t._gx; delete t._gy; roomTokDrop(t);
         elevMoveCheck(t, _tx, _ty); return;
       }
+      /* Rooted (a Rooting infusion struck it): it stays put until the round ends, and says why */
+      if (t._gx !== undefined && tokRooted(t) && (Math.abs(t.x - t._gx) > 1 || Math.abs(t.y - t._gy) > 1)){
+        if (!isLM()){ t.x = t._gx; t.y = t._gy; place(el, t); delete t._gx; delete t._gy;
+          try { playToast('Rooted by ' + esc(t.rooted.by || 'Rooting') + ': it cannot move until the round ends.', 'Move'); } catch(e){}
+          roomTokDrop(t); return; }
+        try { playToast('Rooted by ' + esc(t.rooted.by || 'Rooting') + ' until the round ends. Moved, because you are the LoreMaster.', 'Move'); } catch(e){}
+      }
       /* a player's Fell does not pass through a wall: it goes back where it stood */
       if (!isLM() && t._gx !== undefined && moveCrossesWall(t._gx, t._gy, t.x, t.y)){
         t.x = t._gx; t.y = t._gy; place(el, t); delete t._gx; delete t._gy;
@@ -18476,6 +18876,7 @@ function tokAffs(t){
   try {
     var c = (typeof findC === 'function' && findC(t.id)) || (t.charId && typeof fellByCharId === 'function' && fellByCharId(t.charId));
     out = out.concat((c && c.affs) || [], t.affs || []);
+    if (tokRooted(t)) out.push('Rooted');
     if (t.kind === 'p'){
       if (!isLM() && typeof tokenIsMine === 'function' && tokenIsMine(t) && S._hand && Array.isArray(S._hand.afflictions)) out = out.concat(S._hand.afflictions);
       var pub = (S.party || []).filter(function(p){ return p && t.charId && sameId(p.charId || p.id, t.charId); })[0];
@@ -19157,6 +19558,14 @@ function paleList(){ S.pales = S.pales || {}; var k = mapKey(); S.pales[k] = S.p
 function paleById(id){ return paleList().filter(function(p){ return p.id === id; })[0] || null; }
 function paleShelf(name){ return PALE_SHELF.filter(function(r){ return r[0] === name; })[0]; }
 function palesAt(x, y){ var c = elevCellOf(x, y), k = c.c + ',' + c.r; return ((S.pales && S.pales[mapKey()]) || []).filter(function(p){ return (p.cells || []).indexOf(k) >= 0; }); }
+/* Treadlight (an augmentation) ignores the movement and damage payloads of Pales */
+function tokHasAug(t, n){ if (!t || !t.charId) return false; return isLM() ? kitHasAug(t.charId, n) : (tokenIsMine(t) && handHasAug(n)); }
+function paleTread(t, p){ return !!(p && (p.payload === 'move' || p.payload === 'damage') && tokHasAug(t, 'Treadlight')); }
+/* Ironroot (an augmentation): spells and abilities may not target the space the Fell holds */
+function ironrootAt(x, y){
+  var g = (S.grid && S.grid.size) || 100;
+  return (S.tokens || []).filter(function(t){ return t.kind === 'p' && t.charId && Math.max(Math.abs(t.x - x), Math.abs(t.y - y)) < g * (t.cells || 1) / 2 && tokHasAug(t, 'Ironroot'); })[0] || null;
+}
 function paleBlocks(x, y){ return palesAt(x, y).some(function(p){ return p.payload === 'impassable'; }); }
 function paleRule(p){ var r = paleShelf(p.base) || []; return (p.rule || r[4] || '') + (p.amount ? ' (' + p.amount + ')' : '') + (p.aff ? ' Affliction: ' + p.aff + '.' : ''); }
 function paleNew(){
@@ -19196,6 +19605,8 @@ function paleNewSave(){
 }
 function palePaintAt(x, y, first){
   var p = paleById(PALE.sel); if (!p) return; var c = elevCellOf(x, y), k = c.c + ',' + c.r;
+  if (PALE.mode !== 'erase'){ var _ir = ironrootAt(x, y); if (_ir){ if (first || !PALE._irSaid){ PALE._irSaid = true; playToast('Ironroot: ' + esc(tokenName(_ir) || 'that Fell') + '\u2019s space cannot be targeted, so the Pale skips it.', 'Pale'); } return; } }
+  if (first) PALE._irSaid = false;
   if (first) PALE.stroke = PALE.mode === 'erase' ? 'off' : 'on';
   var i = p.cells.indexOf(k);
   if (PALE.stroke === 'on' && i < 0) p.cells.push(k); else if (PALE.stroke === 'off' && i >= 0) p.cells.splice(i, 1);
@@ -19234,6 +19645,7 @@ function paleEntered(t, fromX, fromY){
   now.forEach(function(p){
     if (was.indexOf(p) >= 0 || p.trigger !== 'enter') return;
     var line = '<b>' + esc(tokenName(t) || 'A token') + '</b> enters <b>' + esc(p.name) + '</b>: ' + esc(paleRule(p));
+    if (paleTread(t, p)) line = '<b>' + esc(tokenName(t) || 'A Fell') + '</b> enters <b>' + esc(p.name) + '</b>, and Treadlight ignores its ' + esc(p.payload) + ' payload.';
     pushLog({ kind:'sys', html:line }); applyRemoteState({ log:S.log });
     if (isLM()) playToast(esc(tokenName(t) || 'A token') + ' enters ' + esc(p.name), 'Pale');
     if (p.dur === 'instant'){ var l = paleList(); if (l.indexOf(p) >= 0){ l.splice(l.indexOf(p), 1); paleShare(); } }
@@ -19245,8 +19657,12 @@ function paleRoundTick(){
   var l = paleList(); if (!l.length) return;
   l.slice().forEach(function(p){
     if (p.trigger === 'start' || p.trigger === 'end' || p.trigger === 'while'){
-      var inside = (S.tokens || []).filter(function(t){ return palesAt(t.x, t.y).indexOf(p) >= 0; }).map(function(t){ return tokenName(t); }).filter(Boolean);
+      var inT = (S.tokens || []).filter(function(t){ return palesAt(t.x, t.y).indexOf(p) >= 0; });
+      var nmOf = function(t){ var fc = t.charId ? fellByCharId(t.charId) : null; return tokenName(t) || (fc && fc.name) || ''; };
+      var tread = inT.filter(function(t){ return paleTread(t, p); }).map(nmOf).filter(Boolean);
+      var inside = inT.filter(function(t){ return !paleTread(t, p); }).map(nmOf).filter(Boolean);
       if (inside.length) pushLog({ kind:'sys', lmOnly:true, html:'<b>' + esc(p.name) + '</b> (' + esc(PALE_TRIGGER[p.trigger]) + '): ' + esc(inside.join(', ')) + '. ' + esc(paleRule(p)) });
+      if (tread.length) pushLog({ kind:'sys', html:'Treadlight: ' + esc(tread.join(', ')) + ' ' + (tread.length === 1 ? 'stands' : 'stand') + ' in <b>' + esc(p.name) + '</b> and ' + (tread.length === 1 ? 'ignores' : 'ignore') + ' its ' + esc(p.payload) + ' payload.' });
     }
     if (p.dur === 'rounds'){ p.rounds = (p.rounds || 1) - 1; if (p.rounds <= 0){ l.splice(l.indexOf(p), 1); pushLog({ kind:'sys', lmOnly:true, html:'<b>' + esc(p.name) + '</b> fades.' }); } }
   });
@@ -20202,7 +20618,15 @@ function moveLimitOf(t){
     });
   }
   if (!found) take(t.mobility);
-  return found || MOVE_DEFAULT;
+  return (found || MOVE_DEFAULT) * (agileNow(t) ? 2 : 1);
+}
+/* Agile: the Act was made with an Agile weapon this round, so a free movement rides with it
+   (the React's movement stays). The allowance shown while dragging doubles to say so. */
+function agileNow(t){
+  if (!t || S.mode !== 'combat' || t.kind !== 'p') return false;
+  if (!isLM()) return tokenIsMine(t) && !!_agileRound && _agileRound === ((hand && hand.round) || 0);
+  var cid = t.charId || t.refId, d = cid ? declareFor(cid) : null;
+  return !!(d && d.round === (S.round || 1) && wHas(kitAtkWeapon(cid, d), 'Agile'));
 }
 
 /* ---- distance while dragging ---- */
@@ -20212,7 +20636,7 @@ function dragReadout(t, x, y){
   if (!t || t._gx === undefined){ b.style.display = 'none'; return; }
   var g = (S.grid && S.grid.size) || 100, d = Math.round(Math.hypot(t.x - t._gx, t.y - t._gy) / g);
   var mob = moveLimitOf(t), walled = moveCrossesWall(t._gx, t._gy, t.x, t.y), over = d > mob || walled;
-  b.textContent = walled ? 'A wall is in the way' : d + ' sp of ' + mob;
+  b.textContent = walled ? 'A wall is in the way' : d + ' sp of ' + mob + (agileNow(t) ? ' (Agile)' : '');
   b.classList.toggle('over', over);
   b.style.left = (x + 16) + 'px'; b.style.top = (y - 28) + 'px'; b.style.display = 'block';
 }

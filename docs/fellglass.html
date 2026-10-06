@@ -636,10 +636,6 @@ body.in-combat::after{ content:""; position:fixed; inset:0; pointer-events:none;
 .cbn-step.on{ opacity:1; color:var(--gold); }
 .cbn-step.on .bar{ background:var(--ice); box-shadow:0 0 8px rgba(201,168,76,.7); }
 .cbn-status{ width:100%; font-size:.82rem; color:var(--silver-dim); line-height:1.4; }
-.cbn-trigs{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-top:7px; width:100%; }
-.cbn-trigs-l{ font-size:.6rem; letter-spacing:.1em; text-transform:uppercase; color:var(--gold); flex:1 1 100%; }
-.cbn-trig{ background:rgba(201,168,76,.12); border:1px solid rgba(201,168,76,.4); color:var(--silver); border-radius:6px; padding:4px 9px; font-size:.75rem; font-family:inherit; cursor:pointer; }
-.cbn-trig:active{ background:rgba(201,168,76,.22); }
 .cbn-remind{ display:flex; flex-wrap:wrap; gap:7px; align-items:baseline; margin-top:6px; width:100%; }
 .cbn-remind-l{ font-size:.6rem; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); }
 .cbn-remind-v{ font-size:.78rem; color:var(--silver-dim); }
@@ -5072,10 +5068,12 @@ function tsHandLocked(tier, charge){
    table draws around its token */
 function tsReach(){
   var mob=0; try{ mob=fatigueMobility(); }catch(e){ mob=C.mobility||0; }
-  var rng=0;
+  var rng=0, sight=false;
   (C.weapons||[]).forEach(function(w){ if(!w||!w.tree||!w.equipped) return; var db=WEAPON_DB[w.tree]; if(!db) return;
-    var r=(db.ranges&&db.ranges[w.formIdx]!==undefined)?db.ranges[w.formIdx]:((db.meta&&db.meta.range)||0); r=Number(r)||0; if(r>rng) rng=r; });
-  return { mobility:mob, range:rng };
+    var r=(db.ranges&&db.ranges[w.formIdx]!==undefined)?db.ranges[w.formIdx]:((db.meta&&db.meta.range)||0); r=Number(r)||0; if(r>rng) rng=r;
+    if((w.infusions||[]).indexOf("Blinking")>=0) sight=true; });
+  /* Blinking: the weapon's Range becomes In Sight, so the table draws no circle for it */
+  return sight ? { mobility:mob, range:0, sight:true } : { mobility:mob, range:rng };
 }
 function tsHandPayload(){
   var ch=C.charge||0;
@@ -5101,7 +5099,9 @@ function tsHandPayload(){
     }),
     skills: skills,
     /* every weapon carried, held or not, so the quick bar can swap one into the hand */
-    weapons: (C.weapons||[]).map(function(w,i){ return w && w.tree ? { i:i, name:weaponName(w), held:!!w.equipped } : null; }).filter(Boolean),
+    weapons: (C.weapons||[]).map(function(w,i){ return w && w.tree ? { i:i, name:weaponName(w), held:!!w.equipped, infs:(w.infusions||[]).filter(Boolean) } : null; }).filter(Boolean),
+    /* the armor's augmentations, for the ones the table works on this Fell's own moves */
+    augs: ((C.armor&&C.armor.augs)||[]).filter(Boolean),
     /* the same resolver the sheet's own picker uses, so the row and the sheet cannot
        disagree about what this Fell is carrying */
     items: cbActUtilities().map(function(x){
@@ -5668,8 +5668,17 @@ function cbGearSnap(){
      standing, which is what gear already carries, and the LoreMaster needs it: a Drained
      Fell has lost their Act, and the board had no way to know. Adding a column would have
      meant another paste for one number. */
+  /* The kit the table works infusions and augmentations from (#754): each weapon's
+     infusions and standard damage, the attributes they count, and which weapon this round's
+     Act was made with. Rides in gear for the same reason Fatigue does: no new column. */
+  var at=function(k){ return Math.max(0, attrTotal(k)); };
+  var kitW=(C.weapons||[]).filter(function(w){ return w && w.tree && WEAPON_DB[w.tree]; }).map(function(w){
+    var d=cbWeaponDmg(w); return { name:weaponName(w), held:!!w.equipped, infs:(w.infusions||[]).filter(Boolean), dt:(WEAPON_DB[w.tree].category==='magic'?'magic':'phys'), base:d.base, bonus:d.bonus }; });
+  var mob=0; try{ mob=tsReach().mobility||0; }catch(e){}
   return { weapons:ws, armor:{ level:(C.armor&&C.armor.level)||0, stance:(C.armor&&C.armor.active)||"" }, lorebounds:lbs, augs:augs, def:defv,
-           fatigue:(C.fatigue||0), fatigueName:(FATIGUE_NAMES[Math.min(5, C.fatigue||0)]||"Fresh") };
+           fatigue:(C.fatigue||0), fatigueName:(FATIGUE_NAMES[Math.min(5, C.fatigue||0)]||"Fresh"),
+           kit:{ weapons:kitW, attrs:{ Precision:at("precision"), Power:at("power"), Magic:at("magic"), Evasion:at("evasion"), Durability:at("durability"), Resistance:at("resistance") }, mobility:mob },
+           atk:(window._atkGear||null) };
 }
 function combatSyncPush(){
   if(!(COMBAT&&COMBAT.active&&CUR_WIX_ID)) return;
@@ -5735,7 +5744,16 @@ function cbEvaInit(){
 }
 function openEvasionPopup(foes){ window._cbSheetView=false; applyCombatMode(); }
 function cbRollEva(foeKey, acc, ev){
-  var lk=cbMyLuck(), dice, r;
+  var lk=cbMyLuck(), dice, r, ai="";
+  /* Afterimage: the first Evasion roll each round is a Lucky Roll */
+  var rnd=(COMBAT&&COMBAT.round)||0;
+  if(cbHasAug("Afterimage") && window._afterRound!==rnd){
+    window._afterRound=rnd;
+    if(lk==="lucky") ai="Afterimage: already Lucky.";
+    else if(lk==="unlucky"){ lk=""; ai="Afterimage cancels your Unlucky roll."; }
+    else { lk="lucky"; ai="Afterimage: your first Evasion this round is a Lucky Roll."; }
+    cbPing(ai, true); cbLogSelf("fell", meName()+": "+ai);
+  }
   if(lk==='lucky'){ var a=cbd6(),b=cbd6(); dice=[a,b]; r=Math.max(a,b); }
   else if(lk==='unlucky'){ var a=cbd6(),b=cbd6(); dice=[a,b]; r=Math.min(a,b); }
   else { r=cbd6(); dice=[r]; }
@@ -6347,7 +6365,7 @@ function applyPendingHit(hit){
   window._staged.hits.push({total:r.total, base:r.base, bonus:r.bonus, marks:r.marks||[]});
   window._dmgTakenRound=true;
   try{edgeGlow("rgba(201,106,90,.9)");}catch(e){}
-  cbPing("Taking "+r.total+(r.marks.length?(" (+"+r.marks.length+" "+r.marks.join(" + ")+")"):"")+" at round end.");
+  cbPing("Taking "+r.total+(r.marks.length?(" (+"+r.marks.length+" "+r.marks.join(" + ")+")"):"")+" at round end."+(cbHasAug("Driftstep")?" Driftstep: you may move one space now.":""));
   cbLogSelf("foe", meName()+" takes "+r.total+" ("+r.base+" base + "+r.bonus+" bonus"+(r.marks.length?(" + "+r.marks.length+" from "+r.marks.join(" + ")):"")+") \u00b7 cements at round end.");
   try{applyCombatMode();}catch(e){}
 }
@@ -6454,7 +6472,7 @@ function setCombatState(state){
     if(COMBAT.round!==window._lastTickRound){ window._lastTickRound=COMBAT.round; window._reactUsed=false; window._cbRoll=null; window._defEva=[]; window._evaRolls={}; window._editDecl=false; window._hitSnooze=null; window._sentDmg=null; window._stanceRound=null; window._stanceApplied=false; window._draft=null; window._reactSent=null; window._declPayload=null; window._fellBonus=null; window._handKind=null; try{ if(COMBAT) COMBAT.you={}; }catch(e){} cbCementStaged(); cbApplySkillGrowth(); cbTickSelf(); }
     applyIncomingConditions(COMBAT.applied||[]);
     var rc=COMBAT.recap||{};
-    if(rc.at && rc.at!==window._lastRecapAt){ window._lastRecapAt=rc.at; if(rc.msg){ cbPing(rc.msg); try{edgeGlow("rgba(201,168,76,.7)");}catch(e){} } }
+    if(rc.at && rc.at!==window._lastRecapAt){ window._lastRecapAt=rc.at; var _rp=cbRecapParse(rc.msg); var _did=cbRunOps(_rp.ops); var _say=_did.length?_did.join(" "):_rp.text; if(_say && (_did.length || !_rp.ops.length)){ cbPing(_say, true); try{edgeGlow("rgba(201,168,76,.7)");}catch(e){} } }
     var ph=COMBAT.pendingHit||{};
     if(ph.at && ph.at!==window._lastHitAt && ((ph.base||0)+(ph.bonus||0))>0){ showPendingHit(ph, ph.at); }
     var cs=COMBAT.chargeSet||{};
@@ -6506,33 +6524,58 @@ function setCombatState(state){
      saying so on every poll costs a comparison. */
   try{ tsSendHand(); }catch(e){}
 }
+/* Welling, Reprieve, Emboldening and Devouring used to be buttons the player pressed after
+   the fact. They fire on their own now, when the LoreMaster lands the hit (#754), and come
+   back here as ops; the line only says so. */
 function cbInfusionTriggers(){
   if(!(COMBAT&&COMBAT.active)) return "";
-  var b=[];
-  if(cbHasInfusion("Welling")) b.push('<button class="cbn-trig" onclick="cbTrigWelling()">Welling, +1 Charge</button>');
-  if(cbHasInfusion("Reprieve")) b.push('<button class="cbn-trig" onclick="cbTrigReprieve()">Reprieve, clear an Affliction</button>');
-  if(cbHasInfusion("Emboldening")) b.push('<button class="cbn-trig" onclick="cbTrigEmbolden()">Emboldening, +'+Math.max(0,attrTotal("power"))+' Temp Vitality</button>');
-  if(cbHasInfusion("Devouring")) b.push('<button class="cbn-trig" onclick="cbTrigDevour()">Devouring, heal '+Math.max(0,attrTotal("magic"))+'</button>');
-  if(!b.length) return "";
-  return '<div class="cbn-trigs"><span class="cbn-trigs-l">When you land a hit or drop a foe</span>'+b.join("")+'</div>';
+  var have=["Welling","Reprieve","Emboldening","Devouring"].filter(function(n){ return cbHasInfusion(n); });
+  if(!have.length) return "";
+  return '<div class="cbn-remind"><span class="cbn-remind-l">On their own</span><span class="cbn-remind-v">'+cbEsc(have.join(", "))+' fire when the LoreMaster lands your hit</span></div>';
 }
-function cbTrigWelling(){ C.charge=Math.min(3,(C.charge||0)+1); try{renderCharges();}catch(e){} scheduleSave(); cbPing("Welling charges you to Tier "+C.charge+"."); }
-function cbTrigReprieve(){ if(!(C.afflictions||[]).length){ cbPing("No Affliction to clear."); return; } var a=C.afflictions.shift(); try{renderStatus();}catch(e){} try{renderStrip();}catch(e){} scheduleSave(); cbPing("Reprieve clears "+((a&&a.name)?a.name:"an Affliction")+"."); }
-function cbTrigEmbolden(){ var p=Math.max(0,attrTotal("power")); C.vitality.temp=(C.vitality.temp||0)+p; try{renderVit();}catch(e){} scheduleSave(); cbPing("Emboldening grants "+p+" temporary Vitality."); try{edgeGlow("rgba(220,232,239,.7)");}catch(e){} }
-function cbTrigDevour(){ var m=Math.max(0,attrTotal("magic")); cbTryHeal(m); cbPing("Devouring restores "+m+" Vitality."); }
-var INF_REMINDER=['Targeted','Rooting','Agile','Hooking','Forceful','Blinking','Sweeping','Coursing','Vorpal','Siphoning','Goring','Honed','Hunting','Guarding','Vengeful','Backlash','Swift'];
+/* What the LoreMaster's table did for this Fell's kit, carried in the recap: a hidden
+   header of ops, then the words. Each op has an id kept on the Fell once done, so a reload
+   or a second poll never runs it twice, and the LoreMaster's own view of the sheet never
+   runs them at all (the player's sheet is the one that owns its Vitality). */
+function cbRecapParse(msg){
+  var t=String(msg||""), m=/^\u2063ops:([\s\S]*?)\u2063/.exec(t), ops=[];
+  if(!m) return { ops:[], text:t };
+  try{ ops=JSON.parse(m[1])||[]; }catch(e){ ops=[]; }
+  return { ops:Array.isArray(ops)?ops:[], text:t.slice(m[0].length) };
+}
+function cbRunOps(ops){
+  var said=[];
+  if(god || !ops || !ops.length) return said;
+  C.lmOpsDone=Array.isArray(C.lmOpsDone)?C.lmOpsDone:[];
+  ops.forEach(function(o){
+    if(!o || !o.id || C.lmOpsDone.indexOf(o.id)>=0) return;
+    C.lmOpsDone.push(o.id);
+    var why=String(o.why||"The LoreMaster"), n=Math.max(0,o.n|0);
+    if(o.op==="heal"){ var b=C.vitality.current||0; cbTryHeal(n); var got=(C.vitality.current||0)-b; said.push(got>0?(why+" restores "+got+" Vitality."):(cbHasAff("Harvested")?(why+": Harvested turns the mending into damage."):(why+": you are already at full Vitality."))); }
+    else if(o.op==="temp"){ C.vitality.temp=(C.vitality.temp||0)+n; try{renderVit();}catch(e){} said.push(why+" grants "+n+" temporary Vitality."); }
+    else if(o.op==="clearAff"){ if(!(C.afflictions||[]).length) said.push(why+": no Affliction on you to clear."); else { var a=C.afflictions.shift(); try{cbRevertCond(a);}catch(e){} try{renderStatus();}catch(e){} said.push(why+" clears "+((a&&a.name)||"an Affliction")+"."); } }
+    else if(o.op==="charge"){ var was=C.charge||0, d=(o.n|0); C.charge=Math.max(0,Math.min(3,was+d)); try{renderCharges();}catch(e){} said.push(C.charge===was?(why+": your Charge stays at "+was+"."):(why+(d>0?" charges you to Tier ":" drains you to Tier ")+C.charge+".")); }
+    else if(o.op==="effect" && o.name){ C.effects=C.effects||[]; if(!C.effects.some(function(x){ return x.name===o.name; })){ C.effects.push({ name:o.name, target:"You" }); try{renderStatus();}catch(e){} } said.push(why+": you are "+o.name+"."); }
+  });
+  if(C.lmOpsDone.length>40) C.lmOpsDone=C.lmOpsDone.slice(-40);
+  if(said.length){ try{renderStrip();}catch(e){} scheduleSave(); cbLogSelf("fell", meName()+": "+said.join(" ")); }
+  return said;
+}
+/* the rest of the kit is worked at the table and says so in the log as it fires; the line
+   names which, so a player knows nothing is waiting on them to remember it */
+var INF_TABLE=['Targeted','Rooting','Agile','Hooking','Forceful','Blinking','Sweeping','Coursing','Vorpal','Siphoning','Goring','Honed','Hunting','Guarding','Vengeful','Backlash','Swift'];
 function cbInfusionReminders(){
   if(!(COMBAT&&COMBAT.active)) return "";
-  var have=INF_REMINDER.filter(function(n){ return cbHasInfusion(n); });
+  var have=INF_TABLE.filter(function(n){ return cbHasInfusion(n); });
   if(!have.length) return "";
-  return '<div class="cbn-remind"><span class="cbn-remind-l">Infusions</span><span class="cbn-remind-v">'+cbEsc(have.join(", "))+'</span></div>';
+  return '<div class="cbn-remind"><span class="cbn-remind-l">Infusions</span><span class="cbn-remind-v">'+cbEsc(have.join(", "))+', worked as they happen</span></div>';
 }
-var AUG_REMINDER=['Runeguard','Bulwark','Shadowmeld','Afterimage','Deathsong','Driftstep','Phantomfield','Treadlight','Echosight','Oakspine','Ironroot'];
+var AUG_TABLE=['Runeguard','Bulwark','Shadowmeld','Afterimage','Deathsong','Driftstep','Phantomfield','Treadlight','Echosight','Oakspine','Ironroot'];
 function cbAugReminders(){
   if(!(COMBAT&&COMBAT.active)) return "";
-  var have=AUG_REMINDER.filter(function(n){ return cbHasAug(n); });
+  var have=AUG_TABLE.filter(function(n){ return cbHasAug(n); });
   if(!have.length) return "";
-  return '<div class="cbn-remind"><span class="cbn-remind-l">Augments</span><span class="cbn-remind-v">'+cbEsc(have.join(", "))+'</span></div>';
+  return '<div class="cbn-remind"><span class="cbn-remind-l">Augments</span><span class="cbn-remind-v">'+cbEsc(have.join(", "))+', worked as they happen</span></div>';
 }
 function cbReactStatus(){
   if(!(COMBAT&&COMBAT.active)) return "";
@@ -7098,6 +7141,8 @@ function cbActEntry(nm, src){
   return L.filter(function(a){return a.nm===nm;})[0]||null;
 }
 function cbHasAff(name){ return (C.afflictions||[]).some(function(a){return a.name===name;}); }
+/* a 6, or a 5 with a Honed weapon's attack (Honed: rolls of 5 also count as Fellmarks) */
+function cbIsFellmark(roll, e){ return roll===6 || (roll===5 && !!(e && e.kind==="weapon" && cbWeaponHasInf(e.src,"Honed"))); }
 function cbHasAug(name){ return ((C.armor&&C.armor.augs)||[]).indexOf(name)>=0; }
 function cbHasInfusion(name){ return (C.weapons||[]).some(function(w){ return w.tree && (w.infusions||[]).indexOf(name)>=0; }); }
 function cbWeaponHasInf(wname, inf){ return (C.weapons||[]).some(function(w){ return w.tree && weaponName(w)===wname && (w.infusions||[]).indexOf(inf)>=0; }); }
@@ -7278,7 +7323,7 @@ function cbRenderRoll(){
     var lk=cbMyLuck(), lkStr=lk?(lk==='lucky'?"Lucky \u00b7 ":"Unlucky \u00b7 "):"";
     var selA=document.getElementById("cbAct"), eA=selA?cbActEntry(selA.value):null, isSk=!!(eA&&eA.src==="skills");
     if(!face){ var _pm=window._cbPickMode?"pick your d6":"tap the die"; tot.textContent=lk?((lk==='lucky'?"Lucky roll":"Unlucky roll")+" \u00b7 "+_pm):((isSk?"Roll the skill, ":"Roll your accuracy, ")+_pm+"."); }
-    else { var lbl=(face===1?"Fellstrike":(face===6?"Fellmark":String(face)));
+    else { var lbl=(face===1?"Fellstrike":(cbIsFellmark(face,eA)?(face===5?"Fellmark (Honed)":"Fellmark"):String(face)));
       var dice=window._cbRollDice, diceStr=(dice&&dice.length>1)?(" ["+dice.join(", ")+" \u2192 "+face+"]"):"";
       if(isSk){ var ks=document.getElementById("cbSkillSel"), kn=ks?ks.value:""; var kb=cbSkillBonus(kn);
         tot.textContent=lkStr+(kn||"Skill")+" "+lbl+diceStr+" + "+kb+" = "+(face+kb); }
@@ -7297,7 +7342,7 @@ function cbPlaceOverlay(ov){
 function cbToggleFellBonus(){
   var box=document.getElementById("cbFellBonus");
   if(!box) return;
-  var on=(window._cbRoll===6);
+  var _ae=document.getElementById("cbAct"), on=cbIsFellmark(window._cbRoll, _ae?cbActEntry(_ae.value):null);
   box.classList.toggle("show",on);
   if(!on){ window._fellBonus=null; var r=document.getElementById("cbFellBonusRes"); if(r) r.textContent="\u2014"; var h=document.getElementById("cbFellBonusHint"); if(h) h.textContent="Tap the die to roll."; var fd=document.getElementById("cbFbDie"); if(fd){ fd.textContent="?"; fd.classList.remove("set","fell","strike"); } var fp=document.getElementById("cbFbPick"); if(fp) fp.querySelectorAll(".cb-fbp").forEach(function(b){ b.classList.remove("on"); }); }
 }
@@ -7749,7 +7794,24 @@ function cbDeclare(){
   var e=cbActEntry(act, actSrc), dmg=cbOutDmg(e);
   var roll=window._cbRoll||0;
   if(dmg>0 && !roll){ cbPing("Roll your accuracy before you send."); return; }
-  var fell=(roll===6);
+  /* what this weapon's infusions do to the roll and the turn, said as they happen (#754) */
+  var infNotes=[], isWpn=!!(e && e.kind==="weapon");
+  if(isWpn && roll && cbWeaponHasInf(e.src,"Hunting")){
+    var _dice=window._cbRollDice, _lk=cbMyLuck();
+    if(_dice && _dice.length>1 && _lk==="lucky") infNotes.push("Hunting: the roll is already Lucky.");
+    else if(_dice && _dice.length>1 && _lk==="unlucky"){ roll=_dice[0]; infNotes.push("Hunting is Lucky and cancels your Unlucky roll: "+_dice.join(" | ")+", the first stands, "+roll+"."); }
+    else { var _hb=cbd6(), _was=roll; roll=Math.max(_was,_hb); infNotes.push("Hunting makes the attack a Lucky Roll: "+_was+" | "+_hb+", keeping "+roll+"."); }
+    window._cbRoll=roll;
+  }
+  var fell=cbIsFellmark(roll, e);
+  if(fell && roll===5) infNotes.push("Honed: the 5 counts as a Fellmark.");
+  if(isWpn && cbWeaponHasInf(e.src,"Agile")) infNotes.push("Agile: a free movement rides with this Act, and the React's movement stays.");
+  if(isWpn && /basic|standard/i.test(e.nm||act) && cbWeaponHasInf(e.src,"Swift")) infNotes.push("Swift: a second standard attack on the same target follows when this lands.");
+  window._infNotes=infNotes; window._infAgile=!!(isWpn && cbWeaponHasInf(e.src,"Agile"));
+  window._atkGear=(e && e.src)?{ round:((COMBAT&&COMBAT.round)||1), src:e.src, act:act }:null;
+  /* logged without pushing: the declare goes first, and the sync follows its ack, so the
+     two writes to the same row never cross */
+  if(infNotes.length){ cbPing(infNotes.join(" "), true); window._plog=window._plog||[]; window._plog.unshift({ id:(Date.now().toString(36)+Math.random().toString(36).slice(2,7)), ts:Date.now(), side:"fell", text:meName()+": "+infNotes.join(" ") }); }
   var acc=roll?(roll+Math.max(0,attrTotal("precision"))):0;
   var foeFocus = target && target.indexOf("m:")===0;
   var afflicted = !!(e && cbWeaponHasInf(e.src,'Afflicted'));
@@ -7951,7 +8013,7 @@ window.onmessage=ev=>{
       window._cbCtlOverride={ cbAct:d.act||"", cbActSrc:d.src||"", cbFocus:d.target||"",
                               cbSkillSel:d.skill||"", cbItemSel:d.item||"",
                               cbStanceSel:d.stance||"", cbAfflictedSel:d.applies||"" };
-      if(typeof d.roll==="number") window._cbRoll=d.roll;
+      if(typeof d.roll==="number"){ window._cbRoll=d.roll; window._cbRollDice=null; }
       if(typeof d.fellBonus==="number") window._fellBonus=d.fellBonus;
       try{ cbDeclare(); }
       catch(err){ return { ok:false, reason:"threw", detail:String(err&&err.message||err) }; }
@@ -7967,7 +8029,7 @@ window.onmessage=ev=>{
       var mods=[];
       if(d.skill){ mods=[{label:d.skill, value:(typeof cbSkillBonus==="function")?cbSkillBonus(d.skill):0}]; }
       else if((pl.dmg||0)>0){ mods=[{label:"Precision", value:Math.max(0,attrTotal("precision"))}]; }
-      return { ok:true, round:d.round, roll:pl.roll||0, acc:pl.acc||0, mods:mods };
+      return { ok:true, round:d.round, roll:pl.roll||0, acc:pl.acc||0, mods:mods, notes:(window._infNotes||[]).slice(), agile:!!window._infAgile };
     })();
     try{ window.parent.postMessage({ type:"ts-declare-result", result:res }, "*"); }catch(e){}
     try{ tsSendHand(); }catch(e){}
@@ -8051,6 +8113,9 @@ window.onmessage=ev=>{
     if(d.reqId && _declPend[d.reqId]){
       delete _declPend[d.reqId];
       if(!d.ok) cbPing("The LoreMaster's board rejected your declare. Declare again.", true);
+      /* the weapon this Act was made with, and any infusion notes, go after the declare has
+         landed, so the board reads both from one row (#754) */
+      else { try{ combatSyncPush(); }catch(e){} }
     }
   }
   else if(d.type==="combat-sync-ack"){
