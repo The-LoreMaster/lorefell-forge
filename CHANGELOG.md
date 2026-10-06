@@ -1,3 +1,7 @@
+## 2026-10-05 - Sounds: move them, tap them, fade them, upload several
+
+A sound's ♫ on the map answers the LoreMaster now: a tap opens that sound, a drag moves it (the map's pan used to take the press, so neither worked). Each sound gains Fade in and Fade out (off, or up to ten seconds): it comes up over that time when it starts being heard, and goes over that time when it stops (out of reach, taken off, another map or scene). Uploading takes several files at once: each joins the adventure's sounds, the first goes onto the sound it was chosen for, and anything that is not audio or is over 20 MB is named as not uploaded.
+
 ## 2026-10-05 - Sounds you can hear, edit from the map, and manage
 
 A placed sound was silent for the LoreMaster unless Hear it as was set: by default the LoreMaster now hears from the token they select, else the party's middle, else the middle of their view, and placed sounds no longer go quiet when one's music is turned off. Tapping a sound's ♫ on the map opens that sound alone, to change or take off the map. Each sound's list now uploads a sound (Upload a sound…) and opens My sounds (Rename or remove my sounds…), where each of the adventure's sounds can be played, renamed, or removed from the adventure and every map that plays it, and the folder's others added; the top Upload button is gone. The LoreMaster's players'-view bar sits lower, clear of the frame, and the minimized scene runner sits above the bottom border.

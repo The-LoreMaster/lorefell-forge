@@ -422,7 +422,8 @@ body.lm-role #clockStrip .clk{ cursor:pointer; } #clockStrip .clk.secret{ border
 @media (max-width:640px){ #clockStrip{ max-width:92vw; } .clk-row{ grid-template-columns:36px minmax(0,1fr) 64px; } }
 #soundLayer{ position:absolute; left:0; top:0; width:0; height:0; z-index:6; pointer-events:none; }
 #soundLayer .snd-ring{ position:absolute; border-radius:50%; border:1px dashed rgba(127,179,163,.45); background:radial-gradient(circle, rgba(127,179,163,.10), rgba(127,179,163,0) 70%); }
-#soundLayer .snd-mark{ position:absolute; transform:translate(-50%,-50%); width:30px; height:30px; border-radius:50%; border:1px solid #7fb3a3; background:rgba(10,14,26,.9); color:#9fd0b0; font-size:15px; cursor:pointer; pointer-events:auto; }
+#soundLayer .snd-mark{ position:absolute; transform:translate(-50%,-50%); width:34px; height:34px; border-radius:50%; border:1px solid #7fb3a3; background:rgba(10,14,26,.92); color:#9fd0b0; font-size:16px; cursor:grab; pointer-events:auto; touch-action:none; z-index:2; box-shadow:0 0 0 4px rgba(127,179,163,.12); }
+#soundLayer .snd-mark:hover{ border-color:#c9a84c; color:#f0d48a; } #soundLayer .snd-mark:active{ cursor:grabbing; }
 .snd-list.one{ grid-template-columns:1fr; max-height:none; margin-bottom:10px; }
 .snd-shelf{ list-style:none; margin:0 0 10px; padding:0; display:flex; flex-direction:column; gap:6px; max-height:44vh; overflow:auto; }
 .snd-shelf li{ display:grid; grid-template-columns:32px minmax(0,1fr) auto 32px; align-items:center; gap:8px; padding:6px 8px; border-radius:10px; border:1px solid #26324c; background:#0c1222; }
@@ -7601,6 +7602,14 @@ function soundsTick(force){
   var me = musicMine(), base = Math.max(0, Math.min(1, (me.vol == null ? 1 : me.vol) * Math.max(.5, musicTableVol())));
   var g = (S.grid && S.grid.size) || 100, segs = []; try { segs = wallBlockers(); } catch(e){}
   var keep = {};
+  /* a step of the 200 ms tick toward the target: a fade's length sets how far it may move */
+  var step = function(a, target, sd){
+    var up = target > a.volume, secs = up ? Number(sd.fadeIn) || 0 : Number(sd.fadeOut) || 0;
+    if (secs <= 0) return a.volume + (target - a.volume) * .5;
+    /* the whole fade takes its seconds, whatever the loudness it fades to or from */
+    var span = up ? Math.max(target, .05) : Math.max(a._peak || a.volume, .05), d = .2 / secs * span;
+    return up ? Math.min(target, a.volume + d) : Math.max(target, a.volume - d);
+  };
   list.forEach(function(sd){
     var tr = sd.ref ? (musicRefTracks(sd.ref)[0] || null) : null, url = (tr && tr.url) || sd.url; if (!url) return;
     keep[sd.id] = 1;
@@ -7613,11 +7622,15 @@ function soundsTick(force){
       if (d < reach){ v = Math.pow(1 - d / reach, 1.4) * (sd.vol == null ? 1 : sd.vol); try { if (segs.length && losBlocked(lis.x, lis.y, sd.x, sd.y, segs)) v *= .4; } catch(e){} }
     }
     v = Math.max(0, Math.min(1, v * base));
-    a.volume = a.volume + (v - a.volume) * .35;
-    if (v > .005 && a.paused){ var pr = a.play(); if (pr && pr.catch) pr.catch(function(){}); }
-    else if (v <= .005 && !a.paused && a.volume < .01) a.pause();
+    a._sd = sd; a._dying = false;
+    if (v > .005 && a.paused){ a.volume = 0; var pr = a.play(); if (pr && pr.catch) pr.catch(function(){}); }
+    a.volume = Math.max(0, Math.min(1, step(a, v, sd)));
+    if (v >= a.volume - .01) a._peak = a.volume;
+    if (v <= .005 && !a.paused && a.volume < .01) a.pause();
   });
-  Object.keys(SND.els).forEach(function(id){ if (!keep[id]){ try { SND.els[id].pause(); } catch(e){} delete SND.els[id]; } });
+  /* gone from here (taken off, another map or scene): it fades out by its own fade, then stops */
+  Object.keys(SND.els).forEach(function(id){ if (keep[id]) return; var a = SND.els[id];
+    try { a._dying = true; a.volume = Math.max(0, step(a, 0, a._sd || {})); if (a.volume < .01){ a.pause(); delete SND.els[id]; } } catch(e){ delete SND.els[id]; } });
 }
 setInterval(function(){ try { soundsTick(); } catch(e){} }, 200);
 /* the LoreMaster's marks on the map: where each sound sits and how far it carries */
@@ -7629,7 +7642,26 @@ function soundMarksPaint(){
   var g = (S.grid && S.grid.size) || 100;
   lay.innerHTML = soundsHere().map(function(sd){ var r = (sd.reach || 8) * g;
     return '<div class="snd-ring" style="left:' + (sd.x - r) + 'px;top:' + (sd.y - r) + 'px;width:' + (2 * r) + 'px;height:' + (2 * r) + 'px"></div>'
-      + '<button class="snd-mark" style="left:' + sd.x + 'px;top:' + sd.y + 'px" onclick="event.stopPropagation();soundEdit(\'' + sd.id + '\')" title="' + esc(sd.name || 'A sound') + '" aria-label="' + esc(sd.name || 'A sound') + '">\u266b</button>'; }).join('');
+      + '<button class="snd-mark" data-snd="' + esc(sd.id) + '" style="left:' + sd.x + 'px;top:' + sd.y + 'px" title="' + esc(sd.name || 'A sound') + ': tap to change it, drag to move it" aria-label="' + esc(sd.name || 'A sound') + '">\u266b</button>'; }).join('');
+  if (!lay._wired){ lay._wired = true;
+    lay.addEventListener('pointerdown', function(e){
+      var b = e.target.closest && e.target.closest('.snd-mark'); if (!b || e.button > 0) return;
+      e.stopPropagation(); e.preventDefault();
+      var id = b.getAttribute('data-snd'), sd = soundsHere().filter(function(x){ return x.id === id; })[0]; if (!sd) return;
+      var sx = e.clientX, sy = e.clientY, moved = false, ring = b.previousElementSibling;
+      try { b.setPointerCapture(e.pointerId); } catch(x){}
+      var mv = function(ev){
+        if (!moved && Math.hypot(ev.clientX - sx, ev.clientY - sy) < 5) return;
+        moved = true; var p = toMap(ev.clientX, ev.clientY), r = (sd.reach || 8) * g;
+        sd.x = Math.round(p.x); sd.y = Math.round(p.y);
+        b.style.left = sd.x + 'px'; b.style.top = sd.y + 'px';
+        if (ring){ ring.style.left = (sd.x - r) + 'px'; ring.style.top = (sd.y - r) + 'px'; }
+      };
+      var up = function(){ b.removeEventListener('pointermove', mv); b.removeEventListener('pointerup', up); b.removeEventListener('pointercancel', up);
+        if (moved) soundsShare(); else soundEdit(id); };
+      b.addEventListener('pointermove', mv); b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up);
+    });
+  }
 }
 setInterval(function(){ try { var k = mapKey() + JSON.stringify(soundsHere()) + isLM(); if (k !== soundMarksPaint._k){ soundMarksPaint._k = k; soundMarksPaint(); } } catch(e){} }, 800);
 /* ---- the sound shelf ----
@@ -7669,9 +7701,15 @@ function soundCard(sd, on){
     + '<button class="snd-del" onclick="soundDel(\'' + sd.id + '\')" aria-label="Take this sound off the map" title="Take it off the map">\u2715</button></div>'
     + '<select class="tsm-inp snd-src" aria-label="Its sound" onchange="soundPick(\'' + sd.id + '\',this.value)">' + refs.map(function(o){ return '<option value="' + esc(o.r) + '"' + (cur === o.r ? ' selected' : '') + '>' + esc(o.n) + '</option>'; }).join('') + '</select>'
     + '<div class="snd-dials"><label><span>Reach</span><input type="range" min="2" max="30" value="' + reach + '" oninput="soundSet(\'' + sd.id + '\',\'reach\',+this.value);this.nextElementSibling.textContent=this.value+\' spaces\'"><b>' + reach + ' spaces</b></label>'
-    + '<label><span>Loudness</span><input type="range" min="10" max="100" value="' + vol + '" oninput="soundSet(\'' + sd.id + '\',\'vol\',this.value/100);this.nextElementSibling.textContent=this.value+\'%\'"><b>' + vol + '%</b></label></div></li>';
+    + '<label><span>Loudness</span><input type="range" min="10" max="100" value="' + vol + '" oninput="soundSet(\'' + sd.id + '\',\'vol\',this.value/100);this.nextElementSibling.textContent=this.value+\'%\'"><b>' + vol + '%</b></label>'
+    + sndFade(sd, 'fadeIn', 'Fade in') + sndFade(sd, 'fadeOut', 'Fade out') + '</div></li>';
 }
-var SND_FILE = '<input type="file" id="sndFile" accept="audio/*" style="display:none" onchange="soundUpload(this)">';
+/* seconds it takes to come up when first heard, and to go when it stops (off = at once) */
+function sndFade(sd, k, label){
+  var v = Number(sd[k]) || 0, txt = function(n){ return n ? n + ' s' : 'off'; };
+  return '<label><span>' + label + '</span><input type="range" min="0" max="10" step="0.5" value="' + v + '" oninput="soundSet(\'' + sd.id + '\',\'' + k + '\',+this.value);this.nextElementSibling.textContent=(+this.value?this.value+\' s\':\'off\')"><b>' + txt(v) + '</b></label>';
+}
+var SND_FILE = '<input type="file" id="sndFile" accept="audio/*" multiple style="display:none" onchange="soundUpload(this)">';
 function soundsWin(focusId){
   if (!isLM() || keeperNo()) return;
   SND.view = { mode:'all', id:focusId || '' }; soundsLoadFolder();
@@ -7734,29 +7772,40 @@ function soundPick(id, r){
 }
 /* the list goes back to its sound while the file is chosen */
 function soundsReopenSoon(){ setTimeout(function(){ document.querySelectorAll('#tsModal .snd-src').forEach(function(s){ if (s.value === '__up'){ var sd = soundsHere().filter(function(x){ return x.id === SND.upFor; })[0]; s.value = (sd && sd.ref) || ''; } }); }, 50); }
-/* uploaded into the sound folder; it goes onto the sound it was chosen for, or the newest without one */
+/* uploaded into the sound folder, one or many at once: each joins this adventure's sounds; the
+   first goes onto the sound it was chosen for (or the newest without one) */
 function soundUpload(inp){
   var forId = SND.upFor; SND.upFor = '';
-  var f = inp && inp.files && inp.files[0], msg = document.getElementById('sndMsg'); if (!f) return;
-  var say = function(t){ if (msg) msg.textContent = t; };
-  if (!/^audio\//i.test(f.type || '')){ say('That is not an audio file.'); return; }
-  if (f.size > 20 * 1024 * 1024){ say('That file is over 20 MB. A sound loop is usually far smaller.'); return; }
-  say('Uploading ' + f.name + '\u2026');
-  tsAsk('TS_MUSIC_UPLOAD_URL', { name:f.name, mime:f.type, kind:'sound' }).then(function(u){
-    if (!u || !u.uploadUrl){ say('The site gave no upload address. Try again.'); return; }
-    var fd = new FormData(); fd.append('upload_token', u.uploadToken || ''); fd.append('file', f, u.fileName || f.name);
-    return fetch(u.uploadUrl, { method:'POST', body:fd }).then(function(res){ if (!res.ok) throw new Error('status ' + res.status); return res.json().catch(function(){ return {}; }); }).then(function(j){
-      var url = musicWixUrl(j, u.fileName); if (!url){ say('It uploaded, but its address did not come back. Find it in Media Manager, LoreFell Sounds.'); return; }
-      var x = { id:musicId(), title:f.name.replace(/\.[a-z0-9]+$/i, ''), url:url }; soundLib().push(x); musicShare();
-      var list = soundsHere(), target = list.filter(function(sd){ return sd.id === forId; })[0] || (forId || (SND.view && SND.view.mode === 'lib') ? null : list.filter(function(sd){ return !sd.ref; })[0]);
-      if (target){ target.ref = 's:' + x.id; if (!target.name || target.name === 'A sound') target.name = x.title; soundsShare(); }
-      var v = SND.view || {}; if (v.mode === 'lib') soundLibWin(); else if (v.mode === 'one') soundEdit(v.id); else soundsWin(target ? target.id : forId); var m2 = document.getElementById('sndMsg'); if (m2) m2.textContent = x.title + ' is uploaded' + (target ? ' and playing from ' + (target.name || 'its place') + '.' : '. Choose it on a sound.');
-    });
-  }).catch(function(e){ say('The upload did not finish: ' + ((e && e.message) || 'try again') + '.'); });
+  var files = [].slice.call((inp && inp.files) || []), msg = document.getElementById('sndMsg'); if (!files.length) return;
+  var say = function(t){ var m = document.getElementById('sndMsg'); if (m) m.textContent = t; };
+  var ok = [], bad = [];
+  files = files.filter(function(f){ if (!/^audio\//i.test(f.type || '')){ bad.push(f.name + ' (not audio)'); return false; } if (f.size > 20 * 1024 * 1024){ bad.push(f.name + ' (over 20 MB)'); return false; } return true; });
+  var one = function(f, i){
+    say('Uploading ' + (files.length > 1 ? (i + 1) + ' of ' + files.length + ': ' : '') + f.name + '…');
+    return tsAsk('TS_MUSIC_UPLOAD_URL', { name:f.name, mime:f.type, kind:'sound' }).then(function(u){
+      if (!u || !u.uploadUrl) throw new Error('no upload address');
+      var fd = new FormData(); fd.append('upload_token', u.uploadToken || ''); fd.append('file', f, u.fileName || f.name);
+      return fetch(u.uploadUrl, { method:'POST', body:fd }).then(function(res){ if (!res.ok) throw new Error('status ' + res.status); return res.json().catch(function(){ return {}; }); }).then(function(j){
+        var url = musicWixUrl(j, u.fileName); if (!url) throw new Error('no address came back');
+        var x = { id:musicId(), title:f.name.replace(/\.[a-z0-9]+$/i, ''), url:url }; soundLib().push(x); ok.push(x);
+      });
+    }).catch(function(e){ bad.push(f.name + ' (' + ((e && e.message) || 'failed') + ')'); });
+  };
+  var chain = Promise.resolve(); files.forEach(function(f, i){ chain = chain.then(function(){ return one(f, i); }); });
+  chain.then(function(){
+    if (ok.length) musicShare();
+    var target = null;
+    if (ok.length){
+      var list = soundsHere(); target = list.filter(function(sd){ return sd.id === forId; })[0] || (forId || (SND.view && SND.view.mode === 'lib') ? null : list.filter(function(sd){ return !sd.ref; })[0]);
+      if (target){ target.ref = 's:' + ok[0].id; if (!target.name || target.name === 'A sound') target.name = ok[0].title; soundsShare(); }
+    }
+    var v = SND.view || {}; if (v.mode === 'lib') soundLibWin(); else if (v.mode === 'one') soundEdit(v.id); else soundsWin(target ? target.id : forId);
+    say((ok.length ? (ok.length === 1 ? ok[0].title + ' is uploaded' : ok.length + ' sounds are uploaded') + (target ? ', and ' + ok[0].title + ' plays from ' + (target.name || 'its place') + '.' : '.') : '') + (bad.length ? ' Not uploaded: ' + bad.join(', ') + '.' : ''));
+  });
 }
 var _sndT = null;
 function soundSet(id, k, v){ var sd = soundsHere().filter(function(x){ return x.id === id; })[0]; if (!sd) return; sd[k] = v; clearTimeout(_sndT); _sndT = setTimeout(soundsShare, k === 'name' ? 500 : 120); }
-function soundDel(id){ var k = mapKey(); S.sounds[k] = soundsHere().filter(function(x){ return x.id !== id; }); var a = SND.els[id]; if (a){ a.pause(); delete SND.els[id]; } soundsShare(); if (SND.view && SND.view.mode === 'one') tsCloseModal(); else soundsWin(); }
+function soundDel(id){ var k = mapKey(); S.sounds[k] = soundsHere().filter(function(x){ return x.id !== id; }); soundsShare(); if (SND.view && SND.view.mode === 'one') tsCloseModal(); else soundsWin(); }
 /* the next tap on the map is where it goes */
 function soundPlace(){
   tsCloseModal(); playToast('Tap the map where the sound should be.', 'Sounds');
