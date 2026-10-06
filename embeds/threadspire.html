@@ -10277,9 +10277,10 @@ function foeHitCalc(f, base, bonus, magical, opt){
   lines.push('Bonus ' + bo + ' \u2212 ' + def + ' ' + defName + ' = ' + bo2);
   var total = b + bo2;
   var affs = (f.affs || []).concat((pendFor(f.id).affs) || []);
-  if (affs.indexOf('Bleeding') >= 0){ var own = (foeLive(f).dmg || {}).base || 0; total += own; lines.push('Bleeding: + ' + own + ', its own Base Damage'); }
+  if (affs.indexOf('Bleeding') >= 0 && total > 0){ var own = (foeLive(f).dmg || {}).base || 0, bn = foeAffN(f, 'Bleeding'); total += own * bn; lines.push('Bleeding' + (bn > 1 ? ' \u00d7' + bn : '') + ': + ' + (own * bn) + ', its own Base Damage'); }
   var cur = shownVit(f);
-  if (foeHas(f, 'Threshold') && total > Math.floor(cur / 2)){ lines.push('Threshold: no hit takes more than half its Vitality, ' + total + ' becomes ' + Math.floor(cur / 2)); total = Math.floor(cur / 2); }
+  /* half rounded up, so Threshold halves it down until a hit can kill (Nate, 2026-10-06) */
+  if (foeHas(f, 'Threshold') && total > Math.ceil(cur / 2)){ lines.push('Threshold: no hit takes more than half its Vitality, ' + total + ' becomes ' + Math.ceil(cur / 2)); total = Math.ceil(cur / 2); }
   var after = cur - total, ember = null;
   if (after <= 0 && cur > 0 && foeHas(f, 'Emberhold')) ember = true;
   if (foeHas(f, 'Deathsong')) notes.push('Deathsong: the attacker takes Base Damage equal to its highest defensive attribute (' + Math.max(a.Evasion || 0, a.Durability || 0, a.Resistance || 0) + ').');
@@ -10364,7 +10365,7 @@ function foeCardOpen(f){
     + '<label class="fc-vin"><span class="fc-sr-only">Vitality</span><input inputmode="numeric" value="' + vit + '" onchange="foeVitSet(\'' + f.id + '\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()"><span>/ ' + (f.maxVit || 0) + '</span></label></div>'
     + '<div class="fc-sub"><span>' + esc(bal) + pendTag(f) + '</span>' + chargePips(f, 'foe') + '</div>'
     + '<div class="fc-chips">' + (st ? '<span class="fc-chip st" title="' + esc([st.t1, st.t2, st.t3].join('. ')) + '">' + esc(f.stance) + (tier ? ' T' + [1,2,3].slice(0, tier).join(', T') + ' live' : ', not yet charged') + '</span>' : '')
-    + affs.map(function(a){ return '<span class="fc-chip af" title="' + esc((TS_EFFECT_INFO[a] || {}).e || a) + '">' + esc(a) + '</span>'; }).join('') + '</div>'
+    + affs.map(function(a){ var n = foeAffN(f, a); return '<span class="fc-chip af" title="' + esc((TS_EFFECT_INFO[a] || {}).e || a) + '">' + esc(a) + (n > 1 ? ' \u00d7' + n : '') + '</span>'; }).join('') + '</div>'
     + '<nav class="fc-tabs" aria-label="Card sections">' + ['round','acts','stats','cond','tell'].map(function(k){ var on = k === tab;
         return '<button class="fc-tab' + (on ? ' on' : '') + '" onclick="lmSetTab(\'' + f.id + '\',\'' + k + '\')" title="' + names[k] + '" aria-label="' + names[k] + '"' + (on ? ' aria-current="true"' : '') + '>' + fcSvg(k) + (on ? '<span>' + names[k] + '</span>' : '') + '</button>'; }).join('') + '</nav>'
     + '<div class="fc-body">' + foeTabBody(f, tab, resolve) + '</div></div>';
@@ -10737,6 +10738,7 @@ function foeAffSave(id){
 function foeAffDrop(id, name){
   var f = foeById(id); if (!f) return;
   f.affs = (f.affs || []).filter(function(x){ return x !== name; });
+  if (f.affN) delete f.affN[name];
   combatPublish(); applyRemoteState({ scene:S.scene }); paintLmStrip();
 }
 /* ---- the squares, as they actually arrived ----
@@ -11025,7 +11027,23 @@ function kitAtkWeapon(cid, dcl){
 function kitWielded(cid, n){
   var kk = kitOf(cid); if (!kk) return null;
   var ws = (kk.weapons || []).filter(function(w){ return (w.infs || []).indexOf(n) >= 0; });
-  return ws.filter(function(w){ return w.held; })[0] || ws[0] || null;
+  /* an infusion counts only while its weapon is equipped (Nate, 2026-10-06) */
+  return ws.filter(function(w){ return w.held; })[0] || null;
+}
+/* how many times an Affliction sits on a foe (Merciless applies one twice) */
+function foeAffN(f, n){ var on = ((f.affs || []).concat(pendFor(f.id).affs || [])).indexOf(n) >= 0; return on ? Math.max(1, (f.affN && f.affN[n]) || 1) : 0; }
+/* The Fellmark's Affliction, landed with the hit: twice with Merciless, and a foe's Hexward
+   turns aside the first Affliction it takes each round */
+function kitAfflict(f, name, times, who){
+  var sc = S.scene || {}, rnd = S.round || 1, said = [], landed = 0; sc.augUsed = sc.augUsed || {};
+  for (var i = 0; i < times; i++){
+    if (foeHas(f, 'Hexward') && sc.augUsed['hx:' + f.id] !== rnd){ sc.augUsed['hx:' + f.id] = rnd; said.push('Hexward turns aside the first ' + esc(name)); continue; }
+    var pf = pendFor(f.id), had = foeAffN(f, name);
+    if (!had) pf.affs.push(name);
+    f.affN = f.affN || {}; f.affN[name] = had + 1; landed++;
+  }
+  if (landed) said.push(esc(name) + (landed > 1 ? ' takes hold twice (\u00d7' + f.affN[name] + ')' : ' takes hold' + (f.affN[name] > 1 ? ' (\u00d7' + f.affN[name] + ')' : '')) + ' when the round stands');
+  return 'Fellmark: ' + said.join('; ') + (times > 1 ? ' (Merciless applies it twice)' : '') + '.';
 }
 function wHas(w, n){ return !!(w && (w.infs || []).indexOf(n) >= 0); }
 function kitTokChar(cid){ return (S.tokens || []).filter(function(t){ return t.charId && sameId(t.charId, cid); })[0] || null; }
@@ -11111,7 +11129,7 @@ function kitAtkNotes(cid, dcl){
   if (!kitOf(cid)) return '<div class="fc-muted">Their sheet has not sent its infusions yet.</div>';
   var w = kitAtkWeapon(cid, dcl);
   if (!w) return '<div class="fc-muted">Which weapon made this attack is not known, so its infusions will not be counted.</div>';
-  var live = ['Goring','Siphoning','Vorpal','Welling','Rooting','Hooking','Forceful','Sweeping','Coursing','Reprieve','Emboldening','Devouring','Swift','Targeted','Hunting','Honed'].filter(function(n){ return wHas(w, n); });
+  var live = ['Merciless','Goring','Siphoning','Vorpal','Welling','Rooting','Hooking','Forceful','Sweeping','Coursing','Reprieve','Emboldening','Devouring','Swift','Targeted','Hunting','Honed'].filter(function(n){ return wHas(w, n); });
   if (dcl.pierce) live.unshift(dcl.dt === 'magic' ? 'Ethereal' : 'Powerful');
   return live.length ? '<div class="fc-note auto">' + esc(w.name) + ': ' + esc(live.join(', ')) + ' worked when it lands.</div>' : '';
 }
@@ -11147,6 +11165,7 @@ function resolveOnFoe(charId, opt){
   else if (!w) fx.push('Which weapon made this attack is not known, so its infusions are not counted.');
   var dealt = r.total > 0;
   sc.dealt = sc.dealt || {}; if (dealt) sc.dealt[charId] = rnd;
+  if (dcl.fellmark && dcl.applies && !opt.swift) fx.push(kitAfflict(f, dcl.applies, has('Merciless') ? 2 : 1, who));
   var ft = kitTokFoe(f), mt = kitTokChar(charId);
   if (w && dealt){
     if (has('Siphoning')){
