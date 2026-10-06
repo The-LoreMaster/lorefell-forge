@@ -1,3 +1,7 @@
+## 2026-10-05 - Sounds you can hear, edit from the map, and manage
+
+A placed sound was silent for the LoreMaster unless Hear it as was set: by default the LoreMaster now hears from the token they select, else the party's middle, else the middle of their view, and placed sounds no longer go quiet when one's music is turned off. Tapping a sound's ♫ on the map opens that sound alone, to change or take off the map. Each sound's list now uploads a sound (Upload a sound…) and opens My sounds (Rename or remove my sounds…), where each of the adventure's sounds can be played, renamed, or removed from the adventure and every map that plays it, and the folder's others added; the top Upload button is gone. The LoreMaster's players'-view bar sits lower, clear of the frame, and the minimized scene runner sits above the bottom border.
+
 ## 2026-10-05 - The LoreMaster's table hears its board again
 
 Since the second-screen fix, a LoreMaster's table could fail to hear the stored board at all: the adventure's own save on opening moved the version on first, so the first read came back "nothing newer", and that no longer counted. The table then never armed the lobby (no lobby bar, no landing in the lobby) and held every save. Until the board has been read once, the table now asks for all of it.
