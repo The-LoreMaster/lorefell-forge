@@ -18565,8 +18565,15 @@ function wireToken(el, t, draggable){
           roomTokDrop(t); return; }
         try { playToast('Rooted by ' + esc(t.rooted.by || 'Rooting') + ' until the round ends. Moved, because you are the LoreMaster.', 'Move'); } catch(e){}
       }
+      /* Phantomfield (an augmentation): through enemies, allies and obstacles, walls and
+         uncrossable ground included, but never ending inside one */
+      if (!isLM() && t._gx !== undefined && phantomOf(t)){
+        var _in = phantomInside(t);
+        if (_in){ t.x = t._gx; t.y = t._gy; place(el, t); delete t._gx; delete t._gy; try { playToast('Phantomfield carries you through ' + esc(_in) + ', but you may not end your move inside it.', 'Move'); } catch(e){} roomTokDrop(t); return; }
+        if (moveCrossesWall(t._gx, t._gy, t.x, t.y)) try { playToast('Phantomfield: you pass through the wall.', 'Move'); } catch(e){}
+      }
       /* a player's Fell does not pass through a wall: it goes back where it stood */
-      if (!isLM() && t._gx !== undefined && moveCrossesWall(t._gx, t._gy, t.x, t.y)){
+      if (!isLM() && t._gx !== undefined && !phantomOf(t) && moveCrossesWall(t._gx, t._gy, t.x, t.y)){
         t.x = t._gx; t.y = t._gy; place(el, t); delete t._gx; delete t._gy;
         try { playToast('A wall is in the way.', 'Move'); } catch(e){}
         roomTokDrop(t); return;
@@ -19565,6 +19572,16 @@ function paleTread(t, p){ return !!(p && (p.payload === 'move' || p.payload === 
 function ironrootAt(x, y){
   var g = (S.grid && S.grid.size) || 100;
   return (S.tokens || []).filter(function(t){ return t.kind === 'p' && t.charId && Math.max(Math.abs(t.x - x), Math.abs(t.y - y)) < g * (t.cells || 1) / 2 && tokHasAug(t, 'Ironroot'); })[0] || null;
+}
+/* Phantomfield: this Fell moves through anything, so only where it ends is asked about */
+function phantomOf(t){ return !!(t && t.kind === 'p' && tokHasAug(t, 'Phantomfield')); }
+function phantomInside(t){
+  if (paleBlocks(t.x, t.y)) return 'that ground';
+  var g = (S.grid && S.grid.size) || 100;
+  var o = (S.tokens || []).filter(function(o){ return o !== t && o.kind !== 'marker' && !o.hidden && Math.max(Math.abs(o.x - t.x), Math.abs(o.y - t.y)) < g * ((o.cells || 1) + (t.cells || 1)) / 2 - 2; })[0];
+  if (!o) return '';
+  var fc = o.charId ? fellByCharId(o.charId) : null;
+  return tokenName(o) || (fc && fc.name) || o.name || 'someone';
 }
 function paleBlocks(x, y){ return palesAt(x, y).some(function(p){ return p.payload === 'impassable'; }); }
 function paleRule(p){ var r = paleShelf(p.base) || []; return (p.rule || r[4] || '') + (p.amount ? ' (' + p.amount + ')' : '') + (p.aff ? ' Affliction: ' + p.aff + '.' : ''); }
@@ -20579,7 +20596,7 @@ function drawRings(){
   if ((!t || t.kind !== 'p') && !isLM()) t = (S.tokens || []).filter(function(x){ return tokenIsMine(x); })[0] || null;
   var r = reachOf(t); if (!t || !r) return;
   var g = (S.grid && S.grid.size) || 100, z = cam.zoom, segs = [];
-  try { segs = wallBlockers(); } catch(e){ segs = []; }
+  try { segs = phantomOf(t) ? [] : wallBlockers(); } catch(e){ segs = []; }
   var cx = Math.floor((t.x - (S.grid.offX || 0)) / g), cy = Math.floor((t.y - (S.grid.offY || 0)) / g), M = Math.max(0, Math.round(r.mobility || 0));
   var h = '';
   for (var dy = -M; dy <= M; dy++) for (var dx = -M; dx <= M; dx++){
@@ -20635,8 +20652,8 @@ function dragReadout(t, x, y){
   if (!b){ b = document.createElement('div'); b.id = 'dragDist'; document.body.appendChild(b); }
   if (!t || t._gx === undefined){ b.style.display = 'none'; return; }
   var g = (S.grid && S.grid.size) || 100, d = Math.round(Math.hypot(t.x - t._gx, t.y - t._gy) / g);
-  var mob = moveLimitOf(t), walled = moveCrossesWall(t._gx, t._gy, t.x, t.y), over = d > mob || walled;
-  b.textContent = walled ? 'A wall is in the way' : d + ' sp of ' + mob + (agileNow(t) ? ' (Agile)' : '');
+  var ph = phantomOf(t), mob = moveLimitOf(t), walled = !ph && moveCrossesWall(t._gx, t._gy, t.x, t.y), over = d > mob || walled;
+  b.textContent = walled ? 'A wall is in the way' : (ph && phantomInside(t)) ? 'Phantomfield: cannot end inside ' + phantomInside(t) : d + ' sp of ' + mob + (agileNow(t) ? ' (Agile)' : '');
   b.classList.toggle('over', over);
   b.style.left = (x + 16) + 'px'; b.style.top = (y - 28) + 'px'; b.style.display = 'block';
 }
@@ -23347,7 +23364,7 @@ function moveMarkAt(mx, my){
   if (MOVEMARK && MOVEMARK.id === t.id && Math.abs(MOVEMARK.x - x) < 1 && Math.abs(MOVEMARK.y - y) < 1){ if (!(MOVEMARK.wall && !isLM())) moveMarkGo(); return true; }
   var spaces = Math.max(Math.round(Math.abs(x - t.x) / g), Math.round(Math.abs(y - t.y) / g));
   var mob = moveLimitOf(t);
-  MOVEMARK = { id:t.id, x:x, y:y, spaces:spaces, mob:mob, far:spaces > mob, wall:moveCrossesWall(t.x, t.y, x, y) };
+  MOVEMARK = { id:t.id, x:x, y:y, spaces:spaces, mob:mob, far:spaces > mob, wall:!phantomOf(t) && moveCrossesWall(t.x, t.y, x, y) };
   moveMarkPaint(); return true;
 }
 function moveMarkPaint(){
@@ -23378,6 +23395,7 @@ function moveMarkPaint(){
 function moveMarkGo(){
   var m = MOVEMARK; if (!m) return; if (m.wall && !isLM()) return; var t = tokById(m.id); moveMarkClear(); if (!t || !tokMayMove(t)) return;
   if (!isLM() && paleBlocks(m.x, m.y)){ playToast('That ground cannot be crossed.', 'Pale'); return; }
+  if (!isLM() && phantomOf(t)){ var _ox = t.x, _oy = t.y; t.x = m.x; t.y = m.y; var _in = phantomInside(t); t.x = _ox; t.y = _oy; if (_in){ playToast('Phantomfield carries you through ' + esc(_in) + ', but you may not end your move inside it.', 'Move'); return; } }
   if (elevMoveCheck(t, m.x, m.y)) return;
   var _px = t.x, _py = t.y; setTimeout(function(){ try { paleEntered(t, _px, _py); } catch(e){} }, 30);
   t.x = m.x; t.y = m.y;
