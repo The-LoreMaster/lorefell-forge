@@ -1,3 +1,7 @@
+## 2026-10-05 - Augmentations and infusions match the FellGuide
+
+The sheet still ran the old wording for six augmentations. Mendseam and Scarweave now count the highest defensive attribute every round (Scarweave adds, capped at Maximum Vitality), Lastlight works below 25 Vitality, Threshold caps a hit at half current Vitality, Emberhold holds at 1 every time with an even chance of death, and Unbowed is a ceiling of rank 3 instead of a rank off. Infusions: Rebounding's second Base lands only when the weapon deals damage and nothing reduces it; Swift's second attack is offered hit or miss, uses the weapon's own damage and the same Lucky and Unlucky rules; Coursing fires on a spell (a charged ability of a magic weapon), not on any magic swing; Powerful, Ethereal and Targeted also reduce what a Tier 2 stance takes off; Agile and Unflagging count while the weapon is wielded, whatever the Act, and Agile no longer doubles a lorebound's range; a foe's Targeted counts when deciding a miss. The lorebound form descriptions use the Transmogrifications text.
+
 ## 2026-10-05 - Phantomfield walks through anything
 
 A Fell wearing Phantomfield now moves through walls, tokens and ground that cannot be crossed, by drag or by tap-to-move, and the movement squares show past walls. Where the move ends is still checked: ending inside another token or on uncrossable ground is refused with a line saying why.
