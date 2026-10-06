@@ -11405,7 +11405,7 @@ function sceneLayoutRestore(){
   var bd = sceneBinding();
   if (!bd.mapId){
     /* a scene given a grid but no map yet still takes its grid */
-    if (bd.grid){ S.grid = Object.assign({}, bd.grid); applyRemoteState({ grid:S.grid }); }
+    if (bd.grid){ var _snp = snapIsOn(); S.grid = Object.assign({}, bd.grid, { snap:_snp }); applyRemoteState({ grid:S.grid }); }
     /* and the tokens set out in it on a quiet visit, with the Fell at the table */
     if (Array.isArray(bd.tokens) && bd.tokens.some(function(t){ return !(t.kind === 'p' || t.charId); })){
       var _fell0 = (S.tokens || []).filter(function(t){ return t.kind === 'p' || t.charId; });
@@ -11428,7 +11428,7 @@ function sceneLayoutRestore(){
     S.tokens = bd.tokens.map(function(t){ return Object.assign({}, t); });
     _fellNow.forEach(function(f){ if (!S.tokens.some(function(t){ return (t.charId && sameId(t.charId, f.charId)) || t.id === f.id; })) S.tokens.push(Object.assign({}, f)); });
   }
-  if (bd.grid) S.grid = Object.assign({}, bd.grid);
+  if (bd.grid){ var _snp2 = snapIsOn(); S.grid = Object.assign({}, bd.grid, { snap:_snp2 }); }
   S.map = { w:bd.mapW || (m && m.w) || 2400, h:bd.mapH || (m && m.h) || 1600 };
   applyRemoteState({ scene:S.scene, tokens:S.tokens, grid:S.grid, map:S.map, instance:S.instance });
   paintMapArt();
@@ -11512,7 +11512,7 @@ function stageRestore(b){
   setActiveStage(b.stageId);
   S.scene.background = b.mapId;
   S.tokens = (b.tokens||[]).map(function(t){ return Object.assign({}, t); });
-  S.grid = Object.assign({}, b.grid || S.grid);
+  var _snp3 = snapIsOn(); S.grid = Object.assign({}, b.grid || S.grid, { snap:_snp3 });
   S.map = { w: b.mapW || 2400, h: b.mapH || 1600 };
   applyRemoteState({ scene:S.scene, tokens:S.tokens, grid:S.grid, map:S.map, instance:S.instance });
   paintMapArt();
@@ -17705,16 +17705,21 @@ var DEFAULT_ART = 'assets/default-portrait.jpg';
    grid is for standing on; off when the LoreMaster wants a thing placed just so. */
 var snapOn = true;
 try { var _sn = localStorage.getItem('ts_snap'); if (_sn !== null) snapOn = _sn === '1'; } catch(e){}
+/* The snap belongs to the table: kept with the board's grid, so it holds between sessions and
+   on every screen (it was kept only in this browser, and anything that redrew the grid snapped
+   every token again whatever it said). */
+function snapIsOn(){ return (S.grid && typeof S.grid.snap === 'boolean') ? S.grid.snap : snapOn; }
 function toggleSnap(){
-  snapOn = !snapOn;
+  snapOn = !snapIsOn();
   try { localStorage.setItem('ts_snap', snapOn ? '1' : '0'); } catch(e){}
+  if (S.grid && isLM()){ S.grid.snap = snapOn; send({ type:'grid', grid:Object.assign({}, S.grid) }); schedulePush(); }
   paintSnapBtn();
   if (snapOn && isLM()) resnapTokens();
 }
 function paintSnapBtn(){
   var b = document.getElementById('gSnap'); if (!b) return;
-  b.textContent = snapOn ? 'To the grid' : 'Anywhere';
-  b.classList.toggle('on', snapOn);
+  b.textContent = snapIsOn() ? 'To the grid' : 'Anywhere';
+  b.classList.toggle('on', snapIsOn());
 }
 function artOr(u){ var v = String(u || ''); return v || DEFAULT_ART; }
 var _sheetRevSeen = 0, _godRevSeen = 0;
@@ -18055,6 +18060,7 @@ function renderTokens(){
 /* Put every token back in the middle of a square. Called when the grid changes size,
    because a token left at the pixel it held is no longer centred on anything. */
 function resnapTokens(){
+  if (!snapIsOn()) return;   /* snap off: tokens stay exactly where they were put */
   (S.tokens || []).forEach(function(t){
     var c = t.cells || 1, q = snapPoint(t.x, t.y, c);
     t.x = clamp(q.x, 0, S.map.w);
@@ -18084,7 +18090,7 @@ function snapPoint(x, y, cells){
 function gridHexToggle(){
   if (!isLM()) return; S.grid.hex = !S.grid.hex; drawGrid(); gridHexPaint();
   try { resnapTokens(); } catch(e){}
-  send({ type:'grid', grid:{ size:S.grid.size, offX:S.grid.offX || 0, offY:S.grid.offY || 0, opacity:S.grid.opacity, hex:!!S.grid.hex } });
+  send({ type:'grid', grid:{ size:S.grid.size, offX:S.grid.offX || 0, offY:S.grid.offY || 0, opacity:S.grid.opacity, hex:!!S.grid.hex, snap:snapIsOn() } });
 }
 function gridHexPaint(){ var b = document.getElementById('gHex'); if (b){ b.textContent = isHex() ? 'Hexes' : 'Squares'; b.classList.toggle('on', isHex()); } }
 function snapAxis(v, off, cells){
@@ -18147,7 +18153,7 @@ function wireToken(el, t, draggable){
       }
       if (!draggable) return;                 /* it never moved; there is nothing to send */
       var c = t.cells || 1;
-      if (snapOn){
+      if (snapIsOn()){
         var _sq = snapPoint(t.x, t.y, c);
         t.x = clamp(_sq.x, 0, S.map.w);
         t.y = clamp(_sq.y, 0, S.map.h);
@@ -18357,7 +18363,7 @@ function groupMove(lead, dx, dy, done){
     t.x = clamp(t._gx + dx, 0, S.map.w); t.y = clamp(t._gy + dy, 0, S.map.h);
     if (done){
       var c = t.cells || 1;
-      if (snapOn){ t.x = clamp(snapAxis(t.x, S.grid.offX, c), 0, S.map.w); t.y = clamp(snapAxis(t.y, S.grid.offY, c), 0, S.map.h); }
+      if (snapIsOn()){ t.x = clamp(snapAxis(t.x, S.grid.offX, c), 0, S.map.w); t.y = clamp(snapAxis(t.y, S.grid.offY, c), 0, S.map.h); }
       delete t._gx; delete t._gy; moved.push(t);
     }
   });
@@ -23934,7 +23940,7 @@ function paintLmbar(){
 (function wireLmbar(){
   GRID_CTL.forEach(function(c){
     document.getElementById(c[0]).addEventListener('input', function(){
-      var g = { size:S.grid.size, offX:S.grid.offX || 0, offY:S.grid.offY || 0, opacity:S.grid.opacity, hex:!!S.grid.hex };
+      var g = { size:S.grid.size, offX:S.grid.offX || 0, offY:S.grid.offY || 0, opacity:S.grid.opacity, hex:!!S.grid.hex, snap:snapIsOn() };
       g[c[1]] = c[2](this.value);
       /* a shift is kept within one square of the new size */
       g.offX = ((g.offX % g.size) + g.size) % g.size; g.offY = ((g.offY % g.size) + g.size) % g.size;
@@ -24001,7 +24007,7 @@ mapEl().addEventListener('pointermove', function(e){
 mapEl().addEventListener('pointerup', function(e){
   if (!_gridDragOn || !_gridDragFrom) return;
   e.stopPropagation(); _gridDragFrom = null;
-  send({ type:'grid', grid:{ size:S.grid.size, offX:S.grid.offX || 0, offY:S.grid.offY || 0, opacity:S.grid.opacity, hex:!!S.grid.hex } });
+  send({ type:'grid', grid:{ size:S.grid.size, offX:S.grid.offX || 0, offY:S.grid.offY || 0, opacity:S.grid.opacity, hex:!!S.grid.hex, snap:snapIsOn() } });
   try { paintLmbar(); } catch(x){}
 }, true);
 
