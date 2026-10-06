@@ -1,3 +1,7 @@
+## 2026-10-05 - Placed sounds stay put, and drag smoothly
+
+Placed sounds were lost on every reload: the table had already made an empty sound list for the map by the time the saved board arrived, took that as having sounds of its own, ignored the saved ones and saved the empty list over them. Only a table with placed sounds now keeps its own (merged with the saved ones by map), and a LoreMaster table that has not yet heard the board sends no sounds at all. A dragged ♫ stopped after half a space because the marks were redrawn under the pointer; they are no longer redrawn mid-drag, and the drag follows the whole page.
+
 ## 2026-10-05 - Sounds: move them, tap them, fade them, upload several
 
 A sound's ♫ on the map answers the LoreMaster now: a tap opens that sound, a drag moves it (the map's pan used to take the press, so neither worked). Each sound gains Fade in and Fade out (off, or up to ten seconds): it comes up over that time when it starts being heard, and goes over that time when it stops (out of reach, taken off, another map or scene). Uploading takes several files at once: each joins the adventure's sounds, the first goes onto the sound it was chosen for, and anything that is not audio or is over 20 MB is named as not uploaded.
