@@ -1,3 +1,7 @@
+## 2026-10-07 - Clue cards get their collection
+
+Clues carded to a Fell from FateWell never reached their sheet: the ClueCards collection that `assignClue` writes and `getClueCards` reads was never created in Wix, and both swallow the error. `schemas/ClueCards.json` adds it (campaignId, charId, handle, clueTitle, clueBody, scene, discoveredAt), and Apply CMS creates it on push. No Velo to paste.
+
 ## 2026-10-06 - Merciless, equipped infusions, Threshold and Bleeding
 
 Nate's rulings. Landing a Fellmark now puts its Affliction on the foe (staged for the round's end), and Merciless applies it twice: a foe's Hexward turns the first aside and the second still lands, and the count shows on the foe's card (Bleeding counts each time). Every infusion counts only while its weapon is equipped, on the sheet and at the table. Threshold caps a hit at half current Vitality rounded up, so it halves down until a hit can kill. Bleeding on a Fell now adds their own Base Damage (their best held weapon's, or an unarmed strike's) instead of 1.
