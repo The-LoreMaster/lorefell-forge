@@ -1,6 +1,6 @@
 ## 2026-10-07 - Two Velo files that lived only in Wix
 
-`velo/backend/loreforge.web.js` (`uploadRune`, the image upload the forges, FateWell and ThreadSpire use) and `velo/backend/canonBonds.js` (the one-time seed of the 17 canon lorebounds into Creations) existed only in the Wix editor. Copied in as they stand in Wix. No change to paste. `masterPage.js` in Wix is the empty default and is left out.
+`velo/backend/loreforge.web.js` (`uploadRune`, the image upload the forges, FateWell and ThreadSpire use) and `velo/backend/canonBonds.js` (the one-time seed of the 18 canon lorebounds into Creations) existed only in the Wix editor. Copied in as they stand in Wix. No change to paste. `masterPage.js` in Wix is the empty default and is left out.
 
 ## 2026-10-07 - Clue cards get their collection
 
