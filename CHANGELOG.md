@@ -1,3 +1,7 @@
+## 2026-10-07 - Two Velo files that lived only in Wix
+
+`velo/backend/loreforge.web.js` (`uploadRune`, the image upload the forges, FateWell and ThreadSpire use) and `velo/backend/canonBonds.js` (the one-time seed of the 17 canon lorebounds into Creations) existed only in the Wix editor. Copied in as they stand in Wix. No change to paste. `masterPage.js` in Wix is the empty default and is left out.
+
 ## 2026-10-07 - Clue cards get their collection
 
 Clues carded to a Fell from FateWell never reached their sheet: the ClueCards collection that `assignClue` writes and `getClueCards` reads was never created in Wix, and both swallow the error. `schemas/ClueCards.json` adds it (campaignId, charId, handle, clueTitle, clueBody, scene, discoveredAt), and Apply CMS creates it on push. No Velo to paste.
