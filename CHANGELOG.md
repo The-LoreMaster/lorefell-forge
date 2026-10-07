@@ -1,3 +1,7 @@
+## 2026-10-07 - portraits.web.js joins the repo
+
+`velo/backend/portraits.web.js` (`uploadPortrait`, the sheet's portrait upload into `/lorefell-portraits`) existed only in the Wix editor. Copied in as it stands in Wix. No change to paste. Every backend file in the Wix editor is now in the repo.
+
 ## 2026-10-07 - Two Velo files that lived only in Wix
 
 `velo/backend/loreforge.web.js` (`uploadRune`, the image upload the forges, FateWell and ThreadSpire use) and `velo/backend/canonBonds.js` (the one-time seed of the 18 canon lorebounds into Creations) existed only in the Wix editor. Copied in as they stand in Wix. No change to paste. `masterPage.js` in Wix is the empty default and is left out.
