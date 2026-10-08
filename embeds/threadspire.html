@@ -12736,19 +12736,25 @@ function advList(force){
   if (!tsEmbedded()){ S._advState = 'nobridge'; return; }
   S._advState = 'loading';
   var late = setTimeout(function(){
-    if (S._advState === 'loading'){ S._advState = 'nobridge'; if (S.openSection === 'settings') refreshWinBody(); }
+    if (S._advState === 'loading'){ S._advState = 'nobridge'; if (S.openSection === 'settings') refreshWinBody(); advChooserRedraw(); }
   }, 6000);
   tsAsk('TS_CAMPAIGN_LIST', {}).then(function(rows){
     clearTimeout(late);
     S._advList = rows || []; S._advState = 'ready';
     if (S.openSection === 'settings') refreshWinBody();
     if (S.openSection === 'story') refreshWinBody();
+    advChooserRedraw();
   }).catch(function(){
     clearTimeout(late);
     S._advState = 'failed';
     if (S.openSection === 'settings') refreshWinBody();
+    advChooserRedraw();
   });
 }
+/* The chooser draws the list it has when it opens. Opened before the list arrived, it said
+   "Finding your adventures" for good, since nothing drew it again; now the answer, or the
+   failure, redraws it. */
+function advChooserRedraw(){ try { if (document.getElementById('advChooser')) advChooser(); } catch(e){} }
 function advRetry(){ advList(true); if (S.openSection === 'settings') refreshWinBody(); }
 /* On a bookmark or a direct open, offer a choice rather than dropping the user wherever the
    address bar pointed. The LoreMaster picks an adventure; the player picks a Fell, which is
@@ -13422,7 +13428,8 @@ function settingsBody(){
 var ADVCH = { tab:'yours', pub:null, busy:'' };
 function advChooser(tab){
   ADVCH.tab = tab || ADVCH.tab || 'yours';
-  if (!Array.isArray(S._advList)) advList(true);
+  /* a failed ask is retried from its button, never by a redraw, which would loop */
+  if (!Array.isArray(S._advList) && S._advState !== 'failed' && S._advState !== 'nobridge') advList(true);
   if (ADVCH.tab === 'pub' && ADVCH.pub === null){ ADVCH.pub = 'loading';
     tsAsk('TS_PUBLISHED_ALL', {}).then(function(l){ ADVCH.pub = Array.isArray(l) ? l : []; if (document.getElementById('advChooser')) advChooser(); }).catch(function(){ ADVCH.pub = []; if (document.getElementById('advChooser')) advChooser(); }); }
   var tabs = [['yours','Yours'],['new','New'],['pub','Published']];
@@ -13430,7 +13437,8 @@ function advChooser(tab){
       return '<button class="' + (ADVCH.tab === t[0] ? 'on' : '') + '" onclick="advChooser(\'' + t[0] + '\')"' + (ADVCH.tab === t[0] ? ' aria-current="true"' : '') + '>' + t[1] + '</button>'; }).join('') + '</nav>';
   if (ADVCH.tab === 'yours'){
     var list = Array.isArray(S._advList) ? S._advList : null;
-    if (!list) h += '<p class="tsm-note">Finding your adventures\u2026</p>';
+    if (!list && (S._advState === 'failed' || S._advState === 'nobridge')) h += '<p class="tsm-note">Your adventures could not be reached.</p><div class="tsm-row" style="justify-content:flex-start"><button class="tsm-btn ghost" onclick="advList(true);advChooser()">Try again</button></div>';
+    else if (!list) h += '<p class="tsm-note">Finding your adventures\u2026</p>';
     else if (!list.length) h += '<p class="tsm-note">No adventures yet. Make one under New.</p>';
     else h += '<div class="ach-list">' + list.map(function(c){ var cur = sameId(c.id, S.campaignId);
         return '<button class="ach-card' + (cur ? ' on' : '') + '" onclick="' + (cur ? 'tsCloseModal()' : 'tsCloseModal();advSwitch(\'' + esc(c.id) + '\')') + '"' + (cur ? ' aria-current="true"' : '') + '>'
@@ -14014,6 +14022,9 @@ window.onmessage = function(ev){
     if (!S.roleReady && (d.role === 'lm' || d.role === 'player')){
       S.role = d.role; document.body.classList.remove('roleboot'); render();
     }
+    /* loadForAdventure asks for the adventure list at boot, before the role is known, so for
+       the LoreMaster it asked for nothing. Ask now that the role is here. */
+    if (d.role === 'lm' && !S.stream){ try { advList(); } catch(e){} }
     /* The hint arrives well before the full context, and it now carries whether this was a
        cast. So open the chooser here, at once, for a bookmark or direct open. Waiting for the
        context, which can be slow while a large adventure is read, is what made it appear many
@@ -23256,7 +23267,7 @@ document.addEventListener('contextmenu', function(e){
 var DP_COSTS = [['chg','Change Action','Change one Foe\u2019s committed Act after the Commit.',2],
   ['escfx','Escape Effect','Free one Foe from an Effect on it.',3], ['util','Add Equipped Utility','Give one Foe a utility to use this battle.',3],
   ['react','Fuel a React','Hand a Foe a React it has already spent.',3], ['cure','Remove All Afflictions','Clear every Affliction from one Foe.',5],
-  ['revive','Revive an Enemy','Bring a fallen Foe back into the fight.',5], ['esc','Escalate a Foe','Reveal its next rung of kit without waiting on the charge.',5],
+  ['revive','Revive an Enemy','Bring a fallen Foe back into the fight at full Vitality.',5], ['esc','Escalate a Foe','Reveal its next rung of kit without waiting on the charge.',5],
   ['env','Environmental Disruption','Fire, flood, collapse, a clinging mire.',8], ['chall','Charge All Enemies','Every Foe gains 1 Charge.',10],
   ['disc','Loose a Discordant again','Re-lay an Epic or Forsaken\u2019s Affliction across the table.',12], ['mag','Magical Disruption','A curse, a ward, a boon, anything supernatural.',15]];
 function dpPartySize(){ try { return attendingParty(S.scene).length || (S.party || []).filter(function(p){ return p && p.charId; }).length; } catch(e){ return 0; } }
