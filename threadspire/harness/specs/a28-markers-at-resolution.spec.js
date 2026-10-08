@@ -113,12 +113,18 @@ test.describe('A28 the marker is made at resolution', () => {
     /* the trap: charId is read by tokenIsMine and by tokenArt, and a marker carrying it
        would be draggable by its placer and would wear their portrait */
     expect(t.charId, 'the placer is recorded, not impersonated').toBeFalsy();
-    expect(await lm.evaluate((id) =>
-      window.tokenArt((window.S.tokens || []).filter((x) => x.id === id)[0]), t.id),
-      'and it wears no face').toBe('');
+    /* it wears its utility's art (Joel's Caltrops, 2026-07-29), or letters where a utility
+       has none, and never the placer's portrait */
+    const art = await lm.evaluate((id) => {
+      const tk = (window.S.tokens || []).filter((x) => x.id === id)[0];
+      return { worn: window.tokenArt(tk), own: window.markerArtFor(tk.util || tk.name),
+               face: window.portraitFor(tk.placer) || '' };
+    }, t.id);
+    expect(art.worn, 'and it wears its own art').toBe(art.own);
+    if (art.face) expect(art.worn, 'and not the placer\'s face').not.toBe(art.face);
   });
 
-  test('the log says who placed what, and on how many squares', async ({ page }) => {
+  test('the log says who placed what, and on how many spaces', async ({ page }) => {
     await T.openTable(page, lmOnly());
     const lm = await T.frameFor(page, 'lm');
     await T.waitBooted(page, lm, 'lm');
@@ -131,17 +137,19 @@ test.describe('A28 the marker is made at resolution', () => {
     const l = await logText(lm);
     expect(l).toContain('Astra');
     expect(l).toContain('Caltrops');
-    expect(l, 'the table cannot see the board from every chair').toContain('5 squares');
+    expect(l, 'the table cannot see the board from every chair').toContain('5 spaces');
   });
 
-  test('one square is a square, not "1 squares"', async ({ page }) => {
+  test('one space is a space, not "1 spaces"', async ({ page }) => {
     await T.openTable(page, lmOnly());
     const lm = await T.frameFor(page, 'lm');
     await T.waitBooted(page, lm, 'lm');
     await seatLm(lm, Object.assign({}, base, { act: 'Use a utility · Rune', places: [{ x: 350, y: 450 }] }));
     await resolve(lm);
 
-    expect(await logText(lm)).toContain('1 square.');
+    const l = await logText(lm);
+    expect(l).toContain('1 space.');
+    expect(l).not.toContain('1 spaces');
   });
 
   test('resolving twice does not put down a second set', async ({ page }) => {
@@ -150,12 +158,15 @@ test.describe('A28 the marker is made at resolution', () => {
     await T.waitBooted(page, lm, 'lm');
     await seatLm(lm, Object.assign({}, base, { places: [{ x: 350, y: 450 }, { x: 350, y: 550 }] }));
 
-    await resolve(lm);
-    await resolve(lm);
+    expect(await resolve(lm), 'the first resolve lays it').toBe(true);
+    /* There is no button to press twice any more: every placement materialises at the
+       swap to resolution (lmMaterialisePlacements, 2026-07-29). A second resolve is a
+       caller repeating itself, and it answers false and lays nothing. */
+    expect(await resolve(lm), 'the second lays nothing').toBe(false);
 
     expect(await markers(lm), 'the same placement is one placement').toHaveLength(2);
-    expect(await logText(lm), 'and the second press says so rather than going quiet')
-      .toContain('already on the board');
+    expect((await logText(lm)).match(/placed Caltrops/g) || [],
+      'and the table is told once').toHaveLength(1);
   });
 
   test('the id is the declaration, not the clock', async ({ page }) => {
@@ -203,14 +214,15 @@ test.describe('A28 the marker is made at resolution', () => {
     expect(await logText(lm)).toMatch(/no square the board can use/i);
   });
 
-  test('the Ground row offers the button, then reports it is done', async ({ page }) => {
+  test('the Ground row is a readout, then reports it is done', async ({ page }) => {
     await T.openTable(page, lmOnly());
     const lm = await T.frameFor(page, 'lm');
     await T.waitBooted(page, lm, 'lm');
     await seatLm(lm, Object.assign({}, base, { places: [{ x: 350, y: 450 }] }));
 
     let g = await groundRow(lm);
-    expect(g.button, 'there is something to resolve').toBe('Place it');
+    /* no per-Fell button since 2026-07-29: placements land together at the swap */
+    expect(g.button, 'a readout, with nothing to press').toBe('');
     expect(g.done).toBe(false);
 
     await resolve(lm);

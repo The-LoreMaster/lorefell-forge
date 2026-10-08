@@ -74,6 +74,7 @@ async function bootWithPowerWeapon(page, home) {
 /* Drive the Ascend wizard for real: button, attribute, weapon, die, Ascend.
  * Returns the vitality total the player was shown. */
 async function levelWeaponToL2(page, frame) {
+  await S.openRest(frame);
   await expect(frame.locator('#lvlUpBtn')).toBeVisible();
   await frame.locator('#lvlUpBtn').click();
   await expect(frame.locator('#luModal')).toHaveClass(/open/);

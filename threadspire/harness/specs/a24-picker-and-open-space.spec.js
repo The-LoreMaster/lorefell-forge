@@ -99,7 +99,8 @@ async function seat(frame, opts) {
 
 const cards = (frame) => frame.evaluate(() =>
   [...document.querySelectorAll('#hand .hcard')].map((c) => ({
-    name: (c.querySelector('.hc-line') || {}).textContent || '',
+    /* C4 (2026-09-28): the card's name is its .hc-title strip */
+    name: (c.querySelector('.hc-title') || {}).textContent || '',
     armed: c.classList.contains('armed'),
     resting: c.classList.contains('resting'),
     opacity: Number(getComputedStyle(c).opacity),

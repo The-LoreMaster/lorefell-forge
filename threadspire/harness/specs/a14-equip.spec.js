@@ -42,8 +42,9 @@ const warnText = (frame) => frame.evaluate(() => {
   const n = document.querySelector('#weaponsWrap .equip-warn');
   return n ? n.textContent : null;
 });
+/* the weapon's Equipped fact is its toggle since the Arsenal became rows (aa6930d) */
 const refusedBtn = (frame) => frame.evaluate(() =>
-  document.querySelectorAll('#weaponsWrap .flagbtn.refused').length);
+  document.querySelectorAll('#weaponsWrap .ax-fact.refused').length);
 
 test.describe('A14 what a Fell has in hand', () => {
 

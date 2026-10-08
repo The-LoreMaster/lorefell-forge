@@ -218,7 +218,13 @@ function handleStatePull(name, msg) {
    * embed is supposed to notice and discard it. That race is near impossible to hit on
    * purpose, so a spec can ask for the stamp directly. Off unless a spec sets it. */
   var out = { campaignId: b.stampPullsAs || b.campaignId };
-  if (r.version > 0) {
+  /* Nothing stored for this adventure yet is an answer of its own, as getCampaignState
+   * gives it: { version: 0, none: true, snap: null }. The LoreMaster's table writes nothing
+   * until it has heard the stored board or this answer (fcfc9d7), so a mock that left
+   * `none` out kept every LoreMaster push waiting for ever. */
+  if (!(r.version > 0)) {
+    out.version = 0; out.none = true; out.snap = null;
+  } else {
     out.version = r.version;
     if (r.version > since) {
       out.snap = clone(r.snap);
@@ -227,12 +233,12 @@ function handleStatePull(name, msg) {
   }
   /* Self-check. If this ever fires the harness is lying to the reader and every sync
    * assertion downstream is worthless, so it is recorded loudly rather than swallowed. */
-  if (out.snap !== undefined && !(r.version > since)) {
+  if (out.snap != null && !(r.version > since)) {
     TSH.violations.push({ what: 'served a snapshot that was not newer than the caller had seen',
                           frame: name, since: since, version: r.version });
   }
   note({ dir: 'store', frame: name, type: 'PULL', campaignId: b.campaignId,
-         since: since, version: r.version, served: out.snap !== undefined });
+         since: since, version: r.version, served: out.snap != null });
   reply(name, msg.reqId, true, out);
 }
 
@@ -615,7 +621,10 @@ window.addEventListener('message', function (ev) {
     b.ready = true;
     /* Paint the right side straight away, then let the confirmed context correct it.
      * Same two-step the real page uses. */
-    post(name, { type: 'THREADSPIRE_ROLE_HINT', role: b.role });
+    /* fromCast rides the hint as page-threadspire.js sends it. Without it the embed opens
+     * its locked on-load chooser (Open an adventure / pick a Fell) over the table, which
+     * is right for a bookmark and wrong for a scenario that mounted a chosen adventure. */
+    post(name, { type: 'THREADSPIRE_ROLE_HINT', role: b.role, fromCast: !!b.fromCast });
     sendContext(name);
     return;
   }
@@ -688,6 +697,7 @@ TSH.mount = function (cfg) {
       rawCampaign: c.rawCampaign,      /* undefined means "look it up in the fixtures" */
       stages: c.stages || [],
       journal: c.journal || [],
+      fromCast: !!c.fromCast,          /* true: arrived by cast, no on-load chooser */
       ready: false
     };
     names.push(name);

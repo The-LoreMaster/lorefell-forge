@@ -16,8 +16,12 @@ async function sheetFrame(page) {
 /* Wait for a record to have actually loaded, not merely for the frame to exist.
  * C and crystals are top-level let/const bindings, so they are reached bare rather than
  * through window. */
-async function waitLoaded(frame) {
-  await frame.waitForFunction(() => typeof C !== 'undefined' && !!C && !!C.lore && !!C.vitality);
+async function waitLoaded(frame, charId) {
+  /* The sheet's built-in blank C already has lore and vitality, so those alone are true
+   * before the host's init lands, and a spec that writes C then loses it to loadCharacter.
+   * Wait for the init itself: the record's id is current and the load guard is down. */
+  await frame.waitForFunction((cid) => typeof C !== 'undefined' && !!C && !!C.lore && !!C.vitality
+    && (!cid || CUR_WIX_ID === cid) && !LOADING, charId || '');
 }
 
 async function mountSheet(page, { home = 'standalone', record = {}, charId = 'chr-harness-0001' } = {}) {
@@ -25,7 +29,7 @@ async function mountSheet(page, { home = 'standalone', record = {}, charId = 'ch
   await page.waitForFunction(() => !!window.FSH);
   await page.evaluate((c) => window.FSH.mount(c), { home, record, charId });
   const frame = await sheetFrame(page);
-  await waitLoaded(frame);
+  await waitLoaded(frame, charId);
   return frame;
 }
 
@@ -35,7 +39,7 @@ async function reloadSheet(page) {
   await page.evaluate(() => window.FSH.reload());
   await page.waitForFunction(() => window.FSH.ready === true);
   const frame = await sheetFrame(page);
-  await waitLoaded(frame);
+  await waitLoaded(frame, await page.evaluate(() => window.FSH.charId));
   return frame;
 }
 
@@ -68,4 +72,12 @@ async function weaponRecord(frame, tree, level) {
   }, { t: tree, lv: level });
 }
 
-module.exports = { SHEET_HOST, sheetFrame, waitLoaded, mountSheet, reloadSheet, treeForCategory, weaponRecord };
+/* Crystals are spent at a rest, which the LoreMaster calls (0903f9b): outside one the
+ * Level Up button stays hidden. Open a rest between sessions the way ThreadSpire does,
+ * with the ts-rest-op the sheet listens for, and wait for the button to be offered. */
+async function openRest(frame) {
+  await frame.evaluate(() => window.postMessage({ type: 'ts-rest-op', op: 'between', on: true }, '*'));
+  await frame.waitForFunction(() => window._restBetween === true);
+}
+
+module.exports = { SHEET_HOST, sheetFrame, waitLoaded, mountSheet, reloadSheet, treeForCategory, weaponRecord, openRest };

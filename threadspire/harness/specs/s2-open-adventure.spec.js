@@ -32,20 +32,15 @@ function loremaster() {
       role: 'lm',
       campaignId: F.CAMPAIGN_A,
       party: F.PARTY_A,
-      campaignList: F.CAMPAIGN_LIST
+      campaignList: F.CAMPAIGN_LIST,
+      /* arrived by cast, so the on-load chooser stays shut and Settings is reachable */
+      fromCast: true
     }
   };
 }
 
-/* Drive the switch through the real UI: Settings, the dropdown, the button. Reaching in
- * and calling advSwitch() directly would skip the part that keeps breaking. */
-async function switchAdventure(frame, toId) {
-  await frame.evaluate(() => window.openWin('settings'));
-  await frame.waitForSelector('#advSel');
-  await frame.selectOption('#advSel', toId);
-  const go = frame.locator('button.st-add', { hasText: 'Open the chosen adventure' });
-  await go.click();
-}
+/* Drive the switch through the real UI: Settings, the banner, the adventure's card. */
+const switchAdventure = T.switchAdventure;
 
 test.describe('S2 the LoreMaster opens the chosen adventure', () => {
 

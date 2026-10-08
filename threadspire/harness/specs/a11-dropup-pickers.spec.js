@@ -264,7 +264,8 @@ test.describe('A11 the pickers drop up out of the card', () => {
         label: t('.hand-pick .hp-lab'),
         hint: t('.hs-hint'),
         card: t('.hcard.armed .hc-pick'),
-        kicker: t('.hcard.armed .hc-kick')
+        /* the card's source line; the kicker went with the C4 cards (aa6930d) */
+        kicker: t('.hcard.armed .hc-src')
       };
     });
     expect(words.label).toBe('Which utility');
