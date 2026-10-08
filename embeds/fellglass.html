@@ -2788,8 +2788,9 @@ function fellFx(dieEl,kind){
 function rollDie(dieEl,resultEl,tagEl,bonus){
   rollDieForced(dieEl,resultEl,tagEl,bonus,1+Math.floor(Math.random()*6),null);
 }
-function rollDieForced(dieEl,resultEl,tagEl,bonus,final,extraTag){
+function rollDieForced(dieEl,resultEl,tagEl,bonus,final,extraTag,noMark){
   if(!dieEl)return;
+  if(final===6&&!noMark) tmNote();
   dieEl.classList.remove("fellmark","fellstrike","fellmark-pop","fellstrike-pop");
   dieEl.classList.remove("rolling");void dieEl.offsetWidth;dieEl.classList.add("rolling");
   if(tagEl)tagEl.innerHTML="";
@@ -2895,6 +2896,7 @@ document.querySelectorAll(".stat-cell").forEach(c=>{c.setAttribute("tabindex","-
    sheet shows it. Level on the strip opens the Lore tab at Invested Lore, where leveling is. */
 function mobilityRoll(){
   const n=1+Math.floor(Math.random()*6), m=C.mobility||0, total=n+m;
+  if(n===6) tmNote();
   if(document.body.classList.contains("tsembed")){
     try{ window.parent.postMessage({type:"ts-sheet-roll",rollType:"mobility",n:n,mods:[{label:"Mobility",value:m}],total:total},"*"); }catch(e){}
   }
@@ -3768,7 +3770,7 @@ function luRender(){
       die.disabled=true;
       const d6=1+Math.floor(Math.random()*6);
       LU.vitRoll=d6+vig;LU.vitD6=d6;LU.vitVig=vig;
-      rollDieForced(die,res,tag,vig,d6,null);
+      rollDieForced(die,res,tag,vig,d6,null,true); /* a level's Vitality roll is no check, so no treasure mark */
       setTimeout(luFinishReady,650);
     });
     rollRow.append(die,res,tag);
@@ -4245,7 +4247,7 @@ function restOpRun(d,reply){
   const after=()=>{ try{ renderAll(); }catch(e){} scheduleSave(); };
   const d6=()=>1+Math.floor(Math.random()*6);
   if(d.op==="info"){ reply(restInfo()); return; }
-  if(d.op==="recover"){ const n=d6(), r=skillBonusOf("Renewal"), full=n===6; const healed=restHeal(n+r,full); after(); reply({n,r,total:n+r,full,healed,info:restInfo()}); return; }
+  if(d.op==="recover"){ C.treasureMark=false; const n=d6(), r=skillBonusOf("Renewal"), full=n===6; const healed=restHeal(n+r,full); after(); reply({n,r,total:n+r,full,healed,info:restInfo()}); return; }
   if(d.op==="fatigue-1"){ const was=C.fatigue||0; fatigueSet(Math.max(0,was-1)); reply({was,now:C.fatigue||0,info:restInfo()}); return; }
   if(d.op==="fatigue-clear"){ const was=C.fatigue||0; fatigueSet(0); reply({was,now:0,info:restInfo()}); return; }
   if(d.op==="shard"){ if(!restSpend("Skyvault Shard")){ reply({ok:false}); return; } const healed=restHeal(0,true); const n=d6(), was=C.fatigue||0; fatigueSet(Math.max(0,was-n)); after(); reply({ok:true,healed,n,was,now:C.fatigue||0,info:restInfo()}); return; }
@@ -4425,7 +4427,11 @@ function axFamilyAfflictions(cat){
    The table's quick roller asks here for the numbers, and the sheet's own roll buttons send
    their rolls out the same way: one message, ts-sheet-roll, that the table throws as a die
    with this Fell's name and logs with the sum. */
+/* The treasure mark (CANON.md, Luck, Nate 2026-10-08): a Fell who rolls a Fellmark is
+   eligible for the next Treasure Phase. Resting or the end of a battle resets it. */
+function tmNote(){ if(!C) return; if(!C.treasureMark){ C.treasureMark=true; try{ scheduleSave(); }catch(e){} } }
 function tableRoll(rollType,n,mods,total,note){
+  if(n===6) tmNote();
   try{ window.parent.postMessage({type:"ts-sheet-roll",rollType:rollType,n:n,mods:mods,total:total,note:note||""},"*"); }catch(e){}
 }
 function skillBonusOf(name){ const s=C.skills[name]; return s?(s.rank+s.mastery+skillGrant(name)):0; }
@@ -6913,6 +6919,7 @@ function cbBreakoutList(){
 function cbBreakout(name){
   var d=1+Math.floor(Math.random()*6);
   if(d===6){
+    tmNote();
     var arr=C.afflictions||[];
     for(var i=0;i<arr.length;i++){ if(arr[i].name===name){ cbRevertCond(arr[i]); arr.splice(i,1); break; } }
     try{renderStatus();}catch(e){} try{renderVit();}catch(e){} try{renderStrip();}catch(e){} scheduleSave();
@@ -7821,6 +7828,7 @@ function cbDeclare(){
     window._cbRoll=roll;
   }
   var fell=cbIsFellmark(roll, e);
+  if(fell) tmNote();
   if(fell && roll===5) infNotes.push("Honed: the 5 counts as a Fellmark.");
   /* Agile counts while the weapon is wielded, whatever the Act */
   if(e && cbWields("Agile")) infNotes.push("Agile: a free movement rides with this Act, and the React's movement stays.");
@@ -7873,7 +7881,7 @@ function cbDeclare(){
   }
   if(e && e.src==="skills"){
     var _kSel=cbCtl("cbSkillSel"); var _kn=_kSel?_kSel.value:"";
-    if(_kn){ act=act+" \u00b7 "+_kn; if(roll) acc=roll+cbSkillBonus(_kn); if(roll===6) window._skillFell={round:round, skill:_kn}; }
+    if(_kn){ act=act+" \u00b7 "+_kn; if(roll) acc=roll+cbSkillBonus(_kn); if(roll===6){ window._skillFell={round:round, skill:_kn}; tmNote(); } }
   }
   if(e && e.src==="armor"){
     var _sSel=cbCtl("cbStanceSel");
@@ -8191,12 +8199,27 @@ var TP_FATIGUE_NAMES = (typeof FATIGUE_NAMES !== "undefined") ? FATIGUE_NAMES
 function tpState(){ return (COMBAT && COMBAT.treasure) || null; }
 function tpOpen(){ var t = tpState(); return !!(t && t.open); }
 function tpMine(){ return (COMBAT && COMBAT.youTreasure) || null; }
-function tpAmLucky(){ var t = tpState(); return !!(t && t.lucky && CUR_WIX_ID && t.lucky[CUR_WIX_ID]); }
+function tpGranted(){ var t = tpState(); return !!(t && t.lucky && CUR_WIX_ID && t.lucky[CUR_WIX_ID]); }
+/* Eligible for treasure: a Fellmark since the last rest or the last battle, or the
+   LoreMaster's grant of Luck, which counts the same (CANON.md, Luck). */
+function tpAmLucky(){ var m = tpMine(); return tpGranted() || !!(m && m.eligible); }
+function tpIsHarfolk(){ return String((C && C.identity && C.identity.lineage) || "").toLowerCase().indexOf("harfolk") >= 0; }
+/* The battle has ended: read the mark once, send it with the Fell's treasure row, and
+   reset it, since the end of a battle starts the next window. */
+function tpSnapEligible(){
+  if (!tpOpen() || !CUR_WIX_ID || !C) return;
+  var m = tpMine();
+  if (m && m.eligible !== undefined) return;
+  var e = !!C.treasureMark;
+  C.treasureMark = false;
+  try { scheduleSave(); } catch(e2){}
+  tpPush({ eligible:e, harfolk:tpIsHarfolk() });
+}
 function tpMyDraw(){ var t = tpState(); return (t && t.draws && CUR_WIX_ID) ? (t.draws[CUR_WIX_ID] || null) : null; }
 
-/* Harfolk carry a permanent extra Lucky die on Treasure Rolls, so they roll
-   three and keep the highest. Read off the sheet's own identity rather than
-   anything the board sends, because the lineage is the player's to know. */
+/* A Treasure Roll is one d6 and never Lucky. A Harfolk's lineage bonus is an extra lucky
+   die on Treasure Rolls, so they roll two and keep the higher. Read off the sheet's own
+   identity rather than anything the board sends, because the lineage is the player's. */
 /* Endurance resolves like any Lore Check: 1d6 plus rank, mastery and any identity
    grant, against the number the LoreMaster rolled. Equal or higher holds. */
 function tpEnduranceBonus(){
@@ -8209,11 +8232,7 @@ function tpEnduranceBonus(){
 }
 function tpFatigueTarget(){ var t = tpState(); return (t && typeof t.fatigue === 'number') ? t.fatigue : null; }
 
-function tpDiceCount(){
-  if (!tpAmLucky()) return 1;
-  var lin = String((C && C.identity && C.identity.lineage) || "").toLowerCase();
-  return (lin.indexOf("harfolk") >= 0) ? 3 : 2;
-}
+function tpDiceCount(){ return tpIsHarfolk() ? 2 : 1; }
 
 function tpPush(patch){
   if (!CUR_WIX_ID) return;
@@ -8341,14 +8360,14 @@ function tpCard(){
   /* Beat 3: Treasure */
   if (!lucky){
     h += '<div class="tp-sep"></div>'
-      +  '<div class="tp-note quiet">The foes hold nothing for you this time. Treasure comes to those who earned Luck in the fight.</div>';
+      +  '<div class="tp-note quiet">The foes hold nothing for you this time. Treasure comes to a Fell who rolled a Fellmark, or was granted Luck, since their last rest or battle.</div>';
     return h;
   }
 
   if (!mine.roll){
     var n = tpDiceCount();
     h += '<div class="tp-sep"></div>'
-      +  '<p class="tp-sub">You earned Luck. Roll '+n+' dice and keep the highest.'+(n === 3 ? ' Harfolk carry an extra Lucky die.' : '')+'</p>'
+      +  '<p class="tp-sub">'+(tpGranted() ? 'The LoreMaster granted you Luck.' : 'You rolled a Fellmark.')+' '+(n === 2 ? 'Roll two dice and keep the higher. Harfolk carry an extra lucky die.' : 'Roll one die.')+'</p>'
       +  '<div class="tp-dierow"><span class="tp-die" id="tpTreDie">?</span>'
       +  '<button class="tp-btn gold" id="tpTreBtn">Roll Treasure</button></div>';
     return h;
@@ -8384,6 +8403,7 @@ function tpRender(){
     document.body.classList.remove("tp-on");
     return;
   }
+  tpSnapEligible();
   if (!ov){
     ov = document.createElement("div");
     ov.id = "tpOverlay";
