@@ -24829,6 +24829,12 @@ function tpLmRollEnduranceFor(key){
   t.endManual[key] = { die:die, total:die, target:t.fatigue, held:(die >= t.fatigue), fellmark:(die === 6), by:'lm' };
   tpLmPublish(); render();
 }
+/* Eligible for treasure (CANON.md, Luck): the Fell's sheet reports a Fellmark since the last
+   rest or battle, or the LoreMaster grants Luck, which counts the same. One die, never
+   Lucky. A Harfolk rolls two and keeps the higher, as their sheet reports. */
+function tpLmSheetRow(key){ var d = (S.declares || []).filter(function(x){ return x.charId === key; })[0]; return (d && d.treasure) || {}; }
+function tpLmFellmarked(key){ return !!tpLmSheetRow(key).eligible; }
+function tpLmEligible(key){ var t = tpLmState(); return !!(t && t.lucky && t.lucky[key]) || tpLmFellmarked(key); }
 function tpLmSetLucky(key){
   var t = tpLmState(); if (!t) return;
   if (t.lucky[key]) delete t.lucky[key]; else t.lucky[key] = true;
@@ -24842,7 +24848,7 @@ function tpLmManual(key, val){
 }
 function tpLmRollTreasureFor(key){
   var t = tpLmState(); if (!t) return;
-  var n = t.lucky[key] ? 2 : 1, dice = [], i;
+  var n = tpLmSheetRow(key).harfolk ? 2 : 1, dice = [], i;
   for (i = 0; i < n; i++) dice.push(1 + Math.floor(Math.random() * 6));
   t.manual[key] = Math.max.apply(null, dice);
   tpLmPublish(); render();
@@ -24889,7 +24895,7 @@ function tpLmCardHtml(){
   if (!roster.length) h += '<p class="tpl-empty">No Fell in this fight.</p>';
 
   roster.forEach(function(p){
-    var lucky = !!t.lucky[p.key];
+    var k0 = p.charId || p.key, granted = !!t.lucky[k0], marked = tpLmFellmarked(k0), lucky = granted || marked;
     var end = p.charId ? tpLmEnduranceFor(p.charId) : null;
     var roll = tpLmRollFor(p.charId || p.key);
     var draw = t.draws[p.charId || p.key];
@@ -24897,7 +24903,8 @@ function tpLmCardHtml(){
 
     h += '<div class="tpl-row' + (lucky ? ' on' : '') + '">'
       + '<div class="tpl-r1"><span class="tpl-name">' + esc(p.name) + (p.offline ? ' <span class="tpl-off">at the table</span>' : '') + '</span>'
-      + '<button class="tpl-luck' + (lucky ? ' on' : '') + '" onclick="tpLmSetLucky(\'' + esc(k) + '\')">' + (lucky ? 'Lucky' : 'Grant Luck') + '</button></div>';
+      + (marked ? '<span class="tpl-dim">Fellmark</span> ' : '')
+      + '<button class="tpl-luck' + (granted ? ' on' : '') + '" onclick="tpLmSetLucky(\'' + esc(k) + '\')">' + (granted ? 'Luck granted' : 'Grant Luck') + '</button></div>';
 
     h += '<div class="tpl-r2"><span class="tpl-lbl">Endurance</span><span class="tpl-v">'
       + (end
@@ -24913,7 +24920,7 @@ function tpLmCardHtml(){
       + '</div>';
 
     if (!lucky){
-      h += '<div class="tpl-r2 quiet">No Luck earned. The foes hold nothing for them.</div></div>';
+      h += '<div class="tpl-r2 quiet">No Fellmark or Luck since their last rest or battle. The foes hold nothing for them.</div></div>';
       return;
     }
 
