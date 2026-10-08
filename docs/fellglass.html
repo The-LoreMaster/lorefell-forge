@@ -3254,14 +3254,16 @@ function ccOpenForge(seed){
   const norm=v=>String(v||"").trim().replace(/^the\s+/i,"").toLowerCase();
   const linName=id.lineage||seed.lineage||"";
   const lm=(typeof LINEAGE_DEFS!=="undefined"?LINEAGE_DEFS:[]).find(l=>norm(l.name)===norm(linName));
-  if(lm){CC.lineage=lm.name;CC.linType=lm.bonus.type;CC.linPick=lm.bonus.name;}
+  if(lm){CC.lineage=lm.name;
+    if(lm.bonus.type==="choice"){CC.linChoice=lm.name;CC.linType=null;CC.linPick=null;}
+    else{CC.linChoice=null;CC.linType=lm.bonus.type;CC.linPick=lm.bonus.name;}}
   const orName=id.origin||seed.origin||"";
   const om=(typeof PREGEN_ORIGINS!=="undefined"?PREGEN_ORIGINS:[]).find(o=>norm(o.name)===norm(orName));
   if(om)CC.pgOrigin=om;
   const motName=id.motivation||seed.motivation||"";
   const mm=(typeof MOTIVATION_DEFS!=="undefined"?MOTIVATION_DEFS:[]).find(m=>norm(m.name)===norm(motName));
   if(mm)CC.motivation=mm.name;
-  if(!CC.lineage){CC.step="pg-lineage";}
+  if(!CC.lineage||(CC.linChoice&&!CC.linPick)){CC.step="pg-lineage";}
   else if(!CC.pgOrigin){CC.step="pg-origin";}
   else{
     const track=originTrack(CC.pgOrigin);
@@ -3405,13 +3407,22 @@ function ccRender(){
   else if(CC.step==="lineage"){
     ccHead(card,"step 4","Your Lineage","Primarily roleplaying flavor. Listed lineages carry their own bonus. Or create your own: name it, describe it, then choose its bonus.");
     LINEAGE_DEFS.forEach(l=>{
-      const b=luOpt(l.name,"+1 "+l.bonus.name,()=>{
-        CC.lineage=l.name;CC.linType=l.bonus.type;CC.linPick=l.bonus.name;CC.linCustom=false;
+      const choice=l.bonus.type==="choice";
+      const b=luOpt(l.name,choice?"+1 to any attribute or skill":"+1 "+l.bonus.name,()=>{
+        CC.lineage=l.name;CC.linCustom=false;
+        if(choice){ CC.linChoice=l.name;CC.linType=null;CC.linPick=null;ccRender();return; }
+        CC.linChoice=null;CC.linType=l.bonus.type;CC.linPick=l.bonus.name;
         CC.step="identity";ccRender();
       });
       if(!CC.linCustom&&CC.lineage===l.name)b.classList.add("sel");
       card.appendChild(b);
     });
+    /* a lineage whose bonus is the player's choice (the Nyseen): pick it, then continue */
+    if(!CC.linCustom&&CC.linChoice&&CC.lineage===CC.linChoice){
+      ccAttrOrSkillList(card,null,(type,name)=>{CC.linType=type;CC.linPick=name;ccRender();},{type:CC.linType,name:CC.linPick});
+      ccFoot(card,"motivation","Continue",()=>{CC.step="identity";ccRender();},!CC.linPick);
+      return;
+    }
     const own=luOpt("Create your own\u2026","Name your lineage, describe it, then choose its bonus.",()=>{CC.linCustom=true;ccRender();});
     if(CC.linCustom)own.classList.add("sel");
     card.appendChild(own);
@@ -3432,10 +3443,21 @@ function ccRender(){
   else if(CC.step==="pg-lineage"){
     ccHead(card,"step 1","Choose your Lineage","One of 36 unique Lineages, each with deep lore and a realm of origin. Three placeholders stand in until the library arrives.");
     LINEAGE_DEFS.forEach(l=>{
-      const b=luOpt(l.name,"+1 "+l.bonus.name,()=>{CC.lineage=l.name;CC.linType=l.bonus.type;CC.linPick=l.bonus.name;CC.step="pg-origin";ccRender();});
+      const choice=l.bonus.type==="choice";
+      const b=luOpt(l.name,choice?"+1 to any attribute or skill":"+1 "+l.bonus.name,()=>{
+        CC.lineage=l.name;
+        if(choice){ CC.linChoice=l.name;CC.linType=null;CC.linPick=null;ccRender();return; }
+        CC.linChoice=null;CC.linType=l.bonus.type;CC.linPick=l.bonus.name;CC.step="pg-origin";ccRender();
+      });
       if(CC.lineage===l.name)b.classList.add("sel");
       card.appendChild(b);
     });
+    /* a lineage whose bonus is the player's choice (the Nyseen): pick it, then continue */
+    if(CC.linChoice&&CC.lineage===CC.linChoice){
+      ccAttrOrSkillList(card,null,(type,name)=>{CC.linType=type;CC.linPick=name;ccRender();},{type:CC.linType,name:CC.linPick});
+      ccFoot(card,"path","Continue",()=>{CC.step="pg-origin";ccRender();},!CC.linPick);
+      return;
+    }
     ccFoot(card,"path",null,null);
   }
   else if(CC.step==="pg-origin"){
@@ -6064,9 +6086,12 @@ function loadLibraries(lib){
   }
   if(has(lib.lineages)){
     const mapped=lib.lineages.map(r=>{
-      const type=lc(F(r,"bonusType"))==="attr"?"attr":"skill";
+      /* the library sends "attribute", "skill", "choice" (the Nyseen pick any attribute or
+         skill) or "special"; the sheet's own word for an attribute is "attr" */
+      const bt=lc(F(r,"bonusType"));
+      const type=(bt==="attr"||bt==="attribute")?"attr":(bt==="choice"?"choice":"skill");
       return {name:F(r,"name","title"),desc:F(r,"description"),
-        bonus:{type,name:type==="attr"?lc(F(r,"bonusName")):cap(F(r,"bonusName"))}};
+        bonus:{type,name:type==="attr"?lc(F(r,"bonusName")):(type==="choice"?"":cap(F(r,"bonusName")))}};
     }).filter(d=>d.name);
     if(mapped.length){LINEAGE_DEFS=mapped;}
   }
