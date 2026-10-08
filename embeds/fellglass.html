@@ -4430,6 +4430,15 @@ function axFamilyAfflictions(cat){
 /* The treasure mark (CANON.md, Luck, Nate 2026-10-08): a Fell who rolls a Fellmark is
    eligible for the next Treasure Phase. Resting or the end of a battle resets it. */
 function tmNote(){ if(!C) return; if(!C.treasureMark){ C.treasureMark=true; try{ scheduleSave(); }catch(e){} } }
+/* A single Lucky Roll the LoreMaster granted (CANON.md, Luck). The player's table says
+   when one waits (ts-lucky-grant, its time), and the next roll the sheet makes spends it.
+   The LoreMaster's table takes the grant back when that roll reaches it. */
+window._tsLuckyAt=0; window._tsLuckyUsed=0;
+window.addEventListener("message",function(ev){ var d=ev.data; if(d&&d.type==="ts-lucky-grant"){ window._tsLuckyAt=Number(d.at)||0; } });
+function tsLuckyWaits(){ return !!window._tsLuckyAt && window._tsLuckyUsed!==window._tsLuckyAt; }
+function tsLuckyTake(){ if(!tsLuckyWaits()) return false; window._tsLuckyUsed=window._tsLuckyAt; return true; }
+/* Roll a d6, Lucky if a granted Lucky Roll waits: returns [kept, note]. */
+function tsLuckyD6(n){ if(!tsLuckyTake()) return [n,""]; var b=1+Math.floor(Math.random()*6); return [Math.max(n,b),"Lucky Roll (granted) "+n+" | "+b]; }
 function tableRoll(rollType,n,mods,total,note){
   if(n===6) tmNote();
   try{ window.parent.postMessage({type:"ts-sheet-roll",rollType:rollType,n:n,mods:mods,total:total,note:note||""},"*"); }catch(e){}
@@ -4439,6 +4448,7 @@ function quickSkillRoll(name){
   const b=skillBonusOf(name);
   let n=1+Math.floor(Math.random()*6), note="";
   if(skillIsLucky(name)){ const a=n, c=1+Math.floor(Math.random()*6); n=Math.max(a,c); note="Lucky "+a+" | "+c; }
+  else { const lk=tsLuckyD6(n); n=lk[0]; note=lk[1]; }
   tableRoll("skill",n,[{label:name,value:b}],n+b,note);
   /* FellGuide: a Fellmark on a skill check raises that skill by 1. Automatic, or asked first,
      as the player chooses at the table. */
@@ -4457,15 +4467,15 @@ function heldWeapons(){ return (C.weapons||[]).map((w,i)=>({w,i})).filter(x=>x.w
 function quickAttackRoll(i){
   const w=(C.weapons||[])[i]; if(!w||!w.tree) return;
   const db=WEAPON_DB[w.tree], magic=db&&db.category==="magic";
-  const n=1+Math.floor(Math.random()*6), prec=attrTotal("precision");
+  const _lk=tsLuckyD6(1+Math.floor(Math.random()*6)), n=_lk[0], prec=attrTotal("precision");
   const base=1+attrTotal(magic?"magic":"power"), bonus=weaponBonus(w);
-  tableRoll("attack",n,[{label:"Precision",value:prec}],n+prec,weaponName(w)+": "+base+" base + "+bonus+" bonus "+(magic?"magic":"physical"));
+  tableRoll("attack",n,[{label:"Precision",value:prec}],n+prec,weaponName(w)+": "+base+" base + "+bonus+" bonus "+(magic?"magic":"physical")+(_lk[1]?" \u00b7 "+_lk[1]:""));
 }
 window.addEventListener("message",ev=>{
   const d=ev.data; if(!d||d.type!=="ts-quick-roll") return;
   if(d.kind==="evade"){
-    const n=1+Math.floor(Math.random()*6), ev2=attrTotal("evasion");
-    tableRoll("evade",n,[{label:"Evasion",value:ev2}],n+ev2); return;
+    const _lke=tsLuckyD6(1+Math.floor(Math.random()*6)), n=_lke[0], ev2=attrTotal("evasion");
+    tableRoll("evade",n,[{label:"Evasion",value:ev2}],n+ev2,_lke[1]); return;
   }
   if(d.kind==="skill"){
     if(d.pick){ quickSkillRoll(d.pick); return; }
@@ -7290,13 +7300,15 @@ function cbd6(){ return 1+Math.floor(Math.random()*6); }
 function cbMyLuck(){
   if(!(COMBAT&&COMBAT.active&&CUR_WIX_ID)) return "";
   var mark=""; var f=((COMBAT.fighters)||[]).filter(function(x){return x.charId===CUR_WIX_ID;})[0]; if(f) mark=f.luck||"";
+  /* a granted Lucky Roll is spent by one roll, even before the board hears of it */
+  if(mark==="lucky" && window._tsLuckyAt && window._tsLuckyUsed===window._tsLuckyAt) mark="";
   var n=0; if(mark==="lucky")n++; else if(mark==="unlucky")n--;
   try{ if(cbHasAff("Lucky")||cbHasEff("Lucky"))n++; if(cbHasAff("Unlucky")||cbHasEff("Unlucky"))n--; }catch(e){}
   return n>0?"lucky":(n<0?"unlucky":"");
 }
 function cbLuckRollD6(){
   var lk=cbMyLuck();
-  if(lk==='lucky'){ var a=cbd6(),b=cbd6(); window._cbRollDice=[a,b]; return Math.max(a,b); }
+  if(lk==='lucky'){ var a=cbd6(),b=cbd6(); window._cbRollDice=[a,b]; if(window._tsLuckyAt) window._tsLuckyUsed=window._tsLuckyAt; return Math.max(a,b); }
   if(lk==='unlucky'){ var a=cbd6(),b=cbd6(); window._cbRollDice=[a,b]; return Math.min(a,b); }
   window._cbRollDice=null; return cbd6();
 }
