@@ -1,3 +1,7 @@
+## 2026-10-08 - Disruptions, padding and Lore Points follow Nate's rulings
+
+ThreadSpire's Disruption menu holds all eleven costs in CANON.md, cheapest first: FateWell's eight (Change Action 2, Escape Effect 3, Add Equipped Utility 3, Remove All Afflictions 5, Revive an Enemy 5, Environmental 8, Charge All Enemies 10, Magical 15) and the three on the Foes (Fuel a React 3, Escalate a Foe 5, Loose a Discordant again 12). FateWell's list gains those three, and its Environmental and Magical options take CANON.md's names. Any foe standing alone against more than four Fell is now padded half a Fell for each one past four, whatever its Shatter Rating (it was Epic and Forsaken only). The LoreMaster's Treasure Phase card gains Defeated: every foe in the fight, the ones at 0 ticked, and the LoreMaster ticks any the Fell beat another way, through skills or the story. Lore Points count the ratings ticked, each once. No Velo to paste.
+
 ## 2026-10-07 - portraits.web.js joins the repo
 
 `velo/backend/portraits.web.js` (`uploadPortrait`, the sheet's portrait upload into `/lorefell-portraits`) existed only in the Wix editor. Copied in as it stands in Wix. No change to paste. Every backend file in the Wix editor is now in the repo.

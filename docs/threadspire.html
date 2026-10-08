@@ -18023,13 +18023,14 @@ function lmAmbushResolve(){
    nothing. Once the roster lands (or the level is pinned or changed) this brings the frozen
    numbers up to the party actually at the table. */
 /* Every foe is built to the Fell attending (LoreVault, Building Crucibles): Vitality is
-   7 x the average party level x its rating's share, and an Epic or Forsaken standing alone
-   against more than four Fell is padded half a Fell for each one past four. refill (when a
+   7 x the average party level x its rating's share, and any foe standing alone against more
+   than four Fell, whatever its rating, is padded half a Fell for each one past four (Nate,
+   2026-10-08). refill (when a
    Crucible begins) fills every foe to full and clears what the last fight left on it. */
 function foePad(f, apl){
   var sc = S.scene || {}, standing = (sc.foes || []).filter(function(x){ return !cDown(x); });
   var n = 0; try { n = attendingParty(sc).length; } catch(e){}
-  if ((f.sr === 'Epic' || f.sr === 'Forsaken') && standing.length === 1 && n > 4) return Math.round(7 * apl * 0.5 * (n - 4));
+  if (standing.length === 1 && n > 4) return Math.round(7 * apl * 0.5 * (n - 4));
   return 0;
 }
 function refreshFoeKits(refill){
@@ -23144,15 +23145,18 @@ document.addEventListener('contextmenu', function(e){
 
 
 /* ================= Disruptions: the LoreMaster's pool =================
-   LoreVault, Disruptions: the pool is Party Size + Average Party Level, refreshing at the
-   start of each Crucible, spent on the battlefield (Environmental 8, Magical 15) and on the
-   Foes (fuel a React 3, escalate a Foe 5, loose a Discordant again 12). Set pieces are free.
+   CANON.md, Disruptions: the pool is Party Size + Average Party Level, one pool for each
+   battle, refilled when a Crucible begins. Eleven fixed costs, FateWell's eight and the three
+   on the Foes (Nate, 2026-10-08), cheapest first. Set pieces are free.
    DP on the LoreMaster's frame is the pool: it fills when a Crucible begins, a tap opens the
    spend menu (what the pool cannot afford is greyed), each spend is noted in the log for the
    LoreMaster alone, and the last can be undone. Kept with the table's saved state. */
-var DP_COSTS = [['env','Environmental Disruption','Fire, flood, collapse, a clinging mire.',8], ['mag','Magical Disruption','A curse, a ward, a boon, anything supernatural.',15],
-  ['react','Fuel a React','Hand a Foe a React it has spent or never had.',3], ['esc','Escalate a Foe','Reveal its next rung of kit without waiting on the charge.',5],
-  ['disc','Loose a Discordant again','Re-lay an Epic or Forsaken\u2019s Affliction across the table.',12]];
+var DP_COSTS = [['chg','Change Action','Change one Foe\u2019s committed Act after the Commit.',2],
+  ['escfx','Escape Effect','Free one Foe from an Effect on it.',3], ['util','Add Equipped Utility','Give one Foe a utility to use this battle.',3],
+  ['react','Fuel a React','Hand a Foe a React it has already spent.',3], ['cure','Remove All Afflictions','Clear every Affliction from one Foe.',5],
+  ['revive','Revive an Enemy','Bring a fallen Foe back into the fight.',5], ['esc','Escalate a Foe','Reveal its next rung of kit without waiting on the charge.',5],
+  ['env','Environmental Disruption','Fire, flood, collapse, a clinging mire.',8], ['chall','Charge All Enemies','Every Foe gains 1 Charge.',10],
+  ['disc','Loose a Discordant again','Re-lay an Epic or Forsaken\u2019s Affliction across the table.',12], ['mag','Magical Disruption','A curse, a ward, a boon, anything supernatural.',15]];
 function dpPartySize(){ try { return attendingParty(S.scene).length || (S.party || []).filter(function(p){ return p && p.charId; }).length; } catch(e){ return 0; } }
 function dpPoolSize(){ return dpPartySize() + partyApl(); }
 function dpState(){ if (!S.dp) S.dp = { cur:0, max:0, spent:[] }; return S.dp; }
@@ -24671,13 +24675,21 @@ function tpFallen(foes){
     return f && (f.side === 'foe' || f.type === 'monster') && (f.maxVit || 0) > 0 && (f.curVit || 0) <= 0;
   });
 }
-function tpLoreFor(foes){
+/* Lore Points count the foes the LoreMaster declares defeated at the end of the battle,
+   before the points are given (Nate, 2026-10-08): a foe beaten through skills or the story
+   counts as well as one brought to 0. The foes at 0 start ticked. */
+function tpIsFoe(f){ return f && (f.side === 'foe' || f.type === 'monster'); }
+function tpDefaultDefeated(foes){
+  var d = {}; tpFallen(foes).forEach(function(f){ if (f.id) d[f.id] = true; }); return d;
+}
+function tpLoreFor(foes, defeated){
   /* One award per distinct Shatter Rating, not one per body. Matches FateWell's
      lpTotal, which is the accurate reading: a Crucible of six Minions is worth
      the same Lore as one Minion, because the Lore is in the kind of thing you
      faced rather than how many of it there were. */
   var seen = {}, t = 0;
-  tpFallen(foes).forEach(function(f){
+  var beaten = defeated ? (foes || []).filter(function(f){ return tpIsFoe(f) && f.id && defeated[f.id]; }) : tpFallen(foes);
+  beaten.forEach(function(f){
     var sr = f.sr || '';
     if (!sr || seen[sr]) return;
     seen[sr] = true;
@@ -24717,7 +24729,8 @@ function tpLmBegin(){
   sc.treasure = {
     open: true,
     sceneId: sc.id || '',
-    lorePoints: tpLoreFor(foes),
+    defeated: tpDefaultDefeated(foes),
+    lorePoints: tpLoreFor(foes, tpDefaultDefeated(foes)),
     aurum: tpAurumFor(foes),
     fatigue: null,       /* the LoreMaster's roll. Nobody rolls Endurance until it is set. */
     lucky: {},
@@ -24727,6 +24740,13 @@ function tpLmBegin(){
   };
   tpLmPublish();
   render();
+}
+function tpLmToggleDefeated(id){
+  var t = tpLmState(); if (!t || !id) return;
+  if (!t.defeated) t.defeated = {};
+  if (t.defeated[id]) delete t.defeated[id]; else t.defeated[id] = true;
+  t.lorePoints = tpLoreFor((S.scene || {}).foes || [], t.defeated);
+  tpLmPublish(); render();
 }
 function tpLmClose(){
   var sc = S.scene || {};
@@ -24840,12 +24860,22 @@ function tpLmClearDraw(key){
   tpLmPublish(); render();
 }
 
+function tpLmDefeatedHtml(t){
+  var foes = ((S.scene || {}).foes || []).filter(function(f){ return tpIsFoe(f) && f.id; });
+  if (!foes.length) return '';
+  var d = t.defeated || {};
+  return '<div class="tpl-fat"><span class="tpl-lbl">Defeated</span>'
+    + foes.map(function(f){ var on = !!d[f.id];
+        return '<button class="tpl-luck' + (on ? ' on' : '') + '" onclick="tpLmToggleDefeated(\'' + esc(f.id) + '\')">' + esc(f.name || 'Foe') + (f.sr ? ' \u00b7 ' + esc(f.sr) : '') + '</button>'; }).join('')
+    + '<span class="tpl-dim">Mark every foe the Fell beat, by any means. Lore Points count each rating once.</span></div>';
+}
 function tpLmCardHtml(){
   var t = tpLmState(); if (!t) return '';
   var h = '<div class="tpl-wrap"><div class="tpl-head">'
     + '<span class="tpl-title">Treasure Phase</span>'
     + '<span class="tpl-sub">Lore Points <b>' + (t.lorePoints || 0) + '</b> each \u00b7 Aurum ' + tpAurumText(t.aurum || {}) + '</span>'
     + '</div>'
+    + tpLmDefeatedHtml(t)
     + '<div class="tpl-fat">'
       + '<span class="tpl-lbl">Fatigue check</span>'
       + (t.fatigue === null || t.fatigue === undefined
