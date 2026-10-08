@@ -2421,6 +2421,29 @@ function motGrantSkills(){
   C.grants.motSkillsFor=d.name;
   return true;
 }
+/* Before 2026-10-08 the forging read an attribute lineage's bonus as a skill named after the
+   attribute ("Vigor"), so the Fell got no attribute point. No skill shares an attribute's name,
+   so such a grant can only be that mistake: it moves to the attribute, once, and is saved. A
+   Vigor point also lifts max Vitality by 1, since level 1 counted Vigor (unless the LoreMaster
+   set the maximum). */
+function lineageBackfill(){
+  if(!C.created||!C.grants||!C.grants.skills)return false;
+  const names={};ATTRS.forEach(([,list])=>list.forEach(([a])=>{names[a]=1;}));
+  let moved=false;
+  Object.keys(C.grants.skills).forEach(k=>{
+    const a=String(k).toLowerCase(), n=C.grants.skills[k]||0;
+    if(!names[a])return;
+    delete C.grants.skills[k];
+    if(n<=0)return;
+    C.grants.attrs=C.grants.attrs||{};
+    /* the ledger first: an older Fell seeds it from its current totals */
+    attrSrcAdd(a,n,"grant","lineage","Lineage ("+((C.identity&&C.identity.lineage)||"lineage")+")");
+    C.grants.attrs[a]=(C.grants.attrs[a]||0)+n;
+    if(a==="vigor"&&!C.lmVit&&C.vitality){C.vitality.max=(C.vitality.max||5)+n;C.vitality.current=(C.vitality.current||0)+n;}
+    moved=true;
+  });
+  return moved;
+}
 function motReturnSkills(){
   const d=motByName(C.grants&&C.grants.motSkillsFor);
   if(d)motSkills(d).forEach(n=>{C.grants.skills[n]=Math.max(0,(C.grants.skills[n]||0)-1);});
@@ -6180,6 +6203,7 @@ function loadCharacter(rec){
   let _arcFilled=false; try{ _arcFilled=archiveBackfill(); }catch(e){}
   /* a Fell forged before Motivations granted skills gets its +1s once, and saves them */
   const _motBackfill=motGrantSkills();
+  let _linBackfill=false; try{ _linBackfill=lineageBackfill(); }catch(e){}
   /* a level 1 Fell forged before level 1 counted Vigor gets it once: its maximum rises to 5 plus
      its Vigor (current rises by the same), and the sheet notes it was done */
   let _vitL1=false;
@@ -6202,7 +6226,7 @@ function loadCharacter(rec){
   renderAll();
   try { renderMotivation(); syncIdentityLock(); } catch(e){}
   // release the guard after this tick, once all programmatic field writes have settled
-  setTimeout(function(){ setLoading(false); if(_motBackfill||_arcFilled||_vitL1) scheduleSave(); try{ sealLoad(); }catch(e){} },0);
+  setTimeout(function(){ setLoading(false); if(_motBackfill||_linBackfill||_arcFilled||_vitL1) scheduleSave(); try{ sealLoad(); }catch(e){} },0);
 }
 /* A new character opens the forging immediately, but only once we know it
    IS new: either Velo says so, or no bridge message arrives at all
