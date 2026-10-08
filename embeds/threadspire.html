@@ -10270,7 +10270,8 @@ function compactPips(f){
    act, its strike and what its kit adds), Resolve in the Spotlights (the roll, the damage to
    read out, and Take a hit). Stats, Conditions, Acts and Tell are reference in both. */
 var FOE_RUNGS = ['Minion','Elite','Champion','Epic','Forsaken'];
-var FOE_REVEAL = { Minion:{ acts:0, inf:0, aug:0, react:0, disc:0 }, Elite:{ acts:1, inf:1, aug:0, react:0, disc:0 }, Champion:{ acts:2, inf:2, aug:1, react:1, disc:0 }, Epic:{ acts:3, inf:3, aug:2, react:1, disc:1 }, Forsaken:{ acts:3, inf:3, aug:2, react:1, disc:1 } };
+/* Every foe has one Act and one React each round, whatever its rating (CANON.md, Nate 2026-10-08). */
+var FOE_REVEAL = { Minion:{ acts:0, inf:0, aug:0, react:1, disc:0 }, Elite:{ acts:1, inf:1, aug:0, react:1, disc:0 }, Champion:{ acts:2, inf:2, aug:1, react:1, disc:0 }, Epic:{ acts:3, inf:3, aug:2, react:1, disc:1 }, Forsaken:{ acts:3, inf:3, aug:2, react:1, disc:1 } };
 /* how far escalation has carried it: its own rating plus each Escalate, up to Forsaken */
 function foeRung(f){ var i = Math.max(0, FOE_RUNGS.indexOf(f.sr || 'Elite')); return FOE_RUNGS[Math.min(4, i + (f.esc || 0))]; }
 function foeReveal(f){ return FOE_REVEAL[foeRung(f)] || FOE_REVEAL.Elite; }
@@ -10454,7 +10455,7 @@ function foeTabBody(f, tab, resolve){
     return fcSec('This round', '<div class="fc-muted">Tap a Fell on the map or the strip to make it the target.</div>' + actLine(f, 'foe') + kitBulwarkRow(f))
       + fcSec('Strike', foeStrikeLine(f))
       + (foeAttackNotes(f) ? fcSec('As it attacks', foeAttackNotes(f)) : '')
-      + fcSec('React', minion ? '<div class="fc-muted">A Minion has no React.</div>' : foeReactRow(f));
+      + fcSec('React', foeReactRow(f));
   }
   if (tab === 'round'){
     var h0 = _hit[f.id] || { base:0, bonus:0, mag:false };
@@ -10464,7 +10465,7 @@ function foeTabBody(f, tab, resolve){
           + '<label><span>Bonus</span><input inputmode="numeric" id="fhO-' + f.id + '" value="' + (h0.bonus || '') + '" oninput="foeHitRead(\'' + f.id + '\')"></label>'
           + '<div class="fc-seg" role="group" aria-label="Damage type"><button class="' + (h0.mag ? '' : 'on') + '" onclick="foeHitType(\'' + f.id + '\',false)">Physical</button><button class="' + (h0.mag ? 'on' : '') + '" onclick="foeHitType(\'' + f.id + '\',true)">Magical</button></div></div>'
           + '<div id="fhR-' + f.id + '">' + foeHitResult(f) + '</div>')
-      + fcSec('React', minion ? '<div class="fc-muted">A Minion has no React.</div>' : foeReactRow(f));
+      + fcSec('React', foeReactRow(f));
   }
   if (tab === 'acts'){
     var acts = (f.acts || []).slice().sort(function(x, y){ return (x.tier || 0) - (y.tier || 0); }), ch = f.charge || 0, d = foeLive(f).dmg || {};
@@ -10473,7 +10474,7 @@ function foeTabBody(f, tab, resolve){
       h += '<div class="fc-act' + (beyond || locked ? ' gray' : '') + '"><span class="fc-t">T' + t + '</span><div><b>' + esc(a.name) + '</b>' + (beyond ? ' <i>at ' + esc(FOE_RUNGS.filter(function(r){ return FOE_REVEAL[r].acts >= t; })[0] || 'Epic') + '</i>' : locked ? ' <i>at charge ' + t + '</i>' : '') + '<div>' + esc(a.effect || '') + '</div></div></div>'; });
     if (!acts.length && !minion) h += '<div class="fc-muted">No Acts forged.</div>';
     var esc5 = foeRung(f) !== 'Forsaken', dcur = dpState().cur;
-    return fcSec('Acts', h) + fcSec('React', minion ? '<div class="fc-muted">A Minion has no React.</div>' : foeReactRow(f))
+    return fcSec('Acts', h) + fcSec('React', foeReactRow(f))
       + (esc5 ? fcSec('Escalate', '<button class="fc-esc" onclick="foeEscalate(\'' + f.id + '\')"' + (dcur >= 5 ? '' : ' disabled') + '>Escalate to ' + esc(FOE_RUNGS[Math.min(4, FOE_RUNGS.indexOf(foeRung(f)) + 1)]) + ': 5 Disruptions (' + dcur + ' left)</button><div class="fc-muted">Reveals its next rung of kit. Its Vitality and attributes stay.</div>') : '');
   }
   if (tab === 'stats'){
@@ -18120,7 +18121,15 @@ function lmBeginCombat(){ if (keeperNo()) return; if (S.scene) S.scene.fightAt =
 function lmEndCombat(){ S.declares = null; S.scene.combatPhase = null; S.scene.foes.concat(S.scene.fell).forEach(function(c){ c.act=''; c.locked=false; c.spot=null; }); S.scene.fell = (S.scene.fell || []).filter(function(p){ return !p._auto; }); applyRemoteState({ mode:'explore', scene:S.scene });  combatPublish(); }
 function lmLockActs(){ S.scene.combatPhase = 'resolve'; S.scene.foes.concat(S.scene.fell).forEach(function(c){ if(c.act) c.locked = true; }); applyRemoteState({ scene:S.scene }); lmMaterialisePlacements(); }
 function lmUnlock(){ S.scene.combatPhase = 'commit'; S.scene.foes.concat(S.scene.fell).forEach(function(c){ c.locked=false; c.spot=null; }); applyRemoteState({ scene:S.scene }); }
-function lmNextRound(){ try { paleRoundTick(); } catch(e){} try { kitRoundEnd(); } catch(e){} pendCement(); setTimeout(function(){ S.declares = null; combatPublish(); declaresLoad(); }, 60); S.scene.combatPhase = 'commit'; S.scene.foes.concat(S.scene.fell).forEach(function(c){ c.act=''; c.locked=false; c.spot=null; c._roll=null; }); applyRemoteState({ round:S.round+1, scene:S.scene }); }
+/* A foe that spent its Act to Charge gains one as the round ends (CANON.md, Charging). */
+function foeChargeActs(){
+  (S.scene.foes || []).forEach(function(f){
+    if (f.act !== 'Charge') return;
+    var was = f.charge || 0; f.charge = Math.min(3, was + 1);
+    pushLog({ kind:'sys', lmOnly:true, html:'<b>' + esc(f.name) + '</b> spends its Act to charge: Charge ' + f.charge + '.' });
+  });
+}
+function lmNextRound(){ try { foeChargeActs(); } catch(e){} try { paleRoundTick(); } catch(e){} try { kitRoundEnd(); } catch(e){} pendCement(); setTimeout(function(){ S.declares = null; combatPublish(); declaresLoad(); }, 60); S.scene.combatPhase = 'commit'; S.scene.foes.concat(S.scene.fell).forEach(function(c){ c.act=''; c.locked=false; c.spot=null; c._roll=null; }); applyRemoteState({ round:S.round+1, scene:S.scene }); }
 function lmResolveSpot(id){ var c = findC(id); if(c){ c.spot = c.spot === 'done' ? null : 'done'; applyRemoteState({ scene:S.scene }); } }
 function lmSpotMode(m){ S.scene.spotMode = m; S.scene.spotOrder = []; applyRemoteState({ scene:S.scene }); }
 function lmToggleManual(key){ S.scene.manual[key] = !S.scene.manual[key]; S.scene.spotOrder = []; applyRemoteState({ scene:S.scene }); }
@@ -20405,7 +20414,22 @@ mapEl().addEventListener('pointerdown', function(e){
 }, true);
 document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && _shardPlace) shardDone(); });
 /* a player picks one up: it leaves the map; they add it to their inventory */
+/* Wit is Shard reach (CANON.md): a Fell picks up a Skyvault Shard from any space within
+   their Wit, measured straight from their token. Wit is the sheet's, so the table asks it. */
 function shardPickup(t){
+  var me = myFellTok(), g = (S.grid && S.grid.size) || 100;
+  if (!me){ tsModal('<h3 class="tsm-title">Too far to reach</h3><p class="lc-p">Put your token on the map first. A Skyvault Shard is picked up from within your Wit.</p><div class="tsm-row"><button class="tsm-btn" onclick="tsCloseModal()">Close</button></div>'); return; }
+  var away = Math.round(dist(t, me) / g);
+  restAsk('info').then(function(i){
+    var wit = Math.max(0, (i && i.wit) || 0);
+    if (away > wit){
+      tsModal('<h3 class="tsm-title">Too far to reach</h3><p class="lc-p">This Skyvault Shard is ' + away + (away === 1 ? ' space' : ' spaces') + ' away. You can reach one within your Wit, ' + wit + (wit === 1 ? ' space' : ' spaces') + '. Move closer, or let another Fell take it.</p><div class="tsm-row"><button class="tsm-btn" onclick="tsCloseModal()">Close</button></div>');
+      return;
+    }
+    shardPickupAsk(t);
+  }, function(){ shardPickupAsk(t); });
+}
+function shardPickupAsk(t){
   tsModal('<h3 class="tsm-title">Pick up this Skyvault Shard?</h3><p class="lc-p">It leaves the map. Add it to your inventory yourself, as a Skyvault Shard.</p>'
     + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Leave it</button><button class="tsm-btn" onclick="shardTake(\'' + esc(t.id) + '\')">Pick it up</button></div>');
 }
