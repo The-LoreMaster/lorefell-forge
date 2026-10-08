@@ -36,7 +36,9 @@ function loremaster() {
       role: 'lm',
       campaignId: F.CAMPAIGN_A,
       party: F.PARTY_A,
-      campaignList: F.CAMPAIGN_LIST
+      campaignList: F.CAMPAIGN_LIST,
+      /* arrived by cast, so the on-load chooser stays shut and Settings is reachable */
+      fromCast: true
     }
   };
 }
@@ -123,10 +125,7 @@ test.describe('S5 persistence', () => {
     await T.waitForCommittedSnap(page, F.CAMPAIGN_A, { tokenCharId: F.FELL_CHAR_ID });
 
     /* Switch through the real UI, the same path S2 drives. */
-    await lm.evaluate(() => window.openWin('settings'));
-    await lm.waitForSelector('#advSel');
-    await lm.selectOption('#advSel', F.CAMPAIGN_B);
-    await lm.locator('button.st-add', { hasText: 'Open the chosen adventure' }).click();
+    await T.switchAdventure(lm, F.CAMPAIGN_B);
 
     await lm.waitForFunction((id) => window.S.campaignId === id, F.CAMPAIGN_B);
     await lm.waitForFunction(

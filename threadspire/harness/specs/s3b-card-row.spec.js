@@ -89,7 +89,10 @@ const cardByName = async (frame, nm) => { await reveal(frame, nm); return frame.
     ariaDisabled: c.getAttribute('aria-disabled'),
     ariaPressed: c.getAttribute('aria-pressed'),
     text: c.textContent,
-    lit: c.querySelectorAll('.hc-pip.on').length
+    /* C4 (2026-09-28): the gems on each card are gone; a card that needs charge carries
+       its price in words (.hc-cost), marked .short while the Fell cannot pay it */
+    cost: (c.querySelector('.hc-cost') || {}).textContent || '',
+    short: !!c.querySelector('.hc-cost.short')
   };
 }, nm); };
 
@@ -191,11 +194,12 @@ test.describe('S3b the card row draws the hand', () => {
     expect(t3, 'the tier 3 act is drawn at charge 0').toBeTruthy();
     expect(t3.locked, 'and it reads as locked').toBe(true);
     expect(t3.ariaDisabled, 'and says so to a screen reader').toBe('true');
-    expect(t3.text, 'and names the charge that would buy it').toContain('Charge 3');
+    expect(t3.cost, 'and names the charge that would buy it').toBe('3 charges');
+    expect(t3.short, 'a price the Fell cannot pay yet').toBe(true);
 
     const basic = await cardByName(player, 'Basic attack');
     expect(basic.locked, 'a tier 0 act is always in reach').toBe(false);
-    expect(basic.text).not.toContain('Charge');
+    expect(basic.cost, 'a card that needs no charge says nothing about it').toBe('');
   });
 
   test('F9 a charge unlocks the card in place', async ({ page }) => {
@@ -206,12 +210,13 @@ test.describe('S3b the card row draws the hand', () => {
 
     await dealHand(player, 0);
     expect((await cardByName(player, 'Razorwind')).locked).toBe(true);
-    expect((await cardByName(player, 'Razorwind')).lit, 'no gems lit at charge 0').toBe(0);
+    expect((await cardByName(player, 'Razorwind')).short, 'its price is out of reach at charge 0').toBe(true);
 
     await dealHand(player, 1);
     const after = await cardByName(player, 'Razorwind');
     expect(after.locked, 'tier 1 is in reach at charge 1').toBe(false);
-    expect(after.lit, 'and one gem is lit').toBe(1);
+    expect(after.short, 'and its price is met').toBe(false);
+    expect(after.cost).toBe('1 charge');
     expect((await cardByName(player, 'Worldspire')).locked, 'tier 3 still is not').toBe(true);
 
     /* the card did not move, it changed: the Acts are the same four either way */

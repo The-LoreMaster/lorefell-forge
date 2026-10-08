@@ -66,6 +66,10 @@ async function mountSheet(page, home, record) {
    * than through window. */
   await frame.waitForFunction(() => typeof C !== 'undefined' && !!C && !!C.lore);
   await frame.waitForFunction(() => C.lore.lorePoints === 2 && C.lore.level === 1);
+  /* and a rest is open: crystals are spent at a rest (0903f9b), so outside one the
+   * button is rightly hidden and every assertion here would test nothing */
+  await frame.evaluate(() => window.postMessage({ type: 'ts-rest-op', op: 'between', on: true }, '*'));
+  await frame.waitForFunction(() => window._restBetween === true);
   return frame;
 }
 

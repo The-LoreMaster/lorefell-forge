@@ -100,6 +100,24 @@ async function waitForCommittedSnap(page, campaignId, match) {
   return page.evaluate((c) => window.TSH.versionOf(c), campaignId);
 }
 
+/* Switch the LoreMaster's table to another adventure through the real UI: Settings, the
+ * adventure's banner (Choose your adventure), then that adventure's card under Yours. The
+ * Settings dropdown and its "Open the chosen adventure" button were retired for this
+ * chooser (8d6425d, CHANGELOG 2026-10-03). Calling advSwitch() directly would skip the part
+ * that keeps breaking.
+ *
+ * Settings asks for the adventure list (TS_CAMPAIGN_LIST) as it opens. The chooser draws
+ * the list it has when it opens and does not redraw when the list arrives, so wait for the
+ * answer before pressing the banner. */
+async function switchAdventure(frame, toId) {
+  const target = FIXTURES.CAMPAIGN_LIST.find((c) => c.id === toId);
+  if (!target) throw new Error(`no adventure ${toId} in the fixture list`);
+  await frame.evaluate(() => window.openWin('settings'));
+  await frame.waitForFunction(() => Array.isArray(window.S._advList) && window.S._advList.length > 0);
+  await frame.locator('#win button.set-hero').click();
+  await frame.locator('#advChooser button.ach-card', { hasText: target.name }).click();
+}
+
 /* Open a rail window inside a frame and wait for its body to render. */
 async function openWindow(frame, key) {
   await frame.evaluate((k) => window.openWin(k), key);
@@ -170,5 +188,6 @@ module.exports = {
   seams,
   parseStoryHere,
   stillHereShowing,
+  switchAdventure,
   veiled
 };
