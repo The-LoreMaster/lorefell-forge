@@ -5011,6 +5011,8 @@ function renderBattle(){
      whole Act to do something they should be able to do while still striking. */
   put("React","armor","Change Armor Stance","Shift your armour stance. Spends your React.",undefined,"standard");
   put("Act","skills","Any skill","Roll 1d6 and add your current skill competency. Choose your skill.",undefined,"standard");
+  /* CANON.md, Charging: a Fell may spend their Act to charge once instead of attacking. */
+  put("Act","charge","Charge","Spend your Act to gain one Charge instead of attacking. It lands when the round ends.",undefined,"standard");
   /* searching the field for Skyvault Shards: an Act; a Fell finds up to 1 + Wit each battle,
      which the LoreMaster places on the map to be picked up */
   put("Act","shards","Search for Shards","Spend your Act to search the field. You can find up to "+(1+attrTotal("wit"))+" Skyvault Shards this battle.",undefined,"utility");
@@ -6473,7 +6475,7 @@ function setCombatState(state){
       _forceOrd=true;
     } else if(_ord && _ord.reroll && _ord.reroll!==window._lastRerollTs){
       window._lastRerollTs=_ord.reroll;
-      window._cbRoll=null; window._declaredRound=null; window._editDecl=true;
+      window._cbRoll=null; window._declaredRound=null; window._chargeAct=null; window._editDecl=true;
       cbPing("The LoreMaster calls for a new roll.", true);
       cbLogSelf("fell", meName()+" takes up the die again at the LoreMaster's word.");
       _forceOrd=true;
@@ -6494,7 +6496,10 @@ function setCombatState(state){
     }
   } else { applyCombatMode(); }
   if(COMBAT&&COMBAT.active){
-    if(COMBAT.round!==window._lastTickRound){ window._lastTickRound=COMBAT.round; window._reactUsed=false; window._cbRoll=null; window._defEva=[]; window._evaRolls={}; window._editDecl=false; window._hitSnooze=null; window._sentDmg=null; window._stanceRound=null; window._stanceApplied=false; window._draft=null; window._reactSent=null; window._declPayload=null; window._fellBonus=null; window._handKind=null; try{ if(COMBAT) COMBAT.you={}; }catch(e){} cbCementStaged(); cbApplySkillGrowth(); cbTickSelf(); }
+    if(COMBAT.round!==window._lastTickRound){
+      /* a Charge Act lands as its round ends */
+      if(window._chargeAct && window._chargeAct<COMBAT.round){ C.charge=Math.min(3,(C.charge||0)+1); window._chargeAct=null; try{renderCharges();}catch(e){} try{scheduleSave();}catch(e){} try{cbLogSelf("fell", meName()+" spends the Act to charge: Charge "+C.charge+".");}catch(e){} }
+      window._lastTickRound=COMBAT.round; window._reactUsed=false; window._cbRoll=null; window._defEva=[]; window._evaRolls={}; window._editDecl=false; window._hitSnooze=null; window._sentDmg=null; window._stanceRound=null; window._stanceApplied=false; window._draft=null; window._reactSent=null; window._declPayload=null; window._fellBonus=null; window._handKind=null; try{ if(COMBAT) COMBAT.you={}; }catch(e){} cbCementStaged(); cbApplySkillGrowth(); cbTickSelf(); }
     applyIncomingConditions(COMBAT.applied||[]);
     var rc=COMBAT.recap||{};
     if(rc.at && rc.at!==window._lastRecapAt){ window._lastRecapAt=rc.at; var _rp=cbRecapParse(rc.msg); var _did=cbRunOps(_rp.ops); var _say=_did.length?_did.join(" "):_rp.text; if(_say && (_did.length || !_rp.ops.length)){ cbPing(_say, true); try{edgeGlow("rgba(201,168,76,.7)");}catch(e){} } }
@@ -7741,7 +7746,7 @@ function cbResetSelf(){
                        (C.effects||[]).map(function(e){return {name:e.name,kind:"effect"};}));
     sendDeclare({type:"combat-declare",charId:CUR_WIX_ID,act:"",react:"",target:"",round:(COMBAT&&COMBAT.round)||1,dmg:0,base:0,dt:"",fellmark:false,applies:"",actTier:-1,doubleFell:false,fellBonus:null,pierce:0,roll:0,acc:0,fellstrike:false,kind:"",charge:C.charge||0,curVit:C.vitality.current,maxVit:C.vitality.max,affs:affs});
   }catch(e){}
-  window._cbRoll=null; window._declaredRound=null; window._editDecl=false;
+  window._cbRoll=null; window._declaredRound=null; window._chargeAct=null; window._editDecl=false;
   window._draft=null; window._reactSent=null; window._declPayload=null; window._fellBonus=null;
   try{ if(COMBAT) COMBAT.you={}; }catch(e){}
   cbPing("The LoreMaster asks you to choose your Act again.", true);
@@ -7934,6 +7939,7 @@ function cbDeclare(){
   sendDeclare(_pl);
   if(COMBAT) COMBAT.you={act:act,react:react,target:target};
   window._declaredRound=round;
+  window._chargeAct=(act==="Charge")?round:null;
   window._editDecl=false;
   window._draft=null;
   applyCombatMode();
@@ -8101,7 +8107,7 @@ window.onmessage=ev=>{
                       kind:"", charge:C.charge||0, curVit:C.vitality.current,
                       maxVit:C.vitality.max, affs:[] });
       }catch(err){ return { ok:false, reason:"threw", detail:String(err&&err.message||err) }; }
-      window._declaredRound=null;
+      window._declaredRound=null; window._chargeAct=null;
       window._cbRoll=null;
       window._declPayload=null;
       window._sentDmg=null;
