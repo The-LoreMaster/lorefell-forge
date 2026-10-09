@@ -164,9 +164,15 @@ function loadDraft(){
 /* F, anywhere but a text box, toggles full screen on a desktop */
 /* The frame the site holds this in has to allow full screen. When it does not, the button used
    to do nothing at all; now it says why, once. */
+/* The site's frame does not allow full screen, so the Anexanum opens in a tab of its own, signed
+   in with the ticket this frame already holds (passed in the address's #, which never leaves the
+   browser, and wiped from the address on arrival). There it fills the window, and F or the
+   button takes it full screen. */
 function fullBlocked(){
-  if (fullBlocked.said) return; fullBlocked.said = true;
-  alert('Full screen is blocked by the page the Anexanum sits in. In the Wix editor, set the Anexanum\u2019s HTML embed to Website address with https://table.lorefell.com/the_anexanum.html (the way ThreadSpire\u2019s is), and full screen will work.');
+  if (window.top === window){ alert('This browser would not go full screen. Try F11.'); return; }
+  if (!TICKET){ alert('Still signing in. Try again in a moment.'); return; }
+  var w = window.open(location.origin + location.pathname + '#t=' + encodeURIComponent(TICKET), '_blank');
+  if (!w) alert('The browser blocked the new tab. Allow pop-ups for this site, then try again.');
 }
 function toggleFull(){
   try {
@@ -185,7 +191,9 @@ document.addEventListener('keydown', function(e){
   e.preventDefault(); toggleFull();
 });
 function boot(){
-  askPage('AX_TICKET').then(function(r){ TICKET = r.ticket; return api('/ax/whoami'); })
+  var _ht = (location.hash.match(/[#&]t=([^&]+)/) || [])[1];
+  if (_ht){ try { history.replaceState(null, '', location.pathname); } catch(e){} }
+  (_ht ? Promise.resolve({ ticket:decodeURIComponent(_ht) }) : askPage('AX_TICKET')).then(function(r){ TICKET = r.ticket; return api('/ax/whoami'); })
     .then(function(w){ AX.who = w; paint(); loadVaultBasics(); })
     .catch(function(e){ document.getElementById('app').innerHTML = '<div class="gate"><h1>The Anexanum</h1><p class="sub">' + esc(e.message || 'Not open.') + '</p></div>'; });
 }
@@ -204,7 +212,7 @@ function loadVaultBasics(){
 function paint(){
   var w = AX.who || {};
   var h = '<header class="top"><div><h1>The Anexanum</h1><div class="sub">Where the lore is kept. Nothing reaches the FellGuide until you send it.</div></div>'
-    + '<div class="status"><button class="fsbtn" onclick="toggleFull()" title="Full screen (F)">Full screen</button><span>YouTube <b class="' + (w.youtube ? 'ok' : 'no') + '">' + (w.youtube ? 'connected' : 'not set') + '</b></span>' + unitsHtml() + '<span>The vault <b class="' + (w.vault ? 'ok' : 'no') + '">' + (w.vault ? 'open' : 'no key yet') + '</b></span></div></header>'
+    + '<div class="status"><button class="fsbtn" onclick="toggleFull()" title="Full screen (F)">' + (window.top !== window && document.fullscreenEnabled === false ? 'Full screen (opens its own tab)' : 'Full screen') + '</button><span>YouTube <b class="' + (w.youtube ? 'ok' : 'no') + '">' + (w.youtube ? 'connected' : 'not set') + '</b></span>' + unitsHtml() + '<span>The vault <b class="' + (w.vault ? 'ok' : 'no') + '">' + (w.vault ? 'open' : 'no key yet') + '</b></span></div></header>'
     + '<nav class="tabs" aria-label="The Anexanum"><button class="' + (AX.tab === 'histories' ? 'on' : '') + '" onclick="AX.tab=\'histories\';paint()">The Histories</button><button class="' + (AX.tab === 'videos' ? 'on' : '') + '" onclick="AX.tab=\'videos\';paint()">The videos</button></nav>';
   h += AX.tab === 'histories' ? paintHistories() : paintVideos();
   document.getElementById('app').innerHTML = h;
