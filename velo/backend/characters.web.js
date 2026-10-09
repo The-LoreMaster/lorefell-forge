@@ -230,6 +230,15 @@ function mergeLmVit(prev, next) {
   }
   return next;
 }
+// A Fell's conditions (Afflictions, Impairments, combat effects) are stamped by the sheet that
+// changed them. A save carrying an older stamp, from a copy of the sheet opened before the
+// change, keeps the row's newer conditions instead of wiping them.
+function mergeConds(prev, next) {
+  if (!prev || !next || !prev.condAt) return next;
+  if ((Number(next.condAt) || 0) >= (Number(prev.condAt) || 0)) return next;
+  ['afflictions', 'impairments', 'effects', 'condAt', '_condSig'].forEach((k) => { if (prev[k] !== undefined) next[k] = prev[k]; });
+  return next;
+}
 function mergeGiven(prev, next) {
   const gone = Array.from(new Set([].concat((prev && prev.givenGone) || [], (next && next.givenGone) || []))).slice(-500);
   const out = [], seen = {};
@@ -252,7 +261,7 @@ export const saveCharacter = webMethod(Permissions.Anyone, async (charId, charac
     row = { ownerMemberId: id };
   }
   await storePortrait(c);
-  if (charId) { const _prev = parseData(row); mergeGiven(_prev, c); mergeLmVit(_prev, c); }
+  if (charId) { const _prev = parseData(row); mergeGiven(_prev, c); mergeLmVit(_prev, c); mergeConds(_prev, c); }
   row.data = JSON.stringify(c);
   row.charName = (c.identity && c.identity.name) || row.charName || 'Unnamed Fell';
   row.level = (c.lore && c.lore.level) || 1;
@@ -697,6 +706,7 @@ export const lmSaveCharacter = webMethod(Permissions.Anyone, async (charId, char
   const _prevLm = parseData(row);
   mergeGiven(_prevLm, c);
   mergeLmVit(_prevLm, c);
+  mergeConds(_prevLm, c);
   row.data = JSON.stringify(c);
   row.charName = (c.identity && c.identity.name) || row.charName || 'Unnamed Fell';
   row.level = (c.lore && c.lore.level) || row.level || 1;

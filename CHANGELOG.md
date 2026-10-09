@@ -1,3 +1,12 @@
+## 2026-10-08 - Bringing players in from the lobby holds, and a stale sheet cannot wipe a condition
+
+Players bounced between the lobby and the map after Bring them in. Three causes, all fixed:
+- The lobby is stamped on every change, and a table takes an incoming lobby only when it is newer. An older save pulled late, or another LoreMaster screen still holding the lobby open, no longer flips the players back.
+- A player already let onto the map stays there through a dropped connection or a LoreMaster's table reloading. Only the LoreMaster gone from the room for 20 seconds sends them back to the lobby.
+- A LoreMaster's table that reloads within three hours of bringing everyone in no longer opens the lobby again.
+
+The sheet saves the whole Fell, so a second copy left open from before (the LoreMaster's view of a Fell, another tab) wiped any Affliction or Impairment marked since. Conditions now carry their own stamp, set only by the sheet that changed them, and the site keeps the newer stamp's conditions, the way it already keeps the LoreMaster's Max Vitality.
+
 ## 2026-10-08 - The Anexanum shows what is left of YouTube's day
 
 YouTube does not say how much of its 10,000 daily units is left, so the room now counts every YouTube call the site makes (the Anexanum, ThreadSpire and the two-hourly round alike), at YouTube's prices: 1 to read a list or a video, 50 to look up captions or put up a title and description, 200 to download captions, by the Pacific day the allowance resets on. The Anexanum's header shows what is left today, turning rust under 1,000, with what it went on in its hover, and links to Google's own quota page for the exact figure. It refreshes after each YouTube read.

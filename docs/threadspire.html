@@ -7210,9 +7210,21 @@ function lobbyForMe(){
   if (isLM() && !S.stream) return !!window._lobbyLook;                /* the LoreMaster, looking as the players do */
   if (lobbyOn()) return true;
   if (!tsEmbedded()) return false;
-  return !(ROOM.on && typeof ROOM.lms === 'number' && ROOM.lms > 0);
+  /* Once a player has been let onto the map, a dropped connection or a LoreMaster's table
+     reloading does not throw them back: only the LoreMaster gone from the room for 20 seconds
+     does. Before that, the old rule holds (no LoreMaster known yet means the lobby). */
+  var _lmIn = ROOM.on && typeof ROOM.lms === 'number' && ROOM.lms > 0;
+  if (_lmIn){ lobbyForMe._in = true; lobbyForMe._gone = 0; return false; }
+  if (!lobbyForMe._in) return true;
+  if (!(ROOM.on && ROOM.lms === 0)){ lobbyForMe._gone = 0; return false; }
+  if (!lobbyForMe._gone) lobbyForMe._gone = Date.now();
+  if (Date.now() - lobbyForMe._gone < 20000) return false;
+  lobbyForMe._in = false; return true;
 }
-function lobbyShare(){ if (S.lobby) S.lobby.cid = S.campaignId; try { roomPartsSync(false); } catch(e){} schedulePush(); lobbyPaint(); try { paintLmStrip(); } catch(e){} }
+/* Which lobby is newer: every change the LoreMaster makes stamps it, so a stale copy (an older
+   save pulled late, another LoreMaster screen) never flips the players back. */
+function lobbyRev(L){ return (L && (L.rev || L.at)) || 0; }
+function lobbyShare(){ if (S.lobby){ S.lobby.cid = S.campaignId; if (isLM() && !S.stream) S.lobby.rev = Math.max(Date.now(), lobbyRev(S.lobby) + 1); } try { roomPartsSync(false); } catch(e){} schedulePush(); lobbyPaint(); try { paintLmStrip(); } catch(e){} }
 function lobbySet(on){
   if (!isLM() || keeperNo()) return;
   S.lobby = Object.assign({ title:'', note:'', url:'', poster:'', kind:'' }, S.lobby || {}, { on:!!on, at:Date.now(), cid:S.campaignId });
@@ -7382,7 +7394,8 @@ setInterval(function(){
     if (!_lobbyArmed){
       _lobbyArmed = true;
       /* every time an adventure opens on the LoreMaster's table, everyone starts in the lobby */
-      var _fresh = true;
+      /* but not a table reloaded mid-session: brought in within the last three hours stays in */
+      var _fresh = !(L.at && !L.on && now - L.at < 3 * 3600000);
       if (_fresh && !L.on){ S.lobby = Object.assign({ title:'', note:'', url:'', poster:'', kind:'' }, L, { on:true, at:now, lmSeen:now, cid:S.campaignId }); lobbyShare(); }
       var _look = true; try { _look = localStorage.getItem('ts_lobby_start') !== '0'; } catch(e){}
       if (_look && (_fresh || lobbyOn())) setTimeout(function(){ if (lobbyOn()) lobbyLook(true); }, 400);
@@ -12554,7 +12567,9 @@ function applyRemoteSnapshot(snap){
   if (!(ROOM._applying && isLM())) mapStateArrived();
   if (snap.spot !== undefined && (!isLM() || S.stream)) S.spot = Array.isArray(snap.spot) ? snap.spot : [];
   if (snap.retell !== undefined && (!isLM() || S.stream)) S.retell = snap.retell;
-  if (snap.lobby !== undefined && (!isLM() || S.stream || !S.lobby)) S.lobby = snap.lobby;
+  var _lbNew = snap.lobby !== undefined && (!S.lobby || !snap.lobby || lobbyRev(snap.lobby) > lobbyRev(S.lobby) || ((!isLM() || S.stream) && lobbyRev(snap.lobby) === lobbyRev(S.lobby)));
+  if (snap.lobby === null && S.lobby && lobbyRev(S.lobby)) _lbNew = false;   /* an empty save never wipes a stamped lobby */
+  if (_lbNew) S.lobby = snap.lobby;
   else if (snap.lobby && S.lobby && isLM()){
     ['url', 'poster', 'kind', 'title', 'note', 'music', 'weather'].forEach(function(k){ if (!S.lobby[k] && snap.lobby[k]) S.lobby[k] = snap.lobby[k]; });
   }
