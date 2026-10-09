@@ -1,3 +1,7 @@
+## 2026-10-08 - The Anexanum shows what is left of YouTube's day
+
+YouTube does not say how much of its 10,000 daily units is left, so the room now counts every YouTube call the site makes (the Anexanum, ThreadSpire and the two-hourly round alike), at YouTube's prices: 1 to read a list or a video, 50 to look up captions or put up a title and description, 200 to download captions, by the Pacific day the allowance resets on. The Anexanum's header shows what is left today, turning rust under 1,000, with what it went on in its hover, and links to Google's own quota page for the exact figure. It refreshes after each YouTube read.
+
 ## 2026-10-08 - Copying a scene's setup copies everything on the map
 
 Copy this scene's setup left out four things laid on a map: placed sounds, Pales, heights and drawings. Each is now a part of its own to tick, copied with new ids so each scene keeps its own from then on, and sounds, Pales and drawings follow the same replace-or-join choice as tokens, effects and notes (heights join by space). Drawings reach every table through the live room at once.

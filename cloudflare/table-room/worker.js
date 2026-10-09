@@ -62,6 +62,26 @@ async function readTicket(t, campaignId) {
    the room keeps its refresh token, and fetches that channel's captions through YouTube's
    official API. Only the caption list and caption text are ever asked for. ---- */
 const YT_REDIRECT = 'https://lorefell-table.nate8-johnson.workers.dev/yt/callback';
+/* ---- YouTube's daily allowance, counted as it is spent ----
+   YouTube does not say how much of its 10,000 units a day is left, so the room counts every
+   call it makes, at YouTube's own prices (reading a list or a video 1, the captions list 50,
+   downloading captions 200, putting up a title and description 50), by the Pacific day the
+   allowance resets on. Every YouTube call the site makes goes through here. */
+let _ytEnv = null;
+function ytDay() { try { return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' }); } catch (e) { return new Date(Date.now() - 7 * 3600000).toISOString().slice(0, 10); } }
+function ytCost(url, opts) {
+  const u = String(url), put = opts && /^(PUT|POST|DELETE)$/i.test(opts.method || '');
+  if (/\/youtube\/v3\/captions\/[^?]/.test(u)) return [200, 'captions downloaded'];
+  if (/\/youtube\/v3\/captions\?/.test(u)) return [50, 'captions looked up'];
+  if (put) return [50, 'titles and descriptions put up'];
+  return [1, 'lists and videos read'];
+}
+async function ytFetch(url, opts) {
+  const c = ytCost(url, opts);
+  if (_ytEnv) { try { await ytStore(_ytEnv, { op: 'units-add', d: ytDay(), n: c[0], what: c[1] }); } catch (e) {} }
+  return fetch(url, opts);
+}
+async function ytUnits(env) { try { const r = await ytStore(env, { op: 'units-get', d: ytDay() }); return { day: ytDay(), used: r.n || 0, by: r.by || {}, limit: 10000 }; } catch (e) { return { day: ytDay(), used: 0, by: {}, limit: 10000 }; } }
 async function ytStore(env, body) {
   const stub = env.ROOMS.get(env.ROOMS.idFromName('__yt'));
   const r = await stub.fetch('https://room/yt', { method: 'POST', headers: { 'X-YT-Store': '1' }, body: JSON.stringify(body) });
@@ -122,11 +142,11 @@ async function youtube(req, url, env) {
   if (url.pathname === '/yt/uploads') {
     const at = await ytAccess(env, who.member); if (!at) return out({ ok: false, error: 'not connected' });
     const auth = { Authorization: 'Bearer ' + at };
-    const ch = await (await fetch('https://www.googleapis.com/youtube/v3/channels?part=contentDetails&mine=true', { headers: auth })).json();
+    const ch = await (await ytFetch('https://www.googleapis.com/youtube/v3/channels?part=contentDetails&mine=true', { headers: auth })).json();
     const pl = ch.items && ch.items[0] && ch.items[0].contentDetails && ch.items[0].contentDetails.relatedPlaylists && ch.items[0].contentDetails.relatedPlaylists.uploads;
     if (!pl) return out({ ok: false, error: 'no uploads list' });
     const per = url.searchParams.get('all') ? 50 : 15, pt = String(url.searchParams.get('page') || '').replace(/[^A-Za-z0-9_-]/g, '');
-    const li = await (await fetch('https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&maxResults=' + per + '&playlistId=' + encodeURIComponent(pl) + (pt ? '&pageToken=' + pt : ''), { headers: auth })).json();
+    const li = await (await ytFetch('https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&maxResults=' + per + '&playlistId=' + encodeURIComponent(pl) + (pt ? '&pageToken=' + pt : ''), { headers: auth })).json();
     const items = (li.items || []).map((it) => ({ id: (it.contentDetails && it.contentDetails.videoId) || '', title: (it.snippet && it.snippet.title) || '', at: (it.contentDetails && it.contentDetails.videoPublishedAt) || (it.snippet && it.snippet.publishedAt) || '' })).filter((x) => x.id);
     return out({ ok: true, items: items, next: li.nextPageToken || '' });
   }
@@ -134,7 +154,7 @@ async function youtube(req, url, env) {
     const at = await ytAccess(env, who.member); if (!at) return out({ ok: false, error: 'not connected' });
     const v = String(url.searchParams.get('v') || '').match(/^[A-Za-z0-9_-]{6,20}$/); if (!v) return out({ ok: false, error: 'no video id' });
     const auth = { Authorization: 'Bearer ' + at };
-    const got = await (await fetch('https://www.googleapis.com/youtube/v3/videos?part=snippet,liveStreamingDetails,contentDetails&id=' + v[0], { headers: auth })).json();
+    const got = await (await ytFetch('https://www.googleapis.com/youtube/v3/videos?part=snippet,liveStreamingDetails,contentDetails&id=' + v[0], { headers: auth })).json();
     const it = got.items && got.items[0]; if (!it) return out({ ok: false, error: 'that video is not on your connected channel' });
     if (url.pathname === '/yt/video') {
       // when the stream really began (a live one), so a moment marked at the table finds its place
@@ -148,7 +168,7 @@ async function youtube(req, url, env) {
     const snip = { title: title, description: description, categoryId: it.snippet.categoryId || '20' };
     if (it.snippet.tags) snip.tags = it.snippet.tags;
     if (it.snippet.defaultLanguage) snip.defaultLanguage = it.snippet.defaultLanguage;
-    const up = await fetch('https://www.googleapis.com/youtube/v3/videos?part=snippet', { method: 'PUT', headers: Object.assign({ 'Content-Type': 'application/json' }, auth), body: JSON.stringify({ id: v[0], snippet: snip }) });
+    const up = await ytFetch('https://www.googleapis.com/youtube/v3/videos?part=snippet', { method: 'PUT', headers: Object.assign({ 'Content-Type': 'application/json' }, auth), body: JSON.stringify({ id: v[0], snippet: snip }) });
     const uj = await up.json();
     if (uj.error) return out({ ok: false, error: uj.error.message || 'YouTube refused' });
     return out({ ok: true, title: uj.snippet && uj.snippet.title });
@@ -218,22 +238,23 @@ async function anexanum(req, url, env) {
   if (!who) return out({ ok: false, error: 'The Anexanum is not open to you.' }, 401);
   const p = url.pathname;
   try {
-    if (p === '/ax/whoami') return out({ ok: true, vault: !!env.FELLGUIDE_TOKEN, youtube: !!env.YT_CLIENT_ID });
+    if (p === '/ax/whoami') return out({ ok: true, vault: !!env.FELLGUIDE_TOKEN, youtube: !!env.YT_CLIENT_ID, units: await ytUnits(env) });
+    if (p === '/ax/units') return out(Object.assign({ ok: true }, await ytUnits(env)));
     if (p === '/ax/playlists' || p === '/ax/playlist' || p === '/ax/video' || p === '/ax/uploads' || p === '/ax/video/update') {
       const at = await ytAccess(env, who.member); if (!at) return out({ ok: false, error: 'YouTube is not connected (connect it from ThreadSpire, Settings, Sessions)' });
       const auth = { Authorization: 'Bearer ' + at };
       if (p === '/ax/playlists') {
-        const j = await ytJson(await fetch('https://www.googleapis.com/youtube/v3/playlists?part=snippet,contentDetails&mine=true&maxResults=50', { headers: auth }));
+        const j = await ytJson(await ytFetch('https://www.googleapis.com/youtube/v3/playlists?part=snippet,contentDetails&mine=true&maxResults=50', { headers: auth }));
         return out({ ok: true, items: (j.items || []).map((x) => ({ id: x.id, title: x.snippet.title, count: (x.contentDetails || {}).itemCount || 0 })) });
       }
       /* every upload on the channel, newest first, a page of fifty at a time, up to four hundred */
       if (p === '/ax/uploads') {
-        const ch = await ytJson(await fetch('https://www.googleapis.com/youtube/v3/channels?part=contentDetails&mine=true', { headers: auth }));
+        const ch = await ytJson(await ytFetch('https://www.googleapis.com/youtube/v3/channels?part=contentDetails&mine=true', { headers: auth }));
         const pl = ch.items && ch.items[0] && ch.items[0].contentDetails.relatedPlaylists.uploads;
         if (!pl) return out({ ok: false, error: 'no uploads list' });
         let tok = '', all = [];
         for (let i = 0; i < 8; i++) {
-          const j = await ytJson(await fetch('https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&maxResults=50&playlistId=' + pl + (tok ? '&pageToken=' + tok : ''), { headers: auth }));
+          const j = await ytJson(await ytFetch('https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&maxResults=50&playlistId=' + pl + (tok ? '&pageToken=' + tok : ''), { headers: auth }));
           (j.items || []).forEach((it) => all.push({ id: (it.contentDetails || {}).videoId, title: it.snippet.title, at: (it.contentDetails || {}).videoPublishedAt || it.snippet.publishedAt }));
           tok = j.nextPageToken || ''; if (!tok) break;
         }
@@ -241,28 +262,28 @@ async function anexanum(req, url, env) {
       }
       if (p === '/ax/video/update') {
         const v = String(url.searchParams.get('v') || '').match(/^[A-Za-z0-9_-]{6,20}$/); if (!v) return out({ ok: false, error: 'no video id' });
-        const got = await ytJson(await fetch('https://www.googleapis.com/youtube/v3/videos?part=snippet&id=' + v[0], { headers: auth }));
+        const got = await ytJson(await ytFetch('https://www.googleapis.com/youtube/v3/videos?part=snippet&id=' + v[0], { headers: auth }));
         const it = got.items && got.items[0]; if (!it) return out({ ok: false, error: 'that video is not on your channel' });
         let body = {}; try { body = JSON.parse(await req.text()); } catch (e) {}
         const title = String(body.title || '').slice(0, 100), description = String(body.description || '').slice(0, 5000);
         if (!title) return out({ ok: false, error: 'a title is needed' });
         const snip = { title: title, description: description, categoryId: it.snippet.categoryId || '20' };
         if (it.snippet.tags) snip.tags = it.snippet.tags; if (it.snippet.defaultLanguage) snip.defaultLanguage = it.snippet.defaultLanguage;
-        const up = await (await fetch('https://www.googleapis.com/youtube/v3/videos?part=snippet', { method: 'PUT', headers: Object.assign({ 'Content-Type': 'application/json' }, auth), body: JSON.stringify({ id: v[0], snippet: snip }) })).json();
+        const up = await (await ytFetch('https://www.googleapis.com/youtube/v3/videos?part=snippet', { method: 'PUT', headers: Object.assign({ 'Content-Type': 'application/json' }, auth), body: JSON.stringify({ id: v[0], snippet: snip }) })).json();
         if (up.error) return out({ ok: false, error: ytWhy(up.error) });
         return out({ ok: true });
       }
       if (p === '/ax/playlist') {
         const id = String(url.searchParams.get('id') || '').replace(/[^A-Za-z0-9_-]/g, ''); let tok = '', all = [];
         for (let i = 0; i < 8; i++) {
-          const j = await ytJson(await fetch('https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&maxResults=50&playlistId=' + id + (tok ? '&pageToken=' + tok : ''), { headers: auth }));
+          const j = await ytJson(await ytFetch('https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&maxResults=50&playlistId=' + id + (tok ? '&pageToken=' + tok : ''), { headers: auth }));
           (j.items || []).forEach((it) => all.push({ id: (it.contentDetails || {}).videoId, title: it.snippet.title, at: (it.contentDetails || {}).videoPublishedAt || it.snippet.publishedAt, pos: it.snippet.position }));
           tok = j.nextPageToken || ''; if (!tok) break;
         }
         return out({ ok: true, items: all.filter((x) => x.id) });
       }
       const v = String(url.searchParams.get('v') || '').match(/^[A-Za-z0-9_-]{6,20}$/); if (!v) return out({ ok: false, error: 'no video id' });
-      const vj = await ytJson(await fetch('https://www.googleapis.com/youtube/v3/videos?part=snippet&id=' + v[0], { headers: auth }));
+      const vj = await ytJson(await ytFetch('https://www.googleapis.com/youtube/v3/videos?part=snippet&id=' + v[0], { headers: auth }));
       const it = vj.items && vj.items[0];
       const cap = url.searchParams.get('captions') ? await ytCaptions(env, who.member, v[0]) : null;
       return out({ ok: true, title: it ? it.snippet.title : '', description: it ? it.snippet.description : '', captions: cap ? (cap.ok ? cap.text : '') : '', segments: cap && cap.ok ? (cap.segments || []) : [], lines: cap && cap.ok && url.searchParams.get('lines') ? (cap.lines || []) : [], captionError: cap && !cap.ok ? cap.error : '' });
@@ -362,12 +383,12 @@ async function ytCaptions(env, member, vid) {
   const kept = await capGet(env, vid); if (kept && kept.ok) return kept;
   const at = await ytAccess(env, member); if (!at) return null;
   const auth = { Authorization: 'Bearer ' + at };
-  const list = await (await fetch('https://www.googleapis.com/youtube/v3/captions?part=snippet&videoId=' + vid, { headers: auth })).json();
+  const list = await (await ytFetch('https://www.googleapis.com/youtube/v3/captions?part=snippet&videoId=' + vid, { headers: auth })).json();
   if (list.error) return { ok: false, error: ytWhy(list.error) };
   const items = list.items || [];
   const pick = items.filter((c) => /^en/.test(c.snippet.language) && c.snippet.trackKind !== 'asr')[0] || items.filter((c) => /^en/.test(c.snippet.language))[0] || items[0];
   if (!pick) return { ok: false, error: 'this video has no captions yet (YouTube makes them a while after upload)' };
-  const r = await fetch('https://www.googleapis.com/youtube/v3/captions/' + pick.id + '?tfmt=srt', { headers: auth });
+  const r = await ytFetch('https://www.googleapis.com/youtube/v3/captions/' + pick.id + '?tfmt=srt', { headers: auth });
   if (!r.ok) { const j = await r.json().catch(() => ({})); return { ok: false, error: j.error ? ytWhy(j.error) : 'the captions could not be downloaded' }; }
   const srt = await r.text();
   const text = srt.replace(/^\d+\s*$/gm, '').replace(/\d{2}:\d{2}:\d{2},\d{3}\s*-->\s*\d{2}:\d{2}:\d{2},\d{3}/g, '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
@@ -465,13 +486,13 @@ async function autoVideos(env) {
   const o = await ytStore(env, { op: 'owner-get' }); const owner = o.owner; if (!owner) return;
   const at = await ytAccess(env, owner); if (!at) return;
   const auth = { Authorization: 'Bearer ' + at };
-  const ch = await ytJson(await fetch('https://www.googleapis.com/youtube/v3/channels?part=contentDetails&mine=true', { headers: auth }));
+  const ch = await ytJson(await ytFetch('https://www.googleapis.com/youtube/v3/channels?part=contentDetails&mine=true', { headers: auth }));
   const pl = ch.items && ch.items[0] && ch.items[0].contentDetails.relatedPlaylists.uploads; if (!pl) return;
-  const li = await ytJson(await fetch('https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&maxResults=15&playlistId=' + pl, { headers: auth }));
+  const li = await ytJson(await ytFetch('https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&maxResults=15&playlistId=' + pl, { headers: auth }));
   const now = Date.now();
   const ids = (li.items || []).map((it) => it.contentDetails).filter((c) => c && c.videoId && now - Date.parse(c.videoPublishedAt || 0) < AUTO_WINDOW).map((c) => c.videoId);
   if (!ids.length) return;
-  const vs = await ytJson(await fetch('https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails&id=' + ids.join(','), { headers: auth }));
+  const vs = await ytJson(await ytFetch('https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails&id=' + ids.join(','), { headers: auth }));
   for (const it of (vs.items || [])) {
     const v = { id: it.id, title: it.snippet.title || '', description: it.snippet.description || '' };
     let st = await autoState(env, v.id);
@@ -497,7 +518,7 @@ async function autoVideos(env) {
         const dr = JSON.parse(d.v);
         const snip = { title: String(dr.title || '').slice(0, 100), description: String(dr.desc || '').slice(0, 5000), categoryId: it.snippet.categoryId || '20' };
         if (it.snippet.tags) snip.tags = it.snippet.tags; if (it.snippet.defaultLanguage) snip.defaultLanguage = it.snippet.defaultLanguage;
-        const up = await (await fetch('https://www.googleapis.com/youtube/v3/videos?part=snippet', { method: 'PUT', headers: Object.assign({ 'Content-Type': 'application/json' }, auth), body: JSON.stringify({ id: v.id, snippet: snip }) })).json();
+        const up = await (await ytFetch('https://www.googleapis.com/youtube/v3/videos?part=snippet', { method: 'PUT', headers: Object.assign({ 'Content-Type': 'application/json' }, auth), body: JSON.stringify({ id: v.id, snippet: snip }) })).json();
         if (up.error) { st.err = ytWhy(up.error); await autoSave(env, v.id, st); continue; }
         await ytStore(env, { op: 'ax-del', k: 'v:' + v.id });
         await ytStore(env, { op: 'ax-set', k: 'vd:' + v.id, v: String(now) });
@@ -526,7 +547,7 @@ async function pubBuild(env, prev) {
   const o = await ytStore(env, { op: 'owner-get' }); calls++; if (!o.owner) return { ok: false, error: 'no channel connected' };
   const at = await ytAccess(env, o.owner); calls += 2; if (!at) return { ok: false, error: 'the channel connection has lapsed' };
   const auth = { Authorization: 'Bearer ' + at };
-  const pl = await ytJson(await fetch('https://www.googleapis.com/youtube/v3/playlists?part=snippet,contentDetails,status&mine=true&maxResults=50', { headers: auth })); calls++;
+  const pl = await ytJson(await ytFetch('https://www.googleapis.com/youtube/v3/playlists?part=snippet,contentDetails,status&mine=true&maxResults=50', { headers: auth })); calls++;
   const old = {}; ((prev && prev.adventures) || []).forEach((a) => { old[a.id] = a; });
   let hist = (prev && prev.hist) || null;
   if (!hist && env.FELLGUIDE_TOKEN) {
@@ -546,7 +567,7 @@ async function pubBuild(env, prev) {
     if (calls >= BUDGET) { if (old[p.id]) out[p.id] = old[p.id]; else more = true; continue; }   /* only the never-read leave it unfinished */
     const items = []; let tok = '';
     for (let i = 0; i < 4 && calls < BUDGET + 4; i++) {
-      const j = await ytJson(await fetch('https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails,status&maxResults=50&playlistId=' + p.id + (tok ? '&pageToken=' + tok : ''), { headers: auth })); calls++;
+      const j = await ytJson(await ytFetch('https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails,status&maxResults=50&playlistId=' + p.id + (tok ? '&pageToken=' + tok : ''), { headers: auth })); calls++;
       (j.items || []).forEach((it) => { if (it.status && it.status.privacyStatus !== 'public' && it.status.privacyStatus !== 'unlisted') return; if (!it.contentDetails || !it.contentDetails.videoId) return;
         items.push({ id: it.contentDetails.videoId, title: it.snippet.title, at: it.contentDetails.videoPublishedAt || it.snippet.publishedAt, pos: it.snippet.position, thumb: thumbOf(it.snippet) }); });
       tok = j.nextPageToken || ''; if (!tok) break;
@@ -599,6 +620,7 @@ async function axPending(url, env) {
 }
 export default {
   async scheduled(event, env, ctx) {
+    _ytEnv = env;
     ctx.waitUntil((async () => {
       try { await autoVideos(env); } catch (e) {}
       try { let c = null; try { const r = await ytStore(env, { op: 'ax-get', k: 'pub:adventures' }); c = r.v ? JSON.parse(r.v) : null; } catch (e) {}
@@ -606,6 +628,7 @@ export default {
     })());
   },
   async fetch(req, env) {
+    _ytEnv = env;
     const url = new URL(req.url);
     const m = url.pathname.match(/^\/room\/([A-Za-z0-9_-]{3,80})$/);
     if (url.pathname === '/' || url.pathname === '/health') return new Response('lorefell table room', { status: 200 });
@@ -696,6 +719,8 @@ export class TableRoom {
       if (b.op === 'tok-set') { await st.put('yt:t:' + b.m, b.rt); return Response.json({ ok: true }); }
       if (b.op === 'tok-get') { return Response.json({ rt: (await st.get('yt:t:' + b.m)) || '' }); }
       if (b.op === 'tok-del') { await st.delete('yt:t:' + b.m); return Response.json({ ok: true }); }
+      if (b.op === 'units-add') { const k = 'yt:u:' + String(b.d || ''); const u = (await st.get(k)) || { n: 0, by: {} }; u.n += Math.max(0, +b.n || 0); u.by[b.what || 'other'] = (u.by[b.what || 'other'] || 0) + Math.max(0, +b.n || 0); await st.put(k, u); return Response.json({ ok: true, n: u.n }); }
+      if (b.op === 'units-get') { const u = (await st.get('yt:u:' + String(b.d || ''))) || { n: 0, by: {} }; return Response.json({ ok: true, n: u.n, by: u.by }); }
       if (b.op === 'ax-set') { await st.put('ax:' + b.k, String(b.v || '').slice(0, 120000)); return Response.json({ ok: true }); }
       if (b.op === 'ax-get') { return Response.json({ ok: true, v: (await st.get('ax:' + b.k)) || '' }); }
       if (b.op === 'ax-del') { await st.delete('ax:' + b.k); return Response.json({ ok: true }); }
