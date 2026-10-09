@@ -21777,7 +21777,7 @@ function shelfHtml(kind, query){
    replace what is there or join it, and copy. Positions are the map's own, so they land in
    the same places on another version of the map. Each scene keeps its copy as its own from
    then on (scene is king). */
-var COPY_PARTS = [['map', 'Map'], ['tokens', 'Tokens'], ['effects', 'Effects'], ['notes', 'Map notes'], ['fog', 'Fog'], ['walls', 'Walls and doors'], ['lights', 'Lights'], ['weather', 'Weather'], ['grid', 'Grid']];
+var COPY_PARTS = [['map', 'Map'], ['tokens', 'Tokens'], ['effects', 'Effects'], ['notes', 'Map notes'], ['sounds', 'Placed sounds'], ['pales', 'Pales'], ['elev', 'Heights'], ['draw', 'Drawings'], ['fog', 'Fog'], ['walls', 'Walls and doors'], ['lights', 'Lights'], ['weather', 'Weather'], ['grid', 'Grid']];
 function sceneCopyOpen(preset){
   if (!isLM() || !S.adventure) return;
   var pre = {}; String(preset || 'tokens,effects').split(',').forEach(function(k){ pre[k] = 1; });
@@ -21785,7 +21785,7 @@ function sceneCopyOpen(preset){
   var h = '<h3 class="tsm-title">Copy this scene\u2019s setup</h3>'
     + '<p class="lc-p">From <b>' + esc(S.scene.name || 'this scene') + '</b>. Places stay where they are on the map, so they land in the same spots on another version of it.</p>'
     + '<div class="cp-parts">' + COPY_PARTS.map(function(p){ return '<label><input type="checkbox" class="cp-part" value="' + p[0] + '"' + (pre[p[0]] ? ' checked' : '') + '> ' + p[1] + '</label>'; }).join('') + '</div>'
-    + '<div class="cp-mode"><span>Tokens, effects and notes</span><label><input type="radio" name="cpMode" value="replace" checked> replace what is there</label><label><input type="radio" name="cpMode" value="add"> join what is there</label></div>'
+    + '<div class="cp-mode"><span>Tokens, effects, notes, sounds, Pales and drawings</span><label><input type="radio" name="cpMode" value="replace" checked> replace what is there</label><label><input type="radio" name="cpMode" value="add"> join what is there</label></div>'
     + '<div class="ga-list">';
   (S.adventure.acts || []).forEach(function(a){ (a.sessions || []).forEach(function(se){
     h += '<div class="ga-ses"><label class="ga-all"><input type="checkbox" onchange="gridApplySession(this)"> ' + esc(se.name || 'Session') + '</label>';
@@ -21831,14 +21831,35 @@ function sceneCopyGo(){
       var ns = ((S.notes[myKey]) || []).map(function(n){ var c = clone(n); c.id = mkId(); return c; });
       S.notes[tKey] = add ? (S.notes[tKey] || []).concat(ns) : ns;
     }
+    /* everything else laid on the map: placed sounds, Pales, heights and drawings, each a
+       copy of its own with a new id, so changing one scene's never touches another's */
+    if (parts.sounds){
+      S.sounds = S.sounds || {};
+      var sn = ((S.sounds[myKey]) || []).map(function(x){ var c = clone(x); c.id = 's' + mkId(); return c; });
+      S.sounds[tKey] = add ? (S.sounds[tKey] || []).concat(sn) : sn;
+    }
+    if (parts.pales){
+      S.pales = S.pales || {};
+      var pl = ((S.pales[myKey]) || []).map(function(x){ var c = clone(x); c.id = 'pl' + mkId(); return c; });
+      S.pales[tKey] = add ? (S.pales[tKey] || []).concat(pl) : pl;
+    }
+    if (parts.elev && S.elev && S.elev[myKey]){ S.elev[tKey] = add ? Object.assign({}, S.elev[tKey] || {}, clone(S.elev[myKey])) : clone(S.elev[myKey]); }
+    if (parts.draw){
+      var dr = S.draw || { strokes:[], gone:[] };
+      var gone = add ? [] : (dr.strokes || []).filter(function(st){ return st.k === tKey; }).map(function(st){ return st.id; });
+      var strokes = (dr.strokes || []).filter(function(st){ return st.k === myKey; }).map(function(st){ var c = clone(st); c.id = 'dr' + mkId(); c.k = tKey; return c; });
+      S.draw = drawMerge(S.draw, { strokes:strokes, gone:gone });
+      if (gone.length) drawGoneSend(gone);
+      strokes.forEach(function(st){ try { roomSend({ t:'stroke', s:st }); } catch(e){} });
+    }
     if (parts.fog && S.fog && S.fog[myKey]){ S.fog[tKey] = clone(S.fog[myKey]); }
     if (parts.walls && S.walls && S.walls[myKey]){ S.walls[tKey] = clone(S.walls[myKey]); }
     if (parts.lights && S.lights && S.lights[myKey]){ S.lights[tKey] = clone(S.lights[myKey]); }
     if (parts.weather){ S.weather = S.weather || {}; if (S.weather[me]) S.weather[sid] = S.weather[me]; else delete S.weather[sid]; if (S.weather['op:' + me] !== undefined) S.weather['op:' + sid] = S.weather['op:' + me]; else delete S.weather['op:' + sid]; }
     if (parts.grid){ bd.grid = Object.assign({}, S.grid); }
   });
-  applyRemoteState({ instance:S.instance }); schedulePush(); tsCloseModal();
-  var names = COPY_PARTS.filter(function(p){ return parts[p[0]]; }).map(function(p){ return p[1].toLowerCase(); }).join(', ');
+  applyRemoteState({ instance:S.instance }); try { roomPartsSync(false); } catch(e){} schedulePush(); tsCloseModal();
+  var names = COPY_PARTS.filter(function(p){ return parts[p[0]]; }).map(function(p){ return p[0] === 'pales' ? p[1] : p[1].toLowerCase(); }).join(', ');
   pushLog({ kind:'sys', html:'Copied ' + esc(names) + ' to ' + ids.length + ' scene' + (ids.length === 1 ? '' : 's') + '.' }); applyRemoteState({ log:S.log });
 }
 

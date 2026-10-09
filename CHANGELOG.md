@@ -1,3 +1,7 @@
+## 2026-10-08 - Copying a scene's setup copies everything on the map
+
+Copy this scene's setup left out four things laid on a map: placed sounds, Pales, heights and drawings. Each is now a part of its own to tick, copied with new ids so each scene keeps its own from then on, and sounds, Pales and drawings follow the same replace-or-join choice as tokens, effects and notes (heights join by space). Drawings reach every table through the live room at once.
+
 ## 2026-10-08 - The Anexanum marks a told playlist complete
 
 Choose a playlist marks each playlist whose History tells every episode: History complete, when the History has as many chapters as the playlist has videos, or when its drafts account for every episode (written and sent, or already told by an earlier chapter that covers more than one). Otherwise it says how many of the episodes are told. Write the chapters says so too once every episode is told.
