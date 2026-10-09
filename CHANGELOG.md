@@ -1,3 +1,8 @@
+## 2026-10-09 - Recaps: Shorter and Longer in view, and the Retelling stays with its adventure
+
+- **Shorter and Longer.** The recap written from a session's video kept its Shorter, Longer, fresh-take, more-vivid and plainer rewrites behind a Write it again button. They now sit in plain view under the scene name whenever there is a recap. The Journal recap writer gains Shorter and Longer beside Draft as well.
+- **The Retelling is the adventure's own.** Switching adventures kept the last adventure's Retelling pick and Codex in memory, and the next adventure saved them as its own (Stone and Sovereign picked up The Ashen Hands'). The Retelling and the Codex are now cleared when an adventure is left, every pick and Retelling is stamped with its adventure, and a pick from another adventure (or one from before the stamp that is none of this adventure's recaps, Codex entries or Journal notes) is never used or shown.
+
 ## 2026-10-09 - The Anexanum names a History's adventure type
 
 A History's page and its row in the Histories table take the adventure type from its chapters, one a session: a Tale for one, a Story up to six, a Legacy from seven to thirteen, and a Chronicle past that. "Adventure" no longer stands in for a type.

@@ -6483,7 +6483,7 @@ function recapPaint(){
     + '<p class="tsm-note">' + (RECAP.range === 'none' ? 'No notes. The draft works from what you write below.' : n + ' note' + (n === 1 ? '' : 's') + '. Only the Journal is used, never the log.') + '</p>'
     + '<label class="tsm-lbl" for="rcTitle">Session</label><input class="tsm-inp" id="rcTitle" maxlength="120" value="' + esc(RECAP.title) + '" oninput="RECAP.title=this.value">'
     + '<label class="tsm-lbl" for="rcText">Recap</label><textarea class="tsm-inp tsm-ta rc-ta" id="rcText" oninput="RECAP.draft=this.value;recapDraftSync()" placeholder="Draft it from your notes, or write your own.">' + esc(RECAP.draft) + '</textarea>'
-    + '<div class="tsm-row" style="justify-content:flex-start;margin-top:6px"><button class="tsm-btn ghost" id="rcDraftB" onclick="recapDraft()"' + (RECAP.busy || (!n && !RECAP.draft.trim()) ? ' disabled' : '') + '>' + (RECAP.busy ? 'Drafting...' : recapDraftLabel(n, RECAP.draft)) + '</button></div>'
+    + '<div class="tsm-row" style="justify-content:flex-start;margin-top:6px"><button class="tsm-btn ghost" id="rcDraftB" onclick="recapDraft()"' + (RECAP.busy || (!n && !RECAP.draft.trim()) ? ' disabled' : '') + '>' + (RECAP.busy ? 'Drafting...' : recapDraftLabel(n, RECAP.draft)) + '</button>' + (RECAP.draft.trim() && !RECAP.busy ? '<button class="tsm-btn ghost" onclick="recapDraft(\'shorter\')">Shorter</button><button class="tsm-btn ghost" onclick="recapDraft(\'longer\')">Longer</button>' : '') + '</div>'
     + '<p class="tsm-note">' + recapDraftHelp(n, RECAP.draft) + '</p>'
     + '<p class="tsm-note">Read it before it goes: your Journal is yours alone, and a draft can carry something the players should not know yet.</p>'
     + '<label class="tsm-lbl">Send to</label>'
@@ -6517,14 +6517,15 @@ function recapDraftSync(){
   var h = b.parentNode && b.parentNode.nextElementSibling; if (h) h.textContent = recapDraftHelp(n, RECAP.draft);
 }
 function recapTo(id, on){ RECAP.to = (RECAP.to || []).filter(function(x){ return x !== id; }); if (on) RECAP.to.push(id); }
-function recapDraft(){
+function recapDraft(mode){
   var notes = recapEntries(RECAP.range), own = String(((document.getElementById('rcText') || {}).value) || RECAP.draft || '').trim();
   if ((!notes.length && !own) || RECAP.busy) return;
   RECAP.busy = true; RECAP.msg = ''; recapPaint();
   var sys = 'You write a session recap email for the players of a LoreFell tabletop game, from the LoreMaster\u2019s own journal notes. '
     + 'Use only what the notes and the LoreMaster\u2019s own words say happened; never invent events, names, places or outcomes. When the LoreMaster has written something, keep their facts, names and turns of phrase, and build around them. Leave out anything that reads as the LoreMaster\u2019s private planning, a secret, or something the players did not witness. '
     + 'Write it for the players, in past tense, as a short story of what the party did, in the order it happened. Grounded and warm, with dark fantasy weight where the notes earn it. '
-    + 'No clich\u00e9s, no purple prose, no em dashes, no headings, no bullet points. Plain paragraphs, 120 to 350 words. Return only the recap text.';
+    + 'No clich\u00e9s, no purple prose, no em dashes, no headings, no bullet points. Plain paragraphs, ' + (mode === 'shorter' ? '60 to 140 words' : mode === 'longer' ? '300 to 500 words' : '120 to 350 words') + '. Return only the recap text.'
+    + (mode === 'shorter' ? ' Rewrite what the LoreMaster has written shorter: the same events in the same order, keeping the turns that matter most.' : mode === 'longer' ? ' Rewrite what the LoreMaster has written longer: the same events, with more of the detail the notes hold. Add nothing the notes do not say.' : '');
   var user = 'Adventure: ' + advName() + '\nSession: ' + (RECAP.title || '') + '\nScene: ' + ((S.scene && S.scene.name) || '')
     + (notes.length ? '\nJournal notes, oldest first:\n' + notes.map(function(e){ return '- ' + String(e.text || '').replace(/\s+/g, ' '); }).join('\n') : '')
     + (own ? '\nWhat the LoreMaster has written so far:\n' + own : '');
@@ -6577,7 +6578,7 @@ function retellPickSet(id){
   var r = (SESS.recaps || []).filter(function(x){ return x.id === id; })[0] || (CODEX.entries || []).filter(function(x){ return x.id === id; })[0]
     || (S.journal || []).filter(function(x){ return 'j:' + x.id === id; }).map(function(x){ return { id:'j:' + x.id, session:x.session || '', text:x.text }; })[0];
   if (!r) return;
-  S.retellPick = { id:r.id, session:r.session || r.title || '', text:r.text, at:Date.now() };
+  S.retellPick = { id:r.id, session:r.session || r.title || '', text:r.text, at:Date.now(), cid:S.campaignId };
   schedulePush();
   if (S.retell && S.retell.on){ S.retell = Object.assign({}, S.retell, { id:r.id, session:S.retellPick.session, text:r.text, at:Date.now() }); retellShare(); }
   playToast('\u201c' + esc(S.retellPick.session || 'That recap') + '\u201d is the Retelling now.', 'The Retelling');
@@ -6658,10 +6659,10 @@ function vidPaint(){
     h += '<label class="tsm-lbl" for="vidScene">Its scene, the name it takes in the Codex</label>'
       + (_scs.length ? '<select class="tsm-inp" id="vidScene" onchange="if(this.value){VID.session=this.value;document.getElementById(\'vidSessIn\').value=this.value;}"><option value="">Choose a scene\u2026</option>' + _scs.map(function(x){ return '<option value="' + esc(x.scene) + '"' + (x.scene === VID.session ? ' selected' : '') + '>' + esc(x.session + ': ' + x.scene) + '</option>'; }).join('') + '</select>' : '')
       + '<input class="tsm-inp" id="vidSessIn" maxlength="120" placeholder="Its name" value="' + esc(VID.session || '') + '" oninput="VID.session=this.value" style="margin-top:6px">';
-    if (VID.more && !VID.busy) h += '<div class="vid-more" role="group" aria-label="Write it again">' + [['shorter','Shorter'],['longer','Longer'],['fresh','A fresh take'],['vivid','More vivid'],['plain','Plainer']].map(function(o){ return '<button class="tsm-btn ghost" onclick="vidRecap(\'' + o[0] + '\')">' + o[1] + '</button>'; }).join('') + '</div>';
+    if (!VID.busy && VID.recap.trim()) h += '<div class="vid-more" role="group" aria-label="Write it again"><span class="tsm-lbl" style="margin:0 4px 0 0">Write it again:</span>' + [['shorter','Shorter'],['longer','Longer'],['fresh','A fresh take'],['vivid','More vivid'],['plain','Plainer']].map(function(o){ return '<button class="tsm-btn ghost" onclick="vidRecap(\'' + o[0] + '\')">' + o[1] + '</button>'; }).join('') + '</div>';
     h += '<label class="tsm-lbl" for="vidRecapIn">The recap</label><textarea class="tsm-inp tsm-ta rc-ta" id="vidRecapIn" oninput="VID.recap=this.value">' + esc(VID.recap) + '</textarea>'
       + '<p class="tsm-note">' + words + ' words, about ' + Math.max(1, Math.round(words / 4)) + ' seconds to read. ' + esc(VID.msg) + '</p>'
-      + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="VID.step=\'names\';vidPaint()">Back</button><button class="tsm-btn ghost" onclick="VID.more=!VID.more;vidPaint()"' + (VID.busy ? ' disabled' : '') + ' aria-expanded="' + (VID.more ? 'true' : 'false') + '">' + (VID.busy ? 'Writing\u2026' : 'Write it again') + '</button><button class="tsm-btn" onclick="vidSave()">' + (VID.review ? 'Approve' : 'Add to the Journal') + '</button></div>'
+      + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="VID.step=\'names\';vidPaint()">Back</button>' + (VID.busy ? '<button class="tsm-btn ghost" disabled>Writing\u2026</button>' : '') + '<button class="tsm-btn" onclick="vidSave()">' + (VID.review ? 'Approve' : 'Add to the Journal') + '</button></div>'
       + (VID.review
         ? '<div class="vid-all"><div class="tsm-lbl">Approve does all of this</div>'
           + '<label class="rc-who"><input type="checkbox" checked disabled> Add it to the Journal</label>'
@@ -6880,15 +6881,25 @@ function codexRemove(id){
 }
 /* ---- the Retelling ---- */
 function paras(t){ return String(t || '').trim().split(/\n\s*\n/).map(function(p){ return '<p>' + esc(p.trim()).replace(/\n/g, '<br>') + '</p>'; }).join(''); }
+/* The Retelling is this adventure's: a pick stamped with another adventure (or, from before the
+   stamp, one that is none of this adventure's recaps, Codex entries or Journal notes) is not used.
+   The Stone and Sovereign table had picked up The Ashen Hands' that way. */
+function retellPickHere(){
+  var p = S.retellPick; if (!p || !p.text) return false;
+  if (p.cid) return sameId(p.cid, S.campaignId);
+  var id = String(p.id || '');
+  return (SESS.recaps || []).some(function(x){ return x.id === id; }) || (CODEX.entries || []).some(function(x){ return x.id === id; })
+    || (S.journal || []).some(function(x){ return 'j:' + x.id === id; });
+}
 function retellToggle(){
   if (!isLM() || keeperNo()) return;
   if (S.retell && S.retell.on){ S.retell = { on:false, at:Date.now() }; retellShare(); return; }
   var go = function(){
-    var last = S.retellPick && S.retellPick.text ? S.retellPick
+    var last = retellPickHere() ? S.retellPick
       : CODEX.entries.slice().sort(function(a, b){ return b.at - a.at; })[0]
       || (SESS.recaps || []).slice().sort(function(a, b){ return b.at - a.at; }).map(function(r){ return { id:r.id, session:r.title || '', text:r.text }; })[0];
     if (!last){ playToast('Nothing to retell yet: send a recap, or add one from a session\u2019s video.', 'The Retelling'); return; }
-    S.retell = { on:true, id:last.id, at:Date.now(), session:last.session || '', text:last.text, img:(S.adventure && S.adventure.img) || '', adv:advName() };
+    S.retell = { on:true, id:last.id, at:Date.now(), session:last.session || '', text:last.text, img:(S.adventure && S.adventure.img) || '', adv:advName(), cid:S.campaignId };
     retellShare();
   };
   var ready = function(){ if (!SESS.loaded) sessionLoad(); go(); };
@@ -8213,7 +8224,7 @@ function vidDescribeFrom(i){
   var v = VID_CHANNEL[i]; if (!v) return;
   var e = (S.journal || []).filter(function(x){ return x.videoId === v.id; }).pop();
   /* no recap written from it: the Retelling's recap, or the newest sent, gives the teaser its story */
-  var fall = (S.retellPick && S.retellPick.text) ? S.retellPick : ((SESS.recaps || [])[0] ? { session:SESS.recaps[0].title, text:SESS.recaps[0].text } : null);
+  var fall = retellPickHere() ? S.retellPick : ((SESS.recaps || [])[0] ? { session:SESS.recaps[0].title, text:SESS.recaps[0].text } : null);
   ytDescribeVideo(v.id, (e && e.session) || (String(v.title).split('|')[1] || '').trim() || (fall && fall.session) || '', e ? e.text : (fall ? fall.text : ''));
 }
 /* any recap with its video: read the captions' timings again (nothing is kept), then write */
@@ -8465,7 +8476,7 @@ function vidSave(){
   S.journal = S.journal || []; S.journal.push({ id:'j' + Date.now(), ts:Date.now(), text:v, kind:'video', videoId:VID.videoId || '', session:VID.session || '' });
   var _cxid = 'cx' + Date.now();
   if ((document.getElementById('vidToCodex') || { checked:true }).checked) codexAdd({ id:_cxid, at:Date.now(), session:VID.session || '', text:v, videoId:VID.videoId || '' });
-  if ((document.getElementById('vidRetell') || { checked:true }).checked){ S.retellPick = { id:_cxid, session:VID.session || '', text:v, at:Date.now() }; schedulePush(); }
+  if ((document.getElementById('vidRetell') || { checked:true }).checked){ S.retellPick = { id:_cxid, session:VID.session || '', text:v, at:Date.now(), cid:S.campaignId }; schedulePush(); }
   /* from the email's review: the recap goes to every player too, as the recap email does */
   if (VID.review && (document.getElementById('vidSendAll') || {}).checked){
     var _to = (SESS.players || []).map(function(p){ return p.memberId; }).filter(Boolean), _ttl = VID.session || 'Session recap';
@@ -12601,7 +12612,7 @@ function applyRemoteSnapshot(snap){
      over every map and token. */
   if (!(ROOM._applying && isLM())) mapStateArrived();
   if (snap.spot !== undefined && (!isLM() || S.stream)) S.spot = Array.isArray(snap.spot) ? snap.spot : [];
-  if (snap.retell !== undefined && (!isLM() || S.stream)) S.retell = snap.retell;
+  if (snap.retell !== undefined && (!isLM() || S.stream) && !(snap.retell && snap.retell.cid && S.campaignId && !sameId(snap.retell.cid, S.campaignId))) S.retell = snap.retell;
   var _lbNew = snap.lobby !== undefined && (!S.lobby || !snap.lobby || lobbyRev(snap.lobby) > lobbyRev(S.lobby) || ((!isLM() || S.stream) && lobbyRev(snap.lobby) === lobbyRev(S.lobby)));
   if (snap.lobby === null && S.lobby && lobbyRev(S.lobby)) _lbNew = false;   /* an empty save never wipes a stamped lobby */
   /* the live room carries the LoreMaster's change as it is made: the players and the stream take it as said */
@@ -12613,7 +12624,7 @@ function applyRemoteSnapshot(snap){
   if (Array.isArray(snap.clocks) && (!isLM() || S.stream || !(S.clocks && S.clocks.length))) S.clocks = snap.clocks;
   if (snap.sounds && (!isLM() || S.stream || !soundsAny(S.sounds))) S.sounds = soundsMerge(S.sounds, snap.sounds);
   if (snap.vote !== undefined && (!isLM() || S.stream || !S.vote)) S.vote = snap.vote;
-  if (snap.retellPick !== undefined && isLM() && !S.retellPick) S.retellPick = snap.retellPick;
+  if (snap.retellPick !== undefined && isLM() && !S.retellPick && !(snap.retellPick && snap.retellPick.cid && S.campaignId && !sameId(snap.retellPick.cid, S.campaignId))) S.retellPick = snap.retellPick;
   if (Array.isArray(snap.marks) && isLM() && !(S.marks && S.marks.length)) S.marks = snap.marks;
   if (snap.ytDrafts && isLM() && !(S.ytDrafts && Object.keys(S.ytDrafts).length)) S.ytDrafts = snap.ytDrafts;
   if (snap.ytDone && isLM() && !(S.ytDone && Object.keys(S.ytDone).length)) S.ytDone = snap.ytDone;
@@ -13000,6 +13011,9 @@ function advSwitch(id){
    here shows up on the new table wearing the old one's face. */
 function advReset(nextId){
   S.lobby = null; window._lobbyLook = false; _lobbyArmed = false;   /* the lobby belongs to the adventure being left; the next opens in its own */
+  /* so do the Retelling and the Codex: the next adventure's own come with it, never this one's */
+  S.retell = null; S.retellPick = null; _retellShown = '';
+  CODEX = { loaded:false, busy:false, entries:[], records:[], items:[], me:'', tab:'story', pick:'' };
   try { console.log('%c[RESET] advReset(' + (nextId||'') + ') from campaignId=' + (S.campaignId||''), 'color:#e6a07a;font-weight:bold'); } catch(e){}
   _advSwitching = true;
   _advPushedRev = -1; _advTooBig = false; SEAM.advSent = '';
