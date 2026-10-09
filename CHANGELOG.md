@@ -1,3 +1,7 @@
+## 2026-10-09 - The Anexanum opens in its own tab for full screen
+
+The site's frame does not allow full screen, and the embed already points at the Anexanum's own address, so changing the Wix setting cannot fix it. Where the frame blocks it, Full screen now opens the Anexanum in a tab of its own, signed in with the ticket the frame already holds (passed after the address's #, which never leaves the browser, and wiped from the address on arrival). There it fills the window, and F or the button goes full screen. The button says so when that is what it will do.
+
 ## 2026-10-09 - The Anexanum: a History from transcript files, and full screen says why
 
 - **A History from transcript files.** Choose a playlist now also takes a set of transcript files (.srt, .vtt, .sbv or .txt), one per episode, taken in order by file name, for an adventure recorded but never put on YouTube. Each file stands in for its episode's captions, and the steps after it (chapters, names, world, review and send) run the same way. The files are read for this visit only: an episode not yet written after a reload asks for its file again.
