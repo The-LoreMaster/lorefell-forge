@@ -1,3 +1,7 @@
+## 2026-10-09 - The scene runner keeps to the map
+
+A long scene name stretched the scene runner's bar, and the beat card sized to match it, past the map and over the rail when ThreadSpire was not full screen. The scene name now ends in an ellipsis (its full name shows on hover), and the bar and card never reach past the rail's edge.
+
 ## 2026-10-09 - Recaps: Shorter and Longer in view, and the Retelling stays with its adventure
 
 - **Shorter and Longer.** The recap written from a session's video kept its Shorter, Longer, fresh-take, more-vivid and plainer rewrites behind a Write it again button. They now sit in plain view under the scene name whenever there is a recap. The Journal recap writer gains Shorter and Longer beside Draft as well.
