@@ -49,6 +49,7 @@ textarea.t{ width:100%; resize:vertical; line-height:1.55; font-size:1rem; }
 .pick button{ text-align:left; padding:12px 14px; border-radius:11px; border:1px solid var(--line); background:var(--ink2); cursor:pointer; }
 .pick button b{ display:block; font-family:Cinzel, serif; font-weight:600; font-size:1rem; } .pick button small{ color:var(--dim); }
 .pick button.on{ border-color:var(--gold); }
+.pick button .done{ color:var(--verd); } .pick button.complete{ border-color:rgba(127,175,140,.45); }
 .log{ margin-top:14px; padding:12px 14px; border-left:2px solid var(--gold); background:var(--ink2); color:var(--dim); font-size:.95rem; white-space:pre-wrap; max-height:220px; overflow:auto; }
 /* the review: the ledger of pages and the page itself */
 .review{ display:grid; grid-template-columns:320px minmax(0,1fr); gap:22px; align-items:start; }
@@ -507,7 +508,9 @@ function paintStep1(){
   var h = '<h2>Choose a playlist</h2><p class="lead">Each playlist becomes one History, one chapter per episode. Pick an existing History to add to it instead of starting a new one.</p>';
   if (AX.playlists === 'loading') h += '<p class="lead">Reading your playlists…</p>';
   else if (!AX.playlists.length) h += '<div class="empty">' + esc(AX.err || 'No playlists on your channel yet.') + '</div>';
-  else h += '<div class="pick">' + AX.playlists.map(function(p, i){ return '<button class="' + (AX.pl && AX.pl.id === p.id ? 'on' : '') + '" onclick="pickPlaylist(' + i + ')"><b>' + esc(p.title) + '</b><small>' + p.count + ' videos</small></button>'; }).join('') + '</div>';
+  else { plProgress(); h += '<div class="pick">' + AX.playlists.map(function(p, i){ var g = (AX.plDone || {})[p.id];
+      return '<button class="' + (AX.pl && AX.pl.id === p.id ? 'on' : '') + (g && g.done ? ' complete' : '') + '" onclick="pickPlaylist(' + i + ')"><b>' + esc(p.title) + '</b><small>' + p.count + ' videos'
+        + (g ? (g.done ? ' \u00b7 <span class="done">History complete</span>' : ' \u00b7 ' + g.told + ' of ' + p.count + ' told') : '') + '</small></button>'; }).join('') + '</div>'; }
   if (AX.pl){
     h += '<div class="row"><label class="f">The History\u2019s name<input class="t" id="hname" value="' + esc(AX.name) + '" oninput="AX.name=this.value"></label>'
       + '<label class="f">Or add to an existing History<select class="t" onchange="if(this.value){AX.name=this.value;AX.existing=this.value;document.getElementById(\'hname\').value=this.value;}"><option value="">A new History</option>' + (AX.histories || []).map(function(n){ return '<option' + (AX.existing === n ? ' selected' : '') + '>' + esc(n) + '</option>'; }).join('') + '</select></label></div>'
@@ -515,6 +518,29 @@ function paintStep1(){
       + '<div class="row"><button class="btn pri" onclick="startHistory()">Use this History</button></div>';
   }
   return h;
+}
+/* ---- which playlists are already told in full ----
+   A playlist whose History tells every episode is marked complete: when the History has as
+   many chapters as the playlist has videos, or when its drafts account for every episode
+   (written, or already told by a chapter that was there first, the way Echoes Below
+   Burhallow's early chapters each tell more than one episode). Read once per visit. */
+function plProgress(){
+  if (AX.plDone || !AX.vaultFiles || !Array.isArray(AX.playlists)) return;
+  AX.plDone = {};
+  AX.playlists.forEach(function(p){
+    var name = (AX.histories || []).filter(function(n){ return n.toLowerCase() === String(p.title).toLowerCase(); })[0];
+    if (!name) return;
+    var pre = BASE + name + '/Storyline/', ch = AX.vaultFiles.filter(function(f){ return f.indexOf(pre) === 0 && /\.md$/.test(f); }).length;
+    AX.plDone[p.id] = { done:ch >= p.count, told:Math.min(ch, p.count) };
+    if (ch >= p.count) return;
+    api('/ax/draft', { k:'h:' + slug(name) + ':m' }).then(function(d){
+      if (!d.v) return; var m = JSON.parse(d.v), notes = m.notes || {}, ids = Object.keys(notes);
+      var sentPaths = {}; (m.files || []).forEach(function(f){ if (f.status === 'sent') sentPaths[f.p] = 1; });
+      var sent = ids.filter(function(id){ var n = notes[id]; return n.told || sentPaths[n.path] || AX.vaultFiles.indexOf(n.path) >= 0; }).length;
+      var told = Math.max(Math.min(ch, p.count), Math.min(p.count, sent + Math.max(0, (m.toldThrough || 0) - ids.filter(function(id){ return notes[id].told; }).length)));
+      AX.plDone[p.id] = { done:told >= p.count, told:told }; if (AX.step === 1) paint();
+    }).catch(function(){});
+  });
 }
 function pickPlaylist(i){
   var p = AX.playlists[i]; AX.pl = { id:p.id, title:p.title }; AX.name = AX.name || p.title; AX.videos = [];
@@ -563,6 +589,7 @@ function paintStep2(){
   return '<h2>Write the chapters</h2><p class="lead">One chapter per episode, from its captions and description, in the FellGuide\u2019s voice. Captions cost YouTube allowance, so a long playlist may take more than one day; it picks up where it stopped.</p>'
     + (have ? '<div class="row"><label class="f">The FellGuide already has ' + have + ' chapter' + (have === 1 ? '' : 's') + ' of ' + esc(hist()) + '. Episodes they already tell: through episode<input class="t" type="number" min="0" max="' + AX.videos.length + '" value="' + AX.toldThrough + '" onchange="AX.toldThrough=Math.max(0,Math.min(' + AX.videos.length + ',parseInt(this.value,10)||0));saveManifest();paint()"></label></div>'
       + '<p class="lead">Those are skipped, never written twice. New chapters number on from chapter ' + (nextChapterNum() - 1) + '.</p>' : '')
+    + (AX.videos.length && done >= AX.videos.length ? '<div class="empty" style="border-color:rgba(127,175,140,.45);color:var(--verd)">Every episode of this playlist is told. The History is complete.</div>' : '')
     + '<div class="list">' + AX.videos.map(function(v, i){ var n = AX.notes[v.id], t = epTold(v, i); return '<div class="it"><span class="num">' + (i + 1) + '</span><span class="ti">' + esc(n && !n.told ? n.title : v.title) + '<small>' + esc(n && !n.told ? 'Chapter ' + n.n + ' \u00b7 ' + v.title : v.title) + '</small></span><span class="mark ' + (n || t ? 'done' : 'wait') + '">' + (t ? 'already told' : n ? 'written' : 'to write') + '</span></div>'; }).join('') + '</div>'
     + '<div class="row"><button class="btn pri" onclick="writeChapters()"' + (AX.busy ? ' disabled' : '') + '>' + (AX.busy ? 'Writing…' : done ? 'Write the rest' : 'Write the chapters') + '</button>' + (done ? '<button class="btn" onclick="AX.step=3;paint()">On to the names</button>' : '') + '</div>'
     + '<div class="log" id="axlog" aria-live="polite">' + esc(AX.log || 'Ready.') + '</div>';
@@ -878,6 +905,7 @@ function sendIt(){
   if (!confirm('Send ' + paths.length + ' pages to the FellGuide? They go to the vault\u2019s main branch, and Obsidian pulls them.')) return;
   AX.busy = true; paint();
   api('/ax/vault/commit', {}, { message:'The Anexanum: ' + hist(), files:paths.filter(function(p){ return !AX.files[p].del; }).map(function(p){ return { path:p, content:AX.files[p].content }; }), deletes:paths.filter(function(p){ return AX.files[p].del; }) }).then(function(r){
+    AX.plDone = null;
     say('Sent ' + r.files + ' pages to the FellGuide' + (r.removed ? ' and took out ' + r.removed : '') + '. Pull in Obsidian, then publish.');
     var gone = paths.filter(function(p){ return AX.files[p].del; }); AX.vaultFiles = (AX.vaultFiles || []).filter(function(p){ return gone.indexOf(p) < 0; }).concat(paths.filter(function(p){ return !AX.files[p].del && (AX.vaultFiles || []).indexOf(p) < 0; }));
     paths.forEach(function(p){ AX.files[p].status = 'sent'; AX.files[p].approved = false; api('/ax/draft', { k:hkey() + ':f:' + p }, ''); });
