@@ -1,3 +1,7 @@
+## 2026-10-09 - The Anexanum names a History's adventure type
+
+A History's page and its row in the Histories table take the adventure type from its chapters, one a session: a Tale for one, a Story up to six, a Legacy from seven to thirteen, and a Chronicle past that. "Adventure" no longer stands in for a type.
+
 ## 2026-10-09 - The Anexanum builds the Histories table and the order map when it sends
 
 The Histories' own table and the order map were written when Write the world ran and sent whenever the drafts went out, carrying the vault as it was then. Anything added to either in between was taken out: Worriln Below's send dropped Echoes Below Burhallow's row, added minutes before. Both are now built again from the vault as it stands, just before sending, and a History already in the table sends no change to it.
