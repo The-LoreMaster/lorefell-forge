@@ -847,7 +847,9 @@ function writeRoot(){
 function writeHistoriesIndex(){
   var path = BASE + 'The Histories.md';
   return api('/ax/vault/file', { path:path }).then(function(cur){
-    if (!cur.exists || cur.content.indexOf('[[' + hist() + ']]') >= 0) return;
+    /* already listed (as the page stands now): nothing of this page to send */
+    if (cur.exists && cur.content.indexOf('[[' + hist() + ']]') >= 0){ if (AX.files[path] && AX.files[path].status !== 'sent'){ delete AX.files[path]; api('/ax/draft', { k:hkey() + ':f:' + path }, ''); return saveManifest(); } return; }
+    if (!cur.exists) return;
     var lines = cur.content.split('\n'), last = -1;
     lines.forEach(function(l, i){ if (/^\|\s*\[\[.+\]\]\s*\|/.test(l)) last = i; });
     if (last < 0) return;
@@ -910,18 +912,31 @@ function paintStep4(){
     + '<div class="log" id="axlog" aria-live="polite">' + esc(AX.log || '') + '</div>';
   return h;
 }
+/* The Histories' table and the order map are shared by every History and changed by other work
+   too. Written when the world was written and sent later, they carried the vault as it was then
+   and took out what came in between (Echoes Below Burhallow's row went that way). So both are
+   built again from the vault as it stands, just before sending. */
+function freshShared(){
+  var idx = BASE + 'The Histories.md', jobs = Promise.resolve();
+  if (AX.files[NAVMAP] && AX.files[NAVMAP].approved) jobs = jobs.then(writeNavMap);
+  if (AX.files[idx] && AX.files[idx].approved) jobs = jobs.then(writeHistoriesIndex);
+  return jobs;
+}
 function sendIt(){
   var paths = Object.keys(AX.files).filter(function(p){ return AX.files[p].approved; });
   if (!paths.length || AX.busy) return;
   if (!confirm('Send ' + paths.length + ' pages to the FellGuide? They go to the vault\u2019s main branch, and Obsidian pulls them.')) return;
   AX.busy = true; paint();
-  api('/ax/vault/commit', {}, { message:'The Anexanum: ' + hist(), files:paths.filter(function(p){ return !AX.files[p].del; }).map(function(p){ return { path:p, content:AX.files[p].content }; }), deletes:paths.filter(function(p){ return AX.files[p].del; }) }).then(function(r){
+  freshShared().then(function(){
+    paths = Object.keys(AX.files).filter(function(p){ return AX.files[p].approved; });
+    if (!paths.length) throw new Error('nothing left to send');
+    return api('/ax/vault/commit', {}, { message:'The Anexanum: ' + hist(), files:paths.filter(function(p){ return !AX.files[p].del; }).map(function(p){ return { path:p, content:AX.files[p].content }; }), deletes:paths.filter(function(p){ return AX.files[p].del; }) }).then(function(r){
     AX.plDone = null;
     say('Sent ' + r.files + ' pages to the FellGuide' + (r.removed ? ' and took out ' + r.removed : '') + '. Pull in Obsidian, then publish.');
     var gone = paths.filter(function(p){ return AX.files[p].del; }); AX.vaultFiles = (AX.vaultFiles || []).filter(function(p){ return gone.indexOf(p) < 0; }).concat(paths.filter(function(p){ return !AX.files[p].del && (AX.vaultFiles || []).indexOf(p) < 0; }));
     paths.forEach(function(p){ AX.files[p].status = 'sent'; AX.files[p].approved = false; api('/ax/draft', { k:hkey() + ':f:' + p }, ''); });
     AX.busy = false; return saveManifest().then(paint);
-  }).catch(function(e){ AX.busy = false; say('Not sent: ' + e.message); paint(); });
+  }); }).catch(function(e){ AX.busy = false; say('Not sent: ' + e.message); paint(); });
 }
 function dropAll(){
   if (!confirm('Drop every draft for ' + hist() + '? Pages already sent stay in the FellGuide.')) return;

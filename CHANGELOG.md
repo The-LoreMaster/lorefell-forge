@@ -1,3 +1,7 @@
+## 2026-10-09 - The Anexanum builds the Histories table and the order map when it sends
+
+The Histories' own table and the order map were written when Write the world ran and sent whenever the drafts went out, carrying the vault as it was then. Anything added to either in between was taken out: Worriln Below's send dropped Echoes Below Burhallow's row, added minutes before. Both are now built again from the vault as it stands, just before sending, and a History already in the table sends no change to it.
+
 ## 2026-10-09 - The Anexanum sends a large History in one go
 
 Sending 65 pages failed with Cloudflare's "Too many subrequests": the room made one call to GitHub for each page, and a single request may make only 50. The pages now go to GitHub inside the commit's tree in one call, so a send takes about five calls however many pages it carries.
