@@ -115,7 +115,18 @@ var _rid = 0, _wait = {};
 window.addEventListener('message', function(e){ var m = e.data || {}; if (m.type === 'AX_REPLY' && _wait[m.id]){ _wait[m.id](m); delete _wait[m.id]; } });
 function askPage(type){ return new Promise(function(res, rej){ var id = ++_rid; _wait[id] = function(m){ m.ok ? res(m.data) : rej(new Error((m.data && m.data.error) || 'no answer')); }; try { parent.postMessage({ type:type, id:id }, '*'); } catch(e){ rej(e); } setTimeout(function(){ if (_wait[id]){ delete _wait[id]; rej(new Error('the page did not answer: paste velo/page-the_anexanum.js')); } }, 20000); }); }
 var TICKET = '';
+/* YouTube's daily allowance as the room has counted it: what is spent today, what it went on,
+   when it resets (midnight Pacific), and Google's own page for the exact figure */
+function unitsHtml(){
+  var u = AX.units || (AX.who && AX.who.units); if (!u) return '';
+  var left = Math.max(0, (u.limit || 10000) - (u.used || 0)), low = left < 1000;
+  var why = Object.keys(u.by || {}).map(function(k){ return k + ' ' + u.by[k]; }).join(', ');
+  return '<span id="axUnits" title="' + esc('Counted by the room today (' + u.day + '): ' + (why || 'nothing yet') + '. Resets at midnight Pacific. Captions cost 250 a video.') + '">Today <b class="' + (low ? 'no' : 'ok') + '">' + left.toLocaleString() + ' of ' + (u.limit || 10000).toLocaleString() + ' left</b> <a href="https://console.cloud.google.com/apis/api/youtube.googleapis.com/quotas" target="_blank" rel="noopener" style="color:var(--dim)">Google\u2019s figure</a></span>';
+}
+var _unitsT = null;
+function unitsRefresh(){ clearTimeout(_unitsT); _unitsT = setTimeout(function(){ api('/ax/units').then(function(u){ AX.units = u; var el = document.getElementById('axUnits'); if (el) el.outerHTML = unitsHtml(); }).catch(function(){}); }, 1200); }
 function api(path, params, body){
+  if (/^\/ax\/(video|playlist|uploads)/.test(path)) unitsRefresh();
   var q = Object.keys(params || {}).map(function(k){ return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]); }).join('&');
   return fetch(ROOM + path + '?t=' + encodeURIComponent(TICKET) + (q ? '&' + q : ''), body !== undefined ? { method:'POST', body:typeof body === 'string' ? body : JSON.stringify(body) } : {})
     .then(function(r){ return r.json(); }).then(function(d){ if (!d || d.ok === false) throw new Error((d && d.error) || 'no answer'); return d; });
@@ -184,7 +195,7 @@ function loadVaultBasics(){
 function paint(){
   var w = AX.who || {};
   var h = '<header class="top"><div><h1>The Anexanum</h1><div class="sub">Where the lore is kept. Nothing reaches the FellGuide until you send it.</div></div>'
-    + '<div class="status"><button class="fsbtn" onclick="toggleFull()" title="Full screen (F)">Full screen</button><span>YouTube <b class="' + (w.youtube ? 'ok' : 'no') + '">' + (w.youtube ? 'connected' : 'not set') + '</b></span><span>The vault <b class="' + (w.vault ? 'ok' : 'no') + '">' + (w.vault ? 'open' : 'no key yet') + '</b></span></div></header>'
+    + '<div class="status"><button class="fsbtn" onclick="toggleFull()" title="Full screen (F)">Full screen</button><span>YouTube <b class="' + (w.youtube ? 'ok' : 'no') + '">' + (w.youtube ? 'connected' : 'not set') + '</b></span>' + unitsHtml() + '<span>The vault <b class="' + (w.vault ? 'ok' : 'no') + '">' + (w.vault ? 'open' : 'no key yet') + '</b></span></div></header>'
     + '<nav class="tabs" aria-label="The Anexanum"><button class="' + (AX.tab === 'histories' ? 'on' : '') + '" onclick="AX.tab=\'histories\';paint()">The Histories</button><button class="' + (AX.tab === 'videos' ? 'on' : '') + '" onclick="AX.tab=\'videos\';paint()">The videos</button></nav>';
   h += AX.tab === 'histories' ? paintHistories() : paintVideos();
   document.getElementById('app').innerHTML = h;
