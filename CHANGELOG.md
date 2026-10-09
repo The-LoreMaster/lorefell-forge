@@ -1,3 +1,11 @@
+## 2026-10-09 - From the Ashen Hands session: hidden rolls, beats, multi-select, lorebound sight, the log on phones
+
+- **Hidden rolls stay hidden.** With Hide my rolls on, the LoreMaster's die still crossed every player's table and the stream. A hidden roll now throws no die and writes no log line anywhere but the LoreMaster's own table.
+- **The beat card keeps its place.** Scrolling a beat jumped back to the top about once a second. The repaint saved the scroll of the first beat card in the strip, which is the neighbour on the left, not the one being read. It now saves the centre card, and anything else in the strip that scrolls keeps its place too.
+- **Ctrl, Cmd or Shift and a click** adds a token to the selection or takes it out. The group moves together and gets the group bar, the same as a box drawn with Select. Shift with a Select box adds to what is already chosen. A plain click starts over, and Deselect or Escape clears it.
+- **Lorebounds see for their Fell.** A token marked as a lorebound clears fog with its own sight, for its Fell's player and in the LoreMaster's Player view. A Masked Fell still sees only what is next to it.
+- **The log on curved phones.** The log's options button sat in the screen's top corner, out of reach on a curved phone. On touch screens it moves to the start of the chat row. Settings has Float the log, and a floating log opens inside the screen with a margin, so its resize corner can be reached.
+
 ## 2026-10-08 - The live room's lobby is taken as said
 
 A lobby change arriving through the live room is the LoreMaster's, made that moment, so the players and the stream now take it whatever stamp they hold. Only a copy pulled from the saved table has to be newer.

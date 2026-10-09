@@ -2767,6 +2767,9 @@ body.keeper .runonly, body.keeper #restOpts{ display:none !important; }
 
 /* the floating log */
 #floatLog{ position:fixed; z-index:510; display:flex; flex-direction:column; min-width:220px; min-height:160px; resize:both; overflow:hidden; border:1px solid rgba(201,168,76,.6); border-radius:12px; background:rgba(10,14,28,var(--fl-a,.88)); box-shadow:0 12px 30px rgba(0,0,0,.45); }
+/* phones: the log's options button away from the screen's edge, where a curved screen cannot be
+   touched, and a floating log kept clear of the edges */
+@media (pointer:coarse){ #log .lchat .log-gear{ order:-1; } }
 #floatLog .fl-head{ display:flex; align-items:center; gap:8px; padding:6px 8px 6px 12px; cursor:move; border-bottom:1px solid rgba(201,168,76,.25); touch-action:none; }
 #floatLog .fl-head span{ flex:1; font-family:Cinzel,serif; font-size:.72rem; letter-spacing:.12em; text-transform:uppercase; color:#c9a84c; }
 #floatLog .fl-head input{ width:80px; accent-color:#c9a84c; }
@@ -4058,6 +4061,7 @@ function applyRemoteState(patch){
     var en = S.log[_r];
     if (!en || en.kind !== 'roll') continue;
     if (en.id === flourishedId){ seenAt = _r; break; }
+    if (en.hidden && (!isLM() || S.stream)) continue;   /* the LoreMaster's hidden roll: no die crosses a player's table or the stream */
     if (typeof _rollHistory !== 'undefined' && _rollHistory[en.id]) continue;
     fresh.unshift(en);
   }
@@ -9542,8 +9546,12 @@ function paintLmStrip(){
     /* The centre beat card scrolls its own body (a long read-aloud, a dialogue, a note). The
        repaint rebuilt it too, so a roll - which repaints the strip to show the die - threw the
        LoreMaster back to the top of whatever they were reading. Capture and restore it as well. */
-    var beatBody = el.querySelector('.lmcard.beat .lmc-body');
+    /* the centre card's, not the first in the strip: the neighbour on the left comes first and
+       read 0, so every repaint put the LoreMaster back at the top of the beat they were reading */
+    var beatBody = el.querySelector('.lm-slot.center .lmcard.beat .lmc-body');
     if (beatBody) prevBeatScroll = beatBody.scrollTop;
+    /* and anything else in the strip that scrolls keeps its place by where it sits */
+    var _scr = lmScrollSnap(el);
     /* The spotlight box scrolls too, now that its fighters stack. It was not in this set,
        so every repaint - and the feed repaints about once a second - threw the LoreMaster
        back to the top of a spotlight they were reading. */
@@ -9551,6 +9559,7 @@ function paintLmStrip(){
     if (spotBox) prevSpotScroll = spotBox.scrollTop;
   } catch(e){}
   el.innerHTML = lmStripHtml();
+  try { lmScrollRestore(el, _scr); } catch(e){}
   try { var fcb2 = el.querySelector('.lmcard.fc .fc-body'), fk = (lmExpanded || '') + '|' + lmTab;
     if (fcb2 && window._fcScroll && window._fcScroll[fk]) fcb2.scrollTop = window._fcScroll[fk];
     if (fcb2 && !fcb2._fcw){ fcb2._fcw = true; fcb2.addEventListener('scroll', function(){ window._fcScroll = window._fcScroll || {}; window._fcScroll[fk] = fcb2.scrollTop; }, { passive:true }); } } catch(e){}
@@ -9562,7 +9571,7 @@ function paintLmStrip(){
   }
   if (prevBeatScroll){
     try {
-      var newBeat = el.querySelector('.lmcard.beat .lmc-body');
+      var newBeat = el.querySelector('.lm-slot.center .lmcard.beat .lmc-body');
       if (newBeat) newBeat.scrollTop = prevBeatScroll;
     } catch(e){}
   }
@@ -9580,6 +9589,26 @@ function paintLmStrip(){
   } catch(e){}
 }
 
+/* where each scrolled element in a panel sits (its path of child indexes and its class), so
+   a rebuilt panel can put every one back */
+function lmScrollSnap(root){
+  var out = [];
+  (function walk(n, path){
+    for (var i = 0; i < n.children.length; i++){
+      var c = n.children[i], p = path.concat(i);
+      if (c.scrollTop > 0) out.push({ p:p, cls:c.className, top:c.scrollTop });
+      if (c.children.length) walk(c, p);
+    }
+  })(root, []);
+  return out;
+}
+function lmScrollRestore(root, snap){
+  (snap || []).forEach(function(s){
+    var n = root;
+    for (var i = 0; i < s.p.length && n; i++) n = n.children[s.p[i]];
+    if (n && n.className === s.cls) n.scrollTop = s.top;
+  });
+}
 function lmStripHtml(){
   if (!isLM()) return '';
   var f = lmFace();
@@ -13431,6 +13460,7 @@ function settingsBody(){
   var cur = diceMine('generic');
   h += setGroup('Your table',
       '<div class="set-row"><div class="set-txt"><span class="set-t">Your dice</span><span class="set-h">A set for each kind of roll.</span></div><div class="set-act"><button class="set-dice" onclick="diceWindow()" title="Choose your dice">' + diceFace(cur, 5) + '</button>' + setBtn('Choose', 'diceWindow()') + '</div></div>'
+    + setRow('Float the log', 'The log in its own window you can drag, size and see through. Its options sit in the screen\u2019s corner, out of reach on some curved phones; this reaches it from here.', setBtn(document.getElementById('floatLog') ? 'Dock it' : 'Float it', 'floatLogToggle();refreshWinBody()'))
     + (isLM() ? setRow('Hide my rolls', 'Your rolls show only on your screen and in your log, marked hidden.', setSwitch(lmHiddenRolls(), 'lmHiddenRollsSet(!lmHiddenRolls())', 'Hide my rolls')) : '')
     + setRow('Player view', 'See the fog as the players do.', '<kbd>P</kbd>' + setSwitch(!!S._pv, 'pviewSet(!S._pv)', 'Player view'))
     + setRow('Clean view', 'Hide the widgets to show the map alone.', '<kbd>H</kbd>' + setSwitch(document.body.classList.contains('clean'), 'toggleClean();refreshWinBody()', 'Clean view'))
@@ -18656,7 +18686,7 @@ function wireToken(el, t, draggable){
        token it started on - a tap that ends a few pixels outside is still a tap */
     el.setPointerCapture(e.pointerId);
     var m = toMap(e.clientX, e.clientY), ox = t.x - m.x, oy = t.y - m.y, moved = false;
-    var sx = e.clientX, sy = e.clientY;
+    var sx = e.clientX, sy = e.clientY, _addSel = !!(e.ctrlKey || e.metaKey || e.shiftKey);
     function mv(ev){
       if (!draggable){
         /* a finger that wandered is not a tap, even on something that cannot be moved */
@@ -18686,7 +18716,12 @@ function wireToken(el, t, draggable){
         var nowT = Date.now();
         if (isLM() && _lastTokTap.id === t.id && nowT - _lastTokTap.at < 380 && t.kind !== 'p' && !t.charId){ _lastTokTap = { id:'', at:0 }; tokRenameAsk(t.id); return; }
         _lastTokTap = { id:t.id, at:nowT };
-        if (!handAimByTap(t)) selectToken(t.id); return;
+        /* Ctrl, Cmd or Shift and a click adds the token to the selection (or takes it out);
+           the group then moves together, as a box drawn with Select does */
+        if (_addSel){ tokSelAdd(t.id); return; }
+        if (handAimByTap(t)) return;
+        if (Object.keys(multiSel).length){ multiSel = {}; sel = null; }   /* a plain click starts a new selection */
+        selectToken(t.id); return;
       }
       if (!draggable) return;                 /* it never moved; there is nothing to send */
       var c = t.cells || 1;
@@ -18900,9 +18935,23 @@ function rulerClear(){ var L = document.getElementById('rulerLayer'); if (L) L.i
 /* ---- multi-select ---- */
 /* the same rule renderTokens uses to make a token draggable */
 function mayMoveTok(t){ if (!t) return false; if (S.role === 'lm') return true; return !!(t.mine || (typeof tokenIsMine === 'function' && tokenIsMine(t))); }
-function selectBox(a, b){
+function tokSelClear(){ multiSel = {}; sel = null; renderTokens(); try { paintTokMenu(); multiBarPaint(); } catch(e){} }
+document.addEventListener('keydown', function(e){
+  if (e.key !== 'Escape' || !Object.keys(multiSel).length) return;
+  var a = document.activeElement; if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.isContentEditable)) return;
+  tokSelClear();
+});
+function tokSelAdd(id){
+  if (!id) return;
+  if (sel && sel !== id && !multiSel[sel]) multiSel[sel] = 1;   /* the token already selected starts the group */
+  if (multiSel[id]) delete multiSel[id]; else multiSel[id] = 1;
+  var ks = Object.keys(multiSel);
+  sel = ks.length ? ks[ks.length - 1] : null;
+  renderTokens(); try { paintTokMenu(); } catch(e){}
+}
+function selectBox(a, b, add){
   var x0 = Math.min(a.x, b.x), x1 = Math.max(a.x, b.x), y0 = Math.min(a.y, b.y), y1 = Math.max(a.y, b.y);
-  multiSel = {};
+  if (!add) multiSel = {};
   (S.tokens || []).forEach(function(t){ if (t.x >= x0 && t.x <= x1 && t.y >= y0 && t.y <= y1) multiSel[t.id] = 1; });
   renderTokens();
 }
@@ -19126,6 +19175,10 @@ function fogViewNow(){
      party has already explored stay dimmed for everyone (that memory is shared). The
      LoreMaster's Player view still shows the whole party's sight. */
   if (!isLM() && me) party = [me];
+  /* a lorebound sees for its Fell: its own sight clears the fog, for its Fell's player (and in
+     the LoreMaster's Player view, for every lorebound on the map) */
+  var _lbs = (S.tokens || []).filter(function(t){ return t.lb && t.lb.owner && !t.hidden && (isLM() || (me && me.charId && sameId(t.lb.owner, me.charId))); });
+  if (_lbs.length) party = party.concat(_lbs);
   /* with automatic vision off for this map, only the LoreMaster's painting counts */
   var recV = fogRec();
   var sight = (recV && recV.nov) ? new Uint8Array(n) : visionOf(party, d), vis = new Uint8Array(n), clr = new Uint8Array(n);
@@ -20617,7 +20670,7 @@ function multiBarPaint(){
   if (!isLM() || n < 2){ b.style.display = 'none'; return; }
   /* drawn only when it changes: rebuilt every half second, its buttons were replaced between
      the press and the release, so a click on one landed on nothing */
-  var html = n + ' tokens <button onclick="tokAimStart()">Rotate</button><button onclick="tokToggle(\'hidden\')">Hide</button><button onclick="tokToggle(\'nameHidden\')">Name</button><button onclick="tokToggle(\'locked\')">Lock</button><button onclick="tokDuplicate()">Duplicate</button><button class="danger" onclick="tokRemoveChosen()">Remove</button>';
+  var html = n + ' tokens <button onclick="tokAimStart()">Rotate</button><button onclick="tokToggle(\'hidden\')">Hide</button><button onclick="tokToggle(\'nameHidden\')">Name</button><button onclick="tokToggle(\'locked\')">Lock</button><button onclick="tokDuplicate()">Duplicate</button><button class="danger" onclick="tokRemoveChosen()">Remove</button><button onclick="tokSelClear()" title="Deselect (Esc)">Deselect</button>';
   if (b._html !== html){ b.innerHTML = html; b._html = html; }
   b.style.display = 'flex';
 }
@@ -23228,8 +23281,11 @@ function floatLogToggle(){
   if (el){ el.remove(); var p0 = floatLogPrefs(); p0.open = false; floatLogSave(p0); return; }
   var p = floatLogPrefs(); p.open = true; floatLogSave(p);
   el = document.createElement('div'); el.id = 'floatLog';
-  el.style.left = (p.x != null ? p.x : 80) + 'px'; el.style.top = (p.y != null ? p.y : 90) + 'px';
-  el.style.width = (p.w || 340) + 'px'; el.style.height = (p.h || 360) + 'px'; el.style.setProperty('--fl-a', p.a != null ? p.a : 0.88);
+  /* inside the screen, with a margin a curved edge cannot eat, so its corner can still be grabbed */
+  var _m = (window.matchMedia && matchMedia('(pointer:coarse)').matches) ? 28 : 0;
+  var _w = Math.min(p.w || 340, innerWidth - 2 * _m - 4), _h = Math.min(p.h || 360, innerHeight - 2 * _m - 4);
+  el.style.width = Math.max(220, _w) + 'px'; el.style.height = Math.max(160, _h) + 'px';
+  el.style.left = Math.max(_m, Math.min(innerWidth - _w - _m, p.x != null ? p.x : 80)) + 'px'; el.style.top = Math.max(_m, Math.min(innerHeight - _h - _m, p.y != null ? p.y : 90)) + 'px'; el.style.setProperty('--fl-a', p.a != null ? p.a : 0.88);
   el.innerHTML = '<div class="fl-head"><span>Log</span><label title="How see-through"><input type="range" min="0.25" max="1" step="0.05" value="' + (p.a != null ? p.a : 0.88) + '" oninput="floatLogAlpha(this.value)"></label><button onclick="floatLogToggle()" aria-label="Close the floating log" title="Close">\u00d7</button></div>'
     + '<div class="lchat"><input id="chatFloat" maxlength="240" placeholder="Say something" onkeydown="if(event.key===\'Enter\')sayFrom(\'chatFloat\')"><button class="wh-to" onclick="whisperPick(this)" title="Say it to everyone, or whisper to one">All</button><button onclick="sayFrom(\'chatFloat\')">Say</button></div>'
     + '<div class="logstream" aria-live="polite"></div>';
@@ -24133,7 +24189,7 @@ function toolDown(e){
     if (tt) p = { x:tt.x, y:tt.y };
     _toolG = { kind:'ruler', a:p }; rulerDraw(p, p); return true;
   }
-  if (mapTool === 'select'){ _toolG = { kind:'select', a:p, sx:e.clientX, sy:e.clientY }; return true; }
+  if (mapTool === 'select'){ _toolG = { kind:'select', a:p, sx:e.clientX, sy:e.clientY, add:!!(e.ctrlKey || e.metaKey || e.shiftKey) }; return true; }
   return false;
 }
 function toolMove(e){
@@ -24171,7 +24227,7 @@ function toolUp(e){
   else if (g.kind === 'wall'){ wallCommit(); }
   else if (g.kind === 'light'){ lightCommit(); }
   else if (g.kind === 'fx'){ fxUp(); }
-  else if (g.kind === 'select'){ document.getElementById('selBox').style.display = 'none'; if (g.b) selectBox(g.a, g.b); else { multiSel = {}; renderTokens(); } }
+  else if (g.kind === 'select'){ document.getElementById('selBox').style.display = 'none'; if (g.b) selectBox(g.a, g.b, g.add); else if (!g.add){ multiSel = {}; renderTokens(); } }
   /* the ruler stays up until the next measure or another tool */
 }
 
@@ -24731,7 +24787,7 @@ function entryHtml(e){
   }
   if (e.lmOnly && !isLM()) return '';
   if (e.kind === 'roll'){
-    if (e.hidden && !isLM()) return '';
+    if (e.hidden && (!isLM() || S.stream)) return '';
     var m = e.n === 6 ? ' <span class="mark">Fellmark</span>'
           : e.n === 1 ? ' <span class="strike">Fellstrike</span>' : '';
     var sum = (e.mods || []).map(function(x){ return ' + ' + esc(x.label) + ' ' + x.value; }).join('');
