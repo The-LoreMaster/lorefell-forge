@@ -1,3 +1,7 @@
+## 2026-10-08 - The Anexanum marks a told playlist complete
+
+Choose a playlist marks each playlist whose History tells every episode: History complete, when the History has as many chapters as the playlist has videos, or when its drafts account for every episode (written and sent, or already told by an earlier chapter that covers more than one). Otherwise it says how many of the episodes are told. Write the chapters says so too once every episode is told.
+
 ## 2026-10-08 - The Anexanum updates the canon characters
 
 Write the world now also updates the page of any character in the History who has one under Characters/Canon Characters: what they did in this History is woven into the page's With the Fell telling in story order, every sentence already there kept, a profile line filled only where the History states it, and a short Temperament section from what they did. Each shows under Canon characters in Review and send, line by line, before it goes. A reply that comes back shorter than the page it updates is set aside rather than drafted.
