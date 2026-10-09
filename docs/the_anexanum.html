@@ -131,19 +131,19 @@ function noDash(t){ return String(t || '').replace(/\s*\u2014\s*/g, ', ').replac
 
 /* ---- state ---- */
 var AX = { tab:'histories', step:1, who:null, playlists:null, pl:null, videos:[], name:'', existing:'', histories:[], style:'', example:'', exampleChar:'',
-           notes:{}, files:{}, sel:'', busy:false, log:'', diff:true };
+           notes:{}, files:{}, sel:'', busy:false, log:'', diff:true, names:{}, toldThrough:0, fixVault:true, refNames:null };
 function hist(){ return safeName(AX.name); }
 function hkey(){ return 'h:' + slug(AX.name); }
 function say(t){ AX.log = (AX.log ? AX.log + '\n' : '') + t; var el = document.getElementById('axlog'); if (el){ el.textContent = AX.log; el.scrollTop = el.scrollHeight; } }
 
 /* ---- drafts kept in the room until sent: a manifest of notes and file paths, and each file ---- */
-function saveManifest(){ return api('/ax/draft', { k:hkey() + ':m' }, JSON.stringify({ name:AX.name, pl:AX.pl, notes:AX.notes, files:Object.keys(AX.files).map(function(p){ return { p:p, approved:AX.files[p].approved, status:AX.files[p].status }; }) })); }
+function saveManifest(){ return api('/ax/draft', { k:hkey() + ':m' }, JSON.stringify({ name:AX.name, pl:AX.pl, notes:AX.notes, names:AX.names, toldThrough:AX.toldThrough, files:Object.keys(AX.files).map(function(p){ return { p:p, approved:AX.files[p].approved, status:AX.files[p].status, del:!!AX.files[p].del }; }) })); }
 function saveFile(path){ var f = AX.files[path]; return api('/ax/draft', { k:hkey() + ':f:' + path }, f.content); }
 function loadDraft(){
   return api('/ax/draft', { k:hkey() + ':m' }).then(function(d){
     if (!d.v) return false;
-    var m = JSON.parse(d.v); AX.notes = m.notes || {};
-    return Promise.all((m.files || []).map(function(f){ return api('/ax/draft', { k:hkey() + ':f:' + f.p }).then(function(x){ AX.files[f.p] = { content:x.v || '', original:null, status:f.status || 'new', approved:f.approved !== false }; }); })).then(function(){ return true; });
+    var m = JSON.parse(d.v); AX.notes = m.notes || {}; AX.names = m.names || {}; AX.toldThrough = m.toldThrough || 0;
+    return Promise.all((m.files || []).map(function(f){ return api('/ax/draft', { k:hkey() + ':f:' + f.p }).then(function(x){ AX.files[f.p] = { content:x.v || '', original:null, status:f.status || 'new', approved:f.approved !== false, del:!!f.del }; }); })).then(function(){ return true; });
   });
 }
 
@@ -494,10 +494,11 @@ function paintHistories(){
   var h = '<div class="steps"><ol>'
     + stepBtn(1, 'Choose a playlist', AX.pl ? esc(AX.pl.title) : 'One History per playlist')
     + stepBtn(2, 'Write the chapters', Object.keys(AX.notes).length + ' of ' + (AX.videos.length || 0) + ' episodes')
-    + stepBtn(3, 'Write the world', 'People, places, beasts, things')
-    + stepBtn(4, 'Review and send', Object.keys(AX.files).length + ' pages drafted')
+    + stepBtn(3, 'Set the names', Object.keys(AX.names).length ? Object.keys(AX.names).length + ' corrected' : 'People, places, things, spelled right')
+    + stepBtn(4, 'Write the world', 'People, places, beasts, things')
+    + stepBtn(5, 'Review and send', Object.keys(AX.files).length + ' pages drafted')
     + '</ol><div class="panel">';
-  if (AX.step === 1) h += paintStep1(); else if (AX.step === 2) h += paintStep2(); else if (AX.step === 3) h += paintStep3(); else h += paintStep4();
+  if (AX.step === 1) h += paintStep1(); else if (AX.step === 2) h += paintStep2(); else if (AX.step === 3) h += paintNames(); else if (AX.step === 4) h += paintStep3(); else h += paintStep4();
   return h + '</div></div>';
 }
 function paintStep1(){
@@ -521,48 +522,191 @@ function pickPlaylist(i){
 }
 function startHistory(){
   if (!hist()){ alert('Give the History a name.'); return; }
-  AX.notes = {}; AX.files = {};
-  loadDraft().then(function(had){ AX.step = 2; AX.log = had ? 'Picked up the drafts kept for ' + hist() + '.' : ''; paint(); }).catch(function(){ AX.step = 2; paint(); });
+  AX.notes = {}; AX.files = {}; AX.names = {}; AX.toldThrough = 0;
+  var fresh = api('/ax/vault/list', { prefix:BASE }).then(function(d){ AX.vaultFiles = d.files; }).catch(function(){});
+  Promise.all([loadDraft(), fresh]).then(function(r){ var had = r[0]; var said = reconcile(); AX.step = 2; AX.log = (had ? 'Picked up the drafts kept for ' + hist() + '.' : '') + (said ? (had ? '\n' : '') + said : ''); paint(); }).catch(function(){ AX.step = 2; paint(); });
 }
+/* ---- what the FellGuide already holds for this History ----
+   A History added to keeps its own chapters. Chapters already sent are matched to the vault
+   by their path, or by their title when they have been renumbered there; a chapter sent and
+   since taken out of the vault (a duplicate of one already told) is marked told, so it is not
+   written again and does not come back in the chapters table. Episodes the vault's own
+   chapters already tell are skipped (Already told through), and new chapters number on from
+   the last one there. */
+function histFiles(sec){ var pre = BASE + hist() + '/' + (sec ? sec + '/' : ''); return (AX.vaultFiles || []).filter(function(p){ return p.indexOf(pre) === 0 && /\.md$/.test(p); }); }
+function chNum(p){ var m = String(p).split('/').pop().match(/^(\d+)\s*-\s*/); return m ? +m[1] : 0; }
+function chTitle(p){ return String(p).split('/').pop().replace(/^\d+\s*-\s*/, '').replace(/\.md$/, ''); }
+function storyPaths(){
+  var pre = BASE + hist() + '/Storyline/', set = {};
+  histFiles('Storyline').forEach(function(p){ set[p] = 1; });
+  Object.keys(AX.files).forEach(function(p){ if (p.indexOf(pre) === 0){ if (AX.files[p].del) delete set[p]; else set[p] = 1; } });
+  return Object.keys(set).sort(function(a, b){ return chNum(a) - chNum(b); });
+}
+function nextChapterNum(){ var top = 0; storyPaths().forEach(function(p){ top = Math.max(top, chNum(p)); }); return top + 1; }
+function reconcile(){
+  var ex = histFiles('Storyline'), moved = 0, told = 0;
+  AX.videos.forEach(function(v){
+    var n = AX.notes[v.id]; if (!n || n.told) return;
+    var f = AX.files[n.path]; if (f && f.status !== 'sent') return;
+    if (ex.indexOf(n.path) >= 0) return;
+    var same = ex.filter(function(p){ return chTitle(p).toLowerCase() === String(n.title).toLowerCase(); })[0];
+    if (same){ n.path = same; n.n = chNum(same); moved++; } else { n.told = true; told++; }
+  });
+  if (!AX.toldThrough && ex.length && !Object.keys(AX.notes).length) AX.toldThrough = Math.min(AX.videos.length, ex.length);
+  if (moved || told) saveManifest();
+  return (moved ? moved + ' chapter' + (moved === 1 ? '' : 's') + ' found renumbered in the FellGuide. ' : '') + (told ? told + ' chapter' + (told === 1 ? ' was' : 's were') + ' taken out of the FellGuide as already told, and will not be written again.' : '');
+}
+function epTold(v, i){ var n = AX.notes[v.id]; return (n && n.told) || (!n && i < AX.toldThrough); }
 function paintStep2(){
-  var done = AX.videos.filter(function(v){ return AX.notes[v.id]; }).length;
+  var done = AX.videos.filter(function(v, i){ return AX.notes[v.id] || epTold(v, i); }).length, have = histFiles('Storyline').length;
   return '<h2>Write the chapters</h2><p class="lead">One chapter per episode, from its captions and description, in the FellGuide\u2019s voice. Captions cost YouTube allowance, so a long playlist may take more than one day; it picks up where it stopped.</p>'
-    + '<div class="list">' + AX.videos.map(function(v, i){ var n = AX.notes[v.id]; return '<div class="it"><span class="num">' + (i + 1) + '</span><span class="ti">' + esc(n ? n.title : v.title) + '<small>' + esc(v.title) + '</small></span><span class="mark ' + (n ? 'done' : 'wait') + '">' + (n ? 'written' : 'to write') + '</span></div>'; }).join('') + '</div>'
-    + '<div class="row"><button class="btn pri" onclick="writeChapters()"' + (AX.busy ? ' disabled' : '') + '>' + (AX.busy ? 'Writing…' : done ? 'Write the rest' : 'Write the chapters') + '</button>' + (done ? '<button class="btn" onclick="AX.step=3;paint()">On to the world</button>' : '') + '</div>'
+    + (have ? '<div class="row"><label class="f">The FellGuide already has ' + have + ' chapter' + (have === 1 ? '' : 's') + ' of ' + esc(hist()) + '. Episodes they already tell: through episode<input class="t" type="number" min="0" max="' + AX.videos.length + '" value="' + AX.toldThrough + '" onchange="AX.toldThrough=Math.max(0,Math.min(' + AX.videos.length + ',parseInt(this.value,10)||0));saveManifest();paint()"></label></div>'
+      + '<p class="lead">Those are skipped, never written twice. New chapters number on from chapter ' + (nextChapterNum() - 1) + '.</p>' : '')
+    + '<div class="list">' + AX.videos.map(function(v, i){ var n = AX.notes[v.id], t = epTold(v, i); return '<div class="it"><span class="num">' + (i + 1) + '</span><span class="ti">' + esc(n && !n.told ? n.title : v.title) + '<small>' + esc(n && !n.told ? 'Chapter ' + n.n + ' \u00b7 ' + v.title : v.title) + '</small></span><span class="mark ' + (n || t ? 'done' : 'wait') + '">' + (t ? 'already told' : n ? 'written' : 'to write') + '</span></div>'; }).join('') + '</div>'
+    + '<div class="row"><button class="btn pri" onclick="writeChapters()"' + (AX.busy ? ' disabled' : '') + '>' + (AX.busy ? 'Writing…' : done ? 'Write the rest' : 'Write the chapters') + '</button>' + (done ? '<button class="btn" onclick="AX.step=3;paint()">On to the names</button>' : '') + '</div>'
     + '<div class="log" id="axlog" aria-live="polite">' + esc(AX.log || 'Ready.') + '</div>';
 }
 function paintStep3(){
   var ents = gatherEntities();
   return '<h2>Write the world</h2><p class="lead">Everyone and everything the chapters named, each a page under Characters, Locations, Bestiary or Artifacts. A page already in the FellGuide is updated with what is new, not replaced. Then the History\u2019s own page and its place in the order map.</p>'
     + (ents.length ? '<div class="list">' + ents.slice(0, 80).map(function(x){ var p = BASE + hist() + '/' + x.kind + '/' + safeName(x.name) + '.md'; return '<div class="it"><span class="num">' + x.kind.charAt(0) + '</span><span class="ti">' + esc(x.name) + '<small>' + esc(x.kind) + ', chapters ' + x.eps.join(', ') + '</small></span><span class="mark ' + (AX.files[p] ? 'done' : 'wait') + '">' + (AX.files[p] ? 'written' : 'to write') + '</span></div>'; }).join('') + '</div>' : '<div class="empty">Write the chapters first; the world comes from them.</div>')
-    + '<div class="row"><button class="btn pri" onclick="writeWorld()"' + (AX.busy || !ents.length ? ' disabled' : '') + '>' + (AX.busy ? 'Writing…' : 'Write the world') + '</button><button class="btn" onclick="AX.step=4;paint()">Review</button></div>'
+    + '<div class="row"><button class="btn pri" onclick="writeWorld()"' + (AX.busy || !ents.length ? ' disabled' : '') + '>' + (AX.busy ? 'Writing…' : 'Write the world') + '</button><button class="btn" onclick="AX.step=5;paint()">Review</button></div>'
     + '<div class="log" id="axlog" aria-live="polite">' + esc(AX.log || 'Ready.') + '</div>';
+}
+
+/* ================= step 3: the names, spelled right =================
+   The captions hear names, they do not spell them, so the chapters come back with Krathor for
+   Kray-Thor and Aantha for Acantha. Every name the chapters noted is listed here with what
+   the FellGuide already holds (this History's own pages first, then every page in the vault),
+   and a likely match is offered. Correct any; Use these names puts them into every drafted
+   chapter, into the chapters already in the FellGuide when that is ticked, and into what is
+   written next: the world, the History's page, and any chapter written later. Kept with the
+   History's drafts. A chapter whose title changes is renamed, the old page taken out. */
+function reEsc(t){ return String(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+function nameRe(from){ return new RegExp('(^|[^\\p{L}\\p{N}\'’-])' + reEsc(from) + '(?=$|[^\\p{L}\\p{N}-])', 'gu'); }
+function nameFor(n){ var seen = 0; n = String(n || ''); while (AX.names[n] && seen++ < 5) n = AX.names[n]; return n; }
+function applyNames(t){
+  var keys = Object.keys(AX.names).filter(function(k){ return AX.names[k] && AX.names[k] !== k; }).sort(function(a, b){ return b.length - a.length; });
+  keys.forEach(function(k){ t = String(t).replace(nameRe(k), function(m, pre){ return pre + nameFor(k); }); });
+  return t;
+}
+function namesRule(){
+  var keys = Object.keys(AX.names).filter(function(k){ return AX.names[k] && AX.names[k] !== k; });
+  var keep = {}; histPages().forEach(function(x){ keep[x.name] = 1; }); keys.forEach(function(k){ keep[nameFor(k)] = 1; });
+  var list = Object.keys(keep);
+  if (!list.length) return '';
+  return '\n\nNames in this History, spelled exactly so (the transcript mishears them): ' + list.join(', ') + '.' + (keys.length ? ' Never write ' + keys.map(function(k){ return '"' + k + '" (write "' + nameFor(k) + '")'; }).join(', ') + '.' : '');
+}
+/* the pages this History already has, by kind: the surest spellings there are */
+function histPages(){ var out = []; ['Characters', 'Locations', 'Bestiary', 'Artifacts'].forEach(function(sec){ histFiles(sec).forEach(function(p){ out.push({ kind:sec, name:p.split('/').pop().replace(/\.md$/, ''), own:true }); }); }); return out; }
+function loadRefNames(){
+  if (AX.refNames) return Promise.resolve(AX.refNames);
+  AX.refNames = [];
+  return api('/ax/vault/list', { prefix:'The FellGuide/' }).then(function(d){
+    var set = {}; d.files.forEach(function(p){ if (!/\.md$/.test(p) || /\/(Images|Storyline)\//.test(p)) return; var n = p.split('/').pop().replace(/\.md$/, '').replace(/^\d+\s*-\s*/, ''); if (n.length > 2 && n.length < 40) set[n] = 1; });
+    AX.refNames = Object.keys(set); if (AX.step === 3) paint(); return AX.refNames;
+  }).catch(function(){ return []; });
+}
+function nameKey(n){ return String(n || '').toLowerCase().replace(/^the\s+/, '').replace(/[^a-z0-9]/g, ''); }
+function lev(a, b){ var m = a.length, n = b.length; if (!m) return n; if (!n) return m; var d = []; for (var i = 0; i <= n; i++) d[i] = i; for (var x = 1; x <= m; x++){ var prev = d[0]; d[0] = x; for (var y = 1; y <= n; y++){ var t = d[y]; d[y] = Math.min(d[y] + 1, d[y - 1] + 1, prev + (a[x - 1] === b[y - 1] ? 0 : 1)); prev = t; } } return d[n]; }
+function likeness(a, b){ a = nameKey(a); b = nameKey(b); if (!a || !b) return 0; if (a === b) return 1; if (a.length > 3 && b.length > 3 && (a.indexOf(b) >= 0 || b.indexOf(a) >= 0)) return .8; return 1 - lev(a, b) / Math.max(a.length, b.length); }
+/* the likeliest right spelling: this History's own pages first, then the vault, then the
+   names that come up more often here (Aantha once beside Acantha in five chapters) */
+function nameGuess(n, all){
+  var best = '', score = .7, me = all.filter(function(o){ return o.name === n; })[0] || { eps:[] };
+  histPages().forEach(function(x){ var l = likeness(n, x.name) + .06; if (l > score && nameKey(x.name) !== nameKey(n)){ score = l; best = x.name; } });
+  (AX.refNames || []).forEach(function(r){ var l = likeness(n, r); if (l > score && nameKey(r) !== nameKey(n)){ score = l; best = r.replace(/^The /, ''); } });
+  all.forEach(function(o){ if (o.name === n || o.eps.length < me.eps.length || (o.eps.length === me.eps.length && o.name.length <= n.length)) return; var l = likeness(n, o.name) - .04; if (l > score){ score = l; best = o.name; } });
+  return best;
+}
+function rawEntities(){
+  var map = {};
+  AX.videos.forEach(function(v){ var nn = AX.notes[v.id]; if (!nn) return; (nn.entities || []).forEach(function(e){ var name = safeName(e.name); if (!name) return; var k = name.toLowerCase(); var x = map[k] = map[k] || { kind:KIND_OK[e.kind] ? e.kind : 'Characters', name:name, eps:[] }; var ep = nn.told ? 'early' : nn.n; if (x.eps.indexOf(ep) < 0) x.eps.push(ep); }); });
+  return Object.keys(map).map(function(k){ return map[k]; }).sort(function(a, b){ return a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name); });
+}
+function paintNames(){
+  loadRefNames();
+  var all = rawEntities(), have = histFiles('Storyline').length;
+  if (!all.length) return '<h2>Set the names</h2><div class="empty">Write the chapters first; the names come from them.</div>';
+  var rows = all.map(function(x){
+    var cur = AX.names[x.name] || x.name, g = nameGuess(x.name, all);
+    return '<div class="it"><span class="num">' + x.kind.charAt(0) + '</span><span class="ti"><input class="t" data-from="' + esc(x.name) + '" value="' + esc(cur) + '" aria-label="The right name for ' + esc(x.name) + '">'
+      + '<small>' + (cur !== x.name ? 'heard as ' + esc(x.name) + ', ' : '') + esc(x.kind) + ', ' + esc(x.eps.filter(function(e){ return e !== 'early'; }).length ? 'chapters ' + x.eps.filter(function(e){ return e !== 'early'; }).join(', ') : 'an earlier chapter') + '</small></span>'
+      + (g && g !== cur ? '<button class="btn" title="Use this spelling" onclick="this.parentNode.querySelector(\'input\').value=' + esc(JSON.stringify(g)) + '">' + esc(g) + '?</button>' : '<span></span>') + '</div>';
+  }).join('');
+  var extra = Object.keys(AX.names).filter(function(k){ return !all.some(function(x){ return x.name === k; }); });
+  return '<h2>Set the names</h2><p class="lead">Every name the chapters noted, as the captions heard it. Type the right spelling where it is wrong; a likely match from the FellGuide is offered beside it. Use these names puts them into every chapter and into whatever is written after.</p>'
+    + '<div class="list" id="nameRows">' + rows + '</div>'
+    + '<h3 style="font-family:Cinzel,serif;color:var(--gold);font-weight:500;margin:18px 0 6px">Anything else to change</h3><p class="lead">A word the list missed (a lorebound, a lineage, a place said once): what the chapters say, and what it should be.</p>'
+    + '<div class="list" id="nameExtra">' + extra.map(function(k){ return '<div class="it"><span class="num">+</span><span class="ti"><input class="t" data-x="from" value="' + esc(k) + '" aria-label="As written"><input class="t" data-x="to" value="' + esc(AX.names[k]) + '" aria-label="As it should be"></span><span></span></div>'; }).join('')
+      + '<div class="it"><span class="num">+</span><span class="ti"><input class="t" data-x="from" placeholder="As written" aria-label="As written"><input class="t" data-x="to" placeholder="As it should be" aria-label="As it should be"></span><span></span></div></div>'
+    + (have ? '<label class="f" style="flex-direction:row;align-items:center;gap:10px;margin:14px 0"><input type="checkbox"' + (AX.fixVault ? ' checked' : '') + ' onchange="AX.fixVault=this.checked"> Also fix the chapters and pages of ' + esc(hist()) + ' already in the FellGuide</label>' : '')
+    + '<div class="row"><button class="btn pri" onclick="useNames()"' + (AX.busy ? ' disabled' : '') + '>' + (AX.busy ? 'Working…' : 'Use these names') + '</button><button class="btn" onclick="AX.step=4;paint()">On to the world</button></div>'
+    + '<div class="log" id="axlog" aria-live="polite">' + esc(AX.log || 'Ready.') + '</div>';
+}
+/* a page's text with the names put right; renamed when its title or name changed */
+function fixPage(path, before, fromVault){
+  var after = applyNames(before); if (after === before) return 0;
+  var f = AX.files[path], orig = fromVault ? before : (f && f.original != null ? f.original : null);
+  var newPath = path;
+  if (path.indexOf(BASE + hist() + '/Storyline/') === 0){ var t = safeName((after.split('\n')[0] || '').replace(/^#\s*/, '')); if (t) newPath = path.slice(0, path.lastIndexOf('/') + 1) + pad2(chNum(path)) + ' - ' + t + '.md'; }
+  else if (/\/(Characters|Locations|Bestiary|Artifacts)\//.test(path)){ var n = path.split('/').pop().replace(/\.md$/, ''), nn = nameFor(n); if (nn !== n) newPath = path.slice(0, path.lastIndexOf('/') + 1) + safeName(nn) + '.md'; }
+  AX.files[newPath] = { content:after, original:newPath === path ? orig : null, status:(newPath === path && orig != null) ? 'changed' : 'new', approved:true };
+  if (newPath !== path){
+    var inVault = (AX.vaultFiles || []).indexOf(path) >= 0;
+    if (inVault){ AX.files[path] = { content:'', original:before, status:'changed', approved:true, del:true, why:'renamed to ' + newPath.split('/').pop().replace(/\.md$/, '') }; saveFile(path); }
+    else { delete AX.files[path]; api('/ax/draft', { k:hkey() + ':f:' + path }, ''); }
+    AX.videos.forEach(function(v){ var nn2 = AX.notes[v.id]; if (nn2 && nn2.path === path){ nn2.path = newPath; nn2.title = chTitle(newPath); } });
+  }
+  saveFile(newPath);
+  return 1;
+}
+function useNames(){
+  if (AX.busy) return;
+  document.querySelectorAll('#nameRows input[data-from]').forEach(function(el){ var from = el.getAttribute('data-from'), to = el.value.trim(); if (to && to !== from) AX.names[from] = to; else delete AX.names[from]; });
+  document.querySelectorAll('#nameExtra .it').forEach(function(row){ var a = row.querySelector('[data-x=from]'), b = row.querySelector('[data-x=to]'); var from = a && a.value.trim(), to = b && b.value.trim(); if (from && to && from !== to) AX.names[from] = to; else if (from && !to) delete AX.names[from]; });
+  Object.keys(AX.names).forEach(function(k){ if (nameFor(k) === k) delete AX.names[k]; });
+  AX.busy = true; AX.log = ''; paint();
+  var n = 0;
+  Object.keys(AX.files).forEach(function(p){ var f = AX.files[p]; if (!f || f.del || f.status === 'sent' || p.indexOf(BASE + hist() + '/') !== 0) return; n += fixPage(p, f.content, false); });
+  AX.videos.forEach(function(v){ var nn = AX.notes[v.id]; if (!nn) return; nn.summary = applyNames(nn.summary || ''); (nn.entities || []).forEach(function(e){ e.facts = (e.facts || []).map(applyNames); }); });
+  var vaultPages = AX.fixVault ? histFiles('').filter(function(p){ return !AX.files[p] || AX.files[p].status === 'sent'; }) : [];
+  say('The names are set. ' + n + ' drafted page' + (n === 1 ? '' : 's') + ' changed.' + (vaultPages.length ? ' Reading the ' + vaultPages.length + ' pages already in the FellGuide…' : ''));
+  var m = 0;
+  var next = function(){
+    if (!vaultPages.length){ AX.busy = false; if (AX.fixVault) say(m + ' page' + (m === 1 ? '' : 's') + ' already in the FellGuide changed. Review them before they go.'); saveManifest().then(paint); return; }
+    var p = vaultPages.shift();
+    api('/ax/vault/file', { path:p }).then(function(cur){ if (cur.exists){ if (AX.files[p] && AX.files[p].status === 'sent') delete AX.files[p]; m += fixPage(p, cur.content, true); } }).catch(function(){}).then(function(){ setTimeout(next, 60); });
+  };
+  saveManifest().then(next);
 }
 
 /* ---- step 2: each episode a chapter ---- */
 function styleRules(){ return AX.style ? '\n\nThe FellGuide\u2019s style rules, binding (especially its Never Use list):\n' + AX.style.slice(0, 9000) : ''; }
 function writeChapters(){
   if (AX.busy) return; AX.busy = true; paint();
-  var todo = AX.videos.map(function(v, i){ return { v:v, i:i }; }).filter(function(x){ return !AX.notes[x.v.id]; });
+  var todo = AX.videos.map(function(v, i){ return { v:v, i:i }; }).filter(function(x){ return !AX.notes[x.v.id] && !epTold(x.v, x.i); });
   var next = function(){
     if (!todo.length){ AX.busy = false; say('Every chapter is written.'); paint(); return; }
-    var x = todo.shift(), n = x.i + 1;
+    var x = todo.shift(), n = nextChapterNum();
     say('Episode ' + n + ': reading its captions…');
     api('/ax/video', { v:x.v.id, captions:1 }).then(function(d){
       if (!d.captions){ throw new Error(d.captionError || 'no captions yet'); }
-      var prior = AX.videos.slice(0, x.i).map(function(v, k){ var nn = AX.notes[v.id]; return nn ? 'Chapter ' + (k + 1) + ', ' + nn.title + ': ' + nn.summary : ''; }).filter(Boolean).join('\n');
+      var prior = AX.videos.slice(0, x.i).map(function(v){ var nn = AX.notes[v.id]; return nn && !nn.told ? 'Chapter ' + nn.n + ', ' + nn.title + ': ' + nn.summary : ''; }).filter(Boolean).join('\n');
       var sys = 'You write one chapter of a History for the LoreFell FellGuide: the story of what happened in one episode of an actual-play tabletop game, told as grounded dark fantasy prose, past tense, third person, about the characters (the Fell) and the world, never about the players, the table, dice, rules or the stream. '
         + 'Write only what happened in the episode; never invent events, names or outcomes. Leave out table talk and rules. 900 to 1600 words. Start with a line "# " and the chapter\u2019s title (a few words drawn from the episode), then the prose in paragraphs. No headings inside, no lists, no em dashes.'
-        + styleRules() + (AX.example ? '\n\nA chapter from another History, for voice and shape:\n' + AX.example : '');
-      var user = 'History: ' + hist() + '\nEpisode ' + n + ' of the playlist: ' + x.v.title + '\nIts description:\n' + String(d.description || '').slice(0, 3000)
+        + styleRules() + namesRule() + (AX.example ? '\n\nA chapter from another History, for voice and shape:\n' + AX.example : '');
+      var user = 'History: ' + hist() + '\nEpisode ' + (x.i + 1) + ' of the playlist: ' + x.v.title + '\nIts description:\n' + String(d.description || '').slice(0, 3000)
         + (prior ? '\n\nThe chapters before it, in short:\n' + prior : '') + '\n\nThe episode\u2019s transcript:\n' + String(d.captions).slice(0, 320000);
       say('Episode ' + n + ': writing the chapter…');
       return ai(sys, user, 4000, true).then(function(md){
-        md = noDash(md).trim(); if (md.indexOf('# ') !== 0) md = '# ' + x.v.title + '\n\n' + md;
+        md = applyNames(noDash(md).trim()); if (md.indexOf('# ') !== 0) md = '# ' + x.v.title + '\n\n' + md;
+        /* which episode this chapter tells, hidden from the published page, so it is never told twice */
+        md += '\n\n%% episode: ' + x.v.id + ' %%\n';
         var title = safeName(md.split('\n')[0].replace(/^#\s*/, '')) || ('Chapter ' + n);
         var path = BASE + hist() + '/Storyline/' + pad2(n) + ' - ' + title + '.md';
         say('Episode ' + n + ': noting who and what it named…');
-        return ai('From this chapter of a History, return ONLY JSON: {"summary":"two sentences on what happened","entities":[{"kind":"Characters|Locations|Bestiary|Artifacts","name":"as written","facts":["one plain fact each, from the chapter only"]}]} . Characters are people and named beings; Bestiary is kinds of creatures; Artifacts are objects, rituals and powers; Locations are places. Up to 25 entities.', md, 1500, false).then(function(raw){
+        return ai(namesRule() + '\n\nFrom this chapter of a History, return ONLY JSON: {"summary":"two sentences on what happened","entities":[{"kind":"Characters|Locations|Bestiary|Artifacts","name":"as written","facts":["one plain fact each, from the chapter only"]}]} . Characters are people and named beings; Bestiary is kinds of creatures; Artifacts are objects, rituals and powers; Locations are places. Up to 25 entities.', md, 1500, false).then(function(raw){
           var j = {}; try { j = JSON.parse(String(raw).replace(/```json|```/g, '').trim()); } catch(e){ var m = String(raw).match(/\{[\s\S]*\}/); try { j = m ? JSON.parse(m[0]) : {}; } catch(e2){ j = {}; } }
           AX.notes[x.v.id] = { n:n, title:title, path:path, summary:String(j.summary || ''), entities:Array.isArray(j.entities) ? j.entities : [] };
           AX.files[path] = { content:md, original:null, status:'new', approved:true };
@@ -581,9 +725,10 @@ var KIND_OK = { Characters:1, Locations:1, Bestiary:1, Artifacts:1 };
 function gatherEntities(){
   var map = {};
   AX.videos.forEach(function(v){ var nn = AX.notes[v.id]; if (!nn) return;
-    (nn.entities || []).forEach(function(e){ var kind = KIND_OK[e.kind] ? e.kind : 'Characters', name = safeName(e.name); if (!name) return;
-      var k = kind + '|' + name.toLowerCase(); var x = map[k] = map[k] || { kind:kind, name:name, facts:[], eps:[] };
-      (e.facts || []).forEach(function(f){ x.facts.push('Chapter ' + nn.n + ': ' + f); }); if (x.eps.indexOf(nn.n) < 0) x.eps.push(nn.n); }); });
+    (nn.entities || []).forEach(function(e){ var kind = KIND_OK[e.kind] ? e.kind : 'Characters', name = safeName(nameFor(e.name)); if (!name) return;
+      var k = kind + '|' + name.toLowerCase(); var x = map[k] = map[k] || { kind:kind, name:name, facts:[], eps:[], from:[] };
+      if (e.name !== name && x.from.indexOf(e.name) < 0) x.from.push(e.name);
+      (e.facts || []).forEach(function(f){ x.facts.push((nn.told ? 'An early chapter' : 'Chapter ' + nn.n) + ': ' + applyNames(String(f))); }); var ep = nn.told ? 'early' : nn.n; if (x.eps.indexOf(ep) < 0) x.eps.push(ep); }); });
   return Object.keys(map).map(function(k){ return map[k]; }).sort(function(a, b){ return b.eps.length - a.eps.length || a.name.localeCompare(b.name); });
 }
 function writeWorld(){
@@ -595,10 +740,10 @@ function writeWorld(){
     say(x.kind + ': ' + x.name + '…');
     api('/ax/vault/file', { path:path }).then(function(cur){
       var sys = 'You write one page of the LoreFell FellGuide about a ' + x.kind.replace(/s$/, '').toLowerCase() + ' of a History: "# " and its name, then one to three paragraphs of grounded prose on who or what it is and what it did, from the facts given only. No lists, no headings inside, no em dashes.'
-        + (cur.exists ? ' The page exists: keep everything in it, in its words, and weave in only what is new from the facts.' : '') + styleRules() + (AX.exampleChar ? '\n\nA page from another History, for voice and shape:\n' + AX.exampleChar : '');
+        + (cur.exists ? ' The page exists: keep everything in it, in its words, and weave in only what is new from the facts.' : '') + styleRules() + namesRule() + (AX.exampleChar ? '\n\nA page from another History, for voice and shape:\n' + AX.exampleChar : '');
       var user = 'History: ' + hist() + '\nName: ' + x.name + '\nFacts, by chapter:\n' + x.facts.join('\n') + (cur.exists ? '\n\nThe page as it is now:\n' + cur.content : '');
       return ai(sys, user, 1200, true).then(function(md){
-        md = noDash(md).trim(); if (md.indexOf('# ') !== 0) md = '# ' + x.name + '\n\n' + md;
+        md = applyNames(noDash(md).trim()); if (md.indexOf('# ') !== 0) md = '# ' + x.name + '\n\n' + md;
         AX.files[path] = { content:md, original:cur.exists ? cur.content : null, status:cur.exists ? 'changed' : 'new', approved:true };
         return saveFile(path).then(saveManifest).then(function(){ paint(); });
       });
@@ -608,15 +753,22 @@ function writeWorld(){
 }
 function writeRoot(){
   var root = BASE + hist() + '/' + hist() + '.md';
-  var chapters = AX.videos.map(function(v){ return AX.notes[v.id]; }).filter(Boolean).sort(function(a, b){ return a.n - b.n; });
+  var chapters = AX.videos.map(function(v){ return AX.notes[v.id]; }).filter(function(c){ return c && !c.told; }).sort(function(a, b){ return a.n - b.n; });
+  var table = '## Chapters\n\n| # | Chapter |\n| --- | --- |\n' + storyPaths().map(function(p){ return '| ' + chNum(p) + ' | ' + chTitle(p) + ' |'; }).join('\n') + '\n';
   say('The History\u2019s own page…');
   api('/ax/vault/file', { path:root }).then(function(cur){
+    /* a page already there keeps its opening and its note; only its chapters table is rebuilt */
+    if (cur.exists){
+      var at = cur.content.indexOf('## Chapters'), md0 = (at >= 0 ? cur.content.slice(0, at) : cur.content.replace(/\s*$/, '\n\n')) + table;
+      if (md0 !== cur.content){ AX.files[root] = { content:md0, original:cur.content, status:'changed', approved:true }; return saveFile(root); }
+      return;
+    }
     return ai('Write the opening of a History\u2019s page for the LoreFell FellGuide: two short paragraphs that set up the story and pull the reader in, without spoiling its end, from the chapter summaries. Grounded, no em dashes, no headings, no lists.' + styleRules(), 'History: ' + hist() + '\n' + chapters.map(function(c){ return 'Chapter ' + c.n + ', ' + c.title + ': ' + c.summary; }).join('\n') + (cur.exists ? '\n\nIts page as it is now:\n' + cur.content : ''), 900, true).then(function(intro){
-      var md = '# ' + hist() + '\n\n' + noDash(intro).trim() + '\n\n> [!note] Adventure\n>\n> A History of LoreFell.\n\n## Chapters\n\n| # | Chapter |\n| --- | --- |\n' + chapters.map(function(c){ return '| ' + c.n + ' | ' + c.title + ' |'; }).join('\n') + '\n';
+      var md = '# ' + hist() + '\n\n' + applyNames(noDash(intro).trim()) + '\n\n> [!note] Adventure\n>\n> A History of LoreFell.\n\n' + table;
       AX.files[root] = { content:md, original:cur.exists ? cur.content : null, status:cur.exists ? 'changed' : 'new', approved:true };
       return saveFile(root);
     });
-  }).then(function(){ return writeNavMap(); }).then(function(){ return writeHistoriesIndex(); }).then(function(){ AX.busy = false; say('The world is written. Review it before anything is sent.'); AX.step = 4; paint(); })
+  }).then(function(){ return writeNavMap(); }).then(function(){ return writeHistoriesIndex(); }).then(function(){ AX.busy = false; say('The world is written. Review it before anything is sent.'); AX.step = 5; paint(); })
     .catch(function(e){ AX.busy = false; say('Stopped: ' + e.message); paint(); });
 }
 /* The Histories' own page lists every History in its table: a new one gets its row */
@@ -637,7 +789,7 @@ function writeNavMap(){
   return api('/ax/vault/file', { path:NAVMAP }).then(function(cur){
     if (!cur.exists) return;
     var names = { Storyline:[], Characters:[], Locations:[], Bestiary:[], Artifacts:[] };
-    Object.keys(AX.files).concat(AX.vaultFiles || []).forEach(function(p){ if (p.indexOf(BASE + hist() + '/') !== 0) return; var rest = p.slice((BASE + hist() + '/').length).split('/'); if (rest.length === 2 && names[rest[0]] && /\.md$/.test(rest[1])){ var n = rest[1].replace(/\.md$/, ''); if (names[rest[0]].indexOf(n) < 0) names[rest[0]].push(n); } });
+    Object.keys(AX.files).concat(AX.vaultFiles || []).forEach(function(p){ if (p.indexOf(BASE + hist() + '/') !== 0 || (AX.files[p] && AX.files[p].del)) return; var rest = p.slice((BASE + hist() + '/').length).split('/'); if (rest.length === 2 && names[rest[0]] && /\.md$/.test(rest[1])){ var n = rest[1].replace(/\.md$/, ''); if (names[rest[0]].indexOf(n) < 0) names[rest[0]].push(n); } });
     var I = '        ', block = [I + '- **' + hist() + '/**', I + '    - ' + hist()];
     ['Characters', 'Artifacts', 'Bestiary', 'Locations', 'Storyline'].forEach(function(s){ if (!names[s].length) return; block.push(I + '    - **' + s + '/**'); names[s].sort().forEach(function(n){ block.push(I + '        - ' + n); }); });
     var lines = cur.content.split('\n'), start = -1, end = -1, hi = lines.findIndex(function(l){ return /^ {4}- \*\*The Histories\/\*\*/.test(l); });
@@ -677,10 +829,10 @@ function paintStep4(){
   var f = AX.files[AX.sel];
   var h = '<h2>Review and send</h2><p class="lead">Read each page, change anything, and untick what should not go. Send to the FellGuide commits the ticked pages to the vault; Obsidian pulls them, and you publish from Obsidian.</p>'
     + '<div class="review"><div class="ledger" role="list">' + order.filter(function(g){ return groups[g]; }).map(function(g){ return '<h3>' + g + '</h3>' + groups[g].map(function(p){ var x = AX.files[p];
-        return '<div class="pg' + (p === AX.sel ? ' on' : '') + '" role="listitem" onclick="AX.sel=' + esc(JSON.stringify(p)).replace(/"/g, '&quot;') + ';paint()"><input type="checkbox"' + (x.approved ? ' checked' : '') + ' onclick="event.stopPropagation()" onchange="AX.files[' + esc(JSON.stringify(p)).replace(/"/g, '&quot;') + '].approved=this.checked;saveManifest();paint()" aria-label="Send this page"><span class="nm">' + esc(p.split('/').pop().replace(/\.md$/, '')) + '</span><span class="st ' + x.status + '">' + x.status + '</span></div>'; }).join(''); }).join('') + '</div>'
+        return '<div class="pg' + (p === AX.sel ? ' on' : '') + '" role="listitem" onclick="AX.sel=' + esc(JSON.stringify(p)).replace(/"/g, '&quot;') + ';paint()"><input type="checkbox"' + (x.approved ? ' checked' : '') + ' onclick="event.stopPropagation()" onchange="AX.files[' + esc(JSON.stringify(p)).replace(/"/g, '&quot;') + '].approved=this.checked;saveManifest();paint()" aria-label="Send this page"><span class="nm">' + esc(p.split('/').pop().replace(/\.md$/, '')) + '</span><span class="st ' + (x.del ? 'changed' : x.status) + '">' + (x.del ? 'removed' : x.status) + '</span></div>'; }).join(''); }).join('') + '</div>'
     + '<div class="page"><div class="path">' + esc(AX.sel) + '</div>'
     + (f.original != null ? '<div class="row"><button class="btn' + (AX.diff ? '' : ' pri') + '" onclick="AX.diff=false;paint()">Edit</button><button class="btn' + (AX.diff ? ' pri' : '') + '" onclick="AX.diff=true;paint()">What changed</button></div>' : '')
-    + (f.original != null && AX.diff ? '<div class="diff">' + lineDiff(f.original, f.content) + '</div>' : '<textarea class="t" id="ped" rows="26" oninput="AX.files[AX.sel].content=this.value;clearTimeout(window._sv);window._sv=setTimeout(function(){saveFile(AX.sel);},800)">' + esc(f.content) + '</textarea>')
+    + (f.del ? '<div class="empty">This page is taken out of the FellGuide when you send: ' + esc(f.why || 'it was renamed') + '.</div>' : f.original != null && AX.diff ? '<div class="diff">' + lineDiff(f.original, f.content) + '</div>' : '<textarea class="t" id="ped" rows="26" oninput="AX.files[AX.sel].content=this.value;clearTimeout(window._sv);window._sv=setTimeout(function(){saveFile(AX.sel);},800)">' + esc(f.content) + '</textarea>')
     + '</div></div>'
     + '<div class="row"><button class="btn pri" onclick="sendIt()"' + (AX.busy || !approved ? ' disabled' : '') + '>' + (AX.busy ? 'Sending…' : 'Send ' + approved + ' page' + (approved === 1 ? '' : 's') + ' to the FellGuide') + '</button><button class="btn" onclick="dropAll()">Drop these drafts</button></div>'
     + '<div class="log" id="axlog" aria-live="polite">' + esc(AX.log || '') + '</div>';
@@ -691,8 +843,9 @@ function sendIt(){
   if (!paths.length || AX.busy) return;
   if (!confirm('Send ' + paths.length + ' pages to the FellGuide? They go to the vault\u2019s main branch, and Obsidian pulls them.')) return;
   AX.busy = true; paint();
-  api('/ax/vault/commit', {}, { message:'The Anexanum: ' + hist(), files:paths.map(function(p){ return { path:p, content:AX.files[p].content }; }) }).then(function(r){
-    say('Sent ' + r.files + ' pages to the FellGuide. Pull in Obsidian, then publish.');
+  api('/ax/vault/commit', {}, { message:'The Anexanum: ' + hist(), files:paths.filter(function(p){ return !AX.files[p].del; }).map(function(p){ return { path:p, content:AX.files[p].content }; }), deletes:paths.filter(function(p){ return AX.files[p].del; }) }).then(function(r){
+    say('Sent ' + r.files + ' pages to the FellGuide' + (r.removed ? ' and took out ' + r.removed : '') + '. Pull in Obsidian, then publish.');
+    var gone = paths.filter(function(p){ return AX.files[p].del; }); AX.vaultFiles = (AX.vaultFiles || []).filter(function(p){ return gone.indexOf(p) < 0; }).concat(paths.filter(function(p){ return !AX.files[p].del && (AX.vaultFiles || []).indexOf(p) < 0; }));
     paths.forEach(function(p){ AX.files[p].status = 'sent'; AX.files[p].approved = false; api('/ax/draft', { k:hkey() + ':f:' + p }, ''); });
     AX.busy = false; return saveManifest().then(paint);
   }).catch(function(e){ AX.busy = false; say('Not sent: ' + e.message); paint(); });
