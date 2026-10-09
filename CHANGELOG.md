@@ -1,3 +1,7 @@
+## 2026-10-08 - The live room's lobby is taken as said
+
+A lobby change arriving through the live room is the LoreMaster's, made that moment, so the players and the stream now take it whatever stamp they hold. Only a copy pulled from the saved table has to be newer.
+
 ## 2026-10-08 - The stream view follows Bring them in
 
 The stream view followed the players' rule for the lobby, so when it was not in the live room it never counted the LoreMaster as present and stayed in the lobby after Bring them in. The stream is the LoreMaster's own window: it now shows the lobby only while the LoreMaster has everyone in it.
