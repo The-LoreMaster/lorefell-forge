@@ -283,7 +283,9 @@ async function anexanum(req, url, env) {
       if (p === '/ax/vault/commit') {
         let body = {}; try { body = JSON.parse(await req.text()); } catch (e) {}
         const files = (Array.isArray(body.files) ? body.files : []).filter((f) => f && f.path && typeof f.content === 'string' && !/^(Archive|_Canon\/CANON|\.)/.test(f.path)).slice(0, 300);
-        if (!files.length) return out({ ok: false, error: 'nothing to send' });
+        /* pages taken out (a duplicate chapter, a chapter renamed): only inside the Histories */
+        const dels = (Array.isArray(body.deletes) ? body.deletes : []).filter((x) => typeof x === 'string' && x.indexOf('The FellGuide/The FellGuide/The Lore (Contains Spoilers)/The Histories/') === 0 && /\.md$/.test(x)).slice(0, 100);
+        if (!files.length && !dels.length) return out({ ok: false, error: 'nothing to send' });
         const ref = await gh(env, '/git/ref/heads/main');
         const base = await gh(env, '/git/commits/' + ref.object.sha);
         const entries = [];
@@ -291,10 +293,11 @@ async function anexanum(req, url, env) {
           const blob = await gh(env, '/git/blobs', { method: 'POST', body: JSON.stringify({ content: b64utf8(f.content), encoding: 'base64' }) });
           entries.push({ path: f.path, mode: '100644', type: 'blob', sha: blob.sha });
         }
+        for (const d of dels) entries.push({ path: d, mode: '100644', type: 'blob', sha: null });
         const tree = await gh(env, '/git/trees', { method: 'POST', body: JSON.stringify({ base_tree: base.tree.sha, tree: entries }) });
         const commit = await gh(env, '/git/commits', { method: 'POST', body: JSON.stringify({ message: String(body.message || 'The Anexanum: lore').slice(0, 200), tree: tree.sha, parents: [ref.object.sha], author: { name: 'The-LoreMaster', email: '293674967+The-LoreMaster@users.noreply.github.com' } }) });
         await gh(env, '/git/refs/heads/main', { method: 'PATCH', body: JSON.stringify({ sha: commit.sha }) });
-        return out({ ok: true, commit: commit.sha, files: files.length });
+        return out({ ok: true, commit: commit.sha, files: files.length, removed: dels.length });
       }
     }
     /* drafts: kept by key in the room's storage until they are sent or dropped */
