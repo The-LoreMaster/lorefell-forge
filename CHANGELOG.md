@@ -1,3 +1,7 @@
+## 2026-10-08 - The stream view follows Bring them in
+
+The stream view followed the players' rule for the lobby, so when it was not in the live room it never counted the LoreMaster as present and stayed in the lobby after Bring them in. The stream is the LoreMaster's own window: it now shows the lobby only while the LoreMaster has everyone in it.
+
 ## 2026-10-08 - Bringing players in from the lobby holds, and a stale sheet cannot wipe a condition
 
 Players bounced between the lobby and the map after Bring them in. Three causes, all fixed:
