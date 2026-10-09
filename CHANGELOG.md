@@ -1,3 +1,9 @@
+## 2026-10-09 - The snap holds, the stream panel folds and moves, lorebounds see for a Masked Fell
+
+- **Snap to the grid holds when switched off.** A saved copy of the board pulled late, or another screen of the LoreMaster's, carried the old setting and turned the snap back on however often it was switched off. Once the LoreMaster chooses on their table, their choice wins there and goes out to the players with the board.
+- **The stream's control panel** folds to a small Stream pill and moves by its grip. It keeps both where it was left.
+- **Lorebounds see for a Masked Fell.** Masked limits the Fell, not its lorebound: what the lorebound sees clears the fog for the Fell's player. Targeting is still Masked's (only what is next to the Fell). A lorebound that is Masked itself sees nothing for its Fell.
+
 ## 2026-10-09 - From the Ashen Hands session: hidden rolls, beats, multi-select, lorebound sight, the log on phones
 
 - **Hidden rolls stay hidden.** With Hide my rolls on, the LoreMaster's die still crossed every player's table and the stream. A hidden roll now throws no die and writes no log line anywhere but the LoreMaster's own table.

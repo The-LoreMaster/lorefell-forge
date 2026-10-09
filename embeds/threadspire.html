@@ -2661,6 +2661,11 @@ body.stream #mapTools, body.stream #lmstrip, body.stream #devbar, body.stream #t
 body.stream:not(.stream-frame) #rail, body.stream:not(.stream-frame) #hud, body.stream:not(.stream-frame) #log, body.stream:not(.stream-frame) #win, body.stream:not(.stream-frame) .frame-art, body.stream:not(.stream-frame) #lmFrame, body.stream:not(.stream-frame) .scene-strip, body.stream:not(.stream-frame) #sceneStrip{ display:none !important; }
 #streamCtl{ position:fixed; top:14px; right:14px; z-index:500; display:flex; align-items:center; gap:8px; padding:8px 10px; border:1px solid rgba(201,168,76,.6); border-radius:12px; background:rgba(10,14,28,.92); opacity:0; pointer-events:none; transition:opacity .25s; font-family:'Crimson Pro',Georgia,serif; }
 #streamCtl.show{ opacity:1; pointer-events:auto; }
+#streamCtl .sc-in{ display:flex; align-items:center; gap:8px; }
+#streamCtl .sc-x, #streamCtl .sc-pill{ border:1px solid #2c3a58; border-radius:8px; background:none; color:#dce8ef; cursor:pointer; font-family:Cinzel,serif; }
+#streamCtl .sc-x{ width:26px; height:26px; font-size:1rem; line-height:1; }
+#streamCtl .sc-pill{ padding:5px 10px; font-size:.66rem; letter-spacing:.06em; color:#c9a84c; }
+#streamCtl.folded{ padding:5px 7px; }
 #streamCtl .sc-seg button[disabled]{ opacity:.4; cursor:default; }
 #streamPic{ position:fixed; inset:0; z-index:400; display:none; align-items:center; justify-content:center; pointer-events:none; }
 #streamPic.on{ display:flex; }
@@ -4120,7 +4125,7 @@ function send(evt){
       if (typeof lmSaveCurrentStage === 'function' && isLM()) lmSaveCurrentStage();
     }
     if (evt.type === 'grid'){
-      applyRemoteState({ grid: evt.grid });
+      applyRemoteState({ grid: evt.grid }); snapKeep();
       /* the squares changed shape, so every token finds the middle of its new one */
       resnapTokens();
     }
@@ -12634,7 +12639,7 @@ function applyRemoteSnapshot(snap){
   }
   if (snap.pings){ try { pingTake(snap.pings); } catch(e){} }
   try { harvestFoeArt(); } catch(e){}
-  if (snap.grid){ S.grid = snap.grid; S.grid.offX = Number(S.grid.offX) || 0; S.grid.offY = Number(S.grid.offY) || 0; }
+  if (snap.grid){ S.grid = snap.grid; S.grid.offX = Number(S.grid.offX) || 0; S.grid.offY = Number(S.grid.offY) || 0; snapKeep(); }
   if (snap.map) S.map = snap.map;
   if (snap.combatPhase !== undefined) S.scene.combatPhase = snap.combatPhase;
   if (snap.sheetRev && isLM() && S.godChar && S.godChar.id){
@@ -18270,14 +18275,21 @@ function placeTokens(){
 var DEFAULT_ART = 'assets/default-portrait.jpg';
 /* Whether a token finds the middle of a square when let go. On by default, because a
    grid is for standing on; off when the LoreMaster wants a thing placed just so. */
-var snapOn = true;
-try { var _sn = localStorage.getItem('ts_snap'); if (_sn !== null) snapOn = _sn === '1'; } catch(e){}
+var snapOn = true, _snapChosen = false;
+try { var _sn = localStorage.getItem('ts_snap'); if (_sn !== null){ snapOn = _sn === '1'; _snapChosen = true; } } catch(e){}
 /* The snap belongs to the table: kept with the board's grid, so it holds between sessions and
    on every screen (it was kept only in this browser, and anything that redrew the grid snapped
    every token again whatever it said). */
-function snapIsOn(){ return (S.grid && typeof S.grid.snap === 'boolean') ? S.grid.snap : snapOn; }
+/* On the LoreMaster's table their own choice wins once they have made one: a saved copy of the
+   board pulled late (or another screen of theirs) carried the old setting and turned the snap
+   back on however often it was switched off. The players take it from the board as before. */
+function snapIsOn(){
+  if (isLM() && !S.stream && _snapChosen) return snapOn;
+  return (S.grid && typeof S.grid.snap === 'boolean') ? S.grid.snap : snapOn;
+}
+function snapKeep(){ if (S.grid && isLM() && !S.stream && _snapChosen) S.grid.snap = snapOn; }
 function toggleSnap(){
-  snapOn = !snapIsOn();
+  snapOn = !snapIsOn(); _snapChosen = true;
   try { localStorage.setItem('ts_snap', snapOn ? '1' : '0'); } catch(e){}
   if (S.grid && isLM()){ S.grid.snap = snapOn; send({ type:'grid', grid:Object.assign({}, S.grid) }); schedulePush(); }
   paintSnapBtn();
@@ -19167,6 +19179,9 @@ function fogViewNow(){
   var d = fc.d, n = d.cols * d.rows, me = myFellTok();
   if (me && tokHas(me, 'Masked')){
     var mv = visionOf([me], d), mvis = new Uint8Array(n); for (var mi = 0; mi < n; mi++) mvis[mi] = mv[mi] === 1 ? 1 : 0;
+    /* a lorebound is not Masked: it still sees for its Fell (what it sees, the Fell's player sees) */
+    var _mlb = (S.tokens || []).filter(function(t){ return t.lb && t.lb.owner && !t.hidden && me.charId && sameId(t.lb.owner, me.charId) && !tokHas(t, 'Masked'); });
+    if (_mlb.length){ var lv = visionOf(_mlb, d); for (var li = 0; li < n; li++) if (lv[li] === 1) mvis[li] = 1; }
     return { d:d, vis:mvis, seen:new Uint8Array(n), masked:true };
   }
   var party = (S.tokens || []).filter(function(t){ return t.kind === 'p'; });
@@ -19177,7 +19192,7 @@ function fogViewNow(){
   if (!isLM() && me) party = [me];
   /* a lorebound sees for its Fell: its own sight clears the fog, for its Fell's player (and in
      the LoreMaster's Player view, for every lorebound on the map) */
-  var _lbs = (S.tokens || []).filter(function(t){ return t.lb && t.lb.owner && !t.hidden && (isLM() || (me && me.charId && sameId(t.lb.owner, me.charId))); });
+  var _lbs = (S.tokens || []).filter(function(t){ return t.lb && t.lb.owner && !t.hidden && !tokHas(t, 'Masked') && (isLM() || (me && me.charId && sameId(t.lb.owner, me.charId))); });
   if (_lbs.length) party = party.concat(_lbs);
   /* with automatic vision off for this map, only the LoreMaster's painting counts */
   var recV = fogRec();
@@ -22751,12 +22766,20 @@ function streamHandouts(list){
 }
 function streamPausePics(on){ if (!S.stream) return; S.stream.pausePics = !!on; if (on) streamPicClose(); streamCtlPaint(); }
 function streamSet(k, v){ if (!S.stream) return; S.stream[k] = v; streamApply(); streamCtlPaint(); }
+/* the panel folds to a small pill and moves by its grip, and keeps both where it was left */
+function streamCtlFolded(){ try { return localStorage.getItem('ts_streamctl_fold') === '1'; } catch(e){ return false; } }
+function streamCtlFold(on){ try { localStorage.setItem('ts_streamctl_fold', on ? '1' : '0'); } catch(e){} streamCtlPaint(); }
 function streamCtlPaint(){
-  var el = document.getElementById('streamCtl'); if (!el || !S.stream) return;
+  var box = document.getElementById('streamCtl'); if (!box || !S.stream) return;
+  try { moveBar(box, 'ts_streamctl_pos'); } catch(e){}
+  var el = box.querySelector('.sc-in'); if (!el){ el = document.createElement('div'); el.className = 'sc-in'; box.appendChild(el); }
+  box.classList.toggle('folded', streamCtlFolded());
+  if (streamCtlFolded()){ el.innerHTML = '<button class="sc-pill" onclick="streamCtlFold(false)" aria-label="Show the stream controls" title="Show the stream controls">Stream +</button>'; return; }
   var pics = '<div class="sc-seg"><button' + (streamPicOpen() ? '' : ' disabled') + ' onclick="streamPicClose()">Close the picture</button><button class="' + (S.stream.pausePics ? 'on' : '') + '" onclick="streamPausePics(' + (S.stream.pausePics ? 'false' : 'true') + ')">' + (S.stream.pausePics ? 'Pictures paused' : 'Pause pictures') + '</button></div>';
   el.innerHTML = '<span class="sc-t">Stream</span>' + pics
     + '<div class="sc-seg"><button class="' + (!S.stream.all ? 'on' : '') + '" onclick="streamSet(\'all\',false)">Players\u2019 view</button><button class="' + (S.stream.all ? 'on' : '') + '" onclick="streamSet(\'all\',true)">Everything</button></div>'
-    + '<div class="sc-seg"><button class="' + (!S.stream.frame ? 'on' : '') + '" onclick="streamSet(\'frame\',false)">Map only</button><button class="' + (S.stream.frame ? 'on' : '') + '" onclick="streamSet(\'frame\',true)">With the table</button></div>';
+    + '<div class="sc-seg"><button class="' + (!S.stream.frame ? 'on' : '') + '" onclick="streamSet(\'frame\',false)">Map only</button><button class="' + (S.stream.frame ? 'on' : '') + '" onclick="streamSet(\'frame\',true)">With the table</button></div>'
+    + '<button class="sc-x" onclick="streamCtlFold(true)" aria-label="Fold the stream controls" title="Fold">\u2212</button>';
 }
 /* the link to open in a second tab or a capture source */
 function streamLink(){
@@ -22893,7 +22916,7 @@ function roomPeerSceneApply(b){
   if (!b) return;
   var cur = (S.adventure && S.adventure.activeSceneId) || (S.scene && S.scene.id);
   if (b.activeSceneId && cur && b.activeSceneId !== cur) return;
-  if (b.grid) S.grid = Object.assign({}, S.grid, b.grid);
+  if (b.grid){ S.grid = Object.assign({}, S.grid, b.grid); snapKeep(); }
   if (b.map && b.map.w) S.map = { w:b.map.w, h:b.map.h };
   if (b.background !== undefined && S.scene) S.scene.background = b.background;
   if (b.mapUrl) S.remoteMapUrl = b.mapUrl;
