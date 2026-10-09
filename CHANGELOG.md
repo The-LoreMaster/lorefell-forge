@@ -1,3 +1,8 @@
+## 2026-10-09 - The Anexanum: a History from transcript files, and full screen says why
+
+- **A History from transcript files.** Choose a playlist now also takes a set of transcript files (.srt, .vtt, .sbv or .txt), one per episode, taken in order by file name, for an adventure recorded but never put on YouTube. Each file stands in for its episode's captions, and the steps after it (chapters, names, world, review and send) run the same way. The files are read for this visit only: an episode not yet written after a reload asks for its file again.
+- **Full screen says why.** In a frame that does not allow full screen, the button did nothing. It now explains, once, that the Anexanum's Wix embed should point at its website address the way ThreadSpire's does.
+
 ## 2026-10-09 - The scene runner keeps to the map
 
 A long scene name stretched the scene runner's bar, and the beat card sized to match it, past the map and over the rail when ThreadSpire was not full screen. The scene name now ends in an ellipsis (its full name shows on hover), and the bar and card never reach past the rail's edge.

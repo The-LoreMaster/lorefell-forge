@@ -162,12 +162,21 @@ function loadDraft(){
 
 /* ---- the start ---- */
 /* F, anywhere but a text box, toggles full screen on a desktop */
+/* The frame the site holds this in has to allow full screen. When it does not, the button used
+   to do nothing at all; now it says why, once. */
+function fullBlocked(){
+  if (fullBlocked.said) return; fullBlocked.said = true;
+  alert('Full screen is blocked by the page the Anexanum sits in. In the Wix editor, set the Anexanum\u2019s HTML embed to Website address with https://table.lorefell.com/the_anexanum.html (the way ThreadSpire\u2019s is), and full screen will work.');
+}
 function toggleFull(){
   try {
     var el = document.documentElement, rf = el.requestFullscreen || el.webkitRequestFullscreen;
-    if (!document.fullscreenElement && !document.webkitFullscreenElement){ if (rf){ var pr = rf.call(el); if (pr && pr.catch) pr.catch(function(){}); } }
+    if (!document.fullscreenElement && !document.webkitFullscreenElement){
+      if (!rf || document.fullscreenEnabled === false || (document.fullscreenEnabled === undefined && document.webkitFullscreenEnabled === false)){ fullBlocked(); return; }
+      var pr = rf.call(el); if (pr && pr.catch) pr.catch(fullBlocked);
+    }
     else (document.exitFullscreen || document.webkitExitFullscreen).call(document);
-  } catch(e){}
+  } catch(e){ fullBlocked(); }
 }
 document.addEventListener('keydown', function(e){
   if (e.key !== 'f' && e.key !== 'F') return;
@@ -522,6 +531,9 @@ function paintStep1(){
   else { plProgress(); h += '<div class="pick">' + AX.playlists.map(function(p, i){ var g = (AX.plDone || {})[p.id];
       return '<button class="' + (AX.pl && AX.pl.id === p.id ? 'on' : '') + (g && g.done ? ' complete' : '') + '" onclick="pickPlaylist(' + i + ')"><b>' + esc(p.title) + '</b><small>' + p.count + ' videos'
         + (g ? (g.done ? ' \u00b7 <span class="done">History complete</span>' : ' \u00b7 ' + g.told + ' of ' + p.count + ' told') : '') + '</small></button>'; }).join('') + '</div>'; }
+  h += '<div class="row" style="margin-top:14px"><span class="lead" style="margin:0">Or a History from transcript files, one per episode, in order by file name (a recording that never went to YouTube):</span>'
+    + '<label class="btn" style="display:inline-flex;align-items:center;cursor:pointer">Choose the transcripts<input type="file" multiple accept=".srt,.vtt,.sbv,.txt" style="display:none" onchange="axFromFiles(this)"></label></div>';
+  if (AX.pl && AX.pl.files && !AX.videos.length) h += '<p class="lead">Reading the transcripts\u2026</p>';
   if (AX.pl){
     h += '<div class="row"><label class="f">The History\u2019s name<input class="t" id="hname" value="' + esc(AX.name) + '" oninput="AX.name=this.value"></label>'
       + '<label class="f">Or add to an existing History<select class="t" onchange="if(this.value){AX.name=this.value;AX.existing=this.value;document.getElementById(\'hname\').value=this.value;}"><option value="">A new History</option>' + (AX.histories || []).map(function(n){ return '<option' + (AX.existing === n ? ' selected' : '') + '>' + esc(n) + '</option>'; }).join('') + '</select></label></div>'
@@ -552,6 +564,36 @@ function plProgress(){
       AX.plDone[p.id] = { done:told >= p.count, told:told }; if (AX.step === 1) paint();
     }).catch(function(){});
   });
+}
+/* ---- a History from transcript files ----
+   For an adventure recorded but never put on YouTube (or whose captions are poor): each file
+   is one episode, taken in order by its file name, and stands in for that episode's captions.
+   The files are read here and kept only for this visit; drafts are kept as usual, and an
+   episode not yet written after a reload asks for its file again. Its chapter carries the
+   file's name as its episode, so it is never told twice. */
+var AXTX = {};
+function axFromFiles(input){
+  var fs = Array.prototype.slice.call((input && input.files) || []); if (!fs.length) return;
+  fs.sort(function(a, b){ return a.name.localeCompare(b.name, undefined, { numeric:true, sensitivity:'base' }); });
+  AX.pl = { id:'files', title:'Transcript files', files:true }; AX.videos = []; paint();
+  Promise.all(fs.map(function(f){ return new Promise(function(res){ var rd = new FileReader(); rd.onload = function(){ res({ f:f, text:String(rd.result || '') }); }; rd.onerror = function(){ res({ f:f, text:'' }); }; rd.readAsText(f); }); }))
+    .then(function(got){
+      AX.videos = got.map(function(g, i){
+        var base = g.f.name.replace(/\.[^.]+$/, ''), id = 'file:' + slug(base), t = txParse(g.f.name, g.text);
+        AXTX[id] = (t.lines.length ? t.lines.map(function(l){ return l.t; }).join('\n') : t.text) || g.text;
+        return { id:id, title:base, at:g.f.lastModified || Date.now(), pos:i };
+      }).filter(function(v){ return AXTX[v.id] && AXTX[v.id].trim(); });
+      if (!AX.videos.length){ AX.pl = null; alert('Nothing readable in those files.'); }
+      paint();
+    });
+  input.value = '';
+}
+function epText(v){
+  if (String(v.id).indexOf('file:') === 0){
+    return AXTX[v.id] ? Promise.resolve({ captions:AXTX[v.id], description:'' })
+      : Promise.reject(new Error('its transcript file is not loaded: choose the transcripts again in step 1'));
+  }
+  return api('/ax/video', { v:v.id, captions:1 });
 }
 function pickPlaylist(i){
   var p = AX.playlists[i]; AX.pl = { id:p.id, title:p.title }; AX.name = AX.name || p.title; AX.videos = [];
@@ -736,7 +778,7 @@ function writeChapters(){
     if (!todo.length){ AX.busy = false; say('Every chapter is written.'); paint(); return; }
     var x = todo.shift(), n = nextChapterNum();
     say('Episode ' + n + ': reading its captions…');
-    api('/ax/video', { v:x.v.id, captions:1 }).then(function(d){
+    epText(x.v).then(function(d){
       if (!d.captions){ throw new Error(d.captionError || 'no captions yet'); }
       var prior = AX.videos.slice(0, x.i).map(function(v){ var nn = AX.notes[v.id]; return nn && !nn.told ? 'Chapter ' + nn.n + ', ' + nn.title + ': ' + nn.summary : ''; }).filter(Boolean).join('\n');
       var sys = 'You write one chapter of a History for the LoreFell FellGuide: the story of what happened in one episode of an actual-play tabletop game, told as grounded dark fantasy prose, past tense, third person, about the characters (the Fell) and the world, never about the players, the table, dice, rules or the stream. '
