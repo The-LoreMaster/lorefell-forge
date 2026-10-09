@@ -108,6 +108,7 @@ var ROOM = 'https://lorefell-table.nate8-johnson.workers.dev';
 var AI = 'https://lorefell-ai.nate8-johnson.workers.dev/';
 var BASE = 'The FellGuide/The FellGuide/The Lore (Contains Spoilers)/The Histories/';
 var NAVMAP = '_Canon/NAV_ORDER_MAP.md';
+var CANON_CH = 'The FellGuide/The FellGuide/The Lore (Contains Spoilers)/Characters/Canon Characters/';
 var SECTIONS = ['Storyline', 'Characters', 'Locations', 'Bestiary', 'Artifacts'];
 var _rid = 0, _wait = {};
 window.addEventListener('message', function(e){ var m = e.data || {}; if (m.type === 'AX_REPLY' && _wait[m.id]){ _wait[m.id](m); delete _wait[m.id]; } });
@@ -568,7 +569,7 @@ function paintStep2(){
 }
 function paintStep3(){
   var ents = gatherEntities();
-  return '<h2>Write the world</h2><p class="lead">Everyone and everything the chapters named, each a page under Characters, Locations, Bestiary or Artifacts. A page already in the FellGuide is updated with what is new, not replaced. Then the History\u2019s own page and its place in the order map.</p>'
+  return '<h2>Write the world</h2><p class="lead">Everyone and everything the chapters named, each a page under Characters, Locations, Bestiary or Artifacts. A page already in the FellGuide is updated with what is new, not replaced. A canon character (one with a page under Canon Characters) has that page updated too, with what they did here. Then the History\u2019s own page and its place in the order map.</p>'
     + (ents.length ? '<div class="list">' + ents.slice(0, 80).map(function(x){ var p = BASE + hist() + '/' + x.kind + '/' + safeName(x.name) + '.md'; return '<div class="it"><span class="num">' + x.kind.charAt(0) + '</span><span class="ti">' + esc(x.name) + '<small>' + esc(x.kind) + ', chapters ' + x.eps.join(', ') + '</small></span><span class="mark ' + (AX.files[p] ? 'done' : 'wait') + '">' + (AX.files[p] ? 'written' : 'to write') + '</span></div>'; }).join('') + '</div>' : '<div class="empty">Write the chapters first; the world comes from them.</div>')
     + '<div class="row"><button class="btn pri" onclick="writeWorld()"' + (AX.busy || !ents.length ? ' disabled' : '') + '>' + (AX.busy ? 'Writing…' : 'Write the world') + '</button><button class="btn" onclick="AX.step=5;paint()">Review</button></div>'
     + '<div class="log" id="axlog" aria-live="polite">' + esc(AX.log || 'Ready.') + '</div>';
@@ -735,7 +736,7 @@ function writeWorld(){
   if (AX.busy) return; AX.busy = true; paint();
   var ents = gatherEntities().slice(0, 80).filter(function(x){ return !AX.files[BASE + hist() + '/' + x.kind + '/' + safeName(x.name) + '.md']; });
   var next = function(){
-    if (!ents.length) return writeRoot();
+    if (!ents.length) return writeCanon().then(writeRoot);
     var x = ents.shift(), path = BASE + hist() + '/' + x.kind + '/' + safeName(x.name) + '.md';
     say(x.kind + ': ' + x.name + '…');
     api('/ax/vault/file', { path:path }).then(function(cur){
@@ -750,6 +751,39 @@ function writeWorld(){
     }).then(function(){ setTimeout(next, 200); }).catch(function(e){ AX.busy = false; say('Stopped at ' + x.name + ': ' + e.message + '. Press Write the world to go on.'); paint(); });
   };
   next();
+}
+/* ---- the canon characters ----
+   A character with a page under Characters/Canon Characters (Whip, Pippa, Acantha and the
+   rest who carry across worlds) gets that page updated too: what they did in this History,
+   woven into its With the Fell telling in story order, every sentence already there kept,
+   its profile filled only where the History shows it. Shown line by line before it goes. */
+function canonFor(name){
+  var k = nameKey(name);
+  return (AX.vaultFiles || []).concat(AX.canonFiles || []).filter(function(p){ if (p.indexOf(CANON_CH) !== 0 || !/\.md$/.test(p)) return false; var n = p.slice(CANON_CH.length).replace(/\.md$/, ''); if (n === 'Canon Characters') return false; var ck = nameKey(n); return ck && (ck === k || (k.indexOf(ck) === 0 && ck.length >= 4)); })[0] || '';
+}
+function writeCanon(){
+  var list = api('/ax/vault/list', { prefix:CANON_CH }).then(function(d){ AX.canonFiles = d.files; }).catch(function(){});
+  return list.then(function(){
+    var todo = gatherEntities().filter(function(x){ return x.kind === 'Characters' && canonFor(x.name); });
+    var step = function(){
+      if (!todo.length) return Promise.resolve();
+      var x = todo.shift(), path = canonFor(x.name);
+      if (AX.files[path] && AX.files[path].status !== 'sent') return step();
+      say('Canon: ' + path.slice(CANON_CH.length).replace(/\.md$/, '') + '…');
+      return api('/ax/vault/file', { path:path }).then(function(cur){
+        if (!cur.exists) return;
+        var sys = 'You update one canon character page of the LoreFell FellGuide with what the character did in one History. Return the WHOLE page. Keep every sentence already on it, in its words, and its shape: the opening lines, the "> [!note]- Name Profile (Click to expand)" callout with its Lineage, Home World, Motivation and Origin lines, and any sections. Weave this History into the "### With the Fell" telling inside the callout (add that heading under the callout\u2019s rule if it is missing), in story order with what is there, naming the History once as [[' + hist() + ']]. Fill a Profile line that reads "Not yet set" only when the facts state it plainly. Add or extend a short "### Temperament" section after the callout only from what the facts show. Never invent events, places, names, powers or numbers; nothing mechanical. If the facts contradict the page, keep the page. Grounded prose, no lists, no em dashes.' + styleRules() + namesRule();
+        var user = 'History: ' + hist() + '\nCharacter: ' + x.name + '\nWhat they did, by chapter:\n' + x.facts.join('\n') + '\n\nThe page as it is now:\n' + cur.content;
+        return ai(sys, user, 3000, true).then(function(md){
+          md = applyNames(noDash(md).trim()) + '\n';
+          if (md.length < cur.content.length * 0.9) { say('Canon: ' + x.name + ' came back shorter than the page it updates, so it was left as it is.'); return; }
+          AX.files[path] = { content:md, original:cur.content, status:'changed', approved:true };
+          return saveFile(path).then(saveManifest).then(paint);
+        });
+      }).catch(function(e){ say('Canon: ' + x.name + ' stopped: ' + e.message); }).then(function(){ return new Promise(function(r){ setTimeout(r, 200); }); }).then(step);
+    };
+    return step();
+  });
 }
 function writeRoot(){
   var root = BASE + hist() + '/' + hist() + '.md';
@@ -823,8 +857,8 @@ function paintStep4(){
   var paths = Object.keys(AX.files).sort();
   if (!paths.length) return '<h2>Review and send</h2><div class="empty">Nothing drafted yet.</div>';
   if (!AX.sel || !AX.files[AX.sel]) AX.sel = paths[0];
-  var groups = {}; paths.forEach(function(p){ var g = p === NAVMAP ? 'The order map' : (p.slice(BASE.length).split('/')[1] || 'The History'); if (/\.md$/.test(g)) g = 'The History'; (groups[g] = groups[g] || []).push(p); });
-  var order = ['The History', 'Storyline', 'Characters', 'Locations', 'Bestiary', 'Artifacts', 'The order map'];
+  var groups = {}; paths.forEach(function(p){ var g = p === NAVMAP ? 'The order map' : p.indexOf(CANON_CH) === 0 ? 'Canon characters' : (p.slice(BASE.length).split('/')[1] || 'The History'); if (/\.md$/.test(g)) g = 'The History'; (groups[g] = groups[g] || []).push(p); });
+  var order = ['The History', 'Storyline', 'Characters', 'Locations', 'Bestiary', 'Artifacts', 'Canon characters', 'The order map'];
   var approved = paths.filter(function(p){ return AX.files[p].approved; }).length;
   var f = AX.files[AX.sel];
   var h = '<h2>Review and send</h2><p class="lead">Read each page, change anything, and untick what should not go. Send to the FellGuide commits the ticked pages to the vault; Obsidian pulls them, and you publish from Obsidian.</p>'
