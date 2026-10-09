@@ -1,3 +1,7 @@
+## 2026-10-09 - The Anexanum sends a large History in one go
+
+Sending 65 pages failed with Cloudflare's "Too many subrequests": the room made one call to GitHub for each page, and a single request may make only 50. The pages now go to GitHub inside the commit's tree in one call, so a send takes about five calls however many pages it carries.
+
 ## 2026-10-09 - The snap holds, the stream panel folds and moves, lorebounds see for a Masked Fell
 
 - **Snap to the grid holds when switched off.** A saved copy of the board pulled late, or another screen of the LoreMaster's, carried the old setting and turned the snap back on however often it was switched off. Once the LoreMaster chooses on their table, their choice wins there and goes out to the players with the board.
