@@ -310,10 +310,9 @@ async function anexanum(req, url, env) {
         const ref = await gh(env, '/git/ref/heads/main');
         const base = await gh(env, '/git/commits/' + ref.object.sha);
         const entries = [];
-        for (const f of files) {
-          const blob = await gh(env, '/git/blobs', { method: 'POST', body: JSON.stringify({ content: b64utf8(f.content), encoding: 'base64' }) });
-          entries.push({ path: f.path, mode: '100644', type: 'blob', sha: blob.sha });
-        }
+        /* the pages go into the tree as text, in one call: a call per page (a blob each) ran past
+           Cloudflare's limit on calls in one request once a History sent more than about 45 */
+        for (const f of files) entries.push({ path: f.path, mode: '100644', type: 'blob', content: f.content });
         for (const d of dels) entries.push({ path: d, mode: '100644', type: 'blob', sha: null });
         const tree = await gh(env, '/git/trees', { method: 'POST', body: JSON.stringify({ base_tree: base.tree.sha, tree: entries }) });
         const commit = await gh(env, '/git/commits', { method: 'POST', body: JSON.stringify({ message: String(body.message || 'The Anexanum: lore').slice(0, 200), tree: tree.sha, parents: [ref.object.sha], author: { name: 'The-LoreMaster', email: '293674967+The-LoreMaster@users.noreply.github.com' } }) });
