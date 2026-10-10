@@ -16,7 +16,8 @@ const ALLOW = [
   'https://table.lorefell.com',          // the tools' own address (GitHub Pages custom domain)
   'https://the-loremaster.github.io',
   'https://lorefell.com',
-  'https://www.lorefell.com'
+  'https://www.lorefell.com',
+  'https://play.lorefell.com'            // the Wix site's address after the early cutover
 ];
 
 function cors(origin) {

@@ -1,3 +1,8 @@
+## 2026-10-10 - The Adventure Directory readable from the new site, and play.lorefell.com allowed
+
+- **Adventures.** The new site shows the Adventure Directory at its own /adventures/. It reads a new public address, `/_functions/adventures`, which returns the same list `listPublishedAdventures` already gives anyone on the Wix directory (title, blurb, author, date, picture, never the pack). Importing a copy still opens ThreadSpire on Wix. One paste: velo/backend/http-functions.js.
+- **play.lorefell.com.** At the early cutover the Wix site moves to play.lorefell.com (Nate, 2026-10-10). The table room and the AI forge worker now also accept calls from there, alongside lorefell.com, so nothing breaks on switch day. The table room deploys on this push; the AI forge worker needs its usual redeploy.
+
 ## 2026-10-10 - The LoreForge hall, readable from the new site
 
 The new site (lorefell-site) shows the LoreForge at its own /the-loreforge/. It reads the hall from a new public address, `/_functions/loreforge`, which returns the same rows `getGallery` already gives anyone on the Wix LoreForge page (names, makers, flavor text, full record, votes, canon or in the vote). It is read only: voting stays on the Wix LoreForge page, where the member is signed in. One paste: velo/backend/http-functions.js.
