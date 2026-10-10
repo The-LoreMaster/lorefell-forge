@@ -509,7 +509,7 @@ async function autoVideos(env) {
         await ytStore(env, { op: 'ax-set', k: 'v:' + v.id, v: JSON.stringify(dr) });
         await autoSave(env, v.id, { state: 'draft', at: now, draftAt: now, title: dr.title, adv: dr.adv, mailed: false });
         /* Nate's email: the site asks /ax-pending what it is about before it sends anything */
-        try { await fetch('https://www.lorefell.com/_functions/anexanumReady?v=' + v.id); } catch (e) {}
+        try { await fetch('https://play.lorefell.com/_functions/anexanumReady?v=' + v.id); } catch (e) {}
         break;   /* one written a round is plenty */
       }
       if (st.state === 'draft' && now - st.draftAt >= AUTO_HOLD) {
