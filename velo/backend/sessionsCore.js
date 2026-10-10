@@ -12,7 +12,7 @@ export const RECAP_TEMPLATE_ID = 'VX06mcS';
 export const REMINDER_TEMPLATE_ID = 'VX0AdjX';
 
 const SESSIONS = 'AdventureSessions';
-const SITE_URL = 'https://lorefell.com';
+const SITE_URL = 'https://play.lorefell.com';
 const TABLE_PATH = '/the-threadspire';
 const ZONE = 'America/Phoenix';          // Arizona: no daylight saving, so the hour never shifts
 const REMIND_HOUR = 8;                   // the morning of: from 8:00 AM Arizona time
