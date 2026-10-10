@@ -4,6 +4,7 @@ import { getSecret } from 'wix-secrets-backend';
 import { fetch } from 'wix-fetch';
 import { triggeredEmails } from 'wix-crm-backend';
 import { RECAP_TEMPLATE_ID } from 'backend/sessionsCore.js';
+import { getGallery } from 'backend/forge.web.js';
 
 // GET /_functions/embed?slug=sigilforge
 // Returns the stored SiteEmbeds.html verbatim as a full HTML document.
@@ -412,6 +413,24 @@ export function get_manifest(request) {
     ]
   };
   return ok({ headers: { 'Content-Type': 'application/manifest+json', 'Cache-Control': 'public, max-age=3600', 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify(body) });
+}
+
+// GET /_functions/loreforge?forgeKey=&excludeForgeKey=&canonStatus=&sort=votes&limit=12&skip=0
+// The LoreForge hall for the new site (lorefell-site, /the-loreforge/): the same public rows
+// getGallery already gives anyone on the Wix LoreForge page, as JSON any page may read.
+// Read only. Voting stays on the Wix page, where the member is signed in.
+export function get_loreforge(request) {
+  const q = request.query || {};
+  return getGallery({
+    forgeKey: q.forgeKey || '',
+    excludeForgeKey: q.excludeForgeKey || '',
+    canonStatus: q.canonStatus || '',
+    sort: q.sort === 'new' ? 'new' : 'votes',
+    limit: Math.min(parseInt(q.limit, 10) || 12, 50),
+    skip: Math.max(0, parseInt(q.skip, 10) || 0)
+  })
+    .then((r) => ok({ headers: jsonHeaders(), body: { ok: !(r && r.ok === false), rows: (r && r.rows) || [], total: (r && r.total) || 0 } }))
+    .catch(() => serverError({ headers: jsonHeaders(), body: { ok: false, rows: [], total: 0 } }));
 }
 
 // The Anexanum's round found a new session video's captions ready and wrote its draft. The
