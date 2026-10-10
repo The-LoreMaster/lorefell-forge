@@ -1,3 +1,7 @@
+## 2026-10-10 - The LoreForge hall, readable from the new site
+
+The new site (lorefell-site) shows the LoreForge at its own /the-loreforge/. It reads the hall from a new public address, `/_functions/loreforge`, which returns the same rows `getGallery` already gives anyone on the Wix LoreForge page (names, makers, flavor text, full record, votes, canon or in the vote). It is read only: voting stays on the Wix LoreForge page, where the member is signed in. One paste: velo/backend/http-functions.js.
+
 ## 2026-10-09 - The Anexanum opens in its own tab for full screen
 
 The site's frame does not allow full screen, and the embed already points at the Anexanum's own address, so changing the Wix setting cannot fix it. Where the frame blocks it, Full screen now opens the Anexanum in a tab of its own, signed in with the ticket the frame already holds (passed after the address's #, which never leaves the browser, and wiped from the address on arrival). There it fills the window, and F or the button goes full screen. The button says so when that is what it will do.
