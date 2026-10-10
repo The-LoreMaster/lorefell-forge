@@ -5,6 +5,7 @@ import { fetch } from 'wix-fetch';
 import { triggeredEmails } from 'wix-crm-backend';
 import { RECAP_TEMPLATE_ID } from 'backend/sessionsCore.js';
 import { getGallery } from 'backend/forge.web.js';
+import { listPublishedAdventures } from 'backend/published.web.js';
 
 // GET /_functions/embed?slug=sigilforge
 // Returns the stored SiteEmbeds.html verbatim as a full HTML document.
@@ -431,6 +432,16 @@ export function get_loreforge(request) {
   })
     .then((r) => ok({ headers: jsonHeaders(), body: { ok: !(r && r.ok === false), rows: (r && r.rows) || [], total: (r && r.total) || 0 } }))
     .catch(() => serverError({ headers: jsonHeaders(), body: { ok: false, rows: [], total: 0 } }));
+}
+
+// GET /_functions/adventures
+// The Adventure Directory for the new site (lorefell-site, /adventures/): the same public list
+// listPublishedAdventures already gives anyone on the Wix directory page (title, blurb, author,
+// date, picture; never the pack). Importing a copy still happens in ThreadSpire on Wix.
+export function get_adventures(request) {
+  return listPublishedAdventures()
+    .then((items) => ok({ headers: jsonHeaders(), body: { ok: true, items: items || [] } }))
+    .catch(() => serverError({ headers: jsonHeaders(), body: { ok: false, items: [] } }));
 }
 
 // The Anexanum's round found a new session video's captions ready and wrote its draft. The

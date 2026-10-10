@@ -27,7 +27,7 @@
                     peers { n }
 */
 const ROOM_PUBLIC_KEY = 'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAERiiyVY0l0T3jgXNUXNXWTMgJV0UDY6jLD0hqcPBMzxny6IDPqod7NkmYkVwg6TqgkUrvqdkpUNNDNsoOzbEcWw==';
-const ALLOW = ['https://table.lorefell.com', 'https://the-loremaster.github.io', 'https://lorefell.com', 'https://www.lorefell.com', 'http://localhost:8787', 'null'];
+const ALLOW = ['https://table.lorefell.com', 'https://the-loremaster.github.io', 'https://lorefell.com', 'https://www.lorefell.com', 'https://play.lorefell.com', 'http://localhost:8787', 'null'];
 
 function b64urlToBytes(s) {
   s = s.replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '=';
