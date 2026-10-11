@@ -1,3 +1,12 @@
+## Switch day - The AI forge, the stream link and the table room call play.lorefell.com
+
+Merged on switch day, once Wix answers at play.lorefell.com and the new site has lorefell.com.
+
+- FoeForge and SigilForge send AI forge requests to `play.lorefell.com/_functions/aiForge`. A POST cannot follow the new site's redirect, so this one has to change. `docs/` and `embeds/` alike.
+- ThreadSpire's stream link falls back to play.lorefell.com when the page gives no address of its own.
+- The table room tells `play.lorefell.com/_functions/anexanumReady` when a recap draft is written. It deploys on this merge.
+- Invite links, session emails and the review link keep naming lorefell.com: since the data switch (2026-10-11) they come from the new site's API, and lorefell.com sends each to the tool wherever it lives, Wix today and the new site once that tool moves. No Velo pastes.
+
 ## 2026-10-11 - The AI worker: newer models, cached instructions, and it deploys itself
 
 - **Deploys itself.** The AI proxy every forge, ThreadSpire and the Anexanum call (`cloudflare/aiforge-worker.js`, the worker `lorefell-ai`) was pasted into Cloudflare by hand. A new workflow, `ai-worker.yml`, deploys it on every merge that touches it, with the same `CLOUDFLARE_API_TOKEN` as the table room. Its Anthropic key stays the worker's own secret.
