@@ -1,3 +1,12 @@
+## Switch day - The tools call play.lorefell.com
+
+Merged on switch day only, once the Wix site answers at play.lorefell.com and the new site has lorefell.com. Every address a tool, the table room or the Velo code builds by hand now names play.lorefell.com, where the tools, sign-in and `/_functions` stay until each tool is ported.
+
+- FoeForge and SigilForge send AI forge requests to `play.lorefell.com/_functions/aiForge`. A POST cannot follow the new site's redirect, so this one has to change. `docs/` and `embeds/` alike.
+- ThreadSpire's stream link falls back to play.lorefell.com when the page gives no address of its own.
+- The table room tells `play.lorefell.com/_functions/anexanumReady` when a recap draft is written. It deploys on this merge.
+- Invite links (`invites.web.js`), session emails (`sessionsCore.js`) and the YouTube review link (`http-functions.js`) open play.lorefell.com. Three pastes, after this merges.
+
 ## 2026-10-10 - The Adventure Directory readable from the new site, and play.lorefell.com allowed
 
 - **Adventures.** The new site shows the Adventure Directory at its own /adventures/. It reads a new public address, `/_functions/adventures`, which returns the same list `listPublishedAdventures` already gives anyone on the Wix directory (title, blurb, author, date, picture, never the pack). Importing a copy still opens ThreadSpire on Wix. One paste: velo/backend/http-functions.js.

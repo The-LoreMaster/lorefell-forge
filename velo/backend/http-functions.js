@@ -455,7 +455,7 @@ export async function get_anexanumReady(request) {
   let p = null;
   try { const r = await fetch('https://lorefell-table.nate8-johnson.workers.dev/ax-pending?v=' + v); p = await r.json(); } catch (e) { p = null; }
   if (!p || !p.ok || !p.owner) return ok({ headers: { 'Content-Type': 'application/json' }, body: { ok: false } });
-  const link = 'https://www.lorefell.com/the-threadspire?role=lm' + (p.campaignId ? '&campaign=' + encodeURIComponent(p.campaignId) : '') + '&ytreview=' + encodeURIComponent(v);
+  const link = 'https://play.lorefell.com/the-threadspire?role=lm' + (p.campaignId ? '&campaign=' + encodeURIComponent(p.campaignId) : '') + '&ytreview=' + encodeURIComponent(v);
   const goes = p.goesUpAt ? new Date(p.goesUpAt).toLocaleString('en-US', { timeZone: 'America/Phoenix', weekday: 'long', hour: 'numeric', minute: '2-digit' }) : 'in twelve hours';
   const body = 'The captions for "' + p.title + '" are in, and its title and description are written.\n\n'
     + 'Open ThreadSpire to check the names, read the recap, and approve the title and description before they go up.\n\n'
