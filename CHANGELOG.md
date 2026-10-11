@@ -1,3 +1,11 @@
+## 2026-10-11 - The AI worker: newer models, cached instructions, and it deploys itself
+
+- **Deploys itself.** The AI proxy every forge, ThreadSpire and the Anexanum call (`cloudflare/aiforge-worker.js`, the worker `lorefell-ai`) was pasted into Cloudflare by hand. A new workflow, `ai-worker.yml`, deploys it on every merge that touches it, with the same `CLOUDFLARE_API_TOKEN` as the table room. Its Anthropic key stays the worker's own secret.
+- **Newer models.** "smart" moves from Claude Sonnet 4.6 to Claude Sonnet 5.5 ($3/$15 to $2/$10 per million tokens), "fast" from Claude Haiku 4.5 to Claude Haiku 5.5 ($1/$5 to $0.10/$0.50). Both run with thinking off, so the tools' short answers are not eaten by thinking inside their small `max_tokens`.
+- **Cached instructions.** The system prompt carries a 5-minute cache mark. A tool that sends the same instructions again soon after (a History written episode by episode, recap rewrites) pays a tenth for them.
+- **Declines say so.** A refused request now comes back as "The AI declined this one" rather than an empty answer, and a Sonnet decline the API can hand to another model is retried there (`fallbacks: "default"`).
+- Not changed: the Velo files that call Anthropic directly (`characters.web.js`, `fellforge.web.js`, `forge.web.js`, `http-functions.js`) keep their models until they are next pasted into Wix.
+
 ## 2026-10-10 - The Adventure Directory readable from the new site, and play.lorefell.com allowed
 
 - **Adventures.** The new site shows the Adventure Directory at its own /adventures/. It reads a new public address, `/_functions/adventures`, which returns the same list `listPublishedAdventures` already gives anyone on the Wix directory (title, blurb, author, date, picture, never the pack). Importing a copy still opens ThreadSpire on Wix. One paste: velo/backend/http-functions.js.

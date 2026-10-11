@@ -1,0 +1,28 @@
+name: AI worker
+# Deploys the AI proxy (cloudflare/aiforge-worker.js, named lorefell-ai) to Cloudflare Workers, so a
+# change to it reaches the tools on merge with nothing to paste. Uses the same CLOUDFLARE_API_TOKEN
+# secret as the table room. The worker's ANTHROPIC_API_KEY secret is set in Cloudflare and kept.
+on:
+  push:
+    branches: [main]
+    paths: ['cloudflare/aiforge-worker.js', 'cloudflare/ai-worker/**', '.github/workflows/ai-worker.yml']
+  workflow_dispatch:
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Deploy
+        working-directory: cloudflare/ai-worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then echo "::error::Add the CLOUDFLARE_API_TOKEN repository secret first"; exit 1; fi
+          npx --yes wrangler@3 deploy
+      - name: Check it answers
+        run: |
+          sleep 5
+          curl -s https://lorefell-ai.nate8-johnson.workers.dev/ | tee /dev/stderr | grep -q 'lorefell-ai-worker-2'
