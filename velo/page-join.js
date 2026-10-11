@@ -15,9 +15,10 @@ let CAMPAIGN_NAME = '';
 let IS_OWNER = false;
 // The page slug that hosts FellForge. Change to match your site if it differs.
 const FELLFORGE_PATH = '/the-fellforge';   // the Hearth's route; /fellforge did not reach it, so a Fell forged from an invite never joined
-// Where a player lands after attaching a Fell: its sheet. The route is the Hearth's, in
-// docs/the_hearth.html (FACTS.md lists it).
-const FELLGLASS_PATH = '/the-fellglass';
+// Where a player lands after attaching a Fell: the table, with that Fell and the adventure open.
+// The player's sheet lives in ThreadSpire's rail; FellGlass on its own showed the bare sheet.
+const TABLE_PATH = '/the-threadspire';
+const tableFor = (charId) => TABLE_PATH + '?character=' + encodeURIComponent(charId) + (CAMPAIGN_ID ? '&campaign=' + encodeURIComponent(CAMPAIGN_ID) : '');
 
 $w.onReady(() => {
   const embed = $w(EMBED);
@@ -57,22 +58,22 @@ $w.onReady(() => {
       try { await authentication.promptLogin({ mode: 'login' }); } catch (e) {}
       await pushState();
     } else if (m.type === 'JOIN_ATTACH') {
-      // Once the Fell is in the adventure, take the player straight to its sheet in
-      // FellGlass. If attaching failed, stay here and show the list as it now stands.
+      // Once the Fell is in the adventure, take the player straight to the table with it open.
+      // If attaching failed, stay here and show the list as it now stands.
       let r = null;
       try { r = await attachCharacter(CAMPAIGN_ID, m.charId); } catch (e) { r = null; }
       if (r && r.ok && m.charId) {
-        try { wixLocation.to(FELLGLASS_PATH + '?charId=' + encodeURIComponent(m.charId)); return; } catch (e) {}
+        try { wixLocation.to(tableFor(m.charId)); return; } catch (e) {}
       }
       await pushState();
     } else if (m.type === 'JOIN_DETACH') {
       try { await detachOwnCharacter(m.charId); } catch (e) {}
       await pushState();
     } else if (m.type === 'JOIN_ADOPT') {
-      // a Fell the LoreMaster made, made the player's own; then to its sheet
+      // a Fell the LoreMaster made, made the player's own; then to the table with it
       let r = null;
       try { r = await adoptFell(CAMPAIGN_ID, m.charId); } catch (e) { r = null; }
-      if (r && r.ok) { try { wixLocation.to(FELLGLASS_PATH + '?charId=' + encodeURIComponent(m.charId)); return; } catch (e) {} }
+      if (r && r.ok) { try { wixLocation.to(tableFor(m.charId)); return; } catch (e) {} }
       await pushState();
     } else if (m.type === 'JOIN_FORGE') {
       wixLocation.to(FELLFORGE_PATH + '?campaign=' + encodeURIComponent(CAMPAIGN_ID));
