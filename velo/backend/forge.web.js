@@ -437,6 +437,29 @@ export const castVote = webMethod(Permissions.SiteMember, async (forgeKey, creat
   return { ok: true, voteCount: next };
 });
 
+// The Admin role may take any creation out of the halls, with every vote cast on it. The role is
+// Wix's on Wix and ROLE_Admin on lorefell-site; Permissions.Admin holds the door either way.
+async function isAdmin() {
+  try {
+    const roles = await currentMember.getRoles();
+    return Array.isArray(roles) && roles.some((r) => String((r && (r.title || r.name)) || '').toLowerCase() === 'admin');
+  } catch (e) { return false; }
+}
+export const canRemoveCreations = webMethod(Permissions.Anyone, async () => ({ admin: await isAdmin() }));
+export const removeCreation = webMethod(Permissions.Admin, async (creationId) => {
+  if (!creationId) return { ok: false, error: 'No creation given.' };
+  let rec = null;
+  try { rec = await wixData.get('Creations', creationId, { suppressAuth: true }); } catch (e) { rec = null; }
+  if (!rec) return { ok: false, error: 'That creation was not found.' };
+  try { await wixData.remove('Creations', creationId, { suppressAuth: true }); }
+  catch (e) { return { ok: false, error: 'It could not be removed.' }; }
+  try {
+    const v = await wixData.query('CreationVotes').eq('creationId', creationId).limit(1000).find({ suppressAuth: true });
+    for (const it of v.items) { try { await wixData.remove('CreationVotes', it._id, { suppressAuth: true }); } catch (e) {} }
+  } catch (e) {}
+  return { ok: true };
+});
+
 async function canUseForge(forgeKey, member) {
   if (LOREMASTER_FORGES.indexOf(forgeKey) === -1) return true;
   // Loremaster forges (FoeForge, SagaForge) are open to anyone who runs at least one
