@@ -9,6 +9,7 @@
 import { Permissions, webMethod } from 'wix-web-module';
 import wixData from 'wix-data';
 import { currentMember } from 'wix-members-backend';
+import { adventureImage, emailImage, BLANK_IMAGE } from 'backend/sessionsCore.js';
 
 const SITE_URL = 'https://lorefell.com';
 const JOIN_PATH = '/join';
@@ -75,7 +76,10 @@ export const redeemInvite = webMethod(Permissions.Anyone, async (tok) => {
         await wixData.insert('AdventureMembers', { campaignId: campaignId, memberId: mid, name: await memberName(), status: 'active', joinedAt: new Date().toISOString() }, { suppressAuth: true });
       }
     }
-    return { ok: true, campaignId: campaignId, campaignName: name, isOwner: isOwner };
+    // The adventure's header picture heads the join page; none set means no picture at all.
+    let image = '';
+    try { image = emailImage(await adventureImage(campaignId)); if (image === BLANK_IMAGE) image = ''; } catch (e) {}
+    return { ok: true, campaignId: campaignId, campaignName: name, isOwner: isOwner, image: image };
   } catch (e) { return { ok: false, error: String(e) }; }
 });
 

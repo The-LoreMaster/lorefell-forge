@@ -12,6 +12,7 @@ const EMBED = '#html1';   // change to your Embed a Site element ID
 
 let CAMPAIGN_ID = '';
 let CAMPAIGN_NAME = '';
+let CAMPAIGN_IMAGE = '';
 let IS_OWNER = false;
 // The page slug that hosts FellForge. Change to match your site if it differs.
 const FELLFORGE_PATH = '/the-fellforge';   // the Hearth's route; /fellforge did not reach it, so a Fell forged from an invite never joined
@@ -34,7 +35,7 @@ $w.onReady(() => {
     if (!CAMPAIGN_ID) {
       let r = {};
       try { r = await redeemInvite(token); } catch (e) { r = {}; }
-      if (r && r.ok) { CAMPAIGN_ID = r.campaignId; CAMPAIGN_NAME = r.campaignName || ''; IS_OWNER = !!r.isOwner; }
+      if (r && r.ok) { CAMPAIGN_ID = r.campaignId; CAMPAIGN_NAME = r.campaignName || ''; CAMPAIGN_IMAGE = r.image || ''; IS_OWNER = !!r.isOwner; }
     }
     let chars = [];
     try { chars = await listJoinCharacters(); } catch (e) { chars = []; }
@@ -45,7 +46,7 @@ $w.onReady(() => {
     }));
     let adoptable = [];
     if (CAMPAIGN_ID && !IS_OWNER) { try { adoptable = await listAdoptableFell(CAMPAIGN_ID); } catch (e) { adoptable = []; } }
-    embed.postMessage({ type: 'JOIN_STATE', signedIn: true, campaignName: CAMPAIGN_NAME, isOwner: IS_OWNER, characters: list, adoptable });
+    embed.postMessage({ type: 'JOIN_STATE', signedIn: true, campaignName: CAMPAIGN_NAME, image: CAMPAIGN_IMAGE, isOwner: IS_OWNER, characters: list, adoptable });
   }
 
   embed.onMessage(async (event) => {
