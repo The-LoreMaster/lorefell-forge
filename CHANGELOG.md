@@ -1,3 +1,7 @@
+## 2026-10-11 - The Anexanum is now the Scriptorium
+
+Nate's lore desk, where Histories are written and sent to the vault, is called the Scriptorium (Nate, 2026-10-11). The name Anexanum now belongs to the LoreMaster's page on the new site. Only the words you see changed: the title, headings, the "not open to you" message and the vault commit messages it writes. The file (`the_anexanum.html`), its hidden Wix page (`/the-anexanum`), its Velo code, the table room's `/ax/` routes and `anexanumReady` keep the old name, so nothing has to be pasted into Wix and no address moves. `docs/` and `embeds/` stay byte-identical.
+
 ## 2026-10-10 - The Adventure Directory readable from the new site, and play.lorefell.com allowed
 
 - **Adventures.** The new site shows the Adventure Directory at its own /adventures/. It reads a new public address, `/_functions/adventures`, which returns the same list `listPublishedAdventures` already gives anyone on the Wix directory (title, blurb, author, date, picture, never the pack). Importing a copy still opens ThreadSpire on Wix. One paste: velo/backend/http-functions.js.

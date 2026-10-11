@@ -208,7 +208,7 @@ function srtSegments(srt) {
   });
   return out.slice(0, 400);
 }
-/* ================= The Anexanum =================
+/* ================= The Scriptorium (the Anexanum's routes, /ax/) =================
    Nate's own lore desk: his YouTube channel and the FellGuide vault, behind a ticket for the
    member who owns the channel. It lists playlists and their videos, reads a video's
    description and captions, reads the vault (The Histories, STYLE.md, the order map), keeps
@@ -235,7 +235,7 @@ async function anexanum(req, url, env) {
   const out = (o, s) => new Response(JSON.stringify(o), { status: s || 200, headers: h });
   if (ALLOW.indexOf(origin) < 0) return out({ ok: false, error: 'origin not allowed' }, 403);
   const who = await axWho(url, env);
-  if (!who) return out({ ok: false, error: 'The Anexanum is not open to you.' }, 401);
+  if (!who) return out({ ok: false, error: 'The Scriptorium is not open to you.' }, 401);
   const p = url.pathname;
   try {
     if (p === '/ax/whoami') return out({ ok: true, vault: !!env.FELLGUIDE_TOKEN, youtube: !!env.YT_CLIENT_ID, units: await ytUnits(env) });
@@ -315,7 +315,7 @@ async function anexanum(req, url, env) {
         for (const f of files) entries.push({ path: f.path, mode: '100644', type: 'blob', content: f.content });
         for (const d of dels) entries.push({ path: d, mode: '100644', type: 'blob', sha: null });
         const tree = await gh(env, '/git/trees', { method: 'POST', body: JSON.stringify({ base_tree: base.tree.sha, tree: entries }) });
-        const commit = await gh(env, '/git/commits', { method: 'POST', body: JSON.stringify({ message: String(body.message || 'The Anexanum: lore').slice(0, 200), tree: tree.sha, parents: [ref.object.sha], author: { name: 'The-LoreMaster', email: '293674967+The-LoreMaster@users.noreply.github.com' } }) });
+        const commit = await gh(env, '/git/commits', { method: 'POST', body: JSON.stringify({ message: String(body.message || 'The Scriptorium: lore').slice(0, 200), tree: tree.sha, parents: [ref.object.sha], author: { name: 'The-LoreMaster', email: '293674967+The-LoreMaster@users.noreply.github.com' } }) });
         await gh(env, '/git/refs/heads/main', { method: 'PATCH', body: JSON.stringify({ sha: commit.sha }) });
         return out({ ok: true, commit: commit.sha, files: files.length, removed: dels.length });
       }
@@ -440,12 +440,12 @@ async function transcript(req, url, env) {
   } catch (e) { return out({ ok: false, error: 'YouTube could not be reached' }); }
 }
 
-/* ================= the Anexanum's own round =================
+/* ================= the Scriptorium's own round =================
    Every two hours, for the channel's owner: the newest uploads of the last seven days that
    are session videos (over twenty minutes, no pipe in the title yet) are looked after, one
    step a round. First it waits for YouTube's captions (they come the day after a stream).
    Then it writes the title, Adventure | Episode, and a description made to be found, and
-   keeps them as a draft the Anexanum shows. Twelve hours later, if Nate has not opened that
+   keeps them as a draft the Scriptorium shows. Twelve hours later, if Nate has not opened that
    draft, it puts them up as written; once he opens it, it is his to put up. */
 const AUTO_HOLD = 12 * 3600 * 1000, AUTO_WINDOW = 7 * 86400 * 1000, AUTO_MIN = 20 * 60;
 async function autoState(env, vid) { try { const r = await ytStore(env, { op: 'ax-get', k: 'auto:' + vid }); return r.v ? JSON.parse(r.v) : null; } catch (e) { return null; } }
