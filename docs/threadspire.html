@@ -12625,8 +12625,11 @@ function applyRemoteSnapshot(snap){
   if (snap.lobby === null && S.lobby && lobbyRev(S.lobby)) _lbNew = false;   /* an empty save never wipes a stamped lobby */
   /* the live room carries the LoreMaster's change as it is made: the players and the stream take it as said */
   if (snap.lobby && ROOM._applying && (!isLM() || S.stream)) _lbNew = true;
+  /* a lobby stamped for another adventure (a snapshot still in flight from the one just left) is never taken */
+  var _lbForeign = !!(snap.lobby && snap.lobby.cid && S.campaignId && !sameId(snap.lobby.cid, S.campaignId));
+  if (_lbForeign) _lbNew = false;
   if (_lbNew) S.lobby = snap.lobby;
-  else if (snap.lobby && S.lobby && isLM()){
+  else if (snap.lobby && S.lobby && isLM() && !_lbForeign){
     ['url', 'poster', 'kind', 'title', 'note', 'music', 'weather'].forEach(function(k){ if (!S.lobby[k] && snap.lobby[k]) S.lobby[k] = snap.lobby[k]; });
   }
   if (Array.isArray(snap.clocks) && (!isLM() || S.stream || !(S.clocks && S.clocks.length))) S.clocks = snap.clocks;
@@ -13021,6 +13024,9 @@ function advReset(nextId){
   S.lobby = null; window._lobbyLook = false; _lobbyArmed = false;   /* the lobby belongs to the adventure being left; the next opens in its own */
   /* so do the Retelling and the Codex: the next adventure's own come with it, never this one's */
   S.retell = null; S.retellPick = null; _retellShown = '';
+  /* take the old adventure's screens down now: the watchers only repaint on a change, and "nothing" matched "nothing" */
+  try { var _rc = document.getElementById('retellCard'); if (_rc) _rc.classList.remove('on'); clearTimeout(_retellTimer); } catch(e){}
+  try { var _ls = document.getElementById('lobbyScreen'); if (_ls){ _ls._k = ''; _ls.style.display = 'none'; var _lv = _ls.querySelector('video'); if (_lv) _lv.pause(); } document.body.classList.remove('in-lobby'); } catch(e){}
   CODEX = { loaded:false, busy:false, entries:[], records:[], items:[], me:'', tab:'story', pick:'' };
   try { console.log('%c[RESET] advReset(' + (nextId||'') + ') from campaignId=' + (S.campaignId||''), 'color:#e6a07a;font-weight:bold'); } catch(e){}
   _advSwitching = true;
