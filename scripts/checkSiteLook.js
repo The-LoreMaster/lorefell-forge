@@ -1,5 +1,5 @@
 // Every restyled player tool carries the same copy of scripts/site-look.css and the same font link,
-// and its docs/ and embeds/ copies are byte-identical. A tool is listed here once it is restyled.
+// and its docs/ and embeds/ copies are byte-identical. All nine player tools carry it (not FellGlass or ThreadSpire).
 const fs = require('fs');
 const path = require('path');
 
