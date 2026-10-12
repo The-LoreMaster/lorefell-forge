@@ -186,8 +186,26 @@ body{font-family:var(--f-display);font-size:20px;line-height:1.5;-webkit-font-sm
     padding:10px 8px 4px;position:relative;overflow:hidden;
   }
   .rune-stage{position:relative;flex:1 1 auto;min-height:120px;max-height:calc((100vw - 84px) * 5 / 12)}
-  #runeSvg{position:absolute;inset:0;display:block;width:100%;height:100%;transform-origin:center;animation:breathe 7s ease-in-out infinite;transition:filter .7s ease}
-  .rune-card.stable #runeSvg{filter:drop-shadow(0 0 12px rgba(239,232,216,.18))}
+  #runeSvg{position:absolute;inset:0;display:block;width:100%;height:100%;transform-origin:center;animation:breathe 7s ease-in-out infinite}
+  /* The rune circle's layers (renderCircle, layered). Each turns or fades on its own, on the
+     compositor. --lfc-t carries the phase across a redraw so the bands never jump back. */
+  .lfc-layer{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none;transform-origin:50% 50%}
+  .lfc-l-bloom{animation:lfcBreathe 6s ease-in-out infinite}
+  .lfc-l-cw{animation:lfcSpin 150s linear infinite}
+  .lfc-l-ccw{animation:lfcSpin 110s linear infinite reverse}
+  .lfc-l-cw2{animation:lfcSpin 80s linear infinite}
+  .lfc-l-core{animation:lfcPulse 4.2s ease-in-out infinite}
+  .lfc-flicker{animation:lfcFlicker 2.8s steps(1,end) infinite}
+  @keyframes lfcSpin{to{transform:rotate(360deg)}}
+  @keyframes lfcBreathe{0%,100%{opacity:1}50%{opacity:.82}}
+  @keyframes lfcPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.78;transform:scale(.975)}}
+  @keyframes lfcFlicker{0%,100%{opacity:1}12%{opacity:.55}16%{opacity:1}54%{opacity:.7}58%{opacity:1}61%{opacity:.5}64%{opacity:1}}
+  @media (prefers-reduced-motion:reduce){.lfc-layer,.lfc-flicker{animation:none}}
+  .rune-layers .lfc-layer{animation-delay:var(--lfc-t,0s)}
+  .rune-layers.paused .lfc-layer,.rune-layers.paused .lfc-flicker{animation-play-state:paused}
+  /* a band flashes when its choice changes */
+  .ignite{animation:igniteFlash .55s ease-out}
+  @keyframes igniteFlash{0%{opacity:.15}45%{opacity:1}100%{opacity:1}}
   @keyframes breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.013)}}
   .mote{
     position:absolute;left:50%;bottom:8%;width:3px;height:3px;border-radius:50%;
@@ -223,43 +241,37 @@ body{font-family:var(--f-display);font-size:20px;line-height:1.5;-webkit-font-sm
     padding-bottom:8px;
   }
   .rune-card.forged .forged-badge{display:block}
-  .rune-card.forged #runeSvg{filter:drop-shadow(0 0 14px rgba(216,188,106,.35))}
   .rune-legend{
     flex:none;display:flex;flex-wrap:wrap;gap:4px 16px;justify-content:center;
     padding:6px 6px 12px;font-size:16px;line-height:1.35;color:var(--ash);
   }
   .rune-legend span{display:inline-flex;align-items:center;gap:6px}
   .lg-dot{width:8px;height:8px;display:inline-block;border-radius:50%}
-  .lg-core{background:var(--bone)}
-  .lg-tgt{background:var(--ash)}
-  .lg-rider{background:var(--ash);border-radius:0}
-  .lg-bane{background:var(--bane);border-radius:0}
-  .lg-gold{background:var(--gold)}
 
-  /* white fire forging effect */
+  /* forging: the circle flares in its own colour */
   .forge-fx{position:absolute;inset:0;pointer-events:none;z-index:5}
   .fx-burst{
     position:absolute;left:50%;top:42%;width:340px;height:340px;
     transform:translate(-50%,-50%) scale(.2);border-radius:50%;
-    background:radial-gradient(circle, rgba(255,255,255,.95) 0%, rgba(239,232,216,.55) 32%, rgba(216,188,106,.25) 55%, transparent 72%);
+    background:radial-gradient(circle, var(--rune,var(--gold)) 0%, transparent 70%);
     opacity:0;
   }
   .forging .fx-burst{animation:burst 1.5s ease-out forwards}
   @keyframes burst{
     0%{opacity:0;transform:translate(-50%,-50%) scale(.2)}
-    18%{opacity:1}
+    18%{opacity:.55}
     100%{opacity:0;transform:translate(-50%,-50%) scale(1.7)}
   }
-  .forging #runeSvg{animation:whitehot 1.5s ease-out}
-  @keyframes whitehot{
+  .forging #runeSvg{animation:runeFlare 1.5s ease-out}
+  @keyframes runeFlare{
     0%{filter:none}
-    16%{filter:brightness(4) saturate(0) drop-shadow(0 0 24px rgba(255,255,255,.9))}
-    55%{filter:brightness(2) drop-shadow(0 0 16px rgba(255,255,255,.6))}
-    100%{filter:drop-shadow(0 0 14px rgba(216,188,106,.35))}
+    16%{filter:brightness(1.6) drop-shadow(0 0 22px var(--rune,var(--gold)))}
+    55%{filter:brightness(1.35) drop-shadow(0 0 12px var(--rune,var(--gold)))}
+    100%{filter:none}
   }
   .ember{
     position:absolute;width:4px;height:4px;border-radius:50%;
-    background:#fff;opacity:0;
+    background:var(--rune,var(--gold));opacity:0;
   }
   .forging .ember{animation:ember 1.4s ease-out forwards}
   @keyframes ember{
@@ -639,7 +651,7 @@ body{font-family:var(--f-display);font-size:20px;line-height:1.5;-webkit-font-sm
     <div class="rune-col">
       <div class="rune-card" id="runeCard">
         <div class="rune-stage" id="runeStage">
-          <svg id="runeSvg" viewBox="0 0 320 320" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Ability rune"></svg>
+          <div id="runeSvg" class="rune-layers" role="img" aria-label="Ability rune circle"></div>
           <div class="forge-fx" id="forgeFx"><div class="fx-burst"></div></div>
           <div class="sheen"></div>
         </div>
@@ -1404,302 +1416,744 @@ function buildBudget(){
 }
 
 /* ============================================================
-   RUNE RENDERER
-   A radial stave sigil. Everything is centered and radially
-   symmetric; riders are not icons in one spot but stave marks
-   repeated around the circle, woven into the rune:
-   Core (damage) at the heart, always large.
-   Targeting becomes stave arms with crossbars and forked
-   heads, evenly distributed.
-   Tier rings grow outward from the core. The Form is an
-   inscribed gold polygon: triangle, square, hexagon.
-   Each rider is a stave mark repeated fourfold on its own
-   band, rotated to point outward. Amplify twins every mark
-   of its rider. Spread repeats its rider's mark eightfold
-   in gold on the outermost band.
-   A deterministic script ring of micro-staves encircles the
-   whole, seeded by the build itself. Bounded loops only.
-   ============================================================ */
+   RUNE CIRCLE
+   The rune is a magic circle drawn from the build.
+   renderCircle(state, opts) returns SVG markup for a 320x320 viewBox.
+
+   GRAMMAR (what drives what)
+     colour     the weapon's group (Bow, Blade, Polearm, Sword, Axe, Bludgeon, Focus, Artifact, Tome).
+                Monster: its archetype family colour, or its school colour for Monster Magic.
+     type       the outer border. Ability: carved, notched double ring. Spell: clean double ring.
+                Monster: thorned teeth on the outer ring.
+     school     how the script is written. Weaving: flowing joined hand. Spirit: sparse, broken,
+                breathy hand with dots. Creation: blocky constructed hand between ruled lines.
+                Ability and Monster: the hand-cut brush script.
+     name+build the running script, transliterated into the LoreFell alphabet (SCRIPT). Deterministic.
+     tier       how many script bands: 1 outer; 2 adds the band the seals sit on; 3 adds the band
+                around the core.
+     targeting  the great geometry. One Target: a spear triangle with a lance. Two Targets: a
+                hexagram. Three Targets: three seals on a triangle with spokes. All Targets: a
+                heptagram whose points touch the rim.
+     riders     satellite seals threaded on the seat ring at the geometry's points, one glyph each
+                (SEALS). Afflictions, in the same colour: a thorned ring, a cracked inner ring, a
+                flickering glow.
+     form       the inner polygon: 1 triangle, 2 octagram (two squares), 3 enneagram (three triangles).
+     damage     the core emblem. No Damage: an open eye. Base: a simple seal. Standard: a filled
+                lance-star between two crescents. Double Base: twin interlocked seals. Double Standard: a radiant burst.
+
+   Inputs: the SigilForge state fields (type, school, focus, weapon, monsterArchetype, monsterSchool,
+   monsterForm, damage, targeting, tier, effect, name). opts may carry the values SigilForge computes:
+   { form: currentForm(), riders: currentAddons(), tier: effectiveTier(), color: "#hex",
+     background: true, animate: true, id: "unique-prefix" }. */
+const LoreFellCircle = (function(){
+"use strict";
 const CX = 160, CY = 160;
-function pt(cx, cy, r, deg){
-  const a = (deg - 90) * Math.PI / 180;
-  return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+const VOID = "#060A14";
+/* Blend: nothing in the circle is pure void or pure white. Dark parts are the circle's own colour
+   sunk toward void, so they read as deeper colour inside the glow, never as holes. */
+function mix(a, b, t){
+  const h = x => [1, 3, 5].map(i => parseInt(x.slice(i, i + 2), 16));
+  const A = h(a), B = h(b);
+  return "#" + A.map((v, i) => Math.round(v + (B[i] - v) * t).toString(16).padStart(2, "0")).join("");
 }
-function poly(points){ return points.map(p => p.map(n => n.toFixed(1)).join(",")).join(" "); }
-function ringPoly(r, sides, rot){
-  const pts = [];
-  for(let i = 0; i < sides; i++) pts.push(pt(CX, CY, r, rot + i * 360 / sides));
-  return poly(pts);
-}
+const deepOf = col => mix(VOID, col, 0.2);   /* about 18% lightness: the colour, sunk */
+const shadeOf = col => mix(VOID, col, 0.34); /* a cut-out: darker colour, still lit */
+const f = n => (Math.round(n * 100) / 100).toString();
+const pt = (r, deg, cx = CX, cy = CY) => { const a = (deg - 90) * Math.PI / 180; return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; };
+const P = p => f(p[0]) + "," + f(p[1]);
 
-/* Stave vocabulary: abstract stroke sigils, drawn pointing up,
-   rotated outward when placed. No filled icon shapes. */
-function staveFor(c, color){
-  if(c.glyph) return c.glyph;
-  // Default glyph colors. The color parameter still overrides, so
-  // Spread's gold echoes keep recoloring default staves.
-  const k = color || (isAffliction(c) ? "#d65a5a" : "#9fdfff");
-  const sw = w => `stroke="${k}" stroke-width="${w}" fill="none" stroke-linecap="round" stroke-linejoin="round"`;
-  if(isAffliction(c)){
-    return `<path d="M0,-8 L4,-3 L0,0 L6,5 L0,8 L-6,5 L0,0 L-4,-3 Z M0,0 L0,-8" ${sw(1.7)}/>`;
-  }
-  switch(c.category){
-    case "Movement":
-      return `<path d="M0,-8 L3,-1 L8,0 L3,1 L0,8 L-3,1 L-8,0 L-3,-1 Z M0,-4 L0,4" ${sw(1.5)}/>`;
-    case "Charge":
-      return `<path d="M0,-8 L0,4 M-4,-2 L0,2 L4,-2 M-6,5 L0,8 L6,5" ${sw(1.8)}/>`;
-    case "Vitality":
-      return `<path d="M0,8 L0,-6 M0,-2 C-4,-4 -5,-7 -3,-8 M0,-2 C4,-4 5,-7 3,-8 M-4,2 C-2,0 -1,0 0,1 M4,2 C2,0 1,0 0,1" ${sw(1.8)}/>`;
-    case "Utility":
-      return `<path d="M0,-8 L5,-3 L3,3 L0,8 L-3,3 L-5,-3 Z M-5,-3 L5,3 M5,-3 L-5,3" ${sw(1.7)}/>`;
-    case "Damage Effect":
-      return `<path d="M0,-8 L2,-2 L8,0 L2,2 L0,8 L-2,2 L-8,0 L-2,-2 Z M-5,5 L5,-5 M-5,-5 L5,5" ${sw(1.5)}/>`;
-    case "Damage":
-      return `<path d="M0,-8 L3,-2 L8,0 L3,2 L0,8 L-3,2 L-8,0 L-3,-2 Z M-4,-4 L4,4 M4,-4 L-4,4" stroke="var(--gold)" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
-    case "Effect":
-      return `<path d="M0,-8 L4,-4 L2,0 L6,4 L0,8 L-6,4 L-2,0 L-4,-4 Z M-4,-4 L4,4 M4,-4 L-4,4 M-2,0 L2,0" ${sw(1.55)}/>`;
-    default:
-      return `<circle cx="0" cy="0" r="6" ${sw(1.7)}/>`;
-  }
-}
-/* Place a stave at radius and angle, rotated to point outward */
-function staveAt(c, r, deg, scale, color, opacity){
-  const [x, y] = pt(CX, CY, r, deg);
-  return `<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${deg}) scale(${scale})" opacity="${opacity}">${staveFor(c, color)}</g>`;
-}
+/* ============================================================ COLOUR */
+const CIRCLE_COLORS = {
+  Bow:      { name:"Windsilver",    hex:"#C9D5E4", family:"Precision", items:["Shortbow","Longbow","Crossbow"] },
+  Blade:    { name:"Rime",          hex:"#7CBDF7", family:"Precision", items:["Dagger","Rapier","Scimitar"] },
+  Polearm:  { name:"Verdigris",     hex:"#7DD4A4", family:"Precision", items:["Javelin","Spear","Halberd"] },
+  Sword:    { name:"Forge Gold",    hex:"#F1B544", family:"Power",     items:["Short Sword","Long Sword","Great Sword"] },
+  Axe:      { name:"Ember",         hex:"#FF8240", family:"Power",     items:["Hatchet","War Axe","Great Axe"] },
+  Bludgeon: { name:"Iron Bronze",   hex:"#E0A469", family:"Power",     items:["Mace","Morningstar","Flail"] },
+  Focus:    { name:"Weave Teal",    hex:"#52E2D7", family:"Magic", school:"Weaving",  items:["Wand","Rod","Staff"] },
+  Artifact: { name:"Aether Violet", hex:"#A797FF", family:"Magic", school:"Creation", items:["Ring","Amulet","Orb"] },
+  Tome:     { name:"Wisp Green",    hex:"#CDEF8E", family:"Magic", school:"Spirit",   items:["Cards","Scroll","Grimoire"] }
+};
+/* A Monster wears its family's colour: the middle hue of the family. Monster Magic wears its school's. */
+const MONSTER_GROUP = { Precision:"Blade", Power:"Axe" };
+const SCHOOL_GROUP = { Weaving:"Focus", Creation:"Artifact", Spirit:"Tome" };
+const ITEM_GROUP = {};
+Object.keys(CIRCLE_COLORS).forEach(g => CIRCLE_COLORS[g].items.forEach(i => ITEM_GROUP[i] = g));
 
-/* Micro-stave alphabet for the script ring */
-const SCRIPT_STROKES = [
-  `<path d="M 0 -3 L 0 3" />`,
-  `<path d="M -2.5 2.5 L 0 -3 L 2.5 2.5" />`,
-  `<circle cx="0" cy="0" r="1.2" />`,
-  `<path d="M -2.5 -2.5 L 2.5 2.5" />`,
-  `<path d="M -2 -3 L -2 3 M 2 -1 L 2 3" />`,
-  `<path d="M 0 -3 L 0 1 M -2 3 L 2 3" />`
+function circleSchool(s){
+  if(s.type === "Spell") return (ITEM_GROUP[s.focus] && CIRCLE_COLORS[ITEM_GROUP[s.focus]].school) || s.school || "Weaving";
+  if(s.type === "Monster" && s.monsterArchetype === "Magic") return s.monsterSchool || "Weaving";
+  return "";
+}
+function circleColorKey(s){
+  if(s.type === "Spell") return ITEM_GROUP[s.focus] || SCHOOL_GROUP[s.school] || "Focus";
+  if(s.type === "Monster"){
+    if(s.monsterArchetype === "Magic") return SCHOOL_GROUP[s.monsterSchool] || "Focus";
+    return MONSTER_GROUP[s.monsterArchetype] || "Blade";
+  }
+  return ITEM_GROUP[s.weapon] || "Sword";
+}
+function circleColor(s){ const k = circleColorKey(s); return Object.assign({ key:k }, CIRCLE_COLORS[k]); }
+
+/* ============================================================ BRUSH
+   Strokes are filled outlines with a width profile along their length, so every mark is
+   cut like a brush or a blade: heavy where it lands, fine where it leaves. */
+const PROFILE = {
+  cut:   [0.6, 1, 0.9, 0.55, 0.12],
+  swell: [0.15, 0.75, 1, 0.75, 0.15],
+  flick: [0.3, 1, 0.75, 0.1],
+  even:  [1, 1],
+  bold:  [0.75, 1, 1, 0.85, 0.4]
+};
+function catmull(pts, seg){
+  if(pts.length < 3) return densify(pts, seg);
+  const out = [];
+  for(let i = 0; i < pts.length - 1; i++){
+    const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || pts[i + 1];
+    for(let t = 0; t < seg; t++){
+      const s = t / seg, s2 = s * s, s3 = s2 * s;
+      const c = k => 0.5 * (2 * p1[k] + (-p0[k] + p2[k]) * s + (2 * p0[k] - 5 * p1[k] + 4 * p2[k] - p3[k]) * s2 + (-p0[k] + 3 * p1[k] - 3 * p2[k] + p3[k]) * s3);
+      out.push([c(0), c(1)]);
+    }
+  }
+  out.push(pts[pts.length - 1]);
+  return out;
+}
+function densify(pts, k){
+  const out = [];
+  for(let i = 0; i < pts.length - 1; i++){
+    for(let t = 0; t < k; t++){ const s = t / k; out.push([pts[i][0] + (pts[i + 1][0] - pts[i][0]) * s, pts[i][1] + (pts[i + 1][1] - pts[i][1]) * s]); }
+  }
+  out.push(pts[pts.length - 1]);
+  return out;
+}
+function interp(prof, t){
+  const x = t * (prof.length - 1), i = Math.min(prof.length - 2, Math.floor(x)), u = x - i;
+  return prof[i] * (1 - u) + prof[i + 1] * u;
+}
+/* pts: control points. w: full width at profile 1. Returns path data. */
+function brush(pts, w, prof, smooth, closed){
+  if(closed) pts = pts.concat([pts[0], pts[1]]);
+  const Q = smooth ? catmull(pts, 7) : densify(pts, 4);
+  const L = [0];
+  for(let i = 1; i < Q.length; i++) L.push(L[i - 1] + Math.hypot(Q[i][0] - Q[i - 1][0], Q[i][1] - Q[i - 1][1]));
+  const tot = L[L.length - 1] || 1;
+  const left = [], right = [];
+  const nrm = (a, b) => { const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1; return [dx / l, dy / l]; };
+  for(let i = 0; i < Q.length; i++){
+    const d1 = i > 0 ? nrm(Q[i - 1], Q[i]) : nrm(Q[0], Q[1]);
+    const d2 = i < Q.length - 1 ? nrm(Q[i], Q[i + 1]) : d1;
+    let tx = d1[0] + d2[0], ty = d1[1] + d2[1]; const tl = Math.hypot(tx, ty);
+    if(tl < 1e-6){ tx = d2[0]; ty = d2[1]; } else { tx /= tl; ty /= tl; }
+    const miter = 1 / Math.max(0.45, tx * d2[0] + ty * d2[1]);
+    const hw = Math.max(0.05, (closed ? w * prof[0] : w * interp(prof, L[i] / tot)) / 2) * miter;
+    left.push([Q[i][0] - ty * hw, Q[i][1] + tx * hw]);
+    right.push([Q[i][0] + ty * hw, Q[i][1] - tx * hw]);
+  }
+  return "M" + left.map(P).join("L") + "L" + right.reverse().map(P).join("L") + "Z";
+}
+const disc = (x, y, r) => `M${f(x - r)},${f(y)}a${f(r)},${f(r)} 0 1,0 ${f(2 * r)},0a${f(r)},${f(r)} 0 1,0 ${f(-2 * r)},0Z`;
+
+/* ============================================================ SCRIPT
+   The LoreFell alphabet. Seven letter bodies (stem, bow, hook, angle, bolt, arch, sickle),
+   each cut with one of four marks (a flag at the head, a point in the counter, a flick at the
+   foot, a bar through the waist). 7 x 4 = 28 letters: a to z, then th and ng.
+   Box: x -2.4..2.4, y -4 (outer edge of the band) .. 4 (inner edge). */
+const BODIES = [
+  { s:[[0.5,-4],[-0.4,4]], sm:0, T:[0.5,-4], D:[1.5,0.2], F:[-0.4,4], fd:1, M:[0,0] },                              /* stem */
+  { s:[[0.5,-2.3],[1.7,-3.3],[0.6,-4],[-1.3,-2.7],[-1.8,0.4],[-0.6,3.3],[1.7,3.8]], sm:1, T:[0.6,-4], D:[0.3,0.4], F:[1.7,3.8], fd:1, M:[-1.8,0.4] }, /* bow */
+  { s:[[2,-3.1],[0.7,-4],[-0.3,-2],[0.1,1.6],[-0.5,3.7],[-2,3.5]], sm:1, T:[0.7,-4], D:[1.5,0.6], F:[-2,3.5], fd:-1, M:[-0.1,0] }, /* hook */
+  { s:[[1.9,-4],[-1.6,-0.2],[0.4,2.2],[1.9,4]], sm:0, T:[1.9,-4], D:[1,0], F:[1.9,4], fd:1, M:[-1.6,-0.2] },                   /* angle */
+  { s:[[-1.6,-4],[1.6,-1.3],[-1.6,1.3],[1.6,4]], sm:0, T:[-1.6,-4], D:[1.4,-3.4], F:[1.6,4], fd:1, M:[0,0] },         /* bolt */
+  { s:[[-2.3,3],[-1.4,3.9],[-1.7,1],[-1.5,-1.6],[0,-3.9],[1.7,-1.6],[2,4]], sm:1, T:[0,-3.9], D:[0.1,0.9], F:[2,4], fd:1, M:[0,-0.2], bar:[[0.5,-0.4],[2.8,-1.9]] },   /* arch */
+  { s:[[-1.9,3.9],[0.2,-0.6],[1.7,-3.5],[0.5,-4.1]], sm:1, T:[1.7,-3.5], D:[1.6,1.6], F:[-1.9,3.9], fd:-1, M:[0.2,-0.6] } /* sickle */
 ];
-function buildSeed(){
-  const sig = state.type + state.damage + state.targeting + state.effect + state.effectTiming + state.school;
-  let h = 7;
-  for(let i = 0; i < sig.length; i++) h = ((h * 31) + sig.charCodeAt(i)) >>> 0;
-  return h;
+const LETTERS = "abcdefghijklmnopqrstuvwxyzþŋ";
+/* Order so the common letters land on varied bodies. */
+const LETTER_SLOT = {};
+(function(){
+  const order = "etaoinsrhldcumfpgwybvkxjqzþŋ";
+  for(let i = 0; i < order.length; i++) LETTER_SLOT[order[i]] = { b: i % 7, m: Math.floor(i / 7) };
+})();
+/* Each letter as abstract strokes: [points, profileName, smooth, kind] */
+function letterStrokes(ch){
+  const { b, m } = LETTER_SLOT[ch];
+  const B = BODIES[b], out = [[B.s, b === 1 || b === 5 ? "swell" : "cut", B.sm, "body"]];
+  const [tx, ty] = B.T, [mx, my] = B.M, [fx, fy] = B.F;
+  if(m === 0) out.push([[[tx, ty], [tx - 1.2, ty + 0.5], [tx - 2.4, ty + 1.9]], "flick", 1, "mark"]);
+  if(m === 1) out.push([[B.D], "dot", 0, "dot"]);
+  if(m === 2) out.push([[[fx, fy], [fx + B.fd * 1.4, fy - 0.2], [fx + B.fd * 2.3, fy - 1.7]], "flick", 1, "mark"]);
+  if(m === 3) out.push([B.bar || [[mx - 1.8, my + 0.8], [mx + 1.9, my - 0.8]], "swell", 0, "mark"]);
+  return out;
+}
+/* Render a letter for a hand. Returns path data in letter-local units. */
+const HANDS = {
+  cut:      { w: 1.25, adv: 5.5, slant: 0 },
+  Weaving:  { w: 1.1,  adv: 5.2, slant: -13 },
+  Spirit:   { w: 1.0,  adv: 8.4, slant: 0, scale: 0.84 },
+  Creation: { w: 1.05, adv: 5.6, slant: 0 }
+};
+function letterPath(ch, hand){
+  const H = HANDS[hand];
+  let d = "";
+  letterStrokes(ch).forEach(([pts, prof, sm, kind]) => {
+    if(kind === "dot"){
+      const r = hand === "Creation" ? 0.55 : 0.72;
+      d += hand === "Creation" ? `M${f(pts[0][0] - r)},${f(pts[0][1] - r)}h${f(2 * r)}v${f(2 * r)}h${f(-2 * r)}Z` : disc(pts[0][0], pts[0][1], r);
+      return;
+    }
+    if(hand === "Creation"){ d += brush(pts, H.w, PROFILE.even, 0); return; }
+    if(hand === "Weaving"){ d += brush(pts, H.w, kind === "body" ? PROFILE.swell : PROFILE.flick, 1); return; }
+    if(hand === "Spirit"){
+      /* breathy: every stroke breaks once, as if the breath ran out mid-line */
+      const Q = sm ? catmull(pts, 6) : densify(pts, 4), cut = Math.floor(Q.length * 0.55);
+      const a = Q.slice(0, Math.max(2, cut - 1)), c = Q.slice(Math.min(Q.length - 2, cut + 1));
+      d += brush(a, H.w, PROFILE.swell, 0) + brush(c, H.w * 0.8, PROFILE.swell, 0);
+      return;
+    }
+    d += brush(pts, H.w, PROFILE[prof] || PROFILE.cut, sm);
+  });
+  return d;
+}
+const SEP = {
+  cut:      disc(0, -1.6, 0.85) + disc(0, 1.6, 0.85),
+  Weaving:  brush([[-1.4, 0], [0, -1.6], [1.4, 0], [0, 1.6]], 0.9, PROFILE.even, 1, true),
+  Spirit:   disc(0, -2.2, 0.55) + disc(0, 0, 0.75) + disc(0, 2.2, 0.55),
+  Creation: "M-0.35,-4.6h0.7v9.2h-0.7Z M-1,-1h2v2h-2Z"
+};
+/* SCRIPT: letter -> path data in the cut hand (the alphabet's reference form). */
+const SCRIPT = {};
+for(const ch of LETTERS) SCRIPT[ch] = letterPath(ch, "cut");
+
+function transliterate(text){
+  const t = String(text || "").toLowerCase().replace(/th/g, "þ").replace(/ng/g, "ŋ");
+  const out = [];
+  for(const ch of t){
+    if(LETTER_SLOT[ch]) out.push(ch);
+    else if(/[\s\-_.,:;!?'"()\/]/.test(ch)){ if(out.length && out[out.length - 1] !== " ") out.push(" "); }
+  }
+  while(out.length && out[out.length - 1] === " ") out.pop();
+  return out;
 }
 
-function renderRune(){
-  const svg = document.getElementById("runeSvg");
-  const isSpell = state.type === "Spell";
-  const form = currentForm();
-  const addons = currentAddons();
-  let out = `<style>
-    .core-pulse{animation:corePulse 3.6s ease-in-out infinite}
-    .halo-spin{animation:haloSpin 40s linear infinite;transform-origin:160px 160px}
-    .halo-spin-rev{animation:haloSpinRev 64s linear infinite;transform-origin:160px 160px}
-    .script-spin{animation:haloSpinRev 130s linear infinite;transform-origin:160px 160px}
-    .bane-pulse{animation:banePulse 3.6s ease-in-out infinite}
-    .ignite{animation:igniteFlash .55s ease-out}
-    @keyframes corePulse{0%,100%{opacity:.95}50%{opacity:.6}}
-    @keyframes haloSpin{to{transform:rotate(360deg)}}
-    @keyframes haloSpinRev{to{transform:rotate(-360deg)}}
-    @keyframes banePulse{0%,100%{opacity:.12}50%{opacity:.42}}
-    @keyframes igniteFlash{0%{opacity:.1}45%{opacity:1}100%{opacity:1}}
-    @media (prefers-reduced-motion:reduce){.core-pulse,.halo-spin,.halo-spin-rev,.script-spin,.bane-pulse,.ignite{animation:none}}
-  </style>`;
-
-  // ---- Frame by type ----
-  out += `<g id="band-frame">`;
-  if(isSpell){
-    // The school lives in the frame itself, symmetric by construction.
-    // Weaving: two interleaved dashed rings, woven over and under.
-    // Spirit: a beaded outer ring of wisps over a solid inner ring.
-    // Creation: solid constructed rings studded with eight squares.
-    if(state.school === "Weaving"){
-      out += `<circle cx="${CX}" cy="${CY}" r="152" fill="none" stroke="var(--ice)" stroke-width="1.4" stroke-dasharray="12 7" opacity=".6"/>`;
-      out += `<circle cx="${CX}" cy="${CY}" r="146" fill="none" stroke="var(--ice)" stroke-width="1.1" stroke-dasharray="12 7" stroke-dashoffset="9.5" opacity=".45"/>`;
-    } else if(state.school === "Spirit"){
-      out += `<circle cx="${CX}" cy="${CY}" r="152" fill="none" stroke="var(--ice)" stroke-width="2.1" stroke-dasharray="2 7" stroke-linecap="round" opacity=".6"/>`;
-      out += `<circle cx="${CX}" cy="${CY}" r="146" fill="none" stroke="var(--ice)" stroke-width=".9" opacity=".4"/>`;
-    } else {
-      out += `<circle cx="${CX}" cy="${CY}" r="152" fill="none" stroke="var(--ice)" stroke-width="1.4" opacity=".6"/>`;
-      out += `<circle cx="${CX}" cy="${CY}" r="146" fill="none" stroke="var(--ice)" stroke-width=".9" opacity=".35"/>`;
-      for(let i = 0; i < 8; i++){
-        const [sx, sy] = pt(CX, CY, 152, i * 45);
-        out += `<rect x="${(sx-2.4).toFixed(1)}" y="${(sy-2.4).toFixed(1)}" width="4.8" height="4.8" transform="rotate(45 ${sx.toFixed(1)} ${sy.toFixed(1)})" fill="var(--ice)" opacity=".6"/>`;
-      }
-    }
-  } else {
-    out += `<polygon points="${ringPoly(152, 8, 0)}" fill="none" stroke="var(--ice)" stroke-width="1.4" opacity=".6"/>`;
-    out += `<circle cx="${CX}" cy="${CY}" r="146" fill="none" stroke="var(--ice)" stroke-width=".9" opacity=".3"/>`;
-    if(state.type === "Monster"){
-      for(let i = 0; i < 8; i++){
-        const [tx, ty] = pt(CX, CY, 159, i * 45);
-        const [lx, ly] = pt(CX, CY, 149, i * 45 - 4);
-        const [rx, ry] = pt(CX, CY, 149, i * 45 + 4);
-        out += `<polygon points="${poly([[tx,ty],[lx,ly],[rx,ry]])}" fill="var(--bane)" opacity=".75"/>`;
-      }
-    }
+/* Write a band: text repeated around radius r with letter height h. dir 1 = clockwise. */
+function scriptBand(text, r, h, hand, uid, col, opacity){
+  const H = HANDS[hand], s = h / 8 * (H.scale || 1);
+  let chars = transliterate(text);
+  if(!chars.length) chars = transliterate("lorefell");
+  chars = chars.concat([" "]);
+  const advL = H.adv * s, advS = (hand === "Spirit" ? 6 : 5) * s;
+  const C = 2 * Math.PI * r;
+  let seq = [], len = 0, i = 0;
+  while(true){
+    const c = chars[i % chars.length], a = c === " " ? advS : advL;
+    if(len + a > C) break;
+    seq.push(c); len += a; i++;
   }
-  out += `</g>`;
-
-  // ---- Mythic aura: only Tier 3 on a 3rd Form item ----
-  if(state.tier === 3 && form === 3){
-    out += `<g class="halo-spin-rev"><circle cx="${CX}" cy="${CY}" r="157" fill="none" stroke="var(--gold)" stroke-width="1.3" stroke-dasharray="1 9" opacity=".5"/></g>`;
-  }
-
-  // ---- Script ring: deterministic micro-staves ----
-  const seed = buildSeed();
-  out += `<g id="band-script" class="script-spin">`;
-  for(let i = 0; i < 28; i++){
-    const deg = i * (360 / 28);
-    const idx = (seed + i * 11) % SCRIPT_STROKES.length;
-    const [sx, sy] = pt(CX, CY, 138, deg);
-    out += `<g transform="translate(${sx.toFixed(1)} ${sy.toFixed(1)}) rotate(${deg})" stroke="var(--ice)" stroke-width="1" fill="var(--ice)" opacity=".4">${SCRIPT_STROKES[idx]}</g>`;
-  }
-  out += `</g>`;
-
-  // ---- Tier rings: grow outward from the core ----
-  out += `<g id="band-tier">`;
-  for(let t = 1; t <= state.tier; t++){
-    const r = 50 + (t - 1) * 11;
-    out += `<circle cx="${CX}" cy="${CY}" r="${r}" fill="none" stroke="var(--silver)" stroke-width="1" opacity=".3"/>`;
-    for(let d = 0; d < 6; d++){
-      const [dx, dy] = pt(CX, CY, r, t * 30 + d * 60);
-      out += `<circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="1.5" fill="var(--silver)" opacity=".5"/>`;
-    }
-  }
-  out += `</g>`;
-
-  // ---- Form polygon: triangle, square, hexagon ----
-  out += `<g id="band-form">`;
-  const sides = form === 1 ? 3 : form === 2 ? 4 : 6;
-  const formRot = form === 2 ? 45 : 0;
-  out += `<g class="halo-spin"><polygon points="${ringPoly(90, sides, formRot)}" fill="none" stroke="var(--gold)" stroke-width="1.1" opacity=".38"/>`;
-  for(let v = 0; v < sides; v++){
-    const [vx, vy] = pt(CX, CY, 90, formRot + v * 360 / sides);
-    out += `<circle cx="${vx.toFixed(1)}" cy="${vy.toFixed(1)}" r="2.1" fill="var(--gold)" opacity=".8"/>`;
-  }
-  out += `</g></g>`;
-
-  // ---- Targeting: stave arms with crossbars and forked heads ----
-  out += `<g id="band-targeting">`;
-  const arm = (deg) => {
-    const [x1,y1] = pt(CX, CY, 44, deg);
-    const [x2,y2] = pt(CX, CY, 82, deg);
-    let s = `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="var(--ice)" stroke-width="1.8" opacity=".85"/>`;
-    // two crossbars
-    [56, 67].forEach(cr => {
-      const [bx, by] = pt(CX, CY, cr, deg);
-      const [c1x, c1y] = pt(bx, by, 6, deg + 90);
-      const [c2x, c2y] = pt(bx, by, 6, deg - 90);
-      s += `<line x1="${c1x.toFixed(1)}" y1="${c1y.toFixed(1)}" x2="${c2x.toFixed(1)}" y2="${c2y.toFixed(1)}" stroke="var(--ice)" stroke-width="1.6" opacity=".8"/>`;
-    });
-    // forked head
-    const [hx, hy] = pt(CX, CY, 82, deg);
-    const [f1x, f1y] = pt(CX, CY, 91, deg + 4.5);
-    const [f2x, f2y] = pt(CX, CY, 91, deg - 4.5);
-    s += `<path d="M ${f1x.toFixed(1)} ${f1y.toFixed(1)} L ${hx.toFixed(1)} ${hy.toFixed(1)} L ${f2x.toFixed(1)} ${f2y.toFixed(1)}" fill="none" stroke="var(--ice)" stroke-width="1.7" opacity=".85"/>`;
-    return s;
-  };
-  const tgt = state.targeting;
-  if(tgt === "One Target"){
-    out += arm(0);
-    // balancing foot staves at the base
-    [-8, 0, 8].forEach(off => {
-      const [b1x,b1y] = pt(CX, CY, 50, 180 + off);
-      const [b2x,b2y] = pt(CX, CY, 60, 180 + off);
-      out += `<line x1="${b1x.toFixed(1)}" y1="${b1y.toFixed(1)}" x2="${b2x.toFixed(1)}" y2="${b2y.toFixed(1)}" stroke="var(--ice)" stroke-width="1.4" opacity=".55"/>`;
-    });
-  }
-  else if(tgt === "Two Targets") out += arm(0) + arm(180);
-  else if(tgt === "Three Targets") out += arm(0) + arm(120) + arm(240);
-  else if(tgt === "All Targets"){
-    out += `<circle cx="${CX}" cy="${CY}" r="83" fill="none" stroke="var(--ice)" stroke-width="1.3" stroke-dasharray="4 7" opacity=".75"/>`;
-    for(let i = 0; i < 8; i++) out += arm(i * 45);
-  }
-  out += `</g>`;
-
-  // ---- Core: the damage package ----
-  out += `<g id="band-core">`;
-  const star8 = (r) => `<polygon points="${ringPoly(r,4,0)}" fill="none" stroke="var(--silver)" stroke-width="2"/>
-    <polygon points="${ringPoly(r,4,45)}" fill="none" stroke="var(--silver)" stroke-width="2"/>`;
-  switch(state.damage){
-    case "No Damage":
-      out += `<g class="core-pulse">
-        <circle cx="${CX}" cy="${CY}" r="36" fill="rgba(6,10,20,.7)" stroke="var(--silver)" stroke-width="1.8"/>
-        <circle cx="${CX}" cy="${CY}" r="28" fill="none" stroke="var(--silver)" stroke-width=".9" stroke-dasharray="3 5" opacity=".7"/>`;
-      for(let p = 0; p < 6; p++){
-        const [px, py] = pt(CX, CY, 15, p * 60);
-        out += `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="3.1" fill="none" stroke="var(--ice)" stroke-width="1.2"/>`;
-      }
-      out += `<circle cx="${CX}" cy="${CY}" r="2.6" fill="var(--ice)"/></g>`;
-      break;
-    case "Base Damage":
-      out += `<g class="core-pulse">
-        <polygon points="${ringPoly(34,4,0)}" fill="rgba(6,10,20,.7)" stroke="var(--silver)" stroke-width="2"/>
-        <polygon points="${ringPoly(21,4,0)}" fill="none" stroke="var(--silver)" stroke-width=".9" opacity=".6"/>
-      </g>`;
-      break;
-    case "Standard Damage":
-      out += `<g class="core-pulse">
-        <polygon points="${ringPoly(40,4,0)}" fill="none" stroke="var(--silver)" stroke-width=".9" opacity=".5"/>
-        <polygon points="${ringPoly(32,4,0)}" fill="var(--silver)" opacity=".85"/>
-        <polygon points="${ringPoly(17,4,0)}" fill="var(--navy)" opacity=".55"/>
-      </g>`;
-      break;
-    case "Double Base":
-      out += `<g class="core-pulse">${star8(34)}
-        <polygon points="${ringPoly(19,4,22.5)}" fill="none" stroke="var(--silver)" stroke-width="1" opacity=".7"/>
-      </g>`;
-      break;
-    case "Double Standard":
-      out += `<g class="core-pulse">
-        <polygon points="${ringPoly(36,4,0)}" fill="var(--silver)" opacity=".9"/>
-        <polygon points="${ringPoly(36,4,45)}" fill="var(--silver)" opacity=".55"/>
-        <polygon points="${ringPoly(15,4,22.5)}" fill="var(--navy)" opacity=".6"/>`;
-      for(let d = 0; d < 8; d++){
-        const [x1,y1] = pt(CX,CY,42,d*45+22.5), [x2,y2] = pt(CX,CY,51,d*45+22.5);
-        out += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="var(--silver)" stroke-width="1.7" opacity=".85"/>`;
-      }
-      out += `</g>`;
-      break;
-  }
-  out += `</g>`;
-
-  // ---- Riders: stave marks repeated around the circle ----
-  out += `<g id="band-riders">`;
-  // Rider 1 marks at r 104 (offset 45), rider 2 at r 120
-  // (offset 0), interleaved so both bands stay symmetric.
-  const RIDER_BANDS = [{r:104, offset:45}, {r:120, offset:0}];
-  addons.forEach((c, i) => {
-    const band = RIDER_BANDS[i];
-    for(let m = 0; m < 4; m++){
-      out += staveAt(c, band.r, band.offset + m * 90, 1.3, null, .95);
-    }
-    if(isAffliction(c)){
-      out += `<circle class="bane-pulse" cx="${CX}" cy="${CY}" r="${band.r}" fill="none" stroke="var(--bane)" stroke-width="1" stroke-dasharray="2 9" opacity=".3"/>`;
-    }
+  /* close the ring on a word break */
+  while(seq.length && seq[seq.length - 1] !== " ") { len -= advL; seq.pop(); }
+  const k = C / len;
+  let out = "", ang = 0;
+  const wordRuns = []; let runStart = null;
+  const slant = H.slant ? ` skewX(${H.slant})` : "";
+  seq.forEach(c => {
+    const a = (c === " " ? advS : advL) * k, deg = (ang + a / 2) / C * 360;
+    const [x, y] = pt(r, deg);
+    const ref = c === " " ? `${uid}-sep-${hand}` : `${uid}-${hand}-${LETTERS.indexOf(c)}`;
+    out += `<use href="#${ref}" transform="translate(${f(x)} ${f(y)}) rotate(${f(deg)}) scale(${f(s)})${slant}"/>`;
+    if(c !== " " && runStart === null) runStart = ang;
+    if(c === " " && runStart !== null){ wordRuns.push([runStart, ang]); runStart = null; }
+    ang += a;
   });
-  out += `</g>`;
+  if(hand === "Weaving"){
+    /* the joining stroke: each word rides one tapered line along its inner edge */
+    wordRuns.forEach(([a0, a1]) => {
+      const d0 = a0 / C * 360, d1 = a1 / C * 360, n = Math.max(3, Math.ceil((d1 - d0) / 2));
+      const pts = []; for(let j = 0; j <= n; j++) pts.push(pt(r - 3.7 * s, d0 + (d1 - d0) * j / n));
+      out += `<path d="${brush(pts, 0.9 * s, [0.2, 1, 1, 1, 0.2], 1)}"/>`;
+    });
+  }
+  let rules = "";
+  if(hand === "Creation"){
+    rules = `<circle cx="${CX}" cy="${CY}" r="${f(r + 4.6 * s)}" fill="none" stroke="${col}" stroke-width="${f(0.55 * s * 1.6)}"/>` +
+            `<circle cx="${CX}" cy="${CY}" r="${f(r - 4.6 * s)}" fill="none" stroke="${col}" stroke-width="${f(0.55 * s * 1.6)}"/>`;
+  }
+  return `<g fill="${col}" opacity="${opacity}">${rules}${out}</g>`;
+}
+function scriptDefs(uid, hand){
+  let d = `<path id="${uid}-sep-${hand}" d="${SEP[hand]}"/>`;
+  for(let i = 0; i < LETTERS.length; i++) d += `<path id="${uid}-${hand}-${i}" d="${letterPath(LETTERS[i], hand)}"/>`;
+  return d;
+}
 
-  svg.innerHTML = out;
+/* ============================================================ SEALS
+   One bold glyph per rider, cut in the same brush as the script. Every glyph is a single upright
+   stave. Its FOOT names the family, its HEAD names the rider:
+     Motion: spread wings.  Harm: a blade slash.  Ward: a shield bowl.  Flow: a ripple.
+     Fate: a ring.  Affliction: crossed thorns.
+   Box -9..9. Heads follow the family assignment first drawn for SigilForge (glyphs-a). */
+const SEAL_DEF = {"Advanced":{"f":"Motion","t":-8,"h":"M-4,-4 L0,-8 L4,-4"},"Pursued":{"f":"Motion","t":-8,"h":"M-4.5,-8 L4.5,-8 M-4,-1 L0,-5 L4,-1"},"Repositioned":{"f":"Motion","t":-8,"h":"M0,-4 L5.5,-4 M3,-6.8 L5.8,-4 L3,-1.2"},"Swapped":{"f":"Motion","t":-8,"h":"M-4.5,-8 L4.5,-8 L-4.5,-1 L4.5,-1"},"Pushed":{"f":"Motion","t":-8,"h":"M-4,-4.6 L0,-8.4 L4,-4.6 M-4,-0.6 L0,-4.4 L4,-0.6"},"Pulled":{"f":"Motion","t":-8,"h":"M-4,-8.2 L0,-4.4 L4,-8.2 M-4,-4.2 L0,-0.4 L4,-4.2"},"Placed":{"f":"Motion","t":-3,"h":"M-3,-3 L0,-8.6 L3,-3 Z"},"Gathered":{"f":"Motion","t":-8,"h":"M-5.5,-8 L-1.8,-4.5 L-5.5,-1 M5.5,-8 L1.8,-4.5 L5.5,-1"},"Scattered":{"f":"Motion","t":-8,"h":"M-1.8,-8 L-5.5,-4.5 L-1.8,-1 M1.8,-8 L5.5,-4.5 L1.8,-1"},"Rooted":{"f":"Motion","t":-8,"h":"M-4.8,-6.5 L4.8,-6.5 M-4.8,-2.5 L4.8,-2.5"},"Pierced":{"f":"Harm","t":-8.5,"h":"M-4.8,-2 L4.8,-2 M-2.6,-5.6 L0,-8.6 L2.6,-5.6"},"Exposed":{"f":"Harm","t":-2,"h":"M0,-2 L-4.5,-8 M0,-2 L4.5,-8"},"Sabotaged":{"f":"Harm","t":-8,"h":"M0,-8 L4.5,-6.5 L0,-5 L4.5,-3.5 L0,-2"},"Crushed":{"f":"Harm","t":-2,"h":"M-4.8,-8 L4.8,-8 L0,-2 Z"},"Cleaved":{"f":"Harm","t":-8,"h":"M0,-7.5 L5,-8.6 L5,-1.2 L0,-3"},"Bonus Damage":{"f":"Harm","t":-8,"h":"M0,-4.5 L4.6,-8.5 M0,-0.5 L4.6,-4.5"},"Refracted":{"f":"Harm","t":-4,"h":"M-4.8,-4 L4.8,-4 M0,-4 L-4,-8.5 M2.4,-4 L5,-7"},"Siphoned":{"f":"Harm","t":-8,"h":"M-4.5,-1 L-4.5,-4.5 L0,-8.2 L4.5,-4.5 L4.5,-1"},"Guarded":{"f":"Ward","t":-8.5,"h":"M-4.8,-8 L-4.8,-3.2 L0,-0.2 L4.8,-3.2 L4.8,-8"},"Warded":{"f":"Ward","t":-8.6,"h":"M0,-8.6 L4.6,-4.4 L0,-0.2 L-4.6,-4.4 Z"},"Reinforced":{"f":"Ward","t":-8,"h":"M-4.8,-1 L0,-8 L4.8,-1 Z M-2.4,-4.6 L2.4,-4.6"},"Bound":{"f":"Ward","t":-8,"h":"M4.6,-8 L4.6,-0.5 M0,-6 L4.6,-6 M0,-2.6 L4.6,-2.6"},"Obscured":{"f":"Ward","t":-1,"h":"M-4.8,-1 L4.8,-1 M-4.8,-1 L-4.8,-8 L4.8,-8 L4.8,-1 M-4.8,-8 L4.8,-1"},"Attuned":{"f":"Flow","t":-3,"h":"M-4,-6.5 L0,-3 L4,-6.5","d":[[0,-7.4,1.25]]},"Restored":{"f":"Flow","t":-8,"h":"M0,-3 L4.2,-6.8","d":[[5.2,-7.8,1.25]]},"Transferred":{"f":"Flow","t":-8,"h":"M-5.5,-4.8 L5.5,-4.8 M-3,-7.6 L-5.5,-4.8 L-3,-2"},"Drained":{"f":"Flow","t":-4,"h":"M-4.6,-4 L4.6,-4","d":[[0,-7.4,1.25]]},"Mended":{"f":"Flow","t":-8,"h":"M0,-2.6 L-4.4,-5.8 M0,-5 L4.4,-8.2 M0,-0.2 L4.4,-3"},"Purged":{"f":"Flow","t":-3,"h":"M-4,-1 L0,-4.6 L4,-1","d":[[0,-7.6,1.25]]},"Tracked":{"f":"Fate","t":-8.5,"h":"M0,-8.4 L4.8,-5.8 L0,-3.2 M-4.4,-1 L0,-3.2"},"Lucky":{"f":"Fate","t":-8.5,"h":"M-4.6,-8 L-4.6,-3.6 L4.6,-3.6 L4.6,-8"},"Manifested":{"f":"Fate","t":-1,"h":"M-4.4,-1 L4.4,-1 L4.4,-7.8 L-4.4,-7.8 Z M0,-7.8 L0,-1"},"Redirected":{"f":"Fate","t":-2,"h":"M0,-2 L4.4,-2 L4.4,-8.2 M2.2,-6.2 L4.4,-8.4 L6.6,-6.2 M0,-2 L-3.6,-5.4"},"Dispelled":{"f":"Fate","t":-2,"h":"M-4.4,-2 L4.4,-2 M-3.6,-8.4 L3.6,-4.6"},"Echoed":{"f":"Fate","t":-8,"h":"M0,-8 L-4.4,-5.2 L0,-2.4 M-4.4,-1.2 L-1.2,1"},"Bleeding*":{"f":"Affliction","fam":"Precision","t":-8,"h":"M-4.8,-4.6 L4.8,-8","d":[[-3.4,-1.2,1.15],[3.4,-3.2,1.15]]},"Impeded*":{"f":"Affliction","fam":"Precision","t":-4,"h":"M-4.4,-8.4 L0,-4 L4.4,-8.4 M-4.8,-1 L4.8,-1"},"Vulnerable*":{"f":"Affliction","fam":"Precision","t":-8.5,"h":"M-4.8,-8 L-4.8,-3.2 L0,-0.2 M4.8,-8 L4.8,-6"},"Immobilized*":{"f":"Affliction","fam":"Precision","t":-8,"h":"M-4.6,-7.6 L4.6,-7.6 M-4.6,-4.4 L4.6,-4.4 M-4.6,-1.2 L4.6,-1.2"},"Hunted*":{"f":"Affliction","fam":"Precision","t":-8.6,"h":"M-5.4,-4.6 L5.4,-4.6","r":[[0,-4.6,3.1]]},"Slashed*":{"f":"Affliction","fam":"Precision","t":-8,"h":"M-4.8,-4.6 L4.8,-8.2 M-4.8,-0.4 L4.8,-4"},"Frenzied*":{"f":"Affliction","fam":"Precision","t":-1,"h":"M0,-1 L4,-3.4 L-4,-5.8 L2.4,-8.6"},"Disenchanted*":{"f":"Affliction","fam":"Precision","t":-1,"h":"M0,-1 L3.6,-4.8 L0,-8.6 L-3.6,-4.8 Z M-4.6,-8.4 L4.6,-1.2"},"Disarmed*":{"f":"Affliction","fam":"Precision","t":-2.6,"h":"M-4.6,-2.6 L4.6,-2.6 M1.2,-4.6 L4.8,-8.6"},"Disrupted*":{"f":"Affliction","fam":"Precision","t":-2.2,"h":"M-4.8,-2.2 L4.8,-2.2 M-4.4,-8.6 L-1.4,-5 M1.4,-5 L4.4,-8.6"},"Lacerated*":{"f":"Affliction","fam":"Precision","t":-8,"h":"M1.4,-5.6 L4.8,-8.6 M1.4,-2.8 L4.8,-5.8 M1.4,0 L4.8,-3"},"Diminished*":{"f":"Affliction","fam":"Power","t":-1.6,"h":"M-3,-5 L3,-5 M-4.6,-1.6 L4.6,-1.6"},"Bruised*":{"f":"Affliction","fam":"Power","t":-8,"h":"M-3.6,-7.4 L3.6,-7.4 L3.6,-2.6 L-3.6,-2.6 Z"},"Dazzled*":{"f":"Affliction","fam":"Power","t":-8.8,"h":"M0,-3.4 L-4.8,-6.8 M0,-3.4 L4.8,-6.8 M-4.8,-1 L-2.6,-1 M2.6,-1 L4.8,-1"},"Terrorized*":{"f":"Affliction","fam":"Power","t":-8,"h":"M-4.8,-8.4 L4.8,-8.4 M-4.2,-5 L0,-0.8 L4.2,-5"},"Disoriented*":{"f":"Affliction","fam":"Power","t":-1.8,"h":"M0,-1.8 L4.6,-1.8 L4.6,-8.4 L-4.6,-8.4 L-4.6,-4.6 L1.2,-4.6"},"Mangled*":{"f":"Affliction","fam":"Power","t":-8.4,"h":"M0,-8.4 L4.6,-6 L4.6,-1.2 M4.6,-1.2 L2.2,-3.4 M-4.2,-4 L0,-6.4"},"Vitiated*":{"f":"Affliction","fam":"Power","t":-8.4,"h":"M-4.6,-3.4 L0,-8.4 M2.2,-5.8 L4.6,-3.4"},"Unclad*":{"f":"Affliction","fam":"Power","t":-8.5,"h":"M-4.8,-8.4 L-4.8,-2.6 M4.8,-8.4 L4.8,-2.6 M-3,-0.6 L3,-0.6"},"Staggered*":{"f":"Affliction","fam":"Power","t":-1,"h":"M0,-1 L0,-3.6 L4,-3.6 L4,-6.2 L0,-6.2 L0,-8.6"},"Agonized*":{"f":"Affliction","fam":"Power","t":-8.5,"h":"M-4.8,-4.8 L-4.8,-7.4 L4.8,-7.4 L4.8,-4.8 M-4.8,-1.6 L4.8,-1.6"},"Crippled*":{"f":"Affliction","fam":"Power","t":-2.6,"h":"M-4.8,0.2 L-4.8,-2.6 L4.8,-2.6 L4.8,0.2 M-2.6,-6.6 L2.6,-6.6"},"Jinxed*":{"f":"Affliction","fam":"Magic","t":-8,"h":"M-4.8,-4.2 L4.8,-4.2","d":[[-3,-7.2,1.25],[3,-1.2,1.25]]},"Masked*":{"f":"Affliction","fam":"Magic","t":-1,"h":"M-5.4,-4.8 L0,-8.4 L5.4,-4.8 L0,-1.2 Z M-5.4,-4.8 L5.4,-4.8"},"Ignited*":{"f":"Affliction","fam":"Magic","t":-8.6,"h":"M-4.6,-1 L-3.8,-6.4 L-1.6,-3.2 M4.6,-1 L3.8,-6.4 L1.6,-3.2"},"Worn*":{"f":"Affliction","fam":"Magic","t":-8.4,"h":"M-4.4,-8.4 L4.4,-8.4 L-4.4,-1 L4.4,-1 Z"},"Unlucky*":{"f":"Affliction","fam":"Magic","t":-8.5,"h":"M-4.6,-0.6 L-4.6,-5 L4.6,-5 L4.6,-0.6"},"Reapt*":{"f":"Affliction","fam":"Magic","t":-8,"h":"M0,-8 L-4.8,-6.6 L-4.2,-2.8 L-2,-1.6"},"Harvested*":{"f":"Affliction","fam":"Magic","t":-8,"h":"M0,-8 L-4.8,-6.6 L-4.2,-2.8 L-2,-1.6","d":[[3.4,-5.4,1.25]]},"Accursed*":{"f":"Affliction","fam":"Magic","t":-8.6,"h":"M-3.8,-5.2 L0,-8.8 L3.8,-5.2 M-3.8,-4.2 L0,-0.6 L3.8,-4.2"},"Enfeebled*":{"f":"Affliction","fam":"Magic","t":-8,"h":"M-4.8,-7.4 L0,-7.4 M-4.8,-4.2 L0,-4.2 M-4.8,-1 L0,-1"},"Ensnared*":{"f":"Affliction","fam":"Magic","t":-8.6,"h":"M-4.6,-8.6 L-4.6,-1.2 L4.6,-1.2 L4.6,-8.6 M-4.6,-4.9 L4.6,-4.9"},"Frozen*":{"f":"Affliction","fam":"Magic","t":-8.6,"h":"M-4.2,-8 L4.2,-1.6 M4.2,-8 L-4.2,-1.6 M-5,-4.8 L5,-4.8"},"Conjoined*":{"f":"Affliction","fam":"Magic","t":-8,"h":"M-4.6,-0.6 L-4.6,-8 L0,-8 M-4.6,-4.2 L0,-4.2"},"Synchronized*":{"f":"Affliction","fam":"Magic","t":-8,"h":"M-5.2,-1 L-2.6,-8.4 M2.6,-1 L5.2,-8.4"},"Plagued*":{"f":"Affliction","fam":"Magic","t":-8,"h":"","d":[[-3.4,-7,1.25],[3.4,-7,1.25],[-3.4,-2.4,1.25],[3.4,-2.4,1.25]]},"Strung*":{"f":"Affliction","fam":"Magic","t":-8,"h":"M-5,-8.2 L5,-8.2 M-3.4,-8.2 L-3.4,-2.6 M3.4,-8.2 L3.4,-2.6"}};
+
+const SEAL_W = 1.45;
+/* Family feet, as brush strokes [points, profile, smooth], plus the stem's lower end. */
+const FEET = {
+  Motion:     { stem: 5.4, s:[[[0,5],[-2.6,6.6],[-5.4,9]], "cut", 1], s2:[[[0,5],[2.6,6.6],[5.4,9]], "cut", 1] },
+  Harm:       { stem: 9,   s:[[[-5.2,9.2],[0,6.6],[5.2,3.6]], "swell", 0] },
+  Ward:       { stem: 9,   s:[[[-5.2,4.6],[-4,7.9],[0,9.3],[4,7.9],[5.2,4.6]], "swell", 1] },
+  Flow:       { stem: 9,   s:[[[-5.6,6.4],[-2.8,4.8],[0,6.6],[2.8,8.4],[5.6,6.8]], "swell", 1] },
+  Fate:       { stem: 4.3, ring:[0, 6.6, 2.4] },
+  Affliction: { stem: 9,   s:[[[-5,9.2],[5,4.2]], "cut", 0], s2:[[[5,9.2],[-5,4.2]], "cut", 0] }
+};
+function parseSub(h){
+  const subs = [];
+  (h || "").split("M").filter(x => x.trim()).forEach(seg => {
+    const closed = /Z/.test(seg);
+    const pts = seg.replace(/Z/g, "").split("L").map(p => p.trim().split(",").map(Number));
+    subs.push({ pts, closed });
+  });
+  return subs;
+}
+function sealGlyph(name){
+  const D = SEAL_DEF[name] || SEAL_DEF[String(name).replace(/\*$/, "") + "*"] || SEAL_DEF[String(name).replace(/\*$/, "")];
+  if(!D) return "";
+  const F = FEET[D.f];
+  let d = brush([[0, F.stem], [0, (F.stem + D.t) / 2], [0, D.t]], SEAL_W * 0.95, [0.75, 1, 0.8, 0.5], 0);
+  [F.s, F.s2].forEach(s => { if(s) d += brush(s[0], SEAL_W, PROFILE[s[1]], s[2]); });
+  parseSub(D.h).forEach(sp => {
+    d += sp.closed ? brush(sp.pts, SEAL_W * 0.82, PROFILE.even, 0, true) : brush(sp.pts, SEAL_W, PROFILE.bold, 0);
+  });
+  (D.d || []).forEach(([x, y, r]) => d += disc(x, y, r * 1.2));
+  let rings = "";
+  (D.r || []).forEach(([x, y, r]) => rings += `<circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="currentColor" stroke-width="${SEAL_W * 0.8}"/>`);
+  if(F.ring) rings += `<circle cx="${F.ring[0]}" cy="${F.ring[1]}" r="${F.ring[2]}" fill="none" stroke="currentColor" stroke-width="${SEAL_W * 0.85}"/>`;
+  return `<path d="${d}" fill="currentColor"/>` + rings;
+}
+const SEALS = {}, SEAL_FAMILY = {}, SEAL_AFF_FAM = {};
+Object.keys(SEAL_DEF).forEach(k => { SEALS[k] = sealGlyph(k); SEAL_FAMILY[k] = SEAL_DEF[k].f; if(SEAL_DEF[k].fam) SEAL_AFF_FAM[k] = SEAL_DEF[k].fam; });
+
+const riderName = r => typeof r === "string" ? r : (r && r.component) || "";
+const isAfflictionName = n => /\*$/.test(n) || (SEAL_DEF[n] && SEAL_DEF[n].f === "Affliction") || !!SEAL_DEF[n + "*"];
+
+/* A seal: the rider's glyph in a small circle threaded on the seat ring, drawn in the circle's own
+   line. The void knockout stops lines crossing the glyph; an outer echo ring lets the seat ring and
+   the script run through, as the satellites in the references do. An Affliction is hostile by shape
+   alone: its ring grows thorns, its inner ring is cracked, and its glow flickers. */
+function sealMarkup(name, x, y, col, rot, R, animate){
+  R = R || 16;
+  const hostile = isAfflictionName(name);
+  let s = `<g transform="translate(${f(x)} ${f(y)})"${hostile && animate !== false ? ` class="lfc-flicker"` : ""}>`;
+  s += `<circle r="${R}" fill="${deepOf(col)}" fill-opacity=".6"/>`;
+  s += `<circle r="${R + 3.2}" fill="none" stroke="${col}" stroke-width=".6" opacity=".75"/>`;
+  if(hostile){
+    let d = "";
+    const n = 9;
+    for(let i = 0; i < n; i++){
+      const a = i * 360 / n + 20;
+      d += `M${P(pt(R - 0.6, a - 7, 0, 0))}Q${P(pt(R + 1.6, a - 1, 0, 0))} ${P(pt(R + 5.6, a + 4, 0, 0))}L${P(pt(R - 0.6, a + 5, 0, 0))}Z`;
+    }
+    s += `<path d="${d}" fill="${col}"/>`;
+    s += `<circle r="${R}" fill="none" stroke="${col}" stroke-width="1.35"/>`;
+    s += `<circle r="${R - 1.9}" fill="${col}" fill-opacity=".92"/>`;
+  } else {
+    s += `<circle r="${R}" fill="none" stroke="${col}" stroke-width="1.35"/>`;
+    s += `<circle r="${R - 2.6}" fill="none" stroke="${col}" stroke-width=".55" opacity=".75"/>`;
+  }
+  const sc = (R - 4.2) / 9.6;
+  s += `<g transform="rotate(${f(rot || 0)}) scale(${f(sc)})" color="${hostile ? shadeOf(col) : col}">${SEALS[name] || SEALS[name + "*"] || fallbackGlyph(name)}</g>`;
+  return s + `</g>`;
+}
+/* A rider with no seal of its own (a component added later in the CMS) writes its first letter. */
+function fallbackGlyph(name){
+  const ch = transliterate(name)[0];
+  return ch && SCRIPT[ch] ? `<path d="${SCRIPT[ch]}" fill="currentColor" transform="scale(1.9)"/>` : `<circle r="3" fill="currentColor"/>`;
+}
+/* An empty point: a small threaded knot in the same line. */
+function knotMarkup(x, y, col){
+  return `<g transform="translate(${f(x)} ${f(y)})"><circle r="5.2" fill="${deepOf(col)}" fill-opacity=".6" stroke="${col}" stroke-width="1.15"/><circle r="8" fill="none" stroke="${col}" stroke-width=".55" opacity=".7"/><circle r="1.7" fill="${col}"/></g>`;
+}
+
+/* ============================================================ GEOMETRY */
+const R_RIM = 153, R_RIM2 = 149, R_OUTBAND = 143, R_RING1 = 137, R_MIDBAND = 129.5, R_SEAT = 122, R_FORM = 104, R_INSC = 52, R_CORE = 40;
+const poly = (r, n, rot) => { const a = []; for(let i = 0; i < n; i++) a.push(pt(r, rot + i * 360 / n)); return a; };
+const polyPath = pts => "M" + pts.map(P).join("L") + "Z";
+/* star {n/m} drawn as m-step path(s) */
+function star(r, n, m, rot){
+  const v = poly(r, n, rot); let d = "";
+  const g = gcd(n, m);
+  for(let s = 0; s < g; s++){
+    d += "M" + P(v[s]);
+    for(let i = 1; i <= n / g; i++) d += "L" + P(v[(s + i * m) % n]);
+    d += "Z";
+  }
+  return d;
+}
+function gcd(a, b){ return b ? gcd(b, a % b) : a; }
+const ring = (r, col, w, op, extra) => `<circle cx="${CX}" cy="${CY}" r="${f(r)}" fill="none" stroke="${col}" stroke-width="${w}"${op != null ? ` opacity="${op}"` : ""}${extra || ""}/>`;
+
+/* ============================================================ CORE EMBLEMS */
+function emblem(damage, col, seed){
+  const C = (x, y) => [CX + x, CY + y];
+  let s = "";
+  const fillPath = d => `<path d="${d}" fill="${col}"/>`;
+  switch(damage){
+    case "No Damage": {
+      /* the open eye */
+      const top = [C(-33, 0), C(-16, -15), C(0, -19), C(16, -15), C(33, 0)];
+      const bot = [C(-33, 0), C(-16, 14), C(0, 18), C(16, 14), C(33, 0)];
+      s += fillPath(brush(top, 3.6, PROFILE.swell, 1) + brush(bot, 3.6, PROFILE.swell, 1));
+      s += `<circle cx="${CX}" cy="${CY}" r="10.5" fill="none" stroke="${col}" stroke-width="2.4"/>`;
+      s += fillPath(brush([C(0, -7.5), C(-2.6, 0), C(0, 7.5)], 4.2, PROFILE.swell, 1));
+      /* lashes */
+      [-24, -12, 0, 12, 24].forEach(x => {
+        const y0 = x === 0 ? -21 : Math.abs(x) > 20 ? -11 : -18.5;
+        s += fillPath(brush([C(x * 1.0, y0), C(x * 1.18, y0 - 6)], 1.8, PROFILE.cut, 0));
+      });
+      break;
+    }
+    case "Base Damage": {
+      s += `<circle cx="${CX}" cy="${CY}" r="27" fill="none" stroke="${col}" stroke-width="3.4"/>`;
+      s += `<circle cx="${CX}" cy="${CY}" r="21.5" fill="none" stroke="${col}" stroke-width=".9" opacity=".8"/>`;
+      s += fillPath(brush([C(0, -16), C(13, 0), C(0, 16), C(-13, 0)], 2.8, PROFILE.even, 0, true));
+      s += fillPath(disc(CX, CY, 3.4));
+      break;
+    }
+    case "Standard Damage": {
+      /* a filled sigil: a four-point lance-star, long on the axis, held between two crescents */
+      const star4 = (L, W, k) => {
+        const p = [[0, -L], [W, 0], [0, L], [-W, 0]];
+        let d = `M${P(C(0, -L))}`;
+        for(let i = 0; i < 4; i++){ const q = p[(i + 1) % 4]; d += `Q${P(C(0, 0).map((v, j) => v + (p[i][j] + q[j]) * k))} ${P(C(q[0], q[1]))}`; }
+        return d + "Z";
+      };
+      s += fillPath(star4(33, 19, 0.09));
+      /* the crescents, cut like brush strokes */
+      s += fillPath(brush([C(-13, -21), C(-23, -9), C(-24, 4), C(-17, 17), C(-9, 22)], 4.4, PROFILE.swell, 1) +
+                    brush([C(13, -21), C(23, -9), C(24, 4), C(17, 17), C(9, 22)], 4.4, PROFILE.swell, 1));
+      /* a void heart and the four points of the compass */
+      s += `<path d="${star4(9, 5, 0.08)}" fill="${shadeOf(col)}"/>`;
+      s += fillPath(disc(CX, CY, 1.8) + disc(CX - 28, CY - 18, 1.8) + disc(CX + 28, CY - 18, 1.8) + disc(CX - 28, CY + 18, 1.8) + disc(CX + 28, CY + 18, 1.8));
+      break;
+    }
+    case "Double Base": {
+      /* twin seals, interlocked */
+      s += `<circle cx="${CX - 10}" cy="${CY}" r="19" fill="none" stroke="${col}" stroke-width="3.2"/>`;
+      s += `<circle cx="${CX + 10}" cy="${CY}" r="19" fill="none" stroke="${col}" stroke-width="3.2"/>`;
+      s += `<circle cx="${CX - 10}" cy="${CY}" r="14" fill="none" stroke="${col}" stroke-width=".8" opacity=".75"/>`;
+      s += `<circle cx="${CX + 10}" cy="${CY}" r="14" fill="none" stroke="${col}" stroke-width=".8" opacity=".75"/>`;
+      s += fillPath(brush([C(0, -13), C(5, 0), C(0, 13), C(-5, 0)], 2.2, PROFILE.even, 0, true));
+      s += fillPath(disc(CX - 19, CY, 3) + disc(CX + 19, CY, 3));
+      break;
+    }
+    case "Double Standard": {
+      /* the radiant burst: twelve tapered rays round a crescent */
+      let d = "";
+      for(let i = 0; i < 12; i++){
+        const long = i % 2 === 0, a = i * 30;
+        const [tx, ty] = pt(long ? 37 : 27, a), [lx, ly] = pt(15.5, a - (long ? 9 : 7)), [rx, ry] = pt(15.5, a + (long ? 9 : 7));
+        d += `M${P([lx, ly])}Q${P(pt(long ? 24 : 20, a - 2.5))} ${P([tx, ty])}Q${P(pt(long ? 24 : 20, a + 2.5))} ${P([rx, ry])}Z`;
+      }
+      s += fillPath(d);
+      s += `<circle cx="${CX}" cy="${CY}" r="14" fill="${shadeOf(col)}" stroke="${col}" stroke-width="2.6"/>`;
+      /* crescent */
+      s += `<path d="M${P(C(3, -9.6))}A10 10 0 1 0 ${P(C(3, 9.6))}A7.6 7.6 0 1 1 ${P(C(3, -9.6))}Z" fill="${col}"/>`;
+      break;
+    }
+    default: s += `<circle cx="${CX}" cy="${CY}" r="20" fill="none" stroke="${col}" stroke-width="3"/>`;
+  }
+  return s;
+}
+
+/* ============================================================ RENDER */
+let UID = 0;
+const FORM_BY_ITEM = {};
+Object.keys(CIRCLE_COLORS).forEach(g => CIRCLE_COLORS[g].items.forEach((it, i) => FORM_BY_ITEM[it] = i + 1));
+
+const NUM = ["", "one", "two", "three"];
+function buildWords(s, riders, form, tier, school){
+  const item = s.type === "Spell" ? s.focus : s.type === "Monster" ? (s.monsterArchetype === "Magic" ? s.monsterSchool + " magic" : s.monsterArchetype) : s.weapon;
+  const words = [];
+  if(s.name && s.name.trim()) words.push(s.name.trim());
+  words.push(s.type, school, item, s.damage, s.targeting);
+  riders.forEach(r => words.push(r.replace(/\*$/, "")));
+  const outer = words.filter(Boolean).join(" ");
+  const middle = [riders.map(r => r.replace(/\*$/, "")).join(" "), "form " + NUM[form], "tier " + NUM[tier], s.targeting, s.name || ""].filter(Boolean).join(" ");
+  const inner = [s.name || "", s.damage].filter(Boolean).join(" ");
+  return { outer, middle, inner };
+}
+
+function renderCircle(state, opts){
+  const s = state || {}, o = opts || {};
+  const uid = o.id || ("lfc" + (++UID));
+  const colInfo = circleColor(s);
+  const col = o.color || colInfo.hex;
+  const school = circleSchool(s);
+  const hand = school || "cut";
+  const riders = (o.riders || s.riders || (s.effect ? [s.effect] : [])).map(riderName).filter(Boolean);
+  const form = Math.max(1, Math.min(3, o.form || (s.type === "Monster" ? s.monsterForm : FORM_BY_ITEM[s.type === "Spell" ? s.focus : s.weapon]) || 1));
+  const tier = Math.max(1, Math.min(3, o.tier || s.tier || 1));
+  const animate = o.animate !== false;
+  const words = buildWords(s, riders, form, tier, school);
+
+  let defs = `<filter id="${uid}-glow" x="-15%" y="-15%" width="130%" height="130%" color-interpolation-filters="sRGB">
+    <feGaussianBlur in="SourceGraphic" stdDeviation="1.3" result="b1"/>
+    <feGaussianBlur in="SourceGraphic" stdDeviation="4.5" result="b2"/>
+    <feComponentTransfer in="b2" result="b2s"><feFuncA type="linear" slope="1.1"/></feComponentTransfer>
+    <feMerge><feMergeNode in="b2s"/><feMergeNode in="b1"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  <filter id="${uid}-core" x="-40%" y="-40%" width="180%" height="180%" color-interpolation-filters="sRGB">
+    <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="b1"/>
+    <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="b2"/>
+    <feComponentTransfer in="b2" result="b2s"><feFuncA type="linear" slope="1.3"/></feComponentTransfer>
+    <feMerge><feMergeNode in="b2s"/><feMergeNode in="b1"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  <radialGradient id="${uid}-bloom"><stop offset="0" stop-color="${col}" stop-opacity=".1"/><stop offset=".6" stop-color="${col}" stop-opacity=".05"/><stop offset="1" stop-color="${col}" stop-opacity="0"/></radialGradient>
+  <radialGradient id="${uid}-heart"><stop offset="0" stop-color="${col}" stop-opacity=".14"/><stop offset=".75" stop-color="${col}" stop-opacity=".04"/><stop offset="1" stop-color="${col}" stop-opacity="0"/></radialGradient>`;
+  defs += scriptDefs(uid, hand);
+
+  const css = `<style>
+  .lfc-cw{animation:lfcSpin 150s linear infinite;transform-origin:160px 160px}
+  .lfc-ccw{animation:lfcSpin 110s linear infinite reverse;transform-origin:160px 160px}
+  .lfc-cw2{animation:lfcSpin 80s linear infinite;transform-origin:160px 160px}
+  .lfc-pulse{animation:lfcPulse 4.2s ease-in-out infinite;transform-origin:160px 160px}
+  .lfc-flicker{animation:lfcFlicker 2.8s steps(1,end) infinite}
+  .lfc-breathe{animation:lfcBreathe 6s ease-in-out infinite}
+  @keyframes lfcSpin{to{transform:rotate(360deg)}}
+  @keyframes lfcFlicker{0%,100%{opacity:1}12%{opacity:.55}16%{opacity:1}54%{opacity:.7}58%{opacity:1}61%{opacity:.5}64%{opacity:1}}
+  @keyframes lfcBreathe{0%,100%{opacity:1}50%{opacity:.82}}
+  @keyframes lfcPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.78;transform:scale(.975)}}
+  @media (prefers-reduced-motion:reduce){.lfc-cw,.lfc-ccw,.lfc-cw2,.lfc-pulse,.lfc-flicker,.lfc-breathe{animation:none}}
+  </style>`;
+  const A = cls => animate ? ` class="${cls}"` : "";
+
+  let g = "";
+  /* ---- border by type ---- */
+  if(s.type === "Monster"){
+    let teeth = "";
+    for(let i = 0; i < 30; i++){
+      const a = i * 12, big = i % 2 === 0;
+      const [tx, ty] = pt(big ? 159.5 : 157, a + 3.5), [lx, ly] = pt(R_RIM - 0.5, a - 3.2), [rx, ry] = pt(R_RIM - 0.5, a + 3.2), [cx2, cy2] = pt(big ? 155 : 154, a - 1);
+      teeth += `M${P([lx, ly])}Q${P([cx2, cy2])} ${P([tx, ty])}L${P([rx, ry])}Z`;
+    }
+    g += `<path d="${teeth}" fill="${col}"/>`;
+    g += ring(R_RIM, col, 2.4) + ring(R_RIM2, col, 1.1);
+    /* inner barbs on the band edge */
+    let barbs = "";
+    for(let i = 0; i < 30; i++){ const a = i * 12 + 6; barbs += `M${P(pt(R_RIM2, a - 1.6))}L${P(pt(R_RIM2 - 3.2, a))}L${P(pt(R_RIM2, a + 1.6))}Z`; }
+    g += `<path d="${barbs}" fill="${col}"/>`;
+  } else if(s.type === "Spell"){
+    g += ring(R_RIM, col, 2) + ring(R_RIM2, col, 1);
+    g += ring(R_RIM + 3.4, col, .6, .55);
+  } else {
+    /* Ability: carved and notched. The outer ring is cut at twelve points, each cut bridged by a bar. */
+    const n = 12, gap = 2.6;
+    let d = "";
+    for(let i = 0; i < n; i++){
+      const a0 = i * 30 + gap, a1 = (i + 1) * 30 - gap;
+      const p0 = pt(R_RIM, a0), p1 = pt(R_RIM, a1);
+      d += `M${P(p0)}A${R_RIM} ${R_RIM} 0 0 1 ${P(p1)}`;
+    }
+    g += `<path d="${d}" fill="none" stroke="${col}" stroke-width="2.6"/>`;
+    g += ring(R_RIM2, col, 1.1);
+    let bars = "";
+    for(let i = 0; i < n; i++){
+      const a = i * 30;
+      bars += brush([pt(R_RIM2, a), pt(R_RIM + 4.5, a)], 2.2, [1, 1, 0.3], 0);
+      bars += `M${P(pt(R_RIM + 0.2, a - 1.2))}L${P(pt(R_RIM + 2.4, a))}L${P(pt(R_RIM + 0.2, a + 1.2))}Z`;
+    }
+    g += `<path d="${bars}" fill="${col}"/>`;
+  }
+  g += ring(R_RING1, col, 1.4);
+  const frame = `<g id="${o.bandIds ? "band-frame" : uid + "-frame"}">${g}</g>`;
+  g = "";
+
+  /* ---- script bands: outer always, middle at tier 2, inner at tier 3 ---- */
+  const band = (id, text, r, h, op) => `<g id="${o.bandIds ? id : uid + "-" + id}">${scriptBand(text, r, h, hand, uid, col, op)}</g>`;
+  const bandOuter = band("band-script", words.outer, R_OUTBAND, 8, .92);
+  const bandMid = tier >= 2 ? band("band-tier", words.middle, R_MIDBAND, 7, .8) : "";
+  const bandInner = tier >= 3 ? band("band-tier3", words.inner, 46, 5.6, .85) : "";
+  let ticks = "";
+  if(tier < 2){
+    let d = "";
+    for(let i = 0; i < 72; i++){ const a = i * 5; const long = i % 6 === 0; d += `M${P(pt(R_SEAT + 1, a))}L${P(pt(R_SEAT + (long ? 7 : 3.5), a))}`; }
+    ticks = `<path${o.bandIds ? ` id="band-tier"` : ""} d="${d}" stroke="${col}" stroke-width=".8" opacity=".6"/>`;
+  }
+  const seat = ring(R_SEAT, col, 1.2);
+
+  /* ---- form polygon ---- */
+  g += ring(R_FORM, col, 1, .75);
+  const formD = form === 1 ? star(R_FORM, 3, 1, 0) : form === 2 ? star(R_FORM, 8, 2, 0) : star(R_FORM, 9, 3, 0);
+  const formN = form === 1 ? 3 : form === 2 ? 8 : 9;
+  const busy = s.targeting === "All Targets" || s.targeting === "Two Targets";
+  g += `<path d="${formD}" fill="none" stroke="${col}" stroke-width="${busy ? .7 : 1.05}" stroke-linejoin="round" opacity="${busy ? .42 : .8}"/>`;
+  let fdots = "";
+  poly(R_FORM, formN, 0).forEach(p => fdots += disc(p[0], p[1], busy ? 1.4 : 1.9));
+  g += `<path d="${fdots}" fill="${col}"/>`;
+  g += ring(R_INSC, col, 1.1, .85);
+  const formPart = `<g${o.bandIds ? ` id="band-form"` : ""}>${g}</g>`;
+  g = "";
+
+  /* ---- targeting geometry ---- */
+  const tg = s.targeting;
+  let slots = [], geo = "", geoExtra = "";
+  if(tg === "Two Targets"){
+    geo = star(R_SEAT, 6, 2, 0);
+    slots = [0, 180, 60, 240, 120, 300];
+  } else if(tg === "Three Targets"){
+    geo = star(R_SEAT, 3, 1, 0);
+    [0, 120, 240].forEach(a => geo += `M${P(pt(R_INSC, a))}L${P(pt(R_SEAT - 17, a))}`);
+    /* the three seats bound to each other by arcs inside the seat ring */
+    slots = [0, 120, 240];
+  } else if(tg === "All Targets"){
+    geo = star(R_SEAT, 7, 2, 0);
+    for(let i = 0; i < 7; i++){ const a = i * 360 / 7; geo += `M${P(pt(R_SEAT, a))}L${P(pt(R_RIM2, a))}`; }
+    slots = [0, 1, 2, 3, 4, 5, 6].map(i => i * 360 / 7);
+  } else {
+    /* One Target: the spear. A narrow great triangle and a lance up its spine. */
+    geo = polyPath([pt(R_SEAT, 0), pt(R_SEAT, 148), pt(R_SEAT, 212)]);
+    geo += `M${P(pt(R_FORM, 180))}L${P(pt(R_INSC, 180))}M${P(pt(R_INSC, 0))}L${P(pt(R_SEAT - 16, 0))}`;
+    const tip = pt(R_SEAT - 17, 0), b1 = [CX - 6.5, CY - 82], b2 = [CX + 6.5, CY - 82], neck = [CX, CY - 76];
+    geoExtra = `<path d="M${P(tip)}L${P(b1)}L${P(neck)}L${P(b2)}Z" fill="${col}"/>`;
+    geoExtra += `<path d="${brush([[CX - 9, CY + 84], [CX + 9, CY + 84]], 2, PROFILE.swell, 0)}" fill="${col}"/>`;
+    slots = [0, 148, 212];
+  }
+  const geoPart = `<g${o.bandIds ? ` id="band-targeting"` : ""}><path d="${geo}" fill="none" stroke="${col}" stroke-width="1.35" stroke-linejoin="round" opacity=".95"/>${geoExtra}</g>`;
+  const innerRing = tier >= 3 ? ring(R_CORE + 0.5, col, .9, .8) : "";
+
+  /* ---- seals ---- */
+  const used = new Set();
+  let seals = "";
+  let order = slots.slice();
+  if(tg === "All Targets" && riders.length){
+    order = riders.map((_, i) => slots[Math.round(i * 7 / riders.length) % 7]);
+    slots.forEach(a => { if(order.indexOf(a) < 0) order.push(a); });
+  }
+  order.forEach((a, i) => {
+    const [x, y] = pt(R_SEAT, a);
+    if(i < riders.length){ seals += sealMarkup(riders[i], x, y, col, 0, 16, animate); used.add(a); }
+    else if(tg === "Three Targets"){
+      seals += `<g transform="translate(${f(x)} ${f(y)})"><circle r="16" fill="${deepOf(col)}" fill-opacity=".6" stroke="${col}" stroke-width="1.35"/><circle r="19.2" fill="none" stroke="${col}" stroke-width=".6" opacity=".75"/><circle r="13.4" fill="none" stroke="${col}" stroke-width=".55" opacity=".75"/><circle r="5" fill="none" stroke="${col}" stroke-width="1.2"/><circle r="1.6" fill="${col}"/></g>`;
+    } else seals += knotMarkup(x, y, col);
+  });
+
+  const sealPart = `<g${o.bandIds ? ` id="band-riders"` : ""}>${seals}</g>`;
+
+  /* ---- core ---- */
+  const core = `<circle cx="${CX}" cy="${CY}" r="${R_INSC}" fill="url(#${uid}-heart)"/>` +
+    (tier >= 3 ? ring(R_CORE, col, 1.2) : "") +
+    `<g filter="url(#${uid}-core)"><g${o.bandIds ? ` id="band-core"` : ""}>${emblem(s.damage, col)}</g></g>`;
+
+  const pad = o.pad || 0, vb = `${-pad} ${-pad} ${320 + 2 * pad} ${320 + 2 * pad}`;
+  const bloom = `<circle cx="160" cy="160" r="${158 + Math.min(pad, 8)}" fill="url(#${uid}-bloom)"/>`;
+  const glow = x => `<g filter="url(#${uid}-glow)">${x}</g>`;
+  const bg = o.background === false ? "" : `<rect x="${-pad}" y="${-pad}" width="${320 + 2 * pad}" height="${320 + 2 * pad}" fill="${VOID}"/>`;
+
+  if(o.layers){
+    /* Layered for a live page: every moving part is its own SVG, so the browser turns, fades and
+       scales it on the compositor and never re-runs the glow filters frame by frame. Stack them
+       absolutely in one box; CIRCLE_LAYER_CSS animates them. */
+    const L = (cls, inner, withDefs) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb}" class="lfc-layer ${cls}" aria-hidden="true" focusable="false">` +
+      (withDefs ? `<defs>${defs}</defs>` : "") + inner + `</svg>`;
+    const out = [
+      /* the defs live once, in the first layer; the others point at them */
+      L("lfc-l-bloom", bg + bloom, true),
+      L("lfc-l-base", glow(frame + ticks + seat + formPart + geoPart + innerRing), false),
+      L("lfc-l-cw", glow(bandOuter), false)
+    ];
+    if(bandMid) out.push(L("lfc-l-ccw", glow(bandMid), false));
+    if(bandInner) out.push(L("lfc-l-cw2", glow(bandInner), false));
+    out.push(L("lfc-l-seals", glow(sealPart), false));
+    out.push(L("lfc-l-core", core, false));
+    return out.join("");
+  }
+
+  const A2 = (cls, x) => animate ? `<g class="${cls}">${x}</g>` : x;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb}" class="lf-circle" role="img" aria-label="Rune circle">${animate ? css : ""}<defs>${defs}</defs>` +
+    bg + (animate ? `<g class="lfc-breathe">${bloom}</g>` : bloom) +
+    glow(frame + A2("lfc-cw", bandOuter) + (bandMid ? A2("lfc-ccw", bandMid) : ticks) + seat + formPart + geoPart + innerRing + (bandInner ? A2("lfc-cw2", bandInner) : "") + sealPart) +
+    core.replace(`<g filter="url(#${uid}-core)">`, `<g filter="url(#${uid}-core)"${animate ? ` class="lfc-pulse"` : ""}>`) + `</svg>`;
+}
+
+/* The animation for the layered form. A host pastes this into its own stylesheet. */
+const CIRCLE_LAYER_CSS = `.lfc-layer{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none;transform-origin:50% 50%}
+.lfc-l-bloom{animation:lfcBreathe 6s ease-in-out infinite}
+.lfc-l-cw{animation:lfcSpin 150s linear infinite}
+.lfc-l-ccw{animation:lfcSpin 110s linear infinite reverse}
+.lfc-l-cw2{animation:lfcSpin 80s linear infinite}
+.lfc-l-core{animation:lfcPulse 4.2s ease-in-out infinite}
+.lfc-flicker{animation:lfcFlicker 2.8s steps(1,end) infinite}
+@keyframes lfcSpin{to{transform:rotate(360deg)}}
+@keyframes lfcBreathe{0%,100%{opacity:1}50%{opacity:.82}}
+@keyframes lfcPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.78;transform:scale(.975)}}
+@keyframes lfcFlicker{0%,100%{opacity:1}12%{opacity:.55}16%{opacity:1}54%{opacity:.7}58%{opacity:1}61%{opacity:.5}64%{opacity:1}}
+@media (prefers-reduced-motion:reduce){.lfc-layer,.lfc-flicker{animation:none}}`;
+
+return { renderCircle, CIRCLE_LAYER_CSS, SCRIPT, SEALS, SEAL_FAMILY, SEAL_AFF_FAM, CIRCLE_COLORS, circleColor, circleColorKey, transliterate, sealMarkup, knotMarkup, VOID };
+})();
+
+/* Draw the build's circle into the rune stage. Each moving part is its own layer so the
+   compositor turns it; the glow filters render once per change, not once per frame.
+   The same build draws the same circle, so a render with nothing changed is skipped. */
+const RUNE_T0 = performance.now();
+let runeKey = "";
+function runeInputs(){
+  return {
+    state: { type: state.type, weapon: state.weapon, focus: state.focus, school: state.school,
+             monsterArchetype: state.monsterArchetype, monsterSchool: state.monsterSchool, monsterForm: state.monsterForm,
+             damage: state.damage, targeting: state.targeting, tier: state.tier, name: state.name },
+    opts: { form: currentForm(), riders: currentAddons().map(c => c.component), tier: state.tier }
+  };
+}
+function renderRune(){
+  const el = document.getElementById("runeSvg");
+  const card = document.getElementById("runeCard");
+  const { state: s, opts } = runeInputs();
+  const key = JSON.stringify([s, opts]);
+  const col = LoreFellCircle.circleColor(s);
+  card.style.setProperty("--rune", col.hex);
+  if(key === runeKey) return;
+  runeKey = key;
+  /* keep the turning bands where they were: the new layers start at the old phase */
+  el.style.setProperty("--lfc-t", (-(performance.now() - RUNE_T0) / 1000).toFixed(2) + "s");
+  el.innerHTML = LoreFellCircle.renderCircle(s, Object.assign({ layers: true, pad: 14, bandIds: true, background: false, id: "rune" }, opts));
+  el.setAttribute("aria-label", (s.type === "Monster" ? "Foe" : s.type) + " rune circle");
 }
 
 function renderLegend(){
   const addons = currentAddons();
   const form = currentForm();
-  const shape = ["","triangle","square","hexagon"][form];
+  const s = runeInputs().state;
+  const col = LoreFellCircle.circleColor(s);
+  const from = s.type === "Spell" ? esc(state.focus) : s.type === "Monster" ? esc(isMonsterMagic() ? state.monsterSchool : state.monsterArchetype) : esc(state.weapon);
+  const school = s.type === "Spell" ? state.school : isMonsterMagic() ? state.monsterSchool : "";
+  const hand = school === "Weaving" ? "flowing hand" : school === "Spirit" ? "sparse hand" : school === "Creation" ? "ruled hand" : "cut hand";
+  const geo = { "One Target":"spear", "Two Targets":"hexagram", "Three Targets":"three seals", "All Targets":"seven points" }[state.targeting] || "";
+  const star = ["", "triangle", "two squares", "three triangles"][form];
+  const core = { "No Damage":"eye", "Base Damage":"seal", "Standard Damage":"lance star", "Double Base":"twin rings", "Double Standard":"burst" }[state.damage] || "";
+  const dot = c => `<span class="lg-dot" style="background:${c}"></span>`;
+  const ash = dot("var(--ash)");
   const lg = [];
-  lg.push(`<span><span class="lg-dot lg-tgt"></span>Frame: ${state.type === "Spell" ? esc(state.school) + " spell" : state.type === "Monster" ? "Monster, thorned" + (isMonsterMagic() ? ` (${esc(state.monsterSchool)})` : "") : "forged Ability"}</span>`);
-  lg.push(`<span><span class="lg-dot lg-core"></span>Core: ${esc(state.damage)}</span>`);
-  lg.push(`<span><span class="lg-dot lg-tgt"></span>Arms: ${esc(state.targeting)}</span>`);
-  lg.push(`<span><span class="lg-dot lg-gold"></span>Inner rings: Tier ${state.tier} &middot; Gold ${shape}: ${FORM_NAMES[form]} Form</span>`);
-  addons.forEach(c => {
+  lg.push(`<span>${dot(col.hex)}Colour: ${esc(col.name)}, ${from}</span>`);
+  lg.push(`<span>${ash}Border: ${s.type === "Monster" ? "Foe, thorned" : s.type === "Spell" ? "Spell, clean" : "Ability, carved"}</span>`);
+  lg.push(`<span>${ash}Script: ${state.name.trim() ? "name, " : ""}${hand}</span>`);
+  lg.push(`<span>${ash}Bands: Tier ${state.tier}</span>`);
+  lg.push(`<span>${ash}Geometry: ${geo}</span>`);
+  lg.push(`<span>${ash}Inner star: ${star}</span>`);
+  lg.push(`<span>${ash}Core: ${core}</span>`);
+  if(addons.length) addons.forEach(c => {
     const bane = isAffliction(c);
-    lg.push(`<span><span class="lg-dot ${bane ? "lg-bane" : "lg-rider"}"></span>Fourfold mark: ${esc(c.component)}</span>`);
+    lg.push(`<span>${ash}Seal: ${esc(c.component.replace(/\*$/, ""))}${bane ? ", thorned" : ""}</span>`);
   });
+  else lg.push(`<span>${ash}Seal: none</span>`);
   const _e = currentEffect();
-  if(_e && _e.category === "Effect" && effectIsPre(_e)) lg.push(`<span><span class="lg-dot lg-gold"></span>Cast before the roll</span>`);
+  if(_e && _e.category === "Effect" && effectIsPre(_e)) lg.push(`<span>${dot("var(--gold)")}Cast before the roll</span>`);
   document.getElementById("runeLegend").innerHTML = lg.join("");
   document.getElementById("nameDisplay").textContent = state.name;
 }
+
+/* The turning stops while the rune is off screen (a phone scrolled down to the form). */
+(function(){
+  const el = document.getElementById("runeSvg");
+  if(!el || typeof IntersectionObserver === "undefined") return;
+  new IntersectionObserver(es => es.forEach(e => el.classList.toggle("paused", !e.isIntersecting))).observe(el);
+})();
 
 /* ============================================================
    LIVE COMPONENT DESCRIPTIONS
@@ -1984,7 +2438,8 @@ const FEEDBACK_SOURCE = "sigilforge";
   });
 })();
 
-document.getElementById("nameInput").addEventListener("input", e => { state.name = e.target.value; renderLegend(); });
+let nameDraw = 0;
+document.getElementById("nameInput").addEventListener("input", e => { state.name = e.target.value; renderLegend(); clearTimeout(nameDraw); nameDraw = setTimeout(renderRune, 300); });
 document.getElementById("flavorInput").addEventListener("input", e => { state.flavor = e.target.value; });
 
 /* Copy with execCommand fallback for Wix iframes */
@@ -2076,7 +2531,7 @@ function randomizeBuild(){
 document.getElementById("randBtn").addEventListener("click", randomizeBuild);
 
 /* ============================================================
-   SUBMIT + WHITE FIRE FORGING
+   SUBMIT + FORGING FLARE
    ============================================================ */
 let forging = false;
 function playForgeFx(){
@@ -2108,23 +2563,15 @@ function playForgeFx(){
 
 /* ============================================================
    RUNE SNAPSHOT
-   Serializes the live rune to standalone SVG (CSS variables
-   resolved, animations stripped, navy plate behind) and
-   rasterizes it to a PNG data URL for upload to the CMS.
+   Draws the build's circle as a standalone still SVG (colours
+   inline, its own filters, void plate behind) and rasterizes
+   it to a PNG data URL for upload to the CMS.
    ============================================================ */
 function runeSnapshotSvg(){
-  const el = document.getElementById("runeSvg");
-  let s = el.outerHTML;
-  s = s.replace(/<style>[\s\S]*?<\/style>/, "");
-  s = s.replace(/\sclass="[^"]*"/g, "");
-  const cs = getComputedStyle(document.documentElement);
-  const cv = n => (cs.getPropertyValue("--" + n) || "").trim();
-  ["ice","gold","silver","bane","navy"].forEach(v => {
-    s = s.split("var(--" + v + ")").join(cv(v) || "#EFE8D8");
-  });
-  if(!/xmlns=/.test(s)) s = s.replace("<svg", `<svg xmlns="http://www.w3.org/2000/svg"`);
-  s = s.replace(/>/, `><rect x="0" y="0" width="320" height="320" fill="${cv("navy") || "#060A14"}"/>`);
-  return s;
+  /* A standalone still of the build's circle: colours inline, filters in its own defs, no motion. */
+  const { state: s, opts } = runeInputs();
+  return LoreFellCircle.renderCircle(s, Object.assign({ animate: false, background: true, pad: 14, id: "snap" }, opts))
+    .replace("<svg ", `<svg width="640" height="640" `);
 }
 function runeSnapshotPng(cb){
   let done = v => { cb(v); done = () => {}; };
@@ -2151,7 +2598,7 @@ function runeSnapshotPng(cb){
   if(uc) uc.addEventListener("change", () => {
     state.unlocked=uc.checked;
     /* v3: single effect inlay, nothing to clear here */
-    render();
+    update();
   });
 })();
 document.getElementById("submitBtn").addEventListener("click", () => {
@@ -2631,7 +3078,7 @@ function igniteChangedBands(){
     form: String(currentForm()),
     targeting: state.targeting,
     core: state.damage,
-    inlays: [state.effect].filter(Boolean).join("|")
+    riders: [state.effect].filter(Boolean).join("|")
   };
   if(prevSig){
     Object.keys(sig).forEach(k => {
