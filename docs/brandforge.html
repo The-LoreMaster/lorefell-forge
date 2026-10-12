@@ -141,19 +141,9 @@ input[type=file]::-webkit-file-upload-button{ margin-right:10px; min-height:44px
   details.opt .inner{padding:4px 0 2px}
   @media (min-width:900px){ details.opt .inner{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 20px} }
 
-  /* affliction picker: a held list, so the 37 canon Afflictions do not run the page long */
-  .picker{border:1px solid var(--hair);border-radius:0;background:transparent;max-height:320px;overflow:auto;overscroll-behavior:contain}
-  .picker .opt{display:flex;flex-direction:column;gap:2px;min-height:44px;padding:10px 14px;border-bottom:1px solid var(--hair);cursor:pointer}
-  .picker .opt:last-child{border-bottom:0}
-  .picker .opt:hover{background:rgba(239,232,216,.04)}
-  .picker .opt[aria-selected="true"]{background:transparent;box-shadow:inset 3px 0 0 var(--gold)}
-  .picker .opt[aria-selected="true"] .nm{color:var(--gold)}
-  .picker .opt .nm{font-family:var(--f-display);font-size:19px;color:var(--bone)}
-  .picker .opt .ef{font-size:16px;color:var(--ash);line-height:1.35}
-  .picker .opt .bo{font-family:var(--f-label);font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--ash)}
-  .searchrow{display:flex;gap:8px;margin:0 0 8px}
   .derived{font-size:16px;color:var(--ash);margin:8px 0 0;padding:10px 14px;border:1px dashed rgba(216,188,106,.45);border-radius:0;background:transparent}
   .derived b{color:var(--bone);font-weight:400}
+  .derived .bo{display:block;margin-top:4px;font-family:var(--f-label);font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--ash)}
   #b_aff_custom_wrap > label{font-family:var(--f-label)!important;font-weight:500;letter-spacing:.3em;text-transform:uppercase;color:var(--ash)!important}
 
   /* image upload */
@@ -414,10 +404,7 @@ input[type=file]::-webkit-file-upload-button{ margin-right:10px; min-height:44px
 
     <div class="field">
       <label>Lesser Wake <span class="req">required</span><span class="finfo" tabindex="0" role="button" aria-label="What is this">i<span class="tip">On a roll of 2 to 5, the bound side suffers an Affliction. Pick one from the canon, or describe a new one.</span></span></label>
-      <div class="searchrow">
-        <input type="text" id="b_aff_search" placeholder="Search Afflictions" autocomplete="off">
-      </div>
-      <div class="picker" id="b_aff_picker"></div>
+      <select id="b_aff_sel"><option value="">Choose an Affliction</option></select>
       <div id="b_aff_custom_wrap" class="hide" style="margin-top:10px">
         <input type="text" id="b_aff_custom_name" placeholder="New Affliction name" autocomplete="off">
         <textarea id="b_aff_custom_effect" placeholder="What the new Affliction does" style="margin-top:8px;min-height:60px"></textarea>
@@ -568,31 +555,27 @@ function fillBreakout(){
 }
 
 /* ---------- affliction picker ---------- */
-function renderAff(filter){
-  const box=document.getElementById("b_aff_picker");
-  box.innerHTML="";
-  const f=(filter||"").toLowerCase();
-  AFFLICTIONS.filter(a=>!f||a.name.toLowerCase().includes(f)||a.effect.toLowerCase().includes(f)).forEach(a=>{
-    const d=document.createElement("div");
-    d.className="opt"; d.setAttribute("role","option");
-    d.setAttribute("aria-selected", selectedAff===a.name?"true":"false");
-    d.innerHTML='<span class="nm">'+a.name+'</span><span class="ef">'+a.effect+'</span><span class="bo">Breaks out on '+a.breakout+'</span>';
-    d.onclick=()=>{ selectedAff=a.name; document.getElementById("b_aff_custom_wrap").classList.add("hide"); syncAffDerived(); renderAff(document.getElementById("b_aff_search").value); flagAll(); };
-    box.appendChild(d);
-  });
-  // custom option
-  const c=document.createElement("div");
-  c.className="opt"; c.setAttribute("role","option"); c.setAttribute("aria-selected", selectedAff==="__custom__"?"true":"false");
-  c.innerHTML='<span class="nm">Other, a new Affliction</span><span class="ef">Describe one that is not in the list.</span>';
-  c.onclick=()=>{ selectedAff="__custom__"; document.getElementById("b_aff_custom_wrap").classList.remove("hide"); syncAffDerived(); renderAff(document.getElementById("b_aff_search").value); flagAll(); };
-  box.appendChild(c);
+/* the Lesser Wake is a dropdown of the canon Afflictions, with Other for a new one (Nate, 2026-10-12:
+   the held list left a long gap beside the Greater Wake) */
+function renderAff(){
+  const sel=document.getElementById("b_aff_sel");
+  if(sel.options.length<2){
+    AFFLICTIONS.forEach(a=>{ const o=document.createElement("option"); o.value=a.name; o.textContent=a.name; sel.appendChild(o); });
+    const o=document.createElement("option"); o.value="__custom__"; o.textContent="Other, a new Affliction"; sel.appendChild(o);
+    sel.onchange=function(){
+      selectedAff=this.value||null;
+      document.getElementById("b_aff_custom_wrap").classList.toggle("hide", selectedAff!=="__custom__");
+      syncAffDerived(); flagAll(); postHeight();
+    };
+  }
+  sel.value=selectedAff||"";
 }
 function syncAffDerived(){
   const d=document.getElementById("b_aff_derived");
   if(selectedAff && selectedAff!=="__custom__"){
     const a=AFFLICTIONS.find(x=>x.name===selectedAff);
     d.classList.remove("hide");
-    d.innerHTML="Lesser Wake applies <b>"+a.name+"</b>. It breaks out on <b>"+a.breakout+"</b>, carried straight from the Affliction.";
+    d.innerHTML=esc(a.effect)+" <span class=\"bo\">Breaks out on "+esc(a.breakout)+"</span>";
   } else {
     d.classList.add("hide"); d.innerHTML="";
   }
@@ -827,7 +810,7 @@ function setKind(k){
 
 /* ---------- wire up ---------- */
 function init(){
-  fillBonus(); fillBreakout(); renderAff("");
+  fillBonus(); fillBreakout(); renderAff();
   document.getElementById("tab-lineage").onclick=()=>switchTab("lineage");
   document.getElementById("tab-world").onclick=()=>switchTab("world");
   document.getElementById("tab-brand").onclick=()=>switchTab("brand");
@@ -844,7 +827,6 @@ function init(){
     document.getElementById("l_drop_text").textContent="Add an image";
     document.getElementById("l_image_flags").innerHTML=""; postHeight();
   };
-  document.getElementById("b_aff_search").oninput=function(){ renderAff(this.value); };
 
   document.getElementById("submitBtn").onclick=submit;
   document.getElementById("forge_another").onclick=()=>{
@@ -853,7 +835,7 @@ function init(){
     document.querySelector(".bar").classList.remove("hide");
     document.querySelectorAll("#view-forge input[type=text],#view-forge textarea").forEach(el=>el.value="");
     document.getElementById("l_bonus").value=""; document.getElementById("l_bonus_other").classList.add("hide");
-    selectedAff=null; document.getElementById("b_aff_custom_wrap").classList.add("hide"); syncAffDerived(); renderAff("");
+    selectedAff=null; document.getElementById("b_aff_custom_wrap").classList.add("hide"); syncAffDerived(); renderAff();
     ["l","w","b"].forEach(x=>{ const r=document.getElementById(x+"_image_remove"); if(r) r.click(); });
     const cur=document.querySelector(".kinds button[aria-selected=true]");
     setKind(cur?cur.dataset.kind:"lineage"); flagAll();
