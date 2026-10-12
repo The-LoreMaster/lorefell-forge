@@ -32,6 +32,8 @@
 //                           bridge should stop. The standalone page bounces an entry
 //                           with a character straight to the table this way
 //   onThreadspireOpen(m)    (optional) handle the sheet asking to open the table
+//   onFellforgeOpen(m)      (optional) handle the sheet asking to roll a Fell in FellForge
+//                           (the third creation path); m.campaignId may name an adventure
 //   onFeedback(payload)     (optional) handle a feedback submission
 
 export async function handleSheetMessage(m, ctx) {
@@ -185,6 +187,9 @@ export async function handleSheetMessage(m, ctx) {
 
   } else if (m.type === 'threadspire-open') {
     if (ctx.onThreadspireOpen) ctx.onThreadspireOpen(m);
+
+  } else if (m.type === 'fellforge-open') {
+    if (ctx.onFellforgeOpen) ctx.onFellforgeOpen(m);
 
   } else if (m.type === 'LOREFELL_FEEDBACK_SUBMIT') {
     if (ctx.onFeedback) ctx.onFeedback(m.payload || {});

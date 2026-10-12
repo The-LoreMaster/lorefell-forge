@@ -1,8 +1,8 @@
 // The FellForge page code.
 // Point the Embed a Site element's ID at EMBED below (Wix default is often #html1),
 // and set its URL to the GitHub Pages copy of fellforge.html.
-// FellForge ships its own library, so "ready" needs no init reply. The page only
-// relays the Archive call and the forging.
+// FellForge ships its own library, so "ready" needs no init reply. The page relays the
+// Archive call and the forging, then sends the player to FellGlass to finish the Fell.
 
 import { generateProfile, saveFell } from 'backend/fellforge.web.js';
 import wixLocation from 'wix-location';
@@ -27,8 +27,12 @@ $w.onReady(() => {
     } else if (msg.type === 'submit') {
       try {
         const campaignId = (wixLocation.query && wixLocation.query.campaign) || '';
-        await saveFell(Object.assign({}, msg.record || {}, campaignId ? { campaignId: campaignId } : {}));
-        embed.postMessage({ type: 'submitOk' });
+        const saved = await saveFell(Object.assign({}, msg.record || {}, campaignId ? { campaignId: campaignId } : {}));
+        const id = (saved && saved.id) || '';
+        embed.postMessage({ type: 'submitOk', id: id });
+        // The forge does not build the arsenal. FellGlass finishes creation from the forged
+        // seed (starting weapon, armor or lorebound, then identity), so go there now.
+        if (id) { try { wixLocation.to('/the-fellglass?charId=' + encodeURIComponent(id)); } catch (e) {} }
       } catch (e) {
         embed.postMessage({ type: 'submitError', message: 'The forging failed. Try again.' });
       }

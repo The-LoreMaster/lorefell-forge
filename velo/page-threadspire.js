@@ -185,7 +185,13 @@ $w.onReady(async function () {
       getCharId: () => fgCharId,
       setCharId: (id) => { fgCharId = id; },
       api: fgApi,
-      godCharId: godCharId
+      godCharId: godCharId,
+      // The sheet's third creation path, the same as on FellGlass's own page: roll the Fell
+      // in FellForge, which sends the player to FellGlass with its charId to finish it.
+      onFellforgeOpen: (fm) => {
+        const cp = fm.campaignId ? '?campaign=' + encodeURIComponent(fm.campaignId) : '';
+        try { wixLocation.to('/the-fellforge' + cp); } catch (e) {}
+      }
     });
   }
 
