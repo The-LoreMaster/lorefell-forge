@@ -2,6 +2,7 @@
 // Runs FoeForge's own AI request (aiForge) through the AI worker, the way the tool does from
 // table.lorefell.com, and prints what comes back, so a tool that says "shaped offline" can be
 // diagnosed from the worker's real answer. Needs network access to the worker (GitHub Actions).
+// "invalid x-api-key" means the worker's ANTHROPIC_API_KEY secret in Cloudflare needs replacing.
 //   node scripts/aiCheck.js
 const fs = require('fs');
 const path = require('path');
@@ -19,7 +20,9 @@ const { JSDOM } = require('jsdom');
         console.log('worker HTTP ' + res.status + ' in ' + (Date.now() - t0) + ' ms, ' + body.length + ' bytes');
         console.log('request max_tokens ' + JSON.parse(opts.body).max_tokens + ', system ' + JSON.parse(opts.body).system.length + ' chars, user ' + JSON.parse(opts.body).messages[0].content.length + ' chars');
         console.log('body: ' + body.slice(0, 1500));
-        return new w.Response(body, { status: res.status, headers: { 'Content-Type': 'application/json' } });
+        try { const j = JSON.parse(body); if (j && j.ok === false) console.log('THE WORKER FAILED: ' + (j.status ? 'Anthropic answered ' + j.status + '. ' : '') + String(j.error || '').slice(0, 300)); } catch (e) {}
+        // jsdom has no Response, so hand the tool the two members it reads
+        return { ok: res.ok, status: res.status, json: async () => JSON.parse(body), text: async () => body };
       };
     } });
   await new Promise(r => setTimeout(r, 300));
