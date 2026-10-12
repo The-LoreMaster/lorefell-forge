@@ -38,6 +38,7 @@ Source of record is the vault, hidden, at `_Canon/collections/Lorebounds.md`, `I
 ## Change type B, tool or schema or backend code
 
 - Tool HTML: edit `docs/<tool>.html`, mirror to `embeds/<tool>.html`, push. Live on Pages.
+- The nine player tools (all but FellGlass and ThreadSpire) carry the site look from `scripts/site-look.css`, pasted between the `site-look:start` and `site-look:end` markers. To change the look, edit that file and paste it into all nine; `npm run sitelook` (part of `npm run checks`) fails if any copy differs.
 - New collection or field: add `schemas/<Name>.json`, push, then apply.
 - New seed content not from the vault: add `schemas/seed/<Name>.json`, push, then apply.
 - Velo `.js`: edit, push, and tell the user to paste it into Wix.

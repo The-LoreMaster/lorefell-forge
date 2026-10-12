@@ -53,6 +53,12 @@ $w.onReady(() => {
         const cp = m.campaignId ? '&campaign=' + encodeURIComponent(m.campaignId) : '';
         try { wixLocation.to('/the-threadspire?character=' + c + cp); } catch (e) {}
       },
+      // The third creation path: FellForge rolls the Fell and sends the player back here
+      // with its charId to finish creation from the forged seed.
+      onFellforgeOpen: (m) => {
+        const cp = m.campaignId ? '?campaign=' + encodeURIComponent(m.campaignId) : '';
+        try { wixLocation.to('/the-fellforge' + cp); } catch (e) {}
+      },
       onFeedback: (payload) => { console.log('FellGlass feedback:', JSON.stringify(payload)); }
     });
   });
