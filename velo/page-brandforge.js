@@ -1,8 +1,9 @@
 // The BrandForge page code.
-// Relays lineage/world/brand submissions and the lineage catalog to the shared backend.
+// Relays lineage, world and Brand submissions to the shared backend. The lineages live on
+// the character sheet and in the FellGuide, and the votes in the LoreForge (Nate, 2026-10-12).
 // Set EMBED to your Embed a Site element ID (Wix default is often #html1).
 
-import { submitCreation, getCreations, getCatalog } from 'backend/forge.web.js';
+import { submitCreation } from 'backend/forge.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
 import { currentMember } from 'wix-members-frontend';
 
@@ -87,22 +88,6 @@ $w.onReady(() => {
   embed.onMessage(async (event) => {
     const msg = event.data;
     if (!msg || typeof msg !== 'object') return;
-
-    if (msg.type === 'BRAND_CATALOG_LOAD') {
-      // The catalog is the canon reference. Community submissions go to LoreForge for the vote, not here.
-      let canon = [];
-      try {
-        const rows = await getCatalog('Lineages', { limit: 200 });
-        canon = (rows || [])
-          .filter(function (r) { return (r.name || '') !== 'The Unwritten'; })
-          .map(function (r) {
-            return { name: r.name || '', bonus: r.bonus || '', homeWorld: r.homeWorld || '',
-              body: r.body || '', roleplay: r.roleplay || '', image: r.image || '' };
-          });
-      } catch (e) { canon = []; }
-      embed.postMessage({ type: 'BRAND_CATALOG', lineages: canon });
-      return;
-    }
 
     if (msg.type === 'BRANDFORGE_SUBMIT') {
       const p = msg.payload || {};
