@@ -21,6 +21,8 @@ for (const dir of ['docs', 'embeds']) {
     const s = fs.readFileSync(path.join(ROOT, dir, f), 'utf8');
     const hit = s.match(/Tier 3[^<\n]{0,40}?\b5\s*(?:-|to)\s*6\b/i);
     if (hit) fail(`${dir}/${f} gives Tier 3 a ceiling: "${hit[0]}"`);
+    const data = s.match(/["']?T3["']?\s*:\s*\[\s*5\s*,\s*6\s*\]/);
+    if (data) fail(`${dir}/${f} caps Tier 3 at 6 in its rule data: "${data[0].replace(/\s+/g, ' ')}"`);
   }
 }
 if (bad) process.exit(1);
