@@ -1,10 +1,10 @@
 // The BondForge page code.
-// Relays submission, ledger reads, and votes to the shared backend.
+// Relays a submission to the shared backend. The catalog lives on the character sheet and
+// the votes in the LoreForge (Nate, 2026-10-12).
 // Set EMBED to your Embed a Site element ID (Wix default is often #html1).
 
-import { submitCreation, getCreations, getCatalog, castVote } from 'backend/forge.web.js';
+import { submitCreation } from 'backend/forge.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
-import { currentMember } from 'wix-members-frontend';
 
 const FORGE_KEY = 'bondforge';
 const EMBED = '#html1';
@@ -35,26 +35,6 @@ $w.onReady(() => {
     const msg = event.data;
     if (!msg || typeof msg !== 'object') return;
 
-    if (msg.type === 'CATALOG_LOAD') {
-      let rows = [];
-      try { rows = await getCatalog('Lorebounds', { limit: 300 }); } catch (e) { rows = []; }
-      const items = rows.map(function (r) {
-        return {
-          name: r.name || '',
-          world: r.world || '',
-          role: r.role || '',
-          archetype: r.archetype || '',
-          aspectName: r.aspectName || '',
-          initial: r.initial || '',
-          branches: [r.branch1 || '', r.branch2 || ''],
-          crowns: [r.crown1 || '', r.crown2 || ''],
-          image: r.portrait || ''
-        };
-      });
-      embed.postMessage({ type: 'CATALOG_RESULT', items: items });
-      return;
-    }
-
     if (msg.type === 'BOND_SUBMIT') {
       const p = msg.payload || {};
       let imageUrl = '';
@@ -71,13 +51,10 @@ $w.onReady(() => {
         selections: [],
         meta: {
           world: p.world || '',
-          role: p.role || '',
-          archetype: p.archetype || '',
           aspectName: p.aspectName || '',
           initial: p.initial || '',
           branches: Array.isArray(p.branches) ? p.branches : [],
-          crowns: Array.isArray(p.crowns) ? p.crowns : [],
-          creator: p.creator || ''
+          crowns: Array.isArray(p.crowns) ? p.crowns : []
         }
       };
       let res = { ok: false, errors: ['The forge could not reach the vault.'] };
@@ -85,25 +62,6 @@ $w.onReady(() => {
       catch (e) { res = { ok: false, errors: ['The forge could not reach the vault. Try again.'] }; }
       embed.postMessage({ type: 'BOND_SUBMIT_RESULT', ok: !!res.ok, errors: res.errors || [] });
 
-    } else if (msg.type === 'BOND_LOAD_LEDGER') {
-      const p = msg.payload || {};
-      const scope = p.scope || 'all';
-      const opts = { limit: 60, kind: 'bond' };
-      if (scope === 'canon') opts.canonStatus = 'canon';
-      if (scope === 'mine') {
-        try { const me = await currentMember.getMember(); if (me) opts.creatorMemberId = me._id; }
-        catch (e) {}
-      }
-      let items = [];
-      try { items = await getCreations(FORGE_KEY, opts); } catch (e) { items = []; }
-      embed.postMessage({ type: 'BOND_LEDGER_RESULT', scope: scope, items: items });
-
-    } else if (msg.type === 'BOND_VOTE') {
-      const id = msg.payload && msg.payload.creationId;
-      let r = { ok: false };
-      try { r = await castVote(FORGE_KEY, id); }
-      catch (e) { r = { ok: false, error: 'The vote could not reach the vault.' }; }
-      embed.postMessage({ type: 'BOND_VOTE_RESULT', creationId: id, ok: !!r.ok, voteCount: r.voteCount, already: !!r.already, signin: !!r.signin, error: r.error || '' });
     }
   });
 });
