@@ -1,6 +1,6 @@
 # LoreFell Sync Runbook
 
-For a Claude chat that holds two GitHub tokens: a forge token (write to The-LoreMaster/lorefell-forge) and a vault token (write to The-LoreMaster/lorefell-fellguide). The chat does the GitHub work in its own workspace. Wix writes happen in the forge repo's Apply CMS Action, not in the chat.
+For a Claude chat that holds two GitHub tokens: a forge token (write to The-LoreMaster/lorefell-forge) and a vault token (write to The-LoreMaster/lorefell-fellguide). The chat does the GitHub work in its own workspace. Database writes happen in the forge repo's Apply CMS Action (into D1, the tools' database since 2026-10-11), not in the chat.
 
 ## Repos
 
@@ -18,7 +18,7 @@ Redact tokens in every command echoed back to the user: pipe through
 ## What is automatic and what is not
 
 - Tool HTML in forge `docs/` (sigilforge.html, shardforge.html, bondforge.html and so on): served by GitHub Pages. A push makes it live. Mirror the same file into `embeds/`.
-- Collection data and schema: pushed to Wix only when the Apply CMS Action runs. The chat triggers it or the user does.
+- Collection data: written to D1 when the Apply CMS Action runs, on any push to main that changes `schemas/seed/`, or by hand.
 - Velo page and backend files in forge `velo/`: not auto-deployed. They are pasted into Wix by the user unless the site is connected to the repo. Flag this whenever one changes.
 
 ## Change type A, canon data (lorebounds, infusions, augmentations)
@@ -44,7 +44,7 @@ Source of record is the vault, hidden, at `_Canon/collections/Lorebounds.md`, `I
 
 ## Apply to Wix
 
-The Apply CMS Action runs backup, create, then seed. It is manual dispatch. Trigger it from the chat with the forge token (needs Actions write):
+The Apply CMS Action (`scripts/applyD1.js`) keeps a copy of each table it touches, then seeds D1. It runs on every push to main that changes `schemas/seed/`, or by hand. Trigger it from the chat with the forge token (needs Actions write):
 
     curl -X POST \
       -H "Authorization: Bearer ${FORGE_TOKEN}" \
@@ -52,7 +52,7 @@ The Apply CMS Action runs backup, create, then seed. It is manual dispatch. Trig
       https://api.github.com/repos/The-LoreMaster/lorefell-forge/actions/workflows/apply.yml/dispatches \
       -d '{"ref":"main"}'
 
-Or the user enables the push trigger in `.github/workflows/apply.yml` so it fires on every push that changes the seed. The Action snapshots the collections to `/backups` before writing.
+The Action keeps the rows it found as an artifact (`backups/`) before writing.
 
 ## Discipline
 
