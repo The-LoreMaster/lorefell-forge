@@ -147,11 +147,11 @@ const SIDES={
     /* CANON:infusions end */
   },
   augmentation:{
-    noun:"augmentation",catLabel:"Domain",
-    catTip:"What it guards against or grants. Pick Something new if none fit.",
+    noun:"augmentation",
     doesTip:"The rules text, worded the way it will read on the sheet. A suit holds two augmentations, active in every stance.",
     doesPh:"Once each round, you may negate one spell that targets you.",
-    catOptions:["Affliction Ward", "Anti-burst", "Anti-lethal", "Concealment", "Fortune", "Guardian", "Intercept", "Last Stand", "Mobility", "Negation", "Reactive Move", "Recovery", "Resilience", "Senses", "Stability", "Targeting denial", "Terrain", "Ward", "Ward Vitality", "Something new"],
+    /* no domain: it is only a label on the canon list, so the team sets it at canonization (Nate, 2026-10-12) */
+    catOptions:[],
     /* CANON:augmentations start. Baked from schemas/seed/Augmentations.json by genCanon (disabled in CI). Sibling: docs/foeforge.html augmentations. Change augments in the seed and both tools together, or add [canon-skip: augmentations]. */
     data:[{"name":"Mistform","cat":"Negation","core":true,"desc":"Once each round, you may negate one attack against you."},{"name":"Nullward","cat":"Ward","core":false,"desc":"Once each round, you may negate one spell that targets you."},{"name":"Driftstep","cat":"Reactive Move","core":false,"desc":"When an attack hits you, you may immediately move one space."},{"name":"Phantomfield","cat":"Mobility","core":true,"desc":"You may move through enemies, allies, and obstacles. You may not end your movement inside one."},{"name":"Treadlight","cat":"Terrain","core":false,"desc":"You ignore the movement and damage payloads of Pales you stand in or move through."},{"name":"Shadowmeld","cat":"Concealment","core":false,"desc":"While wielding this, if you deal no damage this round you become Obscured at the end of the round."},{"name":"Echosight","cat":"Senses","core":false,"desc":"You can see through darkness and concealment, and you cannot be hidden from or ambushed."},{"name":"Afterimage","cat":"Fortune","core":false,"desc":"Your first Evasion roll each round is a Lucky Roll."},{"name":"Deathsong","cat":"Fortune","core":false,"desc":"After you take damage, the attacker takes Base Damage equal to your highest defensive attribute."},{"name":"Oakspine","cat":"Stability","core":true,"desc":"You cannot be forcibly moved from your space."},{"name":"Threshold","cat":"Anti-burst","core":true,"desc":"No single hit can reduce your Vitality by more than half your current Vitality."},{"name":"Emberhold","cat":"Anti-lethal","core":false,"desc":"Each time a hit would reduce you to 0 Vitality, you remain at 1 instead. Each time this happens, there is an even chance you die."},{"name":"Mendseam","cat":"Recovery","core":true,"desc":"At the start of each round, recover Vitality equal to your highest defensive attribute."},{"name":"Scarweave","cat":"Ward Vitality","core":false,"desc":"At the start of each round, gain Temporary Vitality equal to your highest defensive attribute."},{"name":"Runeguard","cat":"Guardian","core":true,"desc":"Once each round, when an ally within your Mobility range is hit, reduce the Base Damage they take by your highest defensive attribute."},{"name":"Bulwark","cat":"Intercept","core":false,"desc":"Once each round, when an ally within your Mobility range is targeted by an attack, you may make yourself the target instead."},{"name":"Unbowed","cat":"Resilience","core":false,"desc":"The highest Fatigue rank you can reach is 3."},{"name":"Lastlight","cat":"Last Stand","core":false,"desc":"While below 25 Vitality, the first attack against you each round misses."},{"name":"Ironroot","cat":"Targeting denial","core":false,"desc":"Spells and abilities may target you, but they may not target the space you occupy."},{"name":"Hexward","cat":"Affliction Ward","core":false,"desc":"The first Affliction applied to you each round is prevented."}]
     /* CANON:augmentations end */
@@ -180,10 +180,11 @@ function render(){
     root.querySelector("#again").onclick=()=>{reset();render();};
     reportHeight();return;
   }
-  if(!C.cat)C.cat=S.catOptions[0];
-  root.innerHTML=`<div class="row2">
+  const hasCat=S.catOptions.length>0;
+  if(hasCat&&!C.cat)C.cat=S.catOptions[0];
+  root.innerHTML=`<div class="${hasCat?"row2":""}">
       <label class="fld"><span>Name</span><input id="cName" maxlength="60" value="${esc(C.name)}" placeholder="A short, plain name" autocomplete="off"></label>
-      <label class="fld"><span>${S.catLabel}${tip(S.catTip)}</span><select id="cCat">${S.catOptions.map(o=>`<option value="${esc(o)}"${C.cat===o?" selected":""}>${esc(o)}</option>`).join("")}</select></label>
+${hasCat?`<label class="fld"><span>${S.catLabel}${tip(S.catTip)}</span><select id="cCat">${S.catOptions.map(o=>`<option value="${esc(o)}"${C.cat===o?" selected":""}>${esc(o)}</option>`).join("")}</select></label>`:""}
     </div>
     <label class="fld"><span>What it does${tip(S.doesTip)}</span><textarea id="cEffect" rows="4" maxlength="600" placeholder="${esc(S.doesPh)}">${esc(C.effect)}</textarea></label>
     <label class="fld"><span>Lore <em>optional</em></span><input id="cLore" maxlength="200" value="${esc(C.lore)}" placeholder="One grounded line"></label>
@@ -192,7 +193,7 @@ function render(){
     <p class="err" id="err" role="status">${esc(C.error)}</p>`;
   const g=q=>root.querySelector(q);
   g("#cName").oninput=e=>{C.name=e.target.value;upd();};
-  g("#cCat").onchange=e=>{C.cat=e.target.value;};
+  if(hasCat)g("#cCat").onchange=e=>{C.cat=e.target.value;};
   g("#cEffect").oninput=e=>{C.effect=e.target.value;upd();};
   g("#cLore").oninput=e=>{C.lore=e.target.value;upd();};
   g("#cSubmit").onclick=submit;
@@ -207,7 +208,7 @@ function reset(){C.name="";C.effect="";C.cat="";C.lore="";C.state="edit";C.error
 function submit(){
   if(C.state==="sending")return;
   C.state="sending";C.error="";render();
-  post({type:"SHARD_SUBMIT",payload:{side:SIDE,name:C.name.trim(),effect:C.effect.trim(),category:C.cat||sc().catOptions[0],lore:C.lore.trim()}});
+  post({type:"SHARD_SUBMIT",payload:{side:SIDE,name:C.name.trim(),effect:C.effect.trim(),category:C.cat||sc().catOptions[0]||"",lore:C.lore.trim()}});
   clearTimeout(waitTimer);
   waitTimer=setTimeout(()=>{if(C.state==="sending"){C.state="edit";C.error="The forge did not answer. Try again.";render();}},20000);
 }
