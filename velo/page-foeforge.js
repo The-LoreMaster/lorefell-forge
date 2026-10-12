@@ -1,10 +1,11 @@
 // FoeForge page code.
-// Submit routes to the Pentifax, the foe canon hall (Creations, kind foe).
-// The builder reads abilities, infusions, and augmentations, both official and submitted.
+// The builder reads abilities, infusions, augmentations and relics, and the member's adventures.
+// Save writes the foe to the Foe library ThreadSpire reads (Assets, through saveAsset), in the
+// row ThreadSpire writes, so it opens there whole (Nate, 2026-10-12). The Pentifax is gone.
 // Set EMBED to your Embed a Site element ID.
 
-import { submitCreation, getCreations, getCatalog, castVote, buildLegalAct, saveFoe, myFoes, deleteFoe, getFoePack } from 'backend/forge.web.js';
-import { currentMember } from 'wix-members-frontend';
+import { getCreations, getCatalog, buildLegalAct, getFoePack } from 'backend/forge.web.js';
+import { getForgePools, listMyCampaigns, saveAsset } from 'backend/fatewell.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
 
 const FORGE_KEY = 'foeforge';
@@ -22,18 +23,6 @@ function dedupeByName(arr) {
   arr.forEach(function (x) { const k = (x.name || '').toLowerCase(); if (k && !seen[k]) { seen[k] = 1; out.push(x); } });
   return out;
 }
-
-function foeFullText(p) {
-  const lines = [];
-  if (p.description) lines.push(p.description);
-  lines.push((p.shatterRating || '') + ' ' + (p.build || '') + ', ' + (p.stance || '') + ' stance.');
-  if (p.signatureAffliction) lines.push('Signature: ' + p.signatureAffliction + '.');
-  if ((p.infusions || []).length) lines.push('Infusions: ' + p.infusions.join(', ') + '.');
-  if ((p.augmentations || []).length) lines.push('Augmentations: ' + p.augmentations.join(', ') + '.');
-  if ((p.acts || []).length) lines.push('Acts: ' + p.acts.map(function (a) { return 'T' + a.tier + ' ' + a.name; }).join(', ') + '.');
-  return lines.join('\n');
-}
-
 
 // Every uploaded image gets a unique media name so two uploads can never collide
 // and overwrite each other (a same-name upload can replace the prior file).
@@ -80,7 +69,12 @@ $w.onReady(() => {
         })
       );
 
-      embed.postMessage({ type: 'FOE_LIBRARY', library: { infusions: infusions, augmentations: augmentations, abilities: abilities } });
+      let relics = [], campaigns = [];
+      try { relics = ((await getForgePools()) || {}).items || []; } catch (e) { relics = []; }
+      try { campaigns = (await listMyCampaigns()) || []; } catch (e) { campaigns = []; }
+      embed.postMessage({ type: 'FOE_LIBRARY', library: { infusions: infusions, augmentations: augmentations, abilities: abilities,
+        relics: relics.map(function (r) { return { name: r.name, rule: r.rule || '' }; }),
+        campaigns: campaigns.map(function (c) { return { id: c._id || c.id || c.campaignId || '', title: c.title || c.name || '' }; }) } });
       return;
     }
 
@@ -113,101 +107,19 @@ $w.onReady(() => {
       return;
     }
 
-    if (msg.type === 'FOE_SEND_ACT') {
-      const payload = (msg.payload && msg.payload.act) || null;
-      const name = (msg.payload && msg.payload.name) || (payload && payload.title) || '';
-      let ok = false, cid = '';
-      if (payload) {
-        try {
-          const ex = await getCreations('sigilforge', { limit: 500 });
-          const hit = ex.find(function (r) { return String(r.creationName || '').toLowerCase() === String(name).toLowerCase(); });
-          if (hit) { ok = true; cid = hit.creationId; }
-        } catch (e) {}
-        if (!cid) {
-          try { const res = await submitCreation('sigilforge', payload); ok = !!(res && res.ok); cid = (res && res.creationId) || ''; } catch (e) {}
-        }
-      }
-      embed.postMessage({ type: 'FOE_ACT_SENT', name: name, ok: ok, creationId: cid });
-      return;
-    }
-
     if (msg.type === 'FOE_SAVE') {
-      let res = { ok: false };
-      const p = msg.payload || {};
-      try {
-        // The image rides inside the saved payload JSON. A base64 data URI would push the
-        // row past the per-document size limit, so upload it to a media URL first. This is
-        // the same step the submit path already takes.
-        if (p.image && String(p.image).indexOf('data:') === 0) {
-          try { p.image = await uploadRune(p.image, uniqName(p.name || 'foe')); }
-          catch (e) { p.image = ''; }
+      const asset = (msg.payload && msg.payload.asset) || null;
+      let res = { ok: false, error: 'Nothing to save.' };
+      if (asset && asset.assetId) {
+        // A picture rides as a media URL: a base64 data URI would push the row past its size limit.
+        if (asset.image && String(asset.image).indexOf('data:') === 0) {
+          try { asset.image = await uploadRune(asset.image, uniqName(asset.name || 'foe')); }
+          catch (e) { asset.image = ''; }
         }
-        res = await saveFoe(p);
-      } catch (e) {
-        res = { ok: false, errors: [String((e && e.message) || e)] };
+        try { res = await saveAsset(asset); }
+        catch (e) { res = { ok: false, error: String((e && e.message) || e) }; }
       }
-      embed.postMessage({ type: 'FOE_SAVED', ok: !!res.ok, foeId: res.foeId || '', errors: res.errors || [] });
-      return;
-    }
-
-    if (msg.type === 'FOE_LOAD_MINE') {
-      let items = [];
-      try { items = await myFoes(); } catch (e) { items = []; }
-      embed.postMessage({ type: 'FOE_MINE', items: items });
-      return;
-    }
-
-    if (msg.type === 'FOE_DELETE') {
-      const id = msg.payload && msg.payload.foeId;
-      let res = { ok: false };
-      try { res = await deleteFoe(id); } catch (e) { res = { ok: false }; }
-      embed.postMessage({ type: 'FOE_DELETED', ok: !!res.ok, foeId: id });
-      return;
-    }
-
-    if (msg.type === 'FOE_LOAD_LEDGER') {
-      const scope = (msg.payload && msg.payload.scope) || 'all';
-      const opts = { kind: 'foe', limit: 60 };
-      if (scope === 'canon') opts.canonStatus = 'canon';
-      if (scope === 'mine') { try { const me = await currentMember.getMember(); if (me) opts.creatorMemberId = me._id; } catch (e) {} }
-      let items = [];
-      try { items = await getCreations(FORGE_KEY, opts); } catch (e) { items = []; }
-      embed.postMessage({ type: 'FOE_LEDGER_RESULT', scope: scope, items: items });
-      return;
-    }
-
-    if (msg.type === 'FOE_VOTE') {
-      const id = msg.payload && msg.payload.creationId;
-      let r = { ok: false };
-      try { r = await castVote(FORGE_KEY, id); } catch (e) { r = { ok: false }; }
-      embed.postMessage({ type: 'FOE_VOTE_RESULT', creationId: id, ok: !!r.ok, voteCount: r.voteCount, already: !!r.already, signin: !!r.signin });
-      return;
-    }
-
-    if (msg.type === 'FOE_SUBMIT') {
-      const p = msg.payload || {};
-      let imageUrl = '';
-      if (p.image) { try { imageUrl = await uploadRune(p.image, uniqName(p.name || 'foe')); } catch (e) { imageUrl = ''; } }
-      const payload = {
-        kind: 'foe',
-        title: String(p.name || '').slice(0, 120),
-        shorthand: (p.shatterRating || '') + ' ' + (p.build || ''),
-        fullText: foeFullText(p),
-        imageUrl: imageUrl,
-        selections: [],
-        meta: {
-          hall: 'pentifax',
-          build: p.build || '', stance: p.stance || '',
-          signatureAffliction: p.signatureAffliction || '',
-          infusions: p.infusions || [], augmentations: p.augmentations || [],
-          acts: p.acts || [], shatterRating: p.shatterRating || '',
-          description: p.description || ''
-        }
-      };
-      let res = { ok: false, errors: ['The forge could not reach the Pentifax.'] };
-      try { res = await submitCreation(FORGE_KEY, payload); }
-      catch (e) { res = { ok: false, errors: ['The forge could not reach the Pentifax. Try again.'] }; }
-      embed.postMessage({ type: 'FOE_SUBMIT_RESULT', ok: !!res.ok, errors: res.errors || [] });
+      embed.postMessage({ type: 'FOE_SAVED', ok: !!(res && res.ok), error: (res && res.error) || '' });
       return;
     }
   });
