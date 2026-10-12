@@ -78,6 +78,25 @@ const SEED = {
     check('the Description field shows it', js('document.getElementById("f-desc").value')===desc, 'field differs');
   }
 
+  // 4. on FellGlass's own page the forging covers the sheet until ThreadSpire takes over, and
+  //    the move waits for the first save to be answered (the sheet used to flash in between)
+  {
+    const { w, posted } = await boot();
+    const js = (s)=>w.eval(s);
+    w.dispatchEvent(new w.MessageEvent('message', { data:{ type:'new', forge:SEED, charId:'row-1' } }));
+    await new Promise(r=>setTimeout(r,200));
+    js('CC.weaponTree=CC.weaponTree||"Blades"; CC.infusion=CC.infusion||null; CC.lbType=CC.lbType||"Familiar"; if(!CC.pgOrigin) CC.pgOrigin=PREGEN_ORIGINS[0]; CC.motivation=CC.motivation||"The Resistant"; ccApply();');
+    const opened = ()=>posted.some(m=>m&&m.type==='threadspire-open');
+    await new Promise(r=>setTimeout(r,3600));
+    check('with the save unanswered, it does not leave yet', !opened(), 'left before the save was answered');
+    check('the forging still covers the sheet', js('document.getElementById("forge").classList.contains("play")'), 'the sheet is showing');
+    const seq = js('SAVE_SEQ');
+    w.dispatchEvent(new w.MessageEvent('message', { data:{ type:'saved', ok:true, saveSeq:seq, charId:'row-1', localId:js('CUR_LOCAL_ID') } }));
+    await new Promise(r=>setTimeout(r,500));
+    check('once the save is answered, it opens ThreadSpire with the Fell', posted.some(m=>m&&m.type==='threadspire-open'&&m.charId==='row-1'), JSON.stringify(posted.filter(m=>m&&m.type==='threadspire-open')));
+    check('and the forging is still up as the page leaves', js('document.getElementById("forge").classList.contains("play") && !document.getElementById("forge").classList.contains("out")'), 'cleared before leaving');
+  }
+
   console.log('\n' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);
 })();
