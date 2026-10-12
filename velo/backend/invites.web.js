@@ -78,7 +78,16 @@ export const redeemInvite = webMethod(Permissions.Anyone, async (tok) => {
     }
     // The adventure's header picture heads the join page; none set means no picture at all.
     let image = '';
-    try { image = emailImage(await adventureImage(campaignId)); if (image === BLANK_IMAGE) image = ''; } catch (e) {}
+    // Read the way the table and its emails do (the adventure's root row by its id, meta.img),
+    // then the advId lookup the morning reminder uses, so any adventure with a picture shows it.
+    let raw = '';
+    try {
+      const root = await wixData.get('Adventures', campaignId, { suppressAuth: true });
+      const meta = root && (typeof root.meta === 'string' ? JSON.parse(root.meta || '{}') : root.meta);
+      raw = (meta && meta.img) || '';
+    } catch (e) {}
+    if (!raw) { try { raw = await adventureImage(campaignId); } catch (e) {} }
+    try { image = emailImage(raw); if (image === BLANK_IMAGE) image = ''; } catch (e) {}
     return { ok: true, campaignId: campaignId, campaignName: name, isOwner: isOwner, image: image };
   } catch (e) { return { ok: false, error: String(e) }; }
 });
