@@ -33,6 +33,18 @@ async function run(q, { backupDir } = {}) {
     }
   }
   console.log(`Studio name: ${changed} row(s) now say ${TO}.`);
+  /* Report, read only: who the canon creations credit, so a run that finds nothing shows why. */
+  if (tables.includes("Creations")) {
+    const by = await q(`SELECT json_extract(data, '$.forgeKey') AS forge, json_extract(data, '$.canonStatus') AS status, json_extract(data, '$.creatorName') AS creator, COUNT(*) AS n FROM "Creations" GROUP BY 1, 2, 3 ORDER BY 1, 2, 3`);
+    by.forEach((r) => console.log(`Creations: ${r.forge} ${r.status} by ${JSON.stringify(r.creator)}: ${r.n}`));
+  }
+  for (const t of tables) {
+    if (!/^[A-Za-z0-9_]+$/.test(t)) continue;
+    const cols = (await q(`PRAGMA table_info("${t}")`)).map((c) => c.name);
+    if (!cols.includes("data")) continue;
+    const n = ((await q(`SELECT COUNT(*) AS n FROM "${t}" WHERE data LIKE ?`, ["%Skyvault Stud%"]))[0] || {}).n;
+    if (n) console.log(`${t}: ${n} row(s) mention Skyvault Stud...`);
+  }
   return changed;
 }
 
