@@ -3862,6 +3862,138 @@ function storyDelete(kind, id){
     try { if (wasKind === 'scene') sessionScenesRefresh(); else window._sesScenesOpen = false; } catch(e){}
   });
 }
+/* One act, session or scene on its own, out to a file and back in (Nate, 2026-10-12), so a
+   piece can be edited elsewhere without exporting and importing the whole adventure. The file
+   holds the piece as it is stored (live board state left out, as advCleanScene leaves it) and
+   the library foes and NPCs its scenes use. A piece comes back under a parent you choose: a
+   scene under a session, a session under an act, an act in the adventure. If this adventure
+   already has it (the same id), you choose: replace it where it stands, or add a copy. A copy,
+   and anything new, gets fresh ids, so it never meets a deleted node's tombstone or its twin. */
+var PART_FORMAT = 'lorefell-adventure-part-1';
+var PART_A = { act:'an act', session:'a session', scene:'a scene' };
+function partStrip(n){ Object.keys(n).forEach(function(k){ if (k.charAt(0) === '_') delete n[k]; }); return n; }
+function partClean(kind, node){
+  var scene = function(sc){ return partStrip(JSON.parse(JSON.stringify(advCleanScene(sc)))); };
+  if (kind === 'scene') return scene(node);
+  var c = partStrip(JSON.parse(JSON.stringify(node)));
+  if (kind === 'session'){ c.scenes = (node.scenes || []).map(scene); return c; }
+  c.sessions = (node.sessions || []).map(function(se){ var x = partStrip(JSON.parse(JSON.stringify(se))); x.scenes = (se.scenes || []).map(scene); return x; });
+  return c;
+}
+function partScenes(kind, part){
+  if (kind === 'scene') return [part];
+  if (kind === 'session') return part.scenes || [];
+  var out = []; (part.sessions || []).forEach(function(se){ out = out.concat(se.scenes || []); }); return out;
+}
+function partIds(kind, part){
+  var ids = {}; ids[part.id] = 1;
+  if (kind === 'session') (part.scenes || []).forEach(function(sc){ ids[sc.id] = 1; });
+  if (kind === 'act') (part.sessions || []).forEach(function(se){ ids[se.id] = 1; (se.scenes || []).forEach(function(sc){ ids[sc.id] = 1; }); });
+  return ids;
+}
+/* fresh ids for every node not in keep */
+function partRemint(kind, part, keep){
+  var fresh = function(n){ if (!keep || !keep[n.id]) n.id = mkId(); };
+  fresh(part);
+  if (kind === 'session') (part.scenes || []).forEach(fresh);
+  if (kind === 'act') (part.sessions || []).forEach(function(se){ fresh(se); (se.scenes || []).forEach(fresh); });
+  return part;
+}
+function tsDownload(text, filename){
+  try {
+    var b = new Blob([text], { type:'application/json' }), a = document.createElement('a');
+    a.href = URL.createObjectURL(b); a.download = filename;
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 500);
+    return true;
+  } catch(e){ return false; }
+}
+function tsPartExport(kind, id){
+  var node = storyNode(kind, id); if (!node) return;
+  var part = partClean(kind, node), seen = {}, library = [];
+  partScenes(kind, part).forEach(function(sc){
+    (sc.combatants || []).forEach(function(c){
+      var lid = c && c.libId; if (!lid || seen[lid]) return; seen[lid] = 1;
+      var e = libGet(lid); if (e) library.push(JSON.parse(JSON.stringify(e)));
+    });
+  });
+  var file = { meta:{ format:PART_FORMAT, kind:kind, builtAt:Date.now(), adventure:(S.adventure && S.adventure.name) || '' }, part:part, library:library };
+  var text = JSON.stringify(file, null, 2);
+  var name = String(node.name || kind).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || kind;
+  if (tsDownload(text, name + '.lorefell-' + kind + '.json')){
+    playToast('<b>' + esc(node.name || kind) + '</b> downloaded. Import it back from its parent in the Story.', 'Exported', 'ok');
+  } else {
+    tsModal('<h3 class="tsm-title">Export ' + esc(node.name || kind) + '</h3><p class="tsm-note">Copy this and save it as a .json file.</p><textarea class="tsm-inp tsm-ta" style="min-height:220px" onclick="this.select()" readonly>' + esc(text) + '</textarea><div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Done</button></div>');
+  }
+}
+function tsPartImport(kind, parentId){
+  var where = 'It goes at the end of this adventure’s acts.';
+  if (kind === 'session'){ var fa = storyFind('act', parentId); if (!fa) return; where = 'It goes at the end of <b>' + esc(fa.act.name || 'this act') + '</b>.'; }
+  if (kind === 'scene'){ var fs = storyFind('session', parentId); if (!fs) return; where = 'It goes at the end of <b>' + esc(fs.ses.name || 'this session') + '</b>.'; }
+  window._partCtx = { kind:kind, parentId:parentId || '' };
+  tsModal('<h3 class="tsm-title">Import ' + PART_A[kind] + '</h3>'
+    + '<p class="tsm-note">Choose a file exported from a ' + kind + '’s Export button. ' + where + ' If this adventure already has it, you choose whether to replace it.</p>'
+    + '<input type="file" accept="application/json,.json" onchange="tsPartRead(this)">'
+    + '<div id="tsPartMsg" class="tsm-note" style="margin-top:8px"></div>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal();sessionScenesRefresh()">Close</button></div>');
+}
+function tsPartRead(input){
+  var f = input.files && input.files[0]; input.value = ''; if (!f) return;
+  var msg = document.getElementById('tsPartMsg'), ctx = window._partCtx || {};
+  var say = function(t){ if (msg) msg.textContent = t; };
+  var reader = new FileReader();
+  reader.onload = function(ev){
+    var file; try { file = JSON.parse(ev.target.result); } catch(e){ say('That file is not valid JSON.'); return; }
+    if (file && file.meta && file.meta.format === 'lorefell-adventure-pack-1'){ say('That is a whole adventure. Import it from Settings, Back up.'); return; }
+    if (!file || !file.meta || file.meta.format !== PART_FORMAT || !file.part || !file.part.id){ say('That does not look like an exported act, session or scene.'); return; }
+    if (file.meta.kind !== ctx.kind){ say('That file holds ' + (PART_A[file.meta.kind] || 'something else') + ', not ' + PART_A[ctx.kind] + '. Import it from its own level.'); return; }
+    window._partFile = file;
+    var have = storyFind(ctx.kind, file.part.id);
+    if (!have){ tsPartPlace(false); return; }
+    var nm = (ctx.kind === 'act' ? have.act : ctx.kind === 'session' ? have.ses : have.scene).name || 'it';
+    tsModal('<h3 class="tsm-title">This adventure has ' + esc(nm) + '</h3>'
+      + '<p class="tsm-note">Replace it where it stands with the file’s version, or add the file as a copy where you chose.</p>'
+      + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal();sessionScenesRefresh()">Cancel</button>'
+      + '<button class="tsm-btn ghost" onclick="tsPartPlace(false)">Add a copy</button>'
+      + '<button class="tsm-btn" onclick="tsPartPlace(true)">Replace it</button></div>');
+  };
+  reader.onerror = function(){ say('Could not read that file.'); };
+  reader.readAsText(f);
+}
+function tsPartPlace(replace){
+  var file = window._partFile, ctx = window._partCtx || {}; if (!file) return;
+  var kind = ctx.kind, A = S.adventure || (S.adventure = { acts:[] });
+  var part = JSON.parse(JSON.stringify(file.part)), name = part.name || kind, gone = [];
+  /* the foes and NPCs it uses: any this library lacks join it, for this adventure */
+  (file.library || []).forEach(function(e){
+    if (!e || !e.id || libGet(e.id)) return;
+    var n = JSON.parse(JSON.stringify(e)); n.campaignId = S.campaignId || ''; n.campaignName = A.name || '';
+    S.library = (S.library || []).concat([n]); libSave(n);
+  });
+  if (replace){
+    var f = storyFind(kind, part.id); if (!f) return;
+    var old = kind === 'act' ? f.act : kind === 'session' ? f.ses : f.scene, keep = partIds(kind, old), now = {};
+    partRemint(kind, part, keep);
+    now = partIds(kind, part);
+    /* children the new version no longer has are deleted, rows and all, as Delete does */
+    if (kind === 'act') (old.sessions || []).forEach(function(se){ if (!now[se.id]) gone.push(['TS_ADV_REMOVE_SESSION', { sesId:se.id }]); else (se.scenes || []).forEach(function(sc){ if (!now[sc.id]) gone.push(['TS_ADV_REMOVE_SCENE', { sceneId:sc.id }]); }); });
+    if (kind === 'session') (old.scenes || []).forEach(function(sc){ if (!now[sc.id]) gone.push(['TS_ADV_REMOVE_SCENE', { sceneId:sc.id }]); });
+    f.list[f.idx] = part;
+    /* the scene on the table, replaced, is the new one there too */
+    try { if (S.scene && now[S.scene.id]){ var hit = storyFind('scene', S.scene.id); if (hit) S.scene = hit.scene; } } catch(e){}
+  } else {
+    partRemint(kind, part, null);
+    if (kind === 'act'){ A.acts = A.acts || []; A.acts.push(part); }
+    if (kind === 'session'){ var fa = storyFind('act', ctx.parentId); if (!fa) return; fa.act.sessions = fa.act.sessions || []; fa.act.sessions.push(part); storyOpen.act[ctx.parentId] = true; }
+    if (kind === 'scene'){ var fs = storyFind('session', ctx.parentId); if (!fs) return; fs.ses.scenes = fs.ses.scenes || []; fs.ses.scenes.push(part); storyOpen.ses[ctx.parentId] = true; }
+  }
+  window._partFile = null;
+  storySave(); advPersistTree();
+  gone.forEach(function(g){ tsAsk(g[0], g[1]).catch(function(){}); });
+  tsCloseModal(); refreshWinBody(); render();
+  try { sessionScenesRefresh(); } catch(e){}
+  playToast('<b>' + esc(name) + '</b> ' + (replace ? 'replaced.' : 'imported.'), replace ? 'Replaced' : 'Imported', 'ok');
+}
 /* Notes authored on an act or a session in FateWell. They have always ridden along in the
    adventure and had nowhere to appear, which is why the Story panel's own header promised
    sessions, scenes AND notes and only ever showed the first two. Read-only here: FateWell
@@ -4002,6 +4134,7 @@ function storyBody(){
        + '<button class="st-b" onclick="storyMove(\'act\',\'' + a.id + '\',-1)"' + (ai === 0 ? ' disabled' : '') + ' title="Move up">\u25b4</button>'
        + '<button class="st-b" onclick="storyMove(\'act\',\'' + a.id + '\',1)"' + (ai === (A.acts.length - 1) ? ' disabled' : '') + ' title="Move down">\u25be</button>'
        + '<button class="st-b" onclick="storyRename(\'act\',\'' + a.id + '\')" title="Rename">\u270e</button>'
+       + '<button class="st-b" onclick="tsPartExport(\'act\',\'' + a.id + '\')" title="Export this act">\u2913</button>'
        + '<button class="st-b" onclick="storyDelete(\'act\',\'' + a.id + '\')" title="Delete">\u2715</button></div>';
     if (!ao) return;
     h += '<div class="st-kids">';
@@ -4012,6 +4145,7 @@ function storyBody(){
          + '<button class="st-b" onclick="storyMove(\'session\',\'' + se.id + '\',-1)"' + (si === 0 ? ' disabled' : '') + ' title="Move up">\u25b4</button>'
          + '<button class="st-b" onclick="storyMove(\'session\',\'' + se.id + '\',1)"' + (si === (a.sessions.length - 1) ? ' disabled' : '') + ' title="Move down">\u25be</button>'
          + '<button class="st-b" onclick="storyRename(\'session\',\'' + se.id + '\')" title="Rename">\u270e</button>'
+         + '<button class="st-b" onclick="tsPartExport(\'session\',\'' + se.id + '\')" title="Export this session">\u2913</button>'
          + '<button class="st-b" onclick="storyDelete(\'session\',\'' + se.id + '\')" title="Delete">\u2715</button></div>';
       if (!so) return;
       /* A session used to unroll into its whole scene list and its notes, so an act with
@@ -4025,9 +4159,11 @@ function storyBody(){
         + '</div>';
     });
     h += storyNotesHtml(a);
-    h += '<button class="st-add" onclick="storyAdd(\'session\',\'' + a.id + '\')">Add a session</button></div>';
+    h += '<button class="st-add" onclick="storyAdd(\'session\',\'' + a.id + '\')">Add a session</button>'
+       + '<button class="st-add" onclick="tsPartImport(\'session\',\'' + a.id + '\')">Import a session</button></div>';
   });
-  h += '<button class="ts-newfell" onclick="storyAdd(\'act\')">Add an act</button>';
+  h += '<button class="ts-newfell" onclick="storyAdd(\'act\')">Add an act</button>'
+     + '<button class="st-add" onclick="tsPartImport(\'act\')">Import an act</button>';
   return h;
 }
 function scenesBody(){
@@ -6036,6 +6172,7 @@ function sessionScenesWindow(sesId){
       + '<button class="st-b" onclick="storyMove(\'scene\',\'' + sc.id + '\',-1);sessionScenesRefresh()"' + (ci === 0 ? ' disabled' : '') + ' title="Move up">\u25b4</button>'
       + '<button class="st-b" onclick="storyMove(\'scene\',\'' + sc.id + '\',1);sessionScenesRefresh()"' + (ci === n - 1 ? ' disabled' : '') + ' title="Move down">\u25be</button>'
       + '<button class="st-b" onclick="storyRename(\'scene\',\'' + sc.id + '\')" title="Rename">\u270e</button>'
+      + '<button class="st-b" onclick="tsPartExport(\'scene\',\'' + sc.id + '\')" title="Export this scene">\u2913</button>'
       + '<button class="st-b" onclick="storyDelete(\'scene\',\'' + sc.id + '\')" title="Delete">\u2715</button></div>';
     /* Rename and Delete open their own prompt over this one, so the list behind is stale
        once they finish. They are refreshed where they land rather than here. */
@@ -6050,6 +6187,7 @@ function sessionScenesWindow(sesId){
   tsModal('<h3 class="tsm-title">' + esc(se.name || 'Session') + ' \u00b7 Scenes</h3>'
     + '<div class="rs-wrap">' + body + '</div>'
     + '<button class="st-add" onclick="storyAdd(\'scene\',\'' + se.id + '\');sessionScenesRefresh()">Add a scene</button>'
+    + '<button class="st-add" onclick="tsPartImport(\'scene\',\'' + se.id + '\')">Import a scene</button>'
     + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseSessionScenes()">Close</button></div>', true);
 }
 function tsCloseSessionScenes(){ window._sesScenesOpen = false; tsCloseModal(); }
