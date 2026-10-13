@@ -929,7 +929,7 @@
       "a forged spell",
       "The Xenophis, the Umbra Aspect",
       "the Shadowmeld augmentation",
-      "the Gloomcowl utility"
+      "the Gloomcowl relic"
     ]
   },
   {
