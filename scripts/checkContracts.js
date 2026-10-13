@@ -20,7 +20,7 @@ const ALLOW = {
   // The page answers THREADSPIRE_WANT_LORE for the older build under threadspire/app
   // and threadspire/dist. docs/threadspire.html never asks, so the reply lands nowhere
   // in the live tool. Kept because the older build still reads it.
-  threadspire: ['THREADSPIRE_LORE', 'init']   // 'init' here is posted straight to the sheet iframe (godShow re-lighting a cached Fell), not a page-bridge message
+  threadspire: ['THREADSPIRE_LORE', 'init', 'tool-fullscreen']   // 'init' here is posted straight to the sheet iframe (godShow re-lighting a cached Fell), not a page-bridge message; 'tool-fullscreen' is answered by the site's tool page (lorefell-site src/pages/[tool].astro), which takes its 16:9 stage full screen
 };
 
 // Some tools host another tool in an iframe and talk downward to it. Those types are
