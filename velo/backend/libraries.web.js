@@ -11,8 +11,47 @@
 
 import { Permissions, webMethod } from 'wix-web-module';
 import wixData from 'wix-data';
+import { currentMember } from 'wix-members-backend';
+import { ownerOf } from 'backend/sessionsCore.js';
 
-export const getLibraries = webMethod(Permissions.Anyone, async () => {
+async function callerId() {
+  try { const m = await currentMember.getMember(); return (m && m._id) || ''; } catch (e) { return ''; }
+}
+// Who runs an adventure: its owner and anyone holding the loremaster role in it.
+async function adventureLms(campaignId) {
+  const cid = String(campaignId || '');
+  if (!cid) return [];
+  const out = {};
+  try { const o = await ownerOf(cid); if (o && o.owner) out[o.owner] = 1; } catch (e) {}
+  try {
+    const r = await wixData.query('AdventureMembers').eq('campaignId', cid).eq('role', 'loremaster').limit(20).find({ suppressAuth: true });
+    r.items.forEach((m) => { if (m.memberId) out[m.memberId] = 1; });
+  } catch (e) {}
+  return Object.keys(out);
+}
+const FORGED_KEYS = ['sigilforge', 'shardforge', 'bondforge', 'brandforge'];
+// What the forges made that this caller may see: everything in the vote or voted canon, plus
+// the caller's own work and the work of the adventure's LoreMaster, private included.
+async function forgedRows(me, lms) {
+  const rows = [], seen = {};
+  const take = (items) => (items || []).forEach((it) => { if (it && it._id && !seen[it._id]) { seen[it._id] = 1; rows.push(it); } });
+  try {
+    const r = await wixData.query('Creations').hasSome('forgeKey', FORGED_KEYS).hasSome('canonStatus', ['submitted', 'canon'])
+      .descending('_createdDate').limit(1000).find({ suppressAuth: true });
+    take(r.items);
+  } catch (e) {}
+  const who = Array.from(new Set([me].concat(lms || []).filter(Boolean)));
+  for (const id of who) {
+    try {
+      const r = await wixData.query('Creations').hasSome('forgeKey', FORGED_KEYS).eq('creatorMemberId', id)
+        .descending('_createdDate').limit(500).find({ suppressAuth: true });
+      take(r.items);
+    } catch (e) {}
+  }
+  return rows;
+}
+
+export const getLibraries = webMethod(Permissions.Anyone, async (opts) => {
   const out = {};
   try {
     const r = await wixData.query('Lineages')
@@ -117,22 +156,23 @@ export const getLibraries = webMethod(Permissions.Anyone, async () => {
   } catch (e) {}
 
   // What the forges made: SigilForge abilities and spells, ShardForge infusions and
-  // augmentations, BondForge lorebounds and BrandForge lineages, in the vote or voted canon.
-  // The sheet offers them beside canon, and a Fell only takes one once its LoreMaster
-  // approves (Nate, 2026-10-13). Private and adventure-only work never leaves its maker.
+  // augmentations, BondForge lorebounds, BrandForge lineages and worlds. The sheet offers them
+  // beside canon, and a Fell takes one once its LoreMaster approves (Nate, 2026-10-13). What
+  // the adventure's own LoreMaster made is marked adv: its players take those lineages and
+  // lorebounds freely. Everyone else's private work never leaves its maker.
   try {
-    const rf = await wixData.query('Creations')
-      .hasSome('forgeKey', ['sigilforge', 'shardforge', 'bondforge', 'brandforge'])
-      .hasSome('canonStatus', ['submitted', 'canon'])
-      .descending('_createdDate').limit(1000).find({ suppressAuth: true });
-    const forged = { abilities: [], infusions: [], augmentations: [], lorebounds: [], lineages: [] };
-    rf.items.forEach((it) => {
+    const me = await callerId();
+    const lms = await adventureLms(opts && opts.campaignId);
+    const items = await forgedRows(me, lms);
+    const forged = { abilities: [], infusions: [], augmentations: [], lorebounds: [], lineages: [], worlds: [] };
+    items.forEach((it) => {
       let pl = {};
       try { pl = typeof it.payload === 'string' ? JSON.parse(it.payload) : (it.payload || {}); } catch (e) { pl = {}; }
       const m = pl.meta || {};
       const name = String(it.creationName || pl.title || '').trim();
       if (!name) return;
-      const base = { id: it._id, name: name, by: it.creatorName || m.creator || '', canon: it.canonStatus === 'canon' };
+      const base = { id: it._id, name: name, by: it.creatorName || m.creator || '', canon: it.canonStatus === 'canon',
+        adv: lms.indexOf(it.creatorMemberId) >= 0, mine: !!me && it.creatorMemberId === me };
       const text = it.shorthand || it.fullText || '';
       if (it.forgeKey === 'sigilforge') {
         if (pl.mode === 'monster' || pl.kind === 'foe' || it.kind === 'foe') return;
@@ -148,10 +188,31 @@ export const getLibraries = webMethod(Permissions.Anyone, async () => {
           branches: Array.isArray(m.branches) ? m.branches : [], crowns: Array.isArray(m.crowns) ? m.crowns : [] }));
       } else if (it.forgeKey === 'brandforge' && (m.kind || pl.kind) === 'lineage') {
         forged.lineages.push(Object.assign(base, { desc: m.body || it.fullText || '', bonusType: m.bonusType || '', bonusValue: m.bonusValue || '' }));
+      } else if (it.forgeKey === 'brandforge' && (m.kind || pl.kind) === 'world') {
+        forged.worlds.push(Object.assign(base, { desc: m.overview || it.shorthand || '' }));
       }
     });
     out.forged = forged;
   } catch (e) {}
 
+  return out;
+});
+
+// The worlds a LoreMaster may set an adventure in, beyond the canon list: the ones they made
+// in the BrandForge (any status) and any voted canon (Nate, 2026-10-13).
+export const myForgedWorlds = webMethod(Permissions.Anyone, async () => {
+  const me = await callerId();
+  const out = [], seen = {};
+  const add = (it) => {
+    if (!it || seen[it._id]) return;
+    let pl = {}; try { pl = typeof it.payload === 'string' ? JSON.parse(it.payload) : (it.payload || {}); } catch (e) { pl = {}; }
+    const m = pl.meta || {};
+    if ((m.kind || pl.kind) !== 'world') return;
+    const name = String(it.creationName || pl.title || '').trim(); if (!name) return;
+    seen[it._id] = 1;
+    out.push({ id: 'forged:' + it._id, name: name, desc: m.overview || it.shorthand || '', mine: !!me && it.creatorMemberId === me });
+  };
+  try { const r = await wixData.query('Creations').eq('forgeKey', 'brandforge').eq('canonStatus', 'canon').limit(200).find({ suppressAuth: true }); r.items.forEach(add); } catch (e) {}
+  if (me) { try { const r = await wixData.query('Creations').eq('forgeKey', 'brandforge').eq('creatorMemberId', me).limit(200).find({ suppressAuth: true }); r.items.forEach(add); } catch (e) {} }
   return out;
 });

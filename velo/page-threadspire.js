@@ -11,7 +11,7 @@ import { publishAdventure, unpublishAdventure, myPublishedAdventures, getPublish
 import { getFoePack, submitFoeToPentifax } from 'backend/forge.web.js';
 import { listQuests, listDiscovered, getWorldMeta, saveAsset, listAssets, getCampaignPlayers, getClueCards, upsertQuest, getShelves, saveShelves } from 'backend/fatewell.web.js';
 import { getCombatForChar, saveCombatDeclare, syncCombatPlayer, publishCombatState, applyCombatToChar, dealDamageToChar, setCombatCharge, getCombatDeclares } from 'backend/combat.web.js';
-import { getLibraries } from 'backend/libraries.web.js';
+import { getLibraries, myForgedWorlds } from 'backend/libraries.web.js';
 import { listSphereArt } from 'backend/sphereart.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
 import { listStages, saveStage, deleteStage } from 'backend/threadspire.web.js';
@@ -184,6 +184,7 @@ $w.onReady(async function () {
       reply: reply,
       getCharId: () => fgCharId,
       setCharId: (id) => { fgCharId = id; },
+      campaignId: () => campaignId,
       api: fgApi,
       godCharId: godCharId,
       // The sheet's third creation path, the same as on FellGlass's own page: roll the Fell
@@ -319,7 +320,8 @@ $w.onReady(async function () {
             if (!rec) { reply(false, null, 'that Fell is not yours to open'); }
             else {
               godCharId = msg.charId || '';
-              let libraries = {}; try { libraries = await getLibraries(); } catch (e) { libraries = {}; }
+              const fellCid = (rec.character && rec.character.identity && rec.character.identity.campaignId) || campaignId;
+              let libraries = {}; try { libraries = await getLibraries({ campaignId: fellCid }); } catch (e) { libraries = {}; }
               // down the existing relay, as the sheet's own init. Same road the player's
               // own sheet travels, so there is one way in and one thing to keep working.
               embed.postMessage({ type: 'TS_TOOL_DOWN', tool: 'fellglass',
@@ -669,6 +671,10 @@ $w.onReady(async function () {
           let acts = [];
           try { acts = await getForgeLibrary(); } catch (e) { acts = []; }
           reply(ok, acts);
+        } else if (msg.type === 'TS_MY_WORLDS') {
+          let worlds = [];
+          try { worlds = await myForgedWorlds(); } catch (e) { worlds = []; }
+          reply(true, worlds);
         } else if (msg.type === 'TS_FORGE_ITEM') {
           let ok = false;
           try { const r = await submitItem(msg.item || {}); ok = !!(r && r.ok); } catch (e) { ok = false; }

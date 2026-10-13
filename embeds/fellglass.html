@@ -3028,7 +3028,8 @@ function renderCampaignOptions(){
     var host=$("tsSpireLink"); if(!host) return;
     var wid=C.identity.worldId||""; 
     if(!wid){ var a=ADVS.find(function(x){return x.id===curId;}); if(a&&a.worldId) wid=a.worldId; }
-    if(wid){ host.innerHTML='<a class="ts-link" target="_top" href="/the-threadspire?world='+encodeURIComponent(wid)+'&campaign='+encodeURIComponent(curId)+'">See this saga in the Sphere</a>'; }
+    /* only a canon world has a place in the Sphere; an Unwritten or forged one does not */
+    if(wid&&String(wid).indexOf("world:")===0){ host.innerHTML='<a class="ts-link" target="_top" href="/the-threadspire?world='+encodeURIComponent(wid)+'&campaign='+encodeURIComponent(curId)+'">See this saga in the Sphere</a>'; }
     else { host.innerHTML=''; }
   })();
   // keep the id linked when only a legacy name was stored
@@ -3089,7 +3090,7 @@ $("f-lineage").addEventListener("change",e=>{
   if(v.indexOf("forged:")===0){
     const f=(FORGED.lineages||[]).find(x=>x.name===v.slice(7));
     if(!f){ e.target.value=C.identity.lineage||""; return; }
-    if(!god){
+    if(!god&&!f.adv){
       e.target.value=C.identity.lineage||"";
       if(confirm("Ask your LoreMaster for the "+f.name+" lineage? It applies when they approve.")) askFor("lineage",f.name,{},f);
       return;
@@ -3103,9 +3104,11 @@ function lineageForgedOpts(){
   const sel=$("f-lineage"); if(!sel) return;
   [...sel.querySelectorAll("optgroup.forged")].forEach(g=>g.remove());
   const fl=forgedPool("lineages",LINEAGE_DEFS); if(!fl.length) return;
-  const og=document.createElement("optgroup"); og.className="forged"; og.label=god?"Forged":"Forged, asks your LoreMaster";
-  fl.forEach(f=>{ const o=el("option",null,f.name+(f.by?" ("+f.by+")":"")); o.value="forged:"+f.name; og.appendChild(o); });
-  sel.appendChild(og);
+  [[fl.filter(f=>f.adv),"From your LoreMaster"],[fl.filter(f=>!f.adv),god?"Forged":"Forged, asks your LoreMaster"]].forEach(([list,label])=>{
+    if(!list.length) return;
+    const og=document.createElement("optgroup"); og.className="forged"; og.label=label;
+    list.forEach(f=>{ const o=el("option",null,f.name+(f.by&&!f.adv?" ("+f.by+")":"")); o.value="forged:"+f.name; og.appendChild(o); });
+    sel.appendChild(og); });
 }
 function lineageAskPaint(){
   const sel=$("f-lineage"); if(!sel) return;
@@ -3441,7 +3444,7 @@ function ccRender(){
   }
   else if(CC.step==="lb-type"){
     ccHead(card,"step 1","Choose your Lorebound","Eighteen await. The bond formed here lasts a lifetime; aspects come later, at level 2.");
-    LOREBOUND_TYPES.forEach(t=>{
+    LOREBOUND_TYPES.concat(advForged("lorebounds",LOREBOUND_TYPES.map(n=>({name:n}))).map(f=>f.name)).forEach(t=>{
       const b=luOpt(t,null,()=>{CC.lbType=t;CC.step="origin";ccRender();});
       if(CC.lbType===t)b.classList.add("sel");
       card.appendChild(b);
@@ -3478,9 +3481,9 @@ function ccRender(){
   }
   else if(CC.step==="lineage"){
     ccHead(card,"step 4","Your Lineage","Primarily roleplaying flavor. Listed lineages carry their own bonus. Or create your own: name it, describe it, then choose its bonus.");
-    LINEAGE_DEFS.forEach(l=>{
+    LINEAGE_DEFS.concat(advForged("lineages",LINEAGE_DEFS)).forEach(l=>{
       const choice=l.bonus.type==="choice";
-      const b=luOpt(l.name,choice?"+1 to any attribute or skill":"+1 "+l.bonus.name,()=>{
+      const b=luOpt(l.name,choice?"+1 to any attribute or skill":(l.bonus.name?"+1 "+l.bonus.name:"From your LoreMaster"),()=>{
         CC.lineage=l.name;CC.linCustom=false;
         if(choice){ CC.linChoice=l.name;CC.linType=null;CC.linPick=null;ccRender();return; }
         CC.linChoice=null;CC.linType=l.bonus.type;CC.linPick=l.bonus.name;
@@ -3514,9 +3517,9 @@ function ccRender(){
   /* ---------------- pre-generated path ---------------- */
   else if(CC.step==="pg-lineage"){
     ccHead(card,"step 1","Choose your Lineage","One of 36 unique Lineages, each with deep lore and a realm of origin. Three placeholders stand in until the library arrives.");
-    LINEAGE_DEFS.forEach(l=>{
+    LINEAGE_DEFS.concat(advForged("lineages",LINEAGE_DEFS)).forEach(l=>{
       const choice=l.bonus.type==="choice";
-      const b=luOpt(l.name,choice?"+1 to any attribute or skill":"+1 "+l.bonus.name,()=>{
+      const b=luOpt(l.name,choice?"+1 to any attribute or skill":(l.bonus.name?"+1 "+l.bonus.name:"From your LoreMaster"),()=>{
         CC.lineage=l.name;
         if(choice){ CC.linChoice=l.name;CC.linType=null;CC.linPick=null;ccRender();return; }
         CC.linChoice=null;CC.linType=l.bonus.type;CC.linPick=l.bonus.name;CC.step="pg-origin";ccRender();
@@ -3569,7 +3572,7 @@ function ccRender(){
   }
   else if(CC.step==="pg-lbtype"){
     ccHead(card,"step 2","Choose your Lorebound","Eighteen await. The bond formed here lasts a lifetime.");
-    LOREBOUND_TYPES.forEach(t=>{
+    LOREBOUND_TYPES.concat(advForged("lorebounds",LOREBOUND_TYPES.map(n=>({name:n}))).map(f=>f.name)).forEach(t=>{
       const b=luOpt(t,null,()=>{CC.lbType=t;CC.step="pg-motivation";ccRender();});
       if(CC.lbType===t)b.classList.add("sel");
       card.appendChild(b);
@@ -3617,7 +3620,7 @@ function ccApply(){
       C.lorebounds.push({name:"",type:CC.lbType||"",level:1,aspects:[null,null]});
     }
     CC.originSkills.forEach(addSkill);
-    if(CC.linType==="skill")addSkill(CC.linPick);else addAttr(CC.linPick);
+    if(CC.linType==="skill")addSkill(CC.linPick);else if(CC.linType!=="special")addAttr(CC.linPick);
     C.identity.origin="Custom";
     C.identity.motivation=CC.motivation||"";
     C.identity.lineage=CC.lineage==="__own__"?(CC.lineageCustom||"Unnamed lineage"):CC.lineage;
@@ -3635,6 +3638,8 @@ function ccApply(){
     C.identity.origin=o.name;
     C.identity.motivation=CC.motivation||"";
   }
+  /* a lineage or lorebound the adventure's LoreMaster made stays readable on this Fell */
+  try{ keepForged("lineage",C.identity.lineage); if(CC.lbType) keepForged("lorebound",CC.lbType); }catch(e){}
   /* A Motivation raises its Attribute by 1 the moment it is chosen. This is on top of
      everything from the track, origin, and lineage, and it stacks with each new Motivation
      taken up after a Title. */
@@ -4510,13 +4515,14 @@ function forgedTreeOf(item){ let t=""; Object.entries(WEAPON_DB).forEach(([tree,
 function forgedTake(f){
   if(!f||typeof f!=="object") return;
   const by=r=>r.by?("by "+r.by):"";
+  const adv=r=>!!r.adv;
   FORGED={
     abilities:(f.abilities||[]).map(r=>({name:r.name,tree:forgedTreeOf(r.item),form:r.item,tier:Number(r.tier)||1,use:"Act",desc:r.desc||"",forged:true,by:by(r)})).filter(x=>x.name&&x.tree),
     infusions:(f.infusions||[]).map(r=>({name:r.name,weaponCat:String(r.weaponCat||"").toLowerCase(),use:"Passive",desc:r.desc||"",forged:true,by:by(r)})).filter(x=>x.name),
     augmentations:(f.augmentations||[]).map(r=>({name:r.name,category:r.category||"",use:"Passive",desc:r.desc||"",forged:true,by:by(r)})).filter(x=>x.name),
-    lorebounds:(f.lorebounds||[]).map(r=>({name:r.name,aspect:{name:r.aspectName||(r.name+" Aspect"),lorebound:r.name,use:"React",category:"",desc:r.initial||"",initial:r.initial||"",branch:r.branches||[],crown:r.crowns||[]},forged:true,by:by(r)})).filter(x=>x.name),
+    lorebounds:(f.lorebounds||[]).map(r=>({name:r.name,aspect:{name:r.aspectName||(r.name+" Aspect"),lorebound:r.name,use:"React",category:"",desc:r.initial||"",initial:r.initial||"",branch:r.branches||[],crown:r.crowns||[]},forged:true,adv:adv(r),by:by(r)})).filter(x=>x.name),
     lineages:(f.lineages||[]).map(r=>{ const bt=String(r.bonusType||"").toLowerCase(); const type=(bt==="attr"||bt==="attribute")?"attr":(bt==="skill"?"skill":"special");
-      return {name:r.name,desc:r.desc||"",bonus:{type,name:type==="attr"?String(r.bonusValue||"").toLowerCase():(r.bonusValue||"")},forged:true,by:by(r)}; }).filter(x=>x.name)
+      return {name:r.name,desc:r.desc||"",bonus:{type,name:type==="attr"?String(r.bonusValue||"").toLowerCase():(r.bonusValue||"")},forged:true,adv:adv(r),by:by(r)}; }).filter(x=>x.name)
   };
 }
 /* a forged pick the Fell has been given lives on in its own record, so the sheet reads it
@@ -4531,6 +4537,13 @@ function keptIntoLists(){
     else if(kind==="augmentation"&&!AUGMENTATIONS.some(x=>x.name===d.name)) AUGMENTATIONS.push(d);
     else if(kind==="lorebound"&&d.aspect&&!(ASPECTS||[]).some(x=>x.lorebound===d.name)) (ASPECTS=ASPECTS||[]).push(d.aspect);
   });
+}
+/* the adventure's LoreMaster made these: its players take the lineages and lorebounds freely
+   (Nate, 2026-10-13); everything else forged still asks */
+function advForged(kind,canon){ return forgedPool(kind,canon||[],x=>x.adv); }
+function keepForged(kind,name){
+  const map={lineage:"lineages",lorebound:"lorebounds"}, f=(FORGED[map[kind]]||[]).find(x=>x.name===name);
+  if(!f) return; C.forgedKept=C.forgedKept||{}; C.forgedKept[kind+":"+name]=f; keptIntoLists();
 }
 function forgedPool(kind,canon,test){ return (FORGED[kind]||[]).filter(x=>!canon.some(c=>c.name===x.name)&&(!test||test(x))); }
 const askKey=(kind,where)=>kind+"|"+JSON.stringify(where||{});
@@ -4935,12 +4948,15 @@ function renderLorebounds(){
         const tp=el("option",null,"\u2014");tp.value="";ty.appendChild(tp);
         LOREBOUND_TYPES.forEach(t=>{const o=el("option",null,t);o.value=t;if(lb.type===t)o.selected=true;ty.appendChild(o);});
         const fl=forgedPool("lorebounds",LOREBOUND_TYPES.map(n=>({name:n})));
-        if(fl.length){ const og=document.createElement("optgroup"); og.label=god?"Forged":"Forged, asks your LoreMaster"; fl.forEach(f=>{const o=el("option",null,f.name+(f.by?" ("+f.by+")":""));o.value="forged:"+f.name;if(lb.type===f.name)o.selected=true;og.appendChild(o);}); ty.appendChild(og); }
+        const flA=fl.filter(f=>f.adv), flO=fl.filter(f=>!f.adv);
+        [[flA,"From your LoreMaster"],[flO,god?"Forged":"Forged, asks your LoreMaster"]].forEach(([list,label])=>{
+          if(!list.length) return; const og=document.createElement("optgroup"); og.label=label;
+          list.forEach(f=>{const o=el("option",null,f.name+(f.by&&!f.adv?" ("+f.by+")":""));o.value="forged:"+f.name;if(lb.type===f.name)o.selected=true;og.appendChild(o);}); ty.appendChild(og); });
         ty.addEventListener("change",()=>{
           const v=ty.value;
           if(v.indexOf("forged:")===0){
             const f=(FORGED.lorebounds||[]).find(x=>x.name===v.slice(7)); if(!f) return;
-            if(!god){ if(!confirm("Ask your LoreMaster for "+f.name+"? It applies when they approve.")){renderLorebounds();return;} askFor("lorebound",f.name,{i:idx},f); return; }
+            if(!god&&!f.adv){ if(!confirm("Ask your LoreMaster for "+f.name+"? It applies when they approve.")){renderLorebounds();return;} askFor("lorebound",f.name,{i:idx},f); return; }
             C.forgedKept=C.forgedKept||{}; C.forgedKept["lorebound:"+f.name]=f; keptIntoLists(); lb.type=f.name;
           } else lb.type=v;
           renderLorebounds();renderBattle();scheduleSave();});

@@ -51,14 +51,19 @@ export async function handleSheetMessage(m, ctx) {
     const list = await listChars();
     reply({ type: 'characters', list: list, currentId: curId || '' });
   }
-  async function loadLibraries() {
-    try { return await api.getLibraries(); } catch (e) { return {}; }
+  // The adventure the libraries are read for: the Fell's own, else the table's. Its
+  // LoreMaster's lineages and lorebounds are the players' to take (Nate, 2026-10-13).
+  const tableCampaign = () => (typeof ctx.campaignId === 'function' ? ctx.campaignId() : (ctx.campaignId || '')) || '';
+  async function loadLibraries(campaignId) {
+    const cid = campaignId || tableCampaign();
+    try { return await api.getLibraries(cid ? { campaignId: cid } : undefined); } catch (e) { return {}; }
   }
   async function openCharacter(id, libraries) {
-    if (libraries === undefined) libraries = await loadLibraries();
-    if (!id) { reply({ type: 'new', libraries: libraries, charId: '' }); return; }
+    if (!id) { if (libraries === undefined) libraries = await loadLibraries(); reply({ type: 'new', libraries: libraries, charId: '' }); return; }
     let res = null;
     try { res = await api.loadCharacter(id); } catch (e) { res = null; }
+    const cid = (res && res.character && res.character.identity && res.character.identity.campaignId) || '';
+    if (libraries === undefined || (cid && cid !== tableCampaign())) libraries = await loadLibraries(cid);
     if (res && res.forged) {
       reply({ type: 'new', forge: res.seed || {}, libraries: libraries, charId: id });
     } else if (res && res.character && (!ctx.initNeedsCreated || res.character.created)) {
@@ -78,12 +83,11 @@ export async function handleSheetMessage(m, ctx) {
       if (handled) return;
     }
     if (!getId() && list.length) setId(list[0].id);
-    const libraries = await loadLibraries();
     reply({ type: 'characters', list: list, currentId: getId() || '' });
     let adventures = [];
     try { adventures = await api.myAdventures(); } catch (e) { adventures = []; }
     reply({ type: 'adventures', list: adventures });
-    await openCharacter(getId(), libraries);
+    await openCharacter(getId());
 
   } else if (m.type === 'select-character') {
     setId(m.charId || '');
