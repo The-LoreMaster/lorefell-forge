@@ -987,11 +987,8 @@ button.ax-fact{cursor:pointer}
 .ax-opt{display:block;width:100%;text-align:left;margin:6px 0;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--navy-2);color:var(--silver)}
 .ax-opt:hover{border-color:var(--gold)}.ax-opt b{display:block;font-family:var(--head);font-weight:500;letter-spacing:.04em;margin-bottom:2px}.ax-opt span{font-size:13px;color:var(--silver-dim)}
 .ax-from{font-style:normal;color:var(--gold);font-size:11.5px;margin-left:4px}
-.ax-slot.ax-asked{border-style:dashed;color:var(--gold)}
-.ax-slot.ax-asked::before{content:"? ";color:var(--gold)}
 .ax-forged{display:inline-block;margin-left:6px;font-family:var(--head);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);font-weight:400}
-.ax-ask-note{font-size:13px;color:var(--gold);margin:6px 0 0}
-.ax-ask-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+
 .ax-row .pill{text-transform:none;font-style:normal;letter-spacing:.02em;font-size:13px}
 /* each sealed truth reads the full width of the card; its grant sits under it, small */
 .seal-list{ margin:4px 0 0; padding:0; list-style:none; }
@@ -3090,37 +3087,20 @@ $("f-lineage").addEventListener("change",e=>{
   if(v.indexOf("forged:")===0){
     const f=(FORGED.lineages||[]).find(x=>x.name===v.slice(7));
     if(!f){ e.target.value=C.identity.lineage||""; return; }
-    if(!god&&!f.adv){
-      e.target.value=C.identity.lineage||"";
-      if(confirm("Ask your LoreMaster for the "+f.name+" lineage? It applies when they approve.")) askFor("lineage",f.name,{},f);
-      return;
-    }
     C.forgedKept=C.forgedKept||{}; C.forgedKept["lineage:"+f.name]=f;
-    C.identity.lineage=f.name; ensureOption(e.target,f.name); e.target.value=f.name; lineageAskPaint(); scheduleSave(); return;
+    C.identity.lineage=f.name; ensureOption(e.target,f.name); e.target.value=f.name; scheduleSave(); return;
   }
   C.identity.lineage=v;scheduleSave();});
-/* forged lineages ride under the canon ones; the pending ask shows beneath the field */
+/* forged lineages ride under the canon ones */
 function lineageForgedOpts(){
   const sel=$("f-lineage"); if(!sel) return;
   [...sel.querySelectorAll("optgroup.forged")].forEach(g=>g.remove());
   const fl=forgedPool("lineages",LINEAGE_DEFS); if(!fl.length) return;
-  [[fl.filter(f=>f.adv),god?"Assigned to this adventure":"From your LoreMaster"],[fl.filter(f=>!f.adv),god?"Forged":"Forged, asks your LoreMaster"]].forEach(([list,label])=>{
+  [[fl.filter(f=>f.adv),god?"Assigned to this adventure":"From your LoreMaster"],[fl.filter(f=>!f.adv),"Forged"]].forEach(([list,label])=>{
     if(!list.length) return;
     const og=document.createElement("optgroup"); og.className="forged"; og.label=label;
     list.forEach(f=>{ const o=el("option",null,f.name+(f.by&&!f.adv?" ("+f.by+")":"")); o.value="forged:"+f.name; og.appendChild(o); });
     sel.appendChild(og); });
-}
-function lineageAskPaint(){
-  const sel=$("f-lineage"); if(!sel) return;
-  let box=$("lineageAsk");
-  if(!box){ box=el("div","ax-ask-note"); box.id="lineageAsk"; sel.parentNode.insertBefore(box,sel.nextSibling); }
-  box.innerHTML="";
-  const a=askAt("lineage",{});
-  if(!a){ box.style.display="none"; return; }
-  box.style.display="";
-  const b=el("button","pill ax-slot ax-asked",cbEsc(a.name)+" lineage"); b.type="button";
-  b.addEventListener("click",ev=>{ ev.stopPropagation(); fgTell(a.name,askBox(a,(a.def&&a.def.desc)||"")); });
-  box.appendChild(b);
 }
 $("f-origin").addEventListener("change",e=>{C.identity.origin=e.target.value;scheduleSave();});
 $("f-motivation").addEventListener("change",e=>{
@@ -4504,12 +4484,11 @@ const ORD=["1st","2nd","3rd"];
    does, and tapping says so too. Empty, it offers what can go there (from the FellGuide's
    own lists for this weapon or armor) to anyone whose slot it is, and the choice is made
    once. Changing a slot already filled is the LoreMaster's. */
-/* ---------- forged options and the LoreMaster's yes ----------
+/* ---------- forged options ----------
    What the forges made (SigilForge abilities, ShardForge infusions and augmentations,
-   BondForge lorebounds, BrandForge lineages) is offered beside canon. A player who picks one
-   asks; it applies only when the LoreMaster says yes from this same sheet, opened on the
-   Fell in ThreadSpire (Nate, 2026-10-13). The LoreMaster's own pick applies at once. The
-   backend (mergeAsks, characters.web.js) lays an answer back over any older save. */
+   BondForge lorebounds, BrandForge lineages) is offered beside canon. A player sees only what
+   the adventure's LoreMaster assigned in ThreadSpire, and takes it freely. The LoreMaster's
+   own view of a Fell offers everything (Nate, 2026-10-13). */
 let FORGED={abilities:[],infusions:[],augmentations:[],lorebounds:[],lineages:[]};
 function forgedTreeOf(item){ let t=""; Object.entries(WEAPON_DB).forEach(([tree,db])=>{ if(!t&&(db.forms||[]).indexOf(item)>=0) t=tree; }); return t; }
 function forgedTake(f){
@@ -4546,73 +4525,9 @@ function keepForged(kind,name){
   if(!f) return; C.forgedKept=C.forgedKept||{}; C.forgedKept[kind+":"+name]=f; keptIntoLists();
 }
 function forgedPool(kind,canon,test){ return (FORGED[kind]||[]).filter(x=>!canon.some(c=>c.name===x.name)&&(!test||test(x))); }
-const askKey=(kind,where)=>kind+"|"+JSON.stringify(where||{});
-function askAt(kind,where){ const k=askKey(kind,where); return (C.asks||[]).find(a=>askKey(a.kind,a.where)===k)||null; }
-function askRedraw(kind){ try{ if(kind==="infusion"||kind==="ability"){renderWeapons();renderBattle();} else if(kind==="augmentation"){renderArmor();renderBattle();} else if(kind==="lorebound"){renderLorebounds();renderBattle();} else if(kind==="lineage"){lineageAskPaint();} }catch(e){} }
-function askFor(kind,name,where,def){
-  const k=askKey(kind,where);
-  C.asks=(C.asks||[]).filter(a=>askKey(a.kind,a.where)!==k);
-  C.asks.push({id:"ask"+Date.now().toString(36)+Math.random().toString(36).slice(2,6),kind,name,where:where||{},def:def||null,at:Date.now()});
-  askRedraw(kind); scheduleSave();
-  /* the table tells the LoreMaster (ThreadSpire); on its own page the ask waits on the sheet */
-  if(!god){ try{ window.parent.postMessage({type:"sheet-ask",kind,name},"*"); }catch(e){} }
-}
-function askApply(a){
-  const w=a.where||{}, i=Number(w.i)||0;
-  if(a.kind==="infusion"||a.kind==="ability"){ const wp=C.weapons[Number(w.w)||0]; if(!wp) return; const k=a.kind==="infusion"?"infusions":"abilities"; if(!Array.isArray(wp[k])) wp[k]=[null,null,null]; wp[k][i]=a.name; }
-  else if(a.kind==="augmentation"){ C.armor.augs[i]=a.name; }
-  else if(a.kind==="lorebound"){ const lb=C.lorebounds[i]; if(lb) lb.type=a.name; }
-  else if(a.kind==="lineage"){ C.identity.lineage=a.name; const s=$("f-lineage"); if(s){ ensureOption(s,a.name); s.value=a.name; } }
-  if(a.def){ C.forgedKept=C.forgedKept||{}; C.forgedKept[a.kind+":"+a.name]=a.def; keptIntoLists(); }
-}
-function askAnswer(id,ok){
-  if(!god) return;
-  const a=(C.asks||[]).find(x=>x.id===id); if(!a) return;
-  if(ok) askApply(a);
-  C.asks=(C.asks||[]).filter(x=>x.id!==id);
-  C.asksDone=(C.asksDone||[]).concat([{id,ok:!!ok,kind:a.kind,name:a.name,at:Date.now()}]).slice(-100);
-  askRedraw(a.kind); scheduleSave();
-}
-/* the player hears the LoreMaster's answers once, on this device */
-function askNews(){
-  if(god||!CUR_WIX_ID) return;
-  const key="fg-asks-seen-"+CUR_WIX_ID; let seen=[];
-  try{ seen=JSON.parse(localStorage.getItem(key)||"[]"); }catch(e){ seen=[]; }
-  const fresh=(C.asksDone||[]).filter(d=>d&&d.id&&seen.indexOf(d.id)<0);
-  if(!fresh.length) return;
-  try{ localStorage.setItem(key,JSON.stringify(seen.concat(fresh.map(d=>d.id)).slice(-200))); }catch(e){}
-  const box=el("div");
-  fresh.forEach(d=>box.appendChild(el("p",null,(d.ok?"Approved: ":"Refused: ")+d.name+".")));
-  setTimeout(()=>{ try{ fgTell("Your LoreMaster answered",box); }catch(e){} },300);
-}
-function askWithdraw(id){ const a=(C.asks||[]).find(x=>x.id===id); if(!a) return; C.asks=C.asks.filter(x=>x.id!==id); askRedraw(a.kind); scheduleSave(); }
-/* what to show for an open ask: the player waits or withdraws, the LoreMaster answers */
-function askBox(a,desc){
-  const box=el("div");
-  box.appendChild(el("p",null,desc||"No description yet."));
-  if(a.def&&a.def.by) box.appendChild(el("p","note","Forged "+a.def.by+"."));
-  const row=el("div","ax-ask-row");
-  if(god){
-    box.appendChild(el("p","ax-ask-note","This Fell asked for it. It applies only if you approve."));
-    const y=el("button","btn small gold","Approve"); y.type="button"; y.addEventListener("click",()=>{askAnswer(a.id,true);fgTellClose();});
-    const n=el("button","btn small","Refuse"); n.type="button"; n.addEventListener("click",()=>{askAnswer(a.id,false);fgTellClose();});
-    row.append(y,n);
-  }else{
-    box.appendChild(el("p","ax-ask-note","Asked. It applies when your LoreMaster approves."));
-    const w=el("button","btn small","Withdraw the ask"); w.type="button"; w.addEventListener("click",()=>{askWithdraw(a.id);fgTellClose();});
-    row.appendChild(w);
-  }
-  box.appendChild(row); return box;
-}
-function axSlot(label,options,current,onPick,descFn,cls,ask){
+/* slot: which kind and place a forged pick fills, so its definition is kept on the Fell */
+function axSlot(label,options,current,onPick,descFn,cls,slot){
   const found=current?((options||[]).find(o=>o&&o.name===current)||{name:current}):null;
-  const pend=(!found&&ask)?askAt(ask.kind,ask.where):null;
-  if(pend){
-    const pb=el("button","pill ax-slot ax-asked"+(cls?" "+cls:""),cbEsc(pend.name));
-    pb.type="button"; pb.title=god?"Asked for. Approve or refuse.":"Waiting on your LoreMaster";
-    pb.addEventListener("click",ev=>{ ev.stopPropagation(); fgTell(pend.name,askBox(pend,(pend.def&&descFn(pend.def))||"")); });
-    return pb;
-  }
   const b=el("button","pill ax-slot"+(found?"":" empty")+(cls?" "+cls:""),found?cbEsc(found.name):label);
   b.type="button";
   const d=found?(descFn(found)||((INFUSIONS||[]).concat(AUGMENTATIONS||[]).find(x=>x.name===found.name)||{}).desc||axDescAff(found.name)||""):"";
@@ -4632,12 +4547,8 @@ function axSlot(label,options,current,onPick,descFn,cls,ask){
       const r=el("button","ax-opt");r.type="button";
       r.innerHTML=`<b>${cbEsc(o.name)}${o.forged?'<i class="ax-forged">Forged</i>':""}</b><span>${descFn(o)||""}${o.forged&&o.by?' <i class="ax-from">'+cbEsc(o.by)+'</i>':""}</span>`;
       r.addEventListener("click",()=>{
-        if(o.forged&&!god&&ask&&!o.adv){
-          if(!confirm("Ask your LoreMaster for "+o.name+"? It applies when they approve."))return;
-          askFor(ask.kind,o.name,ask.where,o); fgTellClose(); return;
-        }
         if(!god&&!confirm("Take "+o.name+"?"))return;
-        if(o.forged){ C.forgedKept=C.forgedKept||{}; C.forgedKept[ask.kind+":"+o.name]=o; keptIntoLists(); }
+        if(o.forged&&slot){ C.forgedKept=C.forgedKept||{}; C.forgedKept[slot.kind+":"+o.name]=o; keptIntoLists(); }
         onPick(o.name); fgTellClose(); });
       box.appendChild(r);
     });
@@ -4937,26 +4848,19 @@ function renderLorebounds(){
         nm.addEventListener("change",()=>{lb.name=nm.value;renderLorebounds();scheduleSave();});
         body.appendChild(nm);
       }
-      const lbAsk=askAt("lorebound",{i:idx});
-      if(lbAsk){
-        const ab=el("button","pill ax-slot ax-asked",cbEsc(lbAsk.name)); ab.type="button";
-        ab.addEventListener("click",ev=>{ ev.stopPropagation(); fgTell(lbAsk.name,askBox(lbAsk,(lbAsk.def&&lbAsk.def.aspect&&(lbAsk.def.aspect.name+". "+(lbAsk.def.aspect.initial||"")))||"")); });
-        body.appendChild(ab);
-      }
-      if((!lb.type&&!lbAsk)||god){
+      if(!lb.type||god){
         const ty=el("select");ty.className="ax-input";
         const tp=el("option",null,"\u2014");tp.value="";ty.appendChild(tp);
         LOREBOUND_TYPES.forEach(t=>{const o=el("option",null,t);o.value=t;if(lb.type===t)o.selected=true;ty.appendChild(o);});
         const fl=forgedPool("lorebounds",LOREBOUND_TYPES.map(n=>({name:n})));
         const flA=fl.filter(f=>f.adv), flO=fl.filter(f=>!f.adv);
-        [[flA,god?"Assigned to this adventure":"From your LoreMaster"],[flO,god?"Forged":"Forged, asks your LoreMaster"]].forEach(([list,label])=>{
+        [[flA,god?"Assigned to this adventure":"From your LoreMaster"],[flO,"Forged"]].forEach(([list,label])=>{
           if(!list.length) return; const og=document.createElement("optgroup"); og.label=label;
           list.forEach(f=>{const o=el("option",null,f.name+(f.by&&!f.adv?" ("+f.by+")":""));o.value="forged:"+f.name;if(lb.type===f.name)o.selected=true;og.appendChild(o);}); ty.appendChild(og); });
         ty.addEventListener("change",()=>{
           const v=ty.value;
           if(v.indexOf("forged:")===0){
             const f=(FORGED.lorebounds||[]).find(x=>x.name===v.slice(7)); if(!f) return;
-            if(!god&&!f.adv){ if(!confirm("Ask your LoreMaster for "+f.name+"? It applies when they approve.")){renderLorebounds();return;} askFor("lorebound",f.name,{i:idx},f); return; }
             C.forgedKept=C.forgedKept||{}; C.forgedKept["lorebound:"+f.name]=f; keptIntoLists(); lb.type=f.name;
           } else lb.type=v;
           renderLorebounds();renderBattle();scheduleSave();});
@@ -6204,7 +6108,7 @@ function toggleUtilityEquip(idx){
 function renderAll(){
   equipSeed();
   try{renderRemnants();}catch(e){}
-  try{ lineageForgedOpts(); lineageAskPaint(); askNews(); }catch(e){}
+  try{ lineageForgedOpts(); }catch(e){}
   grantSummary();renderLore();renderDials();renderVit();renderWeapons();
   /* The pack is repainted here like everything else. It was not, and the Inventory tab
      went on showing the blank character that exists before a record has loaded: the rows
@@ -8412,7 +8316,7 @@ window.onmessage=ev=>{
   }
   if(d.type==="ts-new"){ postToVelo({type:"add-character"}); return; }
   if(d.type==="ts-relics"){ LM_RELICS=Array.isArray(d.items)?d.items.filter(x=>x&&x.name):[]; try{renderItems();}catch(e){} return; }
-  if(d.type==="ts-god"){ god=!!d.on; if(!god){ try{ sealReset(); }catch(e){} } else { setTimeout(function(){ try{ sealLoad(); }catch(e){} },0); } document.body.classList.toggle("god",god); var gb=$("godBtn"); if(gb) gb.classList.toggle("on",god); /* everything that reads the LoreMaster's mode redraws at once, Invested Lore and the strip included (they waited for some later redraw) */ try{renderWeapons();renderDials();renderArmor();renderLorebounds();renderCampaignOptions();renderMotivation();syncIdentityLock();}catch(e){} try{renderLore();}catch(e){} try{renderStrip();}catch(e){} try{renderMobility();}catch(e){} try{lineageForgedOpts();lineageAskPaint();}catch(e){} return; }
+  if(d.type==="ts-god"){ god=!!d.on; if(!god){ try{ sealReset(); }catch(e){} } else { setTimeout(function(){ try{ sealLoad(); }catch(e){} },0); } document.body.classList.toggle("god",god); var gb=$("godBtn"); if(gb) gb.classList.toggle("on",god); /* everything that reads the LoreMaster's mode redraws at once, Invested Lore and the strip included (they waited for some later redraw) */ try{renderWeapons();renderDials();renderArmor();renderLorebounds();renderCampaignOptions();renderMotivation();syncIdentityLock();}catch(e){} try{renderLore();}catch(e){} try{renderStrip();}catch(e){} try{renderMobility();}catch(e){} try{lineageForgedOpts();}catch(e){} return; }
   bridged=true;
   if(d.type==="init"||d.type==="new")hideCover();
   if(d.type==="new"&&!d.character){
