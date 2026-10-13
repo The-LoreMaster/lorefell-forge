@@ -8,7 +8,7 @@ import { createInvite, revokeInvite, myJoinedAdventures, attachCharacter, listMy
 import { tableRoomTicket } from 'backend/tableroom.web.js';
 let _pubHanded = false;
 import { publishAdventure, unpublishAdventure, myPublishedAdventures, getPublishedPack, listPublishedAdventures } from 'backend/published.web.js';
-import { getFoePack } from 'backend/forge.web.js';
+import { getFoePack, submitFoeToPentifax } from 'backend/forge.web.js';
 import { listQuests, listDiscovered, getWorldMeta, saveAsset, listAssets, getCampaignPlayers, getClueCards, upsertQuest, getShelves, saveShelves } from 'backend/fatewell.web.js';
 import { getCombatForChar, saveCombatDeclare, syncCombatPlayer, publishCombatState, applyCombatToChar, dealDamageToChar, setCombatCharge, getCombatDeclares } from 'backend/combat.web.js';
 import { getLibraries } from 'backend/libraries.web.js';
@@ -249,6 +249,10 @@ $w.onReady(async function () {
         } else if (msg.type === 'TS_ASSET_SAVE') {
           const r = await saveAsset(msg.asset);
           reply(!!(r && r.ok), r, r && r.error);
+        } else if (msg.type === 'TS_PENTIFAX_SUBMIT') {
+          // a library foe put before the Pentifax, once per foe (the backend refuses a second)
+          const r = await submitFoeToPentifax(msg.asset);
+          reply(true, r || { ok: false });
         } else if (msg.type === 'TS_SHELVES_GET') {
           const sh = await getShelves();
           reply(true, sh);
