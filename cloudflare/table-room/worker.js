@@ -535,7 +535,7 @@ async function autoVideos(env) {
    playlist has no description of its own. */
 const PUB_TTL = 6 * 3600 * 1000;
 const HIST_BASE = 'The FellGuide/The FellGuide/The Lore (Contains Spoilers)/The Histories/';
-function fgUrlOf(path) { return 'https://fellguide.com/' + path.replace(/\.md$/, '').split('/').map((p) => encodeURIComponent(p).replace(/%20/g, '+')).join('/'); }
+function fgUrlOf(path) { return 'https://www.lorefell.com/from-fellguide/' + path.replace(/\.md$/, '').split('/').map((p) => encodeURIComponent(p).replace(/%20/g, '+')).join('/'); }
 function thumbOf(sn) { const t = (sn && sn.thumbnails) || {}; return ((t.maxres || t.standard || t.high || t.medium || t.default) || {}).url || ''; }
 /* A worker may make only so many outside calls per request (50 on the free plan), and each
    playlist takes one, as does each History read; so the list is built a part at a time: each
