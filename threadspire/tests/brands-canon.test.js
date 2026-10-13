@@ -79,6 +79,18 @@ function check(n, ok, d){ if (ok === true){ console.log('  PASS  ' + n); pass++;
   check('with none it fails, and Skyvault Shards are never spent', !o.r.ok && o.sh === 5, JSON.stringify(o));
   check('an unmastered Brand has no Talent to invoke', js(`brandInvoke('Khaldurgy')`) === null, 'invoked');
 
+  console.log('\na world forged in the BrandForge');
+  js(`C.brands = {}; C.identity.lineage = ''; C.identity.campaignId = 'adv-2'; C.identity.worldId = '';
+      ADVS = [{ id:'adv-2', name:'Glass Road', worldId:'forged:w1', world:{ name:'Vessra', overview:'', brand:{ name:'Glassvoice',
+        question:'How truly can I sing a thing into glass?', talent:{ name:'The Shattering', text:'Every foe you can see is glass this round.' } } } }];
+      renderSkills();`);
+  check('its forged Brand is attuned on arriving', js(`!!(C.brands.Glassvoice && C.brands.Glassvoice.forged)`) === true, js(`JSON.stringify(C.brands)`));
+  check('it answers on its own world, with its own question and Talent', js(`brandCallable('Glassvoice')`) === true && /How truly can I sing a thing into glass\?/.test(js(`document.getElementById('skillsWrap').textContent`)) && /The Shattering/.test(js(`document.getElementById('skillsWrap').textContent`)), 'not drawn');
+  js(`C.identity.campaignId = 'adv-1'; ADVS.push({ id:'adv-1', name:'Ash Road', worldId:'world:kwuhara' }); renderSkills();`);
+  check('it travels on the Fell, and away from its world it waits for Mastery', js(`brandCallable('Glassvoice')`) === false && /Answers only on Vessra/.test(js(`document.getElementById('skillsWrap').textContent`)), 'callable away');
+  js(`C.brands = {}; C.identity.campaignId = 'adv-3'; ADVS.push({ id:'adv-3', name:'Cold Road', worldId:'forged:w2', world:{ name:'Rime', brand:{ name:'gelidane' } } }); renderSkills();`);
+  check('a forged world that names one of the 36 attunes that Brand', !!js(`C.brands.Gelidane`) && !js(`C.brands.Gelidane.forged`), js(`JSON.stringify(C.brands)`));
+
   console.log('\n' + (fail ? 'FAILED ' + fail : 'all ' + pass + ' passed'));
   process.exit(fail ? 1 : 0);
 })();
