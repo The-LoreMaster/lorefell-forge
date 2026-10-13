@@ -2,7 +2,7 @@
 // Paste into the ThreadSpire page. Set the embed element ID to match EMBED.
 // Feeds the character-first view: the player's character card, the party at their
 // location, revealed nodes, quest-board goals, world issues, and map art.
-import { threadspirePublicChar, listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter, threadspireSaveMeta, lmLoadCharacter, lmSaveCharacter, lmSetVitality, lmCreateOfflineFell, lmRemoveFromAdventure, charAdventure, leaveAdventure, lmWipeFell, giveRecord, consultArchive, lmSealedGet, lmSealedWeave, lmNotesSave, myDice, saveDicePicks, lmGiveDice, lmGiveDiceAll, earnDice } from 'backend/characters.web.js';
+import { threadspirePublicChar, listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter, threadspireSaveMeta, lmLoadCharacter, lmSaveCharacter, lmSetVitality, lmCreateOfflineFell, lmRemoveFromAdventure, charAdventure, leaveAdventure, lmWipeFell, giveRecord, giveUtility, consultArchive, lmSealedGet, lmSealedWeave, lmNotesSave, myDice, saveDicePicks, lmGiveDice, lmGiveDiceAll, earnDice } from 'backend/characters.web.js';
 import { getLmPortrait, saveLmPortrait, getForgePools, getForgeLibrary, listMyCampaigns, saveCampaign, submitAct, submitItem, deleteAsset, listGlossary , setMemberRole, detachCharacter, loadCampaign, restoreRoster } from 'backend/fatewell.web.js';
 import { createInvite, revokeInvite, myJoinedAdventures, attachCharacter, listMyFellForAdoption, setFellAdoptable } from 'backend/invites.web.js';
 import { tableRoomTicket } from 'backend/tableroom.web.js';
@@ -731,6 +731,12 @@ $w.onReady(async function () {
           // checks each Fell against the adventure it is in.
           let r = { ok: false, given: [], refused: [] };
           try { r = await giveRecord(msg.charIds || [], msg.entry || {}); } catch (e) { r = { ok: false, given: [], refused: msg.charIds || [], error: String(e) }; }
+          reply(!!(r && r.ok), r, r && r.error);
+        } else if (msg.type === 'TS_GIVE_UTILITY') {
+          // The Treasure Phase: the LoreMaster gives a Fell a Potion, Tablet, Trap or Rune
+          // carrying an Act off the fallen. The backend refuses anyone but the LoreMaster.
+          let r = { ok: false };
+          try { r = await giveUtility(msg.charId || '', msg.item || {}); } catch (e) { r = { ok: false, error: String(e) }; }
           reply(!!(r && r.ok), r, r && r.error);
         } else if (msg.type === 'TS_CHAR_DELETE') {
           // A player deletes one of their own Fells from the chooser or the menu. The backend
