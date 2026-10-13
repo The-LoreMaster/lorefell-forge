@@ -4915,8 +4915,20 @@ function renderSkills(){
 }
 
 /* ---------- inventory ---------- */
+/* The LoreMaster's own relics (RelicForge, or forged at the table), sent by ThreadSpire when it
+   opens this Fell. Given to the Fell, a relic carries its own words in the pack, so the sheet
+   reads it on any table, the player's included, without the LoreMaster's shelf (Nate, 2026-10-13). */
+let LM_RELICS=[];
+function lmRelicId(n){ return "lm:"+String(n||"").trim().toLowerCase().replace(/[^a-z0-9]+/g,"-"); }
+function customIntoLib(){
+  (C.inventory||[]).forEach(it=>{
+    const c=it&&it.custom; if(!c||!c.name||ITEMS_LIB.some(x=>x.id===it.itemId)) return;
+    ITEMS_LIB.push({id:it.itemId,name:c.name,use:c.use||"Out of Combat",desc:c.desc||"",veiled:"",group:c.group||"",rarity:c.rarity||"",uses:c.uses||"",roll:"",target:"",places:0});
+  });
+}
 function renderItems(){
   try{ equipSeed(); }catch(e){}
+  customIntoLib();
   const w=$("itemsWrap");w.innerHTML="";
   if(!C.inventory.length)w.appendChild(el("p","note","No utilities yet. Your pack is light."));
   /* what the pack will hold, said once at the top rather than only when it refuses */
@@ -4954,12 +4966,22 @@ function renderItems(){
   });
   const pick=$("itemPick");pick.innerHTML="";
   const p=el("option",null,"—");p.value="";pick.appendChild(p);
-  ITEMS_LIB.forEach(i=>{const o=el("option",null,i.name);o.value=i.id;pick.appendChild(o);});
+  ITEMS_LIB.forEach(i=>{ if(String(i.id).indexOf("lm:")===0) return; const o=el("option",null,i.name);o.value=i.id;pick.appendChild(o);});
+  if(god&&LM_RELICS.length){
+    const g=document.createElement("optgroup");g.label="Your relics";
+    LM_RELICS.forEach(r=>{const o=el("option",null,r.name);o.value=lmRelicId(r.name);g.appendChild(o);});
+    pick.appendChild(g);
+  }
 }
 $("itemAdd").addEventListener("click",()=>{
   const id=$("itemPick").value;if(!id)return;
   const existing=C.inventory.find(i=>i.itemId===id);
   if(existing)existing.quantity++;
+  else if(id.indexOf("lm:")===0){
+    const r=LM_RELICS.find(x=>lmRelicId(x.name)===id); if(!r)return;
+    C.inventory.push({itemId:id,quantity:1,discovered:false,equipped:false,
+      custom:{name:r.name,use:r.use||"",desc:r.desc||"",group:r.group||"",rarity:r.rarity||"",uses:r.uses||""}});
+  }
   else C.inventory.push({itemId:id,quantity:1,discovered:false,equipped:false});
   renderItems();scheduleSave();
 });
@@ -8205,6 +8227,7 @@ window.onmessage=ev=>{
     return;
   }
   if(d.type==="ts-new"){ postToVelo({type:"add-character"}); return; }
+  if(d.type==="ts-relics"){ LM_RELICS=Array.isArray(d.items)?d.items.filter(x=>x&&x.name):[]; try{renderItems();}catch(e){} return; }
   if(d.type==="ts-god"){ god=!!d.on; if(!god){ try{ sealReset(); }catch(e){} } else { setTimeout(function(){ try{ sealLoad(); }catch(e){} },0); } document.body.classList.toggle("god",god); var gb=$("godBtn"); if(gb) gb.classList.toggle("on",god); /* everything that reads the LoreMaster's mode redraws at once, Invested Lore and the strip included (they waited for some later redraw) */ try{renderWeapons();renderDials();renderArmor();renderLorebounds();renderCampaignOptions();renderMotivation();syncIdentityLock();}catch(e){} try{renderLore();}catch(e){} try{renderStrip();}catch(e){} try{renderMobility();}catch(e){} return; }
   bridged=true;
   if(d.type==="init"||d.type==="new")hideCover();

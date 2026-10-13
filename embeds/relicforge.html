@@ -107,6 +107,10 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;op
  .submit{display:flex;align-items:center;justify-content:center;width:100%;min-height:52px;margin-top:24px;padding:0 20px;background:var(--gold);border:1px solid var(--gold);border-radius:0;color:var(--void);font-family:var(--f-label);font-weight:600;font-size:16px;letter-spacing:.22em;text-transform:uppercase;cursor:pointer;transition:background .25s,color .25s}
  .submit:hover:not(:disabled){background:transparent;color:var(--gold)}
  .submit:disabled{opacity:.45;cursor:not-allowed}
+ .lf{display:flex;align-items:center;gap:10px;min-height:44px;margin-top:18px;cursor:pointer;font-family:var(--f-label);font-weight:500;font-size:14px;letter-spacing:.18em;text-transform:uppercase;color:var(--ash)}
+ .lf input{width:20px;height:20px;margin:0;accent-color:var(--gold);flex:none}
+ .lf+.submit{margin-top:12px}
+ .done .lf-note{color:var(--bone);font-size:17px;margin:-8px 0 20px}
  .err{margin:12px 0 0;color:var(--warn);font-size:17px;text-align:center}
  .err:empty{display:none}
  .done{padding:28px 20px;text-align:center;max-width:720px}
@@ -151,10 +155,11 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;op
  <div id="view"></div>
 </div>
 <script>
-/* RelicForge makes one relic and submits it for the vote. The canon relics live on the character
-   sheet and in the FellGuide, and the votes in the LoreForge (Nate, 2026-10-13). */
+/* RelicForge makes one relic and saves it to the maker's own shelf, where ThreadSpire puts it in a
+   foe's kit or gives it to a player's Fell. A tick also submits it to the LoreForge for the vote.
+   The canon relics live on the character sheet and in the FellGuide (Nate, 2026-10-13). */
 const $=id=>document.getElementById(id);
-const BLANK={name:"",group:"Combat",use:"Passive",cost:"",uses:"",rarity:"Common",desc:"",image:"",state:"edit",error:""};
+const BLANK={loreforge:false,name:"",group:"Combat",use:"Passive",cost:"",uses:"",rarity:"Common",desc:"",image:"",state:"edit",error:""};
 const F=Object.assign({},BLANK);
 const GROUPS=["Skill","Combat","Field","Harvest","Other"],USES=["Passive","React","Act","Rest"],RARITY=["Common","Rare","Legendary"];
 let waitTimer=null;
@@ -166,8 +171,11 @@ const pick=(id,list,val)=>'<select id="'+id+'">'+list.map(o=>'<option'+(o===val?
 function render(){
  const v=$("view");
  if(F.state==="done"){
-  v.innerHTML='<div class="done sl-card"><h2>Submitted</h2><p>Your relic goes to the community vote, then the team checks it against the rules.</p><button type="button" id="again">Forge another</button></div>';
-  $("again").onclick=()=>{Object.assign(F,BLANK);render();};
+  const lf=F.result&&F.result.loreforge;
+  v.innerHTML='<div class="done sl-card"><h2>'+(F.result&&F.result.updated?"Saved again":"Saved")+'</h2><p>'+esc(F.saved)+' is on your relic shelf in ThreadSpire. Put it in a foe\u2019s kit, or give it to a player\u2019s Fell from their sheet.</p>'
+   +(lf?'<p class="lf-note">'+(lf.ok?'It is in the LoreForge too, before the community vote.':esc('It did not reach the LoreForge: '+((lf.errors&&lf.errors[0])||'try again.')))+'</p>':'')
+   +'<button type="button" id="again">Forge another</button></div>';
+  $("again").onclick=()=>{Object.assign(F,BLANK,{result:null});render();};
   return;
  }
  let h='<div class="forge"><div class="sl-card form-card">';
@@ -179,11 +187,13 @@ function render(){
  h+='<label class="fld" for="f_rarity">Rarity'+tip("How rare the relic is in the world. Guides where a LoreMaster would place it.")+'</label>'+pick("f_rarity",RARITY,F.rarity);
  h+='<label class="fld" for="f_desc">Description</label><textarea id="f_desc" maxlength="600" placeholder="State plainly what it does.">'+esc(F.desc)+'</textarea>';
  h+='<label class="fld">Image <em>optional</em></label><label class="uploader">'+(F.image?'<img src="'+esc(F.image)+'" alt=""><span>Change image</span>':'<span>Upload an image</span>')+'<input type="file" id="f_img" accept="image/*"></label>';
- h+='<button class="submit" id="f_submit" type="button">'+(F.state==="sending"?"Submitting":"Submit for the vote")+'</button><p class="err" role="status">'+esc(F.error)+'</p>';
+ h+='<label class="lf"><input type="checkbox" id="f_lf"'+(F.loreforge?' checked':'')+'><span>Also submit to the LoreForge</span>'+tip("Saves the relic to your shelf and puts it before the community vote for canon at the same time.")+'</label>';
+ h+='<button class="submit" id="f_submit" type="button">'+(F.state==="sending"?"Saving":"Save to my relics")+'</button><p class="err" role="status">'+esc(F.error)+'</p>';
  h+='</div><aside class="preview sl-card" id="preview" aria-label="How it will read"></aside></div>';
  v.innerHTML=h;
  [["f_name","name"],["f_group","group"],["f_use","use"],["f_cost","cost"],["f_uses","uses"],["f_rarity","rarity"],["f_desc","desc"]].forEach(([id,k])=>{$(id).oninput=$(id).onchange=e=>{F[k]=e.target.value;upd();};});
  $("f_img").onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{F.image=ev.target.result;render();};r.readAsDataURL(f);};
+ $("f_lf").onchange=e=>{F.loreforge=e.target.checked;};
  $("f_submit").onclick=submit;
  upd();
 }
@@ -201,7 +211,7 @@ function upd(){
 function submit(){
  if(F.state==="sending")return;
  F.state="sending";F.error="";render();
- post({type:"RELIC_SUBMIT",payload:{title:F.name.trim(),tier:F.rarity,form:{group:F.group,use:F.use,cost:F.cost.trim(),uses:F.uses.trim(),rarity:F.rarity,description:F.desc.trim()},image:F.image||null,selections:[]}});
+ post({type:"RELIC_SUBMIT",payload:{title:F.name.trim(),tier:F.rarity,form:{group:F.group,use:F.use,cost:F.cost.trim(),uses:F.uses.trim(),rarity:F.rarity,description:F.desc.trim()},image:F.image||null,selections:[],loreforge:!!F.loreforge}});
  clearTimeout(waitTimer);
  waitTimer=setTimeout(()=>{if(F.state==="sending"){F.state="edit";F.error="The forge did not answer. Try again.";render();}},30000);
 }
@@ -211,7 +221,7 @@ window.onmessage=function(e){
  const m=e&&e.data;if(!m||typeof m!=="object")return;
  if(m.type==="RELIC_SUBMIT_RESULT"){
   clearTimeout(waitTimer);
-  if(m.ok)F.state="done";else{F.state="edit";F.error=(m.errors&&m.errors[0])||"That did not save. Try again.";}
+  if(m.ok){F.state="done";F.result=m;F.saved=F.name.trim();}else{F.state="edit";F.error=(m.errors&&m.errors[0])||"That did not save. Try again.";}
   render();
  }
 };

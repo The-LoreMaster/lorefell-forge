@@ -493,6 +493,42 @@ export const submitItem = webMethod(Permissions.SiteMember, async (item) => {
   } catch (e) { return { ok: false, error: String(e) }; }
 });
 
+// A relic made in the RelicForge, kept as the maker's own: it sits on their relic shelf in
+// ThreadSpire, for a foe to carry or to give to a player's Fell (Nate, 2026-10-13). Saving the
+// same name again rewrites it rather than leaving two. The LoreForge vote is a separate
+// submission (submitCreation), made only when the maker asks for it.
+export const saveRelic = webMethod(Permissions.SiteMember, async (relic) => {
+  const mid = await memberId();
+  if (!mid) return { ok: false, error: 'You need to be signed in.' };
+  const r = relic || {};
+  const name = String(r.name || '').trim().slice(0, 120);
+  if (!name) return { ok: false, error: 'Give the relic a name.' };
+  const meta = {
+    group: String(r.group || ''), use: String(r.use || ''), cost: String(r.cost || ''),
+    uses: String(r.uses || ''), rarity: String(r.rarity || ''), description: String(r.description || '').trim()
+  };
+  if (!meta.description) return { ok: false, error: 'Describe what the relic does.' };
+  const head = [meta.group || 'Relic', meta.use, meta.rarity].filter(Boolean).join(', ');
+  const fullText = [head, 'Cost: ' + (meta.cost || 'unset') + '   Uses: ' + (meta.uses || 'unset'), '', meta.description].join('\n');
+  const row = {
+    forgeKey: 'relicforge', kind: 'relic', creationName: name, creatorMemberId: mid, canonStatus: 'private',
+    shorthand: [meta.group || 'Relic', meta.use].filter(Boolean).join(', '), fullText: fullText,
+    imageUrl: String(r.imageUrl || ''),
+    payload: JSON.stringify({ kind: 'relic', title: name, tier: meta.rarity || 'Common',
+      shorthand: [meta.group || 'Relic', meta.use].filter(Boolean).join(', '), fullText: fullText, meta: meta })
+  };
+  try {
+    const had = await wd.query('Creations').eq('forgeKey', 'relicforge').eq('creatorMemberId', mid)
+      .eq('canonStatus', 'private').eq('creationName', name).limit(1).find({ suppressAuth: true });
+    if (had.items.length) {
+      const saved = await wd.update('Creations', Object.assign({}, had.items[0], row), { suppressAuth: true });
+      return { ok: true, id: saved._id, updated: true };
+    }
+    const saved = await wd.insert('Creations', row, { suppressAuth: true });
+    return { ok: true, id: saved._id };
+  } catch (e) { return { ok: false, error: 'The relic did not save. Try again.' }; }
+});
+
 // The pools a foe is built from. Canon lists live in the tool, so this returns only what the
 // collections add on top: the loremaster's own forged infusions, augmentations, and items,
 // plus any that reached canon. The tool merges these with its canon lists.
