@@ -2911,6 +2911,9 @@ body.lm-role.fighting #fightClock{ display:block; } body.stream #fightClock, bod
 .svm i{ width:8px; height:8px; border-radius:50%; background:#8fd694; } .svm.saving i{ background:#e8cf86; animation:svmPulse 1s ease-in-out infinite; } .svm.bad{ border-color:#b04050; color:#ffd7cf; } .svm.bad i{ background:#e05a4f; }
 @keyframes svmPulse{ 50%{ opacity:.3; } } @media (prefers-reduced-motion: reduce){ .svm.saving i{ animation:none; } }
 .fe-savemark{ margin-right:auto; display:flex; align-items:center; }
+.fe-pfx{ display:flex; align-items:center; flex-wrap:wrap; gap:8px 12px; margin:14px 0 4px; }
+.fe-pfx-note{ color:#93a3b6; font-size:.82rem; }
+p.fe-pfx.done{ color:#e8cf86; font-size:.86rem; }
 body.clean #saveMark, body.stream #saveMark{ display:none; }
 
 .rm-acts{ display:flex; flex-direction:column; gap:8px; margin-top:6px; }
@@ -4409,6 +4412,7 @@ function rowToAsset(r){
     if (fm.attrsHand) e.attrsHand = true;
     if (fm.kitAt) e.kitAt = Number(fm.kitAt) || 0;
     if (fm.mobility != null) e.mobility = fm.mobility; if (fm.range != null) e.range = fm.range; if (fm.atkPref) e.atkPref = fm.atkPref;
+    if (fm.pentifaxId) e.pentifaxId = fm.pentifaxId;
     e.source = pick('source') || fm.source || '';
     e.build = fm.build || pick('build') || '';
     e.stance = fm.stance || pick('stance') || '';
@@ -5842,7 +5846,7 @@ function assetToRow(e){
     abilities: JSON.stringify(e.abilities || []), foeWeight: e.foeWeight || 0,
     foeMeta: JSON.stringify({ build:e.build||'', stance:e.stance||'', sig:e.sig||'', source:e.source||'', attrsHand:!!e.attrsHand, kitAt:e.kitAt||0,
       augments:e.augments||[], infusions:e.infusions||[], atkPref:e.atkPref||'', mobility:e.mobility, range:e.range,
-      campaignId:e.campaignId||'', campaignName:e.campaignName||'' })
+      campaignId:e.campaignId||'', campaignName:e.campaignName||'', pentifaxId:e.pentifaxId||'' })
   };
 }
 /* One sheet for a figure, wherever you open it: the library shelf or a scene's
@@ -23681,9 +23685,42 @@ function entrySheetFoe(e, src, lib, img){
           + relics.map(function(x){ return '<option value="' + esc(x) + '">' + esc(x) + '</option>'; }).join('') + '<option value="__custom">Forge a custom relic\u2026</option></select>';
       })())
     + feSec('Acts', feActs(e), 'one at each tier; a scene shows those its rating reaches')
-    + '</div><div class="tsm-row"><span id="feSaveMark" class="fe-savemark">' + saveMarkHtml() + '</span><button class="tsm-btn ghost" onclick="sheetBack()">Cancel</button><button class="tsm-btn" onclick="sheetSave()">Save</button></div>';
+    + '</div>' + fePentifaxRow(e, src, lib)
+    + '<div class="tsm-row"><span id="feSaveMark" class="fe-savemark">' + saveMarkHtml() + '</span><button class="tsm-btn ghost" onclick="sheetBack()">Cancel</button><button class="tsm-btn" onclick="sheetSave()">Save</button></div>';
   return h;
 }
+/* The Pentifax: a foe the LoreMaster made can be put before the canon vote once (Nate,
+   2026-10-13). The backend (submitFoeToPentifax) refuses a second submission of the same foe, and
+   the foe remembers its entry (pentifaxId) so the button becomes a note. Canon foes and foes
+   made by others are not offered. */
+function feMayPentifax(e, src, lib){
+  if (!isLM() || S.stream || !e || e.type !== 'monster') return false;
+  if (!(lib || src === 'lib')) return false;
+  var id = String(e.id || '');
+  return e.source !== 'canon' && id.indexOf('foe:') !== 0;
+}
+function fePentifaxRow(e, src, lib){
+  if (!feMayPentifax(e, src, lib)) return '';
+  if (e.pentifaxId) return '<p class="fe-pfx done">In the Pentifax, put before the canon vote.</p>';
+  var w = (window._fePfx && window._fePfx.id === e.id) ? window._fePfx : {};
+  return '<div class="fe-pfx"><button class="fe-mini" id="fePfxBtn" onclick="fePentifax()"' + (w.busy ? ' disabled' : '') + '>'
+    + (w.busy ? 'Submitting' : w.arm ? 'Tap again to submit' : 'Submit to the Pentifax') + '</button>'
+    + '<span class="fe-pfx-note">' + esc(w.err || 'Once per foe. It goes to the community vote for canon.') + '</span></div>';
+}
+function fePentifax(){
+  var t = curSheet(); if (!t) return;
+  var e = t.obj, w = window._fePfx = (window._fePfx && window._fePfx.id === e.id) ? window._fePfx : { id: e.id };
+  if (w.busy || e.pentifaxId) return;
+  if (!w.arm){ w.arm = true; w.err = ''; clearTimeout(w.t); w.t = setTimeout(function(){ w.arm = false; sheetReopen(); }, 3000); feKeep(); sheetReopen(); return; }
+  w.arm = false; clearTimeout(w.t); w.busy = true; feKeep(); sheetLiveSave(); sheetReopen();
+  tsAsk('TS_PENTIFAX_SUBMIT', { asset: assetToRow(e) }).then(function(r){
+    w.busy = false;
+    if (r && (r.ok || r.already)){ e.pentifaxId = r.creationId || 'submitted'; w.err = ''; sheetLiveSave(); }
+    else w.err = (r && r.errors && r.errors[0]) || 'It did not reach the Pentifax. Try again.';
+    sheetReopen();
+  }, function(){ w.busy = false; w.err = 'It did not reach the Pentifax. Try again.'; sheetReopen(); });
+}
+
 /* the editor's pickers keep what has been typed above them before they redraw */
 function feKeep(){ var t = curSheet(); if (!t) return; var e = t.obj, g = function(id){ var el = document.getElementById(id); return el ? el.value : undefined; };
   if (g('rsName') !== undefined && g('rsName').trim()) e.name = g('rsName').trim(); if (g('rsDesc') !== undefined) e.desc = g('rsDesc');

@@ -168,10 +168,14 @@ input:focus,textarea:focus,select:focus{border-color:var(--gold)}
 .save:hover:not(:disabled){background:transparent;color:var(--gold)}
 .save:disabled{opacity:.45;cursor:not-allowed}
 .status{flex:1 1 220px;font-size:16px;color:var(--ash)}
+/* the Pentifax box beside Save (Nate, 2026-10-13) */
+.pfx{display:inline-flex;align-items:center;gap:10px;min-height:44px;cursor:pointer;font-family:var(--f-label);font-weight:500;font-size:14px;letter-spacing:.18em;text-transform:uppercase;color:var(--ash)}
+.pfx input{width:20px;height:20px;margin:0;accent-color:var(--gold);flex:none}
+.pfx.done{cursor:default;color:var(--gold)}
 .status.bad{color:var(--warn)}
 .newfoe{margin-left:auto}
 /* on a phone the two buttons share one row and the status line sits under them */
-@media (max-width:560px){.bar .in{gap:8px 10px}.save{flex:1 1 auto;order:1;padding:0 12px}.newfoe{order:2;margin-left:0;padding:0 14px}.status{order:3;flex-basis:100%}.status:empty{display:none}}
+@media (max-width:560px){.bar .in{gap:8px 10px}.save{flex:1 1 auto;order:1;padding:0 12px}.newfoe{order:2;margin-left:0;padding:0 14px}.pfx{order:3;flex-basis:100%}.status{order:4;flex-basis:100%}.status:empty{display:none}}
 @media (orientation:landscape) and (max-height:540px){
   body{padding-top:14px}
   .brand{margin-bottom:14px}.brand svg{width:40px;height:40px}.brand h1{font-size:26px}
@@ -271,6 +275,7 @@ input:focus,textarea:focus,select:focus{border-color:var(--gold)}
 
 <div class="bar"><div class="in">
   <button type="button" class="save" id="saveBtn">Save to my Foes</button>
+  <label class="pfx" id="pfxWrap"><input type="checkbox" id="pfx"><span>Also submit to the Pentifax</span><span class="finfo" tabindex="0" role="button" aria-label="What is this">i<span class="tip">Saves the foe to your library and puts it before the community vote for canon at the same time. A foe goes in once.</span></span></label>
   <span class="status" id="status" role="status"></span>
   <button type="button" class="btn newfoe" id="newBtn">New foe</button>
 </div></div>
@@ -1032,7 +1037,7 @@ function blankAttrs(){const o={};ATTR_LIST.forEach(a=>o[a]=0);return o;}
 function fresh(){return{id:mkId(),name:"",desc:"",img:"",campaignId:"",campaignName:"",
   build:(PACK.builds[0]||{}).name||"",stance:(PACK.stances[0]||{}).name||"",sig:"",sr:"Elite",
   mobility:5,range:1,atkPref:"phys",attrs:blankAttrs(),attrsHand:false,
-  infusions:[],augments:[],inv:[],abilities:[],apl:3};}
+  infusions:[],augments:[],inv:[],abilities:[],apl:3,pentifaxId:""};}
 let F=fresh();
 
 /* ---------- numbers, as ThreadSpire works them out ---------- */
@@ -1055,6 +1060,8 @@ function chips(host,names,textFn,dropKey,live,none){
   $(host).innerHTML=names.length?names.map((n,i)=>'<div class="chip'+(live!=null&&i>=live?" dim":"")+'"><div class="chip-h"><b>'+escH(n)+'</b><button type="button" data-drop="'+dropKey+'" data-i="'+i+'" aria-label="Remove '+escH(n)+'" title="Remove">&times;</button></div>'+(textFn(n)?'<p>'+escH(textFn(n))+'</p>':'')+'</div>').join(""):'<p class="none">'+(none||"None yet.")+'</p>';}
 function addList(id,label,pool,chosen){fill(id,pool.filter(n=>chosen.indexOf(n)<0).sort((a,b)=>a.localeCompare(b)),"",label);}
 function step(id,v,min){return '<div class="step"><button type="button" data-attr="'+id+'" data-d="-1" aria-label="Less">&minus;</button><input type="number" id="a_'+id+'" min="'+(min||0)+'" value="'+v+'" aria-label="'+id+'"><button type="button" data-attr="'+id+'" data-d="1" aria-label="More">+</button></div>';}
+function paintPfx(){const w=$("pfxWrap"),done=!!F.pentifaxId;w.classList.toggle("done",done);
+  w.innerHTML=done?'<span>In the Pentifax</span>':'<input type="checkbox" id="pfx"><span>Also submit to the Pentifax</span><span class="finfo" tabindex="0" role="button" aria-label="What is this">i<span class="tip">Saves the foe to your library and puts it before the community vote for canon at the same time. A foe goes in once.</span></span>';}
 function render(){
   $("name").value=F.name;$("desc").value=F.desc;
   const face=$("face");face.classList.toggle("has",!!F.img);face.innerHTML=F.img?'<img src="'+escH(F.img)+'" alt="">':"Add a picture";
@@ -1125,7 +1132,7 @@ function wire(){
   let arm=false,armT=null;
   $("newBtn").addEventListener("click",()=>{const b=$("newBtn");
     if(!arm){arm=true;b.textContent="Tap again to clear";clearTimeout(armT);armT=setTimeout(()=>{arm=false;b.textContent="New foe";},3000);return;}
-    arm=false;clearTimeout(armT);b.textContent="New foe";const keep=F.apl;F=fresh();F.apl=keep;$("forgeMsg").textContent="";status("");render();});
+    arm=false;clearTimeout(armT);b.textContent="New foe";const keep=F.apl;F=fresh();F.apl=keep;paintPfx();$("forgeMsg").textContent="";status("");render();});
   $("forgeBtn").addEventListener("click",()=>{const d=(F.desc||"").trim();if(!d){$("forgeMsg").className="msg bad";$("forgeMsg").textContent="Write a line in the description first, then forge.";$("desc").focus();return;}runForge(d,{});});
   $("randomBtn").addEventListener("click",()=>{F.sr=pick(RATINGS);runForge(randomTheme(),{random:true});});
 }
@@ -1139,12 +1146,14 @@ function assetRow(){
     lp:(LF_COMBAT.RATING[F.sr]||{}).lore||0,sp:0,maxVit:LF_COMBAT.vitality(F.apl,F.sr),role:"",image:F.img||"",origin:"forged",
     attrs:JSON.stringify(a),inventory:JSON.stringify(F.inv),abilities:JSON.stringify(F.abilities),foeWeight:0,
     foeMeta:JSON.stringify({build:F.build,stance:F.stance,sig:F.sig,source:"mine",attrsHand:!!F.attrsHand,kitAt:Date.now(),
-      augments:F.augments,infusions:F.infusions,atkPref:F.atkPref,mobility:F.mobility,range:F.range,campaignId:F.campaignId,campaignName:F.campaignName})};
+      augments:F.augments,infusions:F.infusions,atkPref:F.atkPref,mobility:F.mobility,range:F.range,campaignId:F.campaignId,campaignName:F.campaignName,pentifaxId:F.pentifaxId||""})};
 }
 function save(){
   if(!F.name.trim()){status("Name it first.",true);$("name").focus();return;}
   $("saveBtn").disabled=true;status("Saving.");
-  post({type:"FOE_SAVE",payload:{asset:assetRow()}});
+  const pfx=!F.pentifaxId&&$("pfx").checked;
+  if(pfx)status("Saving, then submitting to the Pentifax.");
+  post({type:"FOE_SAVE",payload:{asset:assetRow(),pentifax:pfx}});
   clearTimeout(saveTimer);saveTimer=setTimeout(()=>{$("saveBtn").disabled=false;status("The forge did not answer. Try again.",true);},30000);
 }
 
@@ -1346,8 +1355,11 @@ window.addEventListener("message",e=>{const m=e&&e.data;if(!m||typeof m!=="objec
   if(m.type==="FOE_PACK"){applyFoePack(m.pack);return;}
   if(m.type==="FOE_ACTS_BUILT"){if(_abilResolve){const r=_abilResolve;_abilResolve=null;r(m.results||[]);}return;}
   if(m.type==="FOE_SAVED"){clearTimeout(saveTimer);$("saveBtn").disabled=false;
-    if(m.ok)status((F.name||"The foe")+" is saved. It is in your Foe library in ThreadSpire.");
-    else status("It did not save. "+(m.error||"Try again."),true);}
+    if(!m.ok){status("It did not save. "+(m.error||"Try again."),true);return;}
+    const p=m.pentifax,nm=F.name||"The foe";
+    if(p&&(p.ok||p.already)){F.pentifaxId=p.creationId||"submitted";paintPfx();status(nm+" is saved to your Foe library and "+(p.already?"was already":"is now")+" in the Pentifax.");}
+    else if(p)status(nm+" is saved to your Foe library. The Pentifax did not take it: "+((p.errors&&p.errors[0])||"try again."),true);
+    else status(nm+" is saved. It is in your Foe library in ThreadSpire.");}
 });
 document.addEventListener("click",function(e){var t=e.target.closest?e.target.closest(".finfo"):null;
   document.querySelectorAll(".finfo.open").forEach(function(x){if(x!==t)x.classList.remove("open");});

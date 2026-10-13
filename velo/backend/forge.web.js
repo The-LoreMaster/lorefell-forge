@@ -460,6 +460,53 @@ export const removeCreation = webMethod(Permissions.Admin, async (creationId) =>
   return { ok: true };
 });
 
+// A foe from the Foe library put before the Pentifax, from FoeForge's Save (with its Pentifax box
+// ticked) or from ThreadSpire's foe editor (Nate, 2026-10-13). The library id rides in
+// meta.sourceAssetId, and a foe goes in once: a second submission of the same foe by the same
+// member is refused here, whichever tool sends it.
+function pentifaxText(p) {
+  const lines = [];
+  if (p.description) lines.push(p.description);
+  lines.push((p.shatterRating || '') + ' ' + (p.build || '') + (p.stance ? ', ' + p.stance + ' stance.' : '.'));
+  if (p.signatureAffliction) lines.push('Signature: ' + p.signatureAffliction + '.');
+  if ((p.infusions || []).length) lines.push('Infusions: ' + p.infusions.join(', ') + '.');
+  if ((p.augmentations || []).length) lines.push('Augmentations: ' + p.augmentations.join(', ') + '.');
+  if ((p.acts || []).length) lines.push('Acts: ' + p.acts.map(function (a) { return 'T' + a.tier + ' ' + a.name; }).join(', ') + '.');
+  return lines.join('\n');
+}
+export const submitFoeToPentifax = webMethod(Permissions.SiteMember, async (asset) => {
+  const member = await currentMember.getMember();
+  if (!member) return { ok: false, errors: ['You need to be signed in.'] };
+  const a = asset || {};
+  const srcId = String(a.assetId || a.id || '');
+  if (!srcId || !String(a.name || '').trim()) return { ok: false, errors: ['Name the foe and save it first.'] };
+  try {
+    const mine = await wixData.query('Creations').eq('forgeKey', 'foeforge').eq('creatorMemberId', member._id).limit(1000).find({ suppressAuth: true });
+    const hit = mine.items.find(function (it) {
+      try { return ((JSON.parse(it.payload || '{}').meta) || {}).sourceAssetId === srcId; } catch (e) { return false; }
+    });
+    if (hit) return { ok: false, already: true, creationId: hit._id, errors: ['This foe is already in the Pentifax.'] };
+  } catch (e) {}
+  const jp = function (v, fb) { if (v === undefined || v === null || v === '') return fb; if (typeof v === 'object') return v; try { return JSON.parse(v); } catch (e) { return fb; } };
+  const fm = jp(a.foeMeta, {});
+  const acts = jp(a.abilities, []).map(function (x) { return { name: x.name || '', tier: Number(x.tier) || 1, effect: x.effect || x.desc || '' }; }).filter(function (x) { return x.name; });
+  const p = {
+    description: a.description || '', shatterRating: a.shatterRating || '', build: fm.build || '', stance: fm.stance || '',
+    signatureAffliction: fm.sig || a.signatureAffliction || '', infusions: fm.infusions || [], augmentations: fm.augments || [], acts: acts
+  };
+  const img = String(a.image || '');
+  const payload = {
+    kind: 'foe',
+    title: String(a.name).slice(0, 120),
+    shorthand: (p.shatterRating + ' ' + p.build).trim(),
+    fullText: pentifaxText(p),
+    imageUrl: img && img.indexOf('data:') !== 0 ? img : '',
+    selections: [],
+    meta: Object.assign({ hall: 'pentifax', sourceAssetId: srcId }, p)
+  };
+  return submitCreation('foeforge', payload);
+});
+
 async function canUseForge(forgeKey, member) {
   if (LOREMASTER_FORGES.indexOf(forgeKey) === -1) return true;
   // Loremaster forges (FoeForge, SagaForge) are open to anyone who runs at least one

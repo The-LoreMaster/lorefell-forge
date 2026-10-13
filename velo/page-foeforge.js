@@ -6,6 +6,7 @@
 
 import { getCreations, getCatalog, buildLegalAct, getFoePack } from 'backend/forge.web.js';
 import { getForgePools, listMyCampaigns, saveAsset } from 'backend/fatewell.web.js';
+import { submitFoeToPentifax } from 'backend/forge.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
 
 const FORGE_KEY = 'foeforge';
@@ -119,7 +120,19 @@ $w.onReady(() => {
         try { res = await saveAsset(asset); }
         catch (e) { res = { ok: false, error: String((e && e.message) || e) }; }
       }
-      embed.postMessage({ type: 'FOE_SAVED', ok: !!(res && res.ok), error: (res && res.error) || '' });
+      // the Pentifax box: once the foe is in the library, put it before the vote (once per foe),
+      // and keep the entry on the library row so neither tool offers it again
+      let pentifax = null;
+      if (res && res.ok && msg.payload && msg.payload.pentifax) {
+        try { pentifax = await submitFoeToPentifax(asset); } catch (e) { pentifax = { ok: false, errors: ['The Pentifax could not be reached.'] }; }
+        if (pentifax && (pentifax.ok || pentifax.already)) {
+          try {
+            const fm = JSON.parse(asset.foeMeta || '{}'); fm.pentifaxId = pentifax.creationId || 'submitted';
+            asset.foeMeta = JSON.stringify(fm); await saveAsset(asset);
+          } catch (e) {}
+        }
+      }
+      embed.postMessage({ type: 'FOE_SAVED', ok: !!(res && res.ok), error: (res && res.error) || '', pentifax: pentifax });
       return;
     }
   });
