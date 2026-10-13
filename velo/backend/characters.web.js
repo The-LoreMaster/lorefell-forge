@@ -10,6 +10,7 @@ import { uploadRune } from 'backend/loreforge.web.js';
 import { currentMember, members } from 'wix-members-backend';
 import { fetch } from 'wix-fetch';
 import { getSecret } from 'wix-secrets-backend';
+import { gunzipSync } from 'zlib';
 
 const COLLECTION = 'Characters';
 
@@ -51,7 +52,7 @@ export const myAdventures = webMethod(Permissions.Anyone, async () => {
       const c = await wixData.get('Campaigns', cid, { suppressAuth: true }).catch(() => null);
       if (c) {
         let worldId = c.worldId || '';
-        if (!worldId && c.data) { try { worldId = (JSON.parse(c.data).campaign || {}).worldId || ''; } catch (e) {} }
+        if (!worldId && c.data) worldId = storedWorldId(c.data);
         out.push({ id: cid, name: c.name || 'Adventure', worldId: worldId });
       }
     } catch (e) {}
@@ -59,6 +60,17 @@ export const myAdventures = webMethod(Permissions.Anyone, async () => {
   out.sort((a, b) => String(a.name).localeCompare(String(b.name)));
   return out;
 });
+
+// The world an adventure is set in, from its Campaigns row as saveCampaign writes it: the
+// adventure itself, or a gzip wrapper ({ campaignGz }) around it (fatewell.web.js
+// unpackCampaignData). Older rows that kept a { campaign } wrapper are read too.
+function storedWorldId(raw) {
+  try {
+    let d = JSON.parse(raw) || {};
+    if (typeof d.campaignGz === 'string' && d.campaignGz) d = JSON.parse(gunzipSync(Buffer.from(d.campaignGz, 'base64')).toString('utf8')) || {};
+    return d.worldId || (d.campaign && d.campaign.worldId) || '';
+  } catch (e) { return ''; }
+}
 
 export const loadCharacter = webMethod(Permissions.Anyone, async (charId) => {
   const id = await memberId();
@@ -68,7 +80,8 @@ export const loadCharacter = webMethod(Permissions.Anyone, async (charId) => {
   // A forged Fell that has not been built yet returns its seed, no data.
   if (!r.data && r.forgeSeed) {
     let seed = {}; try { seed = JSON.parse(r.forgeSeed); } catch (e) { seed = {}; }
-    return { forged: true, seed: seed };
+    // the adventure it was forged for, so the sheet offers that adventure's forged picks
+    return { forged: true, seed: seed, campaignId: r.campaignId || '' };
   }
   let data = {}; try { data = r.data ? JSON.parse(r.data) : {}; } catch (e) { data = {}; }
   await rowAdventureIntoData(r, data);
