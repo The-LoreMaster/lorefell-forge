@@ -116,5 +116,42 @@ export const getLibraries = webMethod(Permissions.Anyone, async () => {
     if (weapons.length) out.weapons = weapons;
   } catch (e) {}
 
+  // What the forges made: SigilForge abilities and spells, ShardForge infusions and
+  // augmentations, BondForge lorebounds and BrandForge lineages, in the vote or voted canon.
+  // The sheet offers them beside canon, and a Fell only takes one once its LoreMaster
+  // approves (Nate, 2026-10-13). Private and adventure-only work never leaves its maker.
+  try {
+    const rf = await wixData.query('Creations')
+      .hasSome('forgeKey', ['sigilforge', 'shardforge', 'bondforge', 'brandforge'])
+      .hasSome('canonStatus', ['submitted', 'canon'])
+      .descending('_createdDate').limit(1000).find({ suppressAuth: true });
+    const forged = { abilities: [], infusions: [], augmentations: [], lorebounds: [], lineages: [] };
+    rf.items.forEach((it) => {
+      let pl = {};
+      try { pl = typeof it.payload === 'string' ? JSON.parse(it.payload) : (it.payload || {}); } catch (e) { pl = {}; }
+      const m = pl.meta || {};
+      const name = String(it.creationName || pl.title || '').trim();
+      if (!name) return;
+      const base = { id: it._id, name: name, by: it.creatorName || m.creator || '', canon: it.canonStatus === 'canon' };
+      const text = it.shorthand || it.fullText || '';
+      if (it.forgeKey === 'sigilforge') {
+        if (pl.mode === 'monster' || pl.kind === 'foe' || it.kind === 'foe') return;
+        const item = m.item || m.weapon || m.focus || '';
+        if (!item) return;
+        forged.abilities.push(Object.assign(base, { item: item, tier: Number(pl.tier) || 1, type: m.type || 'Ability', desc: text }));
+      } else if (it.forgeKey === 'shardforge') {
+        const side = String(it.kind || pl.kind || m.side || '') === 'augmentation' ? 'augmentation' : 'infusion';
+        if (side === 'augmentation') forged.augmentations.push(Object.assign(base, { category: m.category || '', desc: text }));
+        else forged.infusions.push(Object.assign(base, { weaponCat: String(m.category || '').toLowerCase(), desc: text }));
+      } else if (it.forgeKey === 'bondforge') {
+        forged.lorebounds.push(Object.assign(base, { world: m.world || '', aspectName: m.aspectName || '', initial: m.initial || '',
+          branches: Array.isArray(m.branches) ? m.branches : [], crowns: Array.isArray(m.crowns) ? m.crowns : [] }));
+      } else if (it.forgeKey === 'brandforge' && (m.kind || pl.kind) === 'lineage') {
+        forged.lineages.push(Object.assign(base, { desc: m.body || it.fullText || '', bonusType: m.bonusType || '', bonusValue: m.bonusValue || '' }));
+      }
+    });
+    out.forged = forged;
+  } catch (e) {}
+
   return out;
 });

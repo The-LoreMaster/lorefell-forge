@@ -249,6 +249,56 @@ function mergeGiven(prev, next) {
   next.given = out; next.givenGone = gone;
   return next;
 }
+// A Fell asks for something the forges made; its LoreMaster answers (Nate, 2026-10-13).
+// data.asks holds the open asks, data.asksDone the answers. A save made from an older copy
+// still lists an ask that has since been answered: the answer is laid back over it here, so
+// the player's stale save never undoes the LoreMaster's yes. The LoreMaster's save may come
+// from a copy older than a new ask, so that one keeps the asks it never saw.
+function applyAsk(d, a) {
+  if (!d || !a || !a.name) return;
+  const w = a.where || {};
+  const i = Number(w.i) || 0;
+  if (a.kind === 'infusion' || a.kind === 'ability') {
+    const wp = (d.weapons || [])[Number(w.w) || 0];
+    if (!wp) return;
+    const k = a.kind === 'infusion' ? 'infusions' : 'abilities';
+    if (!Array.isArray(wp[k])) wp[k] = [null, null, null];
+    wp[k][i] = a.name;
+  } else if (a.kind === 'augmentation') {
+    d.armor = d.armor || { level: 0, augs: [null, null] };
+    if (!Array.isArray(d.armor.augs)) d.armor.augs = [null, null];
+    d.armor.augs[i] = a.name;
+  } else if (a.kind === 'lorebound') {
+    const lb = (d.lorebounds || [])[i];
+    if (lb) lb.type = a.name;
+  } else if (a.kind === 'lineage') {
+    d.identity = d.identity || {};
+    d.identity.lineage = a.name;
+  } else return;
+  if (a.def) { d.forgedKept = d.forgedKept || {}; d.forgedKept[a.kind + ':' + a.name] = a.def; }
+}
+function mergeAsks(prev, next, byLm) {
+  if (!next) return next;
+  const done = [], seenDone = {};
+  [].concat((prev && prev.asksDone) || [], next.asksDone || []).forEach((x) => {
+    if (!x || !x.id || seenDone[x.id]) return;
+    seenDone[x.id] = x; done.push(x);
+  });
+  let asks = Array.isArray(next.asks) ? next.asks.slice() : [];
+  if (byLm) ((prev && prev.asks) || []).forEach((a) => {
+    if (a && a.id && !seenDone[a.id] && !asks.some((b) => b && b.id === a.id)) asks.push(a);
+  });
+  asks = asks.filter((a) => {
+    if (!a || !a.id) return false;
+    const ans = seenDone[a.id];
+    if (!ans) return true;
+    if (ans.ok) applyAsk(next, a);
+    return false;
+  });
+  next.asks = asks;
+  next.asksDone = done.slice(-100);
+  return next;
+}
 export const saveCharacter = webMethod(Permissions.Anyone, async (charId, character) => {
   const id = await memberId();
   const c = character || {};
@@ -261,7 +311,7 @@ export const saveCharacter = webMethod(Permissions.Anyone, async (charId, charac
     row = { ownerMemberId: id };
   }
   await storePortrait(c);
-  if (charId) { const _prev = parseData(row); mergeGiven(_prev, c); mergeLmVit(_prev, c); mergeConds(_prev, c); }
+  if (charId) { const _prev = parseData(row); mergeGiven(_prev, c); mergeLmVit(_prev, c); mergeConds(_prev, c); mergeAsks(_prev, c, false); }
   row.data = JSON.stringify(c);
   row.charName = (c.identity && c.identity.name) || row.charName || 'Unnamed Fell';
   row.level = (c.lore && c.lore.level) || 1;
@@ -707,6 +757,7 @@ export const lmSaveCharacter = webMethod(Permissions.Anyone, async (charId, char
   mergeGiven(_prevLm, c);
   mergeLmVit(_prevLm, c);
   mergeConds(_prevLm, c);
+  mergeAsks(_prevLm, c, true);
   row.data = JSON.stringify(c);
   row.charName = (c.identity && c.identity.name) || row.charName || 'Unnamed Fell';
   row.level = (c.lore && c.lore.level) || row.level || 1;
