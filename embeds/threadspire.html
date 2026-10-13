@@ -2526,6 +2526,18 @@ body.drop-ready #map::after{ content:'Drop images to add them as maps'; position
 .na-type.on, .na-world.on{ border-color:var(--gold); background:rgba(201,168,76,.12); } .na-type.on b, .na-world.on{ color:var(--gold); }
 .na-worlds{ display:grid; grid-template-columns:repeat(auto-fill, minmax(104px,1fr)); gap:6px; max-height:180px; overflow-y:auto; padding-right:4px; }
 .na-world.forged{ border-color:rgba(216,188,106,.5); }
+.fp-kinds{ display:flex; flex-wrap:wrap; gap:6px; margin:4px 0 10px; }
+.fp-kind{ padding:7px 10px; border:1px solid var(--line); border-radius:8px; background:none; color:var(--silver,#dce8ef); font-family:Cinzel,serif; font-size:.68rem; letter-spacing:.06em; cursor:pointer; }
+.fp-kind.on{ border-color:var(--gold,#d8bc6a); color:var(--gold,#d8bc6a); } .fp-kind b{ color:var(--gold,#d8bc6a); font-weight:600; margin-left:3px; }
+.fp-tools{ display:flex; gap:10px; align-items:center; margin-bottom:8px; } .fp-tools .tsm-inp{ flex:1; margin:0; }
+.fp-only{ display:flex; gap:6px; align-items:center; font-size:.78rem; color:var(--muted,#93a3b6); white-space:nowrap; cursor:pointer; }
+.fp-list{ max-height:52vh; overflow:auto; display:flex; flex-direction:column; gap:6px; }
+.fp-row{ display:flex; gap:10px; align-items:flex-start; padding:8px 10px; border:1px solid var(--line); border-radius:8px; cursor:pointer; }
+.fp-row.on{ border-color:rgba(216,188,106,.6); background:rgba(216,188,106,.06); }
+.fp-row input{ margin-top:3px; accent-color:var(--gold,#d8bc6a); width:18px; height:18px; flex:none; }
+.fp-main{ display:flex; flex-direction:column; gap:2px; min-width:0; } .fp-main b{ font-family:Cinzel,serif; font-weight:500; font-size:.86rem; color:#dce8ef; }
+.fp-tag{ font-size:.62rem; letter-spacing:.12em; text-transform:uppercase; color:var(--gold,#d8bc6a); }
+.fp-sub,.fp-by{ font-size:.72rem; color:var(--muted,#93a3b6); } .fp-desc{ font-size:.78rem; color:#c3cfdb; }
 .na-world{ padding:7px 6px; border:1px solid var(--line); border-radius:8px; background:none; color:var(--silver,#dce8ef); font-family:Cinzel,serif; font-size:.66rem; letter-spacing:.04em; cursor:pointer; } .na-world.unwritten{ border-style:dashed; }
 .na-unwritten{ margin-top:8px; padding:10px 12px; border:1px dashed rgba(201,168,76,.5); border-radius:10px; }
 .na-cover{ display:flex; align-items:center; gap:10px; } .na-cover img{ width:120px; height:68px; object-fit:cover; border-radius:8px; } .na-opt{ text-transform:none; letter-spacing:0; color:var(--muted,#9aabbb); font-family:'Crimson Pro',Georgia,serif; }
@@ -13629,6 +13641,70 @@ function setHero(){
     + ((tName || wName) ? '<span class="set-hero-m">' + esc([tName, wName].filter(Boolean).join(' in ')) + '</span>' : '')
     + '<span class="set-hero-c">Change <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button></div>';
 }
+/* ---- forged for this adventure ----
+   The LoreMaster chooses which forge creations this adventure's players may take: what is
+   ticked shows on their sheets and applies at once; nothing else forged reaches them
+   (Nate, 2026-10-13). The list is everything the forges hold in the vote or canon, and the
+   LoreMaster's own work, private included. */
+var FP = null;
+var FP_KINDS = [['lineages','Lineages'],['lorebounds','Lorebounds'],['abilities','Abilities'],['infusions','Infusions'],['augmentations','Augmentations']];
+function forgedPickOpen(){
+  if (keeperNo()) return;
+  FP = { loading:true, items:[], on:{}, kind:'lineages', q:'', only:false, err:'', saving:false };
+  forgedPickPaint();
+  tsAsk('TS_FORGED_LIST', {}).then(function(r){
+    if (!FP) return;
+    FP.loading = false;
+    if (!r || !r.ok){ FP.err = (r && r.error) || 'The forge shelf could not be read.'; forgedPickPaint(); return; }
+    FP.items = r.items || []; (r.assigned || []).forEach(function(id){ FP.on[id] = 1; });
+    var first = FP_KINDS.filter(function(k){ return FP.items.some(function(i){ return i.kind === k[0]; }); })[0];
+    if (first) FP.kind = first[0];
+    forgedPickPaint();
+  }).catch(function(){ if (!FP) return; FP.loading = false; FP.err = 'The forge shelf could not be read.'; forgedPickPaint(); });
+}
+function forgedPickKeep(){ var q = document.getElementById('fpQ'); if (q && FP) FP.q = q.value; }
+function forgedPickSet(k, v){ forgedPickKeep(); FP[k] = v; forgedPickPaint(); }
+function forgedPickTick(id){ forgedPickKeep(); if (FP.on[id]) delete FP.on[id]; else FP.on[id] = 1; forgedPickPaint(); }
+function forgedPickPaint(){
+  if (!FP) return;
+  var h = '<h3 class="tsm-title">Forged for this adventure</h3><p class="tsm-note">Tick what this adventure\u2019s players may take from the forges. It shows on their sheets and applies at once.</p>';
+  if (FP.loading){ tsModal(h + '<p class="tsm-note">Reading the forges\u2026</p>'); return; }
+  if (FP.err && !FP.items.length){ tsModal(h + '<p class="sm-err">' + esc(FP.err) + '</p><div class="tsm-row"><button class="tsm-btn ghost" onclick="FP=null;tsCloseModal()">Close</button></div>'); return; }
+  var count = function(k){ return FP.items.filter(function(i){ return i.kind === k && FP.on[i.id]; }).length; };
+  h += '<div class="fp-kinds">' + FP_KINDS.map(function(k){ var n = count(k[0]); return '<button type="button" class="fp-kind' + (FP.kind === k[0] ? ' on' : '') + '" onclick="forgedPickSet(\'kind\',\'' + k[0] + '\')">' + k[1] + (n ? ' <b>' + n + '</b>' : '') + '</button>'; }).join('') + '</div>';
+  h += '<div class="fp-tools"><input class="tsm-inp" id="fpQ" placeholder="Search by name or maker" value="' + esc(FP.q) + '" oninput="forgedPickFilter()"><label class="fp-only"><input type="checkbox"' + (FP.only ? ' checked' : '') + ' onchange="forgedPickSet(\'only\',this.checked)"> Ticked only</label></div>';
+  h += '<div class="fp-list" id="fpList">' + forgedPickRows() + '</div>';
+  var total = Object.keys(FP.on).length;
+  h += (FP.err ? '<p class="sm-err">' + esc(FP.err) + '</p>' : '')
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="FP=null;tsCloseModal()">Cancel</button><button class="tsm-btn" onclick="forgedPickSave()"' + (FP.saving ? ' disabled' : '') + '>' + (FP.saving ? 'Saving' : 'Save (' + total + ' chosen)') + '</button></div>';
+  tsModal(h); summonWide();
+  var q = document.getElementById('fpQ'); if (q && FP.q){ q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
+}
+function forgedPickRows(){
+  var q = String(FP.q || '').toLowerCase();
+  var rows = FP.items.filter(function(i){ return i.kind === FP.kind && (!FP.only || FP.on[i.id]) && (!q || (i.name + ' ' + (i.by || '')).toLowerCase().indexOf(q) >= 0); });
+  rows.sort(function(a, b){ return (FP.on[b.id] ? 1 : 0) - (FP.on[a.id] ? 1 : 0) || (b.mine ? 1 : 0) - (a.mine ? 1 : 0) || String(a.name).localeCompare(String(b.name)); });
+  if (!rows.length) return '<p class="tsm-note">' + (FP.items.some(function(i){ return i.kind === FP.kind; }) ? 'Nothing matches.' : 'The forges hold none of these yet.') + '</p>';
+  return rows.map(function(i){
+    var tag = i.mine ? 'Yours' : i.canon ? 'Canon' : 'In the vote';
+    var sub = i.kind === 'abilities' ? ('Tier ' + (i.tier || 1) + ' \u00b7 ' + (i.item || '')) : i.kind === 'infusions' ? (i.weaponCat || '') : i.kind === 'augmentations' ? (i.category || '') : '';
+    return '<label class="fp-row' + (FP.on[i.id] ? ' on' : '') + '"><input type="checkbox"' + (FP.on[i.id] ? ' checked' : '') + ' onchange="forgedPickTick(\'' + esc(i.id) + '\')">'
+      + '<span class="fp-main"><b>' + esc(i.name) + '</b><span class="fp-tag">' + tag + '</span>' + (sub ? '<span class="fp-sub">' + esc(sub) + '</span>' : '')
+      + (i.desc ? '<span class="fp-desc">' + esc(String(i.desc).slice(0, 160)) + '</span>' : '') + (i.by && !i.mine ? '<span class="fp-by">by ' + esc(i.by) + '</span>' : '') + '</span></label>';
+  }).join('');
+}
+function forgedPickFilter(){ forgedPickKeep(); var l = document.getElementById('fpList'); if (l) l.innerHTML = forgedPickRows(); }
+function forgedPickSave(){
+  if (!FP || FP.saving) return;
+  forgedPickKeep(); FP.saving = true; FP.err = ''; forgedPickPaint();
+  tsAsk('TS_FORGED_SET', { ids:Object.keys(FP.on) }).then(function(r){
+    if (!FP) return;
+    FP.saving = false;
+    if (!r || !r.ok){ FP.err = (r && r.error) || 'That did not save. Try again.'; forgedPickPaint(); return; }
+    var n = (r.assigned || []).length; FP = null; tsCloseModal();
+    playToast(n ? n + ' forged ' + (n === 1 ? 'pick' : 'picks') + ' for this adventure. Players see them when their sheet next loads.' : 'No forged picks for this adventure.', 'Forged');
+  }).catch(function(){ if (!FP) return; FP.saving = false; FP.err = 'That did not save. Try again.'; forgedPickPaint(); });
+}
 function settingsBody(){
   if (!S.published) { S.published = []; publishLoad(); }
   advList();
@@ -13641,6 +13717,7 @@ function settingsBody(){
   if (isKeeper()) h += setGroup('Adventure settings', setRow('You are a Lorekeeper here', 'You help with the map, the tokens and the Fell. Running the scene, the Story, the Journal and the adventure\u2019s settings are the LoreMaster\u2019s.'));
   else h += setGroup('Adventure settings',
       setRow('Type and world', (tName || wName) ? esc([tName, wName].filter(Boolean).join(' in ')) : 'Not set yet.', setBtn((tName || wName) ? 'Change' : 'Set', 'advTypeWorldEdit()'))
+    + setRow('Forged for this adventure', 'Which lineages, lorebounds, abilities and shards from the forges this adventure\u2019s players may take. Nothing else forged reaches them.', setBtn('Choose', 'forgedPickOpen()'))
     + setRow('Saved versions', 'Put the board back as it was: kept every fifteen minutes, and before any large loss.', setBtn('Open', 'bhOpen()'))
     + setRow('Back up', 'Download this adventure as a pack, or bring one in.', setBtn('Download', 'tsExportAdventure()') + setBtn('Import', 'tsImportAdventure()'))
     + (mine
