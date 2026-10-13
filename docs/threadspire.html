@@ -17,6 +17,13 @@ input[type=file]::-webkit-file-upload-button{ margin-right:10px; padding:7px 14p
 :root{ --navy:#0a0e1a; --panel:#10162a; --panel2:#141b33; --line:#2a3352; --gold:#c9a84c; --silver:#dce8ef; --ice:#b8ccd8; --muted:#7e8a99; --danger:#a32d2d; --pink:#d4537e; }
 *{ box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
 html,body{ height:100%; }
+/* The table's type follows its frame. The site holds ThreadSpire in a 16:9 frame under its
+   header, so on a short, wide screen the frame is small: the rail and HUD (sized by vh and vw)
+   shrank with it while the rem text kept its full size and looked huge (Nate, 2026-10-12).
+   On a desktop the root size now tracks the frame, full size from about 700px tall and 1240px
+   wide, never under 11.5px. Phones keep their own layout and sizes. FellGlass scales with the
+   same frame (fgFit in fellglass.html). */
+@media (orientation:landscape) and (min-width:700px) and (hover:hover) and (pointer:fine){ html{ font-size:clamp(11.5px, min(2.286vh, 1.29vw), 16px); } }
 body{ background:var(--navy); color:var(--silver); font-family:'Crimson Pro',Georgia,serif; overflow:hidden; }
 html{ scrollbar-color:rgba(22,36,64,.55) transparent; scrollbar-width:thin; }
 ::-webkit-scrollbar{ width:8px; height:8px; }
@@ -13730,7 +13737,7 @@ function settingsBody(){
     + (isLM() ? setRow('Hide my rolls', 'Your rolls show only on your screen and in your log, marked hidden.', setSwitch(lmHiddenRolls(), 'lmHiddenRollsSet(!lmHiddenRolls())', 'Hide my rolls')) : '')
     + setRow('Player view', 'See the fog as the players do.', '<kbd>P</kbd>' + setSwitch(!!S._pv, 'pviewSet(!S._pv)', 'Player view'))
     + setRow('Clean view', 'Hide the widgets to show the map alone.', '<kbd>H</kbd>' + setSwitch(document.body.classList.contains('clean'), 'toggleClean();refreshWinBody()', 'Clean view'))
-    + setRow('Full screen', '', '<kbd>F</kbd>' + setSwitch(!!document.fullscreenElement, 'toggleFull();setTimeout(refreshWinBody,300)', 'Full screen'))
+    + setRow('Full screen', '', '<kbd>F</kbd>' + setSwitch(tsIsFull(), 'toggleFull();setTimeout(refreshWinBody,300)', 'Full screen'))
     + setRow('Still maps', 'Show a video map as its still picture, for a slower screen.', setSwitch(stillMaps(), 'stillMapsSet(!stillMaps())', 'Still maps'))
     + (isLM() && !isKeeper() ? setRow('Open in the lobby', 'When everyone is in the lobby, open the table seeing it as they do. Threadwalk from there to set up your scenes.', setSwitch((function(){ try { return localStorage.getItem('ts_lobby_start') !== '0'; } catch(e){ return true; } })(), 'try{localStorage.setItem(\'ts_lobby_start\',localStorage.getItem(\'ts_lobby_start\')===\'0\'?\'1\':\'0\')}catch(e){};refreshWinBody()', 'Open in the lobby')) : '')
     + (isKeeper() ? setRow('Stream view', 'A window that follows this table for capture.', setBtn('Copy link', 'streamCopy()')) : '')
@@ -14938,19 +14945,30 @@ function tsCanFull(){
   var d = document, el = d.documentElement;
   return !!(d.fullscreenEnabled || d.webkitFullscreenEnabled) && !!(el.requestFullscreen || el.webkitRequestFullscreen);
 }
-function tsIsFull(){ return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+/* On a desktop inside the site, the site takes its 16:9 stage full screen rather than this
+   frame: a frame in full screen is forced to the screen's own shape, and on a 21:9 screen the
+   table stretched (Nate, 2026-10-12). The site answers with tool-fullscreen-state. Phones still
+   take the frame itself full screen, which fits them. */
+var _hostFull = false;
+function tsViaHost(){ return tsEmbedded() && !(isMobile() || noHover()); }
+function tsIsFull(){ return _hostFull || !!(document.fullscreenElement || document.webkitFullscreenElement); }
 function tsFullscreen(on){
   var d = document, el = d.documentElement;
   var want = (on === undefined) ? !tsIsFull() : on;
+  if (tsViaHost()){ try { window.parent.postMessage({ type:'tool-fullscreen', on:!!want }, '*'); } catch(e){} return; }
   try {
     if (want && !tsIsFull()) (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
     else if (!want && tsIsFull()) (d.exitFullscreen || d.webkitExitFullscreen).call(d);
   } catch(e){}
 }
 (function(){
-  if (tsCanFull()) document.body.classList.add('canfull');
+  if (tsCanFull() || tsViaHost()) document.body.classList.add('canfull');
   var sync = function(){ document.body.classList.toggle('isfull', tsIsFull()); };
   document.addEventListener('fullscreenchange', sync); document.addEventListener('webkitfullscreenchange', sync);
+  window.addEventListener('message', function(ev){
+    var d = ev.data; if (!d || d.type !== 'tool-fullscreen-state' || ev.source !== window.parent) return;
+    _hostFull = !!d.on; sync(); if (S.openSection === 'settings') try { refreshWinBody(); } catch(e){}
+  });
   var first = function(ev){
     document.removeEventListener('touchend', first, true);
     /* phones, and tablets (a touch screen with no pointer to hover), whatever layout the site
@@ -17351,6 +17369,7 @@ window.addEventListener('message', function(ev){
   }
 });
 function toggleFull(){
+  if (tsViaHost()){ tsFullscreen(); return; }
   try {
     var el = document.documentElement;
     var rf = el.requestFullscreen || el.webkitRequestFullscreen;
