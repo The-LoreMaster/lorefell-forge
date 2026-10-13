@@ -795,18 +795,18 @@ export const giveRecord = webMethod(Permissions.Anyone, async (charIds, entry) =
   return { ok: given.length > 0, given: given, refused: refused };
 });
 
-// The Treasure Phase: the LoreMaster gives a Fell a utility, a Potion, Tablet, Trap or Rune
-// carrying an Act off the foes that fell (LoreVault, Treasure Phase). It lands in the Fell's
-// pack as its own row with the Act's words, and the sheet adds the vessel's own rule. The
-// LoreMaster's alone: running the game, never a lorekeeper's.
-const VESSELS = ['Potion', 'Tablet', 'Trap', 'Rune'];
+// The Treasure Phase: the LoreMaster gives a Fell an Ability Item, a Potion, Tablet, Trap or
+// Rune carrying an Act off the foes that fell (LoreVault, Treasure Phase). It lands in the
+// Fell's Utilities undiscovered, as its own row with the Act's words, and the sheet adds the
+// Ability Item's own rule. The LoreMaster's alone: running the game, never a lorekeeper's.
+const ABILITY_ITEMS = ['Potion', 'Tablet', 'Trap', 'Rune'];
 export const giveUtility = webMethod(Permissions.Anyone, async (charId, item) => {
   const it = item || {};
-  const vessel = VESSELS.indexOf(it.vessel) >= 0 ? it.vessel : '';
+  const kind = ABILITY_ITEMS.indexOf(it.abilityItem) >= 0 ? it.abilityItem : '';
   const act = it.act || {};
   const actName = String(act.name || '').trim().slice(0, 80);
   const tier = Math.min(3, Math.max(1, Number(act.tier) || 1));
-  if (!charId || !vessel || !actName) return { ok: false, error: 'nothing to give' };
+  if (!charId || !kind || !actName) return { ok: false, error: 'nothing to give' };
   const me = await memberId();
   if (!me) return { ok: false, error: 'sign in' };
   const row = await wixData.get(COLLECTION, String(charId), { suppressAuth: true }).catch(() => null);
@@ -824,14 +824,14 @@ export const giveUtility = webMethod(Permissions.Anyone, async (charId, item) =>
   const id = 'given:' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   const data = parseData(row);
   data.inventory = Array.isArray(data.inventory) ? data.inventory : [];
-  data.inventory.push({ itemId: id, quantity: 1, discovered: true, equipped: false,
-    custom: { name: vessel + ' of ' + actName, vessel: vessel, tier: tier,
+  data.inventory.push({ itemId: id, quantity: 1, discovered: false, equipped: false,
+    custom: { name: kind + ' of ' + actName, abilityItem: kind, tier: tier,
       desc: 'Tier ' + tier + '. ' + String(act.text || '').trim().slice(0, 1200),
       from: String(it.from || '').slice(0, 80) } });
   data.utilGiven = (Array.isArray(data.utilGiven) ? data.utilGiven : []).concat([id]).slice(-300);
   row.data = JSON.stringify(data);
   await wixData.save(COLLECTION, row, { suppressAuth: true });
-  return { ok: true, itemId: id, name: vessel + ' of ' + actName };
+  return { ok: true, itemId: id, name: kind + ' of ' + actName };
 });
 
 export const threadspireSaveMeta = webMethod(Permissions.Anyone, async (charId, patch) => {

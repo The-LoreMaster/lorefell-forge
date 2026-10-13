@@ -25424,12 +25424,12 @@ function tpLmClearDraw(key){
   tpLmPublish(); render();
 }
 
-/* A Draw on a vessel row hands over an Act off the foes that fell, at the row's tier: a Potion
+/* A Draw on an Ability Item row hands over an Act off the foes that fell, at the row's tier: a Potion
    or Tablet to use directly, a Rune or Trap to lay down. A spell goes in a Potion or a Rune, a
    weapon strike in a Tablet or a Trap (LoreVault, Treasure Phase). A foe's Acts are spells when
-   it fights with magic. The LoreMaster picks the Act and may swap the vessel; it lands in the
+   it fights with magic. The LoreMaster picks the Act and may choose the other; it lands in the
    Fell's Utilities carrying the Act's words (giveUtility). */
-function tpVesselRow(loot){
+function tpAbilityItemRow(loot){
   var m = /^(Potion or Tablet|Trap or Rune), Tier ([123])$/.exec(String(loot || ''));
   if (!m) return null;
   return { tier:Number(m[2]), spell: m[1] === 'Potion or Tablet' ? 'Potion' : 'Rune', strike: m[1] === 'Potion or Tablet' ? 'Tablet' : 'Trap' };
@@ -25444,8 +25444,8 @@ function tpFallenActs(t, tier){
   });
   return out;
 }
-function tpVesselHtml(t, p, draw){
-  var row = tpVesselRow(draw && draw.loot); if (!row) return '';
+function tpAbilityItemHtml(t, p, draw){
+  var row = tpAbilityItemRow(draw && draw.loot); if (!row) return '';
   var k = p.charId || p.key;
   if (draw.given) return '<div class="tpl-r2"><span class="tpl-lbl">Given</span><span class="tpl-v"><b class="gold">' + esc(draw.given) + '</b> <span class="tpl-dim">in their Utilities</span></span></div>';
   var acts = tpFallenActs(t, row.tier);
@@ -25458,24 +25458,24 @@ function tpVesselHtml(t, p, draw){
     if (p.offline) h += '<span class="tpl-dim">' + esc(lead + ' of ' + a.name) + '</span>';
     else [row.spell, row.strike].forEach(function(v){
       h += '<button class="tpl-btn' + (v === lead ? ' gold' : '') + '"' + (draw.giving ? ' disabled' : '')
-        + ' onclick="tpLmGiveVessel(\'' + esc(k) + '\',' + i + ',\'' + v + '\')">' + v + '</button>';
+        + ' onclick="tpLmGiveAbilityItem(\'' + esc(k) + '\',' + i + ',\'' + v + '\')">' + v + '</button>';
     });
     h += '</div>';
   });
   if (draw.err) h += '<div class="tpl-r2 quiet">' + esc(draw.err) + '</div>';
   return h;
 }
-function tpLmGiveVessel(key, i, vessel){
+function tpLmGiveAbilityItem(key, i, kind){
   if (keeperNo()) return;
   var t = tpLmState(); if (!t) return;
-  var draw = t.draws[key], row = draw && tpVesselRow(draw.loot);
-  if (!row || draw.given || draw.giving || (vessel !== row.spell && vessel !== row.strike)) return;
+  var draw = t.draws[key], row = draw && tpAbilityItemRow(draw.loot);
+  if (!row || draw.given || draw.giving || (kind !== row.spell && kind !== row.strike)) return;
   var a = tpFallenActs(t, row.tier)[i]; if (!a) return;
   var who = (tpLmRoster().filter(function(p){ return (p.charId || p.key) === key; })[0] || {}).name || 'a Fell';
   draw.giving = true; draw.err = ''; render();
-  tsAsk('TS_GIVE_UTILITY', { charId:key, item:{ vessel:vessel, act:{ name:a.name, tier:row.tier, text:a.text }, from:a.foe } }).then(function(r){
+  tsAsk('TS_GIVE_UTILITY', { charId:key, item:{ abilityItem:kind, act:{ name:a.name, tier:row.tier, text:a.text }, from:a.foe } }).then(function(r){
     draw.giving = false;
-    draw.given = (r && r.name) || (vessel + ' of ' + a.name);
+    draw.given = (r && r.name) || (kind + ' of ' + a.name);
     /* the Fell's sheet reads its record again */
     S.sheetRev = S.sheetRev || {}; S.sheetRev[key] = Date.now(); schedulePush();
     pushLog({ kind:'sys', html:'Gave <b>' + esc(draw.given) + '</b> to ' + esc(who) + '.' });
@@ -25561,7 +25561,7 @@ function tpLmCardHtml(){
     if (draw){
       h += '<div class="tpl-loot">' + esc(draw.loot)
         + (draw.dice && draw.dice.length ? ' <span class="tpl-dim">' + draw.dice.join(' \u00b7 ') + ' \u2192 ' + draw.sum + '</span>' : '')
-        + '</div>' + tpVesselHtml(t, p, draw);
+        + '</div>' + tpAbilityItemHtml(t, p, draw);
     }
     h += '</div>';
   });

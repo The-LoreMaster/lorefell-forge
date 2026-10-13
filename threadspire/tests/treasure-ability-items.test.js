@@ -2,13 +2,13 @@
  *
  * Three ends of one pipe, each loaded for real:
  *   - ThreadSpire's Treasure card offers the defeated foes' Acts at the row's tier, leads
- *     with the right vessel (a spell in a Potion or Rune, a strike in a Tablet or Trap), and
+ *     with the right Ability Item (a spell in a Potion or Rune, a strike in a Tablet or Trap), and
  *     asks the backend to give it (TS_GIVE_UTILITY).
- *   - FellGlass reads the given row as its vessel: the Act's words, the vessel's own rule,
- *     and the vessel's way of resolving in a fight.
+ *   - FellGlass reads the given row as its Ability Item: the Act's words, its own rule,
+ *     and its way of resolving in a fight.
  *   - The backend's save keeps a given row that a sheet loaded before the give never saw.
  *
- *   node threadspire/tests/treasure-vessel.test.js
+ *   node threadspire/tests/treasure-ability-items.test.js
  */
 const fs = require('fs');
 const path = require('path');
@@ -43,10 +43,10 @@ async function boot(file, url){
       S.scene.treasure = { open:true, defeated:{ f1:true, f2:true }, lucky:{ c1:true, 'off:Tobin':true }, manual:{ c1:4, 'off:Tobin':2 }, endManual:{}, fatigue:3,
         draws:{ c1:{ band:4, dice:[3,3,3,3], sum:12, loot:'Potion or Tablet, Tier 2' }, 'off:Tobin':{ band:2, dice:[3,3], sum:6, loot:'Trap or Rune, Tier 1' } } };`);
 
-  check('a vessel row is read with its tier and its pair',
-    js(`JSON.stringify([tpVesselRow('Potion or Tablet, Tier 2'), tpVesselRow('Trap or Rune, Tier 3'), tpVesselRow('Facet')])`)
+  check('an Ability Item row is read with its tier and its pair',
+    js(`JSON.stringify([tpAbilityItemRow('Potion or Tablet, Tier 2'), tpAbilityItemRow('Trap or Rune, Tier 3'), tpAbilityItemRow('Facet')])`)
       === JSON.stringify([{ tier:2, spell:'Potion', strike:'Tablet' }, { tier:3, spell:'Rune', strike:'Trap' }, null]),
-    js(`JSON.stringify([tpVesselRow('Potion or Tablet, Tier 2'), tpVesselRow('Trap or Rune, Tier 3')])`));
+    js(`JSON.stringify([tpAbilityItemRow('Potion or Tablet, Tier 2'), tpAbilityItemRow('Trap or Rune, Tier 3')])`));
   const acts = JSON.parse(js(`JSON.stringify(tpFallenActs(S.scene.treasure, 2))`));
   check('only the defeated foes’ Acts at the row’s tier are offered',
     acts.map((a) => a.name).join(',') === 'Cinder Hex,Skull Break', JSON.stringify(acts));
@@ -57,18 +57,18 @@ async function boot(file, url){
   const card = js(`(document.getElementById('tplOverlay') || {}).innerHTML || ''`);
   check('the card offers the Acts by name with their foe', /Cinder Hex/.test(card) && /Ash Witch/.test(card) && !/Got Away/.test(card), card.slice(0, 300));
   check('the spell leads with a Potion, the strike with a Tablet',
-    /class="tpl-btn gold"[^>]*'Potion'\)">Potion/.test(card) && /class="tpl-btn gold"[^>]*'Tablet'\)">Tablet/.test(card), card.match(/<button[^>]*tpLmGiveVessel[^>]*>[^<]*/g));
+    /class="tpl-btn gold"[^>]*'Potion'\)">Potion/.test(card) && /class="tpl-btn gold"[^>]*'Tablet'\)">Tablet/.test(card), card.match(/<button[^>]*tpLmGiveAbilityItem[^>]*>[^<]*/g));
   check('a Fell at the table with no sheet is told to write it down, with no give button',
-    /Trap of Shove/.test(js(`tpVesselHtml(S.scene.treasure, { key:'off:Tobin', name:'Tobin', offline:true }, S.scene.treasure.draws['off:Tobin'])`))
-      && !/tpLmGiveVessel/.test(js(`tpVesselHtml(S.scene.treasure, { key:'off:Tobin', name:'Tobin', offline:true }, S.scene.treasure.draws['off:Tobin'])`)), 'offline row');
+    /Trap of Shove/.test(js(`tpAbilityItemHtml(S.scene.treasure, { key:'off:Tobin', name:'Tobin', offline:true }, S.scene.treasure.draws['off:Tobin'])`))
+      && !/tpLmGiveAbilityItem/.test(js(`tpAbilityItemHtml(S.scene.treasure, { key:'off:Tobin', name:'Tobin', offline:true }, S.scene.treasure.draws['off:Tobin'])`)), 'offline row');
 
   js(`window._sent = []; window.parent.postMessage = function(m){ if (m && m.type) _sent.push(m); };`);
-  js(`tpLmGiveVessel('c1', 0, 'Potion')`);
+  js(`tpLmGiveAbilityItem('c1', 0, 'Potion')`);
   const sent = JSON.parse(js(`JSON.stringify(_sent.filter(function(m){ return m.type === 'TS_GIVE_UTILITY'; }))`));
-  check('giving asks the backend with the vessel, the Act, its tier and its words',
-    sent.length === 1 && sent[0].charId === 'c1' && sent[0].item.vessel === 'Potion' && sent[0].item.act.name === 'Cinder Hex'
+  check('giving asks the backend with the Ability Item, the Act, its tier and its words',
+    sent.length === 1 && sent[0].charId === 'c1' && sent[0].item.abilityItem === 'Potion' && sent[0].item.act.name === 'Cinder Hex'
       && sent[0].item.act.tier === 2 && sent[0].item.act.text === 'Burns what it touches.' && sent[0].item.from === 'Ash Witch', JSON.stringify(sent));
-  js(`tpLmGiveVessel('c1', 1, 'Tablet')`);
+  js(`tpLmGiveAbilityItem('c1', 1, 'Tablet')`);
   check('a second click while it is on its way sends nothing', js(`_sent.filter(function(m){ return m.type === 'TS_GIVE_UTILITY'; }).length`) === 1, 'sent twice');
   w.dispatchEvent(new w.MessageEvent('message', { data:{ type:'TS_RESULT', reqId:sent[0].reqId, ok:true, data:{ ok:true, name:'Potion of Cinder Hex' } } }));
   await new Promise((r) => setTimeout(r, 50));
@@ -76,24 +76,28 @@ async function boot(file, url){
     js(`S.scene.treasure.draws.c1.given`) === 'Potion of Cinder Hex' && !!js(`S.sheetRev && S.sheetRev.c1`), js(`JSON.stringify(S.scene.treasure.draws.c1)`));
   js(`tpLmClearDraw('c1')`);
   check('a given draw cannot be re-rolled away', !!js(`S.scene.treasure.draws.c1`), 'the draw was cleared');
-  js(`S.keeper = true; _sent = []; S.scene.treasure.draws.c2 = { band:4, loot:'Potion or Tablet, Tier 2' }; tpLmGiveVessel('c2', 0, 'Potion')`);
+  js(`S.keeper = true; _sent = []; S.scene.treasure.draws.c2 = { band:4, loot:'Potion or Tablet, Tier 2' }; tpLmGiveAbilityItem('c2', 0, 'Potion')`);
   check('a lorekeeper cannot give treasure', js(`_sent.length`) === 0, 'a lorekeeper sent it');
 
-  console.log('\nFellGlass: a given vessel reads as its vessel');
+  console.log('\nFellGlass: a given Ability Item reads as a Potion or a Trap');
   const g = await boot('fellglass.html', 'https://example.test/fg.html?host=threadspire');
   const gj = (s) => g.eval(s);
   gj(`ITEMS_LIB = [{ id:'rel-potion', name:'Potion', use:'Act', uses:'1 time use', group:'Combat', desc:'Casts automatically with no roll.', veiled:'a stoppered bottle' },
                    { id:'rel-trap', name:'Trap', use:'Act to place', uses:'1 time use', group:'Combat', desc:'Strikes when sprung.', veiled:'a frame of gears' }];
       C.created = true; C.inventory = [
-        { itemId:'given:a', quantity:1, discovered:true, equipped:true, custom:{ name:'Potion of Cinder Hex', vessel:'Potion', tier:2, desc:'Tier 2. Burns what it touches.' } },
-        { itemId:'given:b', quantity:1, discovered:true, equipped:true, custom:{ name:'Trap of Skull Break', vessel:'Trap', tier:2, desc:'Tier 2. Cracks a skull.' } } ];
+        { itemId:'given:a', quantity:1, discovered:true, equipped:true, custom:{ name:'Potion of Cinder Hex', abilityItem:'Potion', tier:2, desc:'Tier 2. Burns what it touches.' } },
+        { itemId:'given:b', quantity:1, discovered:true, equipped:true, custom:{ name:'Trap of Skull Break', abilityItem:'Trap', tier:2, desc:'Tier 2. Cracks a skull.' } },
+        { itemId:'given:c', quantity:1, discovered:false, equipped:true, custom:{ name:'Potion of Ember Spit', abilityItem:'Potion', tier:1, desc:'Tier 1. Spits.' } } ];
       renderItems();`);
   const pot = JSON.parse(gj(`JSON.stringify(ITEMS_LIB.find(function(x){ return x.id === 'given:a'; }))`));
-  check('the Act’s words come first, then the vessel’s rule', pot.desc === 'Tier 2. Burns what it touches. Casts automatically with no roll.', pot.desc);
-  check('it takes the vessel’s use and uses', pot.use === 'Act' && pot.uses === '1 time use', JSON.stringify(pot));
+  check('the Act’s words come first, then the Potion’s rule', pot.desc === 'Tier 2. Burns what it touches. Casts automatically with no roll.', pot.desc);
+  check('it takes the Potion’s use and uses', pot.use === 'Act' && pot.uses === '1 time use', JSON.stringify(pot));
   const pack = JSON.parse(gj(`JSON.stringify(cbPack())`));
   check('in a fight the Potion casts automatically and the Trap is laid on a space',
     pack[0].roll === 'auto' && pack[1].target === 'place', JSON.stringify(pack.map((u) => [u.name, u.roll, u.target])));
+  const wrap = gj(`document.getElementById('itemsWrap').textContent`);
+  check('as given, it arrives undiscovered: veiled, with the Potion\u2019s hint, and not usable yet',
+    !/Ember Spit/.test(wrap) && /a stoppered bottle/.test(wrap) && !pack.some((u) => u.itemId === 'given:c'), wrap.slice(0, 300));
   check('the sheet shows it by name', /Potion of Cinder Hex/.test(gj(`document.getElementById('itemsWrap').textContent`)), 'not in the pack');
 
   console.log('\nThe backend: a sheet that loaded before the give does not lose it');
