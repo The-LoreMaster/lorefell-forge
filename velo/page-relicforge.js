@@ -1,8 +1,9 @@
 // The RelicForge page code.
-// Relays the live catalog read and relic submissions to the shared backend.
+// Relays a submission to the shared backend. The catalog lives on the character sheet and
+// the votes in the LoreForge (Nate, 2026-10-13).
 // Set EMBED to your Embed a Site element ID (Wix default is often #html1).
 
-import { submitCreation, getCreations, getCatalog } from 'backend/forge.web.js';
+import { submitCreation } from 'backend/forge.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
 import { currentMember } from 'wix-members-frontend';
 
@@ -30,38 +31,6 @@ $w.onReady(() => {
   embed.onMessage(async (event) => {
     const msg = event.data;
     if (!msg || typeof msg !== 'object') return;
-
-    if (msg.type === 'RELIC_LIBRARY_LOAD') {
-      let canon = [];
-      try {
-        const rows = await getCatalog('Relics', { limit: 400 });
-        canon = (rows || []).map(function (r) {
-          return {
-            n: r.name || '', g: r.group || 'Other', u: r.use || '',
-            c: r.cost || '', x: r.uses || '', d: r.description || '',
-            image: r.image || '', canon: true
-          };
-        });
-      } catch (e) { canon = []; }
-
-      let community = [];
-      try {
-        const subs = await getCreations(FORGE_KEY, { kind: 'relic', limit: 200 });
-        community = (subs || []).map(function (it) {
-          let m = {};
-          try { m = (JSON.parse(it.payload || '{}').meta) || {}; } catch (e) {}
-          return {
-            n: it.creationName || '', g: m.group || 'Other', u: m.use || '',
-            c: m.cost || '', x: m.uses || '', d: m.description || it.fullText || '',
-            image: it.imageUrl || '', by: it.creatorName || m.creator || '',
-            canon: it.canonStatus === 'canon', id: it.creationId || ''
-          };
-        });
-      } catch (e) { community = []; }
-
-      embed.postMessage({ type: 'RELIC_LIBRARY', relics: canon.concat(community) });
-      return;
-    }
 
     if (msg.type === 'RELIC_SUBMIT') {
       const p = msg.payload || {};
