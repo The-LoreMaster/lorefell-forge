@@ -51,9 +51,9 @@ export const myAdventures = webMethod(Permissions.Anyone, async () => {
     try {
       const c = await wixData.get('Campaigns', cid, { suppressAuth: true }).catch(() => null);
       if (c) {
-        let worldId = c.worldId || '';
-        if (!worldId && c.data) worldId = storedWorldId(c.data);
-        out.push({ id: cid, name: c.name || 'Adventure', worldId: worldId });
+        const adv = c.data ? storedAdventure(c.data) : {};
+        const worldId = c.worldId || adv.worldId || '';
+        out.push({ id: cid, name: c.name || 'Adventure', worldId: worldId, world: await worldCard(worldId, adv) });
       }
     } catch (e) {}
   }
@@ -61,15 +61,34 @@ export const myAdventures = webMethod(Permissions.Anyone, async () => {
   return out;
 });
 
-// The world an adventure is set in, from its Campaigns row as saveCampaign writes it: the
-// adventure itself, or a gzip wrapper ({ campaignGz }) around it (fatewell.web.js
-// unpackCampaignData). Older rows that kept a { campaign } wrapper are read too.
-function storedWorldId(raw) {
+// An adventure's world, from its Campaigns row as saveCampaign writes it: the adventure
+// itself, or a gzip wrapper ({ campaignGz }) around it (fatewell.web.js unpackCampaignData).
+// Older rows that kept a { campaign } wrapper are read too.
+function storedAdventure(raw) {
   try {
     let d = JSON.parse(raw) || {};
     if (typeof d.campaignGz === 'string' && d.campaignGz) d = JSON.parse(gunzipSync(Buffer.from(d.campaignGz, 'base64')).toString('utf8')) || {};
-    return d.worldId || (d.campaign && d.campaign.worldId) || '';
-  } catch (e) { return ''; }
+    if (!d.worldId && d.campaign && typeof d.campaign === 'object') d = d.campaign;
+    return { worldId: d.worldId || '', worldName: d.worldName || '', worldDesc: d.worldDesc || '' };
+  } catch (e) { return {}; }
+}
+// What the players may read of a world the Sphere does not hold: a BrandForge world's own
+// pages (its meta, as the forge saved them), or an Unwritten world's name and words. A canon
+// world has the Sphere instead, so it has no card.
+async function worldCard(worldId, adv) {
+  const wid = String(worldId || '');
+  if (wid === 'unwritten') return adv && adv.worldName ? { name: adv.worldName, overview: adv.worldDesc || '' } : null;
+  if (wid.indexOf('forged:') !== 0) return null;
+  try {
+    const it = await wixData.get('Creations', wid.slice(7), { suppressAuth: true });
+    if (!it) return null;
+    let pl = {}; try { pl = typeof it.payload === 'string' ? JSON.parse(it.payload) : (it.payload || {}); } catch (e) { pl = {}; }
+    const m = pl.meta || {};
+    if ((m.kind || pl.kind) !== 'world') return null;
+    const t = (v) => String(v || '').slice(0, 2000);
+    return { name: String(it.creationName || pl.title || '').trim(), overview: t(m.overview), people: t(m.people), magic: t(m.magic),
+      architecture: t(m.architecture), faith: t(m.faith), life: t(m.life) };
+  } catch (e) { return null; }
 }
 
 export const loadCharacter = webMethod(Permissions.Anyone, async (charId) => {
