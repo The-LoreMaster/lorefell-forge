@@ -80,7 +80,8 @@ export const loadCharacter = webMethod(Permissions.Anyone, async (charId) => {
   // A forged Fell that has not been built yet returns its seed, no data.
   if (!r.data && r.forgeSeed) {
     let seed = {}; try { seed = JSON.parse(r.forgeSeed); } catch (e) { seed = {}; }
-    return { forged: true, seed: seed };
+    // the adventure it was forged for, so the sheet offers that adventure's forged picks
+    return { forged: true, seed: seed, campaignId: r.campaignId || '' };
   }
   let data = {}; try { data = r.data ? JSON.parse(r.data) : {}; } catch (e) { data = {}; }
   await rowAdventureIntoData(r, data);

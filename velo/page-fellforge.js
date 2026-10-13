@@ -1,10 +1,13 @@
 // The FellForge page code.
 // Point the Embed a Site element's ID at EMBED below (Wix default is often #html1),
 // and set its URL to the GitHub Pages copy of fellforge.html.
-// FellForge ships its own library, so "ready" needs no init reply. The page relays the
-// Archive call and the forging, then sends the player to FellGlass to finish the Fell.
+// FellForge ships its own library. On "ready", a Fell forged for an adventure (?campaign=)
+// is sent the lineages that adventure's LoreMaster assigned in ThreadSpire, Forged for this
+// adventure. The page relays the Archive call and the forging, then sends the player to
+// FellGlass to finish the Fell.
 
 import { generateProfile, saveFell } from 'backend/fellforge.web.js';
+import { getLibraries } from 'backend/libraries.web.js';
 import wixLocation from 'wix-location';
 
 const EMBED = '#html1';   // change to your Embed a Site element ID
@@ -16,7 +19,15 @@ $w.onReady(() => {
     const msg = event.data;
     if (!msg || typeof msg !== 'object') return;
 
-    if (msg.type === 'generate') {
+    if (msg.type === 'ready') {
+      const campaignId = (wixLocation.query && wixLocation.query.campaign) || '';
+      if (!campaignId) return;
+      try {
+        const lib = await getLibraries({ campaignId: campaignId });
+        const mine = ((lib && lib.forged && lib.forged.lineages) || []).filter((l) => l && l.adv && l.name);
+        if (mine.length) embed.postMessage({ type: 'init', forgedLineages: mine.map((l) => ({ name: l.name, desc: l.desc || '' })) });
+      } catch (e) {}
+    } else if (msg.type === 'generate') {
       const reqId = msg.reqId;
       try {
         const profile = await generateProfile(msg.character || {});

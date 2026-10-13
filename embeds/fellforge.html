@@ -853,12 +853,17 @@ document.addEventListener("click",function(e){
 /* ---------- selects ---------- */
 function fillSelect(id,items){
   var sel=$(id);
-  var html='<option value="any">Surprise Me</option>';
+  var html='<option value="any">Surprise Me</option>',forged='';
   items.forEach(function(it,i){
-    html+='<option value="'+i+'">'+esc(it.name)+'</option>';
+    var o='<option value="'+i+'">'+esc(it.name)+'</option>';
+    if(it.forged)forged+=o;else html+=o;
   });
+  /* lineages the adventure's LoreMaster assigned ride under the canon ones */
+  if(forged)html+='<optgroup label="From your LoreMaster">'+forged+'</optgroup>';
   sel.innerHTML=html;
 }
+/* Surprise Me and the rerolls draw from canon. A forged lineage is chosen by name. */
+function canonOf(list){return list.filter(function(x){return !x.forged;});}
 function wireSelect(id,key,peekId,lib,peekFn){
   $(id).addEventListener("change",function(){
     picks[key]=this.value;
@@ -929,7 +934,7 @@ function forge(){
   var sex=picks.sex==="any"?pick(["Male","Female"]):picks.sex;
   current={
     sex:sex,
-    lineage:picks.lineage==="any"?pick(LIB.lineages):LIB.lineages[Number(picks.lineage)],
+    lineage:picks.lineage==="any"?pick(canonOf(LIB.lineages)):LIB.lineages[Number(picks.lineage)],
     origin:picks.origin==="any"?pick(LIB.origins):LIB.origins[Number(picks.origin)],
     motivation:picks.motivation==="any"?pick(LIB.motivations):LIB.motivations[Number(picks.motivation)],
     hooks:rollHooks(),
@@ -1040,7 +1045,7 @@ $("identity").addEventListener("click",function(e){
   var b=e.target.closest(".rr");
   if(!b||!current)return;
   var k=b.dataset.rr;
-  if(k==="lineage")current.lineage=rerollOther(LIB.lineages,current.lineage);
+  if(k==="lineage")current.lineage=rerollOther(canonOf(LIB.lineages),current.lineage);
   if(k==="origin")current.origin=rerollOther(LIB.origins,current.origin);
   if(k==="motivation")current.motivation=rerollOther(LIB.motivations,current.motivation);
   renderIdentity();
@@ -1238,6 +1243,13 @@ window.addEventListener("message",function(ev){
   if(!d||!d.type)return;
   if(d.type==="init"){
     if(d.lineages&&d.lineages.length)LIB.lineages=d.lineages;
+    /* the lineages this adventure's LoreMaster assigned (ThreadSpire, Forged for this adventure) */
+    if(d.forgedLineages&&d.forgedLineages.length){
+      var canon=canonOf(LIB.lineages);
+      LIB.lineages=canon.concat(d.forgedLineages.filter(function(f){
+        return f&&f.name&&!canon.some(function(c){return c.name===f.name;});
+      }).map(function(f){return {name:String(f.name),description:String(f.desc||""),forged:true};}));
+    }
     if(d.origins&&d.origins.length)LIB.origins=d.origins;
     if(d.motivations&&d.motivations.length)LIB.motivations=d.motivations;
     populateAll();

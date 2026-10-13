@@ -62,7 +62,7 @@ export async function handleSheetMessage(m, ctx) {
     if (!id) { if (libraries === undefined) libraries = await loadLibraries(); reply({ type: 'new', libraries: libraries, charId: '' }); return; }
     let res = null;
     try { res = await api.loadCharacter(id); } catch (e) { res = null; }
-    const cid = (res && res.character && res.character.identity && res.character.identity.campaignId) || '';
+    const cid = (res && res.character && res.character.identity && res.character.identity.campaignId) || (res && res.forged && res.campaignId) || '';
     if (libraries === undefined || (cid && cid !== tableCampaign())) libraries = await loadLibraries(cid);
     if (res && res.forged) {
       reply({ type: 'new', forge: res.seed || {}, libraries: libraries, charId: id });
