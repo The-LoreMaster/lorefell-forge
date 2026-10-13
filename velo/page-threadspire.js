@@ -11,7 +11,7 @@ import { publishAdventure, unpublishAdventure, myPublishedAdventures, getPublish
 import { getFoePack, submitFoeToPentifax } from 'backend/forge.web.js';
 import { listQuests, listDiscovered, getWorldMeta, saveAsset, listAssets, getCampaignPlayers, getClueCards, upsertQuest, getShelves, saveShelves } from 'backend/fatewell.web.js';
 import { getCombatForChar, saveCombatDeclare, syncCombatPlayer, publishCombatState, applyCombatToChar, dealDamageToChar, setCombatCharge, getCombatDeclares } from 'backend/combat.web.js';
-import { getLibraries, myForgedWorlds } from 'backend/libraries.web.js';
+import { getLibraries, myForgedWorlds, adventureForgedList, setAdventureForged } from 'backend/libraries.web.js';
 import { listSphereArt } from 'backend/sphereart.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
 import { listStages, saveStage, deleteStage } from 'backend/threadspire.web.js';
@@ -671,6 +671,14 @@ $w.onReady(async function () {
           let acts = [];
           try { acts = await getForgeLibrary(); } catch (e) { acts = []; }
           reply(ok, acts);
+        } else if (msg.type === 'TS_FORGED_LIST') {
+          let r = { ok: false };
+          try { r = await adventureForgedList(campaignId); } catch (e) { r = { ok: false, error: 'The forge shelf could not be read.' }; }
+          reply(true, r);
+        } else if (msg.type === 'TS_FORGED_SET') {
+          let r = { ok: false };
+          try { r = await setAdventureForged(campaignId, msg.ids || []); } catch (e) { r = { ok: false, error: 'That did not save. Try again.' }; }
+          reply(true, r);
         } else if (msg.type === 'TS_MY_WORLDS') {
           let worlds = [];
           try { worlds = await myForgedWorlds(); } catch (e) { worlds = []; }

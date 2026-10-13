@@ -51,6 +51,51 @@ async function forgedRows(me, lms) {
   return rows;
 }
 
+// One Creations row as the sheet reads it, and which list it belongs on.
+function shapeForged(it, me) {
+  let pl = {};
+  try { pl = typeof it.payload === 'string' ? JSON.parse(it.payload) : (it.payload || {}); } catch (e) { pl = {}; }
+  const m = pl.meta || {};
+  const name = String(it.creationName || pl.title || '').trim();
+  if (!name) return null;
+  const base = { id: it._id, name: name, by: it.creatorName || m.creator || '', canon: it.canonStatus === 'canon',
+    status: it.canonStatus || '', mine: !!me && it.creatorMemberId === me };
+  const text = it.shorthand || it.fullText || '';
+  if (it.forgeKey === 'sigilforge') {
+    if (pl.mode === 'monster' || pl.kind === 'foe' || it.kind === 'foe') return null;
+    const item = m.item || m.weapon || m.focus || '';
+    if (!item) return null;
+    return { bucket: 'abilities', entry: Object.assign(base, { item: item, tier: Number(pl.tier) || 1, type: m.type || 'Ability', desc: text }) };
+  }
+  if (it.forgeKey === 'shardforge') {
+    const side = String(it.kind || pl.kind || m.side || '') === 'augmentation' ? 'augmentation' : 'infusion';
+    if (side === 'augmentation') return { bucket: 'augmentations', entry: Object.assign(base, { category: m.category || '', desc: text }) };
+    return { bucket: 'infusions', entry: Object.assign(base, { weaponCat: String(m.category || '').toLowerCase(), desc: text }) };
+  }
+  if (it.forgeKey === 'bondforge') {
+    return { bucket: 'lorebounds', entry: Object.assign(base, { world: m.world || '', aspectName: m.aspectName || '', initial: m.initial || '', desc: m.initial || text,
+      branches: Array.isArray(m.branches) ? m.branches : [], crowns: Array.isArray(m.crowns) ? m.crowns : [] }) };
+  }
+  if (it.forgeKey === 'brandforge' && (m.kind || pl.kind) === 'lineage') {
+    return { bucket: 'lineages', entry: Object.assign(base, { desc: m.body || it.fullText || '', bonusType: m.bonusType || '', bonusValue: m.bonusValue || '' }) };
+  }
+  return null;
+}
+// The creations the adventure's LoreMaster assigned to it, kept on its Campaigns row.
+async function assignedOf(campaignId) {
+  try {
+    const c = await wixData.get('Campaigns', String(campaignId), { suppressAuth: true });
+    return Array.isArray(c && c.forgedIds) ? c.forgedIds.map(String) : [];
+  } catch (e) { return []; }
+}
+async function rowsById(ids) {
+  if (!ids || !ids.length) return [];
+  try {
+    const r = await wixData.query('Creations').hasSome('_id', ids.slice(0, 500)).limit(500).find({ suppressAuth: true });
+    return r.items;
+  } catch (e) { return []; }
+}
+
 export const getLibraries = webMethod(Permissions.Anyone, async (opts) => {
   const out = {};
   try {
@@ -156,41 +201,23 @@ export const getLibraries = webMethod(Permissions.Anyone, async (opts) => {
   } catch (e) {}
 
   // What the forges made: SigilForge abilities and spells, ShardForge infusions and
-  // augmentations, BondForge lorebounds, BrandForge lineages and worlds. The sheet offers them
-  // beside canon, and a Fell takes one once its LoreMaster approves (Nate, 2026-10-13). What
-  // the adventure's own LoreMaster made is marked adv: its players take those lineages and
-  // lorebounds freely. Everyone else's private work never leaves its maker.
+  // augmentations, BondForge lorebounds and BrandForge lineages. Nothing forged reaches a
+  // player unless the adventure's LoreMaster assigned it to that adventure, and what is
+  // assigned is theirs to take (marked adv). The LoreMaster sees everything they may assign,
+  // their own private work included (Nate, 2026-10-13).
   try {
+    const cid = (opts && opts.campaignId) || '';
     const me = await callerId();
-    const lms = await adventureLms(opts && opts.campaignId);
-    const items = await forgedRows(me, lms);
-    const forged = { abilities: [], infusions: [], augmentations: [], lorebounds: [], lineages: [], worlds: [] };
+    const lms = await adventureLms(cid);
+    const assigned = cid ? await assignedOf(cid) : [];
+    const isLm = !!me && lms.indexOf(me) >= 0;
+    const items = isLm ? await forgedRows(me, lms) : await rowsById(assigned);
+    const forged = { abilities: [], infusions: [], augmentations: [], lorebounds: [], lineages: [] };
     items.forEach((it) => {
-      let pl = {};
-      try { pl = typeof it.payload === 'string' ? JSON.parse(it.payload) : (it.payload || {}); } catch (e) { pl = {}; }
-      const m = pl.meta || {};
-      const name = String(it.creationName || pl.title || '').trim();
-      if (!name) return;
-      const base = { id: it._id, name: name, by: it.creatorName || m.creator || '', canon: it.canonStatus === 'canon',
-        adv: lms.indexOf(it.creatorMemberId) >= 0, mine: !!me && it.creatorMemberId === me };
-      const text = it.shorthand || it.fullText || '';
-      if (it.forgeKey === 'sigilforge') {
-        if (pl.mode === 'monster' || pl.kind === 'foe' || it.kind === 'foe') return;
-        const item = m.item || m.weapon || m.focus || '';
-        if (!item) return;
-        forged.abilities.push(Object.assign(base, { item: item, tier: Number(pl.tier) || 1, type: m.type || 'Ability', desc: text }));
-      } else if (it.forgeKey === 'shardforge') {
-        const side = String(it.kind || pl.kind || m.side || '') === 'augmentation' ? 'augmentation' : 'infusion';
-        if (side === 'augmentation') forged.augmentations.push(Object.assign(base, { category: m.category || '', desc: text }));
-        else forged.infusions.push(Object.assign(base, { weaponCat: String(m.category || '').toLowerCase(), desc: text }));
-      } else if (it.forgeKey === 'bondforge') {
-        forged.lorebounds.push(Object.assign(base, { world: m.world || '', aspectName: m.aspectName || '', initial: m.initial || '',
-          branches: Array.isArray(m.branches) ? m.branches : [], crowns: Array.isArray(m.crowns) ? m.crowns : [] }));
-      } else if (it.forgeKey === 'brandforge' && (m.kind || pl.kind) === 'lineage') {
-        forged.lineages.push(Object.assign(base, { desc: m.body || it.fullText || '', bonusType: m.bonusType || '', bonusValue: m.bonusValue || '' }));
-      } else if (it.forgeKey === 'brandforge' && (m.kind || pl.kind) === 'world') {
-        forged.worlds.push(Object.assign(base, { desc: m.overview || it.shorthand || '' }));
-      }
+      const sh = shapeForged(it, me);
+      if (!sh || !forged[sh.bucket]) return;
+      sh.entry.adv = assigned.indexOf(String(it._id)) >= 0;
+      forged[sh.bucket].push(sh.entry);
     });
     out.forged = forged;
   } catch (e) {}
@@ -215,4 +242,32 @@ export const myForgedWorlds = webMethod(Permissions.Anyone, async () => {
   try { const r = await wixData.query('Creations').eq('forgeKey', 'brandforge').eq('canonStatus', 'canon').limit(200).find({ suppressAuth: true }); r.items.forEach(add); } catch (e) {}
   if (me) { try { const r = await wixData.query('Creations').eq('forgeKey', 'brandforge').eq('creatorMemberId', me).limit(200).find({ suppressAuth: true }); r.items.forEach(add); } catch (e) {} }
   return out;
+});
+
+// The LoreMaster's shelf for one adventure: everything they may assign (the vote, canon, and
+// their own work, private included) and what is assigned now. Refused to anyone else.
+export const adventureForgedList = webMethod(Permissions.Anyone, async (campaignId) => {
+  const cid = String(campaignId || '');
+  const me = await callerId();
+  const lms = await adventureLms(cid);
+  if (!cid || !me || lms.indexOf(me) < 0) return { ok: false, error: 'Only this adventure\u2019s LoreMaster can choose its forged picks.' };
+  const items = [];
+  (await forgedRows(me, lms)).forEach((it) => {
+    const sh = shapeForged(it, me);
+    if (sh) items.push(Object.assign({ kind: sh.bucket }, sh.entry));
+  });
+  return { ok: true, assigned: await assignedOf(cid), items: items };
+});
+
+export const setAdventureForged = webMethod(Permissions.Anyone, async (campaignId, ids) => {
+  const cid = String(campaignId || '');
+  const me = await callerId();
+  const lms = await adventureLms(cid);
+  if (!cid || !me || lms.indexOf(me) < 0) return { ok: false, error: 'Only this adventure\u2019s LoreMaster can choose its forged picks.' };
+  let row = null;
+  try { row = await wixData.get('Campaigns', cid, { suppressAuth: true }); } catch (e) { row = null; }
+  if (!row) return { ok: false, error: 'This adventure has no saved record yet. Save it once, then try again.' };
+  row.forgedIds = Array.from(new Set((Array.isArray(ids) ? ids : []).map(String).filter(Boolean))).slice(0, 500);
+  try { await wixData.update('Campaigns', row, { suppressAuth: true }); } catch (e) { return { ok: false, error: 'That did not save. Try again.' }; }
+  return { ok: true, assigned: row.forgedIds };
 });
