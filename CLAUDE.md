@@ -61,3 +61,14 @@ sessions and recaps, saved versions, publishing, roles, dice gifts), and the sit
 same things to a lorekeeper. A new run-the-game power needs both. One table saves the board:
 the LoreMaster's while one is in the room, the lorekeeper's only when the room reports none
 (`keeperSaves()`), and then only the board on the table, never `instance` or the run keys.
+
+### 3. Utilities, never relics
+
+A thing a Fell carries in the pack is a **utility** (Nate, 2026-10-13). Never call one a relic,
+in anything a person reads, in code names or in comments. A Potion, Tablet, Trap or Rune that
+carries an Act is an **Ability Item**. Everything given to a player arrives undiscovered.
+
+"Relic" survives only as storage: the `Relics` table and `schemas/seed/Relics.json`, and the
+`kind: 'relic'` label on RelicForge creations. Those are not renamed. When code reads them,
+say so ("the utilities table, stored as Relics"). The RelicForge keeps its name: it is the tool
+that makes utilities. "Relic" as an ordinary word in lore prose is fine.

@@ -153,7 +153,7 @@ export const getLibraries = webMethod(Permissions.Anyone, async (opts) => {
   } catch (e) {}
   if (components.length) out.components = components;
 
-  // Utilities: the shelf the RelicForge fills. The sheet had four placeholders written into
+  // Utilities: the shelf the RelicForge fills, read from the utilities table (stored as Relics). The sheet had four placeholders written into
   // it, so a Fell could carry nothing that actually exists in the game.
   try {
     const ru = await wixData.query('Relics').ascending('displayOrder').limit(500).find({ suppressAuth: true });

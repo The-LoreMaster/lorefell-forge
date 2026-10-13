@@ -1,5 +1,5 @@
 // FoeForge page code.
-// The builder reads abilities, infusions, augmentations and relics, and the member's adventures.
+// The builder reads abilities, infusions, augmentations and utilities, and the member's adventures.
 // Save writes the foe to the Foe library ThreadSpire reads (Assets, through saveAsset), in the
 // row ThreadSpire writes, so it opens there whole (Nate, 2026-10-12). The Pentifax is gone.
 // Set EMBED to your Embed a Site element ID.
@@ -70,11 +70,11 @@ $w.onReady(() => {
         })
       );
 
-      let relics = [], campaigns = [];
-      try { relics = ((await getForgePools()) || {}).items || []; } catch (e) { relics = []; }
+      let utilities = [], campaigns = [];
+      try { utilities = ((await getForgePools()) || {}).items || []; } catch (e) { utilities = []; }
       try { campaigns = (await listMyCampaigns()) || []; } catch (e) { campaigns = []; }
       embed.postMessage({ type: 'FOE_LIBRARY', library: { infusions: infusions, augmentations: augmentations, abilities: abilities,
-        relics: relics.map(function (r) { return { name: r.name, rule: r.rule || '' }; }),
+        utilities: utilities.map(function (r) { return { name: r.name, rule: r.rule || '' }; }),
         campaigns: campaigns.map(function (c) { return { id: c._id || c.id || c.campaignId || '', title: c.title || c.name || '' }; }) } });
       return;
     }
