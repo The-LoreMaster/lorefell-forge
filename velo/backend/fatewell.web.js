@@ -486,36 +486,37 @@ export const submitItem = webMethod(Permissions.SiteMember, async (item) => {
       canonStatus: 'private',
       shorthand: rule,
       fullText: rule,
-      payload: JSON.stringify({ kind: 'relic', title: name, tier: 'Common', shorthand: 'Relic, Passive', fullText: rule,
-        meta: { group: 'Relic', use: 'Passive', cost: '', uses: '', rarity: 'Common', description: rule } })
+      payload: JSON.stringify({ kind: 'relic', title: name, tier: 'Common', shorthand: 'Utility, Passive', fullText: rule,
+        meta: { group: 'Utility', use: 'Passive', cost: '', uses: '', rarity: 'Common', description: rule } })
     }, { suppressAuth: true });
     return { ok: true, id: row._id };
   } catch (e) { return { ok: false, error: String(e) }; }
 });
 
-// A relic made in the RelicForge, kept as the maker's own: it sits on their relic shelf in
+// A utility made in the RelicForge, kept as the maker's own: it sits on their utility shelf in
 // ThreadSpire, for a foe to carry or to give to a player's Fell (Nate, 2026-10-13). Saving the
 // same name again rewrites it rather than leaving two. The LoreForge vote is a separate
 // submission (submitCreation), made only when the maker asks for it.
-export const saveRelic = webMethod(Permissions.SiteMember, async (relic) => {
+// A utility is stored with kind 'relic' in Creations, an old storage name kept on purpose.
+export const saveUtility = webMethod(Permissions.SiteMember, async (utility) => {
   const mid = await memberId();
   if (!mid) return { ok: false, error: 'You need to be signed in.' };
-  const r = relic || {};
+  const r = utility || {};
   const name = String(r.name || '').trim().slice(0, 120);
-  if (!name) return { ok: false, error: 'Give the relic a name.' };
+  if (!name) return { ok: false, error: 'Give the utility a name.' };
   const meta = {
     group: String(r.group || ''), use: String(r.use || ''), cost: String(r.cost || ''),
     uses: String(r.uses || ''), rarity: String(r.rarity || ''), description: String(r.description || '').trim()
   };
-  if (!meta.description) return { ok: false, error: 'Describe what the relic does.' };
-  const head = [meta.group || 'Relic', meta.use, meta.rarity].filter(Boolean).join(', ');
+  if (!meta.description) return { ok: false, error: 'Describe what the utility does.' };
+  const head = [meta.group || 'Utility', meta.use, meta.rarity].filter(Boolean).join(', ');
   const fullText = [head, 'Cost: ' + (meta.cost || 'unset') + '   Uses: ' + (meta.uses || 'unset'), '', meta.description].join('\n');
   const row = {
     forgeKey: 'relicforge', kind: 'relic', creationName: name, creatorMemberId: mid, canonStatus: 'private',
-    shorthand: [meta.group || 'Relic', meta.use].filter(Boolean).join(', '), fullText: fullText,
+    shorthand: [meta.group || 'Utility', meta.use].filter(Boolean).join(', '), fullText: fullText,
     imageUrl: String(r.imageUrl || ''),
     payload: JSON.stringify({ kind: 'relic', title: name, tier: meta.rarity || 'Common',
-      shorthand: [meta.group || 'Relic', meta.use].filter(Boolean).join(', '), fullText: fullText, meta: meta })
+      shorthand: [meta.group || 'Utility', meta.use].filter(Boolean).join(', '), fullText: fullText, meta: meta })
   };
   try {
     const had = await wd.query('Creations').eq('forgeKey', 'relicforge').eq('creatorMemberId', mid)
@@ -526,7 +527,7 @@ export const saveRelic = webMethod(Permissions.SiteMember, async (relic) => {
     }
     const saved = await wd.insert('Creations', row, { suppressAuth: true });
     return { ok: true, id: saved._id };
-  } catch (e) { return { ok: false, error: 'The relic did not save. Try again.' }; }
+  } catch (e) { return { ok: false, error: 'The utility did not save. Try again.' }; }
 });
 
 // The pools a foe is built from. Canon lists live in the tool, so this returns only what the
@@ -536,7 +537,7 @@ export const getForgePools = webMethod(Permissions.Anyone, async () => {
   const mid = await memberId();
   const out = { infusions: [], augmentations: [], items: [] };
 
-  // Canon relics live in their own catalog, not in Creations. Read them first.
+  // Canon utilities live in their own table (stored as Relics), not in Creations. Read them first.
   try {
     const r = await wd.query('Relics').ascending('displayOrder').limit(500).find({ suppressAuth: true });
     r.items.forEach((row) => {
@@ -583,7 +584,7 @@ export const getForgePools = webMethod(Permissions.Anyone, async () => {
       const shelf = (key === 'shardforge' && String(it.kind || pl.kind || (pl.meta && pl.meta.side) || '') === 'augmentation') ? 'augmentations' : bucket;
       if (!name || seen[shelf][name]) return;
       seen[shelf][name] = 1;
-      // A relic keeps its detail in payload.meta. Other forges use form, or the row itself.
+      // A utility keeps its detail in payload.meta. Other forges use form, or the row itself.
       const meta = pl.meta || pl.form || {};
       out[shelf].push({
         name: name,
