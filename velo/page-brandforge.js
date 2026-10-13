@@ -37,13 +37,12 @@ function worldText(it) {
 function brandText(it) {
   const lines = [];
   if (it.practiceLong) lines.push('Practice: ' + it.practiceLong + (it.practiceShort ? (' (' + it.practiceShort + ')') : ''));
+  if (it.question) lines.push('', it.question);
   if (it.lore) lines.push('', it.lore);
-  if (it.inBattle) lines.push('', 'In battle. ' + it.inBattle);
-  if (it.greaterWake) lines.push('', 'Greater Wake. ' + it.greaterWake);
-  const lw = it.lesserWake;
-  if (lw && lw.name) lines.push('', 'Lesser Wake. ' + lw.name + '. ' + (lw.effect || '') + (lw.breakout ? (' Breaks out on ' + lw.breakout + '.') : ''));
-  const ob = Array.isArray(it.outsideBattle) ? it.outsideBattle.filter(Boolean) : [];
-  if (ob.length) lines.push('', 'Outside battle: ' + ob.join(' '));
+  const ck = Array.isArray(it.checks) ? it.checks.filter(Boolean) : [];
+  if (ck.length) lines.push('', 'Example skill checks:', ...ck.map((c) => '- ' + c));
+  const t = it.talent || {};
+  if (t.name) lines.push('', 'Talent: ' + t.name + '. ' + (t.text || ''));
   return lines.join('\n');
 }
 
@@ -62,10 +61,9 @@ async function submitItem(it, groupId, creator) {
     Object.assign(meta, { glance: it.glance || {}, overview: it.overview || '', people: it.people || '',
       magic: it.magic || '', architecture: it.architecture || '', faith: it.faith || '', life: it.life || '' });
   } else {
-    fullText = brandText(it); shorthand = it.practiceLong || '';
+    fullText = brandText(it); shorthand = it.question || it.practiceLong || '';
     Object.assign(meta, { practiceLong: it.practiceLong || '', practiceShort: it.practiceShort || '',
-      lore: it.lore || '', inBattle: it.inBattle || '', greaterWake: it.greaterWake || '',
-      lesserWake: it.lesserWake || null, outsideBattle: it.outsideBattle || [] });
+      question: it.question || '', lore: it.lore || '', checks: it.checks || [], talent: it.talent || null });
   }
   const payload = {
     kind: it.kind, title: String(it.name || '').slice(0, 120),
