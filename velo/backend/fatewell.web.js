@@ -313,7 +313,7 @@ export const getCampaignPlayers = webMethod(Permissions.Anyone, async (campaignI
     // The row carries an indexed `level` column that saveCharacter keeps in step with the
     // sheet. Read it FIRST and outside the try, so a data blob that fails to parse costs
     // the vitality reading rather than flattening every Fell in the party to level 1.
-    let lvl = Number(it.level) || 1, maxVit = 0, mobility = 0, baseMobility = 0, restsDone = null;
+    let lvl = Number(it.level) || 1, maxVit = 0, mobility = 0, baseMobility = 0, restsDone = null, asks = [];
     try {
       const dat = typeof it.data === 'string' ? JSON.parse(it.data) : (it.data || {});
       const blobLvl = Number(dat.level || (dat.lore && dat.lore.level) || (dat.identity && dat.identity.level)) || 0;
@@ -326,6 +326,8 @@ export const getCampaignPlayers = webMethod(Permissions.Anyone, async (campaignI
       mobility = (Number(dat.fatigue) || 0) >= 2 ? Math.floor(baseMobility / 2) : baseMobility;
       // what this Fell did at its last few rests (a rest between sessions is read from here)
       if (dat.restsDone && typeof dat.restsDone === 'object') restsDone = dat.restsDone;
+      // what this Fell has asked its LoreMaster for and not yet been answered
+      if (Array.isArray(dat.asks)) asks = dat.asks.filter((a) => a && a.id).map((a) => ({ id: a.id, kind: a.kind || '', name: a.name || '' }));
     } catch (e) {}
     const mid = it.ownerMemberId || '';
     withChar[mid] = true;
@@ -333,7 +335,7 @@ export const getCampaignPlayers = webMethod(Permissions.Anyone, async (campaignI
     // one the table holds for someone, not a player with a role, and saying otherwise
     // reported the loremaster's own role once for every Fell they keep.
     const kept = !mid || (!!ownerId && mid === ownerId);
-    out.push({ id: mid, memberId: mid, memberName: nameOf[mid] || '', charId: it._id, name: it.charName || '', level: lvl, maxVit: maxVit, mobility: mobility, baseMobility: baseMobility, restsDone: restsDone, role: roleAt(mid), kept: kept });
+    out.push({ id: mid, memberId: mid, memberName: nameOf[mid] || '', charId: it._id, name: it.charName || '', level: lvl, maxVit: maxVit, mobility: mobility, baseMobility: baseMobility, restsDone: restsDone, asks: asks, role: roleAt(mid), kept: kept });
   });
   // joined members who have not attached a character yet
   members.forEach((m) => {
@@ -572,17 +574,20 @@ export const getForgePools = webMethod(Permissions.Anyone, async () => {
         rows = rows.concat(r2.items);
       } catch (e) {}
     }
-    const seen = {};
-    out[bucket].forEach((x) => { seen[x.name] = 1; });   // canon already on the shelf
+    // ShardForge makes both infusions and augmentations under one key: the row's kind says
+    // which shelf it belongs on. Every augmentation used to land with the infusions.
+    const seen = { infusions: {}, augmentations: {}, items: {} };
+    Object.keys(seen).forEach((b) => out[b].forEach((x) => { seen[b][x.name] = 1; }));   // canon already on the shelf
     rows.forEach((it) => {
       let pl = {};
       try { pl = typeof it.payload === 'string' ? JSON.parse(it.payload) : (it.payload || {}); } catch (e) { pl = {}; }
       const name = it.creationName || pl.title || pl.name || '';
-      if (!name || seen[name]) return;
-      seen[name] = 1;
+      const shelf = (key === 'shardforge' && String(it.kind || pl.kind || (pl.meta && pl.meta.side) || '') === 'augmentation') ? 'augmentations' : bucket;
+      if (!name || seen[shelf][name]) return;
+      seen[shelf][name] = 1;
       // A relic keeps its detail in payload.meta. Other forges use form, or the row itself.
       const meta = pl.meta || pl.form || {};
-      out[bucket].push({
+      out[shelf].push({
         name: name,
         family: pl.family || meta.family || '',
         group: meta.group || pl.group || '',
