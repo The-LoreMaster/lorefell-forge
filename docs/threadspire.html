@@ -973,7 +973,6 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .pt-main{ flex:1; min-width:0; display:flex; flex-direction:column; }
 .pt-name{ font-family:Cinzel,serif; font-size:.82rem; color:var(--silver); }
 .pt-meta{ font-size:.68rem; color:var(--muted,#7e8a99); }
-.pt-meta .pt-asks{ color:var(--gold,#d8bc6a); }
 .pt-role{ font-family:Cinzel,serif; font-size:.56rem; letter-spacing:.1em; text-transform:uppercase; padding:2px 7px; border-radius:9px; border:1px solid var(--line2,#2a3552); color:var(--ice,#b8ccd8); }
 .pt-role.rl-loremaster{ border-color:var(--gold); color:var(--gold); }
 .pt-role.rl-lorekeeper{ border-color:#9aa8e0; color:#9aa8e0; }
@@ -15085,7 +15084,6 @@ function lmFellBody(){
     var bits = [];
     if (player) bits.push(esc(player));
     if (vit) bits.push(vit);
-    if (isLM() && p.asks && p.asks.length) bits.push('<span class="pt-asks">' + p.asks.length + (p.asks.length === 1 ? ' ask' : ' asks') + ' waiting</span>');
     var meta = bits.join(' \u00b7 ') + (p.charId ? '<span class="pt-mlvl">' + (bits.length ? ' \u00b7 ' : '') + 'Level ' + lv + '</span>' : '');
     var open = p.charId ? ' pt-card" role="button" tabindex="0" aria-label="Open ' + esc(title) + '" onclick="lmOpenFell(\'' + esc(p.charId) + '\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();lmOpenFell(\'' + esc(p.charId) + '\')}"' : '"';
     h += '<div class="pt-row' + open + '>'
@@ -17316,8 +17314,6 @@ window.addEventListener('message', function(ev){
         S.sheetRev[whose] = Date.now();
         _sheetRevSeen = S.sheetRev[whose];      /* our own writing is not news to us */
         if (isLM()) schedulePush(); else { try { pushState(); } catch(e){} }
-        /* an answer given on a Fell that was asking clears the mark on the roster */
-        if (isLM() && (S.party || []).some(function(p){ return sameId(p.charId, whose) && p.asks && p.asks.length; })) asksRefreshSoon();
       }
     }
     if (ev.data.type === 'ready'){
@@ -23219,30 +23215,11 @@ function roomLogApply(e){
   try { rollShow(e); } catch(x){}
   try { if (!(typeof _rollHistory !== 'undefined' && _rollHistory[e.id])) logCue(e); } catch(x){}
 }
-/* a Fell's ask for a forged pick reaches the LoreMaster: a word on screen, and the roster
-   read again so the Fell shows what it is waiting on. The answer is given on its sheet. */
-function forgeAskTake(a){
-  if (!isLM() || S.stream || !a) return;
-  playToast('<b>' + esc(a.who || 'A Fell') + '</b> asks for <b>' + esc(a.name || '') + '</b>. Open their Fell to answer.', 'Ask');
-  asksRefreshSoon();
-}
-var _asksT = null;
-function asksRefreshSoon(){
-  clearTimeout(_asksT);
-  _asksT = setTimeout(function(){
-    tsAsk('TS_PARTY_LIST', {}).then(function(list){
-      if (!Array.isArray(list)) return;
-      (S.party || []).forEach(function(p){ var hit = list.filter(function(q){ return sameId(q.charId, p.charId); })[0]; if (hit) p.asks = hit.asks || []; });
-      if (S.openSection === 'fell') refreshWinBody();
-    }).catch(function(){});
-  }, 1500);
-}
 /* a line's own moment: its words across the screen for a few seconds, and a sound once */
 function logCue(e){
   if (!e) return;
   if (e.trigAsk) try { trigAskTake(e); } catch(x){}
   if (e.checkAsk) try { checkAskTake(e); } catch(x){}
-  if (e.forgeAsk) try { forgeAskTake(e.forgeAsk); } catch(x){}
   if (e.trigRes) try { trigResTake(e); } catch(x){}
   if (e.banner){
     var b = document.getElementById('cueBanner');
@@ -23525,13 +23502,6 @@ window.addEventListener('message', function(ev){
     var line = d.ready ? esc(who) + '\u2019s <b>' + esc(d.skill) + '</b> stands ready to master (Fellmark).' : esc(who) + '\u2019s <b>' + esc(d.skill) + '</b> grows to ' + d.rank + ' (Fellmark).';
     pushLog({ kind:'sys', html:line }); applyRemoteState({ log:S.log });
     playToast(d.ready ? d.skill + ' stands ready to master' : d.skill + ' grows to ' + d.rank, 'Fellmark');
-  }
-  if (d.type === 'sheet-ask' && d.name){
-    /* a Fell asked the LoreMaster for something the forges made. The line tells the table;
-       the ask riding on it reaches the LoreMaster's table, which says so and marks the Fell. */
-    var asker = (S.character && S.character.name) || 'A Fell';
-    pushLog({ kind:'sys', html:'<b>' + esc(asker) + '</b> asks the LoreMaster for <b>' + esc(d.name) + '</b>.', forgeAsk:{ charId:S.characterId || '', who:asker, name:d.name, kind:d.kind || '' } });
-    applyRemoteState({ log:S.log });
   }
   if (d.type === 'ts-fellmark-ask'){
     tsModal('<h3 class="tsm-title">Fellmark on ' + esc(d.skill) + '</h3><p class="lc-p">A Fellmark on a skill check raises that skill by 1.</p>'
