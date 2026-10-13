@@ -262,6 +262,21 @@ function mergeGiven(prev, next) {
   next.given = out; next.givenGone = gone;
   return next;
 }
+// A utility the LoreMaster gave (giveUtility) is named on utilGiven. A sheet that loaded before
+// the give saves without it, so its row is carried forward from the stored record. Once the
+// sheet has the id, what it does with the row (uses it, sets it down) stands.
+function mergeUtilGiven(prev, next) {
+  const had = (next && Array.isArray(next.utilGiven)) ? next.utilGiven : [];
+  const prevInv = (prev && Array.isArray(prev.inventory)) ? prev.inventory : [];
+  ((prev && prev.utilGiven) || []).forEach((id) => {
+    if (had.indexOf(id) >= 0) return;
+    const row = prevInv.find((it) => it && it.itemId === id);
+    next.inventory = Array.isArray(next.inventory) ? next.inventory : [];
+    if (row && !next.inventory.some((it) => it && it.itemId === id)) next.inventory.push(row);
+  });
+  next.utilGiven = Array.from(new Set([].concat((prev && prev.utilGiven) || [], had))).slice(-300);
+  return next;
+}
 export const saveCharacter = webMethod(Permissions.Anyone, async (charId, character) => {
   const id = await memberId();
   const c = character || {};
@@ -274,7 +289,7 @@ export const saveCharacter = webMethod(Permissions.Anyone, async (charId, charac
     row = { ownerMemberId: id };
   }
   await storePortrait(c);
-  if (charId) { const _prev = parseData(row); mergeGiven(_prev, c); mergeLmVit(_prev, c); mergeConds(_prev, c); }
+  if (charId) { const _prev = parseData(row); mergeGiven(_prev, c); mergeUtilGiven(_prev, c); mergeLmVit(_prev, c); mergeConds(_prev, c); }
   row.data = JSON.stringify(c);
   row.charName = (c.identity && c.identity.name) || row.charName || 'Unnamed Fell';
   row.level = (c.lore && c.lore.level) || 1;
@@ -718,6 +733,7 @@ export const lmSaveCharacter = webMethod(Permissions.Anyone, async (charId, char
   await storePortrait(c);
   const _prevLm = parseData(row);
   mergeGiven(_prevLm, c);
+  mergeUtilGiven(_prevLm, c);
   mergeLmVit(_prevLm, c);
   mergeConds(_prevLm, c);
   row.data = JSON.stringify(c);
@@ -758,6 +774,45 @@ export const giveRecord = webMethod(Permissions.Anyone, async (charIds, entry) =
     } catch (err) { refused.push(cid); }
   }
   return { ok: given.length > 0, given: given, refused: refused };
+});
+
+// The Treasure Phase: the LoreMaster gives a Fell a utility, a Potion, Tablet, Trap or Rune
+// carrying an Act off the foes that fell (LoreVault, Treasure Phase). It lands in the Fell's
+// pack as its own row with the Act's words, and the sheet adds the vessel's own rule. The
+// LoreMaster's alone: running the game, never a lorekeeper's.
+const VESSELS = ['Potion', 'Tablet', 'Trap', 'Rune'];
+export const giveUtility = webMethod(Permissions.Anyone, async (charId, item) => {
+  const it = item || {};
+  const vessel = VESSELS.indexOf(it.vessel) >= 0 ? it.vessel : '';
+  const act = it.act || {};
+  const actName = String(act.name || '').trim().slice(0, 80);
+  const tier = Math.min(3, Math.max(1, Number(act.tier) || 1));
+  if (!charId || !vessel || !actName) return { ok: false, error: 'nothing to give' };
+  const me = await memberId();
+  if (!me) return { ok: false, error: 'sign in' };
+  const row = await wixData.get(COLLECTION, String(charId), { suppressAuth: true }).catch(() => null);
+  const cid = (row && row.campaignId) || '';
+  if (!row || !cid) return { ok: false, error: 'that Fell is not at this table' };
+  let lm = false;
+  try { const camp = await wixData.get('Campaigns', cid, { suppressAuth: true }); lm = !!camp && camp.ownerMemberId === me; } catch (e) {}
+  if (!lm) {
+    try {
+      const r = await wixData.query('AdventureMembers').eq('campaignId', cid).eq('memberId', me).limit(1).find({ suppressAuth: true });
+      lm = !!r.items.length && r.items[0].role === 'loremaster';
+    } catch (e) {}
+  }
+  if (!lm) return { ok: false, error: 'only the LoreMaster can give treasure' };
+  const id = 'given:' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  const data = parseData(row);
+  data.inventory = Array.isArray(data.inventory) ? data.inventory : [];
+  data.inventory.push({ itemId: id, quantity: 1, discovered: true, equipped: false,
+    custom: { name: vessel + ' of ' + actName, vessel: vessel, tier: tier,
+      desc: 'Tier ' + tier + '. ' + String(act.text || '').trim().slice(0, 1200),
+      from: String(it.from || '').slice(0, 80) } });
+  data.utilGiven = (Array.isArray(data.utilGiven) ? data.utilGiven : []).concat([id]).slice(-300);
+  row.data = JSON.stringify(data);
+  await wixData.save(COLLECTION, row, { suppressAuth: true });
+  return { ok: true, itemId: id, name: vessel + ' of ' + actName };
 });
 
 export const threadspireSaveMeta = webMethod(Permissions.Anyone, async (charId, patch) => {

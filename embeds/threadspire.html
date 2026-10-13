@@ -25419,8 +25419,70 @@ function tpLmDraw(key){
 }
 function tpLmClearDraw(key){
   var t = tpLmState(); if (!t) return;
+  if (t.draws[key] && t.draws[key].given) return;   /* given is given */
   delete t.draws[key];
   tpLmPublish(); render();
+}
+
+/* A Draw on a vessel row hands over an Act off the foes that fell, at the row's tier: a Potion
+   or Tablet to use directly, a Rune or Trap to lay down. A spell goes in a Potion or a Rune, a
+   weapon strike in a Tablet or a Trap (LoreVault, Treasure Phase). A foe's Acts are spells when
+   it fights with magic. The LoreMaster picks the Act and may swap the vessel; it lands in the
+   Fell's Utilities carrying the Act's words (giveUtility). */
+function tpVesselRow(loot){
+  var m = /^(Potion or Tablet|Trap or Rune), Tier ([123])$/.exec(String(loot || ''));
+  if (!m) return null;
+  return { tier:Number(m[2]), spell: m[1] === 'Potion or Tablet' ? 'Potion' : 'Rune', strike: m[1] === 'Potion or Tablet' ? 'Tablet' : 'Trap' };
+}
+function tpFallenActs(t, tier){
+  var d = t.defeated || {}, out = [], seen = {};
+  ((S.scene || {}).foes || []).forEach(function(f){
+    if (!tpIsFoe(f) || !f.id || !d[f.id]) return;
+    var a = foeActAtTier(f, tier); if (!a || !a.name || seen[a.name]) return;
+    seen[a.name] = true;
+    out.push({ name:a.name, text:a.effect || a.desc || '', foe:f.name || 'Foe', spell:foeFamilyOf(f) === 'Magic' });
+  });
+  return out;
+}
+function tpVesselHtml(t, p, draw){
+  var row = tpVesselRow(draw && draw.loot); if (!row) return '';
+  var k = p.charId || p.key;
+  if (draw.given) return '<div class="tpl-r2"><span class="tpl-lbl">Given</span><span class="tpl-v"><b class="gold">' + esc(draw.given) + '</b> <span class="tpl-dim">in their Utilities</span></span></div>';
+  var acts = tpFallenActs(t, row.tier);
+  if (!acts.length) return '<div class="tpl-r2 quiet">None of the foes marked defeated carried a Tier ' + row.tier + ' Act. Hand over what fits.</div>';
+  var h = '<div class="tpl-r2"><span class="tpl-lbl">From the fallen</span><span class="tpl-dim">'
+    + (p.offline ? 'Write it on their sheet at the table.' : 'Give one to ' + esc(p.name) + '.') + '</span></div>';
+  acts.forEach(function(a, i){
+    var lead = a.spell ? row.spell : row.strike;
+    h += '<div class="tpl-acts"><span class="tpl-v"><b>' + esc(a.name) + '</b> <span class="tpl-dim">' + esc(a.foe) + '</span></span>';
+    if (p.offline) h += '<span class="tpl-dim">' + esc(lead + ' of ' + a.name) + '</span>';
+    else [row.spell, row.strike].forEach(function(v){
+      h += '<button class="tpl-btn' + (v === lead ? ' gold' : '') + '"' + (draw.giving ? ' disabled' : '')
+        + ' onclick="tpLmGiveVessel(\'' + esc(k) + '\',' + i + ',\'' + v + '\')">' + v + '</button>';
+    });
+    h += '</div>';
+  });
+  if (draw.err) h += '<div class="tpl-r2 quiet">' + esc(draw.err) + '</div>';
+  return h;
+}
+function tpLmGiveVessel(key, i, vessel){
+  if (keeperNo()) return;
+  var t = tpLmState(); if (!t) return;
+  var draw = t.draws[key], row = draw && tpVesselRow(draw.loot);
+  if (!row || draw.given || draw.giving || (vessel !== row.spell && vessel !== row.strike)) return;
+  var a = tpFallenActs(t, row.tier)[i]; if (!a) return;
+  var who = (tpLmRoster().filter(function(p){ return (p.charId || p.key) === key; })[0] || {}).name || 'a Fell';
+  draw.giving = true; draw.err = ''; render();
+  tsAsk('TS_GIVE_UTILITY', { charId:key, item:{ vessel:vessel, act:{ name:a.name, tier:row.tier, text:a.text }, from:a.foe } }).then(function(r){
+    draw.giving = false;
+    draw.given = (r && r.name) || (vessel + ' of ' + a.name);
+    /* the Fell's sheet reads its record again */
+    S.sheetRev = S.sheetRev || {}; S.sheetRev[key] = Date.now(); schedulePush();
+    pushLog({ kind:'sys', html:'Gave <b>' + esc(draw.given) + '</b> to ' + esc(who) + '.' });
+    tpLmPublish(); render();
+  }).catch(function(e){
+    draw.giving = false; draw.err = 'It did not reach them (' + ((e && e.message) || 'error') + ').'; render();
+  });
 }
 
 function tpLmDefeatedHtml(t){
@@ -25493,13 +25555,13 @@ function tpLmCardHtml(){
       + '<button class="tpl-btn" onclick="tpLmRollTreasureFor(\'' + esc(k) + '\')">Roll for them</button>';
     if (roll && !draw) h += '<button class="tpl-btn gold" onclick="tpLmDraw(\'' + esc(k) + '\')">'
       + (roll.kept === 6 ? 'Award Paragon' : 'Roll ' + roll.kept + 'd6 Draw') + '</button>';
-    if (draw) h += '<button class="tpl-btn" onclick="tpLmClearDraw(\'' + esc(k) + '\')">Re-roll</button>';
+    if (draw && !draw.given) h += '<button class="tpl-btn" onclick="tpLmClearDraw(\'' + esc(k) + '\')">Re-roll</button>';
     h += '</div>';
 
     if (draw){
       h += '<div class="tpl-loot">' + esc(draw.loot)
         + (draw.dice && draw.dice.length ? ' <span class="tpl-dim">' + draw.dice.join(' \u00b7 ') + ' \u2192 ' + draw.sum + '</span>' : '')
-        + '</div>';
+        + '</div>' + tpVesselHtml(t, p, draw);
     }
     h += '</div>';
   });
