@@ -1,9 +1,10 @@
 // The RelicForge page code.
-// Relays a submission to the shared backend. The catalog lives on the character sheet and
-// the votes in the LoreForge (Nate, 2026-10-13).
+// Saves the relic to the maker's own shelf (ThreadSpire: a foe's kit, or a gift to a player's
+// Fell), and when asked submits it to the LoreForge for the vote as well (Nate, 2026-10-13).
 // Set EMBED to your Embed a Site element ID (Wix default is often #html1).
 
 import { submitCreation } from 'backend/forge.web.js';
+import { saveRelic } from 'backend/fatewell.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
 import { currentMember } from 'wix-members-frontend';
 
@@ -57,10 +58,20 @@ $w.onReady(() => {
           creator: creator
         }
       };
-      let res = { ok: false, errors: ['The forge could not reach the vault.'] };
-      try { res = await submitCreation(FORGE_KEY, payload); }
-      catch (e) { res = { ok: false, errors: ['The forge could not reach the vault. Try again.'] }; }
-      embed.postMessage({ type: 'RELIC_SUBMIT_RESULT', ok: !!res.ok, creationId: res.creationId || '', errors: res.errors || [] });
+      let saved = { ok: false, error: 'The forge could not reach the vault. Try again.' };
+      try { saved = await saveRelic(Object.assign({ name: payload.title, imageUrl: imageUrl }, payload.meta)); }
+      catch (e) { saved = { ok: false, error: 'The forge could not reach the vault. Try again.' }; }
+      if (!saved || !saved.ok) {
+        embed.postMessage({ type: 'RELIC_SUBMIT_RESULT', ok: false, errors: [(saved && saved.error) || 'The relic did not save. Try again.'] });
+        return;
+      }
+      let loreforge = null;
+      if (p.loreforge) {
+        try { loreforge = await submitCreation(FORGE_KEY, payload); }
+        catch (e) { loreforge = { ok: false, errors: ['The LoreForge could not be reached. Try again.'] }; }
+        loreforge = { ok: !!(loreforge && loreforge.ok), creationId: (loreforge && loreforge.creationId) || '', errors: (loreforge && loreforge.errors) || [] };
+      }
+      embed.postMessage({ type: 'RELIC_SUBMIT_RESULT', ok: true, updated: !!saved.updated, loreforge: loreforge });
     }
   });
 });
