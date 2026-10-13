@@ -2581,10 +2581,12 @@ function runeSnapshotSvg(){
   return LoreFellCircle.renderCircle(s, Object.assign({ animate: false, background: true, pad: 14, id: "snap" }, opts))
     .replace("<svg ", `<svg width="640" height="640" `);
 }
-function runeSnapshotPng(cb){
+function runeSnapshotPng(cb){ runeSvgToPng(runeSnapshotSvg, cb); }
+/* Any circle, as a 640 px PNG data URL (empty if it cannot be drawn). */
+function runeSvgToPng(makeSvg, cb){
   let done = v => { cb(v); done = () => {}; };
   try{
-    const svg = runeSnapshotSvg();
+    const svg = makeSvg();
     const img = new Image();
     const t = setTimeout(() => done(""), 1500);
     img.onload = () => {
@@ -3516,6 +3518,19 @@ function closeReview(){
 function requestModalCenter(){
   try{ window.parent.postMessage({ type:"LOREFELL_MODAL_OPEN" }, "*"); }catch(e){}
 }
+/* The LoreForge's sigils, redrawn with today's runes (Nate, 2026-10-13). The page code sends a
+   stored build and the tool draws its circle exactly as a new snapshot is drawn, so a sigil saved
+   before the runes changed can wear the new one. Progress comes back as a toast. */
+window.addEventListener("message", function(ev){
+  var d = ev && ev.data;
+  if(!d) return;
+  if(d.type === "LOREFELL_REDRAW_STATUS"){ toast(String(d.text || "")); return; }
+  if(d.type !== "LOREFELL_RENDER_RUNE") return;
+  var s = d.state || {}, o = d.opts || {};
+  runeSvgToPng(function(){
+    return LoreFellCircle.renderCircle(s, Object.assign({ animate: false, background: true, pad: 14, id: "snap" }, o)).replace("<svg ", '<svg width="640" height="640" ');
+  }, function(png){ window.parent.postMessage({ type: "LOREFELL_RUNE_RENDERED", reqId: d.reqId, png: png }, "*"); });
+});
 /* Parent replies with the visible band of the iframe: top offset and height in iframe pixels. */
 window.addEventListener("message", function(ev){
   var d = ev && ev.data;
