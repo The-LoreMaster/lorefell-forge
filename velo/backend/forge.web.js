@@ -460,6 +460,28 @@ export const removeCreation = webMethod(Permissions.Admin, async (creationId) =>
   return { ok: true };
 });
 
+// An Admin mends a creation in the halls: its name, flavor text and full text, written to its
+// Creations row (Nate, 2026-10-12). Players never see it, and anyone else is refused.
+export const editCreation = webMethod(Permissions.Admin, async (creationId, fields) => {
+  if (!creationId) return { ok: false, error: 'No creation given.' };
+  const f = fields || {};
+  const name = String(f.creationName == null ? '' : f.creationName).trim();
+  if (!name) return { ok: false, error: 'A creation needs a name.' };
+  if (name.length > 120) return { ok: false, error: 'The name is longer than 120 characters.' };
+  const flavor = String(f.flavorText == null ? '' : f.flavorText).trim(), full = String(f.fullText == null ? '' : f.fullText).trim();
+  if (flavor.length > 1000) return { ok: false, error: 'The flavor text is longer than 1,000 characters.' };
+  if (full.length > 20000) return { ok: false, error: 'The full text is longer than 20,000 characters.' };
+  let rec = null;
+  try { rec = await wixData.get('Creations', creationId, { suppressAuth: true }); } catch (e) { rec = null; }
+  if (!rec) return { ok: false, error: 'That creation was not found.' };
+  Object.assign(rec, { creationName: name, flavorText: flavor, fullText: full });
+  // the hall falls back to the flavor the forge sent, so that copy is mended too
+  try { const pl = JSON.parse(rec.payload || '{}'); if (pl && typeof pl === 'object' && 'flavorText' in pl) { pl.flavorText = flavor; rec.payload = JSON.stringify(pl); } } catch (e) {}
+  try { await wixData.update('Creations', rec, { suppressAuth: true }); }
+  catch (e) { return { ok: false, error: 'It could not be saved.' }; }
+  return { ok: true, creationName: name, flavorText: flavor, fullText: full };
+});
+
 // A foe from the Foe library put before the Pentifax, from FoeForge's Save (with its Pentifax box
 // ticked) or from ThreadSpire's foe editor (Nate, 2026-10-13). The library id rides in
 // meta.sourceAssetId, and a foe goes in once: a second submission of the same foe by the same
