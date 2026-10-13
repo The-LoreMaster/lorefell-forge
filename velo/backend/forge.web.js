@@ -482,6 +482,29 @@ export const editCreation = webMethod(Permissions.Admin, async (creationId, fiel
   return { ok: true, creationName: name, flavorText: flavor, fullText: full };
 });
 
+// The LoreForge's sigils, redrawn with today's runes (Nate, 2026-10-13). An Admin running the
+// SigilForge with ?redraw=1 reads every SigilForge build here, has the tool draw each one, and
+// saves the new picture with setCreationImage. Anyone else is refused.
+export const listSigilBuilds = webMethod(Permissions.Admin, async () => {
+  try {
+    const res = await wixData.query('Creations').eq('forgeKey', 'sigilforge').limit(1000).find({ suppressAuth: true });
+    return { ok: true, rows: res.items.map((it) => {
+      let p = {}; try { p = typeof it.payload === 'string' ? JSON.parse(it.payload) : (it.payload || {}); } catch (e) { p = {}; }
+      return { creationId: it._id, title: it.creationName || p.title || '', tier: p.tier, form: p.form, mode: p.mode, selections: p.selections || [], meta: p.meta || {} };
+    }) };
+  } catch (e) { return { ok: false, rows: [], error: 'The hall could not be read.' }; }
+});
+export const setCreationImage = webMethod(Permissions.Admin, async (creationId, imageUrl) => {
+  if (!creationId || !imageUrl) return { ok: false, error: 'No creation or picture given.' };
+  let rec = null;
+  try { rec = await wixData.get('Creations', creationId, { suppressAuth: true }); } catch (e) { rec = null; }
+  if (!rec) return { ok: false, error: 'That creation was not found.' };
+  rec.imageUrl = String(imageUrl);
+  try { await wixData.update('Creations', rec, { suppressAuth: true }); }
+  catch (e) { return { ok: false, error: 'It could not be saved.' }; }
+  return { ok: true };
+});
+
 // A foe from the Foe library put before the Pentifax, from FoeForge's Save (with its Pentifax box
 // ticked) or from ThreadSpire's foe editor (Nate, 2026-10-13). The library id rides in
 // meta.sourceAssetId, and a foe goes in once: a second submission of the same foe by the same
