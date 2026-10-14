@@ -11,69 +11,71 @@ first, and if it is not here, grep for it and then add it.
 
 ---
 
-## Wix page routes
+## Tool routes
 
 The route a tool lives at is not derivable from its filename. `threadspire.html` does
 not live at `/threadspire`.
 
-Every route is `the-` followed by the tool name. The full set is the Hearth's own
-routing table, `CROWN`, `BENCH` and `WALL` in `docs/the_hearth.html`, which is where to
-look first and where to correct any of these.
+The site kept the Wix addresses when it took the tools over on 2026-10-11. The list is
+lorefell-site `src/tools/tools.js` (`path`), which is where to look first and where to
+correct any of these.
 
 | Tool | Route |
 |---|---|
+| ThreadSpire | `/the-threadspire` |
 | FellGlass | `/the-fellglass` |
-| FateWell | `/the-fatewell` |
 | FellForge | `/the-fellforge` |
+| Join | `/join` |
 | SigilForge | `/the-sigilforge` |
 | ShardForge | `/the-shardforge` |
 | BondForge | `/the-bondforge` |
 | BrandForge | `/the-brandforge` |
-| LoreForge | `/the-loreforge` |
 | FoeForge | `/the-foeforge` |
 | RelicForge | `/the-relicforge` |
-| SagaForge | `/the-sagaforge` |
-| ThreadSpire | `/the-threadspire` |
+| The Anexanum | `/the-anexanum` |
 
-ThreadSpire is not in the Hearth table; its route comes from two navigations in
-`velo/page-fellglass.js`. The Hearth table is the source for the rest.
-
-Site pages seen on the live site: `/the-hearth`, `/for-loremasters`, `/lore`, `/fell`,
-`/worlds`, `/membersportal`, `/about`, `/press-kit`.
+The Hearth (`/the-hearth/`), the LoreForge (`/the-loreforge/`) and The Fatewell
+(`/the-fatewell/`, the LoreMaster's page) are pages of the site, not tools. The FateWell tool
+is retired, and the SagaForge is dropped. Every other site address is in lorefell-site
+`src/data/links.js`.
 
 **Better than knowing the route:** do not navigate to a literal. Rebuild the current
-page from `wixLocation.path`, the way `TS_CAMPAIGN_SET` does. A guessed route sends the
-browser nowhere and the button simply looks dead, with no error anywhere.
+page from `wixLocation.path`, the way `TS_CAMPAIGN_SET` does. The site's stand-in for
+`wix-location` (lorefell-site `src/tools/wix/wix-location.js`) gives the same `path`. A
+guessed route sends the browser nowhere and the button simply looks dead, with no error
+anywhere.
 
 ## Where a Velo file goes
 
-Velo is pasted by hand. Nothing deploys it, so a file in the wrong place fails quietly
-or fails publish.
+Nobody pastes Velo any more. lorefell-site copies it from the forge's main, in its nightly
+Vault sync or in a site PR, with only the imports changed.
 
 | Pattern | Destination | Symptom if wrong |
 |---|---|---|
-| `velo/page-*.js` | the **page** of the same name | backend imports fail |
-| `velo/backend/*.web.js` | **Backend** | publish fails, `Cannot find module 'wix-web-module'` |
+| `velo/page-*.js` | lorefell-site `src/tools/pages/`, by `npm run tools:sync`, the host page of the tool of the same name | the copy fails if the page imports a method the backend does not offer |
+| `velo/public/*.js` | lorefell-site `src/tools/public/`, by `npm run tools:sync` | |
+| `velo/backend/*.js` | lorefell-site `api/velo/`, by `npm run api:velo`, served at `/api/velo/<module>/<method>` | `check:velo` fails while the copy is behind |
 
-A new `TS_*` (or `FORGE_*`) bridge call means the matching `page-*.js` must be pasted
-again. Until it is, the tool asks a question nobody hears.
+A new `TS_*` (or `FORGE_*`) bridge call means the matching `page-*.js` must reach the site
+again. Until it does, the tool asks a question nobody hears.
 
 ## Paths that write to live infrastructure
 
-A push to `main` touching any of these fires `apply.yml`, which writes to the live Wix
-CMS. Not reversible with `git revert`.
+A push to `main` touching any of these fires `apply.yml`, which writes to the live database
+(D1). Not reversible with `git revert`.
 
-- `schemas/**`
-- `scripts/**`
+- `schemas/seed/**`
+- `scripts/applyD1.js`
 - `.github/workflows/apply.yml`
 
-`scripts/**` surprises people: adding a check script to `scripts/` triggers a CMS run.
-The steps are idempotent and additive, but back up before any schema change regardless.
-Timestamped backups go in `/backups`.
+The run is idempotent: each row is matched on its natural key, so only what changed is
+written. Apply CMS keeps every table it touches as an artifact before writing, and
+lorefell-site backs up D1 every night.
 
-## Wix reserved field ids
+## Reserved field ids
 
-`title` and `status` are reserved on a collection. Use `creationName` and `forgeStatus`.
+Wix reserved `title` and `status` on a collection, and the D1 tables keep Wix's field
+names. Use `creationName` and `forgeStatus`.
 
 ## What the checks catch, and what they do not
 

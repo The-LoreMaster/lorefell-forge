@@ -1,67 +1,69 @@
 # Deploy Manifest: which tool serves from where
 
 The single source of truth for how each tool reaches a player's screen. Read this BEFORE
-verifying "is my change live". It exists because a whole afternoon was lost verifying the
-CMS path for a tool that is actually served from GitHub Pages. Do not guess the path from
-SERVING.md prose or from memory; look it up here, per tool.
+verifying "is my change live". `SERVING.md` walks the chain step by step.
 
-## The two serving paths
+## One serving path
 
-There are TWO independent ways a tool reaches the live site, and each tool uses exactly
-one. They deploy through different workflows and are verified differently.
+Every tool is served the same way since LoreFell left Wix on 2026-10-11. The CMS path
+(Seed Embeds, the SiteEmbeds collection, `/_functions/embed`) is retired, and so is the
+`?info=1` check that went with it.
 
-**PAGES path** - the Wix HTML component points at a `table.lorefell.com/...` URL (GitHub Pages under its custom domain; the old `the-loremaster.github.io/lorefell-forge/...` addresses redirect there).
-  - Deployed by: `Deploy Pages` workflow (`.github/workflows/pages.yml`), on push touching `docs/**`.
-  - What it serves: `docs/<tool>.html` verbatim, at `https://table.lorefell.com/<tool>.html`.
-  - Verify live by: opening that github.io URL's view-source and searching for a string from the change.
-  - The `embeds/` mirror and the SiteEmbeds CMS are IRRELEVANT to these tools. Do not check `?info=1` for them.
+- The tool's HTML: `docs/<tool>.html`, published by `Deploy Pages` (`.github/workflows/pages.yml`)
+  on a push to main touching `docs/**`, at `https://table.lorefell.com/<tool>.html`. The old
+  `the-loremaster.github.io/lorefell-forge/...` addresses redirect there.
+- The page players open: lorefell-site frames that HTML on its own page at
+  `https://www.lorefell.com/<path>` (`src/tools/tools.js`), loading it as `?v=<commit>` from
+  `table.lorefell.com/version.json`.
+- The page code and backend: `velo/page-<tool>.js`, `velo/public/` and `velo/backend/`, copied
+  into lorefell-site (`src/tools/`, `api/velo/`) by its nightly Vault sync or a site PR.
+- `embeds/<tool>.html` is not served. It stays byte-identical to `docs/` because the checks
+  compare the two.
 
-**CMS path** - the Wix HTML component points at `/_functions/embed?slug=<tool>`.
-  - Deployed by: `Seed Embeds` workflow (`.github/workflows/embeds.yml`), on push touching `embeds/**`.
-  - What it serves: `embeds/<tool>.html`, chunked into SiteEmbeds CMS rows, reassembled by `get_embed`.
-  - Verify live by: `https://lorefell.com/_functions/embed?slug=<tool>&info=1`, compare `total decoded` to `embeds/<tool>.html` byte length.
+## The per-tool map
 
-## The per-tool map (THE thing to look up)
+From lorefell-site `src/tools/tools.js`. If that list changes, correct this table.
 
-The path is decided by ONE place only: what the Wix HTML component on that tool's page is
-set to. That is not in the repo, so it is recorded here. If a tool's behaviour contradicts
-this, the Wix component was changed; open the Wix editor, click the component, and read its
-Website address, then correct this file.
+| Tool | HTML on table.lorefell.com | Site address | Page code |
+| --- | --- | --- | --- |
+| ThreadSpire | `threadspire.html` | `/the-threadspire` | `velo/page-threadspire.js` |
+| FellGlass | `fellglass.html` | `/the-fellglass` | `velo/page-fellglass.js` |
+| FellForge | `fellforge.html` | `/the-fellforge` | `velo/page-fellforge.js` |
+| Join | `join.html` | `/join` | `velo/page-join.js` |
+| SigilForge | `sigilforge.html` | `/the-sigilforge` | `velo/page-sigilforge.js` |
+| ShardForge | `shardforge.html` | `/the-shardforge` | `velo/page-shardforge.js` |
+| BondForge | `bondforge.html` | `/the-bondforge` | `velo/page-bondforge.js` |
+| BrandForge | `brandforge.html` | `/the-brandforge` | `velo/page-brandforge.js` |
+| FoeForge | `foeforge.html` | `/the-foeforge` | `velo/page-foeforge.js` |
+| RelicForge | `relicforge.html` | `/the-relicforge` | `velo/page-relicforge.js` |
+| The Anexanum | `the_anexanum.html` | `/the-anexanum` | `velo/page-the_anexanum.js` |
+| The Sphere | `the_sphere.html` | none in `tools.js` | none. Baked from the vault by Deploy Pages, kept current by Sphere Sync |
 
-| Tool         | Path  | Live URL the component points at                                          | Deploy workflow |
-| ---          | ---   | ---                                                                       | ---             |
-| threadspire  | PAGES | https://table.lorefell.com/threadspire.html          | Deploy Pages    |
-| fatewell     | PAGES | https://table.lorefell.com/fatewell.html (confirm)   | Deploy Pages    |
-| fellglass    | PAGES | https://table.lorefell.com/fellglass.html (confirm)  | Deploy Pages    |
-| the_sphere   | PAGES | https://table.lorefell.com/the_sphere.html           | Deploy Pages (baked from the vault), kept current by Sphere Sync |
+The FateWell is retired (2026-09-28, folded into ThreadSpire). `/the-fatewell` is now a page
+of the site, not the tool.
 
-Tools not listed: verify the component's Website address in the Wix editor and add a row
-before assuming either path. A blank row is better than a guessed one.
-
-## Verify-live checklist, per path
+## Verify-live checklist
 
 Run this AFTER a merge, before telling Nate it is live. Never report live off a workflow
-run without checking its head_sha matches the merge commit; a green run for an earlier
+run without checking its head_sha matches the merge commit. A green run for an earlier
 commit is not evidence.
 
-PAGES tool:
+A change to `docs/`:
   1. Did `Deploy Pages` run green ON THE MERGE COMMIT? (Actions, check head_sha)
   2. If not, dispatch it: it does not always fire, and never fires during an Actions incident.
-  3. Open view-source of the github.io URL, search for a string from the change.
+  3. `https://table.lorefell.com/version.json` names the merge commit.
+  4. Open view-source of `https://table.lorefell.com/<tool>.html`, search for a string from the change.
 
-CMS tool:
-  1. Is `embeds/<tool>.html` byte-identical to `docs/<tool>.html`? (repo)
-  2. Did `Seed Embeds` run green ON THE MERGE COMMIT? (Actions, check head_sha)
-  3. `?info=1` total decoded matches `embeds/<tool>.html` length AND row timestamps are recent?
-  4. If CMS is current but page is stale: the Wix component or a Wix publish-cache; republish the site.
+A change to `velo/`:
+  1. The copy is on lorefell-site's main: `src/tools/pages/`, `src/tools/public/` or `api/velo/`,
+     from a Vault sync commit or the site PR.
+  2. Cloudflare Pages has deployed that commit.
 
-## The two traps that cost the most time, recorded so they are not re-sprung
+## The traps that cost the most time, recorded so they are not re-sprung
 
-1. **Wrong path assumed.** SERVING.md said "the live site serves from Wix, not Pages, do
-   not check Pages." That is true for CMS tools and FALSE for threadspire, which is a Pages
-   tool. The fix was `Deploy Pages`, not anything CMS. ALWAYS look up the path in the table
-   above first.
-2. **Stale run read as fresh.** A green Seed Embeds / Deploy Pages run was read as
-   confirmation without checking its head_sha. It was for an earlier commit; the real one
-   never fired (an Actions incident throttled the trigger). ALWAYS check head_sha equals the
-   merge commit before trusting a green run.
+1. **Stale run read as fresh.** A green Deploy Pages run was read as confirmation without
+   checking its head_sha. It was for an earlier commit, and the real one never fired (an
+   Actions incident throttled the trigger). ALWAYS check head_sha equals the merge commit
+   before trusting a green run.
+2. **The site's copy is behind.** A `velo/` change merged in the forge is not live until the
+   site carries it. Look on lorefell-site's main, not the forge's.

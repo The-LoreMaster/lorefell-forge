@@ -17,13 +17,13 @@ Redact tokens in every command echoed back to the user: pipe through
 
 ## What is automatic and what is not
 
-- Tool HTML in forge `docs/` (sigilforge.html, shardforge.html, bondforge.html and so on): served by GitHub Pages. A push makes it live. Mirror the same file into `embeds/`.
+- Tool HTML in forge `docs/` (sigilforge.html, shardforge.html, bondforge.html and so on): served by GitHub Pages at table.lorefell.com, which the site frames on each tool's page. A push to main makes it live. Mirror the same file into `embeds/`. Nothing serves `embeds/`, but the checks fail if it differs.
 - Collection data: written to D1 when the Apply CMS Action runs, on any push to main that changes `schemas/seed/`, or by hand.
-- Velo page and backend files in forge `velo/`: not auto-deployed. They are pasted into Wix by the user unless the site is connected to the repo. Flag this whenever one changes.
+- Velo page and backend files in forge `velo/`: nobody pastes them. lorefell-site copies them from the forge's main (`src/tools/` and `api/velo/`) in its nightly Vault sync, or in a site PR that runs `npm run tools:sync` and `npm run api:velo`. Merge the forge PR first. Flag this whenever one changes, because it is live only once the site carries the copy.
 
 ## Change type A, canon data (lorebounds, infusions, augmentations)
 
-Source of record is the vault, hidden, at `_Canon/collections/Lorebounds.md`, `Infusions.md`, `Augmentations.md`. Format is `## Name` then `Field: value` lines. Block order sets display order. Portraits are not here, they are managed in Wix.
+Source of record is the vault, hidden, at `_Canon/collections/Lorebounds.md`, `Infusions.md`, `Augmentations.md`. Format is `## Name` then `Field: value` lines. Block order sets display order. Portraits are not here. They live in the database (D1).
 
 1. Edit the matching doc in the vault clone. Keep the published prose page in agreement.
 2. Commit and push the vault.
@@ -31,9 +31,9 @@ Source of record is the vault, hidden, at `_Canon/collections/Lorebounds.md`, `I
 
        node scripts/canonFromVault.js --vault ../lorefell-fellguide
 
-   It writes `schemas/seed/Lorebounds.json`, `Infusions.json`, `Augmentations.json`. It never writes the portrait field, so Wix image uploads survive.
+   It writes `schemas/seed/Lorebounds.json`, `Infusions.json`, `Augmentations.json`. It never writes the portrait field, and Apply CMS keeps fields the seed does not carry, so portraits survive.
 4. Commit and push the forge.
-5. Apply to Wix, see below.
+5. Apply to D1, see below.
 
 ## Change type B, tool or schema or backend code
 
@@ -41,9 +41,9 @@ Source of record is the vault, hidden, at `_Canon/collections/Lorebounds.md`, `I
 - The nine player tools (all but FellGlass and ThreadSpire) carry the site look from `scripts/site-look.css`, pasted between the `site-look:start` and `site-look:end` markers. To change the look, edit that file and paste it into all nine; `npm run sitelook` (part of `npm run checks`) fails if any copy differs.
 - New collection or field: add `schemas/<Name>.json`, push, then apply.
 - New seed content not from the vault: add `schemas/seed/<Name>.json`, push, then apply.
-- Velo `.js`: edit, push, and tell the user to paste it into Wix.
+- Velo `.js`: edit and push. It reaches players once lorefell-site carries the copy (see above).
 
-## Apply to Wix
+## Apply to D1
 
 The Apply CMS Action (`scripts/applyD1.js`) keeps a copy of each table it touches, then seeds D1. It runs on every push to main that changes `schemas/seed/`, or by hand. Trigger it from the chat with the forge token (needs Actions write):
 

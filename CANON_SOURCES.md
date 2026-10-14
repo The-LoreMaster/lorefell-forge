@@ -8,14 +8,15 @@ building it.
 ## Target architecture (decided)
 
 Canon lives in the **vault** (`lorefell-fellguide`, the `_Canon` master docs), human-authored. A
-**generator** turns vault master docs into **Wix CMS collections**. Tools read canon **from Wix at
-runtime**. Wix is a generated output, never a source. Tools must not hardcode canon.
+**generator** turns vault master docs into **seed collections**, which Apply CMS writes to **D1**, the
+tools' database since 2026-10-11. Tools read canon **from D1 at runtime**, through the site's API. The
+database is a generated output, never a source. Tools must not hardcode canon.
 
-> vault master doc → generator → Wix CMS seed/collection → tool consumes from Wix
+> vault master doc → generator → seed (`schemas/seed/`) → Apply CMS → D1 table → tool consumes from D1
 
 Today most concepts are far from this: canon is scattered across hand-maintained JSON and inline HTML
 blobs. The **v1 gate is interim**. It protects against drift *during* the migration. Each concept
-graduates out of the gate's co-change axis as it moves to vault → generated → Wix.
+graduates out of the gate's co-change axis as it moves to vault → generated → D1.
 
 ## How the gate works (v1)
 
@@ -48,7 +49,7 @@ permits only four exact scripts. To run it by hand, add `canon/checkCanon.js` to
    too; the axes are complementary (axis 1 catches a stale bake, axis 3 a one-sided hand edit).
 3. **Worlds** co-change group (threadspire / fatewell / bondforge / sagaforge / fellforge /
    the_cartographer). Sibling set not yet pinned. Add once enumerated.
-4. **Axis 4. Wix-seed ↔ inline parity.** Value-equality between seeds and inline copies. Too brittle
+4. **Axis 4. Seed ↔ inline parity.** Value-equality between seeds and inline copies. Too brittle
    until consolidation collapses the shape mismatches.
 
 ## Source-of-truth backlog (worst drift first)
@@ -86,13 +87,13 @@ migration order. Fix the actively-broken ones first.
 ### 1. Foe pack. Foe MATH is now single-source (item 0); the pack DATA is still split
 - **Now:** the scaling *formulas* moved to `data/combat.core.js` (item 0 above). What remains split
   is the pack *data*: `docs/fatewell.html` `FW_FOE_PACK` (carries infusion rule text) vs
-  `docs/sagaforge.html` `FOE_PACK` (names only, **already drifted**) vs Wix `CanonFoePack` (live,
-  foeforge reads it at runtime). `data/FoePack.canon.json` is dead (its generator
+  `docs/sagaforge.html` `FOE_PACK` (names only, **already drifted**) vs the `CanonFoePack` table in D1
+  (live, foeforge reads it at runtime). `data/FoePack.canon.json` is dead (its generator
   `build-canon-pack.py` is absent).
 - **Recommend:** author a vault foe-pack collection (builds / tiers / stances / pools), generate
-  `schemas/seed/CanonFoePack.json` from it, and push to Wix. This needs authoring first. The 15 builds
+  `schemas/seed/CanonFoePack.json` from it, and let Apply CMS write it to D1. This needs authoring first. The 15 builds
   and the tier ladder currently live only as prose in `LoreVault/Running the Game/Building Crucibles.md`.
-  Then migrate fatewell and sagaforge to read Wix like foeforge already does. **Interim source of
+  Then migrate fatewell and sagaforge to read the database like foeforge already does. **Interim source of
   record:** `schemas/seed/CanonFoePack.json`.
 
 ### 2. Aspects. A real name mismatch already exists
@@ -105,9 +106,9 @@ migration order. Fix the actively-broken ones first.
 
 ### 3. Weapons. Two hand-kept shapes
 - **Now:** `data/Weapons.canon.json` (nested → fellglass `WEAPON_DB` via genCanon) and
-  `schemas/seed/CanonWeapons.json` (flattened → Wix). Same data, two shapes, nothing enforces
+  `schemas/seed/CanonWeapons.json` (flattened → D1). Same data, two shapes, nothing enforces
   agreement. Vault has per-weapon callouts (`Tree/Form/Affliction/Grip/Range`).
-- **Recommend:** vault Weapon Trees become source → generator emits one seed → fellglass reads Wix.
+- **Recommend:** vault Weapon Trees become source → generator emits one seed → fellglass reads D1.
   **Interim source of record:** `schemas/seed/CanonWeapons.json`.
 
 ### 4. Skills & 5. Attributes. Multiple hardcoded copies, no source
@@ -116,11 +117,11 @@ migration order. Fix the actively-broken ones first.
   `brandforge ATTRIBUTES`. Currently the 24 skills / 8 attributes appear aligned, but there is no
   single source.
 - **Recommend:** author `_Canon/collections/Skills.md` and `Attributes.md` from the `_Canon/CANON.md`
-  tables → seeds → Wix. Tools read Wix.
+  tables → seeds → D1. Tools read D1.
 
 ### 6. Infusions & Augmentations. Already have a clean path (lowest risk)
 - **Now:** vault `_Canon/collections/{Infusions,Augmentations}.md` → seeds → shardforge/foeforge via
-  genCanon → Wix. This IS the target shape. Only genCanon's breakage (below) and the unmanaged
+  genCanon → D1. This IS the target shape. Only genCanon's breakage (below) and the unmanaged
   `fellglass` placeholder copies (`INFUSIONS`/`AUGMENTATIONS`, `INF_REMINDER`/`AUG_REMINDER`) need
   attention. **Source of record:** the vault collections.
 
