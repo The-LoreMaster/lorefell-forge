@@ -28,6 +28,12 @@ function check(n, ok, d){ if (ok === true){ console.log('  PASS  ' + n); pass++;
   check('the second point goes to a different attribute', o.length === 2 && !o.some(t => /Durability/.test(t)), JSON.stringify(o));
   check('the step says so', /each in a different defensive attribute/.test(js(`document.getElementById('ccCard').textContent`)), 'old wording');
 
+  console.log('\nthe LoreMaster\'s weapon slot');
+  js(`document.body.classList.add('god'); C.weapons=[newWeapon(),newWeapon()]; C.weapons[0].tree=Object.keys(WEAPON_DB)[0]; renderWeapons();`);
+  const offered = JSON.parse(js(`JSON.stringify([...document.querySelectorAll('#weaponsWrap select option')].map(o => o.value).filter(Boolean))`));
+  const held = js(`C.weapons[0].tree`);
+  check('a weapon the Fell holds is not offered again', offered.length > 0 && !offered.includes(held), JSON.stringify({ held, offered }));
+
   console.log(`\n${fail ? fail + ' failed' : 'all ' + pass + ' passed'}`);
   process.exit(fail ? 1 : 0);
 })();
