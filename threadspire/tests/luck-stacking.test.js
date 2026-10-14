@@ -215,6 +215,37 @@ function helperCases(w, where){
   roll = lastRoll();
   check('a level 9 weapon rolls one die', roll && roll.n === 2 && !/Lucky/.test(roll.note), JSON.stringify(roll));
 
+  /* Favored's reach (Nate, 2026-10-14): "all attacks from that weapon only, including
+     abilities and spells." A second weapon in the other hand is not Favored. */
+  console.log('\nFavored reaches that weapon only');
+  js(`C.afflictions = []; window._aspSpent = {}; COMBAT.fighters[0].asp = [];
+      var _trees = Object.keys(WEAPON_DB).filter(function(t){ return WEAPON_DB[t].forms[0] !== WEAPON_DB[Object.keys(WEAPON_DB)[0]].forms[0]; });
+      C.weapons = [{ tree:Object.keys(WEAPON_DB)[0], level:10, formIdx:0, equipped:true, abilities:[], infusions:[] },
+                   { tree:_trees[0], level:5, formIdx:0, equipped:true, abilities:[], infusions:[] }];`);
+  check('two weapons in hand, different names, only the first Favored', js('weaponName(C.weapons[0]) !== weaponName(C.weapons[1]) && weaponFavored(C.weapons[0]) && !weaponFavored(C.weapons[1])') === true, 'setup');
+  dice(w, [2, 5]);
+  js(`quickAttackRoll(1)`);
+  roll = lastRoll();
+  check('quick attack with the other weapon: one die, no Favored', roll && roll.n === 2 && !/Favored|Lucky/.test(roll.note), JSON.stringify(roll));
+  dice(w, [2, 5]);
+  js(`quickAttackRoll(0)`);
+  roll = lastRoll();
+  check('while the level 10 weapon’s own attack is still Lucky (Favored)', roll && roll.n === 5 && /Lucky \(Favored\)/.test(roll.note), JSON.stringify(roll));
+  js(`cbActEntry = function(nm){ return nm === 'Spell' ? { kind:'weapon', src:weaponName(C.weapons[1]), nm:'Spell' } : (nm === 'Basic attack' ? { kind:'weapon', src:weaponName(C.weapons[1]), nm:'Basic attack' } : { kind:'standard', src:'charge' }); };
+      document.getElementById('cbAct').value = 'Spell';`);
+  check('the card: an ability or spell made with the other weapon is not Favored', js('JSON.stringify(cbMyLuckCount(true))') === JSON.stringify({ lucky:0, unlucky:0, granted:false, mot:false, favored:false, asp:[] }), js('JSON.stringify(cbMyLuckCount(true))'));
+  js(`document.getElementById('cbAct').value = 'Basic attack';`);
+  check('the card: the other weapon’s standard attack is not Favored', js('cbMyLuckCount(true).favored') === false && js('cbMyLuckCount(true).lucky') === 0, js('JSON.stringify(cbMyLuckCount(true))'));
+  js(`cbActEntry = function(nm){ return { kind:'weapon', src:weaponName(C.weapons[0]), nm:nm }; };`);
+  check('the card: the level 10 weapon’s standard attack is', js('cbMyLuckCount(true).favored') === true, js('JSON.stringify(cbMyLuckCount(true))'));
+  js(`C.weapons[1] = { tree:C.weapons[0].tree, level:3, formIdx:0, equipped:true, abilities:[], infusions:[] }; C.weapons[0].equipped = false;
+      cbActEntry = function(nm){ return { kind:'weapon', src:weaponName(C.weapons[1]), nm:nm }; };`);
+  check('a level 10 weapon left in the pack does not lend Favored to a lesser one of its name in hand', js('cbMyLuckCount(true).favored') === false, js('JSON.stringify(cbMyLuckCount(true))'));
+  /* back as the sections below expect it: one level 9 weapon, the card on its Spell */
+  js(`C.weapons = [{ tree:Object.keys(WEAPON_DB)[0], level:9, formIdx:0, equipped:true, abilities:[], infusions:[] }];
+      cbActEntry = function(nm){ return nm === 'Spell' ? { kind:'weapon', src:weaponName(C.weapons[0]), nm:'Spell' } : { kind:'standard', src:'charge' }; };
+      document.getElementById('cbAct').value = 'Spell';`);
+
   console.log('\nthe Lucky Aspects on this Fell’s row: Boon, Augury, Elude');
   const giveAsp = (list) => js(`COMBAT.fighters[0].asp = ${JSON.stringify(list)}; window._aspSpent = {};`);
   giveAsp([{ id:'fell-2:8:Boon', nm:'Boon', on:'any', dice:1, to:'fell-1', round:8 }]);
