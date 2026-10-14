@@ -1,16 +1,16 @@
 # The tabletop harness
 
-A mock Wix parent for `docs/threadspire.html`, and the two-sided scenarios that run
+A mock parent page for `docs/threadspire.html`, and the two-sided scenarios that run
 against it.
 
 ThreadSpire is not a standalone page. `tsEmbedded()` is `window.parent && window.parent
 !== window`, and its role, its adventure and its sync all arrive by `postMessage` from
 the page that embeds it. Opened directly it falls back to a demo bench called "The
 Silent Beacon" with no role and no sync. So `host.html` exists to be a convincing parent
-frame; it stands in for `velo/page-threadspire.js`, answering from memory where the real
-page calls a Wix backend.
+frame. It stands in for `velo/page-threadspire.js`, which the site runs around the tool.
+Where the real page calls the backend (the site's API on D1), the harness answers from memory.
 
-**The harness replaces the backend. Nothing here ever points at live Wix data.**
+**The harness replaces the backend. Nothing here ever points at live data.**
 
 ## Layout
 

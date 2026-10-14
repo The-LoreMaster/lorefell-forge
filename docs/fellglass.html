@@ -2359,7 +2359,7 @@ button.ax-fact{cursor:pointer}
     "name": "Sundered",
     "type": "impairment",
     "breakout": "",
-    "rule": "None - Permanent Effect (Unbranded): Dead. Your soul is cast into Pandemonium. - Permanent Effect (Branded): FellScarred. Your Brand becomes permanently damaged. Its powers may be altered, hindered, corrupted, or transformed at the LoreMaster's discretion.",
+    "rule": "None - Permanent Effect (no Mastery in any Brand): Dead. Your soul is cast into Pandemonium. - Permanent Effect (a Mastery in a Brand): FellScarred. That Brand becomes permanently damaged. Its powers may be altered, hindered, corrupted, or transformed at the LoreMaster's discretion.",
     "enforce": {
       "bucket": "C",
       "kind": "impairment",
@@ -2725,7 +2725,10 @@ function brandInvoke(name){
   if(n===6) paid="free";
   else if((Number(C.lore.lorePoints)||0)>=1){ C.lore.lorePoints-=1; paid="a Lore Point"; }
   else if(ascPending()>=1){ C.lore.ascPending=ascPending()-1; paid="an Ascension Crystal"; }
-  else if((Number(C.lore.paragonPoints)||0)>=1){ C.lore.paragonPoints-=1; paid="a Paragon Point"; }
+  /* A Paragon Point paying for a Talent is a Paragon spend like any other (Nate,
+     2026-10-14): only in combat, and it burns a Skyvault Shard. Out of combat, or with no
+     Shard, the last fallback is gone and the Talent fails. */
+  else if((Number(C.lore.paragonPoints)||0)>=1 && COMBAT && COMBAT.active && restSpend("Skyvault Shard")){ C.lore.paragonPoints-=1; paid="a Paragon Point and a Skyvault Shard"; }
   const ok=!!paid;
   const note=d.talent+(ok?(paid==="free"?": a Fellmark, it costs nothing":": it works, and costs "+paid):": nothing left to pay with, it fails");
   if(document.body.classList.contains("tsembed")) tableRoll("skill",n,[{label:d.talent,value:0}],n,note);
@@ -3499,8 +3502,10 @@ function ccRender(){
         card.appendChild(luOpt("+1 "+CATEGORY_LABEL[a],null,()=>{CC.trackAttr=a;CC.step="weapon-pick";ccRender();}));
       });
     }else if(CC.track==="armor"){
-      ccHead(card,"step 1",`Invest in your defense (${CC.armorPts.length}/2)`,"Two points. The same attribute may take both.");
-      ["evasion","durability","resistance"].forEach(a=>{
+      /* Armor Level 1 (FellGuide, Armor): the crystal's point, then "any other defensive
+         attribute", so the two points land on two different attributes. */
+      ccHead(card,"step 1",`Invest in your defense (${CC.armorPts.length}/2)`,"Two points, each in a different defensive attribute.");
+      ["evasion","durability","resistance"].filter(a=>CC.armorPts.indexOf(a)<0).forEach(a=>{
         card.appendChild(luOpt("+1 "+a.charAt(0).toUpperCase()+a.slice(1),null,()=>{
           CC.armorPts.push(a);
           if(CC.armorPts.length>=2){CC.step="origin";}
@@ -4696,8 +4701,37 @@ window._tsLuckyAt=0; window._tsLuckyUsed=0;
 window.addEventListener("message",function(ev){ var d=ev.data; if(d&&d.type==="ts-lucky-grant"){ window._tsLuckyAt=Number(d.at)||0; } });
 function tsLuckyWaits(){ return !!window._tsLuckyAt && window._tsLuckyUsed!==window._tsLuckyAt; }
 function tsLuckyTake(){ if(!tsLuckyWaits()) return false; window._tsLuckyUsed=window._tsLuckyAt; return true; }
-/* Roll a d6, Lucky if a granted Lucky Roll waits: returns [kept, note]. */
-function tsLuckyD6(n){ if(!tsLuckyTake()) return [n,""]; var b=1+Math.floor(Math.random()*6); return [Math.max(n,b),"Lucky Roll (granted) "+n+" | "+b]; }
+/* Luck stacks (CANON.md, Luck; Nate, 2026-10-14). Each source of Lucky adds one die and the
+   roller keeps the highest. Each source of Unlucky adds one die and the roller keeps the lowest.
+   Lucky and Unlucky cancel one for one, so as many of each is one die. first, when given, is
+   the die already thrown. Returns { n:kept, dice:[...], net, note } with a note for the log,
+   "Lucky x2: 3 | 5 | 2". ThreadSpire carries the same two functions. */
+function luckLabel(net){ var a=Math.abs(net||0); return !a?"":((net>0?"Lucky":"Unlucky")+(a>1?" x"+a:"")); }
+function luckDice(lucky,unlucky,first){
+  var L=Math.max(0,Number(lucky)||0), U=Math.max(0,Number(unlucky)||0), net=L-U, k=1+Math.abs(net), dice=[];
+  for(var i=0;i<k;i++) dice.push(i===0&&typeof first==="number"&&first>=1?first:1+Math.floor(Math.random()*6));
+  var n=net>0?Math.max.apply(null,dice):(net<0?Math.min.apply(null,dice):dice[0]);
+  var note=net?(luckLabel(net)+": "+dice.join(" | ")):((L&&U)?("Lucky and Unlucky cancel: "+n):"");
+  return { n:n, dice:dice, net:net, note:note };
+}
+/* Roll a d6 for the table's quick rolls, counting every Luck source on it (Luck stacks):
+   the Motivation's Lucky Rolls (o.mot), Afterimage (o.afterimage), a granted Lucky Roll,
+   the Lucky Effect and the Unlucky Affliction. Returns [kept, note]. */
+function tsLuckyD6(n,o){
+  o=o||{}; var srcs=[], L=0, U=0;
+  if(o.mot){ L++; srcs.push("Motivation"); }
+  if(o.afterimage){ L++; srcs.push("Afterimage"); }
+  if(tsLuckyTake()){ L++; srcs.push("granted"); }
+  var eff=false, aff=false; try{ eff=cbHasAff("Lucky")||cbHasEff("Lucky"); aff=cbHasAff("Unlucky")||cbHasEff("Unlucky"); }catch(e){}
+  if(eff){ L++; srcs.push("Lucky Effect"); }
+  if(aff){ U++; srcs.push("Unlucky"); }
+  if(!srcs.length) return [n,""];
+  var r=luckDice(L,U,n), ds=r.dice.join(" | "), names=srcs.length>1?(srcs.slice(0,-1).join(", ")+" and "+srcs[srcs.length-1]):srcs[0], note;
+  if(srcs.length===1) note=srcs[0]==="granted"?("Lucky Roll (granted) "+ds):(srcs[0]==="Motivation"?("Lucky "+ds):(srcs[0]==="Unlucky"?("Unlucky "+ds):("Lucky ("+srcs[0]+") "+ds)));
+  else if(!r.net) note="Lucky and Unlucky cancel ("+names+"): "+r.n;
+  else note=luckLabel(r.net)+" ("+names+") "+ds;
+  return [r.n,note];
+}
 function tableRoll(rollType,n,mods,total,note){
   if(n===6) tmNote();
   try{ window.parent.postMessage({type:"ts-sheet-roll",rollType:rollType,n:n,mods:mods,total:total,note:note||""},"*"); }catch(e){}
@@ -4706,8 +4740,9 @@ function skillBonusOf(name){ const s=C.skills[name]; if(s) return s.rank+s.maste
 function quickSkillRoll(name){
   const b=skillBonusOf(name);
   let n=1+Math.floor(Math.random()*6), note="";
-  if(skillIsLucky(name)){ const a=n, c=1+Math.floor(Math.random()*6); n=Math.max(a,c); note="Lucky "+a+" | "+c; }
-  else { const lk=tsLuckyD6(n); n=lk[0]; note=lk[1]; }
+  /* Luck stacks: the Motivation's Lucky Rolls, a granted Lucky Roll, the Lucky Effect and
+     the Unlucky Affliction are a die each */
+  const lk=tsLuckyD6(n,{ mot:skillIsLucky(name) }); n=lk[0]; note=lk[1];
   tableRoll("skill",n,[{label:name,value:b}],n+b,note);
   /* FellGuide: a Fellmark on a skill check raises that skill by 1. Automatic, or asked first,
      as the player chooses at the table. */
@@ -4733,7 +4768,9 @@ function quickAttackRoll(i){
 window.addEventListener("message",ev=>{
   const d=ev.data; if(!d||d.type!=="ts-quick-roll") return;
   if(d.kind==="evade"){
-    const _lke=tsLuckyD6(1+Math.floor(Math.random()*6)), n=_lke[0], ev2=attrTotal("evasion");
+    /* Afterimage: the first Evasion roll each round is Lucky, the same round as cbRollEva */
+    const _rnd=(COMBAT&&COMBAT.round)||0, _ai=cbHasAug("Afterimage")&&window._afterRound!==_rnd; if(_ai) window._afterRound=_rnd;
+    const _lke=tsLuckyD6(1+Math.floor(Math.random()*6),{ afterimage:_ai }), n=_lke[0], ev2=attrTotal("evasion");
     tableRoll("evade",n,[{label:"Evasion",value:ev2}],n+ev2,_lke[1]); return;
   }
   if(d.kind==="skill"){
@@ -5097,9 +5134,9 @@ function renderSkills(){
         /* at the table the roll lands on the table, with the Fell's name, not in here */
         if(document.body.classList.contains("tsembed")){ quickSkillRoll(name); die.classList.remove("spin");void die.offsetWidth;die.classList.add("spin"); return; }
         if(skillIsLucky(name)){
-          /* Lucky Rolls: roll twice, keep the better die */
-          const a=1+Math.floor(Math.random()*6),b=1+Math.floor(Math.random()*6);
-          rollDieForced(die,res,tag,bonus,Math.max(a,b),`Lucky ${a} | ${b}`);
+          /* Lucky Rolls: one Lucky source, a die more, keep the best (Luck stacks) */
+          const r=luckDice(1,0);
+          rollDieForced(die,res,tag,bonus,r.n,`Lucky ${r.dice.join(" | ")}`);
         }else{
           rollDie(die,res,tag,bonus);
         }
@@ -6118,7 +6155,7 @@ function cbCheckEvasion(){
 function evaResHtml(acc,total,r,ev,dice,lk){
   var hit=(acc>=total);
   var diceStr=(dice&&dice.length>1)?(" ["+dice.join(", ")+" \u2192 "+r+"]"):"";
-  var lkStr=lk?(" \u00b7 "+(lk==='lucky'?"Lucky":"Unlucky")):"";
+  var lkStr=lk?(" \u00b7 "+(lk==='lucky'?"Lucky":(lk==='unlucky'?"Unlucky":lk))):"";
   return "Evasion "+total+" ("+r+"+"+ev+")"+diceStr+lkStr+" \u00b7 <b class=\""+(hit?"cb-miss":"cb-hit")+"\">"+(hit?"Hit":"Evaded")+"</b>";
 }
 function cbEvaCardHtml(foes){
@@ -6143,19 +6180,22 @@ function cbEvaInit(){
 }
 function openEvasionPopup(foes){ window._cbSheetView=false; applyCombatMode(); }
 function cbRollEva(foeKey, acc, ev){
-  var lk=cbMyLuck(), dice, r, ai="";
-  /* Afterimage: the first Evasion roll each round is a Lucky Roll */
+  var cnt=cbMyLuckCount(), lk, dice, r, ai="";
+  /* Afterimage: the first Evasion roll each round is a Lucky Roll, one more Lucky source */
   var rnd=(COMBAT&&COMBAT.round)||0;
   if(cbHasAug("Afterimage") && window._afterRound!==rnd){
     window._afterRound=rnd;
-    if(lk==="lucky") ai="Afterimage: already Lucky.";
-    else if(lk==="unlucky"){ lk=""; ai="Afterimage cancels your Unlucky roll."; }
-    else { lk="lucky"; ai="Afterimage: your first Evasion this round is a Lucky Roll."; }
+    var was=cnt.lucky-cnt.unlucky;
+    if(was>0) ai="Afterimage: already Lucky, and adds a Lucky die.";
+    else if(was===-1) ai="Afterimage cancels your Unlucky roll.";
+    else if(was<0) ai="Afterimage cancels one Unlucky die.";
+    else ai="Afterimage: your first Evasion this round is a Lucky Roll.";
+    cnt.lucky++;
     cbPing(ai, true); cbLogSelf("fell", meName()+": "+ai);
   }
-  if(lk==='lucky'){ var a=cbd6(),b=cbd6(); dice=[a,b]; r=Math.max(a,b); }
-  else if(lk==='unlucky'){ var a=cbd6(),b=cbd6(); dice=[a,b]; r=Math.min(a,b); }
-  else { r=cbd6(); dice=[r]; }
+  var _ld=luckDice(cnt.lucky,cnt.unlucky); dice=_ld.dice; r=_ld.n; lk=luckLabel(_ld.net);
+  /* a granted Lucky Roll it counted is spent by this roll */
+  if(cnt.granted && window._tsLuckyAt) window._tsLuckyUsed=window._tsLuckyAt;
   var total=r+ev;
   window._evaRolls=window._evaRolls||{}; window._evaRolls[foeKey]={r:r,total:total,dice:dice,lk:lk};
   var node=document.getElementById("evres-"+foeKey);
@@ -7687,29 +7727,41 @@ function cbInitFellBonus(){
   cbToggleFellBonus();
 }
 function cbd6(){ return 1+Math.floor(Math.random()*6); }
-function cbMyLuck(){
-  if(!(COMBAT&&COMBAT.active&&CUR_WIX_ID)) return "";
+/* The Lucky and Unlucky sources on this Fell's next roll in a fight, counted (Luck stacks):
+   the board's mark (a granted Lucky Roll), the Lucky Effect, the Unlucky Affliction, and,
+   for the card's own roll (forRoll), the Motivation's Lucky Rolls when a skill is chosen. */
+function cbSkillLucky(){
+  try{ var selA=document.getElementById("cbAct"), eA=selA?cbActEntry(selA.value):null; if(!(eA&&eA.src==="skills")) return false;
+    var ks=document.getElementById("cbSkillSel"), kn=ks?ks.value:""; return !!(kn&&C.skills&&C.skills[kn]&&skillIsLucky(kn)); }catch(e){ return false; }
+}
+function cbMyLuckCount(forRoll){
+  var c={ lucky:0, unlucky:0, granted:false, mot:false };
+  if(!(COMBAT&&COMBAT.active&&CUR_WIX_ID)) return c;
   var mark=""; var f=((COMBAT.fighters)||[]).filter(function(x){return x.charId===CUR_WIX_ID;})[0]; if(f) mark=f.luck||"";
   /* a granted Lucky Roll is spent by one roll, even before the board hears of it */
   if(mark==="lucky" && window._tsLuckyAt && window._tsLuckyUsed===window._tsLuckyAt) mark="";
-  var n=0; if(mark==="lucky")n++; else if(mark==="unlucky")n--;
-  try{ if(cbHasAff("Lucky")||cbHasEff("Lucky"))n++; if(cbHasAff("Unlucky")||cbHasEff("Unlucky"))n--; }catch(e){}
-  return n>0?"lucky":(n<0?"unlucky":"");
+  if(mark==="lucky"){ c.lucky++; c.granted=true; } else if(mark==="unlucky") c.unlucky++;
+  try{ if(cbHasAff("Lucky")||cbHasEff("Lucky"))c.lucky++; if(cbHasAff("Unlucky")||cbHasEff("Unlucky"))c.unlucky++; }catch(e){}
+  if(forRoll && cbSkillLucky()){ c.lucky++; c.mot=true; }
+  return c;
 }
+function cbMyLuckNet(){ var c=cbMyLuckCount(true); return c.lucky-c.unlucky; }
+function cbMyLuck(){ var n=cbMyLuckNet(); return n>0?"lucky":(n<0?"unlucky":""); }
 function cbLuckRollD6(){
-  var lk=cbMyLuck();
-  if(lk==='lucky'){ var a=cbd6(),b=cbd6(); window._cbRollDice=[a,b]; if(window._tsLuckyAt) window._tsLuckyUsed=window._tsLuckyAt; return Math.max(a,b); }
-  if(lk==='unlucky'){ var a=cbd6(),b=cbd6(); window._cbRollDice=[a,b]; return Math.min(a,b); }
-  window._cbRollDice=null; return cbd6();
+  var c=cbMyLuckCount(true), r=luckDice(c.lucky,c.unlucky);
+  if(c.granted && window._tsLuckyAt) window._tsLuckyUsed=window._tsLuckyAt;
+  window._cbRollDice=r.dice.length>1?r.dice:null; window._cbRollNet=r.net;
+  return r.n;
 }
 function cbLuckBanner(){
   if(!(COMBAT&&COMBAT.active)) return "";
-  var lk=cbMyLuck(); if(!lk) return "";
-  return '<div class="luck-banner '+lk+'"><span>'+(lk==='lucky'?'\u2726 Lucky roll':'\u2727 Unlucky roll')+'</span></div>';
+  var net=cbMyLuckNet(), lk=net>0?"lucky":(net<0?"unlucky":""); if(!lk) return "";
+  var x=Math.abs(net)>1?(" x"+Math.abs(net)):"";
+  return '<div class="luck-banner '+lk+'"><span>'+(lk==='lucky'?'\u2726 Lucky roll':'\u2727 Unlucky roll')+x+'</span></div>';
 }
 function cbInitRollPick(){
   var pick=document.getElementById("cbRollPick"); if(!pick) return;
-  pick.querySelectorAll(".cb-face").forEach(function(b){ b.addEventListener("click",function(){ window._cbRollDice=null; cbSetRoll(parseInt(b.dataset.face,10)); }); });
+  pick.querySelectorAll(".cb-face").forEach(function(b){ b.addEventListener("click",function(){ window._cbRollDice=null; window._cbRollNet=0; cbSetRoll(parseInt(b.dataset.face,10)); }); });
   var die=document.getElementById("cbRollDie");
   if(die) die.addEventListener("click",function(){
     if(die.classList.contains("spin")) return;
@@ -7746,9 +7798,9 @@ function cbRenderRoll(){
   if(d && !d.classList.contains("spin")){ d.textContent=face?String(face):"?"; d.classList.toggle("fell",face===6); d.classList.toggle("strike",face===1); }
   var tot=document.getElementById("cbRollTotal");
   if(tot){
-    var lk=cbMyLuck(), lkStr=lk?(lk==='lucky'?"Lucky \u00b7 ":"Unlucky \u00b7 "):"";
+    var _lnet=cbMyLuckNet(), lk=_lnet>0?"lucky":(_lnet<0?"unlucky":""), _lx=Math.abs(_lnet)>1?(" x"+Math.abs(_lnet)):"", lkStr=lk?((lk==='lucky'?"Lucky":"Unlucky")+_lx+" \u00b7 "):"";
     var selA=document.getElementById("cbAct"), eA=selA?cbActEntry(selA.value):null, isSk=!!(eA&&eA.src==="skills");
-    if(!face){ var _pm=window._cbPickMode?"pick your d6":"tap the die"; tot.textContent=lk?((lk==='lucky'?"Lucky roll":"Unlucky roll")+" \u00b7 "+_pm):((isSk?"Roll the skill, ":"Roll your accuracy, ")+_pm+"."); }
+    if(!face){ var _pm=window._cbPickMode?"pick your d6":"tap the die"; tot.textContent=lk?((lk==='lucky'?"Lucky roll":"Unlucky roll")+_lx+" \u00b7 "+_pm):((isSk?"Roll the skill, ":"Roll your accuracy, ")+_pm+"."); }
     else { var lbl=(face===1?"Fellstrike":(cbIsFellmark(face,eA)?(face===5?"Fellmark (Honed)":"Fellmark"):String(face)));
       var dice=window._cbRollDice, diceStr=(dice&&dice.length>1)?(" ["+dice.join(", ")+" \u2192 "+face+"]"):"";
       if(isSk){ var ks=document.getElementById("cbSkillSel"), kn=ks?ks.value:""; var kb=cbSkillBonus(kn);
@@ -8223,10 +8275,18 @@ function cbDeclare(){
   /* what this weapon's infusions do to the roll and the turn, said as they happen (#754) */
   var infNotes=[], isWpn=!!(e && e.kind==="weapon");
   if(isWpn && roll && cbWeaponHasInf(e.src,"Hunting")){
-    var _dice=window._cbRollDice, _lk=cbMyLuck();
-    if(_dice && _dice.length>1 && _lk==="lucky") infNotes.push("Hunting: the roll is already Lucky.");
-    else if(_dice && _dice.length>1 && _lk==="unlucky"){ roll=_dice[0]; infNotes.push("Hunting is Lucky and cancels your Unlucky roll: "+_dice.join(" | ")+", the first stands, "+roll+"."); }
-    else { var _hb=cbd6(), _was=roll; roll=Math.max(_was,_hb); infNotes.push("Hunting makes the attack a Lucky Roll: "+_was+" | "+_hb+", keeping "+roll+"."); }
+    /* Hunting is one more Lucky source on a roll already thrown (Luck stacks): a Lucky or
+       plain roll gains a die and keeps the highest, an Unlucky roll loses one of its dice */
+    var _dice=window._cbRollDice, _net=0, _was=roll;
+    if(_dice && _dice.length>1) _net=(typeof window._cbRollNet==="number"&&window._cbRollNet)?window._cbRollNet:(cbMyLuck()==="unlucky"?-1:1);
+    else _dice=[roll];
+    if(_net<0){
+      var _keep=_dice.slice(0,-1); roll=Math.min.apply(null,_keep);
+      if(_net===-1) infNotes.push("Hunting is Lucky and cancels your Unlucky roll: "+_dice.join(" | ")+", the first stands, "+roll+".");
+      else infNotes.push("Hunting is Lucky and cancels one Unlucky die: "+_dice.join(" | ")+", the last falls away, keeping the lowest, "+roll+".");
+    }
+    else { var _hb=cbd6(); _dice=_dice.concat([_hb]); roll=Math.max.apply(null,_dice);
+      infNotes.push(_net>0?("Hunting adds a Lucky die: "+_dice.join(" | ")+", keeping "+roll+"."):("Hunting makes the attack a Lucky Roll: "+_was+" | "+_hb+", keeping "+roll+".")); }
     window._cbRoll=roll;
   }
   var fell=cbIsFellmark(roll, e);
@@ -8444,7 +8504,7 @@ window.onmessage=ev=>{
       window._cbCtlOverride={ cbAct:d.act||"", cbActSrc:d.src||"", cbFocus:d.target||"",
                               cbSkillSel:d.skill||"", cbItemSel:d.item||"",
                               cbStanceSel:d.stance||"", cbAfflictedSel:d.applies||"" };
-      if(typeof d.roll==="number"){ window._cbRoll=d.roll; window._cbRollDice=null; }
+      if(typeof d.roll==="number"){ window._cbRoll=d.roll; window._cbRollDice=null; window._cbRollNet=0; }
       if(typeof d.fellBonus==="number") window._fellBonus=d.fellBonus;
       try{ cbDeclare(); }
       catch(err){ return { ok:false, reason:"threw", detail:String(err&&err.message||err) }; }

@@ -116,8 +116,9 @@ rest — that's the whole value: a bug caught once can't come back unnoticed.
 - **Never let it edit `embeds/` directly** — that's a mirror of `docs/`. Edit
   `docs/`, mirror, run the canon gate.
 - **`scripts/`, `schemas/`, and `.github/workflows/apply.yml` are off-limits
-  without a heads-up** — pushing changes to those fires a live Wix data
-  migration. For test work you should never need to touch them.
+  without a heads-up.** A push to `schemas/seed/`, `scripts/applyD1.js` or
+  `apply.yml` runs Apply CMS, which writes the live database (D1).
+  For test work you should never need to touch them.
 
 ---
 

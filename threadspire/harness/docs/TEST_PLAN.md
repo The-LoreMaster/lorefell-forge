@@ -129,9 +129,9 @@ The FellGuide repo (`lorefell-fellguide`, the private Obsidian vault) is the
 source of intended behavior. Before writing assertions for a mechanic, read its
 rule and turn it into concrete expectations. Examples of what to pin:
 
-- **Act/React economy.** One Act and one React per Beat. Dig In trades the Act for
-  a second React. All In trades the React for a second Act. A scenario should try
-  to spend two Acts without All In and assert the table refuses it.
+- **Act/React economy.** One Act and one React per Beat, with no trade between
+  them (COMBAT_PLANNING_BRIEF D1: there is no Dig In or All In). A scenario should
+  try to spend a second Act and assert the table refuses it.
 - **Committing.** Whatever the rulebook says a commitment locks, assert it locks
   and cannot be taken back within the Beat.
 - **Aurum denominations.** Oro/Arca/Atla/Zurith and their weights (the sheet
@@ -163,7 +163,7 @@ been breaking; make it a permanent guard.)
 **S3 — a Beat of combat, both sides.**
 LM places a foe and starts combat. Player declares an Act. LM applies damage.
 Assert: the declare shows on the LM side, the damage shows on the player side,
-and the Act/React economy held (a second Act without All In is refused).
+and the Act/React economy held (a second Act is refused).
 
 **S4 — the LoreMaster edits a player's Fell.**
 LM opens a player's Fell (`TS_GOD_SHEET`), changes a field. Assert the change log

@@ -134,9 +134,9 @@ bridge).
 
 For each, read the FellGuide rule first, then assert the tool matches.
 
-**E1. Act/React economy.** One Act, one React per Beat. Dig In: Act traded for a
-second React. All In: React traded for a second Act. A second Act without All In
-must be refused.
+**E1. Act/React economy.** One Act, one React per Beat, no trade (Nate's ruling,
+COMBAT_PLANNING_BRIEF D1: there is no Dig In or All In). A second Act or a second
+React in the same Beat must be refused.
 
 **E2. Committing.** Whatever the rulebook says committing locks, it locks, and
 cannot be undone within the Beat.

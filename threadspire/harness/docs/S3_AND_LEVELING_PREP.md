@@ -61,9 +61,9 @@ vitality weights — pull the exact offsets from `FW_FOE_PACK.tiers` in
 `docs/fatewell.html` when writing the foe-damage assertion, so a dropped Elite's
 numbers can be checked against its rung.
 
-**Act/React economy** (the load-bearing rule): one Act + one React per Beat. Dig
-In trades the Act for a second React. All In trades the React for a second Act. A
-second Act without All In must be refused. This is the first assertion to write —
+**Act/React economy** (the load-bearing rule): one Act + one React per Beat, no
+trade between them (COMBAT_PLANNING_BRIEF D1: there is no Dig In or All In). A
+second Act must be refused. This is the first assertion to write —
 it's the rule players feel every turn.
 
 **For S3, verify each against the vault before asserting.** The tool gives you the
