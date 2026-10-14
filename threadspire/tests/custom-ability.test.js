@@ -173,6 +173,49 @@ function block(file){
     check('opened on its own, outside a page, it says the LoreForge answers on the live site', got && got.ok === false && /live site/.test(got.errors[0]), JSON.stringify(got));
   }
 
+  /* Spell skills (Nate, 2026-10-14: "whatever the FellGuide says"). The FellGuide, The Arsenal/
+     Weapons/Weapon Trees/Magic Weapons/Magic Weapons.md: "Foci weapons cast on Weaving, Artifact
+     weapons on Spirit, and Tome weapons on Creation", its table putting Wand, Rod, Staff under
+     Foci, Ring, Amulet, Orb under Artifact and Cards, Scroll, Grimoire under Tome. Every tool's
+     copy of that mapping is held to it. When the vault sits beside the forge, the line itself is
+     read, so a change there fails here until the tools follow. */
+  console.log('\nthe spell skill each magic tree casts on, as the FellGuide says');
+  const FG_LINE = 'Foci weapons cast on [[Weaving]], Artifact weapons on [[Spirit]], and Tome weapons on [[Creation]]';
+  const FG_TREES = { Foci:['Wand', 'Rod', 'Staff'], Artifact:['Ring', 'Amulet', 'Orb'], Tome:['Cards', 'Scroll', 'Grimoire'] };
+  const FG_SKILL = { Foci:'Weaving', Artifact:'Spirit', Tome:'Creation' };
+  const vaultPage = path.join(ROOT, '..', 'lorefell-fellguide', 'The FellGuide', 'The FellGuide', 'The Arsenal', 'Weapons', 'Weapon Trees', 'Magic Weapons', 'Magic Weapons.md');
+  if (fs.existsSync(vaultPage)){
+    const vp = fs.readFileSync(vaultPage, 'utf8');
+    check('the FellGuide line is still the one held here', vp.indexOf(FG_LINE) >= 0, 'Magic Weapons.md no longer says: ' + FG_LINE);
+    const rows = Object.keys(FG_TREES).every((t) => new RegExp('\\|\\s*\\[\\[' + t + ' Tree\\\\?\\|' + t + '\\]\\]\\s*\\|\\s*' + FG_TREES[t].map((f) => '\\[\\[' + f + '\\]\\]').join('\\s*\\|\\s*') + '\\s*\\|\\s*\\[\\[' + FG_SKILL[t] + '\\]\\]').test(vp));
+    check('and its table agrees (forms and Spell Skill per tree)', rows, 'the table in Magic Weapons.md changed');
+  } else console.log('  (the vault is not beside the forge; holding the tools to the line kept here)');
+  const skillOfForm = {};
+  Object.keys(FG_TREES).forEach((t) => FG_TREES[t].forEach((f) => { skillOfForm[f] = FG_SKILL[t]; }));
+  const wantPairs = JSON.stringify(Object.keys(skillOfForm).sort().map((f) => [f, skillOfForm[f]]));
+
+  /* FellGlass (and ThreadSpire, which loads it): SPELL_SKILL_BY_TREE on WEAPON_DB's magic trees */
+  const sheetPairs = JSON.stringify(Array.from(w.eval(`(function(){ var o = []; Object.keys(WEAPON_DB).forEach(function(t){ if (WEAPON_DB[t].category !== 'magic') return; WEAPON_DB[t].forms.forEach(function(f){ o.push([f, SPELL_SKILL_BY_TREE[t] || '']); }); }); return o.sort(function(a, b){ return a[0] < b[0] ? -1 : 1; }); })()`)).map((x) => Array.from(x)));
+  check('FellGlass: SPELL_SKILL_BY_TREE casts each magic form on its tree’s skill', sheetPairs === wantPairs, sheetPairs);
+
+  /* SigilForge: MAGIC_GROUPS, the circle colours and SCHOOL_GROUP */
+  for (const dir of ['docs', 'embeds']){
+    const sfs = fs.readFileSync(path.join(ROOT, dir, 'sigilforge.html'), 'utf8');
+    const grab = (name, open, close) => { const i = sfs.indexOf('const ' + name + ' = '); if (i < 0) return null; const j = sfs.indexOf(close, i); return Function('return ' + sfs.slice(i + ('const ' + name + ' = ').length, j + close.length - 1))(); };
+    const mg = grab('MAGIC_GROUPS', '[', '\n];');
+    const mgPairs = mg ? JSON.stringify([].concat(...mg.map((g) => g.items.map((f) => [f, g.school]))).sort((a, b) => a[0] < b[0] ? -1 : 1)) : 'missing';
+    check(dir + '/sigilforge.html: MAGIC_GROUPS casts each magic form on its tree’s skill', mgPairs === wantPairs, mgPairs);
+    const cc = grab('CIRCLE_COLORS', '{', '\n};');
+    const ccPairs = cc ? JSON.stringify([].concat(...Object.values(cc).filter((g) => g.school).map((g) => g.items.map((f) => [f, g.school]))).sort((a, b) => a[0] < b[0] ? -1 : 1)) : 'missing';
+    check(dir + '/sigilforge.html: the circle colours carry the same schools', ccPairs === wantPairs, ccPairs);
+    const sgm = sfs.match(/const SCHOOL_GROUP = (\{[^}]*\});/);
+    const sg = sgm ? Function('return ' + sgm[1])() : null;
+    check(dir + '/sigilforge.html: SCHOOL_GROUP sends each school to its tree’s group', !!sg && cc && Object.keys(sg).every((sch) => cc[sg[sch]] && cc[sg[sch]].school === sch) && Object.keys(sg).length === 3, JSON.stringify(sg));
+  }
+  check('docs and embeds of the SigilForge are byte-identical', fs.readFileSync(path.join(ROOT, 'docs', 'sigilforge.html'), 'utf8') === fs.readFileSync(path.join(ROOT, 'embeds', 'sigilforge.html'), 'utf8'), 'differ');
+  check('ThreadSpire keeps no mapping of its own (it reads the sheet’s castSkill)', !/SPELL_SKILL_BY_TREE\s*=|MAGIC_GROUPS\s*=|SCHOOL_GROUP\s*=/.test(fs.readFileSync(path.join(ROOT, 'docs', 'threadspire.html'), 'utf8')), 'a copy appeared in threadspire.html; hold it to the FellGuide here');
+  check('a Magic build from the sheet submits its tree’s school (Artifact on Spirit)', w.eval(`(function(){ var t = Object.keys(WEAPON_DB).filter(function(k){ return WEAPON_DB[k].forms[0] === 'Ring'; })[0]; return cabPayload({ tree:t, formIdx:0 }, { tier:1, family:'Magic', damage:'Standard Damage', targeting:'One Target', effects:['Advanced'], name:'A', line:'b' }).forge.meta.school; })()`) === 'Spirit', 'not Spirit');
+
   console.log('\n' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });
