@@ -4714,8 +4714,24 @@ function luckDice(lucky,unlucky,first){
   var note=net?(luckLabel(net)+": "+dice.join(" | ")):((L&&U)?("Lucky and Unlucky cancel: "+n):"");
   return { n:n, dice:dice, net:net, note:note };
 }
-/* Roll a d6, Lucky if a granted Lucky Roll waits: returns [kept, note]. */
-function tsLuckyD6(n){ if(!tsLuckyTake()) return [n,""]; var r=luckDice(1,0,n); return [r.n,"Lucky Roll (granted) "+r.dice.join(" | ")]; }
+/* Roll a d6 for the table's quick rolls, counting every Luck source on it (Luck stacks):
+   the Motivation's Lucky Rolls (o.mot), Afterimage (o.afterimage), a granted Lucky Roll,
+   the Lucky Effect and the Unlucky Affliction. Returns [kept, note]. */
+function tsLuckyD6(n,o){
+  o=o||{}; var srcs=[], L=0, U=0;
+  if(o.mot){ L++; srcs.push("Motivation"); }
+  if(o.afterimage){ L++; srcs.push("Afterimage"); }
+  if(tsLuckyTake()){ L++; srcs.push("granted"); }
+  var eff=false, aff=false; try{ eff=cbHasAff("Lucky")||cbHasEff("Lucky"); aff=cbHasAff("Unlucky")||cbHasEff("Unlucky"); }catch(e){}
+  if(eff){ L++; srcs.push("Lucky Effect"); }
+  if(aff){ U++; srcs.push("Unlucky"); }
+  if(!srcs.length) return [n,""];
+  var r=luckDice(L,U,n), ds=r.dice.join(" | "), names=srcs.length>1?(srcs.slice(0,-1).join(", ")+" and "+srcs[srcs.length-1]):srcs[0], note;
+  if(srcs.length===1) note=srcs[0]==="granted"?("Lucky Roll (granted) "+ds):(srcs[0]==="Motivation"?("Lucky "+ds):(srcs[0]==="Unlucky"?("Unlucky "+ds):("Lucky ("+srcs[0]+") "+ds)));
+  else if(!r.net) note="Lucky and Unlucky cancel ("+names+"): "+r.n;
+  else note=luckLabel(r.net)+" ("+names+") "+ds;
+  return [r.n,note];
+}
 function tableRoll(rollType,n,mods,total,note){
   if(n===6) tmNote();
   try{ window.parent.postMessage({type:"ts-sheet-roll",rollType:rollType,n:n,mods:mods,total:total,note:note||""},"*"); }catch(e){}
@@ -4724,10 +4740,9 @@ function skillBonusOf(name){ const s=C.skills[name]; if(s) return s.rank+s.maste
 function quickSkillRoll(name){
   const b=skillBonusOf(name);
   let n=1+Math.floor(Math.random()*6), note="";
-  /* Luck stacks: the Motivation's Lucky Rolls and a granted Lucky Roll are a die each */
-  const mot=skillIsLucky(name)?1:0, grant=tsLuckyTake()?1:0;
-  if(mot||grant){ const r=luckDice(mot+grant,0,n), ds=r.dice.join(" | "); n=r.n;
-    note=(mot&&grant)?("Lucky x2 (Motivation and granted) "+ds):(mot?("Lucky "+ds):("Lucky Roll (granted) "+ds)); }
+  /* Luck stacks: the Motivation's Lucky Rolls, a granted Lucky Roll, the Lucky Effect and
+     the Unlucky Affliction are a die each */
+  const lk=tsLuckyD6(n,{ mot:skillIsLucky(name) }); n=lk[0]; note=lk[1];
   tableRoll("skill",n,[{label:name,value:b}],n+b,note);
   /* FellGuide: a Fellmark on a skill check raises that skill by 1. Automatic, or asked first,
      as the player chooses at the table. */
@@ -4753,7 +4768,9 @@ function quickAttackRoll(i){
 window.addEventListener("message",ev=>{
   const d=ev.data; if(!d||d.type!=="ts-quick-roll") return;
   if(d.kind==="evade"){
-    const _lke=tsLuckyD6(1+Math.floor(Math.random()*6)), n=_lke[0], ev2=attrTotal("evasion");
+    /* Afterimage: the first Evasion roll each round is Lucky, the same round as cbRollEva */
+    const _rnd=(COMBAT&&COMBAT.round)||0, _ai=cbHasAug("Afterimage")&&window._afterRound!==_rnd; if(_ai) window._afterRound=_rnd;
+    const _lke=tsLuckyD6(1+Math.floor(Math.random()*6),{ afterimage:_ai }), n=_lke[0], ev2=attrTotal("evasion");
     tableRoll("evade",n,[{label:"Evasion",value:ev2}],n+ev2,_lke[1]); return;
   }
   if(d.kind==="skill"){
@@ -6177,6 +6194,8 @@ function cbRollEva(foeKey, acc, ev){
     cbPing(ai, true); cbLogSelf("fell", meName()+": "+ai);
   }
   var _ld=luckDice(cnt.lucky,cnt.unlucky); dice=_ld.dice; r=_ld.n; lk=luckLabel(_ld.net);
+  /* a granted Lucky Roll it counted is spent by this roll */
+  if(cnt.granted && window._tsLuckyAt) window._tsLuckyUsed=window._tsLuckyAt;
   var total=r+ev;
   window._evaRolls=window._evaRolls||{}; window._evaRolls[foeKey]={r:r,total:total,dice:dice,lk:lk};
   var node=document.getElementById("evres-"+foeKey);
@@ -7709,21 +7728,27 @@ function cbInitFellBonus(){
 }
 function cbd6(){ return 1+Math.floor(Math.random()*6); }
 /* The Lucky and Unlucky sources on this Fell's next roll in a fight, counted (Luck stacks):
-   the board's mark (a granted Lucky Roll), the Lucky Effect, the Unlucky Affliction. */
-function cbMyLuckCount(){
-  var c={ lucky:0, unlucky:0, granted:false };
+   the board's mark (a granted Lucky Roll), the Lucky Effect, the Unlucky Affliction, and,
+   for the card's own roll (forRoll), the Motivation's Lucky Rolls when a skill is chosen. */
+function cbSkillLucky(){
+  try{ var selA=document.getElementById("cbAct"), eA=selA?cbActEntry(selA.value):null; if(!(eA&&eA.src==="skills")) return false;
+    var ks=document.getElementById("cbSkillSel"), kn=ks?ks.value:""; return !!(kn&&C.skills&&C.skills[kn]&&skillIsLucky(kn)); }catch(e){ return false; }
+}
+function cbMyLuckCount(forRoll){
+  var c={ lucky:0, unlucky:0, granted:false, mot:false };
   if(!(COMBAT&&COMBAT.active&&CUR_WIX_ID)) return c;
   var mark=""; var f=((COMBAT.fighters)||[]).filter(function(x){return x.charId===CUR_WIX_ID;})[0]; if(f) mark=f.luck||"";
   /* a granted Lucky Roll is spent by one roll, even before the board hears of it */
   if(mark==="lucky" && window._tsLuckyAt && window._tsLuckyUsed===window._tsLuckyAt) mark="";
   if(mark==="lucky"){ c.lucky++; c.granted=true; } else if(mark==="unlucky") c.unlucky++;
   try{ if(cbHasAff("Lucky")||cbHasEff("Lucky"))c.lucky++; if(cbHasAff("Unlucky")||cbHasEff("Unlucky"))c.unlucky++; }catch(e){}
+  if(forRoll && cbSkillLucky()){ c.lucky++; c.mot=true; }
   return c;
 }
-function cbMyLuckNet(){ var c=cbMyLuckCount(); return c.lucky-c.unlucky; }
+function cbMyLuckNet(){ var c=cbMyLuckCount(true); return c.lucky-c.unlucky; }
 function cbMyLuck(){ var n=cbMyLuckNet(); return n>0?"lucky":(n<0?"unlucky":""); }
 function cbLuckRollD6(){
-  var c=cbMyLuckCount(), r=luckDice(c.lucky,c.unlucky);
+  var c=cbMyLuckCount(true), r=luckDice(c.lucky,c.unlucky);
   if(c.granted && window._tsLuckyAt) window._tsLuckyUsed=window._tsLuckyAt;
   window._cbRollDice=r.dice.length>1?r.dice:null; window._cbRollNet=r.net;
   return r.n;
