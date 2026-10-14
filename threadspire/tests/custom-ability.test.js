@@ -82,6 +82,7 @@ function block(file){
     const set = (key, v) => js(`(function(){ var e = document.querySelector('#fgtBody [data-cab="${key}"]'); if (e.type === 'checkbox') { e.checked = ${JSON.stringify(!!v)}; e.dispatchEvent(new Event('change')); return; } e.value = ${JSON.stringify(v)}; e.dispatchEvent(new Event(e.tagName === 'SELECT' ? 'change' : 'input')); })()`);
     const saveDisabled = () => js(`document.querySelector('#fgtBody [data-cab="save"]').disabled`);
     const errs = () => js(`document.querySelector('#fgtBody .cab-errs').textContent`);
+    check('a physical weapon’s builder offers no No Damage and no support effect', js(`[...document.querySelectorAll('#fgtBody [data-cab="damage"] option')].every(function(o){ return o.value !== 'No Damage'; }) && [...document.querySelectorAll('#fgtBody [data-cab="effect"] option')].slice(1).every(function(o){ var c = cabComp(o.value); return c && c.type !== 'support'; })`) === true, 'offered');
     check('the Affliction list holds only the weapon’s family', js(`[...document.querySelectorAll('#fgtBody [data-cab="aff"] option')].slice(1).every(function(o){ var c = cabComp(o.value); return c && c.family === 'Precision'; })`) === true, 'other family offered');
     set('name', 'Quickstep Cut'); set('line', 'The blade is gone before the eye can follow.');
     check('no effect chosen: it cannot be saved', saveDisabled() === true && /Choose one effect/.test(errs()), errs());
@@ -121,9 +122,19 @@ function block(file){
   check('neither effect: refused', /Choose one effect/.test(ck({ tier:1, family:'Power', damage:'Standard Damage', targeting:'One Target', effects:[] })), 'allowed');
   check('both effects: refused', /never both/.test(ck({ tier:3, family:'Power', damage:'Standard Damage', targeting:'One Target', effects:['Crushed', 'Vitiated*'] })), 'allowed');
   check('the family gate: a Magic Affliction on a Power weapon is refused', /is a Magic Affliction, and this weapon is Power/.test(ck({ tier:2, family:'Power', damage:'Standard Damage', targeting:'One Target', effects:['Jinxed*'] })), 'allowed');
-  check('the wound gate: No Damage with a Power Affliction is refused', /needs a wound/.test(ck({ tier:2, family:'Power', damage:'No Damage', targeting:'One Target', effects:['Bruised*'] })), 'allowed');
-  check('a Magic build may afflict with No Damage', ck({ tier:2, family:'Magic', damage:'No Damage', targeting:'One Target', effects:['Jinxed*'] }) === '', ck({ tier:2, family:'Magic', damage:'No Damage', targeting:'One Target', effects:['Jinxed*'] }));
-  check('an attack effect needs damage', /only works on an attack/.test(ck({ tier:1, family:'Power', damage:'No Damage', targeting:'One Target', effects:['Bonus Damage'] })), 'allowed');
+  /* No Damage is for spells only (Nate, 2026-10-14: "SigilForge is correct here. Only spells
+     should have no damage."), the SigilForge's legalDamage */
+  check('No Damage on a physical ability cannot be saved (Power, with a Power Affliction)', /No Damage is for spells only/.test(ck({ tier:2, family:'Power', damage:'No Damage', targeting:'One Target', effects:['Bruised*'] })), 'allowed');
+  check('No Damage on a physical ability cannot be saved (Precision, with a support effect)', /No Damage is for spells only/.test(ck({ tier:1, family:'Precision', damage:'No Damage', targeting:'One Target', effects:['Repositioned'] })), 'allowed');
+  check('No Damage on a spell can be saved (with a support effect)', ck({ tier:1, family:'Magic', damage:'No Damage', targeting:'One Target', effects:['Repositioned'] }) === '', ck({ tier:1, family:'Magic', damage:'No Damage', targeting:'One Target', effects:['Repositioned'] }));
+  check('a No Damage spell may afflict, without a wound', ck({ tier:2, family:'Magic', damage:'No Damage', targeting:'One Target', effects:['Jinxed*'] }) === '', ck({ tier:2, family:'Magic', damage:'No Damage', targeting:'One Target', effects:['Jinxed*'] }));
+  check('a support effect on a physical attack is refused', /only works on a No Damage spell/.test(ck({ tier:1, family:'Power', damage:'Standard Damage', targeting:'One Target', effects:['Repositioned'] })), 'allowed');
+  check('an attack effect needs damage', /only works on an attack/.test(ck({ tier:1, family:'Magic', damage:'No Damage', targeting:'One Target', effects:['Bonus Damage'] })), 'allowed');
+  {
+    const sfs = fs.readFileSync(path.join(ROOT, 'docs', 'sigilforge.html'), 'utf8');
+    check('the SigilForge agrees: legalDamage keeps an Ability to damage-dealing packages', /function legalDamage\(\)\{\s*if\(state\.type === "Ability"\)\s*return PRIMARY_DAMAGE\.filter\(n => byName\[n\] && byName\[n\]\.attack\)/.test(sfs), 'legalDamage changed');
+    check('and its words say No Damage spell, never No Damage ability', !/No Damage abilit/i.test(sfs) && /No Damage spell/.test(sfs), 'wording');
+  }
   check('Tier 2 ceiling is 4: Double Standard and Pushed (3 + 2 = 5) is refused', /costs 5, over the Tier 2 budget of 3 to 4/.test(ck({ tier:2, family:'Precision', damage:'Double Standard', targeting:'One Target', effects:['Pushed'] })), 'allowed');
   check('Double Standard and Advanced (3 + 1 = 4) fits Tier 2', ck({ tier:2, family:'Precision', damage:'Double Standard', targeting:'One Target', effects:['Advanced'] }) === '', 'refused');
   check('Tier 3 has no ceiling: All Targets and a Major Affliction (4 + 5) is legal', ck({ tier:3, family:'Precision', damage:'Standard Damage', targeting:'All Targets', effects:['Lacerated*'] }) === '', ck({ tier:3, family:'Precision', damage:'Standard Damage', targeting:'All Targets', effects:['Lacerated*'] }));

@@ -4813,8 +4813,8 @@ var SIGIL_TIER_BUDGETS = {1:[1,2], 2:[3,4], 3:[5,99]};
    custom-ability.test.js fails if the copy drifts). The rules are Ability Components:
    exactly three inlays (one targeting, one damage package, one effect, the effect one Combat
    Effect or one Affliction, never both and never neither), the tier ceiling is hard and
-   spending under the floor is legal and weaker, an Affliction needs a wound unless the
-   build is Magic, and the weapon fixes the family. The slot sets the tier, and a weapon
+   spending under the floor is legal and weaker, No Damage is for spells only (the
+   SigilForge's legalDamage), and the weapon fixes the family. The slot sets the tier, and a weapon
    forges its Form's tier and above. Approval is at the table, so once saved it fills the
    slot and works like any set ability. */
 function cabFamily(w){ const c=w&&w.tree&&WEAPON_DB[w.tree]?WEAPON_DB[w.tree].category:""; return c==="precision"?"Precision":(c==="power"?"Power":"Magic"); }
@@ -4833,13 +4833,17 @@ function cabCheck(bd){
   const fx=(bd.effects||[]).filter(Boolean).map(cabComp);
   if(fx.length>1) errs.push("One effect only: a Combat Effect or an Affliction, never both.");
   else if(!fx.length||!fx[0]) errs.push("Choose one effect: a Combat Effect or an Affliction.");
+  /* No Damage is for spells only (Nate, 2026-10-14: "SigilForge is correct here. Only spells
+     should have no damage."), as the SigilForge's legalDamage offers it: an ability on a
+     physical weapon must deal damage, and so a support effect is a spell's alone. A No Damage
+     spell may still afflict, since Magic needs no wound. */
+  if(dmg&&!dmg.attack&&bd.family!=="Magic") errs.push("No Damage is for spells only. Choose a damage package that deals damage.");
   const e=fx.length===1?fx[0]:null, attack=!!(dmg&&dmg.attack);
   if(e&&cabIsAff(e)){
     if(e.family&&e.family!==bd.family) errs.push(cabPlain(e.component)+" is a "+e.family+" Affliction, and this weapon is "+bd.family+".");
-    if(dmg&&!attack&&bd.family!=="Magic") errs.push(cabPlain(e.component)+" needs a wound. A No Damage build carries an Affliction only when it is Magic.");
   } else if(e&&e.category==="Effect"){
     if(e.type==="attack"&&!attack) errs.push(e.component+" only works on an attack. Choose a damage package that deals damage.");
-    if(e.type==="support"&&attack) errs.push(e.component+" only works on a No Damage build.");
+    if(e.type==="support"&&attack) errs.push(e.component+" only works on a No Damage spell.");
   } else if(e) errs.push("Choose one effect: a Combat Effect or an Affliction.");
   const band=cabBand(bd.tier), total=cabCost(bd);
   if(total>band[1]) errs.push("This build costs "+total+", over the Tier "+bd.tier+" budget of "+cabBandText(band)+". Spend less.");
@@ -4908,8 +4912,8 @@ function cabOpen(w,i,onPick,back){
     s2.dataset.cab=key; s2.addEventListener("change",()=>{ st[key]=s2.value; paint(); }); l.appendChild(s2); return l; };
   const grid=el("div","cab-grid");
   grid.appendChild(sel("Targeting",SIGIL_COMPONENTS.filter(c=>c.category==="Targeting"),"targeting"));
-  grid.appendChild(sel("Damage",SIGIL_COMPONENTS.filter(c=>c.category==="Damage"),"damage"));
-  grid.appendChild(sel("Combat Effect",SIGIL_COMPONENTS.filter(c=>c.category==="Effect"),"effect","None"));
+  grid.appendChild(sel("Damage",SIGIL_COMPONENTS.filter(c=>c.category==="Damage"&&(c.attack||fam==="Magic")),"damage"));
+  grid.appendChild(sel("Combat Effect",SIGIL_COMPONENTS.filter(c=>c.category==="Effect"&&(c.type!=="support"||fam==="Magic")),"effect","None"));
   grid.appendChild(sel("Affliction ("+fam+")",SIGIL_COMPONENTS.filter(c=>cabIsAff(c)&&c.family===fam),"aff","None"));
   box.appendChild(grid);
   const bud=el("p","cab-budget"), sh=el("div","cab-short"), warn=el("p","cab-warn"), errs=el("ul","cab-errs");
