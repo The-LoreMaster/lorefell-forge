@@ -7,7 +7,7 @@
 //   VAULT_DIR=../lorefell-fellguide node scripts/canonFromVault.js
 //   node scripts/canonFromVault.js --vault /path/to/lorefell-fellguide
 //
-// Then: npm run apply   (pushes the seed to Wix)
+// Then: commit schemas/seed. apply.yml writes it to D1 on merge.
 
 const fs = require("fs");
 const path = require("path");
