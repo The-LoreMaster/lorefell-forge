@@ -3,6 +3,7 @@
    proves the one handler routes saves, opens Fells, and reaches host hooks the same
    way for both hosts.\n\n     node threadspire/tests/fg-bridge.test.mjs */
 import { handleSheetMessage } from '../../velo/public/fgSheetBridge.js';
+import { submitAbility } from '../../velo/public/abilitySubmit.js';
 import { fileURLToPath } from 'url';
 
 let pass=0, fail=0;
@@ -127,6 +128,51 @@ function ctx(over={}){
     const c=ctx();
     await handleSheetMessage({type:'clues-request',charId:'c1'},c);
     t('clues-request replies clues', c._sent.some(m=>m.type==='clues'), c._sent.map(m=>m.type).join(','));
+  }
+
+  // LOREFELL_ABILITY_SUBMIT from the sheet's "Make your own": the SigilForge page's own submit
+  {
+    const calls=[];
+    const sapi=mkApi();
+    sapi.submitAbility=submitAbility;
+    sapi.findSimilar=(k,p)=>{calls.push(['findSimilar',k,p]);return Promise.resolve([{title:'Near'}]);};
+    sapi.submitCreation=(k,p)=>{calls.push(['submitCreation',k,p]);return Promise.resolve({ok:true,errors:[],warnings:['w1']});};
+    sapi.uploadRune=()=>{calls.push(['uploadRune']);return Promise.resolve('u');};
+    const c=ctx({api:sapi});
+    await handleSheetMessage({type:'LOREFELL_ABILITY_SUBMIT',reqId:4,payload:{title:'Ember Lash',flavorText:'Sparks.',fullExplanation:'Attack.',cost:2,runePng:'',forge:{tier:1,form:1,mode:'weapon',kind:'character',selections:['Standard Damage','One Target','Advanced'],meta:{type:'Ability'}}}},c);
+    const sub=calls.find(x=>x[0]==='submitCreation');
+    t('ability submit calls submitCreation for the sigilforge, as the SigilForge page does', sub&&sub[1]==='sigilforge'&&sub[2].title==='Ember Lash'&&sub[2].authored===true&&sub[2].cost===2&&sub[2].selections.join()==='Standard Damage,One Target,Advanced'&&sub[2].fullText==='Attack.', JSON.stringify(sub));
+    t('no rune, no upload', !calls.some(x=>x[0]==='uploadRune'), JSON.stringify(calls.map(x=>x[0])));
+    const r=c._sent.find(m=>m.type==='LOREFELL_SUBMIT_RESULT');
+    t('it answers LOREFELL_SUBMIT_RESULT with the reqId, ok, warnings and similar', r&&r.reqId===4&&r.ok===true&&r.warnings[0]==='w1'&&r.similar[0].title==='Near', JSON.stringify(r));
+  }
+  {
+    const sapi=mkApi();
+    sapi.submitAbility=submitAbility;
+    sapi.findSimilar=()=>{throw new Error('down');};
+    sapi.submitCreation=()=>Promise.reject(new Error('down'));
+    sapi.uploadRune=()=>Promise.reject(new Error('down'));
+    const c=ctx({api:sapi});
+    await handleSheetMessage({type:'LOREFELL_ABILITY_SUBMIT',reqId:5,payload:{title:'X',runePng:'data:',forge:{}}},c);
+    const r=c._sent.find(m=>m.type==='LOREFELL_SUBMIT_RESULT');
+    t('a backend that throws answers ok:false with the SigilForge page\'s words', r&&r.ok===false&&r.errors[0]==='The forge could not reach the vault. Try again.'&&r.reqId===5, JSON.stringify(r));
+  }
+  {
+    const c=ctx();
+    await handleSheetMessage({type:'LOREFELL_ABILITY_SUBMIT',reqId:6,payload:{title:'X'}},c);
+    const r=c._sent.find(m=>m.type==='LOREFELL_SUBMIT_RESULT');
+    t('a host that has not wired the submit still answers, ok:false', r&&r.ok===false&&r.reqId===6&&r.errors.length===1, JSON.stringify(r));
+  }
+  // both hosts wire it: the sheet's own page and ThreadSpire
+  {
+    const fs=await import('fs');
+    const root=fileURLToPath(new URL('../../velo/', import.meta.url));
+    for (const pg of ['page-fellglass.js','page-threadspire.js']){
+      const src=fs.readFileSync(root+pg,'utf8');
+      t(pg+' hands the bridge the SigilForge submit and its web methods', /from 'public\/abilitySubmit\.js'/.test(src)&&/submitAbility, submitCreation, findSimilar, uploadRune/.test(src), 'not wired');
+    }
+    const sf=fs.readFileSync(root+'page-sigilforge.js','utf8');
+    t('page-sigilforge.js submits through the same shared function', /submitAbility\(raw, \{ submitCreation, findSimilar, uploadRune \}\)/.test(sf), 'not shared');
   }
 
   console.log('\n'+(fail?('FAILED '+fail+' of '+(pass+fail)):('all '+pass+' passed')));

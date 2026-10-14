@@ -35,6 +35,12 @@
 //   onFellforgeOpen(m)      (optional) handle the sheet asking to roll a Fell in FellForge
 //                           (the third creation path); m.campaignId may name an adventure
 //   onFeedback(payload)     (optional) handle a feedback submission
+//
+// The sheet's "Make your own" builder submits to the LoreForge with the SigilForge's own
+// message and payload (LOREFELL_ABILITY_SUBMIT). The host puts the shared submit
+// (public/abilitySubmit.js, the one the SigilForge page uses) on api.submitAbility, with the
+// web methods it calls: submitCreation and findSimilar (backend/forge.web.js) and uploadRune
+// (backend/loreforge.web.js). The answer is the SigilForge's, LOREFELL_SUBMIT_RESULT.
 
 export async function handleSheetMessage(m, ctx) {
   if (!m || typeof m !== 'object' || !m.type) return;
@@ -194,6 +200,18 @@ export async function handleSheetMessage(m, ctx) {
 
   } else if (m.type === 'fellforge-open') {
     if (ctx.onFellforgeOpen) ctx.onFellforgeOpen(m);
+
+  } else if (m.type === 'LOREFELL_ABILITY_SUBMIT') {
+    // A custom ability from the sheet, sent to the LoreForge the way the SigilForge sends one.
+    let r;
+    try {
+      r = api.submitAbility ? await api.submitAbility(m.payload || {}, api)
+        : { ok: false, errors: ['The LoreForge is not wired on this page.'], warnings: [], similar: [] };
+    } catch (e) {
+      r = { ok: false, errors: ['The forge could not reach the vault. Try again.'], warnings: [], similar: [] };
+    }
+    reply({ type: 'LOREFELL_SUBMIT_RESULT', reqId: m.reqId || 0, ok: !!(r && r.ok),
+      errors: (r && r.errors) || [], warnings: (r && r.warnings) || [], similar: (r && r.similar) || [] });
 
   } else if (m.type === 'LOREFELL_FEEDBACK_SUBMIT') {
     if (ctx.onFeedback) ctx.onFeedback(m.payload || {});

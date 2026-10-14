@@ -8,7 +8,7 @@ import { createInvite, revokeInvite, myJoinedAdventures, attachCharacter, listMy
 import { tableRoomTicket } from 'backend/tableroom.web.js';
 let _pubHanded = false;
 import { publishAdventure, unpublishAdventure, myPublishedAdventures, getPublishedPack, listPublishedAdventures } from 'backend/published.web.js';
-import { getFoePack, submitFoeToPentifax } from 'backend/forge.web.js';
+import { getFoePack, submitFoeToPentifax, submitCreation, findSimilar } from 'backend/forge.web.js';
 import { listQuests, listDiscovered, getWorldMeta, saveAsset, listAssets, getCampaignPlayers, getClueCards, upsertQuest, getShelves, saveShelves } from 'backend/fatewell.web.js';
 import { getCombatForChar, saveCombatDeclare, syncCombatPlayer, publishCombatState, applyCombatToChar, dealDamageToChar, setCombatCharge, getCombatDeclares } from 'backend/combat.web.js';
 import { getLibraries, myForgedWorlds, adventureForgedList, setAdventureForged } from 'backend/libraries.web.js';
@@ -22,6 +22,7 @@ import { loadAdventure, saveAdventureRoot, saveAdvAct, saveAdvSession, saveAdvSc
 import { myAdventureRole, deleteCampaign } from 'backend/fatewell.web.js';
 import { removeAdventure } from 'backend/adventures.web.js';
 import { handleSheetMessage } from 'public/fgSheetBridge.js';
+import { submitAbility } from 'public/abilitySubmit.js';
 import { getSession, setNextSession, setRemindersOff, sendRecap, sendTestEmail, skipSessionWeek, getCodex, addCodexEntry, removeCodexEntry, deleteRecap, addCodexItem, removeCodexItem } from 'backend/sessions.web.js';
 import wixLocation from 'wix-location';
 import wixWindow from 'wix-window';
@@ -177,7 +178,9 @@ $w.onReady(async function () {
   const fgApi = {
     listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter,
     leaveAdventure, getClueCards, listQuests, getCombatForChar, saveCombatDeclare,
-    syncCombatPlayer, getLibraries, lmSaveCharacter, consultArchive, betweenRestFor
+    syncCombatPlayer, getLibraries, lmSaveCharacter, consultArchive, betweenRestFor,
+    // the LoreForge submit from the sheet's "Make your own", the SigilForge page's own
+    submitAbility, submitCreation, findSimilar, uploadRune
   };
   async function fgBridge(m, reply) {
     await handleSheetMessage(m, {

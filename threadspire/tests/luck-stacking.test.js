@@ -11,6 +11,10 @@
  *     Motivation, the quick skill, attack and evade rolls count the Lucky Effect and the
  *     Unlucky Affliction, the quick evade counts Afterimage, Swift's second attack counts and
  *     spends a granted Lucky Roll, and the sheet's Evasion roll spends the grant it counts.
+ *   - Favored, the Lucky Aspects and their second dice (bl-0a14luckwire): a level 10 weapon's
+ *     rolls, Boon on any roll, Augury on an attack, Elude on an Evade, each "Add a second
+ *     Lucky die" upgrade one more, the React that sends an Aspect to an ally, ThreadSpire's
+ *     fighters row that hands it on, and one roll stacking three sources.
  *
  * Math.random is stubbed so every die is known.
  *
@@ -87,7 +91,7 @@ function helperCases(w, where){
   console.log('\nin a fight: the granted mark and the Lucky Effect');
   js(`CUR_WIX_ID = 'fell-1'; COMBAT = { active:true, round:1, fighters:[{ charId:'fell-1', luck:'lucky' }] };
       window._tsLuckyAt = 3000; window._tsLuckyUsed = 0; C.effects = [{ name:'Lucky' }]; C.afflictions = [];`);
-  check('two Lucky sources are counted', js('JSON.stringify(cbMyLuckCount())') === JSON.stringify({ lucky:2, unlucky:0, granted:true, mot:false }), js('JSON.stringify(cbMyLuckCount())'));
+  check('two Lucky sources are counted', js('JSON.stringify(cbMyLuckCount())') === JSON.stringify({ lucky:2, unlucky:0, granted:true, mot:false, favored:false, asp:[] }), js('JSON.stringify(cbMyLuckCount())'));
   check('the banner says Lucky x2', /Lucky roll x2/.test(js('cbLuckBanner()')), js('cbLuckBanner()'));
   dice(w, [3, 2, 6]);
   let v = js('cbLuckRollD6()');
@@ -183,6 +187,146 @@ function helperCases(w, where){
   check('cbRollEva: the granted Lucky Roll rolls 2, highest kept', er.r === 6 && er.dice.join() === '1,6' && er.lk === 'Lucky', JSON.stringify(er));
   check('cbRollEva: and the grant is spent', js('window._tsLuckyUsed') === 5000 && js('cbMyLuckCount().granted') === false, js('window._tsLuckyUsed'));
 
+  /* ---------- Favored, the Lucky Aspects and their second dice ---------- */
+  console.log('\nFavored: a level 10 weapon’s attacks, abilities and spells are Lucky');
+  js(`COMBAT = { active:true, round:8, fighters:[{ charId:'fell-1', luck:'' }, { charId:'fell-2', name:'Brin', luck:'' }] };
+      window._tsLuckyAt = 0; window._tsLuckyUsed = 0; C.effects = []; C.afflictions = []; C.armor.augs = []; window._aspSpent = {}; window._aspUse = null;
+      C.weapons = [{ tree:Object.keys(WEAPON_DB)[0], level:10, formIdx:0, equipped:true, abilities:[], infusions:[] }];`);
+  check('a level 10 weapon is Favored, a level 9 is not', js('weaponFavored(C.weapons[0])') === true && js(`weaponFavored({ tree:C.weapons[0].tree, level:9 })`) === false, 'wrong');
+  dice(w, [2, 5]);
+  js(`quickAttackRoll(0)`);
+  roll = lastRoll();
+  check('quick attack with a Favored weapon: two dice, highest kept', roll && roll.n === 5 && /Lucky \(Favored\) 2 \| 5/.test(roll.note), JSON.stringify(roll));
+  js(`window.__actEntry = cbActEntry; cbActEntry = function(nm){ return nm === 'Spell' ? { kind:'weapon', src:weaponName(C.weapons[0]), nm:'Spell' } : { kind:'standard', src:'charge' }; };
+      var _a = document.createElement('input'); _a.id = 'cbAct'; document.body.appendChild(_a); _a.value = 'Spell';`);
+  check('the card counts Favored on an ability made with that weapon', js('JSON.stringify(cbMyLuckCount(true))') === JSON.stringify({ lucky:1, unlucky:0, granted:false, mot:false, favored:true, asp:[] }), js('JSON.stringify(cbMyLuckCount(true))'));
+  dice(w, [1, 4]);
+  v = js('cbLuckRollD6()');
+  check('the card’s roll with a Favored weapon rolls 2, highest kept', v === 4 && js('JSON.stringify(window._cbRollDice)') === '[1,4]', v + ' ' + js('JSON.stringify(window._cbRollDice)'));
+  js(`document.getElementById('cbAct').value = 'Charge';`);
+  check('an Act made without the weapon is not Favored', js('cbMyLuckCount(true).lucky') === 0, js('JSON.stringify(cbMyLuckCount(true))'));
+  js(`C.afflictions = [{ name:'Unlucky' }]; document.getElementById('cbAct').value = 'Spell';`);
+  dice(w, [6, 2]);
+  v = js('cbLuckRollD6()');
+  check('Favored and the Unlucky Affliction cancel: one die', v === 6 && js('window._cbRollDice') === null, String(v));
+  js(`C.afflictions = []; C.weapons[0].level = 9;`);
+  dice(w, [2, 5]);
+  js(`quickAttackRoll(0)`);
+  roll = lastRoll();
+  check('a level 9 weapon rolls one die', roll && roll.n === 2 && !/Lucky/.test(roll.note), JSON.stringify(roll));
+
+  /* Favored's reach (Nate, 2026-10-14): "all attacks from that weapon only, including
+     abilities and spells." A second weapon in the other hand is not Favored. */
+  console.log('\nFavored reaches that weapon only');
+  js(`C.afflictions = []; window._aspSpent = {}; COMBAT.fighters[0].asp = [];
+      var _trees = Object.keys(WEAPON_DB).filter(function(t){ return WEAPON_DB[t].forms[0] !== WEAPON_DB[Object.keys(WEAPON_DB)[0]].forms[0]; });
+      C.weapons = [{ tree:Object.keys(WEAPON_DB)[0], level:10, formIdx:0, equipped:true, abilities:[], infusions:[] },
+                   { tree:_trees[0], level:5, formIdx:0, equipped:true, abilities:[], infusions:[] }];`);
+  check('two weapons in hand, different names, only the first Favored', js('weaponName(C.weapons[0]) !== weaponName(C.weapons[1]) && weaponFavored(C.weapons[0]) && !weaponFavored(C.weapons[1])') === true, 'setup');
+  dice(w, [2, 5]);
+  js(`quickAttackRoll(1)`);
+  roll = lastRoll();
+  check('quick attack with the other weapon: one die, no Favored', roll && roll.n === 2 && !/Favored|Lucky/.test(roll.note), JSON.stringify(roll));
+  dice(w, [2, 5]);
+  js(`quickAttackRoll(0)`);
+  roll = lastRoll();
+  check('while the level 10 weapon’s own attack is still Lucky (Favored)', roll && roll.n === 5 && /Lucky \(Favored\)/.test(roll.note), JSON.stringify(roll));
+  js(`cbActEntry = function(nm){ return nm === 'Spell' ? { kind:'weapon', src:weaponName(C.weapons[1]), nm:'Spell' } : (nm === 'Basic attack' ? { kind:'weapon', src:weaponName(C.weapons[1]), nm:'Basic attack' } : { kind:'standard', src:'charge' }); };
+      document.getElementById('cbAct').value = 'Spell';`);
+  check('the card: an ability or spell made with the other weapon is not Favored', js('JSON.stringify(cbMyLuckCount(true))') === JSON.stringify({ lucky:0, unlucky:0, granted:false, mot:false, favored:false, asp:[] }), js('JSON.stringify(cbMyLuckCount(true))'));
+  js(`document.getElementById('cbAct').value = 'Basic attack';`);
+  check('the card: the other weapon’s standard attack is not Favored', js('cbMyLuckCount(true).favored') === false && js('cbMyLuckCount(true).lucky') === 0, js('JSON.stringify(cbMyLuckCount(true))'));
+  js(`cbActEntry = function(nm){ return { kind:'weapon', src:weaponName(C.weapons[0]), nm:nm }; };`);
+  check('the card: the level 10 weapon’s standard attack is', js('cbMyLuckCount(true).favored') === true, js('JSON.stringify(cbMyLuckCount(true))'));
+  js(`C.weapons[1] = { tree:C.weapons[0].tree, level:3, formIdx:0, equipped:true, abilities:[], infusions:[] }; C.weapons[0].equipped = false;
+      cbActEntry = function(nm){ return { kind:'weapon', src:weaponName(C.weapons[1]), nm:nm }; };`);
+  check('a level 10 weapon left in the pack does not lend Favored to a lesser one of its name in hand', js('cbMyLuckCount(true).favored') === false, js('JSON.stringify(cbMyLuckCount(true))'));
+  /* back as the sections below expect it: one level 9 weapon, the card on its Spell */
+  js(`C.weapons = [{ tree:Object.keys(WEAPON_DB)[0], level:9, formIdx:0, equipped:true, abilities:[], infusions:[] }];
+      cbActEntry = function(nm){ return nm === 'Spell' ? { kind:'weapon', src:weaponName(C.weapons[0]), nm:'Spell' } : { kind:'standard', src:'charge' }; };
+      document.getElementById('cbAct').value = 'Spell';`);
+
+  console.log('\nthe Lucky Aspects on this Fell’s row: Boon, Augury, Elude');
+  const giveAsp = (list) => js(`COMBAT.fighters[0].asp = ${JSON.stringify(list)}; window._aspSpent = {};`);
+  giveAsp([{ id:'fell-2:8:Boon', nm:'Boon', on:'any', dice:1, to:'fell-1', round:8 }]);
+  dice(w, [1, 3]);
+  js(`quickSkillRoll('Logic')`);
+  roll = lastRoll();
+  check('Boon makes a skill roll Lucky: two dice, highest kept', roll && roll.n === 3 && roll.note === 'Lucky (Boon) 1 | 3', JSON.stringify(roll));
+  check('Boon is spent by that roll', js(`!!window._aspSpent['fell-2:8:Boon']`) === true && js(`cbAspLuckFor('skill').length`) === 0, js('JSON.stringify(window._aspSpent)'));
+  check('the spent Aspect rides to the table in the gear', js(`cbGearSnap().aspSpent.indexOf('fell-2:8:Boon') >= 0`) === true, js('JSON.stringify(cbGearSnap().aspSpent)'));
+  giveAsp([{ id:'fell-2:8:Augury', nm:'Augury', on:'attack', dice:1, to:'fell-1', round:8 }]);
+  check('Augury does not touch an Evade or a skill roll', js(`cbAspLuckFor('evade').length`) === 0 && js(`cbAspLuckFor('skill').length`) === 0, 'counted');
+  dice(w, [2, 6]);
+  js(`quickAttackRoll(0)`);
+  roll = lastRoll();
+  check('Augury makes the attack Lucky: two dice, highest kept', roll && roll.n === 6 && /Lucky \(Augury\) 2 \| 6/.test(roll.note), JSON.stringify(roll));
+  giveAsp([{ id:'fell-2:8:Augury', nm:'Augury', on:'attack', dice:1, to:'fell-1', round:7 }]);
+  check('an Aspect from another round does not count', js(`cbAspLuckFor('attack').length`) === 0, 'counted');
+  giveAsp([{ id:'fell-2:8:Elude', nm:'Elude', on:'evade', dice:1, to:'fell-1', round:8 }]);
+  check('Elude does not touch an attack', js(`cbAspLuckFor('attack').length`) === 0, 'counted');
+  dice(w, [3, 5]);
+  js(`window._evaRolls = {}; cbRollEva('foe-3', 4, 2)`);
+  let er2 = JSON.parse(js(`JSON.stringify(window._evaRolls['foe-3'])`));
+  check('Elude makes the Evasion roll Lucky: two dice, highest kept', er2.r === 5 && er2.dice.join() === '3,5' && er2.lk === 'Lucky', JSON.stringify(er2));
+  check('Elude is spent by that roll', js(`!!window._aspSpent['fell-2:8:Elude']`) === true, js('JSON.stringify(window._aspSpent)'));
+  giveAsp([{ id:'fell-2:8:Elude', nm:'Elude', on:'evade', dice:2, to:'fell-1', round:8 }]);
+  dice(w, [1, 2, 4]);
+  evade();
+  roll = lastRoll();
+  check('Elude with its second Lucky die: three dice, highest kept', roll && roll.n === 4 && roll.note === 'Lucky x2 (Elude and Elude’s second die) 1 | 2 | 4', JSON.stringify(roll));
+  giveAsp([{ id:'fell-2:8:Boon', nm:'Boon', on:'any', dice:2, to:'fell-1', round:8 }]);
+  check('the banner counts Boon with its second die', /Lucky roll x2/.test(js('cbLuckBanner()')), js('cbLuckBanner()'));
+
+  console.log('\nthe "Add a second Lucky die" upgrades, at the charge that reaches them');
+  const lbDice = (lb, charge) => js(`(function(){ C.charge = ${charge}; return aspectLuckDice(${JSON.stringify(lb)}); })()`);
+  const pick = (type, part) => js(`aspectOf(${JSON.stringify(type)})[${JSON.stringify(part)}].findIndex(function(t){ return /^Add a second Lucky die/.test(t); })`);
+  const boonB = pick('The Drakelith', 'branch'), augC = pick('The Aerostrix', 'crown'), eluC = pick('The Slipfang', 'crown');
+  check('the second die is Boon’s Branch and the Crown of Augury and Elude', boonB >= 0 && augC >= 0 && eluC >= 0, [boonB, augC, eluC].join());
+  check('Boon at Familiar form is one die', lbDice({ type:'The Drakelith', level:2 }, 1) === 1, 'wrong');
+  check('Boon with no charge resolves nothing', lbDice({ type:'The Drakelith', level:2 }, 0) === 0, 'wrong');
+  check('Boon’s Branch second die at Charge 2: two dice', lbDice({ type:'The Drakelith', level:4, branchPick:boonB }, 2) === 2, 'wrong');
+  check('Boon’s Branch second die at Charge 1: the Initial only', lbDice({ type:'The Drakelith', level:4, branchPick:boonB }, 1) === 1, 'wrong');
+  check('Boon’s other Branch adds no die', lbDice({ type:'The Drakelith', level:4, branchPick:1 - boonB }, 3) === 1, 'wrong');
+  check('Augury’s Crown second die at Charge 3: two dice', lbDice({ type:'The Aerostrix', level:7, branchPick:0, crownPick:augC }, 3) === 2, 'wrong');
+  check('Augury’s Crown second die at Charge 2: one die', lbDice({ type:'The Aerostrix', level:7, branchPick:0, crownPick:augC }, 2) === 1, 'wrong');
+  check('Elude’s Crown at the Everpresent Bond, no charge: two dice', lbDice({ type:'The Slipfang', level:10, branchPick:0, crownPick:eluC }, 0) === 2, 'wrong');
+  check('an Aspect that is not Lucky adds nothing', lbDice({ type:'The Boreal', level:10 }, 3) === 0, 'wrong');
+
+  console.log('\nthe React that sends an Aspect');
+  js(`C.lorebounds = [{ type:'The Drakelith', level:4, branchPick:${boonB} }]; C.charge = 2;
+      window.__post = []; postToVelo = function(m){ window.__post.push(m); }; applyCombatMode = function(){};
+      var _r = document.createElement('select'); _r.id = 'cbReact'; _r.innerHTML = '<option value="Boon">Boon</option>'; document.body.appendChild(_r);
+      var _t = document.createElement('select'); _t.id = 'cbAspTarget'; _t.innerHTML = '<option value="Brin">Brin</option><option value="__self__">Yourself</option>'; document.body.appendChild(_t);
+      window._declPayload = { type:'combat-declare', charId:'fell-1' }; COMBAT.fighters[0].asp = []; window._aspSpent = {};`);
+  js(`sendReact()`);
+  const use = JSON.parse(js('JSON.stringify(window._aspUse)'));
+  check('Boon on an ally: the use names the ally, two dice with the Branch', use && use.to === 'fell-2' && use.nm === 'Boon' && use.on === 'any' && use.dice === 2 && use.round === 8, JSON.stringify(use));
+  check('the use rides in the gear to the table', js('JSON.stringify(cbGearSnap().asp)') === JSON.stringify(use), js('JSON.stringify(cbGearSnap().asp)'));
+  check('an ally’s Aspect does not make this Fell’s own roll Lucky', js(`cbAspLuckFor('skill').length`) === 0, 'counted');
+  js(`C.lorebounds = [{ type:'The Aerostrix', level:7, branchPick:0, crownPick:${augC} }]; C.charge = 3;
+      document.getElementById('cbReact').innerHTML = '<option value="Augury">Augury</option>'; document.getElementById('cbAspTarget').value = '__self__';
+      window._declPayload = { type:'combat-declare', charId:'fell-1' };`);
+  js(`sendReact()`);
+  check('Augury on itself at Corsair form counts on its own attack, two dice', js(`JSON.stringify(cbAspLuckFor('attack').map(function(a){ return [a.nm, a.dice]; }))`) === '[["Augury",2]]', js(`JSON.stringify(window._aspUse)`));
+  js(`window._aspUse = null; C.lorebounds = []; ['cbReact','cbAspTarget'].forEach(function(id){ document.getElementById(id).remove(); });`);
+
+  console.log('\none roll stacking three sources: Favored, Augury and Boon');
+  js(`C.weapons[0].level = 10; C.effects = []; C.afflictions = [];`);
+  giveAsp([{ id:'fell-2:8:Augury', nm:'Augury', on:'attack', dice:1, to:'fell-1', round:8 }, { id:'fell-3:8:Boon', nm:'Boon', on:'any', dice:1, to:'fell-1', round:8 }]);
+  check('the card counts three Lucky sources', js('cbMyLuckCount(true).lucky') === 3, js('JSON.stringify(cbMyLuckCount(true))'));
+  dice(w, [2, 1, 5, 3]);
+  js(`quickAttackRoll(0)`);
+  roll = lastRoll();
+  check('quick attack: four dice, highest kept', roll && roll.n === 5 && /Lucky x3 \(Favored, Augury and Boon\) 2 \| 1 \| 5 \| 3/.test(roll.note), JSON.stringify(roll));
+  check('both Aspects are spent', js(`cbAspLuckFor('attack').length`) === 0, 'still there');
+  giveAsp([{ id:'fell-2:9:Augury', nm:'Augury', on:'attack', dice:1, to:'fell-1', round:8 }, { id:'fell-3:9:Boon', nm:'Boon', on:'any', dice:1, to:'fell-1', round:8 }]);
+  js(`C.afflictions = [{ name:'Unlucky' }];`);
+  dice(w, [4, 2, 6]);
+  v = js('cbLuckRollD6()');
+  check('the card: three Lucky and the Unlucky Affliction are Lucky x2, three dice', v === 6 && js('JSON.stringify(window._cbRollDice)') === '[4,2,6]' && js('window._cbRollNet') === 2, v + ' ' + js('JSON.stringify(window._cbRollDice)'));
+  js(`C.afflictions = []; cbActEntry = window.__actEntry; document.getElementById('cbAct').remove();`);
+
   /* ---------- ThreadSpire's own table ---------- */
   const t = await boot('threadspire.html', 'https://example.test/threadspire.html');
   helperCases(t, 'ThreadSpire');
@@ -215,6 +359,39 @@ function helperCases(w, where){
   tj(`kitSwift('ch-1')`);
   const sw2 = tj(`(S.log[S.log.length - 1] || {}).html || ''`);
   check('a grant and Unlucky cancel: one die', /rolls 2 \(a granted Lucky Roll and Unlucky cancel: one die\)/.test(sw2), sw2);
+
+  console.log('\nThreadSpire hands an Aspect on, and counts it on its own rolls');
+  tj(`S.round = 2; S.scene.lucky1 = {}; S.scene.aspSpent = {}; S.scene.afterimg = {}; S.log = [];
+      kitHasAug = function(){ return false; };
+      S.declares = [{ charId:'ch-2', act:'x', round:2, gear:{ asp:{ id:'ch-2:2:Elude', nm:'Elude', on:'evade', dice:2, to:'ch-1', round:2 } } },
+                    { charId:'ch-1', act:'y', round:2, gear:{ aspSpent:[] } }];
+      S.party = []; partyLoad = function(){};
+      declareFor = function(cid){ var h = null; (S.declares || []).forEach(function(x){ if (x.charId === cid) h = x; }); return h || { act:'x' }; };`);
+  const row = JSON.parse(tj(`JSON.stringify(combatFighters().filter(function(f){ return f.charId === 'ch-1'; })[0])`));
+  check('the fighters row carries the Aspect to the Fell it was used on', row && row.asp && row.asp.length === 1 && row.asp[0].nm === 'Elude' && row.asp[0].dice === 2, JSON.stringify(row));
+  check('Elude is not handed on to an attack', tj(`tsAspFor('ch-1', 'attack').length`) === 0, 'counted');
+  dice(t, [1, 2, 4]);
+  tj(`tsRollEva('p1', 'foe-1')`);
+  const ev2 = JSON.parse(tj(`JSON.stringify(S.scene.eva[tsEvaKey('p1', 'foe-1')])`));
+  const line2 = tj(`(S.log[S.log.length - 1] || {}).html || ''`);
+  check('Elude and its second die on the table’s Evasion roll: three dice, highest kept', ev2.r === 4 && /Elude and Elude’s second die, Lucky x2: 1 \| 2 \| 4\./.test(line2), JSON.stringify(ev2) + ' ' + line2);
+  check('the table spends it, and the row no longer carries it', tj(`!!S.scene.aspSpent['ch-2:2:Elude']`) && tj(`tsAspFor('ch-1').length`) === 0, 'still there');
+  tj(`S.scene.aspSpent = {}; S.declares[1].gear.aspSpent = ['ch-2:2:Elude'];`);
+  check('an Aspect the sheet spent is not handed on again', tj(`tsAspFor('ch-1').length`) === 0, 'handed on');
+  tj(`S.log = []; S.scene.landed = {}; S.scene.lucky1 = {};
+      S.declares = [{ charId:'ch-2', act:'x', round:2, gear:{ asp:{ id:'ch-2:2:Augury', nm:'Augury', on:'attack', dice:1, to:'ch-1', round:2 } } },
+                    { charId:'ch-3', act:'z', round:2, gear:{ asp:{ id:'ch-3:2:Boon', nm:'Boon', on:'any', dice:1, to:'ch-1', round:2 } } }];
+      kitAtkWeapon = function(){ return { favored:true }; }; fellByCharId = function(){ return { name:'Astra', affs:[] }; };`);
+  dice(t, [1, 2, 3, 5]);
+  tj(`kitSwift('ch-1')`);
+  const sw3 = tj(`(S.log[S.log.length - 1] || {}).html || ''`);
+  check('Swift with Favored, Augury and Boon: four dice, highest kept', /rolls 5 \(Favored, Augury and Boon, Lucky x3: 1 \| 2 \| 3 \| 5\)/.test(sw3), sw3);
+  check('Swift spends both Aspects', tj(`!!S.scene.aspSpent['ch-2:2:Augury'] && !!S.scene.aspSpent['ch-3:2:Boon']`) === true, 'not spent');
+  tj(`S.log = []; S.scene.landed = {}; S.declares = []; kitAtkWeapon = function(){ return { favored:true }; };`);
+  dice(t, [2, 6]);
+  tj(`kitSwift('ch-1')`);
+  const sw4 = tj(`(S.log[S.log.length - 1] || {}).html || ''`);
+  check('Swift with a Favored weapon alone: two dice, highest kept', /rolls 6 \(Favored, a Lucky Roll: 2 \| 6\)/.test(sw4), sw4);
 
   console.log('\n' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);

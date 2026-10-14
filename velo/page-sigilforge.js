@@ -5,19 +5,11 @@
 
 import { submitCreation, findSimilar, aiForge, listSigilBuilds, setCreationImage } from 'backend/forge.web.js';
 import { uploadRune } from 'backend/loreforge.web.js';
+import { submitAbility, uniqName, FORGE_KEY } from 'public/abilitySubmit.js';
 import wixWindow from 'wix-window';
 import wixLocation from 'wix-location';
 
-const FORGE_KEY = 'sigilforge';
 const EMBED = '#html1';   // change to your Embed a Site element ID
-
-
-// Every uploaded image gets a unique media name so two uploads can never collide
-// and overwrite each other (a same-name upload can replace the prior file).
-function uniqName(base) {
-  return String(base || 'img').replace(/[^A-Za-z0-9_-]+/g, '-').slice(0, 40)
-    + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-}
 
 // The LoreForge's sigils, redrawn with today's runes (Nate, 2026-10-13). An Admin opens the
 // SigilForge with ?redraw=1: every SigilForge build in the hall is drawn again by the tool, as a
@@ -112,61 +104,15 @@ $w.onReady(() => {
   });
 });
 
+// The submit itself is shared with the FellGlass sheet's bridge (public/abilitySubmit.js), so a
+// build sent from the sheet's "Make your own" lands in the LoreForge exactly as one sent here.
 async function handleSubmit(embed, raw) {
-  const f = raw.forge || {};
-
-  // Store the rune snapshot if present. A media hiccup never blocks the submission.
-  let imageUrl = '';
-  if (raw.runePng) {
-    try { imageUrl = await uploadRune(raw.runePng, uniqName(raw.title || 'sigil')); }
-    catch (e) { imageUrl = ''; }
-  }
-
-  const payload = {
-    tier: f.tier,
-    form: f.form,
-    mode: f.mode,
-    kind: f.kind,
-    selections: f.selections || [],
-    spreadTarget: f.spreadTarget || '',
-    amplifyTarget: f.amplifyTarget || '',
-    basedOn: f.basedOn || '',
-    meta: f.meta || {},
-    title: raw.title || '',
-    creatorNote: raw.creatorNote || '',
-    flavorText: raw.flavorText || '',
-    shorthand: raw.shorthand || '',
-    fullText: raw.fullExplanation || '',
-    imageUrl: imageUrl
-  };
-
-  // The SigilForge tool runs the full v3 legality check in the browser: tier is set by the
-  // build's total cost, afflictions gate by cost alone, and there are no Form or Tier
-  // component ladders. The old vault ForgeConfig still carries the v2 ladders, so we do not
-  // let it re-gate the build. Every submission is treated as authored: the vault confirms the
-  // cost lands in the tier band and stores it, rather than rebuilding from stale gate data.
-  payload.authored = true;
-  if (typeof raw.cost === 'number') payload.cost = raw.cost;
-
-  let similar = [];
-  try { similar = await findSimilar(FORGE_KEY, payload); } catch (e) { similar = []; }
-
-  try {
-    const res = await submitCreation(FORGE_KEY, payload);
-    embed.postMessage({
-      type: 'LOREFELL_SUBMIT_RESULT',
-      ok: !!res.ok,
-      errors: res.errors || [],
-      warnings: res.warnings || [],
-      similar: similar
-    });
-  } catch (e) {
-    embed.postMessage({
-      type: 'LOREFELL_SUBMIT_RESULT',
-      ok: false,
-      errors: ['The forge could not reach the vault. Try again.'],
-      warnings: [],
-      similar: similar
-    });
-  }
+  const r = await submitAbility(raw, { submitCreation, findSimilar, uploadRune });
+  embed.postMessage({
+    type: 'LOREFELL_SUBMIT_RESULT',
+    ok: r.ok,
+    errors: r.errors,
+    warnings: r.warnings,
+    similar: r.similar
+  });
 }
