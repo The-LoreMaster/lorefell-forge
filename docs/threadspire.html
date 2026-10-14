@@ -9345,6 +9345,19 @@ window.addEventListener('message', function(ev){
    spends its own and its foes' grants as it rolls. A Fell's grant reaches their sheet (the
    fighters row in a fight, a message from the player's table outside one), and the
    LoreMaster's table takes it back when that Fell's next roll arrives. */
+/* Luck stacks (CANON.md, Luck; Nate, 2026-10-14). Each source of Lucky adds one die and the
+   roller keeps the highest. Each source of Unlucky adds one die and the roller keeps the lowest.
+   Lucky and Unlucky cancel one for one, so as many of each is one die. first, when given, is
+   the die already thrown. Returns { n:kept, dice:[...], net, note } with a note for the log,
+   "Lucky x2: 3 | 5 | 2". The sheet (fellglass.html) carries the same two functions. */
+function luckLabel(net){ var a=Math.abs(net||0); return !a?"":((net>0?"Lucky":"Unlucky")+(a>1?" x"+a:"")); }
+function luckDice(lucky,unlucky,first){
+  var L=Math.max(0,Number(lucky)||0), U=Math.max(0,Number(unlucky)||0), net=L-U, k=1+Math.abs(net), dice=[];
+  for(var i=0;i<k;i++) dice.push(i===0&&typeof first==="number"&&first>=1?first:1+Math.floor(Math.random()*6));
+  var n=net>0?Math.max.apply(null,dice):(net<0?Math.min.apply(null,dice):dice[0]);
+  var note=net?(luckLabel(net)+": "+dice.join(" | ")):((L&&U)?("Lucky and Unlucky cancel: "+n):"");
+  return { n:n, dice:dice, net:net, note:note };
+}
 function luckGrants(){ if (!S.scene) return {}; if (!S.scene.lucky1) S.scene.lucky1 = {}; return S.scene.lucky1; }
 function luckGranted(key){ return !!(S.scene && S.scene.lucky1 && S.scene.lucky1[key]); }
 function luckGrantToggle(key, name, quiet){
@@ -9388,7 +9401,7 @@ function rollFromTray(){
   if (S.rollType === 'evade'){ quickAsk({ kind:'evade' }); return; }
   if (S.rollType === 'skill'){ quickAsk({ kind:'skill' }); return; }
   var n = 1 + Math.floor(Math.random() * 6), note = '';
-  if (isLM() && luckGrantTake('lm')){ var n2 = 1 + Math.floor(Math.random() * 6); note = 'Lucky Roll: ' + n + ' | ' + n2; n = Math.max(n, n2); }
+  if (isLM() && luckGrantTake('lm')){ var _ld = luckDice(1, 0, n); note = 'Lucky Roll: ' + _ld.dice.join(' | '); n = _ld.n; }
   send({ type:'roll', rollType:S.rollType, n:n, mods:[], total:n, note:note });
 }
 function setRollType(t){
@@ -10014,14 +10027,16 @@ function tsRollEva(defId, atkId){
   var c = findC(defId); if (!c) return;
   var isFoe = S.scene.foes.indexOf(c) >= 0;
   var evasion = (isFoe ? (foeLive(c).attrs.Evasion) : (c.attrs && c.attrs.Evasion)) || 0;
-  var r = 1 + Math.floor(Math.random() * 6), lucky = '';
-  /* Afterimage: the Fell's first Evasion roll each round is a Lucky Roll */
+  var r = 1 + Math.floor(Math.random() * 6), lucky = '', ai = 0, gr = 0;
+  /* Afterimage: the Fell's first Evasion roll each round is a Lucky Roll. A granted Lucky
+     Roll is another source, and Luck stacks: each is a die, keep the highest. */
   if (!isFoe && kitHasAug(c.charId || c.id, 'Afterimage') && (S.scene.afterimg || {})[defId] !== (S.round || 1)){
-    S.scene.afterimg = S.scene.afterimg || {}; S.scene.afterimg[defId] = S.round || 1;
-    var r2 = 1 + Math.floor(Math.random() * 6); lucky = ' Afterimage makes it a Lucky Roll: ' + r + ' | ' + r2 + '.'; r = Math.max(r, r2);
+    S.scene.afterimg = S.scene.afterimg || {}; S.scene.afterimg[defId] = S.round || 1; ai = 1;
   }
-  else if (luckGrantTake(isFoe ? c.id : ('p:' + (c.charId || c.id)))){
-    var r3 = 1 + Math.floor(Math.random() * 6); lucky = ' A granted Lucky Roll: ' + r + ' | ' + r3 + '.'; r = Math.max(r, r3);
+  if (luckGrantTake(isFoe ? c.id : ('p:' + (c.charId || c.id)))) gr = 1;
+  if (ai || gr){
+    var _ld = luckDice(ai + gr, 0, r), _ds = _ld.dice.join(' | '); r = _ld.n;
+    lucky = (ai && gr) ? (' Afterimage and a granted Lucky Roll, ' + luckLabel(_ld.net) + ': ' + _ds + '.') : (ai ? (' Afterimage makes it a Lucky Roll: ' + _ds + '.') : (' A granted Lucky Roll: ' + _ds + '.'));
   }
   S.scene.eva = S.scene.eva || {};
   S.scene.eva[tsEvaKey(defId, atkId)] = { r:r, bonus:evasion, total:r + evasion };
@@ -10040,7 +10055,7 @@ function lmFoeRoll(id){
   var f = findC(id); if(!f) return;
   f._roll = 1 + Math.floor(Math.random()*6);
   var _lk = '';
-  if (luckGrantTake(f.id)){ var _r2 = 1 + Math.floor(Math.random()*6); _lk = ' (Lucky Roll: ' + f._roll + ' | ' + _r2 + ')'; f._roll = Math.max(f._roll, _r2); }
+  if (luckGrantTake(f.id)){ var _ld = luckDice(1, 0, f._roll); _lk = ' (Lucky Roll: ' + _ld.dice.join(' | ') + ')'; f._roll = _ld.n; }
   var tag = foeRollTag(f);
   var prec = (foeLive(f).attrs.Precision) || 0;
   var line = '<b>' + esc(f.name) + '</b> rolls ' + f._roll + _lk;
@@ -11550,9 +11565,12 @@ function kitSwift(charId){
   if (sc.landed[charId + '@' + (S.round || 1) + ':swiftdone']){ playToast('Swift\u2019s second attack has already been taken this round.', 'Swift'); return; }
   sc.landed[charId + '@' + (S.round || 1) + ':swiftdone'] = true;
   var a = 1 + Math.floor(Math.random() * 6), roll = a, note = '', unl = !!(p && (p.affs || []).indexOf('Unlucky') >= 0);
-  /* Hunting makes it Lucky; Lucky and Unlucky cancel, the way the sheet counts them */
-  if (wHas(w, 'Hunting') && unl) note = ' (Hunting and Unlucky cancel: one die)';
-  else if (wHas(w, 'Hunting') || unl){ var b = 1 + Math.floor(Math.random() * 6); roll = unl ? Math.min(a, b) : Math.max(a, b); note = unl ? ' (Unlucky: ' + a + ' | ' + b + ')' : ' (Hunting, a Lucky Roll: ' + a + ' | ' + b + ')'; }
+  /* Hunting is a Lucky source, Unlucky an Unlucky one; Luck stacks and they cancel one for
+     one, the way the sheet counts them */
+  var hu = wHas(w, 'Hunting') ? 1 : 0, _ld = luckDice(hu, unl ? 1 : 0, a), _ds = _ld.dice.join(' | '); roll = _ld.n;
+  if (hu && unl) note = ' (Hunting and Unlucky cancel: one die)';
+  else if (unl) note = ' (Unlucky: ' + _ds + ')';
+  else if (hu) note = ' (Hunting, a Lucky Roll: ' + _ds + ')';
   var acc = roll + kitAttr(charId, 'Precision');
   var th = kitToHit(charId, { acc:acc }, f, w);
   var fm = roll === 6 || (roll === 5 && wHas(w, 'Honed'));
