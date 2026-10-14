@@ -15,6 +15,9 @@ import { getCombatForChar, saveCombatDeclare, syncCombatPlayer } from 'backend/c
 import { getLibraries } from 'backend/libraries.web.js';
 import { handleSheetMessage } from 'public/fgSheetBridge.js';
 import { betweenRestFor } from 'backend/campaignview.web.js';
+import { submitCreation, findSimilar } from 'backend/forge.web.js';
+import { uploadRune } from 'backend/loreforge.web.js';
+import { submitAbility } from 'public/abilitySubmit.js';
 import wixLocation from 'wix-location';
 
 const EMBED = '#html1';   // change to your Embed a Site element ID
@@ -22,7 +25,9 @@ const EMBED = '#html1';   // change to your Embed a Site element ID
 const api = {
   listMyCharacters, myAdventures, loadCharacter, saveCharacter, deleteCharacter,
   leaveAdventure, getClueCards, listQuests, getCombatForChar, saveCombatDeclare,
-  syncCombatPlayer, getLibraries, consultArchive, betweenRestFor
+  syncCombatPlayer, getLibraries, consultArchive, betweenRestFor,
+  // the LoreForge submit from the sheet's "Make your own", the SigilForge page's own
+  submitAbility, submitCreation, findSimilar, uploadRune
 };
 
 $w.onReady(() => {

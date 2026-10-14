@@ -130,9 +130,48 @@ function block(file){
   check('under the floor is legal, and simply weaker (Tier 3 at 1)', ck({ tier:3, family:'Precision', damage:'Standard Damage', targeting:'One Target', effects:['Advanced'] }) === '', 'refused');
   check('a name and a line are asked for', /Name it/.test(Array.from(w.eval(`cabCheck({ tier:1, family:'Power', damage:'Standard Damage', targeting:'One Target', effects:['Advanced'], name:'', line:'' })`)).join(' ')) && /Write its line/.test(Array.from(w.eval(`cabCheck({ tier:1, family:'Power', damage:'Standard Damage', targeting:'One Target', effects:['Advanced'], name:'', line:'' })`)).join(' ')), 'not asked');
 
-  console.log('\nthe submit path itself');
-  w.eval(`var r0 = seedSheet({}); r0.created = true; loadCharacter(r0); sigilSubmit({ title:'Ember Lash', tier:'T1', forge:{ tier:1 } }); sigilSubmit({ title:'Ember Lash', tier:'T1', forge:{ tier:1 } });`);
-  check('it keeps the SigilForge payload on the Fell, once per name, for the page to carry', w.eval(`JSON.stringify((C.loreforgeOut || []).map(function(x){ return x.payload.title; }))`) === '["Ember Lash"]', w.eval(`JSON.stringify(C.loreforgeOut)`));
+  console.log('\nthe submit path itself: the SigilForge\u2019s message, up to the page');
+  for (const where of [{ name:'FellGlass', url:'https://example.test/fellglass.html' },
+                       { name:'ThreadSpire (host=threadspire)', url:'https://example.test/fellglass.html?host=threadspire' }]){
+    const v = await boot(where.url);
+    const js = (x) => v.eval(x);
+    v.__up = [];
+    Object.defineProperty(v, 'parent', { value:{ postMessage:(m) => v.__up.push(JSON.parse(JSON.stringify(m))) }, configurable:true });
+    const answer = (d) => v.dispatchEvent(new v.MessageEvent('message', { data:d }));
+    const subs = () => v.__up.filter((m) => m && m.type === 'LOREFELL_ABILITY_SUBMIT');
+    js(`var r1 = seedSheet({}); r1.created = true; r1.weapons = [{ tree:Object.keys(WEAPON_DB).filter(function(t){ return WEAPON_DB[t].category === 'power'; })[0], level:2, formIdx:0, equipped:true, abilities:[null,null,null], infusions:[], afflictions:[] }]; loadCharacter(r1);
+        _axOpen.w0 = true; renderWeapons();
+        [...document.querySelectorAll('#weaponsWrap .ax-slot.empty')].filter(function(x){ return x.textContent === 'Choose a Tier 1 ability'; })[0].click();
+        document.querySelector('#fgtBody .ax-own').click();`);
+    const set = (key, val) => js(`(function(){ var e = document.querySelector('#fgtBody [data-cab="${key}"]'); if (e.type === 'checkbox') { e.checked = ${JSON.stringify(!!val)}; e.dispatchEvent(new Event('change')); return; } e.value = ${JSON.stringify(val)}; e.dispatchEvent(new Event(e.tagName === 'SELECT' ? 'change' : 'input')); })()`);
+    const msgText = () => js(`document.querySelector('#fgtBody .cab-msg').textContent`);
+    const btn = () => js(`document.querySelector('#fgtBody [data-cab="save"]').textContent`);
+    set('name', 'Ember Lash'); set('line', 'Sparks follow the swing.'); set('effect', 'Advanced'); set('submit', true);
+    js(`document.querySelector('#fgtBody [data-cab="save"]').click();`);
+    const sent = subs()[0];
+    console.log('  ' + where.name);
+    check('saving with the box ticked posts LOREFELL_ABILITY_SUBMIT to the page', subs().length === 1 && sent.reqId > 0, JSON.stringify(v.__up.map((m) => m.type)));
+    check('carrying the SigilForge payload (title, tier, forge selections, line)', sent && sent.payload.title === 'Ember Lash' && sent.payload.tier === 'T1' && sent.payload.forge.selections.join() === 'Standard Damage,One Target,Advanced' && sent.payload.flavorText === 'Sparks follow the swing.', JSON.stringify(sent && sent.payload));
+    check('the slot is filled at once', js(`C.weapons[0].abilities[0]`) === 'Ember Lash', String(js(`C.weapons[0].abilities[0]`)));
+    check('the builder stays open and says it is sending', js(`!!document.querySelector('#fgTell.open #fgtBody .cab')`) === true && /Sending it to the LoreForge/.test(msgText()), msgText());
+    check('nothing extra is kept on the Fell', js(`C.loreforgeOut === undefined`) === true, js(`JSON.stringify(C.loreforgeOut)`));
+    answer({ type:'LOREFELL_SUBMIT_RESULT', reqId:sent.reqId, ok:false, errors:['The forge could not reach the vault. Try again.'], warnings:[], similar:[] });
+    check('a refusal shows in the builder, with the reason', /did not take it/.test(msgText()) && /could not reach the vault/.test(js(`document.querySelector('#fgtBody .cab-errs').textContent`)) && btn() === 'Submit again', msgText() + ' / ' + btn());
+    js(`document.querySelector('#fgtBody [data-cab="save"]').click();`);
+    const again = subs()[1];
+    check('Submit again sends the same build once more', subs().length === 2 && again.reqId !== sent.reqId && again.payload.title === 'Ember Lash', JSON.stringify(subs().map((m) => m.reqId)));
+    answer({ type:'LOREFELL_SUBMIT_RESULT', reqId:again.reqId, ok:true, errors:[], warnings:[], similar:[] });
+    check('success shows in the builder', /submitted to the LoreForge/.test(msgText()) && btn() === 'Close' && js(`document.querySelector('#fgtBody .cab-errs').textContent`) === '', msgText() + ' / ' + btn());
+    js(`document.querySelector('#fgtBody [data-cab="save"]').click();`);
+    check('and Close closes it', js(`!!document.querySelector('#fgTell.open')`) === false, 'still open');
+  }
+  {
+    const v = await boot('https://example.test/fellglass.html');
+    let got = null;
+    v.__done = (r) => { got = r; };
+    v.eval(`sigilSubmit({ title:'Lone', forge:{ tier:1 } }, window.__done)`);
+    check('opened on its own, outside a page, it says the LoreForge answers on the live site', got && got.ok === false && /live site/.test(got.errors[0]), JSON.stringify(got));
+  }
 
   console.log('\n' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);

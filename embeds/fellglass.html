@@ -1014,6 +1014,10 @@ button.ax-fact{cursor:pointer}
 .cab-warn:empty{display:none}
 .cab-check{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--silver);margin:2px 0 10px;cursor:pointer}
 .cab-check input{width:auto;margin:0}
+.cab-msg{font-size:13px;color:var(--silver-dim);margin:0 0 8px}
+.cab-msg:empty{display:none}
+.cab-msg.ok{color:var(--gold)}
+.cab-msg.bad{color:var(--danger)}
 .cab-row{display:flex;justify-content:flex-end;gap:8px}
 @media (max-width:420px){.cab-grid{grid-template-columns:1fr}}
 .ax-forged{display:inline-block;margin-left:6px;font-family:var(--head);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);font-weight:400}
@@ -4870,16 +4874,27 @@ function cabPayload(w,bd){
       meta:{ type:mag?"Spell":"Ability", item:item, weapon:mag?"":item, school:school, focus:mag?item:"" } },
     creatorNote:"Made at the slot in FellGlass." };
 }
-/* The submit the forges use is the SigilForge's: it posts LOREFELL_ABILITY_SUBMIT to its page,
-   which checks the build and writes it to the LoreForge (velo/page-sigilforge.js, handleSubmit).
-   The sheet's page bridge (velo/public/fgSheetBridge.js) does not carry that message yet, and
-   checkContracts would rightly fail a message nobody handles, so the build is kept on the Fell
-   in the SigilForge's own payload (C.loreforgeOut) until the bridge takes it. One function,
-   so the hand-off changes in one place and a test can stub it. */
-function sigilSubmit(payload){
-  if(!payload||!payload.title) return;
-  C.loreforgeOut=(C.loreforgeOut||[]).filter(x=>x&&x.payload&&x.payload.title!==payload.title).concat([{ at:Date.now(), payload:payload }]);
-  try{ scheduleSave(); }catch(e){}
+/* The submit is the SigilForge's own: LOREFELL_ABILITY_SUBMIT with its payload, up to the page.
+   The sheet's bridge (velo/public/fgSheetBridge.js) runs it through the same submit the SigilForge
+   page uses (velo/public/abilitySubmit.js) and answers LOREFELL_SUBMIT_RESULT. Inside ThreadSpire
+   the message travels up the table's relay like every sheet message. done(r) hears the answer,
+   { ok, errors, warnings, similar }. One function, so a test can stub it. */
+let _sigReq=0; const _sigWait={};
+function sigilSubmit(payload,done){
+  if(!payload||!payload.title) return false;
+  if(window.parent===window){ if(done) done({ ok:false, errors:["The LoreForge takes submissions on the live site."], warnings:[], similar:[] }); return false; }
+  const id=++_sigReq; _sigWait[id]=done||null;
+  postToVelo({ type:"LOREFELL_ABILITY_SUBMIT", reqId:id, payload:payload });
+  setTimeout(()=>{ if(Object.prototype.hasOwnProperty.call(_sigWait,id)){ const d=_sigWait[id]; delete _sigWait[id]; if(d) d({ ok:false, errors:["The LoreForge did not answer. Try again in a moment."], warnings:[], similar:[] }); } },60000);
+  return true;
+}
+/* the page's answer, to whichever submit asked (the oldest waiting, if the answer names none) */
+function sigilResult(d){
+  const ids=Object.keys(_sigWait).map(Number).sort((a,b)=>a-b);
+  const id=d.reqId?Number(d.reqId):ids[0];
+  if(!id||!Object.prototype.hasOwnProperty.call(_sigWait,id)) return;
+  const done=_sigWait[id]; delete _sigWait[id];
+  if(done) done({ ok:!!d.ok, errors:d.errors||[], warnings:d.warnings||[], similar:d.similar||[] });
 }
 /* The builder, drawn in the slot's own window. back returns to the slot's list. */
 function cabOpen(w,i,onPick,back){
@@ -4905,12 +4920,15 @@ function cabOpen(w,i,onPick,back){
   const ln=el("textarea"); ln.maxLength=240; ln.dataset.cab="line"; ln.placeholder="What it looks like when it lands."; ln.addEventListener("input",()=>{ st.line=ln.value; paint(); }); lnL.appendChild(ln); box.appendChild(lnL);
   const ck=el("label","cab-check"); const cb=el("input"); cb.type="checkbox"; cb.dataset.cab="submit"; cb.addEventListener("change",()=>{ st.submit=cb.checked; });
   ck.appendChild(cb); ck.appendChild(el("span",null,"Also submit to the LoreForge")); box.appendChild(ck);
-  box.appendChild(warn); box.appendChild(errs);
+  const msg=el("p","cab-msg"); box.appendChild(warn); box.appendChild(errs); box.appendChild(msg);
   const row=el("div","cab-row"), bk=el("button","btn small","Back"), sv=el("button","btn small gold","Save to the slot");
   bk.type="button"; sv.type="button"; sv.dataset.cab="save"; bk.addEventListener("click",()=>back&&back());
   row.appendChild(bk); row.appendChild(sv); box.appendChild(row);
   const build=()=>({ tier:tier, family:fam, damage:st.damage, targeting:st.targeting, effects:[st.effect,st.aff].filter(Boolean), name:st.name, line:st.line });
+  /* once saved, the slot holds it and the build is fixed: the box only reports the LoreForge */
+  let phase="build", sent=null;
   function paint(){
+    if(phase!=="build") return;
     const bd=build(), total=cabCost(bd), list=cabCheck(bd);
     bud.innerHTML=`This build spends <b>${total}</b> of the Tier ${tier} budget, ${cabBandText(band)}.`;
     sh.textContent=cabShort(bd);
@@ -4918,14 +4936,36 @@ function cabOpen(w,i,onPick,back){
     errs.innerHTML=list.map(x=>"<li>"+cbEsc(x)+"</li>").join("");
     sv.disabled=!!list.length;
   }
+  function submit(){
+    phase="sending"; sv.disabled=true; sv.textContent="Submitting";
+    errs.innerHTML=""; msg.className="cab-msg"; msg.textContent="Saved to the slot. Sending it to the LoreForge.";
+    sigilSubmit(sent,(r)=>{
+      sv.disabled=false;
+      if(r&&r.ok){
+        phase="done"; sv.textContent="Close";
+        msg.className="cab-msg ok"; msg.textContent="Saved to the slot and submitted to the LoreForge."+((r.warnings&&r.warnings.length)?(" "+r.warnings.join(" ")):"");
+      } else {
+        phase="retry"; sv.textContent="Submit again";
+        msg.className="cab-msg bad"; msg.textContent="Saved to the slot. The LoreForge did not take it.";
+        errs.innerHTML=((r&&r.errors&&r.errors.length)?r.errors:["The LoreForge did not answer."]).map(x=>"<li>"+cbEsc(x)+"</li>").join("");
+      }
+    });
+  }
   sv.addEventListener("click",()=>{
+    if(phase==="done"){ fgTellClose(); return; }
+    if(phase==="retry"){ submit(); return; }
+    if(phase!=="build") return;
     const bd=build(); if(cabCheck(bd).length){ paint(); return; }
     const name=bd.name.trim(), short=cabShort(bd);
     const def={ name:name, tree:w.tree, form:weaponName(w), tier:tier, use:"Act", desc:short+" "+bd.line.trim(), short:short, line:bd.line.trim(),
       custom:true, build:{ damage:bd.damage, targeting:bd.targeting, effect:bd.effects[0], cost:cabCost(bd), family:fam } };
     C.forgedKept=C.forgedKept||{}; C.forgedKept["ability:"+name]=def; keptIntoLists();
-    if(st.submit) sigilSubmit(cabPayload(w,bd));
-    onPick(name); fgTellClose();
+    onPick(name);
+    if(!st.submit){ fgTellClose(); return; }
+    /* the slot is filled; the builder stays open to say what the LoreForge answered */
+    sent=cabPayload(w,bd); bk.style.display="none";
+    box.querySelectorAll("select,input,textarea").forEach(x=>{ x.disabled=true; });
+    submit();
   });
   paint();
   fgTell("Make your own Tier "+tier+" ability",box);
@@ -8742,6 +8782,7 @@ window.onmessage=ev=>{
   if(d.type==="ts-sealed"){ if(god && (!d.charId || d.charId===CUR_WIX_ID)) sealPaint(d); return; }
   if(d.type==="ts-seal-granted"){ if(god && (!d.charId || d.charId===CUR_WIX_ID)) sealGranted(d); return; }
   if(d.type==="archive-result"){ archiveResult(d); return; }
+  if(d.type==="LOREFELL_SUBMIT_RESULT"){ sigilResult(d); return; }
   if(d.type==="ts-vit-op"){ vitOp(d.op,d.amt); return; }
   if(d.type==="ts-fatigue-step"){ fatigueSet((C.fatigue||0)+(Number(d.delta)||0)); return; }
   /* a line the player wrote in the Codex at the table, kept in their Records too */
