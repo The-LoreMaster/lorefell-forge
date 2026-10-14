@@ -4714,13 +4714,65 @@ function luckDice(lucky,unlucky,first){
   var note=net?(luckLabel(net)+": "+dice.join(" | ")):((L&&U)?("Lucky and Unlucky cancel: "+n):"");
   return { n:n, dice:dice, net:net, note:note };
 }
+/* Favored (FellGuide, The Arsenal/Weapons): "At level 10 your weapon grants Favored. Your
+   attacks, abilities, and spells are Lucky Rolls, and this does not fall away when you take
+   damage." One Lucky source on every roll made with that weapon: its attacks, and the
+   abilities and spells it carries. */
+function weaponFavored(w){ return !!(w && w.tree && (Number(w.level)||1)>=10); }
+function cbFavoredSrc(src){ return !!src && (C.weapons||[]).some(function(w){ return weaponFavored(w) && weaponName(w)===src; }); }
+/* The Lorebound Aspects that make a roll Lucky (FellGuide, Lorebound Types): Boon (The
+   Drakelith) on any roll, Augury (The Aerostrix) on an attack, Elude (The Slipfang) on an
+   Evade. Each is one Lucky source on the roll it is used on. The Branching or Crown option
+   "Add a second Lucky die" is one more, once the owner has taken it and their charge reaches
+   that stage (Charge 2 for the Branch, Charge 3 for the Crown, any charge at the Everpresent
+   Bond), the way cbAspectHint says what resolves. */
+const ASPECT_LUCK={ Boon:"any", Augury:"attack", Elude:"evade" };
+function aspectLuckDice(lb){
+  var asp=aspectOf(lb&&lb.type); if(!asp || !ASPECT_LUCK[asp.name]) return 0;
+  var ever=(lb.level||0)>=ASPECT_FORM.everpresent, ch=C.charge||0, sec=/^Add a second Lucky die/;
+  if(!ever && ch<1) return 0;
+  var n=1;
+  if(typeof lb.branchPick==="number" && sec.test((asp.branch||[])[lb.branchPick]||"") && (ever||ch>=2)) n++;
+  if(typeof lb.crownPick==="number" && sec.test((asp.crown||[])[lb.crownPick]||"") && (ever||ch>=3)) n++;
+  return n;
+}
+/* The Aspects used on this Fell's next roll of a kind ("attack", "evade", "skill"), this
+   round, not yet spent. They reach the sheet two ways: on this Fell's row in the fighters
+   list (an ally's Aspect, which the LoreMaster's table passes on from that ally's React), and
+   this Fell's own Aspect turned on itself (Corsair form). Each is { id, nm, on, dice, to, round }. */
+function cbAspLuckFor(kind){
+  if(!(COMBAT&&COMBAT.active&&CUR_WIX_ID)) return [];
+  var rnd=COMBAT.round||0, spent=window._aspSpent||{}, seen={}, out=[];
+  var me=((COMBAT.fighters)||[]).filter(function(x){ return x.charId===CUR_WIX_ID; })[0];
+  var list=((me&&me.asp)||[]).slice(), u=window._aspUse;
+  if(u && u.to===CUR_WIX_ID) list.push(u);
+  list.forEach(function(a){
+    if(!a || !a.id || seen[a.id] || spent[a.id] || !(a.dice>0)) return; seen[a.id]=1;
+    if(a.round && rnd && a.round!==rnd) return;
+    if(a.on!=="any" && a.on!==kind) return;
+    out.push(a);
+  });
+  return out;
+}
+/* an Aspect counts on one roll, then it is spent; the table hears which through the sync */
+function cbAspLuckSpend(list){
+  if(!list || !list.length) return;
+  window._aspSpent=window._aspSpent||{};
+  list.forEach(function(a){ window._aspSpent[a.id]=1; });
+  try{ combatSyncPush(); }catch(e){}
+}
+function aspLuckNames(list){ var o=[]; (list||[]).forEach(function(a){ o.push(a.nm); if(a.dice>1) o.push(a.nm+"\u2019s second die"); }); return o; }
 /* Roll a d6 for the table's quick rolls, counting every Luck source on it (Luck stacks):
-   the Motivation's Lucky Rolls (o.mot), Afterimage (o.afterimage), a granted Lucky Roll,
-   the Lucky Effect and the Unlucky Affliction. Returns [kept, note]. */
+   the Motivation's Lucky Rolls (o.mot), Afterimage (o.afterimage), Favored (o.favored), the
+   Aspects used on a roll of this kind (o.kind), a granted Lucky Roll, the Lucky Effect and
+   the Unlucky Affliction. Returns [kept, note]. */
 function tsLuckyD6(n,o){
   o=o||{}; var srcs=[], L=0, U=0;
   if(o.mot){ L++; srcs.push("Motivation"); }
   if(o.afterimage){ L++; srcs.push("Afterimage"); }
+  if(o.favored){ L++; srcs.push("Favored"); }
+  var asp=o.kind?cbAspLuckFor(o.kind):[];
+  asp.forEach(function(a){ L+=a.dice; }); srcs=srcs.concat(aspLuckNames(asp)); cbAspLuckSpend(asp);
   if(tsLuckyTake()){ L++; srcs.push("granted"); }
   var eff=false, aff=false; try{ eff=cbHasAff("Lucky")||cbHasEff("Lucky"); aff=cbHasAff("Unlucky")||cbHasEff("Unlucky"); }catch(e){}
   if(eff){ L++; srcs.push("Lucky Effect"); }
@@ -4742,7 +4794,7 @@ function quickSkillRoll(name){
   let n=1+Math.floor(Math.random()*6), note="";
   /* Luck stacks: the Motivation's Lucky Rolls, a granted Lucky Roll, the Lucky Effect and
      the Unlucky Affliction are a die each */
-  const lk=tsLuckyD6(n,{ mot:skillIsLucky(name) }); n=lk[0]; note=lk[1];
+  const lk=tsLuckyD6(n,{ mot:skillIsLucky(name), kind:"skill" }); n=lk[0]; note=lk[1];
   tableRoll("skill",n,[{label:name,value:b}],n+b,note);
   /* FellGuide: a Fellmark on a skill check raises that skill by 1. Automatic, or asked first,
      as the player chooses at the table. */
@@ -4761,7 +4813,7 @@ function heldWeapons(){ return (C.weapons||[]).map((w,i)=>({w,i})).filter(x=>x.w
 function quickAttackRoll(i){
   const w=(C.weapons||[])[i]; if(!w||!w.tree) return;
   const db=WEAPON_DB[w.tree], magic=db&&db.category==="magic";
-  const _lk=tsLuckyD6(1+Math.floor(Math.random()*6)), n=_lk[0], prec=attrTotal("precision");
+  const _lk=tsLuckyD6(1+Math.floor(Math.random()*6),{ favored:weaponFavored(w), kind:"attack" }), n=_lk[0], prec=attrTotal("precision");
   const base=1+attrTotal(magic?"magic":"power"), bonus=weaponBonus(w);
   tableRoll("attack",n,[{label:"Precision",value:prec}],n+prec,weaponName(w)+": "+base+" base + "+bonus+" bonus "+(magic?"magic":"physical")+(_lk[1]?" \u00b7 "+_lk[1]:""));
 }
@@ -4770,7 +4822,7 @@ window.addEventListener("message",ev=>{
   if(d.kind==="evade"){
     /* Afterimage: the first Evasion roll each round is Lucky, the same round as cbRollEva */
     const _rnd=(COMBAT&&COMBAT.round)||0, _ai=cbHasAug("Afterimage")&&window._afterRound!==_rnd; if(_ai) window._afterRound=_rnd;
-    const _lke=tsLuckyD6(1+Math.floor(Math.random()*6),{ afterimage:_ai }), n=_lke[0], ev2=attrTotal("evasion");
+    const _lke=tsLuckyD6(1+Math.floor(Math.random()*6),{ afterimage:_ai, kind:"evade" }), n=_lke[0], ev2=attrTotal("evasion");
     tableRoll("evade",n,[{label:"Evasion",value:ev2}],n+ev2,_lke[1]); return;
   }
   if(d.kind==="skill"){
@@ -6109,12 +6161,15 @@ function cbGearSnap(){
      Act was made with. Rides in gear for the same reason Fatigue does: no new column. */
   var at=function(k){ return Math.max(0, attrTotal(k)); };
   var kitW=(C.weapons||[]).filter(function(w){ return w && w.tree && WEAPON_DB[w.tree]; }).map(function(w){
-    var d=cbWeaponDmg(w); return { name:weaponName(w), held:!!w.equipped, infs:(w.infusions||[]).filter(Boolean), dt:(WEAPON_DB[w.tree].category==='magic'?'magic':'phys'), base:d.base, bonus:d.bonus }; });
+    var d=cbWeaponDmg(w); return { name:weaponName(w), held:!!w.equipped, infs:(w.infusions||[]).filter(Boolean), dt:(WEAPON_DB[w.tree].category==='magic'?'magic':'phys'), base:d.base, bonus:d.bonus, favored:weaponFavored(w) }; });
   var mob=0; try{ mob=tsReach().mobility||0; }catch(e){}
   return { weapons:ws, armor:{ level:(C.armor&&C.armor.level)||0, stance:(C.armor&&C.armor.active)||"" }, lorebounds:lbs, augs:augs, def:defv,
            fatigue:(C.fatigue||0), fatigueName:(FATIGUE_NAMES[Math.min(5, C.fatigue||0)]||"Fresh"),
            kit:{ weapons:kitW, attrs:{ Precision:at("precision"), Power:at("power"), Magic:at("magic"), Evasion:at("evasion"), Durability:at("durability"), Resistance:at("resistance") }, mobility:mob },
-           atk:(window._atkGear||null) };
+           atk:(window._atkGear||null),
+           /* an Aspect this Fell used to make another's roll Lucky, and the Aspects spent on
+              this Fell's own rolls, so the table neither loses one nor counts one twice */
+           asp:(window._aspUse||null), aspSpent:Object.keys(window._aspSpent||{}) };
 }
 function combatSyncPush(){
   if(!(COMBAT&&COMBAT.active&&CUR_WIX_ID)) return;
@@ -6180,7 +6235,7 @@ function cbEvaInit(){
 }
 function openEvasionPopup(foes){ window._cbSheetView=false; applyCombatMode(); }
 function cbRollEva(foeKey, acc, ev){
-  var cnt=cbMyLuckCount(), lk, dice, r, ai="";
+  var cnt=cbMyLuckCount(false,"evade"), lk, dice, r, ai="";
   /* Afterimage: the first Evasion roll each round is a Lucky Roll, one more Lucky source */
   var rnd=(COMBAT&&COMBAT.round)||0;
   if(cbHasAug("Afterimage") && window._afterRound!==rnd){
@@ -6194,8 +6249,9 @@ function cbRollEva(foeKey, acc, ev){
     cbPing(ai, true); cbLogSelf("fell", meName()+": "+ai);
   }
   var _ld=luckDice(cnt.lucky,cnt.unlucky); dice=_ld.dice; r=_ld.n; lk=luckLabel(_ld.net);
-  /* a granted Lucky Roll it counted is spent by this roll */
+  /* a granted Lucky Roll it counted is spent by this roll, and so is an Aspect */
   if(cnt.granted && window._tsLuckyAt) window._tsLuckyUsed=window._tsLuckyAt;
+  cbAspLuckSpend(cnt.asp);
   var total=r+ev;
   window._evaRolls=window._evaRolls||{}; window._evaRolls[foeKey]={r:r,total:total,dice:dice,lk:lk};
   var node=document.getElementById("evres-"+foeKey);
@@ -7734,8 +7790,16 @@ function cbSkillLucky(){
   try{ var selA=document.getElementById("cbAct"), eA=selA?cbActEntry(selA.value):null; if(!(eA&&eA.src==="skills")) return false;
     var ks=document.getElementById("cbSkillSel"), kn=ks?ks.value:""; return !!(kn&&C.skills&&C.skills[kn]&&skillIsLucky(kn)); }catch(e){ return false; }
 }
-function cbMyLuckCount(forRoll){
-  var c={ lucky:0, unlucky:0, granted:false, mot:false };
+/* what the card's roll is for: "skill", "attack" (a weapon's attack, ability or spell), or "" */
+function cbCardRoll(){
+  try{ var a=cbCtl("cbAct"), s=cbCtl("cbActSrc"), e=a?cbActEntry(a.value, s?s.value:""):null; if(!e) return { kind:"", src:"" };
+    return { kind:e.src==="skills"?"skill":(e.kind==="weapon"?"attack":""), src:e.kind==="weapon"?e.src:"" }; }catch(err){ return { kind:"", src:"" }; }
+}
+/* forRoll: the card's own roll, whose kind the chosen Act says. kind: a roll named outright
+   ("evade" for the Evasion roll). Favored counts on the card's roll with a level 10 weapon,
+   and the Aspects used on a roll of that kind count, each with its dice. */
+function cbMyLuckCount(forRoll, kind){
+  var c={ lucky:0, unlucky:0, granted:false, mot:false, favored:false, asp:[] };
   if(!(COMBAT&&COMBAT.active&&CUR_WIX_ID)) return c;
   var mark=""; var f=((COMBAT.fighters)||[]).filter(function(x){return x.charId===CUR_WIX_ID;})[0]; if(f) mark=f.luck||"";
   /* a granted Lucky Roll is spent by one roll, even before the board hears of it */
@@ -7743,6 +7807,9 @@ function cbMyLuckCount(forRoll){
   if(mark==="lucky"){ c.lucky++; c.granted=true; } else if(mark==="unlucky") c.unlucky++;
   try{ if(cbHasAff("Lucky")||cbHasEff("Lucky"))c.lucky++; if(cbHasAff("Unlucky")||cbHasEff("Unlucky"))c.unlucky++; }catch(e){}
   if(forRoll && cbSkillLucky()){ c.lucky++; c.mot=true; }
+  var cr=forRoll?cbCardRoll():{ kind:kind||"", src:"" };
+  if(cr.kind==="attack" && cbFavoredSrc(cr.src)){ c.lucky++; c.favored=true; }
+  if(cr.kind){ c.asp=cbAspLuckFor(cr.kind); c.asp.forEach(function(a){ c.lucky+=a.dice; }); }
   return c;
 }
 function cbMyLuckNet(){ var c=cbMyLuckCount(true); return c.lucky-c.unlucky; }
@@ -7750,6 +7817,7 @@ function cbMyLuck(){ var n=cbMyLuckNet(); return n>0?"lucky":(n<0?"unlucky":"");
 function cbLuckRollD6(){
   var c=cbMyLuckCount(true), r=luckDice(c.lucky,c.unlucky);
   if(c.granted && window._tsLuckyAt) window._tsLuckyUsed=window._tsLuckyAt;
+  cbAspLuckSpend(c.asp);
   window._cbRollDice=r.dice.length>1?r.dice:null; window._cbRollNet=r.net;
   return r.n;
 }
@@ -8196,18 +8264,25 @@ function sendReact(){
   var sel=cbCtl("cbReact"), val=sel?sel.value:"";
   if(!val){ cbPing("Choose a React first."); return; }
   if(!p){ cbPing("Declare your Act before the React."); return; }
-  var aspSel=document.getElementById("cbAspTarget");
+  var aspSel=document.getElementById("cbAspTarget"), aspLuck=null;
   if(aspSel){
     var tgt=aspSel.value;
     var aspName=val.split(" \u2192 ")[0];
     var myLb=(C.lorebounds||[]).filter(function(b){ var a=aspectOf(b.type||b.name); return a&&a.name===aspName; })[0]||(C.lorebounds||[])[0]||{};
+    var tgtId="";
     if(tgt==="__self__"){
       if((myLb.level||0)<ASPECT_FORM.crown){ cbPing("Your Aspect cannot target you before Corsair form.", true); return; }
-      val=val+" \u2192 "+(meName()||"yourself");
+      val=val+" \u2192 "+(meName()||"yourself"); tgtId=CUR_WIX_ID;
     } else if(tgt){
       val=val+" \u2192 "+tgt;
+      tgtId=(cbAspectAllies().filter(function(a){ return a.name===tgt; })[0]||{}).charId||"";
     }
+    /* Boon, Augury and Elude make the target's roll Lucky: the use rides in this Fell's
+       gear to the LoreMaster's table, which hands it to the target's row (cbAspLuckFor) */
+    var _ad=ASPECT_LUCK[aspName]?aspectLuckDice(myLb):0, _rd=(COMBAT&&COMBAT.round)||1;
+    if(_ad && tgtId) aspLuck={ id:CUR_WIX_ID+":"+_rd+":"+aspName, nm:aspName, on:ASPECT_LUCK[aspName], dice:_ad, to:tgtId, round:_rd };
   }
+  window._aspUse=aspLuck;
   p.react=val;
   var stancePick=(val.indexOf("Change Stance: ")===0)?val.slice(15):null;
   if(stancePick && STANCE_DB[stancePick]){
@@ -8220,6 +8295,7 @@ function sendReact(){
   postToVelo(p);
   if(COMBAT && COMBAT.you) COMBAT.you.react=val;
   window._reactSent=val; window._reactUsed=true;
+  if(aspLuck){ try{ combatSyncPush(); }catch(e){} }
   var msg = stancePick ? (" shifts to "+stancePick+" \u00b7 React spent.")
     : isMove ? (" moves \u00b7 React spent, Act is still free.")
     : (" Reacts \u00b7 "+val+".");

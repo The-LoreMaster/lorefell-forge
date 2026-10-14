@@ -9358,6 +9358,31 @@ function luckDice(lucky,unlucky,first){
   var note=net?(luckLabel(net)+": "+dice.join(" | ")):((L&&U)?("Lucky and Unlucky cancel: "+n):"");
   return { n:n, dice:dice, net:net, note:note };
 }
+/* The Lorebound Aspects that make a Fell's roll Lucky (Boon, Augury, Elude). The Fell who
+   used one says so in their gear (gear.asp: { id, nm, on, dice, to, round }, dice counting
+   the "Add a second Lucky die" upgrade), and this table hands it to the Fell it was used on:
+   on their row in the fighters list, which their sheet counts, and on the rolls made here.
+   on is "any" (Boon), "attack" (Augury) or "evade" (Elude). An Aspect is spent by one roll,
+   here (S.scene.aspSpent) or on the target's sheet (their gear.aspSpent). */
+function tsAspFor(charId, kind){
+  var out = [], rnd = S.round || 1, spent = (S.scene && S.scene.aspSpent) || {};
+  var mine = declareFor(charId), theirs = ((mine && mine.gear && mine.gear.aspSpent) || []);
+  (S.declares || []).forEach(function(d){
+    var a = d && d.gear && d.gear.asp;
+    if (!a || !a.id || !sameId(a.to, charId) || !(a.dice > 0)) return;
+    if (a.round && a.round !== rnd) return;
+    if (spent[a.id] || theirs.indexOf(a.id) >= 0) return;
+    if (kind && a.on !== 'any' && a.on !== kind) return;
+    out.push({ id:a.id, nm:a.nm, on:a.on, dice:a.dice, to:a.to, round:a.round });
+  });
+  return out;
+}
+function tsAspSpend(list){
+  if (!list || !list.length || !S.scene) return;
+  S.scene.aspSpent = S.scene.aspSpent || {};
+  list.forEach(function(a){ S.scene.aspSpent[a.id] = true; });
+}
+function tsAspNames(list){ var o = []; (list || []).forEach(function(a){ o.push(a.nm); if (a.dice > 1) o.push(a.nm + '\u2019s second die'); }); return o; }
 function luckGrants(){ if (!S.scene) return {}; if (!S.scene.lucky1) S.scene.lucky1 = {}; return S.scene.lucky1; }
 function luckGranted(key){ return !!(S.scene && S.scene.lucky1 && S.scene.lucky1[key]); }
 function luckGrantToggle(key, name, quiet){
@@ -10034,7 +10059,15 @@ function tsRollEva(defId, atkId){
     S.scene.afterimg = S.scene.afterimg || {}; S.scene.afterimg[defId] = S.round || 1; ai = 1;
   }
   if (luckGrantTake(isFoe ? c.id : ('p:' + (c.charId || c.id)))) gr = 1;
-  if (ai || gr){
+  /* Elude and Boon used on this Fell's Evade are Lucky sources too, a die each */
+  var asp = isFoe ? [] : tsAspFor(c.charId || c.id, 'evade'), ad = 0;
+  asp.forEach(function(a){ ad += a.dice; }); tsAspSpend(asp);
+  if (ad){
+    var _la = luckDice(ai + gr + ad, 0, r), _src = (ai ? ['Afterimage'] : []).concat(tsAspNames(asp)).concat(gr ? ['a granted Lucky Roll'] : []);
+    r = _la.n;
+    lucky = ' ' + (_src.length > 1 ? (_src.slice(0, -1).join(', ') + ' and ' + _src[_src.length - 1]) : _src[0]) + ', ' + luckLabel(_la.net) + ': ' + _la.dice.join(' | ') + '.';
+  }
+  else if (ai || gr){
     var _ld = luckDice(ai + gr, 0, r), _ds = _ld.dice.join(' | '); r = _ld.n;
     lucky = (ai && gr) ? (' Afterimage and a granted Lucky Roll, ' + luckLabel(_ld.net) + ': ' + _ds + '.') : (ai ? (' Afterimage makes it a Lucky Roll: ' + _ds + '.') : (' A granted Lucky Roll: ' + _ds + '.'));
   }
@@ -11567,15 +11600,20 @@ function kitSwift(charId){
   var a = 1 + Math.floor(Math.random() * 6), roll = a, note = '', unl = !!(p && (p.affs || []).indexOf('Unlucky') >= 0);
   /* Hunting and a granted Lucky Roll are Lucky sources, Unlucky an Unlucky one; Luck stacks
      and they cancel one for one, the way the sheet counts them. A counted grant is spent. */
-  var hu = wHas(w, 'Hunting') ? 1 : 0, gr = luckGrantTake('p:' + charId) ? 1 : 0, L = hu + gr;
+  /* Favored (a level 10 weapon) and an Augury or Boon used on this attack are Lucky sources
+     as well, the way the sheet counts them */
+  var hu = wHas(w, 'Hunting') ? 1 : 0, gr = luckGrantTake('p:' + charId) ? 1 : 0, fv = (w && w.favored) ? 1 : 0;
+  var asp = tsAspFor(charId, 'attack'), ad = 0; asp.forEach(function(x){ ad += x.dice; }); tsAspSpend(asp);
+  var L = hu + gr + fv + ad;
   var _ld = luckDice(L, unl ? 1 : 0, a), _ds = _ld.dice.join(' | '); roll = _ld.n;
-  var _src = (hu ? ['Hunting'] : []).concat(gr ? ['a granted Lucky Roll'] : []).concat(unl ? ['Unlucky'] : []);
+  var _src = (hu ? ['Hunting'] : []).concat(fv ? ['Favored'] : []).concat(tsAspNames(asp)).concat(gr ? ['a granted Lucky Roll'] : []).concat(unl ? ['Unlucky'] : []);
   var _names = _src.length > 1 ? (_src.slice(0, -1).join(', ') + ' and ' + _src[_src.length - 1]) : _src[0];
   if (_src.length > 1 && !_ld.net) note = ' (' + _names + ' cancel: one die)';
   else if (_src.length > 1) note = ' (' + _names + ', ' + luckLabel(_ld.net) + ': ' + _ds + ')';
   else if (unl) note = ' (Unlucky: ' + _ds + ')';
   else if (hu) note = ' (Hunting, a Lucky Roll: ' + _ds + ')';
   else if (gr) note = ' (A granted Lucky Roll: ' + _ds + ')';
+  else if (_src.length) note = ' (' + _names + ', a Lucky Roll: ' + _ds + ')';
   var acc = roll + kitAttr(charId, 'Precision');
   var th = kitToHit(charId, { acc:acc }, f, w);
   var fm = roll === 6 || (roll === 5 && wHas(w, 'Honed'));
@@ -11765,7 +11803,7 @@ function combatFighters(){
   function fell(charId, name){
     if (!charId || seen[charId]) return;
     seen[charId] = true;
-    out.push({ key:'p:' + charId, name:name || 'A Fell', side:'fell', charId:charId, luck:luckGranted('p:' + charId) ? 'lucky' : '' });
+    out.push({ key:'p:' + charId, name:name || 'A Fell', side:'fell', charId:charId, luck:luckGranted('p:' + charId) ? 'lucky' : '', asp:tsAspFor(charId) });
   }
   var _sc = S.scene || {};
   (S.party || []).forEach(function(p){ if (!attOut(_sc, p.charId || p.id)) fell(p.charId, p.charName || p.name); });
