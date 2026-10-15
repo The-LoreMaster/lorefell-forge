@@ -93,6 +93,12 @@ async function boot() {
   const sp = w.beatSpeaker(sc[0].beats[3], sc[0]);
   check('a dialogue beat shows its speaker by name', !!sp && sp.name === 'Mara', JSON.stringify(sp));
 
+  const html = w.beatBodyHtml('- **Fellmark.** *Read:* You <see> it.\n- **Success.** *Then:* 2 * 3');
+  check('a beat body shows bold, italic and list marks, and stays escaped', html.indexOf('<b>Fellmark.</b>') >= 0 && html.indexOf('<i>Read:</i>') >= 0
+    && html.indexOf('\u2022 ') === 0 && html.indexOf('&lt;see&gt;') >= 0 && html.indexOf('<see>') < 0 && html.indexOf('2 * 3') >= 0, html);
+  check('Call for the check starts on the skill the beat names', w.beatSkill({ title: 'Vigilance: Seeing it' }) === 'Vigilance'
+    && w.beatSkill({ title: 'The door' }) === 'Lore' && w.beatSkill({ title: 'Nonsense: x' }) === 'Lore', w.beatSkill({ title: 'Vigilance: Seeing it' }));
+
   console.log('\n' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });
