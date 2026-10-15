@@ -99,6 +99,24 @@ async function boot() {
   check('Call for the check starts on the skill the beat names', w.beatSkill({ title: 'Vigilance: Seeing it' }) === 'Vigilance'
     && w.beatSkill({ title: 'The door' }) === 'Lore' && w.beatSkill({ title: 'Nonsense: x' }) === 'Lore', w.beatSkill({ title: 'Vigilance: Seeing it' }));
 
+  console.log('adventure-vault: a synced adventure in ThreadSpire');
+  const synced = JSON.parse(JSON.stringify(camp)); synced.vaultPath = 'Adventures/A Test Night';
+  w.S.campaignId = 'a-test-night';
+  w.S.adventure = w.spineFromRawCampaign(synced, null);
+  w.S.syncInfo = { campaignId: 'a-test-night', admin: true, canSync: true, synced: true };
+  check('a synced adventure knows it is synced', w.advSynced() === true, JSON.stringify(Object.keys(w.S.adventure)));
+  const toasts = []; w.playToast = (m) => toasts.push(m);
+  const before = w.S.adventure.acts[0].name;
+  w.tsAsk2 = () => { throw new Error('the rename box opened'); };
+  let opened = false; try { w.storyRename('act', w.S.adventure.acts[0].id); } catch (e) { opened = true; }
+  check('a prep edit is refused with a word, and nothing opens', !opened && w.S.adventure.acts[0].name === before && toasts.length === 1 && /vault/.test(toasts[0]), toasts.join(' | '));
+  const banner = w.syncBannerHtml();
+  check('the Story window says where it is kept, and an admin gets the switch', /Kept in the vault/.test(banner) && /Adventures\/A Test Night/.test(banner) && /Lift the vault lock/.test(banner), banner);
+  w.S.syncInfo.admin = false;
+  check('anyone else gets no switch', !/Lift the vault lock/.test(w.syncBannerHtml()), w.syncBannerHtml());
+  w.S.adventure.synced = false;
+  check('an adventure that is not synced edits as always', w.syncedNo() === false && w.syncBannerHtml() === '', w.syncBannerHtml());
+
   console.log('\n' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });

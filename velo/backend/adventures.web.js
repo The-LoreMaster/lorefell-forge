@@ -17,6 +17,7 @@ import { Permissions, webMethod } from 'wix-web-module';
 import wixData from 'wix-data';
 import { currentMember } from 'wix-members-backend';
 import { gunzipSync } from 'zlib';
+import { VAULT_KEY, keepVault, overlayCampaign, vaultPackProblem } from 'backend/vaultSync.js';
 
 // TELEMETRY. Every Wix data call goes through this wrapper so we can SEE, per save, how many
 // reads and writes actually happened and against which collection. The quota is a per-minute
@@ -195,9 +196,13 @@ export const loadAdventure = webMethod(Permissions.Anyone, async (advId) => {
   } catch (e) {}
 
   const metaObj = jparse(root.meta, {});
+  // A synced adventure's vault copy rides in meta but never travels to a tool: the tool gets
+  // the adventure with the vault's prep already laid over it (vaultSync.js).
+  const vault = metaObj[VAULT_KEY] || null;
+  delete metaObj[VAULT_KEY];
   // Spread the campaign-level fields back to the top level where the tools keep them, with the
   // structural fields winning, so loading the tree reconstructs the whole campaign losslessly.
-  return Object.assign({}, metaObj, {
+  const tree = Object.assign({}, metaObj, {
     id: advId,
     name: root.name || 'Adventure',
     activeSceneId: root.activeSceneId || '',
@@ -207,6 +212,8 @@ export const loadAdventure = webMethod(Permissions.Anyone, async (advId) => {
     deletes: deletes,
     meta: metaObj
   });
+  if (vault && vault.on && vault.campaign) return overlayCampaign(tree, vault.campaign, { path: vault.path, at: vault.at });
+  return tree;
 });
 
 // A scene row -> the in-memory scene object. Beats and combatants come out of their JSON
@@ -242,7 +249,7 @@ export const saveAdventureRoot = webMethod(Permissions.Anyone, async (advId, roo
   if (root.name !== undefined) row.name = root.name || 'Adventure';
   if (root.activeSceneId !== undefined) row.activeSceneId = root.activeSceneId || '';
   if (root.actOrder !== undefined) row.actOrder = JSON.stringify(root.actOrder || []);
-  if (root.meta !== undefined) row.meta = JSON.stringify(root.meta || {});
+  if (root.meta !== undefined) row.meta = JSON.stringify(keepVault(existing && existing.meta, root.meta || {}));
   if (!row.ownerMemberId) row.ownerMemberId = id;
   row.updatedAt = Date.now();
   try {
@@ -455,7 +462,7 @@ export const saveAdventureFromCampaign = webMethod(Permissions.Anyone, async (ad
 
   // root: write only if name, active scene, act order, or any campaign-level field changed
   const actOrder = JSON.stringify(acts.map(a => a.id));
-  const rootMeta = JSON.stringify(rootMetaOf(campaign));
+  const rootMeta = JSON.stringify(keepVault(existingRoot && existingRoot.meta, rootMetaOf(campaign)));
   if (!existingRoot || existingRoot.name !== (campaign.name || 'Adventure') || existingRoot.activeSceneId !== (campaign.activeSceneId || '') || existingRoot.actOrder !== actOrder || !jsonEq(existingRoot.meta, rootMeta)) {
     await saveAdventureRootRow(advId, campaign, acts, existingRoot, id); writes++;
   }
@@ -576,7 +583,7 @@ async function saveAdventureRootRow(advId, campaign, acts, existing, id) {
   row.name = campaign.name || 'Adventure';
   row.activeSceneId = campaign.activeSceneId || '';
   row.actOrder = JSON.stringify(acts.map(a => a.id));
-  row.meta = JSON.stringify(rootMetaOf(campaign));
+  row.meta = JSON.stringify(keepVault(existing && existing.meta, rootMetaOf(campaign)));
   if (!row.ownerMemberId) row.ownerMemberId = id;
   row.updatedAt = Date.now();
   return existing ? wd.update(ADV, row, { suppressAuth: true }) : wd.insert(ADV, row, { suppressAuth: true });
@@ -719,3 +726,124 @@ export const migrateCampaign = webMethod(Permissions.Anyone, async (campaignId) 
   const nScenes = (data.acts || []).reduce((n, a) => n + (a.sessions || []).reduce((m, s) => m + (s.scenes || []).length, 0), 0);
   return { ok: (res && res.ok) !== false, advId: advId, scenesWritten: nScenes, scenesReadBack: backScenes, clean: nScenes === backScenes, tele: TELE };
 });
+
+// ---- SYNCED ADVENTURES: the vault's copy, kept by an admin ----
+//
+// A synced adventure's master copy is in the vault. syncAdventureFromPack takes a pack built
+// from it (scripts/adventureFromVault.js): the first time, it makes the adventure in the
+// caller's account under the vault's id; after that, it replaces the vault copy, and the next
+// load lays it over the table's play. Its foes and characters are written to the caller's
+// library under the vault's ids, so a rebuild updates them rather than adding more.
+async function isAdmin() {
+  try {
+    const roles = await currentMember.getRoles();
+    return Array.isArray(roles) && roles.some((r) => String((r && (r.title || r.name)) || '').toLowerCase() === 'admin');
+  } catch (e) { return false; }
+}
+
+function libraryRow(e, advId, advName, mid) {
+  const isFoe = e.type !== 'npc';
+  const fm = { campaignId: advId, campaignName: advName, source: 'vault' };
+  if (isFoe) Object.assign(fm, { build: e.build || '', stance: e.stance || '', sig: e.sig || '', augments: e.augments || [], infusions: e.infusions || [] });
+  return {
+    assetId: e.id, ownerMemberId: mid, type: isFoe ? 'monster' : 'npc', name: e.name || '', description: e.desc || '',
+    shatterRating: isFoe ? (e.sr || '') : '', maxVit: e.maxVit || 0, role: e.role || '', image: e.img || '', origin: e.origin || '',
+    attrs: JSON.stringify(e.attrs || {}), inventory: JSON.stringify(e.inv || []), abilities: JSON.stringify(e.abilities || []),
+    foeMeta: JSON.stringify(fm)
+  };
+}
+async function upsertLibrary(entries, advId, advName, mid) {
+  let n = 0;
+  for (const e of entries) {
+    if (!e || !e.id) continue;
+    const row = libraryRow(e, advId, advName, mid);
+    const ex = await wd.query('Assets').eq('ownerMemberId', mid).eq('assetId', String(e.id)).limit(1).find({ suppressAuth: true });
+    if (ex.items.length) await wd.update('Assets', Object.assign({}, ex.items[0], row), { suppressAuth: true });
+    else await wd.insert('Assets', row, { suppressAuth: true });
+    n++;
+  }
+  return n;
+}
+
+export const syncAdventureFromPack = webMethod(Permissions.Admin, async (pack) => {
+  teleEnter();
+  const problem = vaultPackProblem(pack);
+  if (problem) return { ok: false, error: problem };
+  const mid = await memberId();
+  if (!mid) return { ok: false, error: 'Sign in first.' };
+  const camp = pack.campaign;
+  const advId = String(camp.id);
+  const name = String(camp.name || 'Adventure').slice(0, 120);
+  const vault = { on: true, path: (pack.meta && pack.meta.vaultPath) || '', at: Date.now(), campaign: camp };
+  let root = await wd.get(ADV, advId, { suppressAuth: true }).catch(() => null);
+  if (root && root.ownerMemberId && root.ownerMemberId !== mid) return { ok: false, error: 'That adventure belongs to another member.' };
+  const created = !root;
+  try {
+    if (created) {
+      // The first sync makes the adventure: its Campaigns row (the list each tool shows) and its
+      // tree, both under the vault's id, exactly as an import lays them down.
+      const blob = Object.assign({}, camp); delete blob.synced; delete blob.vault;
+      const crow = await wd.get(CAMPAIGNS, advId, { suppressAuth: true }).catch(() => null);
+      const cdata = { _id: advId, ownerMemberId: mid, name: name, data: JSON.stringify(blob) };
+      if (crow) await wd.update(CAMPAIGNS, Object.assign({}, crow, cdata), { suppressAuth: true });
+      else await wd.insert(CAMPAIGNS, cdata, { suppressAuth: true });
+      const r = await saveAdventureFromCampaign(advId, blob, true);
+      if (!(r && r.ok)) return { ok: false, error: (r && r.error) || 'The adventure was not made.' };
+      root = await wd.get(ADV, advId, { suppressAuth: true }).catch(() => null);
+      if (!root) return { ok: false, error: 'The adventure was not made.' };
+    } else {
+      const crow = await wd.get(CAMPAIGNS, advId, { suppressAuth: true }).catch(() => null);
+      if (crow && crow.name !== name) await wd.update(CAMPAIGNS, Object.assign({}, crow, { name: name }), { suppressAuth: true });
+    }
+    const meta = jparse(root.meta, {});
+    meta[VAULT_KEY] = vault;
+    root.meta = JSON.stringify(meta);
+    root.name = name;
+    root.updatedAt = Date.now();
+    await wd.update(ADV, root, { suppressAuth: true });
+    const lib = await upsertLibrary([].concat(pack.foes || [], pack.npcs || []), advId, name, mid);
+    return { ok: true, id: advId, created: created, library: lib, tele: TELE };
+  } catch (e) { return { ok: false, error: (e && e.message) || String(e) }; }
+});
+
+// Lift or restore the lock. Lifting it writes the adventure as it stands (the vault's prep over
+// the table's play) into the tree, so nothing changes in front of anyone, and from then on the
+// tools edit it as usual. The vault copy is kept, so restoring the lock needs no new sync.
+export const setAdventureSynced = webMethod(Permissions.Admin, async (advId, on) => {
+  teleEnter();
+  const mid = await memberId();
+  const root = advId ? await wd.get(ADV, advId, { suppressAuth: true }).catch(() => null) : null;
+  if (!root) return { ok: false, error: 'No such adventure.' };
+  if (root.ownerMemberId && root.ownerMemberId !== mid) return { ok: false, error: 'That adventure belongs to another member.' };
+  const meta = jparse(root.meta, {});
+  const vault = meta[VAULT_KEY];
+  if (!vault || !vault.campaign) return { ok: false, error: 'This adventure has never been synced from the vault.' };
+  if (!!vault.on === !!on) return { ok: true, synced: !!on };
+  if (!on) {
+    const now = await loadAdventure(advId);
+    if (!now || !now.acts) return { ok: false, error: 'The adventure could not be read.' };
+    const flat = Object.assign({}, now); ['synced', 'vaultPath', 'vaultAt', 'role', 'updatedAt', 'deletes', 'meta'].forEach((k) => { delete flat[k]; });
+    vault.on = false;
+    meta[VAULT_KEY] = vault;
+    root.meta = JSON.stringify(meta);
+    await wd.update(ADV, root, { suppressAuth: true });
+    const r = await saveAdventureFromCampaign(advId, flat, true);
+    if (!(r && r.ok)) return { ok: false, error: (r && r.error) || 'The adventure was not written.' };
+    return { ok: true, synced: false };
+  }
+  vault.on = true;
+  meta[VAULT_KEY] = vault;
+  root.meta = JSON.stringify(meta);
+  await wd.update(ADV, root, { suppressAuth: true });
+  return { ok: true, synced: true };
+});
+
+// What the tools need to draw the switch: whether this member is an admin, and whether the
+// adventure is synced and could be.
+export const adventureSyncInfo = webMethod(Permissions.Anyone, async (advId) => {
+  const admin = await isAdmin();
+  const root = advId ? await wd.get(ADV, advId, { suppressAuth: true }).catch(() => null) : null;
+  const vault = root ? jparse(root.meta, {})[VAULT_KEY] : null;
+  return { admin: admin, synced: !!(vault && vault.on), canSync: !!(vault && vault.campaign), path: (vault && vault.path) || '', at: (vault && vault.at) || 0 };
+});
+

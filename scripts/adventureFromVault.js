@@ -11,6 +11,8 @@
 //   node scripts/adventureFromVault.js --vault ../lorefell-fellguide --adventure "The Broken Bloodline" [--out pack.json]
 //   VAULT_DIR=../lorefell-fellguide node scripts/adventureFromVault.js --adventure "The Broken Bloodline"
 //
+// --built-at <ms> fixes the build time, for a pack kept as a test fixture.
+//
 // Without --out the pack is written to stdout.
 
 const fs = require("fs");
@@ -263,7 +265,8 @@ if (require.main === module) {
     console.error('Usage: node scripts/adventureFromVault.js --vault <path> --adventure "<Adventure Name>" [--out pack.json]');
     process.exit(1);
   }
-  const r = buildPack(path.join(vault, "Adventures", adv));
+  const at = arg("--built-at");
+  const r = buildPack(path.join(vault, "Adventures", adv), { builtAt: at != null ? Number(at) : undefined });
   r.warnings.forEach((w) => console.error("note: " + w));
   const text = JSON.stringify(r.pack, null, 2) + "\n";
   const out = arg("--out");
