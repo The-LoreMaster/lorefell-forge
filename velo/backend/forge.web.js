@@ -330,6 +330,25 @@ export const aiForge = webMethod(Permissions.Anyone, async (opts) => {
   return { ok: true, text: text };
 });
 
+// What a hall row rolls, from its stored build (Nate, 2026-10-15). CANON.md, Attack Resolution:
+// a weapon ability rolls Precision against Evasion, and a spell rolls its tree's Magic skill
+// against the LoreMaster (Foci on Weaving, Artifact on Spirit, Tome on Creation). A row that is
+// not a player's Ability or Spell, or has no school, carries no roll line.
+const SPELL_SCHOOLS = ['Weaving', 'Spirit', 'Creation'];
+function rollLine(s) {
+  if (s.kind && String(s.kind).toLowerCase() !== 'character') return '';
+  let p;
+  try { p = typeof s.payload === 'string' ? JSON.parse(s.payload || '{}') : (s.payload || {}); } catch (e) { return ''; }
+  const m = (p && p.meta) || (p && p.forge && p.forge.meta) || {};
+  const type = m.type || p.abilityType || p.grammar || '';
+  const school = m.school || (p.migrated || p.abilityType ? p.weaponOrSchool : '') || '';
+  if (type === 'Spell' && SPELL_SCHOOLS.indexOf(school) >= 0) {
+    return 'Roll 1d6 + ' + school + ', plus any Mastery bonus, against the LoreMaster\'s 1d6 + Difficulty.';
+  }
+  if (type === 'Ability') return 'Roll 1d6 + Precision against the target\'s 1d6 + Evasion.';
+  return '';
+}
+
 export const getGallery = webMethod(Permissions.Anyone, async (opts) => {
   opts = opts || {};
   let q = wixData.query('Creations');
@@ -351,7 +370,8 @@ export const getGallery = webMethod(Permissions.Anyone, async (opts) => {
         creationId: s._id, creationName: s.creationName, creatorName: s.creatorName,
         canonStatus: s.canonStatus, voteCount: s.voteCount || 0, kind: s.kind,
         forgeKey: s.forgeKey, shorthand: s.shorthand, fullText: s.fullText,
-        imageUrl: wixImg(s.imageUrl || ''), flavorText: s.flavorText || pf
+        imageUrl: wixImg(s.imageUrl || ''), flavorText: s.flavorText || pf,
+        roll: rollLine(s)
       };
     });
     return { ok: true, rows: rows, total: res.totalCount || rows.length };
