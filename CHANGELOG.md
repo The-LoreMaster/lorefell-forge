@@ -1,3 +1,13 @@
+## 2026-10-15 - Synced adventures
+
+An adventure can keep its master copy in the vault (Nate, 2026-10-15). Only an admin brings one in or lifts its lock.
+
+- **Bringing one in.** Import a pack built from the vault (`scripts/adventureFromVault.js`) for an adventure marked `synced: true`, and ThreadSpire hands it to the new `syncAdventureFromPack`. The first time, it makes the adventure in your account under the vault's id. After that, importing again updates the same adventure, never a copy. Its foes and characters land in your library under the vault's ids.
+- **The lock.** The vault's copy rides on the adventure's root row, and `loadAdventure` lays it over the adventure every time it opens (`velo/backend/vaultSync.js`). The vault decides the scenes, beats, names and notes. The table keeps its play: ticked and pinned beats, the log, battles, loot, and foes as they stand (a foe removed at the table stays removed, one added stays). Every save path keeps the vault copy, so no tool can drop it.
+- **In ThreadSpire.** The Story window says the adventure is kept in the vault, and adding, renaming, moving or deleting an act, session, scene, beat or note is refused with a word. An admin gets a switch to lift the lock (the adventure stays exactly as it is and becomes editable) or lock it again to the last vault copy.
+- **In FateWell.** A banner on a synced adventure's pages says edits there are replaced the next time it opens.
+- **Paste.** `velo/page-threadspire.js` gains `TS_ADVENTURE_SYNC`, `TS_SYNC_INFO` and `TS_SYNC_SET`. The site copies the backend and page code in its own PR.
+
 ## 2026-10-15 - ThreadSpire: beats read as written, checks start on their skill
 
 - **Beat text.** A beat's words show their **bold**, *italic* and list marks on the LoreMaster's card and in the notes window, so a check's four results read as written. Everything is still escaped first. `docs/` and `embeds/` alike.

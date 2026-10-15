@@ -3850,7 +3850,7 @@ function storyNode(kind, id){
   var f = storyFind(kind, id); if (!f) return null;
   return kind === 'act' ? f.act : kind === 'session' ? f.ses : f.scene;
 }
-function storyAdd(kind, parentId){
+function storyAdd(kind, parentId){ if (syncedNo()) return;
   var A = S.adventure || (S.adventure = { acts:[] });
   var title = kind === 'act' ? 'New act' : kind === 'session' ? 'New session' : 'New scene';
   tsAsk2({ title:title, label:'Name', cta:'Create', onSave:function(n){
@@ -3872,14 +3872,14 @@ function storyAdd(kind, parentId){
     storySave(); advPersistTree(); refreshWinBody(); render();
   }});
 }
-function storyRename(kind, id){
+function storyRename(kind, id){ if (syncedNo()) return;
   var t = storyNode(kind, id); if (!t) return;
   tsAsk2({ title:'Rename', label:'Name', value:t.name, onSave:function(n){
     if (!n) return; t.name = n; storySave(); advPersistTree(); refreshWinBody(); render();
     try { sessionScenesRefresh(); } catch(e){}
   }});
 }
-function storyDelete(kind, id){
+function storyDelete(kind, id){ if (syncedNo()) return;
   var f = storyFind(kind, id); if (!f) return;
   var t = kind === 'act' ? f.act : kind === 'session' ? f.ses : f.scene;
   tsConfirm('Delete ' + (t.name || 'this') + '?', function(){
@@ -4073,7 +4073,7 @@ function storyBeatsHtml(sc){
   h += '<button class="st-add" onclick="storyBeatAdd(\'' + sc.id + '\')">Add a beat</button>';
   return h;
 }
-function storyBeatMove(sceneId, idx, dir){
+function storyBeatMove(sceneId, idx, dir){ if (syncedNo()) return;
   var f = storyFind('scene', sceneId); if (!f) return;
   var arr = f.scene.beats || []; var j = idx + dir;
   if (j < 0 || j >= arr.length) return;
@@ -4081,7 +4081,7 @@ function storyBeatMove(sceneId, idx, dir){
   storySave(); refreshWinBody();
   if (typeof paintLmStrip === 'function' && isLM()) paintLmStrip();
 }
-function storyMove(kind, id, dir){
+function storyMove(kind, id, dir){ if (syncedNo()) return;
   /* Reorder an act, session, or scene the same way beats reorder. advPersistTree writes the act
      order, each act's session order, and each session's scene order into the shared tree, so the
      order both tools read is the one just set here. Neither tool owns it; the tree does. */
@@ -4091,7 +4091,7 @@ function storyMove(kind, id, dir){
   var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
   storySave(); advPersistTree(); refreshWinBody(); render();
 }
-function storyBeatAdd(sceneId, at){ tsBeatModal(sceneId, -1, at); }
+function storyBeatAdd(sceneId, at){ if (syncedNo()) return; tsBeatModal(sceneId, -1, at); }
 function storyBeatOpen(sceneId, idx){ tsBeatModal(sceneId, idx); }
 function tsBeatModal(sceneId, idx, at){
   var f = storyFind('scene', sceneId); if (!f) return;
@@ -4130,7 +4130,7 @@ function tsSpeakerOpts(sel, sc){
     return '<option value="' + esc(c.id) + '"' + (c.id === sel ? ' selected' : '') + '>' + esc(c.name) + '</option>';
   }).join('');
 }
-function tsBeatSave(){
+function tsBeatSave(){ if (syncedNo()) return;
   var c = window._beatCtx; if (!c) return;
   var f = storyFind('scene', c.sceneId); if (!f) return;
   var kind = (document.getElementById('tsmKind') || {}).value || 'general';
@@ -4150,7 +4150,7 @@ function tsBeatSave(){
   tsCloseModal(); storySave(); refreshWinBody();
   if (typeof paintLmStrip === 'function' && isLM()) paintLmStrip();
 }
-function tsBeatDelete(){
+function tsBeatDelete(){ if (syncedNo()) return;
   var c = window._beatCtx; if (!c) return;
   var f = storyFind('scene', c.sceneId); if (!f) return;
   (f.scene.beats || []).splice(c.idx, 1);
@@ -4164,7 +4164,7 @@ function storyBody(){
     var _pn = 0; (A.acts||[]).forEach(function(a){ (a.sessions||[]).forEach(function(s){ _pn += (s.scenes||[]).length; }); });
     console.log('%c[STORY] painting acts=' + ((A.acts&&A.acts.length)||0) + ' scenes=' + _pn + ' name=' + (A.name||'') + ' fullLoaded=' + (!!S._advFullLoaded), 'color:#c6a7e6;font-weight:bold');
   } catch(e){}
-  var h = '<div class="win-note">The adventure spine. Open an act to reach its sessions, scenes, and notes.</div>';
+  var h = '<div class="win-note">The adventure spine. Open an act to reach its sessions, scenes, and notes.</div>' + syncBannerHtml();
   (A.acts || []).forEach(function(a, ai){
     var ao = !!storyOpen.act[a.id];
     h += '<div class="st-row st-act"><span class="st-tw" onclick="storyToggle(\'act\',\'' + a.id + '\')">' + (ao ? '\u25be' : '\u25b8') + '</span>'
@@ -5107,6 +5107,20 @@ function tsReadPack(input){
 }
 function tsImportPack(pack){
   var nm = (pack.campaign && pack.campaign.name) || 'Imported adventure';
+  /* A pack built from the vault for a synced adventure is not a fresh copy: it lands under the
+     vault's own id, and importing it again updates that same adventure. Only an admin may. */
+  if (pack.meta && pack.meta.source === 'vault' && pack.campaign && pack.campaign.synced === true){
+    tsCloseModal(); advGoing(nm);
+    tsAsk('TS_ADVENTURE_SYNC', { pack:pack }).then(function(r){
+      if (!r || r.ok === false || !r.id) throw new Error((r && r.error) || 'not synced');
+      S.syncInfo = null;
+      return tsAsk('TS_CAMPAIGN_SET', { campaignId:r.id });
+    }).catch(function(e){
+      advGoingStop();
+      tsModal('<h3 class="tsm-title">It was not synced</h3><p class="lc-p">' + esc((e && e.message && e.message !== 'not synced') ? e.message : 'Only an admin can bring in an adventure kept in the vault.') + '</p><div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Close</button></div>');
+    });
+    return;
+  }
   tsCloseModal(); advGoing(nm);
   /* Every import gets its own copies of the pack's foes and NPCs. Their ids are reminted and
      every reference to them inside the adventure follows, the way FateWell's import does, so
@@ -6256,7 +6270,7 @@ function tsNoteModal(nodeKind, nodeId, idx){
     + '<button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button>'
     + '<button class="tsm-btn" onclick="tsNoteSave()">Save</button></div>', true);
 }
-function tsNoteSave(){
+function tsNoteSave(){ if (syncedNo()) return;
   var c = window._noteCtx; if (!c) return;
   var node = storyNode(c.kind, c.id); if (!node) return;
   node.entries = node.entries || [];
@@ -6279,7 +6293,7 @@ function tsNoteSave(){
   if (isLM()) { try { paintLmStrip(); } catch(err){} }
   if (c.kind === 'session') sessionNotesRefresh();
 }
-function tsNoteDelete(){
+function tsNoteDelete(){ if (syncedNo()) return;
   var c = window._noteCtx; if (!c || c.idx < 0) return;
   var node = storyNode(c.kind, c.id); if (!node) return;
   (node.entries || []).splice(c.idx, 1);
@@ -9635,6 +9649,45 @@ function isLM(){ return S.role === 'lm'; }
    table: the LoreMaster's while one is at the table, the lorekeeper's only when none is. */
 function isKeeper(){ return isLM() && !!S.keeper; }
 function keeperSaves(){ return isKeeper() && ROOM.on && ROOM.lms === 0; }
+/* ---- a synced adventure: its master copy is in the vault ----
+   The server lays the vault's prep over the adventure every time it loads (vaultSync.js), so a
+   prep edit here would vanish on the next load. Say so instead of letting it be made. Running
+   the adventure is untouched: ticking beats, checks, the board, foes at the table. */
+function advSynced(){ return !!(S.adventure && S.adventure.synced); }
+function syncedNo(){ if (!advSynced()) return false; try { playToast('This adventure is kept in the vault. Change it there, or ask Claude.', 'Synced'); } catch(e){} return true; }
+S.syncInfo = null;
+function syncInfoLoad(){
+  var cid = S.campaignId;
+  if (!cid || (S.syncInfo && sameId(S.syncInfo.campaignId, cid)) || syncInfoLoad._busy) return;
+  syncInfoLoad._busy = true;
+  tsAsk('TS_SYNC_INFO', { campaignId:cid }).then(function(r){
+    syncInfoLoad._busy = false;
+    S.syncInfo = Object.assign({ campaignId:cid }, r || {});
+    if (S.syncInfo.admin && S.syncInfo.canSync) try { refreshWinBody(); } catch(e){}
+  }).catch(function(){ syncInfoLoad._busy = false; S.syncInfo = { campaignId:cid }; });
+}
+function syncBannerHtml(){
+  syncInfoLoad();
+  var I = S.syncInfo || {}, on = advSynced();
+  var h = '';
+  if (on) h += '<div class="win-note sync-note">Kept in the vault' + (S.adventure.vaultPath ? ' (' + esc(S.adventure.vaultPath) + ')' : '') + '. Its scenes and beats change only there. Running it works as always.</div>';
+  if (I.admin && I.canSync)
+    h += '<div class="stn-wrap"><button class="st-add" onclick="syncToggle(' + (on ? 'false' : 'true') + ')">' + (on ? 'Lift the vault lock' : 'Lock to the vault again') + '</button></div>';
+  return h;
+}
+function syncToggle(on){
+  tsModal('<h3 class="tsm-title">' + (on ? 'Lock to the vault' : 'Lift the vault lock') + '</h3>'
+    + '<p class="lc-p">' + (on ? 'The vault copy takes over the scenes and beats again. Anything changed here since the lock was lifted is replaced. Running it is untouched.'
+                                : 'The adventure stays exactly as it is and becomes editable here. Changes made in the vault stop arriving until it is locked again.') + '</p>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button><button class="tsm-btn" onclick="syncToggleGo(' + (on ? 'true' : 'false') + ')">' + (on ? 'Lock' : 'Lift') + '</button></div>');
+}
+function syncToggleGo(on){
+  tsCloseModal();
+  tsAsk('TS_SYNC_SET', { campaignId:S.campaignId, on:!!on }).then(function(r){
+    if (!r || r.ok === false){ playToast((r && r.error) || 'That did not change.', 'Synced'); return; }
+    S.syncInfo = null; location.reload();
+  }).catch(function(){ playToast('That did not change.', 'Synced'); });
+}
 function keeperNo(){ if (!isKeeper()) return false; try { playToast('That is the LoreMaster\u2019s to do.', 'Lorekeeper'); } catch(e){} return true; }
 /* which card sits centered in the carousel. A view fact, so it lives out here with
    the camera and never syncs. Keyed per face so scene and combat keep their place. */
