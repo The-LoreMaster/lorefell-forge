@@ -4,9 +4,13 @@
  *   - The Brand is bound to its world: forged alone it names the world, forged as all three it
  *     takes the world's name, and the world's card finds it by that name.
  *   - It cannot be submitted without the canon parts: the working, the question, Lore of the
- *     Brand with its form, tone and cost, five Example Skill Checks and one Talent.
+ *     Brand with its form and tone, five Example Skill Checks and one Talent.
+ *   - A Brand has no cost of its own (Nate, 2026-10-15: "Remove the cost from the BrandForge.
+ *     It's already in the rules."). No field, label or saved part names one.
  *   - Lore of the Brand is written in the canon shape. Fed a vault page's parts, the forge
- *     writes that page's paragraph word for word (when the vault sits beside this repo).
+ *     writes the parts it owns (name, world, working, form, tone, five checks, Talent) word for
+ *     word as that page has them (when the vault sits beside this repo). The page may say more
+ *     after its tone, so that is neither required nor refused.
  *   - The Talent is priced as CANON.md prices every Talent, and its words are flagged if they
  *     price it again or name a set amount.
  *
@@ -37,7 +41,6 @@ function check(n, ok, d){ if (ok === true){ console.log('  PASS  ' + n); pass++;
     b_q:'How surely can I still a body, a flow, or a foe with the cold?',
     b_form:'ice-vein healing, frozen breath, and snow sigils, a magic that mends and preserves by slowing and stilling, drawing the cold inward to hold a body together',
     b_tone:'stoic and enduring',
-    b_cost:'gentler than most Brands and crueler in its own way, for Frostmending brings emotional numbness, and those who lean on it too long find their feelings frosting over along with their wounds',
     b_c1:'Mend a wound or a failing body by slowing and stilling it against the cold.',
     b_c2:'Freeze a flow, a flood, or a foe in place with frozen breath.',
     b_c3:'Read the cold of a place, what it preserves and what it has claimed.',
@@ -51,15 +54,15 @@ function check(n, ok, d){ if (ok === true){ console.log('  PASS  ' + n); pass++;
   js(`setKind('brand')`);
   check('the Brand tab asks for its world', js(`!document.getElementById('f_bworld').classList.contains('hide')`) === true, 'world field hidden');
   check('an empty Brand is missing every canon part',
-    ['its world', 'the practice', 'the question', 'its form, tone and cost', 'five example skill checks', "the Talent's name and what it does"].every((p) => missing().includes(p)), JSON.stringify(missing()));
+    ['its world', 'the practice', 'the question', 'its form and tone', 'five example skill checks', "the Talent's name and what it does"].every((p) => missing().includes(p)), JSON.stringify(missing()));
   Object.entries(G).forEach(([k, v]) => set(k, v));
   check('filled whole, nothing is missing', missing().length === 0, JSON.stringify(missing()));
   set('b_c5', '');
   check('four checks are not enough: a canon Brand has five', missing().includes('five example skill checks'), JSON.stringify(missing()));
   set('b_c5', G.b_c5);
-  set('b_cost', '');
-  check('Lore of the Brand without its cost cannot be submitted', missing().includes('its form, tone and cost'), JSON.stringify(missing()));
-  set('b_cost', G.b_cost);
+  set('b_tone', '');
+  check('Lore of the Brand without its tone cannot be submitted', missing().includes('its form and tone'), JSON.stringify(missing()));
+  set('b_tone', G.b_tone);
   set('b_world', '');
   check('a Brand with no world cannot be submitted', missing().includes('its world'), JSON.stringify(missing()));
   set('b_world', G.b_world);
@@ -68,12 +71,21 @@ function check(n, ok, d){ if (ok === true){ console.log('  PASS  ' + n); pass++;
   check('the Brand names its world', it.world === 'Vulkaris', it.world);
   check('it carries its question, five checks and its Talent',
     it.question === G.b_q && it.checks.length === 5 && it.talent.name === G.b_talent && it.talent.text === G.b_talent_text, JSON.stringify(it));
-  check('its lore is written in the canon shape, with the world, the working, the form, the tone and the cost',
-    it.lore === 'Gelidane is the Brand of Vulkaris, the working called Frostmending. It exists as ' + G.b_form + '. Its tone is stoic and enduring. Its cost is ' + G.b_cost + '.', it.lore);
-  check('the parts travel with it too', it.form === G.b_form && it.tone === G.b_tone && it.cost === G.b_cost, JSON.stringify(it));
+  check('its lore is written in the canon shape, with the world, the working, the form and the tone',
+    it.lore === 'Gelidane is the Brand of Vulkaris, the working called Frostmending. It exists as ' + G.b_form + '. Its tone is stoic and enduring.', it.lore);
+  check('the parts travel with it too', it.form === G.b_form && it.tone === G.b_tone, JSON.stringify(it));
   set('b_tone', 'Its tone is stoic and enduring.');
-  check('an opening the form already says is not doubled', item().lore.includes('Its tone is stoic and enduring. Its cost'), item().lore);
+  check('an opening the form already says is not doubled', item().lore.endsWith('. Its tone is stoic and enduring.') && !/Its tone is its tone/i.test(item().lore), item().lore);
   set('b_tone', G.b_tone);
+
+  console.log('\na Brand has no cost of its own (Nate, 2026-10-15)');
+  check('the form has no cost field', !w.document.getElementById('b_cost') && !w.document.querySelector('[id*="cost" i]'), 'a cost field is still in the form');
+  const said = [...w.document.querySelectorAll('label, .tip, [placeholder]')].map((el) => el.closest('#b_talent_price') ? '' : (el.textContent + ' ' + (el.getAttribute('placeholder') || ''))).join(' | ');
+  check('no label, tip or placeholder asks for a cost', !/\bcosts?\b/i.test(said), (said.match(/[^|]*\bcosts?\b[^|]*/i) || [''])[0]);
+  check('the saved Brand carries no cost part', !Object.keys(it).some((k) => /cost/i.test(k)), Object.keys(it).join(', '));
+  check('its lore and the preview name no cost', !/\bcost/i.test(it.lore) && !/\bcost/i.test(js(`document.getElementById('b_page').textContent`)), it.lore);
+  const veloSrc = fs.readFileSync(path.join(ROOT, 'velo', 'page-brandforge.js'), 'utf8');
+  check('Velo saves no cost for a Brand', !/\bcost\b/i.test(veloSrc), 'velo/page-brandforge.js still names a cost');
 
   const page = js(`document.getElementById('b_page').textContent`);
   check('the page preview reads as a canon Brand page',
@@ -113,17 +125,38 @@ function check(n, ok, d){ if (ok === true){ console.log('  PASS  ' + n); pass++;
   if (!fs.existsSync(dir)) console.log('  SKIP  the vault is not beside this repo');
   else {
     js(`setKind('brand')`);
-    const re = /^(\S+) is the Brand of (.+?), the working called (.+?)\. It exists as (.+?)\. Its tone is (.+?)\. Its cost is (.+)\.$/;
+    // the parts the forge owns, read off a vault page; whatever the page says after its tone is its own
+    const re = /^(\S+) is the Brand of (.+?), the working called (.+?)\. It exists as (.+?)\. Its tone is (.+?)\.(?:\s+(.*))?$/;
+    const owned = (md) => {
+      const lore = ((md.split('## Lore of the Brand')[1] || '').trim().split('\n')[0] || '').replace(/\[\[[^\]|]+\|([^\]]+)\]\]/g, '$1');
+      const m = lore.match(re); if (!m) return null;
+      const aka = (md.match(/^\*Also called (.+?)\.\*\s*$/m) || [])[1] || '';
+      const q = (md.match(/^> \*"(.+)"\*\s*$/m) || [])[1] || '';
+      const ckBlock = (md.split('[!note] Example Skill Checks')[1] || '').split(/\n(?!>)/)[0];
+      const checks = [...ckBlock.matchAll(/^> - (.+)$/gm)].map((x) => x[1].trim());
+      const tm = md.match(/\[!note\] Talent: (.+)\n>\s*\n> (.+)/);
+      return { lore, owns:m[6] ? lore.slice(0, lore.length - m[6].length).trimEnd() : lore, name:m[1], world:m[2], work:m[3], form:m[4], tone:m[5], aka, q, checks,
+        talent:tm ? { name:tm[1].trim(), text:tm[2].trim() } : null };
+    };
     let tried = 0; const off = [];
     fs.readdirSync(dir).filter((f) => f.endsWith('.md') && f !== 'Brands of Magic.md').forEach((f) => {
-      const md = fs.readFileSync(path.join(dir, f), 'utf8');
-      const lore = ((md.split('## Lore of the Brand')[1] || '').trim().split('\n')[0] || '').replace(/\[\[[^\]|]+\|([^\]]+)\]\]/g, '$1');
-      const m = lore.match(re); if (!m) return;
+      const v = owned(fs.readFileSync(path.join(dir, f), 'utf8'));
+      if (!v || v.checks.length !== 5 || !v.talent) return;
       tried++;
-      set('b_name', m[1]); set('b_world', m[2]); set('b_verb_long', m[3]); set('b_form', m[4]); set('b_tone', m[5]); set('b_cost', m[6]);
-      if (item().lore !== lore) off.push(f + ': ' + item().lore);
+      set('b_name', v.name); set('b_world', v.world); set('b_verb_long', v.work); set('b_form', v.form); set('b_tone', v.tone); set('b_q', v.q);
+      v.checks.forEach((c, i) => set('b_c' + (i + 1), c));
+      set('b_talent', v.talent.name); set('b_talent_text', v.talent.text);
+      const got = item(), page = js(`document.getElementById('b_page').textContent`), bad = [];
+      if (got.lore !== v.owns) bad.push('lore ' + got.lore);
+      if (JSON.stringify(got.checks) !== JSON.stringify(v.checks)) bad.push('checks');
+      if (got.talent.name !== v.talent.name || got.talent.text !== v.talent.text) bad.push('talent');
+      if (v.aka && !page.includes('Also called ' + v.aka + '.')) bad.push('also called');
+      if (!page.includes(got.lore) || !page.includes('Talent: ' + v.talent.name) || !page.includes(v.talent.text) || !v.checks.every((c) => page.includes(c))) bad.push('preview');
+      if (missing().length) bad.push('missing ' + missing().join(', '));
+      if (bad.length) off.push(f + ': ' + bad.join('; '));
     });
-    check('every canon page in the plain shape (' + tried + ') comes back word for word', tried >= 3 && off.length === 0, tried + ' tried | ' + off.join(' | '));
+    check('every canon page in the plain shape (' + tried + ') gets its name, world, working, form, tone, five checks and Talent back word for word',
+      tried >= 3 && off.length === 0, tried + ' tried | ' + off.join(' | '));
   }
 
   console.log('\nthe world’s card finds a Brand that names it');

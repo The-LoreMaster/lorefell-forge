@@ -65,7 +65,7 @@ async function submitItem(it, groupId, creator) {
     fullText = brandText(it); shorthand = it.question || it.practiceLong || '';
     // the Brand names its world, so a LoreMaster's own world gives it on the sheet (Nate, 2026-10-15)
     Object.assign(meta, { world: it.world || '', practiceLong: it.practiceLong || '', practiceShort: it.practiceShort || '',
-      question: it.question || '', lore: it.lore || '', form: it.form || '', tone: it.tone || '', cost: it.cost || '',
+      question: it.question || '', lore: it.lore || '', form: it.form || '', tone: it.tone || '',
       checks: it.checks || [], talent: it.talent || null });
   }
   const payload = {
