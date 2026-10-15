@@ -36,6 +36,7 @@ function worldText(it) {
 }
 function brandText(it) {
   const lines = [];
+  if (it.world) lines.push('World: ' + it.world);
   if (it.practiceLong) lines.push('Practice: ' + it.practiceLong + (it.practiceShort ? (' (' + it.practiceShort + ')') : ''));
   if (it.question) lines.push('', it.question);
   if (it.lore) lines.push('', it.lore);
@@ -62,8 +63,10 @@ async function submitItem(it, groupId, creator) {
       magic: it.magic || '', architecture: it.architecture || '', faith: it.faith || '', life: it.life || '' });
   } else {
     fullText = brandText(it); shorthand = it.question || it.practiceLong || '';
-    Object.assign(meta, { practiceLong: it.practiceLong || '', practiceShort: it.practiceShort || '',
-      question: it.question || '', lore: it.lore || '', checks: it.checks || [], talent: it.talent || null });
+    // the Brand names its world, so a LoreMaster's own world gives it on the sheet (Nate, 2026-10-15)
+    Object.assign(meta, { world: it.world || '', practiceLong: it.practiceLong || '', practiceShort: it.practiceShort || '',
+      question: it.question || '', lore: it.lore || '', form: it.form || '', tone: it.tone || '', cost: it.cost || '',
+      checks: it.checks || [], talent: it.talent || null });
   }
   const payload = {
     kind: it.kind, title: String(it.name || '').slice(0, 120),

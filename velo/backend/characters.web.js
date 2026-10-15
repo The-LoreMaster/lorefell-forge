@@ -86,24 +86,28 @@ async function worldCard(worldId, adv) {
     const m = pl.meta || {};
     if ((m.kind || pl.kind) !== 'world') return null;
     const t = (v) => String(v || '').slice(0, 2000);
-    return { name: String(it.creationName || pl.title || '').trim(), overview: t(m.overview), people: t(m.people), magic: t(m.magic),
-      architecture: t(m.architecture), faith: t(m.faith), life: t(m.life), brand: await forgedWorldBrand(it, m) };
+    const name = String(it.creationName || pl.title || '').trim();
+    return { name: name, overview: t(m.overview), people: t(m.people), magic: t(m.magic),
+      architecture: t(m.architecture), faith: t(m.faith), life: t(m.life), brand: await forgedWorldBrand(it, m, name) };
   } catch (e) { return null; }
 }
 
 // A forged world's Brand, so the sheet attunes it as it does a canon world's (Nate, 2026-10-13).
 // The world names its Brand at a glance. Forged as a set, the Brand is the BrandForge creation of
-// the same group. Otherwise it is the maker's own forged Brand of that name. A name alone, or one
-// of the 36 by name, is sent as a name.
-async function forgedWorldBrand(world, m) {
+// the same group. Otherwise it is the maker's own forged Brand of that name, or the maker's forged
+// Brand that names this world as its own (a LoreMaster's world in no master table, forged on its
+// own, Nate 2026-10-15). A name alone, or one of the 36 by name, is sent as a name.
+async function forgedWorldBrand(world, m, worldName) {
   const named = String((m.glance && m.glance.brand) || '').replace(/^brand,?\s*/i, '').split(/,\s*the art of\s*/i)[0].trim();
+  const wname = String(worldName || '').trim().toLowerCase();
   try {
     const res = await wixData.query('Creations').eq('forgeKey', 'brandforge').eq('kind', 'brand')
       .eq('creatorMemberId', world.creatorMemberId).limit(100).find({ suppressAuth: true });
     const meta = (it) => { try { const pl = typeof it.payload === 'string' ? JSON.parse(it.payload) : (it.payload || {}); return pl.meta || {}; } catch (e) { return {}; } };
     const items = res.items || [];
     const hit = (m.groupId && items.find((it) => meta(it).groupId === m.groupId))
-      || (named && items.find((it) => String(it.creationName || '').trim().toLowerCase() === named.toLowerCase()));
+      || (named && items.find((it) => String(it.creationName || '').trim().toLowerCase() === named.toLowerCase()))
+      || (wname && items.find((it) => String(meta(it).world || '').trim().toLowerCase() === wname));
     if (hit) {
       const bm = meta(hit), t = bm.talent || {};
       return { name: String(hit.creationName || named).trim().slice(0, 120), question: String(bm.question || '').slice(0, 400),
