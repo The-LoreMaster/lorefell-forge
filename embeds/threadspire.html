@@ -9673,6 +9673,8 @@ function syncBannerHtml(){
   if (on) h += '<div class="win-note sync-note">Kept in the vault' + (S.adventure.vaultPath ? ' (' + esc(S.adventure.vaultPath) + ')' : '') + '. Its scenes and beats change only there. Running it works as always.</div>';
   if (I.admin && I.canSync)
     h += '<div class="stn-wrap"><button class="st-add" onclick="syncToggle(' + (on ? 'false' : 'true') + ')">' + (on ? 'Lift the vault lock' : 'Lock to the vault again') + '</button></div>';
+  else if (I.admin && I.canSync === false && !on && S.adventure && (S.adventure.acts || []).length)
+    h += '<div class="stn-wrap"><button class="st-add" onclick="syncLockAsk()">Lock to the vault</button></div>';
   return h;
 }
 function syncToggle(on){
@@ -9680,6 +9682,21 @@ function syncToggle(on){
     + '<p class="lc-p">' + (on ? 'The vault copy takes over the scenes and beats again. Anything changed here since the lock was lifted is replaced. Running it is untouched.'
                                 : 'The adventure stays exactly as it is and becomes editable here. Changes made in the vault stop arriving until it is locked again.') + '</p>'
     + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button><button class="tsm-btn" onclick="syncToggleGo(' + (on ? 'true' : 'false') + ')">' + (on ? 'Lock' : 'Lift') + '</button></div>');
+}
+/* An adventure made here, written out to the vault and locked to it. */
+function syncLockAsk(){
+  tsModal('<h3 class="tsm-title">Lock to the vault</h3>'
+    + '<p class="lc-p">This writes ' + esc((S.adventure && S.adventure.name) || 'the adventure') + ' into the vault, under Adventures, and locks it. From then on its scenes and beats change only in the vault, or through Claude, and running it works as always.</p>'
+    + '<p class="lc-p">Its foes and characters keep their places at the table. Any beat ticked so far comes back unticked, once.</p>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button><button class="tsm-btn" onclick="syncLockGo()">Lock</button></div>');
+}
+function syncLockGo(){
+  tsCloseModal();
+  playToast('Writing it to the vault.', 'Synced');
+  tsAskRaw('TS_SYNC_LOCK', { campaignId:S.campaignId }, 60000).then(function(r){
+    if (!r || r.ok === false){ playToast((r && r.error) || 'It was not locked.', 'Synced'); return; }
+    S.syncInfo = null; location.reload();
+  }).catch(function(e){ playToast((e && e.message) || 'It was not locked.', 'Synced'); });
 }
 function syncToggleGo(on){
   tsCloseModal();
@@ -14476,14 +14493,14 @@ function tsAsk(type, payload){
   }
   return tsAskRaw(type, payload);
 }
-function tsAskRaw(type, payload){
+function tsAskRaw(type, payload, waitMs){
   /* a stream only reads: anything that would write is answered here and goes nowhere */
   if (S.stream && !/(PULL|GET|LIST|LOAD|READ|PENDING|CONTEXT|MINE|FIND|SEARCH|ROSTER|JOURNAL_GET|FORGE_DATA|ASSETS?_LIST|PARTY_LIST|CHAR_LOAD|SHEET|PORTRAIT)/.test(String(type))) return Promise.resolve(null);
   return new Promise(function(res, rej){
     var id = 'r' + (++_tsReq);
     _tsPending[id] = { res:res, rej:rej };
     window.parent.postMessage(Object.assign({ type:type, reqId:id }, payload || {}), '*');
-    setTimeout(function(){ if(_tsPending[id]){ _tsPending[id].rej(new Error('bridge timeout')); delete _tsPending[id]; } }, 15000);
+    setTimeout(function(){ if(_tsPending[id]){ _tsPending[id].rej(new Error('bridge timeout')); delete _tsPending[id]; } }, waitMs || 15000);
   });
 }
 var _prevOnMessage = window.onmessage;

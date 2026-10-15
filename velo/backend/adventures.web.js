@@ -18,6 +18,9 @@ import wixData from 'wix-data';
 import { currentMember } from 'wix-members-backend';
 import { gunzipSync } from 'zlib';
 import { VAULT_KEY, keepVault, overlayCampaign, vaultPackProblem, packSig } from 'backend/vaultSync.js';
+import { writeAdventure, readAdventure } from 'backend/adventureFormat.js';
+import { fetch } from 'wix-fetch';
+import { getSecret } from 'wix-secrets-backend';
 
 // TELEMETRY. Every Wix data call goes through this wrapper so we can SEE, per save, how many
 // reads and writes actually happened and against which collection. The quota is a per-minute
@@ -852,5 +855,111 @@ export const adventureSyncInfo = webMethod(Permissions.Anyone, async (advId) => 
   const root = advId ? await wd.get(ADV, advId, { suppressAuth: true }).catch(() => null) : null;
   const vault = root ? jparse(root.meta, {})[VAULT_KEY] : null;
   return { admin: admin, synced: !!(vault && vault.on), canSync: !!(vault && vault.campaign), path: (vault && vault.path) || '', at: (vault && vault.at) || 0 };
+});
+
+// ---- LOCK TO THE VAULT: an adventure made in the tools becomes a synced one ----
+//
+// The admin presses Lock to the vault on an adventure that has never been synced. It is written
+// out as vault pages (adventureFormat.js), committed straight to the vault's main branch under
+// Adventures/<name>/ with VAULT_WRITE_TOKEN, read back exactly as the live sync will read it, and
+// locked. Its foes and characters move to the ids the vault gives them, on the table as well as
+// in the library, so nothing at the table is lost. Beats get the vault's ids, so a beat ticked
+// before the lock comes back unticked (Nate, 2026-10-15).
+const VAULT_REPO = 'The-LoreMaster/lorefell-fellguide';
+
+async function gh(token, method, path, body) {
+  const r = await fetch('https://api.github.com/repos/' + VAULT_REPO + path, {
+    method: method,
+    headers: { Authorization: 'Bearer ' + token, Accept: 'application/vnd.github+json', 'User-Agent': 'lorefell-site', 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined
+  });
+  const text = await r.text();
+  let j = {}; try { j = text ? JSON.parse(text) : {}; } catch (e) { j = {}; }
+  if (!r.ok) { const err = new Error('GitHub said ' + r.status + ': ' + String(j.message || text || '').slice(0, 200)); err.status = r.status; throw err; }
+  return j;
+}
+
+// A library row as the tools hold it, the way rowToAsset reads one.
+function libFromRow(r) {
+  const fm = jparse(r.foeMeta, {});
+  return {
+    id: r.assetId, type: r.type || 'monster', name: r.name || '', desc: r.description || '', role: r.role || '', img: r.image || '',
+    sr: r.shatterRating || '', maxVit: Number(r.maxVit) || 0, attrs: jparse(r.attrs, {}), abilities: jparse(r.abilities, []),
+    build: fm.build || r.build || '', stance: fm.stance || r.stance || '', sig: fm.sig || r.signatureAffliction || '',
+    infusions: Array.isArray(fm.infusions) ? fm.infusions : [], augments: Array.isArray(fm.augments) ? fm.augments : [],
+    campaignId: fm.campaignId != null ? fm.campaignId : (r.campaignId || ''), _rowId: r._id
+  };
+}
+
+async function commitToVault(token, files, folder, message) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const ref = await gh(token, 'GET', '/git/ref/heads/main');
+    const head = ref.object.sha;
+    const commit = await gh(token, 'GET', '/git/commits/' + head);
+    const entries = Object.keys(files).map((p) => ({ path: 'Adventures/' + folder + '/' + p, mode: '100644', type: 'blob', content: files[p] }));
+    const tree = await gh(token, 'POST', '/git/trees', { base_tree: commit.tree.sha, tree: entries });
+    const made = await gh(token, 'POST', '/git/commits', { message: message, tree: tree.sha, parents: [head] });
+    try { await gh(token, 'PATCH', '/git/refs/heads/main', { sha: made.sha, force: false }); return made; }
+    catch (e) { if (e.status !== 422 || attempt) throw e; } // main moved under us (an Obsidian backup): build again on the new head
+  }
+}
+
+export const lockAdventureToVault = webMethod(Permissions.Admin, async (advId) => {
+  teleEnter();
+  const mid = await memberId();
+  const root = advId ? await wd.get(ADV, advId, { suppressAuth: true }).catch(() => null) : null;
+  if (!root) return { ok: false, error: 'No such adventure.' };
+  if (root.ownerMemberId && root.ownerMemberId !== mid) return { ok: false, error: 'That adventure belongs to another member.' };
+  if (jparse(root.meta, {})[VAULT_KEY]) return { ok: false, error: 'This adventure is already kept in the vault. Use the lock switch instead.' };
+  let token = '';
+  try { token = await getSecret('VAULT_WRITE_TOKEN'); } catch (e) { token = ''; }
+  if (!token) return { ok: false, error: 'VAULT_WRITE_TOKEN is not set on the site, so nothing can be written to the vault yet.' };
+  try {
+    const adv = await loadAdventure(advId);
+    if (!adv || !adv.acts) return { ok: false, error: 'The adventure could not be read.' };
+    const flat = Object.assign({}, adv); ['role', 'updatedAt', 'deletes', 'meta'].forEach((k) => { delete flat[k]; });
+    const libRows = (await wd.query('Assets').eq('ownerMemberId', mid).limit(1000).find({ suppressAuth: true })).items || [];
+    const library = libRows.map(libFromRow);
+
+    // the names the vault already uses, so no new page shares one
+    const ref = await gh(token, 'GET', '/git/ref/heads/main');
+    const commit = await gh(token, 'GET', '/git/commits/' + ref.object.sha);
+    const tree = await gh(token, 'GET', '/git/trees/' + commit.tree.sha + '?recursive=1');
+    const taken = new Set();
+    (tree.tree || []).forEach((t) => {
+      const base = String(t.path || '').split('/').pop();
+      if (t.type === 'blob' && /\.md$/i.test(base)) taken.add(base.replace(/\.md$/i, '').toLowerCase());
+      if (t.type === 'tree' && /^Adventures\/[^/]+$/.test(t.path)) taken.add(base.toLowerCase());
+    });
+    const w = writeAdventure(flat, library.map((e) => Object.assign({}, e)), taken);
+    const made = await commitToVault(token, w.files, w.folder, 'Adventures: ' + w.folder + ', locked to the vault from ThreadSpire');
+    const read = readAdventure(w.files, w.folder, {});
+    if (read.pack.campaign.id !== String(advId)) return { ok: false, error: 'The vault copy came back under another id. Nothing was locked.' };
+
+    // the table keeps its foes and characters, under the ids the vault gave them, and the vault's
+    // own placements count as already made, so none is added twice
+    const vaultCbs = {};
+    read.pack.campaign.acts.forEach((a) => a.sessions.forEach((se) => se.scenes.forEach((sc) => { vaultCbs[String(sc.id)] = (sc.combatants || []).map((c) => String(c.id)); })));
+    flat.acts.forEach((a) => (a.sessions || []).forEach((se) => (se.scenes || []).forEach((sc) => {
+      sc.combatants = (sc.combatants || []).map((c) => (c && c.libId != null && w.libIdMap[String(c.libId)]) ? Object.assign({}, c, { libId: w.libIdMap[String(c.libId)] }) : c);
+      sc.vaultSeeded = vaultCbs[String(sc.id)] || [];
+    })));
+    const saved = await saveAdventureFromCampaign(advId, flat, true);
+    if (!(saved && saved.ok)) return { ok: false, error: (saved && saved.error) || 'The adventure was written to the vault but not locked. Press Lock to the vault again.' };
+    const name = String(read.pack.campaign.name || 'Adventure').slice(0, 120);
+    await upsertLibrary([].concat(read.pack.foes, read.pack.npcs), String(advId), name, mid);
+    // the entries the vault copy replaces, where they belonged to this adventure alone
+    for (const e of library) {
+      const to = w.libIdMap[String(e.id)];
+      if (to && to !== String(e.id) && String(e.campaignId) === String(advId) && e._rowId) await wd.remove('Assets', e._rowId, { suppressAuth: true }).catch(() => null);
+    }
+    const now = await wd.get(ADV, advId, { suppressAuth: true });
+    const meta = jparse(now.meta, {});
+    meta[VAULT_KEY] = { on: true, path: 'Adventures/' + w.folder, at: Date.now(), sig: packSig(read.pack), campaign: read.pack.campaign };
+    now.meta = JSON.stringify(meta);
+    now.updatedAt = Date.now();
+    await wd.update(ADV, now, { suppressAuth: true });
+    return { ok: true, path: 'Adventures/' + w.folder, commit: made && made.sha, files: Object.keys(w.files).length, tele: TELE };
+  } catch (e) { return { ok: false, error: (e && e.message) || String(e) }; }
 });
 
