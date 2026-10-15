@@ -18,7 +18,7 @@ import { listStages, saveStage, deleteStage } from 'backend/threadspire.web.js';
 import { betweenRestFor } from 'backend/campaignview.web.js';
 import { getCampaignState, saveCampaignState, getJournal, saveJournal, musicUploadUrl, mapVideoUploadUrl, musicLibrary, listBoardHistory, restoreBoardHistory, saveBoardVersionNow } from 'backend/campaignview.web.js';
 
-import { loadAdventure, saveAdventureRoot, saveAdvAct, saveAdvSession, saveAdvScene, removeAdvScene, removeAdvSession, removeAdvAct, migrateCampaign, syncAdventureFromPack, setAdventureSynced, adventureSyncInfo } from 'backend/adventures.web.js';
+import { loadAdventure, saveAdventureRoot, saveAdvAct, saveAdvSession, saveAdvScene, removeAdvScene, removeAdvSession, removeAdvAct, migrateCampaign, syncAdventureFromPack, setAdventureSynced, adventureSyncInfo, lockAdventureToVault } from 'backend/adventures.web.js';
 import { myAdventureRole, deleteCampaign } from 'backend/fatewell.web.js';
 import { removeAdventure } from 'backend/adventures.web.js';
 import { handleSheetMessage } from 'public/fgSheetBridge.js';
@@ -387,6 +387,10 @@ $w.onReady(async function () {
         } else if (msg.type === 'TS_SYNC_SET') {
           try { const r = await setAdventureSynced(msg.campaignId || campaignId, !!msg.on); reply(!!(r && r.ok), r, r && r.error); }
           catch (e) { reply(false, null, 'Only an admin can change that.'); }
+        } else if (msg.type === 'TS_SYNC_LOCK') {
+          // An adventure made in the tools, written to the vault and locked to it. Admin only.
+          try { const r = await lockAdventureToVault(msg.campaignId || campaignId); reply(!!(r && r.ok), r, r && r.error); }
+          catch (e) { reply(false, null, 'Only an admin can lock an adventure to the vault.'); }
         } else if (msg.type === 'TS_ADVENTURE_IMPORT') {
           // Bring a lorefell-adventure-pack-1 pack in as a fresh adventure. saveCampaign with no
           // id inserts the whole campaign and hands back the new id, exactly as a create does;

@@ -1,3 +1,11 @@
+## 2026-10-15 - Lock to the vault, for adventures made in ThreadSpire
+
+- **The button.** An admin opening an adventure that has never been kept in the vault gets Lock to the vault in the Story window. It writes the adventure out as vault pages, in the adventure format, straight to the vault's main branch under `Adventures/<name>/`, and locks it. From then on it works exactly as a vault adventure: its prep changes in the vault, and running it is untouched.
+- **What carries over.** The adventure, its acts, sessions and scenes keep their ids. Every beat keeps its kind, title and words. Foes and characters become vault pages and move to the ids the vault gives them, on the table and in the library, so a hound already hurt at the table is still that hound. Beats get the vault's ids, so a beat ticked before the lock comes back unticked, once (Nate, 2026-10-15). No page takes a name the vault already uses.
+- **One format, both ways.** The reading moved from `scripts/adventureFromVault.js` into `velo/backend/adventureFormat.js` beside the new writer, and the script and the backend both use it. It now reads adventures with acts and sessions (`act`, `act_id`, `session`, `session_id` on each scene), and `adventure_type`. Packs built before are unchanged, byte for byte.
+- **Needs** `VAULT_WRITE_TOKEN` on the Pages project: a fine-grained token with Contents read and write on lorefell-fellguide. Without it the button says so and nothing is written.
+- **Tests.** `threadspire/tests/adventure-write.test.js` writes and reads back a vault adventure (the same pack, ids and all) and one made in ThreadSpire. The site tests the lock against a fake GitHub.
+
 ## 2026-10-15 - Synced adventures: nothing new writes nothing, and a lifted lock holds
 
 - A sync whose pack carries nothing new (the same adventure, foes and characters) returns `unchanged` and writes nothing. The fingerprint (`packSig` in `vaultSync.js`) is kept with the vault copy.

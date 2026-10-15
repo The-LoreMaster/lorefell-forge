@@ -116,6 +116,10 @@ async function boot() {
   check('anyone else gets no switch', !/Lift the vault lock/.test(w.syncBannerHtml()), w.syncBannerHtml());
   w.S.adventure.synced = false;
   check('an adventure that is not synced edits as always', w.syncedNo() === false && w.syncBannerHtml() === '', w.syncBannerHtml());
+  w.S.syncInfo = { campaignId: 'a-test-night', admin: true, canSync: false, synced: false };
+  check('an admin gets Lock to the vault on an adventure never kept there', /Lock to the vault</.test(w.syncBannerHtml()) && !/again/.test(w.syncBannerHtml()), w.syncBannerHtml());
+  w.S.syncInfo.admin = false;
+  check('anyone else does not', w.syncBannerHtml() === '', w.syncBannerHtml());
 
   console.log('\n' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);
