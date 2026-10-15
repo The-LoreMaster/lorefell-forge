@@ -9707,7 +9707,7 @@ function syncInfoLoad(){
   tsAsk('TS_SYNC_INFO', { campaignId:cid }).then(function(r){
     syncInfoLoad._busy = false;
     S.syncInfo = Object.assign({ campaignId:cid }, r || {});
-    if (S.syncInfo.admin && S.syncInfo.canSync) try { refreshWinBody(); } catch(e){}
+    if ((S.syncInfo.admin && S.syncInfo.canSync) || S.syncInfo.checkedOut) try { refreshWinBody(); } catch(e){}
   }).catch(function(){ syncInfoLoad._busy = false; S.syncInfo = { campaignId:cid }; });
 }
 function syncBannerHtml(){
@@ -9715,8 +9715,11 @@ function syncBannerHtml(){
   var I = S.syncInfo || {}, on = advSynced();
   var h = '';
   if (on) h += '<div class="win-note sync-note">Kept in the vault' + (S.adventure.vaultPath ? ' (' + esc(S.adventure.vaultPath) + ')' : '') + '. Its scenes and beats change only there. Running it works as always.</div>';
-  if (I.admin && I.canSync)
-    h += '<div class="stn-wrap"><button class="st-add" onclick="syncToggle(' + (on ? 'false' : 'true') + ')">' + (on ? 'Lift the vault lock' : 'Lock to the vault again') + '</button></div>';
+  if (I.checkedOut){
+    h += '<div class="win-note sync-note">Checked out to ThreadSpire' + (I.checkedOutAt ? ' since ' + esc(new Date(I.checkedOutAt).toLocaleString()) : '') + '. Edit it here, foes included. The vault leaves it alone until you save it back or discard the changes.</div>';
+    if (I.admin) h += '<div class="stn-wrap"><button class="st-add" onclick="syncSaveAsk()">Save to the vault</button> <button class="st-add" onclick="syncDiscardAsk()">Discard changes</button></div>';
+  } else if (I.admin && I.canSync)
+    h += '<div class="stn-wrap"><button class="st-add" onclick="' + (on ? 'syncCheckoutAsk()' : 'syncToggle(true)') + '">' + (on ? 'Edit in ThreadSpire' : 'Lock to the vault again') + '</button></div>';
   else if (I.admin && I.canSync === false && !on && S.adventure && (S.adventure.acts || []).length)
     h += '<div class="stn-wrap"><button class="st-add" onclick="syncLockAsk()">Lock to the vault</button></div>';
   return h;
@@ -9727,6 +9730,45 @@ function syncToggle(on){
                                 : 'The adventure stays exactly as it is and becomes editable here. Changes made in the vault stop arriving until it is locked again.') + '</p>'
     + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button><button class="tsm-btn" onclick="syncToggleGo(' + (on ? 'true' : 'false') + ')">' + (on ? 'Lock' : 'Lift') + '</button></div>');
 }
+/* Check out, save back, discard: a synced adventure edited here for a while. Checking out marks
+   it in the vault, so nothing there touches it until it comes back. */
+function syncCheckoutAsk(){
+  tsModal('<h3 class="tsm-title">Edit in ThreadSpire</h3>'
+    + '<p class="lc-p">This lifts the lock so you can change ' + esc((S.adventure && S.adventure.name) || 'the adventure') + ' here: scenes, beats, foes and their sheets. The vault marks it checked out, and nothing there changes it until you come back.</p>'
+    + '<p class="lc-p">When you are done, Save to the vault writes your changes back and locks it again. Discard changes puts the vault copy back.</p>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button><button class="tsm-btn" onclick="syncCheckoutGo()">Check out</button></div>');
+}
+function syncReloadAfter(type, payload, busy, failed){
+  tsCloseModal();
+  playToast(busy, 'Synced');
+  return tsAskRaw(type, Object.assign({ campaignId:S.campaignId }, payload || {}), 90000).then(function(r){
+    if (r && r.conflict) return r;
+    if (!r || r.ok === false){ playToast((r && r.error) || failed, 'Synced'); return r; }
+    S.syncInfo = null; location.reload();
+    return r;
+  }).catch(function(e){ playToast((e && e.message) || failed, 'Synced'); });
+}
+function syncCheckoutGo(){ syncReloadAfter('TS_SYNC_CHECKOUT', null, 'Checking it out.', 'It was not checked out.'); }
+function syncSaveAsk(){
+  tsModal('<h3 class="tsm-title">Save to the vault</h3>'
+    + '<p class="lc-p">Your changes go into the vault and the adventure locks again. Pages and beats you did not touch stay exactly as they were written.</p>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button><button class="tsm-btn" onclick="syncSaveGo(false)">Save</button></div>');
+}
+function syncSaveGo(force){
+  syncReloadAfter('TS_SYNC_SAVE', { force:!!force }, 'Saving it to the vault.', 'It was not saved.').then(function(r){
+    if (!r || !r.conflict) return;
+    tsModal('<h3 class="tsm-title">The vault copy changed</h3>'
+      + '<p class="lc-p">' + esc(r.error || 'The vault copy changed while it was checked out here.') + ' Choose which version to keep.</p>'
+      + '<p class="lc-p">Overwrite writes your version over the vault’s. Keep the vault’s version throws away what you changed here.</p>'
+      + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button><button class="tsm-btn ghost" onclick="syncDiscardGo()">Keep the vault’s version</button><button class="tsm-btn" onclick="syncSaveGo(true)">Overwrite</button></div>');
+  });
+}
+function syncDiscardAsk(){
+  tsModal('<h3 class="tsm-title">Discard changes</h3>'
+    + '<p class="lc-p">Everything changed here since the check-out is replaced by the vault copy, foes included, and the adventure locks again. Running it is untouched.</p>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button><button class="tsm-btn" onclick="syncDiscardGo()">Discard</button></div>');
+}
+function syncDiscardGo(){ syncReloadAfter('TS_SYNC_DISCARD', null, 'Putting the vault copy back.', 'Nothing was discarded.'); }
 /* An adventure made here, written out to the vault and locked to it. */
 function syncLockAsk(){
   tsModal('<h3 class="tsm-title">Lock to the vault</h3>'
@@ -22712,7 +22754,7 @@ function swPaint(){
   var keepQ = document.activeElement && document.activeElement.id === 'swSearch';
   var outlineScroll = (el.querySelector('.sw-outline') || {}).scrollTop || 0, mainScroll = (el.querySelector('.sw-main') || {}).scrollTop || 0;
   el.innerHTML = '<div class="sw-box' + (advSynced() ? ' synced' : '') + (side ? '' : ' noside') + (SW.pane === 'outline' && !SW.q.trim() ? ' m-outline' : ' m-page') + '">'
-    + '<div class="sw-head"><button class="sw-ic sw-back" onclick="swPane(\'outline\')" title="Outline" aria-label="Outline"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h13"/></svg></button><span class="sw-h">Story</span><span class="sw-adv">' + esc((S.adventure && S.adventure.name) || '') + '</span>' + (advSynced() ? '<span class="sw-lock" title="Kept in the vault. Its scenes and beats change only there."><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Kept in the vault</span>' : '') + '<span class="sw-grow"></span>'
+    + '<div class="sw-head"><button class="sw-ic sw-back" onclick="swPane(\'outline\')" title="Outline" aria-label="Outline"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h13"/></svg></button><span class="sw-h">Story</span><span class="sw-adv">' + esc((S.adventure && S.adventure.name) || '') + '</span>' + (advSynced() ? '<span class="sw-lock" title="Kept in the vault. Its scenes and beats change only there."><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Kept in the vault</span>'  : ((S.syncInfo && S.syncInfo.checkedOut) ? '<span class="sw-lock" title="Checked out to ThreadSpire. Save it to the vault or discard the changes when you are done."><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.5-2"/></svg>Checked out</span>' : '')) + '<span class="sw-grow"></span>'
     + '<input id="swSearch" class="sw-search" placeholder="Search the story" value="' + esc(SW.q) + '" oninput="SW.q=this.value;swPaint()">'
     + '<button class="sw-ic" onclick="swFull()" title="' + (SW.full ? 'Back to a window' : 'Full screen') + '" aria-label="Full screen"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>'
     + '<button class="sw-ic" onclick="swClose()" title="Close" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>'

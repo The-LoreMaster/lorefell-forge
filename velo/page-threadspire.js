@@ -18,7 +18,7 @@ import { listStages, saveStage, deleteStage } from 'backend/threadspire.web.js';
 import { betweenRestFor } from 'backend/campaignview.web.js';
 import { getCampaignState, saveCampaignState, getJournal, saveJournal, musicUploadUrl, mapVideoUploadUrl, musicLibrary, listBoardHistory, restoreBoardHistory, saveBoardVersionNow } from 'backend/campaignview.web.js';
 
-import { loadAdventure, saveAdventureRoot, saveAdvAct, saveAdvSession, saveAdvScene, removeAdvScene, removeAdvSession, removeAdvAct, migrateCampaign, syncAdventureFromPack, setAdventureSynced, adventureSyncInfo, lockAdventureToVault } from 'backend/adventures.web.js';
+import { loadAdventure, saveAdventureRoot, saveAdvAct, saveAdvSession, saveAdvScene, removeAdvScene, removeAdvSession, removeAdvAct, migrateCampaign, syncAdventureFromPack, setAdventureSynced, adventureSyncInfo, lockAdventureToVault, checkOutAdventure, saveAdventureToVault, discardCheckout } from 'backend/adventures.web.js';
 import { myAdventureRole, deleteCampaign } from 'backend/fatewell.web.js';
 import { removeAdventure } from 'backend/adventures.web.js';
 import { handleSheetMessage } from 'public/fgSheetBridge.js';
@@ -391,6 +391,16 @@ $w.onReady(async function () {
           // An adventure made in the tools, written to the vault and locked to it. Admin only.
           try { const r = await lockAdventureToVault(msg.campaignId || campaignId); reply(!!(r && r.ok), r, r && r.error); }
           catch (e) { reply(false, null, 'Only an admin can lock an adventure to the vault.'); }
+        } else if (msg.type === 'TS_SYNC_CHECKOUT') {
+          // A synced adventure, checked out to be edited here for a while. Admin only.
+          try { const r = await checkOutAdventure(msg.campaignId || campaignId); reply(!!(r && r.ok), r, r && r.error); }
+          catch (e) { reply(false, null, 'Only an admin can check out an adventure.'); }
+        } else if (msg.type === 'TS_SYNC_SAVE') {
+          try { const r = await saveAdventureToVault(msg.campaignId || campaignId, !!msg.force); reply(!!(r && (r.ok || r.conflict)), r, r && r.error); }  // a conflict comes back as an answer, so the page can ask
+          catch (e) { reply(false, null, 'Only an admin can save an adventure to the vault.'); }
+        } else if (msg.type === 'TS_SYNC_DISCARD') {
+          try { const r = await discardCheckout(msg.campaignId || campaignId); reply(!!(r && r.ok), r, r && r.error); }
+          catch (e) { reply(false, null, 'Only an admin can discard a check-out.'); }
         } else if (msg.type === 'TS_ADVENTURE_IMPORT') {
           // Bring a lorefell-adventure-pack-1 pack in as a fresh adventure. saveCampaign with no
           // id inserts the whole campaign and hands back the new id, exactly as a create does;
