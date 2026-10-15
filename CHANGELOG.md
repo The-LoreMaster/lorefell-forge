@@ -1,3 +1,10 @@
+## 2026-10-15 - Adventures from the vault
+
+- **A converter.** `scripts/adventureFromVault.js` reads one adventure from the vault's `Adventures/` folder, written to `_Canon/ADVENTURE_FORMAT.md`, and builds a `lorefell-adventure-pack-1` pack, the format ThreadSpire and FateWell already import. Run it with `npm run adventure -- --vault ../lorefell-fellguide --adventure "The Broken Bloodline" --out pack.json`.
+- **Stable ids.** The adventure, its scenes, beats, foes and characters all take their ids from the vault, so building again gives the same ids. Synced adventures depend on this to update in place.
+- **What it maps.** Every callout becomes its beat kind (a choice as a beat, a quest as a quest), headings and notes become general beats, and wikilinks become their words. Foes and characters become library records, each foe is placed once in its scene and scales to the table, and a dialogue's speaker links to the character or foe it names.
+- **A test.** `threadspire/tests/adventure-vault.test.js`, in `npm run checks`, builds a fixture adventure and stands it up in ThreadSpire.
+
 ## Switch day - The AI forge, the stream link and the table room call play.lorefell.com
 
 Merged on switch day, once Wix answers at play.lorefell.com and the new site has lorefell.com.
