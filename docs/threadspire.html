@@ -6433,7 +6433,7 @@ function notesBody(){
     var _m = beatMeta(b.kind);
     h += '<div class="nb-beat ' + b.kind + '"><span class="nb-tag" style="color:' + _m[1] + '">' + _m[0] + '</span>'
       + '<span class="nb-title">' + esc(b.title) + (b.speaker ? ' <em class="stb-spk">' + esc(b.speaker) + '</em>' : '') + '</span>'
-      + '<div class="nb-body">' + esc(b.body) + '</div></div>';
+      + '<div class="nb-body">' + beatBodyHtml(b.body) + '</div></div>';
   });
   return h;
 }
@@ -10312,11 +10312,36 @@ function beatCard(b){
     + speakerHead(sp)
     + '<div class="lmc-title">' + esc(b.title) + '</div>'
     + (b.img ? '<img class="lmc-img" src="' + esc(b.img) + '" alt="">' : '')
-    + '<div class="lmc-body">' + esc(b.body) + '</div>'
+    + '<div class="lmc-body">' + beatBodyHtml(b.body) + '</div>'
     + questBeatAction(b) + checkBeatAction(b) + giveBeatAction(b) + '</div>';
 }
+/* ---- a beat's words, with the light markup an adventure is written in ----
+   Adventures from the vault and from FateWell write **bold** and *italic*, and a list as
+   lines that start with "- ". Everything is escaped first, so nothing in a beat can become
+   markup it did not ask for. Line breaks stay as they are (the body keeps white-space). */
+function beatBodyHtml(text){
+  return esc(String(text || ''))
+    .replace(/^(\s*)- /gm, '$1\u2022 ')
+    .replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>')
+    .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<i>$2</i>');
+}
+/* the skill a Lore Check beat names in its title ("Vigilance: Finding the way back"), or Lore.
+   The canon 24 are known here as well, so a title still finds its skill before the table's
+   own skill list has loaded. */
+var CANON_SKILLS = ['Trickery','Presence','Finesse','Might','Movement','Bearing','Weaving','Spirit','Creation','Endurance','Renewal','Resolve',
+  'Vigilance','Logic','Lore','Reflex','Elusion','Poise','Guard','Temper','Anchor','Conviction','Sanctum','Resonance'];
+function checkSkillNames(){
+  var out = {}; SKILL_NAMES().concat(CANON_SKILLS).forEach(function(n){ out[n] = 1; });
+  return Object.keys(out).sort();
+}
+function beatSkill(b){
+  var m = String((b && b.title) || '').match(/^\s*([A-Za-z]+)\s*:/);
+  var names = checkSkillNames();
+  if (m){ for (var i = 0; i < names.length; i++) if (names[i].toLowerCase() === m[1].toLowerCase()) return names[i]; }
+  return 'Lore';
+}
 /* ---- a Lore Check beat calls for the roll ----
-   The LoreMaster calls everyone or chosen Fell to roll: Lore by default, or any skill, 1d6 +
+   The LoreMaster calls everyone or chosen Fell to roll: the skill the beat's title names (Lore if it names none), or any skill, 1d6 +
    that skill against the LoreMaster's 1d6 + the Skill Difficulty and anything added. Each
    chosen player is asked on their own screen and their result lands in the log; a Fell with
    no player is rolled for from here. */
@@ -10327,7 +10352,7 @@ function checkBeatAction(b){
 function checkCall(beatId){
   var b = giveBeatById(beatId) || {}, party = giveParty();
   tsModal('<h3 class="tsm-title">Call for a check</h3><p class="tsm-note">' + esc(b.title || 'A Lore Check') + '. Each Fell called rolls on their own screen; the results land in the log.</p>'
-    + '<label class="tsm-lbl" for="ckSk">The skill</label><select class="tsm-inp" id="ckSk">' + SKILL_NAMES().map(function(n){ return '<option' + (n === 'Lore' ? ' selected' : '') + '>' + esc(n) + '</option>'; }).join('') + '</select>'
+    + '<label class="tsm-lbl" for="ckSk">The skill</label><select class="tsm-inp" id="ckSk">' + checkSkillNames().map(function(n){ return '<option' + (n === beatSkill(b) ? ' selected' : '') + '>' + esc(n) + '</option>'; }).join('') + '</select>'
     + '<label class="tsm-lbl" for="ckX">Harder by (on top of the Skill Difficulty, +' + skillDifficulty() + ')</label><input class="tsm-inp" id="ckX" inputmode="numeric" value="0">'
     + '<div class="tsm-lbl">Who rolls</div><div class="trig-grid" style="max-height:200px">' + party.map(function(p){ return '<label class="trig-c"><input type="checkbox" name="ckWho" value="' + esc(p.charId) + '" checked> ' + esc(p.name || p.charName || 'A Fell') + '</label>'; }).join('') + '</div>'
     + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button><button class="tsm-btn" onclick="checkSend(\'' + esc(String(beatId)) + '\')">Call them</button></div>');

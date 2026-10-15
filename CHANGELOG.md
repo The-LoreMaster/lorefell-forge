@@ -1,3 +1,8 @@
+## 2026-10-15 - ThreadSpire: beats read as written, checks start on their skill
+
+- **Beat text.** A beat's words show their **bold**, *italic* and list marks on the LoreMaster's card and in the notes window, so a check's four results read as written. Everything is still escaped first. `docs/` and `embeds/` alike.
+- **Call for the check** starts on the skill the beat's title names ("Vigilance: Finding the way back" opens on Vigilance), and on Lore when the title names none. The canon 24 skills are known even before the table's skill list loads.
+
 ## 2026-10-15 - Adventures from the vault
 
 - **A converter.** `scripts/adventureFromVault.js` reads one adventure from the vault's `Adventures/` folder, written to `_Canon/ADVENTURE_FORMAT.md`, and builds a `lorefell-adventure-pack-1` pack, the format ThreadSpire and FateWell already import. Run it with `npm run adventure -- --vault ../lorefell-fellguide --adventure "The Broken Bloodline" --out pack.json`.
