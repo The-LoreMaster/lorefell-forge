@@ -106,3 +106,13 @@ export function vaultPackProblem(pack) {
   if (c.synced !== true) return 'The adventure is not marked synced in the vault.';
   return '';
 }
+
+// A short fingerprint of what a pack carries (the adventure, its foes and characters, never
+// when it was built), so a sync that brings nothing new writes nothing.
+export function packSig(pack) {
+  const text = JSON.stringify({ c: pack && pack.campaign, f: pack && pack.foes, n: pack && pack.npcs });
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return h.toString(16) + ':' + text.length;
+}
+
