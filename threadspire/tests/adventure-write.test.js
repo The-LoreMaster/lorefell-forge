@@ -6,12 +6,14 @@
  *   - an adventure made in the tools comes back with its acts, sessions and scenes, their ids,
  *     every beat's words, its foes and characters, and how many of each foe each scene had
  *   - no file takes a name the vault already uses
+ *   - saving a checked-out adventure back changes only what the table changed
  *
  *   node threadspire/tests/adventure-write.test.js
  */
 const path = require('path');
 const { buildPack } = require('../../scripts/adventureFromVault.js');
-const { writeAdventure, readAdventure } = require('../../velo/backend/adventureFormat.js');
+const { writeAdventure, readAdventure, rewriteAdventure, markCheckedOut, clearCheckedOut } = require('../../velo/backend/adventureFormat.js');
+const { folderFiles } = require('../../scripts/adventureFromVault.js');
 
 let pass = 0, fail = 0;
 function check(name, ok, detail) {
@@ -87,6 +89,40 @@ check('the scene says how many of each foe it had', /count: "3"/.test(w.files['S
   w.files['Scenes/02 - Hounds (The Ash Road).md']);
 check('the overview keeps the notes and summary', c.notes === 'Notes on\n\nthe road.' && c.desc === 'A road.', JSON.stringify([c.notes, c.desc]));
 check('reading it back raises no warnings', r.warnings.length === 0, JSON.stringify(r.warnings));
+
+console.log('adventure-write: a checked-out adventure, saved back');
+// the fixture as a LoreMaster might have written it by hand: a key only the vault reads, a link in
+// a beat, a character with no page, and the check-out mark
+const hand = folderFiles(path.join(__dirname, 'fixtures', 'Adventures', 'A Test Night'));
+const ov = 'A Test Night.md';
+hand[ov] = markCheckedOut(hand[ov].replace(/^canon: .*$/m, '').replace('---\n', '---\nteaches_extra: "kept"\n').replace(/^characters:\n/m, 'characters:\n  - "[[Somebody Elsewhere]]"\n'), 0);
+const gate = Object.keys(hand).find((p) => /The Gate/.test(p));
+hand[gate] = hand[gate].replace(/\n$/, '') + '\n\nA note that names [[Mara]].\n';
+const handPack = readAdventure(hand, 'A Test Night', { builtAt: 0 }).pack;
+const handLib = clone(handPack.foes.concat(handPack.npcs)).map((e) => Object.assign(e, { campaignId: handPack.campaign.id }));
+check('the mark reads as checked_out on the overview, and clears', /^checked_out: true$/m.test(hand[ov]) && !/checked_out/.test(clearCheckedOut(hand[ov])), hand[ov]);
+const same = rewriteAdventure(clone(handPack.campaign), clone(handLib), hand, 'A Test Night', new Set());
+check('saved with no changes, only the mark comes off the overview', Object.keys(same.files).join(',') === ov && same.files[ov] === clearCheckedOut(hand[ov]) && same.deletes.length === 0,
+  Object.keys(same.files).join(',') + ' / ' + same.deletes.join(','));
+const edited = clone(handPack.campaign);
+const scs = edited.acts[0].sessions[0].scenes;
+scs[0].entries[0].body += ' More.';
+scs[0].entries.push({ id: 'new-1', type: 'clue', title: 'Found', body: 'A key.' });
+scs.splice(1, 1);
+const lib2 = clone(handLib); lib2.find((e) => e.name === 'Test Hound').maxVit = 9;
+edited.worldId = 'world:vyrathis'; edited.worldName = 'Vyrathis';
+const r2 = rewriteAdventure(edited, lib2, hand, 'A Test Night', new Set());
+const before = hand[gate].split('\n'), after = (r2.files[gate] || '').split('\n');
+const differing = after.filter((ln) => before.indexOf(ln) < 0);
+check('an edited beat and a new beat change only their own lines', differing.length >= 1 && differing.every((ln) => /More\.|\[!clue\] Found|A key\./.test(ln)) && /A note that names \[\[Mara\]\]/.test(r2.files[gate]),
+  differing.join(' | '));
+check('a removed scene is deleted from the vault', r2.deletes.length === 1 && /The Fight/.test(r2.deletes[0]), JSON.stringify(r2.deletes));
+const houndPage = Object.keys(r2.files).find((p) => /Test Hound/.test(p));
+check('an edited foe changes only the line that changed', !!houndPage && r2.files[houndPage].split('\n').filter((ln) => hand[houndPage].split('\n').indexOf(ln) < 0).join('|') === 'vitality: 9', houndPage && r2.files[houndPage]);
+check('the overview keeps what only the vault reads, and links to pages outside the folder', /teaches_extra: "kept"/.test(r2.files[ov]) && /Somebody Elsewhere/.test(r2.files[ov]) && !/checked_out/.test(r2.files[ov]), r2.files[ov]);
+const back2 = readAdventure(r2.all, 'A Test Night', { builtAt: 0 }).pack;
+check('it reads back with the changes and the world', back2.foes[0].maxVit === 9 && back2.campaign.worldId === 'world:vyrathis' && back2.campaign.acts[0].sessions[0].scenes.length === 1
+  && back2.campaign.acts[0].sessions[0].scenes[0].entries.some((e) => e.title === 'Found'), JSON.stringify(back2.campaign).slice(0, 300));
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

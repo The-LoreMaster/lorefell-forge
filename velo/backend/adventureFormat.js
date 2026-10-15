@@ -99,19 +99,43 @@ export function parseBeats(body) {
     if (co) {
       const type = co[1].toLowerCase();
       const out = [];
+      const start = i;
       i++;
       while (i < lines.length && /^>/.test(lines[i])) { out.push(lines[i].replace(/^>\s?/, "")); i++; }
-      beats.push({ type: KINDS[type] || "general", callout: type, title: co[2].trim(), body: out.join("\n").trim() });
+      beats.push({ type: KINDS[type] || "general", callout: type, title: co[2].trim(), body: out.join("\n").trim(), raw: lines.slice(start, i).join("\n") });
       continue;
     }
     const h = ln.match(/^#{2,6}\s+(.*\S)\s*$/);
-    if (h) { beats.push({ type: "general", callout: "heading", title: h[1], body: "" }); i++; continue; }
+    if (h) { beats.push({ type: "general", callout: "heading", title: h[1], body: "", raw: ln }); i++; continue; }
     if (/^#\s/.test(ln) || ln.trim() === "") { i++; continue; }
     const para = [];
     while (i < lines.length && lines[i].trim() !== "" && !/^>/.test(lines[i]) && !/^#/.test(lines[i])) { para.push(lines[i]); i++; }
-    beats.push({ type: "general", callout: "note", title: "", body: para.join("\n").trim() });
+    beats.push({ type: "general", callout: "note", title: "", body: para.join("\n").trim(), raw: para.join("\n") });
   }
   return beats;
+}
+
+// A beat's id: its scene, its kind and its own words, so it is stable across rebuilds and an
+// edit to one beat leaves every other beat's id alone. parsed is parseBeats' output.
+export function beatIds(parsed, sceneId) {
+  const used = {};
+  return parsed.map((b) => {
+    const label = b.type === "dialogue" ? b.title + " " + (b.body.match(/^\*([^*]+)\*/) || [, ""])[1] : (b.title || b.body);
+    let key = sceneId + "--" + (b.callout === "heading" ? "h" : b.type) + "-" + (slug(label, 48) || "beat");
+    used[key] = (used[key] || 0) + 1;
+    if (used[key] > 1) key += "-" + used[key];
+    return key;
+  });
+}
+
+// The tools key a canon world by id (world:vyrathis) and show its name (worldName); the vault
+// names it (Vyrathis). ThreadSpire changes a world through worldId and worldName, so those win.
+export function worldIdOf(name) { const s = slug(name, 40); return s ? "world:" + s : ""; }
+function worldNameOf(adv) {
+  if (adv.worldName) return String(adv.worldName);
+  const id = String(adv.worldId || "");
+  if (id.indexOf("world:") === 0) return id.slice(6).split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+  return String(adv.world || "");
 }
 
 function withPre(pre, id) { id = String(id || ""); return id.indexOf(pre) === 0 ? id : pre + id; }
@@ -178,6 +202,8 @@ export function readAdventure(files, name, opts) {
     notes: plain(overview.body.replace(/^#\s.*$/m, "")).trim(),
     players: [],
     world: A.world || "",
+    worldId: A.world ? worldIdOf(A.world) : "",
+    worldName: A.world || "",
     level: A.level || 1,
     synced: A.synced === true,
     vault: { path: "Adventures/" + name, id: advId },
@@ -233,22 +259,17 @@ function npcRecord(p, pre) {
 function sceneRecord(p, pre, foeByLink, byName, warnings) {
   const s = p.fm;
   const id = s.id ? s.id : pre + slug(s.name, 60);
-  const used = {};
   const speakers = {};
-  const entries = parseBeats(p.body).map((b) => {
+  const parsed = parseBeats(p.body);
+  const ids = beatIds(parsed, id);
+  const entries = parsed.map((b, bi) => {
     let speaker = "";
     if (b.type === "dialogue") {
       const who = byName[b.title.toLowerCase()];
       speaker = who ? who.id : b.title;
       if (who && who.type === "npc") speakers[who.id] = who;
     }
-    // the id is the scene, the kind and the beat's own words: stable across rebuilds, and an
-    // edit to one beat leaves every other beat's id alone
-    const label = b.type === "dialogue" ? b.title + " " + (b.body.match(/^\*([^*]+)\*/) || [, ""])[1] : (b.title || b.body);
-    let key = id + "--" + (b.callout === "heading" ? "h" : b.type) + "-" + (slug(label, 48) || "beat");
-    used[key] = (used[key] || 0) + 1;
-    if (used[key] > 1) key += "-" + used[key];
-    return { id: key, type: b.type, title: plain(b.title), body: plain(b.body), speaker: speaker, handle: "", img: "", pinned: false, open: false };
+    return { id: ids[bi], type: b.type, title: plain(b.title), body: plain(b.body), speaker: speaker, handle: "", img: "", pinned: false, open: false };
   });
   const combatants = [];
   (s.foes || []).forEach((f, k) => {
@@ -312,11 +333,15 @@ function beatText(b, nameOf) {
 
 // adv: the adventure as the tools hold it (acts, sessions, scenes, entries or beats, combatants).
 // library: its library records (foes and NPCs). taken: the names already used in the vault, in
-// lower case, so no new file shares one. Returns the folder's name, its files, and how each
-// library id maps to the id the vault will give it.
-export function writeAdventure(adv, library, taken) {
+// lower case, so no new file shares one. opts.folder writes into a folder of that name, and
+// opts.names gives a scene or library entry (by id) the file name it already has. Returns the
+// folder's name, its files, and how each library id maps to the id the vault will give it.
+export function writeAdventure(adv, library, taken, opts) {
   taken = taken || new Set();
+  opts = opts || {};
   const used = new Set();
+  const names = opts.names || {};
+  Object.keys(names).forEach((k) => used.add(String(names[k]).toLowerCase()));
   const uniq = (base, tag) => {
     let n = fileSafe(base), k = 2;
     if (taken.has(n.toLowerCase()) || used.has(n.toLowerCase())) n = fileSafe(base) + " (" + tag + ")";
@@ -325,7 +350,7 @@ export function writeAdventure(adv, library, taken) {
     return n;
   };
   const title = String(adv.name || "Adventure").trim();
-  const folder = uniq(title, "adventure");
+  const folder = opts.folder ? (used.add(String(opts.folder).toLowerCase()), String(opts.folder)) : uniq(title, "adventure");
   // the adventure keeps its own id, so the copy in the account and the vault stay one adventure
   const advId = adv.id != null && String(adv.id).trim() ? String(adv.id).trim() : (slug(title, 60) || "adventure");
   const lib = {}; (library || []).forEach((e) => { if (e && e.id != null) lib[String(e.id)] = e; });
@@ -342,12 +367,15 @@ export function writeAdventure(adv, library, taken) {
   });
   (library || []).forEach((e) => { if (e && e.campaignId != null && String(e.campaignId) === String(adv.id)) want(e.id); });
   const libIdMap = {}, fileOf = {}, slugsUsed = {};
+  // an entry the vault already named keeps its id; any other takes one from its name
+  const own = (e) => String(e.id).indexOf(advId + "--") === 0 ? String(e.id).slice(advId.length + 2) : "";
+  Object.values(usedLib).forEach((e) => { if (own(e)) slugsUsed[own(e)] = 1; });
   Object.values(usedLib).forEach((e) => {
-    let s = slug(e.name, 50) || "foe"; const base = s; let k = 2;
-    while (slugsUsed[s]) s = base + "-" + (k++);
+    let s = own(e);
+    if (!s) { s = slug(e.name, 50) || "foe"; const base = s; let k = 2; while (slugsUsed[s]) s = base + "-" + (k++); }
     slugsUsed[s] = 1;
     libIdMap[String(e.id)] = advId + "--" + s;
-    fileOf[String(e.id)] = uniq(e.name || "Unnamed", title);
+    fileOf[String(e.id)] = names[String(e.id)] || uniq(e.name || "Unnamed", title);
     e._slug = s;
   });
   const nameOf = (id) => { const e = id != null ? lib[String(id)] : null; return e ? (e.name || "") : String(id || ""); };
@@ -361,25 +389,28 @@ export function writeAdventure(adv, library, taken) {
       "  - name: " + q(x.name || ""), "    tier: " + (Number(x.tier) || 1), "    kind: " + q(x.kind || ""),
       "    points: " + (x.points != null && x.points !== "" ? Number(x.points) || 0 : "null"), "    targeting: " + q(x.targeting || ""),
       "    damage: " + q(x.damage || ""), "    effect: " + q(x.affliction || ""), "    text: " + q(x.desc || x.effect || "")].join("\n"));
+    // the vault keeps a foe's React on its own line; the tools carry it at the end of the notes
+    const rm = String(e.desc || "").replace(/\r/g, "").match(/^([\s\S]*?)(?:\n\s*\n|^)React: ([\s\S]+)$/);
+    const desc = rm ? rm[1] : String(e.desc || ""), react = rm ? rm[2].replace(/\s+/g, " ").trim() : "";
     files["Foes/" + fileOf[String(e.id)] + ".md"] = ["---", "type: foe", "id: " + q(e._slug), "name: " + q(e.name || ""),
       "shatter_rating: " + q(e.sr || "Elite"), "build: " + q(e.build || ""), "vitality: " + (Number(e.maxVit) || 0),
       "attributes:", ATTRS.map((k) => "  " + k + ": " + (Number(at[k]) || 0)).join("\n"),
       "affliction: " + (e.sig ? q(link(e.sig)) : "null"), "stance: " + (e.stance ? q(e.stance) : "null"),
       yamlList("infusions", (kit.infusions || []).map((x) => q(link(x)))), yamlList("augmentations", (kit.augments || []).map((x) => q(link(x)))),
-      acts.length ? "acts:\n" + acts.join("\n") : "acts: []", "loot: []", "---",
-      "# " + (e.name || "Unnamed"), "", String(e.desc || "").trim(), ""].join("\n");
+      acts.length ? "acts:\n" + acts.join("\n") : "acts: []"].concat(react ? ["react: " + q(react)] : [], ["loot: []", "---",
+      "# " + (e.name || "Unnamed"), "", desc.trim(), ""]).join("\n");
   });
   // characters
   Object.values(usedLib).filter((e) => e.type === "npc").forEach((e) => {
     files["Characters/" + fileOf[String(e.id)] + ".md"] = ["---", "type: character", "id: " + q(e._slug), "name: " + q(e.name || ""),
-      "role: " + q(e.role || ""), "lineage: " + q(""), "world: " + q(adv.world || ""), "fate: " + q(""), "---",
+      "role: " + q(e.role || ""), "lineage: " + q(""), "world: " + q(worldNameOf(adv)), "fate: " + q(""), "---",
       "# " + (e.name || "Unnamed"), "", String(e.desc || "").trim(), ""].join("\n");
   });
   // scenes
   const sceneLinks = [];
   scenesAll.forEach(({ a, se, sc }, i) => {
     const nm = String(sc.name || "Scene " + (i + 1)).trim();
-    const file = uniq(String(i + 1).padStart(2, "0") + " - " + nm, title);
+    const file = names[String(sc.id)] || uniq(String(i + 1).padStart(2, "0") + " - " + nm, title);
     sceneLinks.push(q(link(file, nm)));
     const counts = {};
     (sc.combatants || []).forEach((c) => {
@@ -391,7 +422,7 @@ export function writeAdventure(adv, library, taken) {
       const m = String(b.title || "").match(/^\s*([A-Za-z]+)\s*:\s*(.*)$/);
       return m ? "  - skill: " + q(m[1]) + "\n    purpose: " + q(m[2]) : null;
     }).filter(Boolean);
-    const crucible = beats.some((b) => (b.type || b.kind) === "crucible") || Object.keys(counts).length > 0;
+    const crucible = typeof sc.crucible === "boolean" ? sc.crucible : (beats.some((b) => (b.type || b.kind) === "crucible") || Object.keys(counts).length > 0);
     const fm = ["---", "type: scene", "id: " + q(sc.id), "adventure: " + q(link(folder)), "order: " + (i + 1)];
     if (multi) fm.push("act: " + q(a.name || "Act"), "act_id: " + q(a.id), "session: " + q(se.name || "Session"), "session_id: " + q(se.id));
     fm.push("name: " + q(nm), "location: " + q(sc.location || ""), "crucible: " + crucible,
@@ -402,7 +433,7 @@ export function writeAdventure(adv, library, taken) {
   // the overview
   const foesL = Object.values(usedLib).filter((e) => e.type !== "npc").map((e) => q(link(fileOf[String(e.id)])));
   const charsL = Object.values(usedLib).filter((e) => e.type === "npc").map((e) => q(link(fileOf[String(e.id)])));
-  files[folder + ".md"] = ["---", "type: adventure", "id: " + q(advId), "title: " + q(title), "world: " + q(adv.world || ""),
+  files[folder + ".md"] = ["---", "type: adventure", "id: " + q(advId), "title: " + q(title), "world: " + q(worldNameOf(adv)),
     "level: " + (Number(adv.level) || 1), "fell_min: 3", "fell_max: 5",
     "length: " + q(!multi && adv.acts && adv.acts[0] && adv.acts[0].sessions && adv.acts[0].sessions[0] && adv.acts[0].sessions[0].name !== "Session 1" ? adv.acts[0].sessions[0].name : ""),
     "structure: " + (multi ? "acts" : "scenes"), "adventure_type: " + q(adv.type || (multi ? "story" : "tale")),
@@ -411,4 +442,212 @@ export function writeAdventure(adv, library, taken) {
     "# " + title, "", String(adv.notes || "").trim(), ""].join("\n");
   Object.values(usedLib).forEach((e) => { delete e._slug; });
   return { folder: folder, advId: advId, files: files, libIdMap: libIdMap };
+}
+
+
+/* ---------- rewriting: a checked-out adventure saved back over its own folder ----------
+   writeAdventure makes pages from nothing. A hand-written folder holds more than the tools
+   carry (wikilinks in prose, frontmatter only the vault reads, a callout the tools fold into
+   another kind), so saving over it rewrites only what the table changed: a page nobody touched
+   comes back byte for byte, a beat nobody touched keeps its own lines, and a frontmatter key
+   keeps its own lines unless its meaning changed. */
+
+// The frontmatter keys the tools own, per page type. Every other key belongs to the vault and
+// is never touched on a page that has it.
+const OWNED = {
+  adventure: ["id", "title", "world", "level", "length", "structure", "adventure_type", "synced", "summary", "scenes", "characters", "foes"],
+  scene: ["id", "adventure", "order", "act", "act_id", "session", "session_id", "name", "location", "crucible", "foes"],
+  foe: ["id", "name", "shatter_rating", "build", "vitality", "attributes", "affliction", "stance", "infusions", "augmentations", "acts", "react"],
+  character: ["id", "name", "role"]
+};
+const LINKY = { scenes: 1, characters: 1, foes: 1, adventure: 1, foe: 1 };
+export const CHECKOUT_KEYS = ["checked_out", "checked_out_at"];
+
+function pageParts(text) {
+  const m = String(text).match(/^(---\r?\n)([\s\S]*?)(\r?\n---\r?\n?)([\s\S]*)$/);
+  return m ? { open: m[1], fm: m[2], close: m[3], body: m[4] } : null;
+}
+// Frontmatter as top-level key blocks, each with its own lines.
+function fmBlocks(fm) {
+  const out = [];
+  String(fm).split(/\r?\n/).forEach((ln) => {
+    const k = ln.match(/^([A-Za-z_][^:\s]*)\s*:/);
+    if (k) out.push({ key: k[1], lines: [ln] });
+    else if (out.length) out[out.length - 1].lines.push(ln);
+    else out.push({ key: null, lines: [ln] });
+  });
+  return out;
+}
+function blockValue(b) { try { return parseYaml(b.lines.join("\n"))[b.key]; } catch (e) { return undefined; } }
+function isEmpty(v) {
+  return v == null || v === "" || v === 0 || v === false || (Array.isArray(v) && !v.length) || (typeof v === "object" && !Array.isArray(v) && !Object.keys(v).length);
+}
+// Two values mean the same thing to the reader. Only what the new value says is compared, so a
+// key the vault adds inside an act or a list entry never counts as a change.
+function sameValue(o, n, key) {
+  if (isEmpty(n)) return isEmpty(o);
+  if (Array.isArray(n)) return Array.isArray(o) && o.length === n.length && n.every((x, i) => sameValue(o[i], x, key));
+  if (typeof n === "object") return !!o && typeof o === "object" && !Array.isArray(o) && Object.keys(n).every((k) => sameValue(o[k], n[k], k));
+  if (o == null || typeof o === "object") return false;
+  return LINKY[key] ? linkTarget(o).toLowerCase() === linkTarget(n).toLowerCase() : plain(String(o)).trim() === plain(String(n)).trim();
+}
+const targets = (list, k) => (Array.isArray(list) ? list : []).map((x) => linkTarget(k ? (x && x[k]) : x).toLowerCase()).filter(Boolean);
+const sameSet = (a, b) => { const A = Array.from(new Set(a)).sort(), B = Array.from(new Set(b)).sort(); return A.join("\n") === B.join("\n"); };
+// What the reader takes a key to be when a page leaves it out. A key the old page left out is
+// only written when the new value says something else.
+function readerDefault(type, key, fm, base) {
+  if (key === "name" || key === "title") return base;
+  if (key === "id") return slug(fm.name || fm.title || base, 60);
+  if (key === "structure") return "scenes";
+  if (key === "adventure_type") return fm.structure === "acts" ? "story" : "tale";
+  if (key === "level") return 1;
+  if (key === "shatter_rating") return "Elite";
+  return null;
+}
+function headingSwap(body, oldName, newName) {
+  if (!newName || String(oldName) === String(newName)) return body;
+  return body.replace(/^# .*$/m, "# " + newName);
+}
+function bodyText(body) { return plain(String(body || "").replace(/^#\s.*$/m, "")).trim(); }
+
+// One page: the old page's lines wherever the new page means the same.
+function mergePage(type, oldText, newText, base, bodyFn, inFolder) {
+  const o = pageParts(oldText), n = pageParts(newText);
+  if (!o || !n) return newText;
+  const ob = fmBlocks(o.fm), nb = fmBlocks(n.fm);
+  const nBy = {}; nb.forEach((b) => { if (b.key) nBy[b.key] = b; });
+  const own = OWNED[type] || [];
+  const oldFm = splitPage(oldText).fm;
+  const seen = {};
+  const out = [];
+  ob.forEach((b) => {
+    if (b.key) seen[b.key] = 1;
+    if (b.key && CHECKOUT_KEYS.indexOf(b.key) >= 0) return;
+    const nbk = b.key && nBy[b.key];
+    if (!nbk || own.indexOf(b.key) < 0) { out.push(b.lines.join("\n")); return; }
+    const ov = blockValue(b), nv = blockValue(nbk);
+    let same;
+    if (type === "scene" && b.key === "foes") same = sameSet(targets(ov, "foe"), targets(nv, "foe"));
+    else if (type === "adventure" && (b.key === "characters" || b.key === "foes")) same = sameSet(targets(ov).filter((t) => inFolder[t]), targets(nv));
+    else same = sameValue(ov, nv, b.key);
+    out.push((same ? b : nbk).lines.join("\n"));
+  });
+  nb.forEach((b) => {
+    if (!b.key || seen[b.key] || own.indexOf(b.key) < 0 || CHECKOUT_KEYS.indexOf(b.key) >= 0) return;
+    const nv = blockValue(b);
+    if (isEmpty(nv)) return;
+    const d = readerDefault(type, b.key, oldFm, base);
+    if (d != null && sameValue(d, nv, b.key)) return;
+    out.push(b.lines.join("\n"));
+  });
+  return o.open + out.join("\n") + o.close + bodyFn(o.body, n.body, oldFm, splitPage(newText).fm);
+}
+
+// A scene's body: every beat the table left alone keeps its own lines.
+function mergeSceneBody(oldBody, newBody, sceneId, beats, nameOf) {
+  const old = parseBeats(oldBody), ids = beatIds(old, sceneId);
+  const byId = {}; old.forEach((b, i) => { byId[ids[i]] = b; });
+  let kept = 0;
+  const parts = beats.map((b) => {
+    const o = byId[String(b.id)];
+    const kind = (x) => KIND_OUT[x] || "general";
+    if (o && kind(o.type) === kind(b.type || b.kind) && plain(o.title).trim() === String(b.title || "").trim()
+      && plain(o.body).trim() === String(b.body || "").replace(/\r/g, "").trim()) {
+      const who = (b.type || b.kind) === "dialogue" ? nameOf(b.speaker) : "";
+      if (!who || who === String(b.speaker || "") || who.toLowerCase() === o.title.toLowerCase()) { kept++; return o.raw; }
+    }
+    return beatText(b, nameOf);
+  });
+  if (kept === beats.length && beats.length === old.length && parts.every((p, i) => p === old[i].raw)) return oldBody;
+  const head = []; const lines = String(oldBody).split(/\r?\n/);
+  for (let i = 0; i < lines.length && (/^#\s/.test(lines[i]) || lines[i].trim() === ""); i++) if (/^#\s/.test(lines[i])) head.push(lines[i]);
+  return (head.length ? head.join("\n") + "\n\n" : "") + parts.join("\n\n") + "\n";
+}
+
+// adv and library as writeAdventure takes them; oldFiles: the folder as it stands in the vault
+// (path -> text); folder: its name. Returns the files to write (only those that changed), the
+// paths to delete, the folder as it will stand, and the library id map.
+export function rewriteAdventure(adv, library, oldFiles, folder, taken) {
+  const advId = String(adv.id);
+  const pre = advId + "--";
+  // every page the old folder has, by the id the reader gives it
+  const names = {}, pageOf = {};
+  const pagesBy = (dir, type) => pagesIn(oldFiles, dir).filter((p) => p.fm.type === type);
+  pagesBy("Scenes", "scene").forEach((p) => {
+    const id = p.fm.id ? String(p.fm.id) : pre + slug(p.fm.name, 60);
+    names[id] = p.file.replace(/\.md$/, ""); pageOf["Scenes/" + p.file] = id;
+  });
+  pagesBy("Foes", "foe").concat(pagesBy("Characters", "character")).forEach((p) => {
+    const id = withPre(pre, p.fm.id || slug(p.fm.name, 60));
+    names[id] = p.file.replace(/\.md$/, "");
+  });
+  const w = writeAdventure(adv, library, taken, { folder: folder, names: names });
+  const lib = {}; (library || []).forEach((e) => { if (e && e.id != null) lib[String(e.id)] = e; });
+  const nameOf = (id) => { const e = id != null ? lib[String(id)] : null; return e ? (e.name || "") : String(id || ""); };
+  const sceneOf = {};
+  (adv.acts || []).forEach((a) => (a.sessions || []).forEach((se) => (se.scenes || []).forEach((sc) => { sceneOf[String(sc.id)] = sc; })));
+
+  const inFolder = {};
+  Object.keys(oldFiles).forEach((p) => { inFolder[p.split("/").pop().replace(/\.md$/, "").toLowerCase()] = 1; });
+  const files = {}, out = {};
+  Object.keys(w.files).forEach((path) => {
+    const now = w.files[path], was = oldFiles[path];
+    if (was === undefined) { out[path] = now; return; }
+    const base = path.split("/").pop().replace(/\.md$/, "");
+    const type = splitPage(now).fm.type;
+    let text;
+    if (type === "scene") {
+      const sc = sceneOf[pageOf[path] || ""] || {};
+      const beats = sc.entries && sc.entries.length ? sc.entries : (sc.beats || []);
+      text = mergePage("scene", was, now, base, (ob) => mergeSceneBody(ob, "", String(sc.id), beats, nameOf));
+    } else {
+      text = mergePage(type, was, now, base, (ob, nb, ofm, nfm) => {
+        const nameKey = type === "adventure" ? "title" : "name";
+        return bodyText(ob) === bodyText(nb) ? headingSwap(ob, ofm[nameKey], nfm[nameKey]) : nb;
+      }, inFolder);
+      if (type === "adventure") {
+        // a character or foe the overview links to without a page in the folder stays linked
+        text = keepOutsideLinks(text, was, inFolder);
+      }
+    }
+    out[path] = text;
+  });
+  Object.keys(out).forEach((p) => { if (out[p] !== oldFiles[p]) files[p] = out[p]; });
+  // pages the adventure no longer has: scenes, foes and characters the reader would have read
+  const deletes = [];
+  [["Scenes", "scene"], ["Foes", "foe"], ["Characters", "character"]].forEach(([dir, type]) => {
+    pagesBy(dir, type).forEach((p) => { const path = dir + "/" + p.file; if (out[path] === undefined) deletes.push(path); });
+  });
+  const result = Object.assign({}, oldFiles);
+  deletes.forEach((p) => { delete result[p]; });
+  Object.assign(result, files);
+  return { folder: folder, advId: w.advId, files: files, deletes: deletes, all: result, libIdMap: w.libIdMap };
+}
+
+// The overview's characters and foes lists, with every link the old page had to a page outside
+// this folder added back, so a link like [[Malachar]] is never lost.
+function keepOutsideLinks(text, oldText, inFolder) {
+  const ofm = splitPage(oldText).fm, parts = pageParts(text);
+  if (!parts) return text;
+  const blocks = fmBlocks(parts.fm).map((b) => {
+    if (b.key !== "characters" && b.key !== "foes") return b.lines.join("\n");
+    const now = blockValue(b) || [];
+    const have = targets(now);
+    const extra = (Array.isArray(ofm[b.key]) ? ofm[b.key] : []).filter((x) => !inFolder[linkTarget(x).toLowerCase()] && have.indexOf(linkTarget(x).toLowerCase()) < 0);
+    if (!extra.length) return b.lines.join("\n");
+    return yamlList(b.key, now.map((x) => q(x)).concat(extra.map((x) => q(x))));
+  });
+  return parts.open + blocks.join("\n") + parts.close + parts.body;
+}
+
+// The overview, marked or unmarked as checked out to ThreadSpire.
+export function markCheckedOut(text, at) {
+  const p = pageParts(clearCheckedOut(text));
+  if (!p) return text;
+  return p.open + p.fm + "\nchecked_out: true\nchecked_out_at: " + q(new Date(at || Date.now()).toISOString()) + p.close + p.body;
+}
+export function clearCheckedOut(text) {
+  const p = pageParts(text);
+  if (!p) return text;
+  return p.open + fmBlocks(p.fm).filter((b) => CHECKOUT_KEYS.indexOf(b.key) < 0).map((b) => b.lines.join("\n")).join("\n") + p.close + p.body;
 }

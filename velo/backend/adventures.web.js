@@ -18,7 +18,7 @@ import wixData from 'wix-data';
 import { currentMember } from 'wix-members-backend';
 import { gunzipSync } from 'zlib';
 import { VAULT_KEY, keepVault, overlayCampaign, vaultPackProblem, packSig } from 'backend/vaultSync.js';
-import { writeAdventure, readAdventure } from 'backend/adventureFormat.js';
+import { writeAdventure, readAdventure, rewriteAdventure, markCheckedOut, clearCheckedOut } from 'backend/adventureFormat.js';
 import { fetch } from 'wix-fetch';
 import { getSecret } from 'wix-secrets-backend';
 
@@ -785,6 +785,7 @@ export const syncAdventureFromPack = webMethod(Permissions.Admin, async (pack) =
   if (root) {
     const was = jparse(root.meta, {})[VAULT_KEY];
     // A lifted lock means the vault's changes stop arriving until an admin locks it again.
+    if (was && was.on === false && was.checkedOut) return { ok: true, id: advId, skipped: 'Checked out to ThreadSpire. The vault copy comes in again when it is saved to the vault or the changes are discarded.' };
     if (was && was.on === false) return { ok: true, id: advId, skipped: 'The vault lock is lifted on this adventure. Lock it again to bring the vault copy in.' };
     if (was && was.on && was.sig === sig) return { ok: true, id: advId, unchanged: true };
   }
@@ -829,6 +830,7 @@ export const setAdventureSynced = webMethod(Permissions.Admin, async (advId, on)
   const vault = meta[VAULT_KEY];
   if (!vault || !vault.campaign) return { ok: false, error: 'This adventure has never been synced from the vault.' };
   if (!!vault.on === !!on) return { ok: true, synced: !!on };
+  if (vault.checkedOut) return { ok: false, error: 'This adventure is checked out to ThreadSpire. Save it to the vault or discard the changes.' };
   if (!on) {
     const now = await loadAdventure(advId);
     if (!now || !now.acts) return { ok: false, error: 'The adventure could not be read.' };
@@ -854,7 +856,8 @@ export const adventureSyncInfo = webMethod(Permissions.Anyone, async (advId) => 
   const admin = await isAdmin();
   const root = advId ? await wd.get(ADV, advId, { suppressAuth: true }).catch(() => null) : null;
   const vault = root ? jparse(root.meta, {})[VAULT_KEY] : null;
-  return { admin: admin, synced: !!(vault && vault.on), canSync: !!(vault && vault.campaign), path: (vault && vault.path) || '', at: (vault && vault.at) || 0 };
+  return { admin: admin, synced: !!(vault && vault.on), canSync: !!(vault && vault.campaign), path: (vault && vault.path) || '', at: (vault && vault.at) || 0,
+    checkedOut: !!(vault && vault.checkedOut), checkedOutAt: (vault && vault.checkedOut && vault.checkedOut.at) || 0 };
 });
 
 // ---- LOCK TO THE VAULT: an adventure made in the tools becomes a synced one ----
@@ -891,12 +894,13 @@ function libFromRow(r) {
   };
 }
 
-async function commitToVault(token, files, folder, message) {
+async function commitToVault(token, files, folder, message, deletes) {
   for (let attempt = 0; attempt < 2; attempt++) {
     const ref = await gh(token, 'GET', '/git/ref/heads/main');
     const head = ref.object.sha;
     const commit = await gh(token, 'GET', '/git/commits/' + head);
-    const entries = Object.keys(files).map((p) => ({ path: 'Adventures/' + folder + '/' + p, mode: '100644', type: 'blob', content: files[p] }));
+    const entries = Object.keys(files).map((p) => ({ path: 'Adventures/' + folder + '/' + p, mode: '100644', type: 'blob', content: files[p] }))
+      .concat((deletes || []).map((p) => ({ path: 'Adventures/' + folder + '/' + p, mode: '100644', type: 'blob', sha: null })));
     const tree = await gh(token, 'POST', '/git/trees', { base_tree: commit.tree.sha, tree: entries });
     const made = await gh(token, 'POST', '/git/commits', { message: message, tree: tree.sha, parents: [head] });
     try { await gh(token, 'PATCH', '/git/refs/heads/main', { sha: made.sha, force: false }); return made; }
@@ -963,3 +967,165 @@ export const lockAdventureToVault = webMethod(Permissions.Admin, async (advId) =
   } catch (e) { return { ok: false, error: (e && e.message) || String(e) }; }
 });
 
+
+// ---- CHECK OUT AND SAVE BACK: a synced adventure edited in ThreadSpire for a while ----
+//
+// Edit in ThreadSpire lifts the lock and marks the adventure in the vault (checked_out: true on
+// its overview), so the vault side knows to leave it alone: Claude never edits a checked-out
+// adventure, and the live sync skips it. The folder as it stood is the base. Its foes and their
+// sheets are editable too, since the lock is off.
+//
+// Save to the vault writes the adventure back over its folder (rewriteAdventure: a page or a
+// beat nobody touched keeps its own lines), clears the mark and locks it again. If the folder
+// changed since the base, it stops and asks: overwrite the vault's version, or keep it and
+// discard the changes made here.
+//
+// Discard changes clears the mark and lays the vault copy back over the adventure, foes too.
+function b64text(s) {
+  const bin = atob(String(s || '').replace(/\s/g, ''));
+  const u = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+  return new TextDecoder('utf-8').decode(u);
+}
+
+// The vault's main branch as it stands: the adventure folder's tree sha, its pages as text, and
+// every name the rest of the vault uses.
+async function vaultFolder(token, path) {
+  const ref = await gh(token, 'GET', '/git/ref/heads/main');
+  const commit = await gh(token, 'GET', '/git/commits/' + ref.object.sha);
+  const tree = await gh(token, 'GET', '/git/trees/' + commit.tree.sha + '?recursive=1');
+  const pre = path + '/';
+  let sha = '';
+  const blobs = [];
+  const taken = new Set();
+  (tree.tree || []).forEach((t) => {
+    const p = String(t.path || ''), base = p.split('/').pop();
+    if (t.type === 'tree' && p === path) sha = t.sha;
+    if (p.indexOf(pre) === 0) { if (t.type === 'blob' && /\.md$/i.test(p)) blobs.push(t); return; }
+    if (p === path) return;
+    if (t.type === 'blob' && /\.md$/i.test(base)) taken.add(base.replace(/\.md$/i, '').toLowerCase());
+    if (t.type === 'tree' && /^Adventures\/[^/]+$/.test(p)) taken.add(base.toLowerCase());
+  });
+  const files = {};
+  for (const b of blobs) files[b.path.slice(pre.length)] = b64text((await gh(token, 'GET', '/git/blobs/' + b.sha)).content);
+  return { sha: sha, files: files, taken: taken };
+}
+// The folder's tree sha in a given commit's tree, one level at a time.
+async function folderShaAt(token, treeSha, path) {
+  let sha = treeSha;
+  for (const part of path.split('/')) {
+    const t = await gh(token, 'GET', '/git/trees/' + sha);
+    const hit = (t.tree || []).find((x) => x.path === part && x.type === 'tree');
+    if (!hit) return '';
+    sha = hit.sha;
+  }
+  return sha;
+}
+
+async function checkoutContext(advId) {
+  const mid = await memberId();
+  const root = advId ? await wd.get(ADV, advId, { suppressAuth: true }).catch(() => null) : null;
+  if (!root) return { error: 'No such adventure.' };
+  if (root.ownerMemberId && root.ownerMemberId !== mid) return { error: 'That adventure belongs to another member.' };
+  const meta = jparse(root.meta, {});
+  const vault = meta[VAULT_KEY];
+  if (!vault || !vault.campaign || !vault.path) return { error: 'This adventure is not kept in the vault.' };
+  let token = '';
+  try { token = await getSecret('VAULT_WRITE_TOKEN'); } catch (e) { token = ''; }
+  if (!token) return { error: 'VAULT_WRITE_TOKEN is not set on the site, so nothing can be written to the vault yet.' };
+  return { mid: mid, root: root, meta: meta, vault: vault, token: token, folder: vault.path.split('/').pop() };
+}
+async function setVaultMeta(advId, vault) {
+  const now = await wd.get(ADV, advId, { suppressAuth: true });
+  const meta = jparse(now.meta, {});
+  meta[VAULT_KEY] = vault;
+  now.meta = JSON.stringify(meta);
+  now.updatedAt = Date.now();
+  await wd.update(ADV, now, { suppressAuth: true });
+}
+
+export const checkOutAdventure = webMethod(Permissions.Admin, async (advId) => {
+  teleEnter();
+  const c = await checkoutContext(advId);
+  if (c.error) return { ok: false, error: c.error };
+  if (c.vault.checkedOut) return { ok: true, checkedOut: true };
+  if (!c.vault.on) return { ok: false, error: 'The vault lock is lifted on this adventure. Lock it again first.' };
+  try {
+    const snap = await vaultFolder(c.token, c.vault.path);
+    const overview = c.folder + '.md';
+    if (!snap.sha || snap.files[overview] === undefined) return { ok: false, error: 'The vault has no ' + c.vault.path + ' any more.' };
+    const at = Date.now();
+    const made = await commitToVault(c.token, { [overview]: markCheckedOut(snap.files[overview], at) }, c.folder, 'Adventures: ' + c.folder + ', checked out to ThreadSpire');
+    const base = await folderShaAt(c.token, made.tree.sha, c.vault.path);
+    // the adventure as it stands (the vault's prep over the table's play) becomes the tree
+    const now = await loadAdventure(advId);
+    if (!now || !now.acts) return { ok: false, error: 'The adventure could not be read.' };
+    const flat = Object.assign({}, now); ['synced', 'vaultPath', 'vaultAt', 'role', 'updatedAt', 'deletes', 'meta'].forEach((k) => { delete flat[k]; });
+    await setVaultMeta(advId, Object.assign({}, c.vault, { on: false, checkedOut: { at: at, base: base, by: c.mid } }));
+    const r = await saveAdventureFromCampaign(advId, flat, true);
+    if (!(r && r.ok)) return { ok: false, error: (r && r.error) || 'The adventure was not written.' };
+    return { ok: true, checkedOut: true, tele: TELE };
+  } catch (e) { return { ok: false, error: (e && e.message) || String(e) }; }
+});
+
+// force: write over a vault folder that changed since the check-out.
+export const saveAdventureToVault = webMethod(Permissions.Admin, async (advId, force) => {
+  teleEnter();
+  const c = await checkoutContext(advId);
+  if (c.error) return { ok: false, error: c.error };
+  if (!c.vault.checkedOut) return { ok: false, error: 'This adventure is not checked out.' };
+  try {
+    const snap = await vaultFolder(c.token, c.vault.path);
+    if (!snap.sha || snap.files[c.folder + '.md'] === undefined) return { ok: false, error: 'The vault has no ' + c.vault.path + ' any more. Nothing was saved.' };
+    if (snap.sha !== c.vault.checkedOut.base && !force)
+      return { ok: false, conflict: true, error: 'The vault copy of ' + c.folder + ' changed while it was checked out here.' };
+    const adv = await loadAdventure(advId);
+    if (!adv || !adv.acts) return { ok: false, error: 'The adventure could not be read.' };
+    const flat = Object.assign({}, adv); ['synced', 'vaultPath', 'vaultAt', 'role', 'updatedAt', 'deletes', 'meta'].forEach((k) => { delete flat[k]; });
+    const libRows = (await wd.query('Assets').eq('ownerMemberId', c.mid).limit(1000).find({ suppressAuth: true })).items || [];
+    const library = libRows.map(libFromRow);
+    const w = rewriteAdventure(flat, library.map((e) => Object.assign({}, e)), snap.files, c.folder, snap.taken);
+    const read = readAdventure(w.all, c.folder, {});
+    if (read.pack.campaign.id !== String(advId)) return { ok: false, error: 'The vault copy would come back under another id. Nothing was saved.' };
+    let made = null;
+    if (Object.keys(w.files).length || w.deletes.length)
+      made = await commitToVault(c.token, w.files, c.folder, 'Adventures: ' + c.folder + ', saved from ThreadSpire', w.deletes);
+
+    const vaultCbs = {};
+    read.pack.campaign.acts.forEach((a) => a.sessions.forEach((se) => se.scenes.forEach((sc) => { vaultCbs[String(sc.id)] = (sc.combatants || []).map((x) => String(x.id)); })));
+    flat.acts.forEach((a) => (a.sessions || []).forEach((se) => (se.scenes || []).forEach((sc) => {
+      sc.combatants = (sc.combatants || []).map((x) => (x && x.libId != null && w.libIdMap[String(x.libId)]) ? Object.assign({}, x, { libId: w.libIdMap[String(x.libId)] }) : x);
+      sc.vaultSeeded = vaultCbs[String(sc.id)] || [];
+    })));
+    const saved = await saveAdventureFromCampaign(advId, flat, true);
+    if (!(saved && saved.ok)) return { ok: false, error: (saved && saved.error) || 'The vault has the changes, but the adventure was not locked again. Press Save to the vault again.' };
+    const name = String(read.pack.campaign.name || 'Adventure').slice(0, 120);
+    await upsertLibrary([].concat(read.pack.foes, read.pack.npcs), String(advId), name, c.mid);
+    for (const e of library) {
+      const to = w.libIdMap[String(e.id)];
+      if (to && to !== String(e.id) && String(e.campaignId) === String(advId) && e._rowId) await wd.remove('Assets', e._rowId, { suppressAuth: true }).catch(() => null);
+    }
+    await setVaultMeta(advId, { on: true, path: c.vault.path, at: Date.now(), sig: packSig(read.pack), campaign: read.pack.campaign });
+    return { ok: true, commit: made && made.sha, changed: Object.keys(w.files), deleted: w.deletes, tele: TELE };
+  } catch (e) { return { ok: false, error: (e && e.message) || String(e) }; }
+});
+
+export const discardCheckout = webMethod(Permissions.Admin, async (advId) => {
+  teleEnter();
+  const c = await checkoutContext(advId);
+  if (c.error) return { ok: false, error: c.error };
+  if (!c.vault.checkedOut) return { ok: false, error: 'This adventure is not checked out.' };
+  try {
+    const snap = await vaultFolder(c.token, c.vault.path);
+    const overview = c.folder + '.md';
+    if (!snap.sha || snap.files[overview] === undefined) return { ok: false, error: 'The vault has no ' + c.vault.path + ' any more.' };
+    const cleared = clearCheckedOut(snap.files[overview]);
+    if (cleared !== snap.files[overview]) await commitToVault(c.token, { [overview]: cleared }, c.folder, 'Adventures: ' + c.folder + ', changes in ThreadSpire discarded');
+    const files = Object.assign({}, snap.files, { [overview]: cleared });
+    const read = readAdventure(files, c.folder, {});
+    const name = String(read.pack.campaign.name || 'Adventure').slice(0, 120);
+    await upsertLibrary([].concat(read.pack.foes, read.pack.npcs), String(advId), name, c.mid);
+    await setVaultMeta(advId, { on: true, path: c.vault.path, at: Date.now(), sig: packSig(read.pack), campaign: read.pack.campaign });
+    return { ok: true, tele: TELE };
+  } catch (e) { return { ok: false, error: (e && e.message) || String(e) }; }
+});

@@ -141,11 +141,30 @@ async function boot() {
   check('and nothing it holds is saved', saved === 0, 'saved ' + saved);
   w.libSave = _libSave; w.tsCloseModal();
   const banner = w.syncBannerHtml();
-  check('the Story window says where it is kept, and an admin gets the switch', /Kept in the vault/.test(banner) && /Adventures\/A Test Night/.test(banner) && /Lift the vault lock/.test(banner), banner);
+  check('the Story window says where it is kept, and an admin gets the switch', /Kept in the vault/.test(banner) && /Adventures\/A Test Night/.test(banner) && /Edit in ThreadSpire/.test(banner), banner);
   w.S.syncInfo.admin = false;
-  check('anyone else gets no switch', !/Lift the vault lock/.test(w.syncBannerHtml()), w.syncBannerHtml());
+  check('anyone else gets no switch', !/Edit in ThreadSpire/.test(w.syncBannerHtml()), w.syncBannerHtml());
   w.S.adventure.synced = false;
   check('an adventure that is not synced edits as always', w.syncedNo() === false && w.syncBannerHtml() === '', w.syncBannerHtml());
+
+  // checked out: the lock is off, foes and their sheets included, and the way back is offered
+  w.S.syncInfo = { campaignId: 'a-test-night', admin: true, canSync: true, synced: false, checkedOut: true, checkedOutAt: 1 };
+  const out = w.syncBannerHtml();
+  check('a checked-out adventure says so and offers Save to the vault and Discard changes', /Checked out to ThreadSpire/.test(out) && /Save to the vault/.test(out) && /Discard changes/.test(out) && !/Edit in ThreadSpire/.test(out), out);
+  check('and its vault foes can be edited', w.sheetVaultLocked(vfoe) === false, 'still locked');
+  let asked = null;
+  const _raw = w.tsAskRaw;
+  w.tsAskRaw = (type, payload) => { asked = [type, payload]; return Promise.resolve(type === 'TS_SYNC_SAVE' && !payload.force ? { ok: false, conflict: true, error: 'The vault copy changed.' } : { ok: false, error: 'stub' }); };
+  w.syncSaveGo(false);
+  await new Promise((r) => setTimeout(r, 20));
+  const modal = (w.document.querySelector('#tsModal') || {}).innerHTML || '';
+  check('a save that finds the vault changed asks: overwrite, or keep the vault\'s version', asked[0] === 'TS_SYNC_SAVE' && /Overwrite/.test(modal) && /Keep the vault/.test(modal), modal.slice(0, 300));
+  w.syncSaveGo(true);
+  await new Promise((r) => setTimeout(r, 20));
+  check('overwrite sends the save again, forced', asked[0] === 'TS_SYNC_SAVE' && asked[1].force === true, JSON.stringify(asked));
+  w.syncDiscardGo();
+  check('keep the vault\'s version discards', asked[0] === 'TS_SYNC_DISCARD', JSON.stringify(asked));
+  w.tsAskRaw = _raw; w.tsCloseModal();
   w.S.syncInfo = { campaignId: 'a-test-night', admin: true, canSync: false, synced: false };
   check('an admin gets Lock to the vault on an adventure never kept there', /Lock to the vault</.test(w.syncBannerHtml()) && !/again/.test(w.syncBannerHtml()), w.syncBannerHtml());
   w.S.syncInfo.admin = false;

@@ -20,7 +20,7 @@ const SCENE_PREP = ['id', 'name', 'prep', 'img', 'desc', 'entries', 'order', 'cr
 // A beat's prep. Anything else a beat carries (pinned, open, posted, qStatus) is the table's.
 const BEAT_PREP = ['id', 'type', 'kind', 'title', 'body', 'speaker', 'handle', 'img'];
 // The adventure's own prep, at the top of the campaign.
-const ROOT_PREP = ['name', 'desc', 'notes', 'type', 'world', 'level'];
+const ROOT_PREP = ['name', 'desc', 'notes', 'type', 'world', 'worldId', 'worldName', 'level'];
 
 function pick(o, keys) { const out = {}; keys.forEach((k) => { if (o && o[k] !== undefined) out[k] = o[k]; }); return out; }
 function byId(list) { const m = {}; (list || []).forEach((x) => { if (x && x.id != null) m[String(x.id)] = x; }); return m; }
