@@ -88,6 +88,19 @@ export function slug(s, n) {
 const KINDS = { readaloud: "readaloud", dialogue: "dialogue", beat: "beat", choice: "beat", crucible: "crucible",
   lorecheck: "lorecheck", clue: "clue", secret: "secret", reminder: "reminder", quest: "quest" };
 
+// A picture rides as a URL: image: in frontmatter, and a beat's own picture as its last line,
+// ![](https://...), which Obsidian shows in place. Only a web address travels; a picture still
+// uploading in a tool (blob:) does not.
+const IMG_LINE = /^!\[[^\]]*\]\((https?:\/\/[^\s)]+)\)\s*$/;
+function webImg(u) { u = String(u || "").trim(); return /^https?:\/\/\S+$/.test(u) ? u : ""; }
+function takeImg(b) {
+  const lines = b.body.split("\n");
+  const m = lines.length && lines[lines.length - 1].match(IMG_LINE);
+  b.img = m ? m[1] : "";
+  if (m) b.body = lines.slice(0, -1).join("\n").trim();
+  return b;
+}
+
 /* A scene body becomes beats, one per callout, heading or paragraph, in reading order. */
 export function parseBeats(body) {
   const beats = [];
@@ -102,15 +115,15 @@ export function parseBeats(body) {
       const start = i;
       i++;
       while (i < lines.length && /^>/.test(lines[i])) { out.push(lines[i].replace(/^>\s?/, "")); i++; }
-      beats.push({ type: KINDS[type] || "general", callout: type, title: co[2].trim(), body: out.join("\n").trim(), raw: lines.slice(start, i).join("\n") });
+      beats.push(takeImg({ type: KINDS[type] || "general", callout: type, title: co[2].trim(), body: out.join("\n").trim(), raw: lines.slice(start, i).join("\n") }));
       continue;
     }
     const h = ln.match(/^#{2,6}\s+(.*\S)\s*$/);
-    if (h) { beats.push({ type: "general", callout: "heading", title: h[1], body: "", raw: ln }); i++; continue; }
+    if (h) { beats.push({ type: "general", callout: "heading", title: h[1], body: "", img: "", raw: ln }); i++; continue; }
     if (/^#\s/.test(ln) || ln.trim() === "") { i++; continue; }
     const para = [];
     while (i < lines.length && lines[i].trim() !== "" && !/^>/.test(lines[i]) && !/^#/.test(lines[i])) { para.push(lines[i]); i++; }
-    beats.push({ type: "general", callout: "note", title: "", body: para.join("\n").trim(), raw: para.join("\n") });
+    beats.push(takeImg({ type: "general", callout: "note", title: "", body: para.join("\n").trim(), raw: para.join("\n") }));
   }
   return beats;
 }
@@ -204,6 +217,7 @@ export function readAdventure(files, name, opts) {
     world: A.world || "",
     worldId: A.world ? worldIdOf(A.world) : "",
     worldName: A.world || "",
+    img: webImg(A.image),
     level: A.level || 1,
     synced: A.synced === true,
     vault: { path: "Adventures/" + name, id: advId },
@@ -238,7 +252,7 @@ function foeRecord(p, pre) {
   // allows, and greys the rest (FOE_REVEAL in ThreadSpire)
   return Object.assign({
     id: id, type: "monster", name: f.name || p.file.replace(/\.md$/, ""),
-    desc: notes.filter(Boolean).join("\n\n"), img: "", origin: "",
+    desc: notes.filter(Boolean).join("\n\n"), img: webImg(f.image), origin: "",
     sr: sr, build: f.build || "", stance: f.stance || "",
     maxVit: Number(f.vitality) || 0,
     attrs: f.attributes || {},
@@ -251,7 +265,7 @@ function npcRecord(p, pre) {
   const c = p.fm;
   return {
     id: withPre(pre, c.id || slug(c.name, 60)), type: "npc", name: c.name || p.file.replace(/\.md$/, ""),
-    role: c.role || "", desc: plain(p.body.replace(/^#\s.*$/m, "")).trim(), img: "", origin: "",
+    role: c.role || "", desc: plain(p.body.replace(/^#\s.*$/m, "")).trim(), img: webImg(c.image), origin: "",
     maxVit: 0, attrs: {}, inv: [], abilities: [], source: "vault"
   };
 }
@@ -269,7 +283,7 @@ function sceneRecord(p, pre, foeByLink, byName, warnings) {
       speaker = who ? who.id : b.title;
       if (who && who.type === "npc") speakers[who.id] = who;
     }
-    return { id: ids[bi], type: b.type, title: plain(b.title), body: plain(b.body), speaker: speaker, handle: "", img: "", pinned: false, open: false };
+    return { id: ids[bi], type: b.type, title: plain(b.title), body: plain(b.body), speaker: speaker, handle: "", img: b.img || "", pinned: false, open: false };
   });
   const combatants = [];
   (s.foes || []).forEach((f, k) => {
@@ -281,7 +295,7 @@ function sceneRecord(p, pre, foeByLink, byName, warnings) {
     combatants.push({ id: id + "--" + nid.split("--").pop(), libId: nid, type: "npc", side: "npc" });
   });
   return {
-    id: id, name: s.name || p.file.replace(/\.md$/, ""), prep: "", img: "", desc: "",
+    id: id, name: s.name || p.file.replace(/\.md$/, ""), prep: "", img: webImg(s.image), desc: "",
     mode: "roleplay", status: "active", beatDone: {}, entries: entries, log: [],
     att: {}, refs: [], combatants: combatants, ps: {}, hooks: [],
     battle: { round: 1, phase: "commit", locked: false, pLocked: false, spots: [], spotMode: "auto", manual: {}, order: [] },
@@ -316,7 +330,9 @@ function calloutLines(kind, title, body) {
 // paragraph; anything else a paragraph could not hold whole goes in a callout.
 function beatText(b, nameOf) {
   const kind = KIND_OUT[b.type || b.kind] || "general";
-  const title = String(b.title || "").trim(), body = String(b.body || "").replace(/\r/g, "").trim();
+  const title = String(b.title || "").trim(), img = webImg(b.img);
+  const words = String(b.body || "").replace(/\r/g, "").trim();
+  const body = img ? (words ? words + "\n\n" : "") + "![](" + img + ")" : words;
   if (kind === "dialogue") {
     // the beat's own title when it already names the speaker, so its spelling stays the writer's
     const who = nameOf(b.speaker);
@@ -324,7 +340,7 @@ function beatText(b, nameOf) {
   }
   if (kind === "general") {
     if (title && !body) return "## " + title.replace(/\r?\n+/g, " ");
-    const onePara = body && !/\n\s*\n/.test(body) && !body.split("\n").some((ln) => /^\s*(>|#)/.test(ln));
+    const onePara = !img && body && !/\n\s*\n/.test(body) && !body.split("\n").some((ln) => /^\s*(>|#)/.test(ln));
     if (!title && onePara) return body;
     return calloutLines("general", title, body);
   }
@@ -380,6 +396,7 @@ export function writeAdventure(adv, library, taken, opts) {
   });
   const nameOf = (id) => { const e = id != null ? lib[String(id)] : null; return e ? (e.name || "") : String(id || ""); };
   const files = {};
+  const imgKey = (u) => webImg(u) ? ["image: " + q(webImg(u))] : [];
 
   // foes
   Object.values(usedLib).filter((e) => e.type !== "npc").forEach((e) => {
@@ -392,19 +409,19 @@ export function writeAdventure(adv, library, taken, opts) {
     // the vault keeps a foe's React on its own line; the tools carry it at the end of the notes
     const rm = String(e.desc || "").replace(/\r/g, "").match(/^([\s\S]*?)(?:\n\s*\n|^)React: ([\s\S]+)$/);
     const desc = rm ? rm[1] : String(e.desc || ""), react = rm ? rm[2].replace(/\s+/g, " ").trim() : "";
-    files["Foes/" + fileOf[String(e.id)] + ".md"] = ["---", "type: foe", "id: " + q(e._slug), "name: " + q(e.name || ""),
+    files["Foes/" + fileOf[String(e.id)] + ".md"] = ["---", "type: foe", "id: " + q(e._slug), "name: " + q(e.name || "")].concat(imgKey(e.img), [
       "shatter_rating: " + q(e.sr || "Elite"), "build: " + q(e.build || ""), "vitality: " + (Number(e.maxVit) || 0),
       "attributes:", ATTRS.map((k) => "  " + k + ": " + (Number(at[k]) || 0)).join("\n"),
       "affliction: " + (e.sig ? q(link(e.sig)) : "null"), "stance: " + (e.stance ? q(e.stance) : "null"),
       yamlList("infusions", (kit.infusions || []).map((x) => q(link(x)))), yamlList("augmentations", (kit.augments || []).map((x) => q(link(x)))),
       acts.length ? "acts:\n" + acts.join("\n") : "acts: []"].concat(react ? ["react: " + q(react)] : [], ["loot: []", "---",
-      "# " + (e.name || "Unnamed"), "", desc.trim(), ""]).join("\n");
+      "# " + (e.name || "Unnamed"), "", desc.trim(), ""])).join("\n");
   });
   // characters
   Object.values(usedLib).filter((e) => e.type === "npc").forEach((e) => {
-    files["Characters/" + fileOf[String(e.id)] + ".md"] = ["---", "type: character", "id: " + q(e._slug), "name: " + q(e.name || ""),
+    files["Characters/" + fileOf[String(e.id)] + ".md"] = ["---", "type: character", "id: " + q(e._slug), "name: " + q(e.name || "")].concat(imgKey(e.img), [
       "role: " + q(e.role || ""), "lineage: " + q(""), "world: " + q(worldNameOf(adv)), "fate: " + q(""), "---",
-      "# " + (e.name || "Unnamed"), "", String(e.desc || "").trim(), ""].join("\n");
+      "# " + (e.name || "Unnamed"), "", String(e.desc || "").trim(), ""]).join("\n");
   });
   // scenes
   const sceneLinks = [];
@@ -425,7 +442,7 @@ export function writeAdventure(adv, library, taken, opts) {
     const crucible = typeof sc.crucible === "boolean" ? sc.crucible : (beats.some((b) => (b.type || b.kind) === "crucible") || Object.keys(counts).length > 0);
     const fm = ["---", "type: scene", "id: " + q(sc.id), "adventure: " + q(link(folder)), "order: " + (i + 1)];
     if (multi) fm.push("act: " + q(a.name || "Act"), "act_id: " + q(a.id), "session: " + q(se.name || "Session"), "session_id: " + q(se.id));
-    fm.push("name: " + q(nm), "location: " + q(sc.location || ""), "crucible: " + crucible,
+    fm.push("name: " + q(nm), ...imgKey(sc.img), "location: " + q(sc.location || ""), "crucible: " + crucible,
       Object.keys(counts).length ? "foes:\n" + Object.keys(counts).map((id) => "  - foe: " + q(link(fileOf[id])) + "\n    count: " + q(String(counts[id]))).join("\n") : "foes: []",
       "hazards: []", checks.length ? "checks:\n" + checks.join("\n") : "checks: []", "lore_points: 0", "teaches: []", "---");
     files["Scenes/" + file + ".md"] = fm.join("\n") + "\n" + beats.map((b) => beatText(b, nameOf)).join("\n\n") + "\n";
@@ -433,7 +450,7 @@ export function writeAdventure(adv, library, taken, opts) {
   // the overview
   const foesL = Object.values(usedLib).filter((e) => e.type !== "npc").map((e) => q(link(fileOf[String(e.id)])));
   const charsL = Object.values(usedLib).filter((e) => e.type === "npc").map((e) => q(link(fileOf[String(e.id)])));
-  files[folder + ".md"] = ["---", "type: adventure", "id: " + q(advId), "title: " + q(title), "world: " + q(worldNameOf(adv)),
+  files[folder + ".md"] = ["---", "type: adventure", "id: " + q(advId), "title: " + q(title), ...imgKey(adv.img), "world: " + q(worldNameOf(adv)),
     "level: " + (Number(adv.level) || 1), "fell_min: 3", "fell_max: 5",
     "length: " + q(!multi && adv.acts && adv.acts[0] && adv.acts[0].sessions && adv.acts[0].sessions[0] && adv.acts[0].sessions[0].name !== "Session 1" ? adv.acts[0].sessions[0].name : ""),
     "structure: " + (multi ? "acts" : "scenes"), "adventure_type: " + q(adv.type || (multi ? "story" : "tale")),
@@ -455,10 +472,10 @@ export function writeAdventure(adv, library, taken, opts) {
 // The frontmatter keys the tools own, per page type. Every other key belongs to the vault and
 // is never touched on a page that has it.
 const OWNED = {
-  adventure: ["id", "title", "world", "level", "length", "structure", "adventure_type", "synced", "summary", "scenes", "characters", "foes"],
-  scene: ["id", "adventure", "order", "act", "act_id", "session", "session_id", "name", "location", "crucible", "foes"],
-  foe: ["id", "name", "shatter_rating", "build", "vitality", "attributes", "affliction", "stance", "infusions", "augmentations", "acts", "react"],
-  character: ["id", "name", "role"]
+  adventure: ["id", "title", "image", "world", "level", "length", "structure", "adventure_type", "synced", "summary", "scenes", "characters", "foes"],
+  scene: ["id", "adventure", "order", "act", "act_id", "session", "session_id", "name", "image", "location", "crucible", "foes"],
+  foe: ["id", "name", "image", "shatter_rating", "build", "vitality", "attributes", "affliction", "stance", "infusions", "augmentations", "acts", "react"],
+  character: ["id", "name", "image", "role"]
 };
 const LINKY = { scenes: 1, characters: 1, foes: 1, adventure: 1, foe: 1 };
 export const CHECKOUT_KEYS = ["checked_out", "checked_out_at"];
@@ -552,7 +569,7 @@ function mergeSceneBody(oldBody, newBody, sceneId, beats, nameOf) {
     const o = byId[String(b.id)];
     const kind = (x) => KIND_OUT[x] || "general";
     if (o && kind(o.type) === kind(b.type || b.kind) && plain(o.title).trim() === String(b.title || "").trim()
-      && plain(o.body).trim() === String(b.body || "").replace(/\r/g, "").trim()) {
+      && plain(o.body).trim() === String(b.body || "").replace(/\r/g, "").trim() && (o.img || "") === webImg(b.img)) {
       const who = (b.type || b.kind) === "dialogue" ? nameOf(b.speaker) : "";
       if (!who || who === String(b.speaker || "") || who.toLowerCase() === o.title.toLowerCase()) { kept++; return o.raw; }
     }
