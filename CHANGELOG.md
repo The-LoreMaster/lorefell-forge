@@ -1,3 +1,8 @@
+## 2026-10-15 - Synced adventures: nothing new writes nothing, and a lifted lock holds
+
+- A sync whose pack carries nothing new (the same adventure, foes and characters) returns `unchanged` and writes nothing. The fingerprint (`packSig` in `vaultSync.js`) is kept with the vault copy.
+- While an admin has lifted an adventure's vault lock, a sync leaves it alone and says so. Locking it again brings the last vault copy back, and the next sync after that brings the newest.
+
 ## 2026-10-15 - Synced adventures
 
 An adventure can keep its master copy in the vault (Nate, 2026-10-15). Only an admin brings one in or lifts its lock.

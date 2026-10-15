@@ -17,7 +17,7 @@ import { Permissions, webMethod } from 'wix-web-module';
 import wixData from 'wix-data';
 import { currentMember } from 'wix-members-backend';
 import { gunzipSync } from 'zlib';
-import { VAULT_KEY, keepVault, overlayCampaign, vaultPackProblem } from 'backend/vaultSync.js';
+import { VAULT_KEY, keepVault, overlayCampaign, vaultPackProblem, packSig } from 'backend/vaultSync.js';
 
 // TELEMETRY. Every Wix data call goes through this wrapper so we can SEE, per save, how many
 // reads and writes actually happened and against which collection. The quota is a per-minute
@@ -774,10 +774,17 @@ export const syncAdventureFromPack = webMethod(Permissions.Admin, async (pack) =
   const camp = pack.campaign;
   const advId = String(camp.id);
   const name = String(camp.name || 'Adventure').slice(0, 120);
-  const vault = { on: true, path: (pack.meta && pack.meta.vaultPath) || '', at: Date.now(), campaign: camp };
+  const sig = packSig(pack);
+  const vault = { on: true, path: (pack.meta && pack.meta.vaultPath) || '', at: Date.now(), sig: sig, campaign: camp };
   let root = await wd.get(ADV, advId, { suppressAuth: true }).catch(() => null);
   if (root && root.ownerMemberId && root.ownerMemberId !== mid) return { ok: false, error: 'That adventure belongs to another member.' };
   const created = !root;
+  if (root) {
+    const was = jparse(root.meta, {})[VAULT_KEY];
+    // A lifted lock means the vault's changes stop arriving until an admin locks it again.
+    if (was && was.on === false) return { ok: true, id: advId, skipped: 'The vault lock is lifted on this adventure. Lock it again to bring the vault copy in.' };
+    if (was && was.on && was.sig === sig) return { ok: true, id: advId, unchanged: true };
+  }
   try {
     if (created) {
       // The first sync makes the adventure: its Campaigns row (the list each tool shows) and its
