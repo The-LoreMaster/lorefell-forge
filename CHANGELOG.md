@@ -1,3 +1,7 @@
+## 2026-10-15 - ThreadSpire: the beat card stands as tall as the scene's longest beat
+
+- The LoreMaster's beat card no longer sits at one fixed height for every scene. Each scene's beats are laid out once, out of sight, at the card's width, and every card in that scene takes the height of the longest one, so the box holds still while stepping through and is no taller than the scene needs (Nate). It stops at 70% of the screen (60% on a phone), past which the body scrolls as before. Checked in Chromium at 1440x900: a scene whose longest beat needs 203px shows every card at 203px with nothing cut, and a scene of short beats at 96px, where both were 420px before. `docs/` and `embeds/` alike.
+
 ## 2026-10-15 - Synced adventures: foes arrive whole, and their sheets are locked
 
 - **Foes arrive whole.** A vault foe now reaches the library with its whole kit, every infusion, augmentation and Act, whatever its rating. The foe card already reveals what the rating and any escalation allow and greys the rest (FOE_REVEAL), so the earlier trim at the converter took away what the card needed. It is gone, and so is `foeMeta.full`.

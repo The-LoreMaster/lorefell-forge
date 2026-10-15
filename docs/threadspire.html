@@ -842,6 +842,9 @@ body.handup #flourish{ bottom:186px; }
 #lmstrip{ position:fixed; left:0; right:0; bottom:18px; z-index:55; pointer-events:none; display:flex; flex-direction:column; align-items:center; touch-action:none; }
 /* the reader is the one place a drag is allowed to move anything, and only its own text */
 .lmcard.beat .lmc-body{ touch-action:pan-y; }
+/* the measuring copy of a scene's beats: each at its natural height */
+.lm-measure .lmcard.beat{ height:auto !important; }
+.lm-measure .lmcard.beat .lmc-body{ flex:none !important; overflow:visible !important; }
 #cleanExit{ display:none; position:fixed; top:10px; left:10px; z-index:200; background:rgba(10,14,26,.5); border:1px solid rgba(201,168,76,.4); color:var(--gold); font-family:Cinzel,serif; font-size:.58rem; letter-spacing:.12em; text-transform:uppercase; border-radius:6px; padding:4px 9px; cursor:pointer; opacity:.45; }
 #cleanExit:hover{ opacity:1; }
 body.clean #cleanExit{ display:block; }
@@ -9936,7 +9939,34 @@ function paintLmStrip(){
     var _sw = Math.floor(2 * (_edge - 14) - window.innerWidth);
     if (_tb && _sw > 200){ _tb.style.maxWidth = _sw + 'px'; }
     if (_tb && _card) _card.style.width = Math.min(_tb.offsetWidth, window.innerWidth - 16, _sw > 200 ? _sw : 1e9) + 'px';
+    if (_card) lmBeatHeight(el, _card);
   } catch(e){}
+}
+/* Every beat card in a scene stands as tall as the scene's longest beat, so the box holds still
+   as the LoreMaster steps through it and is never taller than the scene needs (Nate). Each card
+   of the scene is laid out once, out of sight, at the card's own width; the tallest sets the
+   height, up to most of the screen, past which the body scrolls as before. Kept per scene,
+   width and beats, so stepping through a scene measures nothing. */
+var _lmBeatH = { key:'', h:0 };
+function lmBeatHeight(el, card){
+  if (lmFace() !== 'scene' || !S.scene) return;
+  var w = card.offsetWidth || parseInt(card.style.width, 10) || 0;
+  if (!w) return;
+  var items = lmDeck().filter(function(it){ return /class="lmcard beat/.test(cardFor(it)); });
+  var key = String(S.scene.id) + '|' + w + '|' + items.map(function(it){ var d = it.data || {}; return (d.id || '') + ':' + String(d.title || '').length + ':' + String(d.body || '').length; }).join(',');
+  if (_lmBeatH.key !== key){
+    var probe = document.createElement('div');
+    probe.className = 'lm-measure';
+    probe.style.cssText = 'position:absolute;left:-10000px;top:0;visibility:hidden;pointer-events:none;width:' + w + 'px';
+    probe.innerHTML = items.map(cardFor).join('');
+    el.appendChild(probe);
+    var tallest = 0;
+    [].forEach.call(probe.querySelectorAll('.lmcard.beat'), function(c){ c.style.width = w + 'px'; tallest = Math.max(tallest, c.offsetHeight); });
+    probe.remove();
+    _lmBeatH = { key:key, h:tallest };
+  }
+  var cap = Math.round(window.innerHeight * (window.innerWidth <= 700 ? 0.6 : 0.7));
+  if (_lmBeatH.h > 0) card.style.height = Math.min(_lmBeatH.h, cap) + 'px';
 }
 
 /* where each scrolled element in a panel sits (its path of child indexes and its class), so
