@@ -128,6 +128,18 @@ async function boot() {
   const dropped = JSON.stringify(w.S.adventure.acts[0].sessions[0].scenes[0].beats.map((b) => b.id));
   w.SW.beat = 0; w.swBeatDrop(w.SW.id, 2);
   check('dragging a beat on a synced adventure moves nothing', JSON.stringify(w.S.adventure.acts[0].sessions[0].scenes[0].beats.map((b) => b.id)) === dropped, 'the beats moved');
+  // a foe kept in the vault: its sheet reads but does not edit or save
+  const vfoe = Object.assign(JSON.parse(JSON.stringify(pack.foes[0])), { campaignId: 'a-test-night' });
+  w.S.library = [vfoe]; w.S.libLoaded = true; w.FORGE.loaded = true;
+  let saved = 0; const _libSave = w.libSave; w.libSave = () => { saved++; };
+  try { w.entrySheet('lib', null, 'foe', vfoe.id); } catch (e) { console.log('          sheet threw: ' + e.message); }
+  const panel = w.document.querySelector('#tsModal .tsm-panel');
+  const live = panel ? [...panel.querySelectorAll('input, select, textarea, button')].filter((el) => !el.disabled && !/sheetBack|tsCloseModal/.test(el.getAttribute('onclick') || '') && !el.classList.contains('tsm-x')) : ['no sheet'];
+  check('a vault foe\'s sheet says where it is kept, and nothing on it can be changed', !!panel && panel.classList.contains('sheet-locked') && /Kept in the vault/.test(panel.innerHTML) && live.length === 0,
+    panel ? live.map((el) => el.outerHTML.slice(0, 80)).join(' | ') : 'no sheet opened');
+  w.sheetSync({ obj: vfoe, lib: vfoe });
+  check('and nothing it holds is saved', saved === 0, 'saved ' + saved);
+  w.libSave = _libSave; w.tsCloseModal();
   const banner = w.syncBannerHtml();
   check('the Story window says where it is kept, and an admin gets the switch', /Kept in the vault/.test(banner) && /Adventures\/A Test Night/.test(banner) && /Lift the vault lock/.test(banner), banner);
   w.S.syncInfo.admin = false;

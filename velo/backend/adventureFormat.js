@@ -193,20 +193,6 @@ export function readAdventure(files, name, opts) {
   };
 }
 
-// What each Shatter Rating fields of a foe's whole kit (the foe pack's tierBudget): infusions,
-// augmentations, and how many Acts, of which tiers. A vault foe is written whole, as a Forsaken
-// (Nate, 2026-10-15), and fielded at its own rating, as Summon a foe fields one.
-export const RATING_KIT = { Minion: { inf: 0, aug: 0, acts: 0 }, Elite: { inf: 1, aug: 0, acts: 1 }, Champion: { inf: 2, aug: 1, acts: 2 },
-  Epic: { inf: 3, aug: 2, acts: 3 }, Forsaken: { inf: 3, aug: 2, acts: 3 } };
-export function kitAtRating(full, sr) {
-  const b = RATING_KIT[sr] || RATING_KIT.Elite, cap = Math.min(b.acts, 3);
-  return {
-    infusions: (full.infusions || []).slice(0, b.inf),
-    augments: (full.augments || []).slice(0, b.aug),
-    abilities: (full.abilities || []).filter((a) => (Number(a.tier) || 1) <= cap).slice(0, b.acts)
-  };
-}
-
 function foeRecord(p, pre) {
   const f = p.fm;
   const id = withPre(pre, f.id || slug(f.name, 60));
@@ -222,6 +208,8 @@ function foeRecord(p, pre) {
     }))
   };
   const sr = f.shatter_rating || "Elite";
+  // the whole kit goes to the table: the foe card reveals what the rating, and any escalation,
+  // allows, and greys the rest (FOE_REVEAL in ThreadSpire)
   return Object.assign({
     id: id, type: "monster", name: f.name || p.file.replace(/\.md$/, ""),
     desc: notes.filter(Boolean).join("\n\n"), img: "", origin: "",
@@ -231,7 +219,7 @@ function foeRecord(p, pre) {
     sig: linkTarget(f.affliction || ""),
     inv: [],
     source: "vault"
-  }, kitAtRating(full, sr), { full: full });
+  }, full);
 }
 function npcRecord(p, pre) {
   const c = p.fm;
@@ -368,7 +356,7 @@ export function writeAdventure(adv, library, taken) {
   // foes
   Object.values(usedLib).filter((e) => e.type !== "npc").forEach((e) => {
     const at = e.attrs || {};
-    const kit = e.full || e; // a vault foe keeps its whole kit; one made in the tools has what it has
+    const kit = e;
     const acts = (kit.abilities || []).map((x) => [
       "  - name: " + q(x.name || ""), "    tier: " + (Number(x.tier) || 1), "    kind: " + q(x.kind || ""),
       "    points: " + (x.points != null && x.points !== "" ? Number(x.points) || 0 : "null"), "    targeting: " + q(x.targeting || ""),

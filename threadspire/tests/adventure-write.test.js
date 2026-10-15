@@ -80,23 +80,13 @@ check('each beat keeps its title and words', got.every((e, i) => e.body === Stri
 const mara = p.npcs.find((n) => n.name === 'Mara');
 check('a speaker comes back as their character', !!mara && got[1].speaker === mara.id && mara.id === w.libIdMap.N1zz, JSON.stringify([got[1].speaker, w.libIdMap]));
 const hound = p.foes.find((f) => f.name === 'Ash Hound');
-check('a foe comes back with its numbers and its whole kit', !!hound && hound.id === w.libIdMap.L9xQ && hound.sr === 'Minion' && hound.build === 'Reaver' && hound.maxVit === 4
-  && hound.attrs.Precision === 1 && hound.sig === 'Bleeding' && hound.full.infusions[0] === 'Brutal' && hound.full.abilities[0].name === 'Bite' && hound.full.abilities[0].desc === 'It bites: hard.', JSON.stringify(hound));
-check('a Minion fields none of its kit', hound.infusions.length === 0 && hound.augments.length === 0 && hound.abilities.length === 0, JSON.stringify([hound.infusions, hound.abilities]));
+check('a foe comes back with its numbers and its whole kit, whatever its rating', !!hound && hound.id === w.libIdMap.L9xQ && hound.sr === 'Minion' && hound.build === 'Reaver' && hound.maxVit === 4
+  && hound.attrs.Precision === 1 && hound.sig === 'Bleeding' && hound.infusions[0] === 'Brutal' && hound.abilities[0].name === 'Bite' && hound.abilities[0].desc === 'It bites: hard.', JSON.stringify(hound));
 check('a foe with quotes in its name survives', p.foes.some((f) => f.name === 'Spare "Wolf"'), JSON.stringify(p.foes.map((f) => f.name)));
 check('the scene says how many of each foe it had', /count: "3"/.test(w.files['Scenes/02 - Hounds (The Ash Road).md']) && sc[1].combatants.length === 1 && sc[1].combatants[0].libId === hound.id,
   w.files['Scenes/02 - Hounds (The Ash Road).md']);
 check('the overview keeps the notes and summary', c.notes === 'Notes on\n\nthe road.' && c.desc === 'A road.', JSON.stringify([c.notes, c.desc]));
 check('reading it back raises no warnings', r.warnings.length === 0, JSON.stringify(r.warnings));
-
-console.log('adventure-write: a foe is written whole and fielded at its rating');
-const { kitAtRating } = require('../../velo/backend/adventureFormat.js');
-const whole = { infusions: ['A', 'B', 'C'], augments: ['X', 'Y'], abilities: [{ name: 'one', tier: 1 }, { name: 'two', tier: 2 }, { name: 'three', tier: 3 }] };
-const at = (sr) => { const k = kitAtRating(whole, sr); return [k.infusions.join(''), k.augments.join(''), k.abilities.map((a) => a.name).join(',')].join(' | '); };
-check('Minion fields nothing', at('Minion') === ' |  | ', at('Minion'));
-check('Elite fields its first infusion and its Tier 1 Act', at('Elite') === 'A |  | one', at('Elite'));
-check('Champion fields two infusions, one augmentation, Acts to Tier 2', at('Champion') === 'AB | X | one,two', at('Champion'));
-check('Epic and Forsaken field the whole kit', at('Epic') === 'ABC | XY | one,two,three' && at('Forsaken') === at('Epic'), at('Epic'));
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
