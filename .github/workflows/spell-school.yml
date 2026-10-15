@@ -1,0 +1,37 @@
+name: Fix spell schools in D1
+
+# One-off data fix (Nate, 2026-10-15): SigilForge Spells saved before forge #852 carry the
+# Artifact and Tome schools swapped. scripts/fixSpellSchool.js sets each one to the school its
+# focus casts on (Artifact on Spirit, Tome on Creation). Every row it changes is saved to
+# backups/ first, kept here as an artifact. Safe to run again: a second run finds nothing.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/fixSpellSchool.js'
+      - '.github/workflows/spell-school.yml'
+  workflow_dispatch: {}
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Fix the spell schools
+        run: node scripts/fixSpellSchool.js
+
+      - name: Upload what was there before
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: spell-school-backup-${{ github.run_id }}
+          path: backups/
+          if-no-files-found: warn
