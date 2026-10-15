@@ -2463,6 +2463,8 @@ body.drop-ready #map::after{ content:'Drop images to add them as maps'; position
 .sw-box.synced .sw-sec .tsm-btn.ghost{ display:none !important; }
 .sw-box.synced .sw-meta .tsm-btn{ display:none !important; }
 .sw-box.synced .sw-desc{ pointer-events:none; }
+.tsm-panel.sheet-locked input:disabled, .tsm-panel.sheet-locked select:disabled, .tsm-panel.sheet-locked textarea:disabled{ opacity:.85; cursor:default; }
+.tsm-panel.sheet-locked button:disabled{ display:none; }
 .sw-box.synced .sync-note{ border:1px solid var(--gold); border-radius:8px; padding:8px 12px; color:var(--gold); }
 .sw-h{ font-family:Cinzel,serif; font-size:1rem; letter-spacing:.14em; text-transform:uppercase; color:var(--gold); } .sw-adv{ color:var(--muted,#9aabbb); }
 .sw-grow{ flex:1; } .sw-search{ width:260px; padding:7px 12px; border:1px solid var(--line); border-radius:9px; background:rgba(10,14,26,.7); color:var(--silver,#dce8ef); font-family:inherit; font-size:.95rem; outline:none; } .sw-search:focus{ border-color:var(--gold); }
@@ -5942,7 +5944,7 @@ function entrySheet(src, sceneId, kind, id){
   var apl = partyLevel();
   var sr = e.sr || 'Elite';
   if (S.campaignId && !e.campaignId && (src !== 'lib' || e.source === 'mine' || !e.source)){ e.campaignId = S.campaignId; e.campaignName = advNameNow(); }
-  if (isFoe){ var _sy = sheetScroll(); tsModal(entrySheetFoe(e, src, lib, img)); var _p = document.querySelector('#tsModal .tsm-panel'); if (_p){ _p.classList.add('sheet-big', 'fe-panel'); if (_sy) _p.scrollTop = _sy; } return; }
+  if (isFoe){ var _sy = sheetScroll(); tsModal(entrySheetFoe(e, src, lib, img)); var _p = document.querySelector('#tsModal .tsm-panel'); if (_p){ _p.classList.add('sheet-big', 'fe-panel'); if (_sy) _p.scrollTop = _sy; } sheetLockApply(t); return; }
   var h = '<h3 class="tsm-title">' + (isFoe ? 'Edit foe' : 'Edit NPC') + (lib ? ' <span class="rs-linked">library</span>' : '') + '</h3>'
     + '<div class="rs-edit">'
     + '<div class="rs-imgrow"><div class="rs-prev" id="rsPrev">' + (img ? '<img src="' + esc(img) + '" alt="">' : '<span class="tsm-note">No image</span>') + '</div>'
@@ -6029,6 +6031,32 @@ function entrySheet(src, sceneId, kind, id){
     + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="sheetBack()">Cancel</button>'
     + '<button class="tsm-btn" onclick="sheetSave()">Save</button></div>';
   tsModal(h); var _sp = document.querySelector('#tsModal .tsm-panel'); if (_sp) _sp.classList.add('sheet-big');
+  sheetLockApply(t);
+}
+/* A foe or character of a synced adventure is kept in the vault with the adventure, so its sheet
+   reads but does not edit: every field and button is off but the way back, and nothing saves.
+   Its life at the table (Vitality, charge, afflictions in a fight) is the fight card's, not this. */
+function sheetVaultLocked(t){
+  if (!t || !advSynced()) return false;
+  var o = t.lib || t.obj || {};
+  var src = (t.lib && t.lib.source) || (t.obj && t.obj.source) || '';
+  return src === 'vault' && (!o.campaignId || sameId(o.campaignId, S.campaignId));
+}
+function sheetLockApply(t){
+  var locked = sheetVaultLocked(t);
+  window._sheetLocked = locked;
+  if (!locked) return;
+  var p = document.querySelector('#tsModal .tsm-panel'); if (!p) return;
+  p.classList.add('sheet-locked');
+  var title = p.querySelector('.tsm-title');
+  if (title){
+    title.childNodes[0].nodeValue = String(title.childNodes[0].nodeValue || '').replace(/^Edit /, '');
+    title.insertAdjacentHTML('afterend', '<div class="win-note sync-note">Kept in the vault with this adventure. Its build, kit and Acts change only there.</div>');
+  }
+  [].forEach.call(p.querySelectorAll('input, select, textarea, button'), function(el){
+    if (/sheetBack|tsCloseModal/.test(el.getAttribute('onclick') || '') || el.classList.contains('tsm-x')) return;
+    el.disabled = true;
+  });
 }
 function sheetTarget(src, sceneId, kind, id){
   if (src === 'lib'){ var e = libGet(id); return e ? { obj:e, lib:null } : null; }
@@ -6116,6 +6144,7 @@ function libSave(e){
 /* push the figure back to the library and out to every scene that holds it */
 function sheetSync(t){
   if (!t) return;
+  if (sheetVaultLocked(t)){ try { playToast('This one is kept in the vault. Change it there.', 'Synced'); } catch(e){} return; }
   if (window._sheet && window._sheet.src === 'lib'){
     libSave(t.obj);
     libPropagate(t.obj.id, t.obj);

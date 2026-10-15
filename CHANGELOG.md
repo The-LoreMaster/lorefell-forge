@@ -1,3 +1,8 @@
+## 2026-10-15 - Synced adventures: foes arrive whole, and their sheets are locked
+
+- **Foes arrive whole.** A vault foe now reaches the library with its whole kit, every infusion, augmentation and Act, whatever its rating. The foe card already reveals what the rating and any escalation allow and greys the rest (FOE_REVEAL), so the earlier trim at the converter took away what the card needed. It is gone, and so is `foeMeta.full`.
+- **Locked sheets.** A foe or character of a synced adventure opens its sheet read-only: it says it is kept in the vault, every field and button is off but the way back, and nothing it holds is saved. Its life in a fight is the fight card's and is untouched.
+
 ## 2026-10-15 - Synced adventures: the Story window wears the lock, and foes come whole
 
 - **The Story window.** A synced adventure's Story window carries a gold lock, Kept in the vault, by its name, and a line at the top of each page saying its scenes and beats change only in the vault, with the admin's switch beside it. Adding, renaming, moving, importing, editing a beat, a cover or a description, Continue the story, and changing type and world are all refused with a word, and their buttons are not drawn. Running it, the roster and quests are untouched. The lock was only in the older Story list before, which the table no longer opens.

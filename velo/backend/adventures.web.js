@@ -748,8 +748,6 @@ function libraryRow(e, advId, advName, mid) {
   const isFoe = e.type !== 'npc';
   const fm = { campaignId: advId, campaignName: advName, source: 'vault' };
   if (isFoe) Object.assign(fm, { build: e.build || '', stance: e.stance || '', sig: e.sig || '', augments: e.augments || [], infusions: e.infusions || [] });
-  // a vault foe's whole kit rides along, so what its rating does not field yet is kept with it
-  if (isFoe && e.full) fm.full = e.full;
   return {
     assetId: e.id, ownerMemberId: mid, type: isFoe ? 'monster' : 'npc', name: e.name || '', description: e.desc || '',
     shatterRating: isFoe ? (e.sr || '') : '', maxVit: e.maxVit || 0, role: e.role || '', image: e.img || '', origin: e.origin || '',
@@ -889,8 +887,7 @@ function libFromRow(r) {
     sr: r.shatterRating || '', maxVit: Number(r.maxVit) || 0, attrs: jparse(r.attrs, {}), abilities: jparse(r.abilities, []),
     build: fm.build || r.build || '', stance: fm.stance || r.stance || '', sig: fm.sig || r.signatureAffliction || '',
     infusions: Array.isArray(fm.infusions) ? fm.infusions : [], augments: Array.isArray(fm.augments) ? fm.augments : [],
-    campaignId: fm.campaignId != null ? fm.campaignId : (r.campaignId || ''), _rowId: r._id,
-    full: fm.full || undefined
+    campaignId: fm.campaignId != null ? fm.campaignId : (r.campaignId || ''), _rowId: r._id
   };
 }
 
