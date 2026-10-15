@@ -20,9 +20,11 @@ const SCENE_PREP = ['id', 'name', 'prep', 'img', 'desc', 'entries', 'order', 'cr
 // A beat's prep. Anything else a beat carries (pinned, open, posted, qStatus) is the table's.
 const BEAT_PREP = ['id', 'type', 'kind', 'title', 'body', 'speaker', 'handle', 'img'];
 // The adventure's own prep, at the top of the campaign.
-const ROOT_PREP = ['name', 'desc', 'notes', 'type', 'world', 'worldId', 'worldName', 'level'];
+const ROOT_PREP = ['name', 'desc', 'notes', 'type', 'world', 'worldId', 'worldName', 'level', 'img'];
 
-function pick(o, keys) { const out = {}; keys.forEach((k) => { if (o && o[k] !== undefined) out[k] = o[k]; }); return out; }
+// A picture the vault has wins; where the vault has none, the table keeps its own, so a cover
+// added in a tool is never blanked by a vault page that names no picture.
+function pick(o, keys) { const out = {}; keys.forEach((k) => { if (o && o[k] !== undefined && !(k === 'img' && !o[k])) out[k] = o[k]; }); return out; }
 function byId(list) { const m = {}; (list || []).forEach((x) => { if (x && x.id != null) m[String(x.id)] = x; }); return m; }
 
 // What a write keeps: the stored vault copy survives any write that did not mean to change it,
@@ -45,7 +47,7 @@ function mergeBeats(vaultEntries, storedList, asKind) {
     if (asKind) { prep.kind = e.type || e.kind || 'general'; delete prep.type; }
     else { prep.type = e.type || e.kind || 'general'; delete prep.kind; }
     const had = stored[String(e.id)] || {};
-    const play = {}; Object.keys(had).forEach((k) => { if (BEAT_PREP.indexOf(k) < 0) play[k] = had[k]; });
+    const play = {}; Object.keys(had).forEach((k) => { if (BEAT_PREP.indexOf(k) < 0 || (k === 'img' && !prep.img)) play[k] = had[k]; });
     return Object.assign({ pinned: false, open: false }, play, prep);
   });
 }

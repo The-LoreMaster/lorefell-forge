@@ -124,5 +124,26 @@ const back2 = readAdventure(r2.all, 'A Test Night', { builtAt: 0 }).pack;
 check('it reads back with the changes and the world', back2.foes[0].maxVit === 9 && back2.campaign.worldId === 'world:vyrathis' && back2.campaign.acts[0].sessions[0].scenes.length === 1
   && back2.campaign.acts[0].sessions[0].scenes[0].entries.some((e) => e.title === 'Found'), JSON.stringify(back2.campaign).slice(0, 300));
 
+console.log('adventure-write: pictures');
+const pic = clone(handPack.campaign), lib3 = clone(handLib);
+pic.img = 'https://static.example.com/cover.png';
+pic.acts[0].sessions[0].scenes[0].img = 'https://static.example.com/gate.png';
+pic.acts[0].sessions[0].scenes[0].entries[1].img = 'https://static.example.com/beat.png';
+pic.acts[0].sessions[0].scenes[1].img = 'blob:https://x/123';
+lib3.find((e) => e.name === 'Test Hound').img = 'https://static.example.com/hound.png';
+const r3 = rewriteAdventure(pic, lib3, hand, 'A Test Night', new Set());
+check('a picture goes to the vault as its address: covers in frontmatter, a beat\'s at its foot', /^image: "https:\/\/static\.example\.com\/cover\.png"$/m.test(r3.files[ov])
+  && /!\[\]\(https:\/\/static\.example\.com\/beat\.png\)/.test(r3.files[gate]) && /^image: "https:\/\/static\.example\.com\/gate\.png"$/m.test(r3.files[gate]), r3.files[gate]);
+const back3 = readAdventure(r3.all, 'A Test Night', { builtAt: 0 }).pack;
+const s3 = back3.campaign.acts[0].sessions[0].scenes;
+check('and reads back as the same pictures, the beat\'s words untouched', back3.campaign.img === pic.img && s3[0].img === 'https://static.example.com/gate.png'
+  && s3[0].entries[1].img === 'https://static.example.com/beat.png' && s3[0].entries[1].body === handPack.campaign.acts[0].sessions[0].scenes[0].entries[1].body
+  && back3.foes[0].img === 'https://static.example.com/hound.png' && !s3[1].img, JSON.stringify([back3.campaign.img, s3[0].img, s3[0].entries[1], s3[1].img]));
+const { overlayCampaign } = require('../../velo/backend/vaultSync.js');
+const table = clone(handPack.campaign); table.acts[0].sessions[0].scenes[0].img = 'https://t/cover.png'; table.acts[0].sessions[0].scenes[0].entries[0].img = 'https://t/b.png';
+const laid = overlayCampaign(table, handPack.campaign, {});
+check('a vault page that names no picture never blanks one the table has', laid.acts[0].sessions[0].scenes[0].img === 'https://t/cover.png' && laid.acts[0].sessions[0].scenes[0].entries[0].img === 'https://t/b.png',
+  JSON.stringify([laid.acts[0].sessions[0].scenes[0].img, laid.acts[0].sessions[0].scenes[0].entries[0].img]));
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
