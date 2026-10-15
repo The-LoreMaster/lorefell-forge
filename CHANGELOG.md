@@ -1,3 +1,9 @@
+## 2026-10-15 - Synced adventures: the Story window wears the lock, and foes come whole
+
+- **The Story window.** A synced adventure's Story window carries a gold lock, Kept in the vault, by its name, and a line at the top of each page saying its scenes and beats change only in the vault, with the admin's switch beside it. Adding, renaming, moving, importing, editing a beat, a cover or a description, Continue the story, and changing type and world are all refused with a word, and their buttons are not drawn. Running it, the roster and quests are untouched. The lock was only in the older Story list before, which the table no longer opens.
+- **Beats read as written there too.** The Story window's beats show bold, italic and list marks, as the LoreMaster's card does.
+- **Foes come whole.** A vault foe is written with its whole kit, as a Forsaken: three infusions, two augmentations and three Acts, Tier 1 to 3 (Nate, 2026-10-15). The converter fields it at its own rating, as Summon a foe does: a Minion fields none of its kit, an Elite its first infusion and its Tier 1 Act, a Champion two infusions, one augmentation and Acts to Tier 2, and Epic and Forsaken all of it. The whole kit rides with each library foe (`foeMeta.full`), and a foe written out to the vault keeps it.
+
 ## 2026-10-15 - Lock to the vault, for adventures made in ThreadSpire
 
 - **The button.** An admin opening an adventure that has never been kept in the vault gets Lock to the vault in the Story window. It writes the adventure out as vault pages, in the adventure format, straight to the vault's main branch under `Adventures/<name>/`, and locks it. From then on it works exactly as a vault adventure: its prep changes in the vault, and running it is untouched.

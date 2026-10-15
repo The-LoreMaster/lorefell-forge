@@ -2452,6 +2452,18 @@ body.drop-ready #map::after{ content:'Drop images to add them as maps'; position
 #storyWin .sw-box{ width:min(1180px, calc(100vw - 60px)); height:min(820px, calc(100vh - 60px)); display:flex; flex-direction:column; background:var(--navy2,#10162a); border:1.5px solid var(--gold); border-radius:16px; box-shadow:0 24px 70px rgba(0,0,0,.6); overflow:hidden; font-family:'Crimson Pro',Georgia,serif; color:var(--silver,#dce8ef); }
 #storyWin.full .sw-box{ width:calc(100vw - 24px); height:calc(100vh - 24px); }
 .sw-head{ display:flex; align-items:center; gap:12px; padding:14px 18px; border-bottom:1px solid var(--line); }
+.sw-lock{ display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border:1px solid var(--gold); border-radius:999px; color:var(--gold); font-size:.78rem; letter-spacing:.04em; white-space:nowrap; }
+.sw-lock svg{ width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+/* a synced adventure: its prep changes only in the vault, so its editing controls are not drawn */
+.sw-box.synced .sw-adds{ display:none !important; }
+.sw-box.synced .sw-tools{ display:none !important; }
+.sw-box.synced .sw-ins{ display:none !important; }
+.sw-box.synced .sw-bedit{ display:none !important; }
+.sw-box.synced .sw-cover-tools{ display:none !important; }
+.sw-box.synced .sw-sec .tsm-btn.ghost{ display:none !important; }
+.sw-box.synced .sw-meta .tsm-btn{ display:none !important; }
+.sw-box.synced .sw-desc{ pointer-events:none; }
+.sw-box.synced .sync-note{ border:1px solid var(--gold); border-radius:8px; padding:8px 12px; color:var(--gold); }
 .sw-h{ font-family:Cinzel,serif; font-size:1rem; letter-spacing:.14em; text-transform:uppercase; color:var(--gold); } .sw-adv{ color:var(--muted,#9aabbb); }
 .sw-grow{ flex:1; } .sw-search{ width:260px; padding:7px 12px; border:1px solid var(--line); border-radius:9px; background:rgba(10,14,26,.7); color:var(--silver,#dce8ef); font-family:inherit; font-size:.95rem; outline:none; } .sw-search:focus{ border-color:var(--gold); }
 .sw-ic{ width:34px; height:34px; border:1px solid var(--line); border-radius:8px; background:none; display:flex; align-items:center; justify-content:center; cursor:pointer; } .sw-ic svg{ width:16px; height:16px; fill:none; stroke:var(--silver,#dce8ef); stroke-width:1.7; stroke-linecap:round; } .sw-ic:hover{ border-color:var(--gold); }
@@ -3964,7 +3976,7 @@ function tsPartExport(kind, id){
     tsModal('<h3 class="tsm-title">Export ' + esc(node.name || kind) + '</h3><p class="tsm-note">Copy this and save it as a .json file.</p><textarea class="tsm-inp tsm-ta" style="min-height:220px" onclick="this.select()" readonly>' + esc(text) + '</textarea><div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Done</button></div>');
   }
 }
-function tsPartImport(kind, parentId){
+function tsPartImport(kind, parentId){ if (syncedNo()) return;
   var where = 'It goes at the end of this adventure’s acts.';
   if (kind === 'session'){ var fa = storyFind('act', parentId); if (!fa) return; where = 'It goes at the end of <b>' + esc(fa.act.name || 'this act') + '</b>.'; }
   if (kind === 'scene'){ var fs = storyFind('session', parentId); if (!fs) return; where = 'It goes at the end of <b>' + esc(fs.ses.name || 'this session') + '</b>.'; }
@@ -4092,7 +4104,7 @@ function storyMove(kind, id, dir){ if (syncedNo()) return;
   storySave(); advPersistTree(); refreshWinBody(); render();
 }
 function storyBeatAdd(sceneId, at){ if (syncedNo()) return; tsBeatModal(sceneId, -1, at); }
-function storyBeatOpen(sceneId, idx){ tsBeatModal(sceneId, idx); }
+function storyBeatOpen(sceneId, idx){ if (syncedNo()) return; tsBeatModal(sceneId, idx); }
 function tsBeatModal(sceneId, idx, at){
   var f = storyFind('scene', sceneId); if (!f) return;
   var b = idx >= 0 ? (f.scene.beats || [])[idx] : { kind:'readaloud', title:'', body:'', speaker:'', handle:'', img:'' };
@@ -13705,7 +13717,7 @@ function worldsLoad(){
 var ADV_TYPES = [['tale','Tale','One session','A single sitting. One deed or rumor, complete on its own.'],['story','Story','3 to 6 sessions','A short, focused arc for a chosen few Fell.'],
   ['legacy','Legacy','10 to 12 sessions','The backbone saga. Characters endure and grow.'],['chronicle','Chronicle','Open table','A living world many hands shape across the year.']];
 var NEWADV = { name:'', type:'', world:'', wName:'', wDesc:'', img:'', file:null, err:'', fromPicker:false };
-function advTypeWorldEdit(){ if (keeperNo()) return;
+function advTypeWorldEdit(){ if (keeperNo() || syncedNo()) return;
   var A = S.adventure || {};
   NEWADV = { edit:true, name:A.name || '', type:A.type || '', world:A.worldId || '', wName:A.worldId === 'unwritten' ? (A.worldName || '') : '', wDesc:A.worldDesc || '', img:'', file:null, err:'', fromPicker:false };
   advNewPaint();
@@ -22480,7 +22492,7 @@ function swAdd(kind, parentId){ storyAdd(kind, parentId); }
 /* dragging a row among its siblings, or a scene or session into another parent */
 function swDragStart(ev, kind, id){ SW.drag = { kind:kind, id:id }; try { ev.dataTransfer.setData('text/plain', id); ev.dataTransfer.effectAllowed = 'move'; } catch(e){} }
 function swDragOver(ev, el, kind){ var d = SW.drag; if (!d) return; var ok = d.kind === kind || (d.kind === 'scene' && kind === 'session') || (d.kind === 'session' && kind === 'act'); if (!ok) return; ev.preventDefault(); el.classList.add('drop'); }
-function swDrop(ev, el, kind, id){
+function swDrop(ev, el, kind, id){ if (syncedNo()) return;
   ev.preventDefault(); el.classList.remove('drop');
   var d = SW.drag; SW.drag = null; if (!d || sameId(d.id, id)) return;
   var from = storyFind(d.kind, d.id); if (!from) return;
@@ -22509,7 +22521,7 @@ function swSaveNode(){
   else if (SW.kind === 'adv'){ storySave(); advPersistTree(); }
   else { storySave(); advPersistTree(); }
 }
-function swCoverPick(){
+function swCoverPick(){ if (syncedNo()) return;
   var inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*';
   inp.onchange = function(){
     var f = inp.files && inp.files[0]; if (!f) return;
@@ -22520,13 +22532,13 @@ function swCoverPick(){
   };
   inp.click();
 }
-function swCoverClear(){ var node = swNode(); if (!node) return; node.img = ''; swSaveNode(); swPaint(); }
-function swDescEdit(){
+function swCoverClear(){ if (syncedNo()) return; var node = swNode(); if (!node) return; node.img = ''; swSaveNode(); swPaint(); }
+function swDescEdit(){ if (syncedNo()) return;
   var node = swNode(); if (!node) return;
   tsModal('<h3 class="tsm-title">Description</h3><textarea id="swDescIn" class="tsm-in" rows="4" style="width:100%">' + esc(node.desc || '') + '</textarea>'
     + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button><button class="tsm-btn" onclick="swDescSave()">Save</button></div>');
 }
-function swDescSave(){ var node = swNode(); if (!node) return; node.desc = ((document.getElementById('swDescIn') || {}).value || '').trim(); tsCloseModal(); swSaveNode(); swPaint(); }
+function swDescSave(){ if (syncedNo()) return; var node = swNode(); if (!node) return; node.desc = ((document.getElementById('swDescIn') || {}).value || '').trim(); tsCloseModal(); swSaveNode(); swPaint(); }
 /* the scene's beats: no ticking, dragged into order, opened to edit */
 function swBeats(sc){
   var list = sc.beats || [];
@@ -22543,12 +22555,12 @@ function swBeats(sc){
       + (sp ? (sp.img ? '<img class="sw-spk" src="' + esc(sp.img) + '" alt="">' : '<span class="sw-spk" style="background:' + sp.color + '"></span>') : '')
       + '<div class="sw-bt"><span class="sw-kind" style="color:' + m[1] + '">' + m[0] + (sp ? ' <em>' + esc(sp.name) + '</em>' : '') + '</span>'
       + '<span class="sw-btitle">' + esc(b.title || m[0]) + '</span>'
-      + (b.body ? '<span class="sw-bbody' + (bo ? ' full' : '') + '">' + (bo ? esc(String(b.body)) : esc(String(b.body).slice(0, 220)) + (String(b.body).length > 220 ? '\u2026' : '')) + '</span>' : '') + '</div></div>';
+      + (b.body ? '<span class="sw-bbody' + (bo ? ' full' : '') + '">' + (bo ? beatBodyHtml(String(b.body)) : beatBodyHtml(String(b.body).slice(0, 220)) + (String(b.body).length > 220 ? '\u2026' : '')) + '</span>' : '') + '</div></div>';
   });
   return h;
 }
 function swBeatsTail(sc){ return (sc.beats || []).length ? '<button class="sw-ins" onclick="storyBeatAdd(\'' + sc.id + '\',' + sc.beats.length + ')" title="Add a beat at the end" aria-label="Add a beat at the end"><span>+ Beat here</span></button>' : ''; }
-function swBeatDrop(sceneId, to){
+function swBeatDrop(sceneId, to){ if (syncedNo()) return;
   var from = SW.beat; SW.beat = null; if (from === null || from === undefined || from === to) return;
   var f = storyFind('scene', sceneId); if (!f) return;
   var arr = f.scene.beats || []; var b = arr.splice(from, 1)[0]; arr.splice(to, 0, b);
@@ -22634,13 +22646,14 @@ function swPaint(){
   el.style.display = 'flex'; el.classList.toggle('full', SW.full);
   var node = swNode(); if (!node && SW.kind !== 'adv'){ SW.kind = 'adv'; node = S.adventure; }
   var main = '', side = '';
+  var syncNote = syncBannerHtml();
   if (SW.q.trim()) main = swSearch(SW.q.trim());
-  else if (SW.kind === 'scene'){ main = swCover(node, 'scene') + '<div class="sw-body">' + swBeats(node) + swBeatsTail(node) + '</div>'; side = swSide(node); }
-  else main = swCover(node, SW.kind) + '<div class="sw-body">' + (SW.kind === 'adv' ? swAdvMeta(node) : '') + swKids(SW.kind, node) + swNotes(SW.kind, node) + '</div>';
+  else if (SW.kind === 'scene'){ main = swCover(node, 'scene') + '<div class="sw-body">' + syncNote + swBeats(node) + swBeatsTail(node) + '</div>'; side = swSide(node); }
+  else main = swCover(node, SW.kind) + '<div class="sw-body">' + syncNote + (SW.kind === 'adv' ? swAdvMeta(node) : '') + swKids(SW.kind, node) + swNotes(SW.kind, node) + '</div>';
   var keepQ = document.activeElement && document.activeElement.id === 'swSearch';
   var outlineScroll = (el.querySelector('.sw-outline') || {}).scrollTop || 0, mainScroll = (el.querySelector('.sw-main') || {}).scrollTop || 0;
-  el.innerHTML = '<div class="sw-box' + (side ? '' : ' noside') + (SW.pane === 'outline' && !SW.q.trim() ? ' m-outline' : ' m-page') + '">'
-    + '<div class="sw-head"><button class="sw-ic sw-back" onclick="swPane(\'outline\')" title="Outline" aria-label="Outline"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h13"/></svg></button><span class="sw-h">Story</span><span class="sw-adv">' + esc((S.adventure && S.adventure.name) || '') + '</span><span class="sw-grow"></span>'
+  el.innerHTML = '<div class="sw-box' + (advSynced() ? ' synced' : '') + (side ? '' : ' noside') + (SW.pane === 'outline' && !SW.q.trim() ? ' m-outline' : ' m-page') + '">'
+    + '<div class="sw-head"><button class="sw-ic sw-back" onclick="swPane(\'outline\')" title="Outline" aria-label="Outline"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h13"/></svg></button><span class="sw-h">Story</span><span class="sw-adv">' + esc((S.adventure && S.adventure.name) || '') + '</span>' + (advSynced() ? '<span class="sw-lock" title="Kept in the vault. Its scenes and beats change only there."><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Kept in the vault</span>' : '') + '<span class="sw-grow"></span>'
     + '<input id="swSearch" class="sw-search" placeholder="Search the story" value="' + esc(SW.q) + '" oninput="SW.q=this.value;swPaint()">'
     + '<button class="sw-ic" onclick="swFull()" title="' + (SW.full ? 'Back to a window' : 'Full screen') + '" aria-label="Full screen"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>'
     + '<button class="sw-ic" onclick="swClose()" title="Close" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>'
@@ -23028,7 +23041,7 @@ function summonPaint(){
    whole and the older ones condensed, so a long adventure still fits what the AI can read at
    once. The draft comes back as beats to keep or discard one by one; kept beats join the scene. */
 var CONT = { sceneId:'', prompt:'', busy:false, err:'', draft:null, keep:{}, info:'' };
-function contOpen(sceneId){ if (!isLM() || keeperNo()) return; CONT = { sceneId:sceneId, prompt:'', busy:false, err:'', draft:null, keep:{}, info:contContext(sceneId).info }; contPaint(); }
+function contOpen(sceneId){ if (!isLM() || keeperNo() || syncedNo()) return; CONT = { sceneId:sceneId, prompt:'', busy:false, err:'', draft:null, keep:{}, info:contContext(sceneId).info }; contPaint(); }
 function contBeatText(b, full){
   var k = b.kind || b.type || 'general'; if (k === 'lorecheck' || k === 'check') return '';
   var sp = '';

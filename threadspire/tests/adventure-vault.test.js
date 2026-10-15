@@ -110,6 +110,24 @@ async function boot() {
   w.tsAsk2 = () => { throw new Error('the rename box opened'); };
   let opened = false; try { w.storyRename('act', w.S.adventure.acts[0].id); } catch (e) { opened = true; }
   check('a prep edit is refused with a word, and nothing opens', !opened && w.S.adventure.acts[0].name === before && toasts.length === 1 && /vault/.test(toasts[0]), toasts.join(' | '));
+  w.isLM = () => true;
+  w.SW.open = true; w.SW.kind = 'scene'; w.SW.id = w.S.adventure.acts[0].sessions[0].scenes[0].id; w.SW.beatOpen = {};
+  w.SW.beatOpen[w.SW.id + ':2'] = true;
+  w.swPaint();
+  const win = w.document.getElementById('storyWin').innerHTML;
+  check('the Story window wears the lock and says where it is kept', /sw-box synced/.test(win) && /sw-lock/.test(win) && /Kept in the vault/.test(win), win.slice(0, 400));
+  check('the Story window shows a beat as written, bold and all', /<b>Fellmark\.<\/b>/.test(win) && !/\*\*Fellmark/.test(win), (win.match(/sw-bbody[^<]*<[^]{0,200}/) || [''])[0]);
+  // jsdom's cascade ignores !important, so check the rules a browser applies rather than computed style
+  const rules = []; for (const ss of w.document.styleSheets) for (const r of ss.cssRules) if (r.selectorText) rules.push(r.selectorText + '{' + r.style.cssText + '}');
+  const missing = ['.sw-adds', '.sw-tools', '.sw-ins', '.sw-bedit', '.sw-cover-tools'].filter((c) => !rules.some((r) => r.indexOf('.sw-box.synced ' + c + '{') === 0 && /display: none !important/.test(r)));
+  check('no adding, renaming, moving or editing controls on a synced adventure', missing.length === 0, 'no hiding rule for ' + missing.join(', '));
+  const untouched = JSON.stringify(w.S.adventure);
+  ['swAdd("scene", w.S.adventure.acts[0].sessions[0].id)', 'storyBeatAdd(w.SW.id, 0)', 'storyBeatOpen(w.SW.id, 0)', 'swDescEdit()', 'swCoverClear()', 'tsPartImport("scene", w.S.adventure.acts[0].sessions[0].id)', 'contOpen(w.SW.id)', 'advTypeWorldEdit()']
+    .forEach((c) => { try { w.eval(c.replace(/w\./g, '')); } catch (e) {} });
+  check('every edit the Story window offers is refused on a synced adventure', JSON.stringify(w.S.adventure) === untouched && !w.document.querySelector('#tsModal.open'), 'something changed or a box opened');
+  const dropped = JSON.stringify(w.S.adventure.acts[0].sessions[0].scenes[0].beats.map((b) => b.id));
+  w.SW.beat = 0; w.swBeatDrop(w.SW.id, 2);
+  check('dragging a beat on a synced adventure moves nothing', JSON.stringify(w.S.adventure.acts[0].sessions[0].scenes[0].beats.map((b) => b.id)) === dropped, 'the beats moved');
   const banner = w.syncBannerHtml();
   check('the Story window says where it is kept, and an admin gets the switch', /Kept in the vault/.test(banner) && /Adventures\/A Test Night/.test(banner) && /Lift the vault lock/.test(banner), banner);
   w.S.syncInfo.admin = false;

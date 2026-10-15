@@ -193,28 +193,45 @@ export function readAdventure(files, name, opts) {
   };
 }
 
+// What each Shatter Rating fields of a foe's whole kit (the foe pack's tierBudget): infusions,
+// augmentations, and how many Acts, of which tiers. A vault foe is written whole, as a Forsaken
+// (Nate, 2026-10-15), and fielded at its own rating, as Summon a foe fields one.
+export const RATING_KIT = { Minion: { inf: 0, aug: 0, acts: 0 }, Elite: { inf: 1, aug: 0, acts: 1 }, Champion: { inf: 2, aug: 1, acts: 2 },
+  Epic: { inf: 3, aug: 2, acts: 3 }, Forsaken: { inf: 3, aug: 2, acts: 3 } };
+export function kitAtRating(full, sr) {
+  const b = RATING_KIT[sr] || RATING_KIT.Elite, cap = Math.min(b.acts, 3);
+  return {
+    infusions: (full.infusions || []).slice(0, b.inf),
+    augments: (full.augments || []).slice(0, b.aug),
+    abilities: (full.abilities || []).filter((a) => (Number(a.tier) || 1) <= cap).slice(0, b.acts)
+  };
+}
+
 function foeRecord(p, pre) {
   const f = p.fm;
   const id = withPre(pre, f.id || slug(f.name, 60));
   const notes = [plain(p.body.replace(/^#\s.*$/m, "")).trim()];
   if (f.react) notes.push("React: " + plain(f.react));
-  return {
-    id: id, type: "monster", name: f.name || p.file.replace(/\.md$/, ""),
-    desc: notes.filter(Boolean).join("\n\n"), img: "", origin: "",
-    sr: f.shatter_rating || "Elite", build: f.build || "", stance: f.stance || "",
-    maxVit: Number(f.vitality) || 0,
-    attrs: f.attributes || {},
-    sig: linkTarget(f.affliction || ""),
+  const full = {
     infusions: (f.infusions || []).map(linkTarget),
     augments: (f.augmentations || []).map(linkTarget),
-    inv: [],
     abilities: (f.acts || []).map((a) => ({
       id: id + "--" + slug(a.name, 40), name: a.name || "", tier: Number(a.tier) || 1, use: "Act",
       desc: plain(a.text || ""), effect: plain(a.text || ""), source: "mine",
-      kind: a.kind || "", points: a.points != null ? a.points : null, targeting: a.targeting || "", affliction: a.effect || ""
-    })),
-    source: "vault"
+      kind: a.kind || "", points: a.points != null ? a.points : null, targeting: a.targeting || "", damage: a.damage || "", affliction: a.effect || ""
+    }))
   };
+  const sr = f.shatter_rating || "Elite";
+  return Object.assign({
+    id: id, type: "monster", name: f.name || p.file.replace(/\.md$/, ""),
+    desc: notes.filter(Boolean).join("\n\n"), img: "", origin: "",
+    sr: sr, build: f.build || "", stance: f.stance || "",
+    maxVit: Number(f.vitality) || 0,
+    attrs: f.attributes || {},
+    sig: linkTarget(f.affliction || ""),
+    inv: [],
+    source: "vault"
+  }, kitAtRating(full, sr), { full: full });
 }
 function npcRecord(p, pre) {
   const c = p.fm;
@@ -351,15 +368,16 @@ export function writeAdventure(adv, library, taken) {
   // foes
   Object.values(usedLib).filter((e) => e.type !== "npc").forEach((e) => {
     const at = e.attrs || {};
-    const acts = (e.abilities || []).map((x) => [
+    const kit = e.full || e; // a vault foe keeps its whole kit; one made in the tools has what it has
+    const acts = (kit.abilities || []).map((x) => [
       "  - name: " + q(x.name || ""), "    tier: " + (Number(x.tier) || 1), "    kind: " + q(x.kind || ""),
       "    points: " + (x.points != null && x.points !== "" ? Number(x.points) || 0 : "null"), "    targeting: " + q(x.targeting || ""),
-      "    damage: " + q(""), "    effect: " + q(x.affliction || ""), "    text: " + q(x.desc || x.effect || "")].join("\n"));
+      "    damage: " + q(x.damage || ""), "    effect: " + q(x.affliction || ""), "    text: " + q(x.desc || x.effect || "")].join("\n"));
     files["Foes/" + fileOf[String(e.id)] + ".md"] = ["---", "type: foe", "id: " + q(e._slug), "name: " + q(e.name || ""),
       "shatter_rating: " + q(e.sr || "Elite"), "build: " + q(e.build || ""), "vitality: " + (Number(e.maxVit) || 0),
       "attributes:", ATTRS.map((k) => "  " + k + ": " + (Number(at[k]) || 0)).join("\n"),
       "affliction: " + (e.sig ? q(link(e.sig)) : "null"), "stance: " + (e.stance ? q(e.stance) : "null"),
-      yamlList("infusions", (e.infusions || []).map((x) => q(link(x)))), yamlList("augmentations", (e.augments || []).map((x) => q(link(x)))),
+      yamlList("infusions", (kit.infusions || []).map((x) => q(link(x)))), yamlList("augmentations", (kit.augments || []).map((x) => q(link(x)))),
       acts.length ? "acts:\n" + acts.join("\n") : "acts: []", "loot: []", "---",
       "# " + (e.name || "Unnamed"), "", String(e.desc || "").trim(), ""].join("\n");
   });
