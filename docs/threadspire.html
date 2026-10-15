@@ -888,6 +888,14 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .adv-banner-tag{ flex:none; font-size:.78rem; color:#c9a84c; letter-spacing:.04em; text-shadow:0 1px 4px rgba(0,0,0,.9); }
 .tsm-pick-del{ flex:0 0 auto; width:40px; border-radius:8px; border:1px solid var(--line2,#2a3552); background:var(--panel,#10162a); color:var(--muted,#7e8a99); font-size:.9rem; cursor:pointer; transition:border-color .12s, color .12s; }
 .tsm-pick-del:hover{ border-color:var(--danger,#8d3b3b); color:#e08a8a; }
+.adv-pick{ position:relative; }
+.adv-pick .tsm-pick{ padding-right:58px; }
+.adv-more{ position:absolute; top:10px; right:10px; z-index:2; width:36px; height:28px; padding:0; border-radius:8px; border:1px solid rgba(201,168,76,.45); background:rgba(6,10,20,.72); color:#e8dcb6; font-size:1.15rem; line-height:1; cursor:pointer; transition:border-color .12s, color .12s; }
+.adv-more:hover, .adv-more.on{ border-color:var(--gold); color:var(--gold); }
+.adv-menu{ position:absolute; top:10px; right:54px; z-index:2; display:flex; gap:6px; }
+.adv-menu .tsm-btn{ height:28px; padding:0 10px; background:rgba(6,10,20,.92); }
+.adv-pick.plain .adv-more, .adv-pick.plain .adv-menu{ top:50%; transform:translateY(-50%); }
+.adv-menu .adv-menu-del:hover{ border-color:var(--danger,#8d3b3b); color:#e08a8a; }
 .give-hd{ display:flex; align-items:center; justify-content:space-between; margin-top:10px; }
 .give-all{ padding:4px 10px; font-size:.62rem; }
 .give-box{ width:18px; height:18px; border:1px solid var(--line2,#2a3552); border-radius:4px; display:inline-flex; align-items:center; justify-content:center; color:var(--gold); font-size:.75rem; flex:0 0 auto; }
@@ -13321,8 +13329,14 @@ function tsAdvPickerMarkup(rows, loading){
   } else {
     body = rows.map(function(c){
       var on = sameId(c.id, cur);
-      return '<div class="tsm-pick-row">' + advPickCard(c, on, 'tsPickAdventure(\'' + esc(c.id) + '\')', '')
-        + '<button class="tsm-pick-del" title="Delete this adventure" aria-label="Delete ' + esc(c.name || 'adventure') + '" onclick="advDeleteAsk(\'' + esc(c.id) + '\')">\u2715</button></div>';
+      var open = sameId(S._advMenu, c.id), id = esc(c.id);
+      /* the ... sits on the card, top right, and its menu opens beside it */
+      return '<div class="adv-pick' + (c.img ? '' : ' plain') + '">' + advPickCard(c, on, 'tsPickAdventure(\'' + id + '\')', '')
+        + (open ? '<div class="adv-menu" role="group" aria-label="' + esc(c.name || 'Adventure') + '">'
+          + '<button class="tsm-btn ghost" onclick="advMenuDo(\'' + id + '\',\'publish\')">Publish</button>'
+          + '<button class="tsm-btn ghost" onclick="advMenuDo(\'' + id + '\',\'download\')">Download</button>'
+          + '<button class="tsm-btn ghost adv-menu-del" onclick="advDeleteAsk(\'' + id + '\')">Delete</button></div>' : '')
+        + '<button class="adv-more' + (open ? ' on' : '') + '" title="More" aria-label="More for ' + esc(c.name || 'this adventure') + '" aria-expanded="' + open + '" onclick="advMenuToggle(\'' + id + '\')">\u22ef</button></div>';
     }).join('');
   }
   return '<h3 class="tsm-title">Open an adventure</h3>'
@@ -13339,6 +13353,28 @@ function advNameOf(id){
   var n = 'this adventure';
   (Array.isArray(S._advList) ? S._advList : []).forEach(function(c){ if (sameId(c.id, id)) n = c.name || n; });
   return n;
+}
+/* The ... beside each adventure in Open an adventure: what can be done with it besides opening it.
+   Publishing and a backup work on the adventure on the table, so one that is not open is opened
+   first, and the action runs once it stands up. */
+S._advMenu = null;
+function advMenuToggle(id){
+  var list = document.querySelector('#tsModal .tsm-pick-list'), top = list ? list.scrollTop : 0;
+  S._advMenu = sameId(S._advMenu, id) ? null : id;
+  tsModalLocked(tsAdvPickerMarkup(Array.isArray(S._advList) ? S._advList : [], false), true);
+  list = document.querySelector('#tsModal .tsm-pick-list'); if (list) list.scrollTop = top;
+}
+function advMenuDo(id, act){
+  if (keeperNo()) return;
+  S._advMenu = null;
+  var run = function(){ if (act === 'publish') publishOpen(); else if (act === 'download') tsExportAdventure(); };
+  if (sameId(id, S.campaignId) && S._advFullLoaded && S.adventure && S.adventure.acts && !advVeiled()){ tsCloseModal(); run(); return; }
+  tsPickAdventure(id);
+  var waited = 0, t = setInterval(function(){
+    waited += 200;
+    if (sameId(S.campaignId, id) && S._advFullLoaded && S.adventure && S.adventure.acts && !advVeiled()){ clearInterval(t); run(); }
+    else if (waited > 30000) clearInterval(t);
+  }, 200);
 }
 function advDeleteAsk(id){ if (keeperNo()) return;
   if (!id || !isLM()) return;
@@ -14098,6 +14134,7 @@ function publishLoad(){
   }).catch(function(){ S.published = []; });
 }
 function publishOpen(){ if (keeperNo()) return;
+  if (advSynced() || (S.syncInfo && S.syncInfo.checkedOut)){ try { playToast('This adventure is kept in the vault, so it stays private.', 'Publish'); } catch(e){} return; }
   var name = (S.adventure && S.adventure.name) || 'This adventure';
   tsModal('<h3 class="tsm-title">Publish</h3>'
     + '<label class="tsm-lbl">Title</label><input class="tsm-inp" id="pbTitle" value="' + esc(name) + '">'
