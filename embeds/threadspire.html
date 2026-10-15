@@ -876,7 +876,16 @@ body.clean #rail, body.clean #hud, body.clean #mhud, body.clean #win, body.clean
 .tsm-pick-cur{ font-size:.62rem; color:var(--gold); letter-spacing:.08em; text-transform:uppercase; }
 .tsm-pick-row{ display:flex; gap:7px; align-items:stretch; }
 .tsm-pick-row .tsm-pick{ flex:1; min-width:0; }
-.tsm-pick-row .ach-card{ flex:1; min-width:0; }
+.tsm-pick-row .adv-banner{ flex:1; min-width:0; }
+.ach-list .tsm-pick{ flex:none; }
+.adv-banner{ position:relative; display:flex; align-items:flex-end; justify-content:space-between; gap:12px; width:100%; min-height:96px; aspect-ratio:16 / 3.4; padding:14px 16px; border-radius:12px; border:1px solid #26324c; background:#0c1222 center/cover no-repeat; overflow:hidden; color:#fff; font:inherit; text-align:left; cursor:pointer; transition:border-color .12s; }
+.adv-banner::before{ content:''; position:absolute; inset:0; background:linear-gradient(to top, rgba(6,10,20,.9), rgba(6,10,20,.35) 55%, rgba(6,10,20,.05)); }
+.adv-banner:hover, .adv-banner.on{ border-color:#c9a84c; }
+.adv-banner-txt, .adv-banner-tag{ position:relative; }
+.adv-banner-txt{ display:flex; flex-direction:column; gap:2px; min-width:0; }
+.adv-banner-txt b{ font-family:Cinzel,serif; font-size:1.08rem; font-weight:600; letter-spacing:.03em; text-shadow:0 1px 6px rgba(0,0,0,.9); }
+.adv-banner-txt i{ font-style:normal; font-size:.82rem; color:#cfd8e2; text-shadow:0 1px 4px rgba(0,0,0,.9); }
+.adv-banner-tag{ flex:none; font-size:.78rem; color:#c9a84c; letter-spacing:.04em; text-shadow:0 1px 4px rgba(0,0,0,.9); }
 .tsm-pick-del{ flex:0 0 auto; width:40px; border-radius:8px; border:1px solid var(--line2,#2a3552); background:var(--panel,#10162a); color:var(--muted,#7e8a99); font-size:.9rem; cursor:pointer; transition:border-color .12s, color .12s; }
 .tsm-pick-del:hover{ border-color:var(--danger,#8d3b3b); color:#e08a8a; }
 .give-hd{ display:flex; align-items:center; justify-content:space-between; margin-top:10px; }
@@ -2598,7 +2607,7 @@ button.set-hero:hover, .set-fell:hover{ border-color:#f0d48a; } button.set-hero:
 .ach-card{ display:grid; grid-template-columns:46% minmax(0,1fr) auto; gap:16px; align-items:center; padding:10px; border-radius:12px; border:1px solid #26324c; background:#0c1222; color:#dce8ef; font:inherit; text-align:left; cursor:pointer; }
 .ach-card:hover{ border-color:#c9a84c; } .ach-card.on{ border-color:#c9a84c; background:rgba(201,168,76,.08); }
 .ach-card.pub{ cursor:default; }
-#advChooser, .tsm-pick-list{ container:achwin / inline-size; }
+#advChooser{ container:achwin / inline-size; }
 @container achwin (max-width:540px){
   .ach-card, .ach-card.pub{ grid-template-columns:minmax(0,1fr) auto; grid-template-areas:"face face" "txt act"; }
   .ach-card .ach-face{ grid-area:face; width:100%; height:auto; aspect-ratio:16 / 7; }
@@ -13288,6 +13297,17 @@ function tsOpenOnLoadPicker(){
   if (isLM()) tsAdventurePicker();
   else tsFellPicker();
 }
+/* One adventure in Open an adventure and in Settings' Choose your adventure. With a cover, the
+   cover is the card and its name sits inside it. Without one, it is a plain row. */
+function advPickCard(c, on, onclick, fallbackImg){
+  var img = c.img || fallbackImg || '';
+  var name = esc(c.name || 'Adventure'), keep = c.role === 'lorekeeper' ? '<i>You keep the lore</i>' : '';
+  var tag = on ? 'On the table' : 'Open';
+  if (!img) return '<button class="tsm-pick' + (on ? ' on' : '') + '" onclick="' + onclick + '"' + (on ? ' aria-current="true"' : '') + '>'
+    + '<span class="tsm-pick-name">' + name + (keep ? ' <span class="tsm-pick-sub">You keep the lore</span>' : '') + '</span>' + (on ? '<span class="tsm-pick-cur">' + tag + '</span>' : '') + '</button>';
+  return '<button class="adv-banner' + (on ? ' on' : '') + '" onclick="' + onclick + '"' + (on ? ' aria-current="true"' : '') + ' style="background-image:url(\'' + esc(img) + '\')">'
+    + '<span class="adv-banner-txt"><b>' + name + '</b>' + keep + '</span><span class="adv-banner-tag">' + tag + '</span></button>';
+}
 function tsAdvPickerMarkup(rows, loading){
   var cur = S.campaignId || '';
   var body;
@@ -13298,11 +13318,8 @@ function tsAdvPickerMarkup(rows, loading){
   } else {
     body = rows.map(function(c){
       var on = sameId(c.id, cur);
-      /* each adventure with its cover, as Choose your adventure in Settings shows it */
-      return '<div class="tsm-pick-row"><button class="ach-card' + (on ? ' on' : '') + '" onclick="tsPickAdventure(\'' + esc(c.id) + '\')"' + (on ? ' aria-current="true"' : '') + '>'
-        + '<span class="ach-face"' + (c.img ? ' style="background-image:url(\'' + esc(c.img) + '\')"' : '') + '></span>'
-        + '<span class="ach-txt"><b>' + esc(c.name || 'Adventure') + '</b>' + (c.role === 'lorekeeper' ? '<i>You keep the lore</i>' : '') + '</span><span class="ach-tag">' + (on ? 'On the table' : 'Open') + '</span>'
-        + '</button><button class="tsm-pick-del" title="Delete this adventure" aria-label="Delete ' + esc(c.name || 'adventure') + '" onclick="advDeleteAsk(\'' + esc(c.id) + '\')">\u2715</button></div>';
+      return '<div class="tsm-pick-row">' + advPickCard(c, on, 'tsPickAdventure(\'' + esc(c.id) + '\')', '')
+        + '<button class="tsm-pick-del" title="Delete this adventure" aria-label="Delete ' + esc(c.name || 'adventure') + '" onclick="advDeleteAsk(\'' + esc(c.id) + '\')">\u2715</button></div>';
     }).join('');
   }
   return '<h3 class="tsm-title">Open an adventure</h3>'
@@ -14047,9 +14064,7 @@ function advChooser(tab){
     else if (!list) h += '<p class="tsm-note">Finding your adventures\u2026</p>';
     else if (!list.length) h += '<p class="tsm-note">No adventures yet. Make one under New.</p>';
     else h += '<div class="ach-list">' + list.map(function(c){ var cur = sameId(c.id, S.campaignId);
-        return '<button class="ach-card' + (cur ? ' on' : '') + '" onclick="' + (cur ? 'tsCloseModal()' : 'tsCloseModal();advSwitch(\'' + esc(c.id) + '\')') + '"' + (cur ? ' aria-current="true"' : '') + '>'
-          + '<span class="ach-face"' + ((c.img || (cur && (S.adventure || {}).img)) ? ' style="background-image:url(\'' + esc(c.img || S.adventure.img) + '\')"' : '') + '></span>'
-          + '<span class="ach-txt"><b>' + esc(c.name || 'Adventure') + '</b>' + (c.role === 'lorekeeper' ? '<i>You keep the lore</i>' : '') + '</span><span class="ach-tag">' + (cur ? 'On the table' : 'Open') + '</span></button>'; }).join('') + '</div>';
+        return advPickCard(c, cur, cur ? 'tsCloseModal()' : 'tsCloseModal();advSwitch(\'' + esc(c.id) + '\')', cur ? ((S.adventure || {}).img || '') : ''); }).join('') + '</div>';
   } else if (ADVCH.tab === 'new'){
     h += '<p class="lc-p">A new adventure: you name it and choose its type and world, and it opens empty, ready for its first scene.</p>'
       + '<div class="tsm-row" style="justify-content:flex-start"><button class="tsm-btn" onclick="tsCloseModal();advNewHere()">Make one</button><button class="tsm-btn ghost" onclick="tsCloseModal();tsImportAdventure()">Import</button></div>';
