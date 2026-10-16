@@ -1,6 +1,6 @@
 /* A world the Sphere does not hold is read on the sheet's Lore tab: a BrandForge world's
- * overview, then the rest of what its maker wrote behind one fold. A canon world keeps its
- * link to the Sphere and has no card. FellGlass and ThreadSpire share this sheet.
+ * overview, then the rest of what its maker wrote behind one fold. A canon world has no card
+ * and no link (Nate removed the Sphere link, 2026-10-16). FellGlass and ThreadSpire share this sheet.
  *
  *   node threadspire/tests/world-card.test.js
  */
@@ -20,7 +20,7 @@ function check(n, ok, d){ if (ok === true){ console.log('  PASS  ' + n); pass++;
   await new Promise((r) => setTimeout(r, 300));
   const js = (s) => w.eval(s);
   const card = () => js(`document.getElementById('advWorld').innerHTML`);
-  const link = () => js(`document.getElementById('tsSpireLink').innerHTML`);
+  const link = () => js(`document.getElementById('tsSpireLink') ? 'still there' : ''`);
 
   console.log('\nthe world card on the Lore tab');
   js(`C.identity.campaignId = 'adv-f'; C.identity.campaign = 'Cold Road'; C.identity.worldId = '';
@@ -30,9 +30,9 @@ function check(n, ok, d){ if (ok === true){ console.log('  PASS  ' + n); pass++;
   check('a forged world shows its name and overview', /Hrimfast/.test(card()) && /A winter &lt;that&gt; never breaks\./.test(card()), card());
   check('the rest sits behind one fold, empty parts left out',
     /<details>/.test(card()) && /The people/.test(card()) && /The magic here/.test(card()) && /Faith and belief/.test(card()) && !/Architecture/.test(card()) && !/Daily life/.test(card()), card());
-  check('a forged world has no Sphere link', link() === '', link());
+  check('the sheet has no Sphere link', link() === '' && !/See this saga/.test(js('document.body.innerHTML')), link());
   js(`C.identity.campaignId = 'adv-c'; renderCampaignOptions();`);
-  check('a canon world has its Sphere link and no card', /See this saga in the Sphere/.test(link()) && card() === '', card() + ' | ' + link());
+  check('a canon world has no card', card() === '', card());
 
   console.log('\n' + (fail ? 'FAILED ' + fail : 'all ' + pass + ' passed'));
   process.exit(fail ? 1 : 0);
