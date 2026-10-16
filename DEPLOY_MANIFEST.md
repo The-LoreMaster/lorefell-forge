@@ -37,6 +37,7 @@ From lorefell-site `src/tools/tools.js`. If that list changes, correct this tabl
 | FoeForge | `foeforge.html` | `/the-foeforge` | `velo/page-foeforge.js` |
 | RelicForge | `relicforge.html` | `/the-relicforge` | `velo/page-relicforge.js` |
 | The Anexanum | `the_anexanum.html` | `/the-anexanum` | `velo/page-the_anexanum.js` |
+| SagaForge | `sagaforge.html` | `/the-sagaforge` (admin only) | `velo/page-sagaforge.js`, writing through the site's `/api/saga/stream` |
 | The Sphere | `the_sphere.html` | none in `tools.js` | none. Baked from the vault by Deploy Pages, kept current by Sphere Sync |
 
 The FateWell is retired (2026-09-28, folded into ThreadSpire). `/the-fatewell` is now a page

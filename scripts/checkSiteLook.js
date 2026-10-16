@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const TOOLS = ['join', 'fellforge', 'shardforge', 'bondforge', 'relicforge', 'brandforge', 'foeforge', 'sigilforge', 'the_anexanum'];
+const TOOLS = ['join', 'fellforge', 'shardforge', 'bondforge', 'relicforge', 'brandforge', 'foeforge', 'sigilforge', 'the_anexanum', 'sagaforge'];
 const FONTS = '<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600&family=Cinzel:wght@500;600&family=IM+Fell+English:ital@0;1&display=swap" rel="stylesheet">';
 const block = '/* site-look:start */\n' + fs.readFileSync(path.join(__dirname, 'site-look.css'), 'utf8').trimEnd() + '\n/* site-look:end */';
 

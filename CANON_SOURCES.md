@@ -47,7 +47,7 @@ permits only four exact scripts. To run it by hand, add `canon/checkCanon.js` to
    category now derives from the seed's own `archetype` field), the bake is committed and idempotent,
    and `canon.map.json` gates it as a second `generated` entry. Its targets stay in axis-3 co-change
    too; the axes are complementary (axis 1 catches a stale bake, axis 3 a one-sided hand edit).
-3. **Worlds** co-change group (threadspire / fatewell / bondforge / sagaforge / fellforge /
+3. **Worlds** co-change group (threadspire / fatewell / bondforge / fellforge /
    the_cartographer). Sibling set not yet pinned. Add once enumerated.
 4. **Axis 4. Seed ↔ inline parity.** Value-equality between seeds and inline copies. Too brittle
    until consolidation collapses the shape mismatches.
@@ -87,13 +87,13 @@ migration order. Fix the actively-broken ones first.
 ### 1. Foe pack. Foe MATH is now single-source (item 0); the pack DATA is still split
 - **Now:** the scaling *formulas* moved to `data/combat.core.js` (item 0 above). What remains split
   is the pack *data*: `docs/fatewell.html` `FW_FOE_PACK` (carries infusion rule text) vs
-  `docs/sagaforge.html` `FOE_PACK` (names only, **already drifted**) vs the `CanonFoePack` table in D1
+  the `CanonFoePack` table in D1
   (live, foeforge reads it at runtime). `data/FoePack.canon.json` is dead (its generator
   `build-canon-pack.py` is absent).
 - **Recommend:** author a vault foe-pack collection (builds / tiers / stances / pools), generate
   `schemas/seed/CanonFoePack.json` from it, and let Apply CMS write it to D1. This needs authoring first. The 15 builds
   and the tier ladder currently live only as prose in `LoreVault/Running the Game/Building Crucibles.md`.
-  Then migrate fatewell and sagaforge to read the database like foeforge already does. **Interim source of
+  Then migrate fatewell to read the database like foeforge already does. **Interim source of
   record:** `schemas/seed/CanonFoePack.json`.
 
 ### 2. Aspects. A real name mismatch already exists

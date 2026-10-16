@@ -33,10 +33,11 @@ correct any of these.
 | FoeForge | `/the-foeforge` |
 | RelicForge | `/the-relicforge` |
 | The Anexanum | `/the-anexanum` |
+| SagaForge | `/the-sagaforge` (admin only for now) |
 
 The Hearth (`/the-hearth/`), the LoreForge (`/the-loreforge/`) and The Fatewell
 (`/the-fatewell/`, the LoreMaster's page) are pages of the site, not tools. The FateWell tool
-is retired, and the SagaForge is dropped. Every other site address is in lorefell-site
+is retired. The SagaForge was rebuilt from scratch on 2026-10-16 and is open to admins only. Every other site address is in lorefell-site
 `src/data/links.js`.
 
 **Better than knowing the route:** do not navigate to a literal. Rebuild the current

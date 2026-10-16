@@ -27,7 +27,9 @@ const ROOT = path.resolve(__dirname, '..');
 const MAP = JSON.parse(fs.readFileSync(path.join(ROOT, 'canon', 'canon.map.json'), 'utf8'));
 
 // git via execFileSync (no shell) so refspecs like HEAD^{commit} and --format=%B survive on Windows cmd.exe.
-function git(args) { return execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }); }
+// The buffer is large because a change that adds or removes a big generated file (the SagaForge's
+// canon bundle is 650 KB) makes a diff past Node's 1 MB default, which crashed the gate.
+function git(args) { return execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], maxBuffer: 256 * 1024 * 1024 }); }
 function gitOk(args) { try { git(args); return true; } catch (e) { return false; } }
 function sh(cmd) { return execSync(cmd, { cwd: ROOT, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }); }
 function read(rel) { try { return fs.readFileSync(path.join(ROOT, rel), 'utf8'); } catch (e) { return null; } }
