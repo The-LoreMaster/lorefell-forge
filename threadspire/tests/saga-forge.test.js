@@ -44,6 +44,11 @@ check('the house rules are cached, then the world, then the LoreMaster\'s own ru
 check('a scene is written with the overview and the scene before it in view', /=== FILE: The Stone Warren\.md ===/.test(w.messages[0].content) && /=== FILE: Scenes\/01 - Under the Grain\.md ===/.test(w.messages[0].content), w.messages[0].content.slice(-400));
 check('the house rules are the same text on every call, so the cache holds', P.buildRequest('spine', saga, {}).system[0].text === w.system[0].text, 'differs');
 check('a roll asks for structured output naming only the asked questions', JSON.stringify(P.buildRequest('roll', saga, { ids: ['question'] }).schema.properties.answers.required) === '["question"]', '');
+const briefed = Object.assign({}, saga, { brief: 'A Halloween night involving Spindle.' });
+const rb = P.buildRequest('roll', briefed, { ids: ['question'] }).messages[0].content;
+check('the brief heads a roll, and the roll is told to build on it', /^# The LoreMaster's brief[\s\S]*Halloween night involving Spindle[\s\S]*# The LoreMaster's answers/.test(rb) && /Build every answer on the LoreMaster's brief/.test(rb), rb.slice(0, 300));
+check('the brief carries into every stage after', /Halloween night involving Spindle/.test(P.buildRequest('spine', briefed, {}).messages[0].content) && /Halloween night involving Spindle/.test(P.buildRequest('outline', briefed, {}).messages[0].content), 'missing');
+check('with no brief, nothing about one is said', !/brief/i.test(P.buildRequest('roll', saga, { ids: ['question'] }).messages[0].content.split('# Your task')[0]), 'leaked');
 let bad = '';
 try { P.buildRequest('nonsense', saga, {}); } catch (e) { bad = e.message; }
 check('an unknown stage is refused', /Unknown SagaForge step/.test(bad), bad);

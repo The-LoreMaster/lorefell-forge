@@ -91,12 +91,20 @@ function system(saga, rules) {
   return blocks;
 }
 
+// The LoreMaster's brief: what they want the adventure to be, in their own words ("a Halloween
+// night involving Spindle"). It heads every request, so the rolls and every stage after build on
+// it. An answer they gave themselves is their later word and wins where the two disagree.
+function briefOf(saga) { return String((saga && saga.brief) || '').trim().slice(0, 4000); }
+function briefText(saga) {
+  const b = briefOf(saga);
+  return b ? '# The LoreMaster\'s brief\n\nWhat they want this adventure to be. Everything below builds on it. Where an answer they gave and the brief disagree, the answer is their later word.\n\n' + b + '\n\n' : '';
+}
 function answersText(saga) {
   const a = (saga && saga.answers) || {};
   const rolled = (saga && saga.rolled) || {};
   const lines = QUESTIONS.map((q) => '- ' + q.label + (rolled[q.id] ? ' (rolled)' : '') + ': ' + (String(a[q.id] || '').trim() || '(not answered)'));
   const f = ((saga && saga.followups) || []).filter((x) => x && x.q).map((x) => '- Q: ' + x.q + '\n  A: ' + (String(x.a || '').trim() || '(not answered)'));
-  return '# The LoreMaster\'s answers\n\n' + lines.join('\n') + (f.length ? '\n\n## Follow-ups\n\n' + f.join('\n') : '');
+  return briefText(saga) + '# The LoreMaster\'s answers\n\n' + lines.join('\n') + (f.length ? '\n\n## Follow-ups\n\n' + f.join('\n') : '');
 }
 function notesText(saga) {
   const n = ((saga && saga.notes) || []).filter((x) => x && x.note).slice(-12);
@@ -163,12 +171,13 @@ export function buildRequest(step, saga, opts) {
   if (step === 'roll') {
     const ids = (opts.ids && opts.ids.length) ? opts.ids : QUESTIONS.map((q) => q.id);
     const asked = QUESTIONS.filter((q) => ids.indexOf(q.id) >= 0).map((q) => '- ' + q.id + ': ' + q.label + '. ' + q.help + (q.pick === 'worlds' ? ' Answer with one world name from the list.' : Array.isArray(q.pick) ? ' Answer with one of: ' + q.pick.join(', ') + '.' : '')).join('\n');
-    text = answersText(saga) + '\n\n# Your task\n\nRoll these answers yourself, from the lore, as ADVENTURE_WRITING sets out: inside canon, preferring a world with no History yet, and giving canon characters a cameo at most. Make them fit the answers already given. Write each in a line or two, plainly, the way a LoreMaster would jot it down. For the voice question, write a paragraph of read-aloud in the house voice.\n\n' + asked +
+    const brief = briefOf(saga) ? 'Build every answer on the LoreMaster\'s brief above. It is what they asked for, so it comes before the house preferences below: if it names a world, a character, a season or a kind of night, use it, and a canon character it names may stand at the centre of the adventure, kept true to canon. ' : '';
+    text = answersText(saga) + '\n\n# Your task\n\n' + brief + 'Roll these answers yourself, from the lore, as ADVENTURE_WRITING sets out: inside canon, preferring a world with no History yet, and giving canon characters a cameo at most unless the brief asks for more. Make them fit the answers already given. Write each in a line or two, plainly, the way a LoreMaster would jot it down. For the voice question, write a paragraph of read-aloud in the house voice.\n\n' + asked +
       (saga.lastEngine ? '\n\nThe last adventure leaned on this engine, so pick a different one: ' + saga.lastEngine : '');
     schema = SCHEMAS.roll(ids);
     effort = 'medium';
   } else if (step === 'followups') {
-    text = answersText(saga) + '\n\n# Your task\n\nAsk up to three follow-up questions, and only where an answer is thin, unclear, or clashes with canon (say what canon says). Each one short and plain. Ask none if the answers are enough.';
+    text = answersText(saga) + '\n\n# Your task\n\nAsk up to three follow-up questions, and only where an answer is thin, unclear, clashes with canon (say what canon says), or leaves part of the brief unanswered. Each one short and plain. Ask none if the answers are enough.';
     schema = SCHEMAS.followups();
     effort = 'medium';
   } else if (step === 'spine') {
