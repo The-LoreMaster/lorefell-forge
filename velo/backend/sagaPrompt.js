@@ -214,7 +214,8 @@ export function buildRequest(step, saga, opts) {
     throw new Error('Unknown SagaForge step: ' + step);
   }
 
-  return { model: MODEL, system: system(saga, rules), messages: [{ role: 'user', content: text }], max_tokens: 32000, effort: effort, schema: schema };
+  // the writer's thinking counts against max_tokens, and on the cast 32000 ran out (Nate)
+  return { model: MODEL, system: system(saga, rules), messages: [{ role: 'user', content: text }], max_tokens: 64000, effort: effort, schema: schema };
 }
 
 // Strip a fence or a stray line of preamble from a file the model wrote.
