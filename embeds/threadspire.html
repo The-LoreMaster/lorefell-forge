@@ -2860,6 +2860,16 @@ body.keeper .runonly, body.keeper #restOpts{ display:none !important; }
 .sw-foldall{ display:flex; gap:6px; padding:0 8px 8px; } .sw-foldall button, .sw-mini{ padding:4px 9px; border:1px solid #2c3a58; border-radius:7px; background:none; color:#b8c4d0; font-family:Cinzel,serif; font-size:.56rem; letter-spacing:.06em; cursor:pointer; }
 .sw-foldall button:hover, .sw-mini:hover{ border-color:#c9a84c; color:#e8cf86; }
 .sw-beat{ position:relative; }
+/* a section: a header and its subheader between the beats */
+.sw-section{ position:relative; margin:18px 0 6px; padding:4px 44px 8px 2px; border-bottom:1px solid rgba(201,168,76,.4); }
+.sw-section .sw-sec-t{ font-family:Cinzel,serif; font-size:1.06rem; font-weight:600; letter-spacing:.05em; color:var(--gold,#c9a84c); }
+.sw-section .sw-sec-sub{ margin-top:4px; font-style:italic; font-size:.93rem; line-height:1.45; color:#b8c4d0; }
+.sw-section:hover .sw-bedit{ opacity:1; }
+.sw-section.drop{ outline:1px dashed var(--gold,#c9a84c); }
+.stb-section .stb-title{ font-family:Cinzel,serif; color:var(--gold,#c9a84c); letter-spacing:.04em; }
+.lmcard.beat.section{ justify-content:center; align-items:center; text-align:center; gap:10px; border-left-color:transparent; }
+.lmcard.beat.section .lmc-sec-t{ font-family:Cinzel,serif; font-size:1.3rem; font-weight:600; letter-spacing:.06em; color:var(--gold,#c9a84c); }
+.lmcard.beat.section .lmc-sec-sub{ max-width:44ch; font-style:italic; font-size:.92rem; line-height:1.5; color:#b8c4d0; }
 .sw-bedit{ position:absolute; top:8px; right:8px; width:28px; height:28px; padding:0; border:1px solid #2c3a58; border-radius:7px; background:rgba(10,14,26,.85); color:#b8c4d0; display:flex; align-items:center; justify-content:center; cursor:pointer; opacity:0; transition:opacity .12s; }
 .sw-bedit svg{ width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linejoin:round; }
 .sw-beat:hover .sw-bedit, .sw-bedit:focus-visible{ opacity:1; } .sw-bedit:hover{ border-color:#c9a84c; color:#e8cf86; }
@@ -4098,7 +4108,7 @@ function storyBeatsHtml(sc){
   var n = (sc.beats || []).length;
   (sc.beats || []).forEach(function(b, i){
     var m = beatMeta(b.kind);
-    h += '<div class="stb-card" style="border-left-color:' + m[1] + '">'
+    h += '<div class="stb-card' + (b.kind === 'section' ? ' stb-section' : '') + '" style="border-left-color:' + m[1] + '">'
       + '<span class="stb-main" onclick="storyBeatOpen(\'' + sc.id + '\',' + i + ')">'
       + '<span class="stb-tag" style="color:' + m[1] + '">' + m[0] + '</span>'
       + '<span class="stb-title">' + esc(b.title || 'Beat')
@@ -4456,7 +4466,7 @@ var BEAT_TYPES = {
   readaloud:['Read-aloud','#6fc7c0'], dialogue:['Dialogue','#86c79b'], crucible:['Crucible','#d98a6a'],
   lorecheck:['Lore Check','#9aa8e0'], clue:['Clue','#d4a86b'], quest:['Quest','#c9a84c'],
   secret:['Secret','#c9a84c'], beat:['Beat','#b18fd0'], reminder:['Reminder','#d98a8a'],
-  general:['Note','#8fa0b3'],
+  general:['Note','#8fa0b3'], section:['Section','#c9a84c'],
   read:['Read-aloud','#6fc7c0'], check:['Lore Check','#9aa8e0'], choice:['Beat','#b18fd0']
 };
 function beatMeta(kind){ return BEAT_TYPES[kind] || ['Note','#8fa0b3']; }
@@ -10510,6 +10520,10 @@ function lmPhaseControls(){
 }
 
 function beatCard(b){
+  /* a section stands in the deck as a title card: the header, and its subheader under it */
+  if (b.kind === 'section')
+    return '<div class="lmcard beat section"><div class="lmc-sec-t">' + esc(b.title || '') + '</div>'
+      + (b.body ? '<div class="lmc-sec-sub">' + beatBodyHtml(b.body) + '</div>' : '') + '</div>';
   var _m = beatMeta(b.kind);
   var sp = beatSpeaker(b);
   return '<div class="lmcard beat ' + b.kind + '">'
@@ -22701,13 +22715,21 @@ function swDescSave(){ if (syncedNo()) return; var node = swNode(); if (!node) r
 /* the scene's beats: no ticking, dragged into order, opened to edit */
 function swBeats(sc){
   var list = sc.beats || [];
-  var h = '<div class="sw-sec"><span>Beats <b>' + list.length + '</b></span><span class="sw-grow"></span>'
+  var h = '<div class="sw-sec"><span>Beats <b>' + list.filter(function(b){ return b.kind !== 'section'; }).length + '</b></span><span class="sw-grow"></span>'
     + (list.length ? '<button class="sw-mini" onclick="swBeatsAll(\'' + sc.id + '\',true)">Open all</button><button class="sw-mini" onclick="swBeatsAll(\'' + sc.id + '\',false)">Fold all</button>' : '')
     + '<button class="tsm-btn ghost" onclick="contOpen(\'' + sc.id + '\')">Continue the story</button><button class="tsm-btn ghost" onclick="storyBeatAdd(\'' + sc.id + '\')">+ Beat</button></div>';
   if (!list.length) h += '<p class="sw-empty">No beats yet. Add one to start writing this scene.</p>';
   list.forEach(function(b, i){
     var m = beatMeta(b.kind || 'general'), sp = (b.kind === 'dialogue' && b.speaker) ? beatSpeaker(b, sc) : null;
     h += '<button class="sw-ins" onclick="storyBeatAdd(\'' + sc.id + '\',' + i + ')" title="Add a beat here" aria-label="Add a beat here"><span>+ Beat here</span></button>';
+    /* a section is a header in the scene, with its subheader under it, not a card */
+    if (b.kind === 'section'){
+      h += '<div class="sw-section" draggable="true" ondragstart="SW.beat=' + i + '" ondragover="event.preventDefault();this.classList.add(\'drop\')" ondragleave="this.classList.remove(\'drop\')" ondrop="this.classList.remove(\'drop\');swBeatDrop(\'' + sc.id + '\',' + i + ')">'
+        + '<button class="sw-bedit" onclick="event.stopPropagation();storyBeatOpen(\'' + sc.id + '\',' + i + ')" title="Edit this section" aria-label="Edit this section"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg></button>'
+        + '<div class="sw-sec-t">' + esc(b.title || 'Section') + '</div>'
+        + (b.body ? '<div class="sw-sec-sub">' + beatBodyHtml(String(b.body)) + '</div>' : '') + '</div>';
+      return;
+    }
     var bo = !!SW.beatOpen[sc.id + ':' + i];
     h += '<div class="sw-beat' + (bo ? ' open' : '') + '" draggable="true" style="border-left-color:' + m[1] + '" ondragstart="SW.beat=' + i + '" ondragover="event.preventDefault();this.classList.add(\'drop\')" ondragleave="this.classList.remove(\'drop\')" ondrop="this.classList.remove(\'drop\');swBeatDrop(\'' + sc.id + '\',' + i + ')" onclick="swBeatToggle(\'' + sc.id + '\',' + i + ')" title="' + (bo ? 'Fold' : 'Read it all') + '">'
       + '<button class="sw-bedit" onclick="event.stopPropagation();storyBeatOpen(\'' + sc.id + '\',' + i + ')" title="Edit this beat" aria-label="Edit this beat"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg></button>'

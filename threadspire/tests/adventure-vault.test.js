@@ -62,7 +62,7 @@ async function boot() {
 
   const gate = camp.acts[0].sessions[0].scenes[0];
   const kinds = gate.entries.map((e) => e.type).join(',');
-  check('callouts, notes and headings map to beat kinds in order', kinds === 'readaloud,general,lorecheck,dialogue,dialogue,dialogue,general,quest,beat', kinds);
+  check('callouts, notes and headings map to beat kinds in order', kinds === 'readaloud,general,lorecheck,dialogue,dialogue,dialogue,section,quest,beat', kinds);
   const ids = gate.entries.map((e) => e.id);
   check('beat ids are unique and carry the scene id', new Set(ids).size === ids.length && ids.every((i) => i.indexOf('tn-01-the-gate--') === 0), JSON.stringify(ids));
   const mara = pack.npcs[0];
@@ -169,6 +169,13 @@ async function boot() {
   check('an admin gets Lock to the vault on an adventure never kept there', /Lock to the vault</.test(w.syncBannerHtml()) && !/again/.test(w.syncBannerHtml()), w.syncBannerHtml());
   w.S.syncInfo.admin = false;
   check('anyone else does not', w.syncBannerHtml() === '', w.syncBannerHtml());
+
+  const secSc = { id: 'sx', beats: [{ kind: 'section', title: 'The Queen erased', body: 'This applies to the whole table.' }, { kind: 'readaloud', title: 'The realm remembers', body: 'Wind.' }] };
+  const secHtml = w.swBeats(secSc);
+  check('a section shows as a header and subheader in the Story window, not a beat card, and is not counted as a beat', /class="sw-section"/.test(secHtml) && /sw-sec-t">The Queen erased</.test(secHtml)
+    && /sw-sec-sub">This applies to the whole table\.</.test(secHtml) && (secHtml.match(/class="sw-beat/g) || []).length === 1 && /Beats <b>1<\/b>/.test(secHtml), secHtml.slice(0, 400));
+  const secCard = w.beatCard(secSc.beats[0]);
+  check('and as a title card in the scene runner', /lmcard beat section/.test(secCard) && /lmc-sec-t">The Queen erased</.test(secCard) && !/lmc-tag/.test(secCard), secCard);
 
   console.log('\n' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);

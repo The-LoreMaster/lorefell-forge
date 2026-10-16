@@ -76,7 +76,7 @@ check('scenes keep their ids, names and order, two of a name included', sc.map((
 const want = ts.acts[0].sessions[0].scenes[0].entries;
 const got = sc[0].entries;
 check('every beat comes back, in order', got.length === want.length, got.length + ' vs ' + want.length);
-check('each beat keeps its kind', got.map((e) => e.type).join(',') === 'readaloud,dialogue,general,general,general,general,lorecheck,beat', got.map((e) => e.type).join(','));
+check('each beat keeps its kind', got.map((e) => e.type).join(',') === 'readaloud,dialogue,section,general,general,general,lorecheck,beat', got.map((e) => e.type).join(','));
 check('each beat keeps its title and words', got.every((e, i) => e.body === String(want[i].body).trim() && (want[i].type === 'dialogue' || e.title === want[i].title)),
   JSON.stringify(got.map((e) => [e.title, e.body])));
 const mara = p.npcs.find((n) => n.name === 'Mara');
@@ -144,6 +144,22 @@ const table = clone(handPack.campaign); table.acts[0].sessions[0].scenes[0].img 
 const laid = overlayCampaign(table, handPack.campaign, {});
 check('a vault page that names no picture never blanks one the table has', laid.acts[0].sessions[0].scenes[0].img === 'https://t/cover.png' && laid.acts[0].sessions[0].scenes[0].entries[0].img === 'https://t/b.png',
   JSON.stringify([laid.acts[0].sessions[0].scenes[0].img, laid.acts[0].sessions[0].scenes[0].entries[0].img]));
+
+console.log('adventure-write: sections');
+const { parseBeats } = require('../../velo/backend/adventureFormat.js');
+const secBody = ['## Alone in the trees', '', 'This applies to any Fell that got clear.', '', '> [!readaloud] Quiet', '> The clicking fades.', '', '## Closing the fight', '', '> [!reminder] Close it', '> Name the defeated.'].join('\n');
+const sb = parseBeats(secBody);
+check('a heading is a section, and the paragraph under it is its subheader', sb.length === 4 && sb[0].type === 'section' && sb[0].title === 'Alone in the trees' && sb[0].body === 'This applies to any Fell that got clear.'
+  && sb[2].type === 'section' && sb[2].body === '' && sb[3].type === 'reminder', JSON.stringify(sb.map((b) => [b.type, b.title, b.body])));
+const secAdv = { id: 'adv-sec', name: 'Sections', acts: [{ id: 'a', name: 'A', sessions: [{ id: 's', name: 'S', scenes: [{ id: 'sc', name: 'One', entries: [
+  { id: 'x1', type: 'section', title: 'The split', body: 'This applies to any Fell that ran.' },
+  { id: 'x2', type: 'readaloud', title: 'Run', body: 'You run.' },
+  { id: 'x3', type: 'section', title: 'After', body: '' },
+  { id: 'x4', type: 'general', title: '', body: 'A plain note right after a bare heading.' }] }] }] }] };
+const sw = writeAdventure(clone(secAdv), [], new Set());
+const sr = readAdventure(sw.files, sw.folder, { builtAt: 0 }).pack.campaign.acts[0].sessions[0].scenes[0].entries;
+check('a section goes out and comes back whole, and a note after a bare heading stays its own beat', sr.map((e) => e.type + ':' + e.title + ':' + e.body).join(' | ') ===
+  'section:The split:This applies to any Fell that ran. | readaloud:Run:You run. | section:After: | general::A plain note right after a bare heading.', sr.map((e) => e.type + ':' + e.title + ':' + e.body).join(' | '));
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
