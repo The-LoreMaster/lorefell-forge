@@ -31,8 +31,15 @@ $w.onReady(() => {
     const reader = res.body.getReader();
     const dec = new TextDecoder();
     let buf = '', done = null, error = '';
+    // The connection can drop mid-answer. That used to throw out of this loop with no reply, and
+    // the tool waited forever. Now a drop, or two minutes with no word at all (the site sends a
+    // heartbeat every ten seconds while Claude thinks), ends it with a message.
+    let last = Date.now(), dropped = false;
+    const dog = setInterval(() => { if (Date.now() - last > 120000) { try { reader.cancel(); } catch (e) { /* gone */ } } }, 5000);
+    try {
     for (;;) {
       const r = await reader.read();
+      last = Date.now();
       if (r.done) break;
       buf += dec.decode(r.value, { stream: true });
       let nl;
@@ -47,6 +54,8 @@ $w.onReady(() => {
         else if (o.error) error = o.error;
       }
     }
+    } catch (e) { dropped = true; } finally { clearInterval(dog); }
+    if (dropped && !error) error = 'The connection to the writer dropped. Try again.';
     if (error) reply(msg.reqId, false, { text }, error);
     else if (!done) reply(msg.reqId, false, { text }, 'The writing stopped before it finished. Try again.');
     else if (done.stop === 'max_tokens') reply(msg.reqId, false, { text }, 'That ran too long and was cut off. Try again, or split it with a note.');

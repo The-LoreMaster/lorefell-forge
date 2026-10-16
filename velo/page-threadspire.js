@@ -218,8 +218,15 @@ $w.onReady(async function () {
     const reader = res.body.getReader();
     const dec = new TextDecoder();
     let buf = '', text = '', done = null, error = '';
+    // The connection can drop mid-answer. That used to throw out of this loop with no reply, and
+    // the tool waited forever. Now a drop, or two minutes with no word at all (the site sends a
+    // heartbeat every ten seconds while Claude thinks), ends it with a message.
+    let last = Date.now(), dropped = false;
+    const dog = setInterval(() => { if (Date.now() - last > 120000) { try { reader.cancel(); } catch (e) { /* gone */ } } }, 5000);
+    try {
     for (;;) {
       const r = await reader.read();
+      last = Date.now();
       if (r.done) break;
       buf += dec.decode(r.value, { stream: true });
       let nl;
@@ -234,6 +241,8 @@ $w.onReady(async function () {
         else if (o.error) error = o.error;
       }
     }
+    } catch (e) { dropped = true; } finally { clearInterval(dog); }
+    if (dropped && !error) error = 'The connection to Ask dropped. Ask again.';
     if (error) reply(false, { text }, error);
     else if (!done) reply(false, { text }, 'The answer stopped before it finished. Ask again.');
     else reply(true, { text, usage: done.usage }, '');
