@@ -199,9 +199,50 @@ $w.onReady(async function () {
     });
   }
 
+  // Ask the adventure. The Ask window sends TS_ASK with the question and the adventure as text,
+  // and the answer streams back from the site's /api/ask (lorefell-site functions/api/ask.js)
+  // as TS_ASK_CHUNK while it is written, then TS_RESULT with the whole text.
+  async function askStream(msg) {
+    const reply = (ok, data, error) => embed.postMessage({ type: 'TS_RESULT', reqId: msg.reqId, ok, data, error });
+    let res;
+    try {
+      res = await fetch('/api/ask', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: msg.question || '', adventure: msg.adventure || '', play: msg.play || '', histories: !!msg.histories }) });
+    } catch (e) { reply(false, null, 'Ask could not be reached. Check the connection and try again.'); return; }
+    if (!res.ok || !res.body) {
+      let err = 'Ask said no (' + res.status + ').';
+      try { const j = await res.json(); if (j && j.error) err = j.error; } catch (e) { /* not JSON */ }
+      reply(false, null, err);
+      return;
+    }
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '', text = '', done = null, error = '';
+    for (;;) {
+      const r = await reader.read();
+      if (r.done) break;
+      buf += dec.decode(r.value, { stream: true });
+      let nl;
+      while ((nl = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, nl).trim();
+        buf = buf.slice(nl + 1);
+        if (!line) continue;
+        let o;
+        try { o = JSON.parse(line); } catch (e) { continue; }
+        if (o.t) { text += o.t; embed.postMessage({ type: 'TS_ASK_CHUNK', reqId: msg.reqId, t: o.t }); }
+        else if (o.done) done = o;
+        else if (o.error) error = o.error;
+      }
+    }
+    if (error) reply(false, { text }, error);
+    else if (!done) reply(false, { text }, 'The answer stopped before it finished. Ask again.');
+    else reply(true, { text, usage: done.usage }, '');
+  }
+
   embed.onMessage(async (event) => {
     const msg = event && event.data;
     if (!msg || !msg.type) return;
+    if (msg.type === 'TS_ASK' && msg.reqId) { askStream(msg); return; }
 
     if (msg.type === 'THREADSPIRE_READY') {
       // Paint the right side straight away; the confirmed context follows and corrects it.
