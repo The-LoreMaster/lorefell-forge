@@ -949,7 +949,8 @@ export const saveDicePicks = webMethod(Permissions.Anyone, async (picks) => {
 // ---- the table, as each member sets it up ----
 // How a member likes ThreadSpire laid out, kept on their DicePrefs row as `table` so it follows
 // the account to every adventure and device: the scene reader's height (a share of the screen,
-// one for a phone and one for a wider screen) and how much of the map shows through it.
+// one for a phone and one for a wider screen), how much of the map shows through it, and the
+// size of its words.
 function tablePrefsClean(p) {
   const out = {};
   const h = p && p.readerH;
@@ -960,6 +961,8 @@ function tablePrefsClean(p) {
   }
   const see = Number(p && p.readerSee);
   if (isFinite(see) && see >= 0 && see <= 80) out.readerSee = Math.round(see);
+  const font = Number(p && p.readerFont);
+  if (isFinite(font) && font >= 70 && font <= 170) out.readerFont = Math.round(font);
   return out;
 }
 export const myTablePrefs = webMethod(Permissions.Anyone, async () => {
