@@ -85,7 +85,7 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;op
 .q .line{display:flex;gap:10px;align-items:flex-start}
 .q .line > :first-child{flex:1}
 input,select,textarea{width:100%;box-sizing:border-box;background:rgba(6,10,20,.6);color:var(--bone);border:1px solid var(--hair);border-radius:0;padding:10px 12px;font-family:var(--f-display);font-size:18px;line-height:1.45}
-textarea{min-height:76px;resize:vertical}
+textarea{min-height:76px;resize:none;overflow:hidden}
 textarea.doc{min-height:520px;font-size:17px;white-space:pre-wrap}
 .rolled{font-family:var(--f-label);font-size:12px;letter-spacing:.2em;color:var(--gold);margin-left:8px}
 h3.round{font-family:var(--f-menu);font-weight:500;font-size:18px;letter-spacing:.14em;text-transform:uppercase;color:var(--bone);margin:6px 0 2px;display:flex;justify-content:space-between;align-items:center;gap:10px}
@@ -246,6 +246,12 @@ var STAGES = [
 ];
 var stageOn = 'questions';
 
+/* Every box grows with its words, so nothing is read through a slot (Nate). The page scrolls
+   instead of the box. */
+function grow(t){ if (!t || !t.offsetParent) return; t.style.height = 'auto'; t.style.height = (t.scrollHeight + 2) + 'px'; }
+function growAll(){ document.querySelectorAll('textarea').forEach(grow); }
+document.addEventListener('input', function(e){ if (e.target && e.target.tagName === 'TEXTAREA') grow(e.target); });
+window.addEventListener('resize', growAll);
 function status(t, kind){ var s = $('status'); s.textContent = t || ''; s.className = 'status' + (kind ? ' ' + kind : ''); }
 function setBusy(b, t){ busy = b; document.querySelectorAll('button').forEach(function(x){ if (x.id !== 'btnHome') x.disabled = b; }); if (b) status(t || 'Writing', 'busy'); }
 function fail(e){ setBusy(false); status((e && e.message) || String(e), 'err'); }
@@ -312,6 +318,7 @@ function go(id){
 function paintQuestions(){
   $('title').value = S.title || '';
   $('brief').value = S.brief || '';
+  setTimeout(growAll, 0);
   var html = '';
   [1,2,3].forEach(function(r){
     html += '<div class="sl-card card"><h3 class="round">Round ' + r + ': ' + ['','the table','the story','taste and voice'][r] + '<button class="sl-btn small" data-roll-round="' + r + '">Roll the round</button></h3>';
@@ -350,6 +357,7 @@ function roll(ids){
 function paintFollowups(){
   var f = S.followups || [];
   $('fuCard').hidden = !f.length;
+  setTimeout(growAll, 0);
   $('fuList').innerHTML = f.map(function(x, i){ return '<div class="q"><label>' + esc(x.q) + '</label><textarea data-fu="' + i + '" rows="2">' + esc(x.a || '') + '</textarea></div>'; }).join('');
 }
 $('fuList').addEventListener('input', function(e){ var i = e.target.getAttribute('data-fu'); if (i == null) return; S.followups[+i].a = e.target.value; save(); });
@@ -369,6 +377,7 @@ function paintStage(){
   var st = STAGES.filter(function(x){ return x.id === stageOn; })[0];
   $('stLabel').textContent = st.name; $('stHelp').textContent = st.help;
   $('stDoc').value = S[stageOn] || '';
+  setTimeout(growAll, 0);
   $('stState').textContent = S.approved[stageOn] ? 'Approved' : (S[stageOn] ? 'Draft' : 'Not written yet');
   $('stWrite').hidden = !!S[stageOn];
   $('stAgain').hidden = !S[stageOn];
@@ -380,7 +389,7 @@ function writeStage(id, retake){
   if (note) S.notes.push({ at: Date.now(), target: id, note: note });
   setBusy(true, 'Writing the ' + stageName(id).toLowerCase());
   $('stDoc').value = '';
-  stream(id, { retake: !!retake, note: note }, function(t){ $('stDoc').value += t; $('stDoc').scrollTop = $('stDoc').scrollHeight; }).then(function(r){
+  stream(id, { retake: !!retake, note: note }, function(t){ $('stDoc').value += t; grow($('stDoc')); }).then(function(r){
     S[id] = r.text.trim() + '\n'; S.approved[id] = false; laterUnapprove(id);
     if (id === 'spine' && !S.title) { var m = S.spine.match(/^#\s+(.+)$/m); if (m) { S.title = m[1].trim(); $('hdTitle').textContent = S.title; } }
     $('stNote').value = '';
@@ -414,6 +423,7 @@ function paintWriting(){
 function paintFile(){
   $('fName').textContent = fileOn || 'Pick a file';
   $('fDoc').value = fileOn ? (S.files[fileOn] || '') : '';
+  setTimeout(growAll, 0);
   var mine = findings.filter(function(x){ return x.path === fileOn; });
   $('fFinds').innerHTML = mine.map(function(f){ return '<li>' + (f.line ? 'Line ' + f.line + ': ' : '') + esc(f.problem) + '</li>'; }).join('');
   $('fFix').hidden = !mine.length;
@@ -436,7 +446,7 @@ function writeFile(path, step, opts){
   fileOn = path; paintWriting();
   $('fDoc').value = '';
   setBusy(true, (step === 'write' ? 'Writing ' : step === 'repair' ? 'Fixing ' : 'Rewriting ') + path);
-  return stream(step, Object.assign({ path: path }, opts || {}), function(t){ $('fDoc').value += t; $('fDoc').scrollTop = $('fDoc').scrollHeight; }).then(function(r){
+  return stream(step, Object.assign({ path: path }, opts || {}), function(t){ $('fDoc').value += t; grow($('fDoc')); }).then(function(r){
     var t = r.text.replace(/\r\n/g, '\n').trim(); var i = t.indexOf('---\n'); if (i > 0) t = t.slice(i); t = t.replace(/\n```\s*$/, '');
     S.files[path] = t + '\n'; return save(true);
   }).then(scan).then(function(){ setBusy(false); paintWriting(); });
