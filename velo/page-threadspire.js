@@ -68,6 +68,40 @@ async function tsInlineImages(node) {
 
 const EMBED = '#html1';
 
+// Read Claude's own event stream, which the site passes through untouched so its server spends
+// next to no time on it. Text arrives in content_block_delta events, the stop reason and output
+// count in message_delta, the end in message_stop, and a failure as an error event. Claude sends
+// a ping while it thinks, so a stream silent for two minutes has dropped and is cancelled.
+async function readClaude(res, onText) {
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  const out = { text: '', stop: '', done: false, error: '', usage: { in: 0, out: 0, cached: 0 } };
+  let buf = '', last = Date.now();
+  const dog = setInterval(() => { if (Date.now() - last > 120000) { try { reader.cancel(); } catch (e) { /* gone */ } } }, 5000);
+  const take = (block) => {
+    const data = block.split('\n').filter((l) => l.startsWith('data:')).map((l) => l.slice(5).trim()).join('');
+    if (!data) return;
+    let o; try { o = JSON.parse(data); } catch (e) { return; }
+    if (o.type === 'content_block_delta' && o.delta && o.delta.type === 'text_delta') { out.text += o.delta.text; onText(o.delta.text); }
+    else if (o.type === 'message_start' && o.message && o.message.usage) { out.usage.in = o.message.usage.input_tokens || 0; out.usage.cached = o.message.usage.cache_read_input_tokens || 0; }
+    else if (o.type === 'message_delta') { if (o.delta && o.delta.stop_reason) out.stop = o.delta.stop_reason; if (o.usage) out.usage.out = o.usage.output_tokens || 0; }
+    else if (o.type === 'message_stop') out.done = true;
+    else if (o.type === 'error') out.error = (o.error && o.error.type === 'overloaded_error') ? 'busy' : String((o.error && o.error.message) || 'error');
+  };
+  try {
+    for (;;) {
+      const r = await reader.read();
+      last = Date.now();
+      if (r.done) break;
+      buf += dec.decode(r.value, { stream: true }).replace(/\r\n/g, '\n');
+      let cut;
+      while ((cut = buf.indexOf('\n\n')) >= 0) { take(buf.slice(0, cut)); buf = buf.slice(cut + 2); }
+    }
+    if (buf.trim()) take(buf);
+  } catch (e) { out.dropped = true; } finally { clearInterval(dog); }
+  return out;
+}
+
 $w.onReady(async function () {
   const embed = $w(EMBED);
   if (!embed || !embed.onMessage) return;
@@ -215,37 +249,12 @@ $w.onReady(async function () {
       reply(false, null, err);
       return;
     }
-    const reader = res.body.getReader();
-    const dec = new TextDecoder();
-    let buf = '', text = '', done = null, error = '';
-    // The connection can drop mid-answer. That used to throw out of this loop with no reply, and
-    // the tool waited forever. Now a drop, or two minutes with no word at all (the site sends a
-    // heartbeat every ten seconds while Claude thinks), ends it with a message.
-    let last = Date.now(), dropped = false;
-    const dog = setInterval(() => { if (Date.now() - last > 120000) { try { reader.cancel(); } catch (e) { /* gone */ } } }, 5000);
-    try {
-    for (;;) {
-      const r = await reader.read();
-      last = Date.now();
-      if (r.done) break;
-      buf += dec.decode(r.value, { stream: true });
-      let nl;
-      while ((nl = buf.indexOf('\n')) >= 0) {
-        const line = buf.slice(0, nl).trim();
-        buf = buf.slice(nl + 1);
-        if (!line) continue;
-        let o;
-        try { o = JSON.parse(line); } catch (e) { continue; }
-        if (o.t) { text += o.t; embed.postMessage({ type: 'TS_ASK_CHUNK', reqId: msg.reqId, t: o.t }); }
-        else if (o.done) done = o;
-        else if (o.error) error = o.error;
-      }
-    }
-    } catch (e) { dropped = true; } finally { clearInterval(dog); }
-    if (dropped && !error) error = 'The connection to Ask dropped. Ask again.';
-    if (error) reply(false, { text }, error);
-    else if (!done) reply(false, { text }, 'The answer stopped before it finished. Ask again.');
-    else reply(true, { text, usage: done.usage }, '');
+    const r = await readClaude(res, (t) => embed.postMessage({ type: 'TS_ASK_CHUNK', reqId: msg.reqId, t }));
+    if (r.error) reply(false, { text: r.text }, r.error === 'busy' ? 'Ask is busy. Wait a minute and try again.' : 'Ask stopped: ' + r.error.slice(0, 200));
+    else if (r.dropped) reply(false, { text: r.text }, 'The connection to Ask dropped. Ask again.');
+    else if (r.stop === 'refusal') reply(false, { text: r.text }, 'That question was declined. Try wording it differently.');
+    else if (!r.done) reply(false, { text: r.text }, 'The answer stopped before it finished. Ask again.');
+    else reply(true, { text: r.text, usage: r.usage }, '');
   }
 
   embed.onMessage(async (event) => {
