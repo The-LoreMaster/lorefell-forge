@@ -119,7 +119,23 @@ export function parseBeats(body) {
       continue;
     }
     const h = ln.match(/^#{2,6}\s+(.*\S)\s*$/);
-    if (h) { beats.push({ type: "general", callout: "heading", title: h[1], body: "", img: "", raw: ln }); i++; continue; }
+    if (h) {
+      // A heading is a section: the tools show it as a header, not a card. The paragraph right
+      // under it ("This applies to any Fell that...") is its subheader.
+      const start = i;
+      let j = i + 1;
+      while (j < lines.length && lines[j].trim() === "") j++;
+      let end = i + 1, sub = "";
+      if (j < lines.length && !/^>/.test(lines[j]) && !/^#/.test(lines[j])) {
+        const para = [];
+        while (j < lines.length && lines[j].trim() !== "" && !/^>/.test(lines[j]) && !/^#/.test(lines[j])) { para.push(lines[j]); j++; }
+        sub = para.join("\n").trim();
+        end = j;
+      }
+      beats.push({ type: "section", callout: "heading", title: h[1], body: sub, img: "", raw: lines.slice(start, end).join("\n") });
+      i = end;
+      continue;
+    }
     if (/^#\s/.test(ln) || ln.trim() === "") { i++; continue; }
     const para = [];
     while (i < lines.length && lines[i].trim() !== "" && !/^>/.test(lines[i]) && !/^#/.test(lines[i])) { para.push(lines[i]); i++; }
@@ -318,7 +334,7 @@ function fileSafe(s) { return String(s || "").replace(/[\\/:*?"<>|#^\[\]]+/g, " 
 
 const ATTRS = ["Precision", "Power", "Magic", "Evasion", "Durability", "Resistance", "Vigor", "Wit"];
 const KIND_OUT = { readaloud: "readaloud", read: "readaloud", dialogue: "dialogue", beat: "beat", choice: "beat", crucible: "crucible",
-  lorecheck: "lorecheck", check: "lorecheck", clue: "clue", secret: "secret", reminder: "reminder", quest: "quest", general: "general" };
+  lorecheck: "lorecheck", check: "lorecheck", clue: "clue", secret: "secret", reminder: "reminder", quest: "quest", general: "general", section: "section" };
 
 function calloutLines(kind, title, body) {
   const out = ["> [!" + kind + "]" + (title ? " " + String(title).replace(/\r?\n+/g, " ").trim() : "")];
@@ -333,6 +349,9 @@ function beatText(b, nameOf) {
   const title = String(b.title || "").trim(), img = webImg(b.img);
   const words = String(b.body || "").replace(/\r/g, "").trim();
   const body = img ? (words ? words + "\n\n" : "") + "![](" + img + ")" : words;
+  // a section's subheader is one plain paragraph, so it reads back whole
+  if (kind === "section" && title && !words.split("\n").some((ln) => /^\s*(>|#)/.test(ln)))
+    return "## " + title.replace(/\r?\n+/g, " ") + (words ? "\n\n" + words.replace(/\n\s*\n/g, "\n") : "");
   if (kind === "dialogue") {
     // the beat's own title when it already names the speaker, so its spelling stays the writer's
     const who = nameOf(b.speaker);
@@ -345,6 +364,16 @@ function beatText(b, nameOf) {
     return calloutLines("general", title, body);
   }
   return calloutLines(kind, title, body);
+}
+
+// The paragraph right under a heading reads back as that section's subheader. A note written as a
+// bare paragraph right after a heading with no subheader of its own would be swallowed that way,
+// so it goes in a callout instead.
+function keepApart(parts) {
+  return parts.map((p, i) => {
+    if (i && /^#{2,6} [^\n]*$/.test(parts[i - 1]) && !/^[>#]/.test(p)) return calloutLines("general", "", p);
+    return p;
+  });
 }
 
 // adv: the adventure as the tools hold it (acts, sessions, scenes, entries or beats, combatants).
@@ -445,7 +474,7 @@ export function writeAdventure(adv, library, taken, opts) {
     fm.push("name: " + q(nm), ...imgKey(sc.img), "location: " + q(sc.location || ""), "crucible: " + crucible,
       Object.keys(counts).length ? "foes:\n" + Object.keys(counts).map((id) => "  - foe: " + q(link(fileOf[id])) + "\n    count: " + q(String(counts[id]))).join("\n") : "foes: []",
       "hazards: []", checks.length ? "checks:\n" + checks.join("\n") : "checks: []", "lore_points: 0", "teaches: []", "---");
-    files["Scenes/" + file + ".md"] = fm.join("\n") + "\n" + beats.map((b) => beatText(b, nameOf)).join("\n\n") + "\n";
+    files["Scenes/" + file + ".md"] = fm.join("\n") + "\n" + keepApart(beats.map((b) => beatText(b, nameOf))).join("\n\n") + "\n";
   });
   // the overview
   const foesL = Object.values(usedLib).filter((e) => e.type !== "npc").map((e) => q(link(fileOf[String(e.id)])));
@@ -578,7 +607,7 @@ function mergeSceneBody(oldBody, newBody, sceneId, beats, nameOf) {
   if (kept === beats.length && beats.length === old.length && parts.every((p, i) => p === old[i].raw)) return oldBody;
   const head = []; const lines = String(oldBody).split(/\r?\n/);
   for (let i = 0; i < lines.length && (/^#\s/.test(lines[i]) || lines[i].trim() === ""); i++) if (/^#\s/.test(lines[i])) head.push(lines[i]);
-  return (head.length ? head.join("\n") + "\n\n" : "") + parts.join("\n\n") + "\n";
+  return (head.length ? head.join("\n") + "\n\n" : "") + keepApart(parts).join("\n\n") + "\n";
 }
 
 // adv and library as writeAdventure takes them; oldFiles: the folder as it stands in the vault
