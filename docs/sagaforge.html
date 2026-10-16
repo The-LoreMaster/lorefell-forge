@@ -105,6 +105,8 @@ h3.round{font-family:var(--f-menu);font-weight:500;font-size:18px;letter-spacing
 .finds li{margin:3px 0}
 .sagas{list-style:none;margin:0;padding:0}
 .sagas li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--hair)}
+.sagas li .side{display:flex;align-items:center;gap:12px;flex:none}
+.sagas li button.del.armed,.sagas li button.del.armed:hover{background:#3a1418 !important;border-color:#c2504b !important;color:#ffd2cc !important}
 .sagas li button.open{background:none;border:0;color:var(--bone);font-family:var(--f-display);font-size:20px;text-align:left;cursor:pointer;padding:0}
 .rules li{display:flex;gap:10px;align-items:flex-start;margin:6px 0}
 .rules li span{flex:1}
@@ -271,12 +273,25 @@ function home(){
   show('vHome'); $('hdTitle').textContent = 'SagaForge'; status('');
   call('sfList').then(function(r){
     $('sagaList').innerHTML = r.sagas.length ? r.sagas.map(function(s){
-      return '<li><button class="open" data-id="' + esc(s.id) + '">' + esc(s.title) + '</button><span class="muted">' + esc(stageName(s.stage)) + (s.advId ? ', in your adventures' : '') + '</span></li>';
+      return '<li><button class="open" data-id="' + esc(s.id) + '">' + esc(s.title) + '</button><span class="side"><span class="muted">' + esc(stageName(s.stage)) + (s.advId ? ', in your adventures' : '') + '</span>'
+        + '<button class="sl-btn small del" data-del="' + esc(s.id) + '" data-adv="' + (s.advId ? '1' : '') + '">Delete</button></span></li>';
     }).join('') : '<li class="muted">None yet.</li>';
   }).catch(fail);
 }
 function stageName(id){ var s = STAGES.filter(function(x){ return x.id === id; })[0]; return s ? s.name : 'Questions'; }
-$('sagaList').addEventListener('click', function(e){ var b = e.target.closest('button.open'); if (b) openSaga(b.getAttribute('data-id')); });
+$('sagaList').addEventListener('click', function(e){
+  var b = e.target.closest('button.open'); if (b) { openSaga(b.getAttribute('data-id')); return; }
+  /* Delete asks once, on the button itself, then deletes. An adventure the saga already sent to
+     the LoreMaster's adventures stays there: only the saga's working state goes. */
+  var d = e.target.closest('button[data-del]'); if (!d || busy) return;
+  if (!d.classList.contains('armed')) {
+    document.querySelectorAll('#sagaList button.armed').forEach(function(x){ x.classList.remove('armed'); x.textContent = 'Delete'; });
+    d.classList.add('armed'); d.textContent = d.getAttribute('data-adv') ? 'Delete the saga? The adventure stays' : 'Delete for good?';
+    return;
+  }
+  setBusy(true, 'Deleting');
+  call('sfRemove', d.getAttribute('data-del')).then(function(){ setBusy(false); home(); status('Deleted.'); }).catch(fail);
+});
 $('btnHome').onclick = home;
 $('btnNew').onclick = function(){ S = { answers: {}, rolled: {}, followups: [], approved: {}, files: {}, plan: [], notes: [], stage: 'questions' }; enterSaga(); };
 function openSaga(id){ setBusy(true, 'Opening'); call('sfGet', id).then(function(r){ setBusy(false); status(''); S = r.saga; S.files = S.files || {}; S.approved = S.approved || {}; enterSaga(); }).catch(fail); }
