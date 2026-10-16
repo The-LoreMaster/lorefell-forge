@@ -4149,10 +4149,7 @@ function tsBeatModal(sceneId, idx, at){
   var b = idx >= 0 ? (f.scene.beats || [])[idx] : { kind:'readaloud', title:'', body:'', speaker:'', handle:'', img:'' };
   if (!b) return;
   window._beatCtx = { sceneId:sceneId, idx:idx, at:(typeof at === 'number' ? at : null) };
-  var opts = '';
-  Object.keys(BEAT_TYPES).forEach(function(k){
-    opts += '<option value="' + k + '"' + (b.kind === k ? ' selected' : '') + '>' + BEAT_TYPES[k][0] + '</option>';
-  });
+  var opts = beatTypeOpts(b.kind);
   tsModal('<h3 class="tsm-title">' + (idx >= 0 ? 'Edit beat' : 'New beat') + '</h3>'
     + '<label class="tsm-lbl">Type</label><select class="tsm-inp" id="tsmKind" onchange="tsBeatKindChange()">' + opts + '</select>'
     + '<div id="tsmSpkRow"' + (b.kind === 'dialogue' ? '' : ' style="display:none"') + '>'
@@ -4163,8 +4160,9 @@ function tsBeatModal(sceneId, idx, at){
     + '<label class="tsm-lbl">Clue handle</label>'
     + '<input class="tsm-inp" id="tsmHandle" value="' + esc(b.handle || '') + '" placeholder="torn-page">'
     + '<p class="tsm-note">A short tag. Reference it from a Lore Check as #torn-page to reveal it.</p></div>'
-    + '<label class="tsm-lbl">Title</label><input class="tsm-inp" id="tsmName" value="' + esc(b.title || '') + '">'
-    + '<label class="tsm-lbl">Body</label><textarea class="tsm-inp tsm-ta" id="tsmBody">' + esc(b.body || '') + '</textarea>'
+    + '<p class="tsm-note" id="tsmSecNote"' + (b.kind === 'section' ? '' : ' style="display:none"') + '>A section is a header across the scene with a line under it. The header is its title and the subheader is the line under the header.</p>'
+    + '<label class="tsm-lbl" id="tsmNameLbl">' + (b.kind === 'section' ? 'Header' : 'Title') + '</label><input class="tsm-inp" id="tsmName" value="' + esc(b.title || '') + '">'
+    + '<label class="tsm-lbl" id="tsmBodyLbl">' + (b.kind === 'section' ? 'Subheader (optional)' : 'Body') + '</label><textarea class="tsm-inp tsm-ta" id="tsmBody">' + esc(b.body || '') + '</textarea>'
     + '<label class="tsm-lbl">Image (optional)</label>' + imgField('tsmImg', b.img)
     + '<div class="tsm-row">' + (idx >= 0 ? '<button class="tsm-btn danger" onclick="tsBeatDelete()">Delete</button>' : '')
     + '<button class="tsm-btn ghost" onclick="tsCloseModal()">Cancel</button>'
@@ -4175,6 +4173,10 @@ function tsBeatKindChange(){
   var k = (document.getElementById('tsmKind') || {}).value;
   var sr = document.getElementById('tsmSpkRow'); if (sr) sr.style.display = (k === 'dialogue') ? '' : 'none';
   var hr = document.getElementById('tsmHandleRow'); if (hr) hr.style.display = (k === 'clue') ? '' : 'none';
+  var sec = (k === 'section');
+  var sn = document.getElementById('tsmSecNote'); if (sn) sn.style.display = sec ? '' : 'none';
+  var nl = document.getElementById('tsmNameLbl'); if (nl) nl.textContent = sec ? 'Header' : 'Title';
+  var bl = document.getElementById('tsmBodyLbl'); if (bl) bl.textContent = sec ? 'Subheader (optional)' : 'Body';
 }
 function tsSpeakerOpts(sel, sc){
   return castList(sc).map(function(c){
@@ -4472,6 +4474,15 @@ var BEAT_TYPES = {
   read:['Read-aloud','#6fc7c0'], check:['Lore Check','#9aa8e0'], choice:['Beat','#b18fd0']
 };
 function beatMeta(kind){ return BEAT_TYPES[kind] || ['Note','#8fa0b3']; }
+/* read, check and choice are older names kept so old beats still draw. The pickers list each
+   kind once, under its own name, and an old beat opens as the kind it is now. */
+var BEAT_ALIAS = { read:'readaloud', check:'lorecheck', choice:'beat' };
+function beatTypeOpts(sel){
+  sel = BEAT_ALIAS[sel] || sel;
+  return Object.keys(BEAT_TYPES).filter(function(k){ return !BEAT_ALIAS[k]; }).map(function(k){
+    return '<option value="' + k + '"' + (sel === k ? ' selected' : '') + '>' + BEAT_TYPES[k][0] + '</option>';
+  }).join('');
+}
 var ATTR_LIST = ['Precision','Power','Magic','Evasion','Durability','Resistance','Vigor','Wit'];
 var SR_TABLE = { 'Minion':{lp:1,sp:9,vit:8}, 'Elite':{lp:2,sp:11,vit:16}, 'Champion':{lp:3,sp:14,vit:24}, 'Epic':{lp:4,sp:16,vit:32}, 'Forsaken':{lp:5,sp:19,vit:40} };
 function blankAttrs(){ var o = {}; ATTR_LIST.forEach(function(a){ o[a] = 0; }); return o; }
@@ -6332,10 +6343,7 @@ function tsNoteModal(nodeKind, nodeId, idx){
   var e = idx >= 0 ? list[idx] : { type:'general', title:'', body:'', img:'', pinned:false };
   if (!e) return;
   window._noteCtx = { kind:nodeKind, id:nodeId, idx:idx };
-  var opts = '';
-  Object.keys(BEAT_TYPES).forEach(function(k){
-    opts += '<option value="' + k + '"' + ((e.type || 'general') === k ? ' selected' : '') + '>' + BEAT_TYPES[k][0] + '</option>';
-  });
+  var opts = beatTypeOpts(e.type || 'general');
   tsModal('<h3 class="tsm-title">' + (idx >= 0 ? 'Edit note' : 'New note') + '</h3>'
     + '<label class="tsm-lbl">Type</label><select class="tsm-inp" id="tsnKind">' + opts + '</select>'
     + '<label class="tsm-lbl">Title</label><input class="tsm-inp" id="tsnName" value="' + esc(e.title || '') + '">'
