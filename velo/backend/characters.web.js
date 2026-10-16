@@ -946,6 +946,44 @@ export const saveDicePicks = webMethod(Permissions.Anyone, async (picks) => {
   } catch (e) { return { ok: false, error: String(e) }; }
 });
 
+// ---- the table, as each member sets it up ----
+// How a member likes ThreadSpire laid out, kept on their DicePrefs row as `table` so it follows
+// the account to every adventure and device: the scene reader's height (a share of the screen,
+// one for a phone and one for a wider screen) and how much of the map shows through it.
+function tablePrefsClean(p) {
+  const out = {};
+  const h = p && p.readerH;
+  if (h && typeof h === 'object') {
+    const rh = {};
+    ['wide', 'phone'].forEach((k) => { const v = Number(h[k]); if (isFinite(v) && v > 0.05 && v < 0.95) rh[k] = Math.round(v * 1000) / 1000; });
+    if (Object.keys(rh).length) out.readerH = rh;
+  }
+  const see = Number(p && p.readerSee);
+  if (isFinite(see) && see >= 0 && see <= 80) out.readerSee = Math.round(see);
+  return out;
+}
+export const myTablePrefs = webMethod(Permissions.Anyone, async () => {
+  const m = await currentMember.getMember().catch(() => null);
+  if (!m || !m._id) return { ok: false, prefs: {} };
+  try {
+    const r = await wixData.query('DicePrefs').eq('memberId', m._id).limit(1).find({ suppressAuth: true });
+    let t = {};
+    try { t = JSON.parse((r.items[0] && r.items[0].table) || '{}') || {}; } catch (e2) { t = {}; }
+    return { ok: true, prefs: tablePrefsClean(t) };
+  } catch (e) { return { ok: false, prefs: {} }; }
+});
+export const saveTablePrefs = webMethod(Permissions.Anyone, async (prefs) => {
+  const m = await currentMember.getMember().catch(() => null);
+  if (!m || !m._id) return { ok: false };
+  const table = JSON.stringify(tablePrefsClean(prefs));
+  try {
+    const r = await wixData.query('DicePrefs').eq('memberId', m._id).limit(1).find({ suppressAuth: true });
+    if (r.items[0]) await wixData.update('DicePrefs', Object.assign({}, r.items[0], { table }), { suppressAuth: true });  // picks and grants ride along untouched
+    else await wixData.insert('DicePrefs', { memberId: m._id, picks: '{}', table }, { suppressAuth: true });
+    return { ok: true };
+  } catch (e) { return { ok: false, error: String(e) }; }
+});
+
 // ---- dice the story gives ----
 // Grants live in DicePrefs.grants, beside the ones the site's owner types in by hand.
 async function diceGrant(memberId, key) {
