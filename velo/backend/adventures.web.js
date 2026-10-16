@@ -744,9 +744,9 @@ async function isAdmin() {
   } catch (e) { return false; }
 }
 
-function libraryRow(e, advId, advName, mid) {
+function libraryRow(e, advId, advName, mid, source) {
   const isFoe = e.type !== 'npc';
-  const fm = { campaignId: advId, campaignName: advName, source: 'vault' };
+  const fm = { campaignId: advId, campaignName: advName, source: source || 'vault' };
   if (isFoe) Object.assign(fm, { build: e.build || '', stance: e.stance || '', sig: e.sig || '', augments: e.augments || [], infusions: e.infusions || [] });
   return {
     assetId: e.id, ownerMemberId: mid, type: isFoe ? 'monster' : 'npc', name: e.name || '', description: e.desc || '',
@@ -755,11 +755,11 @@ function libraryRow(e, advId, advName, mid) {
     foeMeta: JSON.stringify(fm)
   };
 }
-async function upsertLibrary(entries, advId, advName, mid) {
+async function upsertLibrary(entries, advId, advName, mid, source) {
   let n = 0;
   for (const e of entries) {
     if (!e || !e.id) continue;
-    const row = libraryRow(e, advId, advName, mid);
+    const row = libraryRow(e, advId, advName, mid, source);
     const ex = await wd.query('Assets').eq('ownerMemberId', mid).eq('assetId', String(e.id)).limit(1).find({ suppressAuth: true });
     if (ex.items.length) await wd.update('Assets', Object.assign({}, ex.items[0], row), { suppressAuth: true });
     else await wd.insert('Assets', row, { suppressAuth: true });
@@ -816,6 +816,34 @@ export const syncAdventureFromPack = webMethod(Permissions.Admin, async (pack) =
     return { ok: true, id: advId, created: created, library: lib, tele: TELE };
   } catch (e) { return { ok: false, error: (e && e.message) || String(e) }; }
 });
+
+// The SagaForge sends a finished saga here (sagaforge.web.js sfPublish). The first time makes
+// the adventure in the caller's account under the saga's id, the way an import does. After that it
+// replaces the adventure's prep with the saga as it stands, and the table keeps what it played.
+// It is not a vault adventure: no lock, no vault stamp. Its foes and characters go to the
+// caller's library under the saga's ids, so sending it again updates them.
+export async function writeSagaAdventure(pack, mid) {
+  teleEnter();
+  const camp = pack && pack.campaign;
+  if (!camp || !camp.id || !Array.isArray(camp.acts)) return { ok: false, error: 'No adventure in the pack.' };
+  if (!mid) return { ok: false, error: 'Sign in first.' };
+  const advId = String(camp.id);
+  const name = String(camp.name || 'Adventure').slice(0, 120);
+  const root = await wd.get(ADV, advId, { suppressAuth: true }).catch(() => null);
+  if (root && root.ownerMemberId && root.ownerMemberId !== mid) return { ok: false, error: 'That adventure belongs to another member.' };
+  if (root && jparse(root.meta, {})[VAULT_KEY]) return { ok: false, error: 'That adventure is a vault adventure.' };
+  try {
+    const blob = Object.assign({}, camp); delete blob.synced; delete blob.vault;
+    const crow = await wd.get(CAMPAIGNS, advId, { suppressAuth: true }).catch(() => null);
+    const cdata = { _id: advId, ownerMemberId: mid, name: name, data: JSON.stringify(blob) };
+    if (crow) await wd.update(CAMPAIGNS, Object.assign({}, crow, cdata), { suppressAuth: true });
+    else await wd.insert(CAMPAIGNS, cdata, { suppressAuth: true });
+    const r = await saveAdventureFromCampaign(advId, blob, true);
+    if (!(r && r.ok)) return { ok: false, error: (r && r.error) || 'The adventure was not made.' };
+    const lib = await upsertLibrary([].concat(pack.foes || [], pack.npcs || []), advId, name, mid, 'saga');
+    return { ok: true, id: advId, created: !root, library: lib, tele: TELE };
+  } catch (e) { return { ok: false, error: (e && e.message) || String(e) }; }
+}
 
 // Lift or restore the lock. Lifting it writes the adventure as it stands (the vault's prep over
 // the table's play) into the tree, so nothing changes in front of anyone, and from then on the
