@@ -1034,9 +1034,49 @@ async function vaultFolder(token, path) {
     if (t.type === 'blob' && /\.md$/i.test(base)) taken.add(base.replace(/\.md$/i, '').toLowerCase());
     if (t.type === 'tree' && /^Adventures\/[^/]+$/.test(p)) taken.add(base.toLowerCase());
   });
-  const files = {};
-  for (const b of blobs) files[b.path.slice(pre.length)] = b64text((await gh(token, 'GET', '/git/blobs/' + b.sha)).content);
+  let files = {};
+  if (blobs.length) {
+    try { files = await folderTexts(token, ref.object.sha, path); }
+    catch (e) {
+      // GraphQL refused: read page by page as before, which a small adventure stays inside the cap for
+      files = {};
+      for (const b of blobs) files[b.path.slice(pre.length)] = b64text((await gh(token, 'GET', '/git/blobs/' + b.sha)).content);
+    }
+  }
   return { sha: sha, files: files, taken: taken };
+}
+// Every page in a vault folder, in one request. Asking for each page by itself took one request
+// a page, and Stone and Sovereign's hundred-odd pages ran past the cap a Worker has on outbound
+// requests, so Edit in ThreadSpire failed (Nate, 2026-10-17). GitHub's GraphQL returns the text
+// of every page three folders deep in one call. A page too large for it comes back by itself.
+async function folderTexts(token, commitSha, path) {
+  const blob = '... on Blob { oid text isTruncated }';
+  const level = (inner) => 'entries { name type object { ' + blob + (inner ? ' ... on Tree { ' + inner + ' }' : '') + ' } }';
+  const query = 'query($o: String!, $n: String!, $e: String!) { repository(owner: $o, name: $n) { object(expression: $e) { ... on Tree { ' + level(level(level(''))) + ' } } } }';
+  const parts = VAULT_REPO.split('/');
+  const r = await fetch('https://api.github.com/graphql', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + token, 'User-Agent': 'lorefell-site', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: query, variables: { o: parts[0], n: parts[1], e: commitSha + ':' + path } })
+  });
+  let j = {}; try { j = await r.json(); } catch (e) { j = {}; }
+  if (!r.ok || (j.errors && j.errors.length)) {
+    const err = new Error('GitHub said ' + r.status + ': ' + String((j.errors && j.errors[0] && j.errors[0].message) || j.message || '').slice(0, 200)); err.status = r.status; throw err;
+  }
+  const found = {};
+  const walk = (entries, pre) => (entries || []).forEach((e) => {
+    const o = e.object || {};
+    if (e.type === 'tree') walk(o.entries, pre + e.name + '/');
+    else if (e.type === 'blob' && /\.md$/i.test(e.name)) found[pre + e.name] = o;
+  });
+  const top = (((j.data || {}).repository || {}).object) || {};
+  walk(top.entries, '');
+  const files = {};
+  for (const p of Object.keys(found)) {
+    const b = found[p];
+    files[p] = (b.isTruncated || b.text == null) ? b64text((await gh(token, 'GET', '/git/blobs/' + b.oid)).content) : b.text;
+  }
+  return files;
 }
 // The folder's tree sha in a given commit's tree, one level at a time.
 async function folderShaAt(token, treeSha, path) {
