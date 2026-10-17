@@ -64,6 +64,20 @@ const wd = {
 
 const CV = 'CampaignView';
 
+// The row holds two things written by different saves: the board (snapshot, version) and the
+// LoreMaster's Journal. A save used to write back the whole row it had read, so a journal save
+// put back the board as it was when the journal save began, and a board save put back an old
+// journal. Each save now reads the row again just before it writes and changes only its own
+// fields. The database has no transactions, so this narrows the gap to one read, it does not
+// close it; the board's version never goes backwards.
+async function cvWriteOwn(cur, own) {
+  const fresh = (await wd.get(CV, cur._id, { suppressAuth: true }).catch(() => null)) || cur;
+  const row = Object.assign({}, fresh, own, { _id: cur._id });
+  if (own.version !== undefined) row.version = Math.max(Number(own.version) || 0, (Number(fresh.version) || 0) + 1);
+  await wd.update(CV, row, { suppressAuth: true });
+  return row;
+}
+
 async function memberId() {
   try { const m = await currentMember.getMember(); return m ? m._id : ''; }
   catch (e) { return ''; }
@@ -175,11 +189,11 @@ export const saveCampaignState = webMethod(Permissions.Anyone, async (campaignId
       } catch (e) {}
     }
     if (body && body.allowShrink !== undefined) delete body.allowShrink;
-    const base = cur ? Object.assign({}, cur) : {};
-    const row = Object.assign(base, { campaignId: String(campaignId), version: version, snapshot: JSON.stringify(body), updatedBy: mid });
-    if (cur) { row._id = cur._id; await wd.update(CV, row, { suppressAuth: true }); }
-    else { await wd.insert(CV, row, { suppressAuth: true }); }
-    return { ok: true, version: version, tele: TELE_CV };
+    const own = { campaignId: String(campaignId), version: version, snapshot: JSON.stringify(body), updatedBy: mid };
+    let wrote = own;
+    if (cur) wrote = await cvWriteOwn(cur, own);
+    else await wd.insert(CV, own, { suppressAuth: true });
+    return { ok: true, version: wrote.version, tele: TELE_CV };
   } catch (e) { return { ok: false, error: String(e) }; }
 });
 
@@ -240,9 +254,8 @@ export const restoreBoardHistory = webMethod(Permissions.Anyone, async (campaign
   let curSnap = {}, old = {}; try { curSnap = JSON.parse(cur.snapshot) || {}; old = JSON.parse(h.snapshot) || {}; } catch (e) { return { ok: false, error: 'unreadable' }; }
   await historyPut(String(campaignId), curSnap, cur.version, mid, 'before a restore');
   BOARD_KEYS.forEach((k) => { if (old[k] !== undefined) curSnap[k] = old[k]; });
-  cur.snapshot = JSON.stringify(curSnap); cur.version = (cur.version || 0) + 1; cur.updatedBy = mid;
-  await wixData.update(CV, cur, { suppressAuth: true });
-  return { ok: true, version: cur.version, summary: boardSummary(curSnap) };
+  const wrote = await cvWriteOwn(cur, { snapshot: JSON.stringify(curSnap), version: (cur.version || 0) + 1, updatedBy: mid });
+  return { ok: true, version: wrote.version, summary: boardSummary(curSnap) };
 });
 
 // The Journal and Saved versions are the LoreMaster's alone: a lorekeeper helps with the map
@@ -297,7 +310,7 @@ export const saveJournal = webMethod(Permissions.Anyone, async (campaignId, entr
     const ex = await wd.query(CV).eq('campaignId', String(campaignId)).limit(1).find({ suppressAuth: true });
     const cur = ex.items[0];
     const j = JSON.stringify(Array.isArray(entries) ? entries : []);
-    if (cur) { const row = Object.assign({}, cur, { journal: j }); await wd.update(CV, row, { suppressAuth: true }); }
+    if (cur) await cvWriteOwn(cur, { journal: j });
     else { await wd.insert(CV, { campaignId: String(campaignId), version: 0, snapshot: 'null', journal: j, updatedBy: mid }, { suppressAuth: true }); }
     return { ok: true };
   } catch (e) { return { ok: false, error: String(e) }; }

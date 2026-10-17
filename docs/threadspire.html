@@ -4457,7 +4457,7 @@ function applyRemoteState(patch){
 var _pushT = null;
 function schedulePush(){
   if (_pushT) return;
-  _pushT = setTimeout(function(){ _pushT = null; try { pushState(); } catch(e){} }, 120);
+  _pushT = setTimeout(function(){ _pushT = null; try { pushState(); } catch(e){ pushStateFailed(e); } }, 120);
 }
 function send(evt){
   /* stub transport, echoes shared state back as remote truth. Latency varies by
@@ -7017,7 +7017,7 @@ function journalAdd(){
   var text = el.value.trim(); if (!text) return;
   el.value = '';
   S.journal.push({ id:'j' + Date.now(), ts:Date.now(), text:text });
-  journalBackend.save(S.journal).catch(function(){});
+  journalSave();
   if (S.openSection === 'journal') openWin('journal');
 }
 var _jEdit = null;
@@ -7027,7 +7027,7 @@ function journalEditSave(id){
   var t = document.getElementById('jEditIn'), v = t ? t.value.trim() : '';
   if (!v){ journalEditCancel(); return; }
   (S.journal || []).forEach(function(e){ if (e.id === id){ e.text = v; e.edited = Date.now(); } });
-  journalBackend.save(S.journal).catch(function(){});
+  journalSave();
   journalEditCancel();
 }
 /* ================= a session's recap, from its video =================
@@ -7625,7 +7625,7 @@ function momSave(){
   if (kept.length){
     S.journal = S.journal || [];
     S.journal.push({ id:'j' + Date.now(), ts:Date.now(), kind:'moments', videoId:d.vid, text:'Moments in ' + d.title + ':\n' + kept.map(function(m){ return ytdTime(m.t) + ' ' + m.name + (momTags(m).length ? ' (' + momTagWords(m) + ')' : '') + ' https://youtu.be/' + d.vid + '?t=' + m.t; }).join('\n') });
-    journalBackend.save(S.journal).catch(function(){});
+    journalSave();
   }
   MOMV = null;
   tsModal('<h3 class="tsm-title">' + kept.length + ' moment' + (kept.length === 1 ? '' : 's') + ' kept</h3><p class="lc-p">They are in the Journal as links, and go into the video\u2019s description the next time you update it.</p><div class="tsm-row"><button class="tsm-btn" onclick="tsCloseModal()">Done</button></div>');
@@ -8934,7 +8934,7 @@ function vidSave(){
     }).catch(function(){});
   }
   var _yv = VID.videoId, _ys = VID.session || '', _yg = VID.segments || [];
-  journalBackend.save(S.journal).catch(function(){});
+  journalSave();
   VID = { text:'', title:'', busy:false, msg:'', fixes:[], keep:{}, recap:'', step:'in' };
   tsCloseModal(); if (S.openSection === 'journal') openWin('journal'); else openWin('journal');
   /* a recap from a video on the connected channel offers to bring the video up to date */
@@ -8942,7 +8942,7 @@ function vidSave(){
 }
 function journalDelete(id){
   S.journal = (S.journal||[]).filter(function(e){ return e.id !== id; });
-  journalBackend.save(S.journal).catch(function(){});
+  journalSave();
   if (S.openSection === 'journal') openWin('journal');
 }
 function loadJournal(){
@@ -13108,6 +13108,22 @@ var _journalStore = [];
 function stubGetJournal(){ return Promise.resolve(_journalStore.slice()); }
 function stubSaveJournal(entries){ _journalStore = (entries||[]).slice(); return Promise.resolve({ ok:true }); }
 var journalBackend = { get:stubGetJournal, save:stubSaveJournal };
+/* Every Journal save goes through here, so a refused or lost save shows. It marks the save
+   mark Not saved (the Journal) and says so in the log once in a while, never on every note.
+   The notes stay on this screen, and the next note saves the whole Journal again. */
+var _journalWarnAt = 0;
+function journalSave(){
+  var p;
+  try { p = journalBackend.save(S.journal); } catch(e){ p = Promise.reject(e); }
+  return saveTrack(Promise.resolve(p), 'the Journal').then(function(r){ if (r && r.ok === false) journalWarn(r.error); return r; },
+    function(e){ console.error('[ThreadSpire] the Journal did not save', e); journalWarn((e && e.message) || ''); });
+}
+function journalWarn(why){
+  if (!isLM() || Date.now() - _journalWarnAt < 30000) return;
+  _journalWarnAt = Date.now();
+  pushLog({ kind:'sys', html:'The Journal did not save' + (why ? ' (' + esc(String(why)) + ')' : '') + '. Your notes are still on this screen, and your next note saves them all again.' });
+  render();
+}
 /* the shared slice two clients agree on: the board, the active scene and stage, the phase.
    Coarse for now, deltas can come later without moving the seam. */
 /* A picture held only on this device is a wall of encoded bytes, and one of them in a
@@ -13338,7 +13354,7 @@ function pushState(){
     try { roomLmSync(false); } catch(e){}
     if (ROOM.on && (!isLM() || _quiet)) delete snap.tokens;
     try { SEAM.pushKB = Math.round(JSON.stringify(snap).length / 1024); } catch(e){ SEAM.pushKB = 0; }
-    _pushesOut++;
+    _pushesOut++; _pushCounted = true;
     stateBackend.push(snap).then(function(r){
       _pushesOut = Math.max(0, _pushesOut - 1);
       SEAM.pushAt = Date.now();
@@ -13354,7 +13370,20 @@ function pushState(){
       _pushesOut = Math.max(0, _pushesOut - 1);
       SEAM.pushAt = Date.now(); SEAM.pushOk = false; SEAM.pushWhy = String(e && e.message || e).slice(0,60); pushRetry(); seamWarn(); seamPaint();
     });
-  } catch(e){}
+    _pushCounted = false;
+  } catch(e){
+    /* Packing or sending the table threw. It used to vanish here, and the table stopped saving
+       without a word. Now the save mark and the log say so, and the next change tries again. */
+    if (_pushCounted){ _pushesOut = Math.max(0, _pushesOut - 1); _pushCounted = false; }
+    pushStateFailed(e);
+  }
+}
+var _pushCounted = false;
+function pushStateFailed(e){
+  try { console.error('[ThreadSpire] the table could not be saved', e); } catch(_){}
+  SEAM.pushOk = false; SEAM.pushWhy = 'could not pack the table: ' + String((e && e.message) || e).slice(0, 60);
+  SAVEMARK.failed = 'the table';
+  try { seamWarn(); seamPaint(); saveMarkPaint(); } catch(_){}
 }
 /* The LoreMaster's table is the source of what it changes. While one of its changes is still
    on its way to the site (sent, or about to be), or the site has not been taking them, a
