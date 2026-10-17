@@ -1,3 +1,8 @@
+## 2026-10-17 - ThreadSpire: a Lore Point grant can be taken back, and the Story window keeps its keys
+
+- **Take back (Nate).** A Lore Point grant now waits six seconds before it goes, with a Take back button and a gold line running down on its notice. Take back and it never left: nothing reaches the table, the log or any sheet. Once a player's sheet takes a grant it is added for good, so holding it back is the only clean undo. A second grant sends the first at once, and leaving the page mid-wait sends it rather than losing it. Beat ticks and roster removals are not covered: they change the table at once through other paths.
+- **The Story window keeps its keys.** With the Story window open, the arrow keys no longer walk the hidden beat deck behind it, and H, P and F no longer hide the interface, open the Player view or go full screen.
+
 ## 2026-10-17 - ThreadSpire: saves never overwrite each other or fail in silence
 
 - **The board and the Journal no longer undo each other (Nate).** They share one row, and each save wrote back the whole row it had read. A Journal save put back the board as it was when the save began, and a board save put back an old Journal. `campaignview.web.js` now reads the row again just before it writes (`cvWriteOwn`) and changes only its own fields: the Journal save the journal, the board save and Restore the snapshot and version. The version never goes backwards. The database has no transactions, so this narrows the gap to one read rather than closing it. The site's tests reproduce both overlaps and pass.
