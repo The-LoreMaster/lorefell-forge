@@ -1,3 +1,11 @@
+## 2026-10-17 - The Anexanum: a History tied to an adventure
+
+- **Tied to an adventure (Nate).** Step 1 of a History has a Tied to an adventure picker listing the LoreMaster's own ThreadSpire adventures (None by default). The tie is kept in the room under the History's own key (`h:<history>:adv`), apart from its drafts, so it survives sending and dropping drafts, and a History picked up later is tied again.
+- **What it reads.** The page code (`velo/page-the_anexanum.js`) answers `AX_ADVENTURES` and `AX_ADVENTURE` through backend methods ThreadSpire already uses (`listMyCampaigns`, `loadAdventure`, `getCodex`, `getJournal`, `listQuests`, `getSession`, `getCampaignPlayers`, `lmLoadCharacter`, `listAssets`). It returns a compact record: the Story's outline with beat titles and speakers (never whole beat text), the adventure's people and foes, the Codex and what each Fell wrote down, the Journal, the quest board, the recaps, and the Fell with their lineages. No backend or schema change.
+- **How it is used.** The record goes to the chapter writer for names and order only. Its names join the spellings every writer is held to (chapters, the names noted, the world) and lead the guesses in Set the names. The transcript stays the only source of events: where it and the record differ, the chapter tells it as the episode does and adds a hidden `%% check %%` line, which the log shows.
+- Opened in its own tab (full screen), the picker says to open the Anexanum on lorefell.com, since only the site's page code can read adventures.
+- Checked in Chromium at 1440x900 with the room and page code stood in: the picker lists the adventures, the tie is kept and comes back after a reload, the writer's prompt carries the record and the names, and a check line reaches the log. `docs/` and `embeds/` alike.
+
 ## 2026-10-17 - ThreadSpire: Ask reads the FellGuide and the LoreVault
 
 - **Rules questions (Nate).** Ask now answers a question about the rules from the books. The site sends the passages of the FellGuide and the LoreVault that bear on each question along with the adventure (lorefell-site `functions/api/ask.js`), and the answer cites the pages it used. A cited page is a link that opens it on lorefell.com, named by its title.
