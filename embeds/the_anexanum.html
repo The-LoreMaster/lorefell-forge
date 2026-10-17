@@ -210,7 +210,7 @@ var CANON_CH = 'The FellGuide/The FellGuide/The Lore (Contains Spoilers)/Charact
 var SECTIONS = ['Storyline', 'Characters', 'Locations', 'Bestiary', 'Artifacts'];
 var _rid = 0, _wait = {};
 window.addEventListener('message', function(e){ var m = e.data || {}; if (m.type === 'AX_REPLY' && _wait[m.id]){ _wait[m.id](m); delete _wait[m.id]; } });
-function askPage(type){ return new Promise(function(res, rej){ var id = ++_rid; _wait[id] = function(m){ m.ok ? res(m.data) : rej(new Error((m.data && m.data.error) || 'no answer')); }; try { parent.postMessage({ type:type, id:id }, '*'); } catch(e){ rej(e); } setTimeout(function(){ if (_wait[id]){ delete _wait[id]; rej(new Error('the page did not answer: paste velo/page-the_anexanum.js')); } }, 20000); }); }
+function askPage(type, extra){ return new Promise(function(res, rej){ var id = ++_rid; _wait[id] = function(m){ m.ok ? res(m.data) : rej(new Error((m.data && m.data.error) || 'no answer')); }; try { parent.postMessage(Object.assign({}, extra || {}, { type:type, id:id }), '*'); } catch(e){ rej(e); } setTimeout(function(){ if (_wait[id]){ delete _wait[id]; rej(new Error('the page did not answer: paste velo/page-the_anexanum.js')); } }, 20000); }); }
 var TICKET = '';
 /* YouTube's daily allowance as the room has counted it: what is spent today, what it went on,
    when it resets (midnight Pacific), and Google's own page for the exact figure */
@@ -241,7 +241,8 @@ function noDash(t){ return String(t || '').replace(/\s*\u2014\s*/g, ', ').replac
 
 /* ---- state ---- */
 var AX = { tab:'histories', step:1, who:null, playlists:null, pl:null, videos:[], name:'', existing:'', histories:[], style:'', example:'', exampleChar:'',
-           notes:{}, files:{}, sel:'', busy:false, log:'', diff:true, names:{}, toldThrough:0, fixVault:true, refNames:null };
+           notes:{}, files:{}, sel:'', busy:false, log:'', diff:true, names:{}, toldThrough:0, fixVault:true, refNames:null,
+           adv:null, advTouched:false, advList:null, advRec:null, advErr:'' };
 function hist(){ return safeName(AX.name); }
 function hkey(){ return 'h:' + slug(AX.name); }
 function say(t){ AX.log = (AX.log ? AX.log + '\n' : '') + t; var el = document.getElementById('axlog'); if (el){ el.textContent = AX.log; el.scrollTop = el.scrollHeight; } }
@@ -642,7 +643,8 @@ function paintStep1(){
   if (AX.pl && AX.pl.files && !AX.videos.length) h += '<p class="lead">Reading the transcripts</p>';
   if (AX.pl){
     h += '<div class="row"><label class="f">The History\u2019s name<input class="t" id="hname" value="' + esc(AX.name) + '" oninput="AX.name=this.value"></label>'
-      + '<label class="f">Or add to an existing History<select class="t" onchange="if(this.value){AX.name=this.value;AX.existing=this.value;document.getElementById(\'hname\').value=this.value;}"><option value="">A new History</option>' + (AX.histories || []).map(function(n){ return '<option' + (AX.existing === n ? ' selected' : '') + '>' + esc(n) + '</option>'; }).join('') + '</select></label></div>'
+      + '<label class="f">Or add to an existing History<select class="t" onchange="if(this.value){AX.name=this.value;AX.existing=this.value;document.getElementById(\'hname\').value=this.value;advLoadTie();}"><option value="">A new History</option>' + (AX.histories || []).map(function(n){ return '<option' + (AX.existing === n ? ' selected' : '') + '>' + esc(n) + '</option>'; }).join('') + '</select></label></div>'
+      + advPicker()
       + '<div class="list">' + AX.videos.map(function(v, i){ return '<div class="it"><span class="num">' + (i + 1) + '</span><span class="ti">' + esc(v.title) + '<small>' + esc(new Date(v.at).toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' })) + '</small></span><span class="mark ' + (AX.notes[v.id] ? 'done' : 'wait') + '">' + (AX.notes[v.id] ? 'written' : 'to write') + '</span></div>'; }).join('') + '</div>'
       + '<div class="row"><button class="btn pri" onclick="startHistory()">Use this History</button></div>';
   }
@@ -710,7 +712,8 @@ function startHistory(){
   if (!hist()){ alert('Give the History a name.'); return; }
   AX.notes = {}; AX.files = {}; AX.names = {}; AX.toldThrough = 0;
   var fresh = api('/ax/vault/list', { prefix:BASE }).then(function(d){ AX.vaultFiles = d.files; }).catch(function(){});
-  Promise.all([loadDraft(), fresh]).then(function(r){ var had = r[0]; var said = reconcile(); AX.step = 2; AX.log = (had ? 'Picked up the drafts kept for ' + hist() + '.' : '') + (said ? (had ? '\n' : '') + said : ''); paint(); }).catch(function(){ AX.step = 2; paint(); });
+  var tie = (AX.advTouched ? advSaveTie() : advLoadTie()).then(advRead);
+  Promise.all([loadDraft(), fresh, tie]).then(function(r){ var had = r[0]; var said = reconcile(); AX.step = 2; AX.log = (had ? 'Picked up the drafts kept for ' + hist() + '.' : '') + (said ? (had ? '\n' : '') + said : ''); paint(); }).catch(function(){ AX.step = 2; paint(); });
 }
 /* ---- what the FellGuide already holds for this History ----
    A History added to keeps its own chapters. Chapters already sent are matched to the vault
@@ -753,6 +756,7 @@ function epTold(v, i){ var n = AX.notes[v.id]; return (n && n.told) || (!n && i 
 function paintStep2(){
   var done = AX.videos.filter(function(v, i){ return AX.notes[v.id] || epTold(v, i); }).length, have = histFiles('Storyline').length;
   return '<h2>Write the chapters</h2><p class="lead">One chapter per episode, from its captions and description, in the FellGuide\u2019s voice. Captions cost YouTube allowance, so a long playlist may take more than one day. It picks up where it stopped.</p>'
+    + advNote()
     + (have ? '<div class="row"><label class="f">The FellGuide already has ' + have + ' chapter' + (have === 1 ? '' : 's') + ' of ' + esc(hist()) + '. Episodes they already tell: through episode<input class="t" type="number" min="0" max="' + AX.videos.length + '" value="' + AX.toldThrough + '" onchange="AX.toldThrough=Math.max(0,Math.min(' + AX.videos.length + ',parseInt(this.value,10)||0));saveManifest();paint()"></label></div>'
       + '<p class="lead">Those are skipped, never written twice. New chapters number on from chapter ' + (nextChapterNum() - 1) + '.</p>' : '')
     + (AX.videos.length && done >= AX.videos.length ? '<div class="empty" style="border-color:rgba(127,175,140,.45);color:var(--verd)">Every episode of this playlist is told. The History is complete.</div>' : '')
@@ -786,7 +790,7 @@ function applyNames(t){
 }
 function namesRule(){
   var keys = Object.keys(AX.names).filter(function(k){ return AX.names[k] && AX.names[k] !== k; });
-  var keep = {}; histPages().forEach(function(x){ keep[x.name] = 1; }); keys.forEach(function(k){ keep[nameFor(k)] = 1; });
+  var keep = {}; histPages().forEach(function(x){ keep[x.name] = 1; }); advNames().forEach(function(n){ keep[n] = 1; }); keys.forEach(function(k){ keep[nameFor(k)] = 1; });
   var list = Object.keys(keep);
   if (!list.length) return '';
   return '\n\nNames in this History, spelled exactly so (the transcript mishears them): ' + list.join(', ') + '.' + (keys.length ? ' Never write ' + keys.map(function(k){ return '"' + k + '" (write "' + nameFor(k) + '")'; }).join(', ') + '.' : '');
@@ -809,6 +813,7 @@ function likeness(a, b){ a = nameKey(a); b = nameKey(b); if (!a || !b) return 0;
 function nameGuess(n, all){
   var best = '', score = .7, me = all.filter(function(o){ return o.name === n; })[0] || { eps:[] };
   histPages().forEach(function(x){ var l = likeness(n, x.name) + .06; if (l > score && nameKey(x.name) !== nameKey(n)){ score = l; best = x.name; } });
+  advNames().forEach(function(a){ var l = likeness(n, a) + .05; if (l > score && nameKey(a) !== nameKey(n)){ score = l; best = a; } });
   (AX.refNames || []).forEach(function(r){ var l = likeness(n, r); if (l > score && nameKey(r) !== nameKey(n)){ score = l; best = r.replace(/^The /, ''); } });
   all.forEach(function(o){ if (o.name === n || o.eps.length < me.eps.length || (o.eps.length === me.eps.length && o.name.length <= n.length)) return; var l = likeness(n, o.name) - .04; if (l > score){ score = l; best = o.name; } });
   return best;
@@ -875,6 +880,86 @@ function useNames(){
   saveManifest().then(next);
 }
 
+/* ---- a History tied to an adventure ----
+   A History can be tied to one of the LoreMaster's ThreadSpire adventures before its chapters
+   are written. The page code reads that adventure back as a compact record (velo/page-the_anexanum.js,
+   AX_ADVENTURE): the Story's outline with its beat titles and speakers, the adventure's people
+   and foes, the Codex and what each Fell wrote down, the Journal, the quest board, the recaps,
+   and the Fell at the table. The writers spell names as the record does and keep events in its
+   order. The transcript stays the source of what happened: where the two differ the chapter
+   tells it as the episode does and notes the difference in a hidden %% check %% line, shown in
+   the log, never invented. The tie is kept in the room under the History's own key, apart from
+   its drafts, so dropping drafts or sending pages keeps it. */
+function advKey(){ return hkey() + ':adv'; }
+function advHosted(){ return window.parent !== window; }
+function advLoadList(){
+  if (AX.advList !== null || !advHosted()) return;
+  AX.advList = 'loading';
+  askPage('AX_ADVENTURES').then(function(d){ AX.advList = (d && d.items) || []; paint(); }).catch(function(e){ AX.advList = []; AX.advErr = e.message; paint(); });
+}
+function advPicker(){
+  if (!advHosted()) return '<p class="lead">Open the Anexanum on lorefell.com to tie this History to an adventure.</p>';
+  advLoadList();
+  var list = Array.isArray(AX.advList) ? AX.advList : [], cur = AX.adv ? AX.adv.id : '';
+  if (cur && !list.some(function(a){ return a.id === cur; })) list = list.concat([AX.adv]);
+  return '<div class="row"><label class="f">Tied to an adventure<select class="t" onchange="advPick(this.value)"' + (AX.advList === 'loading' ? ' disabled' : '') + '><option value="">' + (AX.advList === 'loading' ? 'Reading your adventures' : 'None') + '</option>'
+    + list.map(function(a){ return '<option value="' + esc(a.id) + '"' + (a.id === cur ? ' selected' : '') + '>' + esc(a.name) + '</option>'; }).join('') + '</select></label></div>'
+    + '<p class="lead">The chapters are checked against it: its Story, Codex, Journal, recaps and Fell, so names come out spelled as the table has them.' + (AX.advErr ? ' ' + esc(AX.advErr) : '') + '</p>';
+}
+function advPick(id){
+  var a = (Array.isArray(AX.advList) ? AX.advList : []).filter(function(x){ return x.id === id; })[0];
+  AX.adv = a ? { id:a.id, name:a.name } : null; AX.advTouched = true; AX.advRec = null;
+}
+function advSaveTie(){ AX.advTouched = false; return api('/ax/draft', { k:advKey() }, AX.adv ? JSON.stringify(AX.adv) : '').catch(function(){}); }
+function advLoadTie(){
+  if (!hist()) return Promise.resolve();
+  return api('/ax/draft', { k:advKey() }).then(function(d){ var a = null; try { a = d.v ? JSON.parse(d.v) : null; } catch(e){ a = null; } if (AX.advTouched) return; AX.adv = a && a.id ? a : null; AX.advRec = null; if (AX.step === 1) paint(); }).catch(function(){});
+}
+function advRead(){
+  if (!AX.adv || !advHosted()) { AX.advRec = null; return Promise.resolve(); }
+  return askPage('AX_ADVENTURE', { adv:AX.adv.id }).then(function(r){ AX.advRec = r; AX.adv.name = r.name || AX.adv.name; })
+    .catch(function(e){ AX.advRec = null; say('The adventure ' + AX.adv.name + ' could not be read: ' + e.message + '. The chapters are written from the transcripts alone.'); });
+}
+function advNote(){
+  if (!AX.adv) return '';
+  return '<p class="lead">Tied to <b>' + esc(AX.adv.name) + '</b>' + (AX.advRec ? ': names and events are checked against it.' : ', not read yet.')
+    + ' <button class="btn" onclick="AX.step=1;paint()">Change</button>' + (AX.advRec ? '' : ' <button class="btn" onclick="advRead().then(paint)">Read it</button>') + '</p>';
+}
+/* every proper name the record holds: the Fell, the adventure's people and foes, the speakers of its beats */
+function advNames(){
+  var r = AX.advRec; if (!r) return [];
+  var set = {};
+  (r.fell || []).forEach(function(f){ if (f.name) set[f.name] = 1; });
+  (r.people || []).forEach(function(p){ if (p.name) set[p.name] = 1; });
+  (r.story || []).forEach(function(a){ (a.sessions || []).forEach(function(se){ (se.scenes || []).forEach(function(sc){ (sc.beats || []).forEach(function(b){ if (b.speaker) set[b.speaker] = 1; }); }); }); });
+  return Object.keys(set).filter(function(n){ return n.length > 1 && n.length < 60; });
+}
+function advRule(){
+  if (!AX.advRec) return '';
+  return '\n\nThis History is the adventure "' + AX.advRec.name + '" as its table built and played it, and its record is given. Spell every name exactly as the record does. Keep events in the order the record shows. The transcript is the only source of what happened in this episode: never add an event, a name or an outcome from the record that the episode does not show. Where the transcript and the record disagree on anything but a name’s spelling, tell it as the transcript has it, then add one line at the very end, after the prose: %% check: what differs, in a few words %% . Add no such line when they agree.';
+}
+function advRefText(){
+  var r = AX.advRec; if (!r) return '';
+  var o = ['\n\nThe adventure’s record (' + r.name + '), for names and order only:'];
+  if ((r.fell || []).length) o.push('The Fell: ' + r.fell.map(function(f){ return f.name + (f.lineage ? ' (' + f.lineage + ')' : ''); }).join(', '));
+  if ((r.people || []).length) o.push('People and foes: ' + r.people.map(function(p){ return p.name + (p.desc ? ' (' + p.desc + ')' : ''); }).join('; '));
+  if ((r.story || []).length){
+    o.push('The Story:');
+    r.story.forEach(function(a){ o.push('Act: ' + a.name + (a.desc ? '. ' + a.desc : ''));
+      (a.sessions || []).forEach(function(se){ o.push(' Session: ' + se.name);
+        (se.scenes || []).forEach(function(sc){ var bs = (sc.beats || []).map(function(b){ return b.title + (b.speaker ? ' (' + b.speaker + ')' : ''); }).filter(Boolean);
+          o.push('  Scene: ' + sc.name + (sc.desc ? '. ' + sc.desc : '') + (bs.length ? ' Beats: ' + bs.join('; ') : '')); }); }); });
+  }
+  if ((r.codex || []).length){ o.push('The Codex:'); r.codex.forEach(function(e){ o.push('- ' + (e.session ? e.session + ': ' : '') + e.text); }); }
+  (r.records || []).forEach(function(x){ var l = [].concat(x.characters || [], x.quests || [], x.clues || []); if (l.length) o.push(x.fell + ' wrote down: ' + l.join('; ')); });
+  if ((r.recaps || []).length){ o.push('Recaps sent to the players:'); r.recaps.forEach(function(x){ o.push('- ' + x.title + ': ' + x.text); }); }
+  if ((r.journal || []).length){ o.push('The LoreMaster’s Journal:'); r.journal.forEach(function(e){ o.push('- ' + e.text); }); }
+  if ((r.quests || []).length){ o.push('The quest board:'); r.quests.forEach(function(q){ o.push('- ' + q.title + ' [' + q.status + ']' + (q.body ? ': ' + q.body : '')); }); }
+  return o.join('\n').slice(0, 40000);
+}
+/* the differences a chapter noted against the record, in its hidden check lines */
+function advChecks(md){ var out = [], re = /%%\s*check:\s*([\s\S]*?)%%/g, m; while ((m = re.exec(md))) out.push(m[1].trim()); return out; }
+
 /* ---- step 2: each episode a chapter ---- */
 function styleRules(){ return AX.style ? '\n\nThe FellGuide\u2019s style rules, binding (especially its Never Use list):\n' + AX.style.slice(0, 9000) : ''; }
 function writeChapters(){
@@ -889,12 +974,13 @@ function writeChapters(){
       var prior = AX.videos.slice(0, x.i).map(function(v){ var nn = AX.notes[v.id]; return nn && !nn.told ? 'Chapter ' + nn.n + ', ' + nn.title + ': ' + nn.summary : ''; }).filter(Boolean).join('\n');
       var sys = 'You write one chapter of a History for the LoreFell FellGuide: the story of what happened in one episode of an actual-play tabletop game, told as grounded dark fantasy prose, past tense, third person, about the characters (the Fell) and the world, never about the players, the table, dice, rules or the stream. '
         + 'Write only what happened in the episode; never invent events, names or outcomes. Leave out table talk and rules. 900 to 1600 words. Start with a line "# " and the chapter\u2019s title (a few words drawn from the episode), then the prose in paragraphs. No headings inside, no lists, no em dashes.'
-        + styleRules() + namesRule() + (AX.example ? '\n\nA chapter from another History, for voice and shape:\n' + AX.example : '');
+        + styleRules() + namesRule() + advRule() + (AX.example ? '\n\nA chapter from another History, for voice and shape:\n' + AX.example : '');
       var user = 'History: ' + hist() + '\nEpisode ' + (x.i + 1) + ' of the playlist: ' + x.v.title + '\nIts description:\n' + String(d.description || '').slice(0, 3000)
-        + (prior ? '\n\nThe chapters before it, in short:\n' + prior : '') + '\n\nThe episode\u2019s transcript:\n' + String(d.captions).slice(0, 320000);
+        + (prior ? '\n\nThe chapters before it, in short:\n' + prior : '') + advRefText() + '\n\nThe episode\u2019s transcript:\n' + String(d.captions).slice(0, 320000);
       say('Episode ' + n + ': writing the chapter');
       return ai(sys, user, 4000, true).then(function(md){
         md = applyNames(noDash(md).trim()); if (md.indexOf('# ') !== 0) md = '# ' + x.v.title + '\n\n' + md;
+        var checks = advChecks(md); if (checks.length && AX.adv) say('Episode ' + n + ': where it differs from ' + AX.adv.name + ': ' + checks.join(' | '));
         /* which episode this chapter tells, hidden from the published page, so it is never told twice */
         md += '\n\n%% episode: ' + x.v.id + ' %%\n';
         var title = safeName(md.split('\n')[0].replace(/^#\s*/, '')) || ('Chapter ' + n);
