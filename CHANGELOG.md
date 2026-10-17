@@ -1,3 +1,8 @@
+## 2026-10-17 - ThreadSpire: a scene switch no longer brings the last scene's stage along
+
+- **The bug (Nate, The Ashen Hands).** Switching to a scene with no layout of its own restored the stage that scene was last tied to. The active stage is the adventure's, so that was usually the very stage just left: the map, the tokens and the picture stayed while the Story moved on, and the next switch saved the new scene's board into that stage.
+- **The fix.** A stage comes with a scene only when it is a different stage from the one on the table. Otherwise the scene starts clear: the Fell come along, the old map picture goes, and the table is off any stage until the LoreMaster lays one down, so the stage just left keeps its own board. A scene with its own layout, or tied to another stage, is unchanged.
+
 ## 2026-10-17 - ThreadSpire: the docked Story panel minimizes the runner band
 
 - Docking the Story window minimizes the scene runner band at the bottom to its pill, since the panel is where the LoreMaster reads (Nate). Undocking or closing the panel brings the band back as it was. Restored by hand while docked, it stays: the panel minimizes it once, not on every repaint. A band that was already minimized stays minimized.
