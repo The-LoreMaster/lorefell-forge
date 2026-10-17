@@ -12979,12 +12979,22 @@ function boardMapFill(){
   if (!S.scene.background && bd && bd.mapId){ S.scene.background = bd.mapId; var m = mapById(bd.mapId); if (m && m.url) S.remoteMapUrl = m.url; }
   try { paintMapArt(); } catch(e){}
 }
+/* The picture on the table now, for the map on the scene now. A map that is not on the shelf
+   (an upload from another screen, or one whose record is gone) has no picture to look up by its
+   id, so a scene and a stage keep the picture with the map id when they are saved, and lay it
+   back themselves (Nate, The Ashen Hands, 2026-10-17). A page-local blob is never kept. */
+function mapPicNow(){
+  var m = null; try { m = activeMap(); } catch(e){}
+  var u = (m && m.url) || S.remoteMapUrl || '';
+  return String(u).indexOf('blob:') === 0 ? '' : u;
+}
 function sceneLayoutSave(){
   if (!isLM() || !S.scene || !S.instance || !S.instance.bindings) return;
   if (_boardScene && _boardScene !== S.scene.id) return;   /* never into a scene the board is not */
   var bd = sceneBinding();
   if (!bd.mapId && !S.scene.background) return;   /* nothing laid down here yet */
   bd.mapId = S.scene.background || bd.mapId || null;
+  if (S.scene.background){ var _pic = mapPicNow(); if (_pic) bd.mapUrl = _pic; }
   bd.tokens = (S.tokens || []).map(function(t){ return Object.assign({}, t); });
   bd.grid = Object.assign({}, S.grid);
   bd.mapW = S.map.w; bd.mapH = S.map.h;
@@ -13013,7 +13023,8 @@ function sceneLayoutRestore(){
   if (bd.activeStageId) setActiveStage(bd.activeStageId);
   S.scene.background = bd.mapId;
   var m = mapById(bd.mapId);
-  if (m && m.url) S.remoteMapUrl = m.url;
+  /* this scene's picture, never the last scene's left standing */
+  S.remoteMapUrl = (m && m.url) || bd.mapUrl || '';
   if (Array.isArray(bd.tokens)){
     /* the scene's own tokens, and the Fell at the table come along if the scene has none of
        theirs yet, so a player's token never vanishes on a scene change */
@@ -13092,6 +13103,7 @@ function stageSnapshot(){
     stageId: active || ('st-' + Date.now()),
     name: (known && known.name) || S.scene.name,
     mapId: S.scene.background || null,
+    mapUrl: (S.scene.background && mapPicNow()) || (known && sameId(known.mapId, S.scene.background) && known.mapUrl) || '',
     /* the maps this stage can lay down. It belongs to the stage, so nothing outside
        the stage changes when one is added or taken away. */
     mapIds: stageMapIds(known),
@@ -13107,7 +13119,7 @@ function stageRestore(b){
   /* the stage's own picture too: a map that is not on the shelf is painted from the table's
      picture, so leaving it as it was showed the last stage's map under this stage's tokens */
   var _sm = b.mapId ? mapById(b.mapId) : null;
-  if (_sm && _sm.url) S.remoteMapUrl = _sm.url; else if (!b.mapId) S.remoteMapUrl = '';
+  S.remoteMapUrl = (_sm && _sm.url) || (b.mapId && b.mapUrl) || '';
   S.tokens = (b.tokens||[]).map(function(t){ return Object.assign({}, t); });
   var _snp3 = snapIsOn(); S.grid = Object.assign({}, b.grid || S.grid, { snap:_snp3 });
   S.map = { w: b.mapW || 2400, h: b.mapH || 1600 };

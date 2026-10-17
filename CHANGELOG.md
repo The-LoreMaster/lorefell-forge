@@ -1,3 +1,9 @@
+## 2026-10-17 - ThreadSpire: each scene and stage keeps its map's picture
+
+- **The bug (Nate, The Ashen Hands).** A map that is not on the shelf has no picture to look up by its id. On a scene switch the table took the scene's map id but kept painting the last scene's picture, so the map stayed while everything else moved.
+- **The fix.** A scene's layout and a stage now keep the picture with the map id when they are saved (`mapUrl`, never a page-local blob), and a switch or a stage lays that picture. A map whose picture was never kept shows no picture rather than the last scene's. Maps on the shelf are unchanged.
+- Scenes saved before this keep no picture yet: lay the map once in each and it is kept from then on.
+
 ## 2026-10-17 - ThreadSpire: picking a stage lays its map picture too
 
 - `stageRestore` now sets the table's map picture from the stage's map. A map that is not on the shelf is painted from the table's picture, so picking a stage left the last stage's map under the new stage's tokens (Nate, The Ashen Hands). Found while repairing the scenes the stage bug had copied The Mourning House into: picking the right stage in such a scene once rebinds it for good.
