@@ -1,3 +1,9 @@
+## 2026-10-17 - ThreadSpire: the roll type opens on a right-click, and the LoreVault wears the LoreMaster's screen
+
+- **The die (Nate).** Hovering the die no longer opens the roll type. That picker came up under the lobby button. A right-click on the die opens it at the pointer, as a right-click on the map already did, and a left click still rolls. A touch screen still taps the die for the picker, as before. Everyone at the table, not only the LoreMaster.
+- **The LoreVault chevron (Nate).** Its mark is now a LoreMaster's screen, three panels standing, in place of the square one.
+- Checked in Chromium at 1440x900: hovering the die opens nothing, a right-click opens the picker above the lobby button, a type chosen rolls. `docs/` and `embeds/` alike.
+
 ## 2026-10-17 - ThreadSpire: the lobby button stays, and sends everyone back
 
 - The gold lobby button over the die no longer goes once everyone is brought in (Nate). It dims while everyone is at the table and turns gold while they wait in the lobby. Dim, its menu offers See it, Set the lobby and Send everyone to the lobby, so the lobby is one tap away mid-session. A reload within three hours of bringing everyone in still keeps them at the table, as before.
