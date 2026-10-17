@@ -1,3 +1,12 @@
+## 2026-10-17 - ThreadSpire: overlays for the stream
+
+- **Three overlays on the stream view (Nate).** Map only hid the rail and the log, so viewers could not see who rolled what or how the party stood.
+  - **Party:** a strip along the bottom with each Fell in the scene, their Vitality and their Fatigue.
+  - **Rolls:** a ticker of the last four rolls, bottom left. Each stays twelve seconds.
+  - **Scene titles:** the scene's name as a title card when the scene changes.
+- Each is switched on or off on the stream's own panel (Party, Rolls, Scene titles) and kept on that device. The party strip and the rolls show on Map only, since With the table already has the rail and the log. The title card shows in both.
+- Never shown, in either view: a hidden roll, a LoreMaster's line, or a roll by a token that is hidden or whose name is hidden. That last also now applies to the roll toast the stream already showed.
+
 ## 2026-10-17 - ThreadSpire: dock the Story window beside the map
 
 - **Docked (Nate).** A dock button in the Story window's header turns it into a panel on the right edge, with no backdrop, so the map, its tokens, the dice and the players stay in sight. Drag its left edge to resize it. The button again puts it back as a window over the map, and full screen is still there undocked.

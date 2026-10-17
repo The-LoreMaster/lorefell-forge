@@ -2760,6 +2760,21 @@ body.stream:not(.stream-frame) #rail, body.stream:not(.stream-frame) #hud, body.
 #streamPic .sp-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 14px; font-family:Cinzel,serif; letter-spacing:.06em; color:#c9a84c; }
 #streamPic .sp-head button{ border:0; background:none; color:#b8c4d0; font-size:1.3rem; cursor:pointer; opacity:.35; } #streamPic .sp-head button:hover{ opacity:1; }
 #streamPic img{ display:block; max-width:100%; max-height:calc(78vh - 46px); object-fit:contain; }
+/* ---- the stream's overlays (Nate, 2026-10-17): the party, the rolls, the scene's name ---- */
+.so-party{ position:fixed; left:50%; bottom:18px; transform:translateX(-50%); z-index:390; display:flex; gap:10px; pointer-events:none; }
+.so-fell{ min-width:150px; padding:8px 12px 9px; border:1px solid rgba(201,168,76,.7); border-radius:12px; background:rgba(10,14,28,.9); box-shadow:0 10px 26px rgba(0,0,0,.5); font-family:'Crimson Pro',Georgia,serif; color:#dce8ef; }
+.so-fell b{ display:block; font-family:Cinzel,serif; font-size:.78rem; letter-spacing:.06em; color:#c9a84c; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:190px; }
+.so-vit{ height:6px; margin:6px 0 4px; border-radius:3px; background:rgba(239,232,216,.12); overflow:hidden; } .so-vit i{ display:block; height:100%; background:linear-gradient(90deg, #8f2a2a, #c94a3a); }
+.so-fell.down{ opacity:.55; } .so-fell span{ font-size:.86rem; } .so-fell em{ margin-left:8px; font-style:normal; font-size:.8rem; color:#e8cf86; }
+.so-rolls{ position:fixed; left:22px; bottom:22px; z-index:391; display:flex; flex-direction:column; gap:6px; pointer-events:none; }
+.so-roll{ padding:6px 12px; border:1px solid rgba(201,168,76,.55); border-radius:10px; background:rgba(10,14,28,.9); font-family:'Crimson Pro',Georgia,serif; font-size:.98rem; color:#dce8ef; animation:soIn .3s ease-out; transition:opacity .6s; }
+.so-roll b{ color:#c9a84c; font-weight:600; } .so-roll .n{ display:inline-block; min-width:1.5em; margin:0 4px; text-align:center; font-family:Cinzel,serif; color:#fff; } .so-roll.six .n{ color:#e8cf86; } .so-roll.one .n{ color:#e07a6a; }
+.so-roll.out{ opacity:0; }
+.so-card{ position:fixed; left:50%; top:30%; transform:translateX(-50%); z-index:392; padding:16px 38px 18px; border-top:1px solid rgba(201,168,76,.8); border-bottom:1px solid rgba(201,168,76,.8); background:linear-gradient(90deg, transparent, rgba(10,14,28,.92) 18%, rgba(10,14,28,.92) 82%, transparent); text-align:center; pointer-events:none; animation:soCard 5s ease-in-out forwards; }
+.so-card small{ display:block; font-family:Cinzel,serif; font-size:.72rem; letter-spacing:.24em; color:#93a3b6; text-transform:uppercase; } .so-card b{ display:block; margin-top:4px; font-family:'IM Fell English',Georgia,serif; font-weight:400; font-size:2.1rem; color:#efe8d8; }
+@keyframes soIn{ from{ opacity:0; transform:translateY(8px); } to{ opacity:1; transform:none; } }
+@keyframes soCard{ 0%{ opacity:0; } 12%{ opacity:1; } 82%{ opacity:1; } 100%{ opacity:0; } }
+@media (prefers-reduced-motion:reduce){ .so-roll, .so-card{ animation:none; } }
 @media (prefers-reduced-motion: no-preference){ #streamPic.on .sp-box{ animation:spIn .35s ease-out; } @keyframes spIn{ from{ opacity:0; transform:scale(.97); } } }
 #streamCtl .sc-t{ font-family:Cinzel,serif; font-size:.78rem; letter-spacing:.06em; color:#c9a84c; margin-right:2px; }
 #streamCtl .sc-seg{ display:flex; border:1px solid #2c3a58; border-radius:9px; overflow:hidden; }
@@ -24095,8 +24110,76 @@ function streamCtlPaint(){
   el.innerHTML = '<span class="sc-t">Stream</span>' + pics
     + '<div class="sc-seg"><button class="' + (!S.stream.all ? 'on' : '') + '" onclick="streamSet(\'all\',false)">Players\u2019 view</button><button class="' + (S.stream.all ? 'on' : '') + '" onclick="streamSet(\'all\',true)">Everything</button></div>'
     + '<div class="sc-seg"><button class="' + (!S.stream.frame ? 'on' : '') + '" onclick="streamSet(\'frame\',false)">Map only</button><button class="' + (S.stream.frame ? 'on' : '') + '" onclick="streamSet(\'frame\',true)">With the table</button></div>'
+    + (function(){ var ov = streamOv(), b = function(k, l){ return '<button class="' + (ov[k] ? 'on' : '') + '" aria-pressed="' + ov[k] + '" onclick="streamOvSet(\'' + k + '\',' + (ov[k] ? 'false' : 'true') + ')">' + l + '</button>'; };
+        return '<div class="sc-seg" role="group" aria-label="Overlays">' + b('party', 'Party') + b('rolls', 'Rolls') + b('card', 'Scene titles') + '</div>'; })()
     + '<button class="sc-x" onclick="streamCtlFold(true)" aria-label="Fold the stream controls" title="Fold">\u2212</button>';
 }
+/* ---- the stream's overlays (Nate, 2026-10-17) ----
+   Map only hides the rail and the log, so a viewer could not see who rolled what or how the
+   party stands. Three overlays, each switched off on the panel and kept on this device: the
+   party strip (each Fell's name, Vitality and Fatigue, from the scene's own roster), a ticker
+   of the last rolls, and the scene's name as a title card when the scene changes. The rolls
+   and the party show on Map only (With the table already has the log and the rail); the card
+   shows in both. Never shown, whatever the view: a hidden roll, a LoreMaster's line, or a roll
+   by a token whose name is hidden or that is hidden itself. */
+function streamOv(){ var d = { party:true, rolls:true, card:true }; try { var o = JSON.parse(localStorage.getItem('ts_stream_ov') || '{}'); Object.keys(d).forEach(function(k){ if (o[k] === false) d[k] = false; }); } catch(e){} return d; }
+function streamOvSet(k, on){ var o = streamOv(); o[k] = !!on; try { localStorage.setItem('ts_stream_ov', JSON.stringify(o)); } catch(e){} streamOvPaint(true); streamCtlPaint(); }
+function streamHiddenWho(who){
+  var hid = false, w = String(who || '').toLowerCase(); if (!w) return false;
+  try { Object.keys(S.tokens || {}).forEach(function(k){ var t = S.tokens[k]; if (t && (t.hidden || t.nameHidden) && String(t.name || '').toLowerCase() === w) hid = true; }); } catch(e){}
+  return hid;
+}
+var _soRolls = [];
+function streamTick(e){
+  if (!S.stream || !e || e.kind !== 'roll' || e.hidden || e.lmOnly) return;
+  if (streamHiddenWho(e.who)) return;
+  _soRolls.push({ id:e.id, at:Date.now(), who:e.who || 'Someone', n:e.n, total:(e.mods && e.mods.length) ? e.total : null, on:rollLabel(e.rollType) });
+  _soRolls = _soRolls.slice(-4);
+  streamOvPaint(true);
+}
+var _soSceneId = null, _soPartySig = '';
+function streamOvPaint(force){
+  if (!S.stream) return;
+  var ov = streamOv(), mapOnly = !S.stream.frame;
+  /* the party */
+  var pe = document.getElementById('soParty');
+  if (!pe){ pe = document.createElement('div'); pe.id = 'soParty'; pe.className = 'so-party'; document.body.appendChild(pe); }
+  var fells = (ov.party && mapOnly && S.scene && S.scene.fell) || [];
+  var html = fells.map(function(p){
+    var max = +p.maxVit || 0, cur = Math.max(0, +p.curVit || 0), pct = max ? Math.round(Math.min(1, cur / max) * 100) : 0;
+    var d = null; try { d = declareFor(p.charId || p.id); } catch(x){}
+    var g = (d && d.gear) || {}, r = g.fatigue || 0;
+    return '<div class="so-fell' + (cDown(p) ? ' down' : '') + '"><b>' + esc(p.name || 'A Fell') + '</b><div class="so-vit"><i style="width:' + pct + '%"></i></div>'
+      + '<span>' + (max ? cur + ' / ' + max + ' Vitality' : 'Vitality') + '</span>' + (r ? '<em>' + esc(g.fatigueName || ('Fatigue ' + r)) + '</em>' : '') + '</div>';
+  }).join('');
+  if (force || html !== _soPartySig){ _soPartySig = html; pe.innerHTML = html; }
+  /* the rolls: each stays twelve seconds */
+  var re = document.getElementById('soRolls');
+  if (!re){ re = document.createElement('div'); re.id = 'soRolls'; re.className = 'so-rolls'; document.body.appendChild(re); }
+  var now = Date.now(); _soRolls = _soRolls.filter(function(x){ return now - x.at < 12600; });
+  if (!(ov.rolls && mapOnly)) re.innerHTML = '';
+  else {
+    var want = _soRolls.map(function(x){ return x.id; }).join(',');
+    if (force || re.getAttribute('data-k') !== want){
+      re.setAttribute('data-k', want);
+      re.innerHTML = _soRolls.map(function(x){ return '<div class="so-roll' + (x.n === 6 ? ' six' : x.n === 1 ? ' one' : '') + '" data-at="' + x.at + '"><b>' + esc(x.who) + '</b> rolled<span class="n">' + x.n + '</span>' + (x.total !== null ? '= ' + x.total + ' ' : '') + 'on ' + esc(x.on) + (x.n === 6 ? ', a Fellmark' : x.n === 1 ? ', a Fellstrike' : '') + '</div>'; }).join('');
+    }
+    [].forEach.call(re.children, function(c){ if (now - (+c.getAttribute('data-at') || 0) > 12000) c.classList.add('out'); });
+  }
+  /* the scene's name, when it changes (never for the scene the stream opened on) */
+  var sid = (S.scene && S.scene.id) || '';
+  if (_soSceneId === null){ if (sid) _soSceneId = sid; }
+  else if (sid && sid !== _soSceneId){
+    _soSceneId = sid;
+    if (ov.card){
+      var old = document.getElementById('soCard'); if (old) old.remove();
+      var c = document.createElement('div'); c.id = 'soCard'; c.className = 'so-card';
+      c.innerHTML = '<small>' + esc(advName()) + '</small><b>' + esc(S.scene.name || 'A new scene') + '</b>';
+      document.body.appendChild(c); setTimeout(function(){ if (c.parentNode) c.remove(); }, 5200);
+    }
+  }
+}
+setInterval(function(){ try { if (S.stream) streamOvPaint(false); } catch(e){} }, 1000);
 /* the link to open in a second tab or a capture source */
 function streamLink(){
   /* the site's own address, then the ThreadSpire page on it: the embed is told only the site's
@@ -24564,6 +24647,8 @@ var _rollShown = {};
 function rollShow(e){
   if (!e || e.kind !== 'roll' || _rollShown[e.id]) return; _rollShown[e.id] = 1;
   if (e.hidden && (!isLM() || S.stream)) return;
+  /* the stream never names a token whose name is hidden, not in its own toast either */
+  try { if (S.stream){ if (streamHiddenWho(e.who)) return; streamTick(e); } } catch(x){}
   var mods = (e.mods || []).filter(function(m){ return m && Number(m.value); });
   var sum = mods.map(function(m){ return '<span class="pt-mod">' + (Number(m.value) >= 0 ? '+' : '\u2212') + Math.abs(Number(m.value)) + ' ' + esc(m.label) + '</span>'; }).join('');
   var mark = e.n === 6 ? 'Fellmark' : e.n === 1 ? 'Fellstrike' : '';
