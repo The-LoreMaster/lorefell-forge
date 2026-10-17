@@ -7506,17 +7506,23 @@ function ytdSend(){
    suggestions, never kept unasked. Once the session's video is up, Moments lines them up
    with the video (a live stream says when it began; a nudge covers the stream's delay),
    tightens each against the captions, and the kept ones go into the video's description,
-   the Journal, and links for clipping. Only for the site's own channel. */
+   the Journal, and links for clipping. Only for the site's own channel.
+   Marking never needs YouTube (Nate, 2026-10-17): a mark is kept for the session with its
+   time, its scene and its beat, and the session's record (End the session) carries it. Only
+   lining marks up with a video asks for a connected channel (momVidOn). */
 var MOM_KINDS = [['funny','Funny'],['triumph','Triumph'],['disaster','Disaster'],['epic','Epic'],['drama','Drama']];
 /* a moment's tags: several may apply (an older mark's single kind counts as one) */
 function momTags(m){ return Array.isArray(m.tags) ? m.tags : (m.kind ? [m.kind] : []); }
 function momTagToggle(m, k){ var t = momTags(m).slice(), i = t.indexOf(k); if (i >= 0) t.splice(i, 1); else t.push(k); m.tags = t; delete m.kind; }
 function momTagWords(m){ return momTags(m).map(function(k){ return ((MOM_KINDS.filter(function(x){ return x[0] === k; })[0]) || [k, k])[1]; }).join(', '); }
-function momOn(){ return isLM() && !isKeeper() && !S.stream && YT.connected && YT.allowed; }
+function momOn(){ return isLM() && !isKeeper() && !S.stream; }
+function momVidOn(){ return momOn() && YT.connected && YT.allowed; }
+/* the beat in front of the LoreMaster when a mark is made, by its title */
+function momBeatNow(){ try { var it = lmDeck()[lmFocus[lmFace()] || 0]; return (it && it.kind === 'beat' && it.data && it.data.title) || ''; } catch(e){ return ''; } }
 function momentMark(){
   if (!momOn()) return;
   S.marks = S.marks || [];
-  var m = { id:'mk' + Date.now(), at:Date.now(), back:45, fwd:10, tags:[], name:(S.scene && S.scene.name) || 'A moment' };
+  var m = { id:'mk' + Date.now(), at:Date.now(), back:45, fwd:10, tags:[], name:(S.scene && S.scene.name) || 'A moment', sceneId:(S.scene && S.scene.id) || '', beat:momBeatNow() };
   S.marks.push(m); S.marks = S.marks.slice(-400); schedulePush();
   momBar(m);
 }
@@ -7564,7 +7570,7 @@ function momSuggestions(from, to){
 /* ---- Moments: lined up with the video, checked, kept ---- */
 var MOMV = null;
 function momentsReview(i){
-  var v = VID_CHANNEL[i]; if (!v || !momOn()) return;
+  var v = VID_CHANNEL[i]; if (!v || !momVidOn()) return;
   MOMV = { vid:v.id, title:v.title, busy:true, msg:'Reading the video\u2026', list:[], nudge:0, start:0, dur:0 };
   momPaint();
   ytdCall('/yt/video', v.id).then(function(d){

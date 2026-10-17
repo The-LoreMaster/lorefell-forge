@@ -1,3 +1,9 @@
+## 2026-10-17 - ThreadSpire: marks without YouTube
+
+- **Marking never needs YouTube (Nate).** Mark (M, or the star on the runner) works for the LoreMaster in every session, streamed or not, with or without a connected channel. Each mark keeps its time, its scene and the beat in front of the LoreMaster.
+- Only Moments, which lines marks up with a video and tightens them against its captions, still asks for a connected channel (`momVidOn`).
+- The Lorekeeper and the stream view still cannot mark, as before.
+
 ## 2026-10-17 - ThreadSpire: a Lore Point grant can be taken back, and the Story window keeps its keys
 
 - **Take back (Nate).** A Lore Point grant now waits six seconds before it goes, with a Take back button and a gold line running down on its notice. Take back and it never left: nothing reaches the table, the log or any sheet. Once a player's sheet takes a grant it is added for good, so holding it back is the only clean undo. A second grant sends the first at once, and leaving the page mid-wait sends it rather than losing it. Beat ticks and roster removals are not covered: they change the table at once through other paths.
