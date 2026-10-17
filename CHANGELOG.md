@@ -1,3 +1,7 @@
+## 2026-10-17 - ThreadSpire: your die glows when you hover it
+
+- Hovering the die in the tray lights a gold glow around it (Nate). The glow sits outside the die, so the skin art is never washed out, and it skips touch screens and the empty socket while the die is in flight.
+
 ## 2026-10-17 - ThreadSpire: the LoreMaster rolls from the Story window
 
 - **A die in the Story window (Nate).** The window covers the table, so the tray's die was out of reach while the LoreMaster worked in it. A die button now sits in its header beside Ask. It is the tray's own die: a click rolls the chosen type, a right-click opens the roll type at the pointer, and on a touch screen a tap chooses the type first. The same log entry, skins, Lucky Roll and hidden rolls apply.
