@@ -1,3 +1,7 @@
+## 2026-10-17 - ThreadSpire: the docked Story panel minimizes the runner band
+
+- Docking the Story window minimizes the scene runner band at the bottom to its pill, since the panel is where the LoreMaster reads (Nate). Undocking or closing the panel brings the band back as it was. Restored by hand while docked, it stays: the panel minimizes it once, not on every repaint. A band that was already minimized stays minimized.
+
 ## 2026-10-17 - ThreadSpire: overlays for the stream
 
 - **Three overlays on the stream view (Nate).** Map only hid the rail and the log, so viewers could not see who rolled what or how the party stood.
