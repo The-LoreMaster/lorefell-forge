@@ -6800,6 +6800,7 @@ function sessionSettingsGroup(){
   if (YT.loaded && YT.ready && YT.allowed) rows += setRow('YouTube', YT.connected ? 'Your channel is connected: a session video\u2019s link brings its captions straight into a recap.' : (YT.loaded && !YT.ready ? 'The room\u2019s YouTube keys are not set yet.' : 'Connect your channel once, and a session video\u2019s link brings its captions into a recap.'),
     YT.connected ? setBtn('Update a video', 'vidOpen()') + setBtn('Tidy old videos', 'tidyOpen()') + setBtn('Disconnect', 'ytDisconnect()') : setBtn('Connect', 'ytConnect()'));
   rows += setRow('Test the emails', 'Sends one to you alone, to see how it reads.', setBtn('Recap', 'emailTest(\'recap\')') + setBtn('Reminder', 'emailTest(\'reminder\')'));
+  rows += setRow('End the session', 'Files what happened this session in the Journal, then offers the recap, the rest between sessions and the next date.', setBtn('End the session', 'sessEndOpen()'));
   rows += setRow('Recaps', SESS.recaps.length ? (SESS.recaps.length + ' sent. Write one from the Journal.') : 'Write one from the Journal, from your notes only.', (SESS.recaps.length ? setBtn('Read', 'recapList()') : '') + setBtn('Write', 'recapOpen()'));
   rows += setRow('Stream view', 'A window that follows this table for capture: the players\u2019 view without the fog, or everything.', setBtn('Copy link', 'streamCopy()'));
   return setGroup('Sessions', rows);
@@ -6855,6 +6856,152 @@ function sessionRemindToggle(){
   var off = !SESS.remindersOff; SESS.remindersOff = off; refreshWinBody();
   tsAsk('TS_REMINDERS_OFF', { off:off }).then(function(r){ if (!r || !r.ok){ SESS.remindersOff = !off; refreshWinBody(); } }).catch(function(){ SESS.remindersOff = !off; refreshWinBody(); });
 }
+/* ---- the session's record, and End the session ----
+   Nothing kept a whole session (Nate, 2026-10-17): the log is trimmed to its last lines and
+   the recap read only the Journal. So the LoreMaster's table keeps a running record as play
+   goes: the scenes run, the beats reached, Fellmarks and who rolled them, Lore Points, who went
+   down, the foes that fell, rests, Fatigue gained and the marks. It begins with the first thing
+   logged after the last session ended and rides the saved board like the marks, so a reload or
+   another device keeps it. It leaves out what the players never see: hidden rolls and the
+   LoreMaster's own log lines. A record left idle for twelve hours is set aside, never thrown
+   away, and offered for filing at the next End the session.
+   End the session (the table drawer, or Settings, Sessions) files it in the Journal as one
+   entry, then offers the recap, the rest between sessions and the next session's date, each a
+   choice. Only the LoreMaster's press ends it, and the Lorekeeper is never offered it. */
+var SESS_IDLE = 12 * 3600000, _sessLoaded = false, _sessDirty = false, SESSEND = null;
+function sessRecOn(){ return isLM() && !isKeeper() && !S.stream && !!S.campaignId && _sessLoaded; }
+function sessRecNew(at){ return { start:at, lastAt:at, scenes:[], beats:{}, fellmarks:[], strikes:0, lore:[], downs:[], fallen:{}, rests:[], more:[], fat0:{}, fat1:{}, seen:{} }; }
+function sessRecTake(R, e, t){
+  if (e.lmOnly) return;
+  if (e.kind === 'roll'){
+    if (e.hidden) return;
+    R.lastAt = Math.max(R.lastAt, t);
+    if (e.n === 6) R.fellmarks.push({ who:e.who || 'Someone', on:rollLabel(e.rollType), at:t });
+    else if (e.n === 1) R.strikes++;
+    return;
+  }
+  if (e.kind !== 'sys' && e.kind !== 'say') return;
+  R.lastAt = Math.max(R.lastAt, t);
+  if (e.kind !== 'sys') return;
+  var txt = String(e.html || e.text || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim(); if (!txt) return;
+  if (/\bgrants? \d+ Lore Points?\b/.test(txt)) R.lore.push(txt);
+  else if (/ goes down\.$/.test(txt)) R.downs.push(txt.replace(/ goes down\.$/, ''));
+  else if (/calls a rest|\brested\b|kept watch|Camp Kettle/.test(txt)) R.rests.push(txt);
+  else if (/reaches level|levels? up|Lore Drop/i.test(txt)) R.more.push(txt);
+}
+function sessRecTick(){
+  if (!sessRecOn()) return;
+  var last = S.sessLastEnd || 0, R = S.sessRec, now = Date.now();
+  /* a record nobody ended, idle for half a day, is set aside for the next End the session */
+  if (R && now - (R.lastAt || R.start) > SESS_IDLE){ S.sessRecLeft = R; R = S.sessRec = null; _sessDirty = true; }
+  (S.log || []).forEach(function(e){
+    var t = logTime(e); if (!t || t <= last || !e.id) return;
+    if (R && R.seen[e.id]) return;
+    if (!R){ if (now - t > SESS_IDLE) return; R = S.sessRec = sessRecNew(t); }
+    if (t < R.start) return;
+    R.seen[e.id] = 1; _sessDirty = true;
+    sessRecTake(R, e, t);
+  });
+  if (!R) { if (_sessDirty){ _sessDirty = false; schedulePush(); } return; }
+  var sc = S.scene;
+  if (sc && sc.id){
+    var ls = R.scenes[R.scenes.length - 1];
+    if (!ls || ls.id !== sc.id){ R.scenes.push({ id:sc.id, name:sc.name || 'A scene', at:now }); _sessDirty = true; }
+    var b = momBeatNow();
+    if (b){ var bl = R.beats[sc.id] = R.beats[sc.id] || []; if (bl.indexOf(b) < 0){ bl.push(b); R.lastAt = now; _sessDirty = true; } }
+    (sc.foes || []).forEach(function(f){
+      if (f && f.id && (f.maxVit || 0) > 0 && (f.curVit || 0) <= 0 && !R.fallen[f.id]){ R.fallen[f.id] = f.name || 'A foe'; _sessDirty = true; }
+    });
+    (sc.fell || []).forEach(function(p){
+      var cid = String(p.charId || p.id || ''); if (!cid) return;
+      var d = null; try { d = declareFor(cid); } catch(x){}
+      var r = (d && d.gear && d.gear.fatigue) || 0, nm = p.name || 'A Fell';
+      if (!R.fat0[cid]){ R.fat0[cid] = { name:nm, r:r }; _sessDirty = true; }
+      if (!R.fat1[cid] || R.fat1[cid].r !== r){ R.fat1[cid] = { name:nm, r:r }; _sessDirty = true; }
+    });
+  }
+  var ks = Object.keys(R.seen); if (ks.length > 800) ks.slice(0, ks.length - 600).forEach(function(k){ delete R.seen[k]; });
+  if (_sessDirty){ _sessDirty = false; schedulePush(); }
+}
+setInterval(function(){ try { sessRecTick(); } catch(e){} }, 3000);
+/* no saved board ever arrives for a brand new adventure, so the record starts on its own */
+setTimeout(function(){ _sessLoaded = true; }, 20000);
+function sessClock(t){ try { return new Date(t).toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' }); } catch(e){ return ''; } }
+function sessDay(t){ try { return new Date(t).toLocaleDateString(undefined, { weekday:'long', month:'long', day:'numeric' }); } catch(e){ return ''; } }
+/* the record as the Journal keeps it: plain lines, a heading word on each */
+function sessRecText(R, end){
+  var L = [], uniq = function(a){ var s = {}; return a.filter(function(x){ if (s[x]) return false; s[x] = 1; return true; }); };
+  L.push('Session record: ' + advName() + ', ' + sessDay(R.start) + ', ' + sessClock(R.start) + ' to ' + sessClock(end));
+  if (R.scenes.length) L.push('Scenes: ' + uniq(R.scenes.map(function(s){ return s.name; })).join(', '));
+  var bt = R.scenes.filter(function(s, i, a){ return a.map(function(x){ return x.id; }).indexOf(s.id) === i; })
+    .map(function(s){ var b = R.beats[s.id] || []; return b.length ? s.name + ' (' + b.join(', ') + ')' : ''; }).filter(Boolean);
+  if (bt.length) L.push('Beats reached: ' + bt.join('. '));
+  if (R.fellmarks.length || R.strikes){
+    var by = {}; R.fellmarks.forEach(function(f){ (by[f.who] = by[f.who] || []).push(f.on); });
+    L.push('Fellmarks: ' + (R.fellmarks.length ? Object.keys(by).map(function(w){ return w + ' (' + by[w].join(', ') + ')'; }).join(', ') : 'none')
+      + (R.strikes ? '. Fellstrikes: ' + R.strikes : ''));
+  }
+  if (R.lore.length) L.push('Lore Points: ' + R.lore.join(' '));
+  if (R.downs.length) L.push('Went down: ' + uniq(R.downs).join(', '));
+  var fa = Object.keys(R.fallen).map(function(k){ return R.fallen[k]; });
+  if (fa.length) L.push('Foes that fell: ' + fa.join(', '));
+  if (R.rests.length) L.push('Rests: ' + R.rests.join(' '));
+  var fg = Object.keys(R.fat1).map(function(k){ var a = R.fat0[k] || { r:0 }, b = R.fat1[k]; return b.r > a.r ? b.name + ' +' + (b.r - a.r) + ' (rank ' + b.r + ')' : ''; }).filter(Boolean);
+  if (fg.length) L.push('Fatigue gained: ' + fg.join(', '));
+  var mk = (S.marks || []).filter(function(m){ return m.at >= R.start && m.at <= end; });
+  if (mk.length) L.push('Marks: ' + mk.map(function(m){ return sessClock(m.at) + ' ' + m.name + (m.beat ? ', ' + m.beat : '') + (momTags(m).length ? ' (' + momTagWords(m) + ')' : ''); }).join('. '));
+  if (R.more.length) L.push('Also: ' + R.more.join(' '));
+  return L.join('\n');
+}
+function sessEndOpen(){ if (keeperNo()) return; if (!isLM()) return; try { sessRecTick(); } catch(e){} SESSEND = null; sessEndPaint(); }
+function sessEndPaint(){
+  var R = S.sessRec, left = S.sessRecLeft, h = '<h3 class="tsm-title">End the session</h3>';
+  if (SESSEND && SESSEND.filed){
+    var restOpen = !!(S.rest && S.rest.open && S.rest.between);
+    h += '<p class="lc-p">Filed in the Journal: the session from ' + esc(sessClock(SESSEND.start)) + ' to ' + esc(sessClock(SESSEND.end)) + '.</p>'
+      + '<p class="tsm-note">Each of these is your choice. Nothing else happens on its own.</p>'
+      + '<div class="tsm-row" style="justify-content:flex-start;flex-wrap:wrap">'
+      + '<button class="tsm-btn" onclick="sessRecap()">Write the recap from it</button>'
+      + '<button class="tsm-btn ghost" onclick="sessRest()"' + (restOpen || S.mode === 'combat' ? ' disabled' : '') + '>' + (restOpen ? 'The rest between sessions is under way' : 'Call the rest between sessions') + '</button>'
+      + '<button class="tsm-btn ghost" onclick="sessionEdit()">Set the next session</button></div>'
+      + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="SESSEND=null;tsCloseModal()">Done</button></div>';
+    tsModal(h, true); return;
+  }
+  if (!R && !left){
+    h += '<p class="lc-p">Nothing has happened at this table since the last session ended.</p><div class="tsm-row"><button class="tsm-btn" onclick="tsCloseModal()">Close</button></div>';
+    tsModal(h); return;
+  }
+  var now = Date.now();
+  if (left) h += '<p class="tsm-note">An earlier session, ' + esc(sessDay(left.start)) + ', was never ended. It is filed first, as its own entry.</p>';
+  if (R) h += '<p class="tsm-note">This session began at ' + esc(sessClock(R.start)) + '. This is what goes in the Journal, as one entry you can edit there:</p>'
+    + '<div class="tsm-inp" style="white-space:pre-wrap;max-height:42vh;overflow:auto;font-size:.92rem;line-height:1.45">' + esc(sessRecText(R, now)) + '</div>';
+  h += '<p class="tsm-note">The players see nothing of this. Close the window and the record keeps going.</p>'
+    + '<div class="tsm-row"><button class="tsm-btn ghost" onclick="tsCloseModal()">Not yet</button><button class="tsm-btn" onclick="sessEndGo()">End the session</button></div>';
+  tsModal(h, true);
+}
+function sessEndGo(){
+  if (!isLM() || keeperNo()) return;
+  var now = Date.now(), R = S.sessRec, left = S.sessRecLeft;
+  S.journal = S.journal || [];
+  if (left){ S.journal.push({ id:'j' + (now - 1), ts:left.lastAt || left.start, kind:'session', from:left.start, to:left.lastAt || left.start, text:sessRecText(left, left.lastAt || left.start) }); S.sessRecLeft = null; }
+  var start = R ? R.start : (left ? left.start : now);
+  if (R) S.journal.push({ id:'j' + now, ts:now, kind:'session', from:R.start, to:now, text:sessRecText(R, now) });
+  journalSave();
+  S.sessPrev = { start:start, end:now };
+  S.sessLastEnd = now; S.sessRec = null;
+  schedulePush();
+  pushLog({ kind:'sys', lmOnly:true, html:'The session is filed in the Journal.' }); applyRemoteState({ log:S.log });
+  SESSEND = { filed:true, start:start, end:now };
+  if (S.openSection === 'journal') try { openWin('journal'); } catch(e){}
+  sessEndPaint();
+}
+function sessRest(){ restCallBetween(); sessEndPaint(); }
+/* the recap opens on this session's Journal entries, the record among them, and drafts at once */
+function sessRecap(){
+  SESSEND = null; recapOpen(); if (!isLM()) return;
+  RECAP.range = 'session'; recapPaint();
+  if (recapEntries('session').length) recapDraft();
+}
 /* ---- the recap ---- */
 var RECAP = { range:'last', draft:'', title:'Session recap', busy:false, msg:'', to:null };
 function recapEntries(range){
@@ -6864,6 +7011,7 @@ function recapEntries(range){
   if (range === 'today'){ var d = new Date(now); d.setHours(0, 0, 0, 0); since = d.getTime(); }
   if (range === 'week') since = Date.now() - 7 * 86400000;
   if (range === 'all') since = 0;
+  if (range === 'session') since = (S.sessPrev && S.sessPrev.start) || since;
   if (range === 'none') return [];
   if (range === 'one') return all.filter(function(e){ return e.id === RECAP.one; });
   return all.filter(function(e){ return (e.ts || 0) >= since; });
@@ -6895,7 +7043,7 @@ function recapPaint(){
   var opt = function(v, l){ return '<option value="' + v + '"' + (RECAP.range === v ? ' selected' : '') + '>' + l + '</option>'; };
   var h = '<h3 class="tsm-title">Write a recap</h3>'
     + '<label class="tsm-lbl" for="rcRange">From your Journal</label><select class="tsm-inp" id="rcRange" onchange="RECAP.range=this.value;recapPaint()">'
-    + opt('none', 'Nothing, just what I write') + opt('one', 'One entry') + (SESS.recaps.length ? opt('last', 'Since the last recap') : '') + opt('today', 'Today') + opt('week', 'The last 7 days') + opt('all', 'Everything') + '</select>'
+    + opt('none', 'Nothing, just what I write') + opt('one', 'One entry') + (S.sessPrev ? opt('session', 'This session') : '') + (SESS.recaps.length ? opt('last', 'Since the last recap') : '') + opt('today', 'Today') + opt('week', 'The last 7 days') + opt('all', 'Everything') + '</select>'
     + (RECAP.range === 'one' ? '<label class="tsm-lbl" for="rcOne">The entry</label><select class="tsm-inp" id="rcOne" onchange="RECAP.one=this.value;recapPaint()">'
         + (S.journal || []).slice().sort(function(a, b){ return (b.ts || 0) - (a.ts || 0); }).map(function(e){ var d = new Date(e.ts || 0), t = String(e.text || '').replace(/\s+/g, ' ');
             return '<option value="' + esc(e.id) + '"' + (RECAP.one === e.id ? ' selected' : '') + '>' + esc(d.toLocaleDateString(undefined, { month:'short', day:'numeric' }) + ', ' + d.toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' }) + ': ' + (t.length > 70 ? t.slice(0, 70) + '\u2026' : t)) + '</option>'; }).join('') + '</select>' : '')
@@ -7721,6 +7869,7 @@ function tableMenu(btn){
     + row('<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4v8l5.6 5.6"/></svg>', 'Clocks', nC ? nC + ' on the table' : 'Countdowns you tick', 'clocksWin()', nC > 0)
     + row('<svg viewBox="0 0 24 24"><path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></svg>', 'Sounds', nS ? nS + ' on this map' : 'Heard by distance on the map', 'soundsWin()', false)
     + row('<svg viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/><path d="M4 20h16"/></svg>', 'Vote', S.vote && S.vote.open ? 'Open, the audience is voting' : 'Let the audience decide', 'voteWin()', !!(S.vote && S.vote.open))
+    + row('<svg viewBox="0 0 24 24"><path d="M5 4v16M5 5h11l-2.5 3.5L16 12H5"/><path d="M14 19h6"/></svg>', 'End the session', S.sessRec ? 'Running since ' + sessClock(S.sessRec.start) + '. File it in the Journal' : 'File the session in the Journal', 'sessEndOpen()', false)
     + (wide ? grp('The reader') + '<div class="tbm-look">' + lmLookRows() + '</div>' : '');
   document.body.appendChild(m);
   var r = btn.getBoundingClientRect(); m.style.left = Math.max(8, Math.min(innerWidth - m.offsetWidth - 8, r.left)) + 'px'; m.style.top = (r.bottom + 6 + m.offsetHeight > innerHeight - 8 ? Math.max(8, r.top - 6 - m.offsetHeight) : r.bottom + 6) + 'px';
@@ -13172,6 +13321,7 @@ function sharedSnapshot(){
     vote: isLM() && !isKeeper() ? (S.vote || null) : undefined,
     retellPick: isLM() && !isKeeper() ? (S.retellPick || null) : undefined,
     marks: isLM() && !isKeeper() ? (S.marks || []) : undefined,
+    sess: isLM() && !isKeeper() && _sessLoaded ? { rec:S.sessRec || null, last:S.sessLastEnd || 0, prev:S.sessPrev || null, left:S.sessRecLeft || null } : undefined,
     ytDrafts: isLM() && !isKeeper() ? (S.ytDrafts || {}) : undefined,
     ytDone: isLM() && !isKeeper() ? (S.ytDone || {}) : undefined,
     moments: isLM() && !isKeeper() ? (S.moments || {}) : undefined,
@@ -13516,6 +13666,8 @@ function applyRemoteSnapshot(snap){
   if (snap.vote !== undefined && (!isLM() || S.stream || !S.vote)) S.vote = snap.vote;
   if (snap.retellPick !== undefined && isLM() && !S.retellPick && !(snap.retellPick && snap.retellPick.cid && S.campaignId && !sameId(snap.retellPick.cid, S.campaignId))) S.retellPick = snap.retellPick;
   if (Array.isArray(snap.marks) && isLM() && !(S.marks && S.marks.length)) S.marks = snap.marks;
+  /* the session's record comes back once, from the first saved board this table reads */
+  if (isLM() && !_sessLoaded){ _sessLoaded = true; if (snap.sess){ S.sessRec = snap.sess.rec || null; S.sessLastEnd = snap.sess.last || 0; S.sessPrev = snap.sess.prev || null; S.sessRecLeft = snap.sess.left || null; } }
   if (snap.ytDrafts && isLM() && !(S.ytDrafts && Object.keys(S.ytDrafts).length)) S.ytDrafts = snap.ytDrafts;
   if (snap.ytDone && isLM() && !(S.ytDone && Object.keys(S.ytDone).length)) S.ytDone = snap.ytDone;
   if (snap.moments && isLM() && !(S.moments && Object.keys(S.moments).length)) S.moments = snap.moments;

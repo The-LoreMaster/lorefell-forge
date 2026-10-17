@@ -1,3 +1,9 @@
+## 2026-10-17 - ThreadSpire: End the session, and a record of it
+
+- **A running record (Nate).** The LoreMaster's table keeps a record of the session as it is played: the scenes run, the beats reached, Fellmarks and who rolled them, Fellstrikes, Lore Points given, who went down, the foes that fell, rests, Fatigue gained and the marks. It starts with the first thing logged after the last session ended and rides the saved board, so a reload keeps it. Hidden rolls and the LoreMaster's own log lines stay out of it. A record left idle for twelve hours is set aside and filed first at the next End the session, never lost.
+- **End the session** (the table drawer, and Settings, Sessions) shows the record, then files it in the Journal as one entry. After that it offers, each as a choice: write the recap from it (the recap opens on This session and drafts at once), call the rest between sessions, and set the next session. Closing the window midway loses nothing.
+- Only the LoreMaster's press ends a session. Players see nothing of it, and the Lorekeeper is not offered it.
+
 ## 2026-10-17 - ThreadSpire: marks without YouTube
 
 - **Marking never needs YouTube (Nate).** Mark (M, or the star on the runner) works for the LoreMaster in every session, streamed or not, with or without a connected channel. Each mark keeps its time, its scene and the beat in front of the LoreMaster.
