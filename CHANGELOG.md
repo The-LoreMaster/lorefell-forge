@@ -1,3 +1,8 @@
+## 2026-10-17 - ThreadSpire: the lobby button stays, and sends everyone back
+
+- The gold lobby button over the die no longer goes once everyone is brought in (Nate). It dims while everyone is at the table and turns gold while they wait in the lobby. Dim, its menu offers See it, Set the lobby and Send everyone to the lobby, so the lobby is one tap away mid-session. A reload within three hours of bringing everyone in still keeps them at the table, as before.
+- Checked in Chromium at 1440x900 as the LoreMaster: brought in, the button dims, Send everyone to the lobby puts them back and lights it. `docs/` and `embeds/` alike.
+
 ## 2026-10-17 - ThreadSpire: the lobby is a button, and the LoreVault chevron is live
 
 - **No lobby banner (Nate).** The pill across the top of the lobby (Players' view, Threadwalk, Set the lobby, Bring them in, Back to the map) and the floating "Everyone is in the lobby" bar on the map are gone. In their place is one gold lobby button, the size of the runner's icon buttons. In the lobby it sits under the fold button. On the map it stands over the die while everyone waits, and it goes once they are brought in. Either one opens a small menu, the same look as The table menu, with what can be done from there: Threadwalk or See it, Set the lobby, Bring them in, and Back to the map. A lorekeeper never sees it, as before.
