@@ -3200,6 +3200,12 @@ body.stream #beatPic{ display:none; }
 .na-cover #hoPrev img{ width:120px; height:80px; object-fit:cover; border-radius:8px; }
 .pt-open{ margin-left:6px; padding:2px 8px; border:1px solid #c9a84c; border-radius:6px; background:none; color:#e8cf86; font-family:Cinzel,serif; font-size:.56rem; letter-spacing:.06em; cursor:pointer; pointer-events:auto; }
 #playToasts .pt-toast{ pointer-events:auto; }
+.lg-held{ position:relative; overflow:hidden; }
+.lg-undo{ font-family:'Barlow Condensed',sans-serif; font-size:.9rem; letter-spacing:.08em; text-transform:uppercase; color:var(--gold,#d8bc6a); background:transparent; border:1px solid var(--gold,#d8bc6a); border-radius:999px; padding:4px 12px; cursor:pointer; }
+.lg-undo:hover{ background:var(--gold,#d8bc6a); color:#0a1124; }
+.lg-wait{ position:absolute; left:0; bottom:0; height:2px; width:100%; background:var(--gold,#d8bc6a); transform-origin:left; animation:lgWait 6s linear forwards; }
+@keyframes lgWait{ from{ transform:scaleX(1); } to{ transform:scaleX(0); } }
+@media (prefers-reduced-motion: reduce){ .lg-wait{ animation:none; } }
 #mhud #mboard{ border:1px solid var(--gold); border-radius:5px; color:var(--gold); font-family:Cinzel,serif; font-size:.6rem; letter-spacing:.1em; padding:5px 7px; flex:none; background:none; min-height:32px; }
 
 /* the log: the box full wide, Say, and a gear */
@@ -15640,6 +15646,8 @@ setTimeout(function(){ try { if (typeof ensureSheet === 'function') ensureSheet(
     document.addEventListener('keydown', function(e){
       var t = e.target;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      /* the Story window covers the table: its keys are its own, never the hidden deck's or the table's */
+      if (typeof SW !== 'undefined' && SW.open) return;
       if (e.key === 'ArrowRight'){ e.preventDefault(); if (isLM() && typeof lmStep === 'function') lmStep(1); }
       else if (e.key === 'ArrowLeft'){ e.preventDefault(); if (isLM() && typeof lmStep === 'function') lmStep(-1); }
       /* Left and right walk the deck, so up and down open and shut the card in front of
@@ -21463,11 +21471,42 @@ function loreGrantGo(){
   var amt = Math.max(1, parseInt((document.getElementById('lgAmt') || {}).value, 10) || 0);
   var to = [].slice.call(document.querySelectorAll('.lg-c')).filter(function(c){ return c.checked; }).map(function(c){ return c.value; });
   if (!to.length || !amt) return;
-  S.loreGrants = (S.loreGrants || []).concat([{ id:'lg' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), to:to, amount:amt, at:Date.now() }]).slice(-60);
   var names = to.map(function(cid){ var p = (S.party || []).filter(function(x){ return x.charId === cid; })[0]; return p ? (p.charName || p.name) : 'a Fell'; });
-  pushLog({ kind:'sys', html:'The LoreMaster grants ' + amt + ' Lore Point' + (amt === 1 ? '' : 's') + ' to ' + names.map(esc).join(', ') + '.' });
-  applyRemoteState({ log:S.log }); schedulePush(); tsCloseModal();
+  /* A grant waits a few seconds before it goes, with a Take back on it. Once it reaches a
+     player's sheet it is added there for good, so taking it back means it never left: nothing
+     reaches the table, the log or any sheet until the wait is over. A second grant sends the
+     first at once. */
+  loreGrantCommit();
+  var g = { id:'lg' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), to:to, amount:amt, at:Date.now() };
+  var line = amt + ' Lore Point' + (amt === 1 ? '' : 's') + ' to ' + names.map(esc).join(', ');
+  _lgHeld = { grant:g, line:line, timer:setTimeout(loreGrantCommit, LG_HOLD_MS) };
+  loreGrantToast(line);
+  tsCloseModal();
 }
+var _lgHeld = null, LG_HOLD_MS = 6000;
+function loreGrantCommit(){
+  var h = _lgHeld; if (!h) return;
+  _lgHeld = null; clearTimeout(h.timer); loreGrantToastDone();
+  h.grant.at = Date.now();
+  S.loreGrants = (S.loreGrants || []).concat([h.grant]).slice(-60);
+  pushLog({ kind:'sys', html:'The LoreMaster grants ' + h.line + '.' });
+  applyRemoteState({ log:S.log }); schedulePush();
+}
+function loreGrantTakeBack(){
+  var h = _lgHeld; if (!h) return;
+  _lgHeld = null; clearTimeout(h.timer); loreGrantToastDone();
+  playToast('Taken back: ' + h.line + '. No one received it.', 'Lore');
+}
+function loreGrantToast(line){
+  var box = document.getElementById('playToasts'); if (!box){ box = document.createElement('div'); box.id = 'playToasts'; document.body.appendChild(box); }
+  loreGrantToastDone();
+  var el = document.createElement('div'); el.className = 'pt-toast lg-held'; el.id = 'lgHeld';
+  el.innerHTML = '<span class="pt-tag">Lore</span><span class="pt-text">Granting ' + line + '</span><button class="lg-undo" onclick="loreGrantTakeBack()">Take back</button><i class="lg-wait"></i>';
+  box.appendChild(el);
+}
+function loreGrantToastDone(){ var el = document.getElementById('lgHeld'); if (el) el.remove(); }
+/* leaving the table mid-wait sends the grant rather than losing it */
+window.addEventListener('pagehide', function(){ try { loreGrantCommit(); } catch(e){} });
 /* a player's table hands its Fell's grants to the sheet, which takes each only once */
 setInterval(function(){
   try {
