@@ -1,3 +1,7 @@
+## 2026-10-17 - ThreadSpire: picking a stage lays its map picture too
+
+- `stageRestore` now sets the table's map picture from the stage's map. A map that is not on the shelf is painted from the table's picture, so picking a stage left the last stage's map under the new stage's tokens (Nate, The Ashen Hands). Found while repairing the scenes the stage bug had copied The Mourning House into: picking the right stage in such a scene once rebinds it for good.
+
 ## 2026-10-17 - ThreadSpire: a scene switch no longer brings the last scene's stage along
 
 - **The bug (Nate, The Ashen Hands).** Switching to a scene with no layout of its own restored the stage that scene was last tied to. The active stage is the adventure's, so that was usually the very stage just left: the map, the tokens and the picture stayed while the Story moved on, and the next switch saved the new scene's board into that stage.
