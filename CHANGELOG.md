@@ -1,3 +1,7 @@
+## 2026-10-17 - The SagaForge's vault test is retired with it
+
+- `saga-forge.test.js` no longer checks `sagaCanon.js` against the vault. The SagaForge is retired (Nate), so the file is no longer kept in step, and the check failed `npm run checks` whenever the vault sat beside the forge. The rest of its tests stay, as its code does.
+
 ## 2026-10-17 - The Anexanum: a History tied to an adventure
 
 - **Tied to an adventure (Nate).** Step 1 of a History has a Tied to an adventure picker listing the LoreMaster's own ThreadSpire adventures (None by default). The tie is kept in the room under the History's own key (`h:<history>:adv`), apart from its drafts, so it survives sending and dropping drafts, and a History picked up later is tied again.

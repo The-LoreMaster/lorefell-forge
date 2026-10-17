@@ -4,7 +4,6 @@
  *
  *   node threadspire/tests/saga-forge.test.js
  */
-const fs = require('fs');
 const path = require('path');
 const { folderFiles, buildPack } = require('../../scripts/adventureFromVault.js');
 const P = require('../../velo/backend/sagaPrompt.js');
@@ -18,12 +17,7 @@ function check(name, ok, detail) {
 }
 
 console.log('saga-forge: the canon bundle');
-const vault = path.resolve(__dirname, '..', '..', '..', 'lorefell-fellguide');
-if (fs.existsSync(vault)) {
-  const { build } = require('../../scripts/sagaCanonFromVault.js');
-  const now = fs.readFileSync(path.join(__dirname, '..', '..', 'velo', 'backend', 'sagaCanon.js'), 'utf8');
-  check('velo/backend/sagaCanon.js matches the vault (run scripts/sagaCanonFromVault.js if not)', build(vault) === now, 'stale');
-} else console.log('  skip  no vault beside the forge');
+// The SagaForge is retired (Nate, 2026-10-17), so sagaCanon.js is no longer kept in step with the vault.
 const meta = P.meta();
 check('it offers every world and the fifteen questions in three rounds', meta.worlds.length > 30 && meta.questions.length === 15 && [1, 2, 3].every((r) => meta.questions.some((q) => q.round === r)), meta.worlds.length + ' worlds');
 
