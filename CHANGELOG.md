@@ -1,3 +1,8 @@
+## 2026-10-17 - ThreadSpire: the LoreMaster rolls from the Story window
+
+- **A die in the Story window (Nate).** The window covers the table, so the tray's die was out of reach while the LoreMaster worked in it. A die button now sits in its header beside Ask. It is the tray's own die: a click rolls the chosen type, a right-click opens the roll type at the pointer, and on a touch screen a tap chooses the type first. The same log entry, skins, Lucky Roll and hidden rolls apply.
+- **The dice show above it.** `#stage` is fixed, so nothing inside it can rise above the window. While the window is open, `swDiceLift` moves the flat dice (`#dieField`) and the roll type picker up to the body, and moves them back when it closes. The 3D dice, their glow and the Fellmark flash already live on the body and are raised with `body.sw-open`.
+
 ## 2026-10-17 - The SagaForge's vault test is retired with it
 
 - `saga-forge.test.js` no longer checks `sagaCanon.js` against the vault. The SagaForge is retired (Nate), so the file is no longer kept in step, and the check failed `npm run checks` whenever the vault sat beside the forge. The rest of its tests stay, as its code does.
