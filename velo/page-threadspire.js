@@ -235,7 +235,9 @@ $w.onReady(async function () {
 
   // Ask the adventure. The Ask window sends TS_ASK with the question and the adventure as text,
   // and the answer streams back from the site's /api/ask (lorefell-site functions/api/ask.js)
-  // as TS_ASK_CHUNK while it is written, then TS_RESULT with the whole text.
+  // as TS_ASK_CHUNK while it is written, then TS_RESULT with the whole text. The rulebook pages
+  // the site sent along (its X-Ask-Sources header) go first as TS_ASK_SOURCES, so the window
+  // links only to those.
   async function askStream(msg) {
     const reply = (ok, data, error) => embed.postMessage({ type: 'TS_RESULT', reqId: msg.reqId, ok, data, error });
     let res;
@@ -249,6 +251,9 @@ $w.onReady(async function () {
       reply(false, null, err);
       return;
     }
+    let sources = [];
+    try { sources = JSON.parse(decodeURIComponent(res.headers.get('X-Ask-Sources') || '%5B%5D')) || []; } catch (e) { sources = []; }
+    embed.postMessage({ type: 'TS_ASK_SOURCES', reqId: msg.reqId, sources });
     const r = await readClaude(res, (t) => embed.postMessage({ type: 'TS_ASK_CHUNK', reqId: msg.reqId, t }));
     if (r.error) reply(false, { text: r.text }, r.error === 'busy' ? 'Ask is busy. Wait a minute and try again.' : 'Ask stopped: ' + r.error.slice(0, 200));
     else if (r.dropped) reply(false, { text: r.text }, 'The connection to Ask dropped. Ask again.');
