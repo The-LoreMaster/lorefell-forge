@@ -1,3 +1,9 @@
+## 2026-10-17 - ThreadSpire: the lobby is a button, and the LoreVault chevron is live
+
+- **No lobby banner (Nate).** The pill across the top of the lobby (Players' view, Threadwalk, Set the lobby, Bring them in, Back to the map) and the floating "Everyone is in the lobby" bar on the map are gone. In their place is one gold lobby button, the size of the runner's icon buttons. In the lobby it sits under the fold button. On the map it stands over the die while everyone waits, and it goes once they are brought in. Either one opens a small menu, the same look as The table menu, with what can be done from there: Threadwalk or See it, Set the lobby, Bring them in, and Back to the map. A lorekeeper never sees it, as before.
+- **The LoreVault chevron (Nate).** The third chevron beside the LoreMaster's book is lit like the other two and opens the LoreVault (lorefell.com/lorevault/) in a new tab. ThreadSpire only. The site keeps the book unlinked (`LOREVAULT_LINKED` in lorefell-site).
+- Checked in Chromium at 1440x900 and at phone width, as the LoreMaster, in the lobby and on the map. `docs/` and `embeds/` alike.
+
 ## 2026-10-16 - The SagaForge, rebuilt from scratch (admin only)
 
 - **What it is.** A writing desk for a LoreMaster. They answer fifteen questions in three rounds, or roll any of them, a round, or all of them, and it writes a whole adventure with them a stage at a time: the spine, the people and foes, the outline, then every file in the vault's adventure format. Each stage is approved, edited or taken again with a note. Then it writes the files, scans them, reads them cold as a new LoreMaster, fixes what it finds, and sends the adventure to the LoreMaster's own list, where ThreadSpire opens it. Notes on one file or on the whole adventure rewrite only what they touch. The LoreMaster's own house rules ride on every request.
