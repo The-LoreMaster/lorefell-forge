@@ -10152,7 +10152,7 @@ function toolsOpen(){ var b = document.getElementById('mapTools'); return !!b &&
 function toolsToggle(){ var tg = document.getElementById('mtToggle'); if (tg) tg.click(); paintLmStrip(); try { toolsDock(); } catch(e){} }
 function lmToolsBtn(){ return lmIco('tools', 'Map tools. Right-click the toolbar to choose which show.', 'toolsToggle()', toolsOpen() ? 'on' : '', ' oncontextmenu="event.preventDefault();toolbarMenuAt(event.clientX,event.clientY)"'); }
 function lmIcoBtns(){
-  return (askOn() ? lmIco('ask', 'Ask a question about this adventure', 'askOpen()') : '')
+  return (askOn() ? lmIco('ask', 'Ask a question about this adventure or the rules', 'askOpen()') : '')
     + (momOn() ? '<button class="lmbtn lm-ico lm-mark" onclick="momentMark()" title="Mark a moment (M)" aria-label="Mark a moment">\u2726</button>' : '')
     + lmToolsBtn()
     + lmIco('fight', 'Begin combat', 'lmBeginCombat()')
@@ -23204,7 +23204,7 @@ function swPaint(){
   el.innerHTML = '<div class="sw-box' + (advSynced() ? ' synced' : '') + (side ? '' : ' noside') + (SW.pane === 'outline' && !SW.q.trim() ? ' m-outline' : ' m-page') + '">'
     + '<div class="sw-head"><button class="sw-ic sw-back" onclick="swPane(\'outline\')" title="Outline" aria-label="Outline"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h13"/></svg></button><span class="sw-h">Story</span><span class="sw-adv">' + esc((S.adventure && S.adventure.name) || '') + '</span>' + (advSynced() ? '<span class="sw-lock" title="Kept in the vault. Its scenes and beats change only there."><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Kept in the vault</span>'  : ((S.syncInfo && S.syncInfo.checkedOut) ? '<span class="sw-lock" title="Checked out to ThreadSpire. Save it to the vault or discard the changes when you are done."><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.5-2"/></svg>Checked out</span>' : '')) + '<span class="sw-grow"></span>'
     + '<input id="swSearch" class="sw-search" placeholder="Search the story" value="' + esc(SW.q) + '" oninput="SW.q=this.value;swPaint()">'
-    + (askOn() ? '<button class="lmbtn" onclick="askOpen()" title="Ask a question about this adventure">Ask</button>' : '')
+    + (askOn() ? '<button class="lmbtn" onclick="askOpen()" title="Ask a question about this adventure or the rules">Ask</button>' : '')
     + '<span class="sw-font"><button class="sw-ic" onclick="swFont(-10)" title="Smaller beat text" aria-label="Smaller beat text"><b>A</b><i>\u2212</i></button><span id="swFontV" title="Beat text size">' + (+TABLE_PREFS.storyFont || 100) + '%</span><button class="sw-ic" onclick="swFont(10)" title="Larger beat text" aria-label="Larger beat text"><b>A</b><i>+</i></button></span>'
     + '<button class="sw-ic" onclick="swFull()" title="' + (SW.full ? 'Back to a window' : 'Full screen') + '" aria-label="Full screen"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>'
     + '<button class="sw-ic" onclick="swClose()" title="Close" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>'
@@ -26353,13 +26353,16 @@ function tpLmRender(){
    The LoreMaster asks a question about the adventure, at the table or while writing it, and the
    answer comes back with links to the beats it came from. The whole adventure goes along as
    text, every beat tagged with its id, together with what has happened in play. With the box
-   ticked, every History on lorefell.com is read as well. The site's /api/ask holds the key and
-   streams the answer back through the page code (velo/page-threadspire.js, TS_ASK). */
+   ticked, every History on lorefell.com is read as well. The passages of the FellGuide and the
+   LoreVault that bear on the question always go along, so a rules question is answered from the
+   books, and the pages they came from arrive first (TS_ASK_SOURCES): an answer links to those and
+   no others. The site's /api/ask holds the key and streams the answer back through the page code
+   (velo/page-threadspire.js, TS_ASK). */
 var ASK = { open:false, busy:false, histories:false, log:[] };
 /* Ask calls Claude, which costs money, so it is for admins only for now (Nate, 2026-10-17). The
    site refuses anyone else too; this only keeps the button from showing where it would fail. */
 function askOn(){ if (!isLM() || S.stream) return false; try { syncInfoLoad(); } catch(e){} return !!(S.syncInfo && S.syncInfo.admin); }
-function askBtn(){ return askOn() ? '<button class="lmbtn" onclick="askOpen()" title="Ask a question about this adventure">Ask</button>' : ''; }
+function askBtn(){ return askOn() ? '<button class="lmbtn" onclick="askOpen()" title="Ask a question about this adventure or the rules">Ask</button>' : ''; }
 function askBeatsOf(sc){ return (sc && (sc.beats && sc.beats.length ? sc.beats : sc.entries)) || []; }
 function askFindBeat(id){
   var hit = null;
@@ -26422,12 +26425,13 @@ function askOpen(){
   setTimeout(function(){ var t = document.getElementById('askQ'); if (t) t.focus(); }, 30);
 }
 function askClose(){ ASK.open = false; var el = document.getElementById('askWin'); if (el) el.className = ''; }
-/* an answer's words, with its citations turned into links. A beat that is not in this adventure
-   is dropped, never shown, so a link can only ever lead to something real. */
-function askAnswerHtml(text, streaming){
+/* an answer's words, with its citations turned into links. A beat that is not in this adventure,
+   or a rulebook page that was not sent with the question, is dropped, never shown, so a link can
+   only ever lead to something real. */
+function askAnswerHtml(text, streaming, sources){
   var t = String(text || '');
   if (streaming) t = t.replace(/\{\{[^}]*$/, '');
-  var html = '', last = 0, re = /\{\{([bh]):([^}]+)\}\}/g, m;
+  var html = '', last = 0, re = /\{\{([bhr]):([^}]+)\}\}/g, m;
   while ((m = re.exec(t))){
     html += beatBodyHtml(t.slice(last, m.index));
     last = re.lastIndex;
@@ -26435,7 +26439,11 @@ function askAnswerHtml(text, streaming){
     if (m[1] === 'b'){
       var hit = askFindBeat(ref); if (!hit) continue;
       html += '<a class="ask-cite" onclick="askShowBeat(\'' + esc(String(ref)).replace(/'/g, '&#39;') + '\')" title="' + esc((hit.scene.name || '') + (hit.beat.title ? ' · ' + hit.beat.title : '')) + '">' + esc(hit.beat.title || hit.scene.name || 'Beat') + '</a>';
-    } else if (/^\/lore\/histories\/[a-z0-9\-\/]*$/.test(ref)){
+    } else if (m[1] === 'r'){
+      var src = (sources || []).filter(function(x){ return x && x.u === ref; })[0];
+      if (!src || !/^\/(fellguide|lorevault)\/[a-z0-9\-\/]*$/.test(ref)) continue;
+      html += '<a class="ask-cite" href="https://www.lorefell.com' + esc(ref) + '" target="_blank" rel="noopener" title="' + esc(src.b + ': ' + src.t) + '">' + esc(src.t) + '</a>';
+    } else if (m[1] === 'h' && /^\/lore\/histories\/[a-z0-9\-\/]*$/.test(ref)){
       html += '<a class="ask-cite" href="https://www.lorefell.com' + esc(ref) + '" target="_blank" rel="noopener">' + esc(ref.replace(/\/$/, '').split('/').pop().replace(/-/g, ' ')) + '</a>';
     }
   }
@@ -26446,12 +26454,12 @@ function askPaint(){
   var keepQ = (document.getElementById('askQ') || {}).value || '';
   var log = ASK.log.map(function(x){
     return '<div class="ask-q">' + esc(x.q) + '</div>'
-      + '<div class="ask-a' + (x.err ? ' err' : '') + (x.busy ? ' busy' : '') + '">' + (x.err ? esc(x.err) + (x.text ? '<br><br>' : '') : '') + askAnswerHtml(x.text, x.busy) + '</div>';
+      + '<div class="ask-a' + (x.err ? ' err' : '') + (x.busy ? ' busy' : '') + '">' + (x.err ? esc(x.err) + (x.text ? '<br><br>' : '') : '') + askAnswerHtml(x.text, x.busy, x.sources) + '</div>';
   }).join('');
   el.innerHTML = '<div class="ask-head"><span>Ask the adventure</span><span class="ask-grow"></span>'
     + (ASK.log.length ? '<button class="lmbtn" onclick="ASK.log=[];askPaint()" title="Clear the answers">Clear</button>' : '')
     + '<button class="ask-x" onclick="askClose()" title="Close" aria-label="Close">✕</button></div>'
-    + '<div class="ask-log" id="askLog">' + (log || '<div class="ask-empty">Ask anything about this adventure: who knows what, where a clue is, what happens if the Fell refuse. The answer links to the beats it came from. Tap one to read it.</div>') + '</div>'
+    + '<div class="ask-log" id="askLog">' + (log || '<div class="ask-empty">Ask anything about this adventure: who knows what, where a clue is, what happens if the Fell refuse. Ask about a rule too, and the answer comes from the FellGuide and the LoreVault. The answer links to the beats and pages it came from. Tap one to read it.</div>') + '</div>'
     + '<div class="ask-foot"><textarea id="askQ" placeholder="What does the Sovereign know about the pocket dimension?" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();askSend();}">' + esc(keepQ) + '</textarea>'
     + '<div class="ask-row"><label><input type="checkbox"' + (ASK.histories ? ' checked' : '') + ' onchange="ASK.histories=this.checked"> Also search The Histories</label>'
     + '<button class="lmbtn gold" onclick="askSend()"' + (ASK.busy ? ' disabled' : '') + '>' + (ASK.busy ? 'Asking' : 'Ask') + '</button></div></div>';
@@ -26471,6 +26479,11 @@ function askSend(){
    .catch(function(e){ var m = String((e && e.message) || e); item.err = m === 'bridge timeout' ? 'That took too long. Ask again.' : m; })
    .then(function(){ item.busy = false; ASK.busy = false; askPaint(); });
 }
+window.addEventListener('message', function(ev){
+  var d = ev && ev.data; if (!d || d.type !== 'TS_ASK_SOURCES') return;
+  var item = ASK.log.filter(function(x){ return x.reqId === d.reqId; })[0]; if (!item) return;
+  item.sources = Array.isArray(d.sources) ? d.sources : []; askPaint();
+});
 window.addEventListener('message', function(ev){
   var d = ev && ev.data; if (!d || d.type !== 'TS_ASK_CHUNK') return;
   var item = ASK.log.filter(function(x){ return x.reqId === d.reqId; })[0]; if (!item) return;

@@ -1,3 +1,10 @@
+## 2026-10-17 - ThreadSpire: Ask reads the FellGuide and the LoreVault
+
+- **Rules questions (Nate).** Ask now answers a question about the rules from the books. The site sends the passages of the FellGuide and the LoreVault that bear on each question along with the adventure (lorefell-site `functions/api/ask.js`), and the answer cites the pages it used. A cited page is a link that opens it on lorefell.com, named by its title.
+- **Only what was sent.** The page code passes on the pages the site sent (`X-Ask-Sources`, as `TS_ASK_SOURCES`), and the window links only to those, as it already did for beats. A made-up page shows nothing.
+- The window says so: the button reads "Ask a question about this adventure or the rules", and the empty window mentions rules.
+- `threadspire/tests/ask-cite.test.js` (in `npm run checks`) runs the shipped `askAnswerHtml`. `docs/` and `embeds/` alike.
+
 ## 2026-10-17 - ThreadSpire: the roll type opens on a right-click, and the LoreVault wears the LoreMaster's screen
 
 - **The die (Nate).** Hovering the die no longer opens the roll type. That picker came up under the lobby button. A right-click on the die opens it at the pointer, as a right-click on the map already did, and a left click still rolls. A touch screen still taps the die for the picker, as before. Everyone at the table, not only the LoreMaster.
