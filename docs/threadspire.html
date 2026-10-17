@@ -363,6 +363,7 @@ body.in-lobby #mhud, body.in-lobby #mrail{ z-index:62; }
    the size of the runner's icon buttons, its mark in gold. It opens the lobby menu. */
 .lb-set{ width:30px; height:30px; padding:0; border-radius:6px; border:1px solid var(--gold,#c9a84c); background:rgba(16,22,42,.9); color:var(--gold,#c9a84c); display:inline-flex; align-items:center; justify-content:center; cursor:pointer; text-shadow:none; }
 .lb-set svg{ width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+.lb-set.idle{ border-color:rgba(201,168,76,.35); color:#8a7448; }
 .lb-set:hover, .lb-set[aria-expanded="true"]{ background:rgba(201,168,76,.14); color:#f0d48a; } .lb-set:focus-visible{ outline:2px solid #c9a84c; outline-offset:2px; }
 #lobbyScreen .lb-set{ position:absolute; left:-39px; top:42px; }
 @media (max-width:640px){ #lobbyScreen .lb-set{ left:36px; top:-37px; } }
@@ -7817,7 +7818,8 @@ function lobbyMenu(btn){
       ? row('<svg viewBox="0 0 24 24"><path d="M4 12h16M14 6l6 6-6 6"/></svg>', 'Threadwalk', 'Choose the scene to go to', 'lobbyLook(false);lmScenePick()')
       : row('<svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>', 'See it', 'The lobby as the players see it', 'lobbyLook(true)'))
     + row('<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg>', 'Set the lobby', 'Its title, line, picture, music and weather', (look ? 'lobbyLook(false);' : '') + 'lobbyWin()')
-    + (lobbyOn() ? row('<svg viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg>', 'Bring them in', 'Everyone comes to the table', (look ? 'lobbyLook(false);' : '') + 'lobbySet(false)') : '')
+    + (lobbyOn() ? row('<svg viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg>', 'Bring them in', 'Everyone comes to the table', (look ? 'lobbyLook(false);' : '') + 'lobbySet(false)')
+      : row(LOBBY_ICON.replace(' aria-hidden="true"', ''), 'Send everyone to the lobby', 'They wait there until you bring them in', 'lobbySet(true)'))
     + (look ? row('<svg viewBox="0 0 24 24"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg>', 'Back to the map', 'Work while they wait', 'lobbyLook(false)') : '');
   document.body.appendChild(m); btn.setAttribute('aria-expanded', 'true');
   var r = btn.getBoundingClientRect(); m.style.left = Math.max(8, Math.min(innerWidth - m.offsetWidth - 8, r.left)) + 'px'; m.style.top = (r.bottom + 6 + m.offsetHeight > innerHeight - 8 ? Math.max(8, r.top - 6 - m.offsetHeight) : r.bottom + 6) + 'px';
@@ -7825,13 +7827,15 @@ function lobbyMenu(btn){
   setTimeout(function(){ document.addEventListener('pointerdown', function off(e){ if (!m.contains(e.target) && !btn.contains(e.target)){ lobbyMenuClose(); document.removeEventListener('pointerdown', off, true); } }, true); }, 0);
   m.addEventListener('keydown', function(e){ if (e.key === 'Escape'){ lobbyMenuClose(); btn.focus(); } });
 }
-/* on the map, the button stands over the die, centred on it, and goes once everyone is brought in */
+/* on the map, the button stands over the die, centred on it: gold while everyone waits in the
+   lobby, dim once they are brought in, and the way to send them back (Nate, 2026-10-17) */
 function lobbyLmBar(){
-  var on = lobbyOn() && isLM() && !S.stream && !isKeeper() && !window._lobbyLook;
+  var on = !!S.campaignId && isLM() && !S.stream && !isKeeper() && !window._lobbyLook;
   var b = document.getElementById('lobbyBtn'), die = document.getElementById('dieSlot');
   var dr = die && die.getBoundingClientRect();
   if (!on || !dr || !dr.width){ if (b){ lobbyMenuClose(); b.remove(); } return; }
   if (!b){ document.body.insertAdjacentHTML('beforeend', lobbySetBtn('lobbyBtn')); b = document.getElementById('lobbyBtn'); }
+  var idle = !lobbyOn(); if (b.classList.contains('idle') !== idle){ b.classList.toggle('idle', idle); b.title = idle ? 'The lobby: everyone is at the table' : 'The lobby: everyone is waiting in it'; }
   /* the die grows while a roll is awaited; the button holds to its resting place */
   var tray = document.getElementById('tray'), w = die.offsetWidth || 36;
   var tr = tray ? tray.getBoundingClientRect() : dr;
