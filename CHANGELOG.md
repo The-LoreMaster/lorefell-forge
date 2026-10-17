@@ -1,3 +1,9 @@
+## 2026-10-17 - ThreadSpire: saves never overwrite each other or fail in silence
+
+- **The board and the Journal no longer undo each other (Nate).** They share one row, and each save wrote back the whole row it had read. A Journal save put back the board as it was when the save began, and a board save put back an old Journal. `campaignview.web.js` now reads the row again just before it writes (`cvWriteOwn`) and changes only its own fields: the Journal save the journal, the board save and Restore the snapshot and version. The version never goes backwards. The database has no transactions, so this narrows the gap to one read rather than closing it. The site's tests reproduce both overlaps and pass.
+- **A Journal save that fails says so.** Every Journal save goes through `journalSave()`, which marks the save mark Not saved (the Journal) and writes one line in the log at most every 30 seconds. The notes stay on the screen, and the next note saves the whole Journal again.
+- **A board save that throws says so.** `pushState` and `schedulePush` swallowed any error while packing the table, and saving stopped without a word. Now the save mark reads Not saved (the table), the log says so, the error goes to the console, and a send that never went no longer holds the table's pulls.
+
 ## 2026-10-17 - ThreadSpire: your die glows when you hover it
 
 - Hovering the die in the tray lights a gold glow around it (Nate). The glow sits outside the die, so the skin art is never washed out, and it skips touch screens and the empty socket while the die is in flight.
