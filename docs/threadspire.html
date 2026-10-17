@@ -2537,6 +2537,27 @@ body.drop-ready #map::after{ content:'Drop images to add them as maps'; position
 
 /* ---- the Story window on a phone: full screen, the outline and the page take turns ---- */
 .sw-back{ display:none; }
+/* ---- docked beside the map (Nate, 2026-10-17) ----
+   The window becomes a panel on the right edge, with no backdrop, so the map, its tokens, the
+   dice and the players stay in sight. The panel is narrow, so the outline and the page take
+   turns as they do on a phone. Its left edge drags to resize. Under 900 px wide it is a full
+   screen window again. */
+#storyWin.dock{ inset:0 0 0 auto; width:var(--sw-dock-w, 520px); background:transparent; align-items:stretch; justify-content:stretch; }
+#storyWin.dock .sw-box{ position:relative; width:100%; height:100%; height:100dvh; border-radius:0; border:0; border-left:1.5px solid var(--gold); box-shadow:-18px 0 40px rgba(0,0,0,.45); }
+#storyWin.dock .sw-grip{ display:block; }
+.sw-grip{ display:none; position:absolute; left:-5px; top:0; bottom:0; width:10px; cursor:ew-resize; z-index:3; touch-action:none; }
+.sw-grip:hover, .sw-grip.drag{ background:linear-gradient(90deg, transparent 3px, rgba(216,188,106,.55) 3px, rgba(216,188,106,.55) 6px, transparent 6px); }
+#storyWin.dock .sw-head{ flex-wrap:wrap; gap:8px; padding:12px 14px; }
+#storyWin.dock .sw-head .sw-adv{ display:none; } #storyWin.dock .sw-back{ display:flex; } #storyWin.dock .sw-box.m-outline .sw-back{ display:none; }
+#storyWin.dock .sw-search{ order:5; width:100%; flex:1 1 100%; }
+#storyWin.dock .sw-head .sw-ic[aria-label="Full screen"]{ display:none; }
+#storyWin.dock .sw-cols, #storyWin.dock .sw-box.noside .sw-cols{ grid-template-columns:1fr; overflow-y:auto; }
+#storyWin.dock .sw-box.m-page .sw-outline{ display:none; }
+#storyWin.dock .sw-box.m-outline .sw-main, #storyWin.dock .sw-box.m-outline .sw-side{ display:none !important; }
+#storyWin.dock .sw-outline{ border-right:0; overflow:visible; padding:10px 12px 24px; }
+#storyWin.dock .sw-main{ overflow:visible; }
+#storyWin.dock .sw-side{ display:flex !important; border-left:0; border-top:1px solid var(--line); overflow:visible; padding:12px 16px 20px; }
+#storyWin.dock .sw-kids{ grid-template-columns:repeat(2, 1fr); }
 @media (max-width:700px){
   #storyWin .sw-box, #storyWin.full .sw-box{ width:100vw; height:100vh; height:100dvh; border-radius:0; border:0; }
   .sw-head{ flex-wrap:wrap; gap:8px; padding:calc(10px + env(safe-area-inset-top, 0px)) 12px 10px; }
@@ -7836,6 +7857,7 @@ function lobbySet(on){
 function playArea(){
   var L = 0, R = innerWidth;
   try { document.querySelectorAll('#rail button, #rail .rail-item, #hudWrap, #lhud').forEach(function(el){ var r = el.getBoundingClientRect(); if (r.width && r.left > innerWidth * .55 && r.left < R) R = r.left; }); } catch(e){}
+  try { var dk = document.querySelector('#storyWin.dock'); if (dk && dk.style.display !== 'none'){ var dl = dk.getBoundingClientRect().left; if (dl > 0 && dl < R) R = dl; } } catch(e){}
   if (R >= innerWidth || innerWidth <= 640) R = innerWidth;
   return { left:L, right:innerWidth - R };
 }
@@ -23210,6 +23232,18 @@ function sceneCopyGo(){
    whole story. A window by default, full screen on a button. It writes to the shared story,
    as everything else here does. */
 var SW = { open:false, kind:'scene', id:'', q:'', full:false, drag:null, pane:'page', shut:null, beatOpen:{} };
+/* docked beside the map: kept per account with the table's other choices; a full screen window under 900 px */
+function swDocked(){ return !!TABLE_PREFS.storyDock && window.innerWidth > 900; }
+function swDockW(){ var w = +TABLE_PREFS.storyDockW || 520; return Math.max(360, Math.min(Math.round(window.innerWidth * .7), w)); }
+function swDock(){ TABLE_PREFS.storyDock = !TABLE_PREFS.storyDock; tablePrefsSave(); swPaint(); try { playCenter(); } catch(e){} }
+function swGripDown(e){
+  var g = e.currentTarget, el = document.getElementById('storyWin'); if (!el) return;
+  e.preventDefault(); g.classList.add('drag'); try { g.setPointerCapture(e.pointerId); } catch(x){}
+  var move = function(ev){ var w = Math.max(360, Math.min(Math.round(window.innerWidth * .7), window.innerWidth - ev.clientX)); el.style.setProperty('--sw-dock-w', w + 'px'); TABLE_PREFS.storyDockW = w; };
+  var up = function(){ g.classList.remove('drag'); g.removeEventListener('pointermove', move); g.removeEventListener('pointerup', up); g.removeEventListener('pointercancel', up); tablePrefsSave(); try { playCenter(); } catch(x){} };
+  g.addEventListener('pointermove', move); g.addEventListener('pointerup', up); g.addEventListener('pointercancel', up);
+}
+window.addEventListener('resize', function(){ if (SW.open && TABLE_PREFS.storyDock){ var el = document.getElementById('storyWin'); if (el && el.classList.contains('dock') !== swDocked()) swPaint(); } });
 /* acts and sessions folded in the outline, kept per adventure on this screen */
 function swShutLoad(){ var k = 'ts_sw_shut_' + (S.campaignId || 'demo'); if (!SW.shut || SW.shut._k !== k){ var o = {}; try { o = JSON.parse(localStorage.getItem(k) || '{}'); } catch(e){} o._k = k; SW.shut = o; } return SW.shut; }
 function swShutSave(){ try { var o = Object.assign({}, SW.shut); delete o._k; localStorage.setItem(SW.shut._k, JSON.stringify(o)); } catch(e){} }
@@ -23227,7 +23261,7 @@ function swOpen(){
 }
 /* Run this scene puts it on the table and steps the Story window aside, so the scene runs */
 function swRunScene(id){ if (keeperNo()) return; setActiveScene(id); swClose(); try { paintRails(); } catch(e){} }
-function swClose(){ SW.open = false; document.body.classList.remove('sw-open'); swDiceLift(false); var el = document.getElementById('storyWin'); if (el) el.style.display = 'none'; }
+function swClose(){ SW.open = false; document.body.classList.remove('sw-open'); swDiceLift(false); var el = document.getElementById('storyWin'); if (el) el.style.display = 'none'; try { playCenter(); } catch(e){} }
 /* the LoreMaster's die in the Story window (Nate, 2026-10-17): the tray's own die, so a click rolls the
    chosen type and a right-click opens the roll type at the pointer. A touch screen chooses the type
    first, under the button, as the tray's die does on a phone. */
@@ -23442,7 +23476,8 @@ function swPaint(){
   if (!SW.open || !isLM()) return;
   var el = document.getElementById('storyWin');
   if (!el){ el = document.createElement('div'); el.id = 'storyWin'; document.body.appendChild(el); el.addEventListener('click', function(e){ if (e.target === el) swClose(); }); }
-  el.style.display = 'flex'; el.classList.toggle('full', SW.full); document.body.classList.add('sw-open'); swDiceLift(true);
+  var dock = swDocked();
+  el.style.display = 'flex'; el.classList.toggle('full', SW.full && !dock); el.classList.toggle('dock', dock); if (dock) el.style.setProperty('--sw-dock-w', swDockW() + 'px'); document.body.classList.add('sw-open'); swDiceLift(true);
   var node = swNode(); if (!node && SW.kind !== 'adv'){ SW.kind = 'adv'; node = S.adventure; }
   var main = '', side = '';
   var syncNote = syncBannerHtml();
@@ -23452,11 +23487,13 @@ function swPaint(){
   var keepQ = document.activeElement && document.activeElement.id === 'swSearch';
   var outlineScroll = (el.querySelector('.sw-outline') || {}).scrollTop || 0, mainScroll = (el.querySelector('.sw-main') || {}).scrollTop || 0;
   el.innerHTML = '<div class="sw-box' + (advSynced() ? ' synced' : '') + (side ? '' : ' noside') + (SW.pane === 'outline' && !SW.q.trim() ? ' m-outline' : ' m-page') + '">'
+    + '<div class="sw-grip" onpointerdown="swGripDown(event)" title="Drag to resize" aria-hidden="true"></div>'
     + '<div class="sw-head"><button class="sw-ic sw-back" onclick="swPane(\'outline\')" title="Outline" aria-label="Outline"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h13"/></svg></button><span class="sw-h">Story</span><span class="sw-adv">' + esc((S.adventure && S.adventure.name) || '') + '</span>' + (advSynced() ? '<span class="sw-lock" title="Kept in the vault. Its scenes and beats change only there."><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Kept in the vault</span>'  : ((S.syncInfo && S.syncInfo.checkedOut) ? '<span class="sw-lock" title="Checked out to ThreadSpire. Save it to the vault or discard the changes when you are done."><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.5-2"/></svg>Checked out</span>' : '')) + '<span class="sw-grow"></span>'
     + '<input id="swSearch" class="sw-search" placeholder="Search the story" value="' + esc(SW.q) + '" oninput="SW.q=this.value;swPaint()">'
     + (askOn() ? '<button class="lmbtn" onclick="askOpen()" title="Ask a question about this adventure or the rules">Ask</button>' : '')
     + '<button class="sw-ic sw-die" onclick="swDieTap(this)" oncontextmenu="tpMenu(event)" title="Roll the die. Right-click to choose what it rolls." aria-label="Roll the die"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="8.5" cy="8.5" r="1.1"/><circle cx="12" cy="12" r="1.1"/><circle cx="15.5" cy="15.5" r="1.1"/></svg></button>'
     + '<span class="sw-font"><button class="sw-ic" onclick="swFont(-10)" title="Smaller beat text" aria-label="Smaller beat text"><b>A</b><i>\u2212</i></button><span id="swFontV" title="Beat text size">' + (+TABLE_PREFS.storyFont || 100) + '%</span><button class="sw-ic" onclick="swFont(10)" title="Larger beat text" aria-label="Larger beat text"><b>A</b><i>+</i></button></span>'
+    + (window.innerWidth > 900 ? '<button class="sw-ic sw-dockb' + (dock ? ' on' : '') + '" onclick="swDock()" title="' + (dock ? 'Back to a window over the map' : 'Dock beside the map') + '" aria-label="' + (dock ? 'Undock' : 'Dock beside the map') + '" aria-pressed="' + dock + '"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M14 4v16"/>' + (dock ? '<path d="M10 9l-3 3 3 3"/>' : '<path d="M7 9l3 3-3 3"/>') + '</svg></button>' : '')
     + '<button class="sw-ic" onclick="swFull()" title="' + (SW.full ? 'Back to a window' : 'Full screen') + '" aria-label="Full screen"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>'
     + '<button class="sw-ic" onclick="swClose()" title="Close" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>'
     + '<div class="sw-cols"><nav class="sw-outline">' + swOutline() + '</nav><main class="sw-main">' + main + '</main>' + (side ? '<aside class="sw-side">' + side + '</aside>' : '') + '</div></div>';
