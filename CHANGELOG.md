@@ -1,3 +1,9 @@
+## 2026-10-17 - ThreadSpire: dock the Story window beside the map
+
+- **Docked (Nate).** A dock button in the Story window's header turns it into a panel on the right edge, with no backdrop, so the map, its tokens, the dice and the players stay in sight. Drag its left edge to resize it. The button again puts it back as a window over the map, and full screen is still there undocked.
+- Docked, the outline and the page take turns, as on a phone, and the runner band centres on the table left of the panel. The die in its header rolls as before.
+- The choice and the width are kept per account with the table's other settings (`storyDock`, `storyDockW` in `tablePrefsClean`, `velo/backend/characters.web.js`). Under 900 px wide the window is full screen as before and the dock button is not shown.
+
 ## 2026-10-17 - ThreadSpire: End the session, and a record of it
 
 - **A running record (Nate).** The LoreMaster's table keeps a record of the session as it is played: the scenes run, the beats reached, Fellmarks and who rolled them, Fellstrikes, Lore Points given, who went down, the foes that fell, rests, Fatigue gained and the marks. It starts with the first thing logged after the last session ended and rides the saved board, so a reload keeps it. Hidden rolls and the LoreMaster's own log lines stay out of it. A record left idle for twelve hours is set aside and filed first at the next End the session, never lost.

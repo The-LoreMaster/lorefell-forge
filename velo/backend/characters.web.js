@@ -967,6 +967,9 @@ function tablePrefsClean(p) {
   if (p && p.readerFit === true) out.readerFit = true;
   const sf = Number(p && p.storyFont);
   if (isFinite(sf) && sf >= 70 && sf <= 170) out.storyFont = Math.round(sf);
+  if (p && p.storyDock === true) out.storyDock = true;
+  const dw = Number(p && p.storyDockW);
+  if (isFinite(dw) && dw >= 300 && dw <= 2000) out.storyDockW = Math.round(dw);
   return out;
 }
 export const myTablePrefs = webMethod(Permissions.Anyone, async () => {
